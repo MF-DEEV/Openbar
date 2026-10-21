@@ -304,6 +304,13 @@ enum ClaudeHookTests {
         suite.expect(ClaudeTerminalScripts.focus(tty: "/dev/ttys004").contains("set selected of theTab to true"),
                      "opening selects that tab")
         suite.expect(ClaudeTerminalBridge.shell(of: getpid()) == getppid(), "a session's shell is its parent process")
+        let open = ["/Users/me/Projekty/Nexus-Code", "/Users/me/Projekty"]
+        suite.expect(ClaudeIDELock.openFolder(cwd: "/Users/me/Projekty/Nexus-Code/app", folders: open) == "/Users/me/Projekty/Nexus-Code",
+                     "Open asks the IDE for the deepest open folder holding the session")
+        suite.expect(ClaudeIDELock.openFolder(cwd: "/Users/me/Projekty-old/x", folders: open) == nil,
+                     "and never for one not open there, which would open a new window")
+        suite.expect(ClaudeIDELock.windowHint(cwd: "/Users/me/Projekty/Nexus-Code", folders: open) == "Nexus-Code",
+                     "the window is named after that folder")
 
         // Two IDE windows listen; only the one holding the terminal says yes.
         let folder = URL(fileURLWithPath: "/tmp/vs-bridge-\(getpid())")

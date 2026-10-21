@@ -489,11 +489,18 @@ enum ClaudeHostFocus {
             let result = AppleScriptRunner.run(ClaudeTerminalScripts.focus(tty: tty))
             return result.ok && result.output == "found" ? true : activate(ClaudeSessionHosts.terminal, window: nil)
         case .antigravity(let port):
+            let folders = port.map { ClaudeIDELock.folders(port: $0, homes: homes) } ?? []
+            // Antigravity brings forward the window that already has the
+            // session's folder open when asked to open that folder, with no
+            // permission needed. Only a folder that is open is asked for, so
+            // no new window ever opens.
+            let raised = ClaudeIDELock.openFolder(cwd: session.cwd, folders: folders).map(openInAntigravity) ?? false
+            // The extension then shows the session's own terminal in it.
             if let shell = ClaudeTerminalBridge.shell(of: session.pid) {
                 _ = ClaudeTerminalBridge.focus(shell: shell, folder: ClaudeTerminalBridge.folder())
             }
-            let folders = port.map { ClaudeIDELock.folders(port: $0, homes: homes) } ?? []
-            return activate(ClaudeSessionHosts.antigravity, window: ClaudeIDELock.windowHint(cwd: session.cwd, folders: folders))
+            return raised || activate(ClaudeSessionHosts.antigravity,
+                                      window: ClaudeIDELock.windowHint(cwd: session.cwd, folders: folders))
         case .app(let bundle):
             return activate(bundle, window: nil)
         case .unknown:
@@ -501,10 +508,26 @@ enum ClaudeHostFocus {
         }
     }
 
+    private static func openInAntigravity(_ folder: String) -> Bool {
+        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: ClaudeSessionHosts.antigravity) else {
+            return false
+        }
+        let process = Process()
+        process.executableURL = app.appending(path: ClaudeBridgeInstaller.cli)
+        process.arguments = [folder]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return false }
+        process.waitUntilExit()
+        return process.terminationStatus == 0
+    }
+
     /// Activates the app and, when Accessibility allows, raises its window
-    /// whose title names `window`.
+    /// whose title names `window`. The app comes forward first: activating it
+    /// afterwards would bring back the window that was in front.
     private static func activate(_ bundle: String, window hint: String?) -> Bool {
         guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first else { return false }
+        let activated = DispatchQueue.main.sync { app.activate() }
         if let hint, !hint.isEmpty, AXIsProcessTrusted() {
             let element = AXUIElementCreateApplication(app.processIdentifier)
             AXUIElementSetMessagingTimeout(element, 0.5)
@@ -518,12 +541,13 @@ enum ClaudeHostFocus {
                 }
                 if let match {
                     AXUIElementSetAttributeValue(match, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+                    AXUIElementSetAttributeValue(match, kAXMainAttribute as CFString, kCFBooleanTrue)
                     AXUIElementPerformAction(match, kAXRaiseAction as CFString)
                     AXUIElementSetAttributeValue(element, kAXFocusedWindowAttribute as CFString, match)
                 }
             }
         }
-        return DispatchQueue.main.sync { app.activate() }
+        return activated
     }
 }
 

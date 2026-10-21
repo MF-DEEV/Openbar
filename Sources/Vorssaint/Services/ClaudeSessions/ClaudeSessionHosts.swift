@@ -108,12 +108,16 @@ enum ClaudeIDELock {
         return []
     }
 
+    /// The folder open in the session's window that holds the session's
+    /// folder, the deepest one when several do; nil when none is open there.
+    static func openFolder(cwd: String, folders: [String]) -> String? {
+        folders.filter { cwd == $0 || cwd.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }.max { $0.count < $1.count }
+    }
+
     /// The window title to look for: the open folder holding the session's
     /// folder, or the session's folder itself.
     static func windowHint(cwd: String, folders: [String]) -> String {
-        let holding = folders.filter { cwd == $0 || cwd.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }
-            .max { $0.count < $1.count }
-        return ((holding ?? cwd) as NSString).lastPathComponent
+        ((openFolder(cwd: cwd, folders: folders) ?? cwd) as NSString).lastPathComponent
     }
 }
 
