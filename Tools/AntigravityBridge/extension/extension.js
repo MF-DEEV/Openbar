@@ -22,7 +22,9 @@ function activate(context) {
   fs.chmodSync(folder, 0o700);
   socketPath = path.join(folder, `${process.pid}.sock`);
   try { fs.unlinkSync(socketPath); } catch (_) {}
-  server = net.createServer((connection) => {
+  // A client may stop writing once its request is sent and still wait for
+  // the answer, so the connection stays open until the answer is written.
+  server = net.createServer({ allowHalfOpen: true }, (connection) => {
     let buffer = '';
     connection.setEncoding('utf8');
     connection.setTimeout(5000, () => connection.destroy());

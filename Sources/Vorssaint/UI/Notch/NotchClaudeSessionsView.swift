@@ -41,6 +41,9 @@ struct NotchClaudeSessionsView: View {
         .onDisappear {
             guard !preview else { return }
             NotchService.shared.setPageLayer(.sessions, close: nil)
+            // The island opens on the list again; a notice or the strip
+            // choose a session after the page appears.
+            service.focus(nil)
         }
     }
 

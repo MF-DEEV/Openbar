@@ -83,8 +83,8 @@ extension FeatureStrings {
 extension NotchClaudeSessionStrings {
     static let enUS = NotchClaudeSessionStrings(
         title: "Sessions",
-        summary: "Every running Claude Code session, what it’s doing, and its permission prompts.",
-        hubDescription: "See every Claude Code session running on this Mac in the Dynamic Island, what it’s doing and where, then answer permission prompts and reply without leaving what you’re on.",
+        summary: "Running Claude Code sessions and what each one needs from you.",
+        hubDescription: "See what each Claude Code session on this Mac is doing and in which folder, then answer its permission prompts and reply to it from the Dynamic Island.",
         settingsDescription: "Reads the state Claude Code keeps for each running session on this Mac. Prompts and replies stay unread unless you turn on previews, and nothing leaves your Mac.",
         emptyTitle: "No sessions running",
         emptyDetail: "Start Claude Code in Terminal or Antigravity and it shows up here.",
@@ -114,7 +114,7 @@ extension NotchClaudeSessionStrings {
         finishedAfterFormat: "Done after %@",
         liveActivity: "Show sessions beside the camera",
         autoExpand: "Open the island when a session needs you",
-        autoExpandHint: "Never takes over another page you have open.",
+        autoExpandHint: "It won’t replace a page you already have open.",
         contentPreview: "Show previews",
         contentPreviewHint: "Shows titles, commands, file names and Claude’s last reply. They stay in memory and are cleared when you turn this off.",
         hooksTitle: "Claude Code hooks",
@@ -128,7 +128,7 @@ extension NotchClaudeSessionStrings {
         sendFailed: "Couldn’t reach that terminal",
         sendWhileWaiting: "It’s waiting on a prompt now. Answer it first.",
         bridgeTitle: "Antigravity extension",
-        bridgeHint: "Replies typed in the island reach sessions in Antigravity through a small extension that ships with this app. It only shows a terminal or types into it when you ask.",
+        bridgeHint: "Replies to sessions in Antigravity go through a small extension included with this app. It shows a terminal or types into it only when you ask.",
         installBridge: "Install Extension",
         openFailed: "Couldn’t find that window")
 }

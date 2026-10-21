@@ -34,17 +34,16 @@ struct NotchClaudeSessionsSettingsControls: View {
 
     private var bridge: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SettingsRow(symbol: "terminal", title: text.bridgeTitle) {
-                HStack(spacing: 8) {
-                    if let installed = service.bridgeInstalled {
-                        Label(installed ? text.hooksInstalled : text.hooksMissing,
-                              systemImage: installed ? "checkmark.circle.fill" : "circle.dashed")
-                            .font(.caption)
-                            .foregroundStyle(installed ? .green : .secondary)
-                        if !installed { Button(text.installBridge) { service.installBridge() }.controlSize(.small) }
-                    } else {
-                        ProgressView().controlSize(.small)
+            SettingsRow(symbol: "terminal", title: text.bridgeTitle,
+                        caption: service.bridgeInstalled.map { $0 ? text.hooksInstalled : text.hooksMissing }) {
+                if let installed = service.bridgeInstalled {
+                    if !installed {
+                        Button(text.installBridge) { service.installBridge() }
+                            .controlSize(.small)
+                            .fixedSize()
                     }
+                } else {
+                    ProgressView().controlSize(.small)
                 }
             }
             Text(text.bridgeHint)
@@ -63,18 +62,15 @@ struct NotchClaudeSessionsSettingsControls: View {
 
     private var hooks: some View {
         VStack(alignment: .leading, spacing: 6) {
-            SettingsRow(symbol: "link", title: text.hooksTitle) {
-                HStack(spacing: 8) {
-                    if let installed = service.hooksInstalled {
-                        Label(installed ? text.hooksInstalled : text.hooksMissing,
-                              systemImage: installed ? "checkmark.circle.fill" : "circle.dashed")
-                            .font(.caption)
-                            .foregroundStyle(installed ? .green : .secondary)
-                        Button(installed ? text.removeHooks : text.installHooks) { service.installHooks(!installed) }
-                            .controlSize(.small)
-                    } else {
-                        ProgressView().controlSize(.small)
-                    }
+            // The state reads under the title, so the button keeps its whole name.
+            SettingsRow(symbol: "link", title: text.hooksTitle,
+                        caption: service.hooksInstalled.map { $0 ? text.hooksInstalled : text.hooksMissing }) {
+                if let installed = service.hooksInstalled {
+                    Button(installed ? text.removeHooks : text.installHooks) { service.installHooks(!installed) }
+                        .controlSize(.small)
+                        .fixedSize()
+                } else {
+                    ProgressView().controlSize(.small)
                 }
             }
             Text(text.hooksHint)
