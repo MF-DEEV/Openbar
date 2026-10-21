@@ -99,6 +99,16 @@ enum NotchClaudeSessionsSupport {
 
     static let replyLimit = 4000
 
+    /// ⌘Y allows and ⌘N denies, as in the dialogs that ask the same.
+    static func decision(key: String?, commandOnly: Bool) -> ClaudeHookMessage.Decision? {
+        guard commandOnly else { return nil }
+        switch key?.lowercased() {
+        case "y": return .allow
+        case "n": return .deny
+        default: return nil
+        }
+    }
+
     /// The reply as it goes to the terminal, or nil when nothing is left.
     static func reply(_ text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

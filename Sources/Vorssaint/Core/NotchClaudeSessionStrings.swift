@@ -19,6 +19,7 @@ struct NotchClaudeSessionStrings {
     let allow: String
     let alwaysAllow: String
     let deny: String
+    let answerInTerminal: String
     let open: String
     let send: String
     let replyPlaceholder: String
@@ -92,6 +93,7 @@ extension NotchClaudeSessionStrings {
         allow: "Allow",
         alwaysAllow: "Always",
         deny: "Deny",
+        answerInTerminal: "Answer this one in the terminal.",
         open: "Open",
         send: "Send",
         replyPlaceholder: "Reply to Claude…",

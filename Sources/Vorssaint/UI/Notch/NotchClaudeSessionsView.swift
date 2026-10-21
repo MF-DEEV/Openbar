@@ -98,56 +98,79 @@ struct NotchClaudeSessionRow: View {
     let open: () -> Void
 
     var body: some View {
-        Button(action: open) {
-            HStack(spacing: 10) {
-                NotchClaudeSessionBadge(phase: session.phase)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 5) {
-                        Text(session.project)
-                            .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white.opacity(0.95))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        if let branch = session.branch {
-                            Label(branch, systemImage: "arrow.triangle.branch")
-                                .labelStyle(NotchClaudeSessionInlineLabel())
-                                .font(.system(size: 10))
-                                .foregroundStyle(.secondary)
-                                .lineLimit(1)
-                                .truncationMode(.middle)
-                        }
-                        Spacer(minLength: 4)
-                        if let clock = NotchClaudeSessionFormat.clock(session, now: now) {
-                            Text(clock)
-                                .font(.system(size: 11, weight: .medium))
-                                .monospacedDigit()
-                                .foregroundStyle(session.phase.tint)
-                        }
+        HStack(spacing: 6) {
+            Button(action: open) {
+                HStack(spacing: 10) {
+                    NotchClaudeSessionBadge(phase: session.phase)
+                    summary
+                    if session.permission == nil {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.3))
+                            .accessibilityHidden(true)
                     }
-                    Text(NotchClaudeSessionFormat.activity(session, text: text))
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(session.phase.isWaiting ? session.phase.tint : .secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
                 }
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.3))
-                    .accessibilityHidden(true)
+                .padding(.leading, 11)
+                .padding(.trailing, session.permission == nil ? 11 : 0)
+                .frame(maxWidth: .infinity, minHeight: 46, maxHeight: 46)
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 11)
-            .frame(height: 46)
-            .modifier(NotchControlSurface(cornerRadius: 14))
-            .overlay {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .strokeBorder(session.phase.tint.opacity(session.phase.isWaiting ? 0.55 : 0), lineWidth: 1)
-                    .allowsHitTesting(false)
+            .buttonStyle(NotchButtonStyle(cornerRadius: 14, lifts: false))
+            .accessibilityLabel("\(session.project), \(text.phase(session.phase))")
+            .accessibilityValue(NotchClaudeSessionFormat.activity(session, text: text))
+            if session.permission != nil {
+                // A permission is answered from the list too, its command
+                // already on the line beside.
+                HStack(spacing: 5) {
+                    NotchClaudeDecisionButton(title: text.deny, symbol: "xmark", role: .deny, compact: true) {
+                        ClaudeSessionService.shared.decide(session.id, .deny)
+                    }
+                    NotchClaudeDecisionButton(title: text.allow, symbol: "checkmark", role: .allow, compact: true) {
+                        ClaudeSessionService.shared.decide(session.id, .allow)
+                    }
+                }
+                .padding(.trailing, 9)
             }
-            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
-        .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-        .accessibilityLabel("\(session.project), \(text.phase(session.phase))")
-        .accessibilityValue(NotchClaudeSessionFormat.activity(session, text: text))
+        .modifier(NotchControlSurface(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(session.phase.tint.opacity(session.phase.isWaiting ? 0.55 : 0), lineWidth: 1)
+                .allowsHitTesting(false)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+
+    private var summary: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 5) {
+                Text(session.project)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.95))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                if let branch = session.branch {
+                    Label(branch, systemImage: "arrow.triangle.branch")
+                        .labelStyle(NotchClaudeSessionInlineLabel())
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                Spacer(minLength: 4)
+                if let clock = NotchClaudeSessionFormat.clock(session, now: now) {
+                    Text(clock)
+                        .font(.system(size: 11, weight: .medium))
+                        .monospacedDigit()
+                        .foregroundStyle(session.phase.tint)
+                }
+            }
+            Text(NotchClaudeSessionFormat.activity(session, text: text))
+                .font(.system(size: 10.5))
+                .foregroundStyle(session.phase.isWaiting ? session.phase.tint : .secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+        }
     }
 }
 

@@ -24,6 +24,9 @@ final class ClaudeSessionService: ObservableObject {
     /// What the person is writing to each session, kept while the island closes.
     @Published var drafts: [String: String] = [:]
     let events = PassthroughSubject<ClaudeSessionEvent, Never>()
+    /// Whether Claude Code's settings hold this app's hooks; nil until checked.
+    @Published private(set) var hooksInstalled: Bool?
+    @Published private(set) var hookFailure: String?
 
     /// While a session works or waits, its files are read this often;
     /// otherwise the registry alone is checked a little less often.
@@ -51,6 +54,21 @@ final class ClaudeSessionService: ObservableObject {
     private var taskStamps: [String: Date] = [:]
     private var hosts: [Int32: ClaudeSessionHost] = [:]
     private var published: [ClaudeSession] = []
+    private var server: ClaudeHookServer?
+    /// Permission requests whose hook waits for the island's answer.
+    private var pending: [String: (connection: ClaudeHookServer.Connection, session: String, suggestions: Any?, since: Date)] = [:]
+    /// Claude Code gives up on a hook after its timeout; the island lets go first.
+    private static let permissionDeadline: TimeInterval = TimeInterval(ClaudeHookInstaller.permissionTimeout - 10)
+
+    static var bundleID: String { Bundle.main.bundleIdentifier ?? "com.vorssaint.utils" }
+
+    /// Where the hooks write. The app's own folder, unless its path is too
+    /// long for a socket.
+    static func socketPath(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> String {
+        let preferred = PrivateFileStore.containerURL?.appending(path: "claude-hooks.sock").path
+        if let preferred, ClaudeHookServer.fits(preferred) { return preferred }
+        return home.appending(path: ".vorssaint/\(bundleID).sock").path
+    }
 
     func syncWithPreferences() {
         let policy = NotchClaudeSessionsSupport.policy()
@@ -65,10 +83,13 @@ final class ClaudeSessionService: ObservableObject {
         }
         guard !running else { return }
         running = true
+        let socket = Self.socketPath(home: home)
         queue.async { [self] in
+            startServer(at: socket)
             schedule(Self.activeTick)
             refresh()
         }
+        checkHooks()
     }
 
     func stop() {
@@ -87,6 +108,11 @@ final class ClaudeSessionService: ObservableObject {
             taskStamps = [:]
             hosts = [:]
             published = []
+            // Hooks waiting for an answer go back to the terminal's prompt.
+            pending.values.forEach { $0.connection.finish() }
+            pending = [:]
+            server?.stop()
+            server = nil
             engine.ingest(records: [], now: Date.distantFuture)
         }
     }
@@ -105,20 +131,100 @@ final class ClaudeSessionService: ObservableObject {
         }
     }
 
-    /// Takes one hook event in, from the hook server's queue.
-    func receive(_ fact: ClaudeHookFact, transcript: String?) {
+    /// Answers the permission the session waits on, if its hook still waits.
+    func decide(_ id: String, _ decision: ClaudeHookMessage.Decision) {
         queue.async { [self] in
-            if let transcript, !transcript.isEmpty { transcripts[fact.sessionID] = transcript }
-            engine.ingest(hook: fact, now: Date())
+            guard let request = engine.permission(of: id)?.requestID, let waiting = pending.removeValue(forKey: request) else {
+                return
+            }
+            waiting.connection.finish(ClaudeHookMessage.reply(decision, suggestions: waiting.suggestions))
+            engine.resolvePermission(requestID: request)
+            engine.acknowledge(id, now: Date())
             publish(now: Date())
         }
     }
 
-    /// The person answered a permission, or its hook stopped waiting.
-    func resolvePermission(_ requestID: String) {
-        queue.async { [self] in
-            engine.resolvePermission(requestID: requestID)
-            publish(now: Date())
+    // MARK: Hooks
+
+    private func startServer(at path: String) {
+        guard server == nil else { return }
+        let created = ClaudeHookServer(path: path, queue: queue) { [weak self] payload, connection in
+            self?.receive(payload, from: connection)
+        }
+        server = created.start() ? created : nil
+    }
+
+    /// One hook event, on the queue.
+    private func receive(_ payload: Data, from connection: ClaudeHookServer.Connection) {
+        let now = Date()
+        let request = UUID().uuidString
+        guard let message = ClaudeHookMessage.decode(payload, requestID: request, now: now, policy: engine.policy) else {
+            return connection.finish()
+        }
+        if let transcript = message.transcript, !transcript.isEmpty { transcripts[message.fact.sessionID] = transcript }
+        if message.isPermissionRequest {
+            pending[request] = (connection, message.fact.sessionID, message.suggestions, now)
+            connection.onClose = { [weak self] in self?.release(request) }
+        } else {
+            connection.finish()
+        }
+        engine.ingest(hook: message.fact, now: now)
+        publish(now: now)
+    }
+
+    /// The hook stopped waiting.
+    private func release(_ request: String) {
+        pending[request] = nil
+        engine.resolvePermission(requestID: request)
+        publish(now: Date())
+    }
+
+    /// Lets go of hooks whose question was answered in the terminal, whose
+    /// hook went away, or that waited as long as Claude Code allows.
+    private func releaseSettled(now: Date) {
+        for (request, waiting) in pending {
+            let current = engine.permission(of: waiting.session)?.requestID == request
+            guard !current || waiting.connection.peerIsGone || now.timeIntervalSince(waiting.since) > Self.permissionDeadline
+            else { continue }
+            pending[request] = nil
+            waiting.connection.finish()
+            if current { engine.resolvePermission(requestID: request) }
+        }
+    }
+
+    func checkHooks() {
+        let url = ClaudeHookInstaller.settingsURL(home: home)
+        let command = ClaudeHookInstaller.command(socket: Self.socketPath(home: home), bundle: Self.bundleID)
+        actions.async {
+            let installed = (try? ClaudeHookInstaller.read(url)).map { ClaudeHookInstaller.isInstalled(in: $0, command: command) }
+            DispatchQueue.main.async { self.hooksInstalled = installed ?? false }
+        }
+    }
+
+    func installHooks(_ install: Bool) {
+        let url = ClaudeHookInstaller.settingsURL(home: home)
+        let bundle = Self.bundleID
+        let command = ClaudeHookInstaller.command(socket: Self.socketPath(home: home), bundle: bundle)
+        actions.async {
+            var failure: String?
+            do {
+                try ClaudeHookInstaller.update(url) { settings in
+                    install ? ClaudeHookInstaller.installing(into: settings, command: command, bundle: bundle)
+                        : ClaudeHookInstaller.removing(from: settings, bundle: bundle)
+                }
+            } catch let error as ClaudeHookInstaller.Failure {
+                switch error {
+                case .unreadable: failure = "settings.json isn’t valid JSON"
+                case .unwritable(let reason): failure = reason
+                case .busy: failure = "Claude Code kept changing settings.json"
+                }
+            } catch {
+                failure = error.localizedDescription
+            }
+            DispatchQueue.main.async {
+                self.hookFailure = failure
+                self.checkHooks()
+            }
         }
     }
 
@@ -171,6 +277,7 @@ final class ClaudeSessionService: ObservableObject {
             }
         }
         transcripts = transcripts.filter { ids.contains($0.key) }
+        releaseSettled(now: now)
         publish(now: now)
         let active = published.contains { $0.phase.isWorking || $0.phase.isWaiting }
         schedule(active ? Self.activeTick : Self.quietTick)

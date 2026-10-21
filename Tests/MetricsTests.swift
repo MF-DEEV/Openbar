@@ -122,6 +122,7 @@ struct MetricsTests {
             ("sessions", {
                 ClaudeSessionEngineTests.run(suite)
                 ClaudeSessionReaderTests.run(suite)
+                ClaudeHookTests.run(suite)
             }),
             ("features", {
                 FeatureCatalogTests.run(suite)

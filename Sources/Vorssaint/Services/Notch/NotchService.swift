@@ -1833,6 +1833,23 @@ final class NotchService: ObservableObject {
         return true
     }
 
+    /// ⌘Y allows and ⌘N denies the permission of the session whose page is
+    /// open, or of the first session waiting on one.
+    private func handleSessionKey(_ event: NSEvent) -> Bool {
+        guard selected == .sessions, !showingAppPanel, !showingSections, selectedMetric == nil,
+              let decision = NotchClaudeSessionsSupport.decision(
+                  key: event.charactersIgnoringModifiers,
+                  commandOnly: event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command)
+        else { return false }
+        let sessions = ClaudeSessionService.shared
+        let focused = sessions.focusedID.flatMap { id in sessions.sessions.first { $0.id == id } }
+        guard let target = focused ?? sessions.sessions.first(where: { $0.permission != nil }), target.permission != nil else {
+            return false
+        }
+        sessions.decide(target.id, decision)
+        return true
+    }
+
     /// The editor lives in the view, so the request goes out as a serial and
     /// the view reads which of the finder's actions it was for.
     private func requestScratchpadFind(_ action: NSTextFinder.Action) {
@@ -3708,6 +3725,7 @@ final class NotchService: ObservableObject {
                 }
                 if self.handleSectionKey(event) { return nil }
                 if self.handleScratchpadKey(event) { return nil }
+                if self.handleSessionKey(event) { return nil }
                 if self.handleClipboardPasteKey(event) { return nil }
             }
             if event.type == .keyDown, event.window === self.panel, self.selected == .tools, !self.showingAppPanel, !self.showingSections {

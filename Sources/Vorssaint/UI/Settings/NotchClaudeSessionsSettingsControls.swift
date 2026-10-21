@@ -6,6 +6,7 @@ import SwiftUI
 /// The Sessions page's options, under its row in the Dynamic Island settings.
 struct NotchClaudeSessionsSettingsControls: View {
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = ClaudeSessionService.shared
     @AppStorage(DefaultsKey.notchSessionsLiveActivity) private var liveActivity = true
     @AppStorage(DefaultsKey.notchSessionsAutoExpand) private var autoExpand = true
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
@@ -21,6 +22,39 @@ struct NotchClaudeSessionsSettingsControls: View {
             switchRow("waveform.path.ecg", text.liveActivity, isOn: $liveActivity)
             switchRow("rectangle.expand.vertical", text.autoExpand, caption: text.autoExpandHint, isOn: $autoExpand)
             switchRow("text.bubble", text.contentPreview, caption: text.contentPreviewHint, isOn: $previews)
+            Divider()
+            hooks
+        }
+        .onAppear { service.checkHooks() }
+    }
+
+    private var hooks: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SettingsRow(symbol: "link", title: text.hooksTitle) {
+                HStack(spacing: 8) {
+                    if let installed = service.hooksInstalled {
+                        Label(installed ? text.hooksInstalled : text.hooksMissing,
+                              systemImage: installed ? "checkmark.circle.fill" : "circle.dashed")
+                            .font(.caption)
+                            .foregroundStyle(installed ? .green : .secondary)
+                        Button(installed ? text.removeHooks : text.installHooks) { service.installHooks(!installed) }
+                            .controlSize(.small)
+                    } else {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+            }
+            Text(text.hooksHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, settingsRowTextInset)
+            if let failure = service.hookFailure {
+                Label(text.hooksFailed(failure), systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(.leading, settingsRowTextInset)
+            }
         }
     }
 

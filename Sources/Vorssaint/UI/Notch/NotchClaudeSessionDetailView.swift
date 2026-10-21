@@ -20,6 +20,7 @@ struct NotchClaudeSessionDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     header(now: context.date)
+                    if session.phase.isWaiting { NotchClaudeSessionPermissionCard(session: session, text: text, open: open) }
                     if let title = session.title {
                         Text(title)
                             .font(.system(size: 13, weight: .semibold))
@@ -82,15 +83,17 @@ struct NotchClaudeSessionDetailView: View {
             .compactMap { $0 }.joined(separator: " · ")
     }
 
-    private var openButton: some View {
-        Button {
-            service.openHost(session) { found in
-                openFailed = !found
-                if !found {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) { openFailed = false }
-                }
+    private func open() {
+        service.openHost(session) { found in
+            openFailed = !found
+            if !found {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { openFailed = false }
             }
-        } label: {
+        }
+    }
+
+    private var openButton: some View {
+        Button(action: open) {
             HStack(spacing: 4) {
                 Image(systemName: openFailed ? "exclamationmark.triangle.fill" : "arrow.up.forward.app")
                     .font(.system(size: 11, weight: .semibold))
@@ -209,5 +212,101 @@ struct NotchClaudeSessionDetailView: View {
             .font(.system(size: 9, weight: .semibold))
             .tracking(0.6)
             .foregroundStyle(.white.opacity(0.45))
+    }
+}
+
+/// What a waiting session asks for. A permission the hooks hold can be
+/// answered here; anything else is answered in the session's terminal.
+struct NotchClaudeSessionPermissionCard: View {
+    let session: ClaudeSession
+    let text: NotchClaudeSessionStrings
+    let open: () -> Void
+    @ObservedObject private var service = ClaudeSessionService.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: NotchClaudeSessionsSupport.symbol(session.phase))
+                    .font(.system(size: 11, weight: .semibold))
+                Text(session.permission?.tool ?? session.currentTool?.name ?? session.waitingFor ?? text.phase(session.phase))
+                    .font(.system(size: 12, weight: .semibold))
+            }
+            .foregroundStyle(session.phase.tint)
+            if let summary = session.permission?.summary {
+                // The whole command, so nothing is allowed unread.
+                Text(summary)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(4)
+                    .textSelection(.enabled)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            }
+            HStack(spacing: 6) {
+                if let permission = session.permission {
+                    NotchClaudeDecisionButton(title: text.deny, symbol: "xmark", role: .deny) {
+                        service.decide(session.id, .deny)
+                    }
+                    Spacer(minLength: 0)
+                    if permission.offersAlways {
+                        NotchClaudeDecisionButton(title: text.alwaysAllow, symbol: "checkmark.seal", role: .secondary) {
+                            service.decide(session.id, .allowAlways)
+                        }
+                    }
+                    NotchClaudeDecisionButton(title: text.allow, symbol: "checkmark", role: .allow) {
+                        service.decide(session.id, .allow)
+                    }
+                } else {
+                    Text(text.answerInTerminal).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    NotchClaudeDecisionButton(title: text.open, symbol: "arrow.up.forward.app", role: .secondary, action: open)
+                }
+            }
+            if session.permission != nil {
+                Text(text.shortcutsHint).font(.system(size: 9.5)).foregroundStyle(.tertiary)
+            }
+        }
+        .padding(10)
+        .background(session.phase.tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .strokeBorder(session.phase.tint.opacity(0.35), lineWidth: 1)
+        }
+    }
+}
+
+struct NotchClaudeDecisionButton: View {
+    enum Role { case allow, deny, secondary }
+
+    let title: String
+    let symbol: String
+    let role: Role
+    var compact = false
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: symbol).font(.system(size: compact ? 9 : 10, weight: .bold))
+                if !compact { Text(title).font(.system(size: 11.5, weight: .semibold)).lineLimit(1) }
+            }
+            .foregroundStyle(role == .allow ? Color.black.opacity(0.85) : .white.opacity(0.9))
+            .padding(.horizontal, compact ? 0 : 11)
+            .frame(width: compact ? 28 : nil, height: 28)
+            .background(background, in: Capsule())
+            .contentShape(Capsule())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 14))
+        .help(title)
+        .accessibilityLabel(title)
+    }
+
+    private var background: Color {
+        switch role {
+        case .allow: return Color(red: 0.36, green: 0.84, blue: 0.52)
+        case .deny: return Color.red.opacity(0.32)
+        case .secondary: return .white.opacity(0.12)
+        }
     }
 }
