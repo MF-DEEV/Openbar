@@ -78,6 +78,21 @@ enum NotchClaudeSessionsSupport {
             .filter { $0.count > 0 }
     }
 
+    /// The counts as text, for measuring the strip.
+    static func stripText(_ counts: ClaudeSessionCounts) -> String {
+        stripReading(counts).map { "• \($0.count)" }.joined(separator: "  ")
+    }
+
+    /// How wide the strip draws the counts: a mark, its number, and room
+    /// between them.
+    static func stripReadingWidth(_ counts: ClaudeSessionCounts, textSize: CGFloat) -> CGFloat {
+        let items = stripReading(counts)
+        guard !items.isEmpty else { return 0 }
+        let digits = items.map { String($0.count).count }.reduce(0, +)
+        return CGFloat(items.count) * (textSize * 0.9 + 2) + CGFloat(digits) * textSize * 0.62
+            + CGFloat(items.count - 1) * 6
+    }
+
     static func symbol(_ phase: ClaudeSessionPhase) -> String {
         switch phase {
         case .waitingPermission: return "hand.raised.fill"

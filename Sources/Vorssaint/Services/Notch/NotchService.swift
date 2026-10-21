@@ -19,6 +19,8 @@ struct NotchNotice: Equatable {
     /// With the companion on, it takes the symbol's place in the notice and
     /// plays this, so the notice itself is its reaction.
     var mascot: NotchMascotReaction? = nil
+    /// The Claude Code session a Sessions notice is about, whose page it opens.
+    var sessionID: String? = nil
     /// A banner that replaces one still on screen keeps at least its wings,
     /// so a burst of messages does not resize the island with each one.
     var minimumWings = NotchNoticeWings.zero
@@ -502,6 +504,11 @@ final class NotchService: ObservableObject {
         NotchAgentSupport.showsLiveActivity() && !AgentUsageService.shared.snapshot.live.isEmpty
     }
 
+    var hasSessionActivity: Bool {
+        let sessions = ClaudeSessionService.shared
+        return NotchClaudeSessionsSupport.showsActivity() && sessions.running && !sessions.counts.isEmpty
+    }
+
     var hasCalendarActivity: Bool {
         let calendar = NotchCalendarService.shared
         guard let countdown = calendar.countdown,
@@ -521,7 +528,8 @@ final class NotchService: ObservableObject {
     }
 
     var compactActivities: [NotchCompactActivity] {
-        NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, downloads: hasDownloadActivity,
+        NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, sessions: hasSessionActivity,
+                                      downloads: hasDownloadActivity,
                                       agents: hasAgentActivity, calendar: hasCalendarActivity,
                                       music: hasMusicActivity, keepAwake: hasKeepAwakeActivity)
     }
@@ -643,6 +651,7 @@ final class NotchService: ObservableObject {
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing(in: geometry))
+        case .sessions: return geometry.compactAgentGeometry(wing: sessionStripWing(in: geometry))
         case .watch: return geometry.compactWatchGeometry(wing: watchStripWing(in: geometry))
         case .calendar:
             return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),
@@ -774,6 +783,18 @@ final class NotchService: ObservableObject {
         let frame = mark * 1.45 + 1
         let marks = CGFloat(max(1, working)) * frame + CGFloat(max(0, working - 1))
             + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
+        return max(reading, marks) + NotchAgentSupport.stripCameraGap
+    }
+
+    /// The phase's mark on one side, the counts on the other, each as wide
+    /// as the strip draws it.
+    private func sessionStripWing(in geometry: NotchGeometry) -> CGFloat {
+        let provisional = geometry.compactAgentGeometry(wing: NotchAgentSupport.stripWingRange.lowerBound)
+        let size = NotchAgentSupport.stripTextSize(height: provisional.compactActivityContentHeight)
+        let reading = NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionService.shared.counts, textSize: size)
+            + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+        let mark: CGFloat = 14
+        let marks = mark * 1.45 + 1 + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
         return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
 
@@ -1034,6 +1055,9 @@ final class NotchService: ObservableObject {
         case .downloads:
             return layout.downloadSurface(name: download?.name ?? FeatureStrings.notchFiles(language).downloadsTitle,
                                           hasProgress: download?.fraction != nil, geometry: geometry, language: language)
+        case .sessions:
+            let counts = ClaudeSessionService.shared.counts
+            return layout.agentSurface(reading: NotchClaudeSessionsSupport.stripText(counts), working: 1, geometry: geometry)
         case .agents:
             let reading = NotchAgentSupport.stripReading(AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
                                                          display: NotchAgentSupport.limitDisplay(),
@@ -2351,7 +2375,8 @@ final class NotchService: ObservableObject {
              : selectedNotice.event == .accessory ? .system : selectedNotice.event == .systemNotification ? .notifications
              : selectedNotice.event == .clipboard ? .clipboard : selectedNotice.event == .agents ? .agents
              : selectedNotice.event == .track ? .music : selectedNotice.event == .microphone ? .mixer
-             : selectedNotice.event == .watch ? .watch : .controls)
+             : selectedNotice.event == .watch ? .watch : selectedNotice.event == .sessions ? .sessions : .controls)
+        if selectedNotice.event == .sessions { ClaudeSessionService.shared.focus(selectedNotice.sessionID) }
     }
 
     /// Skipping through songs, or a title that lands before its artist, shows
@@ -4030,6 +4055,18 @@ final class NotchService: ObservableObject {
                     self?.refreshPresentation()
                 }.store(in: &subscriptions)
         }
+        if NotchSupport.routes(.sessions) {
+            ClaudeSessionService.shared.$counts
+                .removeDuplicates()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.objectWillChange.send()
+                    self?.refreshPresentation()
+                }.store(in: &subscriptions)
+            ClaudeSessionService.shared.events.receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.showSessionEvent($0) }
+                .store(in: &subscriptions)
+        }
         if NotchSupport.routes(.agents) {
             AgentUsageService.shared.events.receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.showAgentEvent($0) }
@@ -4106,6 +4143,40 @@ final class NotchService: ObservableObject {
         case .budgetReached(let spent, _):
             show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
                              symbol: "dollarsign.circle.fill"))
+        }
+    }
+
+    /// A session waiting on the person shows a notice and, when allowed,
+    /// opens the island on its page; a finished turn only shows a notice.
+    private func showSessionEvent(_ event: ClaudeSessionEvent) {
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
+        let sessions = ClaudeSessionService.shared
+        let id: String
+        switch event {
+        case .needsPermission(let session, _), .needsInput(let session), .finished(let session, _): id = session
+        }
+        guard let session = sessions.sessions.first(where: { $0.id == id }) else { return }
+        if NotchClaudeSessionsSupport.shouldAutoExpand(event, enabled: NotchClaudeSessionsSupport.autoExpands(),
+                                                       expanded: expanded, showingSessions: selected == .sessions,
+                                                       suspended: suspended || hiddenInFullscreen) {
+            open(.sessions, takeFocus: false)
+            sessions.focus(id)
+            return
+        }
+        switch event {
+        case .needsPermission(_, let tool):
+            show(NotchNotice(event: .sessions, title: session.project,
+                             detail: [text.permissionNotice, session.permission?.summary ?? tool].filter { !$0.isEmpty }
+                                .joined(separator: " · "),
+                             symbol: NotchClaudeSessionsSupport.symbol(.waitingPermission), agent: .claude, sessionID: id))
+        case .needsInput:
+            show(NotchNotice(event: .sessions, title: session.project, detail: text.inputNotice,
+                             symbol: NotchClaudeSessionsSupport.symbol(.waitingInput), agent: .claude, sessionID: id))
+        case .finished(_, let duration):
+            let locale = L10n.shared.language.formattingLocale()
+            show(NotchNotice(event: .sessions, title: session.project,
+                             detail: duration.map { text.finishedAfter(AgentFormat.duration($0, locale: locale)) } ?? text.finishedNotice,
+                             symbol: NotchClaudeSessionsSupport.symbol(.finished), agent: .claude, sessionID: id))
         }
     }
 

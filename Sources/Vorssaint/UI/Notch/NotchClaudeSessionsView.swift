@@ -231,6 +231,11 @@ enum NotchClaudeSessionFormat {
         }
     }
 
+    /// The counts, read aloud.
+    static func counts(_ counts: ClaudeSessionCounts, text: NotchClaudeSessionStrings) -> String {
+        NotchClaudeSessionsSupport.stripReading(counts).map { "\($0.count) \(text.phase($0.phase))" }.joined(separator: ", ")
+    }
+
     /// What the row's second line says.
     static func activity(_ session: ClaudeSession, text: NotchClaudeSessionStrings) -> String {
         var parts = [text.phase(session.phase)]

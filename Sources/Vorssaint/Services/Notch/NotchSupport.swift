@@ -825,7 +825,7 @@ enum NotchMusicStripLayout {
 }
 
 enum NotchCompactActivity: String, Identifiable {
-    case timer, watch, downloads, agents, calendar, music, keepAwake
+    case timer, watch, sessions, downloads, agents, calendar, music, keepAwake
 
     var id: String { rawValue }
 
@@ -833,6 +833,7 @@ enum NotchCompactActivity: String, Identifiable {
         switch self {
         case .timer: return FeatureStrings.notchActivities(language).timer
         case .watch: return FeatureStrings.notchWatch(language).title
+        case .sessions: return FeatureStrings.notchClaudeSessions(language).title
         case .downloads: return FeatureStrings.notchFiles(language).downloadsTitle
         case .agents: return FeatureStrings.notchAgents(language).title
         case .calendar: return FeatureStrings.notchCalendar(language).title
@@ -846,6 +847,7 @@ enum NotchCompactActivity: String, Identifiable {
         switch self {
         case .timer: return .timer
         case .watch: return .watch
+        case .sessions: return .sessions
         case .downloads: return .downloads
         case .agents: return .agents
         case .calendar: return .calendar
@@ -1596,7 +1598,7 @@ enum NotchQuickAccessLayout {
 }
 
 enum NotchEvent: String, CaseIterable {
-    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone, watch, inputSource
+    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, sessions, track, microphone, watch, inputSource
 
     var preferenceKey: String {
         switch self {
@@ -1607,6 +1609,7 @@ enum NotchEvent: String, CaseIterable {
         case .accessory: return DefaultsKey.notchAccessoriesEnabled
         case .download: return DefaultsKey.notchDownloadsEnabled
         case .agents: return DefaultsKey.notchAgentsEnabled
+        case .sessions: return DefaultsKey.notchSessionsEnabled
         case .systemNotification: return DefaultsKey.notchNotificationsEnabled
         case .keyboardLight: return DefaultsKey.notchKeyboardLight
         case .inputSource: return DefaultsKey.notchInputSource
@@ -1621,7 +1624,7 @@ enum NotchEvent: String, CaseIterable {
     var priority: Int {
         switch self {
         case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 3
-        case .capture, .timer, .watch: return 2
+        case .capture, .timer, .watch, .sessions: return 2
         case .battery, .systemNotification, .accessory, .agents: return 1
         case .clipboard, .download, .track: return 0
         }
@@ -1631,7 +1634,7 @@ enum NotchEvent: String, CaseIterable {
         switch self {
         case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 1.6
         case .systemNotification, .track: return 3
-        case .timer, .download, .watch: return 6
+        case .timer, .download, .watch, .sessions: return 6
         case .agents: return 5
         case .battery, .accessory: return 4
         case .clipboard: return 2.5
@@ -1785,10 +1788,11 @@ enum NotchSupport {
     /// Keep Awake comes last: a session can run all day, even more than
     /// music plays, and it only says that the Mac stays awake. A watch
     /// follows the timer: the person started both and is waiting on them.
-    static func compactActivities(timer: Bool, watch: Bool = false, downloads: Bool, agents: Bool,
+    static func compactActivities(timer: Bool, watch: Bool = false, sessions: Bool = false, downloads: Bool, agents: Bool,
                                   calendar: Bool, music: Bool, keepAwake: Bool = false) -> [NotchCompactActivity] {
+        // Sessions come before the AI reading: they can be waiting on the person.
         let candidates: [(Bool, NotchCompactActivity)] = [
-            (timer, .timer), (watch, .watch), (downloads, .downloads), (agents, .agents),
+            (timer, .timer), (watch, .watch), (sessions, .sessions), (downloads, .downloads), (agents, .agents),
             (calendar, .calendar), (music, .music), (keepAwake, .keepAwake)
         ]
         return candidates.compactMap { $0.0 ? $0.1 : nil }
@@ -2025,6 +2029,7 @@ enum NotchSupport {
             && modules(in: defaults).contains(.downloads)
         case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
             && modules(in: defaults).contains(.agents)
+        case .sessions: return NotchClaudeSessionsSupport.isEnabled(in: defaults)
         case .systemNotification: return NotchNotificationSupport.isEnabled(in: defaults)
         case .keyboardLight: return AppFeature.brightness.isAvailable(in: defaults)
         case .volume: return AppFeature.mixer.isAvailable(in: defaults)

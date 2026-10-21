@@ -429,7 +429,7 @@ private struct NotchCapsuleCompanionMark: View {
                     NotchCapsuleCalendarStrip.clockMark(countdown, now: context.date)
                 }
             }
-        case .timer, .keepAwake, .watch:
+        case .timer, .keepAwake, .watch, .sessions:
             EmptyView()
         }
     }
@@ -733,5 +733,28 @@ struct NotchCapsuleCaptureStrip: View {
             }
         }
         .accessibilityHidden(true)
+    }
+}
+
+/// The same reading inside a floating capsule, for displays without a camera housing.
+struct NotchCapsuleClaudeSessionStrip: View {
+    @ObservedObject var service: NotchService
+    let size: CGSize
+    var displayGeometry: NotchGeometry? = nil
+    @ObservedObject private var sessions = ClaudeSessionService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        NotchStripHold(sessions.counts, shows: !sessions.counts.isEmpty) { counts in
+            NotchCapsuleRow(size: size, geometry: displayGeometry ?? service.geometry) {
+                HStack(spacing: CapsuleLayout.spacing) {
+                    NotchClaudeSessionStripMark(counts: counts, size: 13)
+                    NotchClaudeSessionStripCounts(counts: counts, size: 13)
+                }
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(FeatureStrings.notchClaudeSessions(l10n.language).title)
+            .accessibilityValue(NotchClaudeSessionFormat.counts(counts, text: FeatureStrings.notchClaudeSessions(l10n.language)))
+        }
     }
 }

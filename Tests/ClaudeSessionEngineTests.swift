@@ -334,6 +334,22 @@ enum ClaudeSessionEngineTests {
                                           session("c", .finished, since: 0, project: "c")])
         suite.expect(counts == ClaudeSessionCounts(working: 1, waiting: 1, finished: 1), "sessions are counted by phase")
 
+        let activities = NotchSupport.compactActivities(timer: false, watch: true, sessions: true, downloads: true, agents: true,
+                                                        calendar: false, music: true)
+        suite.expect(activities == [.watch, .sessions, .downloads, .agents, .music],
+                     "sessions come before downloads and the AI reading beside the camera: \(activities)")
+        suite.expect(NotchSupport.compactActivities(timer: false, downloads: false, agents: true, calendar: false, music: false)
+                     == [.agents], "and are left out unless they show")
+        suite.expect(NotchCompactActivity.sessions.module == .sessions && NotchModule.sessions.shortcutKey == "l",
+                     "the strip opens the Sessions page, which has its own key")
+        suite.expect(NotchEvent.sessions.preferenceKey == DefaultsKey.notchSessionsEnabled
+                     && NotchEvent.sessions.priority >= NotchEvent.agents.priority,
+                     "a session waiting on the person outranks the AI section's notices")
+        let narrow = NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionCounts(working: 1), textSize: 13)
+        let wide = NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionCounts(working: 12, waiting: 1, finished: 3), textSize: 13)
+        suite.expect(narrow > 0 && wide > narrow && NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionCounts(), textSize: 13) == 0,
+                     "the strip grows with what it counts")
+
         let strings = FeatureStrings.notchClaudeSessions(.de)
         suite.expect(strings.title == NotchClaudeSessionStrings.enUS.title, "every language reads the English text for now")
         suite.expect(strings.tasks(done: 2, total: 5) == "2 of 5 tasks", "task progress formats both numbers")
