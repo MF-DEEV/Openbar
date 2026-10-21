@@ -288,6 +288,9 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchClaudeSessionsSupport.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionModels.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionEngine.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionRegistryReader.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeTranscriptReader.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionHosts.swift
         Sources/Vorssaint/Core/NotchLockScreenStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLockScreenSupport.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageModels.swift
