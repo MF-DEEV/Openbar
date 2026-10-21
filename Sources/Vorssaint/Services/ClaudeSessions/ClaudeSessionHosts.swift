@@ -30,14 +30,18 @@ enum ClaudeSessionHosts {
         return "/dev/" + String(cString: name)
     }
 
-    /// The environment a process of this user started with.
-    static func environment(of pid: Int32) -> [String: String] {
+    /// The keys of a session's environment that tell where it runs. Nothing
+    /// else in it is kept.
+    static let hostKeys: Set<String> = ["__CFBundleIdentifier", "CLAUDE_CODE_SSE_PORT"]
+
+    /// The given variables of the environment a process of this user started with.
+    static func environment(of pid: Int32, keys: Set<String> = hostKeys) -> [String: String] {
         var mib: [Int32] = [CTL_KERN, KERN_PROCARGS2, pid]
         var size = 0
         guard sysctl(&mib, 3, nil, &size, nil, 0) == 0, size > 0 else { return [:] }
         var buffer = [UInt8](repeating: 0, count: size)
         guard sysctl(&mib, 3, &buffer, &size, nil, 0) == 0, size > MemoryLayout<Int32>.size else { return [:] }
-        return parseArguments(Array(buffer.prefix(size)))
+        return parseArguments(Array(buffer.prefix(size))).filter { keys.contains($0.key) }
     }
 
     /// `KERN_PROCARGS2` holds the argument count, the executable path, its

@@ -137,6 +137,15 @@ enum SelfTest {
         // Changing the canvas in one and not the other would squash the glyph.
         // Asked for with no symbol name, since the glyph in use may be a
         // symbol chosen in the menu bar settings.
+        // The Sessions page installs this extension into Antigravity.
+        if let bridge = Bundle.main.url(forResource: "AntigravityBridge", withExtension: nil) {
+            for part in ["extension.vsixmanifest", "[Content_Types].xml", "extension/package.json", "extension/extension.js"]
+            where !FileManager.default.fileExists(atPath: bridge.appending(path: part).path) {
+                failures.append("Antigravity bridge is missing \(part)")
+            }
+        } else {
+            failures.append("Antigravity bridge not bundled")
+        }
         if Bundle.main.url(forResource: "MenuBarIcon", withExtension: "png") == nil {
             warnings.append("menu bar glyph asset not bundled")
         } else if let rep = BlackHoleGlyph.mark(symbolName: "")?

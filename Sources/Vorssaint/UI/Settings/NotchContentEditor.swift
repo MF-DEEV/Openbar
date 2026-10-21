@@ -180,7 +180,7 @@ struct NotchPagePreview: View {
             if NotchClaudeSessionsSupport.isEnabled() {
                 NotchClaudeSessionsView(size: size)
             } else {
-                NotchEmptyView(symbol: NotchModule.sessions.symbol, message: NotchClaudeSessionStrings.enUS.summary)
+                NotchEmptyView(symbol: NotchModule.sessions.symbol, message: FeatureStrings.notchClaudeSessions(l10n.language).summary)
             }
         // The live area belongs to the island; the preview explains it instead.
         case .watch: NotchWatchView(size: size)
@@ -411,7 +411,7 @@ extension NotchModule {
         case .downloads: return .blue
         case .scratchpad: return .yellow
         case .agents: return Color(red: 0.85, green: 0.47, blue: 0.34)
-        case .sessions: return .orange
+        case .sessions: return Color(red: 0.72, green: 0.36, blue: 0.24)
         case .watch: return .purple
         }
     }

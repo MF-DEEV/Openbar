@@ -266,7 +266,7 @@ extension AppFeature {
         case .notchDownloads: return [DefaultsKey.notchDownloadsEnabled]
         case .notchNotifications: return [DefaultsKey.notchNotificationsEnabled]
         case .notchCalendar: return [DefaultsKey.notchCalendarEnabled]
-        case .notchAgents: return [DefaultsKey.notchAgentsEnabled]
+        case .notchAgents: return [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchSessionsEnabled]
         case .notchWatch: return [DefaultsKey.notchWatchEnabled]
         case .notchMascot: return [DefaultsKey.notchMascotEnabled]
         case .notch: return [DefaultsKey.notchEnabled]
@@ -334,7 +334,9 @@ extension AppFeature {
         case .notchLyrics, .notchQueue: return []
         // Session logs and the saved limits sit in the home folder, outside
         // every protected location, and no sign-in or keychain item is used.
-        case .notchAgents: return []
+        // Its Sessions page drives Terminal to show a session's tab and type
+        // a reply into it.
+        case .notchAgents: return [.automationTerminal]
         // It only draws, and hears of what happens from the island itself.
         case .notchMascot: return []
         // The bars read the player's own audio output, which macOS gates
@@ -522,6 +524,9 @@ extension AppFeature {
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
                     && dataFor(DefaultsKey.notchDownloadsFolderBookmark) != nil
                     && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("downloads")
+            case (.notchAgents, .automationTerminal):
+                return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled) && boolFor(DefaultsKey.notchSessionsEnabled)
+                    && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("sessions")
             case (.notchCalendar, .calendar):
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
                     && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("calendar")

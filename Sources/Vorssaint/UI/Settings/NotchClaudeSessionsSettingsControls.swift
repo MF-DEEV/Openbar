@@ -37,8 +37,8 @@ struct NotchClaudeSessionsSettingsControls: View {
             SettingsRow(symbol: "terminal", title: text.bridgeTitle,
                         caption: service.bridgeInstalled.map { $0 ? text.hooksInstalled : text.hooksMissing }) {
                 if let installed = service.bridgeInstalled {
-                    if !installed {
-                        Button(text.installBridge) { service.installBridge() }
+                    if !installed || service.bridgeOutdated {
+                        Button(installed ? text.updateBridge : text.installBridge) { service.installBridge() }
                             .controlSize(.small)
                             .fixedSize()
                     }

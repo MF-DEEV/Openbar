@@ -30,6 +30,8 @@ final class ClaudeSessionService: ObservableObject {
     /// Whether Antigravity has the extension replies are typed through.
     @Published private(set) var bridgeInstalled: Bool?
     @Published private(set) var bridgeFailure: String?
+    /// The app carries a newer extension than the one installed.
+    @Published private(set) var bridgeOutdated = false
 
     /// While a session works or waits, its files are read this often;
     /// otherwise the registry alone is checked a little less often.
@@ -195,14 +197,26 @@ final class ClaudeSessionService: ObservableObject {
         let home = home
         actions.async {
             let installed = ClaudeBridgeInstaller.isInstalled(home: home)
-            DispatchQueue.main.async { self.bridgeInstalled = installed }
+            let outdated = installed && ClaudeBridgeInstaller.isOutdated(home: home)
+            DispatchQueue.main.async {
+                self.bridgeInstalled = installed
+                self.bridgeOutdated = outdated
+            }
         }
     }
 
     func installBridge() {
         let home = home
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
         actions.async {
-            let failure = ClaudeBridgeInstaller.install(home: home)
+            let failure: String? = switch ClaudeBridgeInstaller.install(home: home) {
+            case nil: nil
+            case .missing?: text.bridgeMissing
+            case .noAntigravity?: text.antigravityMissing
+            case .packaging?: text.bridgePackageFailed
+            case .refused?: text.bridgeRefused
+            case .other(let reason)?: reason
+            }
             DispatchQueue.main.async {
                 self.bridgeFailure = failure
                 self.checkBridge()
@@ -265,6 +279,7 @@ final class ClaudeSessionService: ObservableObject {
         let url = ClaudeHookInstaller.settingsURL(home: home)
         let bundle = Self.bundleID
         let command = ClaudeHookInstaller.command(socket: Self.socketPath(home: home), bundle: bundle)
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
         actions.async {
             var failure: String?
             do {
@@ -274,9 +289,9 @@ final class ClaudeSessionService: ObservableObject {
                 }
             } catch let error as ClaudeHookInstaller.Failure {
                 switch error {
-                case .unreadable: failure = "settings.json isn’t valid JSON"
+                case .unreadable: failure = text.settingsUnreadable
                 case .unwritable(let reason): failure = reason
-                case .busy: failure = "Claude Code kept changing settings.json"
+                case .busy: failure = text.settingsBusy
                 }
             } catch {
                 failure = error.localizedDescription
@@ -516,19 +531,44 @@ enum ClaudeBridgeInstaller {
     static let identifier = "vorssaint.vorssaint-terminal-bridge"
     static let cli = "Contents/Resources/app/bin/antigravity-ide"
 
-    static func isInstalled(home: URL) -> Bool {
+    static func installedVersions(home: URL) -> [String] {
         let folder = home.appending(path: ".antigravity-ide/extensions").path
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []
-        return names.contains { $0.hasPrefix(identifier + "-") }
+        return names.filter { $0.hasPrefix(identifier + "-") }.map { String($0.dropFirst(identifier.count + 1)) }
     }
 
-    /// Nil when it worked, or what went wrong.
-    static func install(home: URL) -> String? {
-        guard let source = Bundle.main.url(forResource: "AntigravityBridge", withExtension: nil) else {
-            return "The extension is missing from the app"
-        }
+    static func isInstalled(home: URL) -> Bool { !installedVersions(home: home).isEmpty }
+
+    /// The version the app carries, from the extension's own manifest.
+    static var bundledVersion: String? {
+        guard let manifest = Bundle.main.url(forResource: "AntigravityBridge", withExtension: nil)?
+                .appending(path: "extension/package.json"),
+              let data = FileManager.default.contents(atPath: manifest.path),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        return json["version"] as? String
+    }
+
+    static func isOutdated(home: URL) -> Bool {
+        guard let bundled = bundledVersion else { return false }
+        return !installedVersions(home: home).contains { $0 == bundled || $0.hasPrefix(bundled + "-") }
+    }
+
+    static func uninstall(home: URL) {
+        guard isInstalled(home: home),
+              let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: ClaudeSessionHosts.antigravity) else { return }
+        _ = try? run(app.appending(path: cli).path, ["--uninstall-extension", identifier], in: home)
+    }
+
+    enum Failure: Equatable {
+        case missing, noAntigravity, packaging, refused
+        case other(String)
+    }
+
+    /// Installs the extension, or the newer one the app carries. Nil when it worked.
+    static func install(home: URL) -> Failure? {
+        guard let source = Bundle.main.url(forResource: "AntigravityBridge", withExtension: nil) else { return .missing }
         guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: ClaudeSessionHosts.antigravity) else {
-            return "Antigravity isn’t installed"
+            return .noAntigravity
         }
         let work = FileManager.default.temporaryDirectory.appending(path: "vorssaint-bridge-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: work) }
@@ -536,11 +576,11 @@ enum ClaudeBridgeInstaller {
         do {
             try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
             let zip = try run("/usr/bin/zip", ["-q", "-r", "-X", package.path, "."], in: source)
-            guard zip == 0 else { return "Couldn’t package the extension" }
-            let installed = try run(app.appending(path: cli).path, ["--install-extension", package.path], in: work)
-            return installed == 0 ? nil : "Antigravity refused the extension"
+            guard zip == 0 else { return .packaging }
+            let installed = try run(app.appending(path: cli).path, ["--install-extension", package.path, "--force"], in: work)
+            return installed == 0 ? nil : .refused
         } catch {
-            return error.localizedDescription
+            return .other(error.localizedDescription)
         }
     }
 
@@ -554,5 +594,19 @@ enum ClaudeBridgeInstaller {
         try process.run()
         process.waitUntilExit()
         return process.terminationStatus
+    }
+}
+
+/// What the Sessions section leaves outside the app's own folders, taken
+/// away when the app is uninstalled: its hooks in Claude Code's settings,
+/// the Antigravity extension and the `~/.vorssaint` folder they talk through.
+enum ClaudeSessionCleanup {
+    static func removeForUninstall(home: URL = FileManager.default.homeDirectoryForCurrentUser) {
+        let bundle = ClaudeSessionService.bundleID
+        try? ClaudeHookInstaller.update(ClaudeHookInstaller.settingsURL(home: home)) {
+            ClaudeHookInstaller.removing(from: $0, bundle: bundle)
+        }
+        ClaudeBridgeInstaller.uninstall(home: home)
+        try? FileManager.default.removeItem(at: home.appending(path: ".vorssaint", directoryHint: .isDirectory))
     }
 }

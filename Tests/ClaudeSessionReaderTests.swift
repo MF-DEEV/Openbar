@@ -161,8 +161,11 @@ enum ClaudeSessionReaderTests {
         suite.expect(environment == ["TERM_PROGRAM": "Apple_Terminal", "__CFBundleIdentifier": "com.apple.Terminal", "EQ": "a=b"],
                      "the environment follows the arguments and ends at an empty entry: \(environment)")
         suite.expect(ClaudeSessionHosts.parseArguments([1, 0]).isEmpty, "a short buffer reads as nothing")
-        let own = ClaudeSessionHosts.environment(of: getpid())
-        suite.expect(own["PATH"] == ProcessInfo.processInfo.environment["PATH"], "a live process's environment is read")
+        let own = ClaudeSessionHosts.environment(of: getpid(), keys: ["PATH", "HOME"])
+        suite.expect(own["PATH"] == ProcessInfo.processInfo.environment["PATH"] && own.count <= 2,
+                     "only the asked-for variables of a live process's environment are kept")
+        suite.expect(ClaudeSessionHosts.environment(of: getpid()).keys.allSatisfy(ClaudeSessionHosts.hostKeys.contains),
+                     "by default only where the session runs is kept")
         suite.expect(ClaudeSessionRegistryReader.processStart(getpid()) != nil
                      && ClaudeSessionRegistryReader.processStart(-1) == nil, "a running process has a start time")
     }

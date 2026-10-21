@@ -1865,6 +1865,11 @@ enum RepositoryFeatureTests {
             suite.expect(selfUninstallSource.contains(subpath) && uninstallScriptSource.contains(subpath),
                    "both in-app and script uninstall sweep \(subpath)")
         }
+        suite.expect(selfUninstallSource.contains("ClaudeSessionCleanup.removeForUninstall()")
+                     && repository.source(at: "Sources/Vorssaint/Support/Uninstaller.swift")
+                        .contains("ClaudeSessionCleanup.removeForUninstall()")
+                     && uninstallScriptSource.contains("$HOME/.vorssaint"),
+               "both uninstall paths take the Sessions hooks and ~/.vorssaint away")
         suite.expect(uninstallScriptSource.contains("Library/Preferences/ByHost"),
                "script uninstall sweeps ByHost preferences")
         // zsh passes a plain string to a command as one word, so the script

@@ -6,7 +6,6 @@ import Foundation
 struct NotchClaudeSessionStrings {
     let title: String
     let summary: String
-    let hubDescription: String
     let settingsDescription: String
     let emptyTitle: String
     let emptyDetail: String
@@ -52,6 +51,13 @@ struct NotchClaudeSessionStrings {
     let bridgeTitle: String
     let bridgeHint: String
     let installBridge: String
+    let updateBridge: String
+    let settingsUnreadable: String
+    let settingsBusy: String
+    let bridgeMissing: String
+    let antigravityMissing: String
+    let bridgePackageFailed: String
+    let bridgeRefused: String
     let openFailed: String
 
     func phase(_ phase: ClaudeSessionPhase) -> String {
@@ -84,7 +90,6 @@ extension NotchClaudeSessionStrings {
     static let enUS = NotchClaudeSessionStrings(
         title: "Sessions",
         summary: "Running Claude Code sessions and what each one needs from you.",
-        hubDescription: "See what each Claude Code session on this Mac is doing and in which folder, then answer its permission prompts and reply to it from the Dynamic Island.",
         settingsDescription: "Reads the state Claude Code keeps for each running session on this Mac. Prompts and replies stay unread unless you turn on previews, and nothing leaves your Mac.",
         emptyTitle: "No sessions running",
         emptyDetail: "Start Claude Code in Terminal or Antigravity and it shows up here.",
@@ -130,5 +135,12 @@ extension NotchClaudeSessionStrings {
         bridgeTitle: "Antigravity extension",
         bridgeHint: "Replies to sessions in Antigravity go through a small extension included with this app. It shows a terminal or types into it only when you ask.",
         installBridge: "Install Extension",
+        updateBridge: "Update Extension",
+        settingsUnreadable: "settings.json can’t be read, so it was left alone",
+        settingsBusy: "Claude Code kept changing settings.json",
+        bridgeMissing: "The extension is missing from the app",
+        antigravityMissing: "Antigravity isn’t installed",
+        bridgePackageFailed: "Couldn’t package the extension",
+        bridgeRefused: "Antigravity refused the extension",
         openFailed: "Couldn’t find that window")
 }

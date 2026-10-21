@@ -193,6 +193,9 @@ rm -rf "$HOME/Library/Caches/$BUNDLE"
 # Written by URLSession on the app's behalf, so they exist without the app ever
 # naming the path; `defaults delete` does not reach them either.
 rm -rf "$HOME/Library/HTTPStorages/$BUNDLE" "$HOME/Library/HTTPStorages/$BUNDLE.binarycookies"
+# The Sessions hooks' fallback socket and the Antigravity extension's sockets.
+# `--uninstall` already took the hooks out of ~/.claude/settings.json.
+rm -rf "$HOME/.vorssaint"
 # `defaults delete` does not reach ByHost. The (N) qualifier is load-bearing:
 # without it zsh aborts the command on an unmatched pattern, which is the
 # ordinary case, and prints an error over a successful uninstall.

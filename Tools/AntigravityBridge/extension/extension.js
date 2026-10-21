@@ -41,12 +41,14 @@ function activate(context) {
     });
     connection.on('error', () => {});
   });
+  // The socket is the owner's alone from the moment it exists; the mask is
+  // put back whether listening works or not.
   const previous = process.umask(0o077);
+  server.on('error', () => { process.umask(previous); });
   server.listen(socketPath, () => {
     process.umask(previous);
     try { fs.chmodSync(socketPath, 0o600); } catch (_) {}
   });
-  server.on('error', () => {});
   context.subscriptions.push({ dispose: deactivate });
 }
 
