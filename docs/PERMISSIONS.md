@@ -17,7 +17,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan |
 | Administrator (one time) | Yes | Password free closed lid toggling |
-| Automation | Yes | Finder actions, Homebrew Terminal handoff and supported music playback controls |
+| Automation | Yes | Finder actions, Homebrew Terminal handoff, replies to Claude Code sessions in Terminal and supported music playback controls |
 | App Management | Yes | App installs, updates and removal |
 
 ## Accessibility
@@ -39,6 +39,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **Radial menu**, for wheel actions that press a key combo or a media key
   for you and for the optional side button trigger; opening apps, files and
   links with the keyboard shortcut alone needs nothing.
+- **Dynamic Island Sessions**, only if Accessibility is already allowed: Open brings the Antigravity window holding a session's folder to the front. It never asks for the permission; without it, Open brings Antigravity forward as a whole.
 
 **If you say no.** These features stay off. Vorssaint sees the moment you grant the permission and brings them to life with no relaunch.
 
@@ -154,9 +155,10 @@ Download monitoring watches only the folder you choose in the system picker. Fol
 - **Uninstaller**, which moves leftover files to the Trash.
 - **Empty the Trash** in Quick toggles, which asks Finder to empty it. The other quick toggles, dark mode included, need no permission.
 - **Homebrew manager**, which can open Terminal with the exact Homebrew install or setup command when the app should not collect a password itself.
+- **Dynamic Island Sessions**, which finds the Terminal tab a Claude Code session runs in by its device, brings it forward when you press Open, and types the reply you send from the island into it. Nothing is typed while that session waits on a permission or a question. Sessions in Antigravity go through the extension the page installs instead, which needs no permission. Answering permission prompts from the island goes through Claude Code hooks, which are written to `~/.claude/settings.json` when you press Install Hooks and need no permission either.
 - **Dynamic Island playback**, when a music app requires Automation to control its own playback while another app is active. Only playback commands declared by the selected app are used; an explicit button requests permission before a new action can be sent. The shuffle button on the music page reads and switches only the shuffle setting the app declares, and reads whether shuffle is available for what is playing when the app declares that too. Until the app is allowed, its first press only asks for this permission, even for an app whose playback controls work without it.
 
-**If you say no.** Those Finder or Terminal handoff steps will not go through. Music stays visible, and you can open its player to control it there. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
+**If you say no.** Those Finder or Terminal handoff steps will not go through, and replies to sessions in Terminal stay unsent; you can still answer in the session's own tab. Music stays visible, and you can open its player to control it there. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
 
 **Optional.** Yes.
 
