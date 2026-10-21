@@ -5,6 +5,7 @@ import Foundation
 
 struct NotchClaudeSessionStrings {
     let title: String
+    let summary: String
     let hubDescription: String
     let settingsDescription: String
     let emptyTitle: String
@@ -77,6 +78,7 @@ extension FeatureStrings {
 extension NotchClaudeSessionStrings {
     static let enUS = NotchClaudeSessionStrings(
         title: "Sessions",
+        summary: "Every running Claude Code session, what it’s doing, and its permission prompts.",
         hubDescription: "See every Claude Code session running on this Mac in the Dynamic Island, what it’s doing and where, then answer permission prompts and reply without leaving what you’re on.",
         settingsDescription: "Reads the state Claude Code keeps for each running session on this Mac. Prompts and replies stay unread unless you turn on previews, and nothing leaves your Mac.",
         emptyTitle: "No sessions running",

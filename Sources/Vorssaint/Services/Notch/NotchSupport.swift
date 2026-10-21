@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, sessions, watch
     var id: String { rawValue }
 
     var symbol: String {
@@ -30,6 +30,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .tools: return AppFeature.quickLauncher.symbolName
         case .scratchpad: return "note.text"
         case .agents: return "sparkles"
+        case .sessions: return "rectangle.stack"
         case .watch: return "eye"
         }
     }
@@ -52,6 +53,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .downloads: return "d"
         case .scratchpad: return "p"
         case .agents: return "g"
+        case .sessions: return "l"
         case .watch: return "o"
         }
     }
@@ -74,7 +76,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
                 || AppFeature.colorPicker.isAvailable(in: defaults)
         case .files: return AppFeature.shelf.isAvailable(in: defaults)
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
-        case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
+        case .agents, .sessions: return AppFeature.notchAgents.isAvailable(in: defaults)
         case .watch: return AppFeature.notchWatch.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
@@ -1850,6 +1852,7 @@ enum NotchSupport {
                 && ($0 != .calendar || defaults.bool(forKey: DefaultsKey.notchCalendarEnabled))
                 && ($0 != .notifications || defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled))
                 && ($0 != .agents || defaults.bool(forKey: DefaultsKey.notchAgentsEnabled))
+                && ($0 != .sessions || defaults.bool(forKey: DefaultsKey.notchSessionsEnabled))
                 && ($0 != .watch || defaults.bool(forKey: DefaultsKey.notchWatchEnabled))
         }
     }
@@ -2766,7 +2769,7 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
-            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
+            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .sessions, .watch:
                 contentHeight = budget
             }
         }

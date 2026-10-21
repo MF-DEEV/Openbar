@@ -7,10 +7,9 @@ import Foundation
 /// can be tested.
 enum NotchClaudeSessionsSupport {
     /// The section rides on the AI feature, which installs everything about
-    /// coding agents, and has its own switch.
+    /// coding agents, and has its own switch; it can also be hidden.
     static func isEnabled(in defaults: UserDefaults = .standard) -> Bool {
-        NotchSupport.isEnabled(in: defaults) && AppFeature.notchAgents.isAvailable(in: defaults)
-            && defaults.bool(forKey: DefaultsKey.notchSessionsEnabled)
+        NotchSupport.isEnabled(in: defaults) && NotchSupport.modules(in: defaults).contains(.sessions)
     }
 
     static func showsActivity(in defaults: UserDefaults = .standard) -> Bool {

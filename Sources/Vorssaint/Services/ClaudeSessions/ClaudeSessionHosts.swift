@@ -68,3 +68,47 @@ enum ClaudeSessionHosts {
         return environment
     }
 }
+
+/// The AppleScript that reaches a session's tab in Terminal, found by the
+/// device its shell runs on.
+enum ClaudeTerminalScripts {
+    static func focus(tty: String) -> String {
+        """
+        tell application "Terminal"
+            repeat with theWindow in windows
+                repeat with theTab in tabs of theWindow
+                    if tty of theTab is \(AppleScriptRunner.literal(tty)) then
+                        set selected of theTab to true
+                        set index of theWindow to 1
+                        activate
+                        return "found"
+                    end if
+                end repeat
+            end repeat
+        end tell
+        return "missing"
+        """
+    }
+}
+
+/// Where an Antigravity session's window is: the IDE connection's lock file
+/// names the folders that window has open.
+enum ClaudeIDELock {
+    static func folders(port: Int, homes: [URL]) -> [String] {
+        for home in homes {
+            let path = home.appending(path: "ide/\(port).lock").path
+            guard let data = FileManager.default.contents(atPath: path), data.count < 1 << 16,
+                  let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { continue }
+            return json["workspaceFolders"] as? [String] ?? []
+        }
+        return []
+    }
+
+    /// The window title to look for: the open folder holding the session's
+    /// folder, or the session's folder itself.
+    static func windowHint(cwd: String, folders: [String]) -> String {
+        let holding = folders.filter { cwd == $0 || cwd.hasPrefix($0.hasSuffix("/") ? $0 : $0 + "/") }
+            .max { $0.count < $1.count }
+        return ((holding ?? cwd) as NSString).lastPathComponent
+    }
+}

@@ -33,6 +33,8 @@ final class ClaudeSessionService: ObservableObject {
     private static let sideFilesEvery = 3
 
     let queue = DispatchQueue(label: "com.vorssaint.claude-sessions", qos: .utility, autoreleaseFrequency: .workItem)
+    /// AppleScript and window lookups block until the other app answers.
+    private let actions = DispatchQueue(label: "com.vorssaint.claude-actions", qos: .userInitiated)
     private let home = FileManager.default.homeDirectoryForCurrentUser
 
     // Main thread.
@@ -117,6 +119,17 @@ final class ClaudeSessionService: ObservableObject {
         queue.async { [self] in
             engine.resolvePermission(requestID: requestID)
             publish(now: Date())
+        }
+    }
+
+    /// Brings the session's terminal forward. Calls back on the main thread
+    /// with whether the window was found.
+    func openHost(_ session: ClaudeSession, completion: @escaping (Bool) -> Void = { _ in }) {
+        acknowledge(session.id)
+        let homes = ClaudeSessionRegistryReader.homes(home)
+        actions.async {
+            let found = ClaudeHostFocus.focus(session, homes: homes)
+            DispatchQueue.main.async { completion(found) }
         }
     }
 
@@ -254,5 +267,52 @@ extension ClaudeSessionHosts {
         let bundle = environment["__CFBundleIdentifier"]
             ?? ResponsibleProcess.regularAppOwner(of: pid)?.bundleIdentifier
         return classify(bundle: bundle, tty: tty(of: pid), port: environment["CLAUDE_CODE_SSE_PORT"].flatMap(Int.init))
+    }
+}
+
+/// Brings a session's terminal forward: its own tab in Terminal, the window
+/// holding its folder in Antigravity, or just the app elsewhere.
+enum ClaudeHostFocus {
+    static func focus(_ session: ClaudeSession, homes: [URL]) -> Bool {
+        switch session.host {
+        case .terminal(let tty):
+            guard AppleScriptRunner.consentToAutomate(bundleID: ClaudeSessionHosts.terminal) else {
+                return activate(ClaudeSessionHosts.terminal, window: nil)
+            }
+            let result = AppleScriptRunner.run(ClaudeTerminalScripts.focus(tty: tty))
+            return result.ok && result.output == "found" ? true : activate(ClaudeSessionHosts.terminal, window: nil)
+        case .antigravity(let port):
+            let folders = port.map { ClaudeIDELock.folders(port: $0, homes: homes) } ?? []
+            return activate(ClaudeSessionHosts.antigravity, window: ClaudeIDELock.windowHint(cwd: session.cwd, folders: folders))
+        case .app(let bundle):
+            return activate(bundle, window: nil)
+        case .unknown:
+            return false
+        }
+    }
+
+    /// Activates the app and, when Accessibility allows, raises its window
+    /// whose title names `window`.
+    private static func activate(_ bundle: String, window hint: String?) -> Bool {
+        guard let app = NSRunningApplication.runningApplications(withBundleIdentifier: bundle).first else { return false }
+        if let hint, !hint.isEmpty, AXIsProcessTrusted() {
+            let element = AXUIElementCreateApplication(app.processIdentifier)
+            AXUIElementSetMessagingTimeout(element, 0.5)
+            var value: CFTypeRef?
+            if AXUIElementCopyAttributeValue(element, kAXWindowsAttribute as CFString, &value) == .success,
+               let windows = value as? [AXUIElement] {
+                let match = windows.first { window in
+                    var title: CFTypeRef?
+                    AXUIElementCopyAttributeValue(window, kAXTitleAttribute as CFString, &title)
+                    return (title as? String)?.localizedCaseInsensitiveContains(hint) == true
+                }
+                if let match {
+                    AXUIElementSetAttributeValue(match, kAXMinimizedAttribute as CFString, kCFBooleanFalse)
+                    AXUIElementPerformAction(match, kAXRaiseAction as CFString)
+                    AXUIElementSetAttributeValue(element, kAXFocusedWindowAttribute as CFString, match)
+                }
+            }
+        }
+        return DispatchQueue.main.sync { app.activate() }
     }
 }

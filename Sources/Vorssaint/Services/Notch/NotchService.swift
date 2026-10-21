@@ -1120,6 +1120,9 @@ final class NotchService: ObservableObject {
         // Paused while the island is away, the section still stops at once
         // when it is turned off.
         if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
+        // Sessions keep being followed while the island is away, so a
+        // permission prompt still finds it when it comes back.
+        ClaudeSessionService.shared.syncWithPreferences()
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
             else { NotchTimerService.shared.suspend() }
@@ -1225,6 +1228,7 @@ final class NotchService: ObservableObject {
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
         AgentUsageService.shared.stop()
+        ClaudeSessionService.shared.stop()
         guard running else { return }
         running = false
         NotchTimerService.shared.stop()
