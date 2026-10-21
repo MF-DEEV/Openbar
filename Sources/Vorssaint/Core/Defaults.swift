@@ -894,6 +894,8 @@ enum DefaultsKey {
     static let notchSessionsAutoExpand = "notchSessionsAutoExpand"
     /// Prompts, replies, titles and tool arguments may be read into memory.
     static let notchSessionsContentPreview = "notchSessionsContentPreview"
+    /// The text size of a session's page with the island grown around it.
+    static let notchSessionsLargeTextSize = "notchSessionsLargeTextSize"
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
     // How the island looks on a display without a camera housing.
@@ -1487,6 +1489,7 @@ enum Defaults {
         DefaultsKey.notchSessionsLiveActivity: true,
         DefaultsKey.notchSessionsAutoExpand: true,
         DefaultsKey.notchSessionsContentPreview: false,
+        DefaultsKey.notchSessionsLargeTextSize: 15.0,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchBrowserCovers: false,

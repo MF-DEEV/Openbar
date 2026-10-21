@@ -27,6 +27,8 @@ struct ClaudeTranscriptReader {
     }
 
     static let previewLimit = 280
+    /// A reply is kept whole enough to read in the session's window.
+    static let replyLimit = 6000
 
     mutating func parse(_ line: Data, now: Date) -> [ClaudeTranscriptFact] {
         var facts: [ClaudeTranscriptFact] = []
@@ -65,7 +67,9 @@ struct ClaudeTranscriptReader {
                     facts.append(.toolStarted(ClaudeToolUse(id: id, name: name, summary: summary, started: date,
                                                             inputKey: ClaudeToolSummary.inputKey(name: name, input: input))))
                 case "text":
-                    if policy.previews, let text = preview(block["text"] as? String) { facts.append(.text(text, at: date)) }
+                    if policy.previews, let text = preview(block["text"] as? String, limit: Self.replyLimit) {
+                        facts.append(.text(text, at: date))
+                    }
                 default: break
                 }
             }
@@ -95,7 +99,22 @@ struct ClaudeTranscriptReader {
                 facts.append(.turnEnded(date, completed: false))
             } else if !texts.isEmpty {
                 facts.append(.turnBegan(date))
+                // Task notifications and the summary a compaction leaves
+                // arrive as user lines but were never typed.
+                if policy.previews, (json["origin"] as? [String: Any])?["kind"] as? String != "task-notification",
+                   json["isCompactSummary"] as? Bool != true, let prompt = typed(texts) {
+                    facts.append(.prompt(prompt, at: date))
+                }
             }
+        case "attachment":
+            // A prompt typed while Claude worked joins the running turn.
+            guard policy.previews, json["isSidechain"] as? Bool != true,
+                  let attachment = json["attachment"] as? [String: Any],
+                  attachment["type"] as? String == "queued_command" else { break }
+            let prompt = attachment["prompt"]
+            let texts = (prompt as? String).map { [$0] }
+                ?? (prompt as? [[String: Any]] ?? []).compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
+            if let text = typed(texts) { facts.append(.prompt(text, at: date)) }
         case "ai-title":
             if policy.previews, let title = preview(json["aiTitle"] as? String) { facts.append(.title(title)) }
         default: break
@@ -140,11 +159,18 @@ struct ClaudeTranscriptReader {
         return [.subagentActivity(id: id, at: date)]
     }
 
-    private func preview(_ text: String?) -> String? {
+    /// Text the person wrote; commands and notifications come wrapped in tags.
+    private func typed(_ texts: [String]) -> String? {
+        let text = texts.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.hasPrefix("<") else { return nil }
+        return preview(text, limit: Self.replyLimit)
+    }
+
+    private func preview(_ text: String?, limit: Int = previewLimit) -> String? {
         guard let text else { return nil }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        return trimmed.count > Self.previewLimit ? String(trimmed.prefix(Self.previewLimit - 1)) + "…" : trimmed
+        return trimmed.count > limit ? String(trimmed.prefix(limit - 1)) + "…" : trimmed
     }
 
     // MARK: Side files

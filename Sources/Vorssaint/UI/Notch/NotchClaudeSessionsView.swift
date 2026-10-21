@@ -223,6 +223,8 @@ extension ClaudeSessionPhase {
 }
 
 enum NotchClaudeSessionFormat {
+    static func markdown(_ text: String) -> AttributedString { NotchClaudeSessionsSupport.markdown(text) }
+
     /// The time the turn under way has run, or how long the session has
     /// waited; nothing for a quiet one.
     static func clock(_ session: ClaudeSession, now: Date) -> String? {

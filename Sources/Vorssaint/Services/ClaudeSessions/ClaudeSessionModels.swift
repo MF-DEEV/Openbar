@@ -155,6 +155,17 @@ struct ClaudeSession: Equatable, Identifiable {
     var lastText: String?
     /// The hooks report this session, so permissions can be answered here.
     var hooked: Bool
+    /// What was typed and answered, oldest first; gated by content previews.
+    var chat: [ClaudeChatMessage] = []
+}
+
+/// One message of a session's conversation.
+struct ClaudeChatMessage: Equatable, Identifiable {
+    enum Role: Equatable { case user, assistant }
+    let id: Int
+    let role: Role
+    let text: String
+    let at: Date
 }
 
 struct ClaudeSessionCounts: Equatable {
@@ -201,6 +212,8 @@ enum ClaudeTranscriptFact: Equatable {
     case toolStarted(ClaudeToolUse)
     case toolFinished(id: String, at: Date, failed: Bool)
     case text(String, at: Date)
+    /// A prompt the person typed, read only when previews are allowed.
+    case prompt(String, at: Date)
     case title(String)
     case branch(String)
     case model(String)

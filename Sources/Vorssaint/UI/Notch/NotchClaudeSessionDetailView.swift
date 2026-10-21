@@ -10,6 +10,7 @@ struct NotchClaudeSessionDetailView: View {
     let size: CGSize
     @ObservedObject private var service = ClaudeSessionService.shared
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var notch = NotchService.shared
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
     @State private var openFailed = false
 
@@ -18,14 +19,23 @@ struct NotchClaudeSessionDetailView: View {
     static let shownSubagents = 4
 
     var body: some View {
-        VStack(spacing: 8) {
-            work
-            NotchClaudeSessionReplyField(session: session, text: text)
+        Group {
+            if notch.sessionsEnlarged {
+                NotchClaudeSessionLargeView(session: session, text: text, open: open)
+            } else {
+                VStack(spacing: 8) {
+                    work
+                    NotchClaudeSessionReplyField(session: session, text: text)
+                }
+            }
         }
         .notchBand(leading: {
             NotchBandBackButton(title: session.project) { service.focus(nil) }
         }, trailing: {
-            openButton
+            HStack(spacing: 2) {
+                expandButton
+                openButton
+            }
         })
     }
 
@@ -99,6 +109,22 @@ struct NotchClaudeSessionDetailView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) { openFailed = false }
             }
         }
+    }
+
+    /// Grows the island around the page, to read and write in comfortably.
+    private var expandButton: some View {
+        Button {
+            notch.setSessionsEnlarged(!notch.sessionsEnlarged)
+        } label: {
+            Image(systemName: notch.sessionsEnlarged ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(width: 28, height: 28)
+                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 9))
+        .help(notch.sessionsEnlarged ? text.shrink : text.enlarge)
+        .accessibilityLabel(notch.sessionsEnlarged ? text.shrink : text.enlarge)
     }
 
     private var openButton: some View {
@@ -210,10 +236,10 @@ struct NotchClaudeSessionDetailView: View {
         if let reply = session.lastText {
             VStack(alignment: .leading, spacing: 4) {
                 sectionTitle(text.lastReply)
-                Text(reply)
+                Text(NotchClaudeSessionFormat.markdown(reply))
                     .font(.system(size: 11))
                     .foregroundStyle(.white.opacity(0.8))
-                    .lineLimit(4)
+                    .lineLimit(6)
                     .textSelection(.enabled)
             }
         } else if !previews {

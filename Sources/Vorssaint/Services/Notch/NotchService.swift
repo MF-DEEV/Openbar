@@ -168,6 +168,8 @@ final class NotchService: ObservableObject {
     @Published private var fanDetailHeight: CGFloat?
     @Published private(set) var power = PowerReading()
     @Published private var musicDetailVisible = false
+    /// A Claude session's page with the island grown around it.
+    @Published private(set) var sessionsEnlarged = false
 
     private var windowHost: NotchWindowHost?
     private var panel: NotchPanel? { windowHost?.panel }
@@ -886,6 +888,7 @@ final class NotchService: ObservableObject {
         result.requiresFullWidthHeader = selected == .captures && captureActions != nil
             && !showingSections && !showingAppPanel && selectedMetric == nil
         result.pageTop = expandedPageTop
+        result.enlarged = showsEnlargedSession
         if result.pageTop == .wrapsCamera { result.pageTrailingControls = playerToggleCount }
         // Under a preset each page takes the width it needs, up to the
         // preset's; the gallery, details and the empty island keep the chosen
@@ -1291,6 +1294,7 @@ final class NotchService: ObservableObject {
         }
         captureControlsWork?.cancel(); captureControlsWork = nil
         musicDetailVisible = false
+        sessionsEnlarged = false
         pageLayers.removeAll()
         clipboardPinnedOnly = false
         panel?.handleScroll = nil
@@ -1483,6 +1487,7 @@ final class NotchService: ObservableObject {
             if noticeExpanded { notice = nil; noticeExpanded = false }
             expanded = false
             openedByHover = false
+            sessionsEnlarged = false
             peeking = false
             selectedMetric = nil
             showingAppPanel = false
@@ -1519,6 +1524,18 @@ final class NotchService: ObservableObject {
               })
         else { return }
         next.makeKey()
+    }
+
+    func setSessionsEnlarged(_ enlarged: Bool) {
+        guard enlarged != sessionsEnlarged else { return }
+        mutatePresentation { sessionsEnlarged = enlarged }
+    }
+
+    /// Only a session's own page grows; the list and other pages keep
+    /// the island's size.
+    private var showsEnlargedSession: Bool {
+        sessionsEnlarged && selected == .sessions && !showingSections && !showingAppPanel && selectedMetric == nil
+            && ClaudeSessionService.shared.focusedID != nil
     }
 
     func setMusicDetailsVisible(_ visible: Bool) {
@@ -2081,6 +2098,7 @@ final class NotchService: ObservableObject {
         let closesCommandBar = showingCommandBar
         showingCommandBar = false
         expanded = false
+        sessionsEnlarged = false
         showingSections = false
         peeking = false
         notice = nil
@@ -4065,6 +4083,12 @@ final class NotchService: ObservableObject {
                 }.store(in: &subscriptions)
             ClaudeSessionService.shared.events.receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.showSessionEvent($0) }
+                .store(in: &subscriptions)
+            // Leaving a session's page brings the island back to its size.
+            ClaudeSessionService.shared.$focusedID
+                .removeDuplicates()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] id in if id == nil { self?.setSessionsEnlarged(false) } }
                 .store(in: &subscriptions)
         }
         if NotchSupport.routes(.agents) {

@@ -114,11 +114,32 @@ enum ClaudeSessionReaderTests {
         suite.expect(open.contains { if case .toolStarted(let tool) = $0 { return tool.summary == "echo SPIKE_OK > spike.txt" }; return false },
                      "and tool commands")
 
+        suite.expect(!facts.contains { if case .prompt = $0 { return true }; return false }, "with previews off no prompt is read")
+        let typed = parse([prompt], previews: true)
+        suite.expect(typed.contains(.prompt("Use the Bash tool to run exactly: echo SPIKE_OK > spike.txt", at: date("2026-10-21T17:50:38.622Z"))),
+                     "with previews on a typed prompt joins the conversation")
+        let midTurn = #"{"isSidechain":false,"type":"attachment","attachment":{"type":"queued_command","prompt":[{"type":"text","text":"Also run lint"},{"type":"image","source":{}}]},"timestamp":"2026-10-21T17:52:00.000Z"}"#
+        let summary = #"{"type":"user","isCompactSummary":true,"message":{"role":"user","content":"This session is being continued"},"timestamp":"2026-10-21T17:53:00.000Z"}"#
+        let command = #"{"type":"user","message":{"role":"user","content":"<command-name>/clear</command-name>"},"timestamp":"2026-10-21T17:54:00.000Z"}"#
+        let longReply = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"\#(String(repeating: "a", count: 7000))"}]},"timestamp":"2026-10-21T17:55:00.000Z"}"#
+        let said = parse([midTurn, summary, command, longReply], previews: true).compactMap { fact -> String? in
+            switch fact {
+            case .prompt(let text, _), .text(let text, _): return text
+            default: return nil
+            }
+        }
+        suite.expect(said.first == "Also run lint" && said.count == 2,
+                     "a prompt typed while Claude works counts; summaries and commands do not: \(said.map { $0.prefix(20) })")
+        suite.expect(said.last?.count == ClaudeTranscriptReader.replyLimit && said.last?.hasSuffix("…") == true,
+                     "a very long reply is cut at its limit")
+
         let notice = #"{"type":"user","origin":{"kind":"task-notification"},"timestamp":"2026-10-21T19:06:34.760Z","message":{"role":"user","content":"<task-notification>\n<task-id>a05df</task-id>\n<status>completed</status>\n</task-notification>"},"sessionId":"s1"}"#
         let queued = #"{"type":"queue-operation","operation":"enqueue","timestamp":"2026-10-21T19:06:30.000Z","content":"<task-notification><task-id>b77</task-id><status>failed</status></task-notification>"}"#
         let quoted = #"{"type":"assistant","timestamp":"2026-10-21T19:07:00.000Z","message":{"role":"assistant","content":[{"type":"text","text":"<task-notification><task-id>zz</task-id><status>completed</status>"}]}}"#
         let running = #"{"type":"queue-operation","timestamp":"2026-10-21T19:06:00.000Z","content":"<task-notification><task-id>c1</task-id><status>running</status></task-notification>"}"#
         let notified = parse([notice, queued, quoted, running], previews: false)
+        suite.expect(!parse([notice], previews: true).contains { if case .prompt = $0 { return true }; return false },
+                     "a task notification is not something the person typed")
         suite.expect(notified.contains(.subagentEnded(id: "a05df", at: date("2026-10-21T19:06:34.760Z")))
                      && notified.contains(.subagentEnded(id: "b77", at: date("2026-10-21T19:06:30.000Z"))),
                      "a task notification ends the background subagent it names")

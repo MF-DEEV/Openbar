@@ -205,6 +205,8 @@ enum NotchPresentationRefreshContract {
             mascotBridging = false
         }
         var selectedMetric: Bool?
+        var showsEnlargedSession = false
+        var sessionsEnlarged = false
         var expanded = true
         var peeking = false, dragPlaceholder = false, compactActivityIsVisible = false
         var compactActivityOverride: NotchCompactActivity?

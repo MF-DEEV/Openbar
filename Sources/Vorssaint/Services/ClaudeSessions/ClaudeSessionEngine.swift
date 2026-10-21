@@ -36,6 +36,9 @@ final class ClaudeSessionEngine {
         var usage: [String: (tokens: AgentTokens, cost: Double)] = [:]
         var title: String?
         var lastText: String?
+        var chat: [ClaudeChatMessage] = []
+        /// Messages said so far, which numbers the next one.
+        var said = 0
         var branch: String?
         var model: String?
         /// Permissions the hooks hold, oldest first: subagents can ask at once.
@@ -141,6 +144,7 @@ final class ClaudeSessionEngine {
         for id in activity.keys {
             activity[id]?.title = nil
             activity[id]?.lastText = nil
+            activity[id]?.chat = []
             activity[id]?.tasks?.current = nil
             if let tools = activity[id]?.tools {
                 activity[id]?.tools = tools.map { var tool = $0; tool.summary = nil; return tool }
@@ -230,7 +234,7 @@ final class ClaudeSessionEngine {
             timeline: entry.tools.suffix(Self.timelineLength).map(gated), subagents: subagents, tasks: tasks,
             tokens: tokens, cost: cost,
             title: previews ? entry.title : nil, lastText: previews ? entry.lastText : nil,
-            hooked: entry.hooked)
+            hooked: entry.hooked, chat: previews ? entry.chat : [])
     }
 
     // MARK: Rules
@@ -243,7 +247,10 @@ final class ClaudeSessionEngine {
         case .toolFinished(let id, let date, let failed): finish(id, at: date, failed: failed, in: &entry)
         case .text(let text, let date):
             if policy.previews { entry.lastText = text }
+            say(text, as: .assistant, at: date, in: &entry)
             touch(date, in: &entry)
+        case .prompt(let text, let date):
+            say(text, as: .user, at: date, in: &entry)
         case .title(let title): if policy.previews { entry.title = title }
         case .branch(let branch): entry.branch = branch
         case .model(let model): entry.model = model
@@ -270,6 +277,17 @@ final class ClaudeSessionEngine {
             if !policy.previews { tasks.current = nil }
             entry.tasks = tasks.total > 0 ? tasks : nil
         }
+    }
+
+    /// The conversation keeps its latest messages.
+    static let chatLength = 150
+
+    private func say(_ text: String, as role: ClaudeChatMessage.Role, at date: Date, in entry: inout Activity) {
+        guard policy.previews else { return }
+        if let last = entry.chat.last, last.role == role, last.text == text { return }
+        entry.said += 1
+        entry.chat.append(ClaudeChatMessage(id: entry.said, role: role, text: text, at: date))
+        if entry.chat.count > Self.chatLength { entry.chat.removeFirst(entry.chat.count - Self.chatLength) }
     }
 
     private func apply(_ event: ClaudeHookFact.Event, date: Date, to entry: inout Activity) {

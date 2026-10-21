@@ -20,6 +20,15 @@ struct NotchClaudeSessionStrings {
     let deny: String
     let answerInTerminal: String
     let open: String
+    let enlarge: String
+    let conversation: String
+    let noMessages: String
+    let showAllFormat: String
+    let showLess: String
+    let shrink: String
+    let smallerText: String
+    let largerText: String
+    let sendShortcut: String
     let send: String
     let replyPlaceholder: String
     let replyUnavailable: String
@@ -75,6 +84,7 @@ struct NotchClaudeSessionStrings {
 
     func moreSubagents(_ count: Int) -> String { String(format: moreSubagentsFormat, count) }
     func tasks(done: Int, total: Int) -> String { String(format: tasksFormat, done, total) }
+    func showAll(_ count: Int) -> String { String(format: showAllFormat, count) }
     func finishedAfter(_ duration: String) -> String { String(format: finishedAfterFormat, duration) }
     func hooksFailed(_ reason: String) -> String { String(format: hooksFailedFormat, reason) }
 }
@@ -107,6 +117,15 @@ extension NotchClaudeSessionStrings {
         deny: "Deny",
         answerInTerminal: "Answer this one in the terminal.",
         open: "Open",
+        enlarge: "Enlarge",
+        conversation: "Conversation",
+        noMessages: "Nothing said yet.",
+        showAllFormat: "Show all %d",
+        showLess: "Show less",
+        shrink: "Shrink",
+        smallerText: "Smaller text",
+        largerText: "Larger text",
+        sendShortcut: "⌘↩ sends",
         send: "Send",
         replyPlaceholder: "Reply to Claude…",
         replyUnavailable: "Replies work in Terminal and Antigravity",
@@ -125,7 +144,7 @@ extension NotchClaudeSessionStrings {
         autoExpand: "Open the island when a session needs you",
         autoExpandHint: "It won’t replace a page you already have open.",
         contentPreview: "Show previews",
-        contentPreviewHint: "Shows titles, commands, file names and Claude’s last reply. They stay in memory and are cleared when you turn this off.",
+        contentPreviewHint: "Shows titles, commands, file names and the conversation. They stay in memory and are cleared when you turn this off.",
         hooksTitle: "Claude Code hooks",
         hooksHint: "Hooks let the island show which tool runs and answer permission prompts. They’re added to ~/.claude/settings.json next to your own, with a backup first. Without the app running, Claude Code asks in the terminal as usual.",
         hooksInstalled: "Installed",

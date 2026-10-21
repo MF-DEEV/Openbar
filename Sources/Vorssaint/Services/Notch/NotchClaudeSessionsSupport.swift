@@ -117,6 +117,40 @@ enum NotchClaudeSessionsSupport {
 
     static let replyLimit = 4000
 
+    /// Text sizes a session's enlarged page offers.
+    static let largeTextSizes: ClosedRange<Double> = 12...24
+    static func largeTextSize(_ size: Double) -> Double {
+        guard size.isFinite else { return largeTextSizes.lowerBound + 3 }
+        return min(max(size.rounded(), largeTextSizes.lowerBound), largeTextSizes.upperBound)
+    }
+
+    /// Claude writes Markdown; bold, italics, code and links read as such,
+    /// and line breaks stay. A fenced block keeps its lines as written, in
+    /// code type; anything else that does not parse shows as written.
+    static func markdown(_ text: String) -> AttributedString {
+        var result = AttributedString()
+        for (index, part) in text.components(separatedBy: "```").enumerated() {
+            guard !index.isMultiple(of: 2) else {
+                result += inlineMarkdown(part)
+                continue
+            }
+            var code = Substring(part)
+            // The fence's own line names the language, which is not shown.
+            if let line = code.firstIndex(of: "\n"), !code[..<line].contains(" ") { code = code[code.index(after: line)...] }
+            if code.hasSuffix("\n") { code = code.dropLast() }
+            var block = AttributedString(code)
+            block.inlinePresentationIntent = .code
+            result += block
+        }
+        return result
+    }
+
+    private static func inlineMarkdown(_ text: String) -> AttributedString {
+        let options = AttributedString.MarkdownParsingOptions(
+            interpretedSyntax: .inlineOnlyPreservingWhitespace, failurePolicy: .returnPartiallyParsedIfPossible)
+        return (try? AttributedString(markdown: text, options: options)) ?? AttributedString(text)
+    }
+
     /// ⌘Y allows and ⌘N denies, as in the dialogs that ask the same.
     static func decision(key: String?, commandOnly: Bool) -> ClaudeHookMessage.Decision? {
         guard commandOnly else { return nil }

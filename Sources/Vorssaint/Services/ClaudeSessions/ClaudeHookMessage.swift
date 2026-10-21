@@ -75,7 +75,7 @@ struct ClaudeHookMessage {
     private static func preview(_ text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
-        let limit = ClaudeTranscriptReader.previewLimit
+        let limit = ClaudeTranscriptReader.replyLimit
         return trimmed.count > limit ? String(trimmed.prefix(limit - 1)) + "…" : trimmed
     }
 

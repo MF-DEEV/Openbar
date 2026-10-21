@@ -249,6 +249,7 @@ enum ClaudeSessionEngineTests {
             .toolStarted(tool("t1", 3, summary: secret)),
             .subagentInfo(id: "a1", type: "Plan", description: secret),
             .tasks(ClaudeTaskProgress(done: 1, total: 3, current: secret)),
+            .prompt(secret, at: at(2)), .text(secret, at: at(2)),
         ], now: at(3))
         let quiet = ClaudeSessionEngine()
         quiet.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
@@ -283,6 +284,25 @@ enum ClaudeSessionEngineTests {
                      "turning previews off clears what was read")
         open.policy = ClaudeContentPolicy(previews: true)
         suite.expect(only(open, 6)?.title == nil, "and turning them back on does not bring it back by itself")
+
+        let talk = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        talk.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        talk.ingest(sessionID: "s1", facts: [
+            .prompt("Fix the build", at: at(1)), .text("Looking.", at: at(2)), .text("Looking.", at: at(2)),
+            .prompt("Also run lint", at: at(3)), .text("Both pass.", at: at(4)),
+        ], now: at(4))
+        let chat = only(talk, 5)?.chat ?? []
+        suite.expect(chat.map(\.text) == ["Fix the build", "Looking.", "Also run lint", "Both pass."]
+                     && chat.map(\.role) == [.user, .assistant, .user, .assistant],
+                     "the conversation keeps prompts and replies in order, once each: \(chat.map(\.text))")
+        suite.expect(Set(chat.map(\.id)).count == chat.count, "each message has its own id")
+        talk.ingest(sessionID: "s1", facts: (0..<(ClaudeSessionEngine.chatLength + 10)).map { .text("m\($0)", at: at(10)) },
+                    now: at(10))
+        let long = only(talk, 11)?.chat ?? []
+        suite.expect(long.count == ClaudeSessionEngine.chatLength && long.last?.text == "m\(ClaudeSessionEngine.chatLength + 9)",
+                     "a long conversation keeps its latest messages")
+        talk.policy = ClaudeContentPolicy(previews: false)
+        suite.expect(only(talk, 12)?.chat.isEmpty == true, "turning previews off clears the conversation")
     }
 
     // MARK: Bookkeeping
@@ -434,6 +454,33 @@ enum ClaudeSessionEngineTests {
         let wide = NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionCounts(working: 12, waiting: 1, finished: 3), textSize: 13)
         suite.expect(narrow > 0 && wide > narrow && NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionCounts(), textSize: 13) == 0,
                      "the strip grows with what it counts")
+
+        let fenced = NotchClaudeSessionsSupport.markdown("Here:\n```swift\nlet x = 1\nlet y = 2\n```\nDone **now**")
+        suite.expect(String(fenced.characters) == "Here:\nlet x = 1\nlet y = 2\nDone now",
+                     "a fenced block keeps its lines and drops its fence: \(String(fenced.characters).debugDescription)")
+        suite.expect(fenced.runs.contains { run in
+            run.inlinePresentationIntent?.contains(.code) == true && String(fenced[run.range].characters) == "let x = 1\nlet y = 2"
+        }, "and reads as code")
+        let rendered = NotchClaudeSessionsSupport.markdown("Fixed **two bugs** in `NotchView`\n- *one* line")
+        suite.expect(String(rendered.characters) == "Fixed two bugs in NotchView\n- one line",
+                     "markdown marks leave the reply and its line breaks stay: \(String(rendered.characters))")
+        suite.expect(rendered.runs.contains { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true }
+                     && rendered.runs.contains { $0.inlinePresentationIntent?.contains(.code) == true },
+                     "bold reads as bold and code as code")
+        suite.expect(String(NotchClaudeSessionsSupport.markdown("half **open").characters).contains("half"),
+                     "text that does not parse still shows")
+
+        suite.expect(NotchClaudeSessionsSupport.largeTextSize(40) == 24 && NotchClaudeSessionsSupport.largeTextSize(3) == 12
+                     && NotchClaudeSessionsSupport.largeTextSize(.nan) == 15 && NotchClaudeSessionsSupport.largeTextSize(15.4) == 15,
+                     "the enlarged page's text size stays within its range")
+        var island = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1512, height: 982), safeAreaTop: 32, cameraWidth: 180)
+        let usual = island.expandedSize(module: .sessions)
+        island.enlarged = true
+        let grown = island.expandedSize(module: .sessions)
+        suite.expect(grown.width > usual.width + 200 && grown.height > usual.height + 200,
+                     "an enlarged session grows the island: \(usual) → \(grown)")
+        suite.expect(grown.width <= 1512 - 24 && grown.height <= 982 - 48 && grown.width <= 1180,
+                     "and stays on the screen at a readable width")
 
         let strings = FeatureStrings.notchClaudeSessions(.de)
         suite.expect(strings.title == NotchClaudeSessionStrings.enUS.title, "every language reads the English text for now")

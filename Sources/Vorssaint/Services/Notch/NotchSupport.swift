@@ -2254,6 +2254,9 @@ struct NotchGeometry: Equatable {
     var compactSideRoom: CGFloat?
     var quickAccessBottomInset: CGFloat = 0
     var requiresFullWidthHeader = false
+    /// A page grown to read and write in: most of the screen, up to a
+    /// readable line length.
+    var enlarged = false
     /// What the open page puts in the island's top row.
     var pageTop: NotchPageTop = .row
     /// The width the open page reads best at, inside a preset's width,
@@ -2655,6 +2658,8 @@ struct NotchGeometry: Equatable {
     }
     var expanded: CGSize { expandedSize(module: .controls) }
     var expandedWidth: CGFloat {
+        let limit = screen.width - 24 - NotchQuickAccessLayout.gutter * 2
+        if enlarged { return min(max(min(1180, screen.width * 0.66), cameraWidth + 36), limit) }
         let chosen = NotchLayout.preferredWidth(layout, custom: customWidth)
         // Under a preset, a page with a width of its own takes no more, still
         // wrapping the camera with its row where the chosen width would have.
@@ -2670,7 +2675,7 @@ struct NotchGeometry: Equatable {
         let preferred = layout == .custom ? chosen : pageContentWidth.map { natural in
             min(chosen, max(natural, isNotched ? cameraWidth + wing * 2 : 0) + NotchLayout.horizontalInset * 2)
         } ?? chosen
-        return min(max(preferred, cameraWidth + 36), screen.width - 24 - NotchQuickAccessLayout.gutter * 2)
+        return min(max(preferred, cameraWidth + 36), limit)
     }
     var contentWidth: CGFloat { max(0, expandedWidth - NotchLayout.horizontalInset * 2) }
     /// Content height available before a page needs to scroll.
@@ -2726,6 +2731,9 @@ struct NotchGeometry: Equatable {
                       capturePreviewHeight: CGFloat? = nil,
                       timerHasSession: Bool = false, timerMode: NotchTimerMode = .timer,
                       agentsHeight: CGFloat? = nil) -> CGSize {
+        if enlarged {
+            return CGSize(width: expandedWidth, height: min(screen.height * 0.8, screen.height - 48 - quickAccessBottomInset))
+        }
         let budget = contentBudget
         let showsCapturePreview = module == .captures && !detail && capturePreviewHeight != nil
         let showsFileMedia = module == .files && !detail && fileMediaHeight != nil
