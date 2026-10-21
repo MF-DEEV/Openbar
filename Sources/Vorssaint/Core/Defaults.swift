@@ -887,6 +887,13 @@ enum DefaultsKey {
     static let notchAgentsLimitThreshold = "notchAgentsLimitThreshold"
     static let notchAgentsDailyBudget = "notchAgentsDailyBudget"
     static let notchAgentsPriceUpdates = "notchAgentsPriceUpdates"
+    // Claude Code sessions: the island section that follows each running session.
+    static let notchSessionsEnabled = "notchSessionsEnabled"
+    static let notchSessionsLiveActivity = "notchSessionsLiveActivity"
+    /// The island opens on its own when a session waits on the person.
+    static let notchSessionsAutoExpand = "notchSessionsAutoExpand"
+    /// Prompts, replies, titles and tool arguments may be read into memory.
+    static let notchSessionsContentPreview = "notchSessionsContentPreview"
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
     // How the island looks on a display without a camera housing.
@@ -1476,6 +1483,10 @@ enum Defaults {
         DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,
         DefaultsKey.notchAgentsDailyBudget: 0.0,
         DefaultsKey.notchAgentsPriceUpdates: true,
+        DefaultsKey.notchSessionsEnabled: false,
+        DefaultsKey.notchSessionsLiveActivity: true,
+        DefaultsKey.notchSessionsAutoExpand: true,
+        DefaultsKey.notchSessionsContentPreview: false,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchBrowserCovers: false,
