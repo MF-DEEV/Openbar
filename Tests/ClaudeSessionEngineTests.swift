@@ -205,6 +205,25 @@ enum ClaudeSessionEngineTests {
         engine.ingest(hook: hook(.stopped(lastText: nil), 9), now: at(9))
         suite.expect(engine.permission(of: "s1") == nil, "a turn ending drops its request")
 
+        // Two calls of one tool run side by side: the request belongs to the
+        // one whose input it carries, not the newest.
+        let twin = ClaudeSessionEngine()
+        twin.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        let keyA = ClaudeToolSummary.inputKey(name: "WebFetch", input: ["url": "https://a.example"])
+        let keyB = ClaudeToolSummary.inputKey(name: "WebFetch", input: ["url": "https://b.example"])
+        twin.ingest(hook: hook(.toolStarted(ClaudeToolUse(id: "w1", name: "WebFetch", started: at(1), inputKey: keyA)), 1), now: at(1))
+        twin.ingest(hook: hook(.toolStarted(ClaudeToolUse(id: "w2", name: "WebFetch", started: at(1), inputKey: keyB)), 1), now: at(1))
+        let fetch = ClaudePermission(requestID: "rw1", tool: "WebFetch", summary: "a.example", offersAlways: false,
+                                     since: at(2), inputKey: keyA)
+        twin.ingest(hook: hook(.permissionRequested(fetch), 2), now: at(2))
+        suite.expect(twin.permission(of: "s1")?.toolID == "w1", "a request is tied to the call with its input")
+        twin.ingest(hook: hook(.toolFinished(id: "w2", failed: false), 3), now: at(3))
+        suite.expect(twin.holds("rw1", for: "s1"), "the other call finishing leaves it waiting")
+        let unknown = ClaudePermission(requestID: "rw3", tool: "WebFetch", summary: nil, offersAlways: false, since: at(4))
+        twin.ingest(hook: hook(.permissionRequested(unknown), 4), now: at(4))
+        suite.expect(twin.permission(of: "s1")?.toolID == "w1" && twin.holds("rw3", for: "s1"),
+                     "a request that matches no single call is tied to none")
+
         let sub = ClaudeSessionEngine()
         sub.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
         sub.ingest(hook: hook(.subagentStarted(id: "a1", type: "Explore"), 1), now: at(1))
@@ -293,6 +312,25 @@ enum ClaudeSessionEngineTests {
         suite.expect(timeline.count == ClaudeSessionEngine.timelineLength && timeline.last?.id == "t39"
                      && timeline.last?.failed == true, "the timeline keeps the latest tools in order")
 
+        // Subagents: the transcript's start and type stay; a hook adds to them.
+        let team = ClaudeSessionEngine()
+        team.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        team.ingest(sessionID: "s1", facts: [.subagentActivity(id: "a1", at: at(10)),
+                                             .subagentInfo(id: "a1", type: "general-purpose", description: nil)], now: at(10))
+        team.ingest(hook: hook(.subagentStarted(id: "a1", type: ""), 40), now: at(40))
+        suite.expect(only(team, 41)?.subagents.first.map { $0.type == "general-purpose" && $0.started == at(10) } == true,
+                     "a late start hook keeps the subagent's real start and type")
+        team.ingest(hook: hook(.subagentStopped(id: "ghost"), 42), now: at(42))
+        suite.expect(only(team, 43)?.subagents.count == 1, "a stop for a subagent not seen adds no blank row")
+        team.ingest(sessionID: "s1", facts: [.subagentActivity(id: "ghost", at: at(30))], now: at(44))
+        suite.expect(only(team, 45)?.subagents.first { $0.id == "ghost" }?.finished == at(42),
+                     "and ends it once its transcript is read")
+        team.ingest(sessionID: "s1", facts: [.subagentActivity(id: "a2", at: at(20)), .subagentEnded(id: "a1", at: at(50))], now: at(50))
+        let order = only(team, 51)?.subagents.map(\.id) ?? []
+        suite.expect(order == ["a2", "a1", "ghost"], "working subagents come first, then the latest done: \(order)")
+        suite.expect(only(team, 51)?.subagents.first { $0.id == "a1" }.map { $0.finished == at(50) && $0.started == at(10) } == true,
+                     "a background subagent's end comes from the session's task notification")
+
         let early = ClaudeSessionEngine()
         early.ingest(hook: hook(.promptSubmitted, 0, id: "s2"), now: at(0))
         early.ingest(records: [], now: at(10))
@@ -354,21 +392,14 @@ enum ClaudeSessionEngineTests {
         suite.expect(order == ["d", "h", "f", "c", "e", "b", "g", "a"],
                      "waiting sessions lead, then work by start, unread results newest first, idle by name: \(order)")
 
-        func expand(_ event: ClaudeSessionEvent, _ enabled: Bool, _ expanded: Bool, _ sessions: Bool, _ suspended: Bool,
-                    viewing: String? = nil) -> Bool {
-            NotchClaudeSessionsSupport.shouldAutoExpand(event, enabled: enabled, expanded: expanded, showingSessions: sessions,
-                                                        viewing: viewing, suspended: suspended)
-        }
+        let expand = NotchClaudeSessionsSupport.shouldAutoExpand
         let ask = ClaudeSessionEvent.needsPermission(id: "a", tool: "Bash")
-        suite.expect(expand(ask, true, false, false, false), "a permission opens a closed island")
-        suite.expect(expand(.needsInput(id: "a"), true, true, true, false), "and keeps the Sessions page open")
-        suite.expect(!expand(ask, true, true, false, false), "but never takes over another open page")
-        suite.expect(!expand(ask, true, true, true, false, viewing: "b"),
-                     "nor swaps the session page the person is reading for another")
-        suite.expect(expand(ask, true, true, true, false, viewing: "a"), "its own page stays on it")
-        suite.expect(!expand(ask, false, false, false, false), "nor when the setting is off")
-        suite.expect(!expand(ask, true, false, false, true), "nor while the island is held back")
-        suite.expect(!expand(.finished(id: "a", duration: 3), true, false, false, false), "a result only shows a notice")
+        suite.expect(expand(ask, true, false, false), "a permission opens a closed island")
+        suite.expect(expand(.needsInput(id: "a"), true, false, false), "and so does a question")
+        suite.expect(!expand(ask, true, true, false), "an open island, list or page, never changes under the pointer")
+        suite.expect(!expand(ask, false, false, false), "nor when the setting is off")
+        suite.expect(!expand(ask, true, false, true), "nor while the island is held back")
+        suite.expect(!expand(.finished(id: "a", duration: 3), true, false, false), "a result only shows a notice")
 
         suite.expect(NotchClaudeSessionsSupport.canReply(session("a", .finished, since: 0, project: "a")),
                      "a reply goes to a session in Terminal")

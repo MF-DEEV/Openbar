@@ -32,11 +32,12 @@ enum ClaudeHookTests {
         }
 
         let pre = decode(#"{\#(base),"hook_event_name":"PreToolUse","tool_name":"Edit","tool_use_id":"t1","tool_input":{"file_path":"/a/b.swift"}}"#)
-        suite.expect(pre?.fact.event == .toolStarted(ClaudeToolUse(id: "t1", name: "Edit", summary: nil, started: now)),
+        let editKey = ClaudeToolSummary.inputKey(name: "Edit", input: ["file_path": "/a/b.swift"])
+        suite.expect(pre?.fact.event == .toolStarted(ClaudeToolUse(id: "t1", name: "Edit", summary: nil, started: now, inputKey: editKey)),
                      "a tool start keeps its name but not its file while previews are off")
         let shown = decode(#"{\#(base),"hook_event_name":"PreToolUse","tool_name":"Edit","tool_use_id":"t1","tool_input":{"file_path":"/a/b.swift"}}"#,
                            previews: true)
-        suite.expect(shown?.fact.event == .toolStarted(ClaudeToolUse(id: "t1", name: "Edit", summary: "b.swift", started: now)),
+        suite.expect(shown?.fact.event == .toolStarted(ClaudeToolUse(id: "t1", name: "Edit", summary: "b.swift", started: now, inputKey: editKey)),
                      "and its file with previews on")
         suite.expect(decode(#"{\#(base),"hook_event_name":"PostToolUseFailure","tool_use_id":"t1"}"#)?.fact.event
                      == .toolFinished(id: "t1", failed: true), "a failed tool finishes as failed")

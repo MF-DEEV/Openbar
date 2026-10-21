@@ -23,6 +23,8 @@ final class ClaudeSessionService: ObservableObject {
     @Published var focusedID: String?
     /// What the person is writing to each session, kept while the island closes.
     @Published var drafts: [String: String] = [:]
+    /// The permission each session shows and since when. Main thread.
+    private var shownRequests: [String: (request: String, at: Date)] = [:]
     let events = PassthroughSubject<ClaudeSessionEvent, Never>()
     /// Whether Claude Code's settings hold this app's hooks; nil until checked.
     @Published private(set) var hooksInstalled: Bool?
@@ -144,6 +146,10 @@ final class ClaudeSessionService: ObservableObject {
     /// Answers the request the person saw, and only that one: a newer request
     /// for the same session, or one already settled, is left alone.
     func decide(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision) {
+        // A request is answerable once it has been on screen a moment, so a
+        // click or ⌘Y meant for the one before it cannot answer it.
+        guard let shown = shownRequests[id], shown.request == request,
+              Date().timeIntervalSince(shown.at) >= NotchClaudeSessionsSupport.settleDelay else { return }
         queue.async { [self] in
             guard engine.holds(request, for: id), let waiting = pending.removeValue(forKey: request) else { return }
             waiting.connection.finish(ClaudeHookMessage.reply(decision, suggestions: waiting.suggestions))
@@ -231,14 +237,19 @@ final class ClaudeSessionService: ObservableObject {
         // Hooks get their own queue: a long transcript read must not keep a
         // session waiting on its hook.
         let created = ClaudeHookServer(path: path, queue: hookQueue) { [weak self] payload, connection in
-            self?.queue.async { self?.receive(payload, from: connection) }
+            // Only a permission waits for an answer; every other hook is let
+            // go here, so a long read on the session queue never holds it.
+            let delivered = Date()
+            if !ClaudeHookMessage.isPermissionRequest(payload) { connection.finish() }
+            self?.queue.async { self?.receive(payload, from: connection, at: delivered) }
         }
         server = created.start() ? created : nil
     }
 
     /// One hook event, on the queue.
-    private func receive(_ payload: Data, from connection: ClaudeHookServer.Connection) {
-        let now = Date()
+    private func receive(_ payload: Data, from connection: ClaudeHookServer.Connection, at now: Date) {
+        // A hook that arrived as the section stopped goes back to the terminal.
+        guard timer != nil else { return connection.finish() }
         let request = UUID().uuidString
         guard let message = ClaudeHookMessage.decode(payload, requestID: request, now: now, policy: engine.policy) else {
             return connection.finish()
@@ -292,6 +303,7 @@ final class ClaudeSessionService: ObservableObject {
                 case .unreadable: failure = text.settingsUnreadable
                 case .unwritable(let reason): failure = reason
                 case .busy: failure = text.settingsBusy
+                case .noBackup: failure = text.settingsNoBackup
                 }
             } catch {
                 failure = error.localizedDescription
@@ -443,6 +455,12 @@ final class ClaudeSessionService: ObservableObject {
             if changed {
                 sessions = sorted
                 counts = ClaudeSessionCounts(sorted)
+                for session in sorted {
+                    let request = session.permission?.requestID
+                    if shownRequests[session.id]?.request != request {
+                        shownRequests[session.id] = request.map { (request: $0, at: Date()) }
+                    }
+                }
                 if let focusedID, !sorted.contains(where: { $0.id == focusedID }) { self.focusedID = nil }
             }
             snapshot.events.forEach(events.send)
@@ -601,12 +619,34 @@ enum ClaudeBridgeInstaller {
 /// away when the app is uninstalled: its hooks in Claude Code's settings,
 /// the Antigravity extension and the `~/.vorssaint` folder they talk through.
 enum ClaudeSessionCleanup {
-    static func removeForUninstall(home: URL = FileManager.default.homeDirectoryForCurrentUser) {
-        let bundle = ClaudeSessionService.bundleID
-        try? ClaudeHookInstaller.update(ClaudeHookInstaller.settingsURL(home: home)) {
-            ClaudeHookInstaller.removing(from: $0, bundle: bundle)
+    /// The official build and the Developer build share the extension and
+    /// its folder; each takes away only its own hooks and socket, and the
+    /// shared parts go with the last of them.
+    static func siblings(of bundle: String) -> [String] {
+        let official = "com.vorssaint.utils"
+        return bundle == official ? [official + ".dev"] : [official]
+    }
+
+    /// What was taken away, for the uninstaller to report.
+    @discardableResult
+    static func removeForUninstall(home: URL = FileManager.default.homeDirectoryForCurrentUser,
+                                   bundle: String = ClaudeSessionService.bundleID,
+                                   siblingInstalled: (String) -> Bool = { NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) != nil })
+        -> (hooks: Bool, shared: Bool) {
+        let settings = ClaudeHookInstaller.settingsURL(home: home)
+        var hooks = false
+        if let current = try? ClaudeHookInstaller.read(settings), ClaudeHookInstaller.hasAny(in: current, bundle: bundle) {
+            hooks = (try? ClaudeHookInstaller.update(settings) { ClaudeHookInstaller.removing(from: $0, bundle: bundle) }) != nil
         }
+        let folder = home.appending(path: ".vorssaint", directoryHint: .isDirectory)
+        try? FileManager.default.removeItem(at: folder.appending(path: "\(bundle).sock"))
+        let others = siblings(of: bundle).filter { sibling in
+            siblingInstalled(sibling)
+                || ((try? ClaudeHookInstaller.read(settings)).map { ClaudeHookInstaller.hasAny(in: $0, bundle: sibling) } ?? false)
+        }
+        guard others.isEmpty else { return (hooks, false) }
         ClaudeBridgeInstaller.uninstall(home: home)
-        try? FileManager.default.removeItem(at: home.appending(path: ".vorssaint", directoryHint: .isDirectory))
+        try? FileManager.default.removeItem(at: folder)
+        return (hooks, true)
     }
 }

@@ -155,7 +155,7 @@ enum ClaudeTerminalBridge {
     }
 
     /// Asks each window in turn until one says it did it.
-    static func ask(_ request: [String: Any], folder: URL, timeout: TimeInterval = 2) -> Bool {
+    static func ask(_ request: [String: Any], folder: URL, timeout: TimeInterval = 4) -> Bool {
         guard var line = try? JSONSerialization.data(withJSONObject: request) else { return false }
         line.append(0x0A)
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []

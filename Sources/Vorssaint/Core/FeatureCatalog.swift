@@ -266,7 +266,7 @@ extension AppFeature {
         case .notchDownloads: return [DefaultsKey.notchDownloadsEnabled]
         case .notchNotifications: return [DefaultsKey.notchNotificationsEnabled]
         case .notchCalendar: return [DefaultsKey.notchCalendarEnabled]
-        case .notchAgents: return [DefaultsKey.notchAgentsEnabled, DefaultsKey.notchSessionsEnabled]
+        case .notchAgents: return [DefaultsKey.notchAgentsEnabled]
         case .notchWatch: return [DefaultsKey.notchWatchEnabled]
         case .notchMascot: return [DefaultsKey.notchMascotEnabled]
         case .notch: return [DefaultsKey.notchEnabled]
@@ -508,7 +508,9 @@ extension AppFeature {
         allCases.filter { feature in
             guard feature.permissions.contains(permission), isAvailable(feature) else { return false }
             let keys = feature.enabledKeys
-            guard keys.isEmpty || keys.contains(where: boolFor) else { return false }
+            // The Sessions page has its own switch beside the AI page's.
+            let ownSwitch = feature == .notchAgents && permission == .automationTerminal
+            guard keys.isEmpty || ownSwitch || keys.contains(where: boolFor) else { return false }
             switch (feature, permission) {
             case (.notch, .automationPlayback):
                 return !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("music")

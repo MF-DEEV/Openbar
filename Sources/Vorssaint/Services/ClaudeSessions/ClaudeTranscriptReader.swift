@@ -38,6 +38,13 @@ struct ClaudeTranscriptReader {
             }
         }
         guard let json = AgentLogParser.object(line), let type = json["type"] as? String else { return facts }
+        // A subagent run in the background ends without closing its own
+        // transcript; the session hears of it as a task notification. Only
+        // the records that deliver one count, never a reply quoting one.
+        if subagent == nil, AgentLogParser.contains(line, "<task-notification>"), Self.deliversNotification(json, type: type),
+           let ended = Self.finishedTask(line) {
+            facts.append(.subagentEnded(id: ended.id, at: AgentLogParser.timestamp(json["timestamp"]) ?? now))
+        }
         let date = AgentLogParser.timestamp(json["timestamp"]) ?? now
         if let branch = json["gitBranch"] as? String, !branch.isEmpty, branch != "HEAD" { facts.append(.branch(branch)) }
         if let subagent {
@@ -53,9 +60,10 @@ struct ClaudeTranscriptReader {
                 switch block["type"] as? String {
                 case "tool_use":
                     guard let id = block["id"] as? String, let name = block["name"] as? String else { continue }
-                    let summary = policy.previews
-                        ? ClaudeToolSummary.summary(name: name, input: block["input"] as? [String: Any] ?? [:]) : nil
-                    facts.append(.toolStarted(ClaudeToolUse(id: id, name: name, summary: summary, started: date)))
+                    let input = block["input"] as? [String: Any] ?? [:]
+                    let summary = policy.previews ? ClaudeToolSummary.summary(name: name, input: input) : nil
+                    facts.append(.toolStarted(ClaudeToolUse(id: id, name: name, summary: summary, started: date,
+                                                            inputKey: ClaudeToolSummary.inputKey(name: name, input: input))))
                 case "text":
                     if policy.previews, let text = preview(block["text"] as? String) { facts.append(.text(text, at: date)) }
                 default: break
@@ -93,6 +101,32 @@ struct ClaudeTranscriptReader {
         default: break
         }
         return facts
+    }
+
+    static let finishedStatuses: Set<String> = ["completed", "failed", "killed", "stopped", "cancelled", "error"]
+
+    static func deliversNotification(_ json: [String: Any], type: String) -> Bool {
+        switch type {
+        case "queue-operation": return true
+        case "user": return (json["origin"] as? [String: Any])?["kind"] as? String == "task-notification"
+        case "attachment": return (json["attachment"] as? [String: Any])?["type"] as? String == "queued_command"
+        default: return false
+        }
+    }
+
+    /// The task a notification line reports finished.
+    static func finishedTask(_ line: Data) -> (id: String, status: String)? {
+        let text = String(decoding: line, as: UTF8.self)
+        guard let id = between(text, "<task-id>", "</task-id>"),
+              let status = between(text, "<status>", "</status>"), finishedStatuses.contains(status) else { return nil }
+        return (id, status)
+    }
+
+    private static func between(_ text: String, _ start: String, _ end: String) -> String? {
+        guard let open = text.range(of: start), let close = text.range(of: end, range: open.upperBound..<text.endIndex)
+        else { return nil }
+        let value = text[open.upperBound..<close.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+        return value.isEmpty || value.count > 128 ? nil : value
     }
 
     private func subagentFacts(_ json: [String: Any], type: String, id: String, date: Date) -> [ClaudeTranscriptFact] {

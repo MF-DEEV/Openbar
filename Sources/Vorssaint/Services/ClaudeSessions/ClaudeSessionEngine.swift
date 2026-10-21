@@ -29,6 +29,9 @@ final class ClaudeSessionEngine {
         var lastFact: Date?
         var tools: [ClaudeToolUse] = []
         var subagents: [String: ClaudeSubagent] = [:]
+        /// Subagents reported done before anything else was known of them;
+        /// the end applies once they are.
+        var endedAgents: [String: Date] = [:]
         var tasks: ClaudeTaskProgress?
         var usage: [String: (tokens: AgentTokens, cost: Double)] = [:]
         var title: String?
@@ -210,7 +213,7 @@ final class ClaudeSessionEngine {
             tokens += usage.tokens
             cost += usage.cost
         }
-        let subagents = entry.subagents.values.sorted { $0.started < $1.started }.map { agent -> ClaudeSubagent in
+        let subagents = Self.ordered(Array(entry.subagents.values)).map { agent -> ClaudeSubagent in
             var agent = agent
             if !previews { agent.description = nil }
             return agent
@@ -249,13 +252,14 @@ final class ClaudeSessionEngine {
             entry.usage[key] = (known?.tokens.merged(with: tokens) ?? tokens, max(known?.cost ?? 0, cost))
         case .subagentActivity(let id, let date):
             if entry.subagents[id] == nil {
-                entry.subagents[id] = ClaudeSubagent(id: id, type: "Agent", started: date)
-            } else if entry.subagents[id]?.finished.map({ $0 < date }) == true {
+                entry.subagents[id] = ClaudeSubagent(id: id, type: ClaudeSubagent.untyped, started: date)
+                if let ended = entry.endedAgents[id], ended >= date { entry.subagents[id]?.finished = ended }
+            } else if entry.subagents[id]?.finished.map({ $0 < date }) == true,
+                      (entry.endedAgents[id] ?? .distantPast) < date {
                 entry.subagents[id]?.finished = nil
             }
         case .subagentEnded(let id, let date):
-            if entry.subagents[id] == nil { entry.subagents[id] = ClaudeSubagent(id: id, type: "Agent", started: date) }
-            entry.subagents[id]?.finished = date
+            endSubagent(id, at: date, in: &entry)
         case .subagentInfo(let id, let type, let description):
             if entry.subagents[id] == nil {
                 entry.subagents[id] = ClaudeSubagent(id: id, type: type, started: entry.lastFact ?? .distantPast)
@@ -277,10 +281,13 @@ final class ClaudeSessionEngine {
         case .toolFinished(let id, let failed): finish(id, at: date, failed: failed, in: &entry)
         case .permissionRequested(var permission):
             if !entry.turnOpen { begin(at: date, in: &entry) }
-            // The tool that asked is the main agent's newest one by that name
-            // still waiting to run; its result answers the request.
+            // The tool that asked is the main agent's running call with the
+            // same input, or the only running call by that name; its result
+            // answers the request.
             if permission.toolID == nil {
-                permission.toolID = entry.tools.last { $0.isRunning && $0.name == permission.tool }?.id
+                let candidates = entry.tools.filter { $0.isRunning && $0.name == permission.tool }
+                permission.toolID = candidates.last { $0.inputKey != nil && $0.inputKey == permission.inputKey }?.id
+                    ?? (candidates.count == 1 ? candidates.first?.id : nil)
             }
             entry.permissions.removeAll { $0.requestID == permission.requestID }
             entry.permissions.append(permission)
@@ -289,11 +296,16 @@ final class ClaudeSessionEngine {
             if policy.previews, let text { entry.lastText = text }
             end(at: date, completed: true, in: &entry)
         case .subagentStarted(let id, let type):
-            entry.subagents[id] = ClaudeSubagent(id: id, type: type,
-                                                 description: entry.subagents[id]?.description, started: date)
+            // The hook adds to what the transcript already told, never resets it.
+            if var known = entry.subagents[id] {
+                known.started = min(known.started, date)
+                if known.type == ClaudeSubagent.untyped, !type.isEmpty { known.type = type }
+                entry.subagents[id] = known
+            } else {
+                entry.subagents[id] = ClaudeSubagent(id: id, type: type.isEmpty ? ClaudeSubagent.untyped : type, started: date)
+            }
         case .subagentStopped(let id):
-            if entry.subagents[id] == nil { entry.subagents[id] = ClaudeSubagent(id: id, type: "Agent", started: date) }
-            entry.subagents[id]?.finished = date
+            endSubagent(id, at: date, in: &entry)
         }
     }
 
@@ -309,8 +321,30 @@ final class ClaudeSessionEngine {
             permission.toolID = permission.toolID ?? ""
             apply(.permissionRequested(permission), date: date, to: &entry)
         default:
-            if entry.subagents[agent] == nil { entry.subagents[agent] = ClaudeSubagent(id: agent, type: "Agent", started: date) }
+            if entry.subagents[agent] == nil {
+                entry.subagents[agent] = ClaudeSubagent(id: agent, type: ClaudeSubagent.untyped, started: date)
+            }
             entry.lastFact = max(entry.lastFact ?? date, date)
+        }
+    }
+
+    /// A subagent known to have run ends; one not seen yet ends as soon as it is.
+    private func endSubagent(_ id: String, at date: Date, in entry: inout Activity) {
+        entry.endedAgents[id] = max(entry.endedAgents[id] ?? date, date)
+        guard let known = entry.subagents[id] else { return }
+        entry.subagents[id]?.finished = max(known.finished ?? date, date, known.started)
+    }
+
+    /// Working subagents first, by when they began, then the ones done, the
+    /// latest first.
+    static func ordered(_ agents: [ClaudeSubagent]) -> [ClaudeSubagent] {
+        agents.sorted { lhs, rhs in
+            switch (lhs.finished, rhs.finished) {
+            case (nil, nil): return lhs.started < rhs.started
+            case (nil, _): return true
+            case (_, nil): return false
+            case let (left?, right?): return left > right
+            }
         }
     }
 
@@ -343,6 +377,7 @@ final class ClaudeSessionEngine {
     private func start(_ tool: ClaudeToolUse, in entry: inout Activity) {
         if let index = entry.tools.firstIndex(where: { $0.id == tool.id }) {
             if entry.tools[index].summary == nil, policy.previews { entry.tools[index].summary = tool.summary }
+            if entry.tools[index].inputKey == nil { entry.tools[index].inputKey = tool.inputKey }
         } else {
             var tool = tool
             if !policy.previews { tool.summary = nil }

@@ -39,7 +39,8 @@ struct ClaudeHookMessage {
         case "PreToolUse":
             guard !toolID.isEmpty else { return nil }
             let summary = policy.previews ? ClaudeToolSummary.summary(name: tool, input: input) : nil
-            event = .toolStarted(ClaudeToolUse(id: toolID, name: tool, summary: summary, started: now))
+            event = .toolStarted(ClaudeToolUse(id: toolID, name: tool, summary: summary, started: now,
+                                               inputKey: ClaudeToolSummary.inputKey(name: tool, input: input)))
         case "PostToolUse", "PostToolUseFailure":
             guard !toolID.isEmpty else { return nil }
             event = .toolFinished(id: toolID, failed: name == "PostToolUseFailure")
@@ -50,7 +51,8 @@ struct ClaudeHookMessage {
                 requestID: requestID, tool: tool.isEmpty ? "Tool" : tool,
                 summary: ClaudeToolSummary.summary(name: tool, input: input),
                 detail: ClaudeToolSummary.permissionDetail(name: tool, input: input),
-                offersAlways: !offered.isEmpty, since: now))
+                offersAlways: !offered.isEmpty, since: now,
+                inputKey: ClaudeToolSummary.inputKey(name: tool, input: input)))
         case "Notification": event = .notification(type: json["notification_type"] as? String ?? "")
         case "Stop":
             let text = policy.previews ? (json["last_assistant_message"] as? String).map(preview) : nil
@@ -96,6 +98,12 @@ struct ClaudeHookMessage {
         }
         let output: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": body]]
         return (try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys])) ?? Data()
+    }
+
+    /// Whether the input is a permission request, told without decoding the rest.
+    static func isPermissionRequest(_ data: Data) -> Bool {
+        AgentLogParser.contains(data, #""hook_event_name":"PermissionRequest""#)
+            || ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["hook_event_name"] as? String == "PermissionRequest"
     }
 
     /// The input is complete once it parses: the hook sends one JSON object

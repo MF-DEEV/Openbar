@@ -1868,7 +1868,7 @@ enum RepositoryFeatureTests {
         suite.expect(selfUninstallSource.contains("ClaudeSessionCleanup.removeForUninstall()")
                      && repository.source(at: "Sources/Vorssaint/Support/Uninstaller.swift")
                         .contains("ClaudeSessionCleanup.removeForUninstall()")
-                     && uninstallScriptSource.contains("$HOME/.vorssaint"),
+                     && uninstallScriptSource.contains("$HOME/.vorssaint/$BUNDLE.sock"),
                "both uninstall paths take the Sessions hooks and ~/.vorssaint away")
         suite.expect(uninstallScriptSource.contains("Library/Preferences/ByHost"),
                "script uninstall sweeps ByHost preferences")

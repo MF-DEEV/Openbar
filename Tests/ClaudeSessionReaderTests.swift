@@ -91,8 +91,9 @@ enum ClaudeSessionReaderTests {
         suite.expect(facts.contains(.turnBegan(date("2026-10-21T17:50:38.622Z"))), "a typed prompt begins a turn")
         suite.expect(facts.contains(.branch("feat/sessions")), "the branch comes from the transcript")
         suite.expect(facts.contains(.model("claude-haiku-5-5")), "and the model")
+        let key = ClaudeToolSummary.inputKey(name: "Bash", input: ["command": "echo SPIKE_OK > spike.txt", "description": "Write"])
         suite.expect(facts.contains(.toolStarted(ClaudeToolUse(id: "toolu_1", name: "Bash", summary: nil,
-                                                               started: date("2026-10-21T17:50:44.000Z")))),
+                                                               started: date("2026-10-21T17:50:44.000Z"), inputKey: key))),
                      "a tool call starts that tool, without its command while previews are off")
         suite.expect(facts.contains(.toolFinished(id: "toolu_1", at: date("2026-10-21T17:50:50.507Z"), failed: true)),
                      "its result finishes it and says when it failed")
@@ -112,6 +113,17 @@ enum ClaudeSessionReaderTests {
                      && open.contains(.title("SENTINEL-title")), "with previews on replies and titles are read")
         suite.expect(open.contains { if case .toolStarted(let tool) = $0 { return tool.summary == "echo SPIKE_OK > spike.txt" }; return false },
                      "and tool commands")
+
+        let notice = #"{"type":"user","origin":{"kind":"task-notification"},"timestamp":"2026-10-21T19:06:34.760Z","message":{"role":"user","content":"<task-notification>\n<task-id>a05df</task-id>\n<status>completed</status>\n</task-notification>"},"sessionId":"s1"}"#
+        let queued = #"{"type":"queue-operation","operation":"enqueue","timestamp":"2026-10-21T19:06:30.000Z","content":"<task-notification><task-id>b77</task-id><status>failed</status></task-notification>"}"#
+        let quoted = #"{"type":"assistant","timestamp":"2026-10-21T19:07:00.000Z","message":{"role":"assistant","content":[{"type":"text","text":"<task-notification><task-id>zz</task-id><status>completed</status>"}]}}"#
+        let running = #"{"type":"queue-operation","timestamp":"2026-10-21T19:06:00.000Z","content":"<task-notification><task-id>c1</task-id><status>running</status></task-notification>"}"#
+        let notified = parse([notice, queued, quoted, running], previews: false)
+        suite.expect(notified.contains(.subagentEnded(id: "a05df", at: date("2026-10-21T19:06:34.760Z")))
+                     && notified.contains(.subagentEnded(id: "b77", at: date("2026-10-21T19:06:30.000Z"))),
+                     "a task notification ends the background subagent it names")
+        suite.expect(!notified.contains { if case .subagentEnded(let id, _) = $0 { return id == "zz" || id == "c1" }; return false },
+                     "a reply quoting one, or a task still running, ends nothing")
 
         let path = "/x/projects/p/s1/subagents/agent-a7.jsonl"
         suite.expect(ClaudeTranscriptReader.subagent(of: path) == "a7", "a subagent file names its subagent")

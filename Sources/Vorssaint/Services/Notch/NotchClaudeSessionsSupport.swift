@@ -60,18 +60,14 @@ enum NotchClaudeSessionsSupport {
 
     // MARK: Island
 
-    /// Whether a session's change should open the island by itself. It never
-    /// takes the island from a page the person has open, and stays shut while
-    /// the island is held back, as during a recording or in full screen.
-    /// Nor does it swap one session's page for another's under the pointer,
-    /// where a click meant for the first would answer the second.
-    static func shouldAutoExpand(_ event: ClaudeSessionEvent, enabled: Bool, expanded: Bool,
-                                 showingSessions: Bool, viewing: String? = nil, suspended: Bool) -> Bool {
-        guard enabled, !suspended else { return false }
+    /// Whether a session's change should open the island by itself: only a
+    /// closed one, so a page or list the person has open never changes
+    /// under the pointer, and never while the island is held back, as during
+    /// a recording or in full screen.
+    static func shouldAutoExpand(_ event: ClaudeSessionEvent, enabled: Bool, expanded: Bool, suspended: Bool) -> Bool {
+        guard enabled, !suspended, !expanded else { return false }
         switch event {
-        case .needsPermission(let id, _), .needsInput(let id):
-            guard !expanded || showingSessions else { return false }
-            return viewing == nil || viewing == id
+        case .needsPermission, .needsInput: return true
         case .finished: return false
         }
     }

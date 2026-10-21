@@ -74,6 +74,9 @@ struct ClaudeToolUse: Equatable, Identifiable {
     let started: Date
     var finished: Date?
     var failed = false
+    /// Tells this call apart from another of the same tool by what it was
+    /// given, without keeping what it was given.
+    var inputKey: Int? = nil
 
     var isRunning: Bool { finished == nil }
 }
@@ -94,17 +97,22 @@ struct ClaudePermission: Equatable {
     /// The tool call the request is for; its result answers it. Empty for a
     /// subagent's, whose tools are not followed.
     var toolID: String? = nil
+    /// Matches the tool call whose input this is.
+    var inputKey: Int? = nil
 
     /// A request short enough to read whole on one line of the list.
     var fitsOnALine: Bool { !detail.contains("\n") && detail.count <= ClaudeToolSummary.quickDecisionLimit }
 }
 
 struct ClaudeSubagent: Equatable, Identifiable {
+    /// The type of a subagent whose own description was not read yet.
+    static let untyped = "Agent"
+
     let id: String
     var type: String
     /// The task it was given; nil unless content previews are on.
     var description: String?
-    let started: Date
+    var started: Date
     var finished: Date?
 
     var isRunning: Bool { finished == nil }
@@ -256,6 +264,14 @@ enum ClaudeToolSummary {
     }
 
     static let quickDecisionLimit = 60
+
+    /// The same for the same tool and input within one run of the app.
+    static func inputKey(name: String, input: [String: Any]) -> Int {
+        var hasher = Hasher()
+        hasher.combine(name)
+        hasher.combine(permissionDetail(name: name, input: input))
+        return hasher.finalize()
+    }
     static let detailLimit = 8000
 
     /// All of what a tool asks to do, for the person to read before allowing

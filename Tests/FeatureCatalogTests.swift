@@ -1521,6 +1521,8 @@ enum FeatureCatalogTests {
         suite.expect(activeSet(.automationTerminal, on: [DefaultsKey.notchEnabled, DefaultsKey.notchSessionsEnabled],
                                strings: [DefaultsKey.notchHiddenModules: "sessions"]) == [.homebrew],
                      "but not once the page is hidden")
+        suite.expect(AppFeature.notchAgents.enabledKeys == [DefaultsKey.notchAgentsEnabled],
+                     "the AI page keeps one switch, so the Command Bar still offers to turn it on and off")
         suite.expect(activeSet(.appManagement) == [.homebrew, .appUpdates, .diskImageInstaller],
                "package, update and disk-image installs declare App Management access")
         suite.expect(AppFeature.homebrew.permissions == [.automationTerminal, .appManagement],

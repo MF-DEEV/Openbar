@@ -14,6 +14,8 @@ struct NotchClaudeSessionDetailView: View {
     @State private var openFailed = false
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
+    /// Working subagents come first, then the latest done.
+    static let shownSubagents = 4
 
     var body: some View {
         VStack(spacing: 8) {
@@ -180,7 +182,7 @@ struct NotchClaudeSessionDetailView: View {
     private func subagents(now: Date) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             sectionTitle(text.subagents)
-            ForEach(session.subagents.suffix(4)) { agent in
+            ForEach(session.subagents.prefix(Self.shownSubagents)) { agent in
                 HStack(spacing: 6) {
                     Image(systemName: agent.isRunning ? "arrow.triangle.branch" : "checkmark")
                         .font(.system(size: 9, weight: .semibold))
@@ -195,6 +197,11 @@ struct NotchClaudeSessionDetailView: View {
                         .font(.system(size: 10)).monospacedDigit().foregroundStyle(.secondary)
                 }
                 .accessibilityElement(children: .combine)
+            }
+            if session.subagents.count > Self.shownSubagents {
+                Text(text.moreSubagents(session.subagents.count - Self.shownSubagents))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
             }
         }
     }
@@ -284,8 +291,10 @@ struct NotchClaudeSessionPermissionCard: View {
             }
         }
         .padding(10)
-        .onChange(of: session.permission?.requestID) { old, new in
-            guard old != nil, new != nil, old != new else { return }
+        .onChange(of: session.permission?.requestID, initial: true) { old, new in
+            // Every request waits a moment before it can be answered, the
+            // first included, as the service does.
+            guard new != nil, old != new || old == nil else { return }
             settling = true
             DispatchQueue.main.asyncAfter(deadline: .now() + NotchClaudeSessionsSupport.settleDelay) { settling = false }
         }

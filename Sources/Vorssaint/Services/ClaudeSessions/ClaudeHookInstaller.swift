@@ -24,6 +24,8 @@ enum ClaudeHookInstaller {
         case unwritable(String)
         /// Claude Code changed the file each time it was about to be written.
         case busy
+        /// A copy of the old settings could not be kept, so nothing changed.
+        case noBackup
     }
 
     static func settingsURL(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
@@ -149,7 +151,7 @@ enum ClaudeHookInstaller {
                     let stamp = Int(now.timeIntervalSince1970)
                     let backup = folder.appending(path: "\(url.lastPathComponent).vorssaint-\(stamp).bak")
                     guard manager.createFile(atPath: backup.path, contents: original, attributes: [.posixPermissions: 0o600]) else {
-                        throw Failure.unwritable("couldn’t keep a copy of the settings")
+                        throw Failure.noBackup
                     }
                     prune(folder: folder, name: url.lastPathComponent)
                 }

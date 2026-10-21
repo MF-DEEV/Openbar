@@ -26,6 +26,7 @@ struct NotchClaudeSessionStrings {
     let replyWhileWaiting: String
     let tasksFormat: String
     let subagents: String
+    let moreSubagentsFormat: String
     let recentTools: String
     let lastReply: String
     let previewsOff: String
@@ -54,6 +55,7 @@ struct NotchClaudeSessionStrings {
     let updateBridge: String
     let settingsUnreadable: String
     let settingsBusy: String
+    let settingsNoBackup: String
     let bridgeMissing: String
     let antigravityMissing: String
     let bridgePackageFailed: String
@@ -71,6 +73,7 @@ struct NotchClaudeSessionStrings {
         }
     }
 
+    func moreSubagents(_ count: Int) -> String { String(format: moreSubagentsFormat, count) }
     func tasks(done: Int, total: Int) -> String { String(format: tasksFormat, done, total) }
     func finishedAfter(_ duration: String) -> String { String(format: finishedAfterFormat, duration) }
     func hooksFailed(_ reason: String) -> String { String(format: hooksFailedFormat, reason) }
@@ -110,6 +113,7 @@ extension NotchClaudeSessionStrings {
         replyWhileWaiting: "Answer the prompt first",
         tasksFormat: "%1$d of %2$d tasks",
         subagents: "Subagents",
+        moreSubagentsFormat: "%d more",
         recentTools: "Recent",
         lastReply: "Last reply",
         previewsOff: "Turn on previews in Settings to see what Claude wrote.",
@@ -138,6 +142,7 @@ extension NotchClaudeSessionStrings {
         updateBridge: "Update Extension",
         settingsUnreadable: "settings.json can’t be read, so it was left alone",
         settingsBusy: "Claude Code kept changing settings.json",
+        settingsNoBackup: "Couldn’t keep a copy of settings.json, so it was left alone",
         bridgeMissing: "The extension is missing from the app",
         antigravityMissing: "Antigravity isn’t installed",
         bridgePackageFailed: "Couldn’t package the extension",

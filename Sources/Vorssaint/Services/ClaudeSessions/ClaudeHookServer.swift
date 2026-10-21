@@ -29,6 +29,10 @@ final class ClaudeHookServer {
         private var source: DispatchSourceRead?
         /// A read source exists whose cancel handler has not run yet.
         private var watched = false
+        /// `finish` was called; the answer may still be being written.
+        private var finishing = false
+        /// The descriptor is given up: set in the same step that decides who
+        /// closes it, so the cancel handler and `finish` never both do.
         private var closed = false
 
         fileprivate init(descriptor: Int32, peer: pid_t) {
@@ -69,13 +73,16 @@ final class ClaudeHookServer {
         /// Writes the answer, if any, and ends the connection. Safe from any queue.
         func finish(_ reply: Data? = nil) {
             let first = lock.withLock { () -> Bool in
-                defer { closed = true }
-                return !closed
+                defer { finishing = true }
+                return !finishing
             }
             guard first else { return }
             if let reply, !reply.isEmpty { write(reply) }
             let (source, watched) = lock.withLock { () -> (DispatchSourceRead?, Bool) in
-                defer { self.source = nil }
+                defer {
+                    self.source = nil
+                    closed = true
+                }
                 return (self.source, self.watched)
             }
             if let source {
@@ -188,7 +195,9 @@ final class ClaudeHookServer {
             getsockopt(client, SOL_LOCAL, LOCAL_PEERPID, &peer, &peerSize)
             let connection = Connection(descriptor: client, peer: peer)
             let source = DispatchSource.makeReadSource(fileDescriptor: client, queue: queue)
-            source.setEventHandler { [weak self, connection] in self?.read(connection) }
+            // Held strongly: a read source left without its reader would fire
+            // forever. Cancelling it, on EOF or `finish`, lets both go.
+            source.setEventHandler { [self, connection] in read(connection) }
             connection.watch(source)
         }
     }

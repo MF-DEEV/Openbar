@@ -4157,9 +4157,7 @@ final class NotchService: ObservableObject {
         }
         guard let session = sessions.sessions.first(where: { $0.id == id }) else { return }
         if NotchClaudeSessionsSupport.shouldAutoExpand(event, enabled: NotchClaudeSessionsSupport.autoExpands(),
-                                                       expanded: expanded, showingSessions: selected == .sessions,
-                                                       viewing: expanded ? sessions.focusedID : nil,
-                                                       suspended: suspended || hiddenInFullscreen) {
+                                                       expanded: expanded, suspended: suspended || hiddenInFullscreen) {
             open(.sessions, takeFocus: false)
             sessions.focus(id)
             return
