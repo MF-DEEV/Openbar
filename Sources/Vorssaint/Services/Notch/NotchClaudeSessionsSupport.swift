@@ -63,14 +63,21 @@ enum NotchClaudeSessionsSupport {
     /// Whether a session's change should open the island by itself. It never
     /// takes the island from a page the person has open, and stays shut while
     /// the island is held back, as during a recording or in full screen.
+    /// Nor does it swap one session's page for another's under the pointer,
+    /// where a click meant for the first would answer the second.
     static func shouldAutoExpand(_ event: ClaudeSessionEvent, enabled: Bool, expanded: Bool,
-                                 showingSessions: Bool, suspended: Bool) -> Bool {
+                                 showingSessions: Bool, viewing: String? = nil, suspended: Bool) -> Bool {
         guard enabled, !suspended else { return false }
         switch event {
-        case .needsPermission, .needsInput: return !expanded || showingSessions
+        case .needsPermission(let id, _), .needsInput(let id):
+            guard !expanded || showingSessions else { return false }
+            return viewing == nil || viewing == id
         case .finished: return false
         }
     }
+
+    /// How long the buttons wait after the request on screen changes.
+    static let settleDelay: TimeInterval = 0.8
 
     /// The counts beside the camera, leaving out the empty ones.
     static func stripReading(_ counts: ClaudeSessionCounts) -> [(phase: ClaudeSessionPhase, count: Int)] {

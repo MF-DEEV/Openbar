@@ -60,6 +60,10 @@ enum ClaudeSessionReaderTests {
         try? data("{}").write(to: folder.appending(path: "85842.abc.key"))
         let read = ClaudeSessionRegistryReader.read([folder]) { pid in pid == 85842 ? started : nil }
         suite.expect(read.map(\.sessionID) == ["99c35831"], "only records of running processes are listed")
+        try? data(#"{"pid":85843,"sessionId":"#).write(to: folder.appending(path: "85843.json"))
+        let scan = ClaudeSessionRegistryReader.scan([folder]) { pid in pid == 85842 || pid == 85843 ? started : nil }
+        suite.expect(scan.records.map(\.pid) == [85842] && scan.unreadable == [85843],
+                     "a running session's record caught mid-write is reported, not dropped silently")
         let home = URL(fileURLWithPath: "/Users/me")
         suite.expect(ClaudeSessionRegistryReader.folders(home).map(\.path)
                      == ["/Users/me/.claude/sessions", "/Users/me/.config/claude/sessions"],

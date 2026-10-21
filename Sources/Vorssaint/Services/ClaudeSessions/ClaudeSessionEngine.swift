@@ -35,7 +35,8 @@ final class ClaudeSessionEngine {
         var lastText: String?
         var branch: String?
         var model: String?
-        var permission: ClaudePermission?
+        /// Permissions the hooks hold, oldest first: subagents can ask at once.
+        var permissions: [ClaudePermission] = []
         var hooked = false
         var acknowledged: Date?
         var firstSeen: Date
@@ -69,9 +70,8 @@ final class ClaudeSessionEngine {
         for (id, record) in records {
             // The registry left the prompt behind, so it was answered in the
             // terminal or went away with its turn.
-            if let permission = activity[id]?.permission, record.status != .waiting,
-               let changed = record.statusUpdated, changed > permission.since {
-                activity[id]?.permission = nil
+            if record.status != .waiting, let changed = record.statusUpdated {
+                activity[id]?.permissions.removeAll { $0.since < changed }
             }
             // The session went idle after the last line read, so the turn
             // ended even when its last lines were not read yet.
@@ -115,12 +115,15 @@ final class ClaudeSessionEngine {
 
     /// The person answered, or the hook stopped waiting for an answer.
     func resolvePermission(requestID: String) {
-        for (id, entry) in activity where entry.permission?.requestID == requestID {
-            activity[id]?.permission = nil
-        }
+        for id in activity.keys { activity[id]?.permissions.removeAll { $0.requestID == requestID } }
     }
 
-    func permission(of id: String) -> ClaudePermission? { activity[id]?.permission }
+    /// The permission the island shows for a session: the oldest one asked.
+    func permission(of id: String) -> ClaudePermission? { activity[id]?.permissions.first }
+
+    func holds(_ requestID: String, for id: String) -> Bool {
+        activity[id]?.permissions.contains { $0.requestID == requestID } == true
+    }
 
     /// The person saw the session's finished turn.
     func acknowledge(_ id: String, now: Date) {
@@ -159,7 +162,7 @@ final class ClaudeSessionEngine {
             if let previous, previous.phase != phase {
                 switch phase {
                 case .waitingPermission:
-                    events.append(.needsPermission(id: id, tool: entry.permission?.tool ?? entry.openTool?.name ?? ""))
+                    events.append(.needsPermission(id: id, tool: entry.permissions.first?.tool ?? entry.openTool?.name ?? ""))
                 case .waitingInput:
                     events.append(.needsInput(id: id))
                 case .finished where previous.phase.isWorking || previous.phase.isWaiting:
@@ -175,7 +178,7 @@ final class ClaudeSessionEngine {
 
     /// The phase the rules above give one session.
     static func phase(record: ClaudeSessionRecord, activity entry: Activity, now: Date) -> ClaudeSessionPhase {
-        if entry.permission != nil { return .waitingPermission }
+        if !entry.permissions.isEmpty { return .waitingPermission }
         if record.status == .waiting {
             return record.waitingFor == ClaudeSessionRecord.permissionPrompt ? .waitingPermission : .waitingInput
         }
@@ -220,7 +223,7 @@ final class ClaudeSessionEngine {
             phase: phase, phaseSince: since, turnStarted: entry.turnStarted,
             waitingFor: record.status == .waiting ? record.waitingFor : nil,
             currentTool: phase == .runningTool || phase == .waitingPermission ? entry.openTool.map(gated) : nil,
-            permission: entry.permission,
+            permission: entry.permissions.first,
             timeline: entry.tools.suffix(Self.timelineLength).map(gated), subagents: subagents, tasks: tasks,
             tokens: tokens, cost: cost,
             title: previews ? entry.title : nil, lastText: previews ? entry.lastText : nil,
@@ -261,7 +264,7 @@ final class ClaudeSessionEngine {
             if policy.previews { entry.subagents[id]?.description = description }
         case .tasks(var tasks):
             if !policy.previews { tasks.current = nil }
-            entry.tasks = tasks
+            entry.tasks = tasks.total > 0 ? tasks : nil
         }
     }
 
@@ -272,9 +275,15 @@ final class ClaudeSessionEngine {
         case .promptSubmitted: begin(at: date, in: &entry)
         case .toolStarted(let tool): start(tool, in: &entry)
         case .toolFinished(let id, let failed): finish(id, at: date, failed: failed, in: &entry)
-        case .permissionRequested(let permission):
+        case .permissionRequested(var permission):
             if !entry.turnOpen { begin(at: date, in: &entry) }
-            entry.permission = permission
+            // The tool that asked is the main agent's newest one by that name
+            // still waiting to run; its result answers the request.
+            if permission.toolID == nil {
+                permission.toolID = entry.tools.last { $0.isRunning && $0.name == permission.tool }?.id
+            }
+            entry.permissions.removeAll { $0.requestID == permission.requestID }
+            entry.permissions.append(permission)
         case .notification: break
         case .stopped(let text):
             if policy.previews, let text { entry.lastText = text }
@@ -293,9 +302,12 @@ final class ClaudeSessionEngine {
         switch event {
         case .subagentStopped:
             apply(event, date: date, to: &entry)
-        case .permissionRequested:
-            // Its permission still waits on the person.
-            apply(event, date: date, to: &entry)
+        case .permissionRequested(var permission):
+            // Its permission still waits on the person; its tools are not
+            // followed, so only a later prompt, the end or the registry
+            // settle it.
+            permission.toolID = permission.toolID ?? ""
+            apply(.permissionRequested(permission), date: date, to: &entry)
         default:
             if entry.subagents[agent] == nil { entry.subagents[agent] = ClaudeSubagent(id: agent, type: "Agent", started: date) }
             entry.lastFact = max(entry.lastFact ?? date, date)
@@ -312,7 +324,8 @@ final class ClaudeSessionEngine {
             entry.turnOpen = true
             entry.turnStarted = date
         }
-        entry.permission = nil
+        // A prompt can only be typed once the dialogs before it closed.
+        entry.permissions.removeAll { $0.since < date }
         touch(date, in: &entry)
     }
 
@@ -322,7 +335,7 @@ final class ClaudeSessionEngine {
         entry.turnOpen = false
         entry.turnEnded = date
         entry.completed = completed
-        entry.permission = nil
+        entry.permissions.removeAll { $0.since <= date }
         closeTools(at: date, in: &entry)
         touch(date, in: &entry)
     }
@@ -349,8 +362,8 @@ final class ClaudeSessionEngine {
             entry.tools[index].finished = max(date, entry.tools[index].started)
             entry.tools[index].failed = failed
         }
-        // A tool that ran was answered, here or in the terminal.
-        entry.permission = nil
+        // The tool that asked ran or was refused, here or in the terminal.
+        entry.permissions.removeAll { $0.toolID == id }
         touch(date, in: &entry)
     }
 

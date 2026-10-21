@@ -33,7 +33,7 @@ struct NotchClaudeSessionsView: View {
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: focused?.id)
         .frame(width: size.width, height: size.height, alignment: .top)
         .environment(\.locale, l10n.language.formattingLocale())
-        .onChange(of: focused?.id) { _, id in
+        .onChange(of: focused?.id, initial: true) { _, id in
             guard !preview else { return }
             // Escape steps back to the list before it closes the island.
             NotchService.shared.setPageLayer(.sessions, close: id == nil ? nil : { service.focus(nil) })
@@ -106,7 +106,7 @@ struct NotchClaudeSessionRow: View {
                 HStack(spacing: 10) {
                     NotchClaudeSessionBadge(phase: session.phase)
                     summary
-                    if session.permission == nil {
+                    if !quickDecision {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 9, weight: .semibold))
                             .foregroundStyle(.white.opacity(0.3))
@@ -114,22 +114,22 @@ struct NotchClaudeSessionRow: View {
                     }
                 }
                 .padding(.leading, 11)
-                .padding(.trailing, session.permission == nil ? 11 : 0)
+                .padding(.trailing, quickDecision ? 0 : 11)
                 .frame(maxWidth: .infinity, minHeight: 46, maxHeight: 46)
                 .contentShape(Rectangle())
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 14, lifts: false))
             .accessibilityLabel("\(session.project), \(text.phase(session.phase))")
             .accessibilityValue(NotchClaudeSessionFormat.activity(session, text: text))
-            if session.permission != nil {
-                // A permission is answered from the list too, its command
-                // already on the line beside.
+            if quickDecision, let permission = session.permission {
+                // A request short enough to read whole on the line beside is
+                // answered from the list too; a longer one opens its page.
                 HStack(spacing: 5) {
                     NotchClaudeDecisionButton(title: text.deny, symbol: "xmark", role: .deny, compact: true) {
-                        ClaudeSessionService.shared.decide(session.id, .deny)
+                        ClaudeSessionService.shared.decide(session.id, request: permission.requestID, .deny)
                     }
                     NotchClaudeDecisionButton(title: text.allow, symbol: "checkmark", role: .allow, compact: true) {
-                        ClaudeSessionService.shared.decide(session.id, .allow)
+                        ClaudeSessionService.shared.decide(session.id, request: permission.requestID, .allow)
                     }
                 }
                 .padding(.trailing, 9)
@@ -143,6 +143,8 @@ struct NotchClaudeSessionRow: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
+
+    private var quickDecision: Bool { session.permission?.fitsOnALine == true }
 
     private var summary: some View {
         VStack(alignment: .leading, spacing: 2) {
@@ -245,7 +247,9 @@ enum NotchClaudeSessionFormat {
         switch session.phase {
         case .waitingPermission:
             if let tool = session.permission?.tool ?? session.currentTool?.name { parts.append(tool) }
-            if let summary = session.permission?.summary { parts.append(summary) }
+            if let permission = session.permission {
+                parts.append(permission.fitsOnALine ? permission.detail : permission.summary ?? "")
+            }
         case .runningTool:
             if let tool = session.currentTool {
                 parts.append(tool.summary.map { "\(tool.name): \($0)" } ?? tool.name)

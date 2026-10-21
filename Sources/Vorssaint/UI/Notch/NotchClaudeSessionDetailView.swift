@@ -229,6 +229,9 @@ struct NotchClaudeSessionPermissionCard: View {
     let text: NotchClaudeSessionStrings
     let open: () -> Void
     @ObservedObject private var service = ClaudeSessionService.shared
+    /// A request that replaced the one on screen holds the buttons back a
+    /// moment, so a click meant for the old one cannot answer it.
+    @State private var settling = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -239,31 +242,37 @@ struct NotchClaudeSessionPermissionCard: View {
                     .font(.system(size: 12, weight: .semibold))
             }
             .foregroundStyle(session.phase.tint)
-            if let summary = session.permission?.summary {
-                // The whole command, so nothing is allowed unread.
-                Text(summary)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .lineLimit(4)
-                    .textSelection(.enabled)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            if let detail = session.permission?.detail, !detail.isEmpty {
+                // The whole request, every line of it, so nothing is allowed unread.
+                ScrollView {
+                    Text(detail)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxHeight: 120)
+                .padding(8)
+                .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             HStack(spacing: 6) {
                 if let permission = session.permission {
                     NotchClaudeDecisionButton(title: text.deny, symbol: "xmark", role: .deny) {
-                        service.decide(session.id, .deny)
+                        service.decide(session.id, request: permission.requestID, .deny)
                     }
+                    .disabled(settling)
                     Spacer(minLength: 0)
                     if permission.offersAlways {
                         NotchClaudeDecisionButton(title: text.alwaysAllow, symbol: "checkmark.seal", role: .secondary) {
-                            service.decide(session.id, .allowAlways)
+                            service.decide(session.id, request: permission.requestID, .allowAlways)
                         }
+                        .disabled(settling)
                     }
                     NotchClaudeDecisionButton(title: text.allow, symbol: "checkmark", role: .allow) {
-                        service.decide(session.id, .allow)
+                        service.decide(session.id, request: permission.requestID, .allow)
                     }
+                    .disabled(settling)
                 } else {
                     Text(text.answerInTerminal).font(.system(size: 10.5)).foregroundStyle(.secondary)
                     Spacer(minLength: 0)
@@ -275,6 +284,11 @@ struct NotchClaudeSessionPermissionCard: View {
             }
         }
         .padding(10)
+        .onChange(of: session.permission?.requestID) { old, new in
+            guard old != nil, new != nil, old != new else { return }
+            settling = true
+            DispatchQueue.main.asyncAfter(deadline: .now() + NotchClaudeSessionsSupport.settleDelay) { settling = false }
+        }
         .background(session.phase.tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)

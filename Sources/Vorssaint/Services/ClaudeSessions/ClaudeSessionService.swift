@@ -41,6 +41,7 @@ final class ClaudeSessionService: ObservableObject {
     let queue = DispatchQueue(label: "com.vorssaint.claude-sessions", qos: .utility, autoreleaseFrequency: .workItem)
     /// AppleScript and window lookups block until the other app answers.
     private let actions = DispatchQueue(label: "com.vorssaint.claude-actions", qos: .userInitiated)
+    private let hookQueue = DispatchQueue(label: "com.vorssaint.claude-hooks", qos: .userInitiated)
     private let home = FileManager.default.homeDirectoryForCurrentUser
 
     // Main thread.
@@ -57,6 +58,7 @@ final class ClaudeSessionService: ObservableObject {
     private var taskStamps: [String: Date] = [:]
     private var hosts: [Int32: ClaudeSessionHost] = [:]
     private var published: [ClaudeSession] = []
+    private var lastRecords: [Int32: ClaudeSessionRecord] = [:]
     private var server: ClaudeHookServer?
     /// Permission requests whose hook waits for the island's answer.
     private var pending: [String: (connection: ClaudeHookServer.Connection, session: String, suggestions: Any?, since: Date)] = [:]
@@ -82,6 +84,8 @@ final class ClaudeSessionService: ObservableObject {
                 // Reading again with previews on fills in what was skipped.
                 if policy.previews { readers = [:]; subagentMeta = []; taskStamps = [:] }
                 for key in readers.keys { readers[key]?.reader.policy = policy }
+                // What was cleared leaves the island now, not at the next read.
+                publish(now: Date())
             }
         }
         guard !running else { return }
@@ -135,11 +139,11 @@ final class ClaudeSessionService: ObservableObject {
     }
 
     /// Answers the permission the session waits on, if its hook still waits.
-    func decide(_ id: String, _ decision: ClaudeHookMessage.Decision) {
+    /// Answers the request the person saw, and only that one: a newer request
+    /// for the same session, or one already settled, is left alone.
+    func decide(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision) {
         queue.async { [self] in
-            guard let request = engine.permission(of: id)?.requestID, let waiting = pending.removeValue(forKey: request) else {
-                return
-            }
+            guard engine.holds(request, for: id), let waiting = pending.removeValue(forKey: request) else { return }
             waiting.connection.finish(ClaudeHookMessage.reply(decision, suggestions: waiting.suggestions))
             engine.resolvePermission(requestID: request)
             engine.acknowledge(id, now: Date())
@@ -161,20 +165,29 @@ final class ClaudeSessionService: ObservableObject {
         }
         let folders = ClaudeSessionRegistryReader.folders(home)
         let bridge = ClaudeTerminalBridge.folder(home: home)
-        actions.async { [self] in
-            // The session may have opened a dialog since the island last looked.
-            let now = ClaudeSessionRegistryReader.read(folders).first { $0.pid == session.pid }
-            let failure: SendFailure?
-            if now?.sessionID != session.id { failure = .unreachable }
-            else if now?.status == .waiting { failure = .waiting }
-            else { failure = ClaudeTerminalReply.send(reply, to: session, bridge: bridge) ? nil : .unreachable }
-            DispatchQueue.main.async {
-                if failure == nil {
-                    self.drafts[session.id] = nil
-                    self.acknowledge(session.id)
-                }
-                completion(failure)
+        // A permission the hooks already hold opens a dialog the registry may
+        // not show yet; the keys would land in it.
+        queue.async { [self] in
+            let asking = engine.permission(of: session.id) != nil || pending.values.contains { $0.session == session.id }
+            actions.async { [self] in
+                // The session may have opened a dialog since the island last looked.
+                let now = ClaudeSessionRegistryReader.read(folders).first { $0.pid == session.pid }
+                let failure: SendFailure?
+                if now?.sessionID != session.id { failure = .unreachable }
+                else if asking || now?.status == .waiting { failure = .waiting }
+                else { failure = ClaudeTerminalReply.send(reply, to: session, bridge: bridge) ? nil : .unreachable }
+                finishSend(failure, session: session, completion: completion)
             }
+        }
+    }
+
+    private func finishSend(_ failure: SendFailure?, session: ClaudeSession, completion: @escaping (SendFailure?) -> Void) {
+        DispatchQueue.main.async {
+            if failure == nil {
+                self.drafts[session.id] = nil
+                self.acknowledge(session.id)
+            }
+            completion(failure)
         }
     }
 
@@ -201,8 +214,10 @@ final class ClaudeSessionService: ObservableObject {
 
     private func startServer(at path: String) {
         guard server == nil else { return }
-        let created = ClaudeHookServer(path: path, queue: queue) { [weak self] payload, connection in
-            self?.receive(payload, from: connection)
+        // Hooks get their own queue: a long transcript read must not keep a
+        // session waiting on its hook.
+        let created = ClaudeHookServer(path: path, queue: hookQueue) { [weak self] payload, connection in
+            self?.queue.async { self?.receive(payload, from: connection) }
         }
         server = created.start() ? created : nil
     }
@@ -217,7 +232,6 @@ final class ClaudeSessionService: ObservableObject {
         if let transcript = message.transcript, !transcript.isEmpty { transcripts[message.fact.sessionID] = transcript }
         if message.isPermissionRequest {
             pending[request] = (connection, message.fact.sessionID, message.suggestions, now)
-            connection.onClose = { [weak self] in self?.release(request) }
         } else {
             connection.finish()
         }
@@ -225,18 +239,11 @@ final class ClaudeSessionService: ObservableObject {
         publish(now: now)
     }
 
-    /// The hook stopped waiting.
-    private func release(_ request: String) {
-        pending[request] = nil
-        engine.resolvePermission(requestID: request)
-        publish(now: Date())
-    }
-
     /// Lets go of hooks whose question was answered in the terminal, whose
     /// hook went away, or that waited as long as Claude Code allows.
     private func releaseSettled(now: Date) {
         for (request, waiting) in pending {
-            let current = engine.permission(of: waiting.session)?.requestID == request
+            let current = engine.holds(request, for: waiting.session)
             guard !current || waiting.connection.peerIsGone || now.timeIntervalSince(waiting.since) > Self.permissionDeadline
             else { continue }
             pending[request] = nil
@@ -308,7 +315,11 @@ final class ClaudeSessionService: ObservableObject {
     private func refresh() {
         guard timer != nil else { return }
         let now = Date()
-        var records = ClaudeSessionRegistryReader.read(ClaudeSessionRegistryReader.folders(home))
+        let scan = ClaudeSessionRegistryReader.scan(ClaudeSessionRegistryReader.folders(home))
+        // A record caught while Claude Code rewrites it keeps its last reading,
+        // so its page and clock do not reset for a tick.
+        var records = scan.records + scan.unreadable.compactMap { lastRecords[$0] }
+        lastRecords = Dictionary(records.map { ($0.pid, $0) }, uniquingKeysWith: { first, _ in first })
         let alive = Set(records.map(\.pid))
         hosts = hosts.filter { alive.contains($0.key) }
         for index in records.indices {
@@ -396,10 +407,13 @@ final class ClaudeSessionService: ObservableObject {
             guard taskStamps[session] != stamp else { return }
             taskStamps[session] = stamp
             let datas = files.prefix(500).compactMap { FileManager.default.contents(atPath: $0) }
-            if let tasks = ClaudeTranscriptReader.tasks(datas, policy: engine.policy) {
-                engine.ingest(sessionID: session, facts: [.tasks(tasks)], now: now)
-            }
+            let tasks = ClaudeTranscriptReader.tasks(datas, policy: engine.policy) ?? ClaudeTaskProgress()
+            engine.ingest(sessionID: session, facts: [.tasks(tasks)], now: now)
             return
+        }
+        // The list was cleared or removed.
+        if taskStamps.removeValue(forKey: session) != nil {
+            engine.ingest(sessionID: session, facts: [.tasks(ClaudeTaskProgress())], now: now)
         }
     }
 

@@ -82,12 +82,21 @@ struct ClaudeToolUse: Equatable, Identifiable {
 struct ClaudePermission: Equatable {
     let requestID: String
     let tool: String
-    /// What the tool would do. Shown even with previews off, since nobody
-    /// should allow a command they cannot read, and dropped once answered.
+    /// One line on what the tool would do, for the list and notices.
     let summary: String?
+    /// Everything the tool would do: the whole command, path or arguments.
+    /// Shown even with previews off, since nobody should allow what they
+    /// cannot read, and dropped once answered.
+    var detail: String = ""
     /// Claude Code offered rules that would stop it asking again.
     let offersAlways: Bool
     let since: Date
+    /// The tool call the request is for; its result answers it. Empty for a
+    /// subagent's, whose tools are not followed.
+    var toolID: String? = nil
+
+    /// A request short enough to read whole on one line of the list.
+    var fitsOnALine: Bool { !detail.contains("\n") && detail.count <= ClaudeToolSummary.quickDecisionLimit }
 }
 
 struct ClaudeSubagent: Equatable, Identifiable {
@@ -244,6 +253,43 @@ enum ClaudeToolSummary {
         case "Skill": return text("skill")
         default: return text("description")
         }
+    }
+
+    static let quickDecisionLimit = 60
+    static let detailLimit = 8000
+
+    /// All of what a tool asks to do, for the person to read before allowing
+    /// it: every line of a command, a whole path or address, or each
+    /// argument. Only text past `detailLimit` is left out, and that says so.
+    static func permissionDetail(name: String, input: [String: Any]) -> String {
+        let text: String
+        switch name {
+        case "Bash": text = input["command"] as? String ?? arguments(input)
+        case "Read", "Edit", "Write", "MultiEdit", "NotebookEdit":
+            text = (input["file_path"] as? String) ?? (input["notebook_path"] as? String) ?? arguments(input)
+        case "WebFetch": text = input["url"] as? String ?? arguments(input)
+        default: text = arguments(input)
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.count > detailLimit else { return trimmed }
+        return String(trimmed.prefix(detailLimit)) + "\n… \(trimmed.count - detailLimit) more characters"
+    }
+
+    /// Each argument on its own line, in a steady order.
+    static func arguments(_ input: [String: Any]) -> String {
+        input.keys.sorted().map { key in
+            let value = input[key]
+            let shown: String
+            if let text = value as? String {
+                shown = text
+            } else if let value, JSONSerialization.isValidJSONObject(value),
+                      let data = try? JSONSerialization.data(withJSONObject: value, options: [.sortedKeys]) {
+                shown = String(decoding: data, as: UTF8.self)
+            } else {
+                shown = value.map { "\($0)" } ?? ""
+            }
+            return "\(key): \(shown)"
+        }.joined(separator: "\n")
     }
 
     static func clip(_ text: String) -> String {

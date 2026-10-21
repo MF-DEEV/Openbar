@@ -58,7 +58,7 @@ struct NotchClaudeSessionStrip: View {
         // A waiting session opens on its own page, where it can be answered.
         let waiting = sessions.sessions.first { $0.phase.isWaiting }
         service.openActivity(.sessions)
-        if let waiting { sessions.focus(waiting.id) }
+        if let waiting, service.selected == .sessions { sessions.focus(waiting.id) }
     }
 }
 

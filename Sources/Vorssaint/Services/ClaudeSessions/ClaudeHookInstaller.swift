@@ -97,12 +97,31 @@ enum ClaudeHookInstaller {
 
     // MARK: File
 
+    /// The settings, or none when there is no file yet. A file that exists
+    /// but cannot be read, as one owned by root, is an error: writing over it
+    /// would lose everything in it.
     static func read(_ url: URL) throws -> [String: Any] {
-        guard let data = FileManager.default.contents(atPath: url.path) else { return [:] }
+        guard let data = try contents(url) else { return [:] }
         if data.allSatisfy({ $0 == 0x20 || $0 == 0x0A || $0 == 0x0D || $0 == 0x09 }) { return [:] }
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { throw Failure.unreadable }
         return json
     }
+
+    /// What the file holds, nil when there is no file at all.
+    static func contents(_ url: URL) throws -> Data? {
+        let manager = FileManager.default
+        var isFolder: ObjCBool = false
+        guard manager.fileExists(atPath: url.path, isDirectory: &isFolder) else {
+            // A link whose target is gone is not a missing file to create.
+            if (try? manager.destinationOfSymbolicLink(atPath: url.path)) != nil { throw Failure.unreadable }
+            return nil
+        }
+        guard !isFolder.boolValue, let data = manager.contents(atPath: url.path) else { throw Failure.unreadable }
+        return data
+    }
+
+    /// How many copies of earlier settings are kept beside the file.
+    static let backups = 3
 
     /// Reads the file, changes it and writes it back in one step, keeping a
     /// copy of what was there. Claude Code writes the same file, so a change
@@ -113,20 +132,26 @@ enum ClaudeHookInstaller {
         let url = link.resolvingSymlinksInPath()
         for _ in 0..<3 {
             let before = (try? manager.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
-            let original = manager.contents(atPath: url.path)
+            let original = try contents(url)
             let settings = try read(url)
             let changed = change(settings)
-            guard !NSDictionary(dictionary: changed).isEqual(to: settings) || original == nil else { return }
+            // Nothing to change, and no file made just to hold nothing.
+            if NSDictionary(dictionary: changed).isEqual(to: settings) { return }
             var data = try JSONSerialization.data(withJSONObject: changed, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
             data.append(0x0A)
             let after = (try? manager.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
-            guard before == after, manager.contents(atPath: url.path) == original else { continue }
+            guard before == after, (try? contents(url)) == original else { continue }
             let folder = url.deletingLastPathComponent()
             do {
                 try manager.createDirectory(at: folder, withIntermediateDirectories: true)
                 if let original {
+                    // Settings can hold tokens: the copy is the owner's alone.
                     let stamp = Int(now.timeIntervalSince1970)
-                    try original.write(to: folder.appending(path: "\(url.lastPathComponent).vorssaint-\(stamp).bak"))
+                    let backup = folder.appending(path: "\(url.lastPathComponent).vorssaint-\(stamp).bak")
+                    guard manager.createFile(atPath: backup.path, contents: original, attributes: [.posixPermissions: 0o600]) else {
+                        throw Failure.unwritable("couldn’t keep a copy of the settings")
+                    }
+                    prune(folder: folder, name: url.lastPathComponent)
                 }
                 let permissions = (try? manager.attributesOfItem(atPath: url.path))?[.posixPermissions] as? NSNumber
                 let temporary = folder.appending(path: ".\(url.lastPathComponent).vorssaint-\(UUID().uuidString)")
@@ -144,5 +169,14 @@ enum ClaudeHookInstaller {
             return
         }
         throw Failure.busy
+    }
+
+    /// Keeps the newest copies only.
+    static func prune(folder: URL, name: String) {
+        let prefix = "\(name).vorssaint-"
+        let copies = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
+            .filter { $0.hasPrefix(prefix) && $0.hasSuffix(".bak") }
+            .sorted { (Int($0.dropFirst(prefix.count).dropLast(4)) ?? 0) > (Int($1.dropFirst(prefix.count).dropLast(4)) ?? 0) }
+        for old in copies.dropFirst(backups) { try? FileManager.default.removeItem(at: folder.appending(path: old)) }
     }
 }

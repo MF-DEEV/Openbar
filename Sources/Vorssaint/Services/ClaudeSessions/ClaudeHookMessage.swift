@@ -49,6 +49,7 @@ struct ClaudeHookMessage {
             event = .permissionRequested(ClaudePermission(
                 requestID: requestID, tool: tool.isEmpty ? "Tool" : tool,
                 summary: ClaudeToolSummary.summary(name: tool, input: input),
+                detail: ClaudeToolSummary.permissionDetail(name: tool, input: input),
                 offersAlways: !offered.isEmpty, since: now))
         case "Notification": event = .notification(type: json["notification_type"] as? String ?? "")
         case "Stop":

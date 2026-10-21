@@ -24,17 +24,30 @@ enum ClaudeSessionRegistryReader {
     static let startTolerance: TimeInterval = 2
 
     static func read(_ folders: [URL], processStart: (Int32) -> Date? = processStart) -> [ClaudeSessionRecord] {
+        scan(folders, processStart: processStart).records
+    }
+
+    /// The running sessions, and the running processes whose record could not
+    /// be read this time, as while Claude Code rewrites it.
+    static func scan(_ folders: [URL], processStart: (Int32) -> Date? = processStart)
+        -> (records: [ClaudeSessionRecord], unreadable: [Int32]) {
         var records: [Int32: ClaudeSessionRecord] = [:]
+        var unreadable: Set<Int32> = []
         for folder in folders {
             guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { continue }
-            for name in names where name.hasSuffix(".json") && Int32(name.dropLast(5)) != nil {
+            for name in names where name.hasSuffix(".json") {
+                guard let pid = Int32(name.dropLast(5)) else { continue }
                 guard let data = try? Data(contentsOf: folder.appending(path: name)), data.count < 1 << 16,
-                      let record = record(data), records[record.pid] == nil,
-                      isCurrent(record, started: processStart(record.pid)) else { continue }
+                      let record = record(data) else {
+                    if processStart(pid) != nil { unreadable.insert(pid) }
+                    continue
+                }
+                guard records[record.pid] == nil, isCurrent(record, started: processStart(record.pid)) else { continue }
                 records[record.pid] = record
             }
         }
-        return records.values.sorted { $0.pid < $1.pid }
+        unreadable.subtract(records.keys)
+        return (records.values.sorted { $0.pid < $1.pid }, unreadable.sorted())
     }
 
     /// One record, or nil when it is being written or describes a process

@@ -10,59 +10,97 @@ import Foundation
 /// when the island has none. Only processes of the same user may connect,
 /// and the socket is readable by its owner alone.
 final class ClaudeHookServer {
+    /// One hook waiting on the island. Its answer may be written from any
+    /// queue; reading happens on the server's queue.
+    ///
+    /// The descriptor has one owner at a time: while a read source watches
+    /// it, the source's cancel handler closes it, and only once that source
+    /// is gone does `finish` close it directly.
     final class Connection {
         fileprivate let descriptor: Int32
-        fileprivate var source: DispatchSourceRead?
+        // Server queue only.
         fileprivate var buffer = Data()
         fileprivate var delivered = false
         /// The hook process on the other end. The hook stops writing as soon
         /// as its event is sent, so only this tells that it is still there.
         let peer: pid_t
-        /// Called on the server's queue when the hook goes away unanswered.
-        var onClose: (() -> Void)?
-        private(set) var isClosed = false
+
+        private let lock = NSLock()
+        private var source: DispatchSourceRead?
+        /// A read source exists whose cancel handler has not run yet.
+        private var watched = false
+        private var closed = false
 
         fileprivate init(descriptor: Int32, peer: pid_t) {
             self.descriptor = descriptor
             self.peer = peer
         }
 
+        var isClosed: Bool { lock.withLock { closed } }
+
         /// The hook was killed, as when its session answered in the terminal
         /// and moved on, or quit.
         var peerIsGone: Bool { peer > 0 && kill(peer, 0) != 0 && errno == ESRCH }
 
-        /// Writes the answer, if any, and ends the connection. Call on the
-        /// server's queue.
-        func finish(_ reply: Data? = nil) {
-            guard !isClosed else { return }
-            if let reply, !reply.isEmpty {
-                reply.withUnsafeBytes { bytes in
-                    guard var base = bytes.baseAddress else { return }
-                    var left = bytes.count
-                    while left > 0 {
-                        let written = Darwin.write(descriptor, base, left)
-                        if written > 0 { left -= written; base += written; continue }
-                        if written < 0, errno == EINTR { continue }
-                        break
-                    }
-                }
+        fileprivate func watch(_ source: DispatchSourceRead) {
+            lock.withLock {
+                self.source = source
+                watched = true
             }
-            close(notifying: false)
+            source.setCancelHandler { [self] in
+                let close = lock.withLock { () -> Bool in
+                    watched = false
+                    return closed
+                }
+                if close { Darwin.close(descriptor) }
+            }
+            source.resume()
         }
 
-        fileprivate func close(notifying: Bool) {
-            guard !isClosed else { return }
-            isClosed = true
-            // A reading source closes the descriptor once it is cancelled;
-            // without one it is closed here.
+        /// Stops reading, keeping the connection for the answer.
+        fileprivate func stopReading() {
+            let source = lock.withLock { () -> DispatchSourceRead? in
+                defer { self.source = nil }
+                return self.source
+            }
+            source?.cancel()
+        }
+
+        /// Writes the answer, if any, and ends the connection. Safe from any queue.
+        func finish(_ reply: Data? = nil) {
+            let first = lock.withLock { () -> Bool in
+                defer { closed = true }
+                return !closed
+            }
+            guard first else { return }
+            if let reply, !reply.isEmpty { write(reply) }
+            let (source, watched) = lock.withLock { () -> (DispatchSourceRead?, Bool) in
+                defer { self.source = nil }
+                return (self.source, self.watched)
+            }
             if let source {
                 source.cancel()
-                self.source = nil
-            } else {
+            } else if !watched {
                 Darwin.close(descriptor)
             }
-            if notifying { onClose?() }
-            onClose = nil
+            // Otherwise a cancelled source's handler is still to run, and closes it.
+        }
+
+        /// The whole answer, waiting for room in the socket for a moment.
+        private func write(_ reply: Data) {
+            _ = fcntl(descriptor, F_SETFL, fcntl(descriptor, F_GETFL) & ~O_NONBLOCK)
+            var wait = timeval(tv_sec: 2, tv_usec: 0)
+            setsockopt(descriptor, SOL_SOCKET, SO_SNDTIMEO, &wait, socklen_t(MemoryLayout<timeval>.size))
+            reply.withUnsafeBytes { bytes in
+                guard var base = bytes.baseAddress else { return }
+                var left = bytes.count
+                while left > 0 {
+                    let written = Darwin.write(descriptor, base, left)
+                    if written > 0 { left -= written; base += written; continue }
+                    if written < 0, errno == EINTR { continue }
+                    break
+                }
+            }
         }
     }
 
@@ -73,7 +111,8 @@ final class ClaudeHookServer {
     private let handler: (Data, Connection) -> Void
     private var listener: DispatchSourceRead?
 
-    /// `handler` runs on `queue` with each complete event.
+    /// `handler` runs on `queue` with each complete event. The queue should do
+    /// nothing slow: hooks wait on it.
     init(path: String, queue: DispatchQueue, handler: @escaping (Data, Connection) -> Void) {
         self.path = path
         self.queue = queue
@@ -150,9 +189,7 @@ final class ClaudeHookServer {
             let connection = Connection(descriptor: client, peer: peer)
             let source = DispatchSource.makeReadSource(fileDescriptor: client, queue: queue)
             source.setEventHandler { [weak self, connection] in self?.read(connection) }
-            source.setCancelHandler { [connection] in if connection.isClosed { Darwin.close(client) } }
-            connection.source = source
-            source.resume()
+            connection.watch(source)
         }
     }
 
@@ -163,17 +200,16 @@ final class ClaudeHookServer {
             if count > 0 {
                 guard !connection.delivered else { continue }
                 connection.buffer.append(contentsOf: chunk[0..<count])
-                if connection.buffer.count > Self.maximumInput { return connection.close(notifying: true) }
+                if connection.buffer.count > Self.maximumInput { return connection.finish() }
                 continue
             }
             if count < 0, errno == EINTR { continue }
             if count < 0, errno == EAGAIN || errno == EWOULDBLOCK { break }
             // The hook ended its side once it sent the event, and keeps
             // waiting for the answer: stop reading, keep the connection.
-            connection.source?.cancel()
-            connection.source = nil
+            connection.stopReading()
             if connection.delivered { return }
-            if !ClaudeHookMessage.isComplete(connection.buffer) { return connection.close(notifying: false) }
+            if !ClaudeHookMessage.isComplete(connection.buffer) { return connection.finish() }
             break
         }
         guard !connection.delivered, ClaudeHookMessage.isComplete(connection.buffer) else { return }

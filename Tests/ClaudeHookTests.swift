@@ -145,6 +145,31 @@ enum ClaudeHookTests {
         suite.expect(queue.sync { held?.peerIsGone } == true, "and the server can tell it went away")
         queue.sync { held?.finish() }
 
+        // An event answered at once, after the hook already stopped writing,
+        // closes its descriptor once: a file opened meanwhile stays open.
+        var victim: Int32 = -1
+        let quick = ClaudeHookServer(path: folder + "/quick.sock", queue: queue) { _, connection in
+            connection.finish()
+            victim = open("/dev/null", O_RDONLY)
+        }
+        _ = queue.sync { quick.start() }
+        for _ in 0..<5 { _ = hook(folder + "/quick.sock", input: #"{"session_id":"s1","hook_event_name":"Stop"}"#) }
+        usleep(100_000)
+        let stillOpen = queue.sync { victim >= 0 && fcntl(victim, F_GETFD) != -1 }
+        suite.expect(stillOpen, "answering an event never closes someone else's file")
+        queue.sync { if victim >= 0 { close(victim) }; quick.stop() }
+
+        // A large answer arrives whole.
+        // Past the socket's buffer, within the test pipe's.
+        let big = String(repeating: "a", count: 40 << 10)
+        let wide = ClaudeHookServer(path: folder + "/wide.sock", queue: queue) { _, connection in
+            DispatchQueue.global().async { connection.finish(Data(#"{"x":"\#(big)"}"#.utf8)) }
+        }
+        _ = queue.sync { wide.start() }
+        let large = hook(folder + "/wide.sock", input: #"{"session_id":"s1","hook_event_name":"PermissionRequest"}"#)
+        suite.expect(large.output.count == big.count + 8, "a 40 KB answer, written from another queue, arrives whole")
+        queue.sync { wide.stop() }
+
         queue.sync { server.stop(); late.stop() }
         suite.expect(!FileManager.default.fileExists(atPath: path), "stopping removes the socket")
         let missing = hook(path, input: #"{"session_id":"s1","hook_event_name":"Stop"}"#)
@@ -212,6 +237,44 @@ enum ClaudeHookTests {
             suite.expect(error as? ClaudeHookInstaller.Failure == .unreadable, "a file that is not JSON is refused")
         }
         suite.expect(FileManager.default.contents(atPath: broken.path) == Data("{ \"model\": ".utf8), "and left as it was")
+
+        let locked = folder.appending(path: "locked.json")
+        try? Data(own.utf8).write(to: locked)
+        chmod(locked.path, 0)
+        do {
+            try ClaudeHookInstaller.update(locked, install)
+            suite.expect(false, "a settings file that cannot be read is never written over")
+        } catch {
+            suite.expect(error as? ClaudeHookInstaller.Failure == .unreadable, "a settings file that cannot be read is refused")
+        }
+        chmod(locked.path, 0o644)
+        suite.expect(FileManager.default.contents(atPath: locked.path) == Data(own.utf8), "and keeps everything it held")
+
+        let dangling = folder.appending(path: "dangling.json")
+        try? FileManager.default.createSymbolicLink(at: dangling, withDestinationURL: folder.appending(path: "gone.json"))
+        suite.expect((try? ClaudeHookInstaller.update(dangling, install)) == nil
+                     && !FileManager.default.fileExists(atPath: folder.appending(path: "gone.json").path),
+                     "a link to a missing file is not replaced by a new one")
+
+        let none = folder.appending(path: "none/settings.json")
+        try? ClaudeHookInstaller.update(none) { ClaudeHookInstaller.removing(from: $0, bundle: bundle) }
+        suite.expect(!FileManager.default.fileExists(atPath: none.path), "removing hooks from no settings writes nothing")
+
+        let pruned = folder.appending(path: "pruned/settings.json")
+        try? FileManager.default.createDirectory(at: pruned.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Data(own.utf8).write(to: pruned)
+        for step in 0..<5 {
+            let toggle: ([String: Any]) -> [String: Any] = step % 2 == 0 ? install
+                : { ClaudeHookInstaller.removing(from: $0, bundle: bundle) }
+            try? ClaudeHookInstaller.update(pruned, now: now.addingTimeInterval(TimeInterval(step)), toggle)
+        }
+        let kept = (try? FileManager.default.contentsOfDirectory(atPath: pruned.deletingLastPathComponent().path))?
+            .filter { $0.hasSuffix(".bak") } ?? []
+        let modes = kept.compactMap {
+            (try? FileManager.default.attributesOfItem(atPath: pruned.deletingLastPathComponent().appending(path: $0).path))?[.posixPermissions] as? Int
+        }
+        suite.expect(kept.count == ClaudeHookInstaller.backups && modes.allSatisfy { $0 == 0o600 },
+                     "only the newest copies are kept, readable by their owner alone: \(kept.count) \(modes)")
 
         let fresh = folder.appending(path: "new/settings.json")
         do { try ClaudeHookInstaller.update(fresh, install) } catch { suite.expect(false, "\(error)") }

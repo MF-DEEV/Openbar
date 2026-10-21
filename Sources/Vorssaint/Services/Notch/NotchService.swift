@@ -1867,10 +1867,9 @@ final class NotchService: ObservableObject {
         else { return false }
         let sessions = ClaudeSessionService.shared
         let focused = sessions.focusedID.flatMap { id in sessions.sessions.first { $0.id == id } }
-        guard let target = focused ?? sessions.sessions.first(where: { $0.permission != nil }), target.permission != nil else {
-            return false
-        }
-        sessions.decide(target.id, decision)
+        guard let target = focused ?? sessions.sessions.first(where: { $0.permission != nil }),
+              let permission = target.permission else { return false }
+        sessions.decide(target.id, request: permission.requestID, decision)
         return true
     }
 
@@ -4060,6 +4059,7 @@ final class NotchService: ObservableObject {
                 .removeDuplicates()
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
+                    self?.syncMenuSpaceMonitoring()
                     self?.objectWillChange.send()
                     self?.refreshPresentation()
                 }.store(in: &subscriptions)
@@ -4158,6 +4158,7 @@ final class NotchService: ObservableObject {
         guard let session = sessions.sessions.first(where: { $0.id == id }) else { return }
         if NotchClaudeSessionsSupport.shouldAutoExpand(event, enabled: NotchClaudeSessionsSupport.autoExpands(),
                                                        expanded: expanded, showingSessions: selected == .sessions,
+                                                       viewing: expanded ? sessions.focusedID : nil,
                                                        suspended: suspended || hiddenInFullscreen) {
             open(.sessions, takeFocus: false)
             sessions.focus(id)
