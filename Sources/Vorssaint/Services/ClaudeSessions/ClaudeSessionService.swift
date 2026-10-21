@@ -27,6 +27,9 @@ final class ClaudeSessionService: ObservableObject {
     /// Whether Claude Code's settings hold this app's hooks; nil until checked.
     @Published private(set) var hooksInstalled: Bool?
     @Published private(set) var hookFailure: String?
+    /// Whether Antigravity has the extension replies are typed through.
+    @Published private(set) var bridgeInstalled: Bool?
+    @Published private(set) var bridgeFailure: String?
 
     /// While a session works or waits, its files are read this often;
     /// otherwise the registry alone is checked a little less often.
@@ -141,6 +144,56 @@ final class ClaudeSessionService: ObservableObject {
             engine.resolvePermission(requestID: request)
             engine.acknowledge(id, now: Date())
             publish(now: Date())
+        }
+    }
+
+    enum SendFailure: Error, Equatable {
+        /// A dialog waits in that terminal, and the keys would answer it.
+        case waiting
+        case unreachable
+    }
+
+    /// Types a reply into the session's terminal, as if the person typed it
+    /// there. Calls back on the main thread.
+    func send(_ text: String, to session: ClaudeSession, completion: @escaping (SendFailure?) -> Void) {
+        guard let reply = NotchClaudeSessionsSupport.reply(text), NotchClaudeSessionsSupport.canReply(session) else {
+            return completion(session.phase.isWaiting ? .waiting : .unreachable)
+        }
+        let folders = ClaudeSessionRegistryReader.folders(home)
+        let bridge = ClaudeTerminalBridge.folder(home: home)
+        actions.async { [self] in
+            // The session may have opened a dialog since the island last looked.
+            let now = ClaudeSessionRegistryReader.read(folders).first { $0.pid == session.pid }
+            let failure: SendFailure?
+            if now?.sessionID != session.id { failure = .unreachable }
+            else if now?.status == .waiting { failure = .waiting }
+            else { failure = ClaudeTerminalReply.send(reply, to: session, bridge: bridge) ? nil : .unreachable }
+            DispatchQueue.main.async {
+                if failure == nil {
+                    self.drafts[session.id] = nil
+                    self.acknowledge(session.id)
+                }
+                completion(failure)
+            }
+        }
+    }
+
+    func checkBridge() {
+        let home = home
+        actions.async {
+            let installed = ClaudeBridgeInstaller.isInstalled(home: home)
+            DispatchQueue.main.async { self.bridgeInstalled = installed }
+        }
+    }
+
+    func installBridge() {
+        let home = home
+        actions.async {
+            let failure = ClaudeBridgeInstaller.install(home: home)
+            DispatchQueue.main.async {
+                self.bridgeFailure = failure
+                self.checkBridge()
+            }
         }
     }
 
@@ -389,6 +442,9 @@ enum ClaudeHostFocus {
             let result = AppleScriptRunner.run(ClaudeTerminalScripts.focus(tty: tty))
             return result.ok && result.output == "found" ? true : activate(ClaudeSessionHosts.terminal, window: nil)
         case .antigravity(let port):
+            if let shell = ClaudeTerminalBridge.shell(of: session.pid) {
+                _ = ClaudeTerminalBridge.focus(shell: shell, folder: ClaudeTerminalBridge.folder())
+            }
             let folders = port.map { ClaudeIDELock.folders(port: $0, homes: homes) } ?? []
             return activate(ClaudeSessionHosts.antigravity, window: ClaudeIDELock.windowHint(cwd: session.cwd, folders: folders))
         case .app(let bundle):
@@ -421,5 +477,68 @@ enum ClaudeHostFocus {
             }
         }
         return DispatchQueue.main.sync { app.activate() }
+    }
+}
+
+enum ClaudeTerminalReply {
+    static func send(_ text: String, to session: ClaudeSession, bridge: URL) -> Bool {
+        switch session.host {
+        case .terminal(let tty):
+            guard AppleScriptRunner.consentToAutomate(bundleID: ClaudeSessionHosts.terminal) else { return false }
+            let result = AppleScriptRunner.run(ClaudeTerminalScripts.type(text, tty: tty))
+            return result.ok && result.output == "sent"
+        case .antigravity:
+            guard let shell = ClaudeTerminalBridge.shell(of: session.pid) else { return false }
+            return ClaudeTerminalBridge.send(text, shell: shell, folder: bridge)
+        case .app, .unknown:
+            return false
+        }
+    }
+}
+
+/// Puts the bridge extension that ships inside the app into Antigravity,
+/// through Antigravity's own command line.
+enum ClaudeBridgeInstaller {
+    static let identifier = "vorssaint.vorssaint-terminal-bridge"
+    static let cli = "Contents/Resources/app/bin/antigravity-ide"
+
+    static func isInstalled(home: URL) -> Bool {
+        let folder = home.appending(path: ".antigravity-ide/extensions").path
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []
+        return names.contains { $0.hasPrefix(identifier + "-") }
+    }
+
+    /// Nil when it worked, or what went wrong.
+    static func install(home: URL) -> String? {
+        guard let source = Bundle.main.url(forResource: "AntigravityBridge", withExtension: nil) else {
+            return "The extension is missing from the app"
+        }
+        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: ClaudeSessionHosts.antigravity) else {
+            return "Antigravity isn’t installed"
+        }
+        let work = FileManager.default.temporaryDirectory.appending(path: "vorssaint-bridge-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: work) }
+        let package = work.appending(path: "vorssaint-terminal-bridge.vsix")
+        do {
+            try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
+            let zip = try run("/usr/bin/zip", ["-q", "-r", "-X", package.path, "."], in: source)
+            guard zip == 0 else { return "Couldn’t package the extension" }
+            let installed = try run(app.appending(path: cli).path, ["--install-extension", package.path], in: work)
+            return installed == 0 ? nil : "Antigravity refused the extension"
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    private static func run(_ tool: String, _ arguments: [String], in folder: URL) throws -> Int32 {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: tool)
+        process.arguments = arguments
+        process.currentDirectoryURL = folder
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        process.waitUntilExit()
+        return process.terminationStatus
     }
 }

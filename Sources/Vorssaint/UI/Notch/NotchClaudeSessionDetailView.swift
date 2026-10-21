@@ -16,6 +16,18 @@ struct NotchClaudeSessionDetailView: View {
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
 
     var body: some View {
+        VStack(spacing: 8) {
+            work
+            NotchClaudeSessionReplyField(session: session, text: text)
+        }
+        .notchBand(leading: {
+            NotchBandBackButton(title: session.project) { service.focus(nil) }
+        }, trailing: {
+            openButton
+        })
+    }
+
+    private var work: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
@@ -37,11 +49,6 @@ struct NotchClaudeSessionDetailView: View {
             }
             .scrollIndicators(.automatic)
         }
-        .notchBand(leading: {
-            NotchBandBackButton(title: session.project) { service.focus(nil) }
-        }, trailing: {
-            openButton
-        })
     }
 
     // MARK: Header
@@ -307,6 +314,90 @@ struct NotchClaudeDecisionButton: View {
         case .allow: return Color(red: 0.36, green: 0.84, blue: 0.52)
         case .deny: return Color.red.opacity(0.32)
         case .secondary: return .white.opacity(0.12)
+        }
+    }
+}
+
+/// A reply typed here goes to the session's terminal as if typed there.
+/// What is written stays per session while the island closes.
+struct NotchClaudeSessionReplyField: View {
+    let session: ClaudeSession
+    let text: NotchClaudeSessionStrings
+    @ObservedObject private var service = ClaudeSessionService.shared
+    @FocusState private var focused: Bool
+    @State private var sending = false
+    @State private var problem: String?
+
+    private var draft: Binding<String> {
+        Binding(get: { service.drafts[session.id] ?? "" }, set: { service.drafts[session.id] = $0 })
+    }
+
+    private var unavailable: String? {
+        if session.phase.isWaiting { return text.replyWhileWaiting }
+        if !session.host.acceptsReplies { return text.replyUnavailable }
+        return nil
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                TextField(unavailable ?? text.replyPlaceholder, text: draft)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .focused($focused)
+                    .onSubmit(send)
+                    .disabled(unavailable != nil || sending)
+                    .accessibilityLabel(text.replyPlaceholder)
+                Button(action: send) {
+                    Group {
+                        if sending {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Image(systemName: "arrow.up").font(.system(size: 11, weight: .bold))
+                        }
+                    }
+                    .foregroundStyle(canSend ? Color.black.opacity(0.85) : .white.opacity(0.35))
+                    .frame(width: 24, height: 24)
+                    .background(canSend ? AgentProvider.claude.tint : .white.opacity(0.08), in: Circle())
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 12))
+                .disabled(!canSend)
+                .help(text.send)
+                .accessibilityLabel(text.send)
+            }
+            .padding(.leading, 10)
+            .padding(.trailing, 4)
+            .frame(height: 32)
+            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(.white.opacity(focused ? 0.3 : 0), lineWidth: 1)
+            }
+            if let problem {
+                Label(problem, systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                    .transition(.opacity)
+            }
+        }
+        .onChange(of: session.id) { _, _ in problem = nil }
+    }
+
+    private var canSend: Bool {
+        unavailable == nil && !sending && NotchClaudeSessionsSupport.reply(draft.wrappedValue) != nil
+    }
+
+    private func send() {
+        guard canSend else { return }
+        sending = true
+        problem = nil
+        service.send(draft.wrappedValue, to: session) { failure in
+            sending = false
+            switch failure {
+            case nil: break
+            case .waiting?: problem = text.sendWhileWaiting
+            case .unreachable?: problem = text.sendFailed
+            }
         }
     }
 }

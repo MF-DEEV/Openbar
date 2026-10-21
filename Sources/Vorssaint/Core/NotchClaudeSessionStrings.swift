@@ -48,6 +48,10 @@ struct NotchClaudeSessionStrings {
     let hooksFailedFormat: String
     let shortcutsHint: String
     let sendFailed: String
+    let sendWhileWaiting: String
+    let bridgeTitle: String
+    let bridgeHint: String
+    let installBridge: String
     let openFailed: String
 
     func phase(_ phase: ClaudeSessionPhase) -> String {
@@ -122,5 +126,9 @@ extension NotchClaudeSessionStrings {
         hooksFailedFormat: "Couldn’t change the settings: %@",
         shortcutsHint: "⌘Y allows and ⌘N denies while the island has the keyboard.",
         sendFailed: "Couldn’t reach that terminal",
+        sendWhileWaiting: "It’s waiting on a prompt now. Answer it first.",
+        bridgeTitle: "Antigravity extension",
+        bridgeHint: "Replies typed in the island reach sessions in Antigravity through a small extension that ships with this app. It only shows a terminal or types into it when you ask.",
+        installBridge: "Install Extension",
         openFailed: "Couldn’t find that window")
 }

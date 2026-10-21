@@ -8,6 +8,7 @@ enum ClaudeHookTests {
         suite.run("sessions hook messages") { messages(suite) }
         suite.run("sessions hook server") { server(suite) }
         suite.run("sessions hook installer") { installer(suite) }
+        suite.run("sessions replies") { replies(suite) }
     }
 
     static let now = Date(timeIntervalSince1970: 1_792_600_000)
@@ -226,5 +227,46 @@ enum ClaudeHookTests {
         suite.expect(attributes?[.type] as? FileAttributeType == .typeSymbolicLink
                      && ClaudeHookInstaller.isInstalled(in: (try? ClaudeHookInstaller.read(target)) ?? [:], command: command),
                      "linked settings are changed where they live and the link stays")
+    }
+
+    // MARK: Replies
+
+    static func replies(_ suite: TestSuite) {
+        let script = ClaudeTerminalScripts.type("say \"hi\"\nthen \\ go", tty: "/dev/ttys004")
+        suite.expect(script.contains(#"tty of theTab is "/dev/ttys004""#), "the reply goes to the tab on the session's device")
+        suite.expect(script.contains("\"say \\\"hi\\\"\nthen \\\\ go\""), "its quotes and backslashes are escaped and lines kept")
+        suite.expect(script.contains(#"marker & "[200~""#) && script.contains(#"marker & "[201~""#),
+                     "it is typed as a paste, so a line break does not send it early")
+        suite.expect(ClaudeTerminalScripts.focus(tty: "/dev/ttys004").contains("set selected of theTab to true"),
+                     "opening selects that tab")
+        suite.expect(ClaudeTerminalBridge.shell(of: getpid()) == getppid(), "a session's shell is its parent process")
+
+        // Two IDE windows listen; only the one holding the terminal says yes.
+        let folder = URL(fileURLWithPath: "/tmp/vs-bridge-\(getpid())")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let queue = DispatchQueue(label: "test.claude-bridge")
+        let lock = NSLock()
+        var requests: [[String: Any]] = []
+        func window(_ name: String, shell: Int) -> ClaudeHookServer {
+            ClaudeHookServer(path: folder.appending(path: name).path, queue: queue) { payload, connection in
+                let request = (try? JSONSerialization.jsonObject(with: payload)) as? [String: Any] ?? [:]
+                lock.withLock { requests.append(request) }
+                let mine = request["shellPid"] as? Int == shell
+                connection.finish(Data((mine ? #"{"ok":true}"# : #"{"ok":false,"error":"missing"}"#).utf8 + [0x0A]))
+            }
+        }
+        let first = window("1.sock", shell: 111), second = window("2.sock", shell: 222)
+        suite.expect(queue.sync { first.start() && second.start() }, "the windows listen")
+        try? Data().write(to: folder.appending(path: "stale.sock"))
+        suite.expect(ClaudeTerminalBridge.send("Ship it", shell: 222, folder: folder), "the window with the terminal types the reply")
+        let sent = lock.withLock { requests.first { $0["shellPid"] as? Int == 222 } }
+        suite.expect(sent?["command"] as? String == "send" && sent?["text"] as? String == "Ship it", "the request says what to type")
+        suite.expect(!ClaudeTerminalBridge.send("x", shell: 333, folder: folder), "no window holding the terminal means no reply")
+        suite.expect(ClaudeTerminalBridge.focus(shell: 111, folder: folder), "a window shows its terminal on request")
+        queue.sync { first.stop(); second.stop() }
+        suite.expect(!ClaudeTerminalBridge.focus(shell: 111, folder: folder), "with the IDE closed nothing answers")
+        suite.expect(!ClaudeTerminalBridge.ask(["command": "ping"], folder: folder.appending(path: "missing")),
+                     "a missing folder is no answer")
     }
 }

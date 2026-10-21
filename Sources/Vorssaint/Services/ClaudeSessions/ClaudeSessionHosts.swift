@@ -112,3 +112,100 @@ enum ClaudeIDELock {
         return ((holding ?? cwd) as NSString).lastPathComponent
     }
 }
+
+extension ClaudeTerminalScripts {
+    /// Types a reply into the session's tab as a paste, so its line breaks
+    /// stay text, and the return Terminal adds after it sends it.
+    static func type(_ text: String, tty: String) -> String {
+        """
+        set marker to ASCII character 27
+        tell application "Terminal"
+            repeat with theWindow in windows
+                repeat with theTab in tabs of theWindow
+                    if tty of theTab is \(AppleScriptRunner.literal(tty)) then
+                        do script (marker & "[200~" & \(AppleScriptRunner.literal(text)) & marker & "[201~") in theTab
+                        return "sent"
+                    end if
+                end repeat
+            end repeat
+        end tell
+        return "missing"
+        """
+    }
+}
+
+/// Talks to the Antigravity extension that shows a session's terminal and
+/// types into it. Every window of the IDE listens on its own socket in
+/// `~/.vorssaint/terminals`, and only the one holding the terminal answers yes.
+enum ClaudeTerminalBridge {
+    static func folder(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+        home.appending(path: ".vorssaint/terminals", directoryHint: .isDirectory)
+    }
+
+    static func focus(shell: Int32, folder: URL) -> Bool {
+        ask(["command": "focus", "shellPid": Int(shell)], folder: folder)
+    }
+
+    static func send(_ text: String, shell: Int32, folder: URL) -> Bool {
+        ask(["command": "send", "shellPid": Int(shell), "text": text], folder: folder)
+    }
+
+    /// Asks each window in turn until one says it did it.
+    static func ask(_ request: [String: Any], folder: URL, timeout: TimeInterval = 2) -> Bool {
+        guard var line = try? JSONSerialization.data(withJSONObject: request) else { return false }
+        line.append(0x0A)
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        for name in names where name.hasSuffix(".sock") {
+            let path = folder.appending(path: name).path
+            guard let reply = exchange(line, path: path, timeout: timeout),
+                  let json = (try? JSONSerialization.jsonObject(with: reply)) as? [String: Any] else { continue }
+            if json["ok"] as? Bool == true { return true }
+        }
+        return false
+    }
+
+    /// One request and its one-line answer, or nil when nobody listens.
+    static func exchange(_ request: Data, path: String, timeout: TimeInterval) -> Data? {
+        let descriptor = socket(AF_UNIX, SOCK_STREAM, 0)
+        guard descriptor >= 0 else { return nil }
+        defer { close(descriptor) }
+        var noSignal: Int32 = 1
+        setsockopt(descriptor, SOL_SOCKET, SO_NOSIGPIPE, &noSignal, socklen_t(MemoryLayout<Int32>.size))
+        var wait = timeval(tv_sec: Int(timeout), tv_usec: Int32((timeout - floor(timeout)) * 1_000_000))
+        setsockopt(descriptor, SOL_SOCKET, SO_RCVTIMEO, &wait, socklen_t(MemoryLayout<timeval>.size))
+        setsockopt(descriptor, SOL_SOCKET, SO_SNDTIMEO, &wait, socklen_t(MemoryLayout<timeval>.size))
+        var address = sockaddr_un()
+        address.sun_family = sa_family_t(AF_UNIX)
+        let bytes = Array(path.utf8)
+        guard bytes.count < MemoryLayout.size(ofValue: address.sun_path) else { return nil }
+        withUnsafeMutableBytes(of: &address.sun_path) { raw in
+            raw.copyBytes(from: bytes)
+            raw[bytes.count] = 0
+        }
+        let connected = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) {
+                connect(descriptor, $0, socklen_t(MemoryLayout<sockaddr_un>.size))
+            }
+        }
+        guard connected == 0 else { return nil }
+        let written = request.withUnsafeBytes { write(descriptor, $0.baseAddress, $0.count) }
+        guard written == request.count else { return nil }
+        var reply = Data()
+        var chunk = [UInt8](repeating: 0, count: 4096)
+        while reply.count < 1 << 16 {
+            let count = read(descriptor, &chunk, chunk.count)
+            guard count > 0 else { break }
+            reply.append(contentsOf: chunk[0..<count])
+            if reply.contains(0x0A) { break }
+        }
+        return reply.isEmpty ? nil : reply
+    }
+
+    /// The shell a session runs in, which the IDE knows its terminal by.
+    static func shell(of pid: Int32) -> Int32? {
+        var info = proc_bsdinfo()
+        let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size, info.pbi_ppid > 1 else { return nil }
+        return Int32(info.pbi_ppid)
+    }
+}

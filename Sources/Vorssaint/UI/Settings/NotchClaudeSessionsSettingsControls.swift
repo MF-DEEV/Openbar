@@ -24,8 +24,41 @@ struct NotchClaudeSessionsSettingsControls: View {
             switchRow("text.bubble", text.contentPreview, caption: text.contentPreviewHint, isOn: $previews)
             Divider()
             hooks
+            bridge
         }
-        .onAppear { service.checkHooks() }
+        .onAppear {
+            service.checkHooks()
+            service.checkBridge()
+        }
+    }
+
+    private var bridge: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SettingsRow(symbol: "terminal", title: text.bridgeTitle) {
+                HStack(spacing: 8) {
+                    if let installed = service.bridgeInstalled {
+                        Label(installed ? text.hooksInstalled : text.hooksMissing,
+                              systemImage: installed ? "checkmark.circle.fill" : "circle.dashed")
+                            .font(.caption)
+                            .foregroundStyle(installed ? .green : .secondary)
+                        if !installed { Button(text.installBridge) { service.installBridge() }.controlSize(.small) }
+                    } else {
+                        ProgressView().controlSize(.small)
+                    }
+                }
+            }
+            Text(text.bridgeHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, settingsRowTextInset)
+            if let failure = service.bridgeFailure {
+                Label(failure, systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(.leading, settingsRowTextInset)
+            }
+        }
     }
 
     private var hooks: some View {
