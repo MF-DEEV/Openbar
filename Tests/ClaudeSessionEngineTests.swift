@@ -452,6 +452,11 @@ enum ClaudeSessionEngineTests {
         suite.expect(NotchClaudeSessionsSupport.name(named, custom: nil) == "meettime-86", "a name given with /rename wins")
         suite.expect(NotchClaudeSessionsSupport.name(named, custom: " Android bubbles ") == "Android bubbles",
                      "and the person's own name in the island wins over all")
+        let colors = ["meettime", "vorsaint plugin", "dawidbuszta", "Nexus-Code"].map(NotchClaudeSessionsSupport.projectColor)
+        suite.expect(colors.allSatisfy { (0..<NotchClaudeSessionsSupport.projectColors).contains($0) }
+                     && NotchClaudeSessionsSupport.projectColor("meettime") == colors[0]
+                     && NotchClaudeSessionsSupport.projectColor("MeetTime") == colors[0] && Set(colors).count > 1,
+                     "a project keeps one color, whatever the case of its name: \(colors)")
         let long = String(repeating: "x", count: 90)
         var kept = NotchClaudeSessionsSupport.renamed([:], id: "a", to: long, live: ["a"])
         suite.expect(kept["a"]?.count == NotchClaudeSessionsSupport.nameLimit, "a name is kept to its limit")

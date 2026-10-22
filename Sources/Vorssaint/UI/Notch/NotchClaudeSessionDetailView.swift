@@ -95,11 +95,14 @@ struct NotchClaudeSessionDetailView: View {
                             .truncationMode(.middle)
                     }
                 }
-                Text(details)
-                    .font(.system(size: 10.5))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                HStack(spacing: 6) {
+                    NotchClaudeProjectTag(project: session.project)
+                    Text(details)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
             Spacer(minLength: 0)
         }

@@ -76,15 +76,18 @@ struct NotchClaudeSessionLargeView: View {
                             .truncationMode(.middle)
                     }
                 }
-                Text([session.branch.map { "⎇ \($0)" }, session.model.map(AgentPricing.displayName),
-                      session.tokens.total > 0 ? AgentFormat.tokens(session.tokens.total) : nil,
-                      session.cost > 0 ? AgentFormat.cost(session.cost) : nil, session.cwd]
-                        .compactMap { $0 }.joined(separator: " · "))
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .textSelection(.enabled)
+                HStack(spacing: 8) {
+                    NotchClaudeProjectTag(project: session.project, size: 12)
+                    Text([session.branch.map { "⎇ \($0)" }, session.model.map(AgentPricing.displayName),
+                          session.tokens.total > 0 ? AgentFormat.tokens(session.tokens.total) : nil,
+                          session.cost > 0 ? AgentFormat.cost(session.cost) : nil, session.cwd]
+                            .compactMap { $0 }.joined(separator: " · "))
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                }
             }
             Spacer(minLength: 12)
             HStack(spacing: 2) {

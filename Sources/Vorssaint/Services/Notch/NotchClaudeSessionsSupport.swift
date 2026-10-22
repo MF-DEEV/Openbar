@@ -120,6 +120,20 @@ enum NotchClaudeSessionsSupport {
 
     static let replyLimit = 4000
 
+    /// How many colors projects are told apart by.
+    static let projectColors = 8
+
+    /// A project's color, the same each time for the same folder name so a
+    /// project is known by it at a glance.
+    static func projectColor(_ project: String) -> Int {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in project.lowercased().utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01b3
+        }
+        return Int(hash % UInt64(projectColors))
+    }
+
     /// What a session is called: the person's own name for it, then one
     /// given with /rename, the title of its conversation, then Claude Code's
     /// own name, which follows the folder.

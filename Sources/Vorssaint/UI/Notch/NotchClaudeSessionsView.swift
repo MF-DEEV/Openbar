@@ -164,24 +164,57 @@ struct NotchClaudeSessionRow: View {
                         .foregroundStyle(session.phase.tint)
                 }
             }
-            HStack(spacing: 5) {
+            HStack(spacing: 6) {
+                // The project first, in its own color, so sessions of one
+                // project are found together at a glance.
+                NotchClaudeProjectTag(project: session.project)
+                    .layoutPriority(2)
                 Text(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name))
                     .foregroundStyle(session.phase.isWaiting ? session.phase.tint : .secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
-                // Where it works, so two sessions in one folder still read apart
-                // by name; it keeps its room before a long command does.
-                Label(session.branch.map { "\(session.project) · \($0)" } ?? session.project, systemImage: "folder")
-                    .labelStyle(NotchClaudeSessionInlineLabel())
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(maxWidth: 230, alignment: .leading)
-                    .fixedSize(horizontal: false, vertical: true)
                     .layoutPriority(1)
+                if let branch = session.branch {
+                    Label(branch, systemImage: "arrow.triangle.branch")
+                        .labelStyle(NotchClaudeSessionInlineLabel())
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
             }
             .font(.system(size: 10.5))
         }
+    }
+}
+
+/// A project's name in its color, the same wherever the project shows.
+struct NotchClaudeProjectTag: View {
+    let project: String
+    var size: CGFloat = 10.5
+
+    /// Hues clear of the phases' orange, amber and green.
+    static let palette: [Color] = [
+        Color(red: 0.42, green: 0.64, blue: 1.0), Color(red: 0.72, green: 0.55, blue: 1.0),
+        Color(red: 1.0, green: 0.50, blue: 0.74), Color(red: 0.27, green: 0.82, blue: 0.84),
+        Color(red: 0.62, green: 0.84, blue: 0.36), Color(red: 0.84, green: 0.68, blue: 0.52),
+        Color(red: 0.38, green: 0.86, blue: 1.0), Color(red: 0.86, green: 0.78, blue: 1.0),
+    ]
+
+    static func color(_ project: String) -> Color { palette[NotchClaudeSessionsSupport.projectColor(project) % palette.count] }
+
+    var body: some View {
+        let color = Self.color(project)
+        Text(project)
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(color)
+            .lineLimit(1)
+            .truncationMode(.middle)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 1.5)
+            .background(color.opacity(0.16), in: Capsule())
+            .frame(maxWidth: 160, alignment: .leading)
+            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityLabel(project)
     }
 }
 
