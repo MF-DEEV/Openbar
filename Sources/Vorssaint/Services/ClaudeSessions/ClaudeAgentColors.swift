@@ -36,11 +36,17 @@ enum ClaudeAgentDefinitions {
     }
 
     /// A one-line value: what its quotes hold, or the words before a comment.
+    /// Anything else after the quotes is not YAML, and Claude Code then takes
+    /// the whole line as written, which names no color.
     static func scalar(_ raw: Substring) -> String {
         let text = raw.trimmingCharacters(in: .whitespaces)
         if let quote = text.first, quote == "\"" || quote == "'" {
             let inside = text.dropFirst()
-            return String(inside[..<(inside.firstIndex(of: quote) ?? inside.endIndex)])
+            guard let end = inside.firstIndex(of: quote) else { return text }
+            let rest = inside[inside.index(after: end)...]
+            let after = rest.trimmingCharacters(in: .whitespaces)
+            guard after.isEmpty || (after.hasPrefix("#") && rest.first?.isWhitespace == true) else { return text }
+            return String(inside[..<end])
         }
         if text.hasPrefix("#") { return "" }
         let comment = text.range(of: " #")?.lowerBound ?? text.range(of: "\t#")?.lowerBound ?? text.endIndex
@@ -91,30 +97,59 @@ enum ClaudeAgentDefinitions {
     }
 
     /// The agent folders of a plugin synced from the person's account, which
-    /// Claude Code keeps under `plugins/synced`, one folder per account and
-    /// one per plugin, each naming itself in its `plugin.json`. The newest
-    /// copy of a plugin comes first.
+    /// Claude Code keeps under `plugins/synced`, a folder per account. Each
+    /// account's `manifest.json` lists its plugins by folder, with "~g" and
+    /// a generation after the name when it gives one; older copies stay
+    /// beside them for a while and are not read. Without a manifest to go
+    /// by, every folder is looked at, the highest generation first.
     static func syncedPluginFolders(_ root: URL, plugin: String) -> [URL] {
         let files = FileManager.default
         guard let accounts = try? files.contentsOfDirectory(atPath: root.path) else { return [] }
         var folders: [URL] = []
         for account in accounts.sorted().prefix(20) {
             let base = root.appending(path: account, directoryHint: .isDirectory)
-            guard let names = try? files.contentsOfDirectory(atPath: base.path) else { continue }
-            for name in names.sorted(by: >).prefix(filesLimit) {
+            let names = json(base.appending(path: "manifest.json")).map(liveFolders)
+                ?? ((try? files.contentsOfDirectory(atPath: base.path)) ?? []).sorted(by: newer).prefix(filesLimit).map { $0 }
+            for name in names {
                 let folder = base.appending(path: name, directoryHint: .isDirectory)
-                let manifests = ["plugin.json", ".claude-plugin/plugin.json"].map { folder.appending(path: $0) }
-                let named = manifests.contains { manifest in
-                    guard (try? manifest.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]))
-                            .map({ $0.isRegularFile == true && ($0.fileSize ?? .max) < 1 << 16 }) == true,
-                          let data = files.contents(atPath: manifest.path),
-                          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
-                    return json["name"] as? String == plugin
+                let named = ["plugin.json", ".claude-plugin/plugin.json"].contains {
+                    json(folder.appending(path: $0))?["name"] as? String == plugin
                 }
                 if named { folders.append(folder.appending(path: "agents", directoryHint: .isDirectory)) }
             }
         }
         return folders
+    }
+
+    /// The folders an account's synced plugins live in, as its manifest
+    /// names them: `{"plugins": [{"name": "canva"}, {"name": "…", "generation": 5}]}`.
+    static func liveFolders(_ manifest: [String: Any]) -> [String] {
+        guard let plugins = manifest["plugins"] as? [[String: Any]] else { return [] }
+        return plugins.prefix(filesLimit).compactMap { entry in
+            guard let name = entry["name"] as? String, !name.isEmpty, !name.contains("/"), name != ".", name != ".." else { return nil }
+            guard let generation = entry["generation"] as? Int, generation > 1 else { return name }
+            return "\(name)~g\(generation)"
+        }
+    }
+
+    /// Whether one plugin folder's copy is newer than another's: `name~g10`
+    /// after `name~g9`, and both after the bare `name`.
+    static func newer(_ lhs: String, _ rhs: String) -> Bool {
+        func split(_ folder: String) -> (String, Int) {
+            guard let mark = folder.range(of: "~g", options: .backwards),
+                  let generation = Int(folder[mark.upperBound...]) else { return (folder, 1) }
+            return (String(folder[..<mark.lowerBound]), generation)
+        }
+        let left = split(lhs), right = split(rhs)
+        return left.0 == right.0 ? left.1 > right.1 : left.0 > right.0
+    }
+
+    /// A small JSON object from a plain file, or nil.
+    private static func json(_ file: URL) -> [String: Any]? {
+        guard (try? file.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]))
+                .map({ $0.isRegularFile == true && ($0.fileSize ?? .max) < 1 << 20 }) == true,
+              let data = FileManager.default.contents(atPath: file.path) else { return nil }
+        return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
     }
 
     /// The agent folders of an installed plugin, from Claude Code's
@@ -206,15 +241,19 @@ final class ClaudeAgentColors {
     /// The definition called `name` in `folder`: by its own `name:` line, or
     /// failing that by its file name.
     private func definition(named name: String, in folder: URL) -> (name: String, color: String?)? {
-        guard let files = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return nil }
+        // A folder linked into a guarded one is guarded too: listing it is
+        // what macOS asks about.
+        let folder = folder.resolvingSymlinksInPath()
+        guard readsProtected || !ClaudeAgentDefinitions.isProtected(folder.path, home: home),
+              let files = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return nil }
         var byFile: (name: String, color: String?)?
         for file in files.filter({ $0.hasSuffix(".md") }).sorted().prefix(ClaudeAgentDefinitions.filesLimit) {
             // Only a plain file: opening a pipe waits for a writer, and would
             // hold up the queue the sessions and their hooks share. A link is
             // followed only where the app may read without a prompt.
             let resolved = folder.appending(path: file).resolvingSymlinksInPath()
-            guard (try? resolved.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
-                  readsProtected || !ClaudeAgentDefinitions.isProtected(resolved.path, home: home),
+            guard readsProtected || !ClaudeAgentDefinitions.isProtected(resolved.path, home: home),
+                  (try? resolved.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
                   let handle = FileHandle(forReadingAtPath: resolved.path) else { continue }
             let data = (try? handle.read(upToCount: ClaudeAgentDefinitions.headLimit)) ?? Data()
             try? handle.close()

@@ -7,6 +7,78 @@ enum ClaudeAgentColorTests {
     static func run(_ suite: TestSuite) {
         suite.run("agent definitions") { definitions(suite) }
         suite.run("agent colors") { colors(suite) }
+        suite.run("agent copies and links") { copiesAndLinks(suite) }
+        suite.run("agent links") { links(suite) }
+    }
+
+    /// Links and odd files among the definitions: a link is followed only
+    /// to a plain file, and only where the app may read without a prompt.
+    static func links(_ suite: TestSuite) {
+        let files = FileManager.default
+        let home = files.temporaryDirectory.appending(path: "claude-links-\(UUID().uuidString)")
+        defer { try? files.removeItem(at: home) }
+        let agents = home.appending(path: ".claude/agents")
+        func write(_ text: String, to folder: URL, _ name: String) {
+            try? files.createDirectory(at: folder, withIntermediateDirectories: true)
+            try? data(text).write(to: folder.appending(path: name))
+        }
+        func link(_ name: String, in folder: URL, to target: String) {
+            try? files.createDirectory(at: folder, withIntermediateDirectories: true)
+            try? files.createSymbolicLink(atPath: folder.appending(path: name).path, withDestinationPath: target)
+        }
+        let shared = home.appending(path: "shared")
+        write("---\nname: linker\ncolor: green\n---\n", to: shared, "linker.md")
+        link("linker.md", in: agents, to: shared.appending(path: "linker.md").path)
+        write("---\nname: rel\ncolor: blue\n---\n", to: shared, "rel-target.md")
+        link("relative.md", in: agents, to: "../../shared/rel-target.md")
+        let desk = home.appending(path: "Desktop/defs")
+        write("---\nname: desk\ncolor: red\n---\n", to: desk, "desk.md")
+        link("desk.md", in: agents, to: desk.appending(path: "desk.md").path)
+        link("dangling.md", in: agents, to: home.appending(path: "nowhere.md").path)
+        link("loop-a.md", in: agents, to: agents.appending(path: "loop-b.md").path)
+        link("loop-b.md", in: agents, to: agents.appending(path: "loop-a.md").path)
+        let pipe = shared.appending(path: "pipe.md").path
+        suite.expect(mkfifo(pipe, 0o600) == 0, "a named pipe stands outside the definitions")
+        link("piped.md", in: agents, to: pipe)
+        try? files.createDirectory(at: agents.appending(path: "folder.md"), withIntermediateDirectories: true)
+
+        let colors = ClaudeAgentColors(home: home)
+        let now = Date()
+        let started = Date()
+        suite.expect(colors.color(type: "linker", cwd: "", now: now) == "green",
+                     "a link to a plain file in a folder the app may read is followed")
+        suite.expect(colors.color(type: "rel", cwd: "", now: now) == "blue",
+                     "so is a relative link, read as the file it names")
+        suite.expect(colors.color(type: "desk", cwd: "", now: now) == nil,
+                     "a link into a guarded folder is not followed without Full Disk Access")
+        suite.expect(colors.color(type: "nobody", cwd: "", now: now) == nil && Date().timeIntervalSince(started) < 2,
+                     "a dangling link, a loop, a link to a pipe and a folder named .md are passed over at once")
+        colors.readsProtected = true
+        suite.expect(colors.color(type: "desk", cwd: "", now: now) == "red", "with Full Disk Access it is")
+
+        // A synced plugin naming itself at its top, and one whose manifest
+        // is a pipe, which must not hold the lookup up.
+        let synced = home.appending(path: ".claude/plugins/synced/account")
+        write(#"{"name":"top"}"#, to: synced.appending(path: "t1"), "plugin.json")
+        write("---\nname: lead\ncolor: yellow\n---\n", to: synced.appending(path: "t1/agents"), "lead.md")
+        try? files.createDirectory(at: synced.appending(path: "t2/.claude-plugin"), withIntermediateDirectories: true)
+        suite.expect(mkfifo(synced.appending(path: "t2/.claude-plugin/plugin.json").path, 0o600) == 0,
+                     "a synced plugin's manifest is a pipe")
+        let asked = Date()
+        suite.expect(colors.color(type: "top:lead", cwd: "", now: now) == "yellow" && Date().timeIntervalSince(asked) < 2,
+                     "a synced plugin naming itself in its own folder is found, past a manifest that is a pipe")
+
+        for (line, color) in [("color:\tgreen\t# tabbed", "green"), ("color: green  #  spaced", "green"),
+                              ("color: green#tight", "green#tight"), ("color:", nil)] as [(String, String?)] {
+            let read = ClaudeAgentDefinitions.frontmatter(data("---\nname: x\n\(line)\n---\n")).color
+            suite.expect(read == color, "\(line) reads as \(String(describing: read))")
+        }
+        suite.expect(ClaudeAgentDefinitions.frontmatter(data("---\nname: x # who\ncolor: red\n---\n")).name == "x",
+                     "a name loses its comment too")
+        suite.expect(ClaudeAgentDefinitions.isProtected("/System/Volumes/Data" + home.path + "/Library/CloudStorage/Box/x",
+                                                        home: home)
+                     && !ClaudeAgentDefinitions.isProtected("/System/Volumes/Data", home: home),
+                     "a cloud folder reached by the data volume's own name is guarded too")
     }
 
     static func data(_ text: String) -> Data { Data(text.utf8) }
@@ -39,9 +111,10 @@ enum ClaudeAgentColorTests {
         let marked = ClaudeAgentDefinitions.frontmatter(Data([0xef, 0xbb, 0xbf]) + data("---\nname: reviewer\ncolor: blue\n---\n"))
         suite.expect(marked.name == "reviewer" && marked.color == "blue", "so does one that starts with a byte order mark")
         for (line, color) in [("color: green # team colour", "green"), ("color: \"green\" # quoted", "green"),
-                              ("color: 'pink'#tight", "pink"), ("color: # nothing yet", nil)] as [(String, String?)] {
+                              ("color: 'pink'#tight", "'pink'#tight"), ("color: # nothing yet", nil)] as [(String, String?)] {
             let read = ClaudeAgentDefinitions.frontmatter(data("---\nname: x\n\(line)\n---\n")).color
-            suite.expect(read == color, "a comment after the value is not part of it: \(line) read as \(String(describing: read))")
+            suite.expect(read == color, "a comment after the value is not part of it, and a value YAML cannot read is "
+                         + "taken as written, naming no color: \(line) read as \(String(describing: read))")
         }
 
         let home = URL(fileURLWithPath: "/Users/me")
@@ -183,5 +256,53 @@ enum ClaudeAgentColorTests {
         let lone = ClaudeSession(id: "t", pid: 2, cwd: project.path, project: "app", name: "app", host: .unknown, phase: .idle,
                                  phaseSince: now, timeline: [], subagents: [], tokens: AgentTokens(), cost: 0, hooked: false)
         suite.expect(colors.decorate(lone, now: now) == lone, "a session without subagents is left as it is")
+    }
+
+    static func copiesAndLinks(_ suite: TestSuite) {
+        let files = FileManager.default
+        let home = files.temporaryDirectory.appending(path: "claude-copies-\(UUID().uuidString)")
+        defer { try? files.removeItem(at: home) }
+        func write(_ text: String, to folder: URL, _ name: String) {
+            try? files.createDirectory(at: folder, withIntermediateDirectories: true)
+            try? data(text).write(to: folder.appending(path: name))
+        }
+        // Claude Code reads a synced plugin from the folder its manifest
+        // names, with "~g" and the generation when it gives one, and keeps
+        // older copies beside it until it clears them away.
+        let account = home.appending(path: ".claude/plugins/synced/account")
+        write(#"{"lastUpdated":1,"plugins":[{"pluginId":"p","name":"team"},{"pluginId":"q","name":"crew","generation":3}],"#
+              + #""staleDirs":["team~g2","crew~g2"]}"#, to: account, "manifest.json")
+        for (folder, name, color) in [("team", "team", "green"), ("team~g2", "team", "red"),
+                                      ("crew~g2", "crew", "pink"), ("crew~g3", "crew", "cyan")] {
+            write(#"{"name":"\#(name)"}"#, to: account.appending(path: "\(folder)/.claude-plugin"), "plugin.json")
+            write("---\nname: lead\ncolor: \(color)\n---\n", to: account.appending(path: "\(folder)/agents"), "lead.md")
+        }
+        let colors = ClaudeAgentColors(home: home)
+        let team = colors.color(type: "team:lead", cwd: "", now: Date())
+        let crew = colors.color(type: "crew:lead", cwd: "", now: Date())
+        suite.expect(team == "green" && crew == "cyan",
+                     "a synced plugin is read from the copy Claude Code uses, not a stale one: \(String(describing: team)), \(String(describing: crew))")
+
+        // The person's agents linked into a guarded folder: what is in it
+        // could only be learned by listing it, which macOS would ask about.
+        let guarded = home.appending(path: "Documents/agents")
+        let outside = home.appending(path: "plain")
+        write("---\nname: linked\ncolor: purple\n---\n", to: outside, "linked.md")
+        try? files.createDirectory(at: guarded, withIntermediateDirectories: true)
+        try? files.createSymbolicLink(atPath: guarded.appending(path: "linked.md").path,
+                                      withDestinationPath: outside.appending(path: "linked.md").path)
+        try? files.createDirectory(at: home.appending(path: ".claude"), withIntermediateDirectories: true)
+        try? files.createSymbolicLink(atPath: home.appending(path: ".claude/agents").path, withDestinationPath: guarded.path)
+        suite.expect(["crew~g10", "crew", "crew~g9", "crew~g2"].sorted(by: ClaudeAgentDefinitions.newer)
+                     == ["crew~g10", "crew~g9", "crew~g2", "crew"],
+                     "without a manifest, the copies are tried from the highest generation, counted as numbers")
+        suite.expect(ClaudeAgentDefinitions.liveFolders(["plugins": [["name": "../escape"], ["name": "ok", "generation": 1],
+                                                                     ["generation": 2]]]) == ["ok"],
+                     "a manifest names folders only inside its account, and generation one is the bare name")
+        let linked = ClaudeAgentColors(home: home)
+        suite.expect(linked.color(type: "linked", cwd: "", now: Date()) == nil,
+                     "without Full Disk Access, a guarded folder is not listed, even through a link")
+        linked.readsProtected = true
+        suite.expect(linked.color(type: "linked", cwd: "", now: Date()) == "purple", "with it, the linked agents are read")
     }
 }

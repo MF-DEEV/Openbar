@@ -20,9 +20,9 @@ final class NotchDecorativeClock {
     /// The most steps a second this clock takes.
     let stepsPerSecond: Float
 
-    /// `step` receives the time the frame being prepared will show at.
-    /// Pixel art steps more slowly than `rate`, as its frames change only
-    /// a dozen times a second.
+    /// `step` receives the time the frame being prepared will show at. Pixel
+    /// art steps more slowly than `rate`, as its frames change only a dozen
+    /// times a second.
     init(rate: Float = NotchDecorativeClock.rate, step: @escaping (CFTimeInterval) -> Void) {
         self.stepsPerSecond = max(1, min(rate, Self.rate))
         self.step = step

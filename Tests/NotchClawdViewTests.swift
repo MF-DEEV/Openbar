@@ -160,6 +160,45 @@ enum NotchClawdViewTests {
         suite.expect(row.motionStart == rowStart, "the same moment given again changes nothing")
         row.configure(costume: costume, motion: .alert, seed: 3, since: Date(), still: false)
         suite.expect(row.motionStart > rowStart, "a new request starts the hops again")
+        row.configure(costume: costume, motion: .alert, seed: 3, since: Date().addingTimeInterval(30), still: false)
+        suite.expect(abs(row.motionStart - CACurrentMediaTime()) < 0.05,
+                     "a moment later than now, from a clock set back, starts the motion now and never ahead")
+        let ahead = row.motionStart
+        row.configure(costume: costume, motion: .alert, seed: 3, since: nil, still: false)
+        suite.expect(row.motionStart >= ahead, "losing the moment starts the motion again from now")
+        let long = Date().addingTimeInterval(-3 * 86_400)
+        row.configure(costume: costume, motion: .work, seed: 3, since: long, still: false)
+        row.step(at: CACurrentMediaTime())
+        suite.expect(abs((CACurrentMediaTime() - row.motionStart) - 3 * 86_400) < 0.1,
+                     "work begun days ago is counted from then without trouble")
+        let kept = row.motionStart
+        row.configure(costume: costume, motion: .work, seed: 3, since: long, still: true)
+        row.configure(costume: costume, motion: .work, seed: 3, since: long, still: false)
+        suite.expect(row.motionStart == kept, "Reduce Motion on and off again keeps the session's own clock")
+
+        // Low Power Mode is reported by a notification; it changes how often
+        // a Clawd steps, never whether a still or covered one moves.
+        container.addSubview(row)
+        suite.expect(row.isMoving, "a Clawd on screen moves")
+        NotificationCenter.default.post(name: .NSProcessInfoPowerStateDidChange, object: nil)
+        suite.expect(row.isMoving, "and keeps moving as the power state changes")
+        // The view answers the notification itself: its canvas is fitted
+        // again then, so a frame knocked out of place comes back.
+        let fitted = row.layer?.sublayers?.first?.frame
+        row.layer?.sublayers?.first?.frame = .zero
+        NotificationCenter.default.post(name: .NSProcessInfoPowerStateDidChange, object: nil)
+        suite.expect(fitted != .zero && row.layer?.sublayers?.first?.frame == fitted,
+                     "a power state change reaches the Clawd at once: \(String(describing: row.layer?.sublayers?.first?.frame))")
+        window.exposed = false
+        window.notifyVisibility()
+        NotificationCenter.default.post(name: .NSProcessInfoPowerStateDidChange, object: nil)
+        suite.expect(!row.isMoving, "a covered one stays still as the power state changes")
+        window.exposed = true
+        window.notifyVisibility()
+        row.stop()
+        NotificationCenter.default.post(name: .NSProcessInfoPowerStateDidChange, object: nil)
+        suite.expect(!row.isMoving, "and so does a dismantled one")
+        row.removeFromSuperview()
 
         weak var released: NotchClawdView?
         autoreleasepool {
@@ -170,5 +209,7 @@ enum NotchClawdViewTests {
             view.removeFromSuperview()
         }
         suite.expect(released == nil, "watching the window does not keep a discarded Clawd alive")
+        NotificationCenter.default.post(name: .NSProcessInfoPowerStateDidChange, object: nil)
+        suite.expect(released == nil, "nor does watching the power state, which reaches nothing once it is gone")
     }
 }
