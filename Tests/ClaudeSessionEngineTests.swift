@@ -473,6 +473,15 @@ enum ClaudeSessionEngineTests {
         suite.expect(narrow > 0 && wide > narrow && NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionCounts(), textSize: 13) == 0,
                      "the strip grows with what it counts")
 
+        let turn = at(40)
+        suite.expect(NotchClaudeSessionsSupport.thinkingWord(turn: turn) == NotchClaudeSessionsSupport.thinkingWord(turn: turn)
+                     && NotchClaudeSessionsSupport.thinkingWords.contains(NotchClaudeSessionsSupport.thinkingWord(turn: nil))
+                     && NotchClaudeSessionsSupport.thinkingWords.contains(NotchClaudeSessionsSupport.thinkingWord(turn: Date(timeIntervalSinceReferenceDate: -7))),
+                     "a turn keeps one word while it runs, before the reference date too")
+        let glyphs = (0..<12).map(NotchClaudeSessionsSupport.thinkingGlyph(step:))
+        suite.expect(glyphs == ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢", "·", "✢"]
+                     && NotchClaudeSessionsSupport.thinkingGlyph(step: -3) != "",
+                     "the star turns forward, then back: \(glyphs.joined())")
         let fenced = NotchClaudeSessionsSupport.markdown("Here:\n```swift\nlet x = 1\nlet y = 2\n```\nDone **now**")
         suite.expect(String(fenced.characters) == "Here:\nlet x = 1\nlet y = 2\nDone now",
                      "a fenced block keeps its lines and drops its fence: \(String(fenced.characters).debugDescription)")

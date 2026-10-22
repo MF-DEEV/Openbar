@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import SwiftUI
 
 /// A session's page with the island grown around it: the conversation so
@@ -16,6 +17,7 @@ struct NotchClaudeSessionLargeView: View {
     @State private var allTools = false
     @State private var allAgents = false
 
+    private static let thinkingRow = -1
     /// Rows a folded list shows: the running ones and the latest.
     static let foldedRows = 4
     private var size: CGFloat { CGFloat(NotchClaudeSessionsSupport.largeTextSize(textSize)) }
@@ -111,7 +113,7 @@ struct NotchClaudeSessionLargeView: View {
     @ViewBuilder private var conversation: some View {
         if !previews {
             Text(text.previewsOff).font(.system(size: size - 1)).foregroundStyle(.tertiary)
-        } else if session.chat.isEmpty {
+        } else if session.chat.isEmpty && !session.phase.isWorking {
             Text(text.noMessages).font(.system(size: size - 1)).foregroundStyle(.tertiary)
         } else {
             ScrollViewReader { proxy in
@@ -119,6 +121,11 @@ struct NotchClaudeSessionLargeView: View {
                     LazyVStack(alignment: .leading, spacing: size) {
                         ForEach(session.chat) { message in
                             bubble(message).id(message.id)
+                        }
+                        if session.phase.isWorking {
+                            NotchClaudeThinkingRow(session: session, size: size)
+                                .id(Self.thinkingRow)
+                                .transition(.opacity)
                         }
                     }
                     .padding(.trailing, 6)
@@ -130,7 +137,13 @@ struct NotchClaudeSessionLargeView: View {
                 // A new message brings the conversation to its end.
                 .onChange(of: session.chat.last?.id) { _, id in
                     guard let id else { return }
-                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(id, anchor: .bottom) }
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) {
+                        proxy.scrollTo(session.phase.isWorking ? Self.thinkingRow : id, anchor: .bottom)
+                    }
+                }
+                .onChange(of: session.phase.isWorking) { _, working in
+                    guard working else { return }
+                    withAnimation(reduceMotion ? nil : .easeOut(duration: 0.2)) { proxy.scrollTo(Self.thinkingRow, anchor: .bottom) }
                 }
             }
         }
@@ -263,6 +276,56 @@ struct NotchClaudeSessionLargeView: View {
             Text(AgentFormat.clock((agent.finished ?? now).timeIntervalSince(agent.started)))
                 .font(.system(size: 10)).monospacedDigit().foregroundStyle(.secondary)
         }
+    }
+}
+
+/// Claude at work, as its terminal shows it: a turning star and a word
+/// with light passing over it, with how long the turn has run.
+struct NotchClaudeThinkingRow: View {
+    let session: ClaudeSession
+    let size: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var word: String { NotchClaudeSessionsSupport.thinkingWord(turn: session.turnStarted) + "…" }
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 24, paused: reduceMotion)) { context in
+            let time = context.date.timeIntervalSinceReferenceDate
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(reduceMotion ? "✻" : NotchClaudeSessionsSupport.thinkingGlyph(step: Int(time * 8)))
+                    .font(.system(size: size + 1, weight: .semibold))
+                    .foregroundStyle(AgentProvider.claude.tint)
+                    .frame(width: size + 4)
+                Text(shimmer(at: time))
+                    .font(.system(size: size, weight: .medium))
+                if let clock = NotchClaudeSessionFormat.clock(session, now: context.date) {
+                    Text(clock).font(.system(size: size - 3)).monospacedDigit().foregroundStyle(.tertiary)
+                }
+                if session.phase == .runningTool, let tool = session.currentTool {
+                    Text(tool.name).font(.system(size: size - 3, weight: .medium)).foregroundStyle(.secondary)
+                }
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(word)
+    }
+
+    /// A band of light crossing the word from left to right, then a pause.
+    private func shimmer(at time: TimeInterval) -> AttributedString {
+        var result = AttributedString()
+        let letters = Array(word)
+        let tint = AgentProvider.claude.tint
+        let band = 3.0
+        let span = Double(letters.count) + band * 2 + 6
+        let center = (time * 14).truncatingRemainder(dividingBy: span) - band
+        for (index, letter) in letters.enumerated() {
+            var piece = AttributedString(String(letter))
+            let glow = reduceMotion ? 0 : max(0, 1 - abs(Double(index) - center) / band)
+            piece.foregroundColor = glow > 0
+                ? Color(nsColor: NSColor(tint).blended(withFraction: glow * 0.7, of: .white) ?? NSColor(tint)) : tint
+            result += piece
+        }
+        return result
     }
 }
 

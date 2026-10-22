@@ -118,6 +118,25 @@ enum NotchClaudeSessionsSupport {
 
     static let replyLimit = 4000
 
+    /// What the conversation says Claude is doing while a turn runs, picked
+    /// once per turn as Claude Code's own spinner does.
+    static let thinkingWords = [
+        "Thinking", "Pondering", "Brewing", "Musing", "Noodling", "Percolating", "Simmering", "Tinkering",
+        "Mulling", "Crafting", "Conjuring", "Pontificating", "Ruminating", "Churning", "Whirring", "Cogitating",
+    ]
+    static func thinkingWord(turn: Date?) -> String {
+        let seed = Int((turn?.timeIntervalSinceReferenceDate ?? 0).rounded(.down))
+        return thinkingWords[((seed % thinkingWords.count) + thinkingWords.count) % thinkingWords.count]
+    }
+
+    /// The spinner's glyphs, played forward and back.
+    static let thinkingGlyphs = ["·", "✢", "✳", "✶", "✻", "✽"]
+    static func thinkingGlyph(step: Int) -> String {
+        let cycle = thinkingGlyphs.count * 2 - 2
+        let place = ((step % cycle) + cycle) % cycle
+        return thinkingGlyphs[place < thinkingGlyphs.count ? place : cycle - place]
+    }
+
     /// Text sizes a session's enlarged page offers.
     static let largeTextSizes: ClosedRange<Double> = 12...24
     static func largeTextSize(_ size: Double) -> Double {
