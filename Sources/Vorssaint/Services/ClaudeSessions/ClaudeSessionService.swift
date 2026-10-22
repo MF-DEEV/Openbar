@@ -169,7 +169,7 @@ final class ClaudeSessionService: ObservableObject {
     /// there. Calls back on the main thread.
     func send(_ text: String, to session: ClaudeSession, completion: @escaping (SendFailure?) -> Void) {
         guard let reply = NotchClaudeSessionsSupport.reply(text), NotchClaudeSessionsSupport.canReply(session) else {
-            return completion(session.phase.isWaiting ? .waiting : .unreachable)
+            return completion(session.phase.isWaiting || session.waitingFor != nil ? .waiting : .unreachable)
         }
         let folders = ClaudeSessionRegistryReader.folders(home)
         let bridge = ClaudeTerminalBridge.folder(home: home)

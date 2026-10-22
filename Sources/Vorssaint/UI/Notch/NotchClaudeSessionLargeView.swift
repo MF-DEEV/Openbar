@@ -282,6 +282,7 @@ struct NotchClaudeSessionComposer: View {
 
     private var unavailable: String? {
         if session.phase.isWaiting { return text.replyWhileWaiting }
+        if session.waitingFor != nil { return text.replyWhileDialog }
         if !session.host.acceptsReplies { return text.replyUnavailable }
         return nil
     }

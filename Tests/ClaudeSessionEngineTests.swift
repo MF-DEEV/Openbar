@@ -76,6 +76,24 @@ enum ClaudeSessionEngineTests {
         suite.expect(only(waiting, 6)?.phase == .waitingInput, "other prompts wait for input")
         suite.expect(only(waiting, 6)?.waitingFor == "input needed", "the reason is kept while it waits")
 
+        let dialog = ClaudeSessionEngine()
+        dialog.ingest(records: [record(status: .idle, changed: 0)], now: at(0))
+        dialog.ingest(hook: hook(.notification(type: "idle_prompt"), 9), now: at(9))
+        dialog.ingest(records: [record(status: .waiting, waitingFor: "dialog open", changed: 10)], now: at(10))
+        let opened = only(dialog, 11)
+        suite.expect(opened?.phase == .idle && opened?.waitingFor == "dialog open",
+                     "a dialog the person opened, like /usage, waits on nobody but is still known")
+        var shown = opened!
+        shown.host = .terminal(tty: "/dev/ttys001")
+        suite.expect(!NotchClaudeSessionsSupport.canReply(shown), "and nothing is typed into it")
+        dialog.ingest(hook: hook(.notification(type: "agent_needs_input"), 12), now: at(12))
+        suite.expect(only(dialog, 13)?.phase == .waitingInput, "a dialog Claude Code raised with a notice waits for the person")
+        dialog.ingest(records: [record(status: .idle, changed: 20)], now: at(20))
+        dialog.ingest(records: [record(status: .waiting, waitingFor: "dialog open", changed: 30)], now: at(30))
+        suite.expect(only(dialog, 31)?.phase == .idle, "an earlier notice does not carry over to the next dialog")
+        dialog.ingest(hook: hook(.notification(type: ""), 28), now: at(31))
+        suite.expect(only(dialog, 32)?.phase == .waitingInput, "a notice written just before the registry changes still counts")
+
         // The registry going idle after the last line read ends the turn.
         let missed = ClaudeSessionEngine()
         missed.ingest(records: [record(status: .busy, changed: 1)], now: at(1))

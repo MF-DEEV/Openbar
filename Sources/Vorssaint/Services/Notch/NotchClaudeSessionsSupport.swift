@@ -112,7 +112,8 @@ enum NotchClaudeSessionsSupport {
     /// A reply can be typed only where the session listens for one: never
     /// while a dialog waits, where the keys would answer it instead.
     static func canReply(_ session: ClaudeSession) -> Bool {
-        session.host.acceptsReplies && !session.phase.isWaiting
+        // Keys typed while any dialog is open would go to the dialog.
+        session.host.acceptsReplies && !session.phase.isWaiting && session.waitingFor == nil
     }
 
     static let replyLimit = 4000

@@ -44,6 +44,8 @@ final class ClaudeSessionEngine {
         /// Permissions the hooks hold, oldest first: subagents can ask at once.
         var permissions: [ClaudePermission] = []
         var hooked = false
+        /// When Claude Code last asked the person for something by a notice.
+        var asked: Date?
         var acknowledged: Date?
         var firstSeen: Date
 
@@ -187,7 +189,14 @@ final class ClaudeSessionEngine {
     static func phase(record: ClaudeSessionRecord, activity entry: Activity, now: Date) -> ClaudeSessionPhase {
         if !entry.permissions.isEmpty { return .waitingPermission }
         if record.status == .waiting {
-            return record.waitingFor == ClaudeSessionRecord.permissionPrompt ? .waitingPermission : .waitingInput
+            guard record.waitingFor == ClaudeSessionRecord.dialogOpen else {
+                return record.waitingFor == ClaudeSessionRecord.permissionPrompt ? .waitingPermission : .waitingInput
+            }
+            // A dialog the person opened waits on nobody. One Claude Code
+            // raises to ask something sends a notice as it opens.
+            if let asked = entry.asked, asked >= (record.statusUpdated ?? .distantPast).addingTimeInterval(-askedSlack) {
+                return .waitingInput
+            }
         }
         let working: Bool
         if let fact = entry.lastFact, record.status == nil || fact > (record.statusUpdated ?? .distantPast) {
@@ -279,6 +288,17 @@ final class ClaudeSessionEngine {
         }
     }
 
+    /// Notices that do not ask the person anything: permissions have their
+    /// own page, and an idle reminder or a sign-in is not a question.
+    static let quietNotices: Set<String> = [
+        "idle_prompt", "permission_prompt", "worker_permission_prompt", "auth_success", "auth_storage_failure",
+        "computer_use_enter", "computer_use_exit", "elicitation_complete", "elicitation_response",
+        "agent_completed", "plugin_notification", "push_notification",
+    ]
+    static func asks(_ type: String) -> Bool { !quietNotices.contains(type) }
+    /// The notice and the registry's change are written apart.
+    static let askedSlack: TimeInterval = 5
+
     /// The conversation keeps its latest messages.
     static let chatLength = 150
 
@@ -309,7 +329,7 @@ final class ClaudeSessionEngine {
             }
             entry.permissions.removeAll { $0.requestID == permission.requestID }
             entry.permissions.append(permission)
-        case .notification: break
+        case .notification(let type): if Self.asks(type) { entry.asked = date }
         case .stopped(let text):
             if policy.previews, let text { entry.lastText = text }
             end(at: date, completed: true, in: &entry)

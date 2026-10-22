@@ -33,6 +33,7 @@ struct NotchClaudeSessionStrings {
     let replyPlaceholder: String
     let replyUnavailable: String
     let replyWhileWaiting: String
+    let replyWhileDialog: String
     let tasksFormat: String
     let subagents: String
     let moreSubagentsFormat: String
@@ -130,6 +131,7 @@ extension NotchClaudeSessionStrings {
         replyPlaceholder: "Reply to Claude…",
         replyUnavailable: "Replies work in Terminal and Antigravity",
         replyWhileWaiting: "Answer the prompt first",
+        replyWhileDialog: "Close the dialog in the terminal first",
         tasksFormat: "%1$d of %2$d tasks",
         subagents: "Subagents",
         moreSubagentsFormat: "%d more",

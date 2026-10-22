@@ -43,6 +43,9 @@ struct ClaudeSessionRecord: Equatable {
     var host: ClaudeSessionHost = .unknown
 
     static let permissionPrompt = "permission prompt"
+    /// Any dialog in the terminal, including one the person opened, like
+    /// /usage or /config.
+    static let dialogOpen = "dialog open"
 }
 
 /// The app showing a session's terminal, which Open brings forward and a
