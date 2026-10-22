@@ -198,13 +198,18 @@ enum NotchClaudeSessionsSupport {
         }
     }
 
-    /// A session quiet for long: its Clawd sleeps and its row dims.
+    /// A session quiet for long: its Clawd sleeps and its row dims. Opening
+    /// its page counts as something happening, so a result read long after
+    /// it came is not read beside a sleeping Clawd.
     static func dozes(_ session: ClaudeSession, now: Date) -> Bool {
-        session.phase == .idle && now.timeIntervalSince(session.lastActive ?? session.phaseSince) >= dozeAfter
+        guard session.phase == .idle else { return false }
+        let last = max(session.lastActive ?? session.phaseSince, session.lookedAt ?? .distantPast)
+        return now.timeIntervalSince(last) >= dozeAfter
     }
 
-    /// How far a sleeping session's row fades, so the ones at work stand out.
-    static let dozingOpacity = 0.5
+    /// How far a sleeping session's row fades: a little, so the ones at work
+    /// stand out and the quiet ones stay readable.
+    static let dozingOpacity = 0.65
 
     /// When the session's work ended, which its Clawd hops for. Counted from
     /// the phase's own start, so every Clawd of the session on screen hops

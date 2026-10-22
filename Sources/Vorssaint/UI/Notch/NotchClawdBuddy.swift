@@ -71,6 +71,8 @@ struct NotchClawdPicture: View {
 /// With Clawds turned off, the phase's badge takes its place.
 struct NotchClaudeSessionAvatar: View {
     let session: ClaudeSession
+    /// The page's clock, so the Clawd falls asleep the moment its row fades.
+    var now = Date()
     var size = CGSize(width: 32, height: 30)
     /// The badge's size when Clawds are off.
     var badge: CGFloat = 26
@@ -80,7 +82,7 @@ struct NotchClaudeSessionAvatar: View {
     var body: some View {
         if buddies {
             NotchClawd(costume: service.costume(for: session),
-                       motion: NotchClaudeSessionsSupport.motion(session, now: Date()),
+                       motion: NotchClaudeSessionsSupport.motion(session, now: now),
                        seed: ClawdCostume.seed(session.id), since: session.phaseSince,
                        cheer: NotchClaudeSessionsSupport.cheer(session), size: size)
         } else {

@@ -150,8 +150,24 @@ enum ClawdCostumeTests {
                      && !NotchClaudeSessionsSupport.dozes(session(.finished, since: 0), now: now)
                      && !NotchClaudeSessionsSupport.dozes(session(.background, since: 0), now: now),
                      "only a session idle for long sleeps and fades, from the moment its five minutes are up")
-        suite.expect(NotchClaudeSessionsSupport.dozingOpacity > 0.3 && NotchClaudeSessionsSupport.dozingOpacity < 1,
-                     "a sleeping row fades but stays readable")
+        let dozeAfter = NotchClaudeSessionsSupport.dozeAfter
+        suite.expect(!NotchClaudeSessionsSupport.dozes(session(.idle, since: 0, active: 1000 - dozeAfter + 0.001), now: now),
+                     "a session a moment short of its five minutes is still awake and unfaded")
+        suite.expect(!NotchClaudeSessionsSupport.dozes(session(.idle, since: 0, active: 999), now: now),
+                     "a session idle for long that worked a moment ago stays awake: its last work counts, not its phase")
+        suite.expect(!NotchClaudeSessionsSupport.dozes(session(.idle, since: 0, active: 1060), now: now),
+                     "a last work time ahead of the clock does not put a session to sleep")
+        let busy: [ClaudeSessionPhase] = [.generating, .runningTool, .background, .waitingPermission, .waitingInput, .finished]
+        suite.expect(busy.allSatisfy { !NotchClaudeSessionsSupport.dozes(session($0, since: 0), now: now) },
+                     "a session at work or waiting on the person never fades, however long it has been, so a row with Allow and Deny is never dimmed")
+        let quiet: [TimeInterval] = [0, 60, dozeAfter - 1, dozeAfter, dozeAfter + 1, 3600]
+        suite.expect(quiet.allSatisfy { seconds in
+            let idle = session(.idle, since: 0, active: 1000 - seconds)
+            return NotchClaudeSessionsSupport.dozes(idle, now: now)
+                == (NotchClaudeSessionsSupport.motion(idle, now: now) == .doze)
+        }, "a row fades exactly while its Clawd sleeps")
+        suite.expect(NotchClaudeSessionsSupport.dozingOpacity >= 0.6 && NotchClaudeSessionsSupport.dozingOpacity < 1,
+                     "a sleeping row fades a little and stays readable")
         suite.expect(NotchClaudeSessionsSupport.cheer(session(.finished, since: 995)) == ClaudeSessionEngineTests.at(995)
                      && NotchClaudeSessionsSupport.cheer(session(.idle)) == nil,
                      "a session's Clawd hops from when its work ended, and only then")

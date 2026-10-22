@@ -125,16 +125,23 @@ struct NotchClaudeSessionRow: View {
     let text: NotchClaudeSessionStrings
     let open: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var contrast
+    @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
     @State private var hovered = false
+    @FocusState private var focused: Bool
 
-    /// A session asleep fades back, and comes forward under the pointer to be read.
-    private var dimmed: Bool { NotchClaudeSessionsSupport.dozes(session, now: now) && !hovered }
+    /// A session whose Clawd sleeps fades back a little, and comes forward
+    /// under the pointer or the keyboard to be read. With more contrast asked
+    /// for, nothing fades.
+    private var dimmed: Bool {
+        buddies && contrast != .increased && !hovered && !focused && NotchClaudeSessionsSupport.dozes(session, now: now)
+    }
 
     var body: some View {
         HStack(spacing: 6) {
             Button(action: open) {
                 HStack(spacing: 10) {
-                    NotchClaudeSessionAvatar(session: session)
+                    NotchClaudeSessionAvatar(session: session, now: now)
                     summary
                     if !quickDecision {
                         Image(systemName: "chevron.right")
@@ -151,6 +158,7 @@ struct NotchClaudeSessionRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 14, lifts: false))
+            .focused($focused)
             .accessibilityLabel("\(name), \(session.project), \(text.phase(session.phase))")
             .accessibilityValue(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name))
             if quickDecision, let permission = session.permission {
