@@ -152,6 +152,15 @@ struct NotchCapsuleNoticeView: View {
                 .frame(width: CapsuleLayout.symbolWidth, height: side)
         } else if notice.event == .agents, let agent = notice.agent, notice.symbol == agent.symbol {
             NotchAgentMark(provider: agent, size: CapsuleLayout.symbolSize).frame(width: CapsuleLayout.symbolWidth)
+        } else if notice.event == .sessions, let id = notice.sessionID, NotchClaudeSessionsSupport.showsBuddies() {
+            // Two points wider than the slot, half a point past each side: at
+            // the slot's own width a pixel would be too small to read.
+            NotchClaudeNoticeClawd(sessionID: id, symbol: notice.symbol,
+                                   size: CGSize(width: CapsuleLayout.symbolWidth + 2,
+                                                height: min(CapsuleLayout.symbolWidth, CapsuleLayout.artworkSide(geometry))))
+                .frame(width: CapsuleLayout.symbolWidth)
+                .id("\(id)|\(notice.symbol)")
+                .transition(.identity)
         } else if notice.event == .track {
             NotchCapsuleTrackArtwork(side: min(CapsuleLayout.symbolWidth, CapsuleLayout.artworkSide(geometry)))
                 .frame(width: CapsuleLayout.symbolWidth)

@@ -86,6 +86,23 @@ struct NotchClaudeSessionStrings {
     let bridgeRefused: String
     let openFailed: String
     let background: String
+    let buddies: String
+    let buddiesHint: String
+    let wardrobe: String
+    let dressUp: String
+    let dressUpFormat: String
+    let surpriseMe: String
+    let ownOutfit: String
+    let goToSession: String
+    let shellTitle: String
+    let hatTitle: String
+    let eyewearTitle: String
+    let extrasTitle: String
+    let nothing: String
+    let shells: [ClawdShell: String]
+    let hats: [ClawdHat: String]
+    let eyewears: [ClawdEyewear: String]
+    let extras: [ClawdExtra: String]
 
     func phase(_ phase: ClaudeSessionPhase) -> String {
         switch phase {
@@ -105,6 +122,12 @@ struct NotchClaudeSessionStrings {
     func leftRunning(_ count: Int) -> String { String(format: leftRunningFormat, count) }
     func finishedAfter(_ duration: String) -> String { String(format: finishedAfterFormat, duration) }
     func hooksFailed(_ reason: String) -> String { String(format: hooksFailedFormat, reason) }
+    func dressUp(_ name: String) -> String { String(format: dressUpFormat, name) }
+
+    func name(_ shell: ClawdShell) -> String { shells[shell] ?? shell.rawValue }
+    func name(_ hat: ClawdHat) -> String { hat == .none ? nothing : hats[hat] ?? hat.rawValue }
+    func name(_ eyewear: ClawdEyewear) -> String { eyewear == .none ? nothing : eyewears[eyewear] ?? eyewear.rawValue }
+    func name(_ extra: ClawdExtra) -> String { extra == .none ? nothing : extras[extra] ?? extra.rawValue }
 }
 
 extension FeatureStrings {
@@ -200,5 +223,26 @@ extension NotchClaudeSessionStrings {
         bridgePackageFailed: "Couldn’t package the extension",
         bridgeRefused: "Antigravity refused the extension",
         openFailed: "Couldn’t find that window",
-        background: "In background")
+        background: "In background",
+        buddies: "A Clawd for every session",
+        buddiesHint: "Each session and subagent gets its own Clawd, dressed at random. Click one on its session’s page to change the outfit.",
+        wardrobe: "Wardrobe",
+        dressUp: "Change outfit",
+        dressUpFormat: "Change %@’s outfit",
+        surpriseMe: "Surprise me",
+        ownOutfit: "Back to the first outfit",
+        goToSession: "Go to it",
+        shellTitle: "Shell",
+        hatTitle: "Hat",
+        eyewearTitle: "Eyewear",
+        extrasTitle: "Extras",
+        nothing: "None",
+        shells: [.clay: "Clay", .coral: "Coral", .amber: "Amber", .moss: "Moss", .mint: "Mint", .teal: "Teal",
+                 .sky: "Sky", .iris: "Iris", .orchid: "Orchid", .rose: "Rose"],
+        hats: [.beanie: "Beanie", .cap: "Cap", .beret: "Beret", .topHat: "Top hat", .crown: "Crown",
+               .party: "Party hat", .propeller: "Propeller cap", .chef: "Chef’s hat"],
+        eyewears: [.glasses: "Glasses", .shades: "Sunglasses", .round: "Round glasses", .monocle: "Monocle",
+                   .anaglyph: "3D glasses"],
+        extras: [.bow: "Bow", .scarf: "Scarf", .bowTie: "Bow tie", .flower: "Flower", .headphones: "Headphones",
+                 .coffee: "Coffee"])
 }

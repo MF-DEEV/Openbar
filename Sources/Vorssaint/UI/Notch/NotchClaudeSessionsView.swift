@@ -19,9 +19,18 @@ struct NotchClaudeSessionsView: View {
         return service.sessions.first { $0.id == id }
     }
 
+    /// The session whose Clawd is being dressed, over its own page.
+    private var dressing: ClaudeSession? {
+        guard let focused, service.dressingID == focused.id else { return nil }
+        return focused
+    }
+
     var body: some View {
         Group {
-            if let focused {
+            if let dressing {
+                NotchClawdWardrobeView(session: dressing, size: size)
+                    .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
+            } else if let focused {
                 NotchClaudeSessionDetailView(session: focused, size: size)
                     .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
             } else if service.sessions.isEmpty {
@@ -31,12 +40,20 @@ struct NotchClaudeSessionsView: View {
             }
         }
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: focused?.id)
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: dressing?.id)
         .frame(width: size.width, height: size.height, alignment: .top)
         .environment(\.locale, l10n.language.formattingLocale())
-        .onChange(of: focused?.id, initial: true) { _, id in
+        .onChange(of: [focused?.id, dressing?.id], initial: true) { _, _ in
             guard !preview else { return }
-            // Escape steps back to the list before it closes the island.
-            NotchService.shared.setPageLayer(.sessions, close: id == nil ? nil : { service.focus(nil) })
+            // Escape steps back from the wardrobe to the page, and from the
+            // page to the list, before it closes the island.
+            let close: (() -> Void)?
+            switch NotchClaudeSessionsSupport.pageLayer(focused: focused?.id, dressing: dressing?.id) {
+            case .wardrobe: close = { service.dress(nil) }
+            case .session: close = { service.focus(nil) }
+            case nil: close = nil
+            }
+            NotchService.shared.setPageLayer(.sessions, close: close)
         }
         .onDisappear {
             guard !preview else { return }
@@ -106,7 +123,7 @@ struct NotchClaudeSessionRow: View {
         HStack(spacing: 6) {
             Button(action: open) {
                 HStack(spacing: 10) {
-                    NotchClaudeSessionBadge(phase: session.phase)
+                    NotchClaudeSessionAvatar(session: session)
                     summary
                     if !quickDecision {
                         Image(systemName: "chevron.right")

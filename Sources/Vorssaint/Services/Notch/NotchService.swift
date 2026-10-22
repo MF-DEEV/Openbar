@@ -1884,6 +1884,8 @@ final class NotchService: ObservableObject {
                   commandOnly: event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command)
         else { return false }
         let sessions = ClaudeSessionService.shared
+        // The wardrobe covers the request: a key must not answer what is not on screen.
+        guard sessions.dressingID == nil else { return false }
         let focused = sessions.focusedID.flatMap { id in sessions.sessions.first { $0.id == id } }
         guard let target = focused ?? sessions.sessions.first(where: { $0.permission.map { !$0.asksQuestions } ?? false }),
               let permission = target.permission,

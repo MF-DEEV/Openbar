@@ -10,6 +10,7 @@ struct NotchClaudeSessionsSettingsControls: View {
     @AppStorage(DefaultsKey.notchSessionsLiveActivity) private var liveActivity = true
     @AppStorage(DefaultsKey.notchSessionsAutoExpand) private var autoExpand = true
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
+    @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
 
@@ -22,6 +23,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             switchRow("waveform.path.ecg", text.liveActivity, isOn: $liveActivity)
             switchRow("rectangle.expand.vertical", text.autoExpand, caption: text.autoExpandHint, isOn: $autoExpand)
             switchRow("text.bubble", text.contentPreview, caption: text.contentPreviewHint, isOn: $previews)
+            buddiesRow
             Divider()
             hooks
             bridge
@@ -31,6 +33,37 @@ struct NotchClaudeSessionsSettingsControls: View {
             service.checkBridge()
         }
     }
+
+    /// A few Clawds in their costumes beside the words, so the switch shows
+    /// what it is about even with no session running.
+    private var buddiesRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            SettingsRow(symbol: "tshirt", title: text.buddies) {
+                Toggle(text.buddies, isOn: $buddies).labelsHidden().toggleStyle(.switch)
+            }
+            HStack(alignment: .center, spacing: 12) {
+                Text(text.buddiesHint)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                HStack(spacing: 4) {
+                    ForEach(Self.samples, id: \.self) { costume in
+                        NotchClawdPicture(costume: costume, size: CGSize(width: 30, height: 28))
+                    }
+                }
+                .opacity(buddies ? 1 : 0.35)
+                .accessibilityHidden(true)
+            }
+            .padding(.leading, settingsRowTextInset)
+        }
+    }
+
+    private static let samples = [
+        ClawdCostume.classic,
+        ClawdCostume(shell: .sky, hat: .cap, eyewear: .none, extra: .bow),
+        ClawdCostume(shell: .moss, hat: .topHat, eyewear: .shades, extra: .none),
+    ]
 
     private var bridge: some View {
         VStack(alignment: .leading, spacing: 6) {

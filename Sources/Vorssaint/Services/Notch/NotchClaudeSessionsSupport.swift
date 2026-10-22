@@ -24,6 +24,10 @@ enum NotchClaudeSessionsSupport {
         ClaudeContentPolicy(previews: defaults.bool(forKey: DefaultsKey.notchSessionsContentPreview))
     }
 
+    static func showsBuddies(in defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: DefaultsKey.notchSessionsBuddies) as? Bool ?? true
+    }
+
     // MARK: Order
 
     /// Sessions that wait on the person come first, then the ones at work,
@@ -156,15 +160,80 @@ enum NotchClaudeSessionsSupport {
     /// The names with one changed. Names of sessions no longer running go
     /// first once there are too many.
     static func renamed(_ names: [String: String], id: String, to name: String, live: Set<String>) -> [String: String] {
-        var result = names
         let trimmed = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(nameLimit))
-        result[id] = trimmed.isEmpty ? nil : trimmed
-        if result.count > namesKept {
-            for key in result.keys.sorted() where !live.contains(key) && key != id && result.count > namesKept {
+        return kept(names, id: id, value: trimmed.isEmpty ? nil : trimmed, live: live)
+    }
+
+    /// What the island keeps by session, with one value changed or, with
+    /// nil, removed. Values of sessions no longer running go first once
+    /// there are more than `limit`.
+    static func kept(_ values: [String: String], id: String, value: String?, live: Set<String>,
+                     limit: Int = namesKept) -> [String: String] {
+        var result = values
+        result[id] = value
+        if result.count > limit {
+            for key in result.keys.sorted() where !live.contains(key) && key != id && result.count > limit {
                 result[key] = nil
             }
         }
         return result
+    }
+
+    // MARK: Clawds
+
+    /// A quiet session dozes off once it has done nothing this long; before
+    /// that it stays awake, as after the person reads what it did.
+    static let dozeAfter: TimeInterval = 5 * 60
+
+    /// What a session's Clawd does in its phase.
+    static func motion(_ session: ClaudeSession, now: Date) -> NotchClawdMotion {
+        switch session.phase {
+        case .generating: return .think
+        case .runningTool: return .work
+        case .background: return .slow
+        case .waitingPermission: return .alert
+        case .waitingInput: return .ask
+        case .finished: return .content
+        case .idle:
+            let quiet = now.timeIntervalSince(session.lastActive ?? session.phaseSince)
+            return quiet < dozeAfter ? .rest : .doze
+        }
+    }
+
+    /// When the session's work ended, which its Clawd hops for. Counted from
+    /// the phase's own start, so every Clawd of the session on screen hops
+    /// as one, and one drawn once the hop is over does not hop again.
+    static func cheer(_ session: ClaudeSession) -> Date? {
+        session.phase == .finished ? session.phaseSince : nil
+    }
+
+    /// What a session's Clawd does in a notice: the notice's own symbol says
+    /// what happened, so the Clawd matches its words.
+    static func noticeMotion(symbol: String) -> NotchClawdMotion {
+        switch symbol {
+        case self.symbol(.finished): return .content
+        case self.symbol(.waitingInput): return .ask
+        default: return .alert
+        }
+    }
+
+    /// A subagent works while it runs and rests, done, after.
+    static func motion(_ agent: ClaudeSubagent) -> NotchClawdMotion {
+        agent.isRunning ? .work : .done
+    }
+
+    /// The key a subagent's costume is drawn from.
+    static func costumeKey(_ agent: ClaudeSubagent, in session: ClaudeSession) -> String {
+        session.id + "/" + agent.id
+    }
+
+    /// What Escape closes on the Sessions page: the wardrobe, then a
+    /// session's page, and with neither open, the island itself.
+    enum PageLayer: Equatable { case wardrobe, session }
+
+    static func pageLayer(focused: String?, dressing: String?) -> PageLayer? {
+        if dressing != nil, dressing == focused { return .wardrobe }
+        return focused == nil ? nil : .session
     }
 
     /// What the conversation says Claude is doing while a turn runs, picked

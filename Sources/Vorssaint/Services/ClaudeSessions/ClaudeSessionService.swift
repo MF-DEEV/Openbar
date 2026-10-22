@@ -29,6 +29,13 @@ final class ClaudeSessionService: ObservableObject {
     /// app's own preferences, never in Claude Code's files.
     @Published private(set) var names: [String: String] =
         UserDefaults.standard.dictionary(forKey: DefaultsKey.notchSessionsNames) as? [String: String] ?? [:]
+    /// Costumes the person dressed sessions' Clawds in, by session, as
+    /// `ClawdCostume.code`; a session missing here wears its own lot.
+    @Published private(set) var costumes: [String: String] =
+        UserDefaults.standard.dictionary(forKey: DefaultsKey.notchSessionsCostumes) as? [String: String] ?? [:]
+    /// The session whose Clawd is being dressed. Its page stays focused
+    /// under the wardrobe, so an enlarged island keeps its size.
+    @Published private(set) var dressingID: String?
     /// The permission each session shows and since when. Main thread.
     private var shownRequests: [String: (request: String, at: Date)] = [:]
     let events = PassthroughSubject<ClaudeSessionEvent, Never>()
@@ -56,6 +63,7 @@ final class ClaudeSessionService: ObservableObject {
 
     // Main thread.
     private(set) var running = false
+    private var permissionWatch: AnyCancellable?
 
     // Queue.
     private let engine = ClaudeSessionEngine()
@@ -69,6 +77,7 @@ final class ClaudeSessionService: ObservableObject {
     private var hosts: [Int32: ClaudeSessionHost] = [:]
     private var published: [ClaudeSession] = []
     private var lastRecords: [Int32: ClaudeSessionRecord] = [:]
+    private let agentColors = ClaudeAgentColors()
     private var server: ClaudeHookServer?
     /// Permission requests whose hook waits for the island's answer.
     private var pending: [String: (connection: ClaudeHookServer.Connection, session: String, suggestions: Any?,
@@ -101,6 +110,11 @@ final class ClaudeSessionService: ObservableObject {
         }
         guard !running else { return }
         running = true
+        // Agents defined inside folders macOS guards are read only with Full
+        // Disk Access, which spares the person a prompt out of nowhere.
+        permissionWatch = Permissions.shared.$fullDiskAccess.removeDuplicates().sink { [weak self] granted in
+            self?.queue.async { self?.agentColors.readsProtected = granted }
+        }
         let socket = Self.socketPath(home: home)
         queue.async { [self] in
             startServer(at: socket)
@@ -123,6 +137,8 @@ final class ClaudeSessionService: ObservableObject {
         guard running else { return }
         running = false
         focusedID = nil
+        dressingID = nil
+        permissionWatch = nil
         sessions = []
         counts = ClaudeSessionCounts()
         queue.async { [self] in
@@ -140,6 +156,7 @@ final class ClaudeSessionService: ObservableObject {
             pending = [:]
             server?.stop()
             server = nil
+            agentColors.reset()
             engine.ingest(records: [], now: Date.distantFuture)
         }
     }
@@ -180,7 +197,33 @@ final class ClaudeSessionService: ObservableObject {
 
     func focus(_ id: String?) {
         focusedID = id
+        dressingID = nil
         if let id { acknowledge(id) }
+    }
+
+    /// What a session's Clawd wears.
+    func costume(for session: ClaudeSession) -> ClawdCostume {
+        ClawdCostume.resolved(key: session.id, kept: costumes[session.id])
+    }
+
+    /// What a subagent's Clawd wears: its own lot, in the color its
+    /// definition gives it.
+    func costume(for agent: ClaudeSubagent, in session: ClaudeSession) -> ClawdCostume {
+        ClawdCostume.seeded(NotchClaudeSessionsSupport.costumeKey(agent, in: session), agentColor: agent.color)
+    }
+
+    /// Dresses a session's Clawd, or with nil gives it its own costume back.
+    func setCostume(_ costume: ClawdCostume?, for id: String) {
+        costumes = NotchClaudeSessionsSupport.kept(costumes, id: id, value: ClawdCostume.kept(costume, key: id),
+                                                   live: Set(sessions.map(\.id)))
+        UserDefaults.standard.set(costumes, forKey: DefaultsKey.notchSessionsCostumes)
+    }
+
+    /// Opens the wardrobe of the session whose page is open, or with nil
+    /// goes back to the page.
+    func dress(_ id: String?) {
+        guard id == nil || id == focusedID else { return }
+        dressingID = id
     }
 
     func acknowledge(_ id: String) {
@@ -514,7 +557,7 @@ final class ClaudeSessionService: ObservableObject {
 
     private func publish(now: Date) {
         let snapshot = engine.snapshot(now: now)
-        let sorted = NotchClaudeSessionsSupport.sorted(snapshot.sessions)
+        let sorted = NotchClaudeSessionsSupport.sorted(snapshot.sessions.map { agentColors.decorate($0, now: now) })
         let changed = sorted != published
         published = sorted
         guard changed || !snapshot.events.isEmpty else { return }
@@ -529,7 +572,10 @@ final class ClaudeSessionService: ObservableObject {
                         shownRequests[session.id] = request.map { (request: $0, at: Date()) }
                     }
                 }
-                if let focusedID, !sorted.contains(where: { $0.id == focusedID }) { self.focusedID = nil }
+                if let focusedID, !sorted.contains(where: { $0.id == focusedID }) {
+                    self.focusedID = nil
+                    dressingID = nil
+                }
             }
             snapshot.events.forEach(events.send)
         }

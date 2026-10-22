@@ -181,6 +181,8 @@ struct ClaudeSubagent: Equatable, Identifiable {
     var description: String?
     var started: Date
     var finished: Date?
+    /// The color its definition gives it in Claude Code, as written there.
+    var color: String? = nil
 
     var isRunning: Bool { finished == nil }
 }

@@ -95,6 +95,11 @@ struct NotchNoticeView: View {
                             .animation(nil, value: hidesMascot)
                     } else if notice.event == .agents, let agent = notice.agent, notice.symbol == agent.symbol {
                         NotchAgentMark(provider: agent, size: 13)
+                    } else if notice.event == .sessions, let id = notice.sessionID, NotchClaudeSessionsSupport.showsBuddies() {
+                        // The session's own Clawd, so the notice says which one it is.
+                        NotchClaudeNoticeClawd(sessionID: id, symbol: notice.symbol, size: CGSize(width: 18, height: 18))
+                            .id("\(id)|\(notice.symbol)")
+                            .transition(.identity)
                     } else if notice.event == .track {
                         NotchTrackArtwork(size: min(18, geometry.stripHeight - 6))
                     } else {

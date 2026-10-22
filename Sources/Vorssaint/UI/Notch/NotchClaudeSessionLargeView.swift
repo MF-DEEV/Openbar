@@ -139,7 +139,8 @@ struct NotchClaudeSessionLargeView: View {
 
     private func header(now: Date) -> some View {
         HStack(alignment: .center, spacing: 12) {
-            NotchClaudeSessionBadge(phase: session.phase, size: 34)
+            NotchClawdDressButton(session: session, name: ClaudeSessionService.shared.displayName(session), text: text,
+                                  size: CGSize(width: 48, height: 42), badge: 34)
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 8) {
                     Text(text.phase(session.phase))
@@ -382,9 +383,11 @@ struct NotchClaudeSessionLargeView: View {
 
     private func agentRow(_ agent: ClaudeSubagent, now: Date) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Image(systemName: agent.isRunning ? "arrow.triangle.branch" : "checkmark")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(agent.isRunning ? AgentProvider.claude.tint : .white.opacity(0.4))
+            NotchClaudeSubagentAvatar(agent: agent, session: session, size: CGSize(width: 22, height: 17)) {
+                Image(systemName: agent.isRunning ? "arrow.triangle.branch" : "checkmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(agent.isRunning ? AgentProvider.claude.tint : .white.opacity(0.4))
+            }
             VStack(alignment: .leading, spacing: 1) {
                 Text(agent.type).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
                 if let description = agent.description {
