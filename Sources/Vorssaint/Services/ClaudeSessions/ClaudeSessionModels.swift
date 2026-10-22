@@ -41,6 +41,9 @@ struct ClaudeSessionRecord: Equatable {
     let started: Date?
     let version: String
     var host: ClaudeSessionHost = .unknown
+    /// Where `name` came from: "user" for /rename, "auto" for one Claude
+    /// Code made from the conversation; otherwise it follows the folder.
+    var nameSource: String?
 
     static let permissionPrompt = "permission prompt"
     /// Any dialog in the terminal, including one the person opened, like
@@ -136,7 +139,10 @@ struct ClaudeSession: Equatable, Identifiable {
     let pid: Int32
     let cwd: String
     let project: String
+    /// Claude Code's name for the session.
     var name: String
+    /// Where that name came from, as the registry says.
+    var nameSource: String? = nil
     var branch: String?
     var model: String?
     var host: ClaudeSessionHost

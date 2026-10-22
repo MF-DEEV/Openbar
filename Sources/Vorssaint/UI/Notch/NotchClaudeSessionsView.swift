@@ -52,7 +52,7 @@ struct NotchClaudeSessionsView: View {
             ScrollView {
                 LazyVStack(spacing: 6) {
                     ForEach(service.sessions) { session in
-                        NotchClaudeSessionRow(session: session, now: context.date, text: text) {
+                        NotchClaudeSessionRow(session: session, name: service.displayName(session), now: context.date, text: text) {
                             guard !preview else { return }
                             service.focus(session.id)
                         }
@@ -93,9 +93,11 @@ private struct NotchClaudeSessionCounts: View {
     }
 }
 
-/// One session in the list: where it works, what it does and for how long.
+/// One session in the list: what it is called, what it does, where it
+/// works and for how long.
 struct NotchClaudeSessionRow: View {
     let session: ClaudeSession
+    let name: String
     let now: Date
     let text: NotchClaudeSessionStrings
     let open: () -> Void
@@ -119,8 +121,8 @@ struct NotchClaudeSessionRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 14, lifts: false))
-            .accessibilityLabel("\(session.project), \(text.phase(session.phase))")
-            .accessibilityValue(NotchClaudeSessionFormat.activity(session, text: text))
+            .accessibilityLabel("\(name), \(session.project), \(text.phase(session.phase))")
+            .accessibilityValue(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name))
             if quickDecision, let permission = session.permission {
                 // A request short enough to read whole on the line beside is
                 // answered from the list too; a longer one opens its page.
@@ -149,19 +151,11 @@ struct NotchClaudeSessionRow: View {
     private var summary: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 5) {
-                Text(session.project)
+                Text(name)
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.white.opacity(0.95))
                     .lineLimit(1)
-                    .truncationMode(.middle)
-                if let branch = session.branch {
-                    Label(branch, systemImage: "arrow.triangle.branch")
-                        .labelStyle(NotchClaudeSessionInlineLabel())
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
+                    .truncationMode(.tail)
                 Spacer(minLength: 4)
                 if let clock = NotchClaudeSessionFormat.clock(session, now: now) {
                     Text(clock)
@@ -170,11 +164,23 @@ struct NotchClaudeSessionRow: View {
                         .foregroundStyle(session.phase.tint)
                 }
             }
-            Text(NotchClaudeSessionFormat.activity(session, text: text))
-                .font(.system(size: 10.5))
-                .foregroundStyle(session.phase.isWaiting ? session.phase.tint : .secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
+            HStack(spacing: 5) {
+                Text(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name))
+                    .foregroundStyle(session.phase.isWaiting ? session.phase.tint : .secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                // Where it works, so two sessions in one folder still read apart
+                // by name; it keeps its room before a long command does.
+                Label(session.branch.map { "\(session.project) · \($0)" } ?? session.project, systemImage: "folder")
+                    .labelStyle(NotchClaudeSessionInlineLabel())
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(maxWidth: 230, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
+            }
+            .font(.system(size: 10.5))
         }
     }
 }
@@ -244,7 +250,9 @@ enum NotchClaudeSessionFormat {
     }
 
     /// What the row's second line says.
-    static func activity(_ session: ClaudeSession, text: NotchClaudeSessionStrings) -> String {
+    /// What the session does now. The title is left out where the session
+    /// is already called by it.
+    static func activity(_ session: ClaudeSession, text: NotchClaudeSessionStrings, title showsTitle: Bool = true) -> String {
         var parts = [text.phase(session.phase)]
         switch session.phase {
         case .waitingPermission:
@@ -257,12 +265,12 @@ enum NotchClaudeSessionFormat {
                 parts.append(tool.summary.map { "\(tool.name): \($0)" } ?? tool.name)
             }
         case .waitingInput, .generating:
-            if let title = session.title { parts.append(title) }
+            if showsTitle, let title = session.title { parts.append(title) }
         case .finished, .idle:
-            if let title = session.title { parts.append(title) }
+            if showsTitle, let title = session.title { parts.append(title) }
             if session.cost > 0 { parts.append(AgentFormat.cost(session.cost)) }
         }
         if let tasks = session.tasks, session.phase.isWorking { parts.append("\(tasks.done)/\(tasks.total)") }
-        return parts.joined(separator: " · ")
+        return parts.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 }

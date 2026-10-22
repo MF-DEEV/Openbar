@@ -4188,16 +4188,16 @@ final class NotchService: ObservableObject {
         }
         switch event {
         case .needsPermission(_, let tool):
-            show(NotchNotice(event: .sessions, title: session.project,
+            show(NotchNotice(event: .sessions, title: sessions.displayName(session),
                              detail: [text.permissionNotice, session.permission?.summary ?? tool].filter { !$0.isEmpty }
                                 .joined(separator: " · "),
                              symbol: NotchClaudeSessionsSupport.symbol(.waitingPermission), agent: .claude, sessionID: id))
         case .needsInput:
-            show(NotchNotice(event: .sessions, title: session.project, detail: text.inputNotice,
+            show(NotchNotice(event: .sessions, title: sessions.displayName(session), detail: text.inputNotice,
                              symbol: NotchClaudeSessionsSupport.symbol(.waitingInput), agent: .claude, sessionID: id))
         case .finished(_, let duration):
             let locale = L10n.shared.language.formattingLocale()
-            show(NotchNotice(event: .sessions, title: session.project,
+            show(NotchNotice(event: .sessions, title: sessions.displayName(session),
                              detail: duration.map { text.finishedAfter(AgentFormat.duration($0, locale: locale)) } ?? text.finishedNotice,
                              symbol: NotchClaudeSessionsSupport.symbol(.finished), agent: .claude, sessionID: id))
         }

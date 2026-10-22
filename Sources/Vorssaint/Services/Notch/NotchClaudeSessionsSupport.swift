@@ -118,6 +118,34 @@ enum NotchClaudeSessionsSupport {
 
     static let replyLimit = 4000
 
+    /// What a session is called: the person's own name for it, then one
+    /// given with /rename, the title of its conversation, then Claude Code's
+    /// own name, which follows the folder.
+    static func name(_ session: ClaudeSession, custom: String?) -> String {
+        if let custom = custom?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty { return custom }
+        if session.nameSource == "user", !session.name.isEmpty { return session.name }
+        if let title = session.title, !title.isEmpty { return title }
+        return session.name.isEmpty ? session.project : session.name
+    }
+
+    /// The longest name the island keeps, and how many it keeps at most.
+    static let nameLimit = 60
+    static let namesKept = 100
+
+    /// The names with one changed. Names of sessions no longer running go
+    /// first once there are too many.
+    static func renamed(_ names: [String: String], id: String, to name: String, live: Set<String>) -> [String: String] {
+        var result = names
+        let trimmed = String(name.trimmingCharacters(in: .whitespacesAndNewlines).prefix(nameLimit))
+        result[id] = trimmed.isEmpty ? nil : trimmed
+        if result.count > namesKept {
+            for key in result.keys.sorted() where !live.contains(key) && key != id && result.count > namesKept {
+                result[key] = nil
+            }
+        }
+        return result
+    }
+
     /// What the conversation says Claude is doing while a turn runs, picked
     /// once per turn as Claude Code's own spinner does.
     static let thinkingWords = [

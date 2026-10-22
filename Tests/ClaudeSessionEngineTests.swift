@@ -421,6 +421,31 @@ enum ClaudeSessionEngineTests {
                           host: host, phase: phase, phaseSince: at(since), turnStarted: at(since), timeline: [],
                           subagents: [], tokens: AgentTokens(), cost: 0, hooked: false)
         }
+        var named = session("a", .idle, since: 0, project: "meettime")
+        named.name = "meettime-86"
+        suite.expect(NotchClaudeSessionsSupport.name(named, custom: nil) == "meettime-86",
+                     "a session with nothing else is called by Claude Code's name")
+        named.title = "Bombs in the tutorial"
+        suite.expect(NotchClaudeSessionsSupport.name(named, custom: nil) == "Bombs in the tutorial",
+                     "its conversation's title reads better than a name made from the folder")
+        named.nameSource = "auto"
+        suite.expect(NotchClaudeSessionsSupport.name(named, custom: "  ") == "Bombs in the tutorial",
+                     "and better than one Claude Code made up; a blank name of the person's own counts for nothing")
+        named.nameSource = "user"
+        suite.expect(NotchClaudeSessionsSupport.name(named, custom: nil) == "meettime-86", "a name given with /rename wins")
+        suite.expect(NotchClaudeSessionsSupport.name(named, custom: " Android bubbles ") == "Android bubbles",
+                     "and the person's own name in the island wins over all")
+        let long = String(repeating: "x", count: 90)
+        var kept = NotchClaudeSessionsSupport.renamed([:], id: "a", to: long, live: ["a"])
+        suite.expect(kept["a"]?.count == NotchClaudeSessionsSupport.nameLimit, "a name is kept to its limit")
+        kept = NotchClaudeSessionsSupport.renamed(kept, id: "a", to: " ", live: ["a"])
+        suite.expect(kept["a"] == nil, "an empty name gives the session its own back")
+        let many = Dictionary(uniqueKeysWithValues: (0..<NotchClaudeSessionsSupport.namesKept).map { ("old\($0)", "n") })
+        kept = NotchClaudeSessionsSupport.renamed(many.merging(["live": "keep"]) { a, _ in a }, id: "new", to: "fresh",
+                                                  live: ["live", "new"])
+        suite.expect(kept.count == NotchClaudeSessionsSupport.namesKept && kept["live"] == "keep" && kept["new"] == "fresh",
+                     "past the limit, names of sessions no longer running go first")
+
         let order = NotchClaudeSessionsSupport.sorted([
             session("a", .idle, since: 0, project: "zeta"), session("b", .finished, since: 5, project: "b"),
             session("c", .generating, since: 9, project: "c"), session("d", .waitingPermission, since: 7, project: "d"),

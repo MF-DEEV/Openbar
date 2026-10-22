@@ -235,7 +235,7 @@ final class ClaudeSessionEngine {
         if !previews { tasks?.current = nil }
         return ClaudeSession(
             id: id, pid: record.pid, cwd: record.cwd, project: AgentLogParser.projectName(record.cwd),
-            name: record.name, branch: entry.branch, model: entry.model, host: record.host,
+            name: record.name, nameSource: record.nameSource, branch: entry.branch, model: entry.model, host: record.host,
             phase: phase, phaseSince: since, turnStarted: entry.turnStarted,
             waitingFor: record.status == .waiting ? record.waitingFor : nil,
             currentTool: phase == .runningTool || phase == .waitingPermission ? entry.openTool.map(gated) : nil,

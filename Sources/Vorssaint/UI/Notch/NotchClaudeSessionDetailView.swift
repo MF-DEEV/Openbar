@@ -13,13 +13,17 @@ struct NotchClaudeSessionDetailView: View {
     @ObservedObject private var notch = NotchService.shared
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
     @State private var openFailed = false
+    @State private var renaming = false
+    @State private var newName = ""
+    @FocusState private var nameFocused: Bool
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
     /// Working subagents come first, then the latest done.
     static let shownSubagents = 4
 
     var body: some View {
-        Group {
+        VStack(spacing: 8) {
+            if renaming { nameField }
             if notch.sessionsEnlarged {
                 NotchClaudeSessionLargeView(session: session, text: text, open: open)
             } else {
@@ -30,9 +34,10 @@ struct NotchClaudeSessionDetailView: View {
             }
         }
         .notchBand(leading: {
-            NotchBandBackButton(title: session.project) { service.focus(nil) }
+            NotchBandBackButton(title: service.displayName(session)) { service.focus(nil) }
         }, trailing: {
             HStack(spacing: 2) {
+                renameButton
                 expandButton
                 openButton
             }
@@ -109,6 +114,47 @@ struct NotchClaudeSessionDetailView: View {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 3) { openFailed = false }
             }
         }
+    }
+
+    private var renameButton: some View {
+        Button {
+            if renaming { saveName() } else {
+                newName = service.names[session.id] ?? ""
+                renaming = true
+                nameFocused = true
+            }
+        } label: {
+            Image(systemName: renaming ? "checkmark" : "pencil")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(width: 28, height: 28)
+                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 9))
+        .help(text.rename)
+        .accessibilityLabel(text.rename)
+    }
+
+    /// A name of the person's own; left empty, the session's own name returns.
+    private var nameField: some View {
+        TextField(NotchClaudeSessionsSupport.name(session, custom: nil), text: $newName)
+            .textFieldStyle(.plain)
+            .font(.system(size: 13, weight: .semibold))
+            .focused($nameFocused)
+            .onSubmit(saveName)
+            .padding(.horizontal, 12)
+            .frame(height: 34)
+            .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.25), lineWidth: 1)
+            }
+            .accessibilityLabel(text.renamePlaceholder)
+            .onAppear { nameFocused = true }
+    }
+
+    private func saveName() {
+        service.rename(session.id, to: newName)
+        renaming = false
     }
 
     /// Grows the island around the page, to read and write in comfortably.

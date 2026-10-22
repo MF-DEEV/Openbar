@@ -59,7 +59,7 @@ enum ClaudeSessionRegistryReader {
               let cwd = json["cwd"] as? String, !cwd.isEmpty else { return nil }
         if let domain = json["pidDomain"] as? String, domain != "darwin" { return nil }
         let status = (json["status"] as? String).flatMap(ClaudeRegistryStatus.init(rawValue:))
-        return ClaudeSessionRecord(
+        var record = ClaudeSessionRecord(
             pid: Int32(pid), sessionID: session, cwd: cwd,
             name: json["name"] as? String ?? (cwd as NSString).lastPathComponent,
             status: status,
@@ -67,6 +67,8 @@ enum ClaudeSessionRegistryReader {
             statusUpdated: milliseconds(json["statusUpdatedAt"]) ?? milliseconds(json["updatedAt"]),
             started: (json["procStart"] as? String).flatMap(procStart) ?? milliseconds(json["startedAt"]),
             version: json["version"] as? String ?? "")
+        record.nameSource = json["nameSource"] as? String
+        return record
     }
 
     /// The record belongs to the process now running under its number.

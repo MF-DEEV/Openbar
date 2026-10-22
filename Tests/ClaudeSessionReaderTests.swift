@@ -33,6 +33,9 @@ enum ClaudeSessionReaderTests {
 
         let idle = ClaudeSessionRegistryReader.record(data(#"{"pid":7,"sessionId":"s","cwd":"/a","status":"idle","waitingFor":"x"}"#))
         suite.expect(idle?.waitingFor == nil && idle?.name == "a", "an idle record keeps no reason and is named after its folder")
+        let renamed = ClaudeSessionRegistryReader.record(data(#"{"pid":7,"sessionId":"s","cwd":"/a","name":"bombs","nameSource":"user"}"#))
+        suite.expect(renamed?.name == "bombs" && renamed?.nameSource == "user" && idle?.nameSource == nil,
+                     "where a session's name came from is read")
         let unknown = ClaudeSessionRegistryReader.record(data(#"{"pid":7,"sessionId":"s","cwd":"/a","status":"thinking"}"#))
         suite.expect(unknown != nil && unknown?.status == nil, "an unknown status leaves the transcript to decide")
         for (label, json) in [

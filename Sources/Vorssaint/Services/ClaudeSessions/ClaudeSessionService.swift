@@ -23,6 +23,10 @@ final class ClaudeSessionService: ObservableObject {
     @Published var focusedID: String?
     /// What the person is writing to each session, kept while the island closes.
     @Published var drafts: [String: String] = [:]
+    /// Names the person gave sessions in the island, by session. Kept in the
+    /// app's own preferences, never in Claude Code's files.
+    @Published private(set) var names: [String: String] =
+        UserDefaults.standard.dictionary(forKey: DefaultsKey.notchSessionsNames) as? [String: String] ?? [:]
     /// The permission each session shows and since when. Main thread.
     private var shownRequests: [String: (request: String, at: Date)] = [:]
     let events = PassthroughSubject<ClaudeSessionEvent, Never>()
@@ -129,6 +133,17 @@ final class ClaudeSessionService: ObservableObject {
     }
 
     // MARK: Actions
+
+    /// What the island calls a session.
+    func displayName(_ session: ClaudeSession) -> String {
+        NotchClaudeSessionsSupport.name(session, custom: names[session.id])
+    }
+
+    /// Names a session, or with an empty name goes back to its own.
+    func rename(_ id: String, to name: String) {
+        names = NotchClaudeSessionsSupport.renamed(names, id: id, to: name, live: Set(sessions.map(\.id)))
+        UserDefaults.standard.set(names, forKey: DefaultsKey.notchSessionsNames)
+    }
 
     func focus(_ id: String?) {
         focusedID = id

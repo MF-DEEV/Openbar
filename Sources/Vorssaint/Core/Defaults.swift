@@ -894,6 +894,8 @@ enum DefaultsKey {
     static let notchSessionsAutoExpand = "notchSessionsAutoExpand"
     /// Prompts, replies, titles and tool arguments may be read into memory.
     static let notchSessionsContentPreview = "notchSessionsContentPreview"
+    /// Names given to Claude Code sessions in the island, by session.
+    static let notchSessionsNames = "notchSessionsNames"
     /// The text size of a session's page with the island grown around it.
     static let notchSessionsLargeTextSize = "notchSessionsLargeTextSize"
     static let notchEnabled = "notchEnabled"
