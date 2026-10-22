@@ -131,6 +131,8 @@ enum ClaudeSessionReaderTests {
             default: return nil
             }
         }
+        suite.expect(!parse([summary], previews: false).contains { if case .turnBegan = $0 { return true }; return false },
+                     "an idle compaction's summary begins no turn")
         suite.expect(said.first == "Also run lint" && said.count == 2,
                      "a prompt typed while Claude works counts; summaries and commands do not: \(said.map { $0.prefix(20) })")
         suite.expect(said.last?.count == ClaudeTranscriptReader.replyLimit && said.last?.hasSuffix("…") == true,

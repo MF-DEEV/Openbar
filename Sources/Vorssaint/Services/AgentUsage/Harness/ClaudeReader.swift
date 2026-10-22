@@ -53,8 +53,11 @@ struct ClaudeReader: AgentHarnessReader {
         // A subagent's prompts and tool output never open a turn, and its
         // tool output can be large: no need to decode it to know that.
         if AgentLogParser.contains(line, #""isSidechain":true"#) { return [] }
+        // Claude Code compacts an idle session on its own, writing the summary
+        // as a user line that no reply follows; it begins no work.
         guard let json = AgentLogParser.object(line), json["type"] as? String == "user",
-              json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true else { return [] }
+              json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true,
+              json["isCompactSummary"] as? Bool != true else { return [] }
         adopt(json, into: &state)
         state.turnOpen = true
         state.runningCommands = []

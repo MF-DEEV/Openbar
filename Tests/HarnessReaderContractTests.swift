@@ -30,6 +30,10 @@ enum HarnessReaderContractTests {
         let now = Date(timeIntervalSince1970: 0)
         var state = AgentLogState()
         let reader = AgentProvider.claude.reader
+        var idle = AgentLogState()
+        let compacted = line(#"{"type":"user","isCompactSummary":true,"timestamp":1790087000,"sessionId":"s","message":{"content":"This session is being continued from a previous conversation"}}"#)
+        suite.expect(reader.parse(compacted, state: &idle, now: now).isEmpty && !idle.turnOpen,
+                     "the summary Claude Code writes when it compacts an idle session begins no work")
         let began = Date(timeIntervalSince1970: 1_790_088_000)
         let prompt = line(#"{"type":"user","timestamp":1790088000,"sessionId":"s","cwd":"/Users/me/code/app","message":{"content":"work"}}"#)
         suite.expect(reader.parse(prompt, state: &state, now: now) == [.turnBegan(began)],
