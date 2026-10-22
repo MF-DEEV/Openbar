@@ -313,7 +313,13 @@ enum NotchClaudeSessionFormat {
             if let tool = session.currentTool {
                 parts.append(tool.summary.map { "\(tool.name): \($0)" } ?? tool.name)
             }
-        case .waitingInput, .generating:
+        case .waitingInput:
+            if let permission = session.permission, permission.asksQuestions {
+                parts.append(permission.summary ?? "")
+            } else if showsTitle, let title = session.title {
+                parts.append(title)
+            }
+        case .generating:
             if showsTitle, let title = session.title { parts.append(title) }
         case .background:
             if let label = session.backgroundLabel { parts.append(label) } else if showsTitle, let title = session.title { parts.append(title) }

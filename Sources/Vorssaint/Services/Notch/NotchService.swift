@@ -1875,7 +1875,8 @@ final class NotchService: ObservableObject {
     }
 
     /// ⌘Y allows and ⌘N denies the permission of the session whose page is
-    /// open, or of the first session waiting on one.
+    /// open, or of the first session waiting on one. A question is answered
+    /// on its card; ⌘N skips it only there, where it can be read.
     private func handleSessionKey(_ event: NSEvent) -> Bool {
         guard selected == .sessions, !showingAppPanel, !showingSections, selectedMetric == nil,
               let decision = NotchClaudeSessionsSupport.decision(
@@ -1884,8 +1885,9 @@ final class NotchService: ObservableObject {
         else { return false }
         let sessions = ClaudeSessionService.shared
         let focused = sessions.focusedID.flatMap { id in sessions.sessions.first { $0.id == id } }
-        guard let target = focused ?? sessions.sessions.first(where: { $0.permission != nil }),
-              let permission = target.permission else { return false }
+        guard let target = focused ?? sessions.sessions.first(where: { $0.permission.map { !$0.asksQuestions } ?? false }),
+              let permission = target.permission,
+              !(permission.asksQuestions && decision != .deny) else { return false }
         sessions.decide(target.id, request: permission.requestID, decision)
         return true
     }
@@ -4193,7 +4195,10 @@ final class NotchService: ObservableObject {
                                 .joined(separator: " · "),
                              symbol: NotchClaudeSessionsSupport.symbol(.waitingPermission), agent: .claude, sessionID: id))
         case .needsInput:
-            show(NotchNotice(event: .sessions, title: sessions.displayName(session), detail: text.inputNotice,
+            // A question Claude asks through the hooks is named in the notice.
+            let question = session.permission?.asksQuestions == true ? session.permission?.summary : nil
+            show(NotchNotice(event: .sessions, title: sessions.displayName(session),
+                             detail: [text.inputNotice, question ?? ""].filter { !$0.isEmpty }.joined(separator: " · "),
                              symbol: NotchClaudeSessionsSupport.symbol(.waitingInput), agent: .claude, sessionID: id))
         case .finished(_, let duration):
             let locale = L10n.shared.language.formattingLocale()

@@ -51,3 +51,10 @@ Not run end to end: the Always answer, which hands back `permission_suggestions`
 - The registry says `"shell"` for a session at rest while a command it started in the background still runs (`status === "idle" && <background shell> ? "shell"`). The island shows it as working in the background, not done.
 - `"dialog open"` covers every dialog in the terminal, including ones the person opens, like `/usage`. Only dialogs Claude Code raises itself send a Notification hook.
 - Claude Code attaches an image when a paste is nothing but the path of a PNG, JPEG, GIF or WebP file, and reads the file a moment later. A return sent at once goes out without it. Terminal adds a return after every `do script`, so the image paths go first with a paste left open, which that return joins as a line break; after a pause the text closes the paste and its return sends the reply. Confirmed in a throwaway session: the transcript held the image block and the model described the picture.
+
+## Questions (2.1.308)
+
+- AskUserQuestion runs the PermissionRequest hook like any tool, with `tool_input.questions` as Claude wrote them. Answering `{"behavior":"allow","updatedInput":{<the same input>,"answers":{"<question text>":"<label>"}}}` answers it: the terminal shows "User answered Claude's questions … Allowed by PermissionRequest hook". A multiSelect question takes a list of labels, and any text not among the labels stands as the person's own answer.
+- Claude Code checks the answer: every other key must equal the input it sent, keys of `answers` must be its question texts, a list is taken only for multiSelect, and all answers together must stay within 32,768 UTF-16 units.
+- While the dialog is open the registry says `waitingFor: "input needed"`, not `"permission prompt"`.
+- Confirmed in throwaway sessions: a single choice clicked on the island, two questions with a multiSelect answered together, and Skip, which Claude reads as "The user skipped the question from the Dynamic Island without answering."

@@ -268,6 +268,39 @@ enum NotchClaudeSessionsSupport {
         }
     }
 
+    /// What goes back for Claude's questions: for each, the options picked,
+    /// in the order Claude wrote them, and the person's own words, which
+    /// take the place of a single choice. Nil until every question has an
+    /// answer.
+    static func answers(_ questions: [ClaudeQuestion], picked: [Int: Set<String>], typed: [Int: String]) -> [String: [String]]? {
+        guard !questions.isEmpty else { return nil }
+        var answers: [String: [String]] = [:]
+        for (index, question) in questions.enumerated() {
+            var chosen = question.options.map(\.label).filter { picked[index]?.contains($0) == true }
+            let own = clipped((typed[index] ?? "").trimmingCharacters(in: .whitespacesAndNewlines), utf16: ClaudeQuestion.ownAnswerLimit)
+            if !own.isEmpty { chosen = question.multiSelect ? chosen + [own] : [own] }
+            if !question.multiSelect { chosen = Array(chosen.prefix(1)) }
+            guard !chosen.isEmpty else { return nil }
+            answers[question.question] = chosen
+        }
+        return answers
+    }
+
+    /// The text cut to whole characters within a count of UTF-16 units, the
+    /// length Claude Code measures.
+    static func clipped(_ text: String, utf16 limit: Int) -> String {
+        guard text.utf16.count > limit else { return text }
+        var used = 0
+        var end = text.startIndex
+        for index in text.indices {
+            let size = text[index].utf16.count
+            guard used + size <= limit else { break }
+            used += size
+            end = text.index(after: index)
+        }
+        return String(text[..<end])
+    }
+
     /// The reply as it goes to the terminal, or nil when nothing is left.
     static func reply(_ text: String) -> String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
