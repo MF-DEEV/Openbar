@@ -20,6 +20,7 @@ struct NotchClaudeSessionLargeView: View {
     @State private var handleHovered = false
 
     private static let thinkingRow = -1
+    static let sidebarWidth: CGFloat = 330
     /// Rows a folded list shows: the running ones and the latest.
     static let foldedRows = 4
     private var size: CGFloat { CGFloat(NotchClaudeSessionsSupport.largeTextSize(textSize)) }
@@ -33,14 +34,19 @@ struct NotchClaudeSessionLargeView: View {
                     conversation
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     sidebarHandle
-                    if !sidebarHidden {
-                        ScrollView { sidebar(now: context.date).padding(.bottom, 8) }
-                            .scrollIndicators(.automatic)
-                            .frame(width: 330)
-                            .transition(.move(edge: .trailing).combined(with: .opacity))
-                    }
+                    // The details stay laid out at their width while the
+                    // column around them narrows, so they slide and fade out
+                    // as the conversation widens instead of jumping.
+                    ScrollView { sidebar(now: context.date).padding(.bottom, 8) }
+                        .scrollIndicators(.automatic)
+                        .frame(width: Self.sidebarWidth)
+                        .offset(x: sidebarHidden ? 48 : 0)
+                        .opacity(sidebarHidden ? 0 : 1)
+                        .frame(width: sidebarHidden ? 0 : Self.sidebarWidth, alignment: .leading)
+                        .clipped()
+                        .allowsHitTesting(!sidebarHidden)
+                        .accessibilityHidden(sidebarHidden)
                 }
-                .clipped()
                 .frame(maxHeight: .infinity)
                 NotchClaudeSessionComposer(session: session, text: text, size: size)
             }
@@ -58,7 +64,7 @@ struct NotchClaudeSessionLargeView: View {
     }
 
     private func toggleSidebar() {
-        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) { sidebarHidden.toggle() }
+        withAnimation(reduceMotion ? nil : .smooth(duration: 0.38)) { sidebarHidden.toggle() }
     }
 
     /// The line between the conversation and the details folds the details
@@ -69,8 +75,9 @@ struct NotchClaudeSessionLargeView: View {
                 Rectangle()
                     .fill(.white.opacity(handleHovered ? 0.22 : 0.08))
                     .frame(width: 1)
-                Image(systemName: sidebarHidden ? "chevron.left" : "chevron.right")
+                Image(systemName: "chevron.right")
                     .font(.system(size: 9, weight: .bold))
+                    .rotationEffect(.degrees(sidebarHidden ? 180 : 0))
                     .foregroundStyle(.white.opacity(handleHovered ? 0.9 : 0.5))
                     .frame(width: 18, height: 34)
                     .background(Color(white: handleHovered ? 0.2 : 0.12), in: Capsule())
