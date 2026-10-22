@@ -99,6 +99,28 @@ enum ClaudeImageAttachments {
         group.notify(queue: .main) { completion(found.sorted { $0.0 < $1.0 }.map(\.1)) }
     }
 
+    /// The folder Claude Code keeps for a session's own files, beside the
+    /// one it writes pasted images to; Claude reads there without asking.
+    static func sessionFolder(transcript: String, session: String, root: String = "/private/tmp/claude-\(getuid())") -> URL? {
+        let project = ((transcript as NSString).deletingLastPathComponent as NSString).lastPathComponent
+        guard !project.isEmpty, !session.contains("/") else { return nil }
+        let folder = URL(fileURLWithPath: root, isDirectory: true).appending(path: project).appending(path: session)
+        var directory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: folder.path, isDirectory: &directory) && directory.boolValue ? folder : nil
+    }
+
+    /// Copies of the images in that folder's `images`, or the images where
+    /// they lie when there is no folder or a copy fails.
+    static func copies(_ images: [URL], in folder: URL?) -> [URL] {
+        guard let folder else { return images }
+        let target = folder.appending(path: "images", directoryHint: .isDirectory)
+        try? FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        return images.map { image in
+            let copy = target.appending(path: "vorssaint-\(UUID().uuidString).\(image.pathExtension.lowercased())")
+            return (try? FileManager.default.copyItem(at: image, to: copy)) != nil ? copy : image
+        }
+    }
+
     /// Clears saved copies a day old, which Claude Code has long since read.
     static func sweep(now: Date = Date()) {
         let folder = folder

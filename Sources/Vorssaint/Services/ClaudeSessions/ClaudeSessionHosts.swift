@@ -187,13 +187,21 @@ enum ClaudeTerminalBridge {
         ask(["command": "send", "shellPid": Int(shell), "text": text], folder: folder)
     }
 
-    /// Images and a reply. An extension from before images says it does
-    /// not know the command, and nothing is typed.
-    static func send(_ text: String, images: [String], shell: Int32, folder: URL) -> ClaudeReplyFailure? {
+    /// Images and a reply. A window still running an extension from before
+    /// images, until it reloads, says it does not know the command; the
+    /// reply then names the images' files, which Claude reads itself.
+    static func send(_ text: String, images: [String], named: [String]? = nil, shell: Int32, folder: URL) -> ClaudeReplyFailure? {
         let request: [String: Any] = ["command": "send-images", "shellPid": Int(shell), "text": text, "images": images]
         let replies = answers(request, folder: folder, timeout: 4 + ClaudeTerminalScripts.imageSettle(images.count))
         if replies.contains(where: { $0["ok"] as? Bool == true }) { return nil }
-        return replies.contains { $0["error"] as? String == "unknown" } ? .bridgeOutdated : .unreachable
+        guard replies.contains(where: { $0["error"] as? String == "unknown" }) else { return .unreachable }
+        return send(naming(named ?? images, in: text), shell: shell, folder: folder) ? nil : .unreachable
+    }
+
+    /// A reply that names its images' files instead of attaching them.
+    static func naming(_ images: [String], in text: String) -> String {
+        let lines = images.map { "[Image: \($0)]" }.joined(separator: "\n")
+        return text.isEmpty ? lines : text + "\n\n" + lines
     }
 
     /// Asks each window in turn until one says it did it.

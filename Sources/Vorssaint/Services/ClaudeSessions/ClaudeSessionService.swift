@@ -106,7 +106,15 @@ final class ClaudeSessionService: ObservableObject {
             schedule(Self.activeTick)
             refresh()
         }
-        actions.async { ClaudeImageAttachments.sweep() }
+        let home = home
+        actions.async {
+            ClaudeImageAttachments.sweep()
+            // An extension the person once added is kept current by the app,
+            // so a newer one never waits on a click in Settings.
+            if ClaudeBridgeInstaller.isInstalled(home: home), ClaudeBridgeInstaller.isOutdated(home: home) {
+                _ = ClaudeBridgeInstaller.install(home: home)
+            }
+        }
         checkHooks()
     }
 
@@ -214,13 +222,20 @@ final class ClaudeSessionService: ObservableObject {
         // not show yet; the keys would land in it.
         queue.async { [self] in
             let asking = engine.permission(of: session.id) != nil || pending.values.contains { $0.session == session.id }
+            let transcript = transcripts[session.id]
             actions.async { [self] in
                 // The session may have opened a dialog since the island last looked.
                 let now = ClaudeSessionRegistryReader.read(folders).first { $0.pid == session.pid }
                 let failure: SendFailure?
                 if now?.sessionID != session.id { failure = .unreachable }
                 else if asking || now?.status == .waiting { failure = .waiting }
-                else { failure = ClaudeTerminalReply.send(reply, images: images, to: session, bridge: bridge) }
+                else {
+                    // Copies where Claude reads without asking, for a reply that
+                    // has to name its images instead of attaching them.
+                    let folder = transcript.flatMap { ClaudeImageAttachments.sessionFolder(transcript: $0, session: session.id) }
+                    let named = images.isEmpty ? [] : ClaudeImageAttachments.copies(images, in: folder)
+                    failure = ClaudeTerminalReply.send(reply, images: images, named: named, to: session, bridge: bridge)
+                }
                 finishSend(failure, session: session, completion: completion)
             }
         }
@@ -592,7 +607,7 @@ enum ClaudeHostFocus {
 enum ClaudeTerminalReply {
     typealias Failure = ClaudeReplyFailure
 
-    static func send(_ text: String, images: [URL] = [], to session: ClaudeSession, bridge: URL) -> Failure? {
+    static func send(_ text: String, images: [URL] = [], named: [URL] = [], to session: ClaudeSession, bridge: URL) -> Failure? {
         let paths = images.map(\.path)
         switch session.host {
         case .terminal(let tty):
@@ -604,7 +619,8 @@ enum ClaudeTerminalReply {
         case .antigravity:
             guard let shell = ClaudeTerminalBridge.shell(of: session.pid) else { return .unreachable }
             if paths.isEmpty { return ClaudeTerminalBridge.send(text, shell: shell, folder: bridge) ? nil : .unreachable }
-            return ClaudeTerminalBridge.send(text, images: paths, shell: shell, folder: bridge)
+            return ClaudeTerminalBridge.send(text, images: paths, named: named.isEmpty ? paths : named.map(\.path),
+                                             shell: shell, folder: bridge)
         case .app, .unknown:
             return .unreachable
         }

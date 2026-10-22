@@ -260,12 +260,7 @@ struct NotchClaudeSessionLargeView: View {
             .padding(.leading, 60)
             .frame(maxWidth: .infinity, alignment: .trailing)
         case .assistant:
-            Text(NotchClaudeSessionFormat.markdown(message.text))
-                .font(.system(size: size))
-                .lineSpacing(size * 0.25)
-                .foregroundStyle(.white.opacity(0.88))
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
+            NotchClaudeRichText(text: NotchClaudeSessionFormat.markdown(message.text), size: size, lineSpacing: size * 0.25)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
     }

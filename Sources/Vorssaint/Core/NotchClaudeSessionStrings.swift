@@ -35,7 +35,6 @@ struct NotchClaudeSessionStrings {
     let sendShortcut: String
     let pasteImages: String
     let removeImage: String
-    let bridgeOutdated: String
     let send: String
     let replyPlaceholder: String
     let replyUnavailable: String
@@ -142,7 +141,6 @@ extension NotchClaudeSessionStrings {
         sendShortcut: "⌘↩ sends",
         pasteImages: "⌘V or drop to add images",
         removeImage: "Remove image",
-        bridgeOutdated: "Update the Antigravity extension in Settings to send images",
         send: "Send",
         replyPlaceholder: "Reply to Claude…",
         replyUnavailable: "Replies work in Terminal and Antigravity",

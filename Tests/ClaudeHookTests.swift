@@ -351,8 +351,13 @@ enum ClaudeHookTests {
         let pictured2 = lock.withLock { requests.last { $0["command"] as? String == "send-images" && $0["shellPid"] as? Int == 222 } }
         suite.expect(pictured2?["images"] as? [String] == ["/tmp/a.png"] && pictured2?["text"] as? String == "Look",
                      "with the text that follows them")
-        suite.expect(ClaudeTerminalBridge.send("Look", images: ["/tmp/a.png"], shell: 444, folder: folder) == .bridgeOutdated,
-                     "an extension from before images types nothing and asks to be updated")
+        suite.expect(ClaudeTerminalBridge.send("Look", images: ["/tmp/a.png"], shell: 444, folder: folder) == nil,
+                     "a window still on an extension from before images is not a failure")
+        let named = lock.withLock { requests.last { $0["command"] as? String == "send" && $0["shellPid"] as? Int == 444 } }
+        suite.expect(named?["text"] as? String == "Look\n\n[Image: /tmp/a.png]",
+                     "the reply names the image's file there, for Claude to read: \(named?["text"] ?? "none")")
+        suite.expect(ClaudeTerminalBridge.naming(["/tmp/a.png", "/tmp/b.png"], in: "") == "[Image: /tmp/a.png]\n[Image: /tmp/b.png]",
+                     "images alone are named one to a line")
         suite.expect(ClaudeTerminalBridge.send("Look", images: ["/tmp/a.png"], shell: 555, folder: folder) == .unreachable,
                      "and no window holding the terminal is unreachable")
         suite.expect(ClaudeTerminalBridge.focus(shell: 111, folder: folder), "a window shows its terminal on request")
@@ -378,6 +383,20 @@ enum ClaudeHookTests {
         board.writeObjects([photo as NSURL, notes as NSURL])
         suite.expect(ClaudeImageAttachments.images(from: board) == [photo], "a copied image file is used where it lies; others are left out")
         saved.forEach { try? FileManager.default.removeItem(at: $0) }
+
+        let root = folder.appending(path: "claude-tmp").path
+        let session = URL(fileURLWithPath: root).appending(path: "-Users-me-app").appending(path: "s1")
+        let transcript = "/Users/me/.claude/projects/-Users-me-app/s1.jsonl"
+        suite.expect(ClaudeImageAttachments.sessionFolder(transcript: transcript, session: "s1", root: root) == nil,
+                     "no session folder means the images are named where they lie")
+        try? FileManager.default.createDirectory(at: session, withIntermediateDirectories: true)
+        let found = ClaudeImageAttachments.sessionFolder(transcript: transcript, session: "s1", root: root)
+        suite.expect(found?.standardizedFileURL.path == session.standardizedFileURL.path, "the session's folder sits under the project's")
+        let copied = ClaudeImageAttachments.copies([photo], in: found)
+        suite.expect(copied.count == 1 && copied[0].deletingLastPathComponent().lastPathComponent == "images"
+                     && copied[0].pathExtension == "jpg" && FileManager.default.fileExists(atPath: copied[0].path),
+                     "images are copied into its images folder, where Claude reads without asking")
+        suite.expect(ClaudeImageAttachments.copies([photo], in: nil) == [photo], "without a folder they stay where they are")
         suite.expect(!ClaudeTerminalBridge.focus(shell: 111, folder: folder), "with the IDE closed nothing answers")
         suite.expect(!ClaudeTerminalBridge.ask(["command": "ping"], folder: folder.appending(path: "missing")),
                      "a missing folder is no answer")

@@ -291,11 +291,8 @@ struct NotchClaudeSessionDetailView: View {
         if let reply = session.lastText {
             VStack(alignment: .leading, spacing: 4) {
                 sectionTitle(text.lastReply)
-                Text(NotchClaudeSessionFormat.markdown(reply))
-                    .font(.system(size: 11))
-                    .foregroundStyle(.white.opacity(0.8))
-                    .lineLimit(6)
-                    .textSelection(.enabled)
+                NotchClaudeRichText(text: NotchClaudeSessionFormat.markdown(reply), size: 11,
+                                    color: .white.withAlphaComponent(0.8), maxLines: 6)
             }
         } else if !previews {
             Text(text.previewsOff).font(.system(size: 10)).foregroundStyle(.tertiary)

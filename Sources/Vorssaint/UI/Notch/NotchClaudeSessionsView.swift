@@ -263,7 +263,14 @@ extension ClaudeSessionPhase {
 }
 
 enum NotchClaudeSessionFormat {
-    static func markdown(_ text: String) -> AttributedString { NotchClaudeSessionsSupport.markdown(text) }
+    /// Links read as links: blue, in Markdown or written out.
+    static let linkColor = Color(red: 0.42, green: 0.66, blue: 1.0)
+
+    static func markdown(_ text: String) -> AttributedString {
+        var result = NotchClaudeSessionsSupport.markdown(text)
+        for run in result.runs where run.link != nil { result[run.range].foregroundColor = linkColor }
+        return result
+    }
 
     /// The time the turn under way has run, or how long the session has
     /// waited; nothing for a quiet one.
@@ -288,7 +295,6 @@ enum NotchClaudeSessionFormat {
         switch failure {
         case .waiting: return text.sendWhileWaiting
         case .unreachable: return text.sendFailed
-        case .bridgeOutdated: return text.bridgeOutdated
         }
     }
 

@@ -211,6 +211,24 @@ enum NotchClaudeSessionsSupport {
             block.inlinePresentationIntent = .code
             result += block
         }
+        return linked(result)
+    }
+
+    /// Addresses written out, which Markdown leaves as text, become links;
+    /// code keeps them as written.
+    static func linked(_ text: AttributedString) -> AttributedString {
+        var result = text
+        let string = String(result.characters)
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return result }
+        for match in detector.matches(in: string, range: NSRange(string.startIndex..., in: string)) {
+            guard let url = match.url, ["http", "https"].contains(url.scheme?.lowercased() ?? ""),
+                  let range = Range(match.range, in: string) else { continue }
+            let start = result.index(result.startIndex, offsetByCharacters: string.distance(from: string.startIndex, to: range.lowerBound))
+            let end = result.index(start, offsetByCharacters: string.distance(from: range.lowerBound, to: range.upperBound))
+            let piece = result[start..<end]
+            let taken = piece.runs.contains { $0.link != nil || $0.inlinePresentationIntent?.contains(.code) == true }
+            if !taken { result[start..<end].link = url }
+        }
         return result
     }
 

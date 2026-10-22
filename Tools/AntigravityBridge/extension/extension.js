@@ -13,6 +13,7 @@ const path = require('path');
 
 const ESC = '\u001b';
 const MAX_REQUEST = 64 * 1024;
+const VERSION = require('./package.json').version;
 let server;
 let socketPath;
 
@@ -61,11 +62,24 @@ async function terminalFor(shellPid) {
 
 async function handle(line) {
   const request = JSON.parse(line);
-  if (request.command === 'ping') return { ok: true };
+  if (request.command === 'ping') return { ok: true, version: VERSION };
   const terminal = await terminalFor(request.shellPid);
   if (!terminal) return { ok: false, error: 'missing' };
   if (request.command === 'focus') {
     terminal.show(false);
+    return { ok: true };
+  }
+  if (request.command === 'steps' && Array.isArray(request.steps)) {
+    // Any sequence of pastes, raw text, pauses and returns, so a new way of
+    // typing into a session needs no new extension.
+    for (const step of request.steps) {
+      if (typeof step.paste === 'string') terminal.sendText(`${ESC}[200~${step.paste}${ESC}[201~`, false);
+      else if (typeof step.text === 'string') terminal.sendText(step.text, false);
+      else if (step.enter === true) terminal.sendText('\r', false);
+      if (typeof step.wait === 'number' && step.wait > 0) {
+        await new Promise((resolve) => setTimeout(resolve, Math.min(step.wait, 10000)));
+      }
+    }
     return { ok: true };
   }
   if (request.command === 'send-images' && typeof request.text === 'string' && Array.isArray(request.images)

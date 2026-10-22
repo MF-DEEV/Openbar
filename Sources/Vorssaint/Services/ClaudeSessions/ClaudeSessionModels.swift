@@ -61,8 +61,6 @@ enum ClaudeReplyFailure: Error, Equatable {
     /// A dialog waits in that terminal, and the keys would answer it.
     case waiting
     case unreachable
-    /// The Antigravity window runs an extension too old to send images.
-    case bridgeOutdated
 }
 
 /// The app showing a session's terminal, which Open brings forward and a

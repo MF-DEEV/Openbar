@@ -542,6 +542,10 @@ enum ClaudeSessionEngineTests {
         suite.expect(fenced.runs.contains { run in
             run.inlinePresentationIntent?.contains(.code) == true && String(fenced[run.range].characters) == "let x = 1\nlet y = 2"
         }, "and reads as code")
+        let linkedReply = NotchClaudeSessionsSupport.markdown("PR: https://github.com/MF-DEEV/x/pull/1, see [docs](https://a.dev) or `https://code.example`")
+        let links = linkedReply.runs.compactMap(\.link).map(\.absoluteString)
+        suite.expect(links == ["https://github.com/MF-DEEV/x/pull/1", "https://a.dev"],
+                     "addresses written out become links beside Markdown ones, but not in code: \(links)")
         let rendered = NotchClaudeSessionsSupport.markdown("Fixed **two bugs** in `NotchView`\n- *one* line")
         suite.expect(String(rendered.characters) == "Fixed two bugs in NotchView\n- one line",
                      "markdown marks leave the reply and its line breaks stay: \(String(rendered.characters))")
