@@ -31,6 +31,9 @@ struct NotchClaudeSessionStrings {
     let smallerText: String
     let largerText: String
     let sendShortcut: String
+    let pasteImages: String
+    let removeImage: String
+    let bridgeOutdated: String
     let send: String
     let replyPlaceholder: String
     let replyUnavailable: String
@@ -73,6 +76,7 @@ struct NotchClaudeSessionStrings {
     let bridgePackageFailed: String
     let bridgeRefused: String
     let openFailed: String
+    let background: String
 
     func phase(_ phase: ClaudeSessionPhase) -> String {
         switch phase {
@@ -80,6 +84,7 @@ struct NotchClaudeSessionStrings {
         case .runningTool: return runningTool
         case .waitingPermission: return waitingPermission
         case .waitingInput: return waitingInput
+        case .background: return background
         case .finished: return finished
         case .idle: return idle
         }
@@ -131,6 +136,9 @@ extension NotchClaudeSessionStrings {
         smallerText: "Smaller text",
         largerText: "Larger text",
         sendShortcut: "⌘↩ sends",
+        pasteImages: "⌘V or drop to add images",
+        removeImage: "Remove image",
+        bridgeOutdated: "Update the Antigravity extension in Settings to send images",
         send: "Send",
         replyPlaceholder: "Reply to Claude…",
         replyUnavailable: "Replies work in Terminal and Antigravity",
@@ -172,5 +180,6 @@ extension NotchClaudeSessionStrings {
         antigravityMissing: "Antigravity isn’t installed",
         bridgePackageFailed: "Couldn’t package the extension",
         bridgeRefused: "Antigravity refused the extension",
-        openFailed: "Couldn’t find that window")
+        openFailed: "Couldn’t find that window",
+        background: "In background")
 }

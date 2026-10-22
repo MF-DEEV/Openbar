@@ -68,6 +68,20 @@ async function handle(line) {
     terminal.show(false);
     return { ok: true };
   }
+  if (request.command === 'send-images' && typeof request.text === 'string' && Array.isArray(request.images)
+      && request.images.length > 0 && request.images.every((image) => typeof image === 'string' && image.length > 0)) {
+    // Claude Code attaches an image when a paste is only its path, and reads
+    // it a moment later, so the text and the return wait for the images.
+    for (const image of request.images) {
+      terminal.sendText(`${ESC}[200~${image}${ESC}[201~`, false);
+      await new Promise((resolve) => setTimeout(resolve, 60));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 1200 + 300 * request.images.length));
+    if (request.text.length > 0) terminal.sendText(`${ESC}[200~${request.text}${ESC}[201~`, false);
+    await new Promise((resolve) => setTimeout(resolve, 80));
+    terminal.sendText('\r', false);
+    return { ok: true };
+  }
   if (request.command === 'send' && typeof request.text === 'string' && request.text.length > 0) {
     // A paste keeps line breaks as text; the return after it sends the reply.
     terminal.sendText(`${ESC}[200~${request.text}${ESC}[201~`, false);

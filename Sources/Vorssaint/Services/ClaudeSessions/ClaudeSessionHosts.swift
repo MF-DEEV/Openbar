@@ -140,6 +140,35 @@ extension ClaudeTerminalScripts {
         return "missing"
         """
     }
+
+    /// The time Claude Code takes to read pasted images before the text.
+    static func imageSettle(_ count: Int) -> Double { 1.2 + 0.3 * Double(count) }
+
+    /// Types images and a reply. Claude Code attaches an image when a paste
+    /// is only its path, and reads it a moment later; Terminal adds a return
+    /// after each `do script`. So the paths go first with a paste left open,
+    /// which the first return joins as a line break, and after a pause the
+    /// text closes that paste and its return sends the whole reply.
+    static func type(_ text: String, images: [String], tty: String) -> String {
+        let pastes = images.map { "marker & \"[200~\" & \(AppleScriptRunner.literal($0)) & marker & \"[201~\"" }
+        let opening = (pastes + ["marker & \"[200~\""]).joined(separator: " & ")
+        return """
+        set marker to ASCII character 27
+        tell application "Terminal"
+            repeat with theWindow in windows
+                repeat with theTab in tabs of theWindow
+                    if tty of theTab is \(AppleScriptRunner.literal(tty)) then
+                        do script (\(opening)) in theTab
+                        delay \(imageSettle(images.count))
+                        do script (\(AppleScriptRunner.literal(text)) & marker & "[201~") in theTab
+                        return "sent"
+                    end if
+                end repeat
+            end repeat
+        end tell
+        return "missing"
+        """
+    }
 }
 
 /// Talks to the Antigravity extension that shows a session's terminal and
@@ -158,18 +187,34 @@ enum ClaudeTerminalBridge {
         ask(["command": "send", "shellPid": Int(shell), "text": text], folder: folder)
     }
 
+    /// Images and a reply. An extension from before images says it does
+    /// not know the command, and nothing is typed.
+    static func send(_ text: String, images: [String], shell: Int32, folder: URL) -> ClaudeReplyFailure? {
+        let request: [String: Any] = ["command": "send-images", "shellPid": Int(shell), "text": text, "images": images]
+        let replies = answers(request, folder: folder, timeout: 4 + ClaudeTerminalScripts.imageSettle(images.count))
+        if replies.contains(where: { $0["ok"] as? Bool == true }) { return nil }
+        return replies.contains { $0["error"] as? String == "unknown" } ? .bridgeOutdated : .unreachable
+    }
+
     /// Asks each window in turn until one says it did it.
     static func ask(_ request: [String: Any], folder: URL, timeout: TimeInterval = 4) -> Bool {
-        guard var line = try? JSONSerialization.data(withJSONObject: request) else { return false }
+        answers(request, folder: folder, timeout: timeout).contains { $0["ok"] as? Bool == true }
+    }
+
+    /// The windows' answers, up to the first that did it.
+    static func answers(_ request: [String: Any], folder: URL, timeout: TimeInterval) -> [[String: Any]] {
+        guard var line = try? JSONSerialization.data(withJSONObject: request) else { return [] }
         line.append(0x0A)
+        var replies: [[String: Any]] = []
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
         for name in names where name.hasSuffix(".sock") {
             let path = folder.appending(path: name).path
             guard let reply = exchange(line, path: path, timeout: timeout),
                   let json = (try? JSONSerialization.jsonObject(with: reply)) as? [String: Any] else { continue }
-            if json["ok"] as? Bool == true { return true }
+            replies.append(json)
+            if json["ok"] as? Bool == true { break }
         }
-        return false
+        return replies
     }
 
     /// One request and its one-line answer, or nil when nobody listens.

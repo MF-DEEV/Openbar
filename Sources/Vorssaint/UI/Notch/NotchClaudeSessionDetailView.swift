@@ -29,6 +29,12 @@ struct NotchClaudeSessionDetailView: View {
             } else {
                 VStack(spacing: 8) {
                     work
+                    // Claude at work, at the foot of the page as on the enlarged one.
+                    if session.phase.isWorking {
+                        NotchClaudeThinkingRow(session: session, size: 13)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.leading, 2)
+                    }
                     NotchClaudeSessionReplyField(session: session, text: text)
                 }
             }
@@ -49,8 +55,6 @@ struct NotchClaudeSessionDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     header(now: context.date)
-                    // Claude at work, as on the enlarged page, where it shows without scrolling.
-                    if session.phase.isWorking { NotchClaudeThinkingRow(session: session, size: 13) }
                     if session.phase.isWaiting { NotchClaudeSessionPermissionCard(session: session, text: text, open: open) }
                     if let title = session.title {
                         Text(title)
@@ -424,6 +428,7 @@ struct NotchClaudeSessionReplyField: View {
     @FocusState private var focused: Bool
     @State private var sending = false
     @State private var problem: String?
+    @State private var dropping = false
 
     private var draft: Binding<String> {
         Binding(get: { service.drafts[session.id] ?? "" }, set: { service.drafts[session.id] = $0 })
@@ -438,6 +443,7 @@ struct NotchClaudeSessionReplyField: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 3) {
+            NotchClaudeAttachmentStrip(sessionID: session.id, text: text, side: 36)
             HStack(spacing: 6) {
                 TextField(unavailable ?? text.replyPlaceholder, text: draft)
                     .textFieldStyle(.plain)
@@ -469,8 +475,9 @@ struct NotchClaudeSessionReplyField: View {
             .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(.white.opacity(focused ? 0.3 : 0), lineWidth: 1)
+                    .strokeBorder(.white.opacity(dropping ? 0.6 : focused ? 0.3 : 0), lineWidth: 1)
             }
+            .modifier(NotchClaudeImageInput(sessionID: session.id, dropping: $dropping))
             if let problem {
                 Label(problem, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 10))
@@ -482,7 +489,8 @@ struct NotchClaudeSessionReplyField: View {
     }
 
     private var canSend: Bool {
-        unavailable == nil && !sending && NotchClaudeSessionsSupport.reply(draft.wrappedValue) != nil
+        unavailable == nil && !sending
+            && (NotchClaudeSessionsSupport.reply(draft.wrappedValue) != nil || service.attachments[session.id] != nil)
     }
 
     private func send() {
@@ -491,11 +499,7 @@ struct NotchClaudeSessionReplyField: View {
         problem = nil
         service.send(draft.wrappedValue, to: session) { failure in
             sending = false
-            switch failure {
-            case nil: break
-            case .waiting?: problem = text.sendWhileWaiting
-            case .unreachable?: problem = text.sendFailed
-            }
+            problem = failure.map { NotchClaudeSessionFormat.problem($0, text: text) }
         }
     }
 }

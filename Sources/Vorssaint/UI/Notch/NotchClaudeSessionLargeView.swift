@@ -338,6 +338,7 @@ struct NotchClaudeSessionComposer: View {
     @FocusState private var focused: Bool
     @State private var sending = false
     @State private var problem: String?
+    @State private var dropping = false
 
     private var draft: Binding<String> {
         Binding(get: { service.drafts[session.id] ?? "" }, set: { service.drafts[session.id] = $0 })
@@ -351,11 +352,13 @@ struct NotchClaudeSessionComposer: View {
     }
 
     private var canSend: Bool {
-        unavailable == nil && !sending && NotchClaudeSessionsSupport.reply(draft.wrappedValue) != nil
+        unavailable == nil && !sending
+            && (NotchClaudeSessionsSupport.reply(draft.wrappedValue) != nil || service.attachments[session.id] != nil)
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            NotchClaudeAttachmentStrip(sessionID: session.id, text: text, side: 54)
             HStack(alignment: .bottom, spacing: 10) {
                 ZStack(alignment: .topLeading) {
                     if draft.wrappedValue.isEmpty {
@@ -378,8 +381,9 @@ struct NotchClaudeSessionComposer: View {
                 .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(.white.opacity(focused ? 0.3 : 0.08), lineWidth: 1)
+                        .strokeBorder(.white.opacity(dropping ? 0.6 : focused ? 0.3 : 0.08), lineWidth: 1)
                 }
+                .modifier(NotchClaudeImageInput(sessionID: session.id, dropping: $dropping))
                 Button(action: send) {
                     Group {
                         if sending { ProgressView().controlSize(.small) } else {
@@ -401,7 +405,7 @@ struct NotchClaudeSessionComposer: View {
                     Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 }
                 Spacer()
-                Text(text.sendShortcut).foregroundStyle(.tertiary)
+                Text(text.pasteImages + " · " + text.sendShortcut).foregroundStyle(.tertiary)
             }
             .font(.system(size: 11))
         }
@@ -414,11 +418,92 @@ struct NotchClaudeSessionComposer: View {
         problem = nil
         service.send(draft.wrappedValue, to: session) { failure in
             sending = false
-            switch failure {
-            case nil: break
-            case .waiting?: problem = text.sendWhileWaiting
-            case .unreachable?: problem = text.sendFailed
+            problem = failure.map { NotchClaudeSessionFormat.problem($0, text: text) }
+        }
+    }
+}
+
+/// Images added to a reply, each with a way to take it off again.
+struct NotchClaudeAttachmentStrip: View {
+    let sessionID: String
+    let text: NotchClaudeSessionStrings
+    let side: CGFloat
+    @ObservedObject private var service = ClaudeSessionService.shared
+
+    var body: some View {
+        if let images = service.attachments[sessionID], !images.isEmpty {
+            HStack(spacing: 8) {
+                ForEach(images, id: \.self) { image in
+                    ZStack(alignment: .topTrailing) {
+                        NotchClaudeThumbnail(url: image, side: side)
+                        Button { service.detach(image, from: sessionID) } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 14))
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(.white, .black.opacity(0.75))
+                        }
+                        .buttonStyle(.plain)
+                        .offset(x: 5, y: -5)
+                        .help(text.removeImage)
+                        .accessibilityLabel(text.removeImage)
+                    }
+                }
+            }
+            .padding(.top, 5)
+            .transition(.opacity)
+        }
+    }
+}
+
+/// A small picture of an added image, read once.
+struct NotchClaudeThumbnail: View {
+    let url: URL
+    let side: CGFloat
+    private static let cache = NSCache<NSURL, NSImage>()
+
+    var body: some View {
+        Group {
+            if let image = Self.image(url) {
+                Image(nsImage: image).resizable().scaledToFill()
+            } else {
+                Image(systemName: "photo").foregroundStyle(.secondary)
             }
         }
+        .frame(width: side, height: side)
+        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay { RoundedRectangle(cornerRadius: 8, style: .continuous).strokeBorder(.white.opacity(0.15), lineWidth: 1) }
+        .accessibilityLabel(url.lastPathComponent)
+    }
+
+    private static func image(_ url: URL) -> NSImage? {
+        if let known = cache.object(forKey: url as NSURL) { return known }
+        guard let image = NSImage(contentsOf: url) else { return nil }
+        cache.setObject(image, forKey: url as NSURL)
+        return image
+    }
+}
+
+/// Lets a reply take images: ⌘V adds the pasteboard's images, or pastes
+/// text when it holds none, and images dropped on the field are added.
+struct NotchClaudeImageInput: ViewModifier {
+    let sessionID: String
+    @Binding var dropping: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                Button("") {
+                    if !ClaudeSessionService.shared.attachImages(from: .general, to: sessionID) {
+                        NSApp.sendAction(#selector(NSText.paste(_:)), to: nil, from: nil)
+                    }
+                }
+                .keyboardShortcut("v", modifiers: .command)
+                .opacity(0)
+                .accessibilityHidden(true)
+            }
+            .onDrop(of: [.fileURL, .image], isTargeted: $dropping) { providers in
+                ClaudeImageAttachments.images(from: providers) { ClaudeSessionService.shared.attach($0, to: sessionID) }
+                return true
+            }
     }
 }

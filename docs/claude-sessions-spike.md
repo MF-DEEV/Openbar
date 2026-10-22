@@ -45,3 +45,9 @@ With the Developer build running against real sessions on macOS 26 and Claude Co
 The extension's `net` server must allow half-open connections: `nc` and other clients end their side once the request is sent and still wait for the answer.
 
 Not run end to end: the Always answer, which hands back `permission_suggestions` as `updatedPermissions` and is covered by unit tests only.
+
+## Later findings (2.1.307)
+
+- The registry says `"shell"` for a session at rest while a command it started in the background still runs (`status === "idle" && <background shell> ? "shell"`). The island shows it as working in the background, not done.
+- `"dialog open"` covers every dialog in the terminal, including ones the person opens, like `/usage`. Only dialogs Claude Code raises itself send a Notification hook.
+- Claude Code attaches an image when a paste is nothing but the path of a PNG, JPEG, GIF or WebP file, and reads the file a moment later. A return sent at once goes out without it. Terminal adds a return after every `do script`, so the image paths go first with a paste left open, which that return joins as a line break; after a pause the text closes the paste and its return sends the reply. Confirmed in a throwaway session: the transcript held the image block and the model described the picture.

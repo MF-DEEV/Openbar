@@ -221,6 +221,7 @@ extension ClaudeSessionPhase {
     var tint: Color {
         switch self {
         case .generating, .runningTool: return AgentProvider.claude.tint
+        case .background: return AgentProvider.claude.tint.opacity(0.75)
         case .waitingPermission, .waitingInput: return Color(red: 1.0, green: 0.78, blue: 0.28)
         case .finished: return Color(red: 0.36, green: 0.84, blue: 0.52)
         case .idle: return .white.opacity(0.45)
@@ -237,7 +238,7 @@ enum NotchClaudeSessionFormat {
         switch session.phase {
         case .generating, .runningTool:
             return AgentFormat.clock(now.timeIntervalSince(session.turnStarted ?? session.phaseSince))
-        case .waitingPermission, .waitingInput:
+        case .waitingPermission, .waitingInput, .background:
             return AgentFormat.clock(now.timeIntervalSince(session.phaseSince))
         case .finished, .idle:
             return nil
@@ -249,8 +250,17 @@ enum NotchClaudeSessionFormat {
         NotchClaudeSessionsSupport.stripReading(counts).map { "\($0.count) \(text.phase($0.phase))" }.joined(separator: ", ")
     }
 
-    /// What the row's second line says.
-    /// What the session does now. The title is left out where the session
+    /// Why a reply did not go.
+    static func problem(_ failure: ClaudeSessionService.SendFailure, text: NotchClaudeSessionStrings) -> String {
+        switch failure {
+        case .waiting: return text.sendWhileWaiting
+        case .unreachable: return text.sendFailed
+        case .bridgeOutdated: return text.bridgeOutdated
+        }
+    }
+
+    /// What the row's second line says: what the session does now. The
+    /// title is left out where the session
     /// is already called by it.
     static func activity(_ session: ClaudeSession, text: NotchClaudeSessionStrings, title showsTitle: Bool = true) -> String {
         var parts = [text.phase(session.phase)]
@@ -266,7 +276,7 @@ enum NotchClaudeSessionFormat {
             }
         case .waitingInput, .generating:
             if showsTitle, let title = session.title { parts.append(title) }
-        case .finished, .idle:
+        case .background, .finished, .idle:
             if showsTitle, let title = session.title { parts.append(title) }
             if session.cost > 0 { parts.append(AgentFormat.cost(session.cost)) }
         }

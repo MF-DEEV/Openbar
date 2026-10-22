@@ -174,7 +174,7 @@ final class ClaudeSessionEngine {
                     events.append(.needsPermission(id: id, tool: entry.permissions.first?.tool ?? entry.openTool?.name ?? ""))
                 case .waitingInput:
                     events.append(.needsInput(id: id))
-                case .finished where previous.phase.isWorking || previous.phase.isWaiting:
+                case .finished where previous.phase.isActive || previous.phase.isWaiting:
                     let duration = entry.turnStarted.flatMap { start in entry.turnEnded.map { $0.timeIntervalSince(start) } }
                     events.append(.finished(id: id, duration: duration))
                 default: break
@@ -205,6 +205,9 @@ final class ClaudeSessionEngine {
             working = record.status == .busy
         }
         if working { return entry.turnOpen && entry.openTool != nil ? .runningTool : .generating }
+        // Claude Code says "shell" for a session at rest with a command of its
+        // own still running in the background; the work is not done yet.
+        if record.status == .shell { return .background }
         if let ended = entry.turnEnded, entry.completed, now.timeIntervalSince(ended) < finishedFor,
            (entry.acknowledged ?? .distantPast) < ended {
             return .finished

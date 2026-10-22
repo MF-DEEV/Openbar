@@ -2,7 +2,7 @@
   "name": "vorssaint-terminal-bridge",
   "displayName": "Vorssaint Terminal Bridge",
   "description": "Lets the Vorssaint Dynamic Island bring a Claude Code terminal forward and type a reply into it. Listens on a socket only your user can open.",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "publisher": "vorssaint",
   "license": "GPL-3.0-or-later",
   "engines": { "vscode": "^1.80.0" },

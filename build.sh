@@ -291,6 +291,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionRegistryReader.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeTranscriptReader.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionHosts.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeImageAttachments.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeHookMessage.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeHookServer.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeHookInstaller.swift

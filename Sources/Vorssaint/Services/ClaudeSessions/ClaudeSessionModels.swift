@@ -14,11 +14,16 @@ enum ClaudeSessionPhase: String, Equatable {
     case waitingPermission
     /// A question, dialog or other prompt waits for the person.
     case waitingInput
+    /// The turn ended but a command it started, like a render, still runs
+    /// in the background; Claude Code hears when it ends.
+    case background
     /// The turn ended and the person has not looked at it yet.
     case finished
     case idle
 
     var isWorking: Bool { self == .generating || self == .runningTool }
+    /// Work goes on, in the turn or behind it.
+    var isActive: Bool { isWorking || self == .background }
     var isWaiting: Bool { self == .waitingPermission || self == .waitingInput }
 }
 
@@ -49,6 +54,15 @@ struct ClaudeSessionRecord: Equatable {
     /// Any dialog in the terminal, including one the person opened, like
     /// /usage or /config.
     static let dialogOpen = "dialog open"
+}
+
+/// Why a reply did not reach its session.
+enum ClaudeReplyFailure: Error, Equatable {
+    /// A dialog waits in that terminal, and the keys would answer it.
+    case waiting
+    case unreachable
+    /// The Antigravity window runs an extension too old to send images.
+    case bridgeOutdated
 }
 
 /// The app showing a session's terminal, which Open brings forward and a
@@ -192,7 +206,7 @@ struct ClaudeSessionCounts: Equatable {
 
     init(_ sessions: [ClaudeSession]) {
         for session in sessions {
-            if session.phase.isWorking { working += 1 }
+            if session.phase.isActive { working += 1 }
             if session.phase.isWaiting { waiting += 1 }
             if session.phase == .finished { finished += 1 }
         }

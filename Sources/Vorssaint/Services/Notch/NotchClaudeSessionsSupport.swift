@@ -38,7 +38,7 @@ enum NotchClaudeSessionsSupport {
             case .generating, .runningTool:
                 let a = lhs.turnStarted ?? lhs.phaseSince, b = rhs.turnStarted ?? rhs.phaseSince
                 if a != b { return a < b }
-            case .finished:
+            case .background, .finished:
                 if lhs.phaseSince != rhs.phaseSince { return lhs.phaseSince > rhs.phaseSince }
             case .idle: break
             }
@@ -53,8 +53,9 @@ enum NotchClaudeSessionsSupport {
         case .waitingPermission: return 0
         case .waitingInput: return 1
         case .runningTool, .generating: return 2
-        case .finished: return 3
-        case .idle: return 4
+        case .background: return 3
+        case .finished: return 4
+        case .idle: return 5
         }
     }
 
@@ -102,6 +103,7 @@ enum NotchClaudeSessionsSupport {
         case .waitingInput: return "questionmark.bubble.fill"
         case .runningTool: return "hammer.fill"
         case .generating: return "sparkle"
+        case .background: return "hourglass"
         case .finished: return "checkmark.circle.fill"
         case .idle: return "moon.zzz.fill"
         }

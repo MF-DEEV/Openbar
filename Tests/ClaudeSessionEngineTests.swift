@@ -76,6 +76,23 @@ enum ClaudeSessionEngineTests {
         suite.expect(only(waiting, 6)?.phase == .waitingInput, "other prompts wait for input")
         suite.expect(only(waiting, 6)?.waitingFor == "input needed", "the reason is kept while it waits")
 
+        let render = ClaudeSessionEngine()
+        render.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        render.ingest(sessionID: "s1", facts: [.turnBegan(at(1))], now: at(1))
+        _ = render.snapshot(now: at(2))
+        render.ingest(sessionID: "s1", facts: [.turnEnded(at(5), completed: true)], now: at(5))
+        render.ingest(records: [record(status: .shell, changed: 5)], now: at(5))
+        let behind = render.snapshot(now: at(6))
+        suite.expect(behind.sessions.first?.phase == .background,
+                     "a turn that left a command running in the background, like a render, is not done yet")
+        suite.expect(!behind.events.contains { if case .finished = $0 { return true }; return false },
+                     "so no notice says it finished")
+        suite.expect(ClaudeSessionCounts(behind.sessions).working == 1 && ClaudeSessionPhase.background.isActive
+                     && !ClaudeSessionPhase.background.isWorking, "it counts as work, though no turn runs")
+        render.ingest(records: [record(status: .busy, changed: 30)], now: at(30))
+        render.ingest(sessionID: "s1", facts: [.turnBegan(at(30))], now: at(30))
+        suite.expect(only(render, 31)?.phase == .generating, "when the command ends Claude Code takes the turn up again")
+
         let dialog = ClaudeSessionEngine()
         dialog.ingest(records: [record(status: .idle, changed: 0)], now: at(0))
         dialog.ingest(hook: hook(.notification(type: "idle_prompt"), 9), now: at(9))

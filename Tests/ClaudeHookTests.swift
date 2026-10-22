@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import Foundation
 
 enum ClaudeHookTests {
@@ -301,6 +302,14 @@ enum ClaudeHookTests {
         suite.expect(script.contains("\"say \\\"hi\\\"\nthen \\\\ go\""), "its quotes and backslashes are escaped and lines kept")
         suite.expect(script.contains(#"marker & "[200~""#) && script.contains(#"marker & "[201~""#),
                      "it is typed as a paste, so a line break does not send it early")
+        let pictured = ClaudeTerminalScripts.type("What is it?", images: ["/tmp/a b.png", "/tmp/c.jpg"], tty: "/dev/ttys004")
+        let opening = pictured.range(of: "do script"), closing = pictured.range(of: "do script", options: .backwards)
+        suite.expect(opening != nil && closing != nil && opening!.lowerBound < closing!.lowerBound
+                     && pictured.contains(#"marker & "[200~" & "/tmp/a b.png" & marker & "[201~" & marker & "[200~" & "/tmp/c.jpg" & marker & "[201~" & marker & "[200~""#),
+                     "images go first, each a paste of its own path, with a paste left open for Terminal's return")
+        suite.expect(pictured.contains("delay \(ClaudeTerminalScripts.imageSettle(2))")
+                     && pictured.contains(#"do script ("What is it?" & marker & "[201~") in theTab"#),
+                     "then, once Claude Code has read them, the text closes the paste and its return sends it all")
         suite.expect(ClaudeTerminalScripts.focus(tty: "/dev/ttys004").contains("set selected of theTab to true"),
                      "opening selects that tab")
         suite.expect(ClaudeTerminalBridge.shell(of: getpid()) == getppid(), "a session's shell is its parent process")
@@ -319,23 +328,56 @@ enum ClaudeHookTests {
         let queue = DispatchQueue(label: "test.claude-bridge")
         let lock = NSLock()
         var requests: [[String: Any]] = []
-        func window(_ name: String, shell: Int) -> ClaudeHookServer {
+        func window(_ name: String, shell: Int, images: Bool = true) -> ClaudeHookServer {
             ClaudeHookServer(path: folder.appending(path: name).path, queue: queue) { payload, connection in
                 let request = (try? JSONSerialization.jsonObject(with: payload)) as? [String: Any] ?? [:]
                 lock.withLock { requests.append(request) }
                 let mine = request["shellPid"] as? Int == shell
-                connection.finish(Data((mine ? #"{"ok":true}"# : #"{"ok":false,"error":"missing"}"#).utf8 + [0x0A]))
+                let answer = !mine ? #"{"ok":false,"error":"missing"}"#
+                    : request["command"] as? String == "send-images" && !images ? #"{"ok":false,"error":"unknown"}"# : #"{"ok":true}"#
+                connection.finish(Data(answer.utf8 + [0x0A]))
             }
         }
         let first = window("1.sock", shell: 111), second = window("2.sock", shell: 222)
-        suite.expect(queue.sync { first.start() && second.start() }, "the windows listen")
+        let old = window("3.sock", shell: 444, images: false)
+        suite.expect(queue.sync { first.start() && second.start() && old.start() }, "the windows listen")
         try? Data().write(to: folder.appending(path: "stale.sock"))
         suite.expect(ClaudeTerminalBridge.send("Ship it", shell: 222, folder: folder), "the window with the terminal types the reply")
         let sent = lock.withLock { requests.first { $0["shellPid"] as? Int == 222 } }
         suite.expect(sent?["command"] as? String == "send" && sent?["text"] as? String == "Ship it", "the request says what to type")
         suite.expect(!ClaudeTerminalBridge.send("x", shell: 333, folder: folder), "no window holding the terminal means no reply")
+        suite.expect(ClaudeTerminalBridge.send("Look", images: ["/tmp/a.png"], shell: 222, folder: folder) == nil,
+                     "images go to the window holding the terminal")
+        let pictured2 = lock.withLock { requests.last { $0["command"] as? String == "send-images" && $0["shellPid"] as? Int == 222 } }
+        suite.expect(pictured2?["images"] as? [String] == ["/tmp/a.png"] && pictured2?["text"] as? String == "Look",
+                     "with the text that follows them")
+        suite.expect(ClaudeTerminalBridge.send("Look", images: ["/tmp/a.png"], shell: 444, folder: folder) == .bridgeOutdated,
+                     "an extension from before images types nothing and asks to be updated")
+        suite.expect(ClaudeTerminalBridge.send("Look", images: ["/tmp/a.png"], shell: 555, folder: folder) == .unreachable,
+                     "and no window holding the terminal is unreachable")
         suite.expect(ClaudeTerminalBridge.focus(shell: 111, folder: folder), "a window shows its terminal on request")
-        queue.sync { first.stop(); second.stop() }
+        queue.sync { first.stop(); second.stop(); old.stop() }
+
+        let board = NSPasteboard(name: NSPasteboard.Name("vorssaint-test-\(getpid())"))
+        defer { board.releaseGlobally() }
+        board.clearContents()
+        board.setString("plain words", forType: .string)
+        suite.expect(!ClaudeImageAttachments.holdsImages(board), "a text paste stays text")
+        let image = NSImage(size: NSSize(width: 8, height: 8))
+        image.lockFocus(); NSColor.systemBlue.setFill(); NSRect(x: 0, y: 0, width: 8, height: 8).fill(); image.unlockFocus()
+        board.clearContents()
+        board.writeObjects([image])
+        let saved = ClaudeImageAttachments.images(from: board)
+        suite.expect(ClaudeImageAttachments.holdsImages(board) && saved.count == 1 && saved.first?.pathExtension == "png"
+                     && saved.first.map { FileManager.default.fileExists(atPath: $0.path) } == true,
+                     "a copied picture becomes a PNG file Claude Code can read")
+        let photo = folder.appending(path: "photo.jpg"), notes = folder.appending(path: "notes.txt")
+        try? Data([0xFF, 0xD8, 0xFF]).write(to: photo)
+        try? Data("x".utf8).write(to: notes)
+        board.clearContents()
+        board.writeObjects([photo as NSURL, notes as NSURL])
+        suite.expect(ClaudeImageAttachments.images(from: board) == [photo], "a copied image file is used where it lies; others are left out")
+        saved.forEach { try? FileManager.default.removeItem(at: $0) }
         suite.expect(!ClaudeTerminalBridge.focus(shell: 111, folder: folder), "with the IDE closed nothing answers")
         suite.expect(!ClaudeTerminalBridge.ask(["command": "ping"], folder: folder.appending(path: "missing")),
                      "a missing folder is no answer")

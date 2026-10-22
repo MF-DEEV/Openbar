@@ -23,6 +23,8 @@ final class ClaudeSessionService: ObservableObject {
     @Published var focusedID: String?
     /// What the person is writing to each session, kept while the island closes.
     @Published var drafts: [String: String] = [:]
+    /// Images added to each draft, as files Claude Code reads.
+    @Published private(set) var attachments: [String: [URL]] = [:]
     /// Names the person gave sessions in the island, by session. Kept in the
     /// app's own preferences, never in Claude Code's files.
     @Published private(set) var names: [String: String] =
@@ -104,6 +106,7 @@ final class ClaudeSessionService: ObservableObject {
             schedule(Self.activeTick)
             refresh()
         }
+        actions.async { ClaudeImageAttachments.sweep() }
         checkHooks()
     }
 
@@ -133,6 +136,27 @@ final class ClaudeSessionService: ObservableObject {
     }
 
     // MARK: Actions
+
+    /// Adds the pasteboard's images to a session's draft; false when it holds
+    /// none, so the paste goes to the text instead.
+    @discardableResult
+    func attachImages(from pasteboard: NSPasteboard, to id: String) -> Bool {
+        guard ClaudeImageAttachments.holdsImages(pasteboard) else { return false }
+        attach(ClaudeImageAttachments.images(from: pasteboard), to: id)
+        return true
+    }
+
+    func attach(_ images: [URL], to id: String) {
+        guard !images.isEmpty else { return }
+        var list = attachments[id] ?? []
+        for image in images where !list.contains(image) { list.append(image) }
+        attachments[id] = Array(list.prefix(ClaudeImageAttachments.limit))
+    }
+
+    func detach(_ image: URL, from id: String) {
+        attachments[id]?.removeAll { $0 == image }
+        if attachments[id]?.isEmpty == true { attachments[id] = nil }
+    }
 
     /// What the island calls a session.
     func displayName(_ session: ClaudeSession) -> String {
@@ -174,16 +198,14 @@ final class ClaudeSessionService: ObservableObject {
         }
     }
 
-    enum SendFailure: Error, Equatable {
-        /// A dialog waits in that terminal, and the keys would answer it.
-        case waiting
-        case unreachable
-    }
+    typealias SendFailure = ClaudeReplyFailure
 
     /// Types a reply into the session's terminal, as if the person typed it
     /// there. Calls back on the main thread.
     func send(_ text: String, to session: ClaudeSession, completion: @escaping (SendFailure?) -> Void) {
-        guard let reply = NotchClaudeSessionsSupport.reply(text), NotchClaudeSessionsSupport.canReply(session) else {
+        let images = attachments[session.id] ?? []
+        let reply = NotchClaudeSessionsSupport.reply(text) ?? ""
+        guard !reply.isEmpty || !images.isEmpty, NotchClaudeSessionsSupport.canReply(session) else {
             return completion(session.phase.isWaiting || session.waitingFor != nil ? .waiting : .unreachable)
         }
         let folders = ClaudeSessionRegistryReader.folders(home)
@@ -198,7 +220,7 @@ final class ClaudeSessionService: ObservableObject {
                 let failure: SendFailure?
                 if now?.sessionID != session.id { failure = .unreachable }
                 else if asking || now?.status == .waiting { failure = .waiting }
-                else { failure = ClaudeTerminalReply.send(reply, to: session, bridge: bridge) ? nil : .unreachable }
+                else { failure = ClaudeTerminalReply.send(reply, images: images, to: session, bridge: bridge) }
                 finishSend(failure, session: session, completion: completion)
             }
         }
@@ -208,6 +230,7 @@ final class ClaudeSessionService: ObservableObject {
         DispatchQueue.main.async {
             if failure == nil {
                 self.drafts[session.id] = nil
+                self.attachments[session.id] = nil
                 self.acknowledge(session.id)
             }
             completion(failure)
@@ -385,7 +408,7 @@ final class ClaudeSessionService: ObservableObject {
         transcripts = transcripts.filter { ids.contains($0.key) }
         releaseSettled(now: now)
         publish(now: now)
-        let active = published.contains { $0.phase.isWorking || $0.phase.isWaiting }
+        let active = published.contains { $0.phase.isActive || $0.phase.isWaiting }
         schedule(active ? Self.activeTick : Self.quietTick)
     }
 
@@ -567,17 +590,23 @@ enum ClaudeHostFocus {
 }
 
 enum ClaudeTerminalReply {
-    static func send(_ text: String, to session: ClaudeSession, bridge: URL) -> Bool {
+    typealias Failure = ClaudeReplyFailure
+
+    static func send(_ text: String, images: [URL] = [], to session: ClaudeSession, bridge: URL) -> Failure? {
+        let paths = images.map(\.path)
         switch session.host {
         case .terminal(let tty):
-            guard AppleScriptRunner.consentToAutomate(bundleID: ClaudeSessionHosts.terminal) else { return false }
-            let result = AppleScriptRunner.run(ClaudeTerminalScripts.type(text, tty: tty))
-            return result.ok && result.output == "sent"
+            guard AppleScriptRunner.consentToAutomate(bundleID: ClaudeSessionHosts.terminal) else { return .unreachable }
+            let script = paths.isEmpty ? ClaudeTerminalScripts.type(text, tty: tty)
+                : ClaudeTerminalScripts.type(text, images: paths, tty: tty)
+            let result = AppleScriptRunner.run(script)
+            return result.ok && result.output == "sent" ? nil : .unreachable
         case .antigravity:
-            guard let shell = ClaudeTerminalBridge.shell(of: session.pid) else { return false }
-            return ClaudeTerminalBridge.send(text, shell: shell, folder: bridge)
+            guard let shell = ClaudeTerminalBridge.shell(of: session.pid) else { return .unreachable }
+            if paths.isEmpty { return ClaudeTerminalBridge.send(text, shell: shell, folder: bridge) ? nil : .unreachable }
+            return ClaudeTerminalBridge.send(text, images: paths, shell: shell, folder: bridge)
         case .app, .unknown:
-            return false
+            return .unreachable
         }
     }
 }
