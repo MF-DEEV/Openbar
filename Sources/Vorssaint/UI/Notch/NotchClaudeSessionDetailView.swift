@@ -465,8 +465,10 @@ struct NotchClaudeSessionReplyField: View {
                     .background(canSend ? AgentProvider.claude.tint : .white.opacity(0.08), in: Circle())
                 }
                 .buttonStyle(NotchButtonStyle(cornerRadius: 12))
+                // Return sends from the field, and ⌘↩ as on the enlarged page.
+                .keyboardShortcut(.return, modifiers: .command)
                 .disabled(!canSend)
-                .help(text.send)
+                .help(text.send + " · " + text.sendShortcut)
                 .accessibilityLabel(text.send)
             }
             .padding(.leading, 10)
