@@ -14,7 +14,10 @@ struct NotchClaudeSessionLargeView: View {
     @AppStorage(DefaultsKey.notchSessionsLargeTextSize) private var textSize = NotchClaudeSessionsSupport.largeTextSizes.lowerBound + 3
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(DefaultsKey.notchSessionsSidebarHidden) private var sidebarHidden = false
+    @AppStorage(DefaultsKey.notchSessionsSidebarHidden) private var storedSidebarHidden = false
+    /// The page's own copy, so folding animates; a change read back from the
+    /// preferences arrives outside the click's animation and would jump.
+    @State private var sidebarHidden = UserDefaults.standard.bool(forKey: DefaultsKey.notchSessionsSidebarHidden)
     @State private var allTools = false
     @State private var allAgents = false
     @State private var handleHovered = false
@@ -47,6 +50,7 @@ struct NotchClaudeSessionLargeView: View {
                         .allowsHitTesting(!sidebarHidden)
                         .accessibilityHidden(sidebarHidden)
                 }
+                .animation(reduceMotion ? nil : .smooth(duration: 0.38), value: sidebarHidden)
                 .frame(maxHeight: .infinity)
                 NotchClaudeSessionComposer(session: session, text: text, size: size)
             }
@@ -64,7 +68,8 @@ struct NotchClaudeSessionLargeView: View {
     }
 
     private func toggleSidebar() {
-        withAnimation(reduceMotion ? nil : .smooth(duration: 0.38)) { sidebarHidden.toggle() }
+        sidebarHidden.toggle()
+        storedSidebarHidden = sidebarHidden
     }
 
     /// The line between the conversation and the details folds the details
