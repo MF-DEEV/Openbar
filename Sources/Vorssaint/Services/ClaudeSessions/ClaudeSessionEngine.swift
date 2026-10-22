@@ -36,7 +36,8 @@ final class ClaudeSessionEngine {
         /// Subagents reported done before anything else was known of them;
         /// the end applies once they are.
         var endedAgents: [String: Date] = [:]
-        /// Commands left running in the background, by the call that started them.
+        /// Commands and subagents left running in the background, by the call
+        /// that started them.
         var background: [String: Background] = [:]
         var tasks: ClaudeTaskProgress?
         var usage: [String: (tokens: AgentTokens, cost: Double)] = [:]
@@ -242,11 +243,12 @@ final class ClaudeSessionEngine {
         // Claude Code says "shell" for a session at rest with a command of its
         // own still running in the background. The work is not done while one
         // it waits for runs; a dev server or an emulator left running is not
-        // work, and when nothing was seen start, it counts as work.
-        if record.status == .shell {
-            let running = entry.runningBackground
-            if running.isEmpty || running.contains(where: { !$0.service }) { return .background }
-        }
+        // work, and when nothing was seen start, it counts as work. While a
+        // subagent it sent to the background works, it says "busy" though
+        // the turn ended.
+        let running = entry.runningBackground
+        if record.status == .shell, running.isEmpty || running.contains(where: { !$0.service }) { return .background }
+        if record.status == .busy, running.contains(where: { !$0.service && $0.task != nil }) { return .background }
         if let ended = entry.turnEnded, entry.completed, now.timeIntervalSince(ended) < finishedFor,
            (entry.acknowledged ?? .distantPast) < ended {
             return .finished
@@ -288,7 +290,7 @@ final class ClaudeSessionEngine {
             title: previews ? entry.title : nil, lastText: previews ? entry.lastText : nil,
             hooked: entry.hooked, chat: previews ? entry.chat : [],
             backgroundLabel: previews ? entry.runningBackground.last { !$0.service }?.label : nil,
-            services: record.status == .shell ? entry.runningBackground.filter(\.service).count : 0)
+            services: record.status == .shell || phase == .background ? entry.runningBackground.filter(\.service).count : 0)
     }
 
     // MARK: Rules
@@ -359,7 +361,7 @@ final class ClaudeSessionEngine {
     /// The notice and the registry's change are written apart.
     static let askedSlack: TimeInterval = 5
 
-    /// Background commands kept per session, the ended ones going first.
+    /// Background commands and subagents kept per session, the ended ones going first.
     static let backgroundKept = 40
 
     /// The conversation keeps its latest messages.
@@ -504,6 +506,8 @@ final class ClaudeSessionEngine {
         }
         // The tool that asked ran or was refused, here or in the terminal.
         entry.permissions.removeAll { $0.toolID == id }
+        // A background command refused before it ran got no id and never ends.
+        if failed, let job = entry.background[id], job.task == nil, job.ended == nil { entry.background[id]?.ended = date }
         touch(date, in: &entry)
     }
 

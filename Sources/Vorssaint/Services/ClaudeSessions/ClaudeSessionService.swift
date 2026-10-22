@@ -322,6 +322,12 @@ final class ClaudeSessionService: ObservableObject {
         } else {
             connection.finish()
         }
+        // A turn's lines are written before its Stop hook runs; reading them
+        // first tells whether it left work in the background, before a notice
+        // calls it done.
+        if case .stopped = message.fact.event, let path = transcripts[message.fact.sessionID] {
+            read(path, session: message.fact.sessionID, now: now)
+        }
         engine.ingest(hook: message.fact, now: now)
         publish(now: now)
     }
