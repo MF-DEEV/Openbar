@@ -34,6 +34,9 @@ enum HarnessReaderContractTests {
         let compacted = line(#"{"type":"user","isCompactSummary":true,"timestamp":1790087000,"sessionId":"s","message":{"content":"This session is being continued from a previous conversation"}}"#)
         suite.expect(reader.parse(compacted, state: &idle, now: now).isEmpty && !idle.turnOpen,
                      "the summary Claude Code writes when it compacts an idle session begins no work")
+        let command = line(#"{"type":"user","timestamp":1790087100,"sessionId":"s","message":{"content":"<command-name>/recap</command-name>\n<command-message>recap</command-message>"}}"#)
+        suite.expect(reader.parse(command, state: &idle, now: now).isEmpty && !idle.turnOpen,
+                     "a slash command like /recap begins no work by itself")
         let began = Date(timeIntervalSince1970: 1_790_088_000)
         let prompt = line(#"{"type":"user","timestamp":1790088000,"sessionId":"s","cwd":"/Users/me/code/app","message":{"content":"work"}}"#)
         suite.expect(reader.parse(prompt, state: &state, now: now) == [.turnBegan(began)],

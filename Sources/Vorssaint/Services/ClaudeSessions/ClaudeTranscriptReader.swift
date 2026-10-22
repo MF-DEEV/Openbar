@@ -113,6 +113,10 @@ struct ClaudeTranscriptReader {
                 ?? blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
             if texts.contains(where: { $0.hasPrefix("[Request interrupted by user") || $0.hasPrefix("<local-command-std") }) {
                 facts.append(.turnEnded(date, completed: false))
+            } else if texts.contains(where: { $0.hasPrefix("<command-name>") }) {
+                // A slash command typed in the terminal, like /recap or /cost,
+                // asks the model nothing by itself; one that does, like a
+                // skill, begins its turn with the reply or the registry.
             } else if !texts.isEmpty {
                 facts.append(.turnBegan(date))
                 // Task notifications and the summary a compaction leaves

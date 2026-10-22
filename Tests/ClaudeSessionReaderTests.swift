@@ -133,6 +133,9 @@ enum ClaudeSessionReaderTests {
         }
         suite.expect(!parse([summary], previews: false).contains { if case .turnBegan = $0 { return true }; return false },
                      "an idle compaction's summary begins no turn")
+        let slash = #"{"type":"user","message":{"role":"user","content":"<command-name>/recap</command-name>\n<command-message>recap</command-message>"},"timestamp":"2026-10-22T10:26:11.114Z"}"#
+        suite.expect(!parse([slash], previews: true).contains { if case .turnBegan = $0 { return true }; return false },
+                     "a slash command like /recap begins no turn")
         suite.expect(said.first == "Also run lint" && said.count == 2,
                      "a prompt typed while Claude works counts; summaries and commands do not: \(said.map { $0.prefix(20) })")
         suite.expect(said.last?.count == ClaudeTranscriptReader.replyLimit && said.last?.hasSuffix("…") == true,

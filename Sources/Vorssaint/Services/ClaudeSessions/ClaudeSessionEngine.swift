@@ -23,6 +23,10 @@ final class ClaudeSessionEngine {
     struct Activity {
         var turnOpen = false
         var turnStarted: Date?
+        /// The open turn is known only from the registry saying busy, with
+        /// nothing typed, said or run since; and when the turn before began.
+        var registryOnly = false
+        var startedBefore: Date?
         var turnEnded: Date?
         var completed = true
         /// The newest moment a hook or transcript line told of.
@@ -96,14 +100,26 @@ final class ClaudeSessionEngine {
             // ended even when its last lines were not read yet.
             if var entry = activity[id], entry.turnOpen, record.status == .idle || record.status == .shell,
                let changed = record.statusUpdated, changed > entry.lastFact ?? .distantPast {
-                end(at: changed, completed: true, in: &entry)
+                if entry.registryOnly {
+                    // Busy a moment with nothing typed, said or run, as while
+                    // Claude Code writes a recap of the session: no turn ran,
+                    // and nothing finished.
+                    entry.turnOpen = false
+                    entry.turnStarted = entry.startedBefore
+                    entry.registryOnly = false
+                } else {
+                    end(at: changed, completed: true, in: &entry)
+                }
                 activity[id] = entry
             }
             // And it went to work before its prompt was read.
             if record.status == .busy, let changed = record.statusUpdated {
                 var entry = activity[id] ?? Activity(firstSeen: now)
                 if !entry.turnOpen, changed > entry.lastFact ?? .distantPast {
+                    let before = entry.turnStarted
                     begin(at: changed, in: &entry)
+                    entry.registryOnly = true
+                    entry.startedBefore = before
                     activity[id] = entry
                 }
             }
@@ -188,7 +204,10 @@ final class ClaudeSessionEngine {
                     events.append(.needsPermission(id: id, tool: entry.permissions.first?.tool ?? entry.openTool?.name ?? ""))
                 case .waitingInput:
                     events.append(.needsInput(id: id))
-                case .finished where previous.phase.isActive || previous.phase.isWaiting:
+                // Only a turn that ended after the work was seen begin is news;
+                // going back to a result already shown, as after a recap, is not.
+                case .finished where (previous.phase.isActive || previous.phase.isWaiting)
+                    && (entry.turnEnded ?? .distantPast) >= previous.since:
                     let duration = entry.turnStarted.flatMap { start in entry.turnEnded.map { $0.timeIntervalSince(start) } }
                     events.append(.finished(id: id, duration: duration))
                 default: break
@@ -491,5 +510,7 @@ final class ClaudeSessionEngine {
 
     private func touch(_ date: Date, in entry: inout Activity) {
         entry.lastFact = max(entry.lastFact ?? date, date)
+        // Something was typed, said or run: the turn is real.
+        entry.registryOnly = false
     }
 }
