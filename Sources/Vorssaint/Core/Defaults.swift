@@ -896,6 +896,8 @@ enum DefaultsKey {
     static let notchSessionsContentPreview = "notchSessionsContentPreview"
     /// Names given to Claude Code sessions in the island, by session.
     static let notchSessionsNames = "notchSessionsNames"
+    /// Whether an enlarged session page keeps its details folded away.
+    static let notchSessionsSidebarHidden = "notchSessionsSidebarHidden"
     /// The text size of a session's page with the island grown around it.
     static let notchSessionsLargeTextSize = "notchSessionsLargeTextSize"
     static let notchEnabled = "notchEnabled"
@@ -1492,6 +1494,7 @@ enum Defaults {
         DefaultsKey.notchSessionsAutoExpand: true,
         DefaultsKey.notchSessionsContentPreview: false,
         DefaultsKey.notchSessionsLargeTextSize: 15.0,
+        DefaultsKey.notchSessionsSidebarHidden: false,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchBrowserCovers: false,

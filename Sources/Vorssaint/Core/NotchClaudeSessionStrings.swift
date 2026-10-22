@@ -21,6 +21,8 @@ struct NotchClaudeSessionStrings {
     let answerInTerminal: String
     let open: String
     let enlarge: String
+    let showDetails: String
+    let hideDetails: String
     let rename: String
     let renamePlaceholder: String
     let conversation: String
@@ -126,6 +128,8 @@ extension NotchClaudeSessionStrings {
         answerInTerminal: "Answer this one in the terminal.",
         open: "Open",
         enlarge: "Enlarge",
+        showDetails: "Show details",
+        hideDetails: "Hide details",
         rename: "Rename",
         renamePlaceholder: "Name this session",
         conversation: "Conversation",

@@ -14,8 +14,10 @@ struct NotchClaudeSessionLargeView: View {
     @AppStorage(DefaultsKey.notchSessionsLargeTextSize) private var textSize = NotchClaudeSessionsSupport.largeTextSizes.lowerBound + 3
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(DefaultsKey.notchSessionsSidebarHidden) private var sidebarHidden = false
     @State private var allTools = false
     @State private var allAgents = false
+    @State private var handleHovered = false
 
     private static let thinkingRow = -1
     /// Rows a folded list shows: the running ones and the latest.
@@ -27,14 +29,18 @@ struct NotchClaudeSessionLargeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 header(now: context.date)
                 if session.phase.isWaiting { NotchClaudeSessionPermissionCard(session: session, text: text, open: open) }
-                HStack(alignment: .top, spacing: 18) {
+                HStack(alignment: .top, spacing: 0) {
                     conversation
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    Divider().overlay(Color.white.opacity(0.08))
-                    ScrollView { sidebar(now: context.date).padding(.bottom, 8) }
-                        .scrollIndicators(.automatic)
-                        .frame(width: 330)
+                    sidebarHandle
+                    if !sidebarHidden {
+                        ScrollView { sidebar(now: context.date).padding(.bottom, 8) }
+                            .scrollIndicators(.automatic)
+                            .frame(width: 330)
+                            .transition(.move(edge: .trailing).combined(with: .opacity))
+                    }
                 }
+                .clipped()
                 .frame(maxHeight: .infinity)
                 NotchClaudeSessionComposer(session: session, text: text, size: size)
             }
@@ -49,6 +55,37 @@ struct NotchClaudeSessionLargeView: View {
             .opacity(0)
             .accessibilityHidden(true)
         }
+    }
+
+    private func toggleSidebar() {
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.22)) { sidebarHidden.toggle() }
+    }
+
+    /// The line between the conversation and the details folds the details
+    /// away, or brings them back, at a click.
+    private var sidebarHandle: some View {
+        Button(action: toggleSidebar) {
+            ZStack {
+                Rectangle()
+                    .fill(.white.opacity(handleHovered ? 0.22 : 0.08))
+                    .frame(width: 1)
+                Image(systemName: sidebarHidden ? "chevron.left" : "chevron.right")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white.opacity(handleHovered ? 0.9 : 0.5))
+                    .frame(width: 18, height: 34)
+                    .background(Color(white: handleHovered ? 0.2 : 0.12), in: Capsule())
+            }
+            .frame(width: 26)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 6)
+        .onHover { hovering in
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.12)) { handleHovered = hovering }
+        }
+        .help(sidebarHidden ? text.showDetails : text.hideDetails)
+        .accessibilityLabel(sidebarHidden ? text.showDetails : text.hideDetails)
     }
 
     private func resize(by step: Double) {
@@ -93,6 +130,16 @@ struct NotchClaudeSessionLargeView: View {
             HStack(spacing: 2) {
                 sizeButton("textformat.size.smaller", help: text.smallerText, step: -1)
                 sizeButton("textformat.size.larger", help: text.largerText, step: 1)
+                Button(action: toggleSidebar) {
+                    Image(systemName: "sidebar.right")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundStyle(.white.opacity(sidebarHidden ? 0.55 : 0.9))
+                        .frame(width: 30, height: 30)
+                        .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 9))
+                .help(sidebarHidden ? text.showDetails : text.hideDetails)
+                .accessibilityLabel(sidebarHidden ? text.showDetails : text.hideDetails)
             }
         }
     }
