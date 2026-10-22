@@ -124,6 +124,11 @@ struct NotchClaudeSessionRow: View {
     let now: Date
     let text: NotchClaudeSessionStrings
     let open: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var hovered = false
+
+    /// A session asleep fades back, and comes forward under the pointer to be read.
+    private var dimmed: Bool { NotchClaudeSessionsSupport.dozes(session, now: now) && !hovered }
 
     var body: some View {
         HStack(spacing: 6) {
@@ -138,6 +143,8 @@ struct NotchClaudeSessionRow: View {
                             .accessibilityHidden(true)
                     }
                 }
+                .opacity(dimmed ? NotchClaudeSessionsSupport.dozingOpacity : 1)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: dimmed)
                 .padding(.leading, 11)
                 .padding(.trailing, quickDecision ? 0 : 11)
                 .frame(maxWidth: .infinity, minHeight: 46, maxHeight: 46)
@@ -167,6 +174,7 @@ struct NotchClaudeSessionRow: View {
                 .allowsHitTesting(false)
         }
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .onHover { hovered = $0 }
     }
 
     private var quickDecision: Bool { session.permission?.fitsOnALine == true }

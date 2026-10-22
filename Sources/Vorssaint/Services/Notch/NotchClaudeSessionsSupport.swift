@@ -194,11 +194,17 @@ enum NotchClaudeSessionsSupport {
         case .waitingPermission: return .alert
         case .waitingInput: return .ask
         case .finished: return .content
-        case .idle:
-            let quiet = now.timeIntervalSince(session.lastActive ?? session.phaseSince)
-            return quiet < dozeAfter ? .rest : .doze
+        case .idle: return dozes(session, now: now) ? .doze : .rest
         }
     }
+
+    /// A session quiet for long: its Clawd sleeps and its row dims.
+    static func dozes(_ session: ClaudeSession, now: Date) -> Bool {
+        session.phase == .idle && now.timeIntervalSince(session.lastActive ?? session.phaseSince) >= dozeAfter
+    }
+
+    /// How far a sleeping session's row fades, so the ones at work stand out.
+    static let dozingOpacity = 0.5
 
     /// When the session's work ended, which its Clawd hops for. Counted from
     /// the phase's own start, so every Clawd of the session on screen hops

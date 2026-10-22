@@ -144,6 +144,14 @@ enum ClawdCostumeTests {
                      "a session quiet for long dozes off")
         suite.expect(NotchClaudeSessionsSupport.motion(session(.idle, since: 0), now: now) == .doze,
                      "without a time it last worked, how long it has been idle counts")
+        let asleep = session(.idle, since: 0, active: 1000 - NotchClaudeSessionsSupport.dozeAfter)
+        suite.expect(NotchClaudeSessionsSupport.dozes(asleep, now: now)
+                     && !NotchClaudeSessionsSupport.dozes(session(.idle, since: 990, active: 900), now: now)
+                     && !NotchClaudeSessionsSupport.dozes(session(.finished, since: 0), now: now)
+                     && !NotchClaudeSessionsSupport.dozes(session(.background, since: 0), now: now),
+                     "only a session idle for long sleeps and fades, from the moment its five minutes are up")
+        suite.expect(NotchClaudeSessionsSupport.dozingOpacity > 0.3 && NotchClaudeSessionsSupport.dozingOpacity < 1,
+                     "a sleeping row fades but stays readable")
         suite.expect(NotchClaudeSessionsSupport.cheer(session(.finished, since: 995)) == ClaudeSessionEngineTests.at(995)
                      && NotchClaudeSessionsSupport.cheer(session(.idle)) == nil,
                      "a session's Clawd hops from when its work ended, and only then")
