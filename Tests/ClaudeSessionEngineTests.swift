@@ -476,6 +476,13 @@ enum ClaudeSessionEngineTests {
         ]).map(\.id)
         suite.expect(order == ["d", "h", "f", "c", "e", "b", "g", "a"],
                      "waiting sessions lead, then work by start, unread results newest first, idle by name: \(order)")
+        var old = session("old", .idle, since: 0, project: "alpha"), fresh = session("fresh", .idle, since: 0, project: "zeta")
+        old.lastActive = at(10)
+        fresh.lastActive = at(500)
+        let rendering = session("bg", .background, since: 2, project: "m")
+        let quiet = NotchClaudeSessionsSupport.sorted([old, fresh, rendering]).map(\.id)
+        suite.expect(quiet == ["bg", "fresh", "old"],
+                     "a session that just went quiet stays above long quiet ones, under work in the background: \(quiet)")
 
         let expand = NotchClaudeSessionsSupport.shouldAutoExpand
         let ask = ClaudeSessionEvent.needsPermission(id: "a", tool: "Bash")

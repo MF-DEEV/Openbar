@@ -27,7 +27,8 @@ enum NotchClaudeSessionsSupport {
     // MARK: Order
 
     /// Sessions that wait on the person come first, then the ones at work,
-    /// then unread results; quiet sessions keep a steady order by folder.
+    /// then work in the background and unread results; quiet sessions follow
+    /// from the one that worked last, then by folder.
     static func sorted(_ sessions: [ClaudeSession]) -> [ClaudeSession] {
         sessions.sorted { lhs, rhs in
             let left = rank(lhs.phase), right = rank(rhs.phase)
@@ -40,7 +41,11 @@ enum NotchClaudeSessionsSupport {
                 if a != b { return a < b }
             case .background, .finished:
                 if lhs.phaseSince != rhs.phaseSince { return lhs.phaseSince > rhs.phaseSince }
-            case .idle: break
+            case .idle:
+                // The one that last worked comes first, so a session just
+                // looked at does not sink among the long quiet ones.
+                let a = lhs.lastActive ?? .distantPast, b = rhs.lastActive ?? .distantPast
+                if a != b { return a > b }
             }
             let byName = lhs.project.localizedStandardCompare(rhs.project)
             if byName != .orderedSame { return byName == .orderedAscending }

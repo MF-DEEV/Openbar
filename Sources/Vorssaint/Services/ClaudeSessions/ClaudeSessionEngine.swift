@@ -240,6 +240,7 @@ final class ClaudeSessionEngine {
             id: id, pid: record.pid, cwd: record.cwd, project: AgentLogParser.projectName(record.cwd),
             name: record.name, nameSource: record.nameSource, branch: entry.branch, model: entry.model, host: record.host,
             phase: phase, phaseSince: since, turnStarted: entry.turnStarted,
+            lastActive: [entry.turnEnded, entry.lastFact, record.statusUpdated].compactMap { $0 }.max(),
             waitingFor: record.status == .waiting ? record.waitingFor : nil,
             currentTool: phase == .runningTool || phase == .waitingPermission ? entry.openTool.map(gated) : nil,
             permission: entry.permissions.first,

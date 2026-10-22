@@ -164,6 +164,8 @@ struct ClaudeSession: Equatable, Identifiable {
     var phaseSince: Date
     /// When the turn under way, or the last one, began.
     var turnStarted: Date?
+    /// When the session last did anything, for a steady order among quiet ones.
+    var lastActive: Date? = nil
     var waitingFor: String?
     var currentTool: ClaudeToolUse?
     var permission: ClaudePermission?
