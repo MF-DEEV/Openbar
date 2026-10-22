@@ -14,8 +14,8 @@ enum ClaudeSessionPhase: String, Equatable {
     case waitingPermission
     /// A question, dialog or other prompt waits for the person.
     case waitingInput
-    /// The turn ended but a command it started, like a render, still runs
-    /// in the background; Claude Code hears when it ends.
+    /// The turn ended but a command it started, like a render, or a subagent
+    /// it sent off still runs in the background; Claude Code hears when it ends.
     case background
     /// The turn ended and the person has not looked at it yet.
     case finished
@@ -322,10 +322,11 @@ enum ClaudeTranscriptFact: Equatable {
     case usage(key: String, tokens: AgentTokens, cost: Double)
     case subagentActivity(id: String, at: Date)
     case subagentEnded(id: String, at: Date)
-    /// A command the model left running in the background; a service, like
-    /// a dev server or an emulator, is meant to keep running.
+    /// A command the model left running in the background, or a subagent it
+    /// sent there; a service, like a dev server or an emulator, is meant to
+    /// keep running.
     case backgroundStarted(toolID: String, service: Bool, label: String?, at: Date)
-    /// The id Claude Code gave that command, which its end notice names.
+    /// The id Claude Code gave that command or subagent, which its end notice names.
     case backgroundTask(toolID: String, task: String)
     case subagentInfo(id: String, type: String, description: String?)
     case tasks(ClaudeTaskProgress)

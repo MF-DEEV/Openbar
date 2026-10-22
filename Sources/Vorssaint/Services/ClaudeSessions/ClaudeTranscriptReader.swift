@@ -107,8 +107,17 @@ struct ClaudeTranscriptReader {
                 for result in results {
                     guard let id = result["tool_use_id"] as? String else { continue }
                     facts.append(.toolFinished(id: id, at: date, failed: result["is_error"] as? Bool == true))
-                    if let task = (json["toolUseResult"] as? [String: Any])?["backgroundTaskId"] as? String, !task.isEmpty {
+                    let outcome = json["toolUseResult"] as? [String: Any]
+                    if let task = outcome?["backgroundTaskId"] as? String, !task.isEmpty {
                         facts.append(.backgroundTask(toolID: id, task: task))
+                    }
+                    // A subagent sent to the background answers at once with
+                    // its id; Claude waits for it as for a render.
+                    if outcome?["isAsync"] as? Bool == true || outcome?["status"] as? String == "async_launched",
+                       let agent = outcome?["agentId"] as? String, !agent.isEmpty {
+                        let label = policy.previews ? preview(outcome?["description"] as? String) : nil
+                        facts.append(.backgroundStarted(toolID: id, service: false, label: label, at: date))
+                        facts.append(.backgroundTask(toolID: id, task: agent))
                     }
                 }
                 if json["toolEndsTurn"] as? Bool == true { facts.append(.turnEnded(date, completed: true)) }

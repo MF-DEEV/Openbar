@@ -163,6 +163,18 @@ enum ClaudeSessionReaderTests {
         suite.expect(parse([started], previews: false).contains(.backgroundStarted(toolID: "tb1", service: true, label: nil,
                                                                                   at: date("2026-10-22T10:00:00.000Z"))),
                      "with previews off it is still told apart, without its words")
+        let sent = #"{"type":"user","timestamp":"2026-10-22T13:14:15.571Z","toolUseResult":{"isAsync":true,"status":"async_launched","agentId":"a758ef93113160fa0","description":"Map friends tab and add flow"},"message":{"role":"user","content":[{"tool_use_id":"ta1","type":"tool_result","content":[{"type":"text","text":"Async agent launched successfully."}]}]}}"#
+        let waited = #"{"type":"user","timestamp":"2026-10-22T13:14:20.000Z","toolUseResult":{"status":"completed","agentId":"a1","description":"Look around"},"message":{"role":"user","content":[{"tool_use_id":"ta2","type":"tool_result","content":"Done."}]}}"#
+        let agents = parse([sent, waited], previews: true)
+        suite.expect(agents.contains(.backgroundStarted(toolID: "ta1", service: false, label: "Map friends tab and add flow",
+                                                        at: date("2026-10-22T13:14:15.571Z")))
+                     && agents.contains(.backgroundTask(toolID: "ta1", task: "a758ef93113160fa0")),
+                     "a subagent sent to the background is work Claude waits for, under its own id")
+        suite.expect(!agents.contains { if case .backgroundStarted(let id, _, _, _) = $0 { return id == "ta2" }; return false },
+                     "a subagent that answered before the turn went on is not")
+        suite.expect(parse([sent], previews: false).contains(.backgroundStarted(toolID: "ta1", service: false, label: nil,
+                                                                               at: date("2026-10-22T13:14:15.571Z"))),
+                     "with previews off without what it does")
 
         let notice = #"{"type":"user","origin":{"kind":"task-notification"},"timestamp":"2026-10-21T19:06:34.760Z","message":{"role":"user","content":"<task-notification>\n<task-id>a05df</task-id>\n<status>completed</status>\n</task-notification>"},"sessionId":"s1"}"#
         let queued = #"{"type":"queue-operation","operation":"enqueue","timestamp":"2026-10-21T19:06:30.000Z","content":"<task-notification><task-id>b77</task-id><status>failed</status></task-notification>"}"#

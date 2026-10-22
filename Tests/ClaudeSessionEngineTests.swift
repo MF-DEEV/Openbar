@@ -159,6 +159,73 @@ enum ClaudeSessionEngineTests {
                      "work it waits for keeps it in the background, saying what")
         services.ingest(sessionID: "s1", facts: [.subagentEnded(id: "b3", at: at(9))], now: at(9))
         suite.expect(only(services, 10)?.phase != .background, "once that work ends, the services alone do not hold it there")
+        // Claude Code stays "busy" while subagents it sent to the background
+        // work, and the turn that sent them still ends with its Stop hook.
+        let explore = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        explore.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        explore.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)),
+            .backgroundStarted(toolID: "t1", service: false, label: "Map friends tab", at: at(2)), .backgroundTask(toolID: "t1", task: "a1"),
+            .backgroundStarted(toolID: "t2", service: false, label: "Map poll design", at: at(3)), .backgroundTask(toolID: "t2", task: "a2"),
+        ], now: at(2))
+        _ = explore.snapshot(now: at(3))
+        explore.ingest(sessionID: "s1", facts: [.turnEnded(at(10), completed: true)], now: at(10))
+        explore.ingest(hook: hook(.stopped(lastText: "Waiting for both agents"), 10), now: at(10))
+        let sentOffSnapshot = explore.snapshot(now: at(11))
+        let sentOff: ClaudeSession? = sentOffSnapshot.sessions.first
+        suite.expect(sentOff?.phase == .background, "a turn that left subagents working in the background is not done")
+        suite.expect(sentOff?.backgroundLabel == "Map poll design", "and says what it waits for")
+        suite.expect(sentOffSnapshot.events.isEmpty, "so no notice says it finished")
+        explore.ingest(sessionID: "s1", facts: [.subagentEnded(id: "a1", at: at(100)), .turnBegan(at(100))], now: at(100))
+        suite.expect(only(explore, 101)?.phase == .generating, "the first one's end takes the turn up again")
+        explore.ingest(sessionID: "s1", facts: [.turnEnded(at(105), completed: true)], now: at(105))
+        let second = explore.snapshot(now: at(106))
+        let left2: ClaudeSession? = second.sessions.first
+        suite.expect(left2?.phase == .background && second.events.isEmpty, "while the other still works it stays in the background")
+        explore.ingest(sessionID: "s1", facts: [.subagentEnded(id: "a2", at: at(200)), .turnBegan(at(200))], now: at(200))
+        _ = explore.snapshot(now: at(201))
+        explore.ingest(sessionID: "s1", facts: [.turnEnded(at(230), completed: true)], now: at(230))
+        explore.ingest(records: [record(status: .idle, changed: 230)], now: at(230))
+        let done = explore.snapshot(now: at(231))
+        let noticed = done.events.contains { if case .finished = $0 { return true }; return false }
+        suite.expect(done.sessions.first?.phase == .finished && noticed, "once both are done and the turn ends, it finished, with a notice")
+        let served = ClaudeSessionEngine()
+        served.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        served.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)),
+            .backgroundStarted(toolID: "t1", service: true, label: "Run own Metro", at: at(2)), .backgroundTask(toolID: "t1", task: "b1"),
+            .turnEnded(at(10), completed: true),
+        ], now: at(10))
+        suite.expect(only(served, 11)?.phase == .finished, "while the registry trails the end, a service alone does not hold it")
+        served.ingest(sessionID: "s1", facts: [
+            .backgroundStarted(toolID: "t2", service: false, label: "Map the app", at: at(12)), .backgroundTask(toolID: "t2", task: "a1"),
+        ], now: at(12))
+        suite.expect(only(served, 13)?.services == 1, "beside a subagent in the background it says what else runs")
+        // A background command refused before it ran gets no id and never ends.
+        let refused = ClaudeSessionEngine()
+        refused.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        refused.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .toolStarted(tool("b1", 2)),
+            .backgroundStarted(toolID: "b1", service: false, label: "Submit the build", at: at(2)),
+            .toolFinished(id: "b1", at: at(3), failed: true),
+        ], now: at(3))
+        _ = refused.snapshot(now: at(5))
+        refused.ingest(sessionID: "s1", facts: [.turnEnded(at(10), completed: true)], now: at(10))
+        let trailing = refused.snapshot(now: at(10.5))
+        refused.ingest(records: [record(status: .idle, changed: 11)], now: at(11))
+        let refusedNoticed = (trailing.events + refused.snapshot(now: at(11.5)).events).contains { if case .finished = $0 { return true }; return false }
+        suite.expect(trailing.sessions.first?.phase != .background && refusedNoticed,
+                     "a background command refused before it ran holds nothing, and the turn's end is still told")
+        let lostEnd = ClaudeSessionEngine()
+        lostEnd.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        lostEnd.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)),
+            .backgroundStarted(toolID: "t1", service: false, label: nil, at: at(2)), .backgroundTask(toolID: "t1", task: "a1"),
+            .turnEnded(at(10), completed: true),
+        ], now: at(10))
+        lostEnd.ingest(records: [record(status: .idle, changed: 20)], now: at(20))
+        suite.expect(only(lostEnd, 21)?.phase == .finished, "an end not read does not hold it once the registry goes idle")
+
         let unseen = ClaudeSessionEngine()
         unseen.ingest(records: [record(status: .shell, changed: 0)], now: at(0))
         suite.expect(only(unseen, 1)?.phase == .background, "a command running that was never seen start counts as work")
