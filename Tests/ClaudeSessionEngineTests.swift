@@ -401,6 +401,48 @@ enum ClaudeSessionEngineTests {
                      && chat.map(\.role) == [.user, .assistant, .user, .assistant],
                      "the conversation keeps prompts and replies in order, once each: \(chat.map(\.text))")
         suite.expect(Set(chat.map(\.id)).count == chat.count, "each message has its own id")
+        suite.expect(chat.allSatisfy { !$0.endsTurn }, "a reply ends no turn unless the transcript says so")
+        talk.ingest(sessionID: "s1", facts: [.text("Both pass.", at: at(4), endsTurn: true)], now: at(4))
+        let ended = only(talk, 5)?.chat ?? []
+        suite.expect(ended.count == 4 && ended.last?.endsTurn == true,
+                     "a reply read again as the one its turn ended on is marked, not repeated")
+        talk.ingest(sessionID: "s1", facts: [.text("Both pass.", at: at(4))], now: at(4))
+        suite.expect(only(talk, 5)?.chat.last?.endsTurn == true, "and reading it again plainly keeps the mark")
+        talk.ingest(sessionID: "s1", facts: [
+            .prompt("Ship it", at: at(5)), .text("Shipping.", at: at(6)), .text("Shipped.", at: at(7), endsTurn: true),
+        ], now: at(7))
+        let shipped = only(talk, 8)?.chat ?? []
+        suite.expect(shipped.map(\.text).suffix(3) == ["Ship it", "Shipping.", "Shipped."]
+                     && shipped.suffix(3).map(\.endsTurn) == [false, false, true],
+                     "a new reply its turn ended on joins the conversation marked: \(shipped.map(\.text))")
+        let answers = NotchClaudeSessionsSupport.answers(in: [
+            ClaudeChatMessage(id: 1, role: .user, text: "Ship it", at: at(1)),
+            ClaudeChatMessage(id: 2, role: .assistant, text: "Building.", at: at(2)),
+            ClaudeChatMessage(id: 3, role: .assistant, text: "Back in 10 minutes.", at: at(3), endsTurn: true),
+            ClaudeChatMessage(id: 4, role: .assistant, text: "Uploading.", at: at(4)),
+            ClaudeChatMessage(id: 5, role: .assistant, text: "Sent for review.", at: at(5), endsTurn: true),
+            ClaudeChatMessage(id: 6, role: .user, text: "And the poster?", at: at(6)),
+            ClaudeChatMessage(id: 7, role: .assistant, text: "Looking.", at: at(7)),
+            ClaudeChatMessage(id: 8, role: .user, text: "Thanks", at: at(8)),
+        ])
+        suite.expect(answers.answers == [3, 5] && answers.onTheWay == [2, 4],
+                     "each turn's last reply sums it up, a timer's turn too, and what came before it was on the way")
+        let command = NotchClaudeSessionsSupport.answers(in: [
+            ClaudeChatMessage(id: 1, role: .user, text: "Fix the build", at: at(1)),
+            ClaudeChatMessage(id: 2, role: .assistant, text: "Fixed; tests pass.", at: at(2), endsTurn: true),
+            ClaudeChatMessage(id: 3, role: .assistant, text: "Reviewing the diff.", at: at(3)),
+            ClaudeChatMessage(id: 4, role: .assistant, text: "No issues found.", at: at(4), endsTurn: true),
+        ])
+        suite.expect(command.answers == [2, 4] && command.onTheWay == [3],
+                     "a turn begun with no prompt shown, as by /review, keeps the answer before it as it was")
+        let running = NotchClaudeSessionsSupport.answers(in: [
+            ClaudeChatMessage(id: 1, role: .user, text: "Ship it", at: at(1)),
+            ClaudeChatMessage(id: 2, role: .assistant, text: "Done.", at: at(2), endsTurn: true),
+            ClaudeChatMessage(id: 3, role: .assistant, text: "Checking again.", at: at(3)),
+        ])
+        suite.expect(running.answers == [2] && running.onTheWay.isEmpty,
+                     "a reply after the answer, from a turn still running, stays as it is")
+        suite.expect(NotchClaudeSessionsSupport.answers(in: []).answers.isEmpty, "an empty conversation has no answer")
         talk.ingest(sessionID: "s1", facts: (0..<(ClaudeSessionEngine.chatLength + 10)).map { .text("m\($0)", at: at(10)) },
                     now: at(10))
         let long = only(talk, 11)?.chat ?? []

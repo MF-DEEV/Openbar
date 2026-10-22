@@ -214,6 +214,9 @@ struct ClaudeChatMessage: Equatable, Identifiable {
     let role: Role
     let text: String
     let at: Date
+    /// The reply the turn ended on, which answers what was asked; the
+    /// replies before it tell of the work on the way.
+    var endsTurn = false
 }
 
 struct ClaudeSessionCounts: Equatable {
@@ -259,7 +262,8 @@ enum ClaudeTranscriptFact: Equatable {
     case turnEnded(Date, completed: Bool)
     case toolStarted(ClaudeToolUse)
     case toolFinished(id: String, at: Date, failed: Bool)
-    case text(String, at: Date)
+    /// What the model wrote; the text a turn ends on ends that turn.
+    case text(String, at: Date, endsTurn: Bool = false)
     /// A prompt the person typed, read only when previews are allowed.
     case prompt(String, at: Date)
     case title(String)

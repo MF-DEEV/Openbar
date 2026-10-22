@@ -298,9 +298,9 @@ final class ClaudeSessionEngine {
         case .turnEnded(let date, let completed): end(at: date, completed: completed, in: &entry)
         case .toolStarted(let tool): start(tool, in: &entry)
         case .toolFinished(let id, let date, let failed): finish(id, at: date, failed: failed, in: &entry)
-        case .text(let text, let date):
+        case .text(let text, let date, let endsTurn):
             if policy.previews { entry.lastText = text }
-            say(text, as: .assistant, at: date, in: &entry)
+            say(text, as: .assistant, at: date, endsTurn: endsTurn, in: &entry)
             touch(date, in: &entry)
         case .prompt(let text, let date):
             say(text, as: .user, at: date, in: &entry)
@@ -364,11 +364,15 @@ final class ClaudeSessionEngine {
     /// The conversation keeps its latest messages.
     static let chatLength = 150
 
-    private func say(_ text: String, as role: ClaudeChatMessage.Role, at date: Date, in entry: inout Activity) {
+    private func say(_ text: String, as role: ClaudeChatMessage.Role, at date: Date, endsTurn: Bool = false,
+                     in entry: inout Activity) {
         guard policy.previews else { return }
-        if let last = entry.chat.last, last.role == role, last.text == text { return }
+        if let last = entry.chat.last, last.role == role, last.text == text {
+            if endsTurn { entry.chat[entry.chat.count - 1].endsTurn = true }
+            return
+        }
         entry.said += 1
-        entry.chat.append(ClaudeChatMessage(id: entry.said, role: role, text: text, at: date))
+        entry.chat.append(ClaudeChatMessage(id: entry.said, role: role, text: text, at: date, endsTurn: endsTurn))
         if entry.chat.count > Self.chatLength { entry.chat.removeFirst(entry.chat.count - Self.chatLength) }
     }
 

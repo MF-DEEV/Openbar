@@ -88,6 +88,13 @@ struct ClaudeTranscriptReader {
             switch message["stop_reason"] as? String {
             case "end_turn", "stop_sequence", "max_tokens", "refusal":
                 let failed = json["isApiErrorMessage"] as? Bool == true || model.hasPrefix("<")
+                // The last text of a turn that ended as it should sums it up;
+                // a refusal or a cut-off reply stops short of that.
+                if !failed, ["end_turn", "stop_sequence"].contains(message["stop_reason"] as? String),
+                   let index = facts.lastIndex(where: { if case .text = $0 { true } else { false } }),
+                   case .text(let text, let at, _) = facts[index] {
+                    facts[index] = .text(text, at: at, endsTurn: true)
+                }
                 facts.append(.turnEnded(date, completed: !failed))
             default: break
             }
