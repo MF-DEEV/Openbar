@@ -20,6 +20,7 @@ struct NotchClawdWardrobeView: View {
     private var dressedByHand: Bool { service.costumes[session.id] != nil }
     /// The stage grows with an enlarged island, up to a point.
     private var stageWidth: CGFloat { min(230, max(150, size.width * 0.3)) }
+    private var stageHeight: CGFloat { stageWidth * 0.92 }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -55,19 +56,26 @@ struct NotchClawdWardrobeView: View {
     // MARK: Stage
 
     private var stage: some View {
-        VStack(spacing: 8) {
+        // The whole canvas fits the card, so a tall hat, a raised arm, a cup
+        // held out and the highest jump all stay inside it.
+        let margin: CGFloat = 10
+        let pixel = min((stageWidth - margin * 2) / CGFloat(NotchClawdSprite.width),
+                        (stageHeight - margin * 2) / CGFloat(NotchClawdSprite.height))
+        let figure = CGSize(width: pixel * CGFloat(NotchClawdSprite.frameColumns.count),
+                            height: pixel * CGFloat(NotchClawdSprite.frameRows.count))
+        return VStack(spacing: 8) {
             ZStack(alignment: .bottom) {
                 // The floor it stands on, a soft light under its feet.
                 Ellipse()
                     .fill(.white.opacity(0.07))
-                    .frame(width: stageWidth * 0.62, height: 10)
-                    .offset(y: -10)
+                    .frame(width: figure.width * 0.9, height: pixel * 2)
+                    .offset(y: pixel)
                 NotchClawd(costume: costume, motion: NotchClaudeSessionsSupport.motion(session, now: Date()),
                            seed: ClawdCostume.seed(session.id), cheer: changed ?? NotchClaudeSessionsSupport.cheer(session),
-                           size: CGSize(width: stageWidth - 24, height: stageWidth * 0.78))
-                    .padding(.bottom, 14)
+                           size: figure)
             }
-            .frame(width: stageWidth, height: stageWidth * 0.78 + 24)
+            .padding(.bottom, margin + pixel)
+            .frame(width: stageWidth, height: stageHeight, alignment: .bottom)
             .modifier(NotchControlSurface(cornerRadius: 18, interactive: false))
             .accessibilityElement()
             .accessibilityLabel(outfit)

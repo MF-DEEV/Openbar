@@ -230,7 +230,7 @@ extension NotchClaudeSessionStrings {
         dressUp: "Change outfit",
         dressUpFormat: "Change %@’s outfit",
         surpriseMe: "Surprise me",
-        ownOutfit: "Back to the first outfit",
+        ownOutfit: "Back to the original outfit",
         goToSession: "Go to it",
         shellTitle: "Shell",
         hatTitle: "Hat",
