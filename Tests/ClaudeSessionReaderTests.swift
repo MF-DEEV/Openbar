@@ -112,8 +112,19 @@ enum ClaudeSessionReaderTests {
         suite.expect(usage.count == 2 && usage.first?.output == 103, "usage is read for each reply")
 
         let open = parse([toolCall, reply, title], previews: true)
-        suite.expect(open.contains(.text("I ran it. SENTINEL-reply", at: date("2026-10-21T17:50:52.900Z")))
+        suite.expect(open.contains(.text("I ran it. SENTINEL-reply", at: date("2026-10-21T17:50:52.900Z"), endsTurn: true))
                      && open.contains(.title("SENTINEL-title")), "with previews on replies and titles are read")
+        let onTheWay = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"Checking the build."}],"stop_reason":"tool_use"},"timestamp":"2026-10-21T17:50:43.000Z"}"#
+        let twoTexts = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"First."},{"type":"text","text":"Last."}],"stop_reason":"end_turn"},"timestamp":"2026-10-21T17:50:53.000Z"}"#
+        let failed = #"{"type":"assistant","isApiErrorMessage":true,"message":{"role":"assistant","model":"<synthetic>","content":[{"type":"text","text":"API Error: 529"}],"stop_reason":"stop_sequence"},"timestamp":"2026-10-21T17:50:54.000Z"}"#
+        let refused = #"{"type":"assistant","message":{"role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"Now the calibration."}],"stop_reason":"refusal"},"timestamp":"2026-10-21T17:50:55.000Z"}"#
+        let cut = #"{"type":"assistant","message":{"role":"assistant","model":"claude-opus-5-5","content":[{"type":"text","text":"The list goes"}],"stop_reason":"max_tokens"},"timestamp":"2026-10-21T17:50:56.000Z"}"#
+        let ends = parse([onTheWay, twoTexts, failed, refused, cut], previews: true).compactMap { fact -> String? in
+            if case .text(let text, _, let endsTurn) = fact { return "\(text)\(endsTurn ? "!" : "")" }
+            return nil
+        }
+        suite.expect(ends == ["Checking the build.", "First.", "Last.!", "API Error: 529", "Now the calibration.", "The list goes"],
+                     "only the last text of a turn that ended as it should ends it, not a refusal or a cut-off: \(ends)")
         suite.expect(open.contains { if case .toolStarted(let tool) = $0 { return tool.summary == "echo SPIKE_OK > spike.txt" }; return false },
                      "and tool commands")
 
@@ -127,12 +138,15 @@ enum ClaudeSessionReaderTests {
         let longReply = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"\#(String(repeating: "a", count: 7000))"}]},"timestamp":"2026-10-21T17:55:00.000Z"}"#
         let said = parse([midTurn, summary, command, longReply], previews: true).compactMap { fact -> String? in
             switch fact {
-            case .prompt(let text, _), .text(let text, _): return text
+            case .prompt(let text, _), .text(let text, _, _): return text
             default: return nil
             }
         }
         suite.expect(!parse([summary], previews: false).contains { if case .turnBegan = $0 { return true }; return false },
                      "an idle compaction's summary begins no turn")
+        let slash = #"{"type":"user","message":{"role":"user","content":"<command-name>/recap</command-name>\n<command-message>recap</command-message>"},"timestamp":"2026-10-22T10:26:11.114Z"}"#
+        suite.expect(!parse([slash], previews: true).contains { if case .turnBegan = $0 { return true }; return false },
+                     "a slash command like /recap begins no turn")
         suite.expect(said.first == "Also run lint" && said.count == 2,
                      "a prompt typed while Claude works counts; summaries and commands do not: \(said.map { $0.prefix(20) })")
         suite.expect(said.last?.count == ClaudeTranscriptReader.replyLimit && said.last?.hasSuffix("…") == true,

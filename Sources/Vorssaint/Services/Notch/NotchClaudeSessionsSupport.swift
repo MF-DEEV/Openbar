@@ -186,6 +186,26 @@ enum NotchClaudeSessionsSupport {
         return thinkingGlyphs[place < thinkingGlyphs.count ? place : cycle - place]
     }
 
+    /// What the conversation sets apart: each reply a turn ended on, which
+    /// sums the turn up, and the replies written on the way to one. A turn
+    /// needs no prompt of its own, as one a slash command, a finished task or
+    /// a timer began; replies of a turn still running are neither.
+    static func answers(in chat: [ClaudeChatMessage]) -> (answers: Set<Int>, onTheWay: Set<Int>) {
+        var answers = Set<Int>(), onTheWay = Set<Int>()
+        var answered = false
+        for message in chat.reversed() {
+            if message.role == .user {
+                answered = false
+            } else if message.endsTurn {
+                answers.insert(message.id)
+                answered = true
+            } else if answered {
+                onTheWay.insert(message.id)
+            }
+        }
+        return (answers, onTheWay)
+    }
+
     /// Text sizes a session's enlarged page offers.
     static let largeTextSizes: ClosedRange<Double> = 12...24
     static func largeTextSize(_ size: Double) -> Double {

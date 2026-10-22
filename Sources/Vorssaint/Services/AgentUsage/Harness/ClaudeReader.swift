@@ -54,10 +54,12 @@ struct ClaudeReader: AgentHarnessReader {
         // tool output can be large: no need to decode it to know that.
         if AgentLogParser.contains(line, #""isSidechain":true"#) { return [] }
         // Claude Code compacts an idle session on its own, writing the summary
-        // as a user line that no reply follows; it begins no work.
+        // as a user line that no reply follows; it begins no work. Nor does a
+        // slash command, like /recap, whose output now goes to a system line:
+        // one that asks the model, like a skill, begins with the reply.
         guard let json = AgentLogParser.object(line), json["type"] as? String == "user",
               json["isMeta"] as? Bool != true, json["isSidechain"] as? Bool != true,
-              json["isCompactSummary"] as? Bool != true else { return [] }
+              json["isCompactSummary"] as? Bool != true, !isCommand(json) else { return [] }
         adopt(json, into: &state)
         state.turnOpen = true
         state.runningCommands = []
@@ -113,6 +115,14 @@ struct ClaudeReader: AgentHarnessReader {
             state.turnOpen = true
         }
         return entries
+    }
+
+    /// A slash command the person typed, which is not a prompt by itself.
+    private func isCommand(_ json: [String: Any]) -> Bool {
+        let content = (json["message"] as? [String: Any])?["content"]
+        let text = (content as? String)
+            ?? (content as? [[String: Any]])?.first { $0["type"] as? String == "text" }?["text"] as? String ?? ""
+        return text.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("<command-name>")
     }
 
     /// The interruption or local command output the person's message holds,

@@ -209,11 +209,14 @@ struct NotchClaudeSessionLargeView: View {
         } else if session.chat.isEmpty && !session.phase.isWorking {
             Text(text.noMessages).font(.system(size: size - 1)).foregroundStyle(.tertiary)
         } else {
+            let marks = NotchClaudeSessionsSupport.answers(in: session.chat)
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: size) {
                         ForEach(session.chat) { message in
-                            bubble(message).id(message.id)
+                            bubble(message, answer: marks.answers.contains(message.id),
+                                   onTheWay: marks.onTheWay.contains(message.id))
+                                .id(message.id)
                         }
                         if session.phase.isWorking {
                             NotchClaudeThinkingRow(session: session, size: size)
@@ -243,7 +246,7 @@ struct NotchClaudeSessionLargeView: View {
         }
     }
 
-    @ViewBuilder private func bubble(_ message: ClaudeChatMessage) -> some View {
+    @ViewBuilder private func bubble(_ message: ClaudeChatMessage, answer: Bool, onTheWay: Bool) -> some View {
         switch message.role {
         case .user:
             VStack(alignment: .trailing, spacing: 4) {
@@ -259,10 +262,37 @@ struct NotchClaudeSessionLargeView: View {
             }
             .padding(.leading, 60)
             .frame(maxWidth: .infinity, alignment: .trailing)
+        case .assistant where answer:
+            // The reply a turn ended on stands apart from the ones written
+            // on the way, under a rule of its own.
+            VStack(alignment: .leading, spacing: size * 0.6) {
+                answerRule(message)
+                NotchClaudeRichText(text: NotchClaudeSessionFormat.markdown(message.text), size: size,
+                                    color: .white.withAlphaComponent(0.96), lineSpacing: size * 0.25)
+            }
+            .padding(.top, size * 0.5)
+            .frame(maxWidth: .infinity, alignment: .leading)
         case .assistant:
-            NotchClaudeRichText(text: NotchClaudeSessionFormat.markdown(message.text), size: size, lineSpacing: size * 0.25)
+            NotchClaudeRichText(text: NotchClaudeSessionFormat.markdown(message.text), size: size,
+                                color: .white.withAlphaComponent(onTheWay ? 0.6 : 0.88), lineSpacing: size * 0.25)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
+    }
+
+    private func answerRule(_ message: ClaudeChatMessage) -> some View {
+        HStack(spacing: 8) {
+            Text(text.answer.uppercased())
+                .font(.system(size: max(10, size - 4), weight: .semibold))
+                .tracking(0.8)
+                .foregroundStyle(AgentProvider.claude.tint)
+            Text(message.at, style: .time)
+                .font(.system(size: max(10, size - 4)))
+                .foregroundStyle(.tertiary)
+            Rectangle()
+                .fill(AgentProvider.claude.tint.opacity(0.35))
+                .frame(height: 1)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     // MARK: Sidebar

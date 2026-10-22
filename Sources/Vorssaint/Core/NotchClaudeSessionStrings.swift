@@ -28,6 +28,7 @@ struct NotchClaudeSessionStrings {
     let renamePlaceholder: String
     let conversation: String
     let noMessages: String
+    let answer: String
     let showAllFormat: String
     let showLess: String
     let shrink: String
@@ -136,6 +137,7 @@ extension NotchClaudeSessionStrings {
         renamePlaceholder: "Name this session",
         conversation: "Conversation",
         noMessages: "Nothing said yet.",
+        answer: "Summary",
         showAllFormat: "Show all %d",
         showLess: "Show less",
         shrink: "Shrink",
