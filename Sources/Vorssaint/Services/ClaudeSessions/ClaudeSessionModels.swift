@@ -117,9 +117,58 @@ struct ClaudePermission: Equatable {
     var toolID: String? = nil
     /// Matches the tool call whose input this is.
     var inputKey: Int? = nil
+    /// What Claude asks the person to choose, when the request is for a
+    /// question rather than a tool; it is answered, not allowed.
+    var questions: [ClaudeQuestion] = []
+
+    var asksQuestions: Bool { !questions.isEmpty }
 
     /// A request short enough to read whole on one line of the list.
-    var fitsOnALine: Bool { !detail.contains("\n") && detail.count <= ClaudeToolSummary.quickDecisionLimit }
+    var fitsOnALine: Bool {
+        !asksQuestions && !detail.contains("\n") && detail.count <= ClaudeToolSummary.quickDecisionLimit
+    }
+}
+
+/// One question Claude asks through AskUserQuestion, with the answers it
+/// wrote for it. Shown even with previews off, like a permission's detail:
+/// nobody can answer what they cannot read.
+struct ClaudeQuestion: Equatable {
+    struct Option: Equatable {
+        let label: String
+        var description: String? = nil
+        /// A mockup or snippet the option stands for, shown once it is picked.
+        var preview: String? = nil
+    }
+
+    static let tool = "AskUserQuestion"
+    /// Claude Code takes at most four questions of four options each, and
+    /// refuses answers longer than 32,768 UTF-16 units in all; each answer
+    /// written by hand keeps to a share of that, leaving room for the choices.
+    static let ownAnswerLimit = 7_500
+
+    let question: String
+    var header: String? = nil
+    var options: [Option] = []
+    var multiSelect = false
+
+    /// The questions of the tool's input, or nil when it holds none that
+    /// can be shown.
+    static func questions(in input: [String: Any]) -> [ClaudeQuestion]? {
+        guard let list = input["questions"] as? [[String: Any]] else { return nil }
+        let questions = list.compactMap { item -> ClaudeQuestion? in
+            guard let text = item["question"] as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else { return nil }
+            let options = (item["options"] as? [[String: Any]] ?? []).compactMap { option -> Option? in
+                guard let label = option["label"] as? String, !label.isEmpty else { return nil }
+                return Option(label: label, description: (option["description"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                              preview: (option["preview"] as? String).flatMap { $0.isEmpty ? nil : $0 })
+            }
+            return ClaudeQuestion(question: text, header: (item["header"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                                  options: options, multiSelect: item["multiSelect"] as? Bool ?? false)
+        }
+        // Every question needs an answer Claude Code can match to it.
+        return questions.isEmpty || questions.count != list.count ? nil : questions
+    }
 }
 
 struct ClaudeSubagent: Equatable, Identifiable {

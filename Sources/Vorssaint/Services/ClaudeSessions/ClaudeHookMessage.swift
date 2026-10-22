@@ -11,6 +11,8 @@ struct ClaudeHookMessage {
     /// The rules Claude Code offered to stop asking, handed back as they came
     /// when the person picks Always.
     let suggestions: Any?
+    /// The input of a question, handed back whole with the answers.
+    var questionInput: [String: Any]? = nil
 
     var isPermissionRequest: Bool {
         if case .permissionRequested = fact.event { return true }
@@ -28,6 +30,7 @@ struct ClaudeHookMessage {
         let toolID = json["tool_use_id"] as? String ?? ""
         let agent = (json["agent_id"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         var suggestions: Any?
+        var questionInput: [String: Any]?
         let event: ClaudeHookFact.Event
         // Subagent events name the subagent they are about; any other event
         // carrying an agent comes from inside that subagent.
@@ -44,15 +47,24 @@ struct ClaudeHookMessage {
         case "PostToolUse", "PostToolUseFailure":
             guard !toolID.isEmpty else { return nil }
             event = .toolFinished(id: toolID, failed: name == "PostToolUseFailure")
+        case "PermissionRequest" where tool == ClaudeQuestion.tool && ClaudeQuestion.questions(in: input) == nil:
+            // A question the island cannot show is asked in the terminal, never
+            // allowed without its answers.
+            event = .other(name)
         case "PermissionRequest":
             let offered = json["permission_suggestions"] as? [Any] ?? []
             suggestions = offered.isEmpty ? nil : offered
+            // A question Claude asks comes as a permission for its tool; the
+            // answers go back in the tool's input.
+            let questions = tool == ClaudeQuestion.tool ? ClaudeQuestion.questions(in: input) ?? [] : []
+            if !questions.isEmpty { questionInput = input }
             event = .permissionRequested(ClaudePermission(
                 requestID: requestID, tool: tool.isEmpty ? "Tool" : tool,
-                summary: ClaudeToolSummary.summary(name: tool, input: input),
+                summary: questions.first.map { ClaudeToolSummary.clip($0.question) }
+                    ?? ClaudeToolSummary.summary(name: tool, input: input),
                 detail: ClaudeToolSummary.permissionDetail(name: tool, input: input),
-                offersAlways: !offered.isEmpty, since: now,
-                inputKey: ClaudeToolSummary.inputKey(name: tool, input: input)))
+                offersAlways: !offered.isEmpty && questions.isEmpty, since: now,
+                inputKey: ClaudeToolSummary.inputKey(name: tool, input: input), questions: questions))
         case "Notification": event = .notification(type: json["notification_type"] as? String ?? "")
         case "Stop":
             let text = policy.previews ? (json["last_assistant_message"] as? String).map(preview) : nil
@@ -69,7 +81,7 @@ struct ClaudeHookMessage {
         }
         return ClaudeHookMessage(
             fact: ClaudeHookFact(sessionID: session, date: now, event: event, agentID: from),
-            transcript: json["transcript_path"] as? String, suggestions: suggestions)
+            transcript: json["transcript_path"] as? String, suggestions: suggestions, questionInput: questionInput)
     }
 
     private static func preview(_ text: String) -> String? {
@@ -81,20 +93,30 @@ struct ClaudeHookMessage {
 
     enum Decision: Equatable {
         case allow, allowAlways, deny
+        /// What the person picked or typed for each question, by its text.
+        case answer([String: [String]])
     }
 
     static let denyMessage = "Denied from the Dynamic Island."
+    static let skipMessage = "The user skipped the question from the Dynamic Island without answering."
 
     /// What the hook prints for Claude Code. Always adds the rules Claude Code
-    /// offered, so it stops asking for the same thing.
-    static func reply(_ decision: Decision, suggestions: Any?) -> Data {
+    /// offered, so it stops asking for the same thing. Answers go back in the
+    /// question's own input, unchanged but for them.
+    static func reply(_ decision: Decision, suggestions: Any?, input: [String: Any]? = nil) -> Data {
         var body: [String: Any]
         switch decision {
         case .allow: body = ["behavior": "allow"]
         case .allowAlways:
             body = ["behavior": "allow"]
             if let suggestions { body["updatedPermissions"] = suggestions }
-        case .deny: body = ["behavior": "deny", "message": denyMessage]
+        case .deny: body = ["behavior": "deny", "message": input == nil ? denyMessage : skipMessage]
+        case .answer(let answers):
+            guard var updated = input else { return Data() }
+            // One answer goes as text; several, for a question that takes
+            // more than one, as a list.
+            updated["answers"] = answers.mapValues { picked -> Any in picked.count == 1 ? picked[0] : picked }
+            body = ["behavior": "allow", "updatedInput": updated]
         }
         let output: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": body]]
         return (try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys])) ?? Data()

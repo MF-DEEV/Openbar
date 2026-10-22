@@ -19,6 +19,12 @@ struct NotchClaudeSessionStrings {
     let alwaysAllow: String
     let deny: String
     let answerInTerminal: String
+    let question: String
+    let pickAny: String
+    let ownAnswer: String
+    let sendAnswer: String
+    let skip: String
+    let questionHint: String
     let open: String
     let enlarge: String
     let leftRunningFormat: String
@@ -128,6 +134,12 @@ extension NotchClaudeSessionStrings {
         alwaysAllow: "Always",
         deny: "Deny",
         answerInTerminal: "Answer this one in the terminal.",
+        question: "Claude asks",
+        pickAny: "Pick any that apply",
+        ownAnswer: "Or write your own answer…",
+        sendAnswer: "Answer",
+        skip: "Skip",
+        questionHint: "Your answer goes straight to Claude. Return sends what you wrote, and ⌘N skips the question.",
         open: "Open",
         enlarge: "Enlarge",
         leftRunningFormat: "%d left running",
@@ -167,7 +179,7 @@ extension NotchClaudeSessionStrings {
         contentPreview: "Show previews",
         contentPreviewHint: "Shows titles, commands, file names and the conversation. They stay in memory and are cleared when you turn this off.",
         hooksTitle: "Claude Code hooks",
-        hooksHint: "Hooks let the island show which tool runs and answer permission prompts. They’re added to ~/.claude/settings.json next to your own, with a backup first. Without the app running, Claude Code asks in the terminal as usual.",
+        hooksHint: "Hooks let the island show which tool runs, answer permission prompts and answer Claude’s questions. They’re added to ~/.claude/settings.json next to your own, with a backup first. Without the app running, Claude Code asks in the terminal as usual.",
         hooksInstalled: "Installed",
         hooksMissing: "Not installed",
         installHooks: "Install Hooks",

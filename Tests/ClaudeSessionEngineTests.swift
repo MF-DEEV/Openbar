@@ -310,6 +310,19 @@ enum ClaudeSessionEngineTests {
         engine.ingest(hook: hook(.stopped(lastText: nil), 9), now: at(9))
         suite.expect(engine.permission(of: "s1") == nil, "a turn ending drops its request")
 
+        // A question Claude asks waits on an answer, not a permission.
+        let quiz = ClaudeSessionEngine()
+        quiz.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        _ = quiz.snapshot(now: at(1))
+        let question = ClaudePermission(requestID: "q1", tool: ClaudeQuestion.tool, summary: "Which color?", offersAlways: false,
+                                        since: at(2), questions: [ClaudeQuestion(question: "Which color?",
+                                                                                 options: [.init(label: "Red"), .init(label: "Blue")])])
+        quiz.ingest(hook: hook(.permissionRequested(question), 2), now: at(2))
+        let asked = quiz.snapshot(now: at(3))
+        suite.expect(asked.sessions.first?.phase == .waitingInput && asked.events == [.needsInput(id: "s1")]
+                     && asked.sessions.first?.permission?.asksQuestions == true,
+                     "a question waits for the person's answer and says so once")
+
         // Two calls of one tool run side by side: the request belongs to the
         // one whose input it carries, not the newest.
         let twin = ClaudeSessionEngine()

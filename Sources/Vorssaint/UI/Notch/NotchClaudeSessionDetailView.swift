@@ -323,49 +323,16 @@ struct NotchClaudeSessionPermissionCard: View {
             HStack(spacing: 6) {
                 Image(systemName: NotchClaudeSessionsSupport.symbol(session.phase))
                     .font(.system(size: 11, weight: .semibold))
-                Text(session.permission?.tool ?? session.currentTool?.name ?? session.waitingFor ?? text.phase(session.phase))
+                Text(title)
                     .font(.system(size: 12, weight: .semibold))
             }
             .foregroundStyle(session.phase.tint)
-            if let detail = session.permission?.detail, !detail.isEmpty {
-                // The whole request, every line of it, so nothing is allowed unread.
-                ScrollView {
-                    Text(detail)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.9))
-                        .textSelection(.enabled)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(maxHeight: 120)
-                .padding(8)
-                .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-            HStack(spacing: 6) {
-                if let permission = session.permission {
-                    NotchClaudeDecisionButton(title: text.deny, symbol: "xmark", role: .deny) {
-                        service.decide(session.id, request: permission.requestID, .deny)
-                    }
-                    .disabled(settling)
-                    Spacer(minLength: 0)
-                    if permission.offersAlways {
-                        NotchClaudeDecisionButton(title: text.alwaysAllow, symbol: "checkmark.seal", role: .secondary) {
-                            service.decide(session.id, request: permission.requestID, .allowAlways)
-                        }
-                        .disabled(settling)
-                    }
-                    NotchClaudeDecisionButton(title: text.allow, symbol: "checkmark", role: .allow) {
-                        service.decide(session.id, request: permission.requestID, .allow)
-                    }
-                    .disabled(settling)
-                } else {
-                    Text(text.answerInTerminal).font(.system(size: 10.5)).foregroundStyle(.secondary)
-                    Spacer(minLength: 0)
-                    NotchClaudeDecisionButton(title: text.open, symbol: "arrow.up.forward.app", role: .secondary, action: open)
-                }
-            }
-            if session.permission != nil {
-                Text(text.shortcutsHint).font(.system(size: 9.5)).foregroundStyle(.tertiary)
+            if let permission = session.permission, permission.asksQuestions {
+                NotchClaudeQuestionForm(session: session, permission: permission, text: text, settling: settling)
+                    // Answers picked for one question never carry over to the next.
+                    .id(permission.requestID)
+            } else {
+                request
             }
         }
         .padding(10)
@@ -381,6 +348,228 @@ struct NotchClaudeSessionPermissionCard: View {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .strokeBorder(session.phase.tint.opacity(0.35), lineWidth: 1)
         }
+    }
+
+    private var title: String {
+        if session.permission?.asksQuestions == true { return text.question }
+        return session.permission?.tool ?? session.currentTool?.name ?? session.waitingFor ?? text.phase(session.phase)
+    }
+
+    /// A tool's request, read whole and allowed or denied.
+    @ViewBuilder private var request: some View {
+        if let detail = session.permission?.detail, !detail.isEmpty {
+            // The whole request, every line of it, so nothing is allowed unread.
+            ScrollView {
+                Text(detail)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxHeight: 120)
+            .padding(8)
+            .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        HStack(spacing: 6) {
+            if let permission = session.permission {
+                NotchClaudeDecisionButton(title: text.deny, symbol: "xmark", role: .deny) {
+                    service.decide(session.id, request: permission.requestID, .deny)
+                }
+                .disabled(settling)
+                Spacer(minLength: 0)
+                if permission.offersAlways {
+                    NotchClaudeDecisionButton(title: text.alwaysAllow, symbol: "checkmark.seal", role: .secondary) {
+                        service.decide(session.id, request: permission.requestID, .allowAlways)
+                    }
+                    .disabled(settling)
+                }
+                NotchClaudeDecisionButton(title: text.allow, symbol: "checkmark", role: .allow) {
+                    service.decide(session.id, request: permission.requestID, .allow)
+                }
+                .disabled(settling)
+            } else {
+                Text(text.answerInTerminal).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                NotchClaudeDecisionButton(title: text.open, symbol: "arrow.up.forward.app", role: .secondary, action: open)
+            }
+        }
+        if session.permission != nil {
+            Text(text.shortcutsHint).font(.system(size: 9.5)).foregroundStyle(.tertiary)
+        }
+    }
+}
+
+/// Claude's questions with the answers it wrote for them. One question with
+/// a single choice is answered by clicking it, as in the terminal; otherwise
+/// the person picks for each and sends them together. Their own words can
+/// stand in for, or join, the choices.
+struct NotchClaudeQuestionForm: View {
+    let session: ClaudeSession
+    let permission: ClaudePermission
+    let text: NotchClaudeSessionStrings
+    /// The request just appeared, so clicks wait a moment.
+    let settling: Bool
+    @ObservedObject private var service = ClaudeSessionService.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var picked: [Int: Set<String>] = [:]
+    @State private var typed: [Int: String] = [:]
+    @State private var sent = false
+
+    private var questions: [ClaudeQuestion] { permission.questions }
+    /// A click on an option answers at once, unless options carry previews
+    /// that the person picks to see.
+    private var answersOnClick: Bool {
+        questions.count == 1 && !questions[0].multiSelect && questions[0].options.allSatisfy { $0.preview == nil }
+    }
+    private var answers: [String: [String]]? { NotchClaudeSessionsSupport.answers(questions, picked: picked, typed: typed) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ForEach(Array(questions.enumerated()), id: \.offset) { index, question in
+                questionView(question, index: index)
+            }
+            HStack(spacing: 6) {
+                NotchClaudeDecisionButton(title: text.skip, symbol: "forward", role: .deny) {
+                    service.decide(session.id, request: permission.requestID, .deny)
+                }
+                Spacer(minLength: 0)
+                NotchClaudeDecisionButton(title: text.sendAnswer, symbol: "arrow.up", role: .allow, action: send)
+                    .disabled(answers == nil)
+            }
+            .disabled(settling || sent)
+            Text(text.questionHint).font(.system(size: 9.5)).foregroundStyle(.tertiary)
+        }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: picked)
+    }
+
+    private func questionView(_ question: ClaudeQuestion, index: Int) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let header = question.header {
+                Text(header.uppercased())
+                    .font(.system(size: 9, weight: .semibold))
+                    .tracking(0.6)
+                    .foregroundStyle(.white.opacity(0.55))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(.white.opacity(0.08), in: Capsule())
+            }
+            Text(question.question)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.95))
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+            if question.multiSelect {
+                Text(text.pickAny).font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            VStack(spacing: 4) {
+                ForEach(Array(question.options.enumerated()), id: \.offset) { _, option in
+                    optionRow(option, question: question, index: index)
+                }
+            }
+            if let preview = question.options.first(where: { picked[index]?.contains($0.label) == true })?.preview {
+                ScrollView {
+                    Text(preview)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(.white.opacity(0.85))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                .frame(maxHeight: 140)
+                .padding(8)
+                .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .transition(.opacity)
+            }
+            ownAnswer(question, index: index)
+        }
+    }
+
+    private func optionRow(_ option: ClaudeQuestion.Option, question: ClaudeQuestion, index: Int) -> some View {
+        let selected = picked[index]?.contains(option.label) == true
+        let tint = session.phase.tint
+        return Button {
+            pick(option.label, in: question, index: index)
+        } label: {
+            HStack(alignment: .top, spacing: 8) {
+                marker(selected: selected, multiple: question.multiSelect)
+                    .padding(.top, 1)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(option.label)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.95))
+                    if let description = option.description {
+                        Text(description)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.white.opacity(0.6))
+                            .lineLimit(3)
+                    }
+                }
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 7)
+            .frame(maxWidth: .infinity, minHeight: 32, alignment: .leading)
+            .background(selected ? tint.opacity(0.18) : .white.opacity(0.06),
+                        in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(tint.opacity(selected ? 0.6 : 0), lineWidth: 1)
+            }
+            .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 9, lifts: false))
+        .disabled(settling || sent)
+        .accessibilityLabel([option.label, option.description].compactMap { $0 }.joined(separator: ", "))
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// A box for one of many, a dot for one of a few.
+    private func marker(selected: Bool, multiple: Bool) -> some View {
+        Image(systemName: multiple ? (selected ? "checkmark.square.fill" : "square")
+              : (selected ? "largecircle.fill.circle" : "circle"))
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(selected ? session.phase.tint : .white.opacity(0.45))
+            .frame(width: 16, height: 16)
+    }
+
+    private func ownAnswer(_ question: ClaudeQuestion, index: Int) -> some View {
+        let binding = Binding<String>(get: { typed[index] ?? "" }, set: { value in
+            typed[index] = value
+            // A single choice is either picked or written, not both.
+            if !question.multiSelect, !value.trimmingCharacters(in: .whitespaces).isEmpty { picked[index] = nil }
+        })
+        return TextField(question.options.isEmpty ? text.replyPlaceholder : text.ownAnswer, text: binding)
+            .textFieldStyle(.plain)
+            .font(.system(size: 11.5))
+            .padding(.horizontal, 9)
+            .frame(height: 28)
+            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .onSubmit(send)
+            .disabled(settling || sent)
+            .accessibilityLabel(text.ownAnswer)
+    }
+
+    private func pick(_ label: String, in question: ClaudeQuestion, index: Int) {
+        var chosen = picked[index] ?? []
+        if question.multiSelect {
+            if chosen.contains(label) { chosen.remove(label) } else { chosen.insert(label) }
+        } else {
+            chosen = [label]
+            typed[index] = nil
+        }
+        picked[index] = chosen.isEmpty ? nil : chosen
+        if answersOnClick { send() }
+    }
+
+    private func send() {
+        guard !settling, !sent, let answers else { return }
+        sent = true
+        service.decide(session.id, request: permission.requestID, .answer(answers))
+        // The question stays only if the answer did not land, as when it was
+        // just answered in the terminal; then it can be tried again.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { sent = false }
     }
 }
 

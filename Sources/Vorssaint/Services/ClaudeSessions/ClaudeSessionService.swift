@@ -71,7 +71,8 @@ final class ClaudeSessionService: ObservableObject {
     private var lastRecords: [Int32: ClaudeSessionRecord] = [:]
     private var server: ClaudeHookServer?
     /// Permission requests whose hook waits for the island's answer.
-    private var pending: [String: (connection: ClaudeHookServer.Connection, session: String, suggestions: Any?, since: Date)] = [:]
+    private var pending: [String: (connection: ClaudeHookServer.Connection, session: String, suggestions: Any?,
+                                   question: [String: Any]?, since: Date)] = [:]
     /// Claude Code gives up on a hook after its timeout; the island lets go first.
     private static let permissionDeadline: TimeInterval = TimeInterval(ClaudeHookInstaller.permissionTimeout - 10)
 
@@ -198,8 +199,16 @@ final class ClaudeSessionService: ObservableObject {
         guard let shown = shownRequests[id], shown.request == request,
               Date().timeIntervalSince(shown.at) >= NotchClaudeSessionsSupport.settleDelay else { return }
         queue.async { [self] in
-            guard engine.holds(request, for: id), let waiting = pending.removeValue(forKey: request) else { return }
-            waiting.connection.finish(ClaudeHookMessage.reply(decision, suggestions: waiting.suggestions))
+            guard engine.holds(request, for: id), let asked = pending[request] else { return }
+            // A question is answered or skipped, never allowed as it stands;
+            // answers go only to a question.
+            switch decision {
+            case .allow, .allowAlways: guard asked.question == nil else { return }
+            case .answer: guard asked.question != nil else { return }
+            case .deny: break
+            }
+            pending[request] = nil
+            asked.connection.finish(ClaudeHookMessage.reply(decision, suggestions: asked.suggestions, input: asked.question))
             engine.resolvePermission(requestID: request)
             engine.acknowledge(id, now: Date())
             publish(now: Date())
@@ -309,7 +318,7 @@ final class ClaudeSessionService: ObservableObject {
         }
         if let transcript = message.transcript, !transcript.isEmpty { transcripts[message.fact.sessionID] = transcript }
         if message.isPermissionRequest {
-            pending[request] = (connection, message.fact.sessionID, message.suggestions, now)
+            pending[request] = (connection, message.fact.sessionID, message.suggestions, message.questionInput, now)
         } else {
             connection.finish()
         }

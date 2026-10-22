@@ -18,6 +18,67 @@ enum ClaudeHookTests {
         ClaudeHookMessage.decode(Data(json.utf8), requestID: "r1", now: now, policy: ClaudeContentPolicy(previews: previews))
     }
 
+    // MARK: Questions
+
+    static func questions(_ suite: TestSuite, base: String, json: (Data) -> [String: Any]) {
+        let input = #"{"questions":[{"question":"Which color?","header":"Color","options":[{"label":"Red","description":"Warm"},{"label":"Blue","description":"","preview":"[ blue ]"}],"multiSelect":false},{"question":"Which sizes?","header":"","options":[{"label":"S"},{"label":"M"},{"label":"L"}],"multiSelect":true}]}"#
+        let message = decode(#"{\#(base),"hook_event_name":"PermissionRequest","tool_name":"AskUserQuestion","tool_input":\#(input),"permission_suggestions":[{"type":"addRules"}]}"#)
+        guard case .permissionRequested(let ask)? = message?.fact.event else { return suite.expect(false, "a question decodes as a request") }
+        suite.expect(ask.asksQuestions && ask.questions.count == 2 && !ask.fitsOnALine && !ask.offersAlways,
+                     "a question is a request answered on its card, never allowed for good")
+        suite.expect(ask.summary == "Which color?" && ask.questions[0].header == "Color" && ask.questions[1].header == nil
+                     && ask.questions[0].options == [.init(label: "Red", description: "Warm"), .init(label: "Blue", preview: "[ blue ]")]
+                     && ask.questions[1].multiSelect,
+                     "its questions, options, descriptions and previews are read even with previews off")
+        suite.expect(message?.questionInput?["questions"] != nil, "the question's input is kept to hand back")
+
+        let bash = decode(#"{\#(base),"hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"ls"}}"#)
+        suite.expect(bash?.questionInput == nil, "a tool's request keeps no input")
+        let empty = decode(#"{\#(base),"hook_event_name":"PermissionRequest","tool_name":"AskUserQuestion","tool_input":{"questions":[{"header":"x"}]}}"#)
+        suite.expect(empty?.fact.event == .other("PermissionRequest") && empty?.isPermissionRequest == false
+                     && empty?.questionInput == nil,
+                     "a question that can't be read is left to the terminal, never allowed unanswered")
+
+        let original = message?.questionInput ?? [:]
+        let answered = json(ClaudeHookMessage.reply(.answer(["Which color?": ["Blue"], "Which sizes?": ["S", "L"]]),
+                                                    suggestions: nil, input: original))
+        let decision = answered["decision"] as? [String: Any] ?? [:]
+        let updated = decision["updatedInput"] as? [String: Any] ?? [:]
+        let answers = updated["answers"] as? [String: Any] ?? [:]
+        suite.expect(decision["behavior"] as? String == "allow" && answers["Which color?"] as? String == "Blue"
+                     && answers["Which sizes?"] as? [String] == ["S", "L"],
+                     "answers go back by question, one as text and several as a list")
+        func canonical(_ value: Any?) -> Data? {
+            value.flatMap { try? JSONSerialization.data(withJSONObject: $0, options: [.sortedKeys]) }
+        }
+        suite.expect(canonical(updated["questions"]) != nil && canonical(updated["questions"]) == canonical(original["questions"]),
+                     "the questions go back exactly as Claude asked them")
+        let skipped = json(ClaudeHookMessage.reply(.deny, suggestions: nil, input: original))["decision"] as? [String: Any] ?? [:]
+        suite.expect(skipped["behavior"] as? String == "deny" && skipped["message"] as? String == ClaudeHookMessage.skipMessage,
+                     "skipping tells Claude the question went unanswered")
+        suite.expect(ClaudeHookMessage.reply(.answer(["x": ["y"]]), suggestions: nil).isEmpty,
+                     "answers with no question to hand back leave the terminal to ask")
+
+        let shown = ask.questions
+        suite.expect(NotchClaudeSessionsSupport.answers(shown, picked: [0: ["Blue"]], typed: [:]) == nil,
+                     "nothing goes until every question has an answer")
+        suite.expect(NotchClaudeSessionsSupport.answers(shown, picked: [0: ["Blue"], 1: ["L", "S"]], typed: [:])
+                     == ["Which color?": ["Blue"], "Which sizes?": ["S", "L"]],
+                     "choices keep the order Claude wrote them in")
+        suite.expect(NotchClaudeSessionsSupport.answers(shown, picked: [0: ["Red"], 1: ["M"]], typed: [0: "  Green ", 1: "XL"])
+                     == ["Which color?": ["Green"], "Which sizes?": ["M", "XL"]],
+                     "an answer written by hand replaces a single choice and joins several")
+        suite.expect(NotchClaudeSessionsSupport.answers(shown, picked: [0: ["Red", "Blue"], 1: ["M"]], typed: [1: "   "])
+                     == ["Which color?": ["Red"], "Which sizes?": ["M"]],
+                     "a single choice sends one answer, and blank words none")
+        suite.expect(NotchClaudeSessionsSupport.answers([], picked: [:], typed: [:]) == nil, "no questions, no answers")
+        let long = String(repeating: "😀", count: 6_000)
+        let clipped = NotchClaudeSessionsSupport.answers(shown, picked: [1: ["S"]], typed: [0: long, 1: long])
+        let units = clipped?.values.flatMap { $0 }.map(\.utf16.count).reduce(0, +) ?? 0
+        suite.expect(units > 0 && units <= 32_768 && clipped?["Which color?"]?.first?.unicodeScalars.allSatisfy { $0 == "😀" } == true,
+                     "answers written by hand stay within what Claude Code takes in all, cut at whole characters")
+    }
+
     // MARK: Messages
 
     static func messages(_ suite: TestSuite) {
@@ -68,6 +129,8 @@ enum ClaudeHookTests {
         let always = (json(ClaudeHookMessage.reply(.allowAlways, suggestions: [["type": "addRules"]]))["decision"] as? [String: Any]) ?? [:]
         suite.expect((always["updatedPermissions"] as? [[String: Any]])?.first?["type"] as? String == "addRules",
                      "always hands back the rules Claude Code offered")
+
+        questions(suite, base: base, json: json)
 
         suite.expect(ClaudeHookMessage.isComplete(Data(#"{"a":{"b":1}}  "#.utf8)), "a whole object is complete")
         suite.expect(!ClaudeHookMessage.isComplete(Data(#"{"a":{"b":1}"#.utf8))

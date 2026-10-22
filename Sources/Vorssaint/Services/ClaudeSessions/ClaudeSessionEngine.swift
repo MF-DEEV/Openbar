@@ -220,7 +220,8 @@ final class ClaudeSessionEngine {
 
     /// The phase the rules above give one session.
     static func phase(record: ClaudeSessionRecord, activity entry: Activity, now: Date) -> ClaudeSessionPhase {
-        if !entry.permissions.isEmpty { return .waitingPermission }
+        // A question Claude asks waits on the person's answer, not a permission.
+        if let first = entry.permissions.first { return first.asksQuestions ? .waitingInput : .waitingPermission }
         if record.status == .waiting {
             guard record.waitingFor == ClaudeSessionRecord.dialogOpen else {
                 return record.waitingFor == ClaudeSessionRecord.permissionPrompt ? .waitingPermission : .waitingInput
