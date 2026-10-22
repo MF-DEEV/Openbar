@@ -49,6 +49,8 @@ struct NotchClaudeSessionDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     header(now: context.date)
+                    // Claude at work, as on the enlarged page, where it shows without scrolling.
+                    if session.phase.isWorking { NotchClaudeThinkingRow(session: session, size: 13) }
                     if session.phase.isWaiting { NotchClaudeSessionPermissionCard(session: session, text: text, open: open) }
                     if let title = session.title {
                         Text(title)
