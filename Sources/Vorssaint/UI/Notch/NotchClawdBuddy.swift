@@ -9,13 +9,16 @@ struct NotchClawd: View {
     let costume: ClawdCostume
     var motion = NotchClawdMotion.rest
     var seed: UInt64 = 0
+    /// When what it does began.
+    var since: Date? = nil
     var cheer: Date? = nil
     var bubbles = true
     let size: CGSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        NotchClawdBridge(costume: costume, motion: motion, seed: seed, cheer: cheer, still: reduceMotion, bubbles: bubbles)
+        NotchClawdBridge(costume: costume, motion: motion, seed: seed, since: since, cheer: cheer, still: reduceMotion,
+                         bubbles: bubbles)
             .frame(width: size.width, height: size.height)
             .accessibilityHidden(true)
             .allowsHitTesting(false)
@@ -26,13 +29,15 @@ private struct NotchClawdBridge: NSViewRepresentable {
     let costume: ClawdCostume
     let motion: NotchClawdMotion
     let seed: UInt64
+    let since: Date?
     let cheer: Date?
     let still: Bool
     let bubbles: Bool
 
     func makeNSView(context: Context) -> NotchClawdView { NotchClawdView() }
     func updateNSView(_ view: NotchClawdView, context: Context) {
-        view.configure(costume: costume, motion: motion, seed: seed, cheer: cheer, still: still, bubbles: bubbles)
+        view.configure(costume: costume, motion: motion, seed: seed, since: since, cheer: cheer, still: still,
+                       bubbles: bubbles)
     }
     static func dismantleNSView(_ view: NotchClawdView, coordinator: ()) { view.stop() }
 }
@@ -76,7 +81,8 @@ struct NotchClaudeSessionAvatar: View {
         if buddies {
             NotchClawd(costume: service.costume(for: session),
                        motion: NotchClaudeSessionsSupport.motion(session, now: Date()),
-                       seed: ClawdCostume.seed(session.id), cheer: NotchClaudeSessionsSupport.cheer(session), size: size)
+                       seed: ClawdCostume.seed(session.id), since: session.phaseSince,
+                       cheer: NotchClaudeSessionsSupport.cheer(session), size: size)
         } else {
             NotchClaudeSessionBadge(phase: session.phase, size: badge)
         }
@@ -91,14 +97,23 @@ struct NotchClaudeSubagentAvatar<Fallback: View>: View {
     var size = CGSize(width: 18, height: 14)
     @ViewBuilder let fallback: () -> Fallback
     @ObservedObject private var service = ClaudeSessionService.shared
+    @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
+
+    private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
 
     var body: some View {
         if buddies {
             NotchClawd(costume: service.costume(for: agent, in: session),
                        motion: NotchClaudeSessionsSupport.motion(agent),
-                       seed: ClawdCostume.seed(NotchClaudeSessionsSupport.costumeKey(agent, in: session)), size: size)
+                       seed: ClawdCostume.seed(NotchClaudeSessionsSupport.costumeKey(agent, in: session)),
+                       since: agent.started, size: size)
                 .opacity(agent.isRunning ? 1 : 0.5)
+                // The row reads its type and time; whether it still runs was
+                // the symbol's to say, and is now said in words.
+                .accessibilityRepresentation {
+                    Text(agent.isRunning ? text.runningTool : text.finished)
+                }
         } else {
             fallback()
         }
@@ -160,6 +175,7 @@ struct NotchClaudeNoticeClawd: View {
         let session = service.sessions.first { $0.id == sessionID }
         NotchClawd(costume: ClawdCostume.resolved(key: sessionID, kept: service.costumes[sessionID]),
                    motion: NotchClaudeSessionsSupport.noticeMotion(symbol: symbol), seed: ClawdCostume.seed(sessionID),
-                   cheer: session.flatMap(NotchClaudeSessionsSupport.cheer), bubbles: false, size: size)
+                   since: session?.phaseSince, cheer: session.flatMap(NotchClaudeSessionsSupport.cheer), bubbles: false,
+                   size: size)
     }
 }

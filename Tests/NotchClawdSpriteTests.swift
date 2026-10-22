@@ -64,8 +64,8 @@ enum NotchClawdSpriteTests {
             NotchClawdSprite.letters(costume, NotchClawdPose())[(y + row) * width + x + column]
         }
         suite.expect(letter(bare, column: 3, row: 2) == "E" && letter(bare, column: 9, row: 3) == "E"
-                     && letter(bare, column: 6, row: 0) == "C" && letter(bare, column: 0, row: 9) == "C",
-                     "Clawd has two eyes, a body and legs where Claude Code draws them")
+                     && letter(bare, column: 6, row: 0) == "C" && letter(bare, column: 0, row: 9) == "c",
+                     "Clawd has two eyes, a body and legs, in the shell's shade, where Claude Code draws them")
         for eyewear in ClawdEyewear.allCases {
             let worn = ClawdCostume(shell: .clay, hat: .none, eyewear: eyewear, extra: .none)
             let eyes = [(3, 2), (3, 3), (9, 2), (9, 3)].map { letter(worn, column: $0.0, row: $0.1) }
@@ -175,6 +175,9 @@ enum NotchClawdSpriteTests {
         suite.expect(NotchClawdSprite.layout(box: .zero, scale: 2).pixel == 0.5
                      && NotchClawdSprite.layout(box: CGSize(width: 40, height: 40), scale: .nan).pixel > 0,
                      "an empty box or a scale that makes no sense still draws something")
+        let odd = NotchClawdSprite.layout(box: CGSize(width: CGFloat.nan, height: .infinity), scale: 2)
+        suite.expect(odd.pixel == 0.5 && odd.origin.x.isFinite && odd.origin.y.isFinite,
+                     "a box that makes no sense is drawn as an empty one, never at a position that is not a number")
         // Every costume is the same size: a hat reaches above the frame instead.
         suite.expect(NotchClawdSprite.frameColumns.count == 17 && NotchClawdSprite.frameRows.upperBound == NotchClawdSprite.height,
                      "the frame is the body with its arms, standing on the canvas's bottom")

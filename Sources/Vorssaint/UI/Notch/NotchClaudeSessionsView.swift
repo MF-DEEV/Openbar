@@ -11,6 +11,7 @@ struct NotchClaudeSessionsView: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.notchSettingsPreview) private var preview
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
 
@@ -21,7 +22,7 @@ struct NotchClaudeSessionsView: View {
 
     /// The session whose Clawd is being dressed, over its own page.
     private var dressing: ClaudeSession? {
-        guard let focused, service.dressingID == focused.id else { return nil }
+        guard buddies, let focused, service.dressingID == focused.id else { return nil }
         return focused
     }
 
@@ -54,6 +55,11 @@ struct NotchClaudeSessionsView: View {
             case nil: close = nil
             }
             NotchService.shared.setPageLayer(.sessions, close: close)
+        }
+        // Clawds turned off take their wardrobe with them, and ⌘Y and ⌘N
+        // answer the page again.
+        .onChange(of: buddies) { _, shown in
+            if !shown { service.dress(nil) }
         }
         .onDisappear {
             guard !preview else { return }

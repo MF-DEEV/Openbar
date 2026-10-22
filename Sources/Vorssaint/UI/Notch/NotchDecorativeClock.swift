@@ -4,8 +4,8 @@
 import AppKit
 import QuartzCore
 
-/// Steps small looping decorations, the music bars and an agent's pulse, a
-/// limited number of times a second. A repeating Core Animation animation is
+/// Steps small looping decorations, the music bars, an agent's pulse and
+/// the sessions' Clawds, a limited number of times a second. A repeating Core Animation animation is
 /// drawn again by the window server on every refresh of the display, up to
 /// 120 times a second on a ProMotion screen, and each of those frames
 /// composites the display again however small the change. The motion is slow

@@ -73,6 +73,40 @@ enum NotchClawdViewTests {
         view.configure(costume: costume, motion: .content, seed: 7, cheer: Date().addingTimeInterval(-60), still: false)
         view.step(at: CACurrentMediaTime())
         suite.expect(view.pose?.jump == 0, "work that ended long ago does not")
+        let resting = view.motionStart
+        view.configure(costume: costume, motion: .content, seed: 7, cheer: Date().addingTimeInterval(-0.3), still: false)
+        view.step(at: CACurrentMediaTime())
+        suite.expect(((view.pose?.jump ?? 0) > 0 || view.pose?.arms == .up) && view.motionStart == resting,
+                     "a new change in the wardrobe makes it hop again, with no new start for what it does")
+        view.configure(costume: costume, motion: .content, seed: 7, cheer: Date().addingTimeInterval(-0.3), still: true)
+        view.configure(costume: costume, motion: .content, seed: 7, cheer: Date().addingTimeInterval(-0.3), still: false)
+        suite.expect(view.motionStart == resting, "turning Reduce Motion off again goes on from where it was")
+
+        // A subagent that finished holds one pose, so only the new costume
+        // can change what it shows.
+        view.configure(costume: costume, motion: .done, seed: 7, still: false)
+        let held = view.pose
+        let before = sprite()?.contents as AnyObject?
+        let dressed = ClawdCostume(shell: .rose, hat: .crown, eyewear: .round, extra: .bow)
+        view.configure(costume: dressed, motion: .done, seed: 7, still: false)
+        let after = sprite()?.contents as AnyObject?
+        suite.expect(view.pose == held && after !== before
+                     && after === NotchClawdSprite.image(dressed, held ?? NotchClawdPose()) as AnyObject?,
+                     "a new costume shows at once, even in a pose that does not change")
+
+        // The canvas is placed from the top: its feet stand on the frame's
+        // foot and a hat may reach above the box, never the other way round.
+        for size in [CGSize(width: 32, height: 30), CGSize(width: 48, height: 42)] {
+            view.setFrameSize(size)
+            let fit = NotchClawdSprite.layout(box: size, scale: window.backingScaleFactor)
+            let placed = sprite()?.frame ?? .zero
+            suite.expect(view.layer?.isGeometryFlipped == true
+                         && placed == CGRect(x: fit.origin.x, y: fit.origin.y,
+                                             width: CGFloat(NotchClawdSprite.width) * fit.pixel,
+                                             height: CGFloat(NotchClawdSprite.height) * fit.pixel),
+                         "in a \(size) box the canvas sits where the fitting puts it, measured from the top: \(placed)")
+        }
+        view.setFrameSize(CGSize(width: 32, height: 30))
 
         window.exposed = false
         window.notifyVisibility()
@@ -110,6 +144,22 @@ enum NotchClawdViewTests {
         suite.expect(NotchDecorativeClock(rate: 120) { _ in }.stepsPerSecond == NotchDecorativeClock.rate
                      && NotchDecorativeClock { _ in }.stepsPerSecond == NotchDecorativeClock.rate,
                      "no clock steps faster than the decorations' own rate")
+
+        let row = NotchClawdView(frame: CGRect(x: 0, y: 0, width: 32, height: 30))
+        let notice = NotchClawdView(frame: CGRect(x: 0, y: 0, width: 18, height: 18))
+        let asked = Date().addingTimeInterval(-0.9)
+        row.configure(costume: costume, motion: .alert, seed: 3, since: asked, still: false)
+        usleep(150_000)
+        notice.configure(costume: costume, motion: .alert, seed: 3, since: asked, still: false, bubbles: false)
+        suite.expect(abs(row.motionStart - notice.motionStart) < 0.05,
+                     "two Clawds of one session, drawn at different times, hop as one")
+        suite.expect(abs((CACurrentMediaTime() - notice.motionStart) - Date().timeIntervalSince(asked)) < 0.05,
+                     "their motion counts from when the session began waiting, so the first hop comes as the request does")
+        let rowStart = row.motionStart
+        row.configure(costume: costume, motion: .alert, seed: 3, since: asked, still: false)
+        suite.expect(row.motionStart == rowStart, "the same moment given again changes nothing")
+        row.configure(costume: costume, motion: .alert, seed: 3, since: Date(), still: false)
+        suite.expect(row.motionStart > rowStart, "a new request starts the hops again")
 
         weak var released: NotchClawdView?
         autoreleasepool {

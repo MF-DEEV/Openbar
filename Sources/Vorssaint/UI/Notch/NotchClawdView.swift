@@ -19,6 +19,8 @@ final class NotchClawdView: NSView {
     /// When the hop for finished work began, on the media clock.
     private var cheerStart: CFTimeInterval?
     private var cheerSince: Date?
+    private var since: Date?
+    private var powerObserver: NSObjectProtocol?
     private var configured = false
     private(set) var pose: NotchClawdPose?
     private var visibilityObserver: NSObjectProtocol?
@@ -38,22 +40,28 @@ final class NotchClawdView: NSView {
                           "contentsScale": NSNull()]
         layer?.addSublayer(sprite)
         setAccessibilityElement(false)
+        // Low Power Mode halves the steps from the moment it changes.
+        powerObserver = NotificationCenter.default.addObserver(forName: .NSProcessInfoPowerStateDidChange, object: nil,
+                                                               queue: .main) { [weak self] _ in self?.updateLayers() }
     }
 
     required init?(coder: NSCoder) { nil }
 
     deinit {
         if let visibilityObserver { NotificationCenter.default.removeObserver(visibilityObserver) }
+        if let powerObserver { NotificationCenter.default.removeObserver(powerObserver) }
     }
 
     override var isFlipped: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
     /// Shows `costume` doing `motion`. `seed` is the Clawd's own rhythm.
-    /// `cheer` is when the work it hops for ended. `still` is Reduce Motion.
-    func configure(costume: ClawdCostume, motion: NotchClawdMotion, seed: UInt64, cheer: Date? = nil,
-                   still: Bool, bubbles: Bool = true) {
-        let restart = !configured || motion != self.motion
+    /// `since` is when what it does began, so every Clawd of one session
+    /// moves as one and a request's first hop comes as it arrives. `cheer`
+    /// is when the work it hops for ended. `still` is Reduce Motion.
+    func configure(costume: ClawdCostume, motion: NotchClawdMotion, seed: UInt64, since: Date? = nil,
+                   cheer: Date? = nil, still: Bool, bubbles: Bool = true) {
+        let restart = !configured || motion != self.motion || since != self.since
         guard restart || costume != self.costume || seed != self.seed || still != self.still || cheer != cheerSince
                 || bubbles != self.bubbles
         else { return }
@@ -63,8 +71,9 @@ final class NotchClawdView: NSView {
         self.seed = seed
         self.still = still
         self.bubbles = bubbles
+        self.since = since
         let now = CACurrentMediaTime()
-        if restart { motionStart = now }
+        if restart { motionStart = now - max(0, since.map { Date().timeIntervalSince($0) } ?? 0) }
         if cheer != cheerSince {
             cheerSince = cheer
             cheerStart = cheer.map { now - Date().timeIntervalSince($0) }

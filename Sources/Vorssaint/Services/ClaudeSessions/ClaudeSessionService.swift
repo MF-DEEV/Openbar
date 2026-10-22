@@ -32,7 +32,7 @@ final class ClaudeSessionService: ObservableObject {
     /// Costumes the person dressed sessions' Clawds in, by session, as
     /// `ClawdCostume.code`; a session missing here wears its own lot.
     @Published private(set) var costumes: [String: String] =
-        UserDefaults.standard.dictionary(forKey: DefaultsKey.notchSessionsCostumes) as? [String: String] ?? [:]
+        (UserDefaults.standard.dictionary(forKey: DefaultsKey.notchSessionsCostumes) ?? [:]).compactMapValues { $0 as? String }
     /// The session whose Clawd is being dressed. Its page stays focused
     /// under the wardrobe, so an enlarged island keeps its size.
     @Published private(set) var dressingID: String?

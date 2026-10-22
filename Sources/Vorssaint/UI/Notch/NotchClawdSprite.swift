@@ -88,8 +88,9 @@ enum NotchClawdSprite {
     /// the frame centred and every edge on a device pixel.
     static func layout(box: CGSize, scale: CGFloat) -> (pixel: CGFloat, origin: CGPoint) {
         let scale = max(1, scale.isFinite ? scale : 1)
-        let across = max(0, box.width) * scale / CGFloat(frameColumns.count)
-        let down = max(0, box.height) * scale / CGFloat(frameRows.count)
+        let box = CGSize(width: box.width.isFinite ? max(0, box.width) : 0, height: box.height.isFinite ? max(0, box.height) : 0)
+        let across = box.width * scale / CGFloat(frameColumns.count)
+        let down = box.height * scale / CGFloat(frameRows.count)
         let devicePixels = max(1, floor(min(across, down)))
         let pixel = devicePixels / scale
         let frameMidX = CGFloat(frameColumns.lowerBound) + CGFloat(frameColumns.count) / 2
@@ -256,7 +257,7 @@ enum NotchClawdSprite {
         for (x, left) in feet {
             let lifted = (pose.legs == .stepLeft && left) || (pose.legs == .stepRight && !left)
             let top = 8 - pose.rise, bottom = pose.jump > 0 || lifted ? 8 : 9
-            put(Stamp(x: x, y: top, rows: Array(repeating: "C", count: max(1, bottom - top + 1))), dy: -pose.jump)
+            put(Stamp(x: x, y: top, rows: Array(repeating: "c", count: max(1, bottom - top + 1))), dy: -pose.jump)
         }
         put(Stamp(x: 0, y: 0, rows: Array(repeating: String(repeating: "C", count: 13), count: 8)))
         arms(pose.arms).forEach { put($0) }

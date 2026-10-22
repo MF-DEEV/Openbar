@@ -22,6 +22,16 @@ enum ClawdCostumeTests {
         generator = ClawdRandom(seed: 42)
         suite.expect(first == (0..<4).map { _ in generator.next() } && Set(first).count == 4,
                      "the lot gives the same numbers for the same seed, and not the same number twice")
+        generator = ClawdRandom(seed: 0)
+        suite.expect(generator.next() == 0xe220_a839_7b1d_cdaf && generator.next() == 0x6e78_9e6a_a1b9_65f4,
+                     "the lot is SplitMix64, giving its published numbers")
+        // A session nobody dressed wears its lot. Drawing in another order, or
+        // a part added in the middle of a list, would change every such
+        // Clawd at the next update.
+        suite.expect(ClawdCostume.seeded(id).code == "v1:teal.none.monocle.none"
+                     && ClawdCostume.seeded("0f9a6c1e-2b7d-4e55-8a31-c4d2e6f7a890").code == "v1:orchid.beret.anaglyph.coffee"
+                     && ClawdCostume.seeded("s/a1").code == "v1:clay.propeller.none.scarf",
+                     "a session draws the same costume from one version of the app to the next: \(ClawdCostume.seeded(id).code)")
 
         let costumes = (0..<600).map { ClawdCostume.seeded("session-\($0)") }
         suite.expect(Set(costumes.map(\.shell)) == Set(ClawdShell.allCases), "every shell comes up")

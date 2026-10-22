@@ -59,3 +59,9 @@ Not run end to end: the Always answer, which hands back `permission_suggestions`
 - Claude Code checks the answer: every other key must equal the input it sent, keys of `answers` must be its question texts, a list is taken only for multiSelect, and all answers together must stay within 32,768 UTF-16 units.
 - While the dialog is open the registry says `waitingFor: "input needed"`, not `"permission prompt"`.
 - Confirmed in throwaway sessions: a single choice clicked on the island, two questions with a multiSelect answered together, and Skip, which Claude reads as "The user skipped the question from the Dynamic Island without answering."
+
+## Clawds (2.1.308)
+
+- Claude Code's theme names Clawd's body `clawd_body: rgb(215,119,87)`, and a subagent's color one of `red`, `blue`, `green`, `yellow`, `purple`, `orange`, `pink` or `cyan` (`*_FOR_SUBAGENTS_ONLY`). An agent definition picks it with a `color:` line in its frontmatter. Claude Code strips a byte order mark, accepts any line ending (`/^---\s*\n([\s\S]*?)---\s*\n?/`) and reads the frontmatter as YAML, so a comment after the value is not part of it.
+- A subagent's `agent-<id>.meta.json` names its `agentType` but not its color. A plugin's agent is typed `<plugin>:<agent>`. Installed plugins are listed in `~/.claude/plugins/installed_plugins.json` (`{"version":2,"plugins":{"<plugin>@<marketplace>":[{"installPath":…}]}}`); plugins synced from the account sit in `~/.claude/plugins/synced/<account>/<folder>/`, naming themselves in `plugin.json` or `.claude-plugin/plugin.json`, with newer copies in folders ending `~g2`, `~g3` and so on.
+- `claude --resume <id>` keeps the session's id under a new process, so its Clawd stays the same. Confirmed in a throwaway session.

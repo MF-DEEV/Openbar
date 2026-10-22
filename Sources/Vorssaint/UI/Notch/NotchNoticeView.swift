@@ -11,6 +11,7 @@ struct NotchNoticeView: View {
     /// and out again, and the notice leaves its own out meanwhile.
     var hidesMascot = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
 
     private var wings: NotchNoticeWings { notice.wings(in: geometry) }
     private var tint: Color {
@@ -95,7 +96,7 @@ struct NotchNoticeView: View {
                             .animation(nil, value: hidesMascot)
                     } else if notice.event == .agents, let agent = notice.agent, notice.symbol == agent.symbol {
                         NotchAgentMark(provider: agent, size: 13)
-                    } else if notice.event == .sessions, let id = notice.sessionID, NotchClaudeSessionsSupport.showsBuddies() {
+                    } else if notice.event == .sessions, let id = notice.sessionID, buddies {
                         // The session's own Clawd, so the notice says which one it is.
                         NotchClaudeNoticeClawd(sessionID: id, symbol: notice.symbol, size: CGSize(width: 18, height: 18))
                             .id("\(id)|\(notice.symbol)")

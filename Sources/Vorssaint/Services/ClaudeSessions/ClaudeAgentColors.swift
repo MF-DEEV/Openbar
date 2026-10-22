@@ -13,10 +13,13 @@ enum ClaudeAgentDefinitions {
     static let filesLimit = 200
 
     /// The `name:` and `color:` of a definition's frontmatter, the block
-    /// between its first two `---` lines.
+    /// between its first two `---` lines, read as Claude Code reads it: after
+    /// a byte order mark, with any line ending, and without a comment.
     static func frontmatter(_ data: Data) -> (name: String?, color: String?) {
-        let head = String(decoding: data.prefix(headLimit), as: UTF8.self)
-        var lines = head.split(separator: "\n", omittingEmptySubsequences: false).makeIterator()
+        var head = String(decoding: data.prefix(headLimit), as: UTF8.self)
+        if head.hasPrefix("\u{FEFF}") { head.removeFirst() }
+        // "\r\n" is one character, which a split on "\n" alone would miss.
+        var lines = head.split(omittingEmptySubsequences: false, whereSeparator: \.isNewline).makeIterator()
         guard lines.next()?.trimmingCharacters(in: .whitespaces) == "---" else { return (nil, nil) }
         var name: String?, color: String?
         while let line = lines.next() {
@@ -24,15 +27,24 @@ enum ClaudeAgentDefinitions {
             if text == "---" { return (name, color) }
             guard let colon = text.firstIndex(of: ":") else { continue }
             let key = text[..<colon].trimmingCharacters(in: .whitespaces).lowercased()
-            var value = text[text.index(after: colon)...].trimmingCharacters(in: .whitespaces)
-            if value.count >= 2, let first = value.first, first == value.last, first == "\"" || first == "'" {
-                value = String(value.dropFirst().dropLast())
-            }
+            let value = scalar(text[text.index(after: colon)...])
             guard !value.isEmpty else { continue }
             if key == "name" { name = value } else if key == "color" { color = value }
         }
         // No closing line: what was read was not frontmatter.
         return (nil, nil)
+    }
+
+    /// A one-line value: what its quotes hold, or the words before a comment.
+    static func scalar(_ raw: Substring) -> String {
+        let text = raw.trimmingCharacters(in: .whitespaces)
+        if let quote = text.first, quote == "\"" || quote == "'" {
+            let inside = text.dropFirst()
+            return String(inside[..<(inside.firstIndex(of: quote) ?? inside.endIndex)])
+        }
+        if text.hasPrefix("#") { return "" }
+        let comment = text.range(of: " #")?.lowerBound ?? text.range(of: "\t#")?.lowerBound ?? text.endIndex
+        return text[..<comment].trimmingCharacters(in: .whitespaces)
     }
 
     /// Where an agent called `type` may be defined, in the order Claude Code
@@ -41,10 +53,10 @@ enum ClaudeAgentDefinitions {
     static func folders(type: String, cwd: String, home: URL, plugins: Data?, readsProtected: Bool) -> [URL] {
         if let colon = type.firstIndex(of: ":") {
             let plugin = String(type[..<colon])
-            return pluginFolders(plugins, plugin: plugin)
+            return pluginFolders(plugins, plugin: plugin).filter { readsProtected || !isProtected($0.path, home: home) }
         }
         var folders: [URL] = []
-        var folder = URL(fileURLWithPath: cwd, isDirectory: true).standardizedFileURL
+        var folder = URL(fileURLWithPath: plain(cwd), isDirectory: true).standardizedFileURL
         let homePath = home.standardizedFileURL.path
         // Up to the home folder, whose agents are the person's own and come
         // last, or to the top of the disk.
@@ -63,10 +75,46 @@ enum ClaudeAgentDefinitions {
     /// Folders macOS guards with a prompt of its own: reading them unasked
     /// would show the person a dialog out of nowhere.
     static func isProtected(_ path: String, home: URL) -> Bool {
+        let path = plain(path)
         let homePath = home.standardizedFileURL.path
-        let guarded = ["Desktop", "Documents", "Downloads", "Library/Mobile Documents", "Pictures", "Movies", "Music"]
+        let guarded = ["Desktop", "Documents", "Downloads", "Library/Mobile Documents", "Library/CloudStorage",
+                       "Pictures", "Movies", "Music"]
             .map { homePath + "/" + $0 }
         return guarded.contains { path == $0 || path.hasPrefix($0 + "/") } || path == "/Volumes" || path.hasPrefix("/Volumes/")
+    }
+
+    /// The same path without the system's own name for the data volume, by
+    /// which a home folder can also be reached.
+    static func plain(_ path: String) -> String {
+        let data = "/System/Volumes/Data"
+        return path.hasPrefix(data + "/") ? String(path.dropFirst(data.count)) : path
+    }
+
+    /// The agent folders of a plugin synced from the person's account, which
+    /// Claude Code keeps under `plugins/synced`, one folder per account and
+    /// one per plugin, each naming itself in its `plugin.json`. The newest
+    /// copy of a plugin comes first.
+    static func syncedPluginFolders(_ root: URL, plugin: String) -> [URL] {
+        let files = FileManager.default
+        guard let accounts = try? files.contentsOfDirectory(atPath: root.path) else { return [] }
+        var folders: [URL] = []
+        for account in accounts.sorted().prefix(20) {
+            let base = root.appending(path: account, directoryHint: .isDirectory)
+            guard let names = try? files.contentsOfDirectory(atPath: base.path) else { continue }
+            for name in names.sorted(by: >).prefix(filesLimit) {
+                let folder = base.appending(path: name, directoryHint: .isDirectory)
+                let manifests = ["plugin.json", ".claude-plugin/plugin.json"].map { folder.appending(path: $0) }
+                let named = manifests.contains { manifest in
+                    guard (try? manifest.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]))
+                            .map({ $0.isRegularFile == true && ($0.fileSize ?? .max) < 1 << 16 }) == true,
+                          let data = files.contents(atPath: manifest.path),
+                          let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return false }
+                    return json["name"] as? String == plugin
+                }
+                if named { folders.append(folder.appending(path: "agents", directoryHint: .isDirectory)) }
+            }
+        }
+        return folders
     }
 
     /// The agent folders of an installed plugin, from Claude Code's
@@ -140,8 +188,16 @@ final class ClaudeAgentColors {
             }.first
             : nil
         let name = ClaudeAgentDefinitions.agentName(type)
-        for folder in ClaudeAgentDefinitions.folders(type: type, cwd: cwd, home: home, plugins: plugins,
-                                                     readsProtected: readsProtected) {
+        var folders = ClaudeAgentDefinitions.folders(type: type, cwd: cwd, home: home, plugins: plugins,
+                                                     readsProtected: readsProtected)
+        if let colon = type.firstIndex(of: ":") {
+            let plugin = String(type[..<colon])
+            folders += ClaudeSessionRegistryReader.homes(home).flatMap {
+                ClaudeAgentDefinitions.syncedPluginFolders($0.appending(path: "plugins/synced", directoryHint: .isDirectory),
+                                                           plugin: plugin)
+            }
+        }
+        for folder in folders {
             if let found = definition(named: name, in: folder) { return found.color }
         }
         return nil
@@ -153,8 +209,13 @@ final class ClaudeAgentColors {
         guard let files = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return nil }
         var byFile: (name: String, color: String?)?
         for file in files.filter({ $0.hasSuffix(".md") }).sorted().prefix(ClaudeAgentDefinitions.filesLimit) {
-            let path = folder.appending(path: file).path
-            guard let handle = FileHandle(forReadingAtPath: path) else { continue }
+            // Only a plain file: opening a pipe waits for a writer, and would
+            // hold up the queue the sessions and their hooks share. A link is
+            // followed only where the app may read without a prompt.
+            let resolved = folder.appending(path: file).resolvingSymlinksInPath()
+            guard (try? resolved.resourceValues(forKeys: [.isRegularFileKey]))?.isRegularFile == true,
+                  readsProtected || !ClaudeAgentDefinitions.isProtected(resolved.path, home: home),
+                  let handle = FileHandle(forReadingAtPath: resolved.path) else { continue }
             let data = (try? handle.read(upToCount: ClaudeAgentDefinitions.headLimit)) ?? Data()
             try? handle.close()
             let head = ClaudeAgentDefinitions.frontmatter(data)

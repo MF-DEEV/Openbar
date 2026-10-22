@@ -71,7 +71,8 @@ struct NotchClawdWardrobeView: View {
                     .frame(width: figure.width * 0.9, height: pixel * 2)
                     .offset(y: pixel)
                 NotchClawd(costume: costume, motion: NotchClaudeSessionsSupport.motion(session, now: Date()),
-                           seed: ClawdCostume.seed(session.id), cheer: changed ?? NotchClaudeSessionsSupport.cheer(session),
+                           seed: ClawdCostume.seed(session.id), since: session.phaseSince,
+                           cheer: changed ?? NotchClaudeSessionsSupport.cheer(session),
                            size: figure)
             }
             .padding(.bottom, margin + pixel)

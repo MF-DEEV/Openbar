@@ -79,8 +79,9 @@ struct NotchClaudeSessionDetailView: View {
     private func header(now: Date) -> some View {
         HStack(spacing: 10) {
             NotchClawdDressButton(session: session, name: service.displayName(session), text: text)
-                // Room for a tall hat to hop in at the top of the scrolling page.
-                .padding(.top, 6)
+                // Room for the tallest hat to jump in at the top of the
+                // scrolling page, which clips what reaches past it.
+                .padding(.top, 12)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(text.phase(session.phase))
