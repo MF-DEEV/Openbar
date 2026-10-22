@@ -94,12 +94,15 @@ enum NotchMusicVisibilityTests {
         var hasDownloadActivity = false
         var downloadName: String?
         var hasAgentActivity = false
+        var hasSessionActivity = false
         var hasKeepAwakeActivity = false
         var awaitsTrackNotice = false
         var timerStripWing: CGFloat = 44
         func timerStripWing(for companion: NotchCompactActivity?, in geometry: NotchGeometry) -> CGFloat { timerStripWing }
         var agentStripWing: CGFloat = 58
         func agentStripWing(in geometry: NotchGeometry) -> CGFloat { agentStripWing }
+        var sessionStripWing: CGFloat = 58
+        func sessionStripWing(in geometry: NotchGeometry) -> CGFloat { sessionStripWing }
         var watchStripWing: CGFloat = 60
         func watchStripWing(in geometry: NotchGeometry) -> CGFloat { watchStripWing }
         var calendarStripWing: CGFloat = 120
@@ -111,6 +114,7 @@ enum NotchMusicVisibilityTests {
         var pinned = false
         var clipboardPinnedOnly = false
         var openedByHover = false
+        var sessionsEnlarged = false
         var sectionQuery = ""
         var highlightedSection: NotchModule?
         var sectionRow = 0

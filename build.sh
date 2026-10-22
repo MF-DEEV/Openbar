@@ -284,6 +284,17 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchAgentStrings.swift
         Sources/Vorssaint/Core/CodexAccountStrings.swift
         Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift
+        Sources/Vorssaint/Core/NotchClaudeSessionStrings.swift
+        Sources/Vorssaint/Services/Notch/NotchClaudeSessionsSupport.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionModels.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionEngine.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionRegistryReader.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeTranscriptReader.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionHosts.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeImageAttachments.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeHookMessage.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeHookServer.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeHookInstaller.swift
         Sources/Vorssaint/Core/NotchLockScreenStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLockScreenSupport.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageModels.swift
@@ -676,6 +687,8 @@ mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
 cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
+# The Antigravity extension the Sessions page types replies through.
+ditto Tools/AntigravityBridge "$STAGE/Contents/Resources/AntigravityBridge"
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"

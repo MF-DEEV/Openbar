@@ -19,6 +19,8 @@ struct NotchNotice: Equatable {
     /// With the companion on, it takes the symbol's place in the notice and
     /// plays this, so the notice itself is its reaction.
     var mascot: NotchMascotReaction? = nil
+    /// The Claude Code session a Sessions notice is about, whose page it opens.
+    var sessionID: String? = nil
     /// A banner that replaces one still on screen keeps at least its wings,
     /// so a burst of messages does not resize the island with each one.
     var minimumWings = NotchNoticeWings.zero
@@ -166,6 +168,8 @@ final class NotchService: ObservableObject {
     @Published private var fanDetailHeight: CGFloat?
     @Published private(set) var power = PowerReading()
     @Published private var musicDetailVisible = false
+    /// A Claude session's page with the island grown around it.
+    @Published private(set) var sessionsEnlarged = false
 
     private var windowHost: NotchWindowHost?
     private var panel: NotchPanel? { windowHost?.panel }
@@ -502,6 +506,11 @@ final class NotchService: ObservableObject {
         NotchAgentSupport.showsLiveActivity() && !AgentUsageService.shared.snapshot.live.isEmpty
     }
 
+    var hasSessionActivity: Bool {
+        let sessions = ClaudeSessionService.shared
+        return NotchClaudeSessionsSupport.showsActivity() && sessions.running && !sessions.counts.isEmpty
+    }
+
     var hasCalendarActivity: Bool {
         let calendar = NotchCalendarService.shared
         guard let countdown = calendar.countdown,
@@ -521,7 +530,8 @@ final class NotchService: ObservableObject {
     }
 
     var compactActivities: [NotchCompactActivity] {
-        NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, downloads: hasDownloadActivity,
+        NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, sessions: hasSessionActivity,
+                                      downloads: hasDownloadActivity,
                                       agents: hasAgentActivity, calendar: hasCalendarActivity,
                                       music: hasMusicActivity, keepAwake: hasKeepAwakeActivity)
     }
@@ -643,6 +653,7 @@ final class NotchService: ObservableObject {
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing(in: geometry))
+        case .sessions: return geometry.compactAgentGeometry(wing: sessionStripWing(in: geometry))
         case .watch: return geometry.compactWatchGeometry(wing: watchStripWing(in: geometry))
         case .calendar:
             return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),
@@ -777,6 +788,18 @@ final class NotchService: ObservableObject {
         return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
 
+    /// The phase's mark on one side, the counts on the other, each as wide
+    /// as the strip draws it.
+    private func sessionStripWing(in geometry: NotchGeometry) -> CGFloat {
+        let provisional = geometry.compactAgentGeometry(wing: NotchAgentSupport.stripWingRange.lowerBound)
+        let size = NotchAgentSupport.stripTextSize(height: provisional.compactActivityContentHeight)
+        let reading = NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionService.shared.counts, textSize: size)
+            + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+        let mark: CGFloat = 14
+        let marks = mark * 1.45 + 1 + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
+        return max(reading, marks) + NotchAgentSupport.stripCameraGap
+    }
+
     var expandedSize: CGSize {
         if showingSections {
             return geometry.sectionPickerSize(count: filteredSections.count)
@@ -865,6 +888,7 @@ final class NotchService: ObservableObject {
         result.requiresFullWidthHeader = selected == .captures && captureActions != nil
             && !showingSections && !showingAppPanel && selectedMetric == nil
         result.pageTop = expandedPageTop
+        result.enlarged = showsEnlargedSession
         if result.pageTop == .wrapsCamera { result.pageTrailingControls = playerToggleCount }
         // Under a preset each page takes the width it needs, up to the
         // preset's; the gallery, details and the empty island keep the chosen
@@ -1034,6 +1058,9 @@ final class NotchService: ObservableObject {
         case .downloads:
             return layout.downloadSurface(name: download?.name ?? FeatureStrings.notchFiles(language).downloadsTitle,
                                           hasProgress: download?.fraction != nil, geometry: geometry, language: language)
+        case .sessions:
+            let counts = ClaudeSessionService.shared.counts
+            return layout.agentSurface(reading: NotchClaudeSessionsSupport.stripText(counts), working: 1, geometry: geometry)
         case .agents:
             let reading = NotchAgentSupport.stripReading(AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
                                                          display: NotchAgentSupport.limitDisplay(),
@@ -1120,6 +1147,9 @@ final class NotchService: ObservableObject {
         // Paused while the island is away, the section still stops at once
         // when it is turned off.
         if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
+        // Sessions keep being followed while the island is away, so a
+        // permission prompt still finds it when it comes back.
+        ClaudeSessionService.shared.syncWithPreferences()
         guard !suspended else {
             if session.canRunTimer { NotchTimerService.shared.syncWithPreferences() }
             else { NotchTimerService.shared.suspend() }
@@ -1225,6 +1255,7 @@ final class NotchService: ObservableObject {
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
         AgentUsageService.shared.stop()
+        ClaudeSessionService.shared.stop()
         guard running else { return }
         running = false
         NotchTimerService.shared.stop()
@@ -1263,6 +1294,7 @@ final class NotchService: ObservableObject {
         }
         captureControlsWork?.cancel(); captureControlsWork = nil
         musicDetailVisible = false
+        sessionsEnlarged = false
         pageLayers.removeAll()
         clipboardPinnedOnly = false
         panel?.handleScroll = nil
@@ -1455,6 +1487,7 @@ final class NotchService: ObservableObject {
             if noticeExpanded { notice = nil; noticeExpanded = false }
             expanded = false
             openedByHover = false
+            sessionsEnlarged = false
             peeking = false
             selectedMetric = nil
             showingAppPanel = false
@@ -1491,6 +1524,18 @@ final class NotchService: ObservableObject {
               })
         else { return }
         next.makeKey()
+    }
+
+    func setSessionsEnlarged(_ enlarged: Bool) {
+        guard enlarged != sessionsEnlarged else { return }
+        mutatePresentation { sessionsEnlarged = enlarged }
+    }
+
+    /// Only a session's own page grows; the list and other pages keep
+    /// the island's size.
+    private var showsEnlargedSession: Bool {
+        sessionsEnlarged && selected == .sessions && !showingSections && !showingAppPanel && selectedMetric == nil
+            && ClaudeSessionService.shared.focusedID != nil
     }
 
     func setMusicDetailsVisible(_ visible: Bool) {
@@ -1829,6 +1874,22 @@ final class NotchService: ObservableObject {
         return true
     }
 
+    /// ⌘Y allows and ⌘N denies the permission of the session whose page is
+    /// open, or of the first session waiting on one.
+    private func handleSessionKey(_ event: NSEvent) -> Bool {
+        guard selected == .sessions, !showingAppPanel, !showingSections, selectedMetric == nil,
+              let decision = NotchClaudeSessionsSupport.decision(
+                  key: event.charactersIgnoringModifiers,
+                  commandOnly: event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command)
+        else { return false }
+        let sessions = ClaudeSessionService.shared
+        let focused = sessions.focusedID.flatMap { id in sessions.sessions.first { $0.id == id } }
+        guard let target = focused ?? sessions.sessions.first(where: { $0.permission != nil }),
+              let permission = target.permission else { return false }
+        sessions.decide(target.id, request: permission.requestID, decision)
+        return true
+    }
+
     /// The editor lives in the view, so the request goes out as a serial and
     /// the view reads which of the finder's actions it was for.
     private func requestScratchpadFind(_ action: NSTextFinder.Action) {
@@ -2037,6 +2098,7 @@ final class NotchService: ObservableObject {
         let closesCommandBar = showingCommandBar
         showingCommandBar = false
         expanded = false
+        sessionsEnlarged = false
         showingSections = false
         peeking = false
         notice = nil
@@ -2330,7 +2392,8 @@ final class NotchService: ObservableObject {
              : selectedNotice.event == .accessory ? .system : selectedNotice.event == .systemNotification ? .notifications
              : selectedNotice.event == .clipboard ? .clipboard : selectedNotice.event == .agents ? .agents
              : selectedNotice.event == .track ? .music : selectedNotice.event == .microphone ? .mixer
-             : selectedNotice.event == .watch ? .watch : .controls)
+             : selectedNotice.event == .watch ? .watch : selectedNotice.event == .sessions ? .sessions : .controls)
+        if selectedNotice.event == .sessions { ClaudeSessionService.shared.focus(selectedNotice.sessionID) }
     }
 
     /// Skipping through songs, or a title that lands before its artist, shows
@@ -3704,6 +3767,7 @@ final class NotchService: ObservableObject {
                 }
                 if self.handleSectionKey(event) { return nil }
                 if self.handleScratchpadKey(event) { return nil }
+                if self.handleSessionKey(event) { return nil }
                 if self.handleClipboardPasteKey(event) { return nil }
             }
             if event.type == .keyDown, event.window === self.panel, self.selected == .tools, !self.showingAppPanel, !self.showingSections {
@@ -4008,6 +4072,25 @@ final class NotchService: ObservableObject {
                     self?.refreshPresentation()
                 }.store(in: &subscriptions)
         }
+        if NotchSupport.routes(.sessions) {
+            ClaudeSessionService.shared.$counts
+                .removeDuplicates()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.syncMenuSpaceMonitoring()
+                    self?.objectWillChange.send()
+                    self?.refreshPresentation()
+                }.store(in: &subscriptions)
+            ClaudeSessionService.shared.events.receive(on: DispatchQueue.main)
+                .sink { [weak self] in self?.showSessionEvent($0) }
+                .store(in: &subscriptions)
+            // Leaving a session's page brings the island back to its size.
+            ClaudeSessionService.shared.$focusedID
+                .removeDuplicates()
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] id in if id == nil { self?.setSessionsEnlarged(false) } }
+                .store(in: &subscriptions)
+        }
         if NotchSupport.routes(.agents) {
             AgentUsageService.shared.events.receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.showAgentEvent($0) }
@@ -4084,6 +4167,39 @@ final class NotchService: ObservableObject {
         case .budgetReached(let spent, _):
             show(NotchNotice(event: .agents, title: text.budgetTitle, detail: AgentFormat.cost(spent),
                              symbol: "dollarsign.circle.fill"))
+        }
+    }
+
+    /// A session waiting on the person shows a notice and, when allowed,
+    /// opens the island on its page; a finished turn only shows a notice.
+    private func showSessionEvent(_ event: ClaudeSessionEvent) {
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
+        let sessions = ClaudeSessionService.shared
+        let id: String
+        switch event {
+        case .needsPermission(let session, _), .needsInput(let session), .finished(let session, _): id = session
+        }
+        guard let session = sessions.sessions.first(where: { $0.id == id }) else { return }
+        if NotchClaudeSessionsSupport.shouldAutoExpand(event, enabled: NotchClaudeSessionsSupport.autoExpands(),
+                                                       expanded: expanded, suspended: suspended || hiddenInFullscreen) {
+            open(.sessions, takeFocus: false)
+            sessions.focus(id)
+            return
+        }
+        switch event {
+        case .needsPermission(_, let tool):
+            show(NotchNotice(event: .sessions, title: sessions.displayName(session),
+                             detail: [text.permissionNotice, session.permission?.summary ?? tool].filter { !$0.isEmpty }
+                                .joined(separator: " · "),
+                             symbol: NotchClaudeSessionsSupport.symbol(.waitingPermission), agent: .claude, sessionID: id))
+        case .needsInput:
+            show(NotchNotice(event: .sessions, title: sessions.displayName(session), detail: text.inputNotice,
+                             symbol: NotchClaudeSessionsSupport.symbol(.waitingInput), agent: .claude, sessionID: id))
+        case .finished(_, let duration):
+            let locale = L10n.shared.language.formattingLocale()
+            show(NotchNotice(event: .sessions, title: sessions.displayName(session),
+                             detail: duration.map { text.finishedAfter(AgentFormat.duration($0, locale: locale)) } ?? text.finishedNotice,
+                             symbol: NotchClaudeSessionsSupport.symbol(.finished), agent: .claude, sessionID: id))
         }
     }
 

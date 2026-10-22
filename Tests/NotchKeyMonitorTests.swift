@@ -92,6 +92,7 @@ enum NotchKeyMonitorTests {
         func select(_ module: NotchModule) { selected = module }
         func handleSectionKey(_ event: NSEvent) -> Bool { false }
         func handleScratchpadKey(_ event: NSEvent) -> Bool { false }
+        func handleSessionKey(_ event: NSEvent) -> Bool { false }
         func handleClipboardPasteKey(_ event: NSEvent) -> Bool { false }
         func ownsWindow(_ window: Panel?) -> Bool { window === panel }
     }

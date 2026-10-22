@@ -7,7 +7,7 @@ import Foundation
 import CoreGraphics
 
 enum NotchModule: String, CaseIterable, Identifiable {
-    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, watch
+    case controls, mixer, music, clipboard, captures, files, system, tools, calendar, notifications, timer, camera, downloads, scratchpad, agents, sessions, watch
     var id: String { rawValue }
 
     var symbol: String {
@@ -30,6 +30,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .tools: return AppFeature.quickLauncher.symbolName
         case .scratchpad: return "note.text"
         case .agents: return "sparkles"
+        case .sessions: return "rectangle.stack"
         case .watch: return "eye"
         }
     }
@@ -52,6 +53,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .downloads: return "d"
         case .scratchpad: return "p"
         case .agents: return "g"
+        case .sessions: return "l"
         case .watch: return "o"
         }
     }
@@ -74,7 +76,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
                 || AppFeature.colorPicker.isAvailable(in: defaults)
         case .files: return AppFeature.shelf.isAvailable(in: defaults)
         case .scratchpad: return AppFeature.scratchpad.isAvailable(in: defaults)
-        case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
+        case .agents, .sessions: return AppFeature.notchAgents.isAvailable(in: defaults)
         case .watch: return AppFeature.notchWatch.isAvailable(in: defaults)
         case .system:
             return [.monitorCPU, .monitorGPU, .monitorMemory, .monitorNetwork,
@@ -823,7 +825,7 @@ enum NotchMusicStripLayout {
 }
 
 enum NotchCompactActivity: String, Identifiable {
-    case timer, watch, downloads, agents, calendar, music, keepAwake
+    case timer, watch, sessions, downloads, agents, calendar, music, keepAwake
 
     var id: String { rawValue }
 
@@ -831,6 +833,7 @@ enum NotchCompactActivity: String, Identifiable {
         switch self {
         case .timer: return FeatureStrings.notchActivities(language).timer
         case .watch: return FeatureStrings.notchWatch(language).title
+        case .sessions: return FeatureStrings.notchClaudeSessions(language).title
         case .downloads: return FeatureStrings.notchFiles(language).downloadsTitle
         case .agents: return FeatureStrings.notchAgents(language).title
         case .calendar: return FeatureStrings.notchCalendar(language).title
@@ -844,6 +847,7 @@ enum NotchCompactActivity: String, Identifiable {
         switch self {
         case .timer: return .timer
         case .watch: return .watch
+        case .sessions: return .sessions
         case .downloads: return .downloads
         case .agents: return .agents
         case .calendar: return .calendar
@@ -1594,7 +1598,7 @@ enum NotchQuickAccessLayout {
 }
 
 enum NotchEvent: String, CaseIterable {
-    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, track, microphone, watch, inputSource
+    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, sessions, track, microphone, watch, inputSource
 
     var preferenceKey: String {
         switch self {
@@ -1605,6 +1609,7 @@ enum NotchEvent: String, CaseIterable {
         case .accessory: return DefaultsKey.notchAccessoriesEnabled
         case .download: return DefaultsKey.notchDownloadsEnabled
         case .agents: return DefaultsKey.notchAgentsEnabled
+        case .sessions: return DefaultsKey.notchSessionsEnabled
         case .systemNotification: return DefaultsKey.notchNotificationsEnabled
         case .keyboardLight: return DefaultsKey.notchKeyboardLight
         case .inputSource: return DefaultsKey.notchInputSource
@@ -1619,7 +1624,7 @@ enum NotchEvent: String, CaseIterable {
     var priority: Int {
         switch self {
         case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 3
-        case .capture, .timer, .watch: return 2
+        case .capture, .timer, .watch, .sessions: return 2
         case .battery, .systemNotification, .accessory, .agents: return 1
         case .clipboard, .download, .track: return 0
         }
@@ -1629,7 +1634,7 @@ enum NotchEvent: String, CaseIterable {
         switch self {
         case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 1.6
         case .systemNotification, .track: return 3
-        case .timer, .download, .watch: return 6
+        case .timer, .download, .watch, .sessions: return 6
         case .agents: return 5
         case .battery, .accessory: return 4
         case .clipboard: return 2.5
@@ -1783,10 +1788,11 @@ enum NotchSupport {
     /// Keep Awake comes last: a session can run all day, even more than
     /// music plays, and it only says that the Mac stays awake. A watch
     /// follows the timer: the person started both and is waiting on them.
-    static func compactActivities(timer: Bool, watch: Bool = false, downloads: Bool, agents: Bool,
+    static func compactActivities(timer: Bool, watch: Bool = false, sessions: Bool = false, downloads: Bool, agents: Bool,
                                   calendar: Bool, music: Bool, keepAwake: Bool = false) -> [NotchCompactActivity] {
+        // Sessions come before the AI reading: they can be waiting on the person.
         let candidates: [(Bool, NotchCompactActivity)] = [
-            (timer, .timer), (watch, .watch), (downloads, .downloads), (agents, .agents),
+            (timer, .timer), (watch, .watch), (sessions, .sessions), (downloads, .downloads), (agents, .agents),
             (calendar, .calendar), (music, .music), (keepAwake, .keepAwake)
         ]
         return candidates.compactMap { $0.0 ? $0.1 : nil }
@@ -1850,6 +1856,7 @@ enum NotchSupport {
                 && ($0 != .calendar || defaults.bool(forKey: DefaultsKey.notchCalendarEnabled))
                 && ($0 != .notifications || defaults.bool(forKey: DefaultsKey.notchNotificationsEnabled))
                 && ($0 != .agents || defaults.bool(forKey: DefaultsKey.notchAgentsEnabled))
+                && ($0 != .sessions || defaults.bool(forKey: DefaultsKey.notchSessionsEnabled))
                 && ($0 != .watch || defaults.bool(forKey: DefaultsKey.notchWatchEnabled))
         }
     }
@@ -2022,6 +2029,7 @@ enum NotchSupport {
             && modules(in: defaults).contains(.downloads)
         case .agents: return AppFeature.notchAgents.isAvailable(in: defaults)
             && modules(in: defaults).contains(.agents)
+        case .sessions: return NotchClaudeSessionsSupport.isEnabled(in: defaults)
         case .systemNotification: return NotchNotificationSupport.isEnabled(in: defaults)
         case .keyboardLight: return AppFeature.brightness.isAvailable(in: defaults)
         case .volume: return AppFeature.mixer.isAvailable(in: defaults)
@@ -2246,6 +2254,9 @@ struct NotchGeometry: Equatable {
     var compactSideRoom: CGFloat?
     var quickAccessBottomInset: CGFloat = 0
     var requiresFullWidthHeader = false
+    /// A page grown to read and write in: most of the screen, up to a
+    /// readable line length.
+    var enlarged = false
     /// What the open page puts in the island's top row.
     var pageTop: NotchPageTop = .row
     /// The width the open page reads best at, inside a preset's width,
@@ -2647,6 +2658,8 @@ struct NotchGeometry: Equatable {
     }
     var expanded: CGSize { expandedSize(module: .controls) }
     var expandedWidth: CGFloat {
+        let limit = screen.width - 24 - NotchQuickAccessLayout.gutter * 2
+        if enlarged { return min(max(min(1180, screen.width * 0.66), cameraWidth + 36), limit) }
         let chosen = NotchLayout.preferredWidth(layout, custom: customWidth)
         // Under a preset, a page with a width of its own takes no more, still
         // wrapping the camera with its row where the chosen width would have.
@@ -2662,7 +2675,7 @@ struct NotchGeometry: Equatable {
         let preferred = layout == .custom ? chosen : pageContentWidth.map { natural in
             min(chosen, max(natural, isNotched ? cameraWidth + wing * 2 : 0) + NotchLayout.horizontalInset * 2)
         } ?? chosen
-        return min(max(preferred, cameraWidth + 36), screen.width - 24 - NotchQuickAccessLayout.gutter * 2)
+        return min(max(preferred, cameraWidth + 36), limit)
     }
     var contentWidth: CGFloat { max(0, expandedWidth - NotchLayout.horizontalInset * 2) }
     /// Content height available before a page needs to scroll.
@@ -2718,6 +2731,9 @@ struct NotchGeometry: Equatable {
                       capturePreviewHeight: CGFloat? = nil,
                       timerHasSession: Bool = false, timerMode: NotchTimerMode = .timer,
                       agentsHeight: CGFloat? = nil) -> CGSize {
+        if enlarged {
+            return CGSize(width: expandedWidth, height: min(screen.height * 0.8, screen.height - 48 - quickAccessBottomInset))
+        }
         let budget = contentBudget
         let showsCapturePreview = module == .captures && !detail && capturePreviewHeight != nil
         let showsFileMedia = module == .files && !detail && fileMediaHeight != nil
@@ -2766,7 +2782,7 @@ struct NotchGeometry: Equatable {
                 // Only the cards a person chose; a short set leaves a short island.
                 contentHeight = min(budget, agentsHeight.map { $0 > 0 ? $0 : NotchLayout.emptyHeight } ?? budget)
             // Lists and previews fill the chosen content budget.
-            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .watch:
+            case .mixer, .calendar, .clipboard, .captures, .files, .notifications, .downloads, .camera, .scratchpad, .sessions, .watch:
                 contentHeight = budget
             }
         }

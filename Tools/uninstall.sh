@@ -193,6 +193,15 @@ rm -rf "$HOME/Library/Caches/$BUNDLE"
 # Written by URLSession on the app's behalf, so they exist without the app ever
 # naming the path; `defaults delete` does not reach them either.
 rm -rf "$HOME/Library/HTTPStorages/$BUNDLE" "$HOME/Library/HTTPStorages/$BUNDLE.binarycookies"
+# The Sessions hooks' fallback socket. `--uninstall`, when the app could
+# still run it, took the hooks out of ~/.claude/settings.json and removed the
+# shared ~/.vorssaint folder and Antigravity extension if no other build
+# needs them; without the app, only this build's own socket goes.
+rm -f "$HOME/.vorssaint/$BUNDLE.sock"
+if grep -qF "# vorssaint-hook $BUNDLE" "$HOME/.claude/settings.json" 2>/dev/null; then
+    echo "  Claude Code hooks for $BUNDLE are still in ~/.claude/settings.json. They do nothing without the app;"
+    echo "  remove the entries marked \"# vorssaint-hook $BUNDLE\" to tidy up."
+fi
 # `defaults delete` does not reach ByHost. The (N) qualifier is load-bearing:
 # without it zsh aborts the command on an unmatched pattern, which is the
 # ordinary case, and prints an error over a successful uninstall.

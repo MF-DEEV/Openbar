@@ -42,6 +42,11 @@ enum Uninstaller {
                   ? "UNINSTALL: Space rearranging restored"
                   : "UNINSTALL: Space arrangement restoration could not be confirmed")
         }
+        // The Sessions hooks live in Claude Code's own settings, which only
+        // the app knows how to edit without touching the person's entries.
+        let sessions = ClaudeSessionCleanup.removeForUninstall()
+        if sessions.hooks { print("UNINSTALL: Claude Code hooks removed") }
+        if sessions.shared { print("UNINSTALL: Antigravity extension and ~/.vorssaint removed") }
         do {
             try SMAppService.mainApp.unregister()
             print("UNINSTALL: login item unregistered")

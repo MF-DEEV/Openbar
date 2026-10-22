@@ -887,6 +887,19 @@ enum DefaultsKey {
     static let notchAgentsLimitThreshold = "notchAgentsLimitThreshold"
     static let notchAgentsDailyBudget = "notchAgentsDailyBudget"
     static let notchAgentsPriceUpdates = "notchAgentsPriceUpdates"
+    // Claude Code sessions: the island section that follows each running session.
+    static let notchSessionsEnabled = "notchSessionsEnabled"
+    static let notchSessionsLiveActivity = "notchSessionsLiveActivity"
+    /// The island opens on its own when a session waits on the person.
+    static let notchSessionsAutoExpand = "notchSessionsAutoExpand"
+    /// Prompts, replies, titles and tool arguments may be read into memory.
+    static let notchSessionsContentPreview = "notchSessionsContentPreview"
+    /// Names given to Claude Code sessions in the island, by session.
+    static let notchSessionsNames = "notchSessionsNames"
+    /// Whether an enlarged session page keeps its details folded away.
+    static let notchSessionsSidebarHidden = "notchSessionsSidebarHidden"
+    /// The text size of a session's page with the island grown around it.
+    static let notchSessionsLargeTextSize = "notchSessionsLargeTextSize"
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
     // How the island looks on a display without a camera housing.
@@ -1476,6 +1489,12 @@ enum Defaults {
         DefaultsKey.notchAgentsLimitThreshold: NotchAgentSupport.defaultLimitThreshold,
         DefaultsKey.notchAgentsDailyBudget: 0.0,
         DefaultsKey.notchAgentsPriceUpdates: true,
+        DefaultsKey.notchSessionsEnabled: false,
+        DefaultsKey.notchSessionsLiveActivity: true,
+        DefaultsKey.notchSessionsAutoExpand: true,
+        DefaultsKey.notchSessionsContentPreview: false,
+        DefaultsKey.notchSessionsLargeTextSize: 15.0,
+        DefaultsKey.notchSessionsSidebarHidden: false,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchBrowserCovers: false,

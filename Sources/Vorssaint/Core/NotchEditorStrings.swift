@@ -93,6 +93,7 @@ struct NotchEditorStrings {
         case .downloads: return downloadsSummary
         case .scratchpad: return scratchpadSummary
         case .agents: return agentsSummary
+        case .sessions: return NotchClaudeSessionStrings.enUS.summary
         case .watch: return watchSummary
         }
     }

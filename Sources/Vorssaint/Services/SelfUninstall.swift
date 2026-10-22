@@ -251,6 +251,8 @@ enum SelfUninstall {
 
     private static func removePreferences() {
         let id = bundleID
+        // Hooks in Claude Code's settings and the folder its extension uses.
+        ClaudeSessionCleanup.removeForUninstall()
         UserDefaults.standard.removePersistentDomain(forName: id)
         let home = NSHomeDirectory()
         try? FileManager.default.removeItem(atPath: "\(home)/Library/Preferences/\(id).plist")

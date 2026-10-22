@@ -3152,9 +3152,9 @@ enum NotchAgentTests {
         suite.expect(NotchAgentSupport.updatesPrices(in: defaults), "prices stay current unless turned off")
         defaults.set(false, forKey: DefaultsKey.notchAgentsPriceUpdates)
         suite.expect(!NotchAgentSupport.updatesPrices(in: defaults), "turning price updates off stops the download")
-        suite.expect(AppFeature.notchAgents.group == .dynamicIsland && AppFeature.notchAgents.permissions.isEmpty
+        suite.expect(AppFeature.notchAgents.group == .dynamicIsland && AppFeature.notchAgents.permissions == [.automationTerminal]
                         && AppFeature.availabilityDefaults[AppFeature.notchAgents.availabilityKey] as? Bool == true,
-                     "the AI page is a Dynamic Island extension that needs no system permission")
+                     "the AI page is a Dynamic Island extension; only its Sessions page drives Terminal")
 
         let limits = NotchAgentTile(card: .limits, provider: .claude)
         let codex = NotchAgentTile(card: .limits, provider: .codex)
