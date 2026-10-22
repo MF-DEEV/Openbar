@@ -107,7 +107,8 @@ struct ClaudeTranscriptReader {
                 if json["toolEndsTurn"] as? Bool == true { facts.append(.turnEnded(date, completed: true)) }
                 break
             }
-            guard json["isMeta"] as? Bool != true else { break }
+            // The summary an idle compaction writes is no prompt and begins no turn.
+            guard json["isMeta"] as? Bool != true, json["isCompactSummary"] as? Bool != true else { break }
             let texts = (content as? String).map { [$0] }
                 ?? blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
             if texts.contains(where: { $0.hasPrefix("[Request interrupted by user") || $0.hasPrefix("<local-command-std") }) {
