@@ -18,12 +18,17 @@ struct NotchClaudeSessionLargeView: View {
     /// The page's own copy, so folding animates; a change read back from the
     /// preferences arrives outside the click's animation and would jump.
     @State private var sidebarHidden = UserDefaults.standard.bool(forKey: DefaultsKey.notchSessionsSidebarHidden)
+    /// The room the conversation leaves the details, changed at once.
+    @State private var layoutHidden = UserDefaults.standard.bool(forKey: DefaultsKey.notchSessionsSidebarHidden)
+    @State private var textSettling = false
     @State private var allTools = false
     @State private var allAgents = false
     @State private var handleHovered = false
 
     private static let thinkingRow = -1
     static let sidebarWidth: CGFloat = 330
+    /// The handle's column, which stays when the details fold away.
+    static let handleWidth: CGFloat = 38
     /// Rows a folded list shows: the running ones and the latest.
     static let foldedRows = 4
     private var size: CGFloat { CGFloat(NotchClaudeSessionsSupport.largeTextSize(textSize)) }
@@ -33,24 +38,32 @@ struct NotchClaudeSessionLargeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 header(now: context.date)
                 if session.phase.isWaiting { NotchClaudeSessionPermissionCard(session: session, text: text, open: open) }
+                // Text that changes width on every frame breaks its lines on
+                // every frame. So the conversation takes its new width at
+                // once, breaking its lines a single time under a short fade,
+                // while the details slide over it as a layer of their own.
                 HStack(alignment: .top, spacing: 0) {
                     conversation
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    sidebarHandle
-                    // The details stay laid out at their width while the
-                    // column around them narrows, so they slide and fade out
-                    // as the conversation widens instead of jumping.
-                    ScrollView { sidebar(now: context.date).padding(.bottom, 8) }
-                        .scrollIndicators(.automatic)
-                        .frame(width: Self.sidebarWidth)
-                        .offset(x: sidebarHidden ? 48 : 0)
-                        .opacity(sidebarHidden ? 0 : 1)
-                        .frame(width: sidebarHidden ? 0 : Self.sidebarWidth, alignment: .leading)
-                        .clipped()
-                        .allowsHitTesting(!sidebarHidden)
-                        .accessibilityHidden(sidebarHidden)
+                        .opacity(textSettling ? 0.25 : 1)
+                    Color.clear
+                        .frame(width: Self.handleWidth + (layoutHidden ? 0 : Self.sidebarWidth))
                 }
-                .animation(reduceMotion ? nil : .smooth(duration: 0.38), value: sidebarHidden)
+                .overlay(alignment: .trailing) {
+                    HStack(spacing: 0) {
+                        sidebarHandle
+                        ScrollView { sidebar(now: context.date).padding(.bottom, 8) }
+                            .scrollIndicators(.automatic)
+                            .frame(width: Self.sidebarWidth)
+                            .opacity(sidebarHidden ? 0 : 1)
+                            .allowsHitTesting(!sidebarHidden)
+                            .accessibilityHidden(sidebarHidden)
+                    }
+                    .frame(maxHeight: .infinity)
+                    .background(Color.black)
+                    .offset(x: sidebarHidden ? Self.sidebarWidth : 0)
+                }
+                .clipped()
                 .frame(maxHeight: .infinity)
                 NotchClaudeSessionComposer(session: session, text: text, size: size)
             }
@@ -68,8 +81,26 @@ struct NotchClaudeSessionLargeView: View {
     }
 
     private func toggleSidebar() {
-        sidebarHidden.toggle()
-        storedSidebarHidden = sidebarHidden
+        let hiding = !sidebarHidden
+        storedSidebarHidden = hiding
+        guard !reduceMotion else {
+            layoutHidden = hiding
+            sidebarHidden = hiding
+            return
+        }
+        // First the conversation's new width, with no animation and its
+        // text dimmed; then, in the next update, the details slide and the
+        // text comes back.
+        var still = Transaction(animation: nil)
+        still.disablesAnimations = true
+        withTransaction(still) {
+            layoutHidden = hiding
+            textSettling = true
+        }
+        DispatchQueue.main.async {
+            withAnimation(.smooth(duration: 0.38)) { sidebarHidden = hiding }
+            withAnimation(.easeOut(duration: 0.3)) { textSettling = false }
+        }
     }
 
     /// The line between the conversation and the details folds the details
@@ -195,6 +226,7 @@ struct NotchClaudeSessionLargeView: View {
                 }
                 .scrollIndicators(.automatic)
                 .defaultScrollAnchor(.bottom)
+                .modifier(NotchClaudeBottomHeld())
                 .accessibilityLabel(text.conversation)
                 // A new message brings the conversation to its end.
                 .onChange(of: session.chat.last?.id) { _, id in
@@ -481,6 +513,19 @@ struct NotchClaudeSessionComposer: View {
         service.send(draft.wrappedValue, to: session) { failure in
             sending = false
             problem = failure.map { NotchClaudeSessionFormat.problem($0, text: text) }
+        }
+    }
+}
+
+/// When text breaks its lines anew, as the details fold, the conversation
+/// grows or shrinks; held at its end, the place being read stays put rather
+/// than the view landing elsewhere in the conversation.
+struct NotchClaudeBottomHeld: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 15.0, *) {
+            content.defaultScrollAnchor(.bottom, for: .sizeChanges)
+        } else {
+            content
         }
     }
 }
