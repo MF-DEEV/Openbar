@@ -896,6 +896,12 @@ enum DefaultsKey {
     static let notchSessionsContentPreview = "notchSessionsContentPreview"
     /// Names given to Claude Code sessions in the island, by session.
     static let notchSessionsNames = "notchSessionsNames"
+    /// Each session and subagent shows a Clawd in a costume of its own.
+    static let notchSessionsBuddies = "notchSessionsBuddies"
+    /// Costumes the person dressed sessions in, by session, as
+    /// `ClawdCostume.code`. Session ids belong to this Mac, so like the names
+    /// they stay out of settings backups.
+    static let notchSessionsCostumes = "notchSessionsCostumes"
     /// Whether an enlarged session page keeps its details folded away.
     static let notchSessionsSidebarHidden = "notchSessionsSidebarHidden"
     /// The text size of a session's page with the island grown around it.
@@ -1495,6 +1501,7 @@ enum Defaults {
         DefaultsKey.notchSessionsContentPreview: false,
         DefaultsKey.notchSessionsLargeTextSize: 15.0,
         DefaultsKey.notchSessionsSidebarHidden: false,
+        DefaultsKey.notchSessionsBuddies: true,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchBrowserCovers: false,

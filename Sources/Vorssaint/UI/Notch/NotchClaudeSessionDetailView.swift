@@ -78,7 +78,10 @@ struct NotchClaudeSessionDetailView: View {
 
     private func header(now: Date) -> some View {
         HStack(spacing: 10) {
-            NotchClaudeSessionBadge(phase: session.phase, size: 30)
+            NotchClawdDressButton(session: session, name: service.displayName(session), text: text)
+                // Room for the tallest hat to jump in at the top of the
+                // scrolling page, which clips what reaches past it.
+                .padding(.top, 12)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
                     Text(text.phase(session.phase))
@@ -104,9 +107,9 @@ struct NotchClaudeSessionDetailView: View {
                         .truncationMode(.middle)
                 }
             }
+            .accessibilityElement(children: .combine)
             Spacer(minLength: 0)
         }
-        .accessibilityElement(children: .combine)
     }
 
     private var details: String {
@@ -265,10 +268,12 @@ struct NotchClaudeSessionDetailView: View {
             sectionTitle(text.subagents)
             ForEach(session.subagents.prefix(Self.shownSubagents)) { agent in
                 HStack(spacing: 6) {
-                    Image(systemName: agent.isRunning ? "arrow.triangle.branch" : "checkmark")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(agent.isRunning ? AgentProvider.claude.tint : .white.opacity(0.45))
-                        .frame(width: 12)
+                    NotchClaudeSubagentAvatar(agent: agent, session: session) {
+                        Image(systemName: agent.isRunning ? "arrow.triangle.branch" : "checkmark")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(agent.isRunning ? AgentProvider.claude.tint : .white.opacity(0.45))
+                            .frame(width: 12)
+                    }
                     Text(agent.type).font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.85))
                     if let description = agent.description {
                         Text(description).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)

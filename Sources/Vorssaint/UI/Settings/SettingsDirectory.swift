@@ -373,7 +373,9 @@ enum SettingsDirectory {
                                                  FeatureStrings.notchClaudeSessions(language).title,
                                                  FeatureStrings.notchClaudeSessions(language).hooksTitle,
                                                  FeatureStrings.notchClaudeSessions(language).bridgeTitle,
+                                                 FeatureStrings.notchClaudeSessions(language).buddies,
                                                  "Claude Code", "hooks", "permission", "Antigravity", "Terminal",
+                                                 "Clawd", "outfit", "costume",
                                                  FeatureStrings.notchLockScreen(language).title,
                                                  FeatureStrings.notchLockScreen(language).sounds]
                                           // The fit card only appears with a camera housing to fit.

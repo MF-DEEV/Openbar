@@ -123,6 +123,10 @@ struct MetricsTests {
                 ClaudeSessionEngineTests.run(suite)
                 ClaudeSessionReaderTests.run(suite)
                 ClaudeHookTests.run(suite)
+                ClawdCostumeTests.run(suite)
+                NotchClawdSpriteTests.run(suite)
+                NotchClawdViewTests.run(suite)
+                ClaudeAgentColorTests.run(suite)
             }),
             ("features", {
                 FeatureCatalogTests.run(suite)

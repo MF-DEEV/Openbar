@@ -181,6 +181,8 @@ struct ClaudeSubagent: Equatable, Identifiable {
     var description: String?
     var started: Date
     var finished: Date?
+    /// The color its definition gives it in Claude Code, as written there.
+    var color: String? = nil
 
     var isRunning: Bool { finished == nil }
 }
@@ -213,6 +215,8 @@ struct ClaudeSession: Equatable, Identifiable {
     var turnStarted: Date?
     /// When the session last did anything, for a steady order among quiet ones.
     var lastActive: Date? = nil
+    /// When the person last opened its page.
+    var lookedAt: Date? = nil
     var waitingFor: String?
     var currentTool: ClaudeToolUse?
     var permission: ClaudePermission?

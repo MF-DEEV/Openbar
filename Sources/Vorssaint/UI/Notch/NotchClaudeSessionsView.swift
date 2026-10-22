@@ -11,6 +11,7 @@ struct NotchClaudeSessionsView: View {
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.notchSettingsPreview) private var preview
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
 
@@ -19,9 +20,18 @@ struct NotchClaudeSessionsView: View {
         return service.sessions.first { $0.id == id }
     }
 
+    /// The session whose Clawd is being dressed, over its own page.
+    private var dressing: ClaudeSession? {
+        guard buddies, let focused, service.dressingID == focused.id else { return nil }
+        return focused
+    }
+
     var body: some View {
         Group {
-            if let focused {
+            if let dressing {
+                NotchClawdWardrobeView(session: dressing, size: size)
+                    .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
+            } else if let focused {
                 NotchClaudeSessionDetailView(session: focused, size: size)
                     .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
             } else if service.sessions.isEmpty {
@@ -31,12 +41,25 @@ struct NotchClaudeSessionsView: View {
             }
         }
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: focused?.id)
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: dressing?.id)
         .frame(width: size.width, height: size.height, alignment: .top)
         .environment(\.locale, l10n.language.formattingLocale())
-        .onChange(of: focused?.id, initial: true) { _, id in
+        .onChange(of: [focused?.id, dressing?.id], initial: true) { _, _ in
             guard !preview else { return }
-            // Escape steps back to the list before it closes the island.
-            NotchService.shared.setPageLayer(.sessions, close: id == nil ? nil : { service.focus(nil) })
+            // Escape steps back from the wardrobe to the page, and from the
+            // page to the list, before it closes the island.
+            let close: (() -> Void)?
+            switch NotchClaudeSessionsSupport.pageLayer(focused: focused?.id, dressing: dressing?.id) {
+            case .wardrobe: close = { service.dress(nil) }
+            case .session: close = { service.focus(nil) }
+            case nil: close = nil
+            }
+            NotchService.shared.setPageLayer(.sessions, close: close)
+        }
+        // Clawds turned off take their wardrobe with them, and ⌘Y and ⌘N
+        // answer the page again.
+        .onChange(of: buddies) { _, shown in
+            if !shown { service.dress(nil) }
         }
         .onDisappear {
             guard !preview else { return }
@@ -101,12 +124,24 @@ struct NotchClaudeSessionRow: View {
     let now: Date
     let text: NotchClaudeSessionStrings
     let open: () -> Void
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorSchemeContrast) private var contrast
+    @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
+    @State private var hovered = false
+    @FocusState private var focused: Bool
+
+    /// A session whose Clawd sleeps fades back a little, and comes forward
+    /// under the pointer or the keyboard to be read. With more contrast asked
+    /// for, nothing fades.
+    private var dimmed: Bool {
+        buddies && contrast != .increased && !hovered && !focused && NotchClaudeSessionsSupport.dozes(session, now: now)
+    }
 
     var body: some View {
         HStack(spacing: 6) {
             Button(action: open) {
                 HStack(spacing: 10) {
-                    NotchClaudeSessionBadge(phase: session.phase)
+                    NotchClaudeSessionAvatar(session: session, now: now)
                     summary
                     if !quickDecision {
                         Image(systemName: "chevron.right")
@@ -115,12 +150,15 @@ struct NotchClaudeSessionRow: View {
                             .accessibilityHidden(true)
                     }
                 }
+                .opacity(dimmed ? NotchClaudeSessionsSupport.dozingOpacity : 1)
+                .animation(reduceMotion ? nil : .easeOut(duration: 0.2), value: dimmed)
                 .padding(.leading, 11)
                 .padding(.trailing, quickDecision ? 0 : 11)
                 .frame(maxWidth: .infinity, minHeight: 46, maxHeight: 46)
                 .contentShape(Rectangle())
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 14, lifts: false))
+            .focused($focused)
             .accessibilityLabel("\(name), \(session.project), \(text.phase(session.phase))")
             .accessibilityValue(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name))
             if quickDecision, let permission = session.permission {
@@ -144,6 +182,7 @@ struct NotchClaudeSessionRow: View {
                 .allowsHitTesting(false)
         }
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .onHover { hovered = $0 }
     }
 
     private var quickDecision: Bool { session.permission?.fitsOnALine == true }

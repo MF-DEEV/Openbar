@@ -295,6 +295,8 @@ if (( TEST )); then
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeHookMessage.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeHookServer.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeHookInstaller.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClawdCostume.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeAgentColors.swift
         Sources/Vorssaint/Core/NotchLockScreenStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLockScreenSupport.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageModels.swift
@@ -332,6 +334,8 @@ if (( TEST )); then
         Sources/Vorssaint/UI/Notch/NotchEqualizerBars.swift
         Sources/Vorssaint/UI/Notch/NotchScrollEdgeFade.swift
         Sources/Vorssaint/UI/Notch/NotchAgentAnimationView.swift
+        Sources/Vorssaint/UI/Notch/NotchClawdSprite.swift
+        Sources/Vorssaint/UI/Notch/NotchClawdView.swift
         Sources/Vorssaint/UI/WindowVisibilityReader.swift
         Sources/Vorssaint/Services/Notch/NotchMusicAutomationSupport.swift
         Sources/Vorssaint/Services/Notch/NotchMusicAutomation.swift

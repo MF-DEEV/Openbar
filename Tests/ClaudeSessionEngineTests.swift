@@ -69,6 +69,21 @@ enum ClaudeSessionEngineTests {
         engine.acknowledge("s1", now: at(20))
         suite.expect(only(engine, 21)?.phase == .idle, "looking at a finished session makes it idle")
 
+        // A result read long after the turn ended: the Clawd wakes for the
+        // reader rather than sleeping on the page they just opened.
+        let lateRead = ClaudeSessionEngine()
+        lateRead.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        lateRead.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .turnEnded(at(3), completed: true)], now: at(3))
+        lateRead.ingest(records: [record(status: .idle, changed: 3)], now: at(3))
+        let read = 3 + NotchClaudeSessionsSupport.dozeAfter + 60
+        lateRead.acknowledge("s1", now: at(read))
+        let justRead = only(lateRead, read + 1)
+        suite.expect(justRead?.phase == .idle && justRead.map { !NotchClaudeSessionsSupport.dozes($0, now: at(read + 1)) } == true,
+                     "a session read long after it finished stays awake while the person reads it")
+        suite.expect(only(lateRead, read + NotchClaudeSessionsSupport.dozeAfter + 1)
+                        .map { NotchClaudeSessionsSupport.dozes($0, now: at(read + NotchClaudeSessionsSupport.dozeAfter + 1)) } == true,
+                     "and dozes off once it has been left alone as long again")
+
         let waiting = ClaudeSessionEngine()
         waiting.ingest(records: [record(status: .waiting, waitingFor: "permission prompt", changed: 3)], now: at(3))
         suite.expect(only(waiting, 4)?.phase == .waitingPermission, "the registry's permission prompt is a permission wait")

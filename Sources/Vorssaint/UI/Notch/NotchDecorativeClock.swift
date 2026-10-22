@@ -4,8 +4,8 @@
 import AppKit
 import QuartzCore
 
-/// Steps small looping decorations, the music bars and an agent's pulse, a
-/// limited number of times a second. A repeating Core Animation animation is
+/// Steps small looping decorations, the music bars, an agent's pulse and
+/// the sessions' Clawds, a limited number of times a second. A repeating Core Animation animation is
 /// drawn again by the window server on every refresh of the display, up to
 /// 120 times a second on a ProMotion screen, and each of those frames
 /// composites the display again however small the change. The motion is slow
@@ -17,9 +17,14 @@ final class NotchDecorativeClock {
 
     private let step: (CFTimeInterval) -> Void
     private var link: CADisplayLink?
+    /// The most steps a second this clock takes.
+    let stepsPerSecond: Float
 
-    /// `step` receives the time the frame being prepared will show at.
-    init(step: @escaping (CFTimeInterval) -> Void) {
+    /// `step` receives the time the frame being prepared will show at. Pixel
+    /// art steps more slowly than `rate`, as its frames change only a dozen
+    /// times a second.
+    init(rate: Float = NotchDecorativeClock.rate, step: @escaping (CFTimeInterval) -> Void) {
+        self.stepsPerSecond = max(1, min(rate, Self.rate))
         self.step = step
     }
 
@@ -33,8 +38,8 @@ final class NotchDecorativeClock {
     func start(in view: NSView) {
         guard link == nil else { return }
         let link = view.displayLink(target: Target(clock: self), selector: #selector(Target.fire(_:)))
-        link.preferredFrameRateRange = CAFrameRateRange(minimum: Self.rate / 2, maximum: Self.rate,
-                                                        preferred: Self.rate)
+        link.preferredFrameRateRange = CAFrameRateRange(minimum: stepsPerSecond / 2, maximum: stepsPerSecond,
+                                                        preferred: stepsPerSecond)
         link.add(to: .main, forMode: .common)
         self.link = link
     }
