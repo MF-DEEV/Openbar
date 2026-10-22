@@ -93,6 +93,45 @@ enum ClaudeSessionEngineTests {
         render.ingest(sessionID: "s1", facts: [.turnBegan(at(30))], now: at(30))
         suite.expect(only(render, 31)?.phase == .generating, "when the command ends Claude Code takes the turn up again")
 
+        let kinds: [(String, String, Bool)] = [
+            ("Run own local Convex backend", "cd app && CONVEX_AGENT_MODE=anonymous npx convex dev", true),
+            ("Run own Metro on port 8088", "npx expo start --dev-client --port 8088", true),
+            ("Serve upload files locally with CORS", "python3 serve.py", true),
+            ("Boot the iOS simulator", "xcrun simctl boot lutra", true),
+            ("Build fresh Android dev client from worktree", "cd app && ./gradlew assembleDebug", false),
+            ("Render final PL and EN header videos and check them", "node render.mjs --out film.mp4", false),
+            ("Wait 10 minutes for Apple video processing", "sleep 600; echo wake", false),
+            ("Run the test suite", "npm test", false),
+        ]
+        for (description, command, service) in kinds {
+            suite.expect(ClaudeBackgroundKind.isService(command: command, description: description) == service,
+                         "\(description) is \(service ? "a service left running" : "work Claude waits for")")
+        }
+
+        let services = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        services.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        services.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)),
+            .backgroundStarted(toolID: "t1", service: true, label: "Run own Metro", at: at(2)), .backgroundTask(toolID: "t1", task: "b1"),
+            .backgroundStarted(toolID: "t2", service: true, label: "Run Convex", at: at(3)), .backgroundTask(toolID: "t2", task: "b2"),
+            .turnEnded(at(5), completed: true),
+        ], now: at(5))
+        services.ingest(records: [record(status: .shell, changed: 5)], now: at(5))
+        let left = only(services, 6)
+        suite.expect(left?.phase == .finished && left?.services == 2,
+                     "a turn that only left a dev server and a backend running is done, and says what runs")
+        services.ingest(sessionID: "s1", facts: [
+            .backgroundStarted(toolID: "t3", service: false, label: "Render the videos", at: at(7)), .backgroundTask(toolID: "t3", task: "b3"),
+        ], now: at(7))
+        let rendering2 = only(services, 8)
+        suite.expect(rendering2?.phase == .background && rendering2?.backgroundLabel == "Render the videos",
+                     "work it waits for keeps it in the background, saying what")
+        services.ingest(sessionID: "s1", facts: [.subagentEnded(id: "b3", at: at(9))], now: at(9))
+        suite.expect(only(services, 10)?.phase != .background, "once that work ends, the services alone do not hold it there")
+        let unseen = ClaudeSessionEngine()
+        unseen.ingest(records: [record(status: .shell, changed: 0)], now: at(0))
+        suite.expect(only(unseen, 1)?.phase == .background, "a command running that was never seen start counts as work")
+
         let dialog = ClaudeSessionEngine()
         dialog.ingest(records: [record(status: .idle, changed: 0)], now: at(0))
         dialog.ingest(hook: hook(.notification(type: "idle_prompt"), 9), now: at(9))

@@ -21,6 +21,7 @@ struct NotchClaudeSessionStrings {
     let answerInTerminal: String
     let open: String
     let enlarge: String
+    let leftRunningFormat: String
     let showDetails: String
     let hideDetails: String
     let rename: String
@@ -94,6 +95,7 @@ struct NotchClaudeSessionStrings {
     func moreSubagents(_ count: Int) -> String { String(format: moreSubagentsFormat, count) }
     func tasks(done: Int, total: Int) -> String { String(format: tasksFormat, done, total) }
     func showAll(_ count: Int) -> String { String(format: showAllFormat, count) }
+    func leftRunning(_ count: Int) -> String { String(format: leftRunningFormat, count) }
     func finishedAfter(_ duration: String) -> String { String(format: finishedAfterFormat, duration) }
     func hooksFailed(_ reason: String) -> String { String(format: hooksFailedFormat, reason) }
 }
@@ -127,6 +129,7 @@ extension NotchClaudeSessionStrings {
         answerInTerminal: "Answer this one in the terminal.",
         open: "Open",
         enlarge: "Enlarge",
+        leftRunningFormat: "%d left running",
         showDetails: "Show details",
         hideDetails: "Hide details",
         rename: "Rename",

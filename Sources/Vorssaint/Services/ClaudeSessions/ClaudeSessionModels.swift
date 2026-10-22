@@ -180,6 +180,31 @@ struct ClaudeSession: Equatable, Identifiable {
     var hooked: Bool
     /// What was typed and answered, oldest first; gated by content previews.
     var chat: [ClaudeChatMessage] = []
+    /// What a session in the background waits on; gated by content previews.
+    var backgroundLabel: String? = nil
+    /// Services it left running, like a dev server, which never end alone.
+    var services = 0
+}
+
+/// Tells a background command that is meant to keep running, like a dev
+/// server, a watcher or an emulator, from one whose end Claude waits for,
+/// like a render, a build or a pause.
+enum ClaudeBackgroundKind {
+    static let servicePatterns = [
+        #"\b(serve|server|servers|serving)\b"#, #"\bbackend\b"#, #"\b(dev|devserver)\s*server\b"#,
+        #"\b(npm|yarn|pnpm|bun)\s+(run\s+)?(dev|start|serve|watch|preview)\b"#,
+        #"\bexpo\s+start\b"#, #"\bmetro\b"#, #"\bvite\b"#, #"\bnext\s+dev\b"#, #"\bconvex\s+dev\b"#,
+        #"\bwebpack(-dev-server|\s+serve)\b"#, #"\bstorybook\b"#, #"http\.server"#, #"--watch\b"#, #"\bwatch(ing|er)?\b"#,
+        #"\btail\s+-[a-z]*f"#, #"\blogcat\b"#, #"\bemulator\b"#, #"\bsimulator\b"#, #"simctl\s+boot"#,
+        #"\bngrok\b"#, #"\btunnel\b"#, #"\bnodemon\b"#, #"\buvicorn\b"#, #"\bflask\s+run\b"#, #"\brails\s+s(erver)?\b"#,
+        #"\bdocker\s+compose\s+up\b(?!.*\s-d\b)"#, #"\blisten(s|ing)?\b"#,
+    ].compactMap { try? NSRegularExpression(pattern: $0, options: [.caseInsensitive]) }
+
+    static func isService(command: String, description: String?) -> Bool {
+        let text = [description ?? "", command].joined(separator: "\n")
+        let range = NSRange(text.startIndex..., in: text)
+        return servicePatterns.contains { $0.firstMatch(in: text, range: range) != nil }
+    }
 }
 
 /// One message of a session's conversation.
@@ -244,6 +269,11 @@ enum ClaudeTranscriptFact: Equatable {
     case usage(key: String, tokens: AgentTokens, cost: Double)
     case subagentActivity(id: String, at: Date)
     case subagentEnded(id: String, at: Date)
+    /// A command the model left running in the background; a service, like
+    /// a dev server or an emulator, is meant to keep running.
+    case backgroundStarted(toolID: String, service: Bool, label: String?, at: Date)
+    /// The id Claude Code gave that command, which its end notice names.
+    case backgroundTask(toolID: String, task: String)
     case subagentInfo(id: String, type: String, description: String?)
     case tasks(ClaudeTaskProgress)
 }

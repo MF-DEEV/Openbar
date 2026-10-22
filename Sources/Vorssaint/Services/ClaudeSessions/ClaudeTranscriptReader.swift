@@ -66,6 +66,18 @@ struct ClaudeTranscriptReader {
                     let summary = policy.previews ? ClaudeToolSummary.summary(name: name, input: input) : nil
                     facts.append(.toolStarted(ClaudeToolUse(id: id, name: name, summary: summary, started: date,
                                                             inputKey: ClaudeToolSummary.inputKey(name: name, input: input))))
+                    if name == "Bash", input["run_in_background"] as? Bool == true {
+                        let command = input["command"] as? String ?? ""
+                        let description = input["description"] as? String
+                        let label = policy.previews ? preview(description ?? command) : nil
+                        facts.append(.backgroundStarted(toolID: id, service: ClaudeBackgroundKind.isService(command: command, description: description),
+                                                        label: label, at: date))
+                    }
+                    // Stopping a background command ends it as its notice would.
+                    if ["TaskStop", "KillShell", "KillBash"].contains(name),
+                       let task = (input["task_id"] ?? input["shell_id"] ?? input["bash_id"]) as? String, !task.isEmpty {
+                        facts.append(.subagentEnded(id: task, at: date))
+                    }
                 case "text":
                     if policy.previews, let text = preview(block["text"] as? String, limit: Self.replyLimit) {
                         facts.append(.text(text, at: date))
@@ -88,6 +100,9 @@ struct ClaudeTranscriptReader {
                 for result in results {
                     guard let id = result["tool_use_id"] as? String else { continue }
                     facts.append(.toolFinished(id: id, at: date, failed: result["is_error"] as? Bool == true))
+                    if let task = (json["toolUseResult"] as? [String: Any])?["backgroundTaskId"] as? String, !task.isEmpty {
+                        facts.append(.backgroundTask(toolID: id, task: task))
+                    }
                 }
                 if json["toolEndsTurn"] as? Bool == true { facts.append(.turnEnded(date, completed: true)) }
                 break

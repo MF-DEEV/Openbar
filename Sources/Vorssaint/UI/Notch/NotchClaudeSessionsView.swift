@@ -315,10 +315,15 @@ enum NotchClaudeSessionFormat {
             }
         case .waitingInput, .generating:
             if showsTitle, let title = session.title { parts.append(title) }
-        case .background, .finished, .idle:
+        case .background:
+            if let label = session.backgroundLabel { parts.append(label) } else if showsTitle, let title = session.title { parts.append(title) }
+            if session.cost > 0 { parts.append(AgentFormat.cost(session.cost)) }
+        case .finished, .idle:
             if showsTitle, let title = session.title { parts.append(title) }
             if session.cost > 0 { parts.append(AgentFormat.cost(session.cost)) }
         }
+        // A dev server or an emulator left running, which is not work.
+        if session.services > 0, !session.phase.isWorking { parts.append(text.leftRunning(session.services)) }
         if let tasks = session.tasks, session.phase.isWorking { parts.append("\(tasks.done)/\(tasks.total)") }
         return parts.filter { !$0.isEmpty }.joined(separator: " · ")
     }
