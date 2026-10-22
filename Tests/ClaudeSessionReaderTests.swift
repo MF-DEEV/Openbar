@@ -136,6 +136,18 @@ enum ClaudeSessionReaderTests {
         suite.expect(said.last?.count == ClaudeTranscriptReader.replyLimit && said.last?.hasSuffix("…") == true,
                      "a very long reply is cut at its limit")
 
+        let started = #"{"type":"assistant","timestamp":"2026-10-22T10:00:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"tb1","name":"Bash","input":{"command":"npx expo start --port 8088","description":"Run own Metro","run_in_background":true}}]}}"#
+        let given = #"{"type":"user","timestamp":"2026-10-22T10:00:01.000Z","toolUseResult":{"backgroundTaskId":"b9x"},"message":{"role":"user","content":[{"tool_use_id":"tb1","type":"tool_result","content":"Command running in background with ID: b9x."}]}}"#
+        let stopped = #"{"type":"assistant","timestamp":"2026-10-22T10:05:00.000Z","message":{"role":"assistant","content":[{"type":"tool_use","id":"tk","name":"TaskStop","input":{"task_id":"b9x"}}]}}"#
+        let jobs = parse([started, given, stopped], previews: true)
+        suite.expect(jobs.contains(.backgroundStarted(toolID: "tb1", service: true, label: "Run own Metro", at: date("2026-10-22T10:00:00.000Z")))
+                     && jobs.contains(.backgroundTask(toolID: "tb1", task: "b9x"))
+                     && jobs.contains(.subagentEnded(id: "b9x", at: date("2026-10-22T10:05:00.000Z"))),
+                     "a background command, the id it was given and its stop are read")
+        suite.expect(parse([started], previews: false).contains(.backgroundStarted(toolID: "tb1", service: true, label: nil,
+                                                                                  at: date("2026-10-22T10:00:00.000Z"))),
+                     "with previews off it is still told apart, without its words")
+
         let notice = #"{"type":"user","origin":{"kind":"task-notification"},"timestamp":"2026-10-21T19:06:34.760Z","message":{"role":"user","content":"<task-notification>\n<task-id>a05df</task-id>\n<status>completed</status>\n</task-notification>"},"sessionId":"s1"}"#
         let queued = #"{"type":"queue-operation","operation":"enqueue","timestamp":"2026-10-21T19:06:30.000Z","content":"<task-notification><task-id>b77</task-id><status>failed</status></task-notification>"}"#
         let quoted = #"{"type":"assistant","timestamp":"2026-10-21T19:07:00.000Z","message":{"role":"assistant","content":[{"type":"text","text":"<task-notification><task-id>zz</task-id><status>completed</status>"}]}}"#
