@@ -37,10 +37,10 @@ This is an unofficial fork of [Vorssaint](https://github.com/vorssaint/vorssaint
 
 You need a Mac with Apple Silicon, macOS 14 or newer, the Xcode Command Line Tools and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
 
-1. Build and install from the `feat/claude-sessions` branch:
+1. Build and install it:
 
    ```sh
-   git clone -b feat/claude-sessions https://github.com/MF-DEEV/vorssaint-utils.git
+   git clone https://github.com/MF-DEEV/vorssaint-utils.git
    cd vorssaint-utils
    ./build.sh --dev --install
    ```
