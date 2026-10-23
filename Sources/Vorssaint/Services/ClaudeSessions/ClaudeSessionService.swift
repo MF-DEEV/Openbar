@@ -604,6 +604,11 @@ enum ClaudeHostFocus {
             return result.ok && result.output == "found" ? true : activate(ClaudeSessionHosts.terminal, window: nil)
         case .antigravity(let port):
             let folders = port.map { ClaudeIDELock.folders(port: $0, homes: homes) } ?? []
+            // The app comes forward first: asked from its command line while
+            // another app is in front, Antigravity only reorders its own
+            // windows and stays behind.
+            let activated = activate(ClaudeSessionHosts.antigravity,
+                                     window: ClaudeIDELock.windowHint(cwd: session.cwd, folders: folders))
             // Antigravity brings forward the window that already has the
             // session's folder open when asked to open that folder, with no
             // permission needed. Only a folder that is open is asked for, so
@@ -613,8 +618,7 @@ enum ClaudeHostFocus {
             if let shell = ClaudeTerminalBridge.shell(of: session.pid) {
                 _ = ClaudeTerminalBridge.focus(shell: shell, folder: ClaudeTerminalBridge.folder())
             }
-            return raised || activate(ClaudeSessionHosts.antigravity,
-                                      window: ClaudeIDELock.windowHint(cwd: session.cwd, folders: folders))
+            return activated || raised
         case .app(let bundle):
             return activate(bundle, window: nil)
         case .unknown:
