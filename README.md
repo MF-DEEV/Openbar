@@ -17,9 +17,6 @@
   <img src="docs/assets/readme/claude-sessions.gif" width="720" alt="Five Claude Code sessions working in the Dynamic Island, then a permission allowed, a question answered, a reply sent, a conversation enlarged, subagents at work and a Clawd getting a top hat">
 </p>
 
-<p align="center">
-  <a href="https://github.com/MF-DEEV/vorssaint-utils/releases/download/claude-sessions-demo/claude-sessions-demo.mp4">Watch it in 1080p</a>
-</p>
 
 This is an unofficial fork of [Vorssaint](https://github.com/vorssaint/vorssaint-utils) that adds a Sessions section to its Dynamic Island. It is not affiliated with or endorsed by the Vorssaint maintainer. Everything in the video is the real app driving real Claude Code sessions, recorded on a MacBook.
 
