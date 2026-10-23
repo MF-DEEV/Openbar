@@ -24,8 +24,11 @@ struct NotchClaudeSessionLargeView: View {
     @State private var allTools = false
     @State private var allAgents = false
     @State private var handleHovered = false
+    @State private var pageHeight: CGFloat = 0
 
     private static let thinkingRow = -1
+    /// The most of the page a request or Claude's questions take before they scroll.
+    static let cardShare: CGFloat = 0.6
     static let sidebarWidth: CGFloat = 330
     /// The handle's column, which stays when the details fold away.
     static let handleWidth: CGFloat = 38
@@ -37,7 +40,12 @@ struct NotchClaudeSessionLargeView: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             VStack(alignment: .leading, spacing: 12) {
                 header(now: context.date)
-                if session.phase.isWaiting { NotchClaudeSessionPermissionCard(session: session, text: text, open: open) }
+                if session.phase.isWaiting {
+                    // Several questions run taller than the page; past most of
+                    // it they scroll, leaving the conversation and the reply.
+                    NotchClaudeSessionPermissionCard(session: session, text: text, open: open)
+                        .modifier(NotchClaudeFittedScroll(maxHeight: pageHeight > 0 ? pageHeight * Self.cardShare : 360))
+                }
                 // Text that changes width on every frame breaks its lines on
                 // every frame. So the conversation takes its new width at
                 // once, breaking its lines a single time under a short fade,
@@ -67,6 +75,7 @@ struct NotchClaudeSessionLargeView: View {
                 .frame(maxHeight: .infinity)
                 NotchClaudeSessionComposer(session: session, text: text, size: size)
             }
+            .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageHeight = $0 }
         }
         .background {
             // ⌘+ and ⌘- change the text size, as in a browser.
@@ -542,6 +551,22 @@ struct NotchClaudeSessionComposer: View {
             sending = false
             problem = failure.map { NotchClaudeSessionFormat.problem($0, text: text) }
         }
+    }
+}
+
+/// Content at its own height until it would pass `maxHeight`, and scrolled
+/// from there.
+struct NotchClaudeFittedScroll: ViewModifier {
+    let maxHeight: CGFloat
+    @State private var height: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        ScrollView {
+            content.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        }
+        .scrollIndicators(.automatic)
+        .scrollBounceBehavior(.basedOnSize)
+        .frame(height: min(height, maxHeight))
     }
 }
 
