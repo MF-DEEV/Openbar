@@ -355,6 +355,13 @@ final class ClaudeSessionService: ObservableObject {
     private func receive(_ payload: Data, from connection: ClaudeHookServer.Connection, at now: Date) {
         // A hook that arrived as the section stopped goes back to the terminal.
         guard timer != nil else { return connection.finish() }
+        // A demo recording shows only the sessions it set up; any other one
+        // is answered in its terminal.
+        if let root = ClaudeSessionRegistryReader.shownRoot,
+           let cwd = ((try? JSONSerialization.jsonObject(with: payload)) as? [String: Any])?["cwd"] as? String,
+           !ClaudeSessionRegistryReader.isShown(cwd, under: root) {
+            return connection.finish()
+        }
         let request = UUID().uuidString
         guard let message = ClaudeHookMessage.decode(payload, requestID: request, now: now, policy: engine.policy) else {
             return connection.finish()

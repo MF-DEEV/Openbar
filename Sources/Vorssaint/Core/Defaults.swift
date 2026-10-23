@@ -902,6 +902,9 @@ enum DefaultsKey {
     /// `ClawdCostume.code`. Session ids belong to this Mac, so like the names
     /// they stay out of settings backups.
     static let notchSessionsCostumes = "notchSessionsCostumes"
+    /// For recording demos only, set by hand and never by the app: when set,
+    /// the island shows only the sessions working under this folder.
+    static let notchSessionsDemoRoot = "notchSessionsDemoRoot"
     /// Whether an enlarged session page keeps its details folded away.
     static let notchSessionsSidebarHidden = "notchSessionsSidebarHidden"
     /// The text size of a session's page with the island grown around it.

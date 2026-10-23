@@ -67,6 +67,18 @@ enum ClaudeSessionReaderTests {
         let scan = ClaudeSessionRegistryReader.scan([folder]) { pid in pid == 85842 || pid == 85843 ? started : nil }
         suite.expect(scan.records.map(\.pid) == [85842] && scan.unreadable == [85843],
                      "a running session's record caught mid-write is reported, not dropped silently")
+        let kept = ClaudeSessionRegistryReader.read([folder], root: "/tmp/vs-demo") { pid in pid == 85842 ? started : nil }
+        suite.expect(kept.isEmpty, "a demo recording leaves out sessions outside its folder")
+        suite.expect(ClaudeSessionRegistryReader.read([folder], root: "/tmp/spike") { pid in pid == 85842 ? started : nil }
+            .map(\.sessionID) == ["99c35831"], "and keeps the ones inside it")
+        for (cwd, root, shown) in [
+            ("/private/tmp/vs-demo/infra", "/tmp/vs-demo", true), ("/tmp/vs-demo/infra", "/private/tmp/vs-demo/", true),
+            ("/tmp/vs-demo", "/tmp/vs-demo", true), ("/tmp/vs-demo-old/infra", "/tmp/vs-demo", false),
+            ("/Users/me/work", "/tmp/vs-demo", false), ("/Users/me/work", nil, true),
+        ] as [(String, String?, Bool)] {
+            suite.expect(ClaudeSessionRegistryReader.isShown(cwd, under: root) == shown,
+                         "\(cwd) is \(shown ? "" : "not ")shown under \(root ?? "no demo folder")")
+        }
         let home = URL(fileURLWithPath: "/Users/me")
         suite.expect(ClaudeSessionRegistryReader.folders(home).map(\.path)
                      == ["/Users/me/.claude/sessions", "/Users/me/.config/claude/sessions"],

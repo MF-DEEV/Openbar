@@ -23,13 +23,32 @@ enum ClaudeSessionRegistryReader {
     /// rounded to.
     static let startTolerance: TimeInterval = 2
 
-    static func read(_ folders: [URL], processStart: (Int32) -> Date? = processStart) -> [ClaudeSessionRecord] {
-        scan(folders, processStart: processStart).records
+    static func read(_ folders: [URL], root: String? = shownRoot,
+                     processStart: (Int32) -> Date? = processStart) -> [ClaudeSessionRecord] {
+        scan(folders, root: root, processStart: processStart).records
+    }
+
+    /// The folder a demo recording keeps the island to, or nil for every session.
+    static var shownRoot: String? {
+        UserDefaults.standard.string(forKey: DefaultsKey.notchSessionsDemoRoot).flatMap { $0.isEmpty ? nil : $0 }
+    }
+
+    /// Whether a session working in `cwd` is shown while the island is kept
+    /// to `root`. `/tmp` and `/private/tmp` name the same folder.
+    static func isShown(_ cwd: String, under root: String?) -> Bool {
+        guard let root else { return true }
+        func forms(_ path: String) -> [String] {
+            let standard = (path as NSString).standardizingPath
+            let other = standard.hasPrefix("/private/") ? String(standard.dropFirst(8)) : "/private" + standard
+            return [standard, other, (standard as NSString).resolvingSymlinksInPath]
+        }
+        let roots = forms(root).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
+        return forms(cwd).contains { path in roots.contains { (path + "/").hasPrefix($0) } }
     }
 
     /// The running sessions, and the running processes whose record could not
     /// be read this time, as while Claude Code rewrites it.
-    static func scan(_ folders: [URL], processStart: (Int32) -> Date? = processStart)
+    static func scan(_ folders: [URL], root: String? = shownRoot, processStart: (Int32) -> Date? = processStart)
         -> (records: [ClaudeSessionRecord], unreadable: [Int32]) {
         var records: [Int32: ClaudeSessionRecord] = [:]
         var unreadable: Set<Int32> = []
@@ -42,6 +61,7 @@ enum ClaudeSessionRegistryReader {
                     if processStart(pid) != nil { unreadable.insert(pid) }
                     continue
                 }
+                guard isShown(record.cwd, under: root) else { continue }
                 guard records[record.pid] == nil, isCurrent(record, started: processStart(record.pid)) else { continue }
                 records[record.pid] = record
             }
