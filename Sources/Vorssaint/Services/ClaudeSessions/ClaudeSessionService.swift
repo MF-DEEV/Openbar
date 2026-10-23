@@ -608,13 +608,19 @@ enum ClaudeHostFocus {
             // session's folder open when asked to open that folder, with no
             // permission needed. Only a folder that is open is asked for, so
             // no new window ever opens.
-            let raised = ClaudeIDELock.openFolder(cwd: session.cwd, folders: folders).map(openInAntigravity) ?? false
+            let folder = ClaudeIDELock.openFolder(cwd: session.cwd, folders: folders)
+            // The app comes forward first: asked from its command line while
+            // another app is in front, Antigravity only reorders its own
+            // windows and stays behind. A window is looked up by its title
+            // only when the command line has no folder to ask for.
+            let activated = activate(ClaudeSessionHosts.antigravity,
+                                     window: folder == nil ? ClaudeIDELock.windowHint(cwd: session.cwd, folders: folders) : nil)
+            let raised = folder.map(openInAntigravity) ?? false
             // The extension then shows the session's own terminal in it.
             if let shell = ClaudeTerminalBridge.shell(of: session.pid) {
                 _ = ClaudeTerminalBridge.focus(shell: shell, folder: ClaudeTerminalBridge.folder())
             }
-            return raised || activate(ClaudeSessionHosts.antigravity,
-                                      window: ClaudeIDELock.windowHint(cwd: session.cwd, folders: folders))
+            return activated || raised
         case .app(let bundle):
             return activate(bundle, window: nil)
         case .unknown:
