@@ -25,10 +25,16 @@ struct NotchClaudeSessionLargeView: View {
     @State private var allAgents = false
     @State private var handleHovered = false
     @State private var pageHeight: CGFloat = 0
+    /// The header's and the reply's heights, which never give way to the card.
+    @State private var headerHeight: CGFloat = 0
+    @State private var composerHeight: CGFloat = 0
 
     private static let thinkingRow = -1
     /// The most of the page a request or Claude's questions take before they scroll.
     static let cardShare: CGFloat = 0.6
+    /// What the card leaves the conversation, and keeps for itself, on a short page.
+    static let conversationFloor: CGFloat = 80
+    static let cardFloor: CGFloat = 120
     static let sidebarWidth: CGFloat = 330
     /// The handle's column, which stays when the details fold away.
     static let handleWidth: CGFloat = 38
@@ -40,11 +46,14 @@ struct NotchClaudeSessionLargeView: View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             VStack(alignment: .leading, spacing: 12) {
                 header(now: context.date)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
                 if session.phase.isWaiting {
                     // Several questions run taller than the page; past most of
                     // it they scroll, leaving the conversation and the reply.
+                    // The next request, or another session's, opens at its top.
                     NotchClaudeSessionPermissionCard(session: session, text: text, open: open)
-                        .modifier(NotchClaudeFittedScroll(maxHeight: pageHeight > 0 ? pageHeight * Self.cardShare : 360))
+                        .modifier(NotchClaudeFittedScroll(maxHeight: cardLimit,
+                                                          start: [session.id, session.permission?.requestID ?? ""]))
                 }
                 // Text that changes width on every frame breaks its lines on
                 // every frame. So the conversation takes its new width at
@@ -74,6 +83,7 @@ struct NotchClaudeSessionLargeView: View {
                 .clipped()
                 .frame(maxHeight: .infinity)
                 NotchClaudeSessionComposer(session: session, text: text, size: size)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { composerHeight = $0 }
             }
             .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { pageHeight = $0 }
         }
@@ -87,6 +97,15 @@ struct NotchClaudeSessionLargeView: View {
             .opacity(0)
             .accessibilityHidden(true)
         }
+    }
+
+    /// Most of the page, but never so much that large text or added images
+    /// push the reply off a short screen.
+    private var cardLimit: CGFloat {
+        guard pageHeight > 0 else { return 360 }
+        // The page's three gaps around the card and the conversation.
+        let room = pageHeight - headerHeight - composerHeight - 3 * 12 - Self.conversationFloor
+        return max(Self.cardFloor, min(pageHeight * Self.cardShare, room))
     }
 
     private func toggleSidebar() {
@@ -555,18 +574,25 @@ struct NotchClaudeSessionComposer: View {
 }
 
 /// Content at its own height until it would pass `maxHeight`, and scrolled
-/// from there.
-struct NotchClaudeFittedScroll: ViewModifier {
+/// from there. A new `start` brings it back to its top.
+struct NotchClaudeFittedScroll<Start: Equatable>: ViewModifier {
     let maxHeight: CGFloat
+    let start: Start
     @State private var height: CGFloat = 0
+    private static var top: String { "fitted.top" }
 
     func body(content: Content) -> some View {
-        ScrollView {
-            content.onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+        ScrollViewReader { proxy in
+            ScrollView {
+                content
+                    .id(Self.top)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { height = $0 }
+            }
+            .scrollIndicators(.automatic)
+            .scrollBounceBehavior(.basedOnSize)
+            .frame(height: min(height, maxHeight))
+            .onChange(of: start) { proxy.scrollTo(Self.top, anchor: .top) }
         }
-        .scrollIndicators(.automatic)
-        .scrollBounceBehavior(.basedOnSize)
-        .frame(height: min(height, maxHeight))
     }
 }
 
