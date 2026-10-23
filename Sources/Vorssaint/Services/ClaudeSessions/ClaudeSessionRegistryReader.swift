@@ -29,21 +29,41 @@ enum ClaudeSessionRegistryReader {
     }
 
     /// The folder a demo recording keeps the island to, or nil for every session.
-    static var shownRoot: String? {
-        UserDefaults.standard.string(forKey: DefaultsKey.notchSessionsDemoRoot).flatMap { $0.isEmpty ? nil : $0 }
+    static var shownRoot: String? { root(UserDefaults.standard.string(forKey: DefaultsKey.notchSessionsDemoRoot)) }
+
+    /// A folder set by hand, or nil when it is blank or not a full path, so a
+    /// typo shows every session instead of none.
+    static func root(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        let standard = (trimmed as NSString).standardizingPath
+        return standard.hasPrefix("/") ? standard : nil
     }
 
     /// Whether a session working in `cwd` is shown while the island is kept
-    /// to `root`. `/tmp` and `/private/tmp` name the same folder.
+    /// to `root`. `/tmp`, `/var` and `/etc` are the same folders under `/private`.
     static func isShown(_ cwd: String, under root: String?) -> Bool {
         guard let root else { return true }
         func forms(_ path: String) -> [String] {
             let standard = (path as NSString).standardizingPath
-            let other = standard.hasPrefix("/private/") ? String(standard.dropFirst(8)) : "/private" + standard
-            return [standard, other, (standard as NSString).resolvingSymlinksInPath]
+            var forms = [standard, (standard as NSString).resolvingSymlinksInPath]
+            for top in ["/tmp", "/var", "/etc"] {
+                if standard == top || standard.hasPrefix(top + "/") { forms.append("/private" + standard) }
+                if standard == "/private" + top || standard.hasPrefix("/private" + top + "/") { forms.append(String(standard.dropFirst(8))) }
+            }
+            return forms
         }
         let roots = forms(root).map { $0.hasSuffix("/") ? $0 : $0 + "/" }
         return forms(cwd).contains { path in roots.contains { (path + "/").hasPrefix($0) } }
+    }
+
+    /// Whether a hook event comes from a session shown while the island is
+    /// kept to `root`. One that does not say where it works is not.
+    static func isShown(hook payload: Data, under root: String?) -> Bool {
+        guard let root else { return true }
+        guard let cwd = ((try? JSONSerialization.jsonObject(with: payload)) as? [String: Any])?["cwd"] as? String else {
+            return false
+        }
+        return isShown(cwd, under: root)
     }
 
     /// The running sessions, and the running processes whose record could not

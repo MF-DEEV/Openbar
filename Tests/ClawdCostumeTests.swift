@@ -111,6 +111,7 @@ enum ClawdCostumeTests {
         suite.expect(exported.contains(DefaultsKey.notchSessionsBuddies), "the switch for Clawds travels with a backup")
         suite.expect(!exported.contains(DefaultsKey.notchSessionsCostumes) && !exported.contains(DefaultsKey.notchSessionsNames),
                      "costumes and names, kept by this Mac's session ids, do not")
+        suite.expect(!exported.contains(DefaultsKey.notchSessionsDemoRoot), "nor a demo folder set by hand")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchSessionsBuddies] as? Bool == true,
                      "Clawds are on until the person turns them off")
         let defaults = UserDefaults(suiteName: "com.vorssaint.tests.clawd")!

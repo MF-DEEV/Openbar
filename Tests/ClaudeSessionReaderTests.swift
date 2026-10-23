@@ -61,10 +61,10 @@ enum ClaudeSessionReaderTests {
         try? data(#"{"pid":90,"sessionId":"gone","cwd":"/b","procStart":"Wed Oct 21 10:00:00 2026"}"#)
             .write(to: folder.appending(path: "90.json"))
         try? data("{}").write(to: folder.appending(path: "85842.abc.key"))
-        let read = ClaudeSessionRegistryReader.read([folder]) { pid in pid == 85842 ? started : nil }
+        let read = ClaudeSessionRegistryReader.read([folder], root: nil) { pid in pid == 85842 ? started : nil }
         suite.expect(read.map(\.sessionID) == ["99c35831"], "only records of running processes are listed")
         try? data(#"{"pid":85843,"sessionId":"#).write(to: folder.appending(path: "85843.json"))
-        let scan = ClaudeSessionRegistryReader.scan([folder]) { pid in pid == 85842 || pid == 85843 ? started : nil }
+        let scan = ClaudeSessionRegistryReader.scan([folder], root: nil) { pid in pid == 85842 || pid == 85843 ? started : nil }
         suite.expect(scan.records.map(\.pid) == [85842] && scan.unreadable == [85843],
                      "a running session's record caught mid-write is reported, not dropped silently")
         let kept = ClaudeSessionRegistryReader.read([folder], root: "/tmp/vs-demo") { pid in pid == 85842 ? started : nil }
@@ -78,6 +78,27 @@ enum ClaudeSessionReaderTests {
         ] as [(String, String?, Bool)] {
             suite.expect(ClaudeSessionRegistryReader.isShown(cwd, under: root) == shown,
                          "\(cwd) is \(shown ? "" : "not ")shown under \(root ?? "no demo folder")")
+        }
+        suite.expect(!ClaudeSessionRegistryReader.isShown("/Users/me/work", under: "/private"),
+                     "/private stands in only for /tmp, /var and /etc")
+        suite.expect(ClaudeSessionRegistryReader.isShown("/private/var/folders/x", under: "/var/folders"),
+                     "and /var is /private/var")
+        for (raw, root) in [
+            (nil, nil), ("", nil), ("   ", nil), ("vs-demo", nil), ("1", nil),
+            (" /tmp/vs-demo\n", "/tmp/vs-demo"), ("/tmp/vs-demo/", "/tmp/vs-demo"),
+        ] as [(String?, String?)] {
+            suite.expect(ClaudeSessionRegistryReader.root(raw) == root,
+                         "a demo folder set as \(raw.map { "\"\($0)\"" } ?? "nothing") keeps the island to \(root ?? "every session")")
+        }
+        for (json, root, shown) in [
+            (#"{"hook_event_name":"PermissionRequest","session_id":"s","cwd":"/Users/me/work"}"#, "/tmp/vs-demo", false),
+            (#"{"hook_event_name":"PermissionRequest","session_id":"s","cwd":"/private/tmp/vs-demo/a"}"#, "/tmp/vs-demo", true),
+            (#"{"hook_event_name":"PermissionRequest","session_id":"s"}"#, "/tmp/vs-demo", false),
+            (#"{"hook_event_name":"PermissionRequest","session_id":"s","cwd":7}"#, "/tmp/vs-demo", false),
+            (#"{"hook_event_name":"PermissionRequest","session_id":"s"}"#, nil, true),
+        ] as [(String, String?, Bool)] {
+            suite.expect(ClaudeSessionRegistryReader.isShown(hook: data(json), under: root) == shown,
+                         "a hook \(json.contains("cwd") ? "from its folder" : "that names no folder") is \(shown ? "" : "not ")kept under \(root ?? "no demo folder")")
         }
         let home = URL(fileURLWithPath: "/Users/me")
         suite.expect(ClaudeSessionRegistryReader.folders(home).map(\.path)
