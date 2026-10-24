@@ -7,6 +7,7 @@
 
 import { create } from "zustand";
 import {
+  activitySize,
   expandedHeight,
   expandedWidth,
   type Geometry,
@@ -32,6 +33,28 @@ export interface Notice {
   opens?: ModuleId;
 }
 
+/** Live activities in the Mac's priority order (NotchSupport.swift:1791-1799). */
+export const ACTIVITY_ORDER = [
+  "timer",
+  "watch",
+  "sessions",
+  "downloads",
+  "agents",
+  "calendar",
+  "music",
+  "keepAwake",
+] as const;
+export type ActivityId = (typeof ACTIVITY_ORDER)[number];
+
+export interface ActivitySpec {
+  /** Width each wing needs beside the camera, before the section's clamp. */
+  wing: number;
+  /** The capsule's one-row content width. */
+  capsuleContent?: number;
+  /** Clicking the strip opens this section. */
+  opens: ModuleId;
+}
+
 export interface IslandState {
   settings: IslandSettings;
   screen: Size;
@@ -53,6 +76,9 @@ export interface IslandState {
   hoverSuppressed: boolean;
   notice: Notice | null;
   noticeExpanded: boolean;
+  activities: Partial<Record<ActivityId, ActivitySpec>>;
+  /** The activity the person picked from the picker, while it lasts. */
+  pickedActivity: ActivityId | null;
   /** Bumped by each open so the window asks for keyboard focus. */
   focusRequest: number;
 
@@ -71,6 +97,7 @@ export interface IslandState {
   setPinned(pinned: boolean): void;
   showNotice(notice: Notice): void;
   dismissNotice(id?: string): void;
+  setActivity(id: ActivityId, spec: ActivitySpec | null): void;
 }
 
 let hoverTimer: ReturnType<typeof setTimeout> | undefined;
@@ -107,6 +134,8 @@ export const useIsland = create<IslandState>()((set, get) => ({
   hoverSuppressed: false,
   notice: null,
   noticeExpanded: false,
+  activities: {},
+  pickedActivity: null,
   focusRequest: 0,
 
   setScreen: (screen, devicePixelRatio) => set({ screen, devicePixelRatio }),
@@ -247,6 +276,16 @@ export const useIsland = create<IslandState>()((set, get) => ({
     noticeTimer = setTimeout(() => get().dismissNotice(incoming.id), incoming.duration * 1000);
   },
 
+  setActivity(id, spec) {
+    set((s) => {
+      const activities = { ...s.activities };
+      if (spec) activities[id] = spec;
+      else delete activities[id];
+      const left = Object.keys(activities).length > 0;
+      return { activities, pickedActivity: left ? s.pickedActivity : null };
+    });
+  },
+
   dismissNotice(id) {
     const s = get();
     if (!s.notice || (id && s.notice.id !== id)) return;
@@ -257,7 +296,13 @@ export const useIsland = create<IslandState>()((set, get) => ({
 
 // MARK: Presentation
 
-export type PresentationKind = "resting" | "notice" | "peek" | "expanded";
+export type PresentationKind = "resting" | "activity" | "notice" | "peek" | "expanded";
+
+/** The picked activity if it still runs, else the first in priority order. */
+export function visibleActivity(s: Pick<IslandState, "activities" | "pickedActivity">): ActivityId | null {
+  if (s.pickedActivity && s.activities[s.pickedActivity]) return s.pickedActivity;
+  return ACTIVITY_ORDER.find((id) => s.activities[id]) ?? null;
+}
 
 export interface Presentation {
   kind: PresentationKind;
@@ -304,6 +349,17 @@ export function presentation(s: IslandState, geometry: Geometry, measuredNotice?
     return { kind: "notice", key: `notice:${s.notice.kind}`, size, hasRow: false };
   }
   if (s.peeking) return { kind: "peek", key: "peek", size: peekSize(geometry), hasRow: false };
+  const activity = visibleActivity(s);
+  if (activity) {
+    const spec = s.activities[activity]!;
+    const size = activitySize(geometry, spec.wing, spec.capsuleContent);
+    return {
+      kind: "activity",
+      key: `activity:${activity}`,
+      size: s.hoverEmphasized ? hoverPulse(geometry, size) : size,
+      hasRow: false,
+    };
+  }
   const rest = restingSize(geometry);
   return {
     kind: "resting",

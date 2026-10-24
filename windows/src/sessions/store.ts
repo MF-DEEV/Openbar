@@ -7,6 +7,7 @@
 
 import { create } from "zustand";
 import { bridge } from "../shared/bridge";
+import { localCostumeStore } from "./clawd/costume";
 import type { Decision, ReplyFailure, Session, SessionEvent, Snapshot } from "./types";
 
 /** A permission must be on screen this long before a click or Ctrl+Y can answer it. */
@@ -24,6 +25,13 @@ interface SessionsState {
   names: Record<string, string>;
   lookedAt: Record<string, number>;
   renaming: boolean;
+  /** The wardrobe is open on the focused session's page. */
+  wardrobe: boolean;
+  /** A Clawd for every session (notchSessionsBuddies). */
+  buddies: boolean;
+  /** Outfits changed in the wardrobe, by session (or subagent) key. */
+  costumes: Record<string, string>;
+  setCostume(key: string, code: string | null): void;
   /** "Couldn’t find that window" shows until this time. */
   openFailedUntil: number;
   receive(snapshot: Snapshot): void;
@@ -45,6 +53,7 @@ const EMPTY: Snapshot = {
 };
 
 const now = () => Date.now() / 1000;
+const costumeStore = localCostumeStore();
 
 function loadNames(): Record<string, string> {
   try {
@@ -70,7 +79,16 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   names: loadNames(),
   lookedAt: {},
   renaming: false,
+  wardrobe: false,
+  buddies: true,
+  costumes: costumeStore.all(),
   openFailedUntil: 0,
+
+  setCostume(key, code) {
+    const live = new Set(get().snapshot.sessions.map((x) => x.id));
+    costumeStore.set(key, code, live);
+    set({ costumes: costumeStore.all() });
+  },
 
   receive(snapshot) {
     const shownAt: Record<string, number> = {};
@@ -83,7 +101,12 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   },
 
   focus(id) {
-    set((s) => ({ focused: id, renaming: false, lookedAt: id ? { ...s.lookedAt, [id]: now() } : s.lookedAt }));
+    set((s) => ({
+      focused: id,
+      renaming: false,
+      wardrobe: false,
+      lookedAt: id ? { ...s.lookedAt, [id]: now() } : s.lookedAt,
+    }));
     if (id) void bridge.sessions.acknowledge(id);
   },
 

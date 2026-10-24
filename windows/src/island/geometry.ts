@@ -288,3 +288,40 @@ export const Layout = {
   quickAccessGutter: QUICK_ACCESS_GUTTER,
   minimumWing: MINIMUM_WING,
 } as const;
+
+// MARK: Live activities
+
+/** Breathing room every compact strip keeps from its silhouette. */
+export const COMPACT_EDGE_GAP = 5;
+
+/** A closed island showing a live activity: wings of `wing` either side of the camera (capsule: one row). */
+export function activitySize(geometry: Geometry, wing: number, capsuleContent?: number): Size {
+  if (geometry.floatingGap !== null) {
+    const rest = restingSize(geometry);
+    const side = shoulder(geometry.stripHeight);
+    const available = Math.min(geometry.screen.width - 24, geometry.cameraWidth + 2 * geometry.compactSideRoom);
+    const content = capsuleContent ?? 2 * wing;
+    return {
+      width: Math.min(Math.max(Math.ceil(content + 8 + 8 + 2 * side), rest.width), available),
+      height: geometry.stripHeight,
+    };
+  }
+  return { width: Math.min(geometry.screen.width - 24, geometry.cameraWidth + 2 * wing), height: geometry.stripHeight };
+}
+
+/**
+ * How far in from the strip's end a vertically centred box of `boxHeight`,
+ * rounded by `radius`, sits an even `gap` from the silhouette's bottom
+ * corner (NotchGeometry.compactActivityEdgeInset).
+ */
+export function edgeInset(size: Size, boxHeight: number, radius: number, gap = COMPACT_EDGE_GAP): number {
+  const s = shoulder(size.height);
+  const corner = Math.min(surfaceRadius(size.height), (size.width - s * 2) / 2);
+  const flat = s + gap;
+  const below = (size.height - boxHeight) / 2;
+  const reach = corner - radius - gap;
+  const drop = corner - radius - below;
+  if (reach <= 0 || drop <= 0) return Math.max(0, flat);
+  const span = reach > drop ? Math.sqrt(reach * reach - drop * drop) : 0;
+  return Math.max(0, flat, s + corner - radius - span);
+}

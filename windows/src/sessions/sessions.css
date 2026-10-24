@@ -640,3 +640,41 @@
   width: 1.1em;
   text-align: center;
 }
+
+.s-dress {
+  border-radius: 10px;
+  padding: 0;
+}
+
+.s-dress:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Closed island strip */
+
+.s-strip {
+  display: flex;
+  align-items: center;
+}
+
+.s-strip.is-capsule {
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.s-strip-wing {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+}
+
+.s-strip-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}

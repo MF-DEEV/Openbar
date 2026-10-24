@@ -8,7 +8,10 @@
 import { ArrowUp, CircleCheck, CircleDashed, CircleX, TriangleAlert } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { PermissionCard } from "./PermissionCard";
-import { SessionAvatar } from "./SessionAvatar";
+import { SessionAvatar, SubagentAvatar } from "./SessionAvatar";
+import { Wardrobe } from "./clawd/Wardrobe";
+import { resolvedCostume } from "./clawd/costume";
+import { motionForPhase } from "./clawd/sprite";
 import { ThinkingRow } from "./ThinkingRow";
 import { clock, compactNumber, cost, displayName, phaseClock, phaseTint, projectColor, totalTokens } from "./format";
 import { useNow } from "./useNow";
@@ -26,6 +29,37 @@ export function SessionDetail({ session }: { session: Session }) {
   const time = phaseClock(session, now);
   const color = projectColor(session.project);
   const renaming = useSessions((s) => s.renaming);
+  const wardrobe = useSessions((s) => s.wardrobe);
+  const buddies = useSessions((s) => s.buddies);
+  const kept = useSessions((s) => s.costumes[session.id]);
+
+  // Escape closes the wardrobe before it reaches the island.
+  useEffect(() => {
+    if (!wardrobe) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopImmediatePropagation();
+      useSessions.setState({ wardrobe: false });
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [wardrobe]);
+
+  if (wardrobe) {
+    return (
+      <Wardrobe
+        sessionId={session.id}
+        costume={resolvedCostume(session.id, kept)}
+        name={name}
+        project={session.project}
+        motion={motionForPhase(session.phase)}
+        since={session.phaseSince * 1000}
+        band={false}
+        onBack={() => useSessions.setState({ wardrobe: false })}
+        onChange={(_, code) => useSessions.getState().setCostume(session.id, code)}
+      />
+    );
+  }
   const open = () => useSessions.getState().openWindow(session);
 
   const meta = [
@@ -39,7 +73,16 @@ export function SessionDetail({ session }: { session: Session }) {
     <div className="s-detail-page">
       <div className="s-scroll">
         <div className="s-header">
-          <SessionAvatar session={session} now={now} lookedAt={lookedAt} size="page" />
+          <button
+            type="button"
+            className="s-dress"
+            disabled={!buddies}
+            aria-label="Change outfit"
+            title="Change outfit"
+            onClick={() => useSessions.setState({ wardrobe: true })}
+          >
+            <SessionAvatar session={session} now={now} lookedAt={lookedAt} size="page" />
+          </button>
           <div className="s-header-text">
             <div className="s-header-line1">
               <span className="s-phase" style={{ color: tint }}>
@@ -172,8 +215,11 @@ function Subagents({ session, now }: { session: Session; now: number }) {
     <div className="s-section">
       <div className="s-section-title">{S.subagents}</div>
       {shown.map((a) => (
-        <div key={a.id} className="s-subagent" style={{ opacity: a.finished === undefined ? 1 : 0.5 }}>
-          <span className="s-subagent-type">{a.type}</span>
+        <div key={a.id} className="s-subagent">
+          <SubagentAvatar session={session} agent={a} />
+          <span className="s-subagent-type" style={{ opacity: a.finished === undefined ? 1 : 0.5 }}>
+            {a.type}
+          </span>
           {a.description ? <span className="s-secondary s-subagent-description">{a.description}</span> : null}
           <span className="s-clock is-small">{clock((a.finished ?? now) - a.started)}</span>
         </div>

@@ -9,6 +9,7 @@ import { bridge, inTauri } from "../shared/bridge";
 import { arrivalTime, type Size } from "./motion";
 import { MODULES } from "./modules";
 import {
+  type ActivityId,
   type ContentTransition,
   geometryOf,
   modulesOf,
@@ -22,6 +23,7 @@ import { IslandSurface } from "./surface/IslandSurface";
 import { NoticeView, noticeWidth, Peek, Resting } from "./views/Closed";
 import { Expanded } from "./views/Expanded";
 import { QuickAccess } from "./views/QuickAccess";
+import { ActivityStrip } from "./views/Activity";
 
 function useWindowScreen() {
   const setScreen = useIsland((s) => s.setScreen);
@@ -169,6 +171,11 @@ export function Island() {
       break;
     case "peek":
       content = <Peek geometry={geometry} size={shown.size} />;
+      break;
+    case "activity":
+      content = (
+        <ActivityStrip id={shown.key.slice("activity:".length) as ActivityId} geometry={geometry} size={shown.size} />
+      );
       break;
     default:
       content = <Resting size={shown.size} />;
