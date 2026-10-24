@@ -108,6 +108,7 @@ export const useSessions = create<SessionsState>()((set, get) => ({
       lookedAt: id ? { ...s.lookedAt, [id]: now() } : s.lookedAt,
     }));
     if (id) void bridge.sessions.acknowledge(id);
+    void bridge.sessions.focus(id);
   },
 
   setDraft: (id, text) => set((s) => ({ drafts: { ...s.drafts, [id]: text.slice(0, REPLY_LIMIT) } })),

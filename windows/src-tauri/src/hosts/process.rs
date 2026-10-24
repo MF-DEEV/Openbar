@@ -146,6 +146,7 @@ pub fn ancestors(pid: u32) -> Option<Vec<Entry>> {
 }
 
 #[cfg(not(windows))]
+#[allow(dead_code)]
 pub fn started_at(_pid: u32) -> Option<f64> {
     None
 }

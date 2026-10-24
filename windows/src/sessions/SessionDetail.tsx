@@ -49,7 +49,7 @@ export function SessionDetail({ session }: { session: Session }) {
     return (
       <Wardrobe
         sessionId={session.id}
-        costume={resolvedCostume(session.id, kept)}
+        costume={resolvedCostume(session.id, kept, null, session.provider === "codex" ? "codex" : "clawd")}
         name={name}
         project={session.project}
         motion={motionForPhase(session.phase)}

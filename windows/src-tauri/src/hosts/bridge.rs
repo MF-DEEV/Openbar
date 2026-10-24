@@ -101,6 +101,7 @@ pub fn focus(shell_pids: &[u32]) -> Result<(), BridgeError> {
 }
 
 /// Whether any IDE window runs the bridge, for the settings row.
+#[allow(dead_code)]
 pub fn installed_anywhere() -> bool {
     !registrations().is_empty()
 }

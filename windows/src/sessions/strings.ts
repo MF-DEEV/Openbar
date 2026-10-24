@@ -8,7 +8,7 @@
 export const S = {
   title: "Sessions",
   emptyTitle: "No sessions running",
-  emptyDetail: "Start Claude Code in Windows Terminal or VS Code and it shows up here.",
+  emptyDetail: "Start Claude Code or Codex in Windows Terminal or VS Code and it shows up here.",
   generating: "Working",
   runningTool: "Running",
   waitingPermission: "Needs permission",
@@ -21,6 +21,7 @@ export const S = {
   deny: "Deny",
   answerInTerminal: "Answer this one in the terminal.",
   question: "Claude asks",
+  codexQuestion: "Codex asks",
   pickAny: "Pick any that apply",
   ownAnswer: "Or write your own answer…",
   sendAnswer: "Answer",

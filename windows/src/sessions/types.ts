@@ -74,8 +74,12 @@ export interface ChatMessage {
   endsTurn: boolean;
 }
 
+export type Provider = "claude" | "codex";
+
 export interface Session {
   id: string;
+  /** Claude Code or Codex: each has its own figure and channel. */
+  provider: Provider;
   pid: number;
   cwd: string;
   project: string;

@@ -58,6 +58,7 @@ pub fn run() {
             sessions::service::sessions_decide,
             sessions::service::sessions_answer,
             sessions::service::sessions_acknowledge,
+            sessions::service::sessions_focus,
             sessions::service::sessions_set_previews,
             sessions::service::sessions_reply,
             sessions::service::sessions_open,

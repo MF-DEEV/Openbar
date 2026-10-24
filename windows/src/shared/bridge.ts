@@ -48,6 +48,8 @@ export const bridge = {
       return listen<SessionEvent>("sessions://event", (e) => handler(e.payload));
     },
     acknowledge: (sessionId: string) => call("sessions_acknowledge", { sessionId }),
+    /** The open session page (null for the list), so Codex keeps that thread joined. */
+    focus: (sessionId: string | null) => call("sessions_focus", { sessionId }),
     decide: (sessionId: string, requestId: string, decision: Decision) =>
       call<boolean>("sessions_decide", { sessionId, requestId, decision }),
     answer: (sessionId: string, requestId: string, answers: Record<string, string | string[]>) =>

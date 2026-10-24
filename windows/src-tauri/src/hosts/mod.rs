@@ -18,24 +18,23 @@ pub mod process;
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
 pub enum Host {
-    WindowsTerminal { terminal_pid: u32 },
-    Vscode { ide: String, ide_pid: u32 },
+    WindowsTerminal {
+        terminal_pid: u32,
+    },
+    Vscode {
+        ide: String,
+        ide_pid: u32,
+    },
     Conhost,
-    App { name: String },
+    /// Some other app owns the session (no replies, Open only raises it).
+    #[allow(dead_code)]
+    App {
+        name: String,
+    },
     Unknown,
 }
 
 impl Host {
-    pub fn kind(&self) -> &'static str {
-        match self {
-            Host::WindowsTerminal { .. } => "windowsTerminal",
-            Host::Vscode { .. } => "vscode",
-            Host::Conhost => "conhost",
-            Host::App { .. } => "app",
-            Host::Unknown => "unknown",
-        }
-    }
-
     pub fn accepts_replies(&self) -> bool {
         matches!(
             self,

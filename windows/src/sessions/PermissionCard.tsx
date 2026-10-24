@@ -34,7 +34,11 @@ export function PermissionCard({ session, onOpen }: { session: Session; onOpen: 
   const tint = phaseTint(session.phase);
   const Icon = PHASE_ICON[session.phase];
   const asks = !!p && p.questions.length > 0;
-  const title = asks ? S.question : (p?.tool ?? session.currentTool?.name ?? session.waitingFor ?? S[session.phase]);
+  const title = asks
+    ? session.provider === "codex"
+      ? S.codexQuestion
+      : S.question
+    : (p?.tool ?? session.currentTool?.name ?? session.waitingFor ?? S[session.phase]);
 
   return (
     <div

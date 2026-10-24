@@ -368,7 +368,7 @@ fn prune(folder: &Path, name: &str) {
             Some((stamp, e.path()))
         })
         .collect();
-    copies.sort_by(|a, b| b.0.cmp(&a.0));
+    copies.sort_by_key(|c| std::cmp::Reverse(c.0));
     for (_, path) in copies.into_iter().skip(BACKUPS) {
         let _ = fs::remove_file(path);
     }

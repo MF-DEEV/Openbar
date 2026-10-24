@@ -34,7 +34,8 @@ export function SessionAvatar(props: { session: Session; now: number; lookedAt?:
   return (
     <span className="s-avatar" style={{ width: s.width, height: s.height }}>
       <Clawd
-        costume={resolvedCostume(session.id, kept)}
+        character={session.provider === "codex" ? "codex" : "clawd"}
+        costume={resolvedCostume(session.id, kept, null, session.provider === "codex" ? "codex" : "clawd")}
         motion={motionForPhase(session.phase, asleep)}
         seed={session.id}
         since={session.phaseSince * 1000}

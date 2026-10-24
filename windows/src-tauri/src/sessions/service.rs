@@ -19,6 +19,8 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tauri::{AppHandle, Emitter, Wry};
 
+use super::codex::client::CodexClient;
+use super::codex::state::Answer as CodexAnswer;
 use super::engine::Engine;
 use super::hook_message::{self, Decision, HookMessage};
 use super::models::{
@@ -44,7 +46,7 @@ const PID_DOMAINS: &[&str] = registry::WINDOWS_PID_DOMAINS;
 #[cfg(not(windows))]
 const PID_DOMAINS: &[&str] = registry::MAC_PID_DOMAINS;
 
-fn now() -> Time {
+pub fn now() -> Time {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs_f64())
@@ -148,6 +150,9 @@ struct Inner {
 pub struct Service {
     app: AppHandle<Wry>,
     inner: Mutex<Inner>,
+    codex: Mutex<Option<Arc<CodexClient>>>,
+    /// Wakes the ticker for an early publish (Codex says something changed).
+    wake: Mutex<Option<std::sync::mpsc::Sender<()>>>,
 }
 
 impl Service {
@@ -167,7 +172,15 @@ impl Service {
                 ticks: 0,
                 hooks_installed: false,
             }),
+            codex: Mutex::new(None),
+            wake: Mutex::new(None),
         });
+        let (wake_tx, wake_rx) = std::sync::mpsc::channel::<()>();
+        *service.wake.lock().unwrap() = Some(wake_tx.clone());
+        let codex = CodexClient::start(move || {
+            let _ = wake_tx.send(());
+        });
+        *service.codex.lock().unwrap() = Some(codex);
         let hook_side = service.clone();
         if let Err(e) = hooks::transport::serve(hooks::APP_ID, move |connection| {
             hook_side.on_hook(connection)
@@ -178,9 +191,23 @@ impl Service {
         thread::Builder::new()
             .name("claude-sessions".into())
             .spawn(move || {
+                let mut next = std::time::Instant::now();
                 loop {
-                    let busy = ticker.tick();
-                    thread::sleep(if busy { ACTIVE_TICK } else { QUIET_TICK });
+                    let wait = next.saturating_duration_since(std::time::Instant::now());
+                    match wake_rx.recv_timeout(wait) {
+                        // Codex changed something: publish now, scan files on schedule.
+                        Ok(()) => {
+                            while wake_rx.try_recv().is_ok() {}
+                            let mut inner = ticker.inner.lock().unwrap();
+                            let t = now();
+                            ticker.publish(&mut inner, t);
+                        }
+                        Err(_) => {
+                            let busy = ticker.tick();
+                            next = std::time::Instant::now()
+                                + if busy { ACTIVE_TICK } else { QUIET_TICK };
+                        }
+                    }
                 }
             })
             .expect("sessions thread");
@@ -193,7 +220,7 @@ impl Service {
     fn tick(&self) -> bool {
         let home = hooks::installer::home_dir();
         let files = home.as_deref().map(registry_files).unwrap_or_default();
-        let scan = registry::scan(&files, PID_DOMAINS, |pid| process_start(pid));
+        let scan = registry::scan(&files, PID_DOMAINS, process_start);
         let mut inner = self.inner.lock().unwrap();
         inner.ticks += 1;
         let t = now();
@@ -363,8 +390,17 @@ impl Service {
     }
 
     /// Sends the island a snapshot and any notices; true while busy.
+    fn codex(&self) -> Option<Arc<CodexClient>> {
+        self.codex.lock().unwrap().clone()
+    }
+
     fn publish(&self, inner: &mut Inner, t: Time) -> bool {
-        let snapshot = inner.engine.snapshot(t);
+        let mut snapshot = inner.engine.snapshot(t);
+        if let Some(codex) = self.codex() {
+            let (sessions, events) = codex.snapshot(t, inner.engine.policy());
+            snapshot.sessions.extend(sessions);
+            snapshot.events.extend(events);
+        }
         let sessions = models::sorted(snapshot.sessions);
         let counts = SessionCounts::of(&sessions);
         let busy = sessions
@@ -430,6 +466,22 @@ impl Service {
     // MARK: Actions
 
     fn answer(&self, session: &str, request: &str, decision: Decision) -> bool {
+        if let Some(codex) = self.codex().filter(|c| c.owns(session)) {
+            let answer = match decision {
+                Decision::Allow => CodexAnswer::Allow,
+                Decision::AllowAlways => CodexAnswer::AllowForSession,
+                Decision::Deny => CodexAnswer::Deny,
+                Decision::Answer(map) => CodexAnswer::Questions(map.into_iter().collect()),
+            };
+            let ok = codex.answer(session, request, answer);
+            if ok {
+                codex.acknowledge(session, now());
+            }
+            let mut inner = self.inner.lock().unwrap();
+            let t = now();
+            self.publish(&mut inner, t);
+            return ok;
+        }
         let mut inner = self.inner.lock().unwrap();
         let asks = inner
             .engine
@@ -462,6 +514,9 @@ impl Service {
     fn acknowledge(&self, session: &str) {
         let mut inner = self.inner.lock().unwrap();
         let t = now();
+        if let Some(codex) = self.codex() {
+            codex.acknowledge(session, t);
+        }
         inner.engine.acknowledge(session, t);
         self.publish(&mut inner, t);
     }
@@ -482,6 +537,15 @@ impl Service {
     /// Never types while the session waits on a prompt: the registry is read
     /// again right before, as a dialog may be open before it says so.
     fn reply(&self, session: &str, text: &str, images: &[String]) -> Option<&'static str> {
+        if let Some(codex) = self.codex().filter(|c| c.owns(session)) {
+            // Codex takes replies through its own server: no terminal typing, no Esc risk.
+            return if codex.reply(session, text) {
+                self.acknowledge(session);
+                None
+            } else {
+                Some("waiting")
+            };
+        }
         let (pid, located) = {
             let inner = self.inner.lock().unwrap();
             let Some(current) = inner.sessions.iter().find(|s| s.id == session) else {
@@ -687,6 +751,14 @@ pub fn sessions_answer(
 #[tauri::command]
 pub fn sessions_acknowledge(service: tauri::State<'_, Shared>, session_id: String) {
     service.acknowledge(&session_id);
+}
+
+/// The session page the island shows (None for the list), so Codex keeps that thread joined.
+#[tauri::command]
+pub fn sessions_focus(service: tauri::State<'_, Shared>, session_id: Option<String>) {
+    if let Some(codex) = service.codex() {
+        codex.focus(session_id.as_deref());
+    }
 }
 
 #[tauri::command]

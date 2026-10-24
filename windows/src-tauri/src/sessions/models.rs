@@ -475,6 +475,8 @@ pub enum ChatRole {
 #[serde(rename_all = "camelCase")]
 pub struct Session {
     pub id: String,
+    /// Which agent runs it: Claude Code or Codex.
+    pub provider: Provider,
     pub pid: i32,
     pub cwd: String,
     pub project: String,
@@ -561,6 +563,15 @@ impl SessionCounts {
     pub fn is_empty(&self) -> bool {
         self.working + self.waiting + self.finished == 0
     }
+}
+
+/// The agent behind a session; each has its own figure and its own channel.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Provider {
+    #[default]
+    Claude,
+    Codex,
 }
 
 /// A change worth a notice in the island.
@@ -1163,6 +1174,7 @@ mod tests {
 
     fn session(id: &str, phase: SessionPhase, since: f64, project: &str) -> Session {
         Session {
+            provider: Provider::Claude,
             id: id.into(),
             pid: id.len() as i32,
             cwd: format!("/x/{project}"),

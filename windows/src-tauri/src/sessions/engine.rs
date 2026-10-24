@@ -16,7 +16,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use super::models::{
-    ChatMessage, ChatRole, ContentPolicy, DISTANT_PAST, HookEvent, HookFact, Permission,
+    ChatMessage, ChatRole, ContentPolicy, DISTANT_PAST, HookEvent, HookFact, Permission, Provider,
     RegistryStatus, Session, SessionEvent, SessionPhase, SessionRecord, Subagent, TaskProgress,
     Time, Tokens, ToolUse, TranscriptFact, project_name,
 };
@@ -512,6 +512,7 @@ fn session(
     let running = entry.running_background();
     let start = entry.tools.len().saturating_sub(TIMELINE_LENGTH);
     Session {
+        provider: Provider::Claude,
         id: id.to_owned(),
         pid: record.pid,
         cwd: record.cwd.clone(),

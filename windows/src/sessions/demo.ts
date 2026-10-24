@@ -8,6 +8,7 @@ import type { Session, Snapshot } from "./types";
 function base(over: Partial<Session> & Pick<Session, "id" | "project" | "phase">): Session {
   const t = Date.now() / 1000;
   return {
+    provider: "claude",
     pid: 1000 + over.id.length,
     cwd: `C:\\Users\\vors\\Projekty\\${over.project}`,
     name: over.project,
@@ -90,6 +91,16 @@ export function demoSnapshot(): Snapshot {
       tasks: { done: 2, total: 5, current: "Rewrite the install section" },
     }),
     base({
+      id: "e5",
+      provider: "codex",
+      project: "payments-service",
+      phase: "generating",
+      branch: "fix/retry",
+      turnStarted: t - 31,
+      host: "unknown",
+      title: "Retry failed webhooks",
+    }),
+    base({
       id: "d4",
       project: "ios-client",
       phase: "finished",
@@ -99,5 +110,5 @@ export function demoSnapshot(): Snapshot {
       cost: 0.17,
     }),
   ];
-  return { sessions, counts: { waiting: 2, working: 1, finished: 1 }, previews: true, hooksInstalled: true };
+  return { sessions, counts: { waiting: 2, working: 2, finished: 1 }, previews: true, hooksInstalled: true };
 }
