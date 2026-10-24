@@ -23,13 +23,14 @@ function useFocusedSession() {
 }
 
 function Page() {
+  const enlarged = useIsland((s) => s.sessionsEnlarged);
   const session = useFocusedSession();
   const focused = useSessions((s) => s.focused);
   // A session that ends while its page is open goes back to the list.
   useEffect(() => {
     if (focused && !session) useSessions.getState().focus(null);
   }, [focused, session]);
-  return session ? <SessionDetail session={session} /> : <SessionsList />;
+  return session ? <SessionDetail session={session} enlarged={enlarged} /> : <SessionsList />;
 }
 
 /** Counts with 9 pt symbols and 11 pt numbers, or the total when nothing is going on. */

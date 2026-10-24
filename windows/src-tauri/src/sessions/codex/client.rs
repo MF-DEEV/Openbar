@@ -143,7 +143,7 @@ impl Shared {
             // No overrides: with them Codex would change the person's thread.
             self.call(
                 "thread/resume",
-                json!({"threadId": id, "excludeTurns": true}),
+                json!({"threadId": id, "excludeTurns": !self.state.previews}),
                 Waiting::Resume,
             );
         }
@@ -189,7 +189,21 @@ impl CodexClient {
     }
 
     pub fn snapshot(&self, now: Time, policy: ContentPolicy) -> (Vec<Session>, Vec<SessionEvent>) {
-        self.shared.lock().unwrap().state.snapshot(now, policy)
+        let mut shared = self.shared.lock().unwrap();
+        if shared.state.previews != policy.previews {
+            shared.state.previews = policy.previews;
+            if policy.previews {
+                let ids: Vec<_> = shared.state.threads.keys().cloned().collect();
+                for id in ids {
+                    shared.call("thread/read", json!({"threadId": id, "includeTurns": true}), Waiting::Read);
+                }
+            } else {
+                for thread in shared.state.threads.values_mut() {
+                    thread.chat.clear();
+                }
+            }
+        }
+        shared.state.snapshot(now, policy)
     }
 
     pub fn owns(&self, session: &str) -> bool {
@@ -356,7 +370,7 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
             if let Some(new) = notified.read {
                 s.call(
                     "thread/read",
-                    json!({"threadId": new, "includeTurns": false}),
+                    json!({"threadId": new, "includeTurns": s.state.previews}),
                     Waiting::Read,
                 );
             }
@@ -393,7 +407,7 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
                     for id in ids {
                         s.call(
                             "thread/read",
-                            json!({"threadId": id, "includeTurns": false}),
+                            json!({"threadId": id, "includeTurns": s.state.previews}),
                             Waiting::Read,
                         );
                     }
@@ -548,6 +562,27 @@ mod tests {
 
     fn sent(rx: &Receiver<Value>) -> Vec<Value> {
         rx.try_iter().collect()
+    }
+
+    #[test]
+    fn enabling_previews_loads_history_and_disabling_discards_it() {
+        let (mut shared, rx) = joined();
+        shared.state.upsert_thread(&json!({"id": "t1", "cwd": "C:\\code", "status": {"type": "idle"}}));
+        let client = CodexClient { shared: Arc::new(Mutex::new(shared)) };
+        client.snapshot(1.0, ContentPolicy { previews: true });
+        let reads = sent(&rx);
+        assert_eq!(reads.len(), 1);
+        assert_eq!(reads[0]["method"], "thread/read");
+        assert_eq!(reads[0]["params"]["includeTurns"], true);
+        client.shared.lock().unwrap().state.upsert_thread(&json!({"id": "t1", "turns": [{"items": [
+            {"type": "agentMessage", "id": "a", "text": "Answer"}
+        ]}]}));
+        assert_eq!(client.snapshot(2.0, ContentPolicy { previews: true }).0[0].chat.len(), 1);
+        assert!(sent(&rx).is_empty(), "unchanged preference does not reload history");
+        client.snapshot(3.0, ContentPolicy { previews: false });
+        let shared = client.shared.lock().unwrap();
+        assert!(!shared.state.previews);
+        assert!(shared.state.threads["t1"].chat.is_empty());
     }
 
     fn methods(messages: &[Value]) -> Vec<&str> {

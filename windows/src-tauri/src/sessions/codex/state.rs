@@ -11,8 +11,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde_json::{Value, json};
 
 use crate::sessions::models::{
-    ContentPolicy, HostKind, Permission, Provider, Question, QuestionOption, Session, SessionEvent,
-    SessionPhase, Time, Tokens, ToolUse, project_name,
+    ChatMessage, ChatRole, ContentPolicy, HostKind, Permission, Provider, Question, QuestionOption,
+    Session, SessionEvent, SessionPhase, Time, Tokens, ToolUse, project_name,
 };
 
 /// How long an unread finished turn stays marked, as for Claude.
@@ -148,11 +148,65 @@ pub struct Thread {
     pub ephemeral: bool,
     /// A read or a resume described it; until then only its status is known.
     pub described: bool,
+    pub chat: Vec<(String, ChatMessage)>,
+    next_message: i64,
 }
 
 #[derive(Default)]
 pub struct State {
     pub threads: BTreeMap<String, Thread>,
+    pub previews: bool,
+}
+
+impl Thread {
+    fn message(&mut self, item: &Value, at: Time) -> bool {
+        let Some(id) = str_at(item, "id") else {
+            return false;
+        };
+        let (role, text) = match str_at(item, "type") {
+            Some("agentMessage") => (
+                ChatRole::Assistant,
+                str_at(item, "text").unwrap_or("").to_string(),
+            ),
+            Some("userMessage") => (
+                ChatRole::User,
+                item.get("content")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                    .filter(|c| str_at(c, "type") == Some("text"))
+                    .filter_map(|c| str_at(c, "text"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ),
+            _ => return false,
+        };
+        if text.trim().is_empty() {
+            return false;
+        }
+        let text = clip(&text, 16000);
+        let ends_turn = role == ChatRole::Assistant && str_at(item, "phase") == Some("final_answer");
+        if let Some((_, message)) = self.chat.iter_mut().find(|(key, _)| key == id) {
+            if message.text == text && message.ends_turn == ends_turn {
+                return false;
+            }
+            message.text = text;
+            message.ends_turn = ends_turn;
+        } else {
+            self.next_message += 1;
+            self.chat.push((id.to_string(), ChatMessage {
+                id: self.next_message,
+                role,
+                text,
+                at,
+                ends_turn,
+            }));
+            if self.chat.len() > 100 {
+                self.chat.remove(0);
+            }
+        }
+        true
+    }
 }
 
 fn str_at<'a>(value: &'a Value, key: &str) -> Option<&'a str> {
@@ -299,6 +353,29 @@ impl State {
         if let Some(status) = thread.get("status") {
             entry.status = Some(Status::from_json(status));
         }
+        if self.previews && let Some(turns) = thread.get("turns").and_then(Value::as_array) {
+            // A history response can race with live items. Keep history in its
+            // server order, then append live items not included in that response.
+            let live = std::mem::take(&mut entry.chat);
+            let mut seen = HashSet::new();
+            for turn in turns {
+                let at = time_at(turn, "startedAt").unwrap_or(entry.updated);
+                for item in turn.get("items").and_then(Value::as_array).into_iter().flatten() {
+                    if let Some(id) = str_at(item, "id") {
+                        seen.insert(id.to_string());
+                    }
+                    entry.message(item, at);
+                }
+            }
+            for message in live {
+                if !seen.contains(&message.0) {
+                    entry.chat.push(message);
+                }
+            }
+            if entry.chat.len() > 100 {
+                entry.chat.drain(..entry.chat.len() - 100);
+            }
+        }
     }
 
     /// A notification from the daemon: what it changed, and a thread worth
@@ -386,6 +463,9 @@ impl State {
                 let thread = self.threads.get_mut(&thread_id?)?;
                 let item = params.get("item")?;
                 let kind = str_at(item, "type")?;
+                if self.previews && matches!(kind, "agentMessage" | "userMessage") {
+                    return thread.message(item, now).then_some(Notified::CHANGED);
+                }
                 if !TOOL_ITEMS.contains(&kind) {
                     return None;
                 }
@@ -843,9 +923,16 @@ fn session(
         } else {
             None
         },
-        last_text: None,
+        last_text: thread.chat.iter().rev()
+            .find(|(_, m)| m.role == ChatRole::Assistant)
+            .filter(|_| previews)
+            .map(|(_, m)| m.text.clone()),
         hooked: true,
-        chat: Vec::new(),
+        chat: if previews {
+            thread.chat.iter().map(|(_, m)| m.clone()).collect()
+        } else {
+            Vec::new()
+        },
         background_label: None,
         services: 0,
     }
@@ -914,6 +1001,40 @@ mod tests {
             "gitInfo": {"branch": "feat/x"}, "createdAt": 100, "updatedAt": 200, "status": {"type": "idle"}
         }));
         state
+    }
+
+    #[test]
+    fn conversation_history_and_live_items_merge_without_duplicates() {
+        let mut state = state_with_thread();
+        state.previews = true;
+        let answer = json!({"type": "agentMessage", "id": "a", "text": "Working", "phase": "commentary"});
+        let event = json!({"threadId": "t1", "item": answer});
+        assert!(state.notify("item/started", &event, 210.0).changed);
+        assert!(!state.notify("item/completed", &event, 211.0).changed);
+        state.upsert_thread(&json!({"id": "t1", "turns": [{"startedAt": 205, "items": [
+            {"type": "userMessage", "id": "u", "content": [{"type": "text", "text": "Hello"}]}, answer
+        ]}]}));
+        let final_item = json!({"threadId": "t1", "item": {
+            "type": "agentMessage", "id": "final", "text": "Done", "phase": "final_answer"
+        }});
+        state.notify("item/completed", &final_item, 220.0);
+        let (sessions, _) = state.snapshot(221.0, ContentPolicy { previews: true });
+        let s = &sessions[0];
+        assert_eq!(s.chat.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(), ["Hello", "Working", "Done"]);
+        assert_eq!(s.chat[0].role, ChatRole::User);
+        assert!(s.chat[2].ends_turn);
+        assert_eq!(s.last_text.as_deref(), Some("Done"));
+        let (hidden, _) = state.snapshot(221.0, ContentPolicy { previews: false });
+        assert!(hidden[0].chat.is_empty() && hidden[0].last_text.is_none());
+    }
+
+    #[test]
+    fn previews_off_never_keeps_message_content() {
+        let mut state = state_with_thread();
+        let item = json!({"type": "agentMessage", "id": "a", "text": "private"});
+        state.upsert_thread(&json!({"id": "t1", "turns": [{"items": [item]}]}));
+        assert!(!state.notify("item/completed", &json!({"threadId": "t1", "item": item}), 210.0).changed);
+        assert!(state.threads["t1"].chat.is_empty());
     }
 
     #[test]

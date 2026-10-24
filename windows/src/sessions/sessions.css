@@ -230,6 +230,360 @@
   scrollbar-width: none;
 }
 
+.s-detail-body,
+.s-details-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.s-detail-page.is-large {
+  gap: 12px;
+  min-height: 0;
+}
+.s-scroll.is-large {
+  overflow: hidden;
+  gap: 12px;
+}
+.is-large > .s-header {
+  flex: none;
+  padding-top: 6px;
+  gap: 12px;
+}
+.is-large > .s-header .s-header-text {
+  flex: 1;
+}
+.is-large > .s-header .s-phase {
+  font-size: 15px;
+}
+.is-large > .s-header .s-secondary {
+  font-size: 12px;
+}
+.s-reading-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex: none;
+}
+.s-reading-controls .n-icon-button {
+  width: 30px;
+  height: 30px;
+}
+.s-small-a {
+  font-size: 11px;
+}
+.s-large-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px 330px;
+  flex: 1;
+  min-height: 80px;
+  overflow: hidden;
+}
+.s-large-body.is-folded {
+  grid-template-columns: minmax(0, 1fr) 38px 0;
+}
+.s-details-sidebar {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 3px 8px 0;
+  scrollbar-width: thin;
+}
+.s-details-sidebar[hidden] {
+  display: none;
+}
+.s-details-sidebar .s-section-title {
+  font-size: 11px;
+  letter-spacing: 0.8px;
+}
+.s-details-sidebar .s-title {
+  font-size: 15px;
+  -webkit-line-clamp: unset;
+}
+.s-details-sidebar .s-subagent {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 6px;
+  row-gap: 2px;
+}
+.s-details-sidebar .s-subagent > :first-child {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+.s-details-sidebar .s-subagent-type {
+  grid-column: 2;
+  grid-row: 1;
+}
+.s-details-sidebar .s-subagent > .s-clock {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+.s-details-sidebar .s-subagent-description {
+  grid-column: 2;
+  grid-row: 2;
+  white-space: normal;
+}
+.s-sidebar-handle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  color: rgba(255, 255, 255, 0.5);
+}
+.s-sidebar-handle::before {
+  content: "";
+  position: absolute;
+  width: 1px;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+.s-sidebar-handle svg {
+  z-index: 1;
+  box-sizing: content-box;
+  padding: 12px 4px;
+  border-radius: 15px;
+  background: #1f1f1f;
+}
+.s-sidebar-handle:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+.is-folded .s-sidebar-handle svg {
+  transform: rotate(180deg);
+}
+.s-sidebar-tool {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  min-width: 0;
+}
+.s-sidebar-tool > svg {
+  align-self: center;
+  flex: none;
+}
+.s-sidebar-tool strong {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+.s-sidebar-command {
+  font:
+    11px "Cascadia Mono",
+    Consolas,
+    monospace;
+  color: rgba(255, 255, 255, 0.65);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.s-sidebar-tool time {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.s-fold-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.s-fold-list:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.s-fold-list .is-open {
+  transform: rotate(180deg);
+}
+.s-conversation.is-large {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 6px 8px 0;
+  scrollbar-width: thin;
+}
+.s-conversation .s-messages {
+  gap: var(--chat-size);
+}
+.s-conversation .s-message {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+.s-conversation .s-message.is-user {
+  margin-left: 60px;
+  align-self: flex-end;
+  max-width: calc(100% - 60px);
+}
+.s-conversation .is-user .s-message-text {
+  padding: 9px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.95);
+}
+.s-conversation .s-message-text,
+.s-conversation .s-rich-text {
+  font-size: var(--chat-size);
+  line-height: 1.5;
+}
+.s-message-time {
+  display: block;
+  text-align: right;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 10px;
+}
+.s-answer-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 0.5em;
+  margin-bottom: 0.6em;
+  color: var(--agent-tint, #d97857);
+  font-size: max(10px, calc(var(--chat-size, 15px) - 4px));
+}
+.s-answer-rule > span {
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+}
+.s-answer-rule time {
+  color: rgba(255, 255, 255, 0.35);
+}
+.s-answer-rule i {
+  height: 1px;
+  flex: 1;
+  background: color-mix(in srgb, var(--agent-tint, #d97857) 35%, transparent);
+}
+.s-rich-text {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.s-message.is-on-the-way .s-rich-text {
+  color: rgba(255, 255, 255, 0.6);
+}
+.s-message.is-answer .s-rich-text {
+  color: rgba(255, 255, 255, 0.96);
+}
+.s-rich-text > :first-child {
+  margin-top: 0;
+}
+.s-rich-text > :last-child {
+  margin-bottom: 0;
+}
+.s-rich-text p {
+  white-space: pre-wrap;
+  margin: 0 0 0.7em;
+}
+.s-rich-text a {
+  color: #6ba8ff;
+  text-decoration: none;
+}
+.s-rich-text a:hover {
+  text-decoration: underline;
+}
+.s-rich-text strong {
+  font-weight: 650;
+}
+.s-rich-text ul,
+.s-rich-text ol {
+  padding-left: 1.5em;
+  margin: 0.6em 0;
+}
+.s-rich-text li > p {
+  margin: 0.3em 0;
+}
+.s-rich-text code {
+  font:
+    0.9em "Cascadia Mono",
+    Consolas,
+    monospace;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+}
+.s-rich-text pre {
+  overflow: auto;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.s-rich-text pre code {
+  padding: 0;
+  background: none;
+  white-space: pre;
+}
+.s-rich-text blockquote {
+  margin: 0.7em 0;
+  padding-left: 12px;
+  border-left: 2px solid rgba(255, 255, 255, 0.2);
+}
+.s-rich-text h1,
+.s-rich-text h2,
+.s-rich-text h3 {
+  font-size: 1.12em;
+  margin: 1em 0 0.5em;
+}
+.s-rich-text table {
+  display: block;
+  overflow: auto;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+.s-rich-text th,
+.s-rich-text td {
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.s-scroll.is-large > .s-card {
+  max-height: 40%;
+  overflow-y: auto;
+  flex: 0 1 auto;
+}
+.s-detail-page.is-large .s-reply {
+  flex: none;
+}
+.s-detail-page.is-large .s-composer {
+  height: calc(var(--chat-size) * 4 + 20px);
+  min-width: 0;
+  resize: none;
+  padding: 10px 44px 10px 14px;
+  border: 0;
+  outline: none;
+  color: rgba(255, 255, 255, 0.95);
+  font: inherit;
+  font-size: var(--chat-size);
+  line-height: 1.4;
+}
+.s-detail-page.is-large .s-send {
+  bottom: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.s-composer-hint {
+  text-align: right;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+}
+@media (max-width: 850px) {
+  .s-large-body {
+    grid-template-columns: minmax(0, 1fr) 30px 260px;
+  }
+}
+
 .s-header {
   display: flex;
   align-items: center;
@@ -358,24 +712,63 @@
 }
 
 .s-subagent-type {
+  flex: none;
   font-size: 11px;
   font-weight: 500;
 }
 
 .s-subagent-description {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 10.5px;
   white-space: nowrap;
 }
 
+.s-subagent > .s-clock {
+  margin-left: auto;
+  flex: none;
+}
 .s-last-reply {
+  max-height: 9.1em;
+  overflow: hidden;
+  font-size: 11px;
+}
+.s-last-reply .s-rich-text {
   font-size: 11px;
   line-height: 1.4;
   color: rgba(255, 255, 255, 0.8);
-  display: -webkit-box;
-  -webkit-line-clamp: 6;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+}
+
+.s-message-text {
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.8);
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.s-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.s-message {
+  min-width: 0;
+}
+
+.s-enable-previews {
+  align-self: flex-start;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  font: inherit;
+  cursor: pointer;
 }
 
 /* Permission card and questions */
