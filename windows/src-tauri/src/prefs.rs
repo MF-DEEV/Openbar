@@ -220,8 +220,8 @@ pub fn launch_at_login_set(on: bool) -> Result<bool, String> {
 #[cfg(windows)]
 mod autostart {
     use windows::Win32::System::Registry::{
-        HKEY, HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_SZ, RegCloseKey,
-        RegDeleteValueW, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
+        HKEY, HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_SZ, REG_VALUE_TYPE,
+        RegCloseKey, RegDeleteValueW, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
     };
     use windows::core::{HSTRING, PCWSTR};
 
@@ -257,20 +257,26 @@ mod autostart {
         };
         let name = HSTRING::from(NAME);
         let mut size = 0u32;
+        let mut kind = REG_VALUE_TYPE::default();
         let mut stored = None;
         unsafe {
-            if RegQueryValueExW(key, &name, None, None, None, Some(&mut size)).is_ok() && size >= 2
+            if RegQueryValueExW(key, &name, None, Some(&mut kind), None, Some(&mut size)).is_ok()
+                && kind == REG_SZ
+                && size >= 2
             {
-                let mut buf = vec![0u16; size as usize / 2];
+                // Whole UTF-16 units, and the registry told exactly how many bytes it may write.
+                let mut buf = vec![0u16; (size as usize).div_ceil(2)];
+                size = (buf.len() * 2) as u32;
                 if RegQueryValueExW(
                     key,
                     &name,
                     None,
-                    None,
+                    Some(&mut kind),
                     Some(buf.as_mut_ptr().cast()),
                     Some(&mut size),
                 )
                 .is_ok()
+                    && kind == REG_SZ
                 {
                     let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
                     stored = Some(String::from_utf16_lossy(&buf[..len]));

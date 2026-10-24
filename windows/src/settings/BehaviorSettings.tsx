@@ -26,7 +26,13 @@ export function BehaviorSettings() {
   const [shortcutTaken, setShortcutTaken] = useState(false);
   useEffect(() => {
     if (!inTauri || !island.shortcutEnabled) return setShortcutTaken(false);
-    void invoke<boolean>("shortcut_registered").then((ok) => setShortcutTaken(!ok));
+    // An answer for an earlier state (defaults before the file loaded, a save
+    // that failed) must not land after a newer one.
+    let live = true;
+    void invoke<boolean>("shortcut_registered").then((ok) => live && setShortcutTaken(!ok));
+    return () => {
+      live = false;
+    };
   }, [island.shortcutEnabled]);
   const expands = island.opening === "hoverExpand" || island.opening === "hiddenUntilHover";
 

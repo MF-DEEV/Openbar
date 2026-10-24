@@ -8,7 +8,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { MODULES, type ModuleId } from "../island/modules";
-import { DEFAULT_SETTINGS, type IslandSettings } from "../island/settings";
+import { DEFAULT_SETTINGS, type IslandSettings, type QuickButton } from "../island/settings";
 import { inTauri } from "./bridge";
 
 /** The Sessions section's own preferences (spec 01-shell §7.2, sessions). */
@@ -81,9 +81,24 @@ function checked<T extends object>(defaults: T, stored: unknown): Partial<T> {
   return out;
 }
 
+/** Buttons around the island that every reader can draw: a known side and action. */
+function quickButtons(value: unknown): QuickButton[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return value.filter((b): b is QuickButton => {
+    if (!isObject(b) || typeof b.id !== "string" || !["left", "right", "bottom"].includes(b.side as string))
+      return false;
+    if (b.label !== undefined && typeof b.label !== "string") return false;
+    const action = b.action;
+    if (!isObject(action)) return false;
+    if (action.kind === "module") return typeof action.module === "string" && KNOWN.has(action.module);
+    return action.kind === "explore" || action.kind === "settings" || action.kind === "pin";
+  });
+}
+
 export function resolve(stored: StoredPrefs | null | undefined): Prefs {
   const island = checked(DEFAULT_SETTINGS, stored?.island);
   const raw = isObject(stored?.island) ? stored.island : {};
+  const quickAccess = quickButtons(raw.quickAccess);
   const hiddenModules = moduleList(raw.hiddenModules);
   const moduleOrder = moduleList(raw.moduleOrder);
   if (island.homeModule !== undefined && island.homeModule !== "explore" && !KNOWN.has(island.homeModule)) {
@@ -95,6 +110,7 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
       ...island,
       ...(hiddenModules ? { hiddenModules } : {}),
       ...(moduleOrder ? { moduleOrder } : {}),
+      ...(quickAccess ? { quickAccess } : {}),
       capsuleFit: { ...DEFAULT_SETTINGS.capsuleFit, ...checked(DEFAULT_SETTINGS.capsuleFit, raw.capsuleFit) },
       sections: { ...DEFAULT_SETTINGS.sections, ...sectionSwitches(raw.sections) },
     },

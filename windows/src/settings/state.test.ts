@@ -14,14 +14,14 @@ vi.mock("../shared/prefs", async (original) => ({
     }),
 }));
 
-const { useSettings } = await import("./state");
+const { resetSettings, useSettings } = await import("./state");
 const { resolve } = await import("../shared/prefs");
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
 
 beforeEach(() => {
   saves.length = 0;
-  useSettings.setState({ prefs: resolve(null), error: null });
+  resetSettings();
 });
 
 describe("settings window state", () => {

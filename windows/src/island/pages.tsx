@@ -171,7 +171,7 @@ subscribeMusic();
 /** Each new banner raises a notice (priority 1, 3 s) that opens the page. */
 subscribeNotifications((item) => {
   const island = useIsland.getState();
-  if (island.settings.sections.notifications === false) return;
+  if (!modulesOf(island).includes("notifications")) return;
   island.showNotice({
     id: `notification:${item.id}`,
     kind: "systemNotification",

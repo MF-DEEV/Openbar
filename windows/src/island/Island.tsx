@@ -127,6 +127,7 @@ function useFocus() {
 /** Turned off in Settings › General: nothing drawn, and nothing left to catch the pointer. */
 function Disabled() {
   useEffect(() => {
+    useIsland.getState().collapse();
     void bridge.setHitRects([]);
     void bridge.setCapture(false);
   }, []);
