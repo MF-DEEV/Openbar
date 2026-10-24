@@ -24,6 +24,7 @@ cd "$vm_dir"
 install_drives=()
 if [[ "$mode" == install ]]; then
   : "${WIN_ISO:?set WIN_ISO to the Windows 11 ARM64 ISO}"
+  VM_GPU="${VM_GPU:-ramfb}"
   install_drives=(
     -drive "if=none,id=win,media=cdrom,readonly=on,file=$WIN_ISO"
     -device usb-storage,drive=win,bootindex=0
@@ -32,12 +33,11 @@ if [[ "$mode" == install ]]; then
   )
 fi
 
-# Windows on Arm draws through ramfb until a GPU driver is installed: the
-# firmware's virtio-gpu screen stops updating once Windows takes over.
-# ramfb's resolution is set in the firmware (Device Manager > OVMF Platform
-# Configuration) and kept in efivars.fd. VM_GPU=virtio switches later.
+# Windows Setup draws through ramfb (VM_GPU=ramfb, up to 1024x768): the
+# firmware's virtio-gpu screen stops updating once Windows takes over. After
+# the first logon installs viogpudo, virtio-gpu gives the full 1920x1080.
 gpu=(-device ramfb)
-[[ "${VM_GPU:-ramfb}" == virtio ]] && gpu=(-device virtio-gpu-pci,xres="${VM_W:-1920}",yres="${VM_H:-1080}")
+[[ "${VM_GPU:-virtio}" == virtio ]] && gpu=(-device virtio-gpu-pci,xres="${VM_W:-1920}",yres="${VM_H:-1080}")
 
 # Sound plays through the Mac's speakers, so it is opt-in (music/mixer tests).
 audio=()
