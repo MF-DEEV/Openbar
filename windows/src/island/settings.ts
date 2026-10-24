@@ -52,6 +52,10 @@ export interface IslandSettings {
   /** Per-section switches the Mac keeps as notch*Enabled. */
   sections: Partial<Record<ModuleId, boolean>>;
   language: string;
+  /** Music takes the closed island while it plays (notchShowPlayingMusic). */
+  showPlayingMusic: boolean;
+  /** A new song raises a notice (notchTrackChange). */
+  trackChange: boolean;
 }
 
 export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
@@ -88,6 +92,8 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   quickAccess: DEFAULT_QUICK_ACCESS,
   sections: { agents: true, sessions: true },
   language: "auto",
+  showPlayingMusic: true,
+  trackChange: true,
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

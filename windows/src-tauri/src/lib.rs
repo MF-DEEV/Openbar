@@ -8,15 +8,16 @@ mod hosts;
 mod island;
 mod media;
 mod notifications;
+mod prefs;
 mod sessions;
 mod settings;
 mod tray;
 
 use tauri::{Emitter, Manager, RunEvent};
-use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
+use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
 
 /// Ctrl+Alt+Space opens and closes the island from anywhere.
-fn toggle_shortcut() -> Shortcut {
+pub(crate) fn toggle_shortcut() -> Shortcut {
     Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space)
 }
 
@@ -81,6 +82,10 @@ pub fn run() {
             notifications::notifications_dismiss,
             notifications::notifications_clear,
             notifications::notifications_open,
+            prefs::prefs_get,
+            prefs::prefs_set,
+            prefs::launch_at_login_get,
+            prefs::launch_at_login_set,
             sessions::service::sessions_decide,
             sessions::service::sessions_answer,
             sessions::service::sessions_acknowledge,
@@ -103,9 +108,10 @@ pub fn run() {
                 app.handle().clone(),
                 app.state::<notifications::Shared>().inner().clone(),
             );
+            let prefs = prefs::Prefs::load(app.handle());
+            prefs::apply(app.handle(), &prefs.get());
+            app.manage(prefs);
             tray::create(app.handle())?;
-            // Taken by another app: the island still opens by clicking it.
-            let _ = app.global_shortcut().register(toggle_shortcut());
             Ok(())
         })
         .build(tauri::generate_context!())

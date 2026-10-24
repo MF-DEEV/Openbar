@@ -521,7 +521,7 @@ impl Service {
         self.publish(&mut inner, t);
     }
 
-    fn set_previews(&self, on: bool) {
+    pub fn set_previews(&self, on: bool) {
         let mut inner = self.inner.lock().unwrap();
         inner.engine.set_policy(ContentPolicy { previews: on });
         if on {

@@ -9,6 +9,7 @@ import { create } from "zustand";
 import { bridge } from "../shared/bridge";
 import { localCostumeStore } from "./clawd/costume";
 import type { Decision, ReplyFailure, Session, SessionEvent, Snapshot } from "./types";
+import { DEFAULT_SESSION_PREFS, type SessionPrefs } from "../shared/prefs";
 
 /** A permission must be on screen this long before a click or Ctrl+Y can answer it. */
 export const SETTLE_DELAY = 0.8;
@@ -27,7 +28,8 @@ interface SessionsState {
   renaming: boolean;
   /** The wardrobe is open on the focused session's page. */
   wardrobe: boolean;
-  /** A Clawd for every session (notchSessionsBuddies). */
+  /** The section's preferences (buddies: a Clawd for every session). */
+  prefs: SessionPrefs;
   buddies: boolean;
   /** Outfits changed in the wardrobe, by session (or subagent) key. */
   costumes: Record<string, string>;
@@ -80,6 +82,7 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   lookedAt: {},
   renaming: false,
   wardrobe: false,
+  prefs: DEFAULT_SESSION_PREFS,
   buddies: true,
   costumes: costumeStore.all(),
   openFailedUntil: 0,

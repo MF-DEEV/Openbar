@@ -19,6 +19,16 @@ import "../music/music.css";
 import { NotificationsPage, NotificationsTrailing } from "../notifications/NotificationsPage";
 import { subscribeNotifications } from "../notifications/store";
 import "../notifications/notifications.css";
+import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
+
+// MARK: Preferences
+
+function applyPrefs(p: Prefs) {
+  useIsland.setState({ settings: p.island });
+  useSessions.setState({ prefs: p.sessions, buddies: p.sessions.buddies });
+}
+void loadPrefs().then(applyPrefs);
+void onPrefs(applyPrefs);
 
 pages.sessions = sessionsPage;
 pages.music = {
@@ -36,7 +46,7 @@ function syncSessionsActivity() {
   const { counts } = useSessions.getState().snapshot;
   const island = useIsland.getState();
   const empty = counts.working + counts.waiting + counts.finished === 0;
-  if (empty || island.settings.sections.sessions === false) {
+  if (empty || island.settings.sections.sessions === false || !useSessions.getState().prefs.live) {
     island.setActivity("sessions", null);
     return;
   }
@@ -50,7 +60,16 @@ function syncSessionsActivity() {
 }
 
 useSessions.subscribe((s, prev) => {
-  if (s.snapshot.counts !== prev.snapshot.counts) syncSessionsActivity();
+  if (s.snapshot.counts !== prev.snapshot.counts || s.prefs.live !== prev.prefs.live) syncSessionsActivity();
+});
+useIsland.subscribe((s, prev) => {
+  if (
+    s.settings.sections !== prev.settings.sections ||
+    s.settings.showPlayingMusic !== prev.settings.showPlayingMusic
+  ) {
+    syncSessionsActivity();
+    syncMusicActivity();
+  }
 });
 syncSessionsActivity();
 
@@ -65,7 +84,8 @@ function onSessionEvent(event: SessionEvent) {
   if (!session) return;
   const island = useIsland.getState();
   const name = displayName(session, sessions.names[session.id]);
-  if (event.kind !== "finished" && !island.expanded) {
+  if (island.settings.sections.sessions === false) return;
+  if (event.kind !== "finished" && !island.expanded && sessions.prefs.autoExpand) {
     island.open("sessions", { takeFocus: false });
     sessions.focus(session.id);
     return;
@@ -97,7 +117,7 @@ subscribeSessions(onSessionEvent);
 function syncMusicActivity() {
   const { playback } = useMusic.getState();
   const island = useIsland.getState();
-  if (!playback?.isPlaying || island.settings.sections.music === false) {
+  if (!playback?.isPlaying || island.settings.sections.music === false || !island.settings.showPlayingMusic) {
     island.setActivity("music", null);
     return;
   }
@@ -119,6 +139,8 @@ function noticeTrack() {
   trackTimer = setTimeout(() => {
     const now = useMusic.getState().playback;
     if (!now || `${now.source}|${now.title}|${now.artist}` !== key) return;
+    const { settings } = useIsland.getState();
+    if (!settings.trackChange || settings.sections.music === false) return;
     useIsland.getState().showNotice({
       id: `track:${key}`,
       kind: "track",

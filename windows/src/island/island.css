@@ -43,6 +43,14 @@ input:focus-visible {
   pointer-events: none;
 }
 
+.island-root .island-frame {
+  transition: opacity 180ms ease;
+}
+
+.island-root.is-hidden .island-frame {
+  opacity: 0;
+}
+
 .island-frame {
   position: absolute;
   left: 50%;

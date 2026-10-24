@@ -181,8 +181,17 @@ export function Island() {
       content = <Resting size={shown.size} />;
   }
 
+  // Hidden until hover: the closed island stays where it is (the pointer
+  // still finds it) but shows nothing, unless an activity or indicator may
+  // show (Settings › Behavior › Show activity and indicators).
+  const hidden =
+    state.settings.opening === "hiddenUntilHover" &&
+    !state.inside &&
+    (shown.kind === "resting" ||
+      ((shown.kind === "activity" || shown.kind === "notice") && !state.settings.hiddenShowsActivity));
+
   return (
-    <div className="island-root" ref={frame}>
+    <div className={`island-root${hidden ? " is-hidden" : ""}`} ref={frame}>
       <IslandSurface geometry={geometry} target={shown.size}>
         <ContentStage
           contentKey={shown.key}

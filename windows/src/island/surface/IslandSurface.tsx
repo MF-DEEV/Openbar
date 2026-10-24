@@ -7,7 +7,8 @@
 // outline moves. Each frame also tells the Rust side which part of the
 // window takes the pointer.
 
-import { type ReactNode, useLayoutEffect, useRef } from "react";
+import { type ReactNode, useId, useLayoutEffect, useRef } from "react";
+import { useIsland } from "../store";
 import { bridge, type HitRect } from "../../shared/bridge";
 import { type Geometry, hitShape, islandPath } from "../geometry";
 import { MotionTimeline, type Size } from "../motion";
@@ -38,6 +39,9 @@ export function IslandSurface(props: {
 }) {
   const { geometry, target, children } = props;
   const pathRef = useRef<SVGPathElement>(null);
+  const outlineRef = useRef<SVGPathElement>(null);
+  const outline = useIsland((s) => s.settings.outline);
+  const clipId = `island-clip-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const contentRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const drawn = useRef<Size>(target);
@@ -53,6 +57,7 @@ export function IslandSurface(props: {
       const dx = (target.width - size.width) / 2;
       const d = shifted(geometry, size, dx);
       pathRef.current?.setAttribute("d", d);
+      outlineRef.current?.setAttribute("d", d);
       if (contentRef.current) contentRef.current.style.clipPath = `path("${d}")`;
       reportHits(size);
       onDrawn.current?.(size, settled);
@@ -119,7 +124,22 @@ export function IslandSurface(props: {
       style={{ width: target.width, height: target.height, top: geometry.floatingDrop }}
     >
       <svg className="island-backdrop" width={target.width} height={target.height} aria-hidden>
-        <path ref={pathRef} fill="#000" />
+        <clipPath id={clipId}>
+          <use href={`#${clipId}-shape`} />
+        </clipPath>
+        <path id={`${clipId}-shape`} ref={pathRef} fill="#000" />
+        {/* Settings › Layout › Show outline: a 2 pt stroke of which only the
+            inner 1 pt shows, white at 65% (spec 01-shell §1.8). */}
+        {outline ? (
+          <path
+            ref={outlineRef}
+            d={pathRef.current?.getAttribute("d") ?? undefined}
+            fill="none"
+            stroke="rgba(255,255,255,0.65)"
+            strokeWidth={2}
+            clipPath={`url(#${clipId})`}
+          />
+        ) : null}
       </svg>
       <div ref={contentRef} className="island-content">
         {children}

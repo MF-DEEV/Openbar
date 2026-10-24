@@ -71,6 +71,9 @@ pub struct IslandState {
     /// While the page holds the pointer (a drag, a slider, an open menu) the
     /// window keeps mouse input even outside the shape.
     capture: Mutex<bool>,
+    /// Settings › Behavior › Show on, and the display the window is on now.
+    display: Mutex<DisplayChoice>,
+    placed_on: Mutex<Option<(i32, i32)>>,
     /// The window that had the keyboard before the island took it.
     #[cfg(windows)]
     previous_foreground: Mutex<isize>,
@@ -83,6 +86,7 @@ pub enum DisplayChoice {
     Primary,
     Cursor,
     /// Every display shows the closed island; the open one follows the pointer.
+    /// Not on Windows yet: reads as Primary.
     All,
 }
 
@@ -124,6 +128,9 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>>
 /// island, so its size costs nothing the person can notice, and it never
 /// resizes during a motion (spec 01-shell §6.2).
 pub fn place<R: Runtime>(window: &WebviewWindow<R>, choice: DisplayChoice) -> tauri::Result<()> {
+    if let Some(state) = window.try_state::<IslandState>() {
+        *state.display.lock().unwrap() = choice;
+    }
     let monitor = match choice {
         DisplayChoice::Primary | DisplayChoice::All => window.primary_monitor()?,
         DisplayChoice::Cursor => {
@@ -143,7 +150,33 @@ pub fn place<R: Runtime>(window: &WebviewWindow<R>, choice: DisplayChoice) -> ta
         monitor.position().x,
         monitor.position().y,
     ))?;
+    if let Some(state) = window.try_state::<IslandState>() {
+        *state.placed_on.lock().unwrap() = Some((monitor.position().x, monitor.position().y));
+    }
     Ok(())
+}
+
+/// Follow pointer: the island moves to the display the pointer is on, but
+/// never while the person is using it.
+fn follow_pointer<R: Runtime>(window: &WebviewWindow<R>, state: &IslandState) {
+    if *state.display.lock().unwrap() != DisplayChoice::Cursor {
+        return;
+    }
+    // Only a closed island moves: an open one (taller than any strip or
+    // notice) stays put until it closes.
+    if state.rects.lock().unwrap().iter().any(|r| r.height > 80.0) {
+        return;
+    }
+    let Ok(p) = window.cursor_position() else {
+        return;
+    };
+    let Ok(Some(monitor)) = window.monitor_from_point(p.x, p.y) else {
+        return;
+    };
+    let at = (monitor.position().x, monitor.position().y);
+    if *state.placed_on.lock().unwrap() != Some(at) {
+        let _ = place(window, DisplayChoice::Cursor);
+    }
 }
 
 /// Watches the pointer: lets the island window take mouse input only while
@@ -154,7 +187,9 @@ fn watch_pointer<R: Runtime>(app: AppHandle<R>) {
         let mut taking_input = false;
         let mut was_inside = false;
         let mut buttons_down = false;
+        let mut ticks: u32 = 0;
         loop {
+            ticks = ticks.wrapping_add(1);
             thread::sleep(POINTER_POLL);
             let Some(window) = app.get_webview_window(LABEL) else {
                 break;
@@ -178,6 +213,10 @@ fn watch_pointer<R: Runtime>(app: AppHandle<R>) {
                 let _ = window.emit_to(LABEL, "island://outside-click", ());
             }
             buttons_down = down;
+            // About four times a second, only while the island is left alone.
+            if ticks.is_multiple_of(16) && !wants_input && !down {
+                follow_pointer(&window, &state);
+            }
         }
     });
 }
@@ -223,6 +262,13 @@ pub fn island_set_focusable<R: Runtime>(
     Ok(())
 }
 
+/// Settings › Behavior › Show in screenshots.
+pub fn show_in_captures<R: Runtime>(app: &AppHandle<R>, show: bool) {
+    if let Some(window) = app.get_webview_window(LABEL) {
+        platform::show_in_captures(&window, show);
+    }
+}
+
 #[cfg(windows)]
 mod platform {
     use super::IslandState;
@@ -233,8 +279,24 @@ mod platform {
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         GWL_EXSTYLE, GetForegroundWindow, GetWindowLongPtrW, IsWindow, SetForegroundWindow,
-        SetWindowLongPtrW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        SetWindowDisplayAffinity, SetWindowLongPtrW, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
+        WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     };
+
+    /// Left out of screenshots and recordings when the person asks.
+    pub fn show_in_captures<R: Runtime>(window: &WebviewWindow<R>, show: bool) {
+        let Ok(hwnd) = window.hwnd() else { return };
+        unsafe {
+            let _ = SetWindowDisplayAffinity(
+                hwnd,
+                if show {
+                    WDA_NONE
+                } else {
+                    WDA_EXCLUDEFROMCAPTURE
+                },
+            );
+        }
+    }
 
     /// No taskbar button, no Alt+Tab entry, and clicking the closed island
     /// does not take focus from the app the person is working in.
@@ -300,6 +362,10 @@ mod platform {
     use tauri::{Runtime, WebviewWindow};
 
     pub fn style<R: Runtime>(_window: &WebviewWindow<R>) {}
+
+    pub fn show_in_captures<R: Runtime>(window: &WebviewWindow<R>, show: bool) {
+        let _ = window.set_content_protected(!show);
+    }
 
     pub fn set_focusable<R: Runtime>(
         window: &WebviewWindow<R>,
