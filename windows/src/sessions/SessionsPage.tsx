@@ -40,9 +40,9 @@ function Counts() {
   if (items.length === 0) return total > 0 ? <span className="s-band-total">{total}</span> : null;
   return (
     <span className="s-band-counts">
-      {items.map(({ n, Icon, tint, scale }, i) => (
+      {items.map(({ n, Icon, tint }, i) => (
         <span key={i} style={{ color: tint }}>
-          <Icon size={Math.round(9 * scale)} strokeWidth={3} />
+          <Icon size={9} strokeWidth={3} />
           {n}
         </span>
       ))}

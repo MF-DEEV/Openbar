@@ -3,22 +3,22 @@
 
 import { describe, expect, it } from "vitest";
 import { CLAUDE_TINT, CODEX_TINT, phaseTint } from "./format";
-import { ClaudeMark, CodexMark } from "./glyphs";
+import { SparkleFill } from "./glyphs";
 import { countItems } from "./SessionsStrip";
 
 describe("counts by agent", () => {
-  it("splits working sessions into Claude and Codex, each under its own mark", () => {
+  it("splits working sessions into Claude and Codex, each in its own color", () => {
     const items = countItems({ working: 3, workingCodex: 1, waiting: 0, finished: 2 });
     expect(items.map((i) => [i.Icon, i.n, i.tint])).toEqual([
-      [ClaudeMark, 2, CLAUDE_TINT],
-      [CodexMark, 1, CODEX_TINT],
+      [SparkleFill, 2, CLAUDE_TINT],
+      [SparkleFill, 1, CODEX_TINT],
       [items[2]!.Icon, 2, items[2]!.tint],
     ]);
   });
 
   it("leaves out an agent with nothing running", () => {
     const items = countItems({ working: 1, workingCodex: 1, waiting: 0, finished: 0 });
-    expect(items.map((i) => i.Icon)).toEqual([CodexMark]);
+    expect(items.map((i) => i.tint)).toEqual([CODEX_TINT]);
   });
 
   it("tints working phases by agent and keeps the shared ones", () => {

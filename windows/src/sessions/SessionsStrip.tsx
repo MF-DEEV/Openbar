@@ -6,7 +6,7 @@
 // sessions are in each phase on the other. Clicking opens the Sessions page,
 // on the first waiting session when there is one.
 
-import { CheckCircleFill, ClaudeMark, CodexMark, HandFill, MARK_SCALE } from "./glyphs";
+import { CheckCircleFill, ClaudeMark, CodexMark, HandFill, MARK_SCALE, SparkleFill } from "./glyphs";
 import { edgeInset, type Geometry } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { useIsland } from "../island/store";
@@ -19,13 +19,15 @@ import type { Counts } from "./types";
 export const stripTextSize = (stripHeight: number) => Math.min(15, stripHeight - 7);
 const MARK = 14;
 
-/** Waiting, then each agent at work under its own mark, then finished. */
+/** Waiting, then each agent at work, then finished. The mark of who works
+ * shows once, beside the camera; the counts use the phase's sparkle in each
+ * agent's color, as the Mac's counts use the phase symbol. */
 export function countItems(counts: Counts) {
   return [
-    { n: counts.waiting, Icon: HandFill, tint: WAITING_TINT, scale: 1 },
-    { n: counts.working - counts.workingCodex, Icon: ClaudeMark, tint: CLAUDE_TINT, scale: MARK_SCALE.claude },
-    { n: counts.workingCodex, Icon: CodexMark, tint: CODEX_TINT, scale: MARK_SCALE.codex },
-    { n: counts.finished, Icon: CheckCircleFill, tint: FINISHED_TINT, scale: 1 },
+    { n: counts.waiting, Icon: HandFill, tint: WAITING_TINT },
+    { n: counts.working - counts.workingCodex, Icon: SparkleFill, tint: CLAUDE_TINT },
+    { n: counts.workingCodex, Icon: SparkleFill, tint: CODEX_TINT },
+    { n: counts.finished, Icon: CheckCircleFill, tint: FINISHED_TINT },
   ].filter((i) => i.n > 0);
 }
 
@@ -94,9 +96,9 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
         className="s-strip-wing"
         style={{ width: wing, paddingRight: textInset, justifyContent: "flex-end", fontSize: textSize }}
       >
-        {countItems(counts).map(({ n, Icon, tint, scale }, i) => (
+        {countItems(counts).map(({ n, Icon, tint }, i) => (
           <span key={i} className="s-strip-count" style={{ color: tint }}>
-            <Icon size={Math.round(textSize * 0.7 * scale)} strokeWidth={3} />
+            <Icon size={Math.round(textSize * 0.7)} strokeWidth={3} />
             {n}
           </span>
         ))}

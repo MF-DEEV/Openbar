@@ -49,6 +49,18 @@ export function HandFill({ size = 14, style, className }: GlyphProps) {
   );
 }
 
+/** The four-pointed sparkle, filled: a session at work beside its count. */
+export function SparkleFill({ size = 14, style, className }: GlyphProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style} className={className} aria-hidden>
+      <path
+        d="M12 1.5c.6 4.9 2.2 8.4 10.5 10.5-8.3 2.1-9.9 5.6-10.5 10.5C11.4 17.6 9.8 14.1 1.5 12 9.8 9.9 11.4 6.4 12 1.5z"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
 // The makers' marks, as the Mac takes them from the installed apps. Paths
 // from @lobehub/icons-static-svg (MIT); the marks belong to Anthropic and
 // OpenAI and only name whose session it is.
