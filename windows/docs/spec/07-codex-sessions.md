@@ -1,6 +1,6 @@
 # 07 — Codex CLI Sessions: data sources, approvals and replies
 
-Status: research spec, nothing built yet. Written 2026-10-24 against **codex-cli 0.163.0**.
+Status: built (Windows: `src-tauri/src/sessions/codex/`; Mac: `CodexSessionClient.swift` / `CodexSessionState.swift` on branch feat/codex-sessions, with this spec copied to `docs/codex-sessions.md`). Written 2026-10-24 against **codex-cli 0.163.0**. Where the builds differ from this research: cost is not priced yet (§10), replies are text only, the island joins a thread only while it works or its page is open, streamed deltas are opted out in `initialize`, and requests the island cannot answer (MCP forms) send the person to the terminal.
 Audience: the developer adding OpenAI Codex CLI sessions to the Sessions section of the Windows island (Tauri 2 + Rust + React), next to the Claude Code sessions in `02-sessions.md`.
 Scope: the interactive `codex` TUI, run natively on Windows 11 in Windows Terminal, conhost or a VS Code-family terminal. WSL is out of scope. `codex exec`, Codex Cloud and the Codex desktop app are out of scope too; §6.4 says how to exclude them.
 

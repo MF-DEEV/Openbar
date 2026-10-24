@@ -6,7 +6,7 @@
 //! §3.5, §5). Pure: messages and times go in, sessions and the answers to
 //! send come out.
 
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use serde_json::{Value, json};
 
@@ -31,6 +31,29 @@ const TOOL_ITEMS: [&str; 7] = [
     "imageGeneration",
     "collabAgentToolCall",
 ];
+
+/// `waiting_for` of a session whose only pending requests the island
+/// cannot answer: the person answers them in Codex's terminal.
+pub const ANSWER_IN_TERMINAL: &str = "terminal";
+
+/// What a notification did: whether anything the island keeps changed,
+/// and a thread worth reading (one the island has not seen), if any.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Notified {
+    pub changed: bool,
+    pub read: Option<String>,
+}
+
+impl Notified {
+    const UNCHANGED: Notified = Notified {
+        changed: false,
+        read: None,
+    };
+    const CHANGED: Notified = Notified {
+        changed: true,
+        read: None,
+    };
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum Status {
@@ -123,6 +146,8 @@ pub struct Thread {
     pub parent: Option<String>,
     /// Codex's own helper threads (titles and the like), never a person's session.
     pub ephemeral: bool,
+    /// A read or a resume described it; until then only its status is known.
+    pub described: bool,
 }
 
 #[derive(Default)]
@@ -153,11 +178,91 @@ fn clip(text: &str, limit: usize) -> String {
 }
 
 impl State {
-    /// `thread/read`'s thread, or a thread from `thread/list`.
+    // MARK: Rows
+
+    /// The thread whose row shows `id`: itself, or for a subagent's thread
+    /// the topmost known thread above it.
+    pub fn row_of(&self, id: &str) -> String {
+        let mut current = id.to_string();
+        let mut seen: HashSet<String> = HashSet::from([current.clone()]);
+        while let Some(parent) = self.threads.get(&current).and_then(|t| t.parent.clone()) {
+            if !self.threads.contains_key(&parent) || !seen.insert(parent.clone()) {
+                break;
+            }
+            current = parent;
+        }
+        current
+    }
+
+    /// `id` is `session` or one of its subagents' threads, however deep.
+    pub fn belongs(&self, id: &str, session: &str) -> bool {
+        let mut current = Some(id.to_string());
+        let mut seen: HashSet<String> = HashSet::new();
+        while let Some(thread) = current {
+            if !seen.insert(thread.clone()) {
+                break;
+            }
+            if thread == session {
+                return true;
+            }
+            current = self.threads.get(&thread).and_then(|t| t.parent.clone());
+        }
+        false
+    }
+
+    /// Every request waiting on `session`'s row: its own and its subagents',
+    /// oldest first.
+    pub fn pending(&self, session: &str) -> Vec<Pending> {
+        ordered(
+            self.threads
+                .values()
+                .filter(|t| !t.pending.is_empty() && self.belongs(&t.id, session))
+                .flat_map(|t| t.pending.iter().cloned())
+                .collect(),
+        )
+    }
+
+    /// The answerable request with this island id on `session`'s row, and
+    /// the thread that holds it.
+    pub fn answerable(&self, session: &str, request_id: &str) -> Option<(String, Pending)> {
+        self.threads
+            .values()
+            .filter(|t| self.belongs(&t.id, session))
+            .find_map(|t| {
+                t.pending
+                    .iter()
+                    .find(|p| p.request_id() == request_id && p.answerable())
+                    .map(|p| (t.id.clone(), p.clone()))
+            })
+    }
+
+    /// Removes a pending request the island answered, returning it; it may
+    /// belong to one of the session's subagents.
+    pub fn take_pending(&mut self, session: &str, request_id: &str) -> Option<Pending> {
+        let (holder, _) = self.answerable(session, request_id)?;
+        let thread = self.threads.get_mut(&holder)?;
+        let index = thread
+            .pending
+            .iter()
+            .position(|p| p.request_id() == request_id && p.answerable())?;
+        Some(thread.pending.remove(index))
+    }
+
+    // MARK: Input
+
+    /// `thread/read`'s thread, or a thread from `thread/list`. A thread read
+    /// back as not loaded is gone, as `thread/status/changed` says it.
     pub fn upsert_thread(&mut self, thread: &Value) {
         let Some(id) = str_at(thread, "id") else {
             return;
         };
+        if thread
+            .get("status")
+            .is_some_and(|status| str_at(status, "type") == Some("notLoaded"))
+        {
+            self.threads.remove(id);
+            return;
+        }
         let entry = self
             .threads
             .entry(id.to_string())
@@ -165,6 +270,7 @@ impl State {
                 id: id.to_string(),
                 ..Default::default()
             });
+        entry.described = true;
         if let Some(cwd) = str_at(thread, "cwd") {
             entry.cwd = cwd.to_string();
         }
@@ -195,10 +301,23 @@ impl State {
         }
     }
 
-    /// A notification from the daemon. Returns a thread id worth reading
-    /// (one the island has not seen), if any.
-    pub fn notify(&mut self, method: &str, params: &Value, now: Time) -> Option<String> {
+    /// A notification from the daemon: what it changed, and a thread worth
+    /// reading. Streamed deltas and methods the island does not follow
+    /// change nothing.
+    pub fn notify(&mut self, method: &str, params: &Value, now: Time) -> Notified {
         let thread_id = str_at(params, "threadId").map(str::to_owned);
+        self.apply(method, params, thread_id, now)
+            .unwrap_or(Notified::UNCHANGED)
+    }
+
+    /// `notify`, where None changes nothing.
+    fn apply(
+        &mut self,
+        method: &str,
+        params: &Value,
+        thread_id: Option<String>,
+        now: Time,
+    ) -> Option<Notified> {
         match method {
             "thread/status/changed" => {
                 let id = thread_id?;
@@ -206,28 +325,48 @@ impl State {
                 let known = self.threads.contains_key(&id);
                 if status == Status::NotLoaded {
                     self.threads.remove(&id);
-                    return None;
+                    return known.then_some(Notified::CHANGED);
                 }
                 let thread = self.threads.entry(id.clone()).or_insert_with(|| Thread {
                     id: id.clone(),
                     ..Default::default()
                 });
+                let before = (thread.status.clone(), thread.turn_started);
                 // A new turn starts now; turn/started, if it comes, has the exact time.
                 if status.is_active() && !thread.status.as_ref().is_some_and(Status::is_active) {
                     thread.turn_started = Some(now);
                 }
                 thread.status = Some(status);
-                return (!known).then_some(id);
+                let changed =
+                    !known || before.0 != thread.status || before.1 != thread.turn_started;
+                Some(Notified {
+                    changed,
+                    read: (!known).then_some(id),
+                })
             }
             "thread/closed" => {
-                if let Some(id) = thread_id {
-                    self.threads.remove(&id);
+                self.threads.remove(&thread_id?)?;
+                Some(Notified::CHANGED)
+            }
+            "thread/name/updated" => {
+                let thread = self.threads.get_mut(&thread_id?)?;
+                // A null or empty name clears it.
+                let name = str_at(params, "threadName").map(str::to_owned);
+                if thread.name == name {
+                    return None;
                 }
+                thread.name = name;
+                Some(Notified::CHANGED)
             }
             "turn/started" => {
                 let thread = self.threads.get_mut(&thread_id?)?;
                 let turn = params.get("turn").unwrap_or(params);
-                thread.turn_started = Some(time_at(turn, "startedAt").unwrap_or(now));
+                let started = Some(time_at(turn, "startedAt").unwrap_or(now));
+                if thread.turn_started == started {
+                    return None;
+                }
+                thread.turn_started = started;
+                Some(Notified::CHANGED)
             }
             "turn/completed" => {
                 let thread = self.threads.get_mut(&thread_id?)?;
@@ -241,6 +380,7 @@ impl State {
                 for tool in thread.tools.iter_mut().filter(|t| t.finished.is_none()) {
                     tool.finished = Some(at);
                 }
+                Some(Notified::CHANGED)
             }
             "item/started" | "item/completed" => {
                 let thread = self.threads.get_mut(&thread_id?)?;
@@ -265,11 +405,13 @@ impl State {
                         let drop = thread.tools.len() - TIMELINE_LENGTH;
                         thread.tools.drain(..drop);
                     }
-                } else if let Some(tool) = thread.tools.iter_mut().rev().find(|t| t.id == id) {
+                } else {
+                    let tool = thread.tools.iter_mut().rev().find(|t| t.id == id)?;
                     tool.finished = Some(now.max(tool.started));
                     tool.failed =
                         matches!(str_at(item, "status"), Some("failed") | Some("declined"));
                 }
+                Some(Notified::CHANGED)
             }
             "thread/tokenUsage/updated" => {
                 let thread = self.threads.get_mut(&thread_id?)?;
@@ -278,27 +420,33 @@ impl State {
                 let cached = n("cachedInputTokens");
                 let write = n("cacheWriteInputTokens");
                 // Codex counts cache reads and writes inside its input.
-                thread.tokens = Tokens {
+                let tokens = Tokens {
                     input: (n("inputTokens") - cached - write).max(0),
                     cache_write: write,
                     cache_read: cached,
                     output: n("outputTokens"),
                     reasoning: n("reasoningOutputTokens"),
                 };
+                if thread.tokens == tokens {
+                    return None;
+                }
+                thread.tokens = tokens;
+                Some(Notified::CHANGED)
             }
             "serverRequest/resolved" => {
                 let thread = self.threads.get_mut(&thread_id?)?;
-                if let Some(request) = params.get("requestId") {
-                    thread.pending.retain(|p| &p.rpc_id != request);
-                }
+                let request = params.get("requestId")?;
+                let before = thread.pending.len();
+                thread.pending.retain(|p| &p.rpc_id != request);
+                (thread.pending.len() != before).then_some(Notified::CHANGED)
             }
-            _ => {}
+            _ => None,
         }
-        None
     }
 
-    /// A request from the daemon. True when the island keeps it; requests it
-    /// does not understand are left to the terminal and never answered.
+    /// A request from the daemon. True when the island keeps it, which
+    /// changes what it shows; requests it does not understand are left to
+    /// the terminal and never answered.
     pub fn request(&mut self, rpc_id: Value, method: &str, params: &Value, now: Time) -> bool {
         let known = matches!(
             method,
@@ -338,12 +486,21 @@ impl State {
     ) -> (Vec<Session>, Vec<SessionEvent>) {
         let mut sessions = Vec::new();
         let mut events = Vec::new();
+        // A subagent's requests wait on its parent's row, which answers them.
+        let mut waiting: HashMap<String, Vec<Pending>> = HashMap::new();
+        for thread in self.threads.values().filter(|t| !t.pending.is_empty()) {
+            waiting
+                .entry(self.row_of(&thread.id))
+                .or_default()
+                .extend(thread.pending.iter().cloned());
+        }
         for thread in self.threads.values_mut() {
             // A subagent's thread belongs to its parent's row.
             if thread.parent.is_some() || thread.ephemeral || thread.cwd.is_empty() {
                 continue;
             }
-            let phase = phase(thread, now);
+            let pending = ordered(waiting.remove(&thread.id).unwrap_or_default());
+            let phase = phase_with(thread, &pending, now);
             let since = match thread.phase {
                 Some((previous, since)) if previous == phase => since,
                 previous => {
@@ -354,10 +511,17 @@ impl State {
                 }
             };
             thread.phase = Some((phase, since));
-            sessions.push(session(thread, phase, since, policy));
+            sessions.push(session(thread, &pending, phase, since, policy));
         }
         (sessions, events)
     }
+}
+
+/// Oldest first; requests of the same moment keep their order.
+pub fn ordered(mut pending: Vec<Pending>) -> Vec<Pending> {
+    // A stable sort keeps arrival order among equal times.
+    pending.sort_by(|a, b| a.since.total_cmp(&b.since));
+    pending
 }
 
 fn tool_name(kind: &str) -> &'static str {
@@ -399,13 +563,18 @@ fn tool_summary(kind: &str, item: &Value) -> Option<String> {
     })
 }
 
-/// Phase rules in order (spec 07 §5.1).
+/// Phase rules in order (spec 07 §5.1), on the thread's own requests.
 pub fn phase(thread: &Thread, now: Time) -> SessionPhase {
-    if let Some(p) = thread.pending.iter().find(|p| !p.asks()) {
-        let _ = p;
+    phase_with(thread, &thread.pending, now)
+}
+
+/// Phase rules in order, where `pending` is what waits on the thread's row,
+/// its subagents' requests too.
+pub fn phase_with(thread: &Thread, pending: &[Pending], now: Time) -> SessionPhase {
+    if pending.iter().any(|p| !p.asks()) {
         return SessionPhase::WaitingPermission;
     }
-    if thread.pending.iter().any(Pending::asks) {
+    if pending.iter().any(Pending::asks) {
         return SessionPhase::WaitingInput;
     }
     match &thread.status {
@@ -597,7 +766,13 @@ pub fn questions(params: &Value) -> Vec<(String, Question)> {
         .collect()
 }
 
-fn session(thread: &Thread, phase: SessionPhase, since: Time, policy: ContentPolicy) -> Session {
+fn session(
+    thread: &Thread,
+    pending: &[Pending],
+    phase: SessionPhase,
+    since: Time,
+    policy: ContentPolicy,
+) -> Session {
     let previews = policy.previews;
     let mut timeline: Vec<ToolUse> = thread
         .tools
@@ -617,7 +792,14 @@ fn session(thread: &Thread, phase: SessionPhase, since: Time, policy: ContentPol
         .rev()
         .find(|t| t.finished.is_none())
         .cloned();
-    let card = thread.pending.first().map(permission);
+    // The card is the oldest request the island can answer. When only ones
+    // it cannot answer wait, the person answers in the terminal.
+    let card = pending.iter().find(|p| p.answerable()).map(permission);
+    let in_terminal = card.is_none() && !pending.is_empty();
+    // Codex names a thread from its first prompt unless the person renames
+    // it, and the island cannot tell which, so the name is the
+    // conversation's and shows only with previews.
+    let name = thread.name.clone().filter(|_| previews);
     let project = project_name(&thread.cwd);
     Session {
         id: thread.id.clone(),
@@ -625,8 +807,8 @@ fn session(thread: &Thread, phase: SessionPhase, since: Time, policy: ContentPol
         pid: 0,
         cwd: thread.cwd.clone(),
         project: project.clone(),
-        name: thread.name.clone().unwrap_or(project),
-        name_source: thread.name.as_ref().map(|_| "user".to_string()),
+        name_source: name.as_ref().map(|_| "user".to_string()),
+        name: name.unwrap_or(project),
         branch: thread.branch.clone(),
         model: thread.model.clone(),
         model_name: thread.model.clone(),
@@ -643,7 +825,7 @@ fn session(thread: &Thread, phase: SessionPhase, since: Time, policy: ContentPol
                 .max(thread.turn_ended.map_or(0.0, |(t, _)| t)),
         ),
         looked_at: (thread.acknowledged > 0.0).then_some(thread.acknowledged),
-        waiting_for: None,
+        waiting_for: in_terminal.then(|| ANSWER_IN_TERMINAL.to_string()),
         current_tool: matches!(
             phase,
             SessionPhase::RunningTool | SessionPhase::WaitingPermission
@@ -892,5 +1074,375 @@ mod tests {
             (t.input, t.cache_read, t.cache_write, t.output),
             (300, 600, 100, 50)
         );
+    }
+
+    fn active(state: &mut State, id: &str, extra: Value) {
+        let mut thread = json!({"id": id, "cwd": "C:\\Users\\vors\\Projekty\\checkout-api",
+            "status": {"type": "active", "activeFlags": []}});
+        thread
+            .as_object_mut()
+            .unwrap()
+            .extend(extra.as_object().unwrap().clone());
+        state.upsert_thread(&thread);
+    }
+
+    #[test]
+    fn notify_reports_only_real_changes() {
+        let mut state = state_with_thread();
+        let idle = json!({"threadId": "new", "status": {"type": "idle"}});
+        let busy = json!({"threadId": "new", "status": {"type": "active"}});
+        assert_eq!(
+            state.notify("thread/status/changed", &idle, 0.0),
+            Notified {
+                changed: true,
+                read: Some("new".into())
+            },
+            "a status for an unseen thread asks for a read"
+        );
+        assert_eq!(
+            state.notify("thread/status/changed", &busy, 1.0),
+            Notified::CHANGED,
+            "a known thread is not read again"
+        );
+        assert_eq!(
+            state.notify("thread/status/changed", &busy, 1.0),
+            Notified::default(),
+            "the same status again changes nothing"
+        );
+        assert_eq!(
+            state.notify(
+                "thread/status/changed",
+                &json!({"threadId": "t1", "status": {"type": "notLoaded"}}),
+                2.0
+            ),
+            Notified::CHANGED
+        );
+        assert!(
+            !state.threads.contains_key("t1"),
+            "notLoaded forgets the thread"
+        );
+        assert_eq!(
+            state.notify(
+                "thread/status/changed",
+                &json!({"threadId": "gone", "status": {"type": "notLoaded"}}),
+                2.0
+            ),
+            Notified::default()
+        );
+        assert!(
+            !state.threads.contains_key("gone"),
+            "notLoaded never adds a thread"
+        );
+        for (method, params) in [
+            (
+                "item/agentMessage/delta",
+                json!({"threadId": "new", "delta": "hi"}),
+            ),
+            (
+                "item/reasoning/textDelta",
+                json!({"threadId": "new", "delta": "hm"}),
+            ),
+            ("what/ever", json!({"threadId": "new"})),
+            (
+                "item/started",
+                json!({"threadId": "new", "item": {"type": "agentMessage", "id": "a"}}),
+            ),
+            (
+                "item/completed",
+                json!({"threadId": "new", "item": {"type": "commandExecution", "id": "never-started"}}),
+            ),
+            ("turn/started", json!({"threadId": "nobody"})),
+            ("thread/closed", json!({"threadId": "nobody"})),
+            (
+                "serverRequest/resolved",
+                json!({"threadId": "new", "requestId": 99}),
+            ),
+        ] {
+            assert_eq!(
+                state.notify(method, &params, 2.0),
+                Notified::default(),
+                "{method} changes nothing"
+            );
+        }
+        let usage = json!({"threadId": "new", "tokenUsage": {"total": {"inputTokens": 10, "outputTokens": 2}}});
+        assert!(
+            state
+                .notify("thread/tokenUsage/updated", &usage, 2.0)
+                .changed
+        );
+        assert!(
+            !state
+                .notify("thread/tokenUsage/updated", &usage, 3.0)
+                .changed,
+            "the same tokens again change nothing"
+        );
+        let started = json!({"threadId": "new", "turn": {"startedAt": 5}});
+        assert!(state.notify("turn/started", &started, 5.0).changed);
+        assert!(!state.notify("turn/started", &started, 6.0).changed);
+        assert!(
+            state
+                .notify("thread/closed", &json!({"threadId": "new"}), 7.0)
+                .changed
+        );
+        assert!(state.threads.is_empty(), "a closed thread is forgotten");
+    }
+
+    #[test]
+    fn thread_names_follow_renames_and_show_only_with_previews() {
+        let mut state = state_with_thread();
+        state.upsert_thread(&json!({"id": "t1", "name": "Fix checkout"}));
+        let on = ContentPolicy { previews: true };
+        let off = ContentPolicy { previews: false };
+        let named = state.snapshot(0.0, on).0.remove(0);
+        assert_eq!(
+            (named.name.as_str(), named.name_source.as_deref()),
+            ("Fix checkout", Some("user")),
+            "with previews the thread's own name wins"
+        );
+        let unnamed = state.snapshot(0.0, off).0.remove(0);
+        assert_eq!(
+            (unnamed.name.as_str(), unnamed.name_source.as_deref()),
+            ("checkout-api", None),
+            "without previews the folder names it, as Codex may have made the name from the prompt"
+        );
+        let rename = json!({"threadId": "t1", "threadName": "Ship it"});
+        assert!(state.notify("thread/name/updated", &rename, 0.0).changed);
+        assert_eq!(state.threads["t1"].name.as_deref(), Some("Ship it"));
+        assert_eq!(state.snapshot(0.0, on).0[0].name, "Ship it");
+        assert!(
+            !state.notify("thread/name/updated", &rename, 0.0).changed,
+            "the same name again changes nothing"
+        );
+        assert!(
+            state
+                .notify(
+                    "thread/name/updated",
+                    &json!({"threadId": "t1", "threadName": null}),
+                    0.0
+                )
+                .changed
+        );
+        assert_eq!(state.threads["t1"].name, None, "a cleared name goes");
+        state.upsert_thread(&json!({"id": "t1", "name": "Again"}));
+        assert!(
+            state
+                .notify(
+                    "thread/name/updated",
+                    &json!({"threadId": "t1", "threadName": ""}),
+                    0.0
+                )
+                .changed
+        );
+        assert_eq!(
+            state.threads["t1"].name, None,
+            "an empty name clears it too"
+        );
+        assert!(
+            !state
+                .notify(
+                    "thread/name/updated",
+                    &json!({"threadId": "nobody", "threadName": "x"}),
+                    0.0
+                )
+                .changed,
+            "an unknown thread's rename changes nothing"
+        );
+    }
+
+    #[test]
+    fn an_elicitation_alone_is_answered_in_the_terminal() {
+        let mut state = state_with_thread();
+        assert!(state.request(
+            json!(12),
+            "mcpServer/elicitation/request",
+            &json!({"threadId": "t1", "serverName": "figma", "message": "Sign in?"}),
+            1.0
+        ));
+        let elicitation = state.threads["t1"].pending[0].clone();
+        assert!(!elicitation.answerable());
+        assert_eq!(result(&elicitation, &Answer::Allow), None);
+        let s = state.snapshot(1.0, ContentPolicy::default()).0.remove(0);
+        assert!(s.permission.is_none(), "no card the island cannot answer");
+        assert_eq!(s.waiting_for.as_deref(), Some(ANSWER_IN_TERMINAL));
+        assert_eq!(s.phase, SessionPhase::WaitingInput);
+        let card = permission(&elicitation);
+        assert_eq!(
+            (card.tool.as_str(), card.detail.as_str(), card.offers_always),
+            ("figma", "Sign in?", false),
+            "its card would name the server and its message"
+        );
+        assert!(
+            state.take_pending("t1", "codex:12").is_none(),
+            "the island cannot take it"
+        );
+        // An approval that comes later is the card, and the phase is its own.
+        state.request(
+            json!(13),
+            "item/commandExecution/requestApproval",
+            &json!({"threadId": "t1", "command": "ls"}),
+            2.0,
+        );
+        let s = state.snapshot(2.0, ContentPolicy::default()).0.remove(0);
+        assert_eq!(s.phase, SessionPhase::WaitingPermission);
+        assert_eq!(
+            s.permission.as_ref().map(|p| p.request_id.as_str()),
+            Some("codex:13"),
+            "the answerable approval is the card, not the elicitation before it"
+        );
+        assert_eq!(s.waiting_for, None);
+        // Once the approval is answered, the elicitation left goes back to
+        // the terminal, whatever Codex's status flags say.
+        let mut both = state_with_thread();
+        both.upsert_thread(&json!({"id": "t1", "status": {"type": "active", "activeFlags": ["waitingOnApproval"]}}));
+        both.request(
+            json!(1),
+            "mcpServer/elicitation/request",
+            &json!({"threadId": "t1"}),
+            1.0,
+        );
+        both.request(
+            json!(2),
+            "item/fileChange/requestApproval",
+            &json!({"threadId": "t1"}),
+            1.0,
+        );
+        both.take_pending("t1", "codex:2").unwrap();
+        let s = both.snapshot(1.0, ContentPolicy::default()).0.remove(0);
+        assert_eq!(s.waiting_for.as_deref(), Some(ANSWER_IN_TERMINAL));
+        assert_eq!(s.phase, SessionPhase::WaitingInput);
+    }
+
+    #[test]
+    fn a_subagents_approval_waits_on_its_parents_row() {
+        let mut family = state_with_thread();
+        active(&mut family, "c1", json!({"parentThreadId": "t1"}));
+        active(&mut family, "g1", json!({"parentThreadId": "c1"}));
+        assert!(family.request(
+            json!(21),
+            "item/fileChange/requestApproval",
+            &json!({"threadId": "g1"}),
+            1.0
+        ));
+        assert_eq!(family.row_of("g1"), "t1");
+        assert!(family.belongs("g1", "t1") && !family.belongs("t1", "g1"));
+        assert_eq!(family.pending("t1").len(), 1);
+        let rows = family.snapshot(1.0, ContentPolicy::default()).0;
+        assert_eq!(
+            rows.iter().map(|s| s.id.as_str()).collect::<Vec<_>>(),
+            ["t1"]
+        );
+        assert_eq!(rows[0].phase, SessionPhase::WaitingPermission);
+        assert_eq!(
+            rows[0].permission.as_ref().map(|p| p.request_id.as_str()),
+            Some("codex:21"),
+            "a sub-subagent's approval is the parent's card"
+        );
+        assert_eq!(family.answerable("t1", "codex:21").unwrap().0, "g1");
+        assert!(
+            family.take_pending("t1", "codex:21").is_some(),
+            "and is taken from the parent's row"
+        );
+        assert!(family.threads["g1"].pending.is_empty());
+        assert!(
+            family.snapshot(2.0, ContentPolicy::default()).0[0]
+                .permission
+                .is_none(),
+            "and goes once answered"
+        );
+        // Oldest first across the family.
+        family.request(
+            json!(31),
+            "item/fileChange/requestApproval",
+            &json!({"threadId": "t1"}),
+            5.0,
+        );
+        family.request(
+            json!(32),
+            "item/fileChange/requestApproval",
+            &json!({"threadId": "c1"}),
+            4.0,
+        );
+        let ids: Vec<String> = family
+            .pending("t1")
+            .iter()
+            .map(Pending::request_id)
+            .collect();
+        assert_eq!(ids, ["codex:32", "codex:31"]);
+
+        let mut other = state_with_thread();
+        other.upsert_thread(&json!({"id": "x1", "cwd": "C:\\a", "status": {"type": "idle"}}));
+        other.request(
+            json!(22),
+            "item/fileChange/requestApproval",
+            &json!({"threadId": "x1"}),
+            1.0,
+        );
+        assert!(
+            other.take_pending("t1", "codex:22").is_none(),
+            "another row's request is not taken"
+        );
+
+        let mut cycle = State::default();
+        cycle.upsert_thread(&json!({"id": "a", "cwd": "C:\\a", "parentThreadId": "b"}));
+        cycle.upsert_thread(&json!({"id": "b", "cwd": "C:\\a", "parentThreadId": "a"}));
+        cycle.request(
+            json!(1),
+            "item/fileChange/requestApproval",
+            &json!({"threadId": "a"}),
+            1.0,
+        );
+        assert!(
+            cycle.snapshot(1.0, ContentPolicy::default()).0.is_empty(),
+            "threads that name each other as parents end the walk"
+        );
+        assert!(!cycle.belongs("a", "c"));
+        assert!(cycle.row_of("a") == "a" || cycle.row_of("a") == "b");
+    }
+
+    #[test]
+    fn a_thread_read_back_unloaded_is_gone() {
+        let mut ghost = State::default();
+        ghost.upsert_thread(
+            &json!({"id": "g1", "cwd": "C:\\code\\app", "status": {"type": "notLoaded"}}),
+        );
+        assert!(
+            ghost.threads.is_empty(),
+            "a thread read as notLoaded is not kept"
+        );
+        // It unloaded while the read was in flight.
+        ghost.notify(
+            "thread/status/changed",
+            &json!({"threadId": "t9", "status": {"type": "active", "activeFlags": []}}),
+            1.0,
+        );
+        ghost.notify(
+            "thread/status/changed",
+            &json!({"threadId": "t9", "status": {"type": "notLoaded"}}),
+            2.0,
+        );
+        ghost.upsert_thread(
+            &json!({"id": "t9", "cwd": "C:\\code\\app", "status": {"type": "notLoaded"}}),
+        );
+        assert!(
+            ghost.snapshot(3.0, ContentPolicy::default()).0.is_empty(),
+            "a late read of an unloaded thread leaves no idle ghost"
+        );
+        // A known thread read back unloaded goes too.
+        let mut known = state_with_thread();
+        known.upsert_thread(&json!({"id": "t1", "status": {"type": "notLoaded"}}));
+        assert!(known.threads.is_empty());
+    }
+
+    #[test]
+    fn only_a_read_describes_a_thread() {
+        let mut state = State::default();
+        state.notify(
+            "thread/status/changed",
+            &json!({"threadId": "t1", "status": {"type": "active"}}),
+            1.0,
+        );
+        assert!(!state.threads["t1"].described);
+        state.upsert_thread(&json!({"id": "t1", "cwd": "C:\\a"}));
+        assert!(state.threads["t1"].described);
     }
 }

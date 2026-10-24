@@ -24,6 +24,30 @@ use crate::sessions::models::{ContentPolicy, Session, SessionEvent, Time};
 const RETRY: Duration = Duration::from_secs(3);
 const POLL: Duration = Duration::from_millis(100);
 
+/// Streamed text and output the island never shows, asked not to be sent
+/// (`capabilities.optOutNotificationMethods`): a turn streams them by the
+/// token. Names as Codex 0.163 and 0.164 send them.
+pub const QUIET_NOTIFICATIONS: [&str; 10] = [
+    "item/agentMessage/delta",
+    "item/plan/delta",
+    "item/reasoning/textDelta",
+    "item/reasoning/summaryTextDelta",
+    "item/reasoning/summaryPartAdded",
+    "item/commandExecution/outputDelta",
+    "item/fileChange/outputDelta",
+    "thread/realtime/item/transcript/delta",
+    "thread/realtime/transcript/delta",
+    "thread/realtime/outputAudio/delta",
+];
+
+/// `initialize`'s params: who the island is, and what it would rather not hear.
+fn initialize_params() -> Value {
+    json!({
+        "clientInfo": {"name": "vorssaint", "title": "Vorssaint", "version": env!("CARGO_PKG_VERSION")},
+        "capabilities": {"experimentalApi": true, "optOutNotificationMethods": QUIET_NOTIFICATIONS}
+    })
+}
+
 /// `%CODEX_HOME%`, or `%USERPROFILE%\.codex`.
 pub fn codex_home() -> Option<PathBuf> {
     if let Some(home) = std::env::var_os("CODEX_HOME").filter(|h| !h.is_empty()) {
@@ -61,6 +85,27 @@ struct Shared {
 }
 
 impl Shared {
+    fn new() -> Shared {
+        Shared {
+            state: State::default(),
+            next_id: 0,
+            waiting: HashMap::new(),
+            outbox: None,
+            focused: HashSet::new(),
+            connected: false,
+            version: None,
+        }
+    }
+
+    /// The daemon went away: nothing it said holds any more.
+    fn reset(&mut self) {
+        self.connected = false;
+        self.outbox = None;
+        self.waiting.clear();
+        self.focused.clear();
+        self.state = State::default();
+    }
+
     fn send(&mut self, message: Value) {
         if let Some(outbox) = &self.outbox {
             let _ = outbox.send(message);
@@ -74,14 +119,17 @@ impl Shared {
         self.send(json!({"id": id, "method": method, "params": params}));
     }
 
-    /// Joins threads that work or wait, and leaves the quiet ones nobody looks at.
+    /// Joins threads that work or wait, and leaves the quiet ones nobody
+    /// looks at. Codex's helper threads are never joined, nor a thread
+    /// before a read says what it is.
     fn follow(&mut self) {
         let mut join = Vec::new();
         let mut leave = Vec::new();
         for (id, thread) in &self.state.threads {
             let active =
                 thread.status.as_ref().is_some_and(|s| s.is_active()) || !thread.pending.is_empty();
-            let wanted = active || self.focused.contains(id);
+            let wanted =
+                thread.described && !thread.ephemeral && (active || self.focused.contains(id));
             if wanted && !thread.subscribed {
                 join.push(id.clone());
             } else if !wanted && thread.subscribed {
@@ -120,15 +168,7 @@ impl CodexClient {
     /// Starts looking for the daemon; `changed` runs whenever sessions may have changed.
     pub fn start(changed: impl Fn() + Send + Sync + 'static) -> Arc<CodexClient> {
         let client = Arc::new(CodexClient {
-            shared: Arc::new(Mutex::new(Shared {
-                state: State::default(),
-                next_id: 0,
-                waiting: HashMap::new(),
-                outbox: None,
-                focused: HashSet::new(),
-                connected: false,
-                version: None,
-            })),
+            shared: Arc::new(Mutex::new(Shared::new())),
         });
         let shared = client.shared.clone();
         let changed = Arc::new(changed);
@@ -138,12 +178,7 @@ impl CodexClient {
                 loop {
                     if let Some(path) = socket_path().filter(|p| p.exists()) {
                         let _ = session(&path, &shared, &*changed);
-                        let mut s = shared.lock().unwrap();
-                        s.connected = false;
-                        s.outbox = None;
-                        s.waiting.clear();
-                        s.state = State::default();
-                        drop(s);
+                        shared.lock().unwrap().reset();
                         changed();
                     }
                     thread::sleep(RETRY);
@@ -177,55 +212,18 @@ impl CodexClient {
         s.follow();
     }
 
-    /// Answers the request with this island id; false when it is gone or of another kind.
+    /// Answers the request with this island id, the session's own or one of
+    /// its subagents'; false when it is gone or of another kind.
     pub fn answer(&self, session: &str, request_id: &str, answer: Answer) -> bool {
-        let mut s = self.shared.lock().unwrap();
-        let Some(thread) = s.state.threads.get_mut(session) else {
-            return false;
-        };
-        let Some(index) = thread
-            .pending
-            .iter()
-            .position(|p| p.request_id() == request_id && p.answerable())
-        else {
-            return false;
-        };
-        let Some(body) = super::state::result(&thread.pending[index], &answer) else {
-            return false;
-        };
-        let pending = thread.pending.remove(index);
-        s.send(json!({"id": pending.rpc_id, "result": body}));
-        true
+        self.shared
+            .lock()
+            .unwrap()
+            .answer(session, request_id, &answer)
     }
 
     /// A prompt for an idle thread, or one queued after the current turn of a working one.
     pub fn reply(&self, session: &str, text: &str) -> bool {
-        let mut s = self.shared.lock().unwrap();
-        if !s.connected {
-            return false;
-        }
-        let Some(thread) = s.state.threads.get(session) else {
-            return false;
-        };
-        if !thread.pending.is_empty() {
-            return false;
-        }
-        let input = json!([{"type": "text", "text": text, "text_elements": []}]);
-        if thread.status.as_ref().is_some_and(|st| st.is_active()) {
-            let id = uuid_v7();
-            s.call(
-                "thread/queue/add",
-                json!({"threadId": session, "input": input, "clientUserMessageId": id}),
-                Waiting::Other,
-            );
-        } else {
-            s.call(
-                "turn/start",
-                json!({"threadId": session, "input": input}),
-                Waiting::Other,
-            );
-        }
-        true
+        self.shared.lock().unwrap().reply(session, text)
     }
 
     /// Joined to Codex's app-server right now.
@@ -235,6 +233,48 @@ impl CodexClient {
 
     pub fn version(&self) -> Option<String> {
         self.shared.lock().unwrap().version.clone()
+    }
+}
+
+impl Shared {
+    fn answer(&mut self, session: &str, request_id: &str, answer: &Answer) -> bool {
+        let Some((_, pending)) = self.state.answerable(session, request_id) else {
+            return false;
+        };
+        let Some(body) = super::state::result(&pending, answer) else {
+            return false;
+        };
+        if self.state.take_pending(session, request_id).is_none() {
+            return false;
+        }
+        self.send(json!({"id": pending.rpc_id, "result": body}));
+        true
+    }
+
+    fn reply(&mut self, session: &str, text: &str) -> bool {
+        if !self.connected || !self.state.pending(session).is_empty() {
+            return false;
+        }
+        let Some(thread) = self.state.threads.get(session) else {
+            return false;
+        };
+        let active = thread.status.as_ref().is_some_and(|st| st.is_active());
+        let input = json!([{"type": "text", "text": text, "text_elements": []}]);
+        if active {
+            let id = uuid_v7();
+            self.call(
+                "thread/queue/add",
+                json!({"threadId": session, "input": input, "clientUserMessageId": id}),
+                Waiting::Other,
+            );
+        } else {
+            self.call(
+                "turn/start",
+                json!({"threadId": session, "input": input}),
+                Waiting::Other,
+            );
+        }
+        true
     }
 }
 
@@ -252,14 +292,7 @@ fn session(
         let mut s = shared.lock().unwrap();
         s.outbox = Some(tx);
         s.connected = true;
-        s.call(
-            "initialize",
-            json!({
-                "clientInfo": {"name": "vorssaint", "title": "Vorssaint", "version": env!("CARGO_PKG_VERSION")},
-                "capabilities": {"experimentalApi": true}
-            }),
-            Waiting::Initialize,
-        );
+        s.call("initialize", initialize_params(), Waiting::Initialize);
     }
     loop {
         // Everything queued for the daemon goes out between reads.
@@ -288,11 +321,14 @@ fn session(
 
 /// Handles one message; true when what the island shows may have changed.
 fn handle(text: &str, shared: &Arc<Mutex<Shared>>) -> bool {
+    let now = crate::sessions::service::now();
+    handle_at(text, &mut shared.lock().unwrap(), now)
+}
+
+fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
     let Ok(message) = serde_json::from_str::<Value>(text) else {
         return false;
     };
-    let now = crate::sessions::service::now();
-    let mut s = shared.lock().unwrap();
     let method = message
         .get("method")
         .and_then(Value::as_str)
@@ -306,15 +342,22 @@ fn handle(text: &str, shared: &Arc<Mutex<Shared>>) -> bool {
             kept
         }
         (Some(method), None) => {
-            if let Some(new) = s.state.notify(&method, &params, now) {
+            let notified = s.state.notify(&method, &params, now);
+            if let Some(new) = notified.read {
                 s.call(
                     "thread/read",
                     json!({"threadId": new, "includeTurns": false}),
                     Waiting::Read,
                 );
             }
+            // A page's thread that closed or unloaded is no longer kept.
+            if let Some(thread) = params.get("threadId").and_then(Value::as_str)
+                && !s.state.threads.contains_key(thread)
+            {
+                s.focused.remove(thread);
+            }
             s.follow();
-            true
+            notified.changed
         }
         (None, Some(id)) => {
             let waiting = id.as_i64().and_then(|id| s.waiting.remove(&id));
@@ -354,8 +397,15 @@ fn handle(text: &str, shared: &Arc<Mutex<Shared>>) -> bool {
                     false
                 }
                 Some(Waiting::Read) | Some(Waiting::Resume) => {
-                    if let Some(thread) = result.get("thread") {
-                        s.state.upsert_thread(thread);
+                    let Some(thread) = result.get("thread") else {
+                        return false;
+                    };
+                    s.state.upsert_thread(thread);
+                    // Read back unloaded, it left the list: a page no longer keeps it.
+                    if let Some(id) = thread.get("id").and_then(Value::as_str)
+                        && !s.state.threads.contains_key(id)
+                    {
+                        s.focused.remove(id);
                     }
                     s.follow();
                     true
@@ -470,4 +520,240 @@ pub fn probe() -> ! {
         println!("error: {e}");
     }
     std::process::exit(if code.is_ok() { 0 } else { 1 })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A client as if joined to a daemon, with what it sends kept in a channel.
+    /// No socket: messages from the daemon go straight to `handle_at`.
+    fn joined() -> (Shared, Receiver<Value>) {
+        let (tx, rx) = channel();
+        let mut s = Shared::new();
+        s.outbox = Some(tx);
+        s.connected = true;
+        (s, rx)
+    }
+
+    fn sent(rx: &Receiver<Value>) -> Vec<Value> {
+        rx.try_iter().collect()
+    }
+
+    fn methods(messages: &[Value]) -> Vec<&str> {
+        messages
+            .iter()
+            .filter_map(|m| m.get("method").and_then(Value::as_str))
+            .collect()
+    }
+
+    fn deliver(s: &mut Shared, message: Value) -> bool {
+        handle_at(&message.to_string(), s, 1_000.0)
+    }
+
+    /// Answers the call named `method` among `messages` with `result`.
+    fn respond(s: &mut Shared, messages: &[Value], method: &str, result: Value) -> bool {
+        let call = messages
+            .iter()
+            .find(|m| m.get("method").and_then(Value::as_str) == Some(method))
+            .unwrap_or_else(|| panic!("no {method} in {messages:?}"));
+        deliver(s, json!({"id": call["id"], "result": result}))
+    }
+
+    fn read_thread(s: &mut Shared, rx: &Receiver<Value>, thread: Value) -> Vec<Value> {
+        let id = thread["id"].clone();
+        deliver(
+            s,
+            json!({"method": "thread/status/changed", "params": {"threadId": id, "status": thread["status"]}}),
+        );
+        let reads = sent(rx);
+        assert_eq!(methods(&reads), ["thread/read"]);
+        respond(s, &reads, "thread/read", json!({"thread": thread}));
+        sent(rx)
+    }
+
+    #[test]
+    fn initialize_opts_out_of_streamed_deltas() {
+        let params = initialize_params();
+        assert_eq!(params["capabilities"]["experimentalApi"], json!(true));
+        let opted: Vec<&str> = params["capabilities"]["optOutNotificationMethods"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(Value::as_str)
+            .collect();
+        assert_eq!(opted, QUIET_NOTIFICATIONS);
+        assert!(opted.contains(&"item/agentMessage/delta"));
+        assert_eq!(params["clientInfo"]["name"], json!("vorssaint"));
+    }
+
+    #[test]
+    fn deltas_and_unknown_methods_raise_no_change() {
+        let (mut s, rx) = joined();
+        read_thread(
+            &mut s,
+            &rx,
+            json!({"id": "t1", "cwd": "C:\\code\\app", "status": {"type": "idle"}}),
+        );
+        for index in 0..20 {
+            assert!(!deliver(
+                &mut s,
+                json!({"method": "item/agentMessage/delta",
+                       "params": {"threadId": "t1", "turnId": "u", "itemId": "m", "delta": format!("word{index} ")}})
+            ));
+        }
+        assert!(!deliver(
+            &mut s,
+            json!({"method": "what/ever", "params": {"threadId": "t1"}})
+        ));
+        assert!(!deliver(
+            &mut s,
+            json!({"method": "turn/started", "params": {"threadId": "nobody"}})
+        ));
+        assert!(
+            !deliver(
+                &mut s,
+                json!({"method": "thread/status/changed", "params": {"threadId": "t1", "status": {"type": "idle"}}})
+            ),
+            "the same status again changes nothing"
+        );
+        assert!(sent(&rx).is_empty(), "and nothing is sent for them");
+        assert!(deliver(
+            &mut s,
+            json!({"method": "thread/name/updated", "params": {"threadId": "t1", "threadName": "Ship it"}})
+        ));
+    }
+
+    #[test]
+    fn only_described_threads_that_are_not_helpers_are_joined() {
+        let (mut s, rx) = joined();
+        // A working thread seen only by its status is read before it is joined.
+        assert!(deliver(
+            &mut s,
+            json!({"method": "thread/status/changed", "params": {"threadId": "t1", "status": {"type": "active", "activeFlags": []}}})
+        ));
+        let first = sent(&rx);
+        assert_eq!(methods(&first), ["thread/read"], "no resume before a read");
+        respond(
+            &mut s,
+            &first,
+            "thread/read",
+            json!({"thread": {"id": "t1", "cwd": "C:\\code\\app", "status": {"type": "active", "activeFlags": []}}}),
+        );
+        assert_eq!(
+            methods(&sent(&rx)),
+            ["thread/resume"],
+            "a read one is joined"
+        );
+        // An ephemeral helper that works is never joined.
+        let after = read_thread(
+            &mut s,
+            &rx,
+            json!({"id": "e1", "cwd": "C:\\code\\app", "ephemeral": true, "status": {"type": "active", "activeFlags": []}}),
+        );
+        assert!(
+            !methods(&after).contains(&"thread/resume"),
+            "an ephemeral helper thread is not joined: {after:?}"
+        );
+        // Nor when a page asks for it.
+        s.focused.insert("e1".into());
+        s.follow();
+        assert!(sent(&rx).is_empty());
+    }
+
+    #[test]
+    fn a_closed_threads_page_no_longer_keeps_it() {
+        let (mut s, rx) = joined();
+        read_thread(
+            &mut s,
+            &rx,
+            json!({"id": "t1", "cwd": "C:\\code\\app", "status": {"type": "idle"}}),
+        );
+        s.focused = HashSet::from(["t1".to_string()]);
+        s.follow();
+        assert_eq!(methods(&sent(&rx)), ["thread/resume"], "focus joins t1");
+        assert!(deliver(
+            &mut s,
+            json!({"method": "thread/closed", "params": {"threadId": "t1"}})
+        ));
+        assert!(
+            !s.focused.contains("t1"),
+            "closing lets the page's thread go"
+        );
+        // It comes back idle: read, but not joined for a page long gone.
+        let back = read_thread(
+            &mut s,
+            &rx,
+            json!({"id": "t1", "cwd": "C:\\code\\app", "status": {"type": "idle"}}),
+        );
+        assert!(!methods(&back).contains(&"thread/resume"), "{back:?}");
+
+        // A read that finds the thread unloaded lets it go too.
+        s.focused = HashSet::from(["t1".to_string()]);
+        s.follow();
+        let resume = sent(&rx);
+        assert_eq!(methods(&resume), ["thread/resume"]);
+        assert!(respond(
+            &mut s,
+            &resume,
+            "thread/resume",
+            json!({"thread": {"id": "t1", "status": {"type": "notLoaded"}}})
+        ));
+        assert!(!s.state.threads.contains_key("t1"));
+        assert!(s.focused.is_empty());
+
+        // A reply with no thread changes nothing.
+        s.call("thread/read", json!({"threadId": "x"}), Waiting::Read);
+        let read = sent(&rx);
+        assert!(!respond(&mut s, &read, "thread/read", json!({})));
+    }
+
+    #[test]
+    fn a_disconnect_forgets_the_focus() {
+        let (mut s, _rx) = joined();
+        s.focused.insert("t1".into());
+        s.waiting.insert(1, Waiting::Other);
+        s.reset();
+        assert!(!s.connected && s.outbox.is_none());
+        assert!(s.focused.is_empty() && s.waiting.is_empty() && s.state.threads.is_empty());
+    }
+
+    #[test]
+    fn subagent_requests_are_answered_through_the_parents_row() {
+        let (mut s, rx) = joined();
+        let active = json!({"type": "active", "activeFlags": []});
+        read_thread(
+            &mut s,
+            &rx,
+            json!({"id": "t1", "cwd": "C:\\code\\app", "status": active}),
+        );
+        read_thread(
+            &mut s,
+            &rx,
+            json!({"id": "c1", "cwd": "C:\\code\\app", "parentThreadId": "t1", "status": active}),
+        );
+        assert!(deliver(
+            &mut s,
+            json!({"id": 21, "method": "item/fileChange/requestApproval", "params": {"threadId": "c1"}})
+        ));
+        sent(&rx);
+        assert!(!s.reply("t1", "go on"), "no reply while the row waits");
+        assert!(sent(&rx).is_empty());
+        assert!(!s.answer("t1", "codex:99", &Answer::Allow), "an unknown id");
+        assert!(
+            !s.answer("t1", "codex:21", &Answer::Questions(HashMap::new())),
+            "an answer of another kind"
+        );
+        assert!(s.answer("t1", "codex:21", &Answer::Allow));
+        assert_eq!(
+            sent(&rx),
+            [json!({"id": 21, "result": {"decision": "accept"}})]
+        );
+        assert!(s.state.threads["c1"].pending.is_empty());
+        assert!(!s.answer("t1", "codex:21", &Answer::Allow), "answered once");
+        assert!(s.reply("t1", "go on"), "the row takes replies again");
+        assert_eq!(methods(&sent(&rx)), ["thread/queue/add"]);
+        s.connected = false;
+        assert!(!s.reply("t1", "go on"), "not while disconnected");
+    }
 }

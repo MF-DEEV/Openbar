@@ -543,12 +543,12 @@ impl Service {
     fn reply(&self, session: &str, text: &str, images: &[String]) -> Option<&'static str> {
         if let Some(codex) = self.codex().filter(|c| c.owns(session)) {
             // Codex takes replies through its own server: no terminal typing, no Esc risk.
-            return if codex.reply(session, text) {
+            if codex.reply(session, text) {
                 self.acknowledge(session);
-                None
-            } else {
-                Some("waiting")
-            };
+                return None;
+            }
+            let inner = self.inner.lock().unwrap();
+            return Some(codex_refusal(&inner.sessions, session));
         }
         let (pid, located) = {
             let inner = self.inner.lock().unwrap();
@@ -772,6 +772,16 @@ pub fn sessions_acknowledge(service: tauri::State<'_, Shared>, session_id: Strin
     service.acknowledge(&session_id);
 }
 
+/// Why Codex refused a reply: "waiting" while the session waits on a
+/// prompt, otherwise "unreachable" (Codex went away, or the thread did).
+fn codex_refusal(sessions: &[Session], session: &str) -> &'static str {
+    let waiting = sessions
+        .iter()
+        .find(|s| s.id == session)
+        .is_some_and(|s| s.phase.is_waiting() || s.waiting_for.is_some());
+    if waiting { "waiting" } else { "unreachable" }
+}
+
 /// The session page the island shows (None for the list), so Codex keeps that thread joined.
 #[tauri::command]
 pub fn sessions_focus(service: tauri::State<'_, Shared>, session_id: Option<String>) {
@@ -826,4 +836,43 @@ pub async fn sessions_open(
     tauri::async_runtime::spawn_blocking(move || service.open(&session_id))
         .await
         .map_err(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sessions::codex::state::State as CodexState;
+    use serde_json::json;
+
+    #[test]
+    fn a_refused_codex_reply_says_whether_it_waits() {
+        let mut codex = CodexState::default();
+        for id in ["idle", "asks", "terminal"] {
+            codex.upsert_thread(
+                &json!({"id": id, "cwd": "C:\\code\\app", "status": {"type": "idle"}}),
+            );
+        }
+        codex.request(
+            json!(1),
+            "item/commandExecution/requestApproval",
+            &json!({"threadId": "asks", "command": "ls"}),
+            1.0,
+        );
+        codex.request(
+            json!(2),
+            "mcpServer/elicitation/request",
+            &json!({"threadId": "terminal"}),
+            1.0,
+        );
+        let (sessions, _) = codex.snapshot(1.0, ContentPolicy::default());
+        assert_eq!(codex_refusal(&sessions, "asks"), "waiting");
+        assert_eq!(codex_refusal(&sessions, "terminal"), "waiting");
+        assert_eq!(
+            codex_refusal(&sessions, "idle"),
+            "unreachable",
+            "an idle session refused means Codex could not be reached"
+        );
+        assert_eq!(codex_refusal(&sessions, "gone"), "unreachable");
+        assert_eq!(codex_refusal(&[], "idle"), "unreachable");
+    }
 }

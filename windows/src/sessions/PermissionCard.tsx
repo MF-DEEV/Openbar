@@ -38,7 +38,11 @@ export function PermissionCard({ session, onOpen }: { session: Session; onOpen: 
     ? session.provider === "codex"
       ? S.codexQuestion
       : S.question
-    : (p?.tool ?? session.currentTool?.name ?? session.waitingFor ?? S[session.phase]);
+    : // "terminal": Codex waits on a request the island can't answer (an MCP form); the card says so.
+      (p?.tool ??
+      session.currentTool?.name ??
+      (session.waitingFor === "terminal" ? undefined : session.waitingFor) ??
+      S[session.phase]);
 
   return (
     <div
@@ -239,7 +243,7 @@ function QuestionForm({ session }: { session: Session }) {
           {S.sendAnswer}
         </button>
       </div>
-      <div className="s-hint">{S.questionHint}</div>
+      <div className="s-hint">{session.provider === "codex" ? S.codexQuestionHint : S.questionHint}</div>
     </div>
   );
 }

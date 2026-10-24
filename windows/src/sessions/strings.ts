@@ -27,6 +27,7 @@ export const S = {
   sendAnswer: "Answer",
   skip: "Skip",
   questionHint: "Your answer goes straight to Claude. Enter sends what you wrote, and Ctrl+N skips the question.",
+  codexQuestionHint: "Your answer goes straight to Codex. Enter sends what you wrote, and Ctrl+N skips the question.",
   open: "Open",
   enlarge: "Enlarge",
   shrink: "Shrink",
