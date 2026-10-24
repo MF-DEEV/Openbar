@@ -8,6 +8,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { Decision, ReplyFailure, SessionEvent, Snapshot } from "../sessions/types";
+import type { MusicCommand, NowPlaying } from "../music/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -58,6 +59,17 @@ export const bridge = {
     reply: (sessionId: string, text: string, images: string[]) =>
       call<ReplyFailure | null>("sessions_reply", { sessionId, text, images }),
     open: (sessionId: string) => call<boolean>("sessions_open", { sessionId }),
+  },
+  music: {
+    now: () => call<NowPlaying | null>("music_now"),
+    onNowPlaying(handler: (n: NowPlaying) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<NowPlaying>("music://now-playing", (e) => handler(e.payload));
+    },
+    command: (command: MusicCommand) => call<boolean>("music_command", { command }),
+    seek: (seconds: number) => call<boolean>("music_seek", { seconds }),
+    shuffle: (on: boolean) => call<boolean>("music_shuffle", { on }),
+    openPlayer: (source: string) => call<boolean>("music_open_player", { source }),
   },
   onForegroundApp(handler: (name: string) => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});

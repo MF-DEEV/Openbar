@@ -17,6 +17,12 @@ if (!inTauri && new URLSearchParams(location.search).has("sessions")) {
   });
 }
 
+if (!inTauri && new URLSearchParams(location.search).has("music")) {
+  void Promise.all([import("../music/demo"), import("../music/store")]).then(([demo, store]) => {
+    store.useMusic.getState().receive(demo.demoNowPlaying());
+  });
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     {dev?.has("clawd") ? (

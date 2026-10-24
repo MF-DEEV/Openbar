@@ -31,12 +31,20 @@ regex = "1"
 unicode-segmentation = "1"
 getrandom = "0.3"
 tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+base64 = "0.22"
 
 [target.'cfg(windows)'.dependencies]
 uds_windows = "1"
 widestring = "1"
 windows = { version = "0.62", features = [
+  "Foundation",
+  "Foundation_Collections",
+  "Media",
+  "Media_Control",
+  "Storage",
+  "Storage_Streams",
   "Win32_Foundation",
+  "Win32_System_Com",
   "Win32_Security",
   "Win32_Security_Authorization",
   "Win32_Storage_FileSystem",

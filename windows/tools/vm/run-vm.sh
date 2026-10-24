@@ -39,9 +39,10 @@ fi
 gpu=(-device ramfb)
 [[ "${VM_GPU:-virtio}" == virtio ]] && gpu=(-device virtio-gpu-pci,xres="${VM_W:-1920}",yres="${VM_H:-1080}")
 
-# Sound plays through the Mac's speakers, so it is opt-in (music/mixer tests).
-audio=()
-[[ "${VM_AUDIO:-0}" == 1 ]] && audio=(-audiodev coreaudio,id=snd0 -device usb-audio,audiodev=snd0)
+# A USB sound card, so players and media controls work. Its output goes
+# nowhere by default; VM_AUDIO=mac plays it through the Mac's speakers.
+audio=(-audiodev none,id=snd0 -device usb-audio,audiodev=snd0)
+[[ "${VM_AUDIO:-none}" == mac ]] && audio=(-audiodev coreaudio,id=snd0 -device usb-audio,audiodev=snd0)
 
 rm -f qmp.sock
 exec qemu-system-aarch64 \

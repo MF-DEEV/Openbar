@@ -12,8 +12,19 @@ import type { SessionEvent } from "../sessions/types";
 import { geometryOf, useIsland } from "./store";
 import { activityViews } from "./views/Activity";
 import { pages } from "./views/Expanded";
+import { MusicPage, useMusicHeight } from "../music/MusicPage";
+import { MUSIC_WING, MusicStrip } from "../music/MusicStrip";
+import { subscribeMusic, useMusic } from "../music/store";
+import "../music/music.css";
 
 pages.sessions = sessionsPage;
+pages.music = {
+  Page: function Music() {
+    useMusicHeight();
+    return <MusicPage />;
+  },
+};
+activityViews.music = MusicStrip;
 activityViews.sessions = SessionsStrip;
 
 /** Sessions show beside the camera while any is working, waiting or done. */
@@ -75,3 +86,52 @@ function onSessionEvent(event: SessionEvent) {
 }
 
 subscribeSessions(onSessionEvent);
+
+// MARK: Music
+
+/** Music takes the closed island while it plays (notchShowPlayingMusic). */
+function syncMusicActivity() {
+  const { playback } = useMusic.getState();
+  const island = useIsland.getState();
+  if (!playback?.isPlaying || island.settings.sections.music === false) {
+    island.setActivity("music", null);
+    return;
+  }
+  island.setActivity("music", { wing: MUSIC_WING, capsuleContent: 26 + 8 + 22, opens: "music" });
+}
+
+/** A new playing song raises the track notice after 0.5 s (NotchService.scheduleTrackNotice). */
+let trackTimer: ReturnType<typeof setTimeout> | undefined;
+let lastTrack = "";
+function noticeTrack() {
+  const p = useMusic.getState().playback;
+  if (!p?.isPlaying) return;
+  const key = `${p.source}|${p.title}|${p.artist}`;
+  if (key === lastTrack) return;
+  const first = lastTrack === "";
+  lastTrack = key;
+  if (first) return;
+  clearTimeout(trackTimer);
+  trackTimer = setTimeout(() => {
+    const now = useMusic.getState().playback;
+    if (!now || `${now.source}|${now.title}|${now.artist}` !== key) return;
+    useIsland.getState().showNotice({
+      id: `track:${key}`,
+      kind: "track",
+      title: now.title,
+      detail: now.artist,
+      priority: 0,
+      duration: 3,
+      opens: "music",
+      image: now.artwork,
+    });
+  }, 500);
+}
+
+useMusic.subscribe((s, prev) => {
+  if (s.playback !== prev.playback) {
+    syncMusicActivity();
+    noticeTrack();
+  }
+});
+subscribeMusic();

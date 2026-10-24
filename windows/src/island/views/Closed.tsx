@@ -34,7 +34,10 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
       style={{ width: size.width, height: size.height, columnGap: camera }}
       onClick={() => useIsland.getState().clickClosed()}
     >
-      <span className="n-notice-title">{notice.title}</span>
+      <span className="n-notice-title">
+        {notice.image ? <img className="n-notice-image" src={notice.image} alt="" /> : null}
+        <span>{notice.title}</span>
+      </span>
       {notice.detail ? <span className="n-notice-detail">{notice.detail}</span> : null}
     </button>
   );
@@ -44,7 +47,7 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
 export function noticeWidth(notice: Notice, geometry: Geometry): number {
   const ctx = measureContext();
   ctx.font = "500 11px 'Inter Variable', Inter, sans-serif";
-  const title = ctx.measureText(notice.title).width;
+  const title = ctx.measureText(notice.title).width + (notice.image ? 18 + 6 : 0);
   const detail = notice.detail ? ctx.measureText(notice.detail).width : 0;
   const maxWing = (geometry.screen.width - 24 - geometry.cameraWidth) / 2;
   if (geometry.floatingGap !== null) {

@@ -447,3 +447,24 @@ input:focus-visible {
   background: rgba(32, 32, 32, 0.85);
   backdrop-filter: blur(20px);
 }
+
+.n-notice-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.n-notice-title > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.n-notice-image {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex: none;
+}

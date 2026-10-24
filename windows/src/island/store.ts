@@ -31,6 +31,8 @@ export interface Notice {
   /** Seconds on screen. */
   duration: number;
   opens?: ModuleId;
+  /** A picture in the symbol slot (a song's cover). */
+  image?: string;
 }
 
 /** Live activities in the Mac's priority order (NotchSupport.swift:1791-1799). */
@@ -81,6 +83,9 @@ export interface IslandState {
   pickedActivity: ActivityId | null;
   /** Bumped by each open so the window asks for keyboard focus. */
   focusRequest: number;
+  /** Pages with a height of their own (music, timer, controls) report it here. */
+  pageContent: Partial<Record<ModuleId, number>>;
+  setPageContent(module: ModuleId, height: number | null): void;
 
   setScreen(screen: Size, devicePixelRatio: number): void;
   setSettings(patch: Partial<IslandSettings>): void;
@@ -137,6 +142,16 @@ export const useIsland = create<IslandState>()((set, get) => ({
   activities: {},
   pickedActivity: null,
   focusRequest: 0,
+  pageContent: {},
+
+  setPageContent: (module, height) =>
+    set((s) => {
+      if (s.pageContent[module] === (height ?? undefined)) return s;
+      const pageContent = { ...s.pageContent };
+      if (height === null) delete pageContent[module];
+      else pageContent[module] = height;
+      return { pageContent };
+    }),
 
   setScreen: (screen, devicePixelRatio) => set({ screen, devicePixelRatio }),
   setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
@@ -335,7 +350,7 @@ export function presentation(s: IslandState, geometry: Geometry, measuredNotice?
     const width = expandedWidth(geometry, { natural, enlarged });
     const height = s.showingSections
       ? expandedHeight(geometry, { hasRow: true, content: galleryHeight(modulesOf(s).length, width), bottomBubbles })
-      : expandedHeight(geometry, { hasRow, enlarged, bottomBubbles });
+      : expandedHeight(geometry, { hasRow, enlarged, bottomBubbles, content: s.pageContent[s.selected] });
     return {
       kind: "expanded",
       key: s.showingSections ? "expanded:sections" : `expanded:${s.selected}${enlarged ? ":large" : ""}`,
