@@ -89,7 +89,7 @@ final class ClaudeSessionService: ObservableObject {
     private let agentColors = ClaudeAgentColors()
     private var server: ClaudeHookServer?
     /// Codex's sessions, from the app-server its terminal UIs share. They join
-    /// the same list as Claude Code's (windows/docs/spec/07-codex-sessions.md).
+    /// the same list as Claude Code's (docs/codex-sessions.md).
     private var codex: CodexSessionClient?
     /// Codex's terminal UIs by working folder, refreshed each tick, so Open
     /// and the host of a Codex session find its terminal.
@@ -188,13 +188,16 @@ final class ClaudeSessionService: ObservableObject {
     /// none, so the paste goes to the text instead.
     @discardableResult
     func attachImages(from pasteboard: NSPasteboard, to id: String) -> Bool {
-        guard ClaudeImageAttachments.holdsImages(pasteboard) else { return false }
+        // A Codex session takes text only, so the paste goes to the text.
+        guard ClaudeImageAttachments.holdsImages(pasteboard),
+              sessions.first(where: { $0.id == id })?.provider != .codex else { return false }
         attach(ClaudeImageAttachments.images(from: pasteboard), to: id)
         return true
     }
 
     func attach(_ images: [URL], to id: String) {
-        guard !images.isEmpty else { return }
+        // Codex takes text replies only; its sessions keep no attachments.
+        guard !images.isEmpty, sessions.first(where: { $0.id == id })?.provider != .codex else { return }
         var list = attachments[id] ?? []
         for image in images where !list.contains(image) { list.append(image) }
         attachments[id] = Array(list.prefix(ClaudeImageAttachments.limit))
@@ -306,7 +309,9 @@ final class ClaudeSessionService: ObservableObject {
             queue.async { [self] in
                 let sent = codex?.reply(session.id, text: reply) ?? false
                 if sent { codex?.acknowledge(session.id, now: Date()) }
-                finishSend(sent ? nil : .waiting, session: session, completion: completion)
+                // Refused while it waits on a prompt; otherwise Codex couldn't be reached.
+                let waiting = published.first { $0.id == session.id }.map { $0.phase.isWaiting || $0.waitingFor != nil } ?? false
+                finishSend(sent ? nil : (waiting ? .waiting : .unreachable), session: session, completion: completion)
             }
             return
         }
@@ -511,7 +516,14 @@ final class ClaudeSessionService: ObservableObject {
         var records = scan.records + scan.unreadable.compactMap { lastRecords[$0] }
         lastRecords = Dictionary(records.map { ($0.pid, $0) }, uniquingKeysWith: { first, _ in first })
         let alive = Set(records.map(\.pid))
-        hosts = hosts.filter { alive.contains($0.key) }
+        // Codex's terminal UIs are looked for every few ticks: it lists every process.
+        if codex?.connected != true {
+            codexTerminals = []
+        } else if ticks % Self.sideFilesEvery == 0 {
+            codexTerminals = ClaudeSessionHosts.codexTerminals()
+        }
+        let codexPids = Set(codexTerminals.map(\.pid))
+        hosts = hosts.filter { alive.contains($0.key) || codexPids.contains($0.key) }
         for index in records.indices {
             let pid = records[index].pid
             if hosts[pid] == nil { hosts[pid] = ClaudeSessionHosts.host(of: pid) }
@@ -532,13 +544,6 @@ final class ClaudeSessionService: ObservableObject {
         }
         transcripts = transcripts.filter { ids.contains($0.key) }
         releaseSettled(now: now)
-        if codex?.connected == true {
-            codexTerminals = ClaudeSessionHosts.codexTerminals()
-            let live = Set(codexTerminals.map(\.pid))
-            hosts = hosts.filter { alive.contains($0.key) || live.contains($0.key) }
-        } else {
-            codexTerminals = []
-        }
         publish(now: now)
         let active = published.contains { $0.phase.isActive || $0.phase.isWaiting }
         schedule(active ? Self.activeTick : Self.quietTick)
@@ -635,9 +640,16 @@ final class ClaudeSessionService: ObservableObject {
                         shownRequests[session.id] = request.map { (request: $0, at: Date()) }
                     }
                 }
-                if let focusedID, !sorted.contains(where: { $0.id == focusedID }) {
+                // A session that left forgets its request: one coming back
+                // (Codex numbers requests afresh after a restart) waits its
+                // settle delay again.
+                let listed = Set(sorted.map(\.id))
+                shownRequests = shownRequests.filter { listed.contains($0.key) }
+                if let focusedID, !listed.contains(focusedID) {
                     self.focusedID = nil
                     dressingID = nil
+                    // Its Codex thread is let go too, so it can unload.
+                    queue.async { [self] in codex?.focus([]) }
                 }
             }
             events.forEach(self.events.send)

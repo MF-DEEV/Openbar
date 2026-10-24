@@ -65,7 +65,7 @@ enum ClaudeReplyFailure: Error, Equatable {
 
 /// The agent behind a session: each has its own figure, color and channel.
 /// Claude Code reports through its registry and hooks; Codex through the
-/// app-server its TUI runs (windows/docs/spec/07-codex-sessions.md).
+/// app-server its TUI runs (docs/codex-sessions.md).
 enum ClaudeSessionProvider: String, Equatable {
     case claude
     case codex

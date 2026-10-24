@@ -357,6 +357,8 @@ struct NotchClaudeSessionPermissionCard: View {
 
     private var title: String {
         if session.permission?.asksQuestions == true { return text.question(for: session.provider) }
+        // Codex waits on a request the island can't answer (an MCP form): it goes to the terminal.
+        if session.waitingFor == CodexSessionState.answerInTerminal { return text.answerInTerminal }
         return session.permission?.tool ?? session.currentTool?.name ?? session.waitingFor ?? text.phase(session.phase)
     }
 
@@ -443,7 +445,7 @@ struct NotchClaudeQuestionForm: View {
                     .disabled(answers == nil)
             }
             .disabled(settling || sent)
-            Text(text.questionHint).font(.system(size: 9.5)).foregroundStyle(.tertiary)
+            Text(text.questionHint(for: session.provider)).font(.system(size: 9.5)).foregroundStyle(.tertiary)
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: picked)
     }

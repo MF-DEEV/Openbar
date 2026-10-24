@@ -4,7 +4,7 @@
 import Foundation
 
 /// What Codex's app-server says about its threads, joined into the same
-/// sessions the island shows for Claude Code (windows/docs/spec/07-codex-sessions.md
+/// sessions the island shows for Claude Code (docs/codex-sessions.md
 /// §3.4, §3.5, §5). Pure: messages and times go in, sessions and the answers
 /// to send come out. The owner serializes every call.
 final class CodexSessionState {
@@ -25,6 +25,17 @@ final class CodexSessionState {
         "item/commandExecution/requestApproval", "item/fileChange/requestApproval",
         "item/permissions/requestApproval", "item/tool/requestUserInput", "mcpServer/elicitation/request",
     ]
+
+    /// `waitingFor` of a session whose only pending requests the island
+    /// cannot answer: the person answers them in Codex's terminal.
+    static let answerInTerminal = "terminal"
+
+    /// What a notification did: whether anything the island keeps changed,
+    /// and a thread worth reading (one the island has not seen), if any.
+    struct Notified: Equatable {
+        var changed = false
+        var read: String?
+    }
 
     enum Status: Equatable {
         case notLoaded, idle, systemError
@@ -92,6 +103,8 @@ final class CodexSessionState {
         var parent: String?
         /// Codex's own helper threads (titles and the like), never a person's session.
         var ephemeral = false
+        /// A read or a resume described it; until then only its status is known.
+        var described = false
 
         init(id: String) { self.id = id }
 
@@ -110,19 +123,72 @@ final class CodexSessionState {
         threads[id]?.subscribed = subscribed
     }
 
-    /// Removes a pending request the island answered, returning it.
+    // MARK: Rows
+
+    /// The thread whose row shows `id`: itself, or for a subagent's thread
+    /// the topmost known thread above it.
+    func row(of id: String) -> String {
+        var current = id
+        var seen: Set<String> = [id]
+        while let parent = threads[current]?.parent, threads[parent] != nil, seen.insert(parent).inserted {
+            current = parent
+        }
+        return current
+    }
+
+    /// `id` is `session` or one of its subagents' threads, however deep.
+    func belongs(_ id: String, to session: String) -> Bool {
+        var current: String? = id
+        var seen: Set<String> = []
+        while let thread = current, seen.insert(thread).inserted {
+            if thread == session { return true }
+            current = threads[thread]?.parent
+        }
+        return false
+    }
+
+    /// Every request waiting on `session`'s row: its own and its subagents',
+    /// oldest first.
+    func pending(session: String) -> [Pending] {
+        Self.ordered(threads.values.filter { !$0.pending.isEmpty && belongs($0.id, to: session) }.flatMap(\.pending))
+    }
+
+    /// The answerable request with this island id on `session`'s row.
+    func answerable(session: String, requestID: String) -> (thread: String, pending: Pending)? {
+        for thread in threads.values.sorted(by: { $0.id < $1.id }) where belongs(thread.id, to: session) {
+            if let found = thread.pending.first(where: { $0.requestID == requestID && $0.answerable }) {
+                return (thread.id, found)
+            }
+        }
+        return nil
+    }
+
+    /// Removes a pending request the island answered, returning it; it may
+    /// belong to one of the session's subagents.
     func takePending(thread id: String, requestID: String) -> Pending? {
-        guard let index = threads[id]?.pending.firstIndex(where: { $0.requestID == requestID && $0.answerable })
+        guard let found = answerable(session: id, requestID: requestID),
+              let index = threads[found.thread]?.pending.firstIndex(where: { $0.requestID == requestID && $0.answerable })
         else { return nil }
-        return threads[id]?.pending.remove(at: index)
+        return threads[found.thread]?.pending.remove(at: index)
+    }
+
+    /// Oldest first; requests of the same moment keep their order.
+    static func ordered(_ pending: [Pending]) -> [Pending] {
+        pending.enumerated().sorted { ($0.element.since, $0.offset) < ($1.element.since, $1.offset) }.map(\.element)
     }
 
     // MARK: Input
 
-    /// `thread/read`'s thread, or a thread from `thread/list`.
+    /// `thread/read`'s thread, or a thread from `thread/list`. A thread read
+    /// back as not loaded is gone, as `thread/status/changed` says it.
     func upsertThread(_ thread: [String: Any]) {
         guard let id = Self.string(thread, "id") else { return }
+        if let status = thread["status"] as? [String: Any], Self.string(status, "type") == "notLoaded" {
+            threads[id] = nil
+            return
+        }
         var entry = threads[id] ?? Thread(id: id)
+        entry.described = true
         if let cwd = Self.string(thread, "cwd") { entry.cwd = cwd }
         entry.name = Self.string(thread, "name") ?? entry.name
         entry.preview = Self.string(thread, "preview") ?? entry.preview
@@ -136,34 +202,50 @@ final class CodexSessionState {
         threads[id] = entry
     }
 
-    /// A notification from the daemon. Returns a thread id worth reading
-    /// (one the island has not seen), if any.
+    /// A notification from the daemon: what it changed, and a thread worth
+    /// reading. Streamed deltas and methods the island does not follow
+    /// change nothing.
     @discardableResult
-    func notify(_ method: String, params: [String: Any], now: Date) -> String? {
+    func notify(_ method: String, params: [String: Any], now: Date) -> Notified {
         let threadID = Self.string(params, "threadId")
+        let unchanged = Notified()
+        let changed = Notified(changed: true)
         switch method {
         case "thread/status/changed":
-            guard let id = threadID else { return nil }
+            guard let id = threadID else { return unchanged }
             let status = Status(json: params["status"])
             let known = threads[id] != nil
             if status == .notLoaded {
                 threads[id] = nil
-                return nil
+                return known ? changed : unchanged
             }
             var thread = threads[id] ?? Thread(id: id)
+            let before = (thread.status, thread.turnStarted)
             // A new turn starts now; turn/started, if it comes, has the exact time.
             if status.isActive, !thread.isActive { thread.turnStarted = now }
             thread.status = status
             threads[id] = thread
-            return known ? nil : id
+            return Notified(changed: !known || before.0 != thread.status || before.1 != thread.turnStarted,
+                            read: known ? nil : id)
         case "thread/closed":
-            if let id = threadID { threads[id] = nil }
+            guard let id = threadID, threads[id] != nil else { return unchanged }
+            threads[id] = nil
+            return changed
+        case "thread/name/updated":
+            guard let id = threadID, threads[id] != nil else { return unchanged }
+            let name = Self.string(params, "threadName")
+            guard threads[id]?.name != name else { return unchanged }
+            threads[id]?.name = name
+            return changed
         case "turn/started":
-            guard let id = threadID, threads[id] != nil else { return nil }
+            guard let id = threadID, threads[id] != nil else { return unchanged }
             let turn = params["turn"] as? [String: Any] ?? params
-            threads[id]?.turnStarted = Self.time(turn, "startedAt") ?? now
+            let started = Self.time(turn, "startedAt") ?? now
+            guard threads[id]?.turnStarted != started else { return unchanged }
+            threads[id]?.turnStarted = started
+            return changed
         case "turn/completed":
-            guard let id = threadID, var thread = threads[id] else { return nil }
+            guard let id = threadID, var thread = threads[id] else { return unchanged }
             let turn = params["turn"] as? [String: Any] ?? params
             let status = Self.string(turn, "status")
             let completed = status == "completed" || status == "failed"
@@ -175,10 +257,11 @@ final class CodexSessionState {
                 thread.tools[index].finished = at
             }
             threads[id] = thread
+            return changed
         case "item/started", "item/completed":
             guard let id = threadID, var thread = threads[id],
                   let item = params["item"] as? [String: Any], let kind = Self.string(item, "type"),
-                  Self.toolItems.contains(kind) else { return nil }
+                  Self.toolItems.contains(kind) else { return unchanged }
             let itemID = Self.string(item, "id") ?? ""
             if method == "item/started" {
                 let started = Self.time(params, "startedAtMs") ?? now
@@ -191,30 +274,37 @@ final class CodexSessionState {
                 thread.tools[index].finished = max(now, thread.tools[index].started)
                 let status = Self.string(item, "status")
                 thread.tools[index].failed = status == "failed" || status == "declined"
+            } else {
+                return unchanged
             }
             threads[id] = thread
+            return changed
         case "thread/tokenUsage/updated":
             guard let id = threadID, threads[id] != nil,
-                  let total = (params["tokenUsage"] as? [String: Any])?["total"] as? [String: Any] else { return nil }
+                  let total = (params["tokenUsage"] as? [String: Any])?["total"] as? [String: Any] else { return unchanged }
             func count(_ key: String) -> Int { Self.integer(total[key]) ?? 0 }
             let cached = count("cachedInputTokens")
             let write = count("cacheWriteInputTokens")
             // Codex counts cache reads and writes inside its input.
-            threads[id]?.tokens = AgentTokens(input: max(count("inputTokens") - cached - write, 0),
-                                              cacheWrite: write, cacheRead: cached,
-                                              output: count("outputTokens"), reasoning: count("reasoningOutputTokens"))
+            let tokens = AgentTokens(input: max(count("inputTokens") - cached - write, 0),
+                                     cacheWrite: write, cacheRead: cached,
+                                     output: count("outputTokens"), reasoning: count("reasoningOutputTokens"))
+            guard threads[id]?.tokens != tokens else { return unchanged }
+            threads[id]?.tokens = tokens
+            return changed
         case "serverRequest/resolved":
-            guard let id = threadID, threads[id] != nil else { return nil }
-            if let request = CodexRPCID(json: params["requestId"]) {
-                threads[id]?.pending.removeAll { $0.rpcID == request }
-            }
-        default: break
+            guard let id = threadID, let before = threads[id]?.pending.count,
+                  let request = CodexRPCID(json: params["requestId"]) else { return unchanged }
+            threads[id]?.pending.removeAll { $0.rpcID == request }
+            return threads[id]?.pending.count == before ? unchanged : changed
+        default:
+            return unchanged
         }
-        return nil
     }
 
-    /// A request from the daemon. True when the island keeps it; requests it
-    /// does not understand are left to the terminal and never answered.
+    /// A request from the daemon. True when the island keeps it, which
+    /// changes what it shows; requests it does not understand are left to
+    /// the terminal and never answered.
     @discardableResult
     func request(_ rpcID: CodexRPCID, method: String, params: [String: Any], now: Date) -> Bool {
         guard let id = Self.string(params, "threadId"), threads[id] != nil, Self.knownRequests.contains(method)
@@ -234,11 +324,17 @@ final class CodexSessionState {
     func snapshot(now: Date, previews: Bool) -> (sessions: [ClaudeSession], events: [ClaudeSessionEvent]) {
         var sessions: [ClaudeSession] = []
         var events: [ClaudeSessionEvent] = []
+        // A subagent's requests wait on its parent's row, which answers them.
+        var waiting: [String: [Pending]] = [:]
+        for thread in threads.values where !thread.pending.isEmpty {
+            waiting[row(of: thread.id), default: []] += thread.pending
+        }
         for id in threads.keys.sorted() {
             guard var thread = threads[id] else { continue }
             // A subagent's thread belongs to its parent's row.
             if thread.parent != nil || thread.ephemeral || thread.cwd.isEmpty { continue }
-            let phase = Self.phase(thread, now: now)
+            let pending = Self.ordered(waiting[id] ?? [])
+            let phase = Self.phase(thread, pending: pending, now: now)
             let since: Date
             if let previous = thread.phase, previous.phase == phase {
                 since = previous.since
@@ -251,15 +347,17 @@ final class CodexSessionState {
             }
             thread.phase = (phase, since)
             threads[id] = thread
-            sessions.append(Self.session(thread, phase: phase, since: since, previews: previews))
+            sessions.append(Self.session(thread, pending: pending, phase: phase, since: since, previews: previews))
         }
         return (sessions, events)
     }
 
-    /// Phase rules in order (spec 07 §5.1).
-    static func phase(_ thread: Thread, now: Date) -> ClaudeSessionPhase {
-        if thread.pending.contains(where: { !$0.asks }) { return .waitingPermission }
-        if thread.pending.contains(where: \.asks) { return .waitingInput }
+    /// Phase rules in order (docs/codex-sessions.md §5.1). `pending` is what waits on the
+    /// thread's row, its subagents' requests too; the thread's own by default.
+    static func phase(_ thread: Thread, pending: [Pending]? = nil, now: Date) -> ClaudeSessionPhase {
+        let pending = pending ?? thread.pending
+        if pending.contains(where: { !$0.asks }) { return .waitingPermission }
+        if pending.contains(where: \.asks) { return .waitingInput }
         switch thread.status {
         case .active(waitingOnApproval: true, _)?: return .waitingPermission
         case .active(_, waitingOnInput: true)?: return .waitingInput
@@ -285,7 +383,7 @@ final class CodexSessionState {
         }
     }
 
-    private static func session(_ thread: Thread, phase: ClaudeSessionPhase, since: Date,
+    private static func session(_ thread: Thread, pending: [Pending], phase: ClaudeSessionPhase, since: Date,
                                 previews: Bool) -> ClaudeSession {
         var timeline = Array(thread.tools.suffix(timelineLength))
         if !previews {
@@ -294,17 +392,25 @@ final class CodexSessionState {
         let current = timeline.last { $0.finished == nil }
         let project = AgentLogParser.projectName(thread.cwd)
         let lastActive = [thread.updated, thread.turnEnded?.at].compactMap { $0 }.max()
+        // Codex names a thread from its first prompt unless the person
+        // renames it, and the island cannot tell which, so the name is the
+        // conversation's and shows only with previews.
+        let name = previews ? thread.name : nil
+        // The card is the oldest request the island can answer. When only
+        // ones it cannot answer wait, the person answers in the terminal.
+        let card = pending.first(where: \.answerable)
+        let inTerminal = card == nil && !pending.isEmpty
         return ClaudeSession(
             id: thread.id, pid: 0, cwd: thread.cwd, project: project,
-            name: thread.name ?? project, nameSource: thread.name == nil ? nil : "user",
+            name: name ?? project, nameSource: name == nil ? nil : "user",
             branch: thread.branch, model: thread.model,
             // Its terminal is found when Open is pressed: no pid ties it to one.
             // Replies go through Codex's own server, whatever terminal shows it.
             host: .unknown,
             phase: phase, phaseSince: since, turnStarted: thread.turnStarted, lastActive: lastActive,
-            lookedAt: thread.acknowledged, waitingFor: nil,
+            lookedAt: thread.acknowledged, waitingFor: inTerminal ? answerInTerminal : nil,
             currentTool: phase == .runningTool || phase == .waitingPermission ? current : nil,
-            permission: thread.pending.first.map(permission),
+            permission: card.map(permission),
             timeline: timeline, subagents: [], tasks: nil, tokens: thread.tokens, cost: 0,
             title: previews ? thread.preview : nil, lastText: nil, hooked: true, provider: .codex)
     }

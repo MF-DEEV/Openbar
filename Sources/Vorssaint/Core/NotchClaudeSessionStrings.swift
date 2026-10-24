@@ -26,6 +26,7 @@ struct NotchClaudeSessionStrings {
     let sendAnswer: String
     let skip: String
     let questionHint: String
+    let questionHintCodex: String
     let open: String
     let enlarge: String
     let leftRunningFormat: String
@@ -125,6 +126,7 @@ struct NotchClaudeSessionStrings {
 
     /// What names the agent of a session, where Claude would otherwise be named.
     func question(for provider: ClaudeSessionProvider) -> String { provider == .codex ? questionCodex : question }
+    func questionHint(for provider: ClaudeSessionProvider) -> String { provider == .codex ? questionHintCodex : questionHint }
     func replyPlaceholder(for provider: ClaudeSessionProvider) -> String {
         provider == .codex ? replyPlaceholderCodex : replyPlaceholder
     }
@@ -180,6 +182,7 @@ extension NotchClaudeSessionStrings {
         sendAnswer: "Answer",
         skip: "Skip",
         questionHint: "Your answer goes straight to Claude. Return sends what you wrote, and ⌘N skips the question.",
+        questionHintCodex: "Your answer goes straight to Codex. Return sends what you wrote, and ⌘N skips the question.",
         open: "Open",
         enlarge: "Enlarge",
         leftRunningFormat: "%d left running",
@@ -247,7 +250,7 @@ extension NotchClaudeSessionStrings {
         bridgeRefused: "Antigravity refused the extension",
         openFailed: "Couldn’t find that window",
         background: "In background",
-        buddies: "A Clawd for every session",
+        buddies: "A buddy for every session",
         buddiesHint: "Each session and subagent gets its own buddy, dressed at random: Clawd for Claude Code, a little robot for Codex. Click one on its session’s page to change the outfit.",
         wardrobe: "Wardrobe",
         dressUp: "Change outfit",

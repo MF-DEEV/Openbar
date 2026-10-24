@@ -160,7 +160,7 @@ struct NotchClaudeSessionRow: View {
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 14, lifts: false))
             .focused($focused)
-            .accessibilityLabel("\(name), \(session.project), \(text.phase(session.phase))")
+            .accessibilityLabel("\(name), \(text.agent(session.provider)), \(session.project), \(text.phase(session.phase))")
             .accessibilityValue(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name))
             if quickDecision, let permission = session.permission {
                 // A request short enough to read whole on the line beside is

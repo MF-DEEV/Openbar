@@ -15,6 +15,94 @@ enum CodexSessionTests {
         suite.run("codex sessions websocket") { websocket(suite) }
         suite.run("codex sessions home") { home(suite) }
         suite.run("codex sessions client") { client(suite) }
+        suite.run("codex sessions review findings") { findings(suite) }
+    }
+
+    // MARK: Review findings
+
+    /// Behaviors the review found wrong; each check states what should hold.
+    static func findings(_ suite: TestSuite) {
+        // An approval that arrives while an MCP elicitation waits must be the
+        // card shown: the elicitation cannot be answered from the island, and
+        // decide() only answers the request on screen.
+        let mixed = stateWithThread()
+        _ = mixed.request(.number(12), method: "mcpServer/elicitation/request",
+                          params: ["threadId": "t1", "serverName": "figma", "mode": ["message": "Sign in?"]], now: at(1))
+        _ = mixed.request(.number(13), method: "item/commandExecution/requestApproval",
+                          params: ["threadId": "t1", "command": "ls"], now: at(2))
+        let mixedSession = mixed.snapshot(now: at(2), previews: false).sessions.first
+        suite.expect(mixedSession?.phase == .waitingPermission, "the session waits on the approval")
+        suite.expect(mixedSession?.permission?.requestID == "codex:13",
+                     "the answerable approval is the card, not the elicitation before it: got \(mixedSession?.permission?.requestID ?? "nil")")
+
+        // A subagent's approval waits on its parent's row and is answered there.
+        let family = stateWithThread()
+        family.upsertThread(["id": "c1", "cwd": "/Users/me/code/app", "parentThreadId": "t1",
+                             "status": ["type": "active", "activeFlags": []]])
+        family.upsertThread(["id": "g1", "cwd": "/Users/me/code/app", "parentThreadId": "c1",
+                             "status": ["type": "active", "activeFlags": []]])
+        _ = family.request(.number(21), method: "item/fileChange/requestApproval", params: ["threadId": "g1"], now: at(1))
+        let parentRow = family.snapshot(now: at(1), previews: false).sessions
+        suite.expect(parentRow.map(\.id) == ["t1"] && parentRow.first?.phase == .waitingPermission
+                         && parentRow.first?.permission?.requestID == "codex:21",
+                     "a sub-subagent's approval is the parent's card: \(parentRow.map(\.phase))")
+        suite.expect(family.takePending(thread: "t1", requestID: "codex:21") != nil,
+                     "and is taken from the parent's row")
+        suite.expect(family.threads["g1"]?.pending.isEmpty == true
+                         && family.snapshot(now: at(2), previews: false).sessions.first?.permission == nil,
+                     "and goes once answered")
+        let other = stateWithThread()
+        other.upsertThread(["id": "x1", "cwd": "/a", "status": ["type": "idle"]])
+        _ = other.request(.number(22), method: "item/fileChange/requestApproval", params: ["threadId": "x1"], now: at(1))
+        suite.expect(other.takePending(thread: "t1", requestID: "codex:22") == nil, "another row's request is not taken")
+        let loop = CodexSessionState()
+        loop.upsertThread(["id": "a", "cwd": "/a", "parentThreadId": "b"])
+        loop.upsertThread(["id": "b", "cwd": "/a", "parentThreadId": "a"])
+        suite.expect(loop.snapshot(now: at(1), previews: false).sessions.isEmpty && !loop.belongs("a", to: "c"),
+                     "threads that name each other as parents end the walk")
+
+        // A thread that a read reports as not loaded (it unloaded while the
+        // read was in flight) is gone, as thread/status/changed notLoaded is;
+        // no later broadcast would ever remove it.
+        let ghost = CodexSessionState()
+        ghost.notify("thread/status/changed", params: ["threadId": "t9", "status": ["type": "active", "activeFlags": []]],
+                     now: at(1))
+        ghost.notify("thread/status/changed", params: ["threadId": "t9", "status": ["type": "notLoaded"]], now: at(2))
+        ghost.upsertThread(["id": "t9", "cwd": "/Users/me/code/app", "status": ["type": "notLoaded"]])
+        suite.expect(ghost.snapshot(now: at(3), previews: false).sessions.isEmpty,
+                     "a late read of an unloaded thread leaves no idle ghost: \(ghost.snapshot(now: at(3), previews: false).sessions.map(\.id))")
+
+        // Streaming deltas change nothing the island shows, so they must not
+        // wake the service to republish every session.
+        guard let daemon = FakeDaemon() else { return suite.expect(false, "temporary home made") }
+        defer { daemon.finish() }
+        suite.expect(daemon.listen(), "the fake daemon listens")
+        let changes = Counter()
+        let client = CodexSessionClient(home: daemon.home, clientVersion: "test", retry: 0.1)
+        client.start { changes.add() }
+        defer { client.stop() }
+        guard daemon.accept() else { return suite.expect(false, "the island connects") }
+        let initialize = daemon.message()
+        daemon.send(["id": initialize?["id"] ?? 0, "result": [:]])
+        _ = daemon.message() // initialized
+        let list = daemon.message()
+        daemon.send(["id": list?["id"] ?? 0, "result": ["data": ["t1"]]])
+        let read = daemon.message()
+        daemon.send(["id": read?["id"] ?? 0, "result": ["thread": ["id": "t1", "cwd": "/Users/me/code/app",
+                                                                    "status": ["type": "idle"]]]])
+        suite.expect(eventually { client.snapshot(now: Date(), previews: false).sessions.count == 1 }, "the thread shows")
+        // A ping answered means everything sent before it was handled.
+        daemon.raw(CodexWebSocket.encode(opcode: .ping, payload: Data("a".utf8), mask: nil))
+        _ = daemon.frame()
+        let before = changes.count
+        for index in 0..<20 {
+            daemon.send(["method": "item/agentMessage/delta",
+                         "params": ["threadId": "t1", "turnId": "u", "itemId": "m", "delta": "word\(index) "]])
+        }
+        daemon.raw(CodexWebSocket.encode(opcode: .ping, payload: Data("b".utf8), mask: nil))
+        _ = daemon.frame()
+        suite.expect(changes.count == before,
+                     "20 text deltas raise no change: they raised \(changes.count - before)")
     }
 
     static let t0 = Date(timeIntervalSince1970: 1_792_600_000)
@@ -119,8 +207,18 @@ enum CodexSessionTests {
                      "empty strings count as absent")
         kept.upsertThread(["cwd": "/nowhere"])
         suite.expect(kept.threads.count == 1, "a thread without an id is ignored")
-        let named = kept.snapshot(now: at(0), previews: false).sessions.first
-        suite.expect(named?.name == "Fix checkout" && named?.nameSource == "user", "the thread's own name wins")
+        let named = kept.snapshot(now: at(0), previews: true).sessions.first
+        suite.expect(named?.name == "Fix checkout" && named?.nameSource == "user", "with previews the thread's own name wins")
+        let unnamed = kept.snapshot(now: at(0), previews: false).sessions.first
+        suite.expect(unnamed?.name == "checkout-api" && unnamed?.nameSource == nil,
+                     "without previews the folder names it, as Codex may have made the name from the prompt")
+        suite.expect(kept.notify("thread/name/updated", params: ["threadId": "t1", "threadName": "Ship it"], now: at(0)).changed
+                         && kept.threads["t1"]?.name == "Ship it", "a rename is kept")
+        suite.expect(!kept.notify("thread/name/updated", params: ["threadId": "t1", "threadName": "Ship it"], now: at(0)).changed,
+                     "the same name again changes nothing")
+        suite.expect(kept.notify("thread/name/updated", params: ["threadId": "t1", "threadName": NSNull()], now: at(0)).changed
+                         && kept.threads["t1"]?.name == nil, "a cleared name goes")
+        kept.upsertThread(["id": "t1", "name": "Fix checkout"])
         suite.expect(named?.phase == .generating, "status from the read drives the phase")
 
         // Previews gate what the session works on.
@@ -153,13 +251,23 @@ enum CodexSessionTests {
         // Status notifications.
         let statuses = stateWithThread()
         suite.expect(statuses.notify("thread/status/changed", params: ["threadId": "new", "status": ["type": "idle"]],
-                                     now: at(0)) == "new", "a status for an unseen thread asks for a read")
+                                     now: at(0)).read == "new", "a status for an unseen thread asks for a read")
         suite.expect(statuses.notify("thread/status/changed", params: ["threadId": "new", "status": ["type": "active"]],
-                                     now: at(1)) == nil, "a known thread is not read again")
+                                     now: at(1)) == .init(changed: true), "a known thread is not read again")
+        suite.expect(statuses.notify("thread/status/changed", params: ["threadId": "new", "status": ["type": "active"]],
+                                     now: at(1)) == .init(), "the same status again changes nothing")
         suite.expect(statuses.notify("thread/status/changed", params: ["threadId": "t1", "status": ["type": "notLoaded"]],
-                                     now: at(2)) == nil && statuses.threads["t1"] == nil, "notLoaded forgets the thread")
+                                     now: at(2)) == .init(changed: true) && statuses.threads["t1"] == nil,
+                     "notLoaded forgets the thread")
         suite.expect(statuses.notify("thread/status/changed", params: ["threadId": "gone", "status": ["type": "notLoaded"]],
-                                     now: at(2)) == nil && statuses.threads["gone"] == nil, "notLoaded never adds a thread")
+                                     now: at(2)) == .init() && statuses.threads["gone"] == nil, "notLoaded never adds a thread")
+        suite.expect(statuses.notify("item/agentMessage/delta", params: ["threadId": "new", "delta": "hi"], now: at(2)) == .init()
+                         && statuses.notify("item/reasoning/textDelta", params: ["threadId": "new", "delta": "hm"], now: at(2)) == .init()
+                         && statuses.notify("what/ever", params: ["threadId": "new"], now: at(2)) == .init()
+                         && statuses.notify("item/started", params: ["threadId": "new", "item": ["type": "agentMessage", "id": "a"]],
+                                            now: at(2)) == .init()
+                         && statuses.notify("turn/started", params: ["threadId": "nobody"], now: at(2)) == .init(),
+                     "deltas, messages, unknown methods and unknown threads change nothing")
         statuses.notify("thread/closed", params: ["threadId": "new"], now: at(3))
         suite.expect(statuses.threads.isEmpty, "a closed thread is forgotten")
         statuses.notify("turn/started", params: ["threadId": "nobody"], now: at(4))
@@ -348,9 +456,13 @@ enum CodexSessionTests {
         suite.expect(!elicitation.answerable, "an elicitation is not answered from the island")
         suite.expect(CodexSessionState.result(elicitation, .allow) == nil, "and has no answer")
         suite.expect(phase(elicit, 1) == .waitingInput, "it waits on input")
-        let elicitCard = elicit.snapshot(now: at(1), previews: false).sessions.first?.permission
-        suite.expect(elicitCard?.tool == "figma" && elicitCard?.detail == "Sign in?" && elicitCard?.offersAlways == false,
-                     "the card names the server and its message")
+        let elicitSession = elicit.snapshot(now: at(1), previews: false).sessions.first
+        suite.expect(elicitSession?.permission == nil && elicitSession?.waitingFor == CodexSessionState.answerInTerminal
+                         && elicitSession?.phase == .waitingInput,
+                     "with no card it can answer, the session waits on the terminal")
+        let elicitCard = CodexSessionState.permission(elicitation)
+        suite.expect(elicitCard.tool == "figma" && elicitCard.detail == "Sign in?" && !elicitCard.offersAlways,
+                     "its card would name the server and its message")
         suite.expect(elicit.takePending(thread: "t1", requestID: "codex:12") == nil, "the island cannot take it")
         // An approval outranks a question.
         _ = elicit.request(.number(13), method: "item/fileChange/requestApproval", params: ["threadId": "t1"], now: at(2))
@@ -738,6 +850,9 @@ enum CodexSessionTests {
                          && info?["version"] as? String == "9.9", "with its name and version")
         suite.expect((params(initialize)["capabilities"] as? [String: Any])?["experimentalApi"] as? Bool == true,
                      "and asks for the experimental API")
+        let optedOut = (params(initialize)["capabilities"] as? [String: Any])?["optOutNotificationMethods"] as? [String]
+        suite.expect(optedOut == CodexSessionClient.quietNotifications && optedOut?.contains("item/agentMessage/delta") == true,
+                     "and opts out of streamed deltas: \(optedOut ?? [])")
         suite.expect(initialize?["jsonrpc"] == nil, "Codex's dialect has no jsonrpc field")
         suite.expect(eventually { client.connected }, "the island reads as connected")
         daemon.send(["id": initialize?["id"] ?? 0, "result": ["userAgent": "codex_cli_rs/0.164.0"]])

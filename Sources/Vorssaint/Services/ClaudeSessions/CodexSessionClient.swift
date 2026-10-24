@@ -5,7 +5,7 @@ import CryptoKit
 import Darwin
 import Foundation
 
-/// The island's connection to Codex's app-server daemon (spec 07 §3): a
+/// The island's connection to Codex's app-server daemon (docs/codex-sessions.md §3): a
 /// WebSocket over the daemon's user-only Unix socket, speaking its JSON-RPC
 /// dialect. It never starts the daemon; while there is none it looks again
 /// every few seconds. It joins a thread (`thread/resume`) only while the
@@ -16,6 +16,17 @@ final class CodexSessionClient {
     static let retry: TimeInterval = 3
     static let poll: TimeInterval = 0.1
     static let clientName = "vorssaint"
+
+    /// Streamed text and output the island never shows, asked not to be
+    /// sent (`capabilities.optOutNotificationMethods`): a turn streams
+    /// them by the token. Names as Codex 0.163 and 0.164 send them.
+    static let quietNotifications = [
+        "item/agentMessage/delta", "item/plan/delta",
+        "item/reasoning/textDelta", "item/reasoning/summaryTextDelta", "item/reasoning/summaryPartAdded",
+        "item/commandExecution/outputDelta", "item/fileChange/outputDelta",
+        "thread/realtime/item/transcript/delta", "thread/realtime/transcript/delta",
+        "thread/realtime/outputAudio/delta",
+    ]
 
     /// `$CODEX_HOME`, or `~/.codex`.
     static func home() -> URL? {
@@ -137,11 +148,11 @@ final class CodexSessionClient {
         }
     }
 
-    /// Answers the request with this island id; false when it is gone or of another kind.
+    /// Answers the request with this island id, the session's own or one
+    /// of its subagents'; false when it is gone or of another kind.
     func answer(_ session: String, requestID: String, answer: CodexAnswer) -> Bool {
         lock.withLock {
-            guard let pending = state.threads[session]?.pending
-                    .first(where: { $0.requestID == requestID && $0.answerable }),
+            guard let pending = state.answerable(session: session, requestID: requestID)?.pending,
                   let body = CodexSessionState.result(pending, answer),
                   state.takePending(thread: session, requestID: requestID) != nil else { return false }
             send(["id": pending.rpcID.json, "result": body])
@@ -152,7 +163,8 @@ final class CodexSessionClient {
     /// A prompt for an idle thread, or one queued after the current turn of a working one.
     func reply(_ session: String, text: String) -> Bool {
         lock.withLock {
-            guard isConnected, let thread = state.threads[session], thread.pending.isEmpty else { return false }
+            guard isConnected, let thread = state.threads[session], state.pending(session: session).isEmpty
+            else { return false }
             let input: [[String: Any]] = [["type": "text", "text": text, "text_elements": [Any]()]]
             if thread.isActive {
                 call("thread/queue/add", ["threadId": session, "input": input, "clientUserMessageId": Self.uuidV7()],
@@ -186,12 +198,15 @@ final class CodexSessionClient {
         send(["id": nextID, "method": method, "params": params])
     }
 
-    /// Joins threads that work or wait, and leaves the quiet ones nobody looks at.
+    /// Joins threads that work or wait, and leaves the quiet ones nobody
+    /// looks at. Codex's helper threads are never joined, nor a thread
+    /// before a read says what it is.
     private func follow() {
         var join: [String] = []
         var leave: [String] = []
         for (id, thread) in state.threads {
-            let wanted = thread.isActive || !thread.pending.isEmpty || focused.contains(id)
+            let wanted = thread.described && !thread.ephemeral
+                && (thread.isActive || !thread.pending.isEmpty || focused.contains(id))
             if wanted, !thread.subscribed { join.append(id) }
             if !wanted, thread.subscribed { leave.append(id) }
         }
@@ -221,11 +236,16 @@ final class CodexSessionClient {
                 follow()
                 return kept
             case (let method?, nil):
-                if let new = state.notify(method, params: params, now: now) {
+                let notified = state.notify(method, params: params, now: now)
+                if let new = notified.read {
                     call("thread/read", ["threadId": new, "includeTurns": false], .read)
                 }
+                // A page's thread that closed or unloaded is no longer kept.
+                if let thread = params["threadId"] as? String, state.threads[thread] == nil {
+                    focused.remove(thread)
+                }
                 follow()
-                return true
+                return notified.changed
             case (nil, let id?):
                 guard case .number(let number) = id, let kind = waiting.removeValue(forKey: number) else { return false }
                 let result = message["result"] as? [String: Any] ?? [:]
@@ -244,7 +264,9 @@ final class CodexSessionClient {
                     }
                     return false
                 case .read, .resume:
-                    if let thread = result["thread"] as? [String: Any] { state.upsertThread(thread) }
+                    guard let thread = result["thread"] as? [String: Any] else { return false }
+                    state.upsertThread(thread)
+                    if let id = thread["id"] as? String, state.threads[id] == nil { focused.remove(id) }
                     follow()
                     return true
                 case .other:
@@ -268,6 +290,7 @@ final class CodexSessionClient {
                     isConnected = false
                     outbox = nil
                     waiting.removeAll()
+                    focused.removeAll()
                     state.reset()
                 }
                 changed()
@@ -300,7 +323,7 @@ final class CodexSessionClient {
             isConnected = true
             call("initialize", [
                 "clientInfo": ["name": Self.clientName, "title": "Vorssaint", "version": clientVersion],
-                "capabilities": ["experimentalApi": true],
+                "capabilities": ["experimentalApi": true, "optOutNotificationMethods": Self.quietNotifications],
             ], .initialize)
         }
         while !isStopped {

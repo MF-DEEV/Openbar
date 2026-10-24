@@ -174,13 +174,15 @@ struct NotchClawdDressButton: View {
 /// bubble shows; the notice's words say what it wants.
 struct NotchClaudeNoticeClawd: View {
     let sessionID: String
+    /// The notice's agent, for a session that has already left the list.
+    var agent: AgentProvider? = nil
     let symbol: String
     let size: CGSize
     @ObservedObject private var service = ClaudeSessionService.shared
 
     var body: some View {
         let session = service.sessions.first { $0.id == sessionID }
-        let character = session?.provider.character ?? .clawd
+        let character = session?.provider.character ?? (agent == .codex ? .codex : .clawd)
         NotchClawd(costume: ClawdCostume.resolved(key: sessionID, kept: service.costumes[sessionID], character: character),
                    character: character, motion: NotchClaudeSessionsSupport.noticeMotion(symbol: symbol), seed: ClawdCostume.seed(sessionID),
                    since: session?.phaseSince, cheer: session.flatMap(NotchClaudeSessionsSupport.cheer), bubbles: false,

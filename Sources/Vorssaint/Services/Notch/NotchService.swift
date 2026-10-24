@@ -19,7 +19,7 @@ struct NotchNotice: Equatable {
     /// With the companion on, it takes the symbol's place in the notice and
     /// plays this, so the notice itself is its reaction.
     var mascot: NotchMascotReaction? = nil
-    /// The Claude Code session a Sessions notice is about, whose page it opens.
+    /// The Claude Code or Codex session a Sessions notice is about, whose page it opens.
     var sessionID: String? = nil
     /// A banner that replaces one still on screen keeps at least its wings,
     /// so a burst of messages does not resize the island with each one.
@@ -4195,18 +4195,18 @@ final class NotchService: ObservableObject {
             show(NotchNotice(event: .sessions, title: sessions.displayName(session),
                              detail: [text.permissionNotice, session.permission?.summary ?? tool].filter { !$0.isEmpty }
                                 .joined(separator: " · "),
-                             symbol: NotchClaudeSessionsSupport.symbol(.waitingPermission), agent: .claude, sessionID: id))
+                             symbol: NotchClaudeSessionsSupport.symbol(.waitingPermission), agent: session.provider.agent, sessionID: id))
         case .needsInput:
             // A question Claude asks through the hooks is named in the notice.
             let question = session.permission?.asksQuestions == true ? session.permission?.summary : nil
             show(NotchNotice(event: .sessions, title: sessions.displayName(session),
                              detail: [text.inputNotice, question ?? ""].filter { !$0.isEmpty }.joined(separator: " · "),
-                             symbol: NotchClaudeSessionsSupport.symbol(.waitingInput), agent: .claude, sessionID: id))
+                             symbol: NotchClaudeSessionsSupport.symbol(.waitingInput), agent: session.provider.agent, sessionID: id))
         case .finished(_, let duration):
             let locale = L10n.shared.language.formattingLocale()
             show(NotchNotice(event: .sessions, title: sessions.displayName(session),
                              detail: duration.map { text.finishedAfter(AgentFormat.duration($0, locale: locale)) } ?? text.finishedNotice,
-                             symbol: NotchClaudeSessionsSupport.symbol(.finished), agent: .claude, sessionID: id))
+                             symbol: NotchClaudeSessionsSupport.symbol(.finished), agent: session.provider.agent, sessionID: id))
         }
     }
 

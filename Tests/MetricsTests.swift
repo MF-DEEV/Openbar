@@ -130,6 +130,7 @@ struct MetricsTests {
                 ClaudeAgentColorTests.run(suite)
             }),
             ("codex-sessions", { CodexSessionTests.run(suite) }),
+            ("codex-edge", { CodexSessionEdgeTests.run(suite) }),
             ("features", {
                 FeatureCatalogTests.run(suite)
                 MenuPanelSectionGateContract.run(suite)
