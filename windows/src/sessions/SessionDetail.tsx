@@ -5,21 +5,85 @@
 // it is and what it does, what it asks, its recent tools, subagents and
 // last reply, and a field that types a reply into its terminal.
 
-import { ArrowUp, CircleCheck, CircleDashed, CircleX, TriangleAlert } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import {
+  ArrowUp,
+  ChevronDown,
+  ChevronRight,
+  CircleCheck,
+  CircleDashed,
+  CircleX,
+  PanelRight,
+  TriangleAlert,
+} from "lucide-react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PermissionCard } from "./PermissionCard";
 import { SessionAvatar, SubagentAvatar } from "./SessionAvatar";
 import { Wardrobe } from "./clawd/Wardrobe";
 import { resolvedCostume } from "./clawd/costume";
 import { motionForPhase } from "./clawd/sprite";
 import { ThinkingRow } from "./ThinkingRow";
-import { clock, compactNumber, cost, displayName, phaseClock, phaseTint, projectColor, totalTokens } from "./format";
+import {
+  clock,
+  compactNumber,
+  cost,
+  displayName,
+  phaseClock,
+  phaseTint,
+  projectColor,
+  providerTint,
+  totalTokens,
+} from "./format";
+import { answerMarks, messageTime } from "./conversation";
+import { RichText } from "./RichText";
 import { useNow } from "./useNow";
 import { S } from "./strings";
 import { useSessions } from "./store";
+import { setPrefs } from "../shared/prefs";
 import { isWaiting, isWorking, type ReplyFailure, type Session } from "./types";
 
-export function SessionDetail({ session }: { session: Session }) {
+function storedNumber(key: string, fallback: number) {
+  try {
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : Number(value);
+  } catch {
+    return fallback;
+  }
+}
+
+export function SessionDetail({ session, enlarged = false }: { session: Session; enlarged?: boolean }) {
+  const [sidebarHidden, setSidebarHidden] = useState(() => storedNumber("sessions.sidebarHidden", 0) === 1);
+  const [textSize, setTextSize] = useState(() =>
+    Math.min(24, Math.max(12, storedNumber("sessions.textSize", 15) || 15)),
+  );
+  const toggleSidebar = () =>
+    setSidebarHidden((hidden) => {
+      try {
+        localStorage.setItem("sessions.sidebarHidden", hidden ? "0" : "1");
+      } catch {
+        /* Memory only. */
+      }
+      return !hidden;
+    });
+  const resize = (step: number) =>
+    setTextSize((size) => {
+      const next = Math.min(24, Math.max(12, size + step));
+      try {
+        localStorage.setItem("sessions.textSize", String(next));
+      } catch {
+        /* Memory only. */
+      }
+      return next;
+    });
+  useEffect(() => {
+    if (!enlarged) return;
+    const key = (event: KeyboardEvent) => {
+      if (!(event.ctrlKey || event.metaKey) || !["+", "=", "-"].includes(event.key)) return;
+      event.preventDefault();
+      resize(event.key === "-" ? -1 : 1);
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [enlarged]);
   const now = useNow();
   const custom = useSessions((s) => s.names[session.id]);
   const lookedAt = useSessions((s) => s.lookedAt[session.id]);
@@ -69,11 +133,15 @@ export function SessionDetail({ session }: { session: Session }) {
     session.modelName ?? session.model,
     totalTokens(session.tokens) > 0 ? compactNumber(totalTokens(session.tokens)) : undefined,
     session.cost > 0 ? cost(session.cost) : undefined,
+    enlarged ? session.cwd : undefined,
   ].filter(Boolean);
 
   return (
-    <div className="s-detail-page">
-      <div className="s-scroll">
+    <div
+      className={`s-detail-page${enlarged ? " is-large" : ""}`}
+      style={{ "--chat-size": `${textSize}px`, "--agent-tint": providerTint(session.provider) } as CSSProperties}
+    >
+      <div className={`s-scroll${enlarged ? " is-large" : ""}`}>
         <div className="s-header">
           <button
             type="button"
@@ -106,43 +174,204 @@ export function SessionDetail({ session }: { session: Session }) {
               <span className="s-secondary">{meta.join(" · ")}</span>
             </div>
           </div>
+          {enlarged ? (
+            <div className="s-reading-controls">
+              <button
+                type="button"
+                className="n-icon-button"
+                aria-label={S.smallerText}
+                title={S.smallerText}
+                disabled={textSize <= 12}
+                onClick={() => resize(-1)}
+              >
+                <span className="s-small-a">A</span>
+              </button>
+              <button
+                type="button"
+                className="n-icon-button"
+                aria-label={S.largerText}
+                title={S.largerText}
+                disabled={textSize >= 24}
+                onClick={() => resize(1)}
+              >
+                A
+              </button>
+              <button
+                type="button"
+                className="n-icon-button"
+                aria-label={sidebarHidden ? S.showDetails : S.hideDetails}
+                title={sidebarHidden ? S.showDetails : S.hideDetails}
+                aria-expanded={!sidebarHidden}
+                onClick={toggleSidebar}
+              >
+                <PanelRight size={14} />
+              </button>
+            </div>
+          ) : null}
         </div>
 
         {isWaiting(session.phase) ? <PermissionCard session={session} onOpen={() => void open()} /> : null}
 
-        {session.title && session.title !== name ? <div className="s-title">{session.title}</div> : null}
+        <div className={enlarged ? `s-large-body${sidebarHidden ? " is-folded" : ""}` : "s-detail-body"}>
+          {enlarged ? (
+            <Conversation session={session} previews={previews} enlarged layoutKey={`${sidebarHidden}:${textSize}`} />
+          ) : null}
+          {enlarged ? (
+            <button
+              type="button"
+              className="s-sidebar-handle"
+              onClick={toggleSidebar}
+              aria-label={sidebarHidden ? S.showDetails : S.hideDetails}
+              aria-expanded={!sidebarHidden}
+            >
+              <ChevronRight size={10} />
+            </button>
+          ) : null}
+          <aside
+            className={enlarged ? "s-details-sidebar" : "s-details-inline"}
+            hidden={enlarged && sidebarHidden}
+            aria-label={S.details}
+          >
+            {session.title ? <div className="s-title">{session.title}</div> : null}
 
-        {session.tasks && session.tasks.total > 0 ? (
-          <div className="s-tasks">
-            <div>
-              <span className="s-tasks-count">{S.tasks(session.tasks.done, session.tasks.total)}</span>
-              {session.tasks.current ? <span className="s-secondary"> {session.tasks.current}</span> : null}
-            </div>
-            <div className="s-progress">
-              <div style={{ width: `max(4px, ${(session.tasks.done / session.tasks.total) * 100}%)` }} />
-            </div>
-          </div>
-        ) : null}
+            {session.tasks && session.tasks.total > 0 ? (
+              <div className="s-tasks">
+                <div>
+                  <span className="s-tasks-count">{S.tasks(session.tasks.done, session.tasks.total)}</span>
+                  {session.tasks.current ? <span className="s-secondary"> {session.tasks.current}</span> : null}
+                </div>
+                <div className="s-progress">
+                  <div style={{ width: `max(4px, ${(session.tasks.done / session.tasks.total) * 100}%)` }} />
+                </div>
+              </div>
+            ) : null}
 
-        {session.timeline.length > 0 ? <Recent session={session} /> : null}
-        {session.subagents.length > 0 ? <Subagents session={session} now={now} /> : null}
+            {session.timeline.length > 0 ? (
+              <Recent key={`${session.id}:tools`} session={session} enlarged={enlarged} />
+            ) : null}
+            {session.subagents.length > 0 ? (
+              <Subagents key={`${session.id}:agents`} session={session} now={now} enlarged={enlarged} />
+            ) : null}
+          </aside>
 
-        <div className="s-section">
-          <div className="s-section-title">{S.lastReply}</div>
-          {previews ? (
-            session.lastText ? (
-              <div className="s-last-reply">{session.lastText}</div>
-            ) : null
-          ) : (
-            <div className="s-tertiary">{session.provider === "codex" ? S.previewsOffCodex : S.previewsOff}</div>
-          )}
+          {!enlarged ? (
+            previews ? (
+              session.lastText ? (
+                <div className="s-section">
+                  <div className="s-section-title">{S.lastReply}</div>
+                  <div className="s-last-reply">
+                    <RichText text={session.lastText} />
+                  </div>
+                </div>
+              ) : null
+            ) : (
+              <Conversation session={session} previews={false} />
+            )
+          ) : null}
         </div>
       </div>
 
-      {isWorking(session.phase) ? <ThinkingRow session={session} size={13} now={now} /> : null}
-      <ReplyField session={session} />
+      {!enlarged && isWorking(session.phase) ? <ThinkingRow session={session} size={13} now={now} /> : null}
+      <ReplyField session={session} enlarged={enlarged} />
 
       {renaming ? <RenameField session={session} name={name} /> : null}
+    </div>
+  );
+}
+
+function Conversation({
+  session,
+  previews,
+  enlarged = false,
+  layoutKey,
+}: {
+  session: Session;
+  previews: boolean;
+  enlarged?: boolean;
+  layoutKey?: string;
+}) {
+  const marks = answerMarks(session.chat);
+  const now = useNow();
+  const [enabling, setEnabling] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const section = useRef<HTMLDivElement>(null);
+  const following = useRef(true);
+  const last = session.chat.at(-1);
+  useEffect(() => {
+    const scroll = enlarged ? section.current : section.current?.closest(".s-scroll");
+    if (!scroll) return;
+    const track = () => {
+      following.current = scroll.scrollHeight - scroll.scrollTop - scroll.clientHeight < 60;
+    };
+    scroll.addEventListener("scroll", track);
+    return () => scroll.removeEventListener("scroll", track);
+  }, [enlarged]);
+  useEffect(() => {
+    following.current = true;
+  }, [session.id, previews]);
+  useEffect(() => {
+    const scroll = enlarged ? section.current : section.current?.closest(".s-scroll");
+    if (scroll && following.current) scroll.scrollTop = scroll.scrollHeight;
+  }, [session.id, previews, last?.id, last?.text, enlarged, session.phase, layoutKey]);
+
+  const enable = async () => {
+    setEnabling(true);
+    setFailed(false);
+    try {
+      await setPrefs({ sessions: { previews: true } });
+    } catch {
+      setFailed(true);
+    } finally {
+      setEnabling(false);
+    }
+  };
+  return (
+    <div className={`s-section s-conversation${enlarged ? " is-large" : ""}`} ref={section}>
+      {!previews ? (
+        <>
+          <div className="s-tertiary">{session.provider === "codex" ? S.previewsOffCodex : S.previewsOff}</div>
+          <button type="button" className="s-enable-previews" disabled={enabling} onClick={() => void enable()}>
+            {S.enablePreviews}
+          </button>
+          {failed ? <div className="s-error">{S.previewsFailed}</div> : null}
+        </>
+      ) : session.chat.length ? (
+        <div className="s-messages" role="log" aria-label={S.conversation}>
+          {session.chat.map((message) => (
+            <div
+              key={message.id}
+              className={`s-message is-${message.role}${marks.answers.has(message.id) ? " is-answer" : ""}${marks.onTheWay.has(message.id) ? " is-on-the-way" : ""}`}
+            >
+              {marks.answers.has(message.id) ? (
+                <div className="s-answer-rule">
+                  <span>{S.answer}</span>
+                  <time dateTime={new Date(message.at * 1000).toISOString()}>{messageTime(message.at)}</time>
+                  <i />
+                </div>
+              ) : null}
+              {message.role === "user" ? (
+                <>
+                  <div className="s-message-text">{message.text}</div>
+                  <time className="s-message-time">{messageTime(message.at)}</time>
+                </>
+              ) : (
+                <RichText text={message.text} />
+              )}
+            </div>
+          ))}
+        </div>
+      ) : session.lastText ? (
+        <div className="s-message is-assistant is-answer">
+          <div className="s-answer-rule">
+            <span>{S.answer}</span>
+            <i />
+          </div>
+          <RichText text={session.lastText} />
+        </div>
+      ) : (
+        <div className="s-tertiary">{S.noMessages}</div>
+      )}
+      {enlarged && previews && isWorking(session.phase) ? <ThinkingRow session={session} size={15} now={now} /> : null}
     </div>
   );
 }
@@ -174,12 +403,50 @@ function RenameField({ session, name }: { session: Session; name: string }) {
   );
 }
 
-function Recent({ session }: { session: Session }) {
+function Recent({ session, enlarged = false }: { session: Session; enlarged?: boolean }) {
+  const [all, setAll] = useState(false);
   const strip = useRef<HTMLDivElement>(null);
   const newest = session.timeline.at(-1)?.id;
   useEffect(() => {
     strip.current?.scrollTo({ left: strip.current.scrollWidth, behavior: "smooth" });
   }, [newest]);
+  if (enlarged) {
+    const tools = [...session.timeline].reverse();
+    return (
+      <div className="s-section">
+        <div className="s-section-title">{S.recentTools}</div>
+        {tools.slice(0, all ? tools.length : 4).map((tool) => {
+          const Icon = tool.finished === undefined ? CircleDashed : tool.failed ? CircleX : CircleCheck;
+          return (
+            <div key={tool.id} className="s-sidebar-tool">
+              <Icon
+                size={10}
+                style={{
+                  color:
+                    tool.finished === undefined
+                      ? providerTint(session.provider)
+                      : tool.failed
+                        ? "#ff453a"
+                        : "rgba(255,255,255,.4)",
+                }}
+              />
+              <strong>{tool.name}</strong>
+              <span className="s-sidebar-command" title={tool.summary}>
+                {tool.summary}
+              </span>
+              {tool.finished !== undefined ? <time>{clock(tool.finished - tool.started)}</time> : null}
+            </div>
+          );
+        })}
+        {tools.length > 4 ? (
+          <button type="button" className="s-fold-list" onClick={() => setAll(!all)} aria-expanded={all}>
+            <ChevronDown size={10} className={all ? "is-open" : ""} />
+            {all ? S.showLess : S.showAll(tools.length)}
+          </button>
+        ) : null}
+      </div>
+    );
+  }
   return (
     <div className="s-section">
       <div className="s-section-title">{S.recentTools}</div>
@@ -206,13 +473,14 @@ function Recent({ session }: { session: Session }) {
   );
 }
 
-function Subagents({ session, now }: { session: Session; now: number }) {
+function Subagents({ session, now, enlarged = false }: { session: Session; now: number; enlarged?: boolean }) {
+  const [expanded, setExpanded] = useState(false);
   const running = session.subagents.filter((a) => a.finished === undefined).sort((a, b) => a.started - b.started);
   const done = session.subagents
     .filter((a) => a.finished !== undefined)
     .sort((a, b) => (b.finished ?? 0) - (a.finished ?? 0));
   const all = [...running, ...done];
-  const shown = all.slice(0, 4);
+  const shown = all.slice(0, enlarged && expanded ? all.length : 4);
   return (
     <div className="s-section">
       <div className="s-section-title">{S.subagents}</div>
@@ -226,7 +494,16 @@ function Subagents({ session, now }: { session: Session; now: number }) {
           <span className="s-clock is-small">{clock((a.finished ?? now) - a.started)}</span>
         </div>
       ))}
-      {all.length > 4 ? <div className="s-tertiary">{S.moreSubagents(all.length - 4)}</div> : null}
+      {all.length > 4 ? (
+        enlarged ? (
+          <button type="button" className="s-fold-list" onClick={() => setExpanded(!expanded)} aria-expanded={expanded}>
+            <ChevronDown size={10} className={expanded ? "is-open" : ""} />
+            {expanded ? S.showLess : S.showAll(all.length)}
+          </button>
+        ) : (
+          <div className="s-tertiary">{S.moreSubagents(all.length - 4)}</div>
+        )
+      ) : null}
     </div>
   );
 }
@@ -238,7 +515,7 @@ function unavailable(session: Session): string | null {
   return null;
 }
 
-function ReplyField({ session }: { session: Session }) {
+function ReplyField({ session, enlarged = false }: { session: Session; enlarged?: boolean }) {
   const draft = useSessions((s) => s.drafts[session.id] ?? "");
   const [failure, setFailure] = useState<ReplyFailure | null>(null);
   const [sending, setSending] = useState(false);
@@ -255,22 +532,43 @@ function ReplyField({ session }: { session: Session }) {
   return (
     <div className="s-reply">
       <div className="s-reply-row">
-        <input
-          className="s-reply-field"
-          value={draft}
-          disabled={!!reason}
-          placeholder={reason ?? (session.provider === "codex" ? S.replyPlaceholderCodex : S.replyPlaceholder)}
-          onChange={(e) => {
-            setFailure(null);
-            useSessions.getState().setDraft(session.id, e.target.value);
-          }}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              void send();
-            }
-          }}
-        />
+        {enlarged ? (
+          <textarea
+            className="s-reply-field s-composer"
+            aria-label={session.provider === "codex" ? S.replyPlaceholderCodex : S.replyPlaceholder}
+            value={draft}
+            disabled={!!reason || sending}
+            maxLength={4000}
+            placeholder={reason ?? (session.provider === "codex" ? S.replyPlaceholderCodex : S.replyPlaceholder)}
+            onChange={(e) => {
+              setFailure(null);
+              useSessions.getState().setDraft(session.id, e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && !e.nativeEvent.isComposing) {
+                e.preventDefault();
+                void send();
+              }
+            }}
+          />
+        ) : (
+          <input
+            className="s-reply-field"
+            value={draft}
+            disabled={!!reason}
+            placeholder={reason ?? (session.provider === "codex" ? S.replyPlaceholderCodex : S.replyPlaceholder)}
+            onChange={(e) => {
+              setFailure(null);
+              useSessions.getState().setDraft(session.id, e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                void send();
+              }
+            }}
+          />
+        )}
         <button
           type="button"
           className={`s-send${sendable ? " is-ready" : ""}`}
@@ -281,6 +579,7 @@ function ReplyField({ session }: { session: Session }) {
           <ArrowUp size={13} strokeWidth={3} />
         </button>
       </div>
+      {enlarged ? <div className="s-composer-hint">{S.sendShortcut}</div> : null}
       {failure ? (
         <div className="s-error">
           <TriangleAlert size={10} />
