@@ -32,6 +32,7 @@ export function SessionDetail({ session }: { session: Session }) {
   const wardrobe = useSessions((s) => s.wardrobe);
   const buddies = useSessions((s) => s.buddies);
   const kept = useSessions((s) => s.costumes[session.id]);
+  const character = session.provider === "codex" ? "codex" : "clawd";
 
   // Escape closes the wardrobe before it reaches the island.
   useEffect(() => {
@@ -49,7 +50,8 @@ export function SessionDetail({ session }: { session: Session }) {
     return (
       <Wardrobe
         sessionId={session.id}
-        costume={resolvedCostume(session.id, kept, null, session.provider === "codex" ? "codex" : "clawd")}
+        character={character}
+        costume={resolvedCostume(session.id, kept, null, character)}
         name={name}
         project={session.project}
         motion={motionForPhase(session.phase)}

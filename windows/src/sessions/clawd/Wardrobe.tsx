@@ -22,6 +22,7 @@ import {
   seeded,
   SHELL_RGB,
   SHELLS,
+  type Character,
   type ClawdCostume,
 } from "./costume";
 import { CLAWD_SIZES, FRAME, HEIGHT, WIDTH, type ClawdMotion } from "./sprite";
@@ -30,6 +31,8 @@ import "./clawd.css";
 
 export interface WardrobeProps {
   sessionId: string;
+  /** Who is dressed: Clawd for Claude Code, the robot for Codex. Its lot follows. */
+  character?: Character;
   /** What it wears now: the kept choice, or its own lot (resolvedCostume). */
   costume: ClawdCostume;
   /**
@@ -92,11 +95,12 @@ export function ProjectTag(props: { project: string }) {
 
 export function Wardrobe(props: WardrobeProps) {
   const { sessionId, costume, onChange } = props;
+  const character = props.character ?? "clawd";
   const text = props.strings ?? clawdStrings;
   const band = props.band ?? true;
   // When the costume last changed here, which the Clawd hops for.
   const [changed, setChanged] = useState<number | null>(null);
-  const dressedByHand = props.dressedByHand ?? !sameCostume(costume, seeded(sessionId));
+  const dressedByHand = props.dressedByHand ?? !sameCostume(costume, seeded(sessionId, null, character));
 
   const stageWidth = Math.min(230, Math.max(150, (props.islandWidth ?? 0) * 0.3));
   const stageHeight = stageWidth * 0.92;
@@ -126,7 +130,7 @@ export function Wardrobe(props: WardrobeProps) {
     setChanged(Date.now());
   };
   const dress = (next: ClawdCostume) => {
-    if (!sameCostume(next, costume)) wear(next, keptCode(next, sessionId));
+    if (!sameCostume(next, costume)) wear(next, keptCode(next, sessionId, character));
   };
 
   const onKeyDown = (event: KeyboardEvent) => {
@@ -151,6 +155,7 @@ export function Wardrobe(props: WardrobeProps) {
       >
         {wearing ? (
           <ClawdPicture
+            character={character}
             costume={wearing as ClawdCostume}
             width={CLAWD_SIZES.wardrobeTile.width}
             height={CLAWD_SIZES.wardrobeTile.height}
@@ -188,7 +193,7 @@ export function Wardrobe(props: WardrobeProps) {
               title={text.surpriseMe}
               onClick={() => {
                 const next = randomCostume(costume);
-                wear(next, keptCode(next, sessionId));
+                wear(next, keptCode(next, sessionId, character));
               }}
             >
               <Dices size={13} strokeWidth={2.25} />
@@ -200,7 +205,7 @@ export function Wardrobe(props: WardrobeProps) {
               title={text.ownOutfit}
               aria-label={text.ownOutfit}
               disabled={!dressedByHand}
-              onClick={() => wear(seeded(sessionId), null)}
+              onClick={() => wear(seeded(sessionId, null, character), null)}
             >
               <Undo2 size={13} strokeWidth={2.25} />
             </button>
@@ -236,6 +241,7 @@ export function Wardrobe(props: WardrobeProps) {
             {/* The floor it stands on, a soft light under its feet. */}
             <div className="clawd-floor" style={{ width: figure.width * 0.9, height: pixel * 2, bottom: margin }} />
             <Clawd
+              character={character}
               costume={costume}
               motion={props.motion ?? "rest"}
               seed={sessionId}
