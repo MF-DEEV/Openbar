@@ -3,6 +3,7 @@
 
 mod bar;
 mod hooks;
+mod hosts;
 mod island;
 mod settings;
 mod tray;
@@ -19,6 +20,12 @@ fn toggle_shortcut() -> Shortcut {
 /// never starts the app, only hands the event to the running island.
 pub fn hook_main() -> ! {
     hooks::transport::run_hook(hooks::APP_ID)
+}
+
+/// `Vorssaint.exe --console <pid>`: the helper that types into a session's console.
+#[cfg(windows)]
+pub fn console_main(pid: u32) -> ! {
+    hosts::console::helper_main(pid)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
