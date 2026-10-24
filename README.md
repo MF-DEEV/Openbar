@@ -10,6 +10,7 @@
   <a href="#set-it-up">Set it up</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#private-by-default">Privacy</a> ·
+  <a href="#on-windows">Windows</a> ·
   <a href="#about-this-fork">About this fork</a>
 </p>
 
@@ -59,11 +60,15 @@ Replies are typed into the session's own Terminal tab, found by its terminal dev
 
 Nothing leaves your Mac. Prompts, replies, titles and commands stay unread until you turn on **Show previews**, which is off by default, and even then they are kept in memory only and cleared when you turn it off. The [privacy notes](docs/PRIVACY.md) list everything the Sessions page reads and writes, and the [permissions guide](docs/PERMISSIONS.md) covers the Automation access replies use.
 
+## On Windows
+
+The Dynamic Island also runs on Windows 11, with the same Sessions list for Claude Code and Codex, Now Playing and notifications. It is a beta with its own installer: download it from the [Windows releases](https://github.com/MF-DEEV/vorssaint-utils/releases?q=windows&expanded=true) (x64 for most PCs, arm64 for Snapdragon), and read [windows/README.md](windows/README.md) for what it does and how to build it.
+
 ## About this fork
 
 The rest of the app is Vorssaint as it is upstream: volume mixer, system monitor, app switcher, window snapping, clipboard history, the Dynamic Island and much more. Its [README](https://github.com/vorssaint/vorssaint-utils#readme) describes all of it, and official builds come only from the [Vorssaint releases](https://github.com/vorssaint/vorssaint-utils/releases).
 
-This fork ships no builds of its own; you build it from source as above. The Vorssaint name, icon and look belong to its maintainer, as [TRADEMARKS.md](TRADEMARKS.md) explains.
+On the Mac this fork ships no builds of its own; you build it from source as above. The Windows island has installers in this repository's releases. The Vorssaint name, icon and look belong to its maintainer, as [TRADEMARKS.md](TRADEMARKS.md) explains.
 
 - [Privacy](docs/PRIVACY.md), what does and does not leave your Mac
 - [Permissions](docs/PERMISSIONS.md), every macOS permission in plain words

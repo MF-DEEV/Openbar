@@ -1,0 +1,117 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+// The sections gallery (NotchSectionsView.swift; spec 01-shell §5): tiles
+// 92 × 86 at least, 8 apart, radius 16, three rows in view, whole-row paging
+// with a dot column on the right.
+
+import { Check } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { t } from "../../i18n";
+import { moduleInfo, type ModuleId } from "../modules";
+import { galleryColumns, modulesOf, useIsland } from "../store";
+
+const ROW = 86;
+const GAP = 8;
+const VISIBLE_ROWS = 3;
+
+export function SectionsGallery(props: { width: number }) {
+  const settings = useIsland((s) => s.settings);
+  const selected = useIsland((s) => s.selected);
+  const query = useIsland((s) => s.sectionQuery);
+  const select = useIsland((s) => s.select);
+  const modules = useMemo(() => modulesOf({ settings }), [settings]);
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? modules.filter((id) => t(`module.${id}`).toLowerCase().includes(q)) : modules;
+  }, [modules, query]);
+  const columns = galleryColumns(props.width);
+  const rows = Math.ceil(shown.length / columns);
+  const [row, setRow] = useState(0);
+  const [highlight, setHighlight] = useState(0);
+  const pages = Math.max(1, rows - VISIBLE_ROWS + 1);
+
+  useEffect(() => {
+    setHighlight(0);
+    setRow(0);
+  }, [query]);
+
+  // Arrows move the highlight in grid order, Return opens it (spec §2.6).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.altKey || e.metaKey) return;
+      let next = highlight;
+      if (e.key === "ArrowRight" || (e.key === "Tab" && !e.shiftKey)) next += 1;
+      else if (e.key === "ArrowLeft" || (e.key === "Tab" && e.shiftKey)) next -= 1;
+      else if (e.key === "ArrowDown") next += columns;
+      else if (e.key === "ArrowUp") next -= columns;
+      else if (e.key === "Enter") {
+        const id = shown[highlight];
+        if (id) select(id);
+        e.preventDefault();
+        return;
+      } else return;
+      e.preventDefault();
+      next = Math.max(0, Math.min(shown.length - 1, next));
+      setHighlight(next);
+      const r = Math.floor(next / columns);
+      setRow((current) => (r < current ? r : r >= current + VISIBLE_ROWS ? r - VISIBLE_ROWS + 1 : current));
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [highlight, columns, shown, select]);
+
+  // A wheel notch steps one whole row.
+  const onWheel = (e: React.WheelEvent) => {
+    if (Math.abs(e.deltaY) < 4) return;
+    setRow((r) => Math.max(0, Math.min(pages - 1, r + (e.deltaY > 0 ? 1 : -1))));
+  };
+
+  return (
+    <div className="n-gallery" onWheel={onWheel}>
+      <div className="n-gallery-viewport" style={{ height: Math.min(rows, VISIBLE_ROWS) * (ROW + GAP) - GAP }}>
+        <div
+          className="n-gallery-grid"
+          style={{
+            gridTemplateColumns: `repeat(${columns}, minmax(92px, 1fr))`,
+            transform: `translateY(${-row * (ROW + GAP)}px)`,
+          }}
+        >
+          {shown.map((id, index) => (
+            <Tile key={id} id={id} current={id === selected} highlighted={index === highlight} onSelect={select} />
+          ))}
+        </div>
+      </div>
+      {pages > 1 ? (
+        <div className="n-gallery-dots">
+          {Array.from({ length: pages }, (_, i) => (
+            <button
+              key={i}
+              type="button"
+              className={`n-gallery-dot${i === row ? " is-current" : ""}`}
+              aria-label={`${i + 1}`}
+              onClick={() => setRow(i)}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Tile(props: { id: ModuleId; current: boolean; highlighted: boolean; onSelect: (id: ModuleId) => void }) {
+  const info = moduleInfo(props.id);
+  const Icon = info.icon;
+  return (
+    <button
+      type="button"
+      className={`n-tile${props.highlighted ? " is-highlighted" : ""}`}
+      onClick={() => props.onSelect(props.id)}
+    >
+      {props.current ? <Check className="n-tile-check" size={10} strokeWidth={3} /> : null}
+      <Icon size={22} strokeWidth={1.75} style={{ color: info.tint ?? "rgba(255,255,255,0.85)" }} />
+      <span className="n-tile-title">{t(`module.${props.id}`)}</span>
+      <span className="n-tile-shortcut">Ctrl+Alt+{info.shortcutKey.toUpperCase()}</span>
+    </button>
+  );
+}

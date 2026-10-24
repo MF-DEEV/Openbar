@@ -1,0 +1,71 @@
+[package]
+name = "vorssaint-windows"
+version = "0.1.0"
+description = "Vorssaint Dynamic Island for Windows"
+authors = ["Vorssaint"]
+license = "GPL-3.0-or-later"
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "vorssaint_windows_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+interprocess = "2"
+memchr = "2"
+regex = "1"
+unicode-segmentation = "1"
+getrandom = "0.3"
+tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+base64 = "0.22"
+
+[target.'cfg(windows)'.dependencies]
+uds_windows = "1"
+widestring = "1"
+windows = { version = "0.62", features = [
+  "ApplicationModel",
+  "Foundation",
+  "Foundation_Collections",
+  "Media",
+  "Media_Control",
+  "Storage",
+  "Storage_Streams",
+  "UI",
+  "UI_Notifications",
+  "UI_Notifications_Management",
+  "Win32_Foundation",
+  "Win32_System_Com",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Console",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_Registry",
+  "Win32_System_Threading",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+
+# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Vorssaint",
+  "version": "0.1.0",
+  "identifier": "com.vorssaint.island",
+  "build": {
+    "beforeDevCommand": "bun run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "bun run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    },
+    "macOSPrivateApi": true
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "publisher": "Vorssaint",
+    "copyright": "Copyright (C) 2026 Vorssaint. GPL-3.0-or-later.",
+    "shortDescription": "Dynamic Island for Windows",
+    "longDescription": "A Dynamic Island at the top of your screen: music, notifications, and your Claude Code and Codex sessions.",
+    "category": "Utility",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "English"
+        ],
+        "displayLanguageSelector": false,
+        "startMenuFolder": "Vorssaint",
+        "installerHooks": "installer-hooks.nsh"
+      }
+    }
+  },
+  "mainBinaryName": "Vorssaint"
+}

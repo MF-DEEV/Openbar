@@ -1,0 +1,97 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+
+.nt-rail {
+  display: flex;
+  gap: 8px;
+  height: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nt-card {
+  box-sizing: border-box;
+  flex: none;
+  width: 240px;
+  height: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.nt-card-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 22px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.nt-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+}
+
+.nt-app {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nt-time {
+  font-variant-numeric: tabular-nums;
+}
+
+.nt-mini {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.nt-mini:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.nt-title {
+  font-size: 13px;
+  font-weight: 600;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.nt-body {
+  flex: 1;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.8);
+  overflow: hidden;
+  user-select: text;
+  white-space: pre-wrap;
+}
+
+.nt-access {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nt-access-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}

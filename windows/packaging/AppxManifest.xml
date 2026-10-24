@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A sparse package: no files of its own, only an identity for Vorssaint.exe,
+  which stays where the installer put it (the external location). Windows
+  lets an app with an identity ask for the notification listener, which the
+  island's Notifications section needs. Register it with
+    Add-AppxPackage -Register AppxManifest.xml -ExternalLocation <exe folder>
+  (developer mode), or install the signed .msix the installer carries.
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 uap10 desktop6 rescap">
+  <Identity Name="Vorssaint.Island" Publisher="CN=Vorssaint" Version="0.1.0.0" ProcessorArchitecture="neutral" />
+  <Properties>
+    <DisplayName>Vorssaint</DisplayName>
+    <PublisherDisplayName>Vorssaint</PublisherDisplayName>
+    <Logo>icon.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26300.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Applications>
+    <Application Id="Vorssaint" Executable="Vorssaint.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements DisplayName="Vorssaint" Description="Vorssaint Dynamic Island" BackgroundColor="transparent"
+        Square150x150Logo="icon.png" Square44x44Logo="icon.png" AppListEntry="none" />
+    </Application>
+  </Applications>
+  <Capabilities>
+    <uap3:Capability Name="userNotificationListener" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  The island's exe manifest. Besides the usual common controls and per-monitor
+  DPI awareness, it names the sparse package (packaging/AppxManifest.xml) that
+  gives the exe a package identity, which Windows requires before an app may
+  read notifications. Without that package registered the exe runs as usual.
+-->
+<assembly xmlns="urn:schemas-microsoft-com:asm.v1" manifestVersion="1.0">
+  <dependency>
+    <dependentAssembly>
+      <assemblyIdentity type="win32" name="Microsoft.Windows.Common-Controls" version="6.0.0.0"
+        processorArchitecture="*" publicKeyToken="6595b64144ccf1df" language="*" />
+    </dependentAssembly>
+  </dependency>
+  <application xmlns="urn:schemas-microsoft-com:asm.v3">
+    <windowsSettings>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2</dpiAwareness>
+    </windowsSettings>
+  </application>
+  <msix xmlns="urn:schemas-microsoft-com:msix.v1"
+    publisher="CN=Vorssaint"
+    packageName="Vorssaint.Island"
+    applicationId="Vorssaint" />
+</assembly>
