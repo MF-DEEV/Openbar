@@ -7,6 +7,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import type { Decision, ReplyFailure, SessionEvent, Snapshot } from "../sessions/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -37,6 +38,25 @@ export const bridge = {
   openSettings: () => call("open_settings"),
   /** Lets the window take the keyboard (and takes it now when `take`), or gives it back. */
   setFocusable: (focusable: boolean, take: boolean) => call("island_set_focusable", { focusable, take }),
+  sessions: {
+    onSnapshot(handler: (s: Snapshot) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<Snapshot>("sessions://snapshot", (e) => handler(e.payload));
+    },
+    onEvent(handler: (e: SessionEvent) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<SessionEvent>("sessions://event", (e) => handler(e.payload));
+    },
+    acknowledge: (sessionId: string) => call("sessions_acknowledge", { sessionId }),
+    decide: (sessionId: string, requestId: string, decision: Decision) =>
+      call<boolean>("sessions_decide", { sessionId, requestId, decision }),
+    answer: (sessionId: string, requestId: string, answers: Record<string, string | string[]>) =>
+      call<boolean>("sessions_answer", { sessionId, requestId, answers }),
+    /** null when delivered. */
+    reply: (sessionId: string, text: string, images: string[]) =>
+      call<ReplyFailure | null>("sessions_reply", { sessionId, text, images }),
+    open: (sessionId: string) => call<boolean>("sessions_open", { sessionId }),
+  },
   onForegroundApp(handler: (name: string) => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});
     return listen<string>("bar://foreground-app", (e) => handler(e.payload));

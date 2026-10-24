@@ -21,6 +21,8 @@ export interface PageProps {
 
 export interface PageDefinition {
   Page: ComponentType<PageProps>;
+  /** Items on the left of the top row, in place of the sections button. */
+  Leading?: ComponentType;
   /** Items on the right of the top row. */
   Trailing?: ComponentType;
 }
@@ -47,6 +49,8 @@ export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolea
         <SectionSearch />
       </>
     );
+  } else if (page?.Leading) {
+    leading = <page.Leading />;
   } else if (!hasExploreBubble) {
     leading = (
       <IconButton
