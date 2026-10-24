@@ -2,11 +2,12 @@
 // Copyright (C) 2026 Vorssaint
 
 // The island's content and its transitions (NotchWindowHost.swift; spec
-// 01-shell §3.2). Content is laid out at its final size at once; only its
+// 01-shell §3.2). Expanded content is laid out at its final size; only its
 // opacity, blur and scale change here, never the black backdrop.
 
-import { type ReactNode, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useContext, useLayoutEffect, useRef, useState } from "react";
 import type { ContentTransition } from "../store";
+import { DrawnSize } from "./DrawnSize";
 
 interface Layer {
   /** Stable for the layer's life, so turning to leave does not remount it. */
@@ -92,6 +93,7 @@ export function ContentStage(props: {
   children: ReactNode;
 }) {
   const { contentKey, transition, width, height, children } = props;
+  const drawn = useContext(DrawnSize);
   const nextId = useRef(1);
   const [layers, setLayers] = useState<Layer[]>([
     { id: 0, key: contentKey, node: children, width, height, leaving: false },
@@ -142,25 +144,30 @@ export function ContentStage(props: {
 
   return (
     <>
-      {layers.map((layer) => (
-        <div
-          key={layer.id}
-          ref={(el) => {
-            if (el) refs.current.set(layer.id, el);
-            else refs.current.delete(layer.id);
-          }}
-          className="island-layer"
-          style={{
-            width: layer.width,
-            height: layer.height,
-            left: `calc(50% - ${layer.width / 2}px)`,
-            pointerEvents: layer.leaving ? "none" : undefined,
-            transformOrigin: "50% 0",
-          }}
-        >
-          {layer.node}
-        </div>
-      ))}
+      {layers.map((layer) => {
+        // Compact views share the surface's live dimensions, including their
+        // centering. Expanded pages keep a stable layout during reveal.
+        const size = !layer.leaving && !layer.key.startsWith("expanded:") && drawn ? drawn : layer;
+        return (
+          <div
+            key={layer.id}
+            ref={(el) => {
+              if (el) refs.current.set(layer.id, el);
+              else refs.current.delete(layer.id);
+            }}
+            className="island-layer"
+            style={{
+              width: size.width,
+              height: size.height,
+              left: `calc(50% - ${size.width / 2}px)`,
+              pointerEvents: layer.leaving ? "none" : undefined,
+              transformOrigin: "50% 0",
+            }}
+          >
+            <DrawnSize.Provider value={size}>{layer.node}</DrawnSize.Provider>
+          </div>
+        );
+      })}
     </>
   );
 }
