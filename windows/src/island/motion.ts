@@ -76,9 +76,7 @@ export function sideSpring(from: number, to: number, width: boolean, steady = fa
 
 /** The spring carrying the island's sides, for controls that ride along them. */
 export function carryingSpring(from: Size, to: Size): Spring {
-  return from.width !== to.width
-    ? sideSpring(from.width, to.width, true)
-    : sideSpring(from.height, to.height, false);
+  return from.width !== to.width ? sideSpring(from.width, to.width, true) : sideSpring(from.height, to.height, false);
 }
 
 export function sizeAt(time: number, from: Size, to: Size, steady = false): Size {
@@ -110,8 +108,7 @@ export function arrivalTime(from: Size, to: Size): number {
 /** How far a moving island's centre still sits from its new one. */
 export function offsetAt(time: number, from: Size, to: Size, start: number, steady = false): number {
   if (start === 0) return 0;
-  const spring =
-    from.width === to.width ? Springs.steadyWidth : sideSpring(from.width, to.width, true, steady);
+  const spring = from.width === to.width ? Springs.steadyWidth : sideSpring(from.width, to.width, true, steady);
   return start * (1 - springProgress(spring, time));
 }
 

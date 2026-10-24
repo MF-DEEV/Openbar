@@ -10,12 +10,14 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
+/** A rect in window CSS pixels; radii round its top and bottom corners. */
 export interface HitRect {
   x: number;
   y: number;
   width: number;
   height: number;
-  radius: number;
+  topRadius: number;
+  bottomRadius: number;
 }
 
 export interface PointerEvent {
@@ -33,6 +35,21 @@ export const bridge = {
   setHitRects: (rects: HitRect[]) => call("island_set_hit_rects", { rects }),
   setCapture: (capture: boolean) => call("island_set_capture", { capture }),
   openSettings: () => call("open_settings"),
+  /** Lets the window take the keyboard (and takes it now when `take`), or gives it back. */
+  setFocusable: (focusable: boolean, take: boolean) => call("island_set_focusable", { focusable, take }),
+  onForegroundApp(handler: (name: string) => void): Promise<UnlistenFn> {
+    if (!inTauri) return Promise.resolve(() => {});
+    return listen<string>("bar://foreground-app", (e) => handler(e.payload));
+  },
+  /** The global shortcut (Ctrl+Alt+Space). */
+  onToggle(handler: () => void): Promise<UnlistenFn> {
+    if (!inTauri) return Promise.resolve(() => {});
+    return listen("island://toggle", () => handler());
+  },
+  onOutsideClick(handler: () => void): Promise<UnlistenFn> {
+    if (!inTauri) return Promise.resolve(() => {});
+    return listen("island://outside-click", () => handler());
+  },
   onPointer(handler: (event: PointerEvent) => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});
     return listen<PointerEvent>("island://pointer", (e) => handler(e.payload));

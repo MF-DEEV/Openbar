@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-//! The island's window: a transparent, always-on-top strip along the top of
-//! a display. The page draws the island inside it; everywhere else the window
+//! The island's window: a transparent, always-on-top layer over the top of a
+//! display. The page draws the island inside it; everywhere else the window
 //! lets the pointer through to whatever is underneath. The page reports the
-//! island's shape, and a pointer watcher turns mouse input on only while the
-//! pointer is over that shape.
+//! island's shape every frame, and a pointer watcher turns mouse input on
+//! only while the pointer is over that shape.
 
 use std::sync::Mutex;
 use std::thread;
@@ -13,55 +13,51 @@ use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{
-    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Runtime, WebviewUrl,
-    WebviewWindow, WebviewWindowBuilder,
+    AppHandle, Emitter, LogicalSize, Manager, PhysicalPosition, Runtime, WebviewUrl, WebviewWindow,
+    WebviewWindowBuilder,
 };
 
 pub const LABEL: &str = "island";
-
-/// Large enough for the biggest page (the enlarged session page); the window
-/// is see-through and click-through outside the island, so its size costs
-/// nothing the person can notice.
-const WINDOW_WIDTH: f64 = 1000.0;
-const WINDOW_HEIGHT: f64 = 760.0;
 
 /// How often the pointer watcher looks at the pointer. Fast enough that
 /// hovering the closed island feels immediate.
 const POINTER_POLL: Duration = Duration::from_millis(16);
 
-/// A rectangle in the island page's CSS pixels, from the window's top-left.
+/// A rectangle in the island page's CSS pixels, from the window's top-left,
+/// with its top and bottom corners rounded by their own radii.
 #[derive(Clone, Copy, Debug, Default, Deserialize, Serialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct HitRect {
     pub x: f64,
     pub y: f64,
     pub width: f64,
     pub height: f64,
-    /// Corner radius, so the pointer at a rounded corner falls through.
     #[serde(default)]
-    pub radius: f64,
+    pub top_radius: f64,
+    #[serde(default)]
+    pub bottom_radius: f64,
 }
 
 impl HitRect {
-    fn contains(&self, px: f64, py: f64) -> bool {
+    pub fn contains(&self, px: f64, py: f64) -> bool {
         if px < self.x || py < self.y || px > self.x + self.width || py > self.y + self.height {
             return false;
         }
-        let r = self.radius.min(self.width / 2.0).min(self.height / 2.0);
-        if r <= 0.0 {
+        let limit = (self.width / 2.0).min(self.height / 2.0);
+        let top = self.top_radius.min(limit).max(0.0);
+        let bottom = self.bottom_radius.min(limit).max(0.0);
+        let (r, cy) = if py < self.y + top {
+            (top, self.y + top)
+        } else if py > self.y + self.height - bottom {
+            (bottom, self.y + self.height - bottom)
+        } else {
             return true;
-        }
-        // Only the four corner squares can miss.
+        };
+        // Only the corner squares can miss.
         let cx = if px < self.x + r {
             self.x + r
         } else if px > self.x + self.width - r {
             self.x + self.width - r
-        } else {
-            return true;
-        };
-        let cy = if py < self.y + r {
-            self.y + r
-        } else if py > self.y + self.height - r {
-            self.y + self.height - r
         } else {
             return true;
         };
@@ -75,6 +71,9 @@ pub struct IslandState {
     /// While the page holds the pointer (a drag, a slider, an open menu) the
     /// window keeps mouse input even outside the shape.
     capture: Mutex<bool>,
+    /// The window that had the keyboard before the island took it.
+    #[cfg(windows)]
+    previous_foreground: Mutex<isize>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
@@ -83,6 +82,8 @@ pub enum DisplayChoice {
     #[default]
     Primary,
     Cursor,
+    /// Every display shows the closed island; the open one follows the pointer.
+    All,
 }
 
 #[derive(Clone, Serialize)]
@@ -96,7 +97,7 @@ struct PointerEvent {
 pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>> {
     let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("island.html".into()))
         .title("Vorssaint Island")
-        .inner_size(WINDOW_WIDTH, WINDOW_HEIGHT)
+        .inner_size(1000.0, 760.0)
         .decorations(false)
         .transparent(true)
         .shadow(false)
@@ -117,44 +118,66 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>>
     Ok(window)
 }
 
-/// Puts the window at the top center of the chosen display.
+/// Spans the chosen display's width and most of its height, from its top
+/// edge: room for the largest page, the floating buttons beside and below
+/// it, and the island's swing. Transparent and click-through outside the
+/// island, so its size costs nothing the person can notice, and it never
+/// resizes during a motion (spec 01-shell §6.2).
 pub fn place<R: Runtime>(window: &WebviewWindow<R>, choice: DisplayChoice) -> tauri::Result<()> {
     let monitor = match choice {
-        DisplayChoice::Primary => window.primary_monitor()?,
+        DisplayChoice::Primary | DisplayChoice::All => window.primary_monitor()?,
         DisplayChoice::Cursor => {
             let p = window.cursor_position()?;
             window.monitor_from_point(p.x, p.y)?
         }
-    }
-    .or(window.current_monitor()?);
-    let Some(monitor) = monitor else { return Ok(()) };
+    };
+    let Some(monitor) = monitor.or(window.current_monitor()?) else {
+        return Ok(());
+    };
     let scale = monitor.scale_factor();
-    window.set_size(LogicalSize::new(WINDOW_WIDTH, WINDOW_HEIGHT))?;
-    let width = (WINDOW_WIDTH * scale).round() as i32;
-    let origin = monitor.position();
     let size = monitor.size();
-    let x = origin.x + (size.width as i32 - width) / 2;
-    window.set_position(PhysicalPosition::new(x, origin.y))?;
+    let width = size.width as f64 / scale;
+    let height = (size.height as f64 / scale * 0.8 + 96.0).min(size.height as f64 / scale);
+    window.set_size(LogicalSize::new(width, height))?;
+    window.set_position(PhysicalPosition::new(
+        monitor.position().x,
+        monitor.position().y,
+    ))?;
     Ok(())
 }
 
-/// Watches the pointer and lets the island window take mouse input only
-/// while the pointer is over the island.
+/// Watches the pointer: lets the island window take mouse input only while
+/// the pointer is over the island, tells the page when the pointer crosses
+/// the island's edge, and when a button goes down anywhere else.
 fn watch_pointer<R: Runtime>(app: AppHandle<R>) {
     thread::spawn(move || {
         let mut taking_input = false;
+        let mut was_inside = false;
+        let mut buttons_down = false;
         loop {
             thread::sleep(POINTER_POLL);
-            let Some(window) = app.get_webview_window(LABEL) else { break };
-            let Some((x, y)) = pointer_in_window(&window) else { continue };
+            let Some(window) = app.get_webview_window(LABEL) else {
+                break;
+            };
+            let Some((x, y)) = pointer_in_window(&window) else {
+                continue;
+            };
             let state = app.state::<IslandState>();
             let inside = state.rects.lock().unwrap().iter().any(|r| r.contains(x, y));
             let wants_input = inside || *state.capture.lock().unwrap();
             if wants_input != taking_input {
                 taking_input = wants_input;
                 let _ = window.set_ignore_cursor_events(!wants_input);
+            }
+            if inside != was_inside {
+                was_inside = inside;
                 let _ = window.emit_to(LABEL, "island://pointer", PointerEvent { inside, x, y });
             }
+            let down = platform::mouse_buttons_down();
+            if down && !buttons_down && !wants_input {
+                let _ = window.emit_to(LABEL, "island://outside-click", ());
+            }
+            buttons_down = down;
         }
     });
 }
@@ -162,9 +185,12 @@ fn watch_pointer<R: Runtime>(app: AppHandle<R>) {
 /// The pointer in the window's CSS pixels.
 fn pointer_in_window<R: Runtime>(window: &WebviewWindow<R>) -> Option<(f64, f64)> {
     let pointer = window.cursor_position().ok()?;
-    let origin = window.outer_position().ok()?;
+    let origin = window.inner_position().ok()?;
     let scale = window.scale_factor().ok()?;
-    Some(((pointer.x - origin.x as f64) / scale, (pointer.y - origin.y as f64) / scale))
+    Some((
+        (pointer.x - origin.x as f64) / scale,
+        (pointer.y - origin.y as f64) / scale,
+    ))
 }
 
 #[tauri::command]
@@ -183,51 +209,166 @@ pub fn island_place<R: Runtime>(app: AppHandle<R>, display: DisplayChoice) -> Re
     place(&window, display).map_err(|e| e.to_string())
 }
 
+/// While open the island may take the keyboard (Esc, shortcuts, the reply
+/// field); closed, it never does, and the app that had it gets it back.
+#[tauri::command]
+pub fn island_set_focusable<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, IslandState>,
+    focusable: bool,
+    take: bool,
+) -> Result<(), String> {
+    let window = app.get_webview_window(LABEL).ok_or("no island window")?;
+    platform::set_focusable(&window, &state, focusable, take);
+    Ok(())
+}
+
 #[cfg(windows)]
 mod platform {
+    use super::IslandState;
     use tauri::{Runtime, WebviewWindow};
+    use windows::Win32::Foundation::HWND;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{
+        GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON,
+    };
     use windows::Win32::UI::WindowsAndMessaging::{
-        GWL_EXSTYLE, GetWindowLongPtrW, SetWindowLongPtrW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        GWL_EXSTYLE, GetForegroundWindow, GetWindowLongPtrW, IsWindow, SetForegroundWindow,
+        SetWindowLongPtrW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     };
 
-    /// No taskbar button, no Alt+Tab entry, and clicking the island does not
-    /// take focus from the app the person is working in.
+    /// No taskbar button, no Alt+Tab entry, and clicking the closed island
+    /// does not take focus from the app the person is working in.
     pub fn style<R: Runtime>(window: &WebviewWindow<R>) {
         let Ok(hwnd) = window.hwnd() else { return };
         unsafe {
             let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
-            let ex = ex | WS_EX_TOOLWINDOW.0 as isize | WS_EX_NOACTIVATE.0 as isize;
+            SetWindowLongPtrW(
+                hwnd,
+                GWL_EXSTYLE,
+                ex | WS_EX_TOOLWINDOW.0 as isize | WS_EX_NOACTIVATE.0 as isize,
+            );
+        }
+    }
+
+    pub fn set_focusable<R: Runtime>(
+        window: &WebviewWindow<R>,
+        state: &IslandState,
+        focusable: bool,
+        take: bool,
+    ) {
+        let Ok(hwnd) = window.hwnd() else { return };
+        unsafe {
+            let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+            let ex = if focusable {
+                ex & !(WS_EX_NOACTIVATE.0 as isize)
+            } else {
+                ex | WS_EX_NOACTIVATE.0 as isize
+            };
             SetWindowLongPtrW(hwnd, GWL_EXSTYLE, ex);
+            let foreground = GetForegroundWindow();
+            if focusable && take {
+                if foreground != hwnd {
+                    *state.previous_foreground.lock().unwrap() = foreground.0 as isize;
+                }
+                let _ = SetForegroundWindow(hwnd);
+                let _ = window.set_focus();
+            } else if !focusable {
+                let previous = HWND(std::mem::replace(
+                    &mut *state.previous_foreground.lock().unwrap(),
+                    0,
+                ) as _);
+                if foreground == hwnd && !previous.0.is_null() && IsWindow(Some(previous)).as_bool()
+                {
+                    let _ = SetForegroundWindow(previous);
+                }
+            }
+        }
+    }
+
+    pub fn mouse_buttons_down() -> bool {
+        unsafe {
+            [VK_LBUTTON, VK_RBUTTON, VK_MBUTTON]
+                .iter()
+                .any(|k| (GetAsyncKeyState(k.0 as i32) as u16 & 0x8000) != 0)
         }
     }
 }
 
 #[cfg(not(windows))]
 mod platform {
+    use super::IslandState;
     use tauri::{Runtime, WebviewWindow};
+
     pub fn style<R: Runtime>(_window: &WebviewWindow<R>) {}
+
+    pub fn set_focusable<R: Runtime>(
+        window: &WebviewWindow<R>,
+        _state: &IslandState,
+        focusable: bool,
+        take: bool,
+    ) {
+        if focusable && take {
+            let _ = window.set_focus();
+        }
+    }
+
+    /// The Mac build is only for designing; outside clicks come from the page there.
+    pub fn mouse_buttons_down() -> bool {
+        false
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::HitRect;
 
+    fn rect(top: f64, bottom: f64) -> HitRect {
+        HitRect {
+            x: 0.0,
+            y: 0.0,
+            width: 100.0,
+            height: 40.0,
+            top_radius: top,
+            bottom_radius: bottom,
+        }
+    }
+
     #[test]
-    fn rounded_corners_let_the_pointer_through() {
-        let r = HitRect { x: 0.0, y: 0.0, width: 100.0, height: 40.0, radius: 20.0 };
+    fn rounded_bottom_corners_let_the_pointer_through() {
+        let r = rect(0.0, 20.0);
         assert!(r.contains(50.0, 20.0));
-        assert!(r.contains(20.0, 0.0));
-        assert!(!r.contains(1.0, 1.0));
+        assert!(
+            r.contains(0.0, 0.0),
+            "square top corner belongs to the island"
+        );
+        assert!(!r.contains(1.0, 39.0));
         assert!(!r.contains(99.0, 39.0));
-        assert!(r.contains(5.0, 20.0));
+        assert!(r.contains(50.0, 39.0));
         assert!(!r.contains(101.0, 20.0));
     }
 
     #[test]
-    fn square_rect_takes_its_corners() {
-        let r = HitRect { x: 10.0, y: 10.0, width: 10.0, height: 10.0, radius: 0.0 };
-        assert!(r.contains(10.0, 10.0));
-        assert!(r.contains(20.0, 20.0));
-        assert!(!r.contains(9.9, 10.0));
+    fn a_circle_is_a_rect_rounded_all_round() {
+        let c = HitRect {
+            x: 10.0,
+            y: 10.0,
+            width: 44.0,
+            height: 44.0,
+            top_radius: 22.0,
+            bottom_radius: 22.0,
+        };
+        assert!(c.contains(32.0, 32.0));
+        assert!(!c.contains(11.0, 11.0));
+        assert!(!c.contains(53.0, 53.0));
+        assert!(c.contains(32.0, 10.5));
+    }
+
+    #[test]
+    fn deserializes_from_the_page() {
+        let r: HitRect = serde_json::from_str(
+            r#"{"x":1,"y":2,"width":3,"height":4,"topRadius":0,"bottomRadius":8}"#,
+        )
+        .unwrap();
+        assert_eq!(r.bottom_radius, 8.0);
     }
 }

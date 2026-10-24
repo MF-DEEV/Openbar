@@ -5,15 +5,9 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "allowSyntheticDefaultImports": true,
-    "types": [
-      "node"
-    ],
+    "types": ["node"],
     "target": "ES2022",
-    "lib": [
-      "ES2023"
-    ]
+    "lib": ["ES2023"]
   },
-  "include": [
-    "vite.config.ts"
-  ]
+  "include": ["vite.config.ts"]
 }

@@ -1,13 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Island and settings windows",
-  "windows": [
-    "island",
-    "settings"
-  ],
-  "permissions": [
-    "core:default",
-    "opener:default"
-  ]
+  "description": "Island, menu bar and settings windows",
+  "windows": ["island", "bar", "settings"],
+  "permissions": ["core:default", "opener:default"]
 }

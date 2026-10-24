@@ -166,7 +166,11 @@ export function hitShape(geometry: Geometry, size: Size): { rect: Rect; topRadiu
   }
   const s = shoulder(size.height);
   const b = Math.max(0, Math.min(surfaceRadius(size.height), size.height / 2, (size.width - s * 2) / 2));
-  return { rect: { x: s, y: 0, width: Math.max(0, size.width - s * 2), height: size.height }, topRadius: 0, bottomRadius: b };
+  return {
+    rect: { x: s, y: 0, width: Math.max(0, size.width - s * 2), height: size.height },
+    topRadius: 0,
+    bottomRadius: b,
+  };
 }
 
 // MARK: Sizes
@@ -225,9 +229,7 @@ export function expandedWidth(geometry: Geometry, opts: { natural?: number; enla
   }
   const chosen = preferredWidth(geometry);
   const preferred =
-    geometry.input.layout !== "custom" && opts.natural !== undefined
-      ? Math.min(chosen, opts.natural + 56)
-      : chosen;
+    geometry.input.layout !== "custom" && opts.natural !== undefined ? Math.min(chosen, opts.natural + 56) : chosen;
   return Math.min(Math.max(preferred, min), limit);
 }
 
