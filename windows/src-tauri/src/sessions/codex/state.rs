@@ -121,6 +121,8 @@ pub struct Thread {
     pub pending: Vec<Pending>,
     pub phase: Option<(SessionPhase, Time)>,
     pub parent: Option<String>,
+    /// Codex's own helper threads (titles and the like), never a person's session.
+    pub ephemeral: bool,
 }
 
 #[derive(Default)]
@@ -185,6 +187,9 @@ impl State {
         entry.parent = str_at(thread, "parentThreadId")
             .map(str::to_owned)
             .or(entry.parent.take());
+        if let Some(ephemeral) = thread.get("ephemeral").and_then(Value::as_bool) {
+            entry.ephemeral = ephemeral;
+        }
         if let Some(status) = thread.get("status") {
             entry.status = Some(Status::from_json(status));
         }
@@ -334,7 +339,7 @@ impl State {
         let mut events = Vec::new();
         for thread in self.threads.values_mut() {
             // A subagent's thread belongs to its parent's row.
-            if thread.parent.is_some() || thread.cwd.is_empty() {
+            if thread.parent.is_some() || thread.ephemeral || thread.cwd.is_empty() {
                 continue;
             }
             let phase = phase(thread, now);

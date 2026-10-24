@@ -23,6 +23,11 @@ pub fn hook_main() -> ! {
     hooks::transport::run_hook(hooks::APP_ID)
 }
 
+/// `Vorssaint.exe --codex-probe`: prints what Codex's app-server tells the island.
+pub fn codex_probe_main() -> ! {
+    sessions::codex::client::probe()
+}
+
 /// `Vorssaint.exe --console <pid>`: the helper that types into a session's console.
 #[cfg(windows)]
 pub fn console_main(pid: u32) -> ! {

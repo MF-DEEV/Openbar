@@ -401,3 +401,68 @@ fn uuid_v7() -> String {
         &h[20..]
     )
 }
+
+/// `Vorssaint.exe --codex-probe`: connects like the island does and prints
+/// every message for a few seconds, to see what Codex says on this machine.
+pub fn probe() -> ! {
+    let code = (|| -> Result<(), String> {
+        let path = socket_path().ok_or("no CODEX_HOME")?;
+        println!("socket {}", path.display());
+        let stream = connect(&path)?;
+        println!("connected");
+        let (mut socket, _) =
+            tungstenite::client::client("ws://localhost/rpc", stream).map_err(|e| e.to_string())?;
+        println!("websocket up");
+        let send = |socket: &mut tungstenite::WebSocket<_>, v: Value| {
+            socket
+                .send(Message::text(v.to_string()))
+                .map_err(|e: tungstenite::Error| e.to_string())
+        };
+        send(
+            &mut socket,
+            json!({"id": 1, "method": "initialize", "params": {"clientInfo": {"name": "vorssaint-probe", "title": "Vorssaint", "version": env!("CARGO_PKG_VERSION")}, "capabilities": {"experimentalApi": true}}}),
+        )?;
+        let deadline = std::time::Instant::now() + Duration::from_secs(8);
+        while std::time::Instant::now() < deadline {
+            match socket.read() {
+                Ok(Message::Text(text)) => {
+                    let line: String = text.chars().take(1500).collect();
+                    println!("<- {line}");
+                    if let Ok(v) = serde_json::from_str::<Value>(&text)
+                        && v.get("id") == Some(&json!(1))
+                    {
+                        send(&mut socket, json!({"method": "initialized"}))?;
+                        send(
+                            &mut socket,
+                            json!({"id": 2, "method": "thread/loaded/list", "params": {}}),
+                        )?;
+                    }
+                    if let Ok(v) = serde_json::from_str::<Value>(&text)
+                        && v.get("id") == Some(&json!(2))
+                    {
+                        let ids: Vec<Value> =
+                            v["result"]["data"].as_array().cloned().unwrap_or_default();
+                        for (i, id) in ids.into_iter().enumerate() {
+                            send(
+                                &mut socket,
+                                json!({"id": 100 + i, "method": "thread/read", "params": {"threadId": id, "includeTurns": false}}),
+                            )?;
+                        }
+                    }
+                }
+                Ok(other) => println!("<- {other:?}"),
+                Err(tungstenite::Error::Io(e))
+                    if matches!(
+                        e.kind(),
+                        std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                    ) => {}
+                Err(e) => return Err(e.to_string()),
+            }
+        }
+        Ok(())
+    })();
+    if let Err(e) = &code {
+        println!("error: {e}");
+    }
+    std::process::exit(if code.is_ok() { 0 } else { 1 })
+}

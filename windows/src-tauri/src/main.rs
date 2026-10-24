@@ -5,6 +5,9 @@ fn main() {
     if std::env::args().nth(1).as_deref() == Some("--hook") {
         vorssaint_windows_lib::hook_main();
     }
+    if std::env::args().nth(1).as_deref() == Some("--codex-probe") {
+        vorssaint_windows_lib::codex_probe_main();
+    }
     #[cfg(windows)]
     if std::env::args().nth(1).as_deref() == Some("--console") {
         let pid = std::env::args()
