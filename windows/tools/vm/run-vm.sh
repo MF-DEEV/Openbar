@@ -32,6 +32,13 @@ if [[ "$mode" == install ]]; then
   )
 fi
 
+# Windows on Arm draws through ramfb until a GPU driver is installed: the
+# firmware's virtio-gpu screen stops updating once Windows takes over.
+# ramfb's resolution is set in the firmware (Device Manager > OVMF Platform
+# Configuration) and kept in efivars.fd. VM_GPU=virtio switches later.
+gpu=(-device ramfb)
+[[ "${VM_GPU:-ramfb}" == virtio ]] && gpu=(-device virtio-gpu-pci,xres="${VM_W:-1920}",yres="${VM_H:-1080}")
+
 # Sound plays through the Mac's speakers, so it is opt-in (music/mixer tests).
 audio=()
 [[ "${VM_AUDIO:-0}" == 1 ]] && audio=(-audiodev coreaudio,id=snd0 -device usb-audio,audiodev=snd0)
@@ -43,7 +50,7 @@ exec qemu-system-aarch64 \
   -smp "${VM_CPUS:-8}" -m "${VM_MEM:-12G}" \
   -drive "if=pflash,format=raw,readonly=on,file=$share/edk2-aarch64-code.fd" \
   -drive "if=pflash,format=raw,file=$vm_dir/efivars.fd" \
-  -device virtio-gpu-pci,xres="${VM_W:-1920}",yres="${VM_H:-1080}" \
+  "${gpu[@]}" \
   -device qemu-xhci,id=xhci -device usb-kbd -device usb-tablet \
   ${audio[@]+"${audio[@]}"} \
   -drive if=none,id=hd,file="$vm_dir/disk.qcow2",discard=unmap \
