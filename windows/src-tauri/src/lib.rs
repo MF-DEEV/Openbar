@@ -5,6 +5,7 @@ mod bar;
 mod hooks;
 mod hosts;
 mod island;
+mod sessions;
 mod settings;
 mod tray;
 
