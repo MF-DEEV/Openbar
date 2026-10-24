@@ -47,6 +47,31 @@ export function ClawdPreview() {
       <style>{previewCss}</style>
       <h1>Clawd</h1>
 
+      <h2>Codex robots and Clawds side by side (64×60, each phase)</h2>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginBottom: 16 }}>
+        {SESSIONS.map((s, i) => (
+          <span key={s.id} style={{ display: "flex", gap: 4, background: "#111", borderRadius: 12, padding: 6 }}>
+            <Clawd
+              character="codex"
+              costume={resolvedCostume(`codex-${s.id}`, null, null, "codex")}
+              motion={motionForPhase(s.phase, s.dozing)}
+              seed={`codex-${s.id}`}
+              since={since - i * 370}
+              width={64}
+              height={60}
+            />
+            <Clawd
+              costume={costume(s.id)}
+              motion={motionForPhase(s.phase, s.dozing)}
+              seed={s.id}
+              since={since - i * 370}
+              width={64}
+              height={60}
+            />
+          </span>
+        ))}
+      </div>
+
       <h2>Sessions (list row 32×30, click to dress)</h2>
       <div className="clawd-preview-list">
         {SESSIONS.map((s, i) => (

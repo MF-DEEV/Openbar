@@ -48,6 +48,16 @@ export const CLASSIC: Readonly<ClawdCostume> = Object.freeze({
   extra: "none",
 });
 
+/**
+ * Who wears the outfit: Clawd for Claude Code, a little terminal robot for
+ * Codex. The costume catalog and codes are shared; the figure and the shell
+ * that comes up most often differ.
+ */
+export type Character = "clawd" | "codex";
+
+/** The shell each character's lots favour: Claude's clay, Codex's mint. */
+export const FAVOURED_SHELL: Readonly<Record<Character, ClawdShell>> = { clawd: "clay", codex: "mint" };
+
 /** How often a lot draws something rather than nothing. */
 export const HAT_CHANCE = 0.7;
 export const EYEWEAR_CHANCE = 0.4;
@@ -109,11 +119,12 @@ function pick<T>(parts: readonly T[], chance: number, random: RandomSource): T {
 }
 
 /** One part after another from the same lot: seven numbers in all. */
-export function drawn(random: RandomSource): ClawdCostume {
-  const weights = SHELLS.map((shell) => (shell === "clay" ? CLAY_WEIGHT : 1));
+export function drawn(random: RandomSource, character: Character = "clawd"): ClawdCostume {
+  const favoured = FAVOURED_SHELL[character];
+  const weights = SHELLS.map((shell) => (shell === favoured ? CLAY_WEIGHT : 1));
   const total = weights.reduce((a, b) => a + b, 0);
   let ticket = Number(random.next() % BigInt(total));
-  let shell: ClawdShell = "clay";
+  let shell: ClawdShell = favoured;
   for (let i = 0; i < SHELLS.length; i++) {
     if (ticket < weights[i]) {
       shell = SHELLS[i];
@@ -158,8 +169,8 @@ export function shellForAgentColor(color: string | null | undefined): ClawdShell
  * `"<sessionId>/<agentId>"` for a subagent, whose definition's color, if
  * Claude Code knows it, sets the shell.
  */
-export function seeded(key: string, agentColor?: string | null): ClawdCostume {
-  const costume = drawn(new ClawdRandom(seed(key)));
+export function seeded(key: string, agentColor?: string | null, character: Character = "clawd"): ClawdCostume {
+  const costume = drawn(new ClawdRandom(seed(key)), character);
   const shell = shellForAgentColor(agentColor);
   return shell ? { ...costume, shell } : costume;
 }
@@ -214,8 +225,13 @@ export function parseCostume(code: string, fallback: ClawdCostume): ClawdCostume
 }
 
 /** What a session wears: what the person chose for it, or its own lot. */
-export function resolvedCostume(key: string, kept?: string | null, agentColor?: string | null): ClawdCostume {
-  const own = seeded(key, agentColor);
+export function resolvedCostume(
+  key: string,
+  kept?: string | null,
+  agentColor?: string | null,
+  character: Character = "clawd",
+): ClawdCostume {
+  const own = seeded(key, agentColor, character);
   return (kept != null ? parseCostume(kept, own) : null) ?? own;
 }
 
@@ -223,8 +239,12 @@ export function resolvedCostume(key: string, kept?: string | null, agentColor?: 
  * What to keep for a session dressed in `costume`: nothing when it is the
  * session's own lot, so the choice follows the lot if it ever changes.
  */
-export function keptCode(costume: ClawdCostume | null | undefined, key: string): string | null {
-  if (!costume || sameCostume(costume, seeded(key))) return null;
+export function keptCode(
+  costume: ClawdCostume | null | undefined,
+  key: string,
+  character: Character = "clawd",
+): string | null {
+  if (!costume || sameCostume(costume, seeded(key, null, character))) return null;
   return costumeCode(costume);
 }
 

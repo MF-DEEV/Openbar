@@ -10,7 +10,7 @@
 // only when its pose changes, which keeps ten of them in the island cheap.
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
-import { costumeCode, seed as seedOf, type ClawdCostume } from "./costume";
+import { costumeCode, seed as seedOf, type Character, type ClawdCostume } from "./costume";
 import {
   HEIGHT,
   layout,
@@ -84,13 +84,13 @@ export function setClawdLowPower(on: boolean) {
 // Made once per costume and pose, as the Mac's 512-entry cache.
 const images = new Map<string, ImageData>();
 
-function imageFor(costume: ClawdCostume, pose: ClawdPose, key: string): ImageData {
+function imageFor(costume: ClawdCostume, pose: ClawdPose, key: string, character: Character): ImageData {
   let image = images.get(key);
   if (image) {
     // Most recently used goes to the end, so the oldest is evicted first.
     images.delete(key);
   } else {
-    image = new ImageData(pixels(costume, pose), WIDTH, HEIGHT);
+    image = new ImageData(pixels(costume, pose, character), WIDTH, HEIGHT);
     if (images.size >= 512) images.delete(images.keys().next().value!);
   }
   images.set(key, image);
@@ -177,6 +177,8 @@ function Canvas(props: {
 
 export interface ClawdProps {
   costume: ClawdCostume;
+  /** Clawd for Claude Code (the default), the terminal robot for Codex. */
+  character?: Character;
   /** What it does; see motionForPhase. Defaults to `rest`. */
   motion?: ClawdMotion;
   /** Its own rhythm: the costume key (session id or `sessionId/agentId`) or its FNV-1a seed. */
@@ -201,7 +203,7 @@ export interface ClawdProps {
 
 /** A Clawd fitted to a box, moving unless Reduce Motion is on. Decoration only: aria-hidden. */
 export function Clawd(props: ClawdProps) {
-  const { costume, motion = "rest", bubbles = true, width, height } = props;
+  const { costume, motion = "rest", bubbles = true, width, height, character = "clawd" } = props;
   const reduce = useReducedMotion();
   const still = props.still ?? reduce;
   const ratio = useDevicePixelRatio();
@@ -237,17 +239,17 @@ export function Clawd(props: ClawdProps) {
         still,
         bubbles,
       });
-      const key = `${code}|${poseKey(next)}`;
+      const key = `${character}|${code}|${poseKey(next)}`;
       if (key === shown) return;
       shown = key;
-      context.putImageData(imageFor(costume, next, key), 0, 0);
+      context.putImageData(imageFor(costume, next, key, character), 0, 0);
     };
     draw();
     // A canvas the size of the sprite is redrawn after it remounts or its size changes.
     if (still || !visible) return;
     return subscribe(draw);
     // `costume` is captured through `code`, which names it.
-  }, [code, motion, start, seedValue, cheerMs, still, bubbles, visible, width, height, ratio]);
+  }, [code, character, motion, start, seedValue, cheerMs, still, bubbles, visible, width, height, ratio]);
 
   return (
     <Canvas
@@ -264,6 +266,7 @@ export function Clawd(props: ClawdProps) {
 /** A Clawd standing still in one pose, for the wardrobe's tiles: dozens at once, none moving. */
 export function ClawdPicture(props: {
   costume: ClawdCostume;
+  character?: Character;
   pose?: ClawdPose;
   width: number;
   height: number;
@@ -273,9 +276,10 @@ export function ClawdPicture(props: {
   const ratio = useDevicePixelRatio();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pose = props.pose ?? basePose();
-  const key = `${costumeCode(props.costume)}|${poseKey(pose)}`;
+  const character = props.character ?? "clawd";
+  const key = `${character}|${costumeCode(props.costume)}|${poseKey(pose)}`;
   useEffect(() => {
-    canvasRef.current?.getContext("2d")?.putImageData(imageFor(props.costume, pose, key), 0, 0);
+    canvasRef.current?.getContext("2d")?.putImageData(imageFor(props.costume, pose, key, character), 0, 0);
   }, [key, props.width, props.height, ratio]);
   return (
     <Canvas

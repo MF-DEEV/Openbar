@@ -8,6 +8,7 @@
 
 import {
   SHELL_RGB,
+  type Character,
   type ClawdCostume,
   type ClawdEyewear,
   type ClawdExtra,
@@ -370,7 +371,21 @@ export function hatStamps(hat: ClawdHat, tick: number): Stamp[] {
 }
 
 /** Where the right hand is in each pose, for what it holds. */
-function rightHand(arms: Arms): [number, number] {
+function rightHand(arms: Arms, character: Character = "clawd"): [number, number] {
+  if (character === "codex") {
+    switch (arms) {
+      case "down":
+      case "typeLeft":
+        return [14, 3];
+      case "typeRight":
+        return [14, 4];
+      case "up":
+      case "waveUp":
+        return [14, -3];
+      case "waveOut":
+        return [15, -1];
+    }
+  }
   switch (arms) {
     case "down":
     case "typeLeft":
@@ -385,7 +400,7 @@ function rightHand(arms: Arms): [number, number] {
   }
 }
 
-export function extraStamps(extra: ClawdExtra, arms: Arms, tick: number): Stamp[] {
+export function extraStamps(extra: ClawdExtra, arms: Arms, tick: number, character: Character = "clawd"): Stamp[] {
   switch (extra) {
     case "none":
       return [];
@@ -410,7 +425,7 @@ export function extraStamps(extra: ClawdExtra, arms: Arms, tick: number): Stamp[
         ]),
       ];
     case "coffee": {
-      const [x, y] = rightHand(arms);
+      const [x, y] = rightHand(arms, character);
       const steam = tick === 0 ? [".w.", "w.."] : ["w..", ".w."];
       return [s(x, y - 2, [...steam, "NNN", "WWW", "WWW"])];
     }
@@ -432,11 +447,66 @@ export function bubbleStamps(bubble: Bubble): Stamp[] {
   }
 }
 
+// MARK: Codex's robot
+
+/**
+ * Codex's figure fills Clawd's 13 x 8 footprint, so every hat, pair of
+ * glasses and extra sits on it unchanged: a terminal with rounded corners,
+ * eyes glowing on its dark screen (V), a status light (G), an antenna, two
+ * stubby feet and thin arms.
+ */
+const CODEX_BODY = [
+  ".CCCCCCCCCCC.",
+  "CCVVVVVVVVVCC",
+  "CCVVVVVVVVVCC",
+  "CCVVVVVVVVVCC",
+  "CCVVVVVVVVVCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCGcCC",
+  ".ccccccccccc.",
+];
+
+const CODEX_DOWN_LEFT = s(-1, 3, ["C", "C", "c"]);
+const CODEX_DOWN_RIGHT = s(13, 3, ["C", "C", "c"]);
+const CODEX_UP_LEFT = s(-1, -2, ["c", "C", "C", "C"]);
+const CODEX_UP_RIGHT = s(13, -2, ["c", "C", "C", "C"]);
+
+export const CODEX_ARM_STAMPS: Readonly<Record<Arms, readonly Stamp[]>> = {
+  down: [CODEX_DOWN_LEFT, CODEX_DOWN_RIGHT],
+  up: [CODEX_UP_LEFT, CODEX_UP_RIGHT],
+  typeLeft: [s(-2, 4, [".C", "cC"]), CODEX_DOWN_RIGHT],
+  typeRight: [CODEX_DOWN_LEFT, s(13, 4, ["C.", "Cc"])],
+  waveUp: [CODEX_DOWN_LEFT, CODEX_UP_RIGHT],
+  waveOut: [CODEX_DOWN_LEFT, s(13, 0, [".c", "C.", "C."])],
+};
+
+/** The antenna, drawn under any hat so a hat simply covers it. */
+const CODEX_ANTENNA = [s(6, -2, ["G"]), s(6, -1, ["c"])];
+
 // MARK: Compositing
 
 const BODY_ROWS = Array.from({ length: 8 }, () => "C".repeat(13));
 
-function compose(costume: ClawdCostume, p: ClawdPose): { canvas: (string | null)[]; clipped: number } {
+const LEGS: Readonly<Record<Character, readonly (readonly [number, boolean])[]>> = {
+  clawd: [
+    [0, true],
+    [2, true],
+    [10, false],
+    [12, false],
+  ],
+  codex: [
+    [3, true],
+    [4, true],
+    [8, false],
+    [9, false],
+  ],
+};
+
+function compose(
+  costume: ClawdCostume,
+  p: ClawdPose,
+  character: Character = "clawd",
+): { canvas: (string | null)[]; clipped: number } {
   const canvas: (string | null)[] = new Array(WIDTH * HEIGHT).fill(null);
   let clipped = 0;
   const lift = p.rise + p.jump;
@@ -456,12 +526,7 @@ function compose(costume: ClawdCostume, p: ClawdPose): { canvas: (string | null)
     });
   };
   // Legs reach the ground under a rising body, and tuck in off it.
-  for (const [x, left] of [
-    [0, true],
-    [2, true],
-    [10, false],
-    [12, false],
-  ] as const) {
+  for (const [x, left] of LEGS[character]) {
     const lifted = (p.legs === "stepLeft" && left) || (p.legs === "stepRight" && !left);
     const top = 8 - p.rise;
     const bottom = p.jump > 0 || lifted ? 8 : 9;
@@ -474,25 +539,31 @@ function compose(costume: ClawdCostume, p: ClawdPose): { canvas: (string | null)
       -p.jump,
     );
   }
-  put(s(0, 0, BODY_ROWS));
-  ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  if (character === "codex") {
+    CODEX_ANTENNA.forEach((stamp) => put(stamp));
+    put(s(0, 0, CODEX_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else {
+    put(s(0, 0, BODY_ROWS));
+    ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  }
   put(eyeStamp(p.eyes, 3));
   put(eyeStamp(p.eyes, 9));
   if (costume.eyewear !== "none") put(EYEWEAR_STAMPS[costume.eyewear]);
   hatStamps(costume.hat, p.tick).forEach((stamp) => put(stamp));
-  extraStamps(costume.extra, p.arms, p.tick).forEach((stamp) => put(stamp));
+  extraStamps(costume.extra, p.arms, p.tick, character).forEach((stamp) => put(stamp));
   if (p.bubble) bubbleStamps(p.bubble).forEach((stamp) => put(stamp));
   return { canvas, clipped };
 }
 
 /** One letter per canvas pixel, row-major from the top, null where nothing is drawn. */
-export function letters(costume: ClawdCostume, p: ClawdPose): (string | null)[] {
-  return compose(costume, p).canvas;
+export function letters(costume: ClawdCostume, p: ClawdPose, character: Character = "clawd"): (string | null)[] {
+  return compose(costume, p, character).canvas;
 }
 
 /** How many pixels fall off the canvas: none, for a drawing that fits. */
-export function clippedPixels(costume: ClawdCostume, p: ClawdPose): number {
-  return compose(costume, p).clipped;
+export function clippedPixels(costume: ClawdCostume, p: ClawdPose, character: Character = "clawd"): number {
+  return compose(costume, p, character).clipped;
 }
 
 // MARK: Colors
@@ -540,8 +611,17 @@ const shaded = (c: Rgb): Rgb => [
   Math.trunc((c[2] * 78) / 100),
 ];
 
+/** Codex's screen and the light its eyes and status lamp give off. */
+const CODEX_SCREEN: Rgb = [16, 22, 28];
+const CODEX_GLOW: Rgb = [124, 240, 204];
+
 /** sRGB out of 255 for a letter on this costume, or null for one with no color. */
-export function color(letter: string, costume: ClawdCostume): Rgb | null {
+export function color(letter: string, costume: ClawdCostume, character: Character = "clawd"): Rgb | null {
+  if (character === "codex") {
+    if (letter === "V") return CODEX_SCREEN;
+    // Eyes glow on the dark screen instead of being dark on the shell.
+    if (letter === "E" || letter === "G") return CODEX_GLOW;
+  }
   const shell = SHELL_RGB[costume.shell];
   const accent = SHELL_RGB[ACCENT[costume.shell]];
   switch (letter) {
@@ -561,14 +641,14 @@ export function color(letter: string, costume: ClawdCostume): Rgb | null {
 const hex = (c: Rgb) => "#" + c.map((v) => v.toString(16).padStart(2, "0")).join("");
 
 /** The drawing as rows of CSS colors (`#rrggbb`), null where it is clear. */
-export function grid(costume: ClawdCostume, p: ClawdPose): (string | null)[][] {
-  const canvas = letters(costume, p);
+export function grid(costume: ClawdCostume, p: ClawdPose, character: Character = "clawd"): (string | null)[][] {
+  const canvas = letters(costume, p, character);
   const rows: (string | null)[][] = [];
   for (let y = 0; y < HEIGHT; y++) {
     const row: (string | null)[] = [];
     for (let x = 0; x < WIDTH; x++) {
       const letter = canvas[y * WIDTH + x];
-      const rgb = letter ? color(letter, costume) : null;
+      const rgb = letter ? color(letter, costume, character) : null;
       row.push(rgb ? hex(rgb) : null);
     }
     rows.push(row);
@@ -577,10 +657,14 @@ export function grid(costume: ClawdCostume, p: ClawdPose): (string | null)[][] {
 }
 
 /** Straight RGBA bytes, ready for ImageData; every pixel opaque or clear. */
-export function pixels(costume: ClawdCostume, p: ClawdPose): Uint8ClampedArray<ArrayBuffer> {
+export function pixels(
+  costume: ClawdCostume,
+  p: ClawdPose,
+  character: Character = "clawd",
+): Uint8ClampedArray<ArrayBuffer> {
   const bytes = new Uint8ClampedArray(WIDTH * HEIGHT * 4);
-  letters(costume, p).forEach((letter, index) => {
-    const rgb = letter ? color(letter, costume) : null;
+  letters(costume, p, character).forEach((letter, index) => {
+    const rgb = letter ? color(letter, costume, character) : null;
     if (!rgb) return;
     bytes[index * 4] = rgb[0];
     bytes[index * 4 + 1] = rgb[1];
