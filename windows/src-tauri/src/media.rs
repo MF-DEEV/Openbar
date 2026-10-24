@@ -121,7 +121,12 @@ pub fn source_name(aumid: &str) -> String {
 pub type Shared = Arc<Mutex<Option<NowPlaying>>>;
 
 #[cfg(windows)]
-pub use imp::{command, open_player, seek, set_shuffle, start};
+pub use imp::{command, open_player, probe, seek, set_shuffle, start};
+
+#[cfg(not(windows))]
+pub fn probe() -> String {
+    "SMTC is Windows only\n".into()
+}
 
 #[cfg(windows)]
 mod imp {
@@ -331,6 +336,48 @@ mod imp {
                 }
             })
             .expect("now-playing thread");
+    }
+
+    /// `--music-probe`: what the reader sees, step by step, for diagnosing a machine.
+    pub fn probe() -> String {
+        let mut out = String::new();
+        unsafe {
+            let r = CoInitializeEx(None, COINIT_MULTITHREADED);
+            out.push_str(&format!("CoInitializeEx: {r:?}\n"));
+        }
+        let manager = match Manager::RequestAsync().and_then(|op| op.join()) {
+            Ok(m) => m,
+            Err(e) => return out + &format!("RequestAsync failed: {e}\n"),
+        };
+        match manager.GetSessions() {
+            Ok(list) => {
+                out.push_str(&format!("sessions: {}\n", list.Size().unwrap_or(0)));
+                for s in list {
+                    let id = s
+                        .SourceAppUserModelId()
+                        .map(|h| h.to_string())
+                        .unwrap_or_default();
+                    let status = s
+                        .GetPlaybackInfo()
+                        .and_then(|i| i.PlaybackStatus())
+                        .map(|v| v.0);
+                    out.push_str(&format!("  {id} status={status:?}\n"));
+                    match read(&s, None) {
+                        Some(p) => out.push_str(&format!(
+                            "    {} - {} ({:.0}/{:.0}s) art={}\n",
+                            p.title,
+                            p.artist,
+                            p.elapsed,
+                            p.duration,
+                            p.artwork.as_ref().map_or(0, |a| a.len())
+                        )),
+                        None => out.push_str("    read: none\n"),
+                    }
+                }
+            }
+            Err(e) => out.push_str(&format!("GetSessions failed: {e}\n")),
+        }
+        out
     }
 
     fn with_session<T>(f: impl FnOnce(&Session) -> windows::core::Result<T>) -> Option<T> {

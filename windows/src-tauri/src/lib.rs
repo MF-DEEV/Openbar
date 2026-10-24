@@ -24,6 +24,12 @@ pub fn hook_main() -> ! {
     hooks::transport::run_hook(hooks::APP_ID)
 }
 
+/// `Vorssaint.exe --music-probe <file>`: writes what the media reader sees.
+pub fn music_probe_main(path: &str) -> ! {
+    let _ = std::fs::write(path, media::probe());
+    std::process::exit(0)
+}
+
 /// `Vorssaint.exe --codex-probe`: prints what Codex's app-server tells the island.
 pub fn codex_probe_main() -> ! {
     sessions::codex::client::probe()

@@ -5,6 +5,12 @@ fn main() {
     if std::env::args().nth(1).as_deref() == Some("--hook") {
         vorssaint_windows_lib::hook_main();
     }
+    if std::env::args().nth(1).as_deref() == Some("--music-probe") {
+        let path = std::env::args()
+            .nth(2)
+            .unwrap_or_else(|| "music-probe.txt".into());
+        vorssaint_windows_lib::music_probe_main(&path);
+    }
     if std::env::args().nth(1).as_deref() == Some("--codex-probe") {
         vorssaint_windows_lib::codex_probe_main();
     }
