@@ -212,8 +212,9 @@ impl State {
                     id: id.clone(),
                     ..Default::default()
                 });
+                // A new turn starts now; turn/started, if it comes, has the exact time.
                 if status.is_active() && !thread.status.as_ref().is_some_and(Status::is_active) {
-                    thread.turn_started.get_or_insert(now);
+                    thread.turn_started = Some(now);
                 }
                 thread.status = Some(status);
                 return (!known).then_some(id);
@@ -782,6 +783,24 @@ mod tests {
         assert_eq!(phase(&state.threads["t1"], 311.0), SessionPhase::Finished);
         state.acknowledge("t1", 312.0);
         assert_eq!(phase(&state.threads["t1"], 313.0), SessionPhase::Idle);
+    }
+
+    #[test]
+    fn each_turn_seen_only_by_its_status_starts_its_own_clock() {
+        let mut state = state_with_thread();
+        let active = json!({"threadId": "t1", "status": {"type": "active", "activeFlags": []}});
+        let idle = json!({"threadId": "t1", "status": {"type": "idle"}});
+        state.notify("thread/status/changed", &active, 300.0);
+        state.notify("thread/status/changed", &idle, 310.0);
+        state.notify("thread/status/changed", &active, 400.0);
+        assert_eq!(state.threads["t1"].turn_started, Some(400.0));
+        // An exact start from turn/started still wins.
+        state.notify(
+            "turn/started",
+            &json!({"threadId": "t1", "turn": {"startedAt": 399}}),
+            401.0,
+        );
+        assert_eq!(state.threads["t1"].turn_started, Some(399.0));
     }
 
     #[test]
