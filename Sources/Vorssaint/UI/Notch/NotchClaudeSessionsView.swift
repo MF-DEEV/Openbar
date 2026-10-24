@@ -91,20 +91,21 @@ struct NotchClaudeSessionsView: View {
     }
 }
 
-/// How many sessions work, wait and have news, beside the camera.
+/// How many sessions work, wait and have news, beside the camera: the ones
+/// at work counted by agent, each in its color, as on the closed strip.
 private struct NotchClaudeSessionCounts: View {
     let counts: ClaudeSessionCounts
     let total: Int
 
     var body: some View {
         HStack(spacing: 8) {
-            ForEach(NotchClaudeSessionsSupport.stripReading(counts), id: \.phase) { item in
+            ForEach(NotchClaudeSessionsSupport.stripReading(counts)) { item in
                 HStack(spacing: 3) {
                     Image(systemName: NotchClaudeSessionsSupport.symbol(item.phase))
                         .font(.system(size: 9, weight: .semibold))
                     Text("\(item.count)").font(.system(size: 11, weight: .semibold)).monospacedDigit()
                 }
-                .foregroundStyle(item.phase.tint)
+                .foregroundStyle(item.tint)
             }
             if counts.isEmpty {
                 Text("\(total)").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
@@ -178,7 +179,7 @@ struct NotchClaudeSessionRow: View {
         .modifier(NotchControlSurface(cornerRadius: 14))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(session.phase.tint.opacity(session.phase.isWaiting ? 0.55 : 0), lineWidth: 1)
+                .strokeBorder(session.tint.opacity(session.phase.isWaiting ? 0.55 : 0), lineWidth: 1)
                 .allowsHitTesting(false)
         }
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -200,7 +201,7 @@ struct NotchClaudeSessionRow: View {
                     Text(clock)
                         .font(.system(size: 11, weight: .medium))
                         .monospacedDigit()
-                        .foregroundStyle(session.phase.tint)
+                        .foregroundStyle(session.tint)
                 }
             }
             HStack(spacing: 6) {
@@ -209,7 +210,7 @@ struct NotchClaudeSessionRow: View {
                 NotchClaudeProjectTag(project: session.project)
                     .layoutPriority(2)
                 Text(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name))
-                    .foregroundStyle(session.phase.isWaiting ? session.phase.tint : .secondary)
+                    .foregroundStyle(session.phase.isWaiting ? session.tint : .secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .layoutPriority(1)
@@ -257,20 +258,23 @@ struct NotchClaudeProjectTag: View {
     }
 }
 
-/// The phase as a shape and a color, never a color alone.
+/// The phase as a shape and a color, never a color alone. At work it shows
+/// the mark of the agent doing the work, in that agent's color.
 struct NotchClaudeSessionBadge: View {
     let phase: ClaudeSessionPhase
+    var provider = ClaudeSessionProvider.claude
     var size: CGFloat = 26
 
     var body: some View {
+        let tint = phase.tint(for: provider)
         ZStack {
-            Circle().fill(phase.tint.opacity(0.16))
+            Circle().fill(tint.opacity(0.16))
             if phase.isWorking {
-                NotchAgentGlyph(provider: .claude, size: size * 0.42, working: true)
+                NotchSessionAgentGlyph(provider: provider, size: size * 0.42, working: true)
             } else {
                 Image(systemName: NotchClaudeSessionsSupport.symbol(phase))
                     .font(.system(size: size * 0.42, weight: .semibold))
-                    .foregroundStyle(phase.tint)
+                    .foregroundStyle(tint)
             }
         }
         .frame(width: size, height: size)
@@ -288,17 +292,44 @@ struct NotchClaudeSessionInlineLabel: LabelStyle {
 }
 
 extension ClaudeSessionPhase {
-    /// Claude's own color while it works, amber while it waits on the
-    /// person, green for a result to read.
-    var tint: Color {
+    /// The phase's color in a Claude Code session, and for the phases every
+    /// agent shares.
+    var tint: Color { tint(for: .claude) }
+
+    /// The agent's own color while it works, amber while it waits on the
+    /// person, green for a result to read: only work tells agents apart.
+    func tint(for provider: ClaudeSessionProvider) -> Color {
         switch self {
-        case .generating, .runningTool: return AgentProvider.claude.tint
-        case .background: return AgentProvider.claude.tint.opacity(0.75)
+        case .generating, .runningTool: return provider.tint
+        case .background: return provider.tint.opacity(0.75)
         case .waitingPermission, .waitingInput: return Color(red: 1.0, green: 0.78, blue: 0.28)
         case .finished: return Color(red: 0.36, green: 0.84, blue: 0.52)
         case .idle: return .white.opacity(0.45)
         }
     }
+}
+
+extension ClaudeSessionProvider {
+    /// The agent behind a session, as the AI section knows it.
+    var agent: AgentProvider {
+        switch self {
+        case .claude: return .claude
+        case .codex: return .codex
+        }
+    }
+
+    /// Claude's orange or Codex's periwinkle, the same as on the AI page.
+    var tint: Color { agent.tint }
+}
+
+extension ClaudeSession {
+    /// The session's phase in its agent's color.
+    var tint: Color { phase.tint(for: provider) }
+}
+
+extension NotchClaudeSessionsSupport.StripItem {
+    /// An agent's count at work in its color; the rest in the phase's.
+    var tint: Color { phase.tint(for: provider ?? .claude) }
 }
 
 enum NotchClaudeSessionFormat {
@@ -324,9 +355,12 @@ enum NotchClaudeSessionFormat {
         }
     }
 
-    /// The counts, read aloud.
+    /// The counts, read aloud, the ones at work with whose they are.
     static func counts(_ counts: ClaudeSessionCounts, text: NotchClaudeSessionStrings) -> String {
-        NotchClaudeSessionsSupport.stripReading(counts).map { "\($0.count) \(text.phase($0.phase))" }.joined(separator: ", ")
+        NotchClaudeSessionsSupport.stripReading(counts).map { item in
+            let reading = "\(item.count) \(text.phase(item.phase))"
+            return item.provider.map { "\(reading) (\(text.agent($0)))" } ?? reading
+        }.joined(separator: ", ")
     }
 
     /// Why a reply did not go.

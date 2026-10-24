@@ -30,6 +30,44 @@ enum ClaudeSessionHosts {
         return "/dev/" + String(cString: name)
     }
 
+    /// The working folder of a process of this user.
+    static func cwd(of pid: Int32) -> String? {
+        var info = proc_vnodepathinfo()
+        let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { return nil }
+        let path = withUnsafeBytes(of: info.pvi_cdir.vip_path) { raw in
+            String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
+        }
+        return path.isEmpty ? nil : path
+    }
+
+    /// Codex's terminal UIs: processes named `codex` with a controlling
+    /// terminal, by working folder. The shared app-server has no terminal,
+    /// so it is left out.
+    static func codexTerminals() -> [(pid: Int32, cwd: String)] {
+        let count = proc_listallpids(nil, 0)
+        guard count > 0 else { return [] }
+        var pids = [Int32](repeating: 0, count: Int(count) + 32)
+        let filled = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.size))
+        guard filled > 0 else { return [] }
+        return pids.prefix(Int(filled)).compactMap { pid in
+            guard pid > 0 else { return nil }
+            var name = [CChar](repeating: 0, count: Int(MAXCOMLEN) + 1)
+            guard proc_name(pid, &name, UInt32(name.count)) > 0, String(cString: name) == "codex",
+                  tty(of: pid) != nil, let cwd = cwd(of: pid) else { return nil }
+            return (pid, cwd)
+        }
+    }
+
+    /// The terminal UI showing a Codex thread that runs in `cwd`: the one
+    /// there, or with several there, none (Open then leaves it to the app).
+    static func codexTerminal(cwd: String, among terminals: [(pid: Int32, cwd: String)]) -> Int32? {
+        let standard = { (path: String) in URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path }
+        let wanted = standard(cwd)
+        let here = terminals.filter { standard($0.cwd) == wanted }
+        return here.count == 1 ? here[0].pid : nil
+    }
+
     /// The keys of a session's environment that tell where it runs. Nothing
     /// else in it is kept.
     static let hostKeys: Set<String> = ["__CFBundleIdentifier", "CLAUDE_CODE_SSE_PORT"]

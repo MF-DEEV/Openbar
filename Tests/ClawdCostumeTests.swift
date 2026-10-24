@@ -7,6 +7,7 @@ enum ClawdCostumeTests {
     static func run(_ suite: TestSuite) {
         suite.run("clawd costume lot") { lot(suite) }
         suite.run("clawd costume keeping") { keeping(suite) }
+        suite.run("codex robot costume lot") { robotLot(suite) }
         suite.run("clawd motions and pages") { motions(suite) }
         suite.run("clawd strings") { strings(suite) }
     }
@@ -70,6 +71,45 @@ enum ClawdCostumeTests {
         suite.expect(ClawdCostume.seeded("s/a1", agentColor: nil) == ClawdCostume.seeded("s/a1")
                      && ClawdCostume.seeded("s/a1", agentColor: "mauve") == ClawdCostume.seeded("s/a1"),
                      "without a color it Claude Code knows, the lot decides the shell too")
+    }
+
+    static func robotLot(_ suite: TestSuite) {
+        suite.expect(ClaudeSessionProvider.claude.character == .clawd && ClaudeSessionProvider.codex.character == .codex
+                     && ClawdCharacter.clawd.favouredShell == .clay && ClawdCharacter.codex.favouredShell == .iris,
+                     "Claude Code sessions are Clawds favouring clay, Codex sessions robots favouring iris")
+        let keys = (0..<600).map { "session-\($0)" }
+        suite.expect(keys.allSatisfy { ClawdCostume.seeded($0, character: .clawd) == ClawdCostume.seeded($0) }
+                     && ClawdCostume.seeded("99c35831-5f0b-4c3e-9d0a-0f3c2a7b8e11").code == "v1:teal.none.monocle.none",
+                     "Clawd's lots are the ones every earlier version drew")
+        let robots = keys.map { ClawdCostume.seeded($0, character: .codex) }
+        let clawds = keys.map { ClawdCostume.seeded($0) }
+        suite.expect(zip(robots, clawds).allSatisfy { $0.hat == $1.hat && $0.eyewear == $1.eyewear && $0.extra == $1.extra },
+                     "a robot draws the same hat, eyewear and extra as Clawd would from the same key")
+        func share(_ costumes: [ClawdCostume], _ shell: ClawdShell) -> Double {
+            Double(costumes.filter { $0.shell == shell }.count) / Double(costumes.count)
+        }
+        suite.expect(share(robots, .iris) > share(robots, .sky) * 1.8 && share(robots, .iris) > share(robots, .clay) * 1.8,
+                     "the robot's iris comes up more often than any other shell: \(share(robots, .iris))")
+        suite.expect(Set(robots.map(\.shell)) == Set(ClawdShell.allCases), "and every shell still comes up")
+        suite.expect(zip(robots, clawds).contains { $0 != $1 }, "so a robot's lot is not always Clawd's")
+        suite.expect(ClawdCostume.seeded("s/a1", agentColor: "green", character: .codex).shell == .moss,
+                     "a subagent's color sets the robot's shell too")
+
+        // A key whose two lots differ: Reset and the kept choice compare with the robot's.
+        guard let key = keys.first(where: { ClawdCostume.seeded($0) != ClawdCostume.seeded($0, character: .codex) }) else {
+            suite.expect(false, "some key draws two different lots")
+            return
+        }
+        let own = ClawdCostume.seeded(key, character: .codex), clawd = ClawdCostume.seeded(key)
+        suite.expect(ClawdCostume.resolved(key: key, kept: nil, character: .codex) == own
+                     && ClawdCostume.resolved(key: key, kept: clawd.code, character: .codex) == clawd,
+                     "a Codex session wears its robot's lot, or what the person chose")
+        suite.expect(ClawdCostume.kept(own, key: key, character: .codex) == nil
+                     && ClawdCostume.kept(clawd, key: key, character: .codex) == clawd.code
+                     && ClawdCostume.kept(own, key: key) == own.code,
+                     "dressing the robot in its own lot keeps nothing, and in Clawd's lot keeps that choice")
+        suite.expect((0..<30).allSatisfy { _ in ClawdCostume.random(excluding: own, character: .codex) != own },
+                     "Surprise me changes the robot's costume too")
     }
 
     static func keeping(_ suite: TestSuite) {

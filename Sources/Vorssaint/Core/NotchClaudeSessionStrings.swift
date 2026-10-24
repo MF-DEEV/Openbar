@@ -20,6 +20,7 @@ struct NotchClaudeSessionStrings {
     let deny: String
     let answerInTerminal: String
     let question: String
+    let questionCodex: String
     let pickAny: String
     let ownAnswer: String
     let sendAnswer: String
@@ -45,6 +46,7 @@ struct NotchClaudeSessionStrings {
     let removeImage: String
     let send: String
     let replyPlaceholder: String
+    let replyPlaceholderCodex: String
     let replyUnavailable: String
     let replyWhileWaiting: String
     let replyWhileDialog: String
@@ -54,6 +56,7 @@ struct NotchClaudeSessionStrings {
     let recentTools: String
     let lastReply: String
     let previewsOff: String
+    let previewsOffCodex: String
     let permissionNotice: String
     let inputNotice: String
     let finishedNotice: String
@@ -75,6 +78,10 @@ struct NotchClaudeSessionStrings {
     let sendWhileWaiting: String
     let bridgeTitle: String
     let bridgeHint: String
+    let codexHint: String
+    let codexConnected: String
+    let codexNotRunning: String
+    let codexNotFound: String
     let installBridge: String
     let updateBridge: String
     let settingsUnreadable: String
@@ -116,6 +123,15 @@ struct NotchClaudeSessionStrings {
         }
     }
 
+    /// What names the agent of a session, where Claude would otherwise be named.
+    func question(for provider: ClaudeSessionProvider) -> String { provider == .codex ? questionCodex : question }
+    func replyPlaceholder(for provider: ClaudeSessionProvider) -> String {
+        provider == .codex ? replyPlaceholderCodex : replyPlaceholder
+    }
+    func previewsOff(for provider: ClaudeSessionProvider) -> String { provider == .codex ? previewsOffCodex : previewsOff }
+    /// The agent's own name, which is the same in every language.
+    func agent(_ provider: ClaudeSessionProvider) -> String { provider == .codex ? "Codex" : "Claude" }
+
     func moreSubagents(_ count: Int) -> String { String(format: moreSubagentsFormat, count) }
     func tasks(done: Int, total: Int) -> String { String(format: tasksFormat, done, total) }
     func showAll(_ count: Int) -> String { String(format: showAllFormat, count) }
@@ -143,10 +159,10 @@ extension FeatureStrings {
 extension NotchClaudeSessionStrings {
     static let enUS = NotchClaudeSessionStrings(
         title: "Sessions",
-        summary: "Running Claude Code sessions and what each one needs from you.",
-        settingsDescription: "Reads the state Claude Code keeps for each running session on this Mac. Prompts and replies stay unread unless you turn on previews, and nothing leaves your Mac.",
+        summary: "Running Claude Code and Codex sessions, and what each one needs from you.",
+        settingsDescription: "Reads the state Claude Code and Codex keep for each running session on this Mac. Prompts and replies stay unread unless you turn on previews, and nothing leaves your Mac.",
         emptyTitle: "No sessions running",
-        emptyDetail: "Start Claude Code in Terminal or Antigravity and it shows up here.",
+        emptyDetail: "Start Claude Code or Codex in Terminal or Antigravity and it shows up here.",
         generating: "Working",
         runningTool: "Running",
         waitingPermission: "Needs permission",
@@ -158,6 +174,7 @@ extension NotchClaudeSessionStrings {
         deny: "Deny",
         answerInTerminal: "Answer this one in the terminal.",
         question: "Claude asks",
+        questionCodex: "Codex asks",
         pickAny: "Pick any that apply",
         ownAnswer: "Or write your own answer…",
         sendAnswer: "Answer",
@@ -183,6 +200,7 @@ extension NotchClaudeSessionStrings {
         removeImage: "Remove image",
         send: "Send",
         replyPlaceholder: "Reply to Claude…",
+        replyPlaceholderCodex: "Reply to Codex…",
         replyUnavailable: "Replies work in Terminal and Antigravity",
         replyWhileWaiting: "Answer the prompt first",
         replyWhileDialog: "Close the dialog in the terminal first",
@@ -192,6 +210,7 @@ extension NotchClaudeSessionStrings {
         recentTools: "Recent",
         lastReply: "Last reply",
         previewsOff: "Turn on previews in Settings to see what Claude wrote.",
+        previewsOffCodex: "Turn on previews in Settings to see what Codex wrote.",
         permissionNotice: "Needs permission",
         inputNotice: "Waiting for you",
         finishedNotice: "Done",
@@ -213,6 +232,10 @@ extension NotchClaudeSessionStrings {
         sendWhileWaiting: "It’s waiting on a prompt now. Answer it first.",
         bridgeTitle: "Antigravity extension",
         bridgeHint: "Replies to sessions in Antigravity go through a small extension included with this app. It shows a terminal or types into it only when you ask.",
+        codexHint: "Nothing to install. The island talks to the app server Codex runs while it’s open, so approvals and replies go to Codex itself, not through the terminal.",
+        codexConnected: "Connected",
+        codexNotRunning: "Starts with Codex",
+        codexNotFound: "Not found on this Mac",
         installBridge: "Install Extension",
         updateBridge: "Update Extension",
         settingsUnreadable: "settings.json can’t be read, so it was left alone",
@@ -225,7 +248,7 @@ extension NotchClaudeSessionStrings {
         openFailed: "Couldn’t find that window",
         background: "In background",
         buddies: "A Clawd for every session",
-        buddiesHint: "Each session and subagent gets its own Clawd, dressed at random. Click one on its session’s page to change the outfit.",
+        buddiesHint: "Each session and subagent gets its own buddy, dressed at random: Clawd for Claude Code, a little robot for Codex. Click one on its session’s page to change the outfit.",
         wardrobe: "Wardrobe",
         dressUp: "Change outfit",
         dressUpFormat: "Change %@’s outfit",

@@ -3,9 +3,10 @@
 
 import SwiftUI
 
-/// The closed island while Claude Code sessions run: the most pressing
-/// phase on one side of the camera, how many sessions are in each phase on
-/// the other. A session waiting on the person shows first.
+/// The closed island while Claude Code and Codex sessions run: the most
+/// pressing phase on one side of the camera, how many sessions are in each
+/// phase on the other, the ones at work counted by agent. A session waiting
+/// on the person shows first.
 struct NotchClaudeSessionStrip: View {
     @ObservedObject var service: NotchService
     var displayGeometry: NotchGeometry? = nil
@@ -62,8 +63,10 @@ struct NotchClaudeSessionStrip: View {
     }
 }
 
-/// The most pressing phase: a waiting hand, Claude's working mark, or a
-/// finished check.
+/// The most pressing phase: a waiting hand, the mark of the agent at work,
+/// or a finished check. Claude's mark shows while any Claude session works,
+/// Codex's when only Codex does; the counts beside it tell the two apart, so
+/// the mark shows only once.
 struct NotchClaudeSessionStripMark: View {
     let counts: ClaudeSessionCounts
     let size: CGFloat
@@ -74,8 +77,8 @@ struct NotchClaudeSessionStripMark: View {
                 Image(systemName: NotchClaudeSessionsSupport.symbol(.waitingPermission))
                     .font(.system(size: size, weight: .semibold))
                     .foregroundStyle(ClaudeSessionPhase.waitingPermission.tint)
-            } else if counts.working > 0 {
-                NotchAgentGlyph(provider: .claude, size: size)
+            } else if let agent = NotchClaudeSessionsSupport.stripAgent(counts) {
+                NotchSessionAgentGlyph(provider: agent, size: size)
             } else {
                 Image(systemName: NotchClaudeSessionsSupport.symbol(.finished))
                     .font(.system(size: size, weight: .semibold))
@@ -86,13 +89,15 @@ struct NotchClaudeSessionStripMark: View {
     }
 }
 
+/// The counts, each by its phase's symbol: an orange sparkle for Claude's
+/// sessions at work and a periwinkle one for Codex's, never a logo.
 struct NotchClaudeSessionStripCounts: View {
     let counts: ClaudeSessionCounts
     let size: CGFloat
 
     var body: some View {
         HStack(spacing: 6) {
-            ForEach(NotchClaudeSessionsSupport.stripReading(counts), id: \.phase) { item in
+            ForEach(NotchClaudeSessionsSupport.stripReading(counts)) { item in
                 HStack(spacing: 2) {
                     Image(systemName: NotchClaudeSessionsSupport.symbol(item.phase))
                         .font(.system(size: size * 0.7, weight: .bold))
@@ -100,7 +105,7 @@ struct NotchClaudeSessionStripCounts: View {
                         .font(.system(size: size, weight: .semibold))
                         .monospacedDigit()
                 }
-                .foregroundStyle(item.phase.tint)
+                .foregroundStyle(item.tint)
             }
         }
         .lineLimit(1)

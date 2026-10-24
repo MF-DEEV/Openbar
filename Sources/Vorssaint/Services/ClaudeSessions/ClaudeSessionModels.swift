@@ -207,7 +207,8 @@ struct ClaudeTaskProgress: Equatable {
 /// Everything the island shows about one session.
 struct ClaudeSession: Equatable, Identifiable {
     let id: String
-    let pid: Int32
+    /// The process showing it; for Codex, its terminal UI once found.
+    var pid: Int32
     let cwd: String
     let project: String
     /// Claude Code's name for the session.

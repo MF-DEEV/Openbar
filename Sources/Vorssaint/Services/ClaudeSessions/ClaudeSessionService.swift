@@ -47,6 +47,15 @@ final class ClaudeSessionService: ObservableObject {
     @Published private(set) var bridgeFailure: String?
     /// The app carries a newer extension than the one installed.
     @Published private(set) var bridgeOutdated = false
+    /// Whether the island hears Codex, for its row in Settings.
+    @Published private(set) var codexStatus: CodexStatus?
+
+    enum CodexStatus: Equatable {
+        case connected
+        /// Codex's folder is there but no app-server runs.
+        case notRunning
+        case notFound
+    }
 
     /// While a session works or waits, its files are read this often;
     /// otherwise the registry alone is checked a little less often.
@@ -79,6 +88,12 @@ final class ClaudeSessionService: ObservableObject {
     private var lastRecords: [Int32: ClaudeSessionRecord] = [:]
     private let agentColors = ClaudeAgentColors()
     private var server: ClaudeHookServer?
+    /// Codex's sessions, from the app-server its terminal UIs share. They join
+    /// the same list as Claude Code's (windows/docs/spec/07-codex-sessions.md).
+    private var codex: CodexSessionClient?
+    /// Codex's terminal UIs by working folder, refreshed each tick, so Open
+    /// and the host of a Codex session find its terminal.
+    private var codexTerminals: [(pid: Int32, cwd: String)] = []
     /// Permission requests whose hook waits for the island's answer.
     private var pending: [String: (connection: ClaudeHookServer.Connection, session: String, suggestions: Any?,
                                    question: [String: Any]?, since: Date)] = [:]
@@ -118,6 +133,9 @@ final class ClaudeSessionService: ObservableObject {
         let socket = Self.socketPath(home: home)
         queue.async { [self] in
             startServer(at: socket)
+            let client = CodexSessionClient()
+            codex = client
+            client.start { [weak self] in self?.queue.async { self?.publish(now: Date()) } }
             schedule(Self.activeTick)
             refresh()
         }
@@ -156,6 +174,9 @@ final class ClaudeSessionService: ObservableObject {
             pending = [:]
             server?.stop()
             server = nil
+            codex?.stop()
+            codex = nil
+            codexTerminals = []
             agentColors.reset()
             engine.ingest(records: [], now: Date.distantFuture)
         }
@@ -199,11 +220,9 @@ final class ClaudeSessionService: ObservableObject {
         focusedID = id
         dressingID = nil
         if let id { acknowledge(id) }
-    }
-
-    /// What a session's Clawd wears.
-    func costume(for session: ClaudeSession) -> ClawdCostume {
-        ClawdCostume.resolved(key: session.id, kept: costumes[session.id])
+        // An open Codex page keeps its thread joined, so its replies and
+        // approvals reach the island while it is shown.
+        queue.async { [self] in codex?.focus(id.map { [$0] } ?? []) }
     }
 
     /// What a subagent's Clawd wears: its own lot, in the color its
@@ -214,7 +233,10 @@ final class ClaudeSessionService: ObservableObject {
 
     /// Dresses a session's Clawd, or with nil gives it its own costume back.
     func setCostume(_ costume: ClawdCostume?, for id: String) {
-        costumes = NotchClaudeSessionsSupport.kept(costumes, id: id, value: ClawdCostume.kept(costume, key: id),
+        // Compared with the lot of whoever wears it: Clawd's or Codex's robot's.
+        let character = sessions.first { $0.id == id }?.provider.character ?? .clawd
+        costumes = NotchClaudeSessionsSupport.kept(costumes, id: id,
+                                                   value: ClawdCostume.kept(costume, key: id, character: character),
                                                    live: Set(sessions.map(\.id)))
         UserDefaults.standard.set(costumes, forKey: DefaultsKey.notchSessionsCostumes)
     }
@@ -228,6 +250,7 @@ final class ClaudeSessionService: ObservableObject {
 
     func acknowledge(_ id: String) {
         queue.async { [self] in
+            codex?.acknowledge(id, now: Date())
             engine.acknowledge(id, now: Date())
             publish(now: Date())
         }
@@ -242,6 +265,14 @@ final class ClaudeSessionService: ObservableObject {
         guard let shown = shownRequests[id], shown.request == request,
               Date().timeIntervalSince(shown.at) >= NotchClaudeSessionsSupport.settleDelay else { return }
         queue.async { [self] in
+            // Codex takes its answer through its own server; the first answer wins there.
+            if let codex, codex.owns(id) {
+                if codex.answer(id, requestID: request, answer: CodexAnswer(decision)) {
+                    codex.acknowledge(id, now: Date())
+                }
+                publish(now: Date())
+                return
+            }
             guard engine.holds(request, for: id), let asked = pending[request] else { return }
             // A question is answered or skipped, never allowed as it stands;
             // answers go only to a question.
@@ -267,6 +298,17 @@ final class ClaudeSessionService: ObservableObject {
         let reply = NotchClaudeSessionsSupport.reply(text) ?? ""
         guard !reply.isEmpty || !images.isEmpty, NotchClaudeSessionsSupport.canReply(session) else {
             return completion(session.phase.isWaiting || session.waitingFor != nil ? .waiting : .unreachable)
+        }
+        if session.provider == .codex {
+            // Codex takes replies through its server: nothing is typed into
+            // the terminal. It reads text only.
+            guard images.isEmpty else { return completion(.unreachable) }
+            queue.async { [self] in
+                let sent = codex?.reply(session.id, text: reply) ?? false
+                if sent { codex?.acknowledge(session.id, now: Date()) }
+                finishSend(sent ? nil : .waiting, session: session, completion: completion)
+            }
+            return
         }
         let folders = ClaudeSessionRegistryReader.folders(home)
         let bridge = ClaudeTerminalBridge.folder(home: home)
@@ -301,6 +343,16 @@ final class ClaudeSessionService: ObservableObject {
                 self.acknowledge(session.id)
             }
             completion(failure)
+        }
+    }
+
+    func checkCodex() {
+        queue.async { [self] in
+            let status: CodexStatus
+            if codex?.connected == true { status = .connected }
+            else if let home = CodexSessionClient.home(), FileManager.default.fileExists(atPath: home.path) { status = .notRunning }
+            else { status = .notFound }
+            DispatchQueue.main.async { self.codexStatus = status }
         }
     }
 
@@ -480,6 +532,13 @@ final class ClaudeSessionService: ObservableObject {
         }
         transcripts = transcripts.filter { ids.contains($0.key) }
         releaseSettled(now: now)
+        if codex?.connected == true {
+            codexTerminals = ClaudeSessionHosts.codexTerminals()
+            let live = Set(codexTerminals.map(\.pid))
+            hosts = hosts.filter { alive.contains($0.key) || live.contains($0.key) }
+        } else {
+            codexTerminals = []
+        }
         publish(now: now)
         let active = published.contains { $0.phase.isActive || $0.phase.isWaiting }
         schedule(active ? Self.activeTick : Self.quietTick)
@@ -557,10 +616,14 @@ final class ClaudeSessionService: ObservableObject {
 
     private func publish(now: Date) {
         let snapshot = engine.snapshot(now: now)
-        let sorted = NotchClaudeSessionsSupport.sorted(snapshot.sessions.map { agentColors.decorate($0, now: now) })
+        let claude = snapshot.sessions.map { agentColors.decorate($0, now: now) }
+        let fromCodex = codex?.snapshot(now: now, previews: engine.policy.previews) ?? (sessions: [], events: [])
+        let codexSessions = fromCodex.sessions.map(placed)
+        let sorted = NotchClaudeSessionsSupport.sorted(claude + codexSessions)
+        let events = snapshot.events + fromCodex.events
         let changed = sorted != published
         published = sorted
-        guard changed || !snapshot.events.isEmpty else { return }
+        guard changed || !events.isEmpty else { return }
         DispatchQueue.main.async { [self] in
             guard running else { return }
             if changed {
@@ -577,8 +640,20 @@ final class ClaudeSessionService: ObservableObject {
                     dressingID = nil
                 }
             }
-            snapshot.events.forEach(events.send)
+            events.forEach(self.events.send)
         }
+    }
+
+    /// A Codex session with the terminal UI that shows it: the one codex
+    /// running in its folder gives it a pid and a host, so Open brings its tab
+    /// forward like a Claude Code session's.
+    private func placed(_ session: ClaudeSession) -> ClaudeSession {
+        guard let pid = ClaudeSessionHosts.codexTerminal(cwd: session.cwd, among: codexTerminals) else { return session }
+        if hosts[pid] == nil { hosts[pid] = ClaudeSessionHosts.host(of: pid) }
+        var placed = session
+        placed.pid = pid
+        placed.host = hosts[pid] ?? session.host
+        return placed
     }
 }
 

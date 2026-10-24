@@ -5,7 +5,8 @@ import SwiftUI
 
 /// Where a session's Clawd is dressed: the Clawd itself on the left, doing
 /// what its session does, and on the right a row for each part of its
-/// costume. A choice dresses it at once, and it hops for it.
+/// costume. A choice dresses it at once, and it hops for it. A Codex
+/// session's robot is dressed the same way, on the stage and on every tile.
 struct NotchClawdWardrobeView: View {
     let session: ClaudeSession
     let size: CGSize
@@ -16,7 +17,9 @@ struct NotchClawdWardrobeView: View {
     @State private var changed: Date?
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
-    private var costume: ClawdCostume { service.costume(for: session) }
+    /// Clawd, or the robot of a Codex session; its lot is the one compared with.
+    private var character: ClawdCharacter { session.provider.character }
+    private var costume: ClawdCostume { NotchClaudeSessionsSupport.costume(for: session, kept: service.costumes) }
     private var dressedByHand: Bool { service.costumes[session.id] != nil }
     /// The stage grows with an enlarged island, up to a point.
     private var stageWidth: CGFloat { min(230, max(150, size.width * 0.3)) }
@@ -70,7 +73,8 @@ struct NotchClawdWardrobeView: View {
                     .fill(.white.opacity(0.07))
                     .frame(width: figure.width * 0.9, height: pixel * 2)
                     .offset(y: pixel)
-                NotchClawd(costume: costume, motion: NotchClaudeSessionsSupport.motion(session, now: Date()),
+                NotchClawd(costume: costume, character: character,
+                           motion: NotchClaudeSessionsSupport.motion(session, now: Date()),
                            seed: ClawdCostume.seed(session.id), since: session.phaseSince,
                            cheer: changed ?? NotchClaudeSessionsSupport.cheer(session),
                            size: figure)
@@ -112,10 +116,10 @@ struct NotchClawdWardrobeView: View {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 9, weight: .bold))
             }
-            .foregroundStyle(session.phase.tint)
+            .foregroundStyle(session.tint)
             .padding(.horizontal, 12)
             .frame(height: 30)
-            .background(session.phase.tint.opacity(0.14), in: Capsule())
+            .background(session.tint.opacity(0.14), in: Capsule())
             .contentShape(Capsule())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 15, lifts: false))
@@ -176,7 +180,7 @@ struct NotchClawdWardrobeView: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .fill(.white.opacity(isSelected ? 0.13 : 0.05))
                 if let outfit = wearing(piece) {
-                    NotchClawdPicture(costume: outfit, size: CGSize(width: 34, height: 30))
+                    NotchClawdPicture(costume: outfit, character: character, size: CGSize(width: 34, height: 30))
                         .offset(y: 3)
                 } else {
                     Image(systemName: "line.diagonal")
@@ -198,7 +202,7 @@ struct NotchClawdWardrobeView: View {
         .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: isSelected)
     }
 
-    /// The Clawd a tile shows: in this session's shell, wearing only the
+    /// The figure a tile shows: in this session's shell, wearing only the
     /// piece; nil for the tile that takes the part off.
     private func wearing<Part>(_ piece: Part) -> ClawdCostume? {
         var outfit = ClawdCostume(shell: costume.shell, hat: .none, eyewear: .none, extra: .none)
@@ -240,7 +244,7 @@ struct NotchClawdWardrobeView: View {
     }
 
     private var surpriseButton: some View {
-        Button { wear(ClawdCostume.random(excluding: costume)) } label: {
+        Button { wear(ClawdCostume.random(excluding: costume, character: character)) } label: {
             HStack(spacing: 5) {
                 Image(systemName: "dice")
                     .font(.system(size: 11, weight: .semibold))

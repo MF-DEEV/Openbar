@@ -157,6 +157,56 @@ struct NotchAgentGlyph: View {
     }
 }
 
+/// The mark of the agent running a session, breathing while it works:
+/// Claude's as everywhere else in the island, and Codex's own cloud, which
+/// ships with the app so a Codex session reads as Codex's whether its app is
+/// installed or not. Both take the same room, so rows line up.
+struct NotchSessionAgentGlyph: View {
+    let provider: ClaudeSessionProvider
+    var size: CGFloat = 13
+    var working = true
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        switch provider {
+        case .claude:
+            NotchAgentGlyph(provider: .claude, size: size, working: working)
+        case .codex:
+            NotchCodexGlyphBridge(size: size * AgentProvider.codex.markScale, animates: working && !reduceMotion)
+                .frame(width: size * 1.45 + 1, height: size * 1.45 + 1)
+                .accessibilityHidden(true)
+                .allowsHitTesting(false)
+        }
+    }
+}
+
+extension NotchCodexMark {
+    /// The mark as an image drawn at whatever size it is drawn, so it stays
+    /// sharp from the strip's 14 points to the badge's. Made once, so the
+    /// glyph is rasterized again only when its size or display changes.
+    static let image: NSImage = {
+        let image = NSImage(size: NSSize(width: side, height: side), flipped: true) { rect in
+            guard let context = NSGraphicsContext.current?.cgContext else { return false }
+            draw(in: context, rect: rect)
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }()
+}
+
+private struct NotchCodexGlyphBridge: NSViewRepresentable {
+    let size: CGFloat
+    let animates: Bool
+
+    func makeNSView(context: Context) -> NotchAgentAnimationView { NotchAgentAnimationView() }
+    func updateNSView(_ view: NotchAgentAnimationView, context: Context) {
+        // No tint: the mark keeps its own gradient.
+        view.configureGlyph(image: NotchCodexMark.image, size: size, tint: nil, animates: animates)
+    }
+    static func dismantleNSView(_ view: NotchAgentAnimationView, coordinator: ()) { view.stop() }
+}
+
 private struct NotchAgentPulseBridge: NSViewRepresentable {
     let tint: NSColor
     let size: CGFloat
@@ -367,6 +417,12 @@ enum AgentMarks {
     }
 }
 
+extension AgentProvider {
+    /// The menu bar images keep a margin; the spark's thin rays need more
+    /// of the box than the knot or the cloud to look the same size.
+    var markScale: CGFloat { self == .claude ? 1.45 : 1.2 }
+}
+
 private extension AgentProvider {
     /// The maker's desktop apps, the one that runs the agent first.
     var appIdentifiers: [String] {
@@ -377,10 +433,6 @@ private extension AgentProvider {
         case .copilot: return ["com.github.githubapp"]
         }
     }
-
-    /// The menu bar images keep a margin; the spark's thin rays need more
-    /// of the box than the knot to look the same size.
-    var markScale: CGFloat { self == .claude ? 1.45 : 1.2 }
 
     /// What those apps name the mark they show in the menu bar.
     var menuBarImageNames: [String] {
