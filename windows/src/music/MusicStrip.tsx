@@ -33,8 +33,8 @@ export function MusicStrip({ geometry, size }: { geometry: Geometry; size: Size 
   const capsule = geometry.floatingGap !== null;
   const side = artworkSide(capsule ? geometry.stripHeight - 2 * (geometry.floatingGap ?? 0) + 4 : geometry.stripHeight);
   const bars = barHeight(geometry.stripHeight);
-  const coverInset = capsule ? 3 : edgeInset(size, side, side * 0.28);
-  const barsInset = capsule ? 8 : edgeInset(size, bars, BAR_WIDTH / 2);
+  const coverInset = capsule ? 3 : edgeInset(size, side, side * 0.28, COMPACT_EDGE_GAP, geometry.input);
+  const barsInset = capsule ? 8 : edgeInset(size, bars, BAR_WIDTH / 2, COMPACT_EDGE_GAP, geometry.input);
   const wing = capsule ? undefined : (size.width - geometry.cameraWidth) / 2;
 
   return (

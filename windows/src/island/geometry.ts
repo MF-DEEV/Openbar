@@ -34,6 +34,11 @@ export interface GeometryInput {
   layout: LayoutPreset;
   customWidth?: number;
   customHeight?: number;
+  notchWidth?: number;
+  notchHeight?: number;
+  roundness?: number;
+  shoulderWidth?: number;
+  shoulderHeight?: number;
   /** Capsule fit: width −40…40, height −4…4, drop 0…20. */
   capsuleFit?: { width: number; height: number; drop: number };
   /** Height of the bar the island sits in (the Windows menu bar imitation). */
@@ -62,9 +67,14 @@ export function makeGeometry(input: GeometryInput): Geometry {
   const fit = input.capsuleFit ?? { width: 0, height: 0, drop: 0 };
   const capsule = input.silhouette === "capsule";
   const gap = capsule ? Math.min(2, Math.max(0, Math.floor((bar - 20) / 2))) : null;
-  const strip = gap !== null ? Math.max(bar - edge + fit.height, 2 * gap + 12) : bar;
+  const strip =
+    gap !== null
+      ? Math.max(bar - edge + fit.height, 2 * gap + 12)
+      : Math.min(64, Math.max(20, input.notchHeight ?? bar));
   const camera = Math.min(
-    gap !== null ? Math.round((180 * bar) / 32 + fit.width) : SIMULATED_CAMERA,
+    gap !== null
+      ? Math.round((180 * bar) / 32 + fit.width)
+      : Math.min(400, Math.max(100, input.notchWidth ?? SIMULATED_CAMERA)),
     input.screen.width * 0.7,
   );
   return {
@@ -84,22 +94,34 @@ export function makeGeometry(input: GeometryInput): Geometry {
 // MARK: Outlines
 
 /** SVG path of the hanging island ("notch"), top edge spanning the ears. */
-export function notchPath(width: number, height: number): string {
+type Contour = Pick<GeometryInput, "roundness" | "shoulderWidth" | "shoulderHeight">;
+const factor = (value = 100, max = 300) => Math.min(max, Math.max(0, value)) / 100;
+
+/** Shared by drawing, hit testing and content insets. */
+export function notchMetrics(width: number, height: number, contour: Contour = {}) {
   const w = Math.max(0, width);
   const h = Math.max(0, height);
-  const s = shoulder(h);
-  const b = Math.max(0, Math.min(surfaceRadius(h), h / 2, (w - s * 2) / 2));
+  const s = Math.min(shoulder(h) * factor(contour.shoulderWidth), w / 2);
+  const rise = Math.min(shoulder(h) * factor(contour.shoulderHeight), h / 2);
+  const b = Math.max(0, Math.min(surfaceRadius(h) * factor(contour.roundness, 200), h / 2, (w - s * 2) / 2));
+  return { s, rise, b };
+}
+
+export function notchPath(width: number, height: number, contour: Contour = {}): string {
+  const w = Math.max(0, width);
+  const h = Math.max(0, height);
+  const { s, rise, b } = notchMetrics(w, h, contour);
   const t = 1 - K;
   return [
     `M0 0`,
     `L${w} 0`,
-    `C${w - s * K} 0 ${w - s} ${s * t} ${w - s} ${s}`,
+    `C${w - s * K} 0 ${w - s} ${rise * t} ${w - s} ${rise}`,
     `L${w - s} ${h - b}`,
     `C${w - s} ${h - b * t} ${w - s - b * t} ${h} ${w - s - b} ${h}`,
     `L${s + b} ${h}`,
     `C${s + b * t} ${h} ${s} ${h - b * t} ${s} ${h - b}`,
-    `L${s} ${s}`,
-    `C${s} ${s * t} ${s * K} 0 0 0`,
+    `L${s} ${rise}`,
+    `C${s} ${rise * t} ${s * K} 0 0 0`,
     `Z`,
   ].join(" ");
 }
@@ -121,9 +143,9 @@ export function capsuleBody(width: number, height: number, gap: number): Rect {
 }
 
 /** SVG path of the floating capsule; every size keeps the same elements so frames blend. */
-export function capsulePath(width: number, height: number, gap: number): string {
+export function capsulePath(width: number, height: number, gap: number, roundness = 100): string {
   const body = capsuleBody(width, height, gap);
-  const c = Math.min(capsuleRadius(body.height), body.width / 2);
+  const c = Math.min(capsuleRadius(body.height) * factor(roundness, 200), body.height / 2, body.width / 2);
   const hd = c * (1 - K);
   const l = body.x;
   const r = body.x + body.width;
@@ -145,8 +167,8 @@ export function capsulePath(width: number, height: number, gap: number): string 
 
 export function islandPath(geometry: Geometry, size: Size): string {
   return geometry.floatingGap !== null
-    ? capsulePath(size.width, size.height, geometry.floatingGap)
-    : notchPath(size.width, size.height);
+    ? capsulePath(size.width, size.height, geometry.floatingGap, geometry.input.roundness)
+    : notchPath(size.width, size.height, geometry.input);
 }
 
 /**
@@ -157,19 +179,36 @@ export function islandPath(geometry: Geometry, size: Size): string {
 export function hitShape(geometry: Geometry, size: Size): { rect: Rect; topRadius: number; bottomRadius: number } {
   if (geometry.floatingGap !== null) {
     const body = capsuleBody(size.width, size.height, geometry.floatingGap);
-    const c = Math.min(capsuleRadius(body.height), body.width / 2);
+    const c = Math.min(
+      capsuleRadius(body.height) * factor(geometry.input.roundness, 200),
+      body.height / 2,
+      body.width / 2,
+    );
     return {
       rect: { x: body.x, y: 0, width: body.width, height: body.y + body.height },
       topRadius: 0,
       bottomRadius: c,
     };
   }
-  const s = shoulder(size.height);
-  const b = Math.max(0, Math.min(surfaceRadius(size.height), size.height / 2, (size.width - s * 2) / 2));
+  const { s, b } = notchMetrics(size.width, size.height, geometry.input);
   return {
     rect: { x: s, y: 0, width: Math.max(0, size.width - s * 2), height: size.height },
     topRadius: 0,
     bottomRadius: b,
+  };
+}
+
+/** Keep content inside the chosen contour, including its bottom corners. */
+export function contentInsets(geometry: Geometry, size: Size) {
+  const body = geometry.floatingGap !== null ? capsuleBody(size.width, size.height, geometry.floatingGap) : null;
+  const notch = notchMetrics(size.width, size.height, geometry.input);
+  const corner = body
+    ? Math.min(capsuleRadius(body.height) * factor(geometry.input.roundness, 200), body.height / 2, body.width / 2)
+    : notch.b;
+  const side = body?.x ?? notch.s;
+  return {
+    horizontal: Math.min(size.width / 2, Math.max(HORIZONTAL_INSET, side + Math.max(12, corner / 2))),
+    bottom: Math.max(BOTTOM_INSET, (geometry.floatingGap ?? 0) + corner / 2),
   };
 }
 
@@ -306,7 +345,14 @@ export function activitySize(geometry: Geometry, wing: number, capsuleContent?: 
       height: geometry.stripHeight,
     };
   }
-  return { width: Math.min(geometry.screen.width - 24, geometry.cameraWidth + 2 * wing), height: geometry.stripHeight };
+  const extraInset = Math.max(
+    0,
+    notchMetrics(1000, geometry.stripHeight, geometry.input).s - shoulder(geometry.stripHeight),
+  );
+  return {
+    width: Math.min(geometry.screen.width - 24, geometry.cameraWidth + 2 * (wing + extraInset)),
+    height: geometry.stripHeight,
+  };
 }
 
 /**
@@ -314,9 +360,14 @@ export function activitySize(geometry: Geometry, wing: number, capsuleContent?: 
  * rounded by `radius`, sits an even `gap` from the silhouette's bottom
  * corner (NotchGeometry.compactActivityEdgeInset).
  */
-export function edgeInset(size: Size, boxHeight: number, radius: number, gap = COMPACT_EDGE_GAP): number {
-  const s = shoulder(size.height);
-  const corner = Math.min(surfaceRadius(size.height), (size.width - s * 2) / 2);
+export function edgeInset(
+  size: Size,
+  boxHeight: number,
+  radius: number,
+  gap = COMPACT_EDGE_GAP,
+  contour: Contour = {},
+): number {
+  const { s, b: corner } = notchMetrics(size.width, size.height, contour);
   const flat = s + gap;
   const below = (size.height - boxHeight) / 2;
   const reach = corner - radius - gap;

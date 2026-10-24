@@ -95,3 +95,15 @@
   flex-direction: column;
   gap: 4px;
 }
+
+.nt-card {
+  max-width: 100%;
+}
+.nt-access {
+  min-width: 0;
+  flex-wrap: wrap;
+  overflow-y: auto;
+}
+.nt-access-text {
+  min-width: 0;
+}

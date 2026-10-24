@@ -52,8 +52,8 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
   const counts = useSessions((s) => s.snapshot.counts);
   const textSize = stripTextSize(geometry.stripHeight);
   const capsule = geometry.floatingGap !== null;
-  const iconInset = capsule ? 0 : edgeInset(size, 18, 9);
-  const textInset = capsule ? 0 : edgeInset(size, textSize * 0.72, 0);
+  const iconInset = capsule ? 0 : edgeInset(size, 18, 9, 5, geometry.input);
+  const textInset = capsule ? 0 : edgeInset(size, textSize * 0.72, 0, 5, geometry.input);
   const wing = capsule ? undefined : (size.width - geometry.cameraWidth) / 2;
 
   const open = () => {

@@ -16,6 +16,7 @@ import { LayoutSettings } from "./LayoutSettings";
 import { startSettings, useSettings } from "./state";
 import { T } from "./strings";
 import "./settings.css";
+import "../shared/controls.css";
 
 type PageId = "general" | "layout" | "content" | "activity" | "behavior";
 

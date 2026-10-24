@@ -70,6 +70,7 @@ export const bridge = {
     command: (command: MusicCommand) => call<boolean>("music_command", { command }),
     seek: (seconds: number) => call<boolean>("music_seek", { seconds }),
     shuffle: (on: boolean) => call<boolean>("music_shuffle", { on }),
+    volume: (source: string, level?: number) => call<number>("music_volume", { source, level: level ?? null }),
     openPlayer: (source: string) => call<boolean>("music_open_player", { source }),
   },
   notifications: {

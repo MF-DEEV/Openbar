@@ -7,8 +7,8 @@
 
 import { FastForward, Music, Pause, Play, Rewind, Shuffle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { bridge } from "../shared/bridge";
 import { useIsland } from "../island/store";
+import { VolumeControl } from "./VolumeControl";
 import { EqualizerBars } from "./EqualizerBars";
 import { isPlaying, useMusic } from "./store";
 import { position, time, type Playback } from "./types";
@@ -47,7 +47,7 @@ export function MusicPage() {
   // Space toggles while the page has the keyboard.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== " " || (e.target as Element)?.closest?.("input,textarea")) return;
+      if (e.key !== " " || (e.target as Element)?.closest?.("input,textarea,button")) return;
       e.preventDefault();
       void command("toggle");
     };
@@ -57,16 +57,11 @@ export function MusicPage() {
 
   const accent = tint ?? "#fff";
   return (
-    <div className="m-page" style={{ width: MUSIC_WIDTH }}>
+    <div className="m-page">
       <div className="m-head">
-        <button
-          type="button"
-          className="m-cover-button"
-          aria-label={playback ? `Open ${playback.sourceName}` : "Open player"}
-          onClick={() => playback && void bridge.music.openPlayer(playback.source)}
-        >
+        <div className="m-cover-button">
           <Cover src={playback?.artwork} size={COVER} radius={COVER * 0.19} dimmed={!!playback && !playing} />
-        </button>
+        </div>
         <div className="m-titles">
           <div className="m-title">{playback ? playback.title || playback.sourceName : "Nothing playing"}</div>
           <div className={`m-artist${failed ? " is-failed" : ""}`}>
@@ -138,7 +133,14 @@ export function MusicPage() {
             <FastForward size={21} fill="currentColor" strokeWidth={0} />
           </button>
         </Slot>
-        <Slot />
+        <Slot>
+          <VolumeControl
+            key={playback?.source ?? "none"}
+            source={playback?.source ?? ""}
+            name={playback?.sourceName ?? "Player"}
+            accent={accent}
+          />
+        </Slot>
       </div>
     </div>
   );
