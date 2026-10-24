@@ -11,6 +11,7 @@ enum CodexSessionEdgeTests {
     static func run(_ suite: TestSuite) {
         suite.run("codex edge state") { state(suite) }
         suite.run("codex edge client") { client(suite) }
+        suite.run("codex edge terminals") { terminals(suite) }
     }
 
     static let t0 = Date(timeIntervalSince1970: 1_792_600_000)
@@ -142,5 +143,16 @@ enum CodexSessionEdgeTests {
         }
         suite.expect(!seen.contains("thread/resume"),
                      "E8 an idle thread back after closing is not joined for a page long gone: \(seen)")
+    }
+
+    static func terminals(_ suite: TestSuite) {
+        let a: [(pid: Int32, cwd: String)] = [(pid: 10, cwd: "/tmp/vs-a")]
+        suite.expect(ClaudeSessionHosts.codexTerminal(cwd: "/tmp/vs-a", among: a) == 10, "the terminal in the thread's folder is its own")
+        suite.expect(ClaudeSessionHosts.codexTerminal(cwd: "/tmp/vs-b", among: a) == 10,
+                     "the only terminal stands in when none runs in the folder")
+        suite.expect(ClaudeSessionHosts.codexTerminal(cwd: "/tmp/vs-b", among: a, others: ["/tmp/vs-a"]) == nil,
+                     "but never when another listed session runs in its folder")
+        let two: [(pid: Int32, cwd: String)] = [(pid: 10, cwd: "/tmp/vs-a"), (pid: 11, cwd: "/tmp/vs-a")]
+        suite.expect(ClaudeSessionHosts.codexTerminal(cwd: "/tmp/vs-a", among: two) == nil, "two in one folder can't be told apart")
     }
 }

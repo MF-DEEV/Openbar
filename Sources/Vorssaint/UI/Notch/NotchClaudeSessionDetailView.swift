@@ -357,8 +357,8 @@ struct NotchClaudeSessionPermissionCard: View {
 
     private var title: String {
         if session.permission?.asksQuestions == true { return text.question(for: session.provider) }
-        // Codex waits on a request the island can't answer (an MCP form): it goes to the terminal.
-        if session.waitingFor == CodexSessionState.answerInTerminal { return text.answerInTerminal }
+        // Codex waits on a request the island can't answer; the card's body says to answer it there.
+        if session.waitingFor == CodexSessionState.answerInTerminal { return text.phase(session.phase) }
         return session.permission?.tool ?? session.currentTool?.name ?? session.waitingFor ?? text.phase(session.phase)
     }
 
@@ -676,7 +676,7 @@ struct NotchClaudeSessionReplyField: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(.white.opacity(dropping ? 0.6 : focused ? 0.3 : 0), lineWidth: 1)
             }
-            .modifier(NotchClaudeImageInput(sessionID: session.id, dropping: $dropping))
+            .modifier(NotchClaudeImageInput(sessionID: session.id, takesImages: session.provider != .codex, dropping: $dropping))
             if let problem {
                 Label(problem, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 10))

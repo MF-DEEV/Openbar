@@ -549,7 +549,7 @@ struct NotchClaudeSessionComposer: View {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .strokeBorder(.white.opacity(dropping ? 0.6 : focused ? 0.3 : 0.08), lineWidth: 1)
                 }
-                .modifier(NotchClaudeImageInput(sessionID: session.id, dropping: $dropping))
+                .modifier(NotchClaudeImageInput(sessionID: session.id, takesImages: session.provider != .codex, dropping: $dropping))
                 Button(action: send) {
                     Group {
                         if sending { ProgressView().controlSize(.small) } else {
@@ -689,9 +689,20 @@ struct NotchClaudeThumbnail: View {
 /// text when it holds none, and images dropped on the field are added.
 struct NotchClaudeImageInput: ViewModifier {
     let sessionID: String
+    /// Codex takes text replies only: its field neither pastes nor takes
+    /// dropped images, so none is copied aside for nothing.
+    var takesImages = true
     @Binding var dropping: Bool
 
-    func body(content: Content) -> some View {
+    @ViewBuilder func body(content: Content) -> some View {
+        if takesImages {
+            withImages(content)
+        } else {
+            content
+        }
+    }
+
+    private func withImages(_ content: Content) -> some View {
         content
             .background {
                 Button("") {

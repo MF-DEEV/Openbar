@@ -63,12 +63,16 @@ enum ClaudeSessionHosts {
     /// The terminal UI showing a Codex thread that runs in `cwd`: the one
     /// there, else the only one running at all; with several and none in
     /// that folder alone, none (Open then has nothing to guess from).
-    static func codexTerminal(cwd: String, among terminals: [(pid: Int32, cwd: String)]) -> Int32? {
+    /// `others` are the folders of the other Codex sessions listed: the only
+    /// terminal never stands in for this one when it runs in one of theirs.
+    static func codexTerminal(cwd: String, among terminals: [(pid: Int32, cwd: String)], others: [String] = []) -> Int32? {
         let standard = { (path: String) in URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path }
         let wanted = standard(cwd)
         let here = terminals.filter { standard($0.cwd) == wanted }
         if here.count == 1 { return here[0].pid }
-        return here.isEmpty && terminals.count == 1 ? terminals[0].pid : nil
+        guard here.isEmpty, terminals.count == 1 else { return nil }
+        let claimed = Set(others.map(standard))
+        return claimed.contains(standard(terminals[0].cwd)) ? nil : terminals[0].pid
     }
 
     /// The keys of a session's environment that tell where it runs. Nothing

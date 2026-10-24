@@ -623,7 +623,9 @@ final class ClaudeSessionService: ObservableObject {
         let snapshot = engine.snapshot(now: now)
         let claude = snapshot.sessions.map { agentColors.decorate($0, now: now) }
         let fromCodex = codex?.snapshot(now: now, previews: engine.policy.previews) ?? (sessions: [], events: [])
-        let codexSessions = fromCodex.sessions.map(placed)
+        let codexSessions = fromCodex.sessions.map { session in
+            placed(session, others: fromCodex.sessions.filter { $0.id != session.id }.map(\.cwd))
+        }
         let sorted = NotchClaudeSessionsSupport.sorted(claude + codexSessions)
         let events = snapshot.events + fromCodex.events
         let changed = sorted != published
@@ -659,8 +661,10 @@ final class ClaudeSessionService: ObservableObject {
     /// A Codex session with the terminal UI that shows it: the one codex
     /// running in its folder gives it a pid and a host, so Open brings its tab
     /// forward like a Claude Code session's.
-    private func placed(_ session: ClaudeSession) -> ClaudeSession {
-        guard let pid = ClaudeSessionHosts.codexTerminal(cwd: session.cwd, among: codexTerminals) else { return session }
+    private func placed(_ session: ClaudeSession, others: [String]) -> ClaudeSession {
+        guard let pid = ClaudeSessionHosts.codexTerminal(cwd: session.cwd, among: codexTerminals, others: others) else {
+            return session
+        }
         if hosts[pid] == nil { hosts[pid] = ClaudeSessionHosts.host(of: pid) }
         var placed = session
         placed.pid = pid
