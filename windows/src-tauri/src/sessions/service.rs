@@ -604,6 +604,13 @@ impl Service {
                 .map(|s| s.name.clone())
         };
         if let Some(name) = codex_name {
+            // Codex's terminal titles carry the thread's own name; with
+            // previews off the list shows the folder's instead, which can't
+            // tell two terminals in one folder apart.
+            let name = self
+                .codex()
+                .and_then(|c| c.thread_name(session))
+                .unwrap_or(name);
             let ok = hosts::focus_codex(&name);
             if ok {
                 self.acknowledge(session);

@@ -205,6 +205,12 @@ impl CodexClient {
         self.shared.lock().unwrap().state.acknowledge(session, now);
     }
 
+    /// The name Codex gives the thread, whatever the previews: Open looks
+    /// for it in terminal titles, where Codex writes it, and never shows it.
+    pub fn thread_name(&self, session: &str) -> Option<String> {
+        self.shared.lock().unwrap().thread_name(session)
+    }
+
     /// Keeps a thread joined while its page is open, so its tools and turns show.
     pub fn focus(&self, session: Option<&str>) {
         let mut s = self.shared.lock().unwrap();
@@ -237,6 +243,10 @@ impl CodexClient {
 }
 
 impl Shared {
+    fn thread_name(&self, session: &str) -> Option<String> {
+        self.state.threads.get(session)?.name.clone()
+    }
+
     fn answer(&mut self, session: &str, request_id: &str, answer: &Answer) -> bool {
         let Some((_, pending)) = self.state.answerable(session, request_id) else {
             return false;
@@ -706,6 +716,25 @@ mod tests {
         s.call("thread/read", json!({"threadId": "x"}), Waiting::Read);
         let read = sent(&rx);
         assert!(!respond(&mut s, &read, "thread/read", json!({})));
+    }
+
+    #[test]
+    fn open_looks_for_the_threads_own_name_with_previews_off() {
+        let (mut s, rx) = joined();
+        read_thread(
+            &mut s,
+            &rx,
+            json!({"id": "t1", "cwd": "C:\\code\\app", "name": "Fix checkout", "status": {"type": "idle"}}),
+        );
+        let shown = s
+            .state
+            .snapshot(1_000.0, ContentPolicy { previews: false })
+            .0;
+        // The list names it by its folder, which Open used to look for in
+        // window titles, where Codex writes "<spinner> Fix checkout | app".
+        assert_eq!(shown[0].name, "app");
+        assert_eq!(s.thread_name("t1").as_deref(), Some("Fix checkout"));
+        assert_eq!(s.thread_name("gone"), None);
     }
 
     #[test]
