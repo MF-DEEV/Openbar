@@ -14,4 +14,5 @@ pub mod engine;
 pub mod hook_message;
 pub mod models;
 pub mod registry;
+pub mod service;
 pub mod transcript;

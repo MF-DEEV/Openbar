@@ -9,7 +9,7 @@ mod sessions;
 mod settings;
 mod tray;
 
-use tauri::{Emitter, RunEvent};
+use tauri::{Emitter, Manager, RunEvent};
 use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut, ShortcutState};
 
 /// Ctrl+Alt+Space opens and closes the island from anywhere.
@@ -55,12 +55,19 @@ pub fn run() {
             hooks::claude_hooks_status,
             hooks::claude_hooks_install,
             hooks::claude_hooks_remove,
+            sessions::service::sessions_decide,
+            sessions::service::sessions_answer,
+            sessions::service::sessions_acknowledge,
+            sessions::service::sessions_set_previews,
+            sessions::service::sessions_reply,
+            sessions::service::sessions_open,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             bar::create(app.handle())?;
             island::create(app.handle())?;
+            app.manage(sessions::service::Service::start(app.handle().clone()));
             tray::create(app.handle())?;
             // Taken by another app: the island still opens by clicking it.
             let _ = app.global_shortcut().register(toggle_shortcut());

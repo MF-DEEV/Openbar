@@ -29,6 +29,7 @@ interprocess = "2"
 memchr = "2"
 regex = "1"
 unicode-segmentation = "1"
+getrandom = "0.3"
 
 [target.'cfg(windows)'.dependencies]
 widestring = "1"

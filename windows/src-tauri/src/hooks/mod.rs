@@ -26,6 +26,14 @@ fn current_command() -> Result<String, String> {
     Ok(installer::command(&exe, APP_ID))
 }
 
+/// Whether every event runs this app's current hook, for the sessions snapshot.
+pub fn claude_hooks_status_installed() -> bool {
+    let (Some(path), Ok(command)) = (installer::settings_path(), current_command()) else {
+        return false;
+    };
+    installer::read(&path).is_ok_and(|settings| installer::is_installed(&settings, &command))
+}
+
 #[tauri::command]
 pub fn claude_hooks_status() -> HooksStatus {
     let Some(path) = installer::settings_path() else {
