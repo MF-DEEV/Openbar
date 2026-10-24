@@ -88,7 +88,8 @@ class QMP:
 
     def click(self, x, y, button="left"):
         self.move(x, y)
-        time.sleep(0.05)
+        # Let the island's pointer watcher (16 ms) take the pointer first.
+        time.sleep(0.2)
         for down in (True, False):
             self.cmd("input-send-event", events=[{"type": "btn", "data": {"button": button, "down": down}}])
             time.sleep(0.06)

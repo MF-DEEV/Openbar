@@ -17,7 +17,7 @@ pub const LABEL: &str = "bar";
 pub const HEIGHT: f64 = 24.0;
 
 #[cfg(windows)]
-pub use imp::{create, remove};
+pub use imp::{create, own_island, remove};
 
 #[cfg(not(windows))]
 pub fn create<R: Runtime>(_app: &AppHandle<R>) -> tauri::Result<()> {
@@ -26,6 +26,9 @@ pub fn create<R: Runtime>(_app: &AppHandle<R>) -> tauri::Result<()> {
 
 #[cfg(not(windows))]
 pub fn remove<R: Runtime>(_app: &AppHandle<R>) {}
+
+#[cfg(not(windows))]
+pub fn own_island<R: Runtime>(_app: &AppHandle<R>) {}
 
 #[cfg(windows)]
 mod imp {
@@ -48,8 +51,9 @@ mod imp {
         APPBARDATA, DefSubclassProc, SHAppBarMessage, SetWindowSubclass,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        GWL_EXSTYLE, GetForegroundWindow, GetWindowLongPtrW, GetWindowThreadProcessId, MoveWindow,
-        SetWindowLongPtrW, WM_APP, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        GWL_EXSTYLE, GWLP_HWNDPARENT, GetForegroundWindow, GetWindowLongPtrW,
+        GetWindowThreadProcessId, MoveWindow, SetWindowLongPtrW, WM_APP, WS_EX_NOACTIVATE,
+        WS_EX_TOOLWINDOW,
     };
     use windows::core::{HSTRING, PCWSTR, PWSTR, w};
 
@@ -64,6 +68,23 @@ mod imp {
     enum Notice {
         Fullscreen(bool),
         Moved,
+    }
+
+    /// Makes the island a window the bar owns, so Windows keeps it above the
+    /// bar whichever of the two topmost windows was clicked last.
+    pub fn own_island<R: Runtime>(app: &AppHandle<R>) {
+        let (Some(bar), Some(island)) = (
+            app.get_webview_window(LABEL),
+            app.get_webview_window(island::LABEL),
+        ) else {
+            return;
+        };
+        let (Ok(bar), Ok(island)) = (bar.hwnd(), island.hwnd()) else {
+            return;
+        };
+        unsafe {
+            SetWindowLongPtrW(island, GWLP_HWNDPARENT, bar.0 as isize);
+        }
     }
 
     pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {

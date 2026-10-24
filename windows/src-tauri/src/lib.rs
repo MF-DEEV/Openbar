@@ -68,6 +68,7 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             bar::create(app.handle())?;
             island::create(app.handle())?;
+            bar::own_island(app.handle());
             app.manage(sessions::service::Service::start(app.handle().clone()));
             tray::create(app.handle())?;
             // Taken by another app: the island still opens by clicking it.
