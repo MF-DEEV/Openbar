@@ -37,12 +37,16 @@ base64 = "0.22"
 uds_windows = "1"
 widestring = "1"
 windows = { version = "0.62", features = [
+  "ApplicationModel",
   "Foundation",
   "Foundation_Collections",
   "Media",
   "Media_Control",
   "Storage",
   "Storage_Streams",
+  "UI",
+  "UI_Notifications",
+  "UI_Notifications_Management",
   "Win32_Foundation",
   "Win32_System_Com",
   "Win32_Security",

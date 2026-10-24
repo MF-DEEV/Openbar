@@ -9,6 +9,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type { Decision, ReplyFailure, SessionEvent, Snapshot } from "../sessions/types";
 import type { MusicCommand, NowPlaying } from "../music/types";
+import type { Access, Inbox, Item } from "../notifications/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -70,6 +71,21 @@ export const bridge = {
     seek: (seconds: number) => call<boolean>("music_seek", { seconds }),
     shuffle: (on: boolean) => call<boolean>("music_shuffle", { on }),
     openPlayer: (source: string) => call<boolean>("music_open_player", { source }),
+  },
+  notifications: {
+    inbox: () => call<Inbox>("notifications_inbox"),
+    onInbox(handler: (i: Inbox) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<Inbox>("notifications://inbox", (e) => handler(e.payload));
+    },
+    onNew(handler: (i: Item) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<Item>("notifications://new", (e) => handler(e.payload));
+    },
+    requestAccess: () => call<Access>("notifications_request_access"),
+    dismiss: (id: number) => call<Inbox>("notifications_dismiss", { id }),
+    clear: () => call<Inbox>("notifications_clear"),
+    open: (aumid: string) => call<boolean>("notifications_open", { aumid }),
   },
   onForegroundApp(handler: (name: string) => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});

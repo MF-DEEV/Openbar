@@ -16,6 +16,9 @@ import { MusicPage, useMusicHeight } from "../music/MusicPage";
 import { MUSIC_WING, MusicStrip } from "../music/MusicStrip";
 import { subscribeMusic, useMusic } from "../music/store";
 import "../music/music.css";
+import { NotificationsPage, NotificationsTrailing } from "../notifications/NotificationsPage";
+import { subscribeNotifications } from "../notifications/store";
+import "../notifications/notifications.css";
 
 pages.sessions = sessionsPage;
 pages.music = {
@@ -25,6 +28,7 @@ pages.music = {
   },
 };
 activityViews.music = MusicStrip;
+pages.notifications = { Page: NotificationsPage, Trailing: NotificationsTrailing };
 activityViews.sessions = SessionsStrip;
 
 /** Sessions show beside the camera while any is working, waiting or done. */
@@ -135,3 +139,21 @@ useMusic.subscribe((s, prev) => {
   }
 });
 subscribeMusic();
+
+// MARK: Notifications
+
+/** Each new banner raises a notice (priority 1, 3 s) that opens the page. */
+subscribeNotifications((item) => {
+  const island = useIsland.getState();
+  if (island.settings.sections.notifications === false) return;
+  island.showNotice({
+    id: `notification:${item.id}`,
+    kind: "systemNotification",
+    title: item.title || item.app,
+    detail: item.body.split("\n")[0] ?? "",
+    priority: 1,
+    duration: 3,
+    opens: "notifications",
+    image: item.icon,
+  });
+});

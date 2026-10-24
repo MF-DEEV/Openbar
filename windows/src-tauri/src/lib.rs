@@ -6,6 +6,7 @@ mod hooks;
 mod hosts;
 mod island;
 mod media;
+mod notifications;
 mod sessions;
 mod settings;
 mod tray;
@@ -59,6 +60,7 @@ pub fn run() {
         )
         .manage(island::IslandState::default())
         .manage(media::Shared::default())
+        .manage(notifications::Shared::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -73,6 +75,11 @@ pub fn run() {
             media::music_seek,
             media::music_shuffle,
             media::music_open_player,
+            notifications::notifications_inbox,
+            notifications::notifications_request_access,
+            notifications::notifications_dismiss,
+            notifications::notifications_clear,
+            notifications::notifications_open,
             sessions::service::sessions_decide,
             sessions::service::sessions_answer,
             sessions::service::sessions_acknowledge,
@@ -91,6 +98,10 @@ pub fn run() {
             media::start(
                 app.handle().clone(),
                 app.state::<media::Shared>().inner().clone(),
+            );
+            notifications::start(
+                app.handle().clone(),
+                app.state::<notifications::Shared>().inner().clone(),
             );
             tray::create(app.handle())?;
             // Taken by another app: the island still opens by clicking it.

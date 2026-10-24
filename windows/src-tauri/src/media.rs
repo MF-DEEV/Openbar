@@ -64,6 +64,7 @@ pub enum Command {
 }
 
 /// Known music players; Windows has no app category to tell them apart.
+#[cfg_attr(not(windows), allow(dead_code))]
 const MUSIC_APPS: [&str; 13] = [
     "spotify",
     "applemusic",
@@ -80,11 +81,13 @@ const MUSIC_APPS: [&str; 13] = [
     "vlc",
 ];
 
+#[cfg_attr(not(windows), allow(dead_code))]
 pub fn is_music_app(aumid: &str) -> bool {
     let id = aumid.to_ascii_lowercase();
     MUSIC_APPS.iter().any(|m| id.contains(m))
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 /// A readable name for an AUMID: `Spotify.exe` → Spotify, packaged ids by their app part.
 pub fn source_name(aumid: &str) -> String {
     let lower = aumid.to_ascii_lowercase();
