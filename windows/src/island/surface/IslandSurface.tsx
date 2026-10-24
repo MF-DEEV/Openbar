@@ -3,15 +3,16 @@
 
 // Draws the island's outline frame by frame from the resize timeline and
 // clips the content to it (NotchWindowHost.swift; spec 01-shell §3.1). The
-// content sits at the destination size from the first frame; only the
-// outline moves. Each frame also tells the Rust side which part of the
+// expanded content sits at its destination size; compact content follows
+// the visible surface. Each frame also tells Rust which part of the
 // window takes the pointer.
 
-import { type ReactNode, useId, useLayoutEffect, useRef } from "react";
+import { type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
 import { useIsland } from "../store";
 import { bridge, type HitRect } from "../../shared/bridge";
 import { type Geometry, hitShape, islandPath } from "../geometry";
 import { MotionTimeline, type Size } from "../motion";
+import { DrawnSize } from "./DrawnSize";
 
 /** Extra hit areas (floating bubbles), in window CSS pixels, written by their owners. */
 export const extraHits: { current: HitRect[] } = { current: [] };
@@ -38,13 +39,11 @@ export function IslandSurface(props: {
   children: ReactNode;
 }) {
   const { geometry, target, children } = props;
-  const pathRef = useRef<SVGPathElement>(null);
-  const outlineRef = useRef<SVGPathElement>(null);
   const outline = useIsland((s) => s.settings.outline);
   const clipId = `island-clip-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
-  const contentRef = useRef<HTMLDivElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
   const drawn = useRef<Size>(target);
+  const [contentSize, setContentSize] = useState<Size>(target);
   const timeline = useRef<MotionTimeline | null>(null);
   const raf = useRef(0);
   const lastHits = useRef("");
@@ -54,11 +53,9 @@ export function IslandSurface(props: {
   useLayoutEffect(() => {
     const draw = (size: Size, settled: boolean) => {
       drawn.current = size;
-      const dx = (target.width - size.width) / 2;
-      const d = shifted(geometry, size, dx);
-      pathRef.current?.setAttribute("d", d);
-      outlineRef.current?.setAttribute("d", d);
-      if (contentRef.current) contentRef.current.style.clipPath = `path("${d}")`;
+      setContentSize((previous) =>
+        previous.width === size.width && previous.height === size.height ? previous : size,
+      );
       reportHits(size);
       onDrawn.current?.(size, settled);
     };
@@ -90,7 +87,9 @@ export function IslandSurface(props: {
 
     const t = now();
     const current = timeline.current;
-    const from = drawn.current;
+    // Sample the running spring at the retarget time instead of restarting
+    // from the previous animation frame when the pointer changes direction.
+    const from = current ? current.sizeAt(t) : drawn.current;
     if (reducedMotion() || (from.width === target.width && from.height === target.height && !current)) {
       timeline.current = null;
       draw(target, true);
@@ -117,6 +116,10 @@ export function IslandSurface(props: {
     return () => cancelAnimationFrame(raf.current);
   }, [geometry, target.width, target.height]);
 
+  // Commit the outline, clip and content layout together. Imperatively
+  // moving the outline ahead of React's content update causes visible jumps.
+  const d = shifted(geometry, contentSize, (target.width - contentSize.width) / 2);
+
   return (
     <div
       ref={frameRef}
@@ -127,22 +130,15 @@ export function IslandSurface(props: {
         <clipPath id={clipId}>
           <use href={`#${clipId}-shape`} />
         </clipPath>
-        <path id={`${clipId}-shape`} ref={pathRef} fill="#000" />
+        <path id={`${clipId}-shape`} d={d} fill="#000" />
         {/* Settings › Layout › Show outline: a 2 pt stroke of which only the
             inner 1 pt shows, white at 65% (spec 01-shell §1.8). */}
         {outline ? (
-          <path
-            ref={outlineRef}
-            d={pathRef.current?.getAttribute("d") ?? undefined}
-            fill="none"
-            stroke="rgba(255,255,255,0.65)"
-            strokeWidth={2}
-            clipPath={`url(#${clipId})`}
-          />
+          <path d={d} fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth={2} clipPath={`url(#${clipId})`} />
         ) : null}
       </svg>
-      <div ref={contentRef} className="island-content">
-        {children}
+      <div className="island-content" style={{ clipPath: `path("${d}")` }}>
+        <DrawnSize.Provider value={contentSize}>{children}</DrawnSize.Provider>
       </div>
     </div>
   );

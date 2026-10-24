@@ -5,18 +5,21 @@
 // preview row (NotchView.surface; spec 01-shell §2.2).
 
 import { ChevronDown, LayoutGrid } from "lucide-react";
+import { useContext } from "react";
 import { t } from "../../i18n";
 import type { Geometry } from "../geometry";
 import type { Size } from "../motion";
 import { type Notice, useIsland } from "../store";
 import { IconButton } from "./Controls";
+import { DrawnSize } from "../surface/DrawnSize";
 
 export function Resting(props: { size: Size }) {
+  const size = useContext(DrawnSize) ?? props.size;
   return (
     <button
       type="button"
       className="n-activation"
-      style={{ width: props.size.width, height: props.size.height }}
+      style={{ width: size.width, height: size.height }}
       aria-label={t("island.open")}
       onClick={() => useIsland.getState().clickClosed()}
     />
@@ -25,7 +28,8 @@ export function Resting(props: { size: Size }) {
 
 /** One line of text either side of the camera: title left, detail right. */
 export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Size }) {
-  const { notice, geometry, size } = props;
+  const { notice, geometry } = props;
+  const size = useContext(DrawnSize) ?? props.size;
   const camera = geometry.floatingGap === null ? geometry.cameraWidth : 0;
   return (
     <button
@@ -66,11 +70,12 @@ function measureContext(): CanvasRenderingContext2D {
 
 /** The hover preview: where opening leads, and a chevron to open. */
 export function Peek(props: { geometry: Geometry; size: Size }) {
+  const size = useContext(DrawnSize) ?? props.size;
   const selected = useIsland((s) => s.selected);
   return (
     <div
       className="n-peek"
-      style={{ width: props.size.width, height: props.size.height, paddingTop: props.geometry.safeContentTop }}
+      style={{ width: size.width, height: size.height, paddingTop: props.geometry.safeContentTop }}
     >
       <button
         type="button"
