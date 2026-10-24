@@ -132,7 +132,7 @@ export function SessionDetail({ session }: { session: Session }) {
               <div className="s-last-reply">{session.lastText}</div>
             ) : null
           ) : (
-            <div className="s-tertiary">{S.previewsOff}</div>
+            <div className="s-tertiary">{session.provider === "codex" ? S.previewsOffCodex : S.previewsOff}</div>
           )}
         </div>
       </div>
@@ -257,7 +257,7 @@ function ReplyField({ session }: { session: Session }) {
           className="s-reply-field"
           value={draft}
           disabled={!!reason}
-          placeholder={reason ?? S.replyPlaceholder}
+          placeholder={reason ?? (session.provider === "codex" ? S.replyPlaceholderCodex : S.replyPlaceholder)}
           onChange={(e) => {
             setFailure(null);
             useSessions.getState().setDraft(session.id, e.target.value);

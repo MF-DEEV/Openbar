@@ -233,3 +233,39 @@ pub fn raise_process_window(pid: u32) -> bool {
     }
     raise(search.found.0 as isize)
 }
+
+/// Raises the first visible top-level window whose title contains `text`
+/// (Windows Terminal titles its window after the active tab).
+pub fn raise_window_titled(text: &str) -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::GetWindowTextW;
+    struct Search {
+        text: Vec<u16>,
+        found: HWND,
+    }
+    unsafe extern "system" fn visit(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let search = unsafe { &mut *(lparam.0 as *mut Search) };
+        if !unsafe { IsWindowVisible(hwnd) }.as_bool() {
+            return BOOL(1);
+        }
+        let mut buf = [0u16; 512];
+        let len = unsafe { GetWindowTextW(hwnd, &mut buf) } as usize;
+        let title = &buf[..len];
+        if !search.text.is_empty()
+            && title
+                .windows(search.text.len())
+                .any(|w| w == search.text.as_slice())
+        {
+            search.found = hwnd;
+            return BOOL(0);
+        }
+        BOOL(1)
+    }
+    let mut search = Search {
+        text: text.encode_utf16().collect(),
+        found: HWND::default(),
+    };
+    unsafe {
+        let _ = EnumWindows(Some(visit), LPARAM(&mut search as *mut Search as isize));
+    }
+    raise(search.found.0 as isize)
+}

@@ -374,7 +374,7 @@ fn tool_name(kind: &str) -> &'static str {
 /// What the tool works on; kept only with previews (the session strips it otherwise).
 fn tool_summary(kind: &str, item: &Value) -> Option<String> {
     let text = match kind {
-        "commandExecution" => str_at(item, "command").map(str::to_owned),
+        "commandExecution" => str_at(item, "command").map(readable_command),
         "fileChange" => item.get("changes").and_then(Value::as_array).and_then(|c| {
             let names: Vec<String> = c
                 .iter()
@@ -457,12 +457,54 @@ fn event(
     }
 }
 
+/// The command a person would recognise: Codex runs shell commands as
+/// `"…\powershell.exe" -Command '<command>'` (or `pwsh`, `cmd /c`), and its
+/// own terminal shows only the inner command, so the island does too.
+pub fn readable_command(command: &str) -> String {
+    let trimmed = command.trim();
+    let lower = trimmed.to_ascii_lowercase();
+    for shell in [
+        "powershell.exe\"",
+        "powershell\"",
+        "pwsh.exe\"",
+        "pwsh\"",
+        "powershell.exe",
+        "pwsh.exe",
+    ] {
+        let Some(at) = lower.find(shell) else {
+            continue;
+        };
+        let rest = trimmed[at + shell.len()..].trim_start();
+        let rest = rest
+            .strip_prefix("-NoProfile")
+            .map(str::trim_start)
+            .unwrap_or(rest);
+        let Some(inner) = rest.strip_prefix("-Command").map(str::trim) else {
+            continue;
+        };
+        if let Some(quoted) = inner.strip_prefix('\'').and_then(|i| i.strip_suffix('\'')) {
+            return quoted.replace("''", "'");
+        }
+        if let Some(quoted) = inner.strip_prefix('"').and_then(|i| i.strip_suffix('"')) {
+            return quoted.to_string();
+        }
+        return inner.to_string();
+    }
+    for prefix in ["cmd.exe /c ", "cmd /c "] {
+        if let Some(at) = lower.find(prefix) {
+            return trimmed[at + prefix.len()..].trim().to_string();
+        }
+    }
+    trimmed.to_string()
+}
+
 /// The card the island shows for the oldest request Codex waits on.
 fn permission(pending: &Pending) -> Permission {
     let p = &pending.params;
     let (tool, summary, detail, always) = match pending.method.as_str() {
         "item/commandExecution/requestApproval" => {
-            let command = str_at(p, "command").unwrap_or("");
+            let command = readable_command(str_at(p, "command").unwrap_or(""));
+            let command = command.as_str();
             let mut detail = command.to_string();
             if let Some(cwd) = str_at(p, "cwd") {
                 detail.push_str(&format!("\n\nin {cwd}"));
@@ -587,7 +629,8 @@ fn session(thread: &Thread, phase: SessionPhase, since: Time, policy: ContentPol
         branch: thread.branch.clone(),
         model: thread.model.clone(),
         model_name: thread.model.clone(),
-        host: HostKind::Unknown,
+        // Its terminal is found when Open is pressed (no pid ties it to one).
+        host: HostKind::App,
         // Replies go through Codex's own server, whatever terminal shows the session.
         accepts_replies: true,
         phase,
@@ -792,6 +835,22 @@ mod tests {
             result(pending, &answer),
             Some(json!({"answers": {"q1": {"answers": ["SQLite"]}}}))
         );
+    }
+
+    #[test]
+    fn shell_wrappers_are_peeled_off_commands() {
+        assert_eq!(
+            readable_command(
+                r#""C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" -Command 'curl.exe -sI https://example.com'"#
+            ),
+            "curl.exe -sI https://example.com"
+        );
+        assert_eq!(
+            readable_command("pwsh.exe -NoProfile -Command 'echo ''hi'''"),
+            "echo 'hi'"
+        );
+        assert_eq!(readable_command("cmd.exe /c dir"), "dir");
+        assert_eq!(readable_command("git status"), "git status");
     }
 
     #[test]

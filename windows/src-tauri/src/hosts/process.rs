@@ -75,6 +75,57 @@ pub fn ancestors(pid: u32) -> Option<Vec<Entry>> {
     Some(chain)
 }
 
+/// Every running process with this image name (case-insensitive).
+#[cfg(windows)]
+pub fn pids_named(image: &str) -> Vec<u32> {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
+        TH32CS_SNAPPROCESS,
+    };
+    let mut pids = Vec::new();
+    unsafe {
+        let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
+            return pids;
+        };
+        let mut entry = PROCESSENTRY32W {
+            dwSize: size_of::<PROCESSENTRY32W>() as u32,
+            ..Default::default()
+        };
+        if Process32FirstW(snapshot, &mut entry).is_ok() {
+            loop {
+                let len = entry
+                    .szExeFile
+                    .iter()
+                    .position(|&c| c == 0)
+                    .unwrap_or(entry.szExeFile.len());
+                if String::from_utf16_lossy(&entry.szExeFile[..len]).eq_ignore_ascii_case(image) {
+                    pids.push(entry.th32ProcessID);
+                }
+                if Process32NextW(snapshot, &mut entry).is_err() {
+                    break;
+                }
+            }
+        }
+        let _ = CloseHandle(snapshot);
+    }
+    pids
+}
+
+#[cfg(not(windows))]
+pub fn pids_named(image: &str) -> Vec<u32> {
+    let out = std::process::Command::new("pgrep")
+        .args(["-x", image.trim_end_matches(".exe")])
+        .output();
+    out.map(|o| {
+        String::from_utf8_lossy(&o.stdout)
+            .lines()
+            .filter_map(|l| l.trim().parse().ok())
+            .collect()
+    })
+    .unwrap_or_default()
+}
+
 /// When the process started, in 100 ns ticks since 1601 (FILETIME).
 #[cfg(windows)]
 pub fn creation_time(pid: u32) -> Option<u64> {

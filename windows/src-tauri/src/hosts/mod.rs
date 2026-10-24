@@ -232,3 +232,30 @@ mod tests {
         assert_eq!(classify(&chain(&["claude.exe"])).host, Host::Unknown);
     }
 }
+
+/// Brings forward the terminal of a Codex session, which Codex never ties
+/// to a pid: the only interactive `codex.exe`, or else the window titled
+/// after the thread (spec 07 §6.3, §9.2).
+pub fn focus_codex(thread_name: &str) -> bool {
+    let terminals: Vec<(u32, Located)> = process::pids_named("codex.exe")
+        .into_iter()
+        .filter_map(|pid| {
+            locate(pid)
+                .filter(|l| l.host.accepts_replies())
+                .map(|l| (pid, l))
+        })
+        .collect();
+    if terminals.len() == 1 {
+        let (pid, located) = &terminals[0];
+        return focus(*pid, located);
+    }
+    #[cfg(windows)]
+    if !thread_name.is_empty() && console::raise_window_titled(thread_name) {
+        return true;
+    }
+    #[cfg(not(windows))]
+    let _ = thread_name;
+    terminals
+        .first()
+        .is_some_and(|(pid, located)| focus(*pid, located))
+}

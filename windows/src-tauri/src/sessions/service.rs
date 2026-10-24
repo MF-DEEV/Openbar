@@ -591,6 +591,21 @@ impl Service {
     }
 
     fn open(&self, session: &str) -> bool {
+        let codex_name = {
+            let inner = self.inner.lock().unwrap();
+            inner
+                .sessions
+                .iter()
+                .find(|s| s.id == session && s.provider == models::Provider::Codex)
+                .map(|s| s.name.clone())
+        };
+        if let Some(name) = codex_name {
+            let ok = hosts::focus_codex(&name);
+            if ok {
+                self.acknowledge(session);
+            }
+            return ok;
+        }
         let target = {
             let inner = self.inner.lock().unwrap();
             inner

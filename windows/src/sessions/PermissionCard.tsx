@@ -198,7 +198,13 @@ function QuestionForm({ session }: { session: Session }) {
               className="s-own"
               value={own[qi] ?? ""}
               disabled={disabled}
-              placeholder={q.options.length ? S.ownAnswer : S.replyPlaceholder}
+              placeholder={
+                q.options.length
+                  ? S.ownAnswer
+                  : session.provider === "codex"
+                    ? S.replyPlaceholderCodex
+                    : S.replyPlaceholder
+              }
               maxLength={OWN_ANSWER_LIMIT}
               onChange={(e) => {
                 const text = e.target.value;
