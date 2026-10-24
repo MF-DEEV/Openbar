@@ -86,7 +86,7 @@ struct NotchClaudeSessionDetailView: View {
                 HStack(spacing: 6) {
                     Text(text.phase(session.phase))
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(session.phase.tint)
+                        .foregroundStyle(session.tint)
                     if let clock = NotchClaudeSessionFormat.clock(session, now: now) {
                         Text(clock).font(.system(size: 11, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
                     }
@@ -219,7 +219,7 @@ struct NotchClaudeSessionDetailView: View {
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     Capsule().fill(.white.opacity(0.1))
-                    Capsule().fill(AgentProvider.claude.tint)
+                    Capsule().fill(session.provider.tint)
                         .frame(width: max(4, proxy.size.width * tasks.fraction))
                 }
             }
@@ -250,7 +250,7 @@ struct NotchClaudeSessionDetailView: View {
         HStack(spacing: 4) {
             Image(systemName: tool.isRunning ? "circle.dotted" : (tool.failed ? "xmark.circle.fill" : "checkmark.circle.fill"))
                 .font(.system(size: 9, weight: .semibold))
-                .foregroundStyle(tool.isRunning ? AgentProvider.claude.tint : (tool.failed ? .red : .white.opacity(0.45)))
+                .foregroundStyle(tool.isRunning ? session.provider.tint : (tool.failed ? .red : .white.opacity(0.45)))
             Text(tool.summary.map { "\(tool.name) \($0)" } ?? tool.name)
                 .font(.system(size: 10.5, design: tool.summary == nil ? .default : .monospaced))
                 .foregroundStyle(.white.opacity(tool.isRunning ? 0.95 : 0.7))
@@ -271,7 +271,7 @@ struct NotchClaudeSessionDetailView: View {
                     NotchClaudeSubagentAvatar(agent: agent, session: session) {
                         Image(systemName: agent.isRunning ? "arrow.triangle.branch" : "checkmark")
                             .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(agent.isRunning ? AgentProvider.claude.tint : .white.opacity(0.45))
+                            .foregroundStyle(agent.isRunning ? session.provider.tint : .white.opacity(0.45))
                             .frame(width: 12)
                     }
                     Text(agent.type).font(.system(size: 11, weight: .medium)).foregroundStyle(.white.opacity(0.85))
@@ -300,7 +300,7 @@ struct NotchClaudeSessionDetailView: View {
                                     color: .white.withAlphaComponent(0.8), maxLines: 6)
             }
         } else if !previews {
-            Text(text.previewsOff).font(.system(size: 10)).foregroundStyle(.tertiary)
+            Text(text.previewsOff(for: session.provider)).font(.system(size: 10)).foregroundStyle(.tertiary)
         }
     }
 
@@ -331,7 +331,7 @@ struct NotchClaudeSessionPermissionCard: View {
                 Text(title)
                     .font(.system(size: 12, weight: .semibold))
             }
-            .foregroundStyle(session.phase.tint)
+            .foregroundStyle(session.tint)
             if let permission = session.permission, permission.asksQuestions {
                 NotchClaudeQuestionForm(session: session, permission: permission, text: text, settling: settling)
                     // Answers picked for one question never carry over to the next.
@@ -348,15 +348,17 @@ struct NotchClaudeSessionPermissionCard: View {
             settling = true
             DispatchQueue.main.asyncAfter(deadline: .now() + NotchClaudeSessionsSupport.settleDelay) { settling = false }
         }
-        .background(session.phase.tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(session.tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(session.phase.tint.opacity(0.35), lineWidth: 1)
+                .strokeBorder(session.tint.opacity(0.35), lineWidth: 1)
         }
     }
 
     private var title: String {
-        if session.permission?.asksQuestions == true { return text.question }
+        if session.permission?.asksQuestions == true { return text.question(for: session.provider) }
+        // Codex waits on a request the island can't answer; the card's body says to answer it there.
+        if session.waitingFor == CodexSessionState.answerInTerminal { return text.phase(session.phase) }
         return session.permission?.tool ?? session.currentTool?.name ?? session.waitingFor ?? text.phase(session.phase)
     }
 
@@ -443,7 +445,7 @@ struct NotchClaudeQuestionForm: View {
                     .disabled(answers == nil)
             }
             .disabled(settling || sent)
-            Text(text.questionHint).font(.system(size: 9.5)).foregroundStyle(.tertiary)
+            Text(text.questionHint(for: session.provider)).font(.system(size: 9.5)).foregroundStyle(.tertiary)
         }
         .animation(reduceMotion ? nil : .easeOut(duration: 0.16), value: picked)
     }
@@ -491,7 +493,7 @@ struct NotchClaudeQuestionForm: View {
 
     private func optionRow(_ option: ClaudeQuestion.Option, question: ClaudeQuestion, index: Int) -> some View {
         let selected = picked[index]?.contains(option.label) == true
-        let tint = session.phase.tint
+        let tint = session.tint
         return Button {
             pick(option.label, in: question, index: index)
         } label: {
@@ -535,7 +537,7 @@ struct NotchClaudeQuestionForm: View {
         Image(systemName: multiple ? (selected ? "checkmark.square.fill" : "square")
               : (selected ? "largecircle.fill.circle" : "circle"))
             .font(.system(size: 13, weight: .medium))
-            .foregroundStyle(selected ? session.phase.tint : .white.opacity(0.45))
+            .foregroundStyle(selected ? session.tint : .white.opacity(0.45))
             .frame(width: 16, height: 16)
     }
 
@@ -545,7 +547,7 @@ struct NotchClaudeQuestionForm: View {
             // A single choice is either picked or written, not both.
             if !question.multiSelect, !value.trimmingCharacters(in: .whitespaces).isEmpty { picked[index] = nil }
         })
-        return TextField(question.options.isEmpty ? text.replyPlaceholder : text.ownAnswer, text: binding)
+        return TextField(question.options.isEmpty ? text.replyPlaceholder(for: session.provider) : text.ownAnswer, text: binding)
             .textFieldStyle(.plain)
             .font(.system(size: 11.5))
             .padding(.horizontal, 9)
@@ -631,7 +633,8 @@ struct NotchClaudeSessionReplyField: View {
     private var unavailable: String? {
         if session.phase.isWaiting { return text.replyWhileWaiting }
         if session.waitingFor != nil { return text.replyWhileDialog }
-        if !session.host.acceptsReplies { return text.replyUnavailable }
+        // Codex takes replies through its server, wherever its terminal is.
+        if session.provider != .codex, !session.host.acceptsReplies { return text.replyUnavailable }
         return nil
     }
 
@@ -639,13 +642,13 @@ struct NotchClaudeSessionReplyField: View {
         VStack(alignment: .leading, spacing: 3) {
             NotchClaudeAttachmentStrip(sessionID: session.id, text: text, side: 36)
             HStack(spacing: 6) {
-                TextField(unavailable ?? text.replyPlaceholder, text: draft)
+                TextField(unavailable ?? text.replyPlaceholder(for: session.provider), text: draft)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                     .focused($focused)
                     .onSubmit(send)
                     .disabled(unavailable != nil || sending)
-                    .accessibilityLabel(text.replyPlaceholder)
+                    .accessibilityLabel(text.replyPlaceholder(for: session.provider))
                 Button(action: send) {
                     Group {
                         if sending {
@@ -656,7 +659,7 @@ struct NotchClaudeSessionReplyField: View {
                     }
                     .foregroundStyle(canSend ? Color.black.opacity(0.85) : .white.opacity(0.35))
                     .frame(width: 24, height: 24)
-                    .background(canSend ? AgentProvider.claude.tint : .white.opacity(0.08), in: Circle())
+                    .background(canSend ? session.provider.tint : .white.opacity(0.08), in: Circle())
                 }
                 .buttonStyle(NotchButtonStyle(cornerRadius: 12))
                 // Return sends from the field, and ⌘↩ as on the enlarged page.
@@ -673,7 +676,7 @@ struct NotchClaudeSessionReplyField: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(.white.opacity(dropping ? 0.6 : focused ? 0.3 : 0), lineWidth: 1)
             }
-            .modifier(NotchClaudeImageInput(sessionID: session.id, dropping: $dropping))
+            .modifier(NotchClaudeImageInput(sessionID: session.id, takesImages: session.provider != .codex, dropping: $dropping))
             if let problem {
                 Label(problem, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 10))

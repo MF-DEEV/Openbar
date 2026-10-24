@@ -60,7 +60,8 @@ struct NotchClawdPose: Hashable {
 /// Clawd drawn in pixels, after the sprite Claude Code cooks with: a body 13
 /// pixels wide and 8 tall, eyes a pixel wide and two tall, arms that stick
 /// out two pixels on each side and four short legs. Each costume part is a
-/// small drawing laid over it. Everything here is plain data and pure
+/// small drawing laid over it. Codex's robot fills the same footprint, so
+/// every part fits it unchanged. Everything here is plain data and pure
 /// functions; the views only put the images on screen.
 enum NotchClawdSprite {
     // MARK: Canvas
@@ -229,17 +230,20 @@ enum NotchClawdSprite {
 
     /// The costume in `pose`, as one letter per canvas pixel, nil where
     /// nothing is drawn. Rows run from the top.
-    static func letters(_ costume: ClawdCostume, _ pose: NotchClawdPose) -> [Character?] {
-        compose(costume, pose).canvas
+    static func letters(_ costume: ClawdCostume, _ pose: NotchClawdPose,
+                        character: ClawdCharacter = .clawd) -> [Character?] {
+        compose(costume, pose, character: character).canvas
     }
 
     /// How many pixels of the costume in `pose` fall off the canvas: none,
     /// for a drawing that fits.
-    static func clippedPixels(_ costume: ClawdCostume, _ pose: NotchClawdPose) -> Int {
-        compose(costume, pose).clipped
+    static func clippedPixels(_ costume: ClawdCostume, _ pose: NotchClawdPose,
+                              character: ClawdCharacter = .clawd) -> Int {
+        compose(costume, pose, character: character).clipped
     }
 
-    private static func compose(_ costume: ClawdCostume, _ pose: NotchClawdPose) -> (canvas: [Character?], clipped: Int) {
+    private static func compose(_ costume: ClawdCostume, _ pose: NotchClawdPose,
+                                character: ClawdCharacter) -> (canvas: [Character?], clipped: Int) {
         var canvas = [Character?](repeating: nil, count: width * height)
         var clipped = 0
         let lift = pose.rise + pose.jump
@@ -253,19 +257,26 @@ enum NotchClawdSprite {
             }
         }
         // Legs reach the ground under a rising body, and tuck in off it.
-        let feet = [(0, true), (2, true), (10, false), (12, false)]
-        for (x, left) in feet {
+        for (x, left) in feet(character) {
             let lifted = (pose.legs == .stepLeft && left) || (pose.legs == .stepRight && !left)
             let top = 8 - pose.rise, bottom = pose.jump > 0 || lifted ? 8 : 9
             put(Stamp(x: x, y: top, rows: Array(repeating: "c", count: max(1, bottom - top + 1))), dy: -pose.jump)
         }
-        put(Stamp(x: 0, y: 0, rows: Array(repeating: String(repeating: "C", count: 13), count: 8)))
-        arms(pose.arms).forEach { put($0) }
+        switch character {
+        case .clawd:
+            put(Stamp(x: 0, y: 0, rows: Array(repeating: String(repeating: "C", count: 13), count: 8)))
+            arms(pose.arms).forEach { put($0) }
+        case .codex:
+            // The antenna goes first, so a hat simply covers it.
+            codexAntenna.forEach { put($0) }
+            put(Stamp(x: 0, y: 0, rows: codexBody))
+            codexArms(pose.arms).forEach { put($0) }
+        }
         put(eyes(pose.eyes, column: 3))
         put(eyes(pose.eyes, column: 9))
         if let stamp = eyewear(costume.eyewear) { put(stamp) }
         hat(costume.hat, tick: pose.tick).forEach { put($0) }
-        extra(costume.extra, arms: pose.arms, tick: pose.tick).forEach { put($0) }
+        extra(costume.extra, arms: pose.arms, tick: pose.tick, character: character).forEach { put($0) }
         if let bubble = pose.bubble { bubbleStamps(bubble).forEach { put($0) } }
         return (canvas, clipped)
     }
@@ -282,6 +293,50 @@ enum NotchClawdSprite {
         case .typeRight: return [downLeft, Stamp(x: 13, y: 5, rows: ["CC", "CC"])]
         case .waveUp: return [downLeft, upRight]
         case .waveOut: return [downLeft, Stamp(x: 13, y: 2, rows: ["..C", ".CC", "CC.", "C.."])]
+        }
+    }
+
+    /// Where each leg stands, and whether it is a left one.
+    private static func feet(_ character: ClawdCharacter) -> [(x: Int, left: Bool)] {
+        switch character {
+        case .clawd: return [(0, true), (2, true), (10, false), (12, false)]
+        // Two stubby feet, each two pixels wide, under the terminal.
+        case .codex: return [(3, true), (4, true), (8, false), (9, false)]
+        }
+    }
+
+    // MARK: Codex's robot
+
+    /// Codex's figure in Clawd's 13 by 8 footprint: a terminal with rounded
+    /// corners, its dark screen (V) where the eyes glow, a status light (G)
+    /// and a shaded base.
+    static let codexBody = [
+        ".CCCCCCCCCCC.",
+        "CCVVVVVVVVVCC",
+        "CCVVVVVVVVVCC",
+        "CCVVVVVVVVVCC",
+        "CCVVVVVVVVVCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCGcCC",
+        ".ccccccccccc.",
+    ]
+
+    /// An antenna with a light on top.
+    private static let codexAntenna = [Stamp(x: 6, y: -2, rows: ["G"]), Stamp(x: 6, y: -1, rows: ["c"])]
+
+    /// Thin arms, a pixel wide, at the terminal's sides.
+    private static func codexArms(_ arms: NotchClawdPose.Arms) -> [Stamp] {
+        let downLeft = Stamp(x: -1, y: 3, rows: ["C", "C", "c"])
+        let downRight = Stamp(x: 13, y: 3, rows: ["C", "C", "c"])
+        let upLeft = Stamp(x: -1, y: -2, rows: ["c", "C", "C", "C"])
+        let upRight = Stamp(x: 13, y: -2, rows: ["c", "C", "C", "C"])
+        switch arms {
+        case .down: return [downLeft, downRight]
+        case .up: return [upLeft, upRight]
+        case .typeLeft: return [Stamp(x: -2, y: 4, rows: [".C", "cC"]), downRight]
+        case .typeRight: return [downLeft, Stamp(x: 13, y: 4, rows: ["C.", "Cc"])]
+        case .waveUp: return [downLeft, upRight]
+        case .waveOut: return [downLeft, Stamp(x: 13, y: 0, rows: [".c", "C.", "C."])]
         }
     }
 
@@ -386,7 +441,16 @@ enum NotchClawdSprite {
     }
 
     /// Where the right hand is in each pose, for what it holds.
-    private static func rightHand(_ arms: NotchClawdPose.Arms) -> (x: Int, y: Int) {
+    private static func rightHand(_ arms: NotchClawdPose.Arms, character: ClawdCharacter) -> (x: Int, y: Int) {
+        if character == .codex {
+            // The robot's arms are thinner and sit a pixel closer.
+            switch arms {
+            case .down, .typeLeft: return (14, 3)
+            case .typeRight: return (14, 4)
+            case .up, .waveUp: return (14, -3)
+            case .waveOut: return (15, -1)
+            }
+        }
         switch arms {
         case .down, .typeLeft: return (15, 3)
         case .typeRight: return (15, 4)
@@ -395,7 +459,8 @@ enum NotchClawdSprite {
         }
     }
 
-    private static func extra(_ extra: ClawdExtra, arms: NotchClawdPose.Arms, tick: Int) -> [Stamp] {
+    private static func extra(_ extra: ClawdExtra, arms: NotchClawdPose.Arms, tick: Int,
+                              character: ClawdCharacter) -> [Stamp] {
         switch extra {
         case .none: return []
         case .bow:
@@ -418,7 +483,7 @@ enum NotchClawdSprite {
                                                "AA.............AA",
                                                "AA.............AA"])]
         case .coffee:
-            let hand = rightHand(arms)
+            let hand = rightHand(arms, character: character)
             let steam = tick == 0 ? [".w.", "w.."] : ["w..", ".w."]
             return [Stamp(x: hand.x, y: hand.y - 2, rows: steam + ["NNN", "WWW", "WWW"])]
         }
@@ -442,9 +507,22 @@ enum NotchClawdSprite {
 
     // MARK: Colors
 
+    /// Codex's screen, and the light its eyes and status lamp give off.
+    static let codexScreen = (red: 16, green: 22, blue: 28)
+    static let codexGlow = (red: 124, green: 240, blue: 204)
+
     /// sRGB out of 255 for each letter; the shell and accent letters come
     /// from the costume.
-    static func color(_ letter: Character, costume: ClawdCostume) -> (red: Int, green: Int, blue: Int)? {
+    static func color(_ letter: Character, costume: ClawdCostume,
+                      character: ClawdCharacter = .clawd) -> (red: Int, green: Int, blue: Int)? {
+        if character == .codex {
+            // The eyes glow on the dark screen instead of sitting dark on the shell.
+            switch letter {
+            case "V": return codexScreen
+            case "E", "G": return codexGlow
+            default: break
+            }
+        }
         let shell = costume.shell.rgb, accent = accent(for: costume.shell).rgb
         switch letter {
         case "C": return shell
@@ -495,10 +573,10 @@ enum NotchClawdSprite {
     }
 
     /// Straight RGBA bytes for the canvas, transparent where nothing is drawn.
-    static func pixels(_ costume: ClawdCostume, _ pose: NotchClawdPose) -> [UInt8] {
+    static func pixels(_ costume: ClawdCostume, _ pose: NotchClawdPose, character: ClawdCharacter = .clawd) -> [UInt8] {
         var bytes = [UInt8](repeating: 0, count: width * height * 4)
-        for (index, letter) in letters(costume, pose).enumerated() {
-            guard let letter, let color = color(letter, costume: costume) else { continue }
+        for (index, letter) in letters(costume, pose, character: character).enumerated() {
+            guard let letter, let color = color(letter, costume: costume, character: character) else { continue }
             bytes[index * 4] = UInt8(clamping: color.red)
             bytes[index * 4 + 1] = UInt8(clamping: color.green)
             bytes[index * 4 + 2] = UInt8(clamping: color.blue)
@@ -516,11 +594,11 @@ enum NotchClawdSprite {
     }()
 
     /// The canvas as an image, a pixel per canvas pixel, made once per
-    /// costume and pose. Every pixel is either opaque or clear.
-    static func image(_ costume: ClawdCostume, _ pose: NotchClawdPose) -> CGImage? {
-        let key = "\(costume.code)|\(pose.key)" as NSString
+    /// character, costume and pose. Every pixel is either opaque or clear.
+    static func image(_ costume: ClawdCostume, _ pose: NotchClawdPose, character: ClawdCharacter = .clawd) -> CGImage? {
+        let key = "\(character.rawValue)|\(costume.code)|\(pose.key)" as NSString
         if let image = cache.object(forKey: key) { return image }
-        let data = Data(pixels(costume, pose))
+        let data = Data(pixels(costume, pose, character: character))
         guard let provider = CGDataProvider(data: data as CFData),
               let space = CGColorSpace(name: CGColorSpace.sRGB),
               let image = CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 32,

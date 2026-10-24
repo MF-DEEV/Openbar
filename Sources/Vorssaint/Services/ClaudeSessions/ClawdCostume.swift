@@ -7,6 +7,33 @@ import Foundation
 // pixel crab Claude Code greets with, dressed in a costume drawn by lot from
 // the session's id. The same session always draws the same costume, so it is
 // known by it from one launch to the next; the person may dress it otherwise.
+// A Codex session wears the same costumes on a figure of its own.
+
+/// Who wears the costume: Clawd for Claude Code, a little terminal robot for
+/// Codex. The costumes and their codes are shared; the figure and the shell
+/// its lots favour differ.
+enum ClawdCharacter: String, CaseIterable {
+    case clawd, codex
+
+    /// The shell this character's lots come up in most: Claude's clay, and
+    /// for Codex the iris closest to its violet-blue.
+    var favouredShell: ClawdShell {
+        switch self {
+        case .clawd: return .clay
+        case .codex: return .iris
+        }
+    }
+}
+
+extension ClaudeSessionProvider {
+    /// The figure a session of this agent is drawn as.
+    var character: ClawdCharacter {
+        switch self {
+        case .claude: return .clawd
+        case .codex: return .codex
+        }
+    }
+}
 
 /// The color of a Clawd's shell.
 enum ClawdShell: String, CaseIterable, Identifiable {
@@ -79,7 +106,8 @@ struct ClawdCostume: Hashable {
     static let hatChance = 0.7
     static let eyewearChance = 0.4
     static let extraChance = 0.45
-    /// Claude's own color comes up this many times as often as any other.
+    /// The character's own color (clay for Clawd) comes up this many times
+    /// as often as any other.
     static let clayWeight = 3
 
     /// A number for `key` that stays the same from one launch to the next:
@@ -93,35 +121,39 @@ struct ClawdCostume: Hashable {
         return hash
     }
 
-    /// The costume `key` draws, the same each time.
-    static func seeded(_ key: String) -> ClawdCostume {
+    /// The costume `key` draws, the same each time. Clawd's lots are the
+    /// ones every earlier version drew; a Codex robot's only favour another
+    /// shell.
+    static func seeded(_ key: String, character: ClawdCharacter = .clawd) -> ClawdCostume {
         var generator = ClawdRandom(seed: seed(key))
-        return drawn(using: &generator)
+        return drawn(using: &generator, character: character)
     }
 
     /// A subagent's costume: drawn from its own key, in the shell of the
     /// color its definition gives it, if it gives one.
-    static func seeded(_ key: String, agentColor: String?) -> ClawdCostume {
-        var costume = seeded(key)
+    static func seeded(_ key: String, agentColor: String?, character: ClawdCharacter = .clawd) -> ClawdCostume {
+        var costume = seeded(key, character: character)
         if let shell = agentColor.flatMap(ClawdShell.init(agentColor:)) { costume.shell = shell }
         return costume
     }
 
     /// A costume by lot, other than `current`, for "Surprise me".
-    static func random(excluding current: ClawdCostume?) -> ClawdCostume {
+    static func random(excluding current: ClawdCostume?, character: ClawdCharacter = .clawd) -> ClawdCostume {
         var generator = SystemRandomNumberGenerator()
-        var costume = drawn(using: &generator)
+        var costume = drawn(using: &generator, character: character)
         // Ten draws alike in a row are as good as impossible; give up then.
-        for _ in 0..<10 where costume == current { costume = drawn(using: &generator) }
+        for _ in 0..<10 where costume == current { costume = drawn(using: &generator, character: character) }
         return costume
     }
 
     /// One part after another from the same lot, so each is its own draw.
-    static func drawn<Generator: RandomNumberGenerator>(using generator: inout Generator) -> ClawdCostume {
+    static func drawn<Generator: RandomNumberGenerator>(using generator: inout Generator,
+                                                        character: ClawdCharacter = .clawd) -> ClawdCostume {
+        let favoured = character.favouredShell
         let shells = ClawdShell.allCases
-        let weights = shells.map { $0 == .clay ? clayWeight : 1 }
+        let weights = shells.map { $0 == favoured ? clayWeight : 1 }
         var ticket = Int(generator.next() % UInt64(weights.reduce(0, +)))
-        var shell = ClawdShell.clay
+        var shell = favoured
         for (candidate, weight) in zip(shells, weights) {
             if ticket < weight { shell = candidate; break }
             ticket -= weight
@@ -164,16 +196,20 @@ extension ClawdCostume {
                   extra: ClawdExtra(rawValue: parts[3]) ?? fallback.extra)
     }
 
-    /// What a session wears: what the person chose for it, or its own lot.
-    static func resolved(key: String, kept: String?, agentColor: String? = nil) -> ClawdCostume {
-        let own = seeded(key, agentColor: agentColor)
+    /// What a session wears: what the person chose for it, or its own lot,
+    /// drawn for the character it is.
+    static func resolved(key: String, kept: String?, agentColor: String? = nil,
+                         character: ClawdCharacter = .clawd) -> ClawdCostume {
+        let own = seeded(key, agentColor: agentColor, character: character)
         return kept.flatMap { ClawdCostume(code: $0, fallback: own) } ?? own
     }
 
     /// What to keep for a session dressed in `costume`: nothing when it is
     /// the session's own lot, so the choice follows the lot if it changes.
-    static func kept(_ costume: ClawdCostume?, key: String) -> String? {
-        guard let costume, costume != seeded(key) else { return nil }
+    /// The lot is the character's: a Codex robot dressed as Clawd's lot
+    /// keeps that choice, and is never reset to it.
+    static func kept(_ costume: ClawdCostume?, key: String, character: ClawdCharacter = .clawd) -> String? {
+        guard let costume, costume != seeded(key, character: character) else { return nil }
         return costume.code
     }
 }

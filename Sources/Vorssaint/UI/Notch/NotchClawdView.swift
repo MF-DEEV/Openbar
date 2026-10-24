@@ -12,6 +12,7 @@ import QuartzCore
 final class NotchClawdView: NSView {
     private let sprite = CALayer()
     private(set) var costume = ClawdCostume.classic
+    private(set) var character = ClawdCharacter.clawd
     private(set) var motion = NotchClawdMotion.rest
     private var seed: UInt64 = 0
     private var still = false
@@ -55,18 +56,19 @@ final class NotchClawdView: NSView {
     override var isFlipped: Bool { true }
     override func hitTest(_ point: NSPoint) -> NSView? { nil }
 
-    /// Shows `costume` doing `motion`. `seed` is the Clawd's own rhythm.
-    /// `since` is when what it does began, so every Clawd of one session
-    /// moves as one and a request's first hop comes as it arrives. `cheer`
-    /// is when the work it hops for ended. `still` is Reduce Motion.
-    func configure(costume: ClawdCostume, motion: NotchClawdMotion, seed: UInt64, since: Date? = nil,
-                   cheer: Date? = nil, still: Bool, bubbles: Bool = true) {
+    /// Shows `costume` on `character` doing `motion`. `seed` is the Clawd's
+    /// own rhythm. `since` is when what it does began, so every Clawd of one
+    /// session moves as one and a request's first hop comes as it arrives.
+    /// `cheer` is when the work it hops for ended. `still` is Reduce Motion.
+    func configure(costume: ClawdCostume, character: ClawdCharacter = .clawd, motion: NotchClawdMotion, seed: UInt64,
+                   since: Date? = nil, cheer: Date? = nil, still: Bool, bubbles: Bool = true) {
         let restart = !configured || motion != self.motion || since != self.since
-        guard restart || costume != self.costume || seed != self.seed || still != self.still || cheer != cheerSince
-                || bubbles != self.bubbles
+        guard restart || costume != self.costume || character != self.character || seed != self.seed
+                || still != self.still || cheer != cheerSince || bubbles != self.bubbles
         else { return }
         configured = true
         self.costume = costume
+        self.character = character
         self.motion = motion
         self.seed = seed
         self.still = still
@@ -160,7 +162,7 @@ final class NotchClawdView: NSView {
         pose = next
         CATransaction.begin()
         CATransaction.setDisableActions(true)
-        sprite.contents = NotchClawdSprite.image(costume, next)
+        sprite.contents = NotchClawdSprite.image(costume, next, character: character)
         CATransaction.commit()
     }
 

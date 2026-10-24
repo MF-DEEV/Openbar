@@ -173,7 +173,7 @@ struct NotchClaudeSessionLargeView: View {
                 HStack(spacing: 8) {
                     Text(text.phase(session.phase))
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(session.phase.tint)
+                        .foregroundStyle(session.tint)
                     if let clock = NotchClaudeSessionFormat.clock(session, now: now) {
                         Text(clock).font(.system(size: 14, weight: .medium)).monospacedDigit().foregroundStyle(.secondary)
                     }
@@ -234,7 +234,7 @@ struct NotchClaudeSessionLargeView: View {
 
     @ViewBuilder private var conversation: some View {
         if !previews {
-            Text(text.previewsOff).font(.system(size: size - 1)).foregroundStyle(.tertiary)
+            Text(text.previewsOff(for: session.provider)).font(.system(size: size - 1)).foregroundStyle(.tertiary)
         } else if session.chat.isEmpty && !session.phase.isWorking {
             Text(text.noMessages).font(.system(size: size - 1)).foregroundStyle(.tertiary)
         } else {
@@ -313,12 +313,12 @@ struct NotchClaudeSessionLargeView: View {
             Text(text.answer.uppercased())
                 .font(.system(size: max(10, size - 4), weight: .semibold))
                 .tracking(0.8)
-                .foregroundStyle(AgentProvider.claude.tint)
+                .foregroundStyle(session.provider.tint)
             Text(message.at, style: .time)
                 .font(.system(size: max(10, size - 4)))
                 .foregroundStyle(.tertiary)
             Rectangle()
-                .fill(AgentProvider.claude.tint.opacity(0.35))
+                .fill(session.provider.tint.opacity(0.35))
                 .frame(height: 1)
         }
         .accessibilityElement(children: .combine)
@@ -385,7 +385,7 @@ struct NotchClaudeSessionLargeView: View {
             if let current = tasks.current {
                 Text(current).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(2)
             }
-            ProgressView(value: tasks.fraction).tint(AgentProvider.claude.tint)
+            ProgressView(value: tasks.fraction).tint(session.provider.tint)
         }
     }
 
@@ -393,7 +393,7 @@ struct NotchClaudeSessionLargeView: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: tool.isRunning ? "circle.dotted" : (tool.failed ? "xmark.circle.fill" : "checkmark.circle.fill"))
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(tool.isRunning ? AgentProvider.claude.tint : (tool.failed ? .red : .white.opacity(0.4)))
+                .foregroundStyle(tool.isRunning ? session.provider.tint : (tool.failed ? .red : .white.opacity(0.4)))
             Text(tool.name).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
             Text(tool.summary ?? "")
                 .font(.system(size: 11, design: .monospaced))
@@ -414,7 +414,7 @@ struct NotchClaudeSessionLargeView: View {
             NotchClaudeSubagentAvatar(agent: agent, session: session, size: CGSize(width: 22, height: 17)) {
                 Image(systemName: agent.isRunning ? "arrow.triangle.branch" : "checkmark")
                     .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(agent.isRunning ? AgentProvider.claude.tint : .white.opacity(0.4))
+                    .foregroundStyle(agent.isRunning ? session.provider.tint : .white.opacity(0.4))
             }
             VStack(alignment: .leading, spacing: 1) {
                 Text(agent.type).font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
@@ -430,7 +430,8 @@ struct NotchClaudeSessionLargeView: View {
 }
 
 /// Claude at work, as its terminal shows it: a turning star and a word
-/// with light passing over it, with how long the turn has run.
+/// with light passing over it, with how long the turn has run. A Codex
+/// session shows Codex's breathing mark and color in the star's place.
 struct NotchClaudeThinkingRow: View {
     let session: ClaudeSession
     let size: CGFloat
@@ -442,10 +443,7 @@ struct NotchClaudeThinkingRow: View {
         TimelineView(.animation(minimumInterval: 1.0 / 24, paused: reduceMotion)) { context in
             let time = context.date.timeIntervalSinceReferenceDate
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(reduceMotion ? "✻" : NotchClaudeSessionsSupport.thinkingGlyph(step: Int(time * 8)))
-                    .font(.system(size: size + 1, weight: .semibold))
-                    .foregroundStyle(AgentProvider.claude.tint)
-                    .frame(width: size + 4)
+                glyph(at: time)
                 Text(shimmer(at: time))
                     .font(.system(size: size, weight: .medium))
                 if let clock = NotchClaudeSessionFormat.clock(session, now: context.date) {
@@ -460,11 +458,28 @@ struct NotchClaudeThinkingRow: View {
         .accessibilityLabel(word)
     }
 
+    @ViewBuilder private func glyph(at time: TimeInterval) -> some View {
+        switch session.provider {
+        case .claude:
+            Text(reduceMotion ? "✻" : NotchClaudeSessionsSupport.thinkingGlyph(step: Int(time * 8)))
+                .font(.system(size: size + 1, weight: .semibold))
+                .foregroundStyle(session.provider.tint)
+                .frame(width: size + 4)
+        case .codex:
+            // As wide as the star's column; centred on the word's letters
+            // rather than sat on their baseline. It breathes on its own clock
+            // and stays still under Reduce Motion.
+            NotchSessionAgentGlyph(provider: .codex, size: (size + 3) / 1.45)
+                .frame(width: size + 4)
+                .alignmentGuide(.firstTextBaseline) { $0.height / 2 + size * 0.35 }
+        }
+    }
+
     /// A band of light crossing the word from left to right, then a pause.
     private func shimmer(at time: TimeInterval) -> AttributedString {
         var result = AttributedString()
         let letters = Array(word)
-        let tint = AgentProvider.claude.tint
+        let tint = session.provider.tint
         let band = 3.0
         let span = Double(letters.count) + band * 2 + 6
         let center = (time * 14).truncatingRemainder(dividingBy: span) - band
@@ -497,7 +512,8 @@ struct NotchClaudeSessionComposer: View {
     private var unavailable: String? {
         if session.phase.isWaiting { return text.replyWhileWaiting }
         if session.waitingFor != nil { return text.replyWhileDialog }
-        if !session.host.acceptsReplies { return text.replyUnavailable }
+        // Codex takes replies through its server, wherever its terminal is.
+        if session.provider != .codex, !session.host.acceptsReplies { return text.replyUnavailable }
         return nil
     }
 
@@ -512,7 +528,7 @@ struct NotchClaudeSessionComposer: View {
             HStack(alignment: .bottom, spacing: 10) {
                 ZStack(alignment: .topLeading) {
                     if draft.wrappedValue.isEmpty {
-                        Text(unavailable ?? text.replyPlaceholder)
+                        Text(unavailable ?? text.replyPlaceholder(for: session.provider))
                             .font(.system(size: size))
                             .foregroundStyle(.white.opacity(0.35))
                             .padding(.horizontal, 5)
@@ -523,7 +539,7 @@ struct NotchClaudeSessionComposer: View {
                         .scrollContentBackground(.hidden)
                         .focused($focused)
                         .disabled(unavailable != nil || sending)
-                        .accessibilityLabel(text.replyPlaceholder)
+                        .accessibilityLabel(text.replyPlaceholder(for: session.provider))
                 }
                 // About three lines; the editor scrolls past that.
                 .frame(height: size * 4)
@@ -533,7 +549,7 @@ struct NotchClaudeSessionComposer: View {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .strokeBorder(.white.opacity(dropping ? 0.6 : focused ? 0.3 : 0.08), lineWidth: 1)
                 }
-                .modifier(NotchClaudeImageInput(sessionID: session.id, dropping: $dropping))
+                .modifier(NotchClaudeImageInput(sessionID: session.id, takesImages: session.provider != .codex, dropping: $dropping))
                 Button(action: send) {
                     Group {
                         if sending { ProgressView().controlSize(.small) } else {
@@ -542,7 +558,7 @@ struct NotchClaudeSessionComposer: View {
                     }
                     .foregroundStyle(canSend ? Color.black.opacity(0.85) : .white.opacity(0.35))
                     .frame(width: 38, height: 38)
-                    .background(canSend ? AgentProvider.claude.tint : .white.opacity(0.08), in: Circle())
+                    .background(canSend ? session.provider.tint : .white.opacity(0.08), in: Circle())
                 }
                 .buttonStyle(NotchButtonStyle(cornerRadius: 19))
                 .keyboardShortcut(.return, modifiers: .command)
@@ -673,9 +689,20 @@ struct NotchClaudeThumbnail: View {
 /// text when it holds none, and images dropped on the field are added.
 struct NotchClaudeImageInput: ViewModifier {
     let sessionID: String
+    /// Codex takes text replies only: its field neither pastes nor takes
+    /// dropped images, so none is copied aside for nothing.
+    var takesImages = true
     @Binding var dropping: Bool
 
-    func body(content: Content) -> some View {
+    @ViewBuilder func body(content: Content) -> some View {
+        if takesImages {
+            withImages(content)
+        } else {
+            content
+        }
+    }
+
+    private func withImages(_ content: Content) -> some View {
         content
             .background {
                 Button("") {

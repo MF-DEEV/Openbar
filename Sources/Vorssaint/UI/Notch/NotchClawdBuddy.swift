@@ -7,6 +7,8 @@ import SwiftUI
 /// decoration: what it stands for is said by the text beside it.
 struct NotchClawd: View {
     let costume: ClawdCostume
+    /// Clawd, or Codex's robot for a Codex session.
+    var character = ClawdCharacter.clawd
     var motion = NotchClawdMotion.rest
     var seed: UInt64 = 0
     /// When what it does began.
@@ -17,8 +19,8 @@ struct NotchClawd: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        NotchClawdBridge(costume: costume, motion: motion, seed: seed, since: since, cheer: cheer, still: reduceMotion,
-                         bubbles: bubbles)
+        NotchClawdBridge(costume: costume, character: character, motion: motion, seed: seed, since: since, cheer: cheer,
+                         still: reduceMotion, bubbles: bubbles)
             .frame(width: size.width, height: size.height)
             .accessibilityHidden(true)
             .allowsHitTesting(false)
@@ -27,6 +29,7 @@ struct NotchClawd: View {
 
 private struct NotchClawdBridge: NSViewRepresentable {
     let costume: ClawdCostume
+    let character: ClawdCharacter
     let motion: NotchClawdMotion
     let seed: UInt64
     let since: Date?
@@ -36,8 +39,8 @@ private struct NotchClawdBridge: NSViewRepresentable {
 
     func makeNSView(context: Context) -> NotchClawdView { NotchClawdView() }
     func updateNSView(_ view: NotchClawdView, context: Context) {
-        view.configure(costume: costume, motion: motion, seed: seed, since: since, cheer: cheer, still: still,
-                       bubbles: bubbles)
+        view.configure(costume: costume, character: character, motion: motion, seed: seed, since: since, cheer: cheer,
+                       still: still, bubbles: bubbles)
     }
     static func dismantleNSView(_ view: NotchClawdView, coordinator: ()) { view.stop() }
 }
@@ -46,6 +49,7 @@ private struct NotchClawdBridge: NSViewRepresentable {
 /// dozens at once and none of them moves.
 struct NotchClawdPicture: View {
     let costume: ClawdCostume
+    var character = ClawdCharacter.clawd
     var pose = NotchClawdPose()
     let size: CGSize
     @Environment(\.displayScale) private var displayScale
@@ -53,7 +57,7 @@ struct NotchClawdPicture: View {
     var body: some View {
         let fit = NotchClawdSprite.layout(box: size, scale: displayScale)
         ZStack(alignment: .topLeading) {
-            if let image = NotchClawdSprite.image(costume, pose) {
+            if let image = NotchClawdSprite.image(costume, pose, character: character) {
                 Image(decorative: image, scale: 1)
                     .resizable()
                     .interpolation(.none)
@@ -81,12 +85,13 @@ struct NotchClaudeSessionAvatar: View {
 
     var body: some View {
         if buddies {
-            NotchClawd(costume: service.costume(for: session),
+            NotchClawd(costume: NotchClaudeSessionsSupport.costume(for: session, kept: service.costumes),
+                       character: session.provider.character,
                        motion: NotchClaudeSessionsSupport.motion(session, now: now),
                        seed: ClawdCostume.seed(session.id), since: session.phaseSince,
                        cheer: NotchClaudeSessionsSupport.cheer(session), size: size)
         } else {
-            NotchClaudeSessionBadge(phase: session.phase, size: badge)
+            NotchClaudeSessionBadge(phase: session.phase, provider: session.provider, size: badge)
         }
     }
 }
@@ -106,7 +111,7 @@ struct NotchClaudeSubagentAvatar<Fallback: View>: View {
 
     var body: some View {
         if buddies {
-            NotchClawd(costume: service.costume(for: agent, in: session),
+            NotchClawd(costume: service.costume(for: agent, in: session), character: session.provider.character,
                        motion: NotchClaudeSessionsSupport.motion(agent),
                        seed: ClawdCostume.seed(NotchClaudeSessionsSupport.costumeKey(agent, in: session)),
                        since: agent.started, size: size)
@@ -159,7 +164,7 @@ struct NotchClawdDressButton: View {
             .help(text.dressUp)
             .accessibilityLabel(text.dressUp(name))
         } else {
-            NotchClaudeSessionBadge(phase: session.phase, size: badge)
+            NotchClaudeSessionBadge(phase: session.phase, provider: session.provider, size: badge)
         }
     }
 }
@@ -169,14 +174,17 @@ struct NotchClawdDressButton: View {
 /// bubble shows; the notice's words say what it wants.
 struct NotchClaudeNoticeClawd: View {
     let sessionID: String
+    /// The notice's agent, for a session that has already left the list.
+    var agent: AgentProvider? = nil
     let symbol: String
     let size: CGSize
     @ObservedObject private var service = ClaudeSessionService.shared
 
     var body: some View {
         let session = service.sessions.first { $0.id == sessionID }
-        NotchClawd(costume: ClawdCostume.resolved(key: sessionID, kept: service.costumes[sessionID]),
-                   motion: NotchClaudeSessionsSupport.noticeMotion(symbol: symbol), seed: ClawdCostume.seed(sessionID),
+        let character = session?.provider.character ?? (agent == .codex ? .codex : .clawd)
+        NotchClawd(costume: ClawdCostume.resolved(key: sessionID, kept: service.costumes[sessionID], character: character),
+                   character: character, motion: NotchClaudeSessionsSupport.noticeMotion(symbol: symbol), seed: ClawdCostume.seed(sessionID),
                    since: session?.phaseSince, cheer: session.flatMap(NotchClaudeSessionsSupport.cheer), bubbles: false,
                    size: size)
     }

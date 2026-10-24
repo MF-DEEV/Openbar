@@ -85,10 +85,36 @@ enum NotchClaudeSessionsSupport {
     /// How long the buttons wait after the request on screen changes.
     static let settleDelay: TimeInterval = 0.8
 
-    /// The counts beside the camera, leaving out the empty ones.
-    static func stripReading(_ counts: ClaudeSessionCounts) -> [(phase: ClaudeSessionPhase, count: Int)] {
-        [(ClaudeSessionPhase.waitingPermission, counts.waiting), (.generating, counts.working), (.finished, counts.finished)]
+    /// One count beside the camera: how many sessions are in a phase, and
+    /// for the ones at work, whose they are.
+    struct StripItem: Equatable, Identifiable {
+        let phase: ClaudeSessionPhase
+        let count: Int
+        /// The agent at work, which colors its count; nil for the phases
+        /// every agent shares.
+        var provider: ClaudeSessionProvider? = nil
+
+        var id: String { phase.rawValue + "." + (provider?.rawValue ?? "all") }
+    }
+
+    /// The counts beside the camera, leaving out the empty ones: waiting,
+    /// then each agent at work in its own color, then finished. The agent's
+    /// mark shows once, on the other side of the camera; each count keeps
+    /// the phase's symbol.
+    static func stripReading(_ counts: ClaudeSessionCounts) -> [StripItem] {
+        let codex = min(max(0, counts.workingCodex), max(0, counts.working))
+        return [StripItem(phase: .waitingPermission, count: counts.waiting),
+                StripItem(phase: .generating, count: max(0, counts.working) - codex, provider: .claude),
+                StripItem(phase: .generating, count: codex, provider: .codex),
+                StripItem(phase: .finished, count: counts.finished)]
             .filter { $0.count > 0 }
+    }
+
+    /// Whose mark the strip shows while sessions work: Claude's while any
+    /// Claude session works, Codex's when only Codex does, nil when none do.
+    static func stripAgent(_ counts: ClaudeSessionCounts) -> ClaudeSessionProvider? {
+        guard counts.working > 0 else { return nil }
+        return counts.working > counts.workingCodex ? .claude : .codex
     }
 
     /// The counts as text, for measuring the strip.
@@ -123,8 +149,9 @@ enum NotchClaudeSessionsSupport {
     /// A reply can be typed only where the session listens for one: never
     /// while a dialog waits, where the keys would answer it instead.
     static func canReply(_ session: ClaudeSession) -> Bool {
-        // Keys typed while any dialog is open would go to the dialog.
-        session.host.acceptsReplies && !session.phase.isWaiting && session.waitingFor == nil
+        // Keys typed while any dialog is open would go to the dialog. Codex
+        // takes replies through its server, wherever its terminal is.
+        (session.provider == .codex || session.host.acceptsReplies) && !session.phase.isWaiting && session.waitingFor == nil
     }
 
     static let replyLimit = 4000
@@ -184,6 +211,12 @@ enum NotchClaudeSessionsSupport {
     /// A quiet session dozes off once it has done nothing this long; before
     /// that it stays awake, as after the person reads what it did.
     static let dozeAfter: TimeInterval = 5 * 60
+
+    /// What a session's Clawd wears: what the person chose for it, or the
+    /// lot its own figure draws, Clawd's or Codex's robot's.
+    static func costume(for session: ClaudeSession, kept: [String: String]) -> ClawdCostume {
+        ClawdCostume.resolved(key: session.id, kept: kept[session.id], character: session.provider.character)
+    }
 
     /// What a session's Clawd does in its phase.
     static func motion(_ session: ClaudeSession, now: Date) -> NotchClawdMotion {

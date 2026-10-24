@@ -7,6 +7,7 @@ import Foundation
 enum NotchClawdSpriteTests {
     static func run(_ suite: TestSuite) {
         suite.run("clawd drawing") { drawing(suite) }
+        suite.run("codex robot drawing") { robot(suite) }
         suite.run("clawd poses") { poses(suite) }
         suite.run("clawd fitting") { fitting(suite) }
     }
@@ -92,6 +93,72 @@ enum NotchClawdSpriteTests {
         suite.expect(NotchClawdSprite.letters(propeller, NotchClawdPose(tick: 0))
                      != NotchClawdSprite.letters(propeller, NotchClawdPose(tick: 1)),
                      "a propeller turns from one step to the next")
+    }
+
+    /// The same costumes the drawing test dresses Clawd in, which stand for
+    /// every costume.
+    static var standingCostumes: [ClawdCostume] {
+        var costumes = ClawdShell.allCases.map { ClawdCostume(shell: $0, hat: .party, eyewear: .anaglyph, extra: .coffee) }
+        costumes += ClawdHat.allCases.map { ClawdCostume(shell: .iris, hat: $0, eyewear: .none, extra: .headphones) }
+        costumes += ClawdEyewear.allCases.map { ClawdCostume(shell: .iris, hat: .topHat, eyewear: $0, extra: .none) }
+        costumes += ClawdExtra.allCases.map { ClawdCostume(shell: .iris, hat: .chef, eyewear: .none, extra: $0) }
+        return costumes + [ClawdCostume(shell: .iris, hat: .none, eyewear: .none, extra: .none)]
+    }
+
+    static func robot(_ suite: TestSuite) {
+        var clipped: [String] = [], unpainted: Set<Character> = []
+        for costume in standingCostumes {
+            for pose in reachingPoses {
+                if NotchClawdSprite.clippedPixels(costume, pose, character: .codex) > 0 {
+                    clipped.append("\(costume.code) \(pose.key)")
+                }
+                for letter in NotchClawdSprite.letters(costume, pose, character: .codex).compactMap({ $0 })
+                where NotchClawdSprite.color(letter, costume: costume, character: .codex) == nil { unpainted.insert(letter) }
+            }
+        }
+        suite.expect(clipped.isEmpty, "Codex's robot fits the canvas in every costume and pose: \(clipped.prefix(5))")
+        suite.expect(unpainted.isEmpty, "every letter of the robot has a color: \(unpainted)")
+
+        let width = NotchClawdSprite.width, x = NotchClawdSprite.bodyX, y = NotchClawdSprite.bodyY
+        let bare = ClawdCostume(shell: .iris, hat: .none, eyewear: .none, extra: .none)
+        func letter(_ costume: ClawdCostume, _ character: ClawdCharacter, column: Int, row: Int,
+                    pose: NotchClawdPose = NotchClawdPose()) -> Character? {
+            NotchClawdSprite.letters(costume, pose, character: character)[(y + row) * width + x + column]
+        }
+        suite.expect(letter(bare, .codex, column: 0, row: 0) == nil && letter(bare, .codex, column: 1, row: 0) == "C"
+                     && letter(bare, .codex, column: 5, row: 1) == "V" && letter(bare, .codex, column: 9, row: 6) == "G",
+                     "the robot is a terminal with rounded corners, a dark screen and a status light")
+        suite.expect(letter(bare, .codex, column: 3, row: 2) == "E" && letter(bare, .codex, column: 9, row: 3) == "E",
+                     "its eyes sit on the screen where Clawd's sit, so every pair of glasses fits")
+        let glow = NotchClawdSprite.color("E", costume: bare, character: .codex)
+        let screen = NotchClawdSprite.color("V", costume: bare, character: .codex)
+        suite.expect(glow.map { "\($0)" } == "\(NotchClawdSprite.codexGlow)" && screen.map { "\($0)" } == "\(NotchClawdSprite.codexScreen)"
+                     && NotchClawdSprite.color("E", costume: bare).map { "\($0)" } == "(red: 24, green: 22, blue: 26)",
+                     "the robot's eyes glow on its screen, and Clawd's stay dark")
+        suite.expect(letter(bare, .codex, column: 6, row: -2) == "G"
+                     && letter(ClawdCostume(shell: .iris, hat: .topHat, eyewear: .none, extra: .none), .codex,
+                               column: 6, row: -2) != "G",
+                     "an antenna stands on its head, and a hat covers it")
+        suite.expect(letter(bare, .codex, column: 3, row: 9) == "c" && letter(bare, .codex, column: 9, row: 9) == "c"
+                     && letter(bare, .codex, column: 0, row: 9) == nil && letter(bare, .clawd, column: 0, row: 9) == "c",
+                     "it stands on two stubby feet, not Clawd's four legs")
+        suite.expect(NotchClawdSprite.letters(bare, NotchClawdPose()) == NotchClawdSprite.letters(bare, NotchClawdPose(), character: .clawd)
+                     && NotchClawdSprite.letters(bare, NotchClawdPose(), character: .codex) != NotchClawdSprite.letters(bare, NotchClawdPose()),
+                     "Clawd is drawn unless the robot is asked for")
+        let typing = Set(stride(from: 0.0, to: 4, by: 1 / 12).map {
+            NotchClawdSprite.letters(bare, NotchClawdSprite.pose(.think, at: $0, seed: 1), character: .codex)
+        })
+        suite.expect(typing.count > 1, "the robot's hands move as it works")
+        let coffee = ClawdCostume(shell: .iris, hat: .none, eyewear: .none, extra: .coffee)
+        suite.expect(letter(coffee, .codex, column: 14, row: 3) == "N" && letter(coffee, .clawd, column: 15, row: 3) == "N",
+                     "a cup sits in the robot's hand, a pixel closer than in Clawd's claw")
+        let robot = NotchClawdSprite.image(bare, NotchClawdPose(), character: .codex)
+        suite.expect(robot != nil && robot !== NotchClawdSprite.image(bare, NotchClawdPose())
+                     && NotchClawdSprite.image(bare, NotchClawdPose(), character: .codex) === robot,
+                     "the robot's image is made and kept apart from Clawd's in the same costume")
+        let bytes = NotchClawdSprite.pixels(bare, NotchClawdPose(), character: .codex)
+        suite.expect(stride(from: 3, to: bytes.count, by: 4).allSatisfy { bytes[$0] == 0 || bytes[$0] == 255 },
+                     "every pixel of the robot is opaque or clear")
     }
 
     static func poses(_ suite: TestSuite) {

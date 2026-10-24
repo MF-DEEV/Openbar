@@ -125,9 +125,12 @@ struct MetricsTests {
                 ClaudeHookTests.run(suite)
                 ClawdCostumeTests.run(suite)
                 NotchClawdSpriteTests.run(suite)
+                NotchSessionAgentTests.run(suite)
                 NotchClawdViewTests.run(suite)
                 ClaudeAgentColorTests.run(suite)
             }),
+            ("codex-sessions", { CodexSessionTests.run(suite) }),
+            ("codex-edge", { CodexSessionEdgeTests.run(suite) }),
             ("features", {
                 FeatureCatalogTests.run(suite)
                 MenuPanelSectionGateContract.run(suite)

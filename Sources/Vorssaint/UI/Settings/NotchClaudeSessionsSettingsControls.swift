@@ -26,10 +26,12 @@ struct NotchClaudeSessionsSettingsControls: View {
             buddiesRow
             Divider()
             hooks
+            codex
             bridge
         }
         .onAppear {
             service.checkHooks()
+            service.checkCodex()
             service.checkBridge()
         }
     }
@@ -48,8 +50,9 @@ struct NotchClaudeSessionsSettingsControls: View {
                     .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
                 HStack(spacing: 4) {
-                    ForEach(Self.samples, id: \.self) { costume in
-                        NotchClawdPicture(costume: costume, size: CGSize(width: 30, height: 28))
+                    ForEach(Self.samples, id: \.costume) { sample in
+                        NotchClawdPicture(costume: sample.costume, character: sample.character,
+                                          size: CGSize(width: 30, height: 28))
                     }
                 }
                 .opacity(buddies ? 1 : 0.35)
@@ -59,11 +62,31 @@ struct NotchClaudeSessionsSettingsControls: View {
         }
     }
 
-    private static let samples = [
-        ClawdCostume.classic,
-        ClawdCostume(shell: .sky, hat: .cap, eyewear: .none, extra: .bow),
-        ClawdCostume(shell: .moss, hat: .topHat, eyewear: .shades, extra: .none),
+    private static let samples: [(costume: ClawdCostume, character: ClawdCharacter)] = [
+        (ClawdCostume.classic, .clawd),
+        (ClawdCostume(shell: .iris, hat: .cap, eyewear: .none, extra: .none), .codex),
+        (ClawdCostume(shell: .moss, hat: .topHat, eyewear: .shades, extra: .none), .clawd),
     ]
+
+    /// Codex needs nothing installed: its row only says whether the island hears it.
+    private var codex: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            SettingsRow(symbol: "terminal.fill", title: "Codex", caption: service.codexStatus.map {
+                switch $0 {
+                case .connected: return text.codexConnected
+                case .notRunning: return text.codexNotRunning
+                case .notFound: return text.codexNotFound
+                }
+            }) {
+                if service.codexStatus == nil { ProgressView().controlSize(.small) }
+            }
+            Text(text.codexHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, settingsRowTextInset)
+        }
+    }
 
     private var bridge: some View {
         VStack(alignment: .leading, spacing: 6) {

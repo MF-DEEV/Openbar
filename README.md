@@ -29,6 +29,7 @@ This is an unofficial fork of [Vorssaint](https://github.com/vorssaint/vorssaint
 - **Reply without switching apps.** Type a reply in the island and it reaches the session in Terminal or Antigravity as if typed there. ⌘↩ sends, and ⌘V or a drop adds images.
 - **Watch it work.** Enlarge a session's page to read the whole conversation as it grows, with recent tools, tasks, cost and the model beside it, or fold the details away.
 - **Subagents too.** Agents a session starts get rows of their own, including the ones sent to the background, colored like their agent definitions.
+- **Codex too.** Codex CLI sessions join the same list, under Codex's own mark and color, with a little terminal robot instead of Clawd. Its approvals, questions and replies go through Codex's own server, so there is nothing to install.
 - **A Clawd for every session.** Each session and subagent gets a pixel Clawd in a random costume. Open the wardrobe to change its shell, hat, eyewear and extras, or let Surprise me pick.
 
 ## Set it up
@@ -46,7 +47,7 @@ You need a Mac with Apple Silicon, macOS 14 or newer, the Xcode Command Line Too
    This installs a separate Developer build next to any official Vorssaint. Run only one of them at a time, or you get two islands.
 
 2. In Settings, install the AI Agents feature from the Features hub, then turn on the Sessions section in the Dynamic Island settings.
-3. In the Sessions settings, press **Install Hooks**. Hooks let the island show which tool runs and answer permission prompts and questions. They are added to `~/.claude/settings.json` next to your own, after a backup, and **Remove Hooks** takes them out again.
+3. For Claude Code, press **Install Hooks** in the Sessions settings. Hooks let the island show which tool runs and answer permission prompts and questions. They are added to `~/.claude/settings.json` next to your own, after a backup, and **Remove Hooks** takes them out again. Codex needs nothing: its sessions show up while it runs.
 4. If you work in Antigravity, press **Install Extension** so replies can reach its terminals. For Terminal, macOS asks for Automation access the first time you send a reply.
 5. Start `claude` in Terminal or Antigravity. The session shows up in the island.
 
@@ -55,6 +56,8 @@ You need a Mac with Apple Silicon, macOS 14 or newer, the Xcode Command Line Too
 The island reads the small records Claude Code keeps for each running session in `~/.claude/sessions`, then follows that session's transcript, subagents and tasks as they grow. Permission prompts and questions arrive through Claude Code's own hooks, which talk to the app over a local socket. Claude Code shows the same prompt in the terminal at the same time, and whichever answer comes first wins. With the app closed, Claude Code simply asks in the terminal as usual.
 
 Replies are typed into the session's own Terminal tab, found by its terminal device, or into its Antigravity terminal through the extension.
+
+Codex sessions come from the app server Codex's terminal UIs share, at `~/.codex/app-server-control/app-server-control.sock`. The island joins a thread while it works or while its page is open, shows its approvals and questions, and sends your answers and replies back through that server. [The Codex notes](docs/codex-sessions.md) describe the protocol.
 
 ## Private by default
 
@@ -75,6 +78,7 @@ On the Mac this fork ships no builds of its own; you build it from source as abo
 - [Troubleshooting](docs/TROUBLESHOOTING.md), the common fixes
 - [Contributing](CONTRIBUTING.md), build, layout and conventions
 - [Claude Code session notes](docs/claude-sessions-spike.md), what Claude Code exposes and how the island uses it
+- [Codex session notes](docs/codex-sessions.md), how the island talks to Codex's app server
 
 ## License
 

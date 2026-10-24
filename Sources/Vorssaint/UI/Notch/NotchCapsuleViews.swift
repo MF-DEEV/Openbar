@@ -156,7 +156,7 @@ struct NotchCapsuleNoticeView: View {
         } else if notice.event == .sessions, let id = notice.sessionID, buddies {
             // Two points wider than the slot, half a point past each side: at
             // the slot's own width a pixel would be too small to read.
-            NotchClaudeNoticeClawd(sessionID: id, symbol: notice.symbol,
+            NotchClaudeNoticeClawd(sessionID: id, agent: notice.agent, symbol: notice.symbol,
                                    size: CGSize(width: CapsuleLayout.symbolWidth + 2,
                                                 height: min(CapsuleLayout.symbolWidth, CapsuleLayout.artworkSide(geometry))))
                 .frame(width: CapsuleLayout.symbolWidth)

@@ -63,6 +63,14 @@ enum ClaudeReplyFailure: Error, Equatable {
     case unreachable
 }
 
+/// The agent behind a session: each has its own figure, color and channel.
+/// Claude Code reports through its registry and hooks; Codex through the
+/// app-server its TUI runs (docs/codex-sessions.md).
+enum ClaudeSessionProvider: String, Equatable {
+    case claude
+    case codex
+}
+
 /// The app showing a session's terminal, which Open brings forward and a
 /// reply is typed into.
 enum ClaudeSessionHost: Equatable {
@@ -199,7 +207,8 @@ struct ClaudeTaskProgress: Equatable {
 /// Everything the island shows about one session.
 struct ClaudeSession: Equatable, Identifiable {
     let id: String
-    let pid: Int32
+    /// The process showing it; for Codex, its terminal UI once found.
+    var pid: Int32
     let cwd: String
     let project: String
     /// Claude Code's name for the session.
@@ -237,6 +246,7 @@ struct ClaudeSession: Equatable, Identifiable {
     var backgroundLabel: String? = nil
     /// Services it left running, like a dev server, which never end alone.
     var services = 0
+    var provider: ClaudeSessionProvider = .claude
 }
 
 /// Tells a background command that is meant to keep running, like a dev
@@ -274,20 +284,26 @@ struct ClaudeChatMessage: Equatable, Identifiable {
 
 struct ClaudeSessionCounts: Equatable {
     var working = 0
+    /// Of `working`, the Codex ones: each agent shows its own mark and color.
+    var workingCodex = 0
     var waiting = 0
     var finished = 0
 
     var isEmpty: Bool { working + waiting + finished == 0 }
 
-    init(working: Int = 0, waiting: Int = 0, finished: Int = 0) {
+    init(working: Int = 0, workingCodex: Int = 0, waiting: Int = 0, finished: Int = 0) {
         self.working = working
+        self.workingCodex = workingCodex
         self.waiting = waiting
         self.finished = finished
     }
 
     init(_ sessions: [ClaudeSession]) {
         for session in sessions {
-            if session.phase.isActive { working += 1 }
+            if session.phase.isActive {
+                working += 1
+                if session.provider == .codex { workingCodex += 1 }
+            }
             if session.phase.isWaiting { waiting += 1 }
             if session.phase == .finished { finished += 1 }
         }

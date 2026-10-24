@@ -30,6 +30,51 @@ enum ClaudeSessionHosts {
         return "/dev/" + String(cString: name)
     }
 
+    /// The working folder of a process of this user.
+    static func cwd(of pid: Int32) -> String? {
+        var info = proc_vnodepathinfo()
+        let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)
+        guard proc_pidinfo(pid, PROC_PIDVNODEPATHINFO, 0, &info, size) == size else { return nil }
+        let path = withUnsafeBytes(of: info.pvi_cdir.vip_path) { raw in
+            String(decoding: raw.prefix { $0 != 0 }, as: UTF8.self)
+        }
+        return path.isEmpty ? nil : path
+    }
+
+    /// Codex's terminal UIs: processes named `codex` with a controlling
+    /// terminal, by working folder. The shared app-server has no terminal,
+    /// so it is left out.
+    static func codexTerminals() -> [(pid: Int32, cwd: String)] {
+        let count = proc_listallpids(nil, 0)
+        guard count > 0 else { return [] }
+        var pids = [Int32](repeating: 0, count: Int(count) + 32)
+        let filled = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.size))
+        guard filled > 0 else { return [] }
+        return pids.prefix(Int(filled)).compactMap { pid in
+            guard pid > 0 else { return nil }
+            // proc_name answers nothing into a buffer shorter than the longest name (2 × MAXCOMLEN).
+            var name = [CChar](repeating: 0, count: 2 * Int(MAXCOMLEN) + 1)
+            guard proc_name(pid, &name, UInt32(name.count)) > 0, String(cString: name) == "codex",
+                  tty(of: pid) != nil, let cwd = cwd(of: pid) else { return nil }
+            return (pid, cwd)
+        }
+    }
+
+    /// The terminal UI showing a Codex thread that runs in `cwd`: the one
+    /// there, else the only one running at all; with several and none in
+    /// that folder alone, none (Open then has nothing to guess from).
+    /// `others` are the folders of the other Codex sessions listed: the only
+    /// terminal never stands in for this one when it runs in one of theirs.
+    static func codexTerminal(cwd: String, among terminals: [(pid: Int32, cwd: String)], others: [String] = []) -> Int32? {
+        let standard = { (path: String) in URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path }
+        let wanted = standard(cwd)
+        let here = terminals.filter { standard($0.cwd) == wanted }
+        if here.count == 1 { return here[0].pid }
+        guard here.isEmpty, terminals.count == 1 else { return nil }
+        let claimed = Set(others.map(standard))
+        return claimed.contains(standard(terminals[0].cwd)) ? nil : terminals[0].pid
+    }
+
     /// The keys of a session's environment that tell where it runs. Nothing
     /// else in it is kept.
     static let hostKeys: Set<String> = ["__CFBundleIdentifier", "CLAUDE_CODE_SSE_PORT"]
@@ -264,6 +309,18 @@ enum ClaudeTerminalBridge {
 
     /// The shell a session runs in, which the IDE knows its terminal by.
     static func shell(of pid: Int32) -> Int32? {
+        guard let parent = parent(of: pid) else { return nil }
+        // Codex installed with npm runs its binary under a `node` launcher;
+        // the shell is the one above it.
+        var name = [CChar](repeating: 0, count: 2 * Int(MAXCOMLEN) + 1)
+        if proc_name(parent, &name, UInt32(name.count)) > 0, String(cString: name) == "node",
+           let shell = self.parent(of: parent) {
+            return shell
+        }
+        return parent
+    }
+
+    private static func parent(of pid: Int32) -> Int32? {
         var info = proc_bsdinfo()
         let size = Int32(MemoryLayout<proc_bsdinfo>.size)
         guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size, info.pbi_ppid > 1 else { return nil }
