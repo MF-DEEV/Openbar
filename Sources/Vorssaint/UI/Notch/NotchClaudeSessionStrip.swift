@@ -90,7 +90,8 @@ struct NotchClaudeSessionStripMark: View {
 }
 
 /// The counts, each by its phase's symbol: an orange sparkle for Claude's
-/// sessions at work and a periwinkle one for Codex's, never a logo.
+/// sessions at work, a periwinkle one for Codex's, and a green one for
+/// finished sessions to distinguish the count from the leading check.
 struct NotchClaudeSessionStripCounts: View {
     let counts: ClaudeSessionCounts
     let size: CGFloat
@@ -99,7 +100,7 @@ struct NotchClaudeSessionStripCounts: View {
         HStack(spacing: 6) {
             ForEach(NotchClaudeSessionsSupport.stripReading(counts)) { item in
                 HStack(spacing: 2) {
-                    Image(systemName: NotchClaudeSessionsSupport.symbol(item.phase))
+                    Image(systemName: item.phase == .finished ? "sparkle" : NotchClaudeSessionsSupport.symbol(item.phase))
                         .font(.system(size: size * 0.7, weight: .bold))
                     Text("\(item.count)")
                         .font(.system(size: size, weight: .semibold))
