@@ -539,6 +539,8 @@ pub struct Session {
 #[serde(rename_all = "camelCase")]
 pub struct SessionCounts {
     pub working: i64,
+    /// Of `working`, the Codex ones: each agent shows its own mark and color.
+    pub working_codex: i64,
     pub waiting: i64,
     pub finished: i64,
 }
@@ -549,6 +551,9 @@ impl SessionCounts {
         for session in sessions {
             if session.phase.is_active() {
                 counts.working += 1;
+                if session.provider == Provider::Codex {
+                    counts.working_codex += 1;
+                }
             }
             if session.phase.is_waiting() {
                 counts.waiting += 1;
@@ -1562,18 +1567,25 @@ mod tests {
     // ClaudeSessionEngineTests.swift support: counts.
     #[test]
     fn counts() {
+        let mut codex = session("f", SessionPhase::Generating, 0.0, "f");
+        codex.provider = Provider::Codex;
+        let mut codex_waiting = session("g", SessionPhase::WaitingPermission, 0.0, "g");
+        codex_waiting.provider = Provider::Codex;
         let counts = SessionCounts::of(&[
             session("a", SessionPhase::WaitingInput, 0.0, "a"),
             session("b", SessionPhase::RunningTool, 0.0, "b"),
             session("c", SessionPhase::Finished, 0.0, "c"),
             session("d", SessionPhase::Background, 0.0, "d"),
             session("e", SessionPhase::Idle, 0.0, "e"),
+            codex,
+            codex_waiting,
         ]);
         assert_eq!(
             counts,
             SessionCounts {
-                working: 2,
-                waiting: 1,
+                working: 3,
+                working_codex: 1,
+                waiting: 2,
                 finished: 1
             }
         );

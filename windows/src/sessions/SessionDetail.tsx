@@ -25,7 +25,7 @@ export function SessionDetail({ session }: { session: Session }) {
   const lookedAt = useSessions((s) => s.lookedAt[session.id]);
   const previews = useSessions((s) => s.snapshot.previews);
   const name = displayName(session, custom);
-  const tint = phaseTint(session.phase);
+  const tint = phaseTint(session.phase, session.provider);
   const time = phaseClock(session, now);
   const color = projectColor(session.project);
   const renaming = useSessions((s) => s.renaming);

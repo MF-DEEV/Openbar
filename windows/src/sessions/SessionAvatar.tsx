@@ -27,7 +27,7 @@ export function SessionAvatar(props: { session: Session; now: number; lookedAt?:
   if (!buddies) {
     return (
       <span className="s-avatar" style={{ width: s.width, height: s.height, opacity: asleep ? 0.65 : 1 }}>
-        <PhaseBadge phase={session.phase} size={s.badge} />
+        <PhaseBadge phase={session.phase} provider={session.provider} size={s.badge} />
       </span>
     );
   }

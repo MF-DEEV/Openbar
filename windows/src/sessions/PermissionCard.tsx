@@ -9,7 +9,7 @@
 
 import { ArrowUp, BadgeCheck, Check, CheckSquare, Circle, CircleDot, FastForward, Square, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { PHASE_ICON } from "./Avatar";
+import { phaseIcon } from "./Avatar";
 import { phaseTint } from "./format";
 import { S } from "./strings";
 import { OWN_ANSWER_LIMIT, SETTLE_DELAY, useSessions } from "./store";
@@ -31,8 +31,8 @@ function useSettled(requestId: string | undefined): boolean {
 
 export function PermissionCard({ session, onOpen }: { session: Session; onOpen: () => void }) {
   const p = session.permission;
-  const tint = phaseTint(session.phase);
-  const Icon = PHASE_ICON[session.phase];
+  const tint = phaseTint(session.phase, session.provider);
+  const Icon = phaseIcon(session.phase, session.provider);
   const asks = !!p && p.questions.length > 0;
   const title = asks
     ? session.provider === "codex"

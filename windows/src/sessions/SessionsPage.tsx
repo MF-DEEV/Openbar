@@ -6,13 +6,13 @@
 // enlarge and open on a session's page).
 
 import { Check, ChevronLeft, ExternalLink, Maximize2, Minimize2, Pencil } from "lucide-react";
-import { CheckCircleFill, HandFill, SparkleFill } from "./glyphs";
 import { useEffect, useState } from "react";
 import type { PageDefinition } from "../island/views/Expanded";
 import { useIsland } from "../island/store";
 import { SessionDetail } from "./SessionDetail";
 import { SessionsList } from "./SessionsList";
-import { FINISHED_TINT, CLAUDE_TINT, WAITING_TINT, displayName } from "./format";
+import { displayName } from "./format";
+import { countItems } from "./SessionsStrip";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import "./sessions.css";
@@ -36,17 +36,13 @@ function Page() {
 function Counts() {
   const counts = useSessions((s) => s.snapshot.counts);
   const total = useSessions((s) => s.snapshot.sessions.length);
-  const items = [
-    { n: counts.waiting, Icon: HandFill, tint: WAITING_TINT },
-    { n: counts.working, Icon: SparkleFill, tint: CLAUDE_TINT },
-    { n: counts.finished, Icon: CheckCircleFill, tint: FINISHED_TINT },
-  ].filter((i) => i.n > 0);
+  const items = countItems(counts);
   if (items.length === 0) return total > 0 ? <span className="s-band-total">{total}</span> : null;
   return (
     <span className="s-band-counts">
-      {items.map(({ n, Icon, tint }, i) => (
+      {items.map(({ n, Icon, tint, scale }, i) => (
         <span key={i} style={{ color: tint }}>
-          <Icon size={9} strokeWidth={3} />
+          <Icon size={Math.round(9 * scale)} strokeWidth={3} />
           {n}
         </span>
       ))}

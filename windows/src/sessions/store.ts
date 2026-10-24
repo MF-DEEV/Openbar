@@ -47,7 +47,7 @@ interface SessionsState {
 
 const EMPTY: Snapshot = {
   sessions: [],
-  counts: { working: 0, waiting: 0, finished: 0 },
+  counts: { working: 0, workingCodex: 0, waiting: 0, finished: 0 },
   previews: false,
   hooksInstalled: false,
 };

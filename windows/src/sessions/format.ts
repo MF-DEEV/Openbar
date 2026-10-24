@@ -5,9 +5,11 @@
 // NotchAgentSupport.swift; spec 02-sessions §4).
 
 import { S } from "./strings";
-import { isWaiting, isWorking, type Phase, type Session, type Tokens } from "./types";
+import { isWaiting, isWorking, type Phase, type Provider, type Session, type Tokens } from "./types";
 
 export const CLAUDE_TINT = "#D97857";
+/** Codex's periwinkle, the same as the Mac's agent tint. */
+export const CODEX_TINT = "#7D99FF";
 export const WAITING_TINT = "#FFC747";
 export const FINISHED_TINT = "#5CD685";
 export const IDLE_TINT = "rgba(255,255,255,0.45)";
@@ -15,13 +17,18 @@ export const LINK = "#6BA8FF";
 
 const PROJECT_PALETTE = ["#6BA3FF", "#B88CFF", "#FF80BD", "#45D1D6", "#9ED65C", "#D6AD85", "#61DBFF", "#DBC7FF"];
 
-export function phaseTint(phase: Phase): string {
+export function providerTint(provider: Provider): string {
+  return provider === "codex" ? CODEX_TINT : CLAUDE_TINT;
+}
+
+/** Working phases take the agent's own color, the rest are shared. */
+export function phaseTint(phase: Phase, provider: Provider = "claude"): string {
   switch (phase) {
     case "generating":
     case "runningTool":
-      return CLAUDE_TINT;
+      return providerTint(provider);
     case "background":
-      return "rgba(217,120,87,0.75)";
+      return `color-mix(in srgb, ${providerTint(provider)} 75%, transparent)`;
     case "waitingPermission":
     case "waitingInput":
       return WAITING_TINT;

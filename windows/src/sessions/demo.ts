@@ -110,5 +110,10 @@ export function demoSnapshot(): Snapshot {
       cost: 0.17,
     }),
   ];
-  return { sessions, counts: { waiting: 2, working: 2, finished: 1 }, previews: true, hooksInstalled: true };
+  return {
+    sessions,
+    counts: { waiting: 2, working: 2, workingCodex: 1, finished: 1 },
+    previews: true,
+    hooksInstalled: true,
+  };
 }

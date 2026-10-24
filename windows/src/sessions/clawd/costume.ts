@@ -55,8 +55,8 @@ export const CLASSIC: Readonly<ClawdCostume> = Object.freeze({
  */
 export type Character = "clawd" | "codex";
 
-/** The shell each character's lots favour: Claude's clay, Codex's mint. */
-export const FAVOURED_SHELL: Readonly<Record<Character, ClawdShell>> = { clawd: "clay", codex: "mint" };
+/** The shell each character's lots favour: Claude's clay, and for Codex the iris closest to its violet-blue. */
+export const FAVOURED_SHELL: Readonly<Record<Character, ClawdShell>> = { clawd: "clay", codex: "iris" };
 
 /** How often a lot draws something rather than nothing. */
 export const HAT_CHANCE = 0.7;

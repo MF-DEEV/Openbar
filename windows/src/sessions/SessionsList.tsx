@@ -73,7 +73,7 @@ function Row({ session, now }: { session: Session; now: number }) {
   const custom = useSessions((s) => s.names[session.id]);
   const lookedAt = useSessions((s) => s.lookedAt[session.id]);
   const name = displayName(session, custom);
-  const tint = phaseTint(session.phase);
+  const tint = phaseTint(session.phase, session.provider);
   const time = phaseClock(session, now);
   const activity = activityText(session, name);
   const quick = session.permission?.fitsOnALine && session.permission.questions.length === 0;

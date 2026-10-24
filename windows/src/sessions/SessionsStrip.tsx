@@ -6,11 +6,11 @@
 // sessions are in each phase on the other. Clicking opens the Sessions page,
 // on the first waiting session when there is one.
 
-import { CheckCircleFill, HandFill, SparkleFill } from "./glyphs";
+import { CheckCircleFill, ClaudeMark, CodexMark, HandFill, MARK_SCALE } from "./glyphs";
 import { edgeInset, type Geometry } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { useIsland } from "../island/store";
-import { CLAUDE_TINT, FINISHED_TINT, WAITING_TINT } from "./format";
+import { CLAUDE_TINT, CODEX_TINT, FINISHED_TINT, WAITING_TINT } from "./format";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import type { Counts } from "./types";
@@ -19,17 +19,19 @@ import type { Counts } from "./types";
 export const stripTextSize = (stripHeight: number) => Math.min(15, stripHeight - 7);
 const MARK = 14;
 
-function items(counts: Counts) {
+/** Waiting, then each agent at work under its own mark, then finished. */
+export function countItems(counts: Counts) {
   return [
-    { n: counts.waiting, Icon: HandFill, tint: WAITING_TINT },
-    { n: counts.working, Icon: SparkleFill, tint: CLAUDE_TINT },
-    { n: counts.finished, Icon: CheckCircleFill, tint: FINISHED_TINT },
+    { n: counts.waiting, Icon: HandFill, tint: WAITING_TINT, scale: 1 },
+    { n: counts.working - counts.workingCodex, Icon: ClaudeMark, tint: CLAUDE_TINT, scale: MARK_SCALE.claude },
+    { n: counts.workingCodex, Icon: CodexMark, tint: CODEX_TINT, scale: MARK_SCALE.codex },
+    { n: counts.finished, Icon: CheckCircleFill, tint: FINISHED_TINT, scale: 1 },
   ].filter((i) => i.n > 0);
 }
 
 /** How wide the counts draw (NotchClaudeSessionsSupport.stripReadingWidth). */
 export function readingWidth(counts: Counts, size: number): number {
-  const list = items(counts);
+  const list = countItems(counts);
   if (list.length === 0) return 0;
   const digits = list.reduce((sum, i) => sum + String(i.n).length, 0);
   return list.length * (size * 0.9 + 2) + digits * size * 0.62 + (list.length - 1) * 6;
@@ -58,8 +60,18 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
     if (waiting) useSessions.getState().focus(waiting.id);
   };
 
-  const Mark = counts.waiting > 0 ? HandFill : counts.working > 0 ? SparkleFill : CheckCircleFill;
-  const markTint = counts.waiting > 0 ? WAITING_TINT : counts.working > 0 ? CLAUDE_TINT : FINISHED_TINT;
+  // Claude's spark while any Claude session works, Codex's cloud when only Codex does.
+  const working = counts.working > 0;
+  const Mark =
+    counts.waiting > 0
+      ? HandFill
+      : !working
+        ? CheckCircleFill
+        : counts.workingCodex === counts.working
+          ? CodexMark
+          : ClaudeMark;
+  const markTint = counts.waiting > 0 ? WAITING_TINT : working ? undefined : FINISHED_TINT;
+  const markScale = counts.waiting > 0 || !working ? 1 : MARK_SCALE[Mark === CodexMark ? "codex" : "claude"];
 
   return (
     <button
@@ -70,16 +82,21 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
       onClick={open}
     >
       <span className="s-strip-wing" style={{ width: wing, paddingLeft: iconInset, justifyContent: "flex-start" }}>
-        <Mark size={MARK} strokeWidth={2.5} style={{ color: markTint }} />
+        <Mark
+          size={Math.round(MARK * markScale)}
+          strokeWidth={2.5}
+          style={markTint ? { color: markTint } : undefined}
+          working={working}
+        />
       </span>
       {capsule ? null : <span style={{ width: geometry.cameraWidth, flex: "none" }} />}
       <span
         className="s-strip-wing"
         style={{ width: wing, paddingRight: textInset, justifyContent: "flex-end", fontSize: textSize }}
       >
-        {items(counts).map(({ n, Icon, tint }, i) => (
+        {countItems(counts).map(({ n, Icon, tint, scale }, i) => (
           <span key={i} className="s-strip-count" style={{ color: tint }}>
-            <Icon size={Math.round(textSize * 0.7)} strokeWidth={3} />
+            <Icon size={Math.round(textSize * 0.7 * scale)} strokeWidth={3} />
             {n}
           </span>
         ))}

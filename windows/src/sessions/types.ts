@@ -112,6 +112,8 @@ export interface Session {
 
 export interface Counts {
   working: number;
+  /** Of `working`, the Codex ones. */
+  workingCodex: number;
   waiting: number;
   finished: number;
 }
