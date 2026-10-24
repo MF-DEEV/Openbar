@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 mod bar;
+mod hooks;
 mod island;
 mod settings;
 mod tray;
@@ -12,6 +13,12 @@ use tauri_plugin_global_shortcut::{Code, GlobalShortcutExt, Modifiers, Shortcut,
 /// Ctrl+Alt+Space opens and closes the island from anywhere.
 fn toggle_shortcut() -> Shortcut {
     Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space)
+}
+
+/// `Vorssaint.exe --hook`: Claude Code runs this for every hook event. It
+/// never starts the app, only hands the event to the running island.
+pub fn hook_main() -> ! {
+    hooks::transport::run_hook(hooks::APP_ID)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -37,6 +44,9 @@ pub fn run() {
             island::island_place,
             island::island_set_focusable,
             settings::open_settings,
+            hooks::claude_hooks_status,
+            hooks::claude_hooks_install,
+            hooks::claude_hooks_remove,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
