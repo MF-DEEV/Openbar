@@ -33,6 +33,16 @@ pub fn music_probe_main(path: &str) -> ! {
     std::process::exit(0)
 }
 
+/// `Vorssaint.exe --remove-hooks`: the uninstaller takes Vorssaint's hooks out
+/// of Claude Code's settings, so Claude doesn't call a program that's gone.
+pub fn remove_hooks_main() -> ! {
+    std::process::exit(if hooks::claude_hooks_remove().is_ok() {
+        0
+    } else {
+        1
+    })
+}
+
 /// `Vorssaint.exe --codex-probe`: prints what Codex's app-server tells the island.
 pub fn codex_probe_main() -> ! {
     sessions::codex::client::probe()

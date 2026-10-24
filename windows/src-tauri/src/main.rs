@@ -11,6 +11,9 @@ fn main() {
             .unwrap_or_else(|| "music-probe.txt".into());
         vorssaint_windows_lib::music_probe_main(&path);
     }
+    if std::env::args().nth(1).as_deref() == Some("--remove-hooks") {
+        vorssaint_windows_lib::remove_hooks_main();
+    }
     if std::env::args().nth(1).as_deref() == Some("--codex-probe") {
         vorssaint_windows_lib::codex_probe_main();
     }
