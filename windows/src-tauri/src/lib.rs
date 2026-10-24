@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 mod bar;
+mod fullscreen;
 mod hooks;
 mod hosts;
 mod island;
@@ -91,9 +92,8 @@ pub fn run() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
-            bar::create(app.handle())?;
             island::create(app.handle())?;
-            bar::own_island(app.handle());
+            fullscreen::watch(app.handle());
             app.manage(sessions::service::Service::start(app.handle().clone()));
             media::start(
                 app.handle().clone(),
@@ -113,7 +113,7 @@ pub fn run() {
 
     app.run(|app, event| {
         if let RunEvent::Exit = event {
-            bar::remove(app);
+            fullscreen::stop(app);
         }
     });
 }

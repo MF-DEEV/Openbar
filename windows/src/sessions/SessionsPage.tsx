@@ -5,7 +5,8 @@
 // the island's top row for each (counts beside the list; back, rename,
 // enlarge and open on a session's page).
 
-import { Check, ChevronLeft, ExternalLink, Hand, Maximize2, Minimize2, Pencil, Sparkle } from "lucide-react";
+import { Check, ChevronLeft, ExternalLink, Maximize2, Minimize2, Pencil } from "lucide-react";
+import { CheckCircleFill, HandFill, SparkleFill } from "./glyphs";
 import { useEffect, useState } from "react";
 import type { PageDefinition } from "../island/views/Expanded";
 import { useIsland } from "../island/store";
@@ -36,9 +37,9 @@ function Counts() {
   const counts = useSessions((s) => s.snapshot.counts);
   const total = useSessions((s) => s.snapshot.sessions.length);
   const items = [
-    { n: counts.waiting, Icon: Hand, tint: WAITING_TINT },
-    { n: counts.working, Icon: Sparkle, tint: CLAUDE_TINT },
-    { n: counts.finished, Icon: Check, tint: FINISHED_TINT },
+    { n: counts.waiting, Icon: HandFill, tint: WAITING_TINT },
+    { n: counts.working, Icon: SparkleFill, tint: CLAUDE_TINT },
+    { n: counts.finished, Icon: CheckCircleFill, tint: FINISHED_TINT },
   ].filter((i) => i.n > 0);
   if (items.length === 0) return total > 0 ? <span className="s-band-total">{total}</span> : null;
   return (

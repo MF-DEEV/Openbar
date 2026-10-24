@@ -6,7 +6,7 @@
 // sessions are in each phase on the other. Clicking opens the Sessions page,
 // on the first waiting session when there is one.
 
-import { Check, Hand, Sparkle } from "lucide-react";
+import { CheckCircleFill, HandFill, SparkleFill } from "./glyphs";
 import { edgeInset, type Geometry } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { useIsland } from "../island/store";
@@ -21,9 +21,9 @@ const MARK = 14;
 
 function items(counts: Counts) {
   return [
-    { n: counts.waiting, Icon: Hand, tint: WAITING_TINT },
-    { n: counts.working, Icon: Sparkle, tint: CLAUDE_TINT },
-    { n: counts.finished, Icon: Check, tint: FINISHED_TINT },
+    { n: counts.waiting, Icon: HandFill, tint: WAITING_TINT },
+    { n: counts.working, Icon: SparkleFill, tint: CLAUDE_TINT },
+    { n: counts.finished, Icon: CheckCircleFill, tint: FINISHED_TINT },
   ].filter((i) => i.n > 0);
 }
 
@@ -58,7 +58,7 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
     if (waiting) useSessions.getState().focus(waiting.id);
   };
 
-  const Mark = counts.waiting > 0 ? Hand : counts.working > 0 ? Sparkle : Check;
+  const Mark = counts.waiting > 0 ? HandFill : counts.working > 0 ? SparkleFill : CheckCircleFill;
   const markTint = counts.waiting > 0 ? WAITING_TINT : counts.working > 0 ? CLAUDE_TINT : FINISHED_TINT;
 
   return (

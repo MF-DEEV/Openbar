@@ -6,6 +6,10 @@
 //! windows start below it the way they start below the Mac's menu bar. It
 //! names the app in front and hides, with the island, while an app is
 //! fullscreen.
+//!
+//! Not shown by default: the island stands alone at the top edge, as the
+//! person asked. Kept for an optional menu bar in Settings.
+#![allow(dead_code)]
 
 #[cfg(not(windows))]
 use tauri::{AppHandle, Runtime};
@@ -17,6 +21,7 @@ pub const LABEL: &str = "bar";
 pub const HEIGHT: f64 = 24.0;
 
 #[cfg(windows)]
+#[allow(unused_imports)]
 pub use imp::{create, own_island, remove};
 
 #[cfg(not(windows))]

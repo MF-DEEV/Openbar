@@ -4,26 +4,19 @@
 // A session's face in the island: its Clawd, or with buddies off, a round
 // badge in the phase's tint (NotchClaudeSessionsView.swift).
 
-import {
-  Check,
-  Hammer,
-  Hand,
-  Hourglass,
-  MessageCircleQuestion,
-  MoonStar,
-  Sparkle,
-  type LucideIcon,
-} from "lucide-react";
+import { Hammer, Hourglass, MessageCircleQuestion, MoonStar, type LucideIcon } from "lucide-react";
+import type { ComponentType } from "react";
 import { phaseTint } from "./format";
+import { CheckCircleFill, type GlyphProps, HandFill, SparkleFill } from "./glyphs";
 import type { Phase } from "./types";
 
-export const PHASE_ICON: Record<Phase, LucideIcon> = {
-  waitingPermission: Hand,
+export const PHASE_ICON: Record<Phase, LucideIcon | ComponentType<GlyphProps>> = {
+  waitingPermission: HandFill,
   waitingInput: MessageCircleQuestion,
   runningTool: Hammer,
-  generating: Sparkle,
+  generating: SparkleFill,
   background: Hourglass,
-  finished: Check,
+  finished: CheckCircleFill,
   idle: MoonStar,
 };
 
