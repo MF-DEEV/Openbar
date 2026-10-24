@@ -9,6 +9,7 @@
 #   run-vm.sh           every later boot
 set -euo pipefail
 
+here="$(cd "$(dirname "$0")" && pwd)"
 vm_dir="${VM_DIR:-$HOME/VMs/win11}"
 share="$(brew --prefix qemu)/share/qemu"
 mode="${1:-run}"
@@ -44,6 +45,14 @@ gpu=(-device ramfb)
 audio=(-audiodev none,id=snd0 -device usb-audio,audiodev=snd0)
 [[ "${VM_AUDIO:-none}" == mac ]] && audio=(-audiodev coreaudio,id=snd0 -device usb-audio,audiodev=snd0)
 
+# macOS Screen Sharing only connects to a VNC server with a password (at most
+# 8 characters). It is kept in vnc-password.txt and set over QMP once QEMU runs.
+[[ -f vnc-password.txt ]] || python3 -c "import secrets; print(''.join(secrets.choice('abcdefghkmnpqrstuvwxyz23456789') for _ in range(8)), end='')" > vnc-password.txt
+( for _ in $(seq 1 50); do
+    [[ -S qmp.sock ]] && "$here/qmp.py" raw "{\"execute\":\"set_password\",\"arguments\":{\"protocol\":\"vnc\",\"password\":\"$(cat vnc-password.txt)\"}}" >/dev/null 2>&1 && break
+    sleep 0.2
+  done ) &
+
 rm -f qmp.sock
 exec qemu-system-aarch64 \
   -name vorssaint-win11 \
@@ -61,5 +70,5 @@ exec qemu-system-aarch64 \
   ${install_drives[@]+"${install_drives[@]}"} \
   -nic user,model=virtio-net-pci,hostfwd=tcp:127.0.0.1:2222-:22 \
   -qmp unix:"$vm_dir/qmp.sock",server,nowait \
-  -vnc 127.0.0.1:5 \
+  -vnc 127.0.0.1:5,password=on \
   -display none
