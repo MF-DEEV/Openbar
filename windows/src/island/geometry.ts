@@ -1,0 +1,288 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+// The island's sizes and outlines on a display without a camera cutout,
+// ported from NotchGeometry / NotchLayout (NotchSupport.swift) and NotchShape
+// (NotchView.swift). One point here is one CSS pixel (one DIP on Windows).
+// See windows/docs/spec/01-shell.md §1 for every formula and its source line.
+
+import type { Size } from "./motion";
+
+export type Silhouette = "notch" | "capsule";
+export type LayoutPreset = "compact" | "spacious" | "custom";
+
+/** Bézier constant for a quarter circle. */
+const K = 0.55228475;
+const SHOULDER = 14;
+/** The simulated camera on a display without one: 180 · 24 / 32. */
+const SIMULATED_CAMERA = 135;
+const MINIMUM_WING = 44;
+const QUICK_ACCESS_GUTTER = 72;
+const HORIZONTAL_INSET = 28;
+const BOTTOM_INSET = 16;
+const HEADER_ROW = 36;
+
+export const surfaceRadius = (h: number) => Math.min(28, h * 0.34);
+export const shoulder = (h: number) => Math.min(SHOULDER, h * 0.19);
+export const capsuleRadius = (h: number) => Math.min(Math.max(0, h) / 2, 28);
+
+export interface GeometryInput {
+  /** The display, in DIPs. */
+  screen: Size;
+  devicePixelRatio: number;
+  silhouette: Silhouette;
+  layout: LayoutPreset;
+  customWidth?: number;
+  customHeight?: number;
+  /** Capsule fit: width −40…40, height −4…4, drop 0…20. */
+  capsuleFit?: { width: number; height: number; drop: number };
+  /** Height of the bar the island sits in (the Windows menu bar imitation). */
+  barHeight?: number;
+}
+
+export interface Geometry {
+  input: GeometryInput;
+  screen: Size;
+  silhouette: Silhouette;
+  /** Capsule only: how far the capsule floats below the top edge. */
+  floatingGap: number | null;
+  floatingDrop: number;
+  cameraWidth: number;
+  stripHeight: number;
+  menuBarHeight: number;
+  /** Where content may start below the strip. */
+  safeContentTop: number;
+  /** Free room either side of the camera in an empty bar. */
+  compactSideRoom: number;
+}
+
+export function makeGeometry(input: GeometryInput): Geometry {
+  const bar = input.barHeight ?? 24;
+  const edge = Math.min(1, Math.max(0, 1 / input.devicePixelRatio));
+  const fit = input.capsuleFit ?? { width: 0, height: 0, drop: 0 };
+  const capsule = input.silhouette === "capsule";
+  const gap = capsule ? Math.min(2, Math.max(0, Math.floor((bar - 20) / 2))) : null;
+  const strip = gap !== null ? Math.max(bar - edge + fit.height, 2 * gap + 12) : bar;
+  const camera = Math.min(
+    gap !== null ? Math.round((180 * bar) / 32 + fit.width) : SIMULATED_CAMERA,
+    input.screen.width * 0.7,
+  );
+  return {
+    input,
+    screen: input.screen,
+    silhouette: input.silhouette,
+    floatingGap: gap,
+    floatingDrop: gap !== null ? fit.drop : 0,
+    cameraWidth: camera,
+    stripHeight: strip,
+    menuBarHeight: Math.max(strip, bar),
+    safeContentTop: gap !== null ? BOTTOM_INSET : strip + 10,
+    compactSideRoom: (input.screen.width - camera) / 2 - 8,
+  };
+}
+
+// MARK: Outlines
+
+/** SVG path of the hanging island ("notch"), top edge spanning the ears. */
+export function notchPath(width: number, height: number): string {
+  const w = Math.max(0, width);
+  const h = Math.max(0, height);
+  const s = shoulder(h);
+  const b = Math.max(0, Math.min(surfaceRadius(h), h / 2, (w - s * 2) / 2));
+  const t = 1 - K;
+  return [
+    `M0 0`,
+    `L${w} 0`,
+    `C${w - s * K} 0 ${w - s} ${s * t} ${w - s} ${s}`,
+    `L${w - s} ${h - b}`,
+    `C${w - s} ${h - b * t} ${w - s - b * t} ${h} ${w - s - b} ${h}`,
+    `L${s + b} ${h}`,
+    `C${s + b * t} ${h} ${s} ${h - b * t} ${s} ${h - b}`,
+    `L${s} ${s}`,
+    `C${s} ${s * t} ${s * K} 0 0 0`,
+    `Z`,
+  ].join(" ");
+}
+
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/** The capsule inside a surface: `gap` in from top and bottom, shoulders in from the sides. */
+export function capsuleBody(width: number, height: number, gap: number): Rect {
+  const w = Math.max(0, width);
+  const h = Math.max(0, height);
+  const side = Math.min(shoulder(h), w / 2);
+  const inset = Math.min(Math.max(0, gap), h / 2);
+  return { x: side, y: inset, width: w - side * 2, height: h - inset * 2 };
+}
+
+/** SVG path of the floating capsule; every size keeps the same elements so frames blend. */
+export function capsulePath(width: number, height: number, gap: number): string {
+  const body = capsuleBody(width, height, gap);
+  const c = Math.min(capsuleRadius(body.height), body.width / 2);
+  const hd = c * (1 - K);
+  const l = body.x;
+  const r = body.x + body.width;
+  const t = body.y;
+  const b = body.y + body.height;
+  return [
+    `M${l + c} ${t}`,
+    `L${r - c} ${t}`,
+    `C${r - hd} ${t} ${r} ${t + hd} ${r} ${t + c}`,
+    `L${r} ${b - c}`,
+    `C${r} ${b - hd} ${r - hd} ${b} ${r - c} ${b}`,
+    `L${l + c} ${b}`,
+    `C${l + hd} ${b} ${l} ${b - hd} ${l} ${b - c}`,
+    `L${l} ${t + c}`,
+    `C${l} ${t + hd} ${l + hd} ${t} ${l + c} ${t}`,
+    `Z`,
+  ].join(" ");
+}
+
+export function islandPath(geometry: Geometry, size: Size): string {
+  return geometry.floatingGap !== null
+    ? capsulePath(size.width, size.height, geometry.floatingGap)
+    : notchPath(size.width, size.height);
+}
+
+/**
+ * The area that takes the pointer, as rounded rects for the pointer watcher:
+ * the visible body plus, for a capsule, the strip above it up to the screen
+ * edge, so a pointer pushed against the top still hits the island.
+ */
+export function hitShape(geometry: Geometry, size: Size): { rect: Rect; topRadius: number; bottomRadius: number } {
+  if (geometry.floatingGap !== null) {
+    const body = capsuleBody(size.width, size.height, geometry.floatingGap);
+    const c = Math.min(capsuleRadius(body.height), body.width / 2);
+    return {
+      rect: { x: body.x, y: 0, width: body.width, height: body.y + body.height },
+      topRadius: 0,
+      bottomRadius: c,
+    };
+  }
+  const s = shoulder(size.height);
+  const b = Math.max(0, Math.min(surfaceRadius(size.height), size.height / 2, (size.width - s * 2) / 2));
+  return { rect: { x: s, y: 0, width: Math.max(0, size.width - s * 2), height: size.height }, topRadius: 0, bottomRadius: b };
+}
+
+// MARK: Sizes
+
+/** The closed island with nothing to show. */
+export function restingSize(geometry: Geometry, showsIdleContent = false): Size {
+  const strip = geometry.stripHeight;
+  if (geometry.floatingGap !== null) {
+    const body = strip - 2 * geometry.floatingGap;
+    const fitWidth = geometry.input.capsuleFit?.width ?? 0;
+    const width = Math.min(
+      geometry.cameraWidth,
+      Math.round(Math.max(5 * body + fitWidth, 2 * body) + 2 * shoulder(strip)),
+    );
+    return { width, height: strip };
+  }
+  const wing = showsIdleContent && geometry.compactSideRoom >= MINIMUM_WING ? MINIMUM_WING : 0;
+  return { width: Math.min(geometry.screen.width - 24, geometry.cameraWidth + 2 * wing), height: strip };
+}
+
+/** A closed island the pointer rests on grows a little: 10 pt a side, 5 pt down when hanging. */
+export function hoverPulse(geometry: Geometry, closed: Size): Size {
+  const occupiedWing = Math.max(0, (closed.width - geometry.cameraWidth) / 2);
+  const freeSide = Math.max(0, geometry.compactSideRoom - occupiedWing);
+  const growth = Math.min(10, freeSide);
+  return {
+    width: closed.width + 2 * growth,
+    height: closed.height + (geometry.floatingGap !== null ? 0 : 5),
+  };
+}
+
+export function peekSize(geometry: Geometry): Size {
+  return {
+    width: Math.min(geometry.screen.width - 24, Math.max(geometry.cameraWidth + 110, 340)),
+    height: geometry.safeContentTop + 52,
+  };
+}
+
+export function preferredWidth(geometry: Geometry): number {
+  switch (geometry.input.layout) {
+    case "compact":
+      return 480;
+    case "spacious":
+      return 560;
+    case "custom":
+      return geometry.input.customWidth ?? 440;
+  }
+}
+
+/** Width of the open island; `natural` is a page's own width (music 344, timer 344, controls). */
+export function expandedWidth(geometry: Geometry, opts: { natural?: number; enlarged?: boolean } = {}): number {
+  const limit = geometry.screen.width - 24 - 2 * QUICK_ACCESS_GUTTER;
+  const min = geometry.cameraWidth + 36;
+  if (opts.enlarged) {
+    return Math.min(Math.max(Math.min(1180, 0.66 * geometry.screen.width), min), limit);
+  }
+  const chosen = preferredWidth(geometry);
+  const preferred =
+    geometry.input.layout !== "custom" && opts.natural !== undefined
+      ? Math.min(chosen, opts.natural + 56)
+      : chosen;
+  return Math.min(Math.max(preferred, min), limit);
+}
+
+export interface HeaderMetrics {
+  headerTopInset: number;
+  headerRowHeight: number;
+  pageTopInset: number;
+  headerChromeHeight: number;
+}
+
+export function headerMetrics(geometry: Geometry, hasRow: boolean): HeaderMetrics {
+  const row = hasRow ? HEADER_ROW : 0;
+  const top = row === 0 ? 16 : geometry.floatingGap !== null ? 16 - (HEADER_ROW - 28) / 2 : 0;
+  const pageTop = row > 0 ? top + row + 12 : top;
+  return {
+    headerTopInset: top,
+    headerRowHeight: row,
+    pageTopInset: pageTop,
+    headerChromeHeight: pageTop - top + 16,
+  };
+}
+
+export function contentBudget(geometry: Geometry, hasRow: boolean): number {
+  switch (geometry.input.layout) {
+    case "compact":
+      return 180;
+    case "spacious":
+      return 264;
+    case "custom": {
+      const h = headerMetrics(geometry, hasRow);
+      return (geometry.input.customHeight ?? 480) - h.headerTopInset - h.headerChromeHeight;
+    }
+  }
+}
+
+/**
+ * Height of the open island for a page whose content is `content` tall (or
+ * the preset's budget when omitted), capped to the display.
+ */
+export function expandedHeight(
+  geometry: Geometry,
+  opts: { hasRow: boolean; content?: number; enlarged?: boolean; bottomBubbles?: boolean },
+): number {
+  const cap = geometry.screen.height - 48 - (opts.bottomBubbles ? QUICK_ACCESS_GUTTER : 0);
+  if (opts.enlarged) return Math.min(0.8 * geometry.screen.height, geometry.screen.height - 48 - 72);
+  const h = headerMetrics(geometry, opts.hasRow);
+  let height = h.headerTopInset + h.headerChromeHeight + (opts.content ?? contentBudget(geometry, opts.hasRow));
+  if (geometry.input.layout === "custom") height = Math.min(height, geometry.input.customHeight ?? 480);
+  return Math.min(height, cap);
+}
+
+export const Layout = {
+  horizontalInset: HORIZONTAL_INSET,
+  bottomInset: BOTTOM_INSET,
+  headerRow: HEADER_ROW,
+  quickAccessGutter: QUICK_ACCESS_GUTTER,
+  minimumWing: MINIMUM_WING,
+} as const;
