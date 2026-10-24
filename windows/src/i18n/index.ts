@@ -21,7 +21,7 @@ const en = {
   "module.downloads": "Downloads",
   "module.scratchpad": "Scratchpad",
   "module.agents": "AI Agents",
-  "module.sessions": "Claude Code",
+  "module.sessions": "Sessions",
   "module.watch": "Watch",
   "island.sections": "Sections",
   "island.settings": "Settings",
