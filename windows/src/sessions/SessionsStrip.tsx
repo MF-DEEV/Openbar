@@ -27,7 +27,7 @@ export function countItems(counts: Counts) {
     { n: counts.waiting, Icon: HandFill, tint: WAITING_TINT },
     { n: counts.working - counts.workingCodex, Icon: SparkleFill, tint: CLAUDE_TINT },
     { n: counts.workingCodex, Icon: SparkleFill, tint: CODEX_TINT },
-    { n: counts.finished, Icon: CheckCircleFill, tint: FINISHED_TINT },
+    { n: counts.finished, Icon: SparkleFill, tint: FINISHED_TINT },
   ].filter((i) => i.n > 0);
 }
 
