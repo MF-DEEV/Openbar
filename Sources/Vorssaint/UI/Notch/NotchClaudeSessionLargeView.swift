@@ -512,7 +512,8 @@ struct NotchClaudeSessionComposer: View {
     private var unavailable: String? {
         if session.phase.isWaiting { return text.replyWhileWaiting }
         if session.waitingFor != nil { return text.replyWhileDialog }
-        if !session.host.acceptsReplies { return text.replyUnavailable }
+        // Codex takes replies through its server, wherever its terminal is.
+        if session.provider != .codex, !session.host.acceptsReplies { return text.replyUnavailable }
         return nil
     }
 

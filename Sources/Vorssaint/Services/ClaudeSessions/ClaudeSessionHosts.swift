@@ -52,7 +52,8 @@ enum ClaudeSessionHosts {
         guard filled > 0 else { return [] }
         return pids.prefix(Int(filled)).compactMap { pid in
             guard pid > 0 else { return nil }
-            var name = [CChar](repeating: 0, count: Int(MAXCOMLEN) + 1)
+            // proc_name answers nothing into a buffer shorter than the longest name (2 × MAXCOMLEN).
+            var name = [CChar](repeating: 0, count: 2 * Int(MAXCOMLEN) + 1)
             guard proc_name(pid, &name, UInt32(name.count)) > 0, String(cString: name) == "codex",
                   tty(of: pid) != nil, let cwd = cwd(of: pid) else { return nil }
             return (pid, cwd)
