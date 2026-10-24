@@ -38,13 +38,6 @@ function Options({ id }: { id: ModuleId }) {
               onChange={(on) => set("showPlayingMusic", on)}
             />
           </SubRow>
-          <SubRow title={T.activity.trackChange} caption={T.activity.trackChangeCaption}>
-            <Toggle
-              label={T.activity.trackChange}
-              checked={island.trackChange}
-              onChange={(on) => set("trackChange", on)}
-            />
-          </SubRow>
         </>
       );
     case "notifications":
@@ -66,7 +59,13 @@ export function ContentSettings() {
     patch({
       island: {
         hiddenModules: on ? hidden : [...hidden, id],
-        ...(OWN_SWITCH.includes(id) ? { sections: { ...island.sections, [id]: on } } : {}),
+        // A section with its own switch keeps it in step; any other gets a
+        // stale "off" (an older or hand-edited file) cleared when switched on.
+        ...(OWN_SWITCH.includes(id)
+          ? { sections: { ...island.sections, [id]: on } }
+          : on && island.sections[id] === false
+            ? { sections: { ...island.sections, [id]: true } }
+            : {}),
       },
     });
   };

@@ -141,6 +141,11 @@ pub fn place<R: Runtime>(window: &WebviewWindow<R>, choice: DisplayChoice) -> ta
     let Some(monitor) = monitor.or(window.current_monitor()?) else {
         return Ok(());
     };
+    move_to(window, &monitor)
+}
+
+/// Sizes and moves the window onto `monitor`; never changes the choice.
+fn move_to<R: Runtime>(window: &WebviewWindow<R>, monitor: &tauri::Monitor) -> tauri::Result<()> {
     let scale = monitor.scale_factor();
     let size = monitor.size();
     let width = size.width as f64 / scale;
@@ -159,7 +164,8 @@ pub fn place<R: Runtime>(window: &WebviewWindow<R>, choice: DisplayChoice) -> ta
 /// Follow pointer: the island moves to the display the pointer is on, but
 /// never while the person is using it.
 fn follow_pointer<R: Runtime>(window: &WebviewWindow<R>, state: &IslandState) {
-    if *state.display.lock().unwrap() != DisplayChoice::Cursor {
+    let following = || *state.display.lock().unwrap() == DisplayChoice::Cursor;
+    if !following() {
         return;
     }
     // Only a closed island moves: an open one (taller than any strip or
@@ -174,8 +180,9 @@ fn follow_pointer<R: Runtime>(window: &WebviewWindow<R>, state: &IslandState) {
         return;
     };
     let at = (monitor.position().x, monitor.position().y);
-    if *state.placed_on.lock().unwrap() != Some(at) {
-        let _ = place(window, DisplayChoice::Cursor);
+    // The choice may have changed while those calls waited on the event loop.
+    if *state.placed_on.lock().unwrap() != Some(at) && following() {
+        let _ = move_to(window, &monitor);
     }
 }
 
@@ -240,12 +247,6 @@ pub fn island_set_hit_rects(state: tauri::State<'_, IslandState>, rects: Vec<Hit
 #[tauri::command]
 pub fn island_set_capture(state: tauri::State<'_, IslandState>, capture: bool) {
     *state.capture.lock().unwrap() = capture;
-}
-
-#[tauri::command]
-pub fn island_place<R: Runtime>(app: AppHandle<R>, display: DisplayChoice) -> Result<(), String> {
-    let window = app.get_webview_window(LABEL).ok_or("no island window")?;
-    place(&window, display).map_err(|e| e.to_string())
 }
 
 /// While open the island may take the keyboard (Esc, shortcuts, the reply

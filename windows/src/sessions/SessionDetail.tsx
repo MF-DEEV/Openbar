@@ -30,7 +30,7 @@ export function SessionDetail({ session }: { session: Session }) {
   const color = projectColor(session.project);
   const renaming = useSessions((s) => s.renaming);
   const wardrobe = useSessions((s) => s.wardrobe);
-  const buddies = useSessions((s) => s.buddies);
+  const buddies = useSessions((s) => s.prefs.buddies);
   const kept = useSessions((s) => s.costumes[session.id]);
   const character = session.provider === "codex" ? "codex" : "clawd";
 

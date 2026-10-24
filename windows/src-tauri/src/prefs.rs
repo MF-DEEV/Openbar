@@ -21,6 +21,9 @@ pub const CHANGED: &str = "prefs://changed";
 pub struct Prefs {
     path: Option<PathBuf>,
     value: Mutex<Value>,
+    /// The file exists but couldn't be read or moved aside: saving would
+    /// overwrite what the person had, so changes are refused instead.
+    blocked: bool,
 }
 
 impl Prefs {
@@ -30,10 +33,19 @@ impl Prefs {
             .app_config_dir()
             .ok()
             .map(|d| d.join("settings.json"));
-        let value = path.as_deref().map(read).unwrap_or_else(empty);
+        Self::at(path)
+    }
+
+    fn at(path: Option<PathBuf>) -> Self {
+        let (value, blocked) = match path.as_deref().map(read) {
+            Some(Ok(v)) => (v, false),
+            Some(Err(_)) => (empty(), true),
+            None => (empty(), false),
+        };
         Prefs {
             path,
             value: Mutex::new(value),
+            blocked,
         }
     }
 
@@ -43,6 +55,9 @@ impl Prefs {
 
     /// Merges `patch` and saves; returns the whole new value.
     pub fn set(&self, patch: &Value) -> Result<Value, String> {
+        if self.blocked {
+            return Err("settings.json can't be read, so changes aren't saved".into());
+        }
         let mut value = self.value.lock().unwrap();
         let mut next = value.clone();
         merge(&mut next, patch);
@@ -58,18 +73,28 @@ fn empty() -> Value {
     Value::Object(Map::new())
 }
 
-/// A missing or broken file reads as no changes; a broken one is kept aside.
-fn read(path: &Path) -> Value {
-    let Ok(text) = fs::read_to_string(path) else {
-        return empty();
+/// A missing file reads as no changes. One that isn't a JSON object, or
+/// can't be read at all (locked, not text), is moved aside so the next save
+/// doesn't destroy it; if even that fails, it's an error and nothing saves.
+fn read(path: &Path) -> std::io::Result<Value> {
+    let bytes = match fs::read(path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(empty()),
+        Err(_) => return set_aside(path),
     };
-    match serde_json::from_str::<Value>(&text) {
-        Ok(v @ Value::Object(_)) => v,
-        _ => {
-            let _ = fs::rename(path, path.with_extension("json.broken"));
-            empty()
-        }
+    let Ok(text) = std::str::from_utf8(&bytes) else {
+        return set_aside(path);
+    };
+    // Notepad and PowerShell 5 may write a byte-order mark.
+    match serde_json::from_str::<Value>(text.trim_start_matches('\u{feff}')) {
+        Ok(v @ Value::Object(_)) => Ok(v),
+        _ => set_aside(path),
     }
+}
+
+fn set_aside(path: &Path) -> std::io::Result<Value> {
+    fs::rename(path, path.with_extension("json.broken"))?;
+    Ok(empty())
 }
 
 fn write(path: &Path, value: &Value) -> std::io::Result<()> {
@@ -92,6 +117,11 @@ pub fn merge(target: &mut Value, patch: &Value) {
                     && v.is_object()
                 {
                     merge(existing, v);
+                } else if v.is_object() {
+                    // A new object: merged into nothing, so its nulls drop out.
+                    let mut fresh = empty();
+                    merge(&mut fresh, v);
+                    t.insert(key.clone(), fresh);
                 } else {
                     t.insert(key.clone(), v.clone());
                 }
@@ -101,15 +131,18 @@ pub fn merge(target: &mut Value, patch: &Value) {
     }
 }
 
-/// Acts on what the backend owns, from the whole value.
-pub fn apply<R: Runtime>(app: &AppHandle<R>, value: &Value) {
-    let display = value
-        .pointer("/island/display")
-        .cloned()
-        .and_then(|v| serde_json::from_value(v).ok())
-        .unwrap_or_default();
-    if let Some(window) = app.get_webview_window(crate::island::LABEL) {
-        let _ = crate::island::place(&window, display);
+/// Acts on what the backend owns. `before` is the value it replaces (None at
+/// launch), so only what changed is redone: placing the island again or
+/// re-reading transcripts on every slider step would be noticeable.
+pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Value) {
+    let display = |v: &Value| v.pointer("/island/display").cloned();
+    if before.is_none_or(|b| display(b) != display(value)) {
+        let choice = display(value)
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default();
+        if let Some(window) = app.get_webview_window(crate::island::LABEL) {
+            let _ = crate::island::place(&window, choice);
+        }
     }
     let flag = |pointer: &str, default: bool| {
         value
@@ -118,7 +151,7 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, value: &Value) {
             .unwrap_or(default)
     };
     shortcut(app, flag("/island/shortcutEnabled", true));
-    crate::fullscreen::set_hides(app, flag("/island/hideInFullscreen", true));
+    crate::fullscreen::set_hides(flag("/island/hideInFullscreen", true));
     crate::island::show_in_captures(app, flag("/island/showInCaptures", true));
     let previews = value
         .pointer("/sessions/previews")
@@ -146,6 +179,14 @@ fn shortcut<R: Runtime>(app: &AppHandle<R>, on: bool) {
     }
 }
 
+/// False when the shortcut is on but another app holds Ctrl+Alt+Space.
+#[tauri::command]
+pub fn shortcut_registered<R: Runtime>(app: AppHandle<R>) -> bool {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    app.global_shortcut()
+        .is_registered(crate::toggle_shortcut())
+}
+
 #[tauri::command]
 pub fn prefs_get(prefs: tauri::State<'_, Prefs>) -> Value {
     prefs.get()
@@ -157,8 +198,9 @@ pub fn prefs_set<R: Runtime>(
     prefs: tauri::State<'_, Prefs>,
     patch: Value,
 ) -> Result<Value, String> {
+    let before = prefs.get();
     let next = prefs.set(&patch)?;
-    apply(&app, &next);
+    apply(&app, Some(&before), &next);
     let _ = app.emit(CHANGED, &next);
     Ok(next)
 }
@@ -200,23 +242,52 @@ mod autostart {
         ok.is_ok().then_some(key)
     }
 
+    /// What the Run value holds for this exe: its quoted path.
+    fn command() -> Option<String> {
+        let exe = std::env::current_exe().ok()?;
+        Some(format!("\"{}\"", exe.display()))
+    }
+
+    /// On only when the value starts this very exe: a moved install or
+    /// another build under the same name reads as off, and turning it on
+    /// points it here.
     pub fn enabled() -> bool {
         let Some(key) = open(KEY_QUERY_VALUE) else {
             return false;
         };
-        let found =
-            unsafe { RegQueryValueExW(key, &HSTRING::from(NAME), None, None, None, None).is_ok() };
+        let name = HSTRING::from(NAME);
+        let mut size = 0u32;
+        let mut stored = None;
         unsafe {
+            if RegQueryValueExW(key, &name, None, None, None, Some(&mut size)).is_ok() && size >= 2
+            {
+                let mut buf = vec![0u16; size as usize / 2];
+                if RegQueryValueExW(
+                    key,
+                    &name,
+                    None,
+                    None,
+                    Some(buf.as_mut_ptr().cast()),
+                    Some(&mut size),
+                )
+                .is_ok()
+                {
+                    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+                    stored = Some(String::from_utf16_lossy(&buf[..len]));
+                }
+            }
             let _ = RegCloseKey(key);
         }
-        found
+        match (stored, command()) {
+            (Some(stored), Some(command)) => stored.eq_ignore_ascii_case(&command),
+            _ => false,
+        }
     }
 
     pub fn set(on: bool) -> Result<(), String> {
         let key = open(KEY_SET_VALUE).ok_or("couldn't open the Run key")?;
         let result = if on {
-            let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-            let command = format!("\"{}\"", exe.display());
+            let command = command().ok_or("couldn't find Vorssaint.exe")?;
             let wide: Vec<u16> = command.encode_utf16().chain(Some(0)).collect();
             let bytes =
                 unsafe { std::slice::from_raw_parts(wide.as_ptr().cast::<u8>(), wide.len() * 2) };
@@ -271,10 +342,103 @@ mod tests {
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join("settings.json");
         fs::write(&path, "{not json").unwrap();
-        assert_eq!(read(&path), json!({}));
+        assert_eq!(read(&path).unwrap(), json!({}));
         assert!(path.with_extension("json.broken").exists());
         write(&path, &json!({"a": 1})).unwrap();
-        assert_eq!(read(&path), json!({"a": 1}));
+        assert_eq!(read(&path).unwrap(), json!({"a": 1}));
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn patches_add_missing_objects_and_keep_their_siblings() {
+        let mut v = json!({});
+        merge(&mut v, &json!({"island": {"capsuleFit": {"width": 4}}}));
+        merge(
+            &mut v,
+            &json!({"island": {"capsuleFit": {"drop": 2}, "outline": true}}),
+        );
+        assert_eq!(
+            v,
+            json!({"island": {"capsuleFit": {"width": 4, "drop": 2}, "outline": true}})
+        );
+        // Removing a key that was never set, inside an object that exists, changes nothing.
+        merge(&mut v, &json!({"island": {"silhouette": null}}));
+        assert_eq!(
+            v,
+            json!({"island": {"capsuleFit": {"width": 4, "drop": 2}, "outline": true}})
+        );
+    }
+
+    #[test]
+    fn set_saves_the_merged_value_and_a_reload_reads_it_back() {
+        let dir = std::env::temp_dir().join(format!("vors-prefs-set-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let path = dir.join("settings.json");
+        let prefs = Prefs {
+            path: Some(path.clone()),
+            value: Mutex::new(empty()),
+            blocked: false,
+        };
+        prefs
+            .set(&json!({"island": {"outline": true, "display": "cursor"}}))
+            .unwrap();
+        let next = prefs.set(&json!({"island": {"outline": null}})).unwrap();
+        assert_eq!(next, json!({"island": {"display": "cursor"}}));
+        assert_eq!(prefs.get(), next);
+        assert_eq!(read(&path).unwrap(), next);
+        assert!(!path.with_extension("json.tmp").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_failed_save_keeps_the_value_it_had() {
+        // The folder is a file, so the write fails.
+        let blocker =
+            std::env::temp_dir().join(format!("vors-prefs-blocker-{}", std::process::id()));
+        fs::write(&blocker, "").unwrap();
+        let prefs = Prefs {
+            path: Some(blocker.join("settings.json")),
+            value: Mutex::new(json!({"island": {"outline": true}})),
+            blocked: false,
+        };
+        assert!(prefs.set(&json!({"island": {"outline": false}})).is_err());
+        assert_eq!(prefs.get(), json!({"island": {"outline": true}}));
+        let _ = fs::remove_file(&blocker);
+    }
+
+    #[test]
+    fn a_new_object_in_a_patch_loses_its_nulls() {
+        let mut v = json!({});
+        merge(
+            &mut v,
+            &json!({"sessions": {"live": null, "buddies": false}}),
+        );
+        assert_eq!(v, json!({"sessions": {"buddies": false}}));
+    }
+
+    #[test]
+    fn a_byte_order_mark_is_read_and_text_that_isnt_utf8_is_kept_aside() {
+        let dir = std::env::temp_dir().join(format!("vors-prefs-bom-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        fs::write(&path, "\u{feff}{\"island\":{\"outline\":true}}").unwrap();
+        assert_eq!(read(&path).unwrap(), json!({"island": {"outline": true}}));
+        fs::write(&path, b"{\"island\":{\"name\":\"caf\xe9\"}}").unwrap();
+        assert_eq!(read(&path).unwrap(), json!({}));
+        assert!(path.with_extension("json.broken").exists());
+        assert!(!path.exists(), "the next save can't overwrite it");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_file_that_cant_be_read_or_moved_blocks_saving() {
+        let prefs = Prefs {
+            path: Some(PathBuf::from("unused")),
+            value: Mutex::new(empty()),
+            blocked: true,
+        };
+        assert!(prefs.set(&json!({"island": {"outline": true}})).is_err());
+        assert_eq!(prefs.get(), json!({}));
     }
 }

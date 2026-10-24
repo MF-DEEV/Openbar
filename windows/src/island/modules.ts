@@ -84,7 +84,7 @@ export const moduleInfo = (id: ModuleId): ModuleInfo => MODULES.find((m) => m.id
 /** Stored order first, then any section the order does not name, minus hidden ones. */
 export function visibleModules(order: ModuleId[], hidden: ModuleId[], enabled: (id: ModuleId) => boolean): ModuleId[] {
   const known = new Set(MODULES.map((m) => m.id));
-  const ordered = order.filter((id) => known.has(id));
+  const ordered = [...new Set(order)].filter((id) => known.has(id));
   const rest = MODULES.map((m) => m.id).filter((id) => !ordered.includes(id));
   return [...ordered, ...rest].filter((id) => !hidden.includes(id) && enabled(id));
 }

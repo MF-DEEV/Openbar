@@ -12,7 +12,6 @@ export const T = {
     content: "Content",
     activity: "Activity",
     behavior: "Behavior",
-    sessions: "Sessions",
     island: "Dynamic Island",
   },
   brand: "Dynamic Island for Windows",
@@ -99,6 +98,7 @@ export const T = {
     closingCaption: "Wait this long after the pointer leaves the island before closing it.",
     shortcut: "Global shortcut",
     shortcutCaption: "Opens and closes the island from any app.",
+    shortcutTaken: "Another app already uses Ctrl+Alt+Space, so the island can't take it.",
     reopening: "When reopening",
     reopeningCaption: "Where the island opens the next time.",
     lastPage: "Last page",
@@ -116,7 +116,6 @@ export const T = {
   },
   sessions: {
     lead: "Reads the state Claude Code and Codex keep for each running session on this PC. Prompts and replies stay unread unless you turn on previews, and nothing leaves your PC.",
-    agents: "Agents",
     claudeOnCaption: "Vorssaint hears every session through hooks in ~/.claude/settings.json.",
     claudeOffCaption:
       "Install the hooks so the island sees Claude Code sessions and can answer their prompts. A backup of settings.json is made first.",
@@ -127,9 +126,10 @@ export const T = {
     install: "Install hooks",
     update: "Update hooks",
     remove: "Remove hooks",
-    codexCaption: "Nothing to install. The island talks to the app server Codex already runs.",
-    codexReady: "Ready",
-    inIsland: "In the island",
+    codexCaption: "Nothing to install. The island talks to the app server Codex runs while it's open.",
+    codexConnected: "Connected",
+    codexNotRunning: "Starts with Codex",
+    codexNotFound: "Not found on this PC",
     previews: "Show previews",
     previewsCaption:
       "Shows titles, commands, file names and the conversation. They stay in memory and are cleared when you turn this off.",

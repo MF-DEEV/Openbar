@@ -124,6 +124,15 @@ function useFocus() {
   }, [expanded, focusRequest]);
 }
 
+/** Turned off in Settings › General: nothing drawn, and nothing left to catch the pointer. */
+function Disabled() {
+  useEffect(() => {
+    void bridge.setHitRects([]);
+    void bridge.setCapture(false);
+  }, []);
+  return null;
+}
+
 export function Island() {
   useWindowScreen();
   useKeyboard();
@@ -159,7 +168,7 @@ export function Island() {
     else setBubbleDelay(arrivalTime(closedSize.current, shown.size));
   }, [shown.kind, shown.size.width, shown.size.height]);
 
-  if (!state.settings.enabled) return null;
+  if (!state.settings.enabled) return <Disabled />;
 
   let content;
   switch (shown.kind) {

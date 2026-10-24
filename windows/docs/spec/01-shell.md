@@ -513,7 +513,7 @@ Blur/scale are removed when the transition ends. A reversed transition resumes b
 | Click outside (global monitors) | `WH_MOUSE_LL` button-down outside shape ⇒ collapse (respect `keepsWorkingSurface`, own child windows). Also `EVENT_SYSTEM_FOREGROUND` to another process ⇒ apply `closesOnActivation`. |
 | Fullscreen Space detection | `SHAppBarMessage(ABM_NEW)` appbar callback `ABN_FULLSCREENAPP` per monitor, plus `SHQueryUserNotificationState` (`QUNS_BUSY`, `QUNS_RUNNING_D3D_FULL_SCREEN`, `QUNS_PRESENTATION_MODE`) and foreground-window-rect == `rcMonitor` (excluding `Progman`/`WorkerW`/shell). Re-check on `EVENT_SYSTEM_FOREGROUND` / `EVENT_OBJECT_LOCATIONCHANGE`. |
 | Monitor enumeration / built-in / main | `EnumDisplayMonitors` + `GetMonitorInfo` (`MONITORINFOF_PRIMARY` = main); built-in via `QueryDisplayConfig` output technology `INTERNAL` / `DISPLAYPORT_EMBEDDED` / `UDI_EMBEDDED`; DPI via `GetDpiForMonitor`; lid via `RegisterPowerSettingNotification(GUID_LIDSWITCH_STATE_CHANGE)`. |
-| Pointer follow | Cursor hook + `MonitorFromPoint`, 200 ms dwell. |
+| Pointer follow | Built: the pointer watcher (16 ms poll) checks the pointer's monitor about 4× a second and moves only a **closed** island (no hit rect taller than 80 px); the move never changes the stored choice (`island.rs` `follow_pointer`). No dwell yet. |
 | Screen parameters change | `WM_DISPLAYCHANGE`, `WM_DPICHANGED`, `WM_SETTINGCHANGE(SPI_SETWORKAREA)`, debounce 100 ms. |
 | Sleep / display sleep / lock / user switch | `WM_POWERBROADCAST` (`PBT_APMSUSPEND`, `PBT_APMRESUMEAUTOMATIC`), `RegisterPowerSettingNotification(GUID_CONSOLE_DISPLAY_STATE)`, `WTSRegisterSessionNotification` (`WTS_SESSION_LOCK/UNLOCK`, `WTS_CONSOLE_DISCONNECT/CONNECT`), screensaver `SPI_GETSCREENSAVERRUNNING`. |
 | Global hotkey (`QuickToolHotkey`) | `RegisterHotKey` (report failure like `shortcutRegistrationFailed`). |
@@ -530,6 +530,14 @@ Blur/scale are removed when the transition ends. A reversed transition resumes b
 ## 7. Settings (island preferences)
 
 UI: Settings › Dynamic Island, tabs **Layout · Content · Activity · Behavior · Companion** (`NotchSettingsTabRow.swift:6-8`), master switch in the header, "open island" button (`NotchSettings.swift:145-187`). Any change triggers `syncWithPreferences()` (debounced to the next run-loop turn, `NotchService.swift:3640-3650`).
+
+### 7.0 Windows: where preferences live (built)
+
+- One JSON file, `%APPDATA%\com.vorssaint.island\settings.json`, holding **only what the person changed**: `{ "island": {…IslandSettings}, "sessions": {…SessionPrefs} }`. The windows own the schema and defaults (`src/island/settings.ts`, `src/shared/prefs.ts`); `resolve()` fills the rest and reads any value of the wrong type or an unknown choice as the default.
+- Patches merge objects, replace anything else, and `null` removes a key (the default comes back). Writes are atomic (temp file + rename) and every window gets `prefs://changed`.
+- A file that isn't a JSON object, or can't be read, is moved to `settings.json.broken`; if even that fails, saving is refused rather than overwriting it.
+- The backend applies what it owns itself, only when it changed: display, content previews, the global shortcut, hiding in full screen, leaving the island out of captures (`prefs.rs` `apply`). Start with Windows is the per-user Run value `Vorssaint`, read as on only when it starts this exe.
+- Windows defaults that differ from the Mac: silhouette **notch** (Mac capsule), `shortcutEnabled` **true** (Mac false), `hideInFullscreen` **true** (Mac false), Sessions and Agents sections **on** (Mac off), display offers **Main display / Follow pointer** only (`all` reads as primary until the island can live on several displays). Ctrl+Alt+Space is fixed; `shortcut` is stored but not read yet.
 
 ### 7.1 Shell preferences
 

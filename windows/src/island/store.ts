@@ -88,7 +88,6 @@ export interface IslandState {
   setPageContent(module: ModuleId, height: number | null): void;
 
   setScreen(screen: Size, devicePixelRatio: number): void;
-  setSettings(patch: Partial<IslandSettings>): void;
   open(module?: ModuleId, opts?: { takeFocus?: boolean; sections?: boolean; byHover?: boolean }): void;
   collapse(): void;
   toggle(): void;
@@ -154,7 +153,6 @@ export const useIsland = create<IslandState>()((set, get) => ({
     }),
 
   setScreen: (screen, devicePixelRatio) => set({ screen, devicePixelRatio }),
-  setSettings: (patch) => set((s) => ({ settings: { ...s.settings, ...patch } })),
 
   open(module, opts = {}) {
     const s = get();

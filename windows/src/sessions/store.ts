@@ -28,9 +28,8 @@ interface SessionsState {
   renaming: boolean;
   /** The wardrobe is open on the focused session's page. */
   wardrobe: boolean;
-  /** The section's preferences (buddies: a Clawd for every session). */
+  /** The section's preferences (Settings › Content › Sessions). */
   prefs: SessionPrefs;
-  buddies: boolean;
   /** Outfits changed in the wardrobe, by session (or subagent) key. */
   costumes: Record<string, string>;
   setCostume(key: string, code: string | null): void;
@@ -83,7 +82,6 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   renaming: false,
   wardrobe: false,
   prefs: DEFAULT_SESSION_PREFS,
-  buddies: true,
   costumes: costumeStore.all(),
   openFailedUntil: 0,
 

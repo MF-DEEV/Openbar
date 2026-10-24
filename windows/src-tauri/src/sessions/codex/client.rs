@@ -228,6 +228,11 @@ impl CodexClient {
         true
     }
 
+    /// Joined to Codex's app-server right now.
+    pub fn connected(&self) -> bool {
+        self.shared.lock().unwrap().connected
+    }
+
     pub fn version(&self) -> Option<String> {
         self.shared.lock().unwrap().version.clone()
     }

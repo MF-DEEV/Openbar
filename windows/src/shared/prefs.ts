@@ -7,6 +7,7 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { MODULES, type ModuleId } from "../island/modules";
 import { DEFAULT_SETTINGS, type IslandSettings } from "../island/settings";
 import { inTauri } from "./bridge";
 
@@ -46,17 +47,64 @@ export type PrefsPatch = {
   sessions?: { [K in keyof SessionPrefs]?: SessionPrefs[K] | null };
 };
 
+/** Values settings.json may hold for the enumerated keys; anything else reads as the default. */
+const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
+  silhouette: ["notch", "capsule"],
+  layout: ["compact", "spacious", "custom"],
+  opening: ["click", "hoverPreview", "hoverExpand", "hiddenUntilHover"],
+  // "all" is a Mac choice the Windows island doesn't have yet.
+  display: ["primary", "cursor"],
+};
+
+const KNOWN = new Set<string>(MODULES.map((m) => m.id));
+
+/** Known section ids, each once. */
+function moduleList(value: unknown): ModuleId[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return [...new Set(value.filter((id): id is ModuleId => typeof id === "string" && KNOWN.has(id)))];
+}
+
+/** Takes from `stored` only what has the default's type (and a known value), so a hand-edited file can't break a window. */
+function checked<T extends object>(defaults: T, stored: unknown): Partial<T> {
+  if (!isObject(stored)) return {};
+  const out: Partial<T> = {};
+  for (const key of Object.keys(defaults) as (keyof T & string)[]) {
+    const value = stored[key];
+    const fallback = defaults[key];
+    if (value === undefined || value === null) continue;
+    if (Array.isArray(fallback) ? !Array.isArray(value) : typeof value !== typeof fallback) continue;
+    if (typeof value === "number" && !Number.isFinite(value)) continue;
+    const choices = CHOICES[key as keyof IslandSettings];
+    if (choices && !choices.includes(value as string)) continue;
+    out[key] = value as T[keyof T & string];
+  }
+  return out;
+}
+
 export function resolve(stored: StoredPrefs | null | undefined): Prefs {
-  const island = stored?.island ?? {};
+  const island = checked(DEFAULT_SETTINGS, stored?.island);
+  const raw = isObject(stored?.island) ? stored.island : {};
+  const hiddenModules = moduleList(raw.hiddenModules);
+  const moduleOrder = moduleList(raw.moduleOrder);
+  if (island.homeModule !== undefined && island.homeModule !== "explore" && !KNOWN.has(island.homeModule)) {
+    delete island.homeModule;
+  }
   return {
     island: {
       ...DEFAULT_SETTINGS,
       ...island,
-      capsuleFit: { ...DEFAULT_SETTINGS.capsuleFit, ...island.capsuleFit },
-      sections: { ...DEFAULT_SETTINGS.sections, ...island.sections },
+      ...(hiddenModules ? { hiddenModules } : {}),
+      ...(moduleOrder ? { moduleOrder } : {}),
+      capsuleFit: { ...DEFAULT_SETTINGS.capsuleFit, ...checked(DEFAULT_SETTINGS.capsuleFit, raw.capsuleFit) },
+      sections: { ...DEFAULT_SETTINGS.sections, ...sectionSwitches(raw.sections) },
     },
-    sessions: { ...DEFAULT_SESSION_PREFS, ...stored?.sessions },
+    sessions: { ...DEFAULT_SESSION_PREFS, ...checked(DEFAULT_SESSION_PREFS, stored?.sessions) },
   };
+}
+
+function sectionSwitches(value: unknown): Partial<Record<ModuleId, boolean>> {
+  if (!isObject(value)) return {};
+  return Object.fromEntries(Object.entries(value).filter(([id, on]) => KNOWN.has(id) && typeof on === "boolean"));
 }
 
 // Outside Tauri (designing in a browser) the preferences live in memory.
@@ -66,8 +114,11 @@ const memoryListeners = new Set<(p: Prefs) => void>();
 function mergeInto(target: Record<string, unknown>, patch: Record<string, unknown>) {
   for (const [key, value] of Object.entries(patch)) {
     if (value === null) delete target[key];
-    else if (isObject(value) && isObject(target[key])) mergeInto(target[key] as Record<string, unknown>, value);
-    else target[key] = isObject(value) ? structuredClone(value) : value;
+    else if (isObject(value)) {
+      // A new object is merged into nothing, so its nulls drop out (as in prefs.rs).
+      if (!isObject(target[key])) target[key] = {};
+      mergeInto(target[key] as Record<string, unknown>, value);
+    } else target[key] = Array.isArray(value) ? structuredClone(value) : value;
   }
 }
 

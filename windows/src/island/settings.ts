@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Vorssaint
 
 // The island's own preferences (spec 01-shell §7.1), with the Mac's defaults
-// except where Windows differs: the hanging notch is the default outline,
-// because the island sits in the menu-bar imitation like a MacBook's, and
-// the Sessions and Agents sections start on.
+// except where Windows differs (§7.0): the hanging notch is the default
+// outline, the global shortcut and hiding in full screen start on, and the
+// Sessions and Agents sections start on.
 
 import type { LayoutPreset, Silhouette } from "./geometry";
 import type { ModuleId } from "./modules";

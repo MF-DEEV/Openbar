@@ -523,6 +523,10 @@ impl Service {
 
     pub fn set_previews(&self, on: bool) {
         let mut inner = self.inner.lock().unwrap();
+        // Turning previews on re-reads every transcript: only when it changes.
+        if inner.engine.policy().previews == on {
+            return;
+        }
         inner.engine.set_policy(ContentPolicy { previews: on });
         if on {
             // Read everything again to fill in what was skipped.
@@ -776,9 +780,25 @@ pub fn sessions_focus(service: tauri::State<'_, Shared>, session_id: Option<Stri
     }
 }
 
+/// For Settings › Content › Sessions: whether the island hears Codex.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CodexStatus {
+    Connected,
+    /// Installed (its folder exists) but no app-server is running.
+    NotRunning,
+    NotFound,
+}
+
 #[tauri::command]
-pub fn sessions_set_previews(service: tauri::State<'_, Shared>, on: bool) {
-    service.set_previews(on);
+pub fn sessions_codex_status(service: tauri::State<'_, Shared>) -> CodexStatus {
+    if service.codex().is_some_and(|c| c.connected()) {
+        CodexStatus::Connected
+    } else if crate::sessions::codex::client::codex_home().is_some_and(|h| h.is_dir()) {
+        CodexStatus::NotRunning
+    } else {
+        CodexStatus::NotFound
+    }
 }
 
 /// Typing can take a second or two (images wait for Claude Code), so it runs off the main thread.

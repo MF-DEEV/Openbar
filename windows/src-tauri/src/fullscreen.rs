@@ -61,14 +61,13 @@ mod imp {
         }
     }
 
-    pub fn set_hides<R: Runtime>(app: &AppHandle<R>, hides: bool) {
+    pub fn set_hides(hides: bool) {
         if HIDES.swap(hides, Ordering::Relaxed) == hides {
             return;
         }
         if FULLSCREEN.load(Ordering::Relaxed)
             && let Some(notify) = ON_FULLSCREEN.get()
         {
-            let _ = app;
             notify(true);
         }
     }
@@ -114,13 +113,14 @@ pub fn stop<R: Runtime>(app: &AppHandle<R>) {
     imp::stop(app)
 }
 
+/// Settings › Behavior › Hide in full screen.
 #[cfg(windows)]
-pub fn set_hides<R: Runtime>(app: &AppHandle<R>, hides: bool) {
-    imp::set_hides(app, hides)
+pub fn set_hides(hides: bool) {
+    imp::set_hides(hides)
 }
 
 #[cfg(not(windows))]
-pub fn set_hides<R: Runtime>(_app: &AppHandle<R>, _hides: bool) {}
+pub fn set_hides(_hides: bool) {}
 
 #[cfg(not(windows))]
 pub fn watch<R: Runtime>(_app: &AppHandle<R>) {}

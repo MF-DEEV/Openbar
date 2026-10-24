@@ -21,7 +21,7 @@ const SIZES = {
 export function SessionAvatar(props: { session: Session; now: number; lookedAt?: number; size: keyof typeof SIZES }) {
   const { session } = props;
   const s = SIZES[props.size];
-  const buddies = useSessions((st) => st.buddies);
+  const buddies = useSessions((st) => st.prefs.buddies);
   const kept = useSessions((st) => st.costumes[session.id]);
   const asleep = dozing(session, props.now, props.lookedAt);
   if (!buddies) {

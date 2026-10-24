@@ -66,7 +66,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
-            island::island_place,
             island::island_set_focusable,
             settings::open_settings,
             hooks::claude_hooks_status,
@@ -90,13 +89,16 @@ pub fn run() {
             sessions::service::sessions_answer,
             sessions::service::sessions_acknowledge,
             sessions::service::sessions_focus,
-            sessions::service::sessions_set_previews,
+            sessions::service::sessions_codex_status,
+            prefs::shortcut_registered,
             sessions::service::sessions_reply,
             sessions::service::sessions_open,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            // Loaded before the island exists, so its first prefs_get finds them.
+            app.manage(prefs::Prefs::load(app.handle()));
             island::create(app.handle())?;
             fullscreen::watch(app.handle());
             app.manage(sessions::service::Service::start(app.handle().clone()));
@@ -108,9 +110,8 @@ pub fn run() {
                 app.handle().clone(),
                 app.state::<notifications::Shared>().inner().clone(),
             );
-            let prefs = prefs::Prefs::load(app.handle());
-            prefs::apply(app.handle(), &prefs.get());
-            app.manage(prefs);
+            let prefs = app.state::<prefs::Prefs>().get();
+            prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;
             Ok(())
         })

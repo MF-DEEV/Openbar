@@ -53,10 +53,26 @@ function useHooks() {
 }
 
 /** The Sessions section's options, inside its card on the Content tab. */
+type CodexStatus = "connected" | "notRunning" | "notFound";
+
+/** Whether the island hears Codex now; checked again when the window comes back. */
+function useCodexStatus(): CodexStatus | null {
+  const [status, setStatus] = useState<CodexStatus | null>(null);
+  useEffect(() => {
+    const check = () =>
+      inTauri ? void invoke<CodexStatus>("sessions_codex_status").then(setStatus) : setStatus("notRunning");
+    check();
+    window.addEventListener("focus", check);
+    return () => window.removeEventListener("focus", check);
+  }, []);
+  return status;
+}
+
 export function SessionsOptions() {
   const prefs = useSettings((s) => s.prefs.sessions);
   const set = useSettings((s) => s.sessions);
   const hooks = useHooks();
+  const codex = useCodexStatus();
 
   const hookState = !hooks.status ? null : hooks.status.error ? (
     <Status tone="warn">{T.sessions.hooksProblem}</Status>
@@ -70,6 +86,7 @@ export function SessionsOptions() {
 
   return (
     <>
+      <p className="st-note">{T.sessions.lead}</p>
       <SubRow
         title="Claude Code"
         caption={
@@ -92,7 +109,13 @@ export function SessionsOptions() {
         )}
       </SubRow>
       <SubRow title="Codex" caption={T.sessions.codexCaption}>
-        <Status tone="ok">{T.sessions.codexReady}</Status>
+        {codex === "connected" ? (
+          <Status tone="ok">{T.sessions.codexConnected}</Status>
+        ) : codex === "notRunning" ? (
+          <Status tone="off">{T.sessions.codexNotRunning}</Status>
+        ) : codex === "notFound" ? (
+          <Status tone="off">{T.sessions.codexNotFound}</Status>
+        ) : null}
       </SubRow>
       <SubRow title={T.sessions.live} caption={T.sessions.liveCaption}>
         <Toggle label={T.sessions.live} checked={prefs.live} onChange={(on) => set("live", on)} />

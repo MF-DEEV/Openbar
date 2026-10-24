@@ -27,6 +27,17 @@ describe("preferences", () => {
     expect(stored).toEqual({ island: { hiddenModules: ["watch"] }, sessions: { live: false, buddies: false } });
   });
 
+  it("fill a partly set Sessions section from its defaults", () => {
+    expect(resolve({ sessions: { previews: true } }).sessions).toEqual({ ...DEFAULT_SESSION_PREFS, previews: true });
+  });
+
+  it("merge a patch into an object that was never stored, keeping siblings later", () => {
+    const stored: Record<string, unknown> = {};
+    mergePatch(stored, { island: { capsuleFit: { width: 4, height: 0, drop: 0 } } });
+    mergePatch(stored, { island: { capsuleFit: { drop: 2 } as never, outline: true } });
+    expect(stored).toEqual({ island: { capsuleFit: { width: 4, height: 0, drop: 2 }, outline: true } });
+  });
+
   it("tell listeners about every change, outside the app too", async () => {
     const seen: boolean[] = [];
     const stop = await onPrefs((p) => seen.push(p.island.outline));

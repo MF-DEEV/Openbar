@@ -5,7 +5,10 @@
 // where it reopens, the displays it uses and whether captures show it.
 
 import { Camera, Eye, Keyboard, Maximize, Monitor, MousePointerClick, Timer, TimerReset, Undo2 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { useEffect, useState } from "react";
 import { t, type StringKey } from "../i18n";
+import { inTauri } from "../shared/bridge";
 import { visibleModules } from "../island/modules";
 import { type DisplayChoice, type HomeDestination, type OpeningMode, sectionEnabled } from "../island/settings";
 import { useSettings } from "./state";
@@ -19,6 +22,12 @@ export function BehaviorSettings() {
   const set = useSettings((s) => s.island);
   const patch = useSettings((s) => s.patch);
   const hover = island.opening !== "click";
+  // Asked again after each change: registering can fail when another app holds the keys.
+  const [shortcutTaken, setShortcutTaken] = useState(false);
+  useEffect(() => {
+    if (!inTauri || !island.shortcutEnabled) return setShortcutTaken(false);
+    void invoke<boolean>("shortcut_registered").then((ok) => setShortcutTaken(!ok));
+  }, [island.shortcutEnabled]);
   const expands = island.opening === "hoverExpand" || island.opening === "hiddenUntilHover";
 
   const shownSections = visibleModules(island.moduleOrder, island.hiddenModules, (id) => sectionEnabled(island, id));
@@ -84,7 +93,13 @@ export function BehaviorSettings() {
             />
           </Row>
         ) : null}
-        <Row icon={Keyboard} title={T.behavior.shortcut} caption={T.behavior.shortcutCaption}>
+        <Row
+          icon={Keyboard}
+          title={T.behavior.shortcut}
+          caption={
+            shortcutTaken ? <span className="st-error">{T.behavior.shortcutTaken}</span> : T.behavior.shortcutCaption
+          }
+        >
           <span className="st-keys" aria-hidden>
             <kbd>Ctrl</kbd>
             <kbd>Alt</kbd>
