@@ -10,6 +10,8 @@ import Foundation
 enum CodexSessionTests {
     static func run(_ suite: TestSuite) {
         suite.run("codex sessions state") { state(suite) }
+        suite.run("codex conversation parity") { CodexConversationTests.run(suite) }
+        suite.run("codex conversation review") { CodexConversationReviewTests.run(suite) }
         suite.run("codex sessions requests") { requests(suite) }
         suite.run("codex sessions commands") { commands(suite) }
         suite.run("codex sessions websocket") { websocket(suite) }
@@ -889,6 +891,62 @@ enum CodexSessionTests {
                          && shown.first?.provider == .codex, "the joined thread works")
         suite.expect(shown.last?.phase == .idle && shown.last?.project == "api", "the idle one rests")
         suite.expect(changes.count > 0, "the island hears that sessions changed")
+
+        // Preview changes travel over the real socket and populate the same
+        // snapshot the island consumes, without reconnecting the session.
+        let historyReads = (0..<3).compactMap { _ in expectCall("thread/read", "enabling previews reloads history") }
+        suite.expect(
+            Set(historyReads.compactMap { params($0)["threadId"] as? String }) == ["t1", "t2", "t3"]
+                && historyReads.allSatisfy { params($0)["includeTurns"] as? Bool == true },
+            "history is requested for every known thread only after opt-in")
+        let history: [[String: Any]] = [
+            [
+                "startedAt": 100,
+                "items": [
+                    ["type": "userMessage", "id": "u1", "content": [["type": "text", "text": "Hello"]]],
+                    ["type": "agentMessage", "id": "a1", "text": "Answer", "phase": "final_answer"],
+                ],
+            ]
+        ]
+        for read in historyReads {
+            let id = params(read)["threadId"] as? String ?? ""
+            if id == "t1" {
+                var thread = t1
+                thread["turns"] = history
+                daemon.send(["id": read["id"] ?? 0, "result": ["thread": thread]])
+            }
+        }
+        suite.expect(
+            eventually {
+                client.snapshot(now: Date(), previews: true).sessions.first?.chat.map(\.text) == ["Hello", "Answer"]
+            },
+            "daemon history reaches the island's conversation")
+        daemon.send([
+            "method": "item/completed",
+            "params": [
+                "threadId": "t1",
+                "item": [
+                    "type": "agentMessage", "id": "a2", "text": "New answer", "phase": "final_answer",
+                ],
+            ],
+        ])
+        suite.expect(
+            eventually { client.snapshot(now: Date(), previews: true).sessions.first?.lastText == "New answer" },
+            "a live Codex reply updates the compact preview")
+        let hidden = client.snapshot(now: Date(), previews: false).sessions.first
+        suite.expect(
+            hidden?.chat.isEmpty == true && hidden?.lastText == nil, "disabling previews clears the conversation")
+        // A response already on its way must not restore content after opt-out.
+        if let read = historyReads.first(where: { params($0)["threadId"] as? String == "t2" }) {
+            daemon.send([
+                "id": read["id"] ?? 0,
+                "result": [
+                    "thread": [
+                        "id": "t2", "turns": history,
+                    ]
+                ],
+            ])
+        }
 
         // An approval, answered from the island.
         daemon.send(["id": 7, "method": "item/commandExecution/requestApproval",

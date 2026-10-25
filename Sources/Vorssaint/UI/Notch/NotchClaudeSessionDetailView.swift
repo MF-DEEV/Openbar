@@ -300,7 +300,15 @@ struct NotchClaudeSessionDetailView: View {
                                     color: .white.withAlphaComponent(0.8), maxLines: 6)
             }
         } else if !previews {
-            Text(text.previewsOff(for: session.provider)).font(.system(size: 10)).foregroundStyle(.tertiary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(text.previewsOff(for: session.provider)).font(.system(size: 10)).foregroundStyle(.tertiary)
+                Button(text.contentPreview) {
+                    previews = true
+                    service.syncWithPreferences()
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 8))
+                .help(text.contentPreviewHint)
+            }
         }
     }
 

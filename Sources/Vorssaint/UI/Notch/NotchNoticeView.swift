@@ -14,6 +14,9 @@ struct NotchNoticeView: View {
     @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
 
     private var wings: NotchNoticeWings { notice.wings(in: geometry) }
+    private var trackMetrics: NotchNoticeMetrics? {
+        notice.event == .track ? NotchNoticeMetrics(stripHeight: geometry.stripHeight) : nil
+    }
     private var tint: Color {
         switch notice.event {
         // A warning reads as one in any agent's color; other AI notices wear it.
@@ -37,13 +40,13 @@ struct NotchNoticeView: View {
     var body: some View {
         HStack(spacing: 0) {
             leading
-                .padding(.leading, notice.inset(wing: wings.leading))
+                .padding(.leading, notice.inset(wing: wings.leading, geometry: geometry))
                 .padding(.trailing, notice.cameraGap)
                 .frame(width: wings.leading, height: geometry.stripHeight)
                 .clipped()
             Color.clear.frame(width: geometry.noticeCameraGap)
             trailing
-                .padding(.trailing, notice.inset(wing: wings.trailing))
+                .padding(.trailing, notice.inset(wing: wings.trailing, geometry: geometry))
                 .padding(.leading, notice.cameraGap)
                 .frame(width: wings.trailing, height: geometry.stripHeight)
                 .clipped()
@@ -102,16 +105,16 @@ struct NotchNoticeView: View {
                             .id("\(id)|\(notice.symbol)")
                             .transition(.identity)
                     } else if notice.event == .track {
-                        NotchTrackArtwork(size: min(18, geometry.stripHeight - 6))
+                        NotchTrackArtwork(size: trackMetrics?.artwork ?? 18)
                     } else {
                         Image(systemName: notice.symbol)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(tint)
                     }
                 }
-                .frame(width: 18)
+                .frame(width: trackMetrics?.artwork ?? 18)
                 Text(notice.level == nil ? notice.title : notice.detail)
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: trackMetrics?.titleFont ?? 11, weight: .medium))
                     .foregroundStyle(textTint)
                     .monospacedDigit()
                     .lineLimit(1)
@@ -139,7 +142,7 @@ struct NotchNoticeView: View {
                 .transaction { $0.disablesAnimations = false }
         } else {
             Text(notice.detail)
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: trackMetrics?.detailFont ?? 11, weight: .medium))
                 .foregroundStyle(textTint.opacity(0.8))
                 .lineLimit(1)
                 .truncationMode(notice.event == .accessory ? .middle : .tail)
