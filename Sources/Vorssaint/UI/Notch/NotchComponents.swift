@@ -30,7 +30,11 @@ struct NotchButtonStyle: ButtonStyle {
             .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.7),
                        value: configuration.isPressed)
             .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.75), value: hovered)
-            .onHover { hovered = $0 }
+            .onHover {
+                hovered = $0
+                if enabled { ($0 ? NSCursor.pointingHand : NSCursor.arrow).set() }
+            }
+            .onDisappear { if hovered { NSCursor.arrow.set() } }
     }
 }
 

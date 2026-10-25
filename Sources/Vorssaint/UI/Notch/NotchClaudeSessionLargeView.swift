@@ -234,7 +234,15 @@ struct NotchClaudeSessionLargeView: View {
 
     @ViewBuilder private var conversation: some View {
         if !previews {
-            Text(text.previewsOff(for: session.provider)).font(.system(size: size - 1)).foregroundStyle(.tertiary)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(text.previewsOff(for: session.provider)).font(.system(size: size - 1)).foregroundStyle(.tertiary)
+                Button(text.contentPreview) {
+                    previews = true
+                    ClaudeSessionService.shared.syncWithPreferences()
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 8))
+                .help(text.contentPreviewHint)
+            }
         } else if session.chat.isEmpty && !session.phase.isWorking {
             Text(text.noMessages).font(.system(size: size - 1)).foregroundStyle(.tertiary)
         } else {
