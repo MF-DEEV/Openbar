@@ -52,18 +52,37 @@ function storedNumber(key: string, fallback: number) {
 
 export function SessionDetail({ session, enlarged = false }: { session: Session; enlarged?: boolean }) {
   const [sidebarHidden, setSidebarHidden] = useState(() => storedNumber("sessions.sidebarHidden", 0) === 1);
+  const [layoutHidden, setLayoutHidden] = useState(sidebarHidden);
+  const [textSettling, setTextSettling] = useState(false);
+  const sidebarFrame = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(sidebarFrame.current), []);
   const [textSize, setTextSize] = useState(() =>
     Math.min(24, Math.max(12, storedNumber("sessions.textSize", 15) || 15)),
   );
-  const toggleSidebar = () =>
-    setSidebarHidden((hidden) => {
-      try {
-        localStorage.setItem("sessions.sidebarHidden", hidden ? "0" : "1");
-      } catch {
-        /* Memory only. */
-      }
-      return !hidden;
+  const toggleSidebar = () => {
+    const hiding = !layoutHidden;
+    try {
+      localStorage.setItem("sessions.sidebarHidden", hiding ? "1" : "0");
+    } catch {
+      /* Memory only. */
+    }
+    cancelAnimationFrame(sidebarFrame.current);
+    setLayoutHidden(hiding);
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) {
+      setSidebarHidden(hiding);
+      setTextSettling(false);
+      return;
+    }
+    // Match macOS: reflow once under dimmed text, then slide the details
+    // independently and restore the conversation's opacity.
+    setTextSettling(true);
+    sidebarFrame.current = requestAnimationFrame(() => {
+      sidebarFrame.current = requestAnimationFrame(() => {
+        setSidebarHidden(hiding);
+        setTextSettling(false);
+      });
     });
+  };
   const resize = (step: number) =>
     setTextSize((size) => {
       const next = Math.min(24, Math.max(12, size + step));
@@ -212,47 +231,56 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
 
         {isWaiting(session.phase) ? <PermissionCard session={session} onOpen={() => void open()} /> : null}
 
-        <div className={enlarged ? `s-large-body${sidebarHidden ? " is-folded" : ""}` : "s-detail-body"}>
+        <div
+          className={
+            enlarged
+              ? `s-large-body${sidebarHidden ? " is-folded" : ""}${layoutHidden ? " is-layout-folded" : ""}${textSettling ? " is-text-settling" : ""}`
+              : "s-detail-body"
+          }
+        >
           {enlarged ? (
-            <Conversation session={session} previews={previews} enlarged layoutKey={`${sidebarHidden}:${textSize}`} />
+            <Conversation session={session} previews={previews} enlarged layoutKey={`${layoutHidden}:${textSize}`} />
           ) : null}
-          {enlarged ? (
-            <button
-              type="button"
-              className="s-sidebar-handle"
-              onClick={toggleSidebar}
-              aria-label={sidebarHidden ? S.showDetails : S.hideDetails}
-              aria-expanded={!sidebarHidden}
+          <div className={enlarged ? "s-sidebar-layer" : "s-details-wrapper"}>
+            {enlarged ? (
+              <button
+                type="button"
+                className="s-sidebar-handle"
+                onClick={toggleSidebar}
+                aria-label={sidebarHidden ? S.showDetails : S.hideDetails}
+                aria-expanded={!sidebarHidden}
+              >
+                <ChevronRight size={10} />
+              </button>
+            ) : null}
+            <aside
+              className={enlarged ? "s-details-sidebar" : "s-details-inline"}
+              aria-hidden={enlarged && sidebarHidden}
+              inert={enlarged && sidebarHidden}
+              aria-label={S.details}
             >
-              <ChevronRight size={10} />
-            </button>
-          ) : null}
-          <aside
-            className={enlarged ? "s-details-sidebar" : "s-details-inline"}
-            hidden={enlarged && sidebarHidden}
-            aria-label={S.details}
-          >
-            {session.title ? <div className="s-title">{session.title}</div> : null}
+              {session.title ? <div className="s-title">{session.title}</div> : null}
 
-            {session.tasks && session.tasks.total > 0 ? (
-              <div className="s-tasks">
-                <div>
-                  <span className="s-tasks-count">{S.tasks(session.tasks.done, session.tasks.total)}</span>
-                  {session.tasks.current ? <span className="s-secondary"> {session.tasks.current}</span> : null}
+              {session.tasks && session.tasks.total > 0 ? (
+                <div className="s-tasks">
+                  <div>
+                    <span className="s-tasks-count">{S.tasks(session.tasks.done, session.tasks.total)}</span>
+                    {session.tasks.current ? <span className="s-secondary"> {session.tasks.current}</span> : null}
+                  </div>
+                  <div className="s-progress">
+                    <div style={{ width: `max(4px, ${(session.tasks.done / session.tasks.total) * 100}%)` }} />
+                  </div>
                 </div>
-                <div className="s-progress">
-                  <div style={{ width: `max(4px, ${(session.tasks.done / session.tasks.total) * 100}%)` }} />
-                </div>
-              </div>
-            ) : null}
+              ) : null}
 
-            {session.timeline.length > 0 ? (
-              <Recent key={`${session.id}:tools`} session={session} enlarged={enlarged} />
-            ) : null}
-            {session.subagents.length > 0 ? (
-              <Subagents key={`${session.id}:agents`} session={session} now={now} enlarged={enlarged} />
-            ) : null}
-          </aside>
+              {session.timeline.length > 0 ? (
+                <Recent key={`${session.id}:tools`} session={session} enlarged={enlarged} />
+              ) : null}
+              {session.subagents.length > 0 ? (
+                <Subagents key={`${session.id}:agents`} session={session} now={now} enlarged={enlarged} />
+              ) : null}
+            </aside>
+          </div>
 
           {!enlarged ? (
             previews ? (

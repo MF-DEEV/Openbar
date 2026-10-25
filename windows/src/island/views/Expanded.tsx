@@ -7,7 +7,7 @@
 import { ChevronLeft, LayoutGrid, Pin, Search } from "lucide-react";
 import { type ComponentType, type ReactNode, useEffect, useRef, useState } from "react";
 import { t } from "../../i18n";
-import { type Geometry, headerMetrics, Layout } from "../geometry";
+import { type Geometry, headerMetrics, contentInsets } from "../geometry";
 import { type ModuleId, moduleInfo } from "../modules";
 import type { Size } from "../motion";
 import { useIsland } from "../store";
@@ -37,8 +37,9 @@ export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolea
   const pinned = useIsland((s) => s.pinned);
   const hasExploreBubble = useIsland((s) => s.settings.quickAccess.some((b) => b.action.kind === "explore"));
   const header = headerMetrics(geometry, hasRow);
-  const contentWidth = size.width - 2 * Layout.horizontalInset;
-  const contentHeight = size.height - header.pageTopInset - Layout.bottomInset;
+  const insets = contentInsets(geometry, size);
+  const contentWidth = Math.max(0, size.width - 2 * insets.horizontal);
+  const contentHeight = Math.max(0, size.height - header.pageTopInset - insets.bottom);
   const page = pages[selected];
 
   let leading: ReactNode = null;
@@ -65,7 +66,15 @@ export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolea
   return (
     <div className="n-expanded" style={{ width: size.width, height: size.height }}>
       {header.headerRowHeight > 0 ? (
-        <div className="n-row" style={{ top: header.headerTopInset, height: header.headerRowHeight }}>
+        <div
+          className="n-row"
+          style={{
+            top: header.headerTopInset,
+            height: header.headerRowHeight,
+            left: insets.horizontal,
+            right: insets.horizontal,
+          }}
+        >
           <div className="n-row-leading">{leading}</div>
           <div className="n-row-trailing">
             {Trailing ? <Trailing /> : null}
@@ -73,9 +82,12 @@ export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolea
           </div>
         </div>
       ) : null}
-      <div className="n-page" style={{ top: header.pageTopInset, width: contentWidth, height: contentHeight }}>
+      <div
+        className="n-page"
+        style={{ top: header.pageTopInset, left: insets.horizontal, width: contentWidth, height: contentHeight }}
+      >
         {showingSections ? (
-          <SectionsGallery width={size.width} />
+          <SectionsGallery width={contentWidth + 56} height={contentHeight} />
         ) : page ? (
           <page.Page width={contentWidth} height={contentHeight} />
         ) : (

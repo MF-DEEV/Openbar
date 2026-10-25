@@ -8,6 +8,7 @@
 import { create } from "zustand";
 import {
   activitySize,
+  contentInsets,
   expandedHeight,
   expandedWidth,
   type Geometry,
@@ -334,6 +335,11 @@ export function geometryOf(s: Pick<IslandState, "settings" | "screen" | "deviceP
     customWidth: s.settings.customWidth,
     customHeight: s.settings.customHeight,
     capsuleFit: s.settings.capsuleFit,
+    notchWidth: s.settings.notchWidth,
+    notchHeight: s.settings.notchHeight,
+    roundness: s.settings.roundness,
+    shoulderWidth: s.settings.shoulderWidth,
+    shoulderHeight: s.settings.shoulderHeight,
   });
 }
 
@@ -347,7 +353,14 @@ export function presentation(s: IslandState, geometry: Geometry, measuredNotice?
     const natural = s.showingSections ? undefined : info.naturalWidth;
     const width = expandedWidth(geometry, { natural, enlarged });
     const height = s.showingSections
-      ? expandedHeight(geometry, { hasRow: true, content: galleryHeight(modulesOf(s).length, width), bottomBubbles })
+      ? expandedHeight(geometry, {
+          hasRow: true,
+          content: galleryHeight(
+            modulesOf(s).length,
+            width - 2 * (contentInsets(geometry, { width, height: 328 }).horizontal - 28),
+          ),
+          bottomBubbles,
+        })
       : expandedHeight(geometry, { hasRow, enlarged, bottomBubbles, content: s.pageContent[s.selected] });
     return {
       kind: "expanded",

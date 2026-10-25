@@ -2,6 +2,9 @@
 /* The Music section (spec 04 §1). */
 
 .m-page {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   margin: 0 auto;
   display: flex;
   flex-direction: column;
@@ -105,6 +108,8 @@
 }
 
 .m-slider {
+  min-width: 0;
+  width: 0;
   flex: 1;
   height: 10px;
   margin: 0;
@@ -219,4 +224,75 @@
   .m-strip-swap {
     transition: none;
   }
+}
+
+.m-cover-button,
+.m-accessory,
+.m-time {
+  flex-shrink: 0;
+}
+.m-slot {
+  min-width: 0;
+}
+.m-button {
+  max-width: 100%;
+}
+@container island-page (max-width: 300px) {
+  .m-head {
+    gap: 10px;
+  }
+  .m-accessory {
+    display: none;
+  }
+  .m-title {
+    font-size: 13px;
+  }
+  .m-artist {
+    font-size: 11px;
+  }
+  .m-timeline {
+    gap: 5px;
+  }
+}
+
+.m-volume {
+  position: relative;
+  width: 44px;
+  max-width: 100%;
+}
+.m-volume .is-selected {
+  background: rgba(255, 255, 255, 0.12);
+}
+.m-volume-popover {
+  position: absolute;
+  right: 0;
+  bottom: 46px;
+  width: min(180px, 85cqi);
+  box-sizing: border-box;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #202020;
+  box-shadow:
+    0 4px 16px #0008,
+    inset 0 0 0 1px #ffffff1a;
+  z-index: 2;
+}
+.m-volume-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 11px;
+  color: #ccc;
+}
+.m-volume-popover .m-slider {
+  display: block;
+  width: 100%;
+  cursor: pointer;
+}
+.m-volume-popover .m-slider::-webkit-slider-thumb {
+  opacity: 1;
+}
+.m-volume-popover .m-slider:disabled {
+  opacity: 0.4;
 }

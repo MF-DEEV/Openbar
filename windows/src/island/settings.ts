@@ -30,6 +30,11 @@ export interface IslandSettings {
   layout: LayoutPreset;
   customWidth: number;
   customHeight: number;
+  notchWidth: number;
+  notchHeight: number;
+  roundness: number;
+  shoulderWidth: number;
+  shoulderHeight: number;
   capsuleFit: { width: number; height: number; drop: number };
   outline: boolean;
   opening: OpeningMode;
@@ -72,6 +77,11 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   layout: "spacious",
   customWidth: 440,
   customHeight: 480,
+  notchWidth: 135,
+  notchHeight: 24,
+  roundness: 100,
+  shoulderWidth: 100,
+  shoulderHeight: 100,
   capsuleFit: { width: 0, height: 0, drop: 0 },
   outline: false,
   opening: "click",

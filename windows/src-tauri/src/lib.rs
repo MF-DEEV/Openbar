@@ -7,6 +7,7 @@ mod hooks;
 mod hosts;
 mod island;
 mod media;
+mod media_volume;
 mod notifications;
 mod prefs;
 mod sessions;
@@ -82,6 +83,7 @@ pub fn run() {
             hooks::claude_hooks_install,
             hooks::claude_hooks_remove,
             media::music_now,
+            media_volume::music_volume,
             media::music_command,
             media::music_seek,
             media::music_shuffle,

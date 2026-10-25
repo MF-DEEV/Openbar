@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   capsulePath,
+  contentInsets,
+  notchMetrics,
   expandedHeight,
   expandedWidth,
   hitShape,
@@ -80,5 +82,70 @@ describe("outlines", () => {
     const cap = hitShape(capsule2x, { width: 106, height: 23.5 });
     expect(cap.rect.y).toBe(0);
     expect(cap.rect.height).toBeCloseTo(21.5, 5);
+  });
+});
+
+describe("custom island shape", () => {
+  it("resizes the closed notch and preserves room for live activity wings", () => {
+    const custom = makeGeometry({ ...notch.input, notchWidth: 260, notchHeight: 40 });
+    expect(restingSize(custom)).toEqual({ width: 260, height: 40 });
+    expect(restingSize(custom, true)).toEqual({ width: 348, height: 40 });
+  });
+
+  it("keeps the drawn contour and pointer area in sync", () => {
+    const custom = makeGeometry({ ...notch.input, roundness: 0, shoulderWidth: 200, shoulderHeight: 150 });
+    const size = { width: 560, height: 328 };
+    const hit = hitShape(custom, size);
+    expect(hit.rect).toEqual({ x: 28, y: 0, width: 504, height: 328 });
+    expect(hit.bottomRadius).toBe(0);
+    expect(notchPath(size.width, size.height, custom.input)).toContain("L532 328");
+    expect(notchPath(size.width, size.height, custom.input)).toContain("L28 21");
+  });
+
+  it("bounds extreme curves even on a zero-sized animation frame", () => {
+    const contour = { roundness: 200, shoulderWidth: 300, shoulderHeight: 300 };
+    for (const size of [
+      { width: 0, height: 0 },
+      { width: 10, height: 4 },
+    ]) {
+      expect(notchPath(size.width, size.height, contour)).not.toMatch(/NaN|Infinity/);
+      const hit = hitShape(makeGeometry({ ...notch.input, ...contour }), size);
+      expect(hit.rect.width).toBeGreaterThanOrEqual(0);
+      expect(hit.bottomRadius).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("applies capsule rounding to both the path and pointer area", () => {
+    const custom = makeGeometry({ ...capsule1x.input, roundness: 0 });
+    expect(hitShape(custom, restingSize(custom)).bottomRadius).toBe(0);
+    expect(capsulePath(106, 24, 2, 0)).toContain("M4.5600000000000005 2");
+  });
+});
+
+describe("content fits the configured silhouette", () => {
+  it("preserves the default content spacing", () => {
+    expect(contentInsets(notch, { width: 560, height: 328 })).toEqual({ horizontal: 28, bottom: 16 });
+  });
+
+  it("keeps content inside stretched sides and rounded bottom corners at every open width", () => {
+    for (const width of [240, 360, 400, 600, 1180]) {
+      for (const height of [140, 260, 640]) {
+        const geometry = makeGeometry({ ...notch.input, shoulderWidth: 300, shoulderHeight: 300, roundness: 200 });
+        const { horizontal, bottom } = contentInsets(geometry, { width, height });
+        const { s, b } = notchMetrics(width, height, geometry.input);
+        expect(horizontal).toBeGreaterThanOrEqual(s + 12);
+        expect(width - 2 * horizontal).toBeGreaterThan(0);
+        const dx = Math.max(0, s + b - horizontal);
+        const dy = Math.max(0, b - bottom);
+        expect(dx * dx + dy * dy).toBeLessThanOrEqual(b * b);
+      }
+    }
+  });
+
+  it("includes the capsule gap when reserving rounded bottom space", () => {
+    const geometry = makeGeometry({ ...capsule1x.input, roundness: 200 });
+    const insets = contentInsets(geometry, { width: 360, height: 260 });
+    expect(insets.horizontal).toBe(42);
+    expect(insets.bottom).toBe(30);
   });
 });

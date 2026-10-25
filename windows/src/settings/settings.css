@@ -808,3 +808,23 @@ select {
   border: 1px solid rgba(196, 43, 28, 0.4);
   font-size: 13px;
 }
+
+.st-notch-preview {
+  padding: 16px 28px;
+  background: #303030;
+  color: #ccc;
+  text-align: center;
+  font-size: 12px;
+}
+.st-notch-preview svg {
+  display: block;
+  width: 100%;
+  height: 96px;
+  margin-bottom: 8px;
+}
+.st-notch-preview svg path + path {
+  fill: none;
+  stroke: #60cdff;
+  stroke-width: 2;
+  vector-effect: non-scaling-stroke;
+}

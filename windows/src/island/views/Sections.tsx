@@ -13,9 +13,8 @@ import { galleryColumns, modulesOf, useIsland } from "../store";
 
 const ROW = 86;
 const GAP = 8;
-const VISIBLE_ROWS = 3;
 
-export function SectionsGallery(props: { width: number }) {
+export function SectionsGallery(props: { width: number; height: number }) {
   const settings = useIsland((s) => s.settings);
   const selected = useIsland((s) => s.selected);
   const query = useIsland((s) => s.sectionQuery);
@@ -26,15 +25,18 @@ export function SectionsGallery(props: { width: number }) {
     return q ? modules.filter((id) => t(`module.${id}`).toLowerCase().includes(q)) : modules;
   }, [modules, query]);
   const columns = galleryColumns(props.width);
+  const visibleRows = Math.max(1, Math.min(3, Math.floor((props.height + GAP) / (ROW + GAP))));
   const rows = Math.ceil(shown.length / columns);
   const [row, setRow] = useState(0);
   const [highlight, setHighlight] = useState(0);
-  const pages = Math.max(1, rows - VISIBLE_ROWS + 1);
+  const pages = Math.max(1, rows - visibleRows + 1);
 
   useEffect(() => {
     setHighlight(0);
     setRow(0);
   }, [query]);
+
+  useEffect(() => setRow((current) => Math.min(current, pages - 1)), [pages]);
 
   // Arrows move the highlight in grid order, Return opens it (spec §2.6).
   useEffect(() => {
@@ -55,11 +57,11 @@ export function SectionsGallery(props: { width: number }) {
       next = Math.max(0, Math.min(shown.length - 1, next));
       setHighlight(next);
       const r = Math.floor(next / columns);
-      setRow((current) => (r < current ? r : r >= current + VISIBLE_ROWS ? r - VISIBLE_ROWS + 1 : current));
+      setRow((current) => (r < current ? r : r >= current + visibleRows ? r - visibleRows + 1 : current));
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [highlight, columns, shown, select]);
+  }, [highlight, columns, shown, select, visibleRows]);
 
   // A wheel notch steps one whole row.
   const onWheel = (e: React.WheelEvent) => {
@@ -69,11 +71,14 @@ export function SectionsGallery(props: { width: number }) {
 
   return (
     <div className="n-gallery" onWheel={onWheel}>
-      <div className="n-gallery-viewport" style={{ height: Math.min(rows, VISIBLE_ROWS) * (ROW + GAP) - GAP }}>
+      <div
+        className="n-gallery-viewport"
+        style={{ height: Math.min(props.height, Math.max(0, Math.min(rows, visibleRows) * (ROW + GAP) - GAP)) }}
+      >
         <div
           className="n-gallery-grid"
           style={{
-            gridTemplateColumns: `repeat(${columns}, minmax(92px, 1fr))`,
+            gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
             transform: `translateY(${-row * (ROW + GAP)}px)`,
           }}
         >

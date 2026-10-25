@@ -6,11 +6,11 @@
 // bottom, at most three a side, sliding out once the island has arrived.
 
 import { Pin, PinOff, Settings, LayoutGrid, Undo2, type LucideIcon } from "lucide-react";
-import { motion } from "motion/react";
+import { motion, useReducedMotion } from "motion/react";
 import { useEffect } from "react";
 import { t } from "../../i18n";
 import { bridge } from "../../shared/bridge";
-import { type Geometry, shoulder } from "../geometry";
+import { type Geometry, shoulder, notchMetrics } from "../geometry";
 import { moduleInfo } from "../modules";
 import type { Size } from "../motion";
 import type { QuickButton } from "../settings";
@@ -29,8 +29,9 @@ interface Placed {
   cy: number;
 }
 
-export function placeButtons(buttons: QuickButton[], size: Size): Placed[] {
-  const s = shoulder(size.height);
+export function placeButtons(buttons: QuickButton[], size: Size, geometry?: Geometry): Placed[] {
+  const s =
+    geometry?.silhouette === "notch" ? notchMetrics(size.width, size.height, geometry.input).s : shoulder(size.height);
   const body = { minX: s, maxX: size.width - s, maxY: size.height, midX: size.width / 2, midY: size.height / 2 };
   const left = buttons.filter((b) => b.side === "left").slice(0, 3);
   const right = buttons.filter((b) => b.side === "right").slice(0, 3);
@@ -52,7 +53,7 @@ export function QuickAccess(props: { geometry: Geometry; size: Size; visible: bo
   const settings = useIsland((s) => s.settings);
   const modules = modulesOf({ settings });
   const shown = settings.quickAccess.filter((b) => b.action.kind !== "module" || modules.includes(b.action.module));
-  const placed = placeButtons(shown, props.size);
+  const placed = placeButtons(shown, props.size, props.geometry);
 
   // The circles take the pointer while they show; the gaps between them do not.
   useEffect(() => {
@@ -87,6 +88,7 @@ export function QuickAccess(props: { geometry: Geometry; size: Size; visible: bo
 }
 
 function Bubble({ placed, visible, delay }: { placed: Placed; visible: boolean; delay: number }) {
+  const reducedMotion = useReducedMotion();
   const showingSections = useIsland((s) => s.showingSections);
   const pinned = useIsland((s) => s.pinned);
   const selected = useIsland((s) => s.selected);
@@ -130,22 +132,41 @@ function Bubble({ placed, visible, delay }: { placed: Placed; visible: boolean; 
   const label = placed.button.label || title;
 
   return (
-    <motion.button
-      type="button"
-      className={`n-bubble${isSelected ? " is-selected" : ""}`}
-      aria-label={label}
-      title={label}
-      style={{ left: placed.cx - DIAMETER / 2, top: placed.cy - DIAMETER / 2 }}
+    <motion.div
+      style={{
+        position: "absolute",
+        left: placed.cx - DIAMETER / 2,
+        top: placed.cy - DIAMETER / 2,
+        width: DIAMETER,
+        height: DIAMETER,
+      }}
       initial={{ scale: 0.4, opacity: 0 }}
       animate={
         visible
           ? { scale: 1, opacity: 1, transition: { ...REVEAL, delay } }
           : { scale: 0.4, opacity: 0, transition: { duration: 0.16, ease: "easeIn" } }
       }
-      onClick={run}
-      tabIndex={visible ? 0 : -1}
     >
-      <Icon size={19} strokeWidth={1.75} />
-    </motion.button>
+      <motion.button
+        type="button"
+        className={`n-bubble${isSelected ? " is-selected" : ""}`}
+        aria-label={label}
+        title={label}
+        style={{ left: 0, top: 0, pointerEvents: visible ? "auto" : "none" }}
+        initial={false}
+        animate={{ opacity: 1, backgroundColor: "#000000" }}
+        transition={reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 385.53, damping: 29.45 }}
+        // Keep the glyph fixed on the pixel grid; animate only the wash and opacity.
+        whileHover={{ backgroundColor: "#171717" }}
+        whileTap={{
+          opacity: 0.8,
+          transition: reducedMotion ? { duration: 0 } : { type: "spring", stiffness: 503.55, damping: 31.42 },
+        }}
+        onClick={run}
+        tabIndex={visible ? 0 : -1}
+      >
+        <Icon size={19} strokeWidth={1.75} />
+      </motion.button>
+    </motion.div>
   );
 }

@@ -1,0 +1,17 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 Vorssaint */
+
+button:enabled,
+[role="button"]:not([aria-disabled="true"]),
+a[href],
+input[type="range"]:enabled,
+input[type="checkbox"]:enabled,
+input[type="radio"]:enabled {
+  cursor: pointer;
+}
+
+button:disabled,
+[aria-disabled="true"],
+input:disabled {
+  cursor: default;
+}
