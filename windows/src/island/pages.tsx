@@ -24,6 +24,10 @@ import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
 import { DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
 import { bridge, type AttentionContext } from "../shared/bridge";
 import { DeferredSessionAttention } from "../sessions/attention";
+import { MicrophoneStrip, subscribeMicrophone } from "../microphone/Microphone";
+
+activityViews.microphone = MicrophoneStrip;
+void subscribeMicrophone();
 
 // MARK: Preferences
 

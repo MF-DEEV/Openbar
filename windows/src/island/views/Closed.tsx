@@ -12,6 +12,7 @@ import type { Size } from "../motion";
 import { type Notice, useIsland } from "../store";
 import { IconButton } from "./Controls";
 import { DrawnSize } from "../surface/DrawnSize";
+import { AudioIcons } from "../../microphone/Microphone";
 
 export function Resting(props: { size: Size }) {
   const size = useContext(DrawnSize) ?? props.size;
@@ -61,6 +62,7 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
       onClick={() => useIsland.getState().clickClosed()}
     >
       <span className="n-notice-title">
+        {notice.audio ? <AudioIcons muted={notice.audio.muted} deafened={notice.audio.deafened} /> : null}
         {notice.kind === "downloads" ? <ArrowDownToLine size={14} aria-hidden="true" /> : null}
         {notice.image ? (
           <img
@@ -82,7 +84,10 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
         <span>{notice.title}</span>
       </span>
       {notice.detail ? (
-        <span className="n-notice-detail" style={{ fontSize: Math.max(9, metrics.fontSize - 1) }}>
+        <span
+          className="n-notice-detail"
+          style={{ fontSize: Math.max(9, metrics.fontSize - 1), color: notice.audio?.muted ? "#ff453a" : undefined }}
+        >
           {notice.detail}
         </span>
       ) : null}
@@ -103,7 +108,10 @@ export function noticeWidth(notice: Notice, geometry: Geometry): number {
   const ctx = measureContext();
   const metrics = noticeMetrics(geometry, { width: geometry.screen.width - 24, height: geometry.stripHeight });
   ctx.font = `500 ${metrics.fontSize}px 'Inter Variable', Inter, sans-serif`;
-  const title = ctx.measureText(notice.title).width + (notice.image ? metrics.imageSize + 8 : 0);
+  const title =
+    ctx.measureText(notice.title).width +
+    (notice.image ? metrics.imageSize + 8 : 0) +
+    (notice.audio ? (notice.audio.deafened ? 47 : 24) : 0);
   ctx.font = `500 ${Math.max(9, metrics.fontSize - 1)}px 'Inter Variable', Inter, sans-serif`;
   const detail = notice.detail ? ctx.measureText(notice.detail).width : 0;
   const maxWing = (geometry.screen.width - 24 - geometry.cameraWidth) / 2;

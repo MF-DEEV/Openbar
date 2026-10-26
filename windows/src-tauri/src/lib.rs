@@ -3,12 +3,15 @@
 
 mod bar;
 mod downloads;
+mod discord_storage;
+mod discord_keys;
 mod fullscreen;
 mod hooks;
 mod hosts;
 mod island;
 mod media;
 mod media_volume;
+mod microphone;
 mod notifications;
 mod prefs;
 mod sessions;
@@ -33,6 +36,10 @@ pub fn hook_main() -> ! {
 pub fn music_probe_main(path: &str) -> ! {
     let _ = std::fs::write(path, media::probe());
     std::process::exit(0)
+}
+
+pub fn microphone_probe_main(path: &str) -> ! {
+    microphone::probe_main(path)
 }
 
 pub fn notifications_probe_main(path: &str) -> ! {
@@ -78,6 +85,7 @@ pub fn run() {
         )
         .manage(island::IslandState::default())
         .manage(media::Shared::default())
+        .manage(microphone::Shared::default())
         .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
         .invoke_handler(tauri::generate_handler![
@@ -91,6 +99,7 @@ pub fn run() {
             hooks::claude_hooks_install,
             hooks::claude_hooks_remove,
             media::music_now,
+            microphone::microphone_snapshot,
             downloads::downloads_snapshot,
             media_volume::music_volume,
             media::music_command,
@@ -125,6 +134,7 @@ pub fn run() {
             app.manage(prefs::Prefs::load(app.handle()));
             island::create(app.handle())?;
             fullscreen::watch(app.handle());
+            microphone::start(app.handle().clone(), app.state::<microphone::Shared>().inner().clone());
             downloads::start(app.handle().clone(), app.state::<downloads::Shared>().inner().clone());
             app.manage(sessions::service::Service::start(app.handle().clone()));
             media::start(

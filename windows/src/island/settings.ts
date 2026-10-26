@@ -62,6 +62,7 @@ export interface IslandSettings {
   /** A new song raises a notice (notchTrackChange). */
   trackChange: boolean;
   downloadProgress: boolean;
+  microphoneStatus: boolean;
   downloadFolders: string[];
 }
 
@@ -107,6 +108,7 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   showPlayingMusic: true,
   trackChange: true,
   downloadProgress: true,
+  microphoneStatus: true,
   downloadFolders: [],
 };
 

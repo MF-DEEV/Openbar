@@ -38,12 +38,14 @@ export interface Notice {
   imageFallback?: string;
   /** Downloads: 0..1 for known totals; null for an unknown size. */
   progress?: number | null;
+  audio?: { muted: boolean; deafened: boolean; level: number };
 }
 
 /** Live activities in the Mac's priority order (NotchSupport.swift:1791-1799). */
 export const ACTIVITY_ORDER = [
   "timer",
   "watch",
+  "microphone",
   "downloads",
   "sessions",
   "agents",
