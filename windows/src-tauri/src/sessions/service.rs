@@ -543,7 +543,7 @@ impl Service {
     fn reply(&self, session: &str, text: &str, images: &[String]) -> Option<&'static str> {
         if let Some(codex) = self.codex().filter(|c| c.owns(session)) {
             // Codex takes replies through its own server: no terminal typing, no Esc risk.
-            if codex.reply(session, text) {
+            if codex.reply(session, text, images) {
                 self.acknowledge(session);
                 return None;
             }
@@ -843,6 +843,51 @@ pub async fn sessions_open(
     tauri::async_runtime::spawn_blocking(move || service.open(&session_id))
         .await
         .map_err(|_| ())
+}
+
+/// Images must belong to a visible message; never expose arbitrary filesystem paths.
+#[tauri::command]
+pub async fn sessions_image(
+    service: tauri::State<'_, Shared>,
+    session_id: String,
+    source: String,
+) -> Result<String, String> {
+    {
+        let inner = service.inner.lock().unwrap();
+        if !inner.engine.policy().previews || !inner.sessions.iter()
+            .filter(|s| s.id == session_id)
+            .flat_map(|s| &s.chat).any(|m| m.images.contains(&source)) {
+            return Err("Image unavailable".into());
+        }
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        use base64::{Engine as _, engine::general_purpose::STANDARD};
+        const LIMIT: u64 = 20 * 1024 * 1024;
+        let bytes = if source.starts_with("data:image/") {
+            let (header, data) = source.split_once(',').ok_or("Invalid image")?;
+            if !header.ends_with(";base64") || data.len() as u64 > LIMIT * 4 / 3 + 4 {
+                return Err("Invalid image".to_string());
+            }
+            STANDARD.decode(data).map_err(|_| "Invalid image")?
+        } else {
+            let file = File::open(&source).map_err(|_| "Image unavailable")?;
+            let mut bytes = Vec::new();
+            file.take(LIMIT + 1).read_to_end(&mut bytes).map_err(|_| "Image unavailable")?;
+            bytes
+        };
+        if bytes.len() as u64 > LIMIT { return Err("Image too large".into()); }
+        let (mime, _) = image_format(&bytes).ok_or("Unsupported image")?;
+        Ok(format!("data:{mime};base64,{}", STANDARD.encode(bytes)))
+    }).await.map_err(|_| "Image unavailable".to_string())?
+}
+
+pub(super) fn image_format(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") { Some(("image/png", "png")) }
+    else if bytes.starts_with(b"\xff\xd8\xff") { Some(("image/jpeg", "jpg")) }
+    else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") { Some(("image/gif", "gif")) }
+    else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") { Some(("image/webp", "webp")) }
+    else if bytes.starts_with(b"BM") { Some(("image/bmp", "bmp")) }
+    else { None }
 }
 
 #[cfg(test)]

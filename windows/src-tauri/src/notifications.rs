@@ -38,7 +38,6 @@ pub struct Item {
     /// Epoch seconds.
     pub time: f64,
     pub title: String,
-    pub body: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
 }
@@ -55,6 +54,7 @@ pub struct State {
     pub items: Vec<Item>,
     seen: HashSet<u32>,
     primed: bool,
+    enabled: bool,
 }
 
 impl Default for State {
@@ -64,11 +64,28 @@ impl Default for State {
             items: Vec::new(),
             seen: HashSet::new(),
             primed: false,
+            enabled: true,
         }
     }
 }
 
 impl State {
+    fn clear_private(&mut self) {
+        self.items.clear();
+        self.seen.clear();
+        self.primed = false;
+    }
+
+    /// Muted arrivals are consumed, so leaving quiet mode never replays them.
+    fn poll(&mut self, present: &[u32], may_interrupt: bool) -> Vec<u32> {
+        let fresh = self.diff(present);
+        if self.enabled && may_interrupt {
+            fresh
+        } else {
+            Vec::new()
+        }
+    }
+
     /// Takes the ids now in Notification Center; returns the ones that are new.
     /// The first call only remembers what is there.
     pub fn diff(&mut self, present: &[u32]) -> Vec<u32> {
@@ -101,6 +118,21 @@ impl State {
 
 pub type Shared = Arc<Mutex<State>>;
 
+/// Stop collecting messages when the island or its Notifications section is off.
+pub fn set_enabled<R: tauri::Runtime>(app: &tauri::AppHandle<R>, enabled: bool) {
+    use tauri::{Emitter, Manager};
+    let Some(shared) = app.try_state::<Shared>() else {
+        return;
+    };
+    let mut state = shared.lock().unwrap();
+    if state.enabled == enabled {
+        return;
+    }
+    state.enabled = enabled;
+    state.clear_private();
+    let _ = app.emit("notifications://inbox", state.inbox());
+}
+
 #[cfg(windows)]
 mod imp {
     use std::thread;
@@ -118,6 +150,9 @@ mod imp {
         KnownNotificationBindings, NotificationKinds, UserNotification,
     };
     use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx};
+    use windows::Win32::UI::Shell::{
+        SHQueryUserNotificationState, QUNS_ACCEPTS_NOTIFICATIONS, QUNS_NOT_PRESENT,
+    };
 
     use super::{Access, Item, Shared};
 
@@ -150,6 +185,23 @@ mod imp {
             Ok(UserNotificationListenerAccessStatus::Denied) => Access::Denied,
             _ => access(),
         }
+    }
+
+    pub fn probe() -> serde_json::Value {
+        unsafe { let _ = CoInitializeEx(None, COINIT_MULTITHREADED); }
+        let identity = Package::Current().ok().and_then(|p| p.Id().ok())
+            .and_then(|id| id.Name().ok()).map(|name| name.to_string());
+        let status = access();
+        let (count, error) = if status == Access::Allowed {
+            match UserNotificationListener::Current()
+                .and_then(|l| l.GetNotificationsAsync(NotificationKinds::Toast))
+                .and_then(|op| op.join()) {
+                Ok(list) => (list.Size().ok(), None),
+                Err(error) => (None, Some(format!("{}", error))),
+            }
+        } else { (None, None) };
+        serde_json::json!({ "identity": identity, "access": status,
+            "notificationCount": count, "error": error })
     }
 
     fn icon(n: &UserNotification) -> Option<String> {
@@ -203,24 +255,22 @@ mod imp {
             .ok()?
             .GetBinding(&KnownNotificationBindings::ToastGeneric().ok()?)
             .ok()?;
-        let texts: Vec<String> = binding
+        // Only the first toast text (sender/title) is needed. Never read or
+        // retain the remaining text elements containing the message body.
+        let title = binding
             .GetTextElements()
             .ok()?
             .into_iter()
-            .filter_map(|t| t.Text().ok().map(|s| s.to_string()))
+            .next()
+            .and_then(|t| t.Text().ok().map(|s| s.to_string()))
             .filter(|s| !s.trim().is_empty())
-            .collect();
-        let (title, body) = match texts.split_first() {
-            Some((first, rest)) => (first.clone(), rest.join("\n")),
-            None => (app.clone(), String::new()),
-        };
+            .unwrap_or_else(|| app.clone());
         Some(Item {
             id,
             app,
             aumid,
             time,
             title,
-            body,
             icon: icon(n),
         })
     }
@@ -237,24 +287,53 @@ mod imp {
                     let access = access();
                     if last_access != Some(access) {
                         last_access = Some(access);
-                        shared.lock().unwrap().access = access;
-                        let _ = app.emit("notifications://inbox", shared.lock().unwrap().inbox());
+                        let mut state = shared.lock().unwrap();
+                        state.access = access;
+                        if access != Access::Allowed {
+                            state.clear_private();
+                        }
+                        let _ = app.emit("notifications://inbox", state.inbox());
                     }
+                    let shell = unsafe { SHQueryUserNotificationState() }.ok();
+                    let locked = shell == Some(QUNS_NOT_PRESENT);
+                    let enabled = {
+                        let mut state = shared.lock().unwrap();
+                        if locked {
+                            let changed = !state.items.is_empty();
+                            state.clear_private();
+                            if changed {
+                                let _ = app.emit("notifications://inbox", state.inbox());
+                            }
+                        }
+                        state.enabled
+                    };
+                    // Receive only native desktop notifications: Discord's own
+                    // DND and channel mutes suppress their creation upstream.
+                    // Also avoid interrupting presentations and inactive sessions.
                     if access == Access::Allowed
+                        && enabled
+                        && !locked
                         && let Ok(list) = UserNotificationListener::Current()
                             .and_then(|l| l.GetNotificationsAsync(NotificationKinds::Toast))
                             .and_then(|op| op.join())
                     {
                         let notes: Vec<UserNotification> = list.into_iter().collect();
                         let ids: Vec<u32> = notes.iter().filter_map(|n| n.Id().ok()).collect();
-                        let fresh = shared.lock().unwrap().diff(&ids);
+                        let fresh = shared.lock().unwrap().poll(
+                            &ids,
+                            shell.is_none_or(|s| s == QUNS_ACCEPTS_NOTIFICATIONS),
+                        );
                         for n in notes
                             .iter()
                             .filter(|n| n.Id().is_ok_and(|id| fresh.contains(&id)))
                         {
                             if let Some(item) = item(n) {
-                                shared.lock().unwrap().add(item.clone());
-                                let _ = app.emit("notifications://new", &item);
+                                let mut state = shared.lock().unwrap();
+                                // Preferences can change while Windows resolves an icon.
+                                if state.enabled {
+                                    state.add(item.clone());
+                                    let _ = app.emit("notifications://new", &item);
+                                }
                             }
                         }
                         if !fresh.is_empty() {
@@ -271,6 +350,16 @@ mod imp {
 
 #[cfg(windows)]
 pub use imp::start;
+
+/// A content-free diagnostic, also usable before the main island is launched.
+pub fn probe_main(path: &str) -> ! {
+    #[cfg(windows)]
+    let report = imp::probe();
+    #[cfg(not(windows))]
+    let report = serde_json::json!({ "access": "unavailable" });
+    let result = std::fs::write(path, report.to_string());
+    std::process::exit(if result.is_ok() { 0 } else { 1 });
+}
 
 #[cfg(not(windows))]
 pub fn start<R: tauri::Runtime>(_app: tauri::AppHandle<R>, _shared: Shared) {}
@@ -323,7 +412,6 @@ mod tests {
             aumid: "a".into(),
             time: 0.0,
             title: "t".into(),
-            body: String::new(),
             icon: None,
         }
     }
@@ -347,5 +435,36 @@ mod tests {
         s.add(item(30));
         assert_eq!(s.items[0].id, 30);
         assert_eq!(s.items.len(), 50);
+    }
+
+    #[test]
+    fn quiet_arrivals_are_not_replayed_after_quiet_mode() {
+        let mut s = State::default();
+        assert!(s.poll(&[1], true).is_empty());
+        assert!(s.poll(&[1, 2], false).is_empty());
+        assert!(s.poll(&[1, 2], true).is_empty());
+        assert_eq!(s.poll(&[1, 2, 3], true), vec![3]);
+    }
+
+    #[test]
+    fn disabled_notifications_cannot_deliver() {
+        let mut s = State::default();
+        s.poll(&[], true);
+        s.enabled = false;
+        assert!(s.poll(&[1], true).is_empty());
+        s.enabled = true;
+        assert!(s.poll(&[1], true).is_empty());
+        assert_eq!(s.poll(&[1, 2], true), vec![2]);
+    }
+
+    #[test]
+    fn lock_or_disabling_clears_messages_and_primes_again() {
+        let mut s = State::default();
+        s.poll(&[], true);
+        s.add(item(1));
+        s.clear_private();
+        assert!(s.inbox().items.is_empty());
+        assert!(s.poll(&[1, 2], true).is_empty());
+        assert_eq!(s.poll(&[1, 2, 3], true), vec![3]);
     }
 }

@@ -18,8 +18,12 @@ import { subscribeMusic, useMusic } from "../music/store";
 import "../music/music.css";
 import { NotificationsPage, NotificationsTrailing } from "../notifications/NotificationsPage";
 import { subscribeNotifications } from "../notifications/store";
+import { notificationNotice } from "../notifications/presentation";
 import "../notifications/notifications.css";
 import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
+import { DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
+import { bridge, type AttentionContext } from "../shared/bridge";
+import { DeferredSessionAttention } from "../sessions/attention";
 
 // MARK: Preferences
 
@@ -42,6 +46,9 @@ pages.music = {
 };
 activityViews.music = MusicStrip;
 pages.notifications = { Page: NotificationsPage, Trailing: NotificationsTrailing };
+pages.downloads = { Page: DownloadsPage };
+activityViews.downloads = DownloadStrip;
+void subscribeDownloads();
 activityViews.sessions = SessionsStrip;
 
 /** Sessions show beside the camera while any is working, waiting or done. */
@@ -59,11 +66,13 @@ function syncSessionsActivity() {
     wing: stripWing(counts, geometry.stripHeight),
     capsuleContent: 14 + 6 + readingWidth(counts, size),
     opens: "sessions",
+    urgent: counts.waiting > 0,
   });
 }
 
 useSessions.subscribe((s, prev) => {
   if (s.snapshot.counts !== prev.snapshot.counts || s.prefs.live !== prev.prefs.live) syncSessionsActivity();
+  if (s.snapshot !== prev.snapshot) syncPendingSessions();
 });
 useIsland.subscribe((s, prev) => {
   if (
@@ -82,7 +91,7 @@ syncSessionsActivity();
  * taking the keyboard and never replacing a page already open; otherwise,
  * and for finished turns, a notice (NotchService.swift:4181-4214).
  */
-function onSessionEvent(event: SessionEvent) {
+function presentSessionEvent(event: SessionEvent) {
   const sessions = useSessions.getState();
   const session = sessions.snapshot.sessions.find((s) => s.id === event.id);
   if (!session) return;
@@ -113,7 +122,41 @@ function onSessionEvent(event: SessionEvent) {
   });
 }
 
-subscribeSessions(onSessionEvent);
+const sessionAttention = new DeferredSessionAttention(
+  async () => (await bridge.attention.current()).canAutoPresent,
+  (event) => {
+    const session = useSessions.getState().snapshot.sessions.find((s) => s.id === event.id);
+    if (!session || !session.phase.startsWith("waiting")) return undefined;
+    return session.permission?.requestId ?? `${session.phase}:${session.phaseSince}`;
+  },
+  presentSessionEvent,
+);
+function syncPendingSessions() {
+  const events: SessionEvent[] = useSessions
+    .getState()
+    .snapshot.sessions.filter((session) => session.phase.startsWith("waiting"))
+    .map((session) =>
+      session.phase === "waitingInput"
+        ? { kind: "needsInput", id: session.id }
+        : { kind: "needsPermission", id: session.id, tool: session.permission?.tool ?? "" },
+    );
+  void sessionAttention.sync(events);
+}
+function applyAttention(context: AttentionContext) {
+  const island = useIsland.getState();
+  useIsland.setState({ autoPresentAllowed: context.canAutoPresent, attentionFullscreen: context.fullscreen });
+  if (context.busy) {
+    if (island.expanded && island.selected === "sessions") island.collapse();
+    if (island.notice?.kind === "sessions") island.dismissNotice();
+  }
+  // Re-read current pending requests on both transitions. Relying only on
+  // queued events misses prompts that existed before the listener started.
+  syncPendingSessions();
+}
+void bridge.attention.onContext(applyAttention).then(() => bridge.attention.current().then(applyAttention));
+subscribeSessions((event) => {
+  void sessionAttention.handle(event);
+});
 
 // MARK: Music
 
@@ -168,18 +211,10 @@ subscribeMusic();
 
 // MARK: Notifications
 
-/** Each new banner raises a notice (priority 1, 3 s) that opens the page. */
+/** Mirror native banners, including the source app and sender, without stealing focus. */
 subscribeNotifications((item) => {
   const island = useIsland.getState();
   if (!modulesOf(island).includes("notifications")) return;
-  island.showNotice({
-    id: `notification:${item.id}`,
-    kind: "systemNotification",
-    title: item.title || item.app,
-    detail: item.body.split("\n")[0] ?? "",
-    priority: 1,
-    duration: 3,
-    opens: "notifications",
-    image: item.icon,
-  });
+  if (!island.settings.enabled) return;
+  island.showNotice(notificationNotice(item));
 });

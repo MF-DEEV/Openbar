@@ -57,6 +57,15 @@ export const T = {
     outlineCaption: "A thin light edge around the island, easier to see on dark wallpapers.",
   },
   content: {
+    downloadFolders: "Additional download folders",
+    downloadFoldersCaption:
+      "Downloads and browser download folders are monitored automatically. For other apps, add full folder paths, one per line. Changes save when you leave this field. File transfers in these folders are shown too; subfolders are not scanned.",
+    quickAccess: "Quick access buttons",
+    quickPreview: "Island preview",
+    quickPreviewCaption: "Click either highlighted circle to choose its function.",
+    leftShortcut: "Left shortcut",
+    rightShortcut: "Right shortcut",
+    shortcutCaption: "Choose what the lower side circle opens. Changes apply immediately.",
     lead: "Choose which sections the island shows and in what order. Each section keeps its own options.",
     sections: "Sections",
     show: "Show in the island",
@@ -69,7 +78,7 @@ export const T = {
     showPlayingMusic: "Show music while playing",
     showPlayingMusicCaption: "The song takes the closed island, with its cover and moving bars.",
     notificationsCaption:
-      "New notifications show as a banner beside the camera and stay on the page until you dismiss them.",
+      "Discord, Messenger and other desktop notifications show only the app icon, app name and sender. Message text is not collected or displayed. Discord’s Do Not Disturb and muted chats follow its desktop notification settings.",
   },
   summaries: {
     controls: "Playback, volume, brightness and your shortcuts.",
@@ -91,6 +100,9 @@ export const T = {
     watch: "Any part of a window, read live, with an alert when it changes.",
   },
   activity: {
+    downloadProgress: "Download progress",
+    downloadProgressCaption:
+      "Show a small download indicator across apps. Click it to see file names, progress and downloaded MB. Details never open automatically.",
     indicators: "Indicators",
     indicatorsLead: "Short notices the closed island shows when something changes.",
     trackChange: "New track",

@@ -7,11 +7,18 @@
 
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
-import type { Decision, ReplyFailure, SessionEvent, Snapshot } from "../sessions/types";
+import { register, unregister, type ShortcutEvent } from "@tauri-apps/plugin-global-shortcut";
+import type { Decision, ReplyAttachment, ReplyFailure, SessionEvent, Snapshot } from "../sessions/types";
 import type { MusicCommand, NowPlaying } from "../music/types";
 import type { Access, Inbox, Item } from "../notifications/types";
+import type { DownloadSnapshot } from "../downloads/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+export interface AttentionContext {
+  canAutoPresent: boolean;
+  fullscreen: boolean;
+  busy: boolean;
+}
 
 /** A rect in window CSS pixels; radii round its top and bottom corners. */
 export interface HitRect {
@@ -35,12 +42,31 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
 }
 
 export const bridge = {
+  attention: {
+    current: async (): Promise<AttentionContext> =>
+      (await call<AttentionContext>("attention_context")) ?? {
+        canAutoPresent: !inTauri,
+        fullscreen: false,
+        busy: inTauri,
+      },
+    compactSessions: (on: boolean) => call("attention_compact_sessions", { on }),
+    onContext(handler: (context: AttentionContext) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<AttentionContext>("island://attention-context", (event) => handler(event.payload));
+    },
+  },
   setHitRects: (rects: HitRect[]) => call("island_set_hit_rects", { rects }),
   setCapture: (capture: boolean) => call("island_set_capture", { capture }),
   openSettings: () => call("open_settings"),
   /** Lets the window take the keyboard (and takes it now when `take`), or gives it back. */
   setFocusable: (focusable: boolean, take: boolean) => call("island_set_focusable", { focusable, take }),
   sessions: {
+    registerPermissionKey: async (key: "y" | "n", handler: (event: ShortcutEvent) => void) => {
+      if (inTauri) await register(`Control+${key.toUpperCase()}`, handler);
+    },
+    unregisterPermissionKey: async (key: "y" | "n") => {
+      if (inTauri) await unregister(`Control+${key.toUpperCase()}`);
+    },
     onSnapshot(handler: (s: Snapshot) => void): Promise<UnlistenFn> {
       if (!inTauri) return Promise.resolve(() => {});
       return listen<Snapshot>("sessions://snapshot", (e) => handler(e.payload));
@@ -59,6 +85,8 @@ export const bridge = {
     /** null when delivered. */
     reply: (sessionId: string, text: string, images: string[]) =>
       call<ReplyFailure | null>("sessions_reply", { sessionId, text, images }),
+    attachImage: (dataUrl: string) => call<ReplyAttachment>("sessions_attach_image", { dataUrl }),
+    clipboardImages: () => call<ReplyAttachment[]>("sessions_clipboard_images"),
     open: (sessionId: string) => call<boolean>("sessions_open", { sessionId }),
   },
   music: {
@@ -88,6 +116,13 @@ export const bridge = {
     clear: () => call<Inbox>("notifications_clear"),
     open: (aumid: string) => call<boolean>("notifications_open", { aumid }),
   },
+  downloads: {
+    snapshot: () => call<DownloadSnapshot>("downloads_snapshot"),
+    onSnapshot(handler: (snapshot: DownloadSnapshot) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<DownloadSnapshot>("downloads://snapshot", (event) => handler(event.payload));
+    },
+  },
   onForegroundApp(handler: (name: string) => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});
     return listen<string>("bar://foreground-app", (e) => handler(e.payload));
@@ -100,6 +135,10 @@ export const bridge = {
   onOutsideClick(handler: () => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});
     return listen("island://outside-click", () => handler());
+  },
+  onFullscreen(handler: (hidden: boolean) => void): Promise<UnlistenFn> {
+    if (!inTauri) return Promise.resolve(() => {});
+    return listen<boolean>("island://fullscreen", (event) => handler(event.payload));
   },
   onPointer(handler: (event: PointerEvent) => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});

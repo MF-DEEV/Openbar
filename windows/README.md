@@ -37,14 +37,15 @@ To remove it, use **Settings › Apps › Installed apps › Vorssaint › Unins
 
 - **A notch at the top of the screen.** A black island hangs from the top edge, like the camera housing on a MacBook, or floats as a capsule if you prefer. It grows into pages when you click it and steps aside for games and films in full screen.
 - **Now Playing.** Whatever plays in Spotify, a browser or Media Player shows beside the camera with its cover and moving bars. Open it to see the song, scrub, shuffle and control playback. Media keys keep working as usual.
-- **Notifications.** New Windows notifications appear as a banner in the island and stay on its page until you dismiss them.
+- **Download progress.** New file transfers show a small live indicator. Click it to open a Downloads page with file icons, names and transferred MB; download details never pop up automatically. The app watches the Windows Downloads folder, configured Brave, Chrome, Edge, Vivaldi, Opera and Firefox download folders, plus folders added in **Content › Downloads**. Other programs writing to those folders are supported too. Chromium browsers provide total sizes when available; other transfers show received bytes and an indeterminate indicator. File copies in these folders also appear. Subfolders, protected application caches and downloads outside monitored folders are not scanned. Turn monitoring off in **Activity › Download progress**. Only local metadata and the browser's download records are read; file contents and browsing URLs are not collected.
+- **Notifications (requires package identity).** Discord, Messenger and other Windows notifications show the app icon, app name and sender, without message text. Discord's Do Not Disturb and muted chats follow its desktop notifications. See [setup and current installer limitation](docs/notifications.md).
 - **Claude Code and Codex sessions.** Every session running on your PC, in one list. Each shows its folder, branch and what it's doing: working, running a tool, waiting for you, or done.
-  - **Allow from the island.** When a session asks to run a command, the island opens on its own with the whole command in view. Allow, Deny or Always.
+  - **Allow from the island.** On the desktop, a session that needs approval opens with the whole command in view. While another app or a game is in front, it stays in the small waiting-hand indicator without taking focus. Returning to the desktop checks all still-pending requests, including ones that were waiting before the app started. Allow, Deny or Always.
   - **Answer questions.** Pick one of the answers a session offers, or write your own.
   - **Reply without switching apps.** Type in the island and it reaches the session.
   - **Open.** Brings the session's terminal window forward.
   - **A buddy for every session.** Clawd for Claude Code and a little terminal robot for Codex, each in a random outfit you can change.
-- **Settings like Windows.** Size, shape, which sections show and in what order, how it opens, which display it uses, starting with Windows and more, in a window that follows your light or dark theme.
+- **Settings like Windows.** Size, shape, which sections show and in what order, how it opens, which display it uses, starting with Windows and more, in a window that follows your light or dark theme. In **Content**, choose the functions for the lower left and right shortcut circles, or click either highlighted circle in the island preview to change it immediately.
 
 ### Using it with Claude Code
 
@@ -63,7 +64,7 @@ Nothing to install. While Codex runs, the island talks to the app server Codex s
 
 ## Not yet
 
-- Timer, calendar, clipboard, captures, files, system, tools, camera, downloads, scratchpad, AI usage and Watch show "Coming to Windows soon".
+- Timer, calendar, clipboard, captures, files, system, tools, camera, scratchpad, AI usage and Watch show "Coming to Windows soon".
 - Mirroring Windows notifications needs a signed package, which this installer doesn't carry yet. Its page says so.
 - There are no automatic updates. To update, run the newer installer over the old one; your settings stay.
 - The settings window is in English.
@@ -85,6 +86,14 @@ The installer lands in `src-tauri/target/release/bundle/nsis/`. The installers i
 bunx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc
 bunx tauri build --runner cargo-xwin --target aarch64-pc-windows-msvc
 ```
+
+For a local update of an existing Windows installation, build with `bun run tauri build --no-bundle`, then run:
+
+```powershell
+.\tools\install-local.ps1 -ExecutablePath .\src-tauri\target\release\Vorssaint.exe -EnableAutostart
+```
+
+This keeps a backup of the installed executable and preserves settings. It rejects console executables, so a local build cannot accidentally make the island depend on a terminal window. The island uses the Windows GUI subsystem in both release and debug builds; use a full Tauri build for installation so the frontend is bundled and no development server is needed.
 
 Tests run with `bun run test` and, in `src-tauri`, `cargo test`. The design notes behind the port are in [`docs/spec`](docs/spec).
 

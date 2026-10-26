@@ -242,8 +242,8 @@ impl CodexClient {
     }
 
     /// A prompt for an idle thread, or one queued after the current turn of a working one.
-    pub fn reply(&self, session: &str, text: &str) -> bool {
-        self.shared.lock().unwrap().reply(session, text)
+    pub fn reply(&self, session: &str, text: &str, images: &[String]) -> bool {
+        self.shared.lock().unwrap().reply(session, text, images)
     }
 
     /// Joined to Codex's app-server right now.
@@ -275,7 +275,7 @@ impl Shared {
         true
     }
 
-    fn reply(&mut self, session: &str, text: &str) -> bool {
+    fn reply(&mut self, session: &str, text: &str, images: &[String]) -> bool {
         if !self.connected || !self.state.pending(session).is_empty() {
             return false;
         }
@@ -283,7 +283,10 @@ impl Shared {
             return false;
         };
         let active = thread.status.as_ref().is_some_and(|st| st.is_active());
-        let input = json!([{"type": "text", "text": text, "text_elements": []}]);
+        let mut input = Vec::new();
+        if !text.trim().is_empty() { input.push(json!({"type": "text", "text": text, "text_elements": []})); }
+        input.extend(images.iter().take(5).map(|path| json!({"type": "localImage", "path": path})));
+        if input.is_empty() { return false; }
         if active {
             let id = uuid_v7();
             self.call(
@@ -783,6 +786,26 @@ mod tests {
     }
 
     #[test]
+    fn replies_deliver_images_to_codex_for_idle_and_running_threads() {
+        let (mut s, rx) = joined();
+        read_thread(&mut s, &rx, json!({"id": "t1", "cwd": "C:\\code", "status": {"type": "idle"}}));
+        let paths = vec!["C:\\Temp\\photo.png".to_string()];
+        assert!(s.reply("t1", "", &paths));
+        let messages = sent(&rx);
+        assert_eq!(messages[0]["method"], "turn/start");
+        assert_eq!(messages[0]["params"]["input"], json!([{"type": "localImage", "path": paths[0]}]));
+        s.state.upsert_thread(&json!({"id": "t1", "status": {"type": "active", "activeFlags": []}}));
+        assert!(s.reply("t1", "Look at this", &paths));
+        let messages = sent(&rx);
+        assert_eq!(messages[0]["method"], "thread/queue/add");
+        assert_eq!(messages[0]["params"]["input"], json!([
+            {"type": "text", "text": "Look at this", "text_elements": []},
+            {"type": "localImage", "path": paths[0]}
+        ]));
+        assert!(!s.reply("t1", "", &[]));
+    }
+
+    #[test]
     fn subagent_requests_are_answered_through_the_parents_row() {
         let (mut s, rx) = joined();
         let active = json!({"type": "active", "activeFlags": []});
@@ -801,7 +824,7 @@ mod tests {
             json!({"id": 21, "method": "item/fileChange/requestApproval", "params": {"threadId": "c1"}})
         ));
         sent(&rx);
-        assert!(!s.reply("t1", "go on"), "no reply while the row waits");
+        assert!(!s.reply("t1", "go on", &[]), "no reply while the row waits");
         assert!(sent(&rx).is_empty());
         assert!(!s.answer("t1", "codex:99", &Answer::Allow), "an unknown id");
         assert!(
@@ -815,9 +838,9 @@ mod tests {
         );
         assert!(s.state.threads["c1"].pending.is_empty());
         assert!(!s.answer("t1", "codex:21", &Answer::Allow), "answered once");
-        assert!(s.reply("t1", "go on"), "the row takes replies again");
+        assert!(s.reply("t1", "go on", &[]), "the row takes replies again");
         assert_eq!(methods(&sent(&rx)), ["thread/queue/add"]);
         s.connected = false;
-        assert!(!s.reply("t1", "go on"), "not while disconnected");
+        assert!(!s.reply("t1", "go on", &[]), "not while disconnected");
     }
 }

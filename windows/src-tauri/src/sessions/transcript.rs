@@ -296,7 +296,7 @@ impl TranscriptReader {
                     // A slash command typed in the terminal, like /recap or /cost,
                     // asks the model nothing by itself; one that does, like a
                     // skill, begins its turn with the reply or the registry.
-                } else if !texts.is_empty() {
+                } else if !texts.is_empty() || (previews && !images_of(content).is_empty()) {
                     facts.push(TranscriptFact::TurnBegan(date));
                     // Task notifications and the summary a compaction leaves
                     // arrive as user lines but were never typed.
@@ -310,6 +310,12 @@ impl TranscriptReader {
                             text: prompt,
                             at: date,
                         });
+                    }
+                    if previews && !notified {
+                        let images = images_of(content);
+                        if !images.is_empty() {
+                            facts.push(TranscriptFact::PromptImages { images, at: date });
+                        }
                     }
                 }
             }
@@ -326,6 +332,10 @@ impl TranscriptReader {
                 }
                 if let Some(text) = typed(&texts_of(attachment.get("prompt"))) {
                     facts.push(TranscriptFact::Prompt { text, at: date });
+                }
+                let images = images_of(attachment.get("prompt"));
+                if !images.is_empty() {
+                    facts.push(TranscriptFact::PromptImages { images, at: date });
                 }
             }
             "ai-title" => {
@@ -458,6 +468,23 @@ fn subagent_facts(
 }
 
 /// A string's text, or the text blocks of a list of blocks.
+fn images_of(content: Option<&Value>) -> Vec<String> {
+    dicts(content).into_iter()
+        .filter(|block| str_of(block.get("type")) == Some("image"))
+        .filter_map(|block| {
+            let source = block.get("source")?;
+            match source.get("type")?.as_str()? {
+                "base64" => {
+                    let mime = source.get("media_type")?.as_str()?;
+                    let data = source.get("data")?.as_str()?;
+                    (mime.starts_with("image/") && data.len() <= 28 * 1024 * 1024)
+                        .then(|| format!("data:{mime};base64,{data}"))
+                }
+                _ => None,
+            }
+        }).take(16).collect()
+}
+
 fn texts_of(content: Option<&Value>) -> Vec<String> {
     if let Some(text) = content.and_then(Value::as_str) {
         return vec![text.to_owned()];
@@ -1220,5 +1247,14 @@ mod tests {
             ),
             "an id of 100 characters, 200 scalars, is within the limit, as Swift counts"
         );
+    }
+
+    #[test]
+    fn image_only_prompts_keep_attachments_only_with_previews() {
+        let line = r#"{"type":"user","message":{"content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"aGVsbG8="}}]}}"#;
+        let facts = parse(&[line], true);
+        assert!(facts.iter().any(|f| matches!(f, TranscriptFact::PromptImages { images, .. }
+            if images == &["data:image/png;base64,aGVsbG8="])));
+        assert!(!parse(&[line], false).iter().any(|f| matches!(f, TranscriptFact::PromptImages { .. })));
     }
 }

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 mod bar;
+mod downloads;
 mod fullscreen;
 mod hooks;
 mod hosts;
@@ -32,6 +33,10 @@ pub fn hook_main() -> ! {
 pub fn music_probe_main(path: &str) -> ! {
     let _ = std::fs::write(path, media::probe());
     std::process::exit(0)
+}
+
+pub fn notifications_probe_main(path: &str) -> ! {
+    notifications::probe_main(path)
 }
 
 /// `Vorssaint.exe --remove-hooks`: the uninstaller takes Vorssaint's hooks out
@@ -73,16 +78,20 @@ pub fn run() {
         )
         .manage(island::IslandState::default())
         .manage(media::Shared::default())
+        .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
             island::island_set_focusable,
+            fullscreen::attention_context,
+            fullscreen::attention_compact_sessions,
             settings::open_settings,
             hooks::claude_hooks_status,
             hooks::claude_hooks_install,
             hooks::claude_hooks_remove,
             media::music_now,
+            downloads::downloads_snapshot,
             media_volume::music_volume,
             media::music_command,
             media::music_seek,
@@ -105,6 +114,9 @@ pub fn run() {
             prefs::shortcut_registered,
             sessions::service::sessions_reply,
             sessions::service::sessions_open,
+            sessions::service::sessions_image,
+            sessions::attachments::sessions_attach_image,
+            sessions::attachments::sessions_clipboard_images,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -113,6 +125,7 @@ pub fn run() {
             app.manage(prefs::Prefs::load(app.handle()));
             island::create(app.handle())?;
             fullscreen::watch(app.handle());
+            downloads::start(app.handle().clone(), app.state::<downloads::Shared>().inner().clone());
             app.manage(sessions::service::Service::start(app.handle().clone()));
             media::start(
                 app.handle().clone(),

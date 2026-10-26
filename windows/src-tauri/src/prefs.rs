@@ -153,6 +153,16 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
     shortcut(app, flag("/island/shortcutEnabled", true));
     crate::fullscreen::set_hides(flag("/island/hideInFullscreen", true));
     crate::island::show_in_captures(app, flag("/island/showInCaptures", true));
+    let notifications_hidden = value
+        .pointer("/island/hiddenModules")
+        .and_then(Value::as_array)
+        .is_some_and(|modules| modules.iter().any(|id| id.as_str() == Some("notifications")));
+    crate::notifications::set_enabled(
+        app,
+        flag("/island/enabled", true)
+            && flag("/island/sections/notifications", true)
+            && !notifications_hidden,
+    );
     let previews = value
         .pointer("/sessions/previews")
         .and_then(Value::as_bool)

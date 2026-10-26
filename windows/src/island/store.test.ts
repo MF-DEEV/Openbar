@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { galleryHeight, geometryOf, presentation, transitionBetween, useIsland } from "./store";
+import { galleryHeight, geometryOf, presentation, transitionBetween, useIsland, visibleActivity } from "./store";
 
 const initial = useIsland.getState();
 beforeEach(() => useIsland.setState(initial, true));
@@ -24,6 +24,45 @@ describe("presentation", () => {
     useIsland.getState().pointerEnter();
     const s = useIsland.getState();
     expect(presentation(s, geometryOf(s)).size).toEqual({ width: 155, height: 29 });
+  });
+});
+
+describe("media activity priority", () => {
+  it("keeps the session completion strip visible while media plays", () => {
+    const s = useIsland.getState();
+    s.setActivity("sessions", { wing: 30, opens: "sessions" });
+    s.setActivity("music", { wing: 30, opens: "music" });
+    expect(visibleActivity(useIsland.getState())).toBe("sessions");
+    const state = useIsland.getState();
+    expect(presentation(state, geometryOf(state)).key).toBe("activity:sessions");
+    s.setActivity("music", null);
+    expect(visibleActivity(useIsland.getState())).toBe("sessions");
+  });
+
+  it("keeps working or waiting sessions above playback", () => {
+    const s = useIsland.getState();
+    s.setActivity("sessions", { wing: 30, opens: "sessions" });
+    s.setActivity("music", { wing: 30, opens: "music" });
+    expect(visibleActivity(useIsland.getState())).toBe("sessions");
+  });
+
+  it("respects the manually picked activity", () => {
+    useIsland.setState({
+      activities: {
+        sessions: { wing: 30, opens: "sessions" },
+        music: { wing: 30, opens: "music" },
+      },
+      pickedActivity: "sessions",
+    });
+    expect(visibleActivity(useIsland.getState())).toBe("sessions");
+  });
+
+  it("keeps timers above playback even when sessions have completed", () => {
+    const s = useIsland.getState();
+    s.setActivity("sessions", { wing: 30, opens: "sessions" });
+    s.setActivity("music", { wing: 30, opens: "music" });
+    s.setActivity("timer", { wing: 30, opens: "timer" });
+    expect(visibleActivity(useIsland.getState())).toBe("timer");
   });
 });
 

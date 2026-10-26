@@ -61,6 +61,8 @@ export interface IslandSettings {
   showPlayingMusic: boolean;
   /** A new song raises a notice (notchTrackChange). */
   trackChange: boolean;
+  downloadProgress: boolean;
+  downloadFolders: string[];
 }
 
 export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
@@ -104,6 +106,8 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   language: "auto",
   showPlayingMusic: true,
   trackChange: true,
+  downloadProgress: true,
+  downloadFolders: [],
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

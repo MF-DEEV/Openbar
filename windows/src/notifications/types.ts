@@ -10,7 +10,8 @@ export interface Item {
   /** Epoch seconds. */
   time: number;
   title: string;
-  body: string;
+  /** Legacy payloads may include a body; it is never displayed. */
+  body?: string;
   icon?: string;
 }
 

@@ -616,6 +616,16 @@ fn apply_fact(fact: &TranscriptFact, previews: bool, entry: &mut Activity) {
         TranscriptFact::Prompt { text, at } => {
             say(text, ChatRole::User, *at, false, previews, entry)
         }
+        TranscriptFact::PromptImages { images, at } => {
+            if previews {
+                if !entry.chat.last().is_some_and(|m| m.role == ChatRole::User && m.at == *at) {
+                    say("", ChatRole::User, *at, false, previews, entry);
+                }
+                if let Some(message) = entry.chat.last_mut() {
+                    message.images = images.clone();
+                }
+            }
+        }
         TranscriptFact::Title(title) => {
             if previews {
                 entry.title = Some(title.clone());
@@ -738,6 +748,7 @@ fn say(
     if let Some(last) = entry.chat.last_mut()
         && last.role == role
         && last.text == text
+        && (role != ChatRole::User || last.at == at)
     {
         if ends_turn {
             last.ends_turn = true;
@@ -749,6 +760,7 @@ fn say(
         id: entry.said,
         role,
         text: text.to_owned(),
+        images: Vec::new(),
         at,
         ends_turn,
     });

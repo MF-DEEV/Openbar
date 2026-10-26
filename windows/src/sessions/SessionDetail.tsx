@@ -14,6 +14,7 @@ import {
   CircleX,
   PanelRight,
   TriangleAlert,
+  X,
 } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PermissionCard } from "./PermissionCard";
@@ -35,10 +36,13 @@ import {
 } from "./format";
 import { answerMarks, messageTime } from "./conversation";
 import { RichText } from "./RichText";
+import { MessageImages } from "./MessageImages";
 import { useNow } from "./useNow";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { setPrefs } from "../shared/prefs";
+import { bridge } from "../shared/bridge";
+import { IMAGE_LIMIT, imageDataUrl, imageFiles, isImagePasteShortcut } from "./paste";
 import { isWaiting, isWorking, type ReplyFailure, type Session } from "./types";
 
 function storedNumber(key: string, fallback: number) {
@@ -259,7 +263,25 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
               inert={enlarged && sidebarHidden}
               aria-label={S.details}
             >
-              {session.title ? <div className="s-title">{session.title}</div> : null}
+              {session.title && previews ? (
+                <div className="s-title">
+                  <MessageImages
+                    text={session.title}
+                    sessionId={session.id}
+                    images={
+                      /\[Image\s*#\d+\]/i.test(session.title)
+                        ? session.chat.find(
+                            (m) =>
+                              m.role === "user" &&
+                              m.images?.length &&
+                              (m.text.startsWith(session.title!) ||
+                                (!m.text.trim() && /^\s*\[Image\s*#\d+\]\s*$/i.test(session.title!))),
+                          )?.images
+                        : undefined
+                    }
+                  />
+                </div>
+              ) : null}
 
               {session.tasks && session.tasks.total > 0 ? (
                 <div className="s-tasks">
@@ -379,7 +401,9 @@ function Conversation({
               ) : null}
               {message.role === "user" ? (
                 <>
-                  <div className="s-message-text">{message.text}</div>
+                  <div className="s-message-text">
+                    <MessageImages text={message.text} images={message.images} sessionId={session.id} />
+                  </div>
                   <time className="s-message-time">{messageTime(message.at)}</time>
                 </>
               ) : (
@@ -545,24 +569,114 @@ function unavailable(session: Session): string | null {
 
 function ReplyField({ session, enlarged = false }: { session: Session; enlarged?: boolean }) {
   const draft = useSessions((s) => s.drafts[session.id] ?? "");
+  const images = useSessions((s) => s.attachments[session.id]);
   const [failure, setFailure] = useState<ReplyFailure | null>(null);
+  const [pasteFailure, setPasteFailure] = useState<string | null>(null);
+  const [pasting, setPasting] = useState(false);
+  const pastingNow = useRef(false);
   const [sending, setSending] = useState(false);
   const reason = unavailable(session);
-  const sendable = !reason && !sending && draft.trim().length > 0;
+  const sendable = !reason && !sending && !pasting && (draft.trim().length > 0 || !!images?.length);
+
+  const paste = async (files?: File[]) => {
+    if (reason || sending || pastingNow.current) return;
+    const room = IMAGE_LIMIT - (useSessions.getState().attachments[session.id]?.length ?? 0);
+    if (room <= 0) {
+      setPasteFailure("Up to 5 images per message");
+      return;
+    }
+    pastingNow.current = true;
+    setPasting(true);
+    setPasteFailure(null);
+    try {
+      const attached = files
+        ? await Promise.all(
+            files.slice(0, room).map(async (file) => {
+              const image = await bridge.sessions.attachImage(await imageDataUrl(file));
+              if (!image) throw new Error("Cannot attach image");
+              return image;
+            }),
+          )
+        : ((await bridge.sessions.clipboardImages()) ?? []).slice(0, room);
+      if (!attached.length) {
+        setPasteFailure("No image on clipboard");
+        return;
+      }
+      useSessions.getState().addAttachments(session.id, attached);
+    } catch (error) {
+      setPasteFailure(error instanceof Error ? error.message : String(error));
+    } finally {
+      pastingNow.current = false;
+      setPasting(false);
+    }
+  };
 
   const send = async () => {
-    if (!sendable) return;
+    if (!sendable || pastingNow.current) return;
     setSending(true);
-    setFailure(await useSessions.getState().reply(session, draft, []));
-    setSending(false);
+    try {
+      setFailure(
+        await useSessions.getState().reply(
+          session,
+          draft,
+          (images ?? []).map((image) => image.path),
+        ),
+      );
+    } catch {
+      setFailure("unreachable");
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
-    <div className="s-reply">
+    <div
+      className="s-reply"
+      onPaste={(event) => {
+        const files = imageFiles(event.clipboardData);
+        if (!files.length) return; // Plain text keeps the input's normal Ctrl+V behavior.
+        event.preventDefault();
+        void paste(files);
+      }}
+      onKeyDown={(event) => {
+        if (!isImagePasteShortcut(event.nativeEvent)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        void paste();
+      }}
+      onDragOver={(event) => {
+        if (Array.from(event.dataTransfer.items).some((item) => item.type.startsWith("image/"))) event.preventDefault();
+      }}
+      onDrop={(event) => {
+        const files = imageFiles(event.dataTransfer);
+        if (!files.length) return;
+        event.preventDefault();
+        void paste(files);
+      }}
+    >
+      {images?.length ? (
+        <div className="s-reply-images" aria-label="Attached images">
+          {images.map((image, index) => (
+            <div className="s-reply-image" key={image.path}>
+              <img src={image.preview} alt={`Attachment ${index + 1}`} />
+              <button
+                type="button"
+                disabled={sending}
+                aria-label={`${S.removeImage} ${index + 1}`}
+                title={S.removeImage}
+                onClick={() => useSessions.getState().removeAttachment(session.id, image.path)}
+              >
+                <X size={12} />
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <div className="s-reply-row">
         {enlarged ? (
           <textarea
             className="s-reply-field s-composer"
+            title={S.pasteImages}
             aria-label={session.provider === "codex" ? S.replyPlaceholderCodex : S.replyPlaceholder}
             value={draft}
             disabled={!!reason || sending}
@@ -582,15 +696,18 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
         ) : (
           <input
             className="s-reply-field"
+            title={S.pasteImages}
+            aria-label={session.provider === "codex" ? S.replyPlaceholderCodex : S.replyPlaceholder}
             value={draft}
-            disabled={!!reason}
+            disabled={!!reason || sending}
+            maxLength={4000}
             placeholder={reason ?? (session.provider === "codex" ? S.replyPlaceholderCodex : S.replyPlaceholder)}
             onChange={(e) => {
               setFailure(null);
               useSessions.getState().setDraft(session.id, e.target.value);
             }}
             onKeyDown={(e) => {
-              if (e.key === "Enter") {
+              if (e.key === "Enter" && !e.nativeEvent.isComposing) {
                 e.preventDefault();
                 void send();
               }
@@ -608,6 +725,16 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
         </button>
       </div>
       {enlarged ? <div className="s-composer-hint">{S.sendShortcut}</div> : null}
+      {pasting ? (
+        <div className="s-composer-hint" role="status">
+          Adding image…
+        </div>
+      ) : null}
+      {pasteFailure ? (
+        <div className="s-error" role="status">
+          {pasteFailure}
+        </div>
+      ) : null}
       {failure ? (
         <div className="s-error">
           <TriangleAlert size={10} />

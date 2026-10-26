@@ -631,6 +631,154 @@
   overflow: hidden;
 }
 
+.s-title:has(.s-image-attachments) {
+  display: block;
+}
+
+.s-image-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.s-image-attachment {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 11px;
+}
+
+.s-image-thumbnail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #ffffff26;
+  border-radius: 8px;
+  background: #ffffff0a;
+  color: inherit;
+  cursor: zoom-in;
+}
+
+.s-image-thumbnail img {
+  display: block;
+  max-width: min(120px, 100%);
+  max-height: 72px;
+  object-fit: contain;
+}
+
+.s-image-thumbnail > span {
+  padding: 12px;
+}
+.s-image-thumbnail:focus-visible {
+  outline: 2px solid var(--agent-tint, #bc98ff);
+  outline-offset: 2px;
+}
+
+.s-image-preview {
+  position: fixed;
+  width: fit-content;
+  height: fit-content;
+  max-width: calc(86vw + 2px);
+  max-height: calc(84vh + 2px);
+  padding: 0;
+  border: 1px solid #ffffff26;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #101010;
+  box-shadow: 0 20px 80px #0009;
+  opacity: 0;
+  transform: translateY(10px) scale(0.96);
+}
+
+.s-image-preview[open] {
+  animation: s-image-preview-in 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.s-image-preview::backdrop {
+  background: rgb(0 0 0 / 24%);
+}
+
+.s-image-preview.is-closing {
+  animation: s-image-preview-out 180ms ease-in forwards;
+}
+
+.s-image-preview-viewport {
+  max-width: 86vw;
+  max-height: 84vh;
+  overflow: auto;
+}
+
+.s-image-preview-viewport > img {
+  display: block;
+  max-width: 86vw;
+  max-height: 84vh;
+  object-fit: contain;
+}
+
+.s-image-preview-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #ffffff40;
+  border-radius: 50%;
+  color: #fff;
+  background: #000b;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.s-image-preview-dimensions {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #000b;
+  color: #fff;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.s-image-preview-close:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+@keyframes s-image-preview-in {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes s-image-preview-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-image-preview[open] {
+    animation-duration: 1ms;
+    transform: none;
+  }
+}
+
 .s-tasks {
   display: flex;
   flex-direction: column;
@@ -978,19 +1126,66 @@
   position: relative;
   display: flex;
   align-items: center;
+  min-width: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.s-reply-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.s-reply-image {
+  position: relative;
+  width: 84px;
+  height: 56px;
+  border: 1px solid #ffffff26;
+  border-radius: 8px;
+  background: #ffffff0a;
+}
+
+.s-reply-image > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
+}
+
+.s-reply-image > button {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #ffffff40;
+  border-radius: 50%;
+  background: #252525;
+}
+
+.s-reply-row:focus-within {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
 }
 
 .s-reply-field {
   flex: 1;
+  min-width: 0;
+  width: 100%;
   height: 32px;
   padding: 0 38px 0 12px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.07);
+  background: transparent;
   font-size: 12px;
 }
 
-.s-reply-field:focus {
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+.s-reply-field:focus,
+.s-reply-field:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .s-reply-field:disabled {

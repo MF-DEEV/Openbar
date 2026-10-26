@@ -14,6 +14,8 @@ import { phaseTint } from "./format";
 import { S } from "./strings";
 import { OWN_ANSWER_LIMIT, SETTLE_DELAY, useSessions } from "./store";
 import type { Question, Session } from "./types";
+import { handlePermissionKey } from "./permissionKeys";
+import { subscribeGlobalPermissionKeys } from "./globalPermissionKeys";
 
 /** True once the current request has been on screen for SETTLE_DELAY. */
 function useSettled(requestId: string | undefined): boolean {
@@ -76,6 +78,15 @@ function ToolRequest({ session }: { session: Session }) {
   const p = session.permission!;
   const ready = useSettled(p.requestId);
   const decide = useSessions((s) => s.decide);
+  useEffect(() => {
+    const unsubscribe = subscribeGlobalPermissionKeys(session.id, p.requestId);
+    const onKey = (event: KeyboardEvent) => handlePermissionKey(event, session.id, p.requestId);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [session.id, p.requestId]);
   return (
     <>
       <pre className="s-detail">{p.detail}</pre>
@@ -83,6 +94,8 @@ function ToolRequest({ session }: { session: Session }) {
         <button
           type="button"
           className="s-button is-deny"
+          aria-keyshortcuts="Control+n"
+          title="Ctrl+N"
           disabled={!ready}
           onClick={() => void decide(session, "deny")}
         >
@@ -104,6 +117,8 @@ function ToolRequest({ session }: { session: Session }) {
         <button
           type="button"
           className="s-button is-allow"
+          aria-keyshortcuts="Control+y"
+          title="Ctrl+Y"
           disabled={!ready}
           onClick={() => void decide(session, "allow")}
         >
