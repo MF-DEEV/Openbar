@@ -58,8 +58,8 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
 
   const open = () => {
     const waiting = useSessions.getState().snapshot.sessions.find((s) => s.permission || s.phase.startsWith("waiting"));
-    useIsland.getState().open("sessions");
-    if (waiting) useSessions.getState().focus(waiting.id);
+    const opened = useIsland.getState().activateActivity("sessions");
+    if (opened && waiting) useSessions.getState().focus(waiting.id);
   };
 
   // Claude's spark while any Claude session works, Codex's cloud when only Codex does.

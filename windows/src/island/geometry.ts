@@ -230,14 +230,12 @@ export function restingSize(geometry: Geometry, showsIdleContent = false): Size 
   return { width: Math.min(geometry.screen.width - 24, geometry.cameraWidth + 2 * wing), height: strip };
 }
 
-/** A closed island the pointer rests on grows a little: 10 pt a side, 5 pt down when hanging. */
+/** A subtle, proportional hover response; choices remain a click action. */
 export function hoverPulse(geometry: Geometry, closed: Size): Size {
-  const occupiedWing = Math.max(0, (closed.width - geometry.cameraWidth) / 2);
-  const freeSide = Math.max(0, geometry.compactSideRoom - occupiedWing);
-  const growth = Math.min(10, freeSide);
+  const scale = Math.max(1, Math.min(1.03, (geometry.screen.width - 24) / closed.width));
   return {
-    width: closed.width + 2 * growth,
-    height: closed.height + (geometry.floatingGap !== null ? 0 : 5),
+    width: closed.width * scale,
+    height: closed.height * scale,
   };
 }
 
@@ -316,8 +314,18 @@ export function expandedHeight(
   if (opts.enlarged) return Math.min(0.8 * geometry.screen.height, geometry.screen.height - 48 - 72);
   const h = headerMetrics(geometry, opts.hasRow);
   let height = h.headerTopInset + h.headerChromeHeight + (opts.content ?? contentBudget(geometry, opts.hasRow));
-  if (geometry.input.layout === "custom") height = Math.min(height, geometry.input.customHeight ?? 480);
+  if (geometry.input.layout === "custom") height = geometry.input.customHeight ?? 480;
   return Math.min(height, cap);
+}
+
+/** Fit a complete logical layout without stretching either axis or its children. */
+export function fitContent(available: Size, content: Size) {
+  const scale = Math.max(0, Math.min(available.width / content.width, available.height / content.height));
+  return {
+    scale,
+    x: (available.width - content.width * scale) / 2,
+    y: (available.height - content.height * scale) / 2,
+  };
 }
 
 export const Layout = {
@@ -352,6 +360,28 @@ export function activitySize(geometry: Geometry, wing: number, capsuleContent?: 
   return {
     width: Math.min(geometry.screen.width - 24, geometry.cameraWidth + 2 * (wing + extraInset)),
     height: geometry.stripHeight,
+  };
+}
+
+/** The Mac's compact chooser: a stable strip above up to three named choices per row. */
+export function activityPickerLayout(geometry: Geometry, strips: Size[]) {
+  const limit = Math.max(1, geometry.screen.width - 24);
+  const insets = contentInsets(geometry, { width: limit, height: 200 });
+  const horizontal = Math.max(24, insets.horizontal);
+  const columns = Math.min(3, Math.max(1, strips.length), Math.max(1, Math.floor((limit - 2 * horizontal + 6) / 118)));
+  const rows = Math.ceil(Math.max(1, strips.length) / columns);
+  const headerHeight = Math.max(geometry.stripHeight, ...strips.map((size) => size.height));
+  return {
+    columns,
+    headerHeight,
+    horizontal,
+    size: {
+      width: Math.min(
+        limit,
+        Math.max(...strips.map((size) => size.width), columns * 112 + (columns - 1) * 6) + 2 * horizontal,
+      ),
+      height: headerHeight + 12 + rows * 32 + (rows - 1) * 6 + Math.max(12, insets.bottom),
+    },
   };
 }
 

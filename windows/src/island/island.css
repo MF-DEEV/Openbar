@@ -127,8 +127,93 @@ input:focus-visible {
 
 /* Open */
 
+.n-compact-activity {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.n-activity-picker-header {
+  position: relative;
+  pointer-events: auto;
+}
+
+.n-compact-activity.is-choosing .n-activity-picker {
+  pointer-events: auto;
+}
+
+.n-activity-picker-strip {
+  position: absolute;
+  top: 0;
+}
+
+.n-activity-picker-choices {
+  display: grid;
+  gap: 6px;
+  padding-top: 12px;
+}
+
+.n-activity-choice {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  min-width: 0;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font-size: 12px;
+  font-weight: 500;
+  transition:
+    color 160ms ease,
+    background-color 160ms ease;
+}
+
+.n-activity-choice > svg {
+  flex: none;
+}
+
+.n-activity-choice > span:not(.n-activity-choice-highlight) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.n-activity-choice:hover {
+  background: rgba(255, 255, 255, 0.19);
+}
+
+.n-activity-choice.is-selected {
+  color: #000;
+}
+
+.n-activity-choice-highlight {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  background: white;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .n-activity-choice {
+    transition: none;
+  }
+}
+
 .n-expanded {
   position: relative;
+  overflow: clip;
+}
+
+.n-expanded-layout {
+  position: absolute;
+  transform-origin: top left;
 }
 
 .n-row {
@@ -477,8 +562,7 @@ input:focus-visible {
 .n-page {
   min-width: 0;
   min-height: 0;
-  overflow: auto;
-  scrollbar-width: thin;
+  overflow: clip;
   container: island-page / inline-size;
 }
 .n-row-leading {

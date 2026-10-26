@@ -44,7 +44,7 @@ export function MusicStrip({ geometry, size }: { geometry: Geometry; size: Size 
       className="m-strip"
       style={{ width: size.width, height: size.height }}
       aria-label={playback ? `${playback.title}, ${playback.artist}` : "Music"}
-      onClick={() => useIsland.getState().open("music")}
+      onClick={() => useIsland.getState().activateActivity("music")}
     >
       <span className="m-strip-wing" style={{ width: wing, paddingLeft: coverInset }}>
         <Cover src={playback?.artwork} size={side} radius={side * 0.28} />

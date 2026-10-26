@@ -16,6 +16,8 @@ import { DrawnSize } from "./DrawnSize";
 
 /** Extra hit areas (floating bubbles), in window CSS pixels, written by their owners. */
 export const extraHits: { current: HitRect[] } = { current: [] };
+/** Latest island hit area, so editing shortcuts can publish their new hit areas immediately. */
+export const surfaceHits: { current: HitRect[] } = { current: [] };
 
 const now = () => performance.now() / 1000;
 
@@ -79,6 +81,7 @@ export function IslandSurface(props: {
         ...extraHits.current,
       ];
       const key = JSON.stringify(rects);
+      surfaceHits.current = rects.slice(0, 1);
       if (key !== lastHits.current) {
         lastHits.current = key;
         void bridge.setHitRects(rects);

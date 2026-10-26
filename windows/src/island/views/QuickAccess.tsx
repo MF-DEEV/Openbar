@@ -6,48 +6,20 @@
 // bottom, at most three a side, sliding out once the island has arrived.
 
 import { Pin, PinOff, Settings, LayoutGrid, Undo2, type LucideIcon } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect } from "react";
 import { t } from "../../i18n";
 import { bridge } from "../../shared/bridge";
-import { type Geometry, shoulder, notchMetrics } from "../geometry";
+import { type Geometry } from "../geometry";
 import { moduleInfo } from "../modules";
 import type { Size } from "../motion";
-import type { QuickButton } from "../settings";
+import { placeButtons, QUICK_LAYOUT, type PlacedQuickButton as Placed } from "../quickAccessLayout";
 import { modulesOf, useIsland } from "../store";
-import { extraHits } from "../surface/IslandSurface";
+import { extraHits, surfaceHits } from "../surface/IslandSurface";
 
-const DIAMETER = 44;
-const OFFSET = 34;
-const ROW = 54;
+const DIAMETER = QUICK_LAYOUT.diameter;
 /** Spring(0.38, 0.12) → stiffness (2π/0.38)², damping 2·0.88·(2π/0.38). */
 const REVEAL = { type: "spring", stiffness: 273.4, damping: 29.1, mass: 1 } as const;
-
-interface Placed {
-  button: QuickButton;
-  cx: number;
-  cy: number;
-}
-
-export function placeButtons(buttons: QuickButton[], size: Size, geometry?: Geometry): Placed[] {
-  const s =
-    geometry?.silhouette === "notch" ? notchMetrics(size.width, size.height, geometry.input).s : shoulder(size.height);
-  const body = { minX: s, maxX: size.width - s, maxY: size.height, midX: size.width / 2, midY: size.height / 2 };
-  const left = buttons.filter((b) => b.side === "left").slice(0, 3);
-  const right = buttons.filter((b) => b.side === "right").slice(0, 3);
-  const bottom = buttons.filter((b) => b.side === "bottom").slice(0, 3);
-  const span = (Math.max(left.length, right.length, 1) - 1) * ROW;
-  const sideTop = Math.max(22 + 12, Math.min(52, body.midY - span / 2));
-  return [
-    ...left.map((button, i) => ({ button, cx: body.minX - OFFSET, cy: sideTop + i * ROW })),
-    ...right.map((button, i) => ({ button, cx: body.maxX + OFFSET, cy: sideTop + i * ROW })),
-    ...bottom.map((button, i) => ({
-      button,
-      cx: body.midX + (i - (bottom.length - 1) / 2) * ROW,
-      cy: body.maxY + OFFSET,
-    })),
-  ];
-}
 
 export function QuickAccess(props: { geometry: Geometry; size: Size; visible: boolean; delay: number }) {
   const settings = useIsland((s) => s.settings);
@@ -59,6 +31,7 @@ export function QuickAccess(props: { geometry: Geometry; size: Size; visible: bo
   useEffect(() => {
     if (!props.visible) {
       extraHits.current = [];
+      void bridge.setHitRects(surfaceHits.current);
       return;
     }
     const frameLeft = (window.innerWidth - props.size.width) / 2;
@@ -70,19 +43,30 @@ export function QuickAccess(props: { geometry: Geometry; size: Size; visible: bo
       topRadius: DIAMETER / 2,
       bottomRadius: DIAMETER / 2,
     }));
+    void bridge.setHitRects([...surfaceHits.current, ...extraHits.current]);
     return () => {
       extraHits.current = [];
     };
-  }, [props.visible, props.size.width, props.size.height, placed.length]);
+  }, [
+    props.visible,
+    props.size.width,
+    props.size.height,
+    props.geometry,
+    settings.quickAccess,
+    settings.hiddenModules,
+    settings.sections,
+  ]);
 
   return (
     <div
       className="n-quick"
       style={{ width: props.size.width, height: props.size.height, top: props.geometry.floatingDrop }}
     >
-      {placed.map((p) => (
-        <Bubble key={p.button.id} placed={p} visible={props.visible} delay={props.delay} />
-      ))}
+      <AnimatePresence>
+        {placed.map((p) => (
+          <Bubble key={p.button.id} placed={p} visible={props.visible} delay={props.delay} />
+        ))}
+      </AnimatePresence>
     </div>
   );
 }
@@ -133,6 +117,8 @@ function Bubble({ placed, visible, delay }: { placed: Placed; visible: boolean; 
 
   return (
     <motion.div
+      layout="position"
+      exit={{ scale: 0.4, opacity: 0, transition: { duration: 0.16 } }}
       style={{
         position: "absolute",
         left: placed.cx - DIAMETER / 2,

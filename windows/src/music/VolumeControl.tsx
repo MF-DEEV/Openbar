@@ -92,7 +92,7 @@ export function VolumeControl({ source, name, accent }: { source: string; name: 
         disabled={!source}
         onClick={() => setOpen((value) => !value)}
       >
-        <SlidersHorizontal size={18} strokeWidth={2} />
+        <SlidersHorizontal size={19} strokeWidth={2} />
       </button>
       <AnimatePresence>
         {open ? (

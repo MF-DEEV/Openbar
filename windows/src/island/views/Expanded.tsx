@@ -7,10 +7,10 @@
 import { ChevronLeft, LayoutGrid, Pin, Search } from "lucide-react";
 import { type ComponentType, type ReactNode, useEffect, useRef, useState } from "react";
 import { t } from "../../i18n";
-import { type Geometry, headerMetrics, contentInsets } from "../geometry";
+import { type Geometry, headerMetrics, contentInsets, expandedWidth, fitContent } from "../geometry";
 import { type ModuleId, moduleInfo } from "../modules";
 import type { Size } from "../motion";
-import { useIsland } from "../store";
+import { galleryHeight, modulesOf, useIsland } from "../store";
 import { EmptyState, IconButton } from "./Controls";
 import { SectionsGallery } from "./Sections";
 
@@ -36,10 +36,31 @@ export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolea
   const selected = useIsland((s) => s.selected);
   const pinned = useIsland((s) => s.pinned);
   const hasExploreBubble = useIsland((s) => s.settings.quickAccess.some((b) => b.action.kind === "explore"));
+  const pageHeight = useIsland((s) => s.pageContent[selected]);
+  const moduleCount = useIsland((s) => modulesOf(s).length);
+  const enlarged = useIsland((s) => selected === "sessions" && s.sessionsEnlarged && !s.showingSections);
   const header = headerMetrics(geometry, hasRow);
   const insets = contentInsets(geometry, size);
-  const contentWidth = Math.max(0, size.width - 2 * insets.horizontal);
-  const contentHeight = Math.max(0, size.height - header.pageTopInset - insets.bottom);
+  // Pages and header share one coordinate system. Fit that whole layout into
+  // the usable contour, so fixed-size glyphs, gaps and controls scale together.
+  const reference = { ...geometry, input: { ...geometry.input, layout: "spacious" as const } };
+  const referenceWidth = expandedWidth(reference, {
+    natural: showingSections ? undefined : moduleInfo(selected).naturalWidth,
+  });
+  const contentWidth = enlarged ? Math.max(344, size.width - 2 * insets.horizontal) : referenceWidth - 56;
+  const contentHeight = enlarged
+    ? Math.max(264, size.height - header.pageTopInset - insets.bottom)
+    : showingSections
+      ? galleryHeight(moduleCount, contentWidth + 56)
+      : (pageHeight ?? 264);
+  const layoutHeight = header.pageTopInset - header.headerTopInset + contentHeight;
+  const fit = fitContent(
+    {
+      width: Math.max(0, size.width - 2 * insets.horizontal),
+      height: Math.max(0, size.height - header.headerTopInset - insets.bottom),
+    },
+    { width: contentWidth, height: layoutHeight },
+  );
   const page = pages[selected];
 
   let leading: ReactNode = null;
@@ -65,34 +86,50 @@ export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolea
 
   return (
     <div className="n-expanded" style={{ width: size.width, height: size.height }}>
-      {header.headerRowHeight > 0 ? (
+      <div
+        className="n-expanded-layout"
+        style={{
+          width: contentWidth,
+          height: layoutHeight,
+          left: insets.horizontal + fit.x,
+          top: header.headerTopInset + fit.y,
+          transform: `scale(${fit.scale})`,
+        }}
+      >
+        {header.headerRowHeight > 0 ? (
+          <div
+            className="n-row"
+            style={{
+              top: 0,
+              height: header.headerRowHeight,
+              left: 0,
+              right: 0,
+            }}
+          >
+            <div className="n-row-leading">{leading}</div>
+            <div className="n-row-trailing">
+              {Trailing ? <Trailing /> : null}
+              {pinned ? <Pin className="n-pin-mark" size={11} /> : null}
+            </div>
+          </div>
+        ) : null}
         <div
-          className="n-row"
+          className="n-page"
           style={{
-            top: header.headerTopInset,
-            height: header.headerRowHeight,
-            left: insets.horizontal,
-            right: insets.horizontal,
+            top: header.pageTopInset - header.headerTopInset,
+            left: 0,
+            width: contentWidth,
+            height: contentHeight,
           }}
         >
-          <div className="n-row-leading">{leading}</div>
-          <div className="n-row-trailing">
-            {Trailing ? <Trailing /> : null}
-            {pinned ? <Pin className="n-pin-mark" size={11} /> : null}
-          </div>
+          {showingSections ? (
+            <SectionsGallery width={contentWidth + 56} height={contentHeight} />
+          ) : page ? (
+            <page.Page width={contentWidth} height={contentHeight} />
+          ) : (
+            <PlaceholderPage module={selected} />
+          )}
         </div>
-      ) : null}
-      <div
-        className="n-page"
-        style={{ top: header.pageTopInset, left: insets.horizontal, width: contentWidth, height: contentHeight }}
-      >
-        {showingSections ? (
-          <SectionsGallery width={contentWidth + 56} height={contentHeight} />
-        ) : page ? (
-          <page.Page width={contentWidth} height={contentHeight} />
-        ) : (
-          <PlaceholderPage module={selected} />
-        )}
       </div>
     </div>
   );

@@ -2,6 +2,10 @@
 /* Copyright (C) 2026 Vorssaint */
 
 .dl-page {
+  height: 100%;
+  min-height: 0;
+  overflow: auto;
+  scrollbar-width: none;
   color: #fff;
   font-size: 12px;
 }

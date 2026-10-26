@@ -5,6 +5,7 @@ import {
   notchMetrics,
   expandedHeight,
   expandedWidth,
+  fitContent,
   hitShape,
   hoverPulse,
   makeGeometry,
@@ -18,6 +19,31 @@ const notch = makeGeometry({ screen, devicePixelRatio: 1, silhouette: "notch", l
 const capsule2x = makeGeometry({ screen, devicePixelRatio: 2, silhouette: "capsule", layout: "spacious" });
 const capsule1x = makeGeometry({ screen, devicePixelRatio: 1, silhouette: "capsule", layout: "spacious" });
 
+describe("proportional content layout", () => {
+  it("fits and centers the entire layout for wide, tall and small islands", () => {
+    for (const width of [100, 200, 344, 600, 1000]) {
+      for (const height of [48, 100, 146, 400, 800]) {
+        const fit = fitContent({ width, height }, { width: 344, height: 146 });
+        expect(fit.x).toBeGreaterThanOrEqual(-1e-10);
+        expect(fit.y).toBeGreaterThanOrEqual(-1e-10);
+        expect(344 * fit.scale + 2 * fit.x).toBeCloseTo(width);
+        expect(146 * fit.scale + 2 * fit.y).toBeCloseTo(height);
+      }
+    }
+  });
+
+  it("honors custom height even for pages with a smaller natural height", () => {
+    const geometry = makeGeometry({
+      screen,
+      devicePixelRatio: 1,
+      silhouette: "notch",
+      layout: "custom",
+      customHeight: 500,
+    });
+    expect(expandedHeight(geometry, { hasRow: false, content: 146 })).toBe(500);
+  });
+});
+
 describe("closed sizes (spec §1.4.1)", () => {
   it("capsule rests at 106 × 23.5 on 200% and 104 × 23 on 100%", () => {
     expect(restingSize(capsule2x)).toEqual({ width: 106, height: 23.5 });
@@ -29,9 +55,13 @@ describe("closed sizes (spec §1.4.1)", () => {
     expect(restingSize(notch, true)).toEqual({ width: 223, height: 24 });
   });
 
-  it("hover pulses +20 wide, +5 tall only when hanging", () => {
-    expect(hoverPulse(notch, restingSize(notch))).toEqual({ width: 155, height: 29 });
-    expect(hoverPulse(capsule2x, restingSize(capsule2x))).toEqual({ width: 126, height: 23.5 });
+  it("grows each silhouette proportionally by just three percent on hover", () => {
+    for (const geometry of [notch, capsule2x, capsule1x]) {
+      const rest = restingSize(geometry);
+      const hover = hoverPulse(geometry, rest);
+      expect(hover.width / rest.width).toBeCloseTo(1.03);
+      expect(hover.height / rest.height).toBeCloseTo(1.03);
+    }
   });
 
   it("peeks at 340 × 86 hanging and 340 × 68 as a capsule", () => {
