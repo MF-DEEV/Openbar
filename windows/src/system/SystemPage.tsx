@@ -46,7 +46,8 @@ export function SystemPage({ width }: PageProps) {
   useEffect(() => {
     setPageContent("system", detail ? detailHeight : Math.min(budget, grid));
   }, [detail, detailHeight, budget, grid, setPageContent]);
-  useEffect(() => () => setPageContent("system", null), [setPageContent]);
+  // No clearing on unmount: during a page transition the outgoing copy
+  // unmounts after the incoming one reported, and would undo its height.
 
   // A metric whose card went away (unplugged, switched off) closes its detail.
   const open = detail !== null && cards.some((c) => c.kind === detail);
