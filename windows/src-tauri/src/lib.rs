@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+mod agent_usage;
 mod bar;
 mod com;
 mod downloads;
@@ -91,6 +92,7 @@ pub fn run() {
         .manage(microphone::Shared::default())
         .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
+        .manage(agent_usage::State::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -132,6 +134,10 @@ pub fn run() {
             shell::shell_icon,
             sound::sound_play,
             sound::sound_alarm,
+            agent_usage::agents_snapshot,
+            agent_usage::agents_page_visible,
+            agent_usage::agents_resets_refresh,
+            agent_usage::agents_resets_redeem,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -151,6 +157,7 @@ pub fn run() {
                 app.handle().clone(),
                 app.state::<notifications::Shared>().inner().clone(),
             );
+            agent_usage::start(app.handle().clone(), app.state::<agent_usage::State>().inner().clone());
             let prefs = app.state::<prefs::Prefs>().get();
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;

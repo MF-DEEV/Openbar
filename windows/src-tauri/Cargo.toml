@@ -34,6 +34,7 @@ tungstenite = { version = "0.30", default-features = false, features = ["handsha
 base64 = "0.22"
 png = "0.18"
 image = { version = "0.25", default-features = false, features = ["png", "bmp"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 [target.'cfg(windows)'.dependencies]
 uds_windows = "1"
@@ -53,6 +54,7 @@ windows = { version = "0.62", features = [
   "Win32_Graphics_Gdi",
   "Win32_Media_Audio",
   "Win32_Media_Audio_Endpoints",
+  "Win32_Networking_WinHttp",
   "Win32_System_Com_StructuredStorage",
   "Win32_System_Variant",
   "Win32_System_Com",
