@@ -98,6 +98,14 @@ export const T = {
     retentionDay: "After a day unused",
     retentionWeek: "After a week unused",
     retentionMonth: "After a month unused",
+    dragReveal: "Show a drop target while dragging",
+    dragRevealCaption: "A drag over the closed island shows where to drop. Off, it opens Files right away.",
+    shelfCloseAfterDrop: "Close after dropping into another app",
+    shelfCloseAfterDropCaption:
+      "Closes the island when the destination accepts the items. Pinning the island keeps it open.",
+    shelfRemoveAfterDrop: "Remove items after dropping",
+    shelfRemoveAfterDropCaption:
+      "Items accepted by another app leave the shelf. Turn this off to keep a copy there. Pinned items always stay.",
     notificationsCaption:
       "Discord, Messenger and other desktop notifications show only the app icon, app name and sender. Message text is not collected or displayed. Discord’s Do Not Disturb and muted chats follow its desktop notification settings.",
   },

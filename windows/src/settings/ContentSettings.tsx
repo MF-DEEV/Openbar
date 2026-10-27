@@ -142,6 +142,7 @@ const ON_WINDOWS: ModuleId[] = [
 ];
 const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "tools", "scratchpad"];
 const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "clipboard"];
+const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "files"];
 
 function DownloadOptions() {
   const folders = useSettings((s) => s.prefs.island.downloadFolders);
@@ -222,6 +223,24 @@ function Options({ id }: { id: ModuleId }) {
               label={T.content.timerSound}
               checked={island.timerSoundEnabled}
               onChange={(on) => set("timerSoundEnabled", on)}
+    case "files":
+      return (
+        <>
+          <SubRow title={T.content.dragReveal} caption={T.content.dragRevealCaption}>
+            <Toggle label={T.content.dragReveal} checked={island.dragReveal} onChange={(on) => set("dragReveal", on)} />
+          </SubRow>
+          <SubRow title={T.content.shelfRemoveAfterDrop} caption={T.content.shelfRemoveAfterDropCaption}>
+            <Toggle
+              label={T.content.shelfRemoveAfterDrop}
+              checked={island.shelfRemoveAfterDrop}
+              onChange={(on) => set("shelfRemoveAfterDrop", on)}
+            />
+          </SubRow>
+          <SubRow title={T.content.shelfCloseAfterDrop} caption={T.content.shelfCloseAfterDropCaption}>
+            <Toggle
+              label={T.content.shelfCloseAfterDrop}
+              checked={island.shelfCloseAfterDrop}
+              onChange={(on) => set("shelfCloseAfterDrop", on)}
             />
           </SubRow>
         </>

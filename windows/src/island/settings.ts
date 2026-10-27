@@ -138,6 +138,12 @@ export interface IslandSettings {
   clipboardCardSize: "compact" | "comfortable";
   /** The "Copied" notice (notchClipboard). */
   clipboardNotice: boolean;
+  /** Files: a drag over the closed island shows where to drop (notchDragReveal). */
+  dragReveal: boolean;
+  /** Files: tiles another app accepted leave the shelf; pinned ones stay. */
+  shelfRemoveAfterDrop: boolean;
+  /** Files: the island closes once another app accepts dragged tiles. */
+  shelfCloseAfterDrop: boolean;
 }
 
 export const CLIPBOARD_LIMITS = [20, 50, 100, 250, 500, 1000, 10000, 0];
@@ -230,6 +236,9 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   clipboardIgnoredApps: [],
   clipboardCardSize: "comfortable",
   clipboardNotice: true,
+  dragReveal: true,
+  shelfRemoveAfterDrop: true,
+  shelfCloseAfterDrop: false,
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

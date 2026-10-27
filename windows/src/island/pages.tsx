@@ -31,6 +31,7 @@ import "../calendar/register";
 import "../controls/register";
 import "../tools/register";
 import "../clipboard/register";
+import "../files/register";
 
 activityViews.microphone = MicrophoneStrip;
 void subscribeMicrophone();

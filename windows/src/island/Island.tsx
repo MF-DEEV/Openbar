@@ -26,6 +26,7 @@ import { Expanded } from "./views/Expanded";
 import { QuickAccess } from "./views/QuickAccess";
 import { ActivityStrip } from "./views/Activity";
 import { useSessions } from "../sessions/store";
+import { DropHint } from "../files/DropHint";
 
 function useWindowScreen() {
   const setScreen = useIsland((s) => s.setScreen);
@@ -48,7 +49,7 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
       const toggle = bridge.onToggle(() => useIsland.getState().toggle());
       const outside = bridge.onOutsideClick(() => {
         const s = useIsland.getState();
-        if (s.expanded && !s.pinned) s.collapse();
+        if (s.expanded && !s.pinned && !s.held) s.collapse();
       });
       return () => {
         void unlisten.then((f) => f());
@@ -192,6 +193,9 @@ export function Island() {
       break;
     case "peek":
       content = <Peek geometry={geometry} size={shown.size} />;
+      break;
+    case "dropHint":
+      content = <DropHint geometry={geometry} size={shown.size} />;
       break;
     case "activity":
       content = (
