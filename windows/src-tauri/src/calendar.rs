@@ -430,7 +430,11 @@ mod imp {
             AppointmentStoreAccessType::AllCalendarsReadOnly,
         )?
         .join()?;
-        store.ChangeTracker()?.Enable()?;
+        // Best effort: without tracking, StoreChanged may stay quiet, and the
+        // boundary timer still reads at least every quarter hour.
+        if let Ok(tracker) = store.ChangeTracker() {
+            let _ = tracker.Enable();
+        }
         store.StoreChanged(&TypedEventHandler::<
             AppointmentStore,
             AppointmentStoreChangedEventArgs,
@@ -710,32 +714,42 @@ fn run<R: tauri::Runtime>(
             if store.is_none() {
                 store = imp::open_store(tx.clone()).ok();
             }
-            if let Some(s) = &store {
+            let read = store.as_ref().and_then(|s| {
                 let excluded = excluded(&prefs);
                 let today = imp::local_midnight(now, 0).unwrap_or(now);
                 let week = (
                     today,
                     imp::local_midnight(now, 7).unwrap_or(today + 7 * 86_400_000),
                 );
-                let calendars = imp::calendars(s).unwrap_or_default();
-                let current = imp::read(s, week, &calendars, &excluded);
+                let calendars = imp::calendars(s).ok()?;
+                let current = imp::read(s, week, &calendars, &excluded).ok()?;
                 let events = match visible {
-                    Some(range) if range != week => imp::read(s, range, &calendars, &excluded),
+                    Some(range) if range != week => {
+                        imp::read(s, range, &calendars, &excluded).ok()?
+                    }
                     _ => current.clone(),
                 };
-                match (current, events) {
-                    (Ok(current), Ok(events)) => {
-                        let midnight = imp::local_midnight(now, 1).unwrap_or(now + QUARTER_HOUR);
-                        let at = next_refresh(&events, now, midnight)
-                            .min(next_refresh(&current, now, midnight));
-                        wake = Instant::now()
-                            + Duration::from_millis((at - now).clamp(1000, i64::MAX) as u64);
-                        next.current = current;
-                        next.events = events;
-                        next.calendars = calendars;
-                    }
-                    // A store that stopped answering is asked for again next time.
-                    _ => store = None,
+                Some((current, events, calendars))
+            });
+            match read {
+                Some((current, events, calendars)) => {
+                    let midnight = imp::local_midnight(now, 1).unwrap_or(now + QUARTER_HOUR);
+                    let at = next_refresh(&events, now, midnight)
+                        .min(next_refresh(&current, now, midnight));
+                    wake = Instant::now()
+                        + Duration::from_millis((at - now).clamp(1000, i64::MAX) as u64);
+                    next.current = current;
+                    next.events = events;
+                    next.calendars = calendars;
+                }
+                // A store that stopped answering is asked for again in 30 s;
+                // until then the last read stays, rather than an empty week.
+                None => {
+                    store = None;
+                    let last = shared.0.snapshot.lock().unwrap();
+                    next.current = last.current.clone();
+                    next.events = last.events.clone();
+                    next.calendars = last.calendars.clone();
                 }
             }
         }
@@ -780,15 +794,22 @@ pub async fn calendar_show_range(
         .map_err(|_| ())
 }
 
-/// Shows Windows' consent prompt; a sync command runs on the UI thread, where it belongs.
+/// Asks for the store, which shows Windows' consent prompt. It runs off the
+/// UI thread: waiting on it there would freeze every window while the prompt
+/// is open. If Windows shows no prompt from here, the page offers Settings.
 #[tauri::command]
-pub fn calendar_request_access(state: tauri::State<'_, Shared>) -> Access {
+pub async fn calendar_request_access(state: tauri::State<'_, Shared>) -> Result<Access, ()> {
     #[cfg(windows)]
-    let access = imp::request_access();
+    let access = tauri::async_runtime::spawn_blocking(|| {
+        let _apartment = crate::com::Apartment::mta();
+        imp::request_access()
+    })
+    .await
+    .unwrap_or(Access::Unavailable);
     #[cfg(not(windows))]
     let access = Access::Unavailable;
     state.poke();
-    access
+    Ok(access)
 }
 
 #[tauri::command]

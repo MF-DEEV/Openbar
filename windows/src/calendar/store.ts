@@ -143,16 +143,26 @@ export async function showMonth(month: number | null) {
   const { firstWeekday } = useCalendar.getState();
   // Outside Tauri nothing answers, so a designed sample stays.
   if (month !== null && inTauri) useCalendar.setState({ events: [], loading: true });
-  const answer = await bridge.calendar.showRange(month === null ? null : readInterval(month, Date.now(), firstWeekday));
-  // A later request's answer wins, whichever arrives first.
-  if (answer && request === shownRequest) receive(answer);
+  try {
+    const answer = await bridge.calendar.showRange(
+      month === null ? null : readInterval(month, Date.now(), firstWeekday),
+    );
+    // A later request's answer wins, whichever arrives first.
+    if (answer && request === shownRequest) receive(answer);
+  } finally {
+    if (request === shownRequest) useCalendar.setState({ loading: false });
+  }
 }
 
 export async function requestAccess() {
   useCalendar.setState({ requesting: true, requestFailed: false });
   try {
     const access = await bridge.calendar.requestAccess();
-    useCalendar.setState({ requesting: false, requestFailed: access === undefined && inTauri });
+    // Still unasked after asking: Windows showed no prompt, so Settings is the way.
+    useCalendar.setState({
+      requesting: false,
+      requestFailed: inTauri && (access === undefined || access === "notAsked"),
+    });
     const answer = await bridge.calendar.snapshot();
     if (answer) receive(answer);
   } catch {

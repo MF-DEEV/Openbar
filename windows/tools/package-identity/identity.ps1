@@ -51,11 +51,17 @@ try {
             if (-not (Test-Path -LiteralPath (Join-Path $folder 'Vorssaint.exe'))) {
                 throw "Vorssaint.exe is not in $folder."
             }
+            # Without trust the package can't install; a working registration stays.
+            $thumbprint = (Get-PackageCertificate).Thumbprint
+            if (-not (Test-Path -LiteralPath ('Cert:\LocalMachine\TrustedPeople\' + $thumbprint))) {
+                throw 'The package certificate is not trusted on this PC.'
+            }
             try {
                 Add-AppxPackage -Path $package -ExternalLocation $folder
             } catch {
                 # A package registered before (an older build of the same version,
                 # or a development registration) makes way for this one.
+                if (-not (Get-AppxPackage -Name $packageName)) { throw }
                 Get-AppxPackage -Name $packageName | Remove-AppxPackage
                 Add-AppxPackage -Path $package -ExternalLocation $folder
             }

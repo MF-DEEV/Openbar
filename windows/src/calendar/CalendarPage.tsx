@@ -75,20 +75,21 @@ export function CalendarPage({ width, height }: PageProps) {
   const now = useMinute();
   const month = startOfMonth(focus);
 
+  const firstWeekday = useCalendar((s) => s.firstWeekday);
+  // A new day moves the coming week on, so the page reads again then too.
+  const today = startOfDay(now);
   useEffect(() => useCalendar.setState({ wide, width }), [wide, width]);
   useEffect(() => {
     void showMonth(month);
-  }, [month]);
+  }, [month, today, firstWeekday]);
   useEffect(
     () => () => {
       void showMonth(null);
       calendarView.reset();
-      useCalendar.setState({ revealing: null });
     },
     [],
   );
   // A new day brings the page back to today unless a day is chosen.
-  const today = startOfDay(now);
   useEffect(() => {
     if (useCalendar.getState().selectedDay === null) useCalendar.setState({ focus: Date.now() });
   }, [today]);
@@ -431,11 +432,19 @@ function Agenda({ now, width }: { now: number; width: number }) {
   const upNext = next(events, now);
 
   // Scrolls once to the countdown's event opened from the closed island.
+  // A tick later: the page's own read starts in its parent's effect, after
+  // this one, and the scroll waits for that read to arrive.
   useEffect(() => {
     if (!revealing || loading) return;
-    const target = list.current?.querySelector(`[data-event="${CSS.escape(revealing)}"]`);
-    target?.scrollIntoView({ block: "center", behavior: "instant" });
-    useCalendar.setState({ revealing: null });
+    const timer = setTimeout(() => {
+      const state = useCalendar.getState();
+      if (state.loading || state.revealing !== revealing) return;
+      const target = list.current?.querySelector(`[data-event="${CSS.escape(revealing)}"]`);
+      target?.scrollIntoView({ block: "center", behavior: "instant" });
+      // Once: the event is scrolled to, or isn't on the page.
+      useCalendar.setState({ revealing: null });
+    });
+    return () => clearTimeout(timer);
   }, [revealing, loading, events]);
 
   if (loading) return <Spinner />;
@@ -563,7 +572,7 @@ function PermissionCard() {
       <p>{access === "unavailable" ? C.unavailable : access === "denied" ? C.denied : C.permission}</p>
       {access === "unavailable" ? null : (
         <div className="cal-permission-actions">
-          {access === "denied" ? (
+          {access === "denied" || failed ? (
             <PillButton prominent onClick={() => void bridge.calendar.openPrivacySettings()}>
               {C.settings}
             </PillButton>

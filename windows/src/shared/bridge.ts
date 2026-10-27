@@ -141,7 +141,7 @@ export const bridge = {
     /** The month grid's days to read besides the coming week, or null for the week alone; answers once read. */
     showRange: (range: { start: number; end: number } | null) =>
       call<CalendarSnapshot>("calendar_show_range", { start: range?.start ?? null, end: range?.end ?? null }),
-    /** Windows' consent prompt; a sync command, so it runs on the UI thread. */
+    /** Windows' consent prompt, asked off the UI thread. */
     requestAccess: () => call<CalendarAccess>("calendar_request_access"),
     /** The appointment in the default calendar app, or the app itself without one. */
     open: (localId: string | null, instanceStart: number | null) =>
