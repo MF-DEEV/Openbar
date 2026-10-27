@@ -24,6 +24,7 @@ import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
 import { DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
 import { bridge, type AttentionContext } from "../shared/bridge";
 import { DeferredSessionAttention } from "../sessions/attention";
+import { automaticallyAllows, subscribeAutoAllow } from "../sessions/autoAllow";
 import { MicrophoneStrip, subscribeMicrophone } from "../microphone/Microphone";
 
 activityViews.microphone = MicrophoneStrip;
@@ -54,6 +55,7 @@ pages.downloads = { Page: DownloadsPage };
 activityViews.downloads = DownloadStrip;
 void subscribeDownloads();
 activityViews.sessions = SessionsStrip;
+subscribeAutoAllow();
 
 /** Sessions show beside the camera while any is working, waiting or done. */
 function syncSessionsActivity() {
@@ -76,7 +78,7 @@ function syncSessionsActivity() {
 
 useSessions.subscribe((s, prev) => {
   if (s.snapshot.counts !== prev.snapshot.counts || s.prefs.live !== prev.prefs.live) syncSessionsActivity();
-  if (s.snapshot !== prev.snapshot) syncPendingSessions();
+  if (s.snapshot !== prev.snapshot || s.autoAllow !== prev.autoAllow) syncPendingSessions();
 });
 useIsland.subscribe((s, prev) => {
   if (
@@ -131,6 +133,7 @@ const sessionAttention = new DeferredSessionAttention(
   (event) => {
     const session = useSessions.getState().snapshot.sessions.find((s) => s.id === event.id);
     if (!session || !session.phase.startsWith("waiting")) return undefined;
+    if (automaticallyAllows(session)) return undefined;
     return session.permission?.requestId ?? `${session.phase}:${session.phaseSince}`;
   },
   presentSessionEvent,

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { PermissionCard } from "./PermissionCard";
+import { AutoAllowButton } from "./AutoAllowButton";
 import { SessionAvatar, SubagentAvatar } from "./SessionAvatar";
 import { Wardrobe } from "./clawd/Wardrobe";
 import { resolvedCostume } from "./clawd/costume";
@@ -233,6 +234,10 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
           ) : null}
         </div>
 
+        {session.provider === "codex" &&
+        (!isWaiting(session.phase) || !session.permission || session.permission.questions.length > 0) ? (
+          <AutoAllowButton session={session} />
+        ) : null}
         {isWaiting(session.phase) ? <PermissionCard session={session} onOpen={() => void open()} /> : null}
 
         <div

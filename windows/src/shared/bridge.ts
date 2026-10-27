@@ -69,11 +69,11 @@ export const bridge = {
   /** Lets the window take the keyboard (and takes it now when `take`), or gives it back. */
   setFocusable: (focusable: boolean, take: boolean) => call("island_set_focusable", { focusable, take }),
   sessions: {
-    registerPermissionKey: async (key: "y" | "n", handler: (event: ShortcutEvent) => void) => {
-      if (inTauri) await register(`Control+${key.toUpperCase()}`, handler);
+    registerPermissionKey: async (key: "y" | "n" | "always", handler: (event: ShortcutEvent) => void) => {
+      if (inTauri) await register(key === "always" ? "Control+T" : `Control+${key.toUpperCase()}`, handler);
     },
-    unregisterPermissionKey: async (key: "y" | "n") => {
-      if (inTauri) await unregister(`Control+${key.toUpperCase()}`);
+    unregisterPermissionKey: async (key: "y" | "n" | "always") => {
+      if (inTauri) await unregister(key === "always" ? "Control+T" : `Control+${key.toUpperCase()}`);
     },
     onSnapshot(handler: (s: Snapshot) => void): Promise<UnlistenFn> {
       if (!inTauri) return Promise.resolve(() => {});

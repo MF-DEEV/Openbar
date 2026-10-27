@@ -93,6 +93,17 @@ it("releases both shortcuts when the card closes and ignores queued events", asy
   expect(decide).not.toHaveBeenCalled();
 });
 
+it("global Ctrl+T enables Always for the visible Codex session", async () => {
+  const codex = { ...session, provider: "codex" as const };
+  useSessions.setState({ snapshot: { ...demoSnapshot(), sessions: [codex] }, autoAllow: {} });
+  cleanup = subscribeGlobalPermissionKeys(codex.id, codex.permission!.requestId);
+  await flush();
+  press("always");
+  press("always");
+  expect(useSessions.getState().autoAllow[codex.id]).toBe(true);
+  expect(decide).not.toHaveBeenCalled();
+});
+
 it("keeps the settling delay and rejects replaced requests", async () => {
   useSessions.setState({ shownAt: { [session.permission!.requestId]: Date.now() / 1000 } });
   cleanup = subscribeGlobalPermissionKeys(session.id, session.permission!.requestId);
@@ -118,7 +129,7 @@ it("returns editor shortcuts while typing in the island and restores them on blu
   focused = false;
   window.dispatchEvent(new Event("blur"));
   await flush();
-  expect(handlers.size).toBe(2);
+  expect(handlers.size).toBe(3);
 });
 
 it("unregisters while fullscreen hides the island", async () => {
@@ -129,7 +140,7 @@ it("unregisters while fullscreen hides the island", async () => {
   expect(handlers.size).toBe(0);
   fullscreen(false);
   await flush();
-  expect(handlers.size).toBe(2);
+  expect(handlers.size).toBe(3);
 });
 
 it("cleans up registrations that finish after unmount before registering the next card", async () => {
@@ -146,7 +157,7 @@ it("cleans up registrations that finish after unmount before registering the nex
   cleanup = subscribeGlobalPermissionKeys(session.id, session.permission!.requestId);
   release();
   await flush();
-  expect(handlers.size).toBe(2);
+  expect(handlers.size).toBe(3);
   press("n");
   expect(decide).toHaveBeenCalledExactlyOnceWith(session, "deny");
 });

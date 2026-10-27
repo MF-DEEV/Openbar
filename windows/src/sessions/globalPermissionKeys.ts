@@ -3,7 +3,7 @@
 
 import { useIsland } from "../island/store";
 import { bridge } from "../shared/bridge";
-import { permissionKeyTarget } from "./permissionKeys";
+import { permissionKeyTarget, performPermissionKey, type PermissionKey } from "./permissionKeys";
 import { settled, useSessions } from "./store";
 
 // Serialize native registrations across cards, including React StrictMode remounts.
@@ -17,7 +17,7 @@ export function subscribeGlobalPermissionKeys(sessionId: string, requestId: stri
   let sending = false;
   let hidden = false;
   const held = new Set<string>();
-  const registered = new Set<"y" | "n">();
+  const registered = new Set<PermissionKey>();
   const hasEditor = () => document.hasFocus() && !!document.activeElement?.closest(editorSelector);
   const eligible = () =>
     !disposed &&
@@ -32,7 +32,7 @@ export function subscribeGlobalPermissionKeys(sessionId: string, requestId: stri
     desired = next;
     queue = queue
       .then(async () => {
-        for (const key of ["y", "n"] as const) {
+        for (const key of ["y", "n", "always"] as const) {
           if (desired && !disposed && !registered.has(key)) {
             try {
               await bridge.sessions.registerPermissionKey(key, (event) => {
@@ -46,8 +46,9 @@ export function subscribeGlobalPermissionKeys(sessionId: string, requestId: stri
                 const session = permissionKeyTarget(sessionId, requestId);
                 const state = useSessions.getState();
                 if (!session || !settled(state, session)) return;
+                if (key === "always" && session.provider !== "codex" && !session.permission!.offersAlways) return;
                 sending = true;
-                void state.decide(session, key === "y" ? "allow" : "deny").finally(() => {
+                void performPermissionKey(session, key).finally(() => {
                   sending = false;
                 });
               });
