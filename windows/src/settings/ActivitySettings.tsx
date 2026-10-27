@@ -4,7 +4,7 @@
 // Settings › Activity (NotchSettings.swift:540-639): the indicators the
 // closed island shows. Only those whose sections exist on Windows yet.
 
-import { Music, ArrowDownToLine, Mic } from "lucide-react";
+import { Music, ArrowDownToLine, Mic, Coffee, Volume2 } from "lucide-react";
 import { useSettings } from "./state";
 import { T } from "./strings";
 import { Group, Page, Row, Toggle } from "./ui";
@@ -49,6 +49,16 @@ export function ActivitySettings() {
             disabled={!musicShown}
             onChange={(on) => set("trackChange", on)}
           />
+        </Row>
+        <Row icon={Coffee} title={T.activity.keepAwake} caption={T.activity.keepAwakeCaption}>
+          <Toggle
+            label={T.activity.keepAwake}
+            checked={island.keepAwakeActivity}
+            onChange={(on) => set("keepAwakeActivity", on)}
+          />
+        </Row>
+        <Row icon={Volume2} title={T.activity.volume} caption={T.activity.volumeCaption}>
+          <Toggle label={T.activity.volume} checked={island.volumeNotice} onChange={(on) => set("volumeNotice", on)} />
         </Row>
         <p className="st-note">{T.activity.more}</p>
       </Group>

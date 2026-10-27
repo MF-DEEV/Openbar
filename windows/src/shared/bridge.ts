@@ -13,6 +13,7 @@ import type { MusicCommand, NowPlaying } from "../music/types";
 import type { Access, Inbox, Item } from "../notifications/types";
 import type { DownloadSnapshot } from "../downloads/types";
 import type { MicrophoneSnapshot } from "../microphone/model";
+import type { AudioState, BrightnessDisplay, KeepAwakeState } from "../audio/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 export interface AttentionContext {
@@ -140,6 +141,45 @@ export const bridge = {
     play: () => call("sound_play"),
     /** The chime every 2 s for up to 5 min, until turned off (timer, watch). */
     alarm: (key: string, on: boolean) => call("sound_alarm", { key, on }),
+  },
+  audio: {
+    state: () => call<AudioState>("audio_state"),
+    onState(handler: (state: AudioState) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<AudioState>("audio://state", (e) => handler(e.payload));
+    },
+    /** The output level moved without the island (keys, the system flyout, another app). */
+    onVolumeChanged(handler: (level: { volume: number; muted: boolean }) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<{ volume: number; muted: boolean }>("audio://volume-changed", (e) => handler(e.payload));
+    },
+    setOutput: (volume?: number, muted?: boolean) =>
+      call("audio_set_output", { volume: volume ?? null, muted: muted ?? null }),
+    setInput: (volume?: number, muted?: boolean) =>
+      call("audio_set_input", { volume: volume ?? null, muted: muted ?? null }),
+    /** Makes the device the default for every role. */
+    setDefault: (id: string) => call("audio_set_default", { id }),
+    setApp: (key: string, volume?: number, muted?: boolean) =>
+      call("audio_set_app", { key, volume: volume ?? null, muted: muted ?? null }),
+    /** The mixer page shows: apps and their peaks are read four times a second. */
+    watchApps: (on: boolean) => call("audio_watch_apps", { on }),
+    /** Mic Mute on every microphone; undefined toggles. Resolves to the new state. */
+    micMute: (muted?: boolean) => call<boolean>("mic_mute_set", { muted: muted ?? null }),
+  },
+  keepAwake: {
+    state: () => call<KeepAwakeState>("keep_awake_state"),
+    onState(handler: (state: KeepAwakeState) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<KeepAwakeState>("keepawake://state", (e) => handler(e.payload));
+    },
+    /** On for the duration picked in Settings, or off. */
+    toggle: () => call<KeepAwakeState>("keep_awake_toggle"),
+    /** Minutes starts a session (0 = until turned off); null ends it. */
+    set: (minutes: number | null) => call<KeepAwakeState>("keep_awake_set", { minutes }),
+  },
+  brightness: {
+    displays: () => call<BrightnessDisplay[]>("brightness_displays"),
+    set: (id: string, value: number) => call("brightness_set", { id, value }),
   },
   onForegroundApp(handler: (name: string) => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});
