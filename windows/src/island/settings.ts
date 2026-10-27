@@ -64,7 +64,24 @@ export interface IslandSettings {
   downloadProgress: boolean;
   microphoneStatus: boolean;
   downloadFolders: string[];
+  /** Clipboard history (clipboardHistory*; spec 05 §3.2). Off until the person turns it on. */
+  clipboardHistoryEnabled: boolean;
+  /** One of CLIPBOARD_LIMITS; 0 is unlimited. */
+  clipboardHistoryLimit: number;
+  /** One of CLIPBOARD_RETENTION_DAYS; 0 keeps entries. */
+  clipboardHistoryRetentionDays: number;
+  clipboardHistoryIncludeImagesFiles: boolean;
+  clipboardFilterSensitiveText: boolean;
+  /** Exe names whose copies are never saved ("KeePass.exe"). */
+  clipboardIgnoredApps: string[];
+  /** notchClipboardCardSize. */
+  clipboardCardSize: "compact" | "comfortable";
+  /** The "Copied" notice (notchClipboard). */
+  clipboardNotice: boolean;
 }
+
+export const CLIPBOARD_LIMITS = [20, 50, 100, 250, 500, 1000, 10000, 0];
+export const CLIPBOARD_RETENTION_DAYS = [1, 7, 30, 90, 365, 0];
 
 export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
   { id: "00000000-0000-4000-8000-000000000001", action: { kind: "explore" }, side: "left" },
@@ -110,6 +127,14 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   downloadProgress: true,
   microphoneStatus: true,
   downloadFolders: [],
+  clipboardHistoryEnabled: false,
+  clipboardHistoryLimit: 50,
+  clipboardHistoryRetentionDays: 0,
+  clipboardHistoryIncludeImagesFiles: true,
+  clipboardFilterSensitiveText: false,
+  clipboardIgnoredApps: [],
+  clipboardCardSize: "comfortable",
+  clipboardNotice: true,
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

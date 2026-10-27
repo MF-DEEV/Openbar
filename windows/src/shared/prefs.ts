@@ -8,7 +8,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { MODULES, type ModuleId } from "../island/modules";
-import { DEFAULT_SETTINGS, type IslandSettings, type QuickButton } from "../island/settings";
+import {
+  CLIPBOARD_LIMITS,
+  CLIPBOARD_RETENTION_DAYS,
+  DEFAULT_SETTINGS,
+  type IslandSettings,
+  type QuickButton,
+} from "../island/settings";
 import { inTauri } from "./bridge";
 
 /** The Sessions section's own preferences (spec 01-shell §7.2, sessions). */
@@ -54,6 +60,7 @@ const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
   opening: ["click", "hoverPreview", "hoverExpand", "hiddenUntilHover"],
   // "all" is a Mac choice the Windows island doesn't have yet.
   display: ["primary", "cursor"],
+  clipboardCardSize: ["compact", "comfortable"],
 };
 
 const KNOWN = new Set<string>(MODULES.map((m) => m.id));
@@ -104,6 +111,14 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
   if (island.homeModule !== undefined && island.homeModule !== "explore" && !KNOWN.has(island.homeModule)) {
     delete island.homeModule;
   }
+  // The Mac's choices only; any other number reads as the default.
+  if (island.clipboardHistoryLimit !== undefined && !CLIPBOARD_LIMITS.includes(island.clipboardHistoryLimit))
+    delete island.clipboardHistoryLimit;
+  if (
+    island.clipboardHistoryRetentionDays !== undefined &&
+    !CLIPBOARD_RETENTION_DAYS.includes(island.clipboardHistoryRetentionDays)
+  )
+    delete island.clipboardHistoryRetentionDays;
   return {
     island: {
       ...DEFAULT_SETTINGS,
@@ -113,6 +128,9 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
       ...(quickAccess ? { quickAccess } : {}),
       downloadFolders: Array.isArray(raw.downloadFolders)
         ? raw.downloadFolders.filter((v): v is string => typeof v === "string" && v.length > 0)
+        : [],
+      clipboardIgnoredApps: Array.isArray(raw.clipboardIgnoredApps)
+        ? raw.clipboardIgnoredApps.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
         : [],
       capsuleFit: { ...DEFAULT_SETTINGS.capsuleFit, ...checked(DEFAULT_SETTINGS.capsuleFit, raw.capsuleFit) },
       sections: { ...DEFAULT_SETTINGS.sections, ...sectionSwitches(raw.sections) },
