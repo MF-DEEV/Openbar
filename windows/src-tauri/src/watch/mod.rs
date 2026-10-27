@@ -591,10 +591,11 @@ pub fn watch_set_rule<R: Runtime>(
     let shared = app.state::<Shared>();
     let (generation, outcome) = {
         let mut inner = shared.inner.lock().unwrap();
-        let before = self::condition(&app, &inner);
         let mut reset = false;
         if let Some(condition) = condition {
-            reset |= condition != before;
+            // Against the running tracker's rule: the page saves the new one
+            // to the preferences first, so they already agree with it.
+            reset |= inner.tracker.as_ref().is_some_and(|t| t.condition() != condition);
             inner.condition = Some(condition);
         }
         let current = self::condition(&app, &inner);

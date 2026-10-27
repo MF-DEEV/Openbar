@@ -340,15 +340,19 @@ mod imp {
                 let texture: ID3D11Texture2D = unsafe { access.GetInterface()? };
                 let mut desc = D3D11_TEXTURE2D_DESC::default();
                 unsafe { texture.GetDesc(&mut desc) };
-                let w = (size.Width.max(1) as u32).min(desc.Width);
-                let h = (size.Height.max(1) as u32).min(desc.Height);
-                let last = match self.last.take() {
-                    Some(kept) if (kept.1, kept.2) == (w, h) => kept.0,
-                    _ => self.texture(w, h, false)?,
-                };
-                let whole = D3D11_BOX { left: 0, top: 0, front: 0, right: w, bottom: h, back: 1 };
-                unsafe { self.context.CopySubresourceRegion(&last, 0, 0, 0, 0, &texture, 0, Some(&whole)) };
-                self.last = Some((last, w, h));
+                let (w, h) = (size.Width.max(1) as u32, size.Height.max(1) as u32);
+                // A window that grew past the pool's buffers arrives cut to
+                // their old size: keep the last whole picture until the
+                // recreated pool sends one.
+                if w <= desc.Width && h <= desc.Height {
+                    let last = match self.last.take() {
+                        Some(kept) if (kept.1, kept.2) == (w, h) => kept.0,
+                        _ => self.texture(w, h, false)?,
+                    };
+                    let whole = D3D11_BOX { left: 0, top: 0, front: 0, right: w, bottom: h, back: 1 };
+                    unsafe { self.context.CopySubresourceRegion(&last, 0, 0, 0, 0, &texture, 0, Some(&whole)) };
+                    self.last = Some((last, w, h));
+                }
                 let _ = frame.Close();
                 // A resized window: the pool follows, the next frame fills it.
                 if (size.Width, size.Height) != (self.size.Width, self.size.Height) {

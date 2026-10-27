@@ -87,7 +87,9 @@ pub fn normalized(text: &str) -> String {
     use icu_normalizer::DecomposingNormalizerBorrowed;
     use icu_properties::CodePointMapData;
     use icu_properties::props::GeneralCategory;
-    let lower = text.to_lowercase();
+    // Case folding, as Foundation's: lower case, with the full foldings
+    // lowercasing leaves (ß as ss, a final sigma as σ).
+    let lower = text.to_lowercase().replace('ß', "ss").replace('ς', "σ");
     // Compatibility decomposition folds full- and half-width forms and
     // splits accents off their letters; the accents then drop.
     let decomposed = DecomposingNormalizerBorrowed::new_nfkd().normalize(&lower);
@@ -438,6 +440,11 @@ impl Tracker {
 
     /// Whether the rule can be met at all: a text to find or a number to
     /// reach must have been typed.
+    /// The condition this tracker was made for.
+    pub fn condition(&self) -> Condition {
+        self.condition
+    }
+
     pub fn is_ready(&self) -> bool {
         match self.condition {
             Condition::Changes | Condition::Settles => true,
@@ -594,6 +601,7 @@ mod tests {
         assert_eq!(normalized("ＤＯＮＥ！"), "done!");
         assert_eq!(normalized("Café   au\u{00A0}lait"), "cafe au lait");
         assert_eq!(normalized(" \n "), "");
+        assert_eq!(normalized("Straße"), normalized("STRASSE"));
     }
 
     #[test]

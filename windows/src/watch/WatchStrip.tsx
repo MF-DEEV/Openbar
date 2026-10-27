@@ -8,6 +8,7 @@
 // wide, when it holds no text. Clicking opens Watch.
 
 import { Eye, EyeOff } from "lucide-react";
+import { useReducedMotion } from "motion/react";
 import { useEffect, useRef } from "react";
 import { edgeInset } from "../island/geometry";
 import { useIsland } from "../island/store";
@@ -70,11 +71,10 @@ export function breath(seconds: number): { scale: number; opacity: number } {
   return { scale: 0.84 + 0.16 * b, opacity: 0.7 + 0.3 * b };
 }
 
-const reducedMotion = () => window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
-
 /** The watching eye: breathing at ≤ 30 fps while visible, still under reduced motion, crossed out while hidden. */
 export function WatchEye({ size, hidden }: { size: number; hidden: boolean }) {
   const ref = useRef<HTMLSpanElement>(null);
+  const reduced = useReducedMotion() ?? false;
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
@@ -82,7 +82,7 @@ export function WatchEye({ size, hidden }: { size: number; hidden: boolean }) {
       el.style.transform = "";
       el.style.opacity = "";
     };
-    if (hidden || reducedMotion()) return rest();
+    if (hidden || reduced) return rest();
     const start = performance.now();
     let frame = 0;
     let last = -Infinity;
@@ -100,7 +100,7 @@ export function WatchEye({ size, hidden }: { size: number; hidden: boolean }) {
       cancelAnimationFrame(frame);
       rest();
     };
-  }, [hidden]);
+  }, [hidden, reduced]);
   const Icon = hidden ? EyeOff : Eye;
   return (
     <span ref={ref} className="wt-eye" style={{ width: size + 2, height: size + 2, color: EYE_TINT }} aria-hidden>

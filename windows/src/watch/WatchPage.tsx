@@ -66,7 +66,7 @@ export function WatchPage({ height }: PageProps) {
     watch.pageVisible(true);
     return () => watch.pageVisible(false);
   }, []);
-  if (!s.target) return <Setup accessDenied={s.accessDenied} stacked={height >= STACKED_SETUP_HEIGHT} />;
+  if (!s.target) return <Setup stacked={height >= STACKED_SETUP_HEIGHT} />;
   return (
     <div className="wt-page">
       <AreaCard s={s} />
@@ -121,14 +121,14 @@ export function WatchTrailing() {
   );
 }
 
-function Setup({ accessDenied, stacked }: { accessDenied: boolean; stacked: boolean }) {
+function Setup({ stacked }: { stacked: boolean }) {
   return (
     <div className={`wt-setup${stacked ? " is-stacked" : ""}`}>
       <div className="n-empty-glyph" aria-hidden>
         <Eye size={26} strokeWidth={1.5} />
       </div>
       <div className="wt-setup-copy">
-        <p>{accessDenied ? S.permissionHint : S.setupHint}</p>
+        <p>{S.setupHint}</p>
         <PillButton prominent onClick={() => void watch.choose()}>
           {S.choose}
         </PillButton>
