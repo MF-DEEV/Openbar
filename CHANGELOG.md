@@ -16,6 +16,7 @@ All notable changes to this project are documented here. The format follows
 - Volume mixer sliders no longer jump back to the previous volume for a moment after you change them.
 - Command Bar opened inside Dynamic Island grows smoothly to its full size instead of stuttering as its list appears.
 - Quit Protection no longer quits the foreground app when you press Q on another app in the macOS Command-Tab switcher.
+- Dynamic Island's Sessions no longer lists Claude Code's own memory and suggestion helpers as subagents that never finish. Subagents end when their session goes idle, and a session whose subagent still works shows as working in the background instead of done.
 
 ### Contributors
 Thanks to @Chubi01, @EugeneCarldotme, @Memphizzz, @mr-tco and @npcmail010.

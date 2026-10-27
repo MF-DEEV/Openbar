@@ -241,6 +241,124 @@ enum ClaudeSessionEngineTests {
         ], now: at(10))
         lostEnd.ingest(records: [record(status: .idle, changed: 20)], now: at(20))
         suite.expect(only(lostEnd, 21)?.phase == .finished, "an end not read does not hold it once the registry goes idle")
+        // Claude Code reads busy while any subagent works, so once it rests
+        // none does, though the end of one was never read.
+        let rested = ClaudeSessionEngine()
+        rested.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        rested.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2)), .subagentActivity(id: "a2", at: at(3)),
+            .backgroundStarted(toolID: "t1", service: false, label: nil, at: at(2)), .backgroundTask(toolID: "t1", task: "a1"),
+            .turnEnded(at(10), completed: true),
+        ], now: at(10))
+        rested.ingest(records: [record(status: .idle, changed: 20)], now: at(20))
+        let restedAgents = only(rested, 21)?.subagents ?? []
+        suite.expect(restedAgents.count == 2 && restedAgents.allSatisfy { $0.finished == at(20) },
+                     "an idle registry ends the subagents still listed as working: \(restedAgents)")
+        rested.ingest(sessionID: "s1", facts: [.subagentActivity(id: "a2", at: at(30))], now: at(30))
+        suite.expect(only(rested, 31)?.subagents.first { $0.id == "a2" }?.isRunning == true,
+                     "one seen working after that works again")
+        rested.ingest(records: [record(status: .idle, changed: 20)], now: at(32))
+        suite.expect(only(rested, 33)?.subagents.first { $0.id == "a2" }?.isRunning == true,
+                     "and the registry that has not changed since does not end it again")
+        let shelled = ClaudeSessionEngine()
+        shelled.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        shelled.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2))], now: at(2))
+        shelled.ingest(records: [record(status: .shell, changed: 20)], now: at(20))
+        suite.expect(only(shelled, 21)?.subagents.first?.isRunning == false,
+                     "a registry that rests with only a command running ends them too")
+        let asking = ClaudeSessionEngine()
+        asking.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        asking.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2))], now: at(2))
+        asking.ingest(records: [record(status: .waiting, waitingFor: "permission prompt", changed: 20)], now: at(20))
+        suite.expect(only(asking, 21)?.subagents.first?.isRunning == true, "a session waiting on the person can still have them work")
+        let launched = ClaudeSessionEngine()
+        launched.ingest(records: [record(status: .idle, changed: 0)], now: at(0))
+        launched.ingest(sessionID: "s1", facts: [.turnBegan(at(5)), .subagentActivity(id: "a1", at: at(6))], now: at(6))
+        launched.ingest(records: [record(status: .idle, changed: 0)], now: at(7))
+        suite.expect(only(launched, 8)?.subagents.first?.isRunning == true,
+                     "a subagent that began after the registry last changed is not ended by it")
+        // A subagent's own subagents are sent off in its transcript, not the
+        // session's, yet keep the session busy all the same.
+        let nested = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        nested.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        nested.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2)),
+            .subagentInfo(id: "a1", type: "Explore", description: "Map the app"),
+        ], now: at(2))
+        _ = nested.snapshot(now: at(3))
+        nested.ingest(sessionID: "s1", facts: [.turnEnded(at(10), completed: true)], now: at(10))
+        let nestedState = nested.snapshot(now: at(11))
+        suite.expect(nestedState.sessions.first?.phase == .background && nestedState.events.isEmpty,
+                     "a turn that left a subagent working is not done, though no launch of it was read")
+        suite.expect(nestedState.sessions.first?.backgroundLabel == "Map the app", "and says which one works")
+        nested.ingest(sessionID: "s1", facts: [.subagentEnded(id: "a1", at: at(20))], now: at(20))
+        let nestedDone = nested.snapshot(now: at(21))
+        suite.expect(nestedDone.sessions.first?.phase == .finished
+                     && nestedDone.events.contains { if case .finished = $0 { return true }; return false },
+                     "once it ends, the turn is done, with a notice")
+        // A subagent's end read later than the session's, with the registry
+        // trailing both, still leaves the turn's end told.
+        let lag = ClaudeSessionEngine()
+        lag.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        lag.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2))], now: at(2))
+        _ = lag.snapshot(now: at(3))
+        lag.ingest(sessionID: "s1", facts: [.turnEnded(at(8), completed: true)], now: at(9))
+        suite.expect(lag.snapshot(now: at(9)).sessions.first?.phase == .background, "the subagent not yet seen end holds it")
+        lag.ingest(records: [record(status: .idle, changed: 9)], now: at(10))
+        let lagDone = lag.snapshot(now: at(10))
+        suite.expect(lagDone.sessions.first?.phase == .finished
+                     && lagDone.events.contains { if case .finished = $0 { return true }; return false },
+                     "once the registry rests, the turn is done, with a notice")
+        // A service never names the work; a subagent does, after a job it waits for.
+        let beside = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        beside.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        beside.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)),
+            .backgroundStarted(toolID: "t1", service: true, label: "Run own Metro", at: at(2)), .backgroundTask(toolID: "t1", task: "b1"),
+            .subagentActivity(id: "a1", at: at(3)), .subagentInfo(id: "a1", type: "Explore", description: "Map the app"),
+            .turnEnded(at(10), completed: true),
+        ], now: at(10))
+        let besideState = only(beside, 11)
+        suite.expect(besideState?.phase == .background && besideState?.backgroundLabel == "Map the app" && besideState?.services == 1,
+                     "beside a service the working subagent names the work")
+        beside.ingest(sessionID: "s1", facts: [
+            .backgroundStarted(toolID: "t2", service: false, label: "Render the videos", at: at(12)), .backgroundTask(toolID: "t2", task: "b2"),
+        ], now: at(12))
+        suite.expect(only(beside, 13)?.backgroundLabel == "Render the videos", "work it waits for is named before a subagent")
+        let unnamed = ClaudeSessionEngine()
+        unnamed.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        unnamed.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2)),
+            .subagentInfo(id: "a1", type: "Explore", description: "Map the app"), .turnEnded(at(10), completed: true),
+        ], now: at(10))
+        suite.expect(only(unnamed, 11).map { $0.phase == .background && $0.backgroundLabel == nil } == true,
+                     "without previews it still waits, but names nothing")
+        // The rest ends the background job a subagent was, but leaves a
+        // service running while only a command of its own runs.
+        let shelved = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        shelved.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        shelved.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2)),
+            .backgroundStarted(toolID: "t1", service: false, label: "Map the app", at: at(2)), .backgroundTask(toolID: "t1", task: "a1"),
+            .backgroundStarted(toolID: "t2", service: true, label: "Run own Metro", at: at(3)), .backgroundTask(toolID: "t2", task: "b2"),
+            .turnEnded(at(10), completed: true),
+        ], now: at(10))
+        suite.expect(only(shelved, 11)?.backgroundLabel == "Map the app", "while the subagent's job runs it is named")
+        shelved.ingest(records: [record(status: .shell, changed: 20)], now: at(20))
+        let shelvedState = only(shelved, 21)
+        suite.expect(shelvedState.map { $0.phase == .finished && $0.services == 1 && $0.backgroundLabel == nil } == true,
+                     "once the registry rests, the subagent's job ends and only the service is left")
+        // Idle, not even a command of its own runs, so a job whose end was
+        // never read does not hold a later turn.
+        lostEnd.ingest(sessionID: "s1", facts: [.turnBegan(at(30)), .turnEnded(at(40), completed: true)], now: at(40))
+        lostEnd.ingest(records: [record(status: .busy, changed: 30)], now: at(40))
+        suite.expect(only(lostEnd, 41)?.phase == .finished, "an idle registry ends every job begun before it")
+        // Subagents first read after the registry came to rest ended by then.
+        let readLate = ClaudeSessionEngine()
+        readLate.ingest(records: [record(status: .idle, changed: 20)], now: at(20))
+        readLate.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2)),
+                                                 .turnEnded(at(10), completed: true)], now: at(20))
+        suite.expect(only(readLate, 21)?.subagents.first?.finished == at(20), "a subagent read after the rest is ended by it")
 
         let unseen = ClaudeSessionEngine()
         unseen.ingest(records: [record(status: .shell, changed: 0)], now: at(0))
@@ -437,6 +555,26 @@ enum ClaudeSessionEngineTests {
                      "the subagent is listed as running")
         sub.ingest(hook: hook(.subagentStopped(id: "a1"), 5, agent: "a1"), now: at(5))
         suite.expect(only(sub, 6)?.subagents.first?.isRunning == false, "and as done once it stops")
+        // Claude Code's own forks, like the one that saves memories, run
+        // tools under an agent id of their own, but never start or stop as
+        // subagents and keep no transcript.
+        let fork = ClaudeSessionEngine()
+        fork.ingest(records: [record(status: .idle, changed: 0)], now: at(0))
+        fork.ingest(hook: hook(.toolStarted(tool("f1", 2, "Read")), 2, agent: "a9"), now: at(2))
+        fork.ingest(hook: hook(.toolFinished(id: "f1", failed: false), 3, agent: "a9"), now: at(3))
+        suite.expect(only(fork, 4)?.subagents.isEmpty == true, "a fork's tools list no subagent")
+        fork.ingest(sessionID: "s1", facts: [.subagentActivity(id: "a9", at: at(5))], now: at(5))
+        suite.expect(only(fork, 6)?.subagents.map(\.id) == ["a9"], "one whose transcript turns up is listed")
+        // A hook is dated when it arrived, so a late one does not keep a
+        // subagent working past the registry's rest; its transcript does.
+        let settled = ClaudeSessionEngine()
+        settled.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        settled.ingest(hook: hook(.subagentStarted(id: "a1", type: "Explore"), 1), now: at(1))
+        settled.ingest(hook: hook(.toolStarted(tool("g1", 7, "Grep")), 7, agent: "a1"), now: at(7))
+        settled.ingest(records: [record(status: .idle, changed: 5)], now: at(8))
+        suite.expect(only(settled, 9)?.subagents.first?.finished == at(5), "a hook that arrived late does not hold it")
+        settled.ingest(sessionID: "s1", facts: [.subagentActivity(id: "a1", at: at(10))], now: at(10))
+        suite.expect(only(settled, 11)?.subagents.first?.isRunning == true, "its transcript working later does")
     }
 
     // MARK: Images
