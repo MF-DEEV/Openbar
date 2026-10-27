@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { bridge, inTauri } from "../shared/bridge";
 import { arrivalTime, type Size } from "./motion";
 import { MODULES } from "./modules";
+import { closeTopLayer } from "./pageLayer";
 import {
   type ActivityId,
   type ContentTransition,
@@ -60,7 +61,7 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
     if (!el) return;
     const onDown = (e: MouseEvent) => {
       const s = useIsland.getState();
-      if (s.expanded && !s.pinned && !(e.target as Element).closest(".island-frame, .n-quick")) s.collapse();
+      if (s.expanded && !s.pinned && !(e.target as Element).closest(".island-frame, .n-quick, .u-menu")) s.collapse();
     };
     el.addEventListener("mouseenter", pointerEnter);
     el.addEventListener("mouseleave", pointerExit);
@@ -81,7 +82,7 @@ function useKeyboard() {
       if (!s.expanded) return;
       if (e.key === "Escape" && !e.isComposing) {
         e.preventDefault();
-        s.stepBack();
+        if (!closeTopLayer()) s.stepBack();
         return;
       }
       if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === "k") {

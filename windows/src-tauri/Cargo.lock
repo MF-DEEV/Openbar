@@ -4281,6 +4281,7 @@ dependencies = [
  "image",
  "interprocess",
  "memchr",
+ "png",
  "regex",
  "serde",
  "serde_json",

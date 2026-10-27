@@ -8,6 +8,7 @@ import { inTauri } from "../shared/bridge";
 import { ClawdPreview } from "../sessions/clawd/ClawdPreview";
 import "./island.css";
 import "../shared/controls.css";
+import "../shared/ui/ui.css";
 
 const dev = inTauri ? null : new URLSearchParams(location.search);
 

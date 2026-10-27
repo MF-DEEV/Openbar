@@ -131,6 +131,16 @@ export const bridge = {
       return listen<DownloadSnapshot>("downloads://snapshot", (event) => handler(event.payload));
     },
   },
+  shell: {
+    /** A PNG data URL: the file's icon, or its thumbnail when `thumbnail`. */
+    icon: (path: string, size: number, thumbnail = false) =>
+      call<string | null>("shell_icon", { path, size, thumbnail }),
+  },
+  sound: {
+    play: () => call("sound_play"),
+    /** The chime every 2 s for up to 5 min, until turned off (timer, watch). */
+    alarm: (key: string, on: boolean) => call("sound_alarm", { key, on }),
+  },
   onForegroundApp(handler: (name: string) => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});
     return listen<string>("bar://foreground-app", (e) => handler(e.payload));

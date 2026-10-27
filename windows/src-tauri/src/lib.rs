@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 mod bar;
+mod com;
 mod downloads;
 mod discord_storage;
 mod discord_keys;
@@ -16,6 +17,8 @@ mod notifications;
 mod prefs;
 mod sessions;
 mod settings;
+mod shell;
+mod sound;
 mod tray;
 
 use tauri::{Emitter, Manager, RunEvent};
@@ -126,6 +129,9 @@ pub fn run() {
             sessions::service::sessions_image,
             sessions::attachments::sessions_attach_image,
             sessions::attachments::sessions_clipboard_images,
+            shell::shell_icon,
+            sound::sound_play,
+            sound::sound_alarm,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]

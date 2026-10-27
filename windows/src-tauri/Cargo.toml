@@ -32,6 +32,7 @@ unicode-segmentation = "1"
 getrandom = "0.3"
 tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 base64 = "0.22"
+png = "0.18"
 image = { version = "0.25", default-features = false, features = ["png", "bmp"] }
 
 [target.'cfg(windows)'.dependencies]
@@ -49,6 +50,7 @@ windows = { version = "0.62", features = [
   "UI_Notifications",
   "UI_Notifications_Management",
   "Win32_Foundation",
+  "Win32_Graphics_Gdi",
   "Win32_Media_Audio",
   "Win32_Media_Audio_Endpoints",
   "Win32_System_Com_StructuredStorage",
