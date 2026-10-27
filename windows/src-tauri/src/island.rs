@@ -207,7 +207,9 @@ fn watch_pointer<R: Runtime>(app: AppHandle<R>) {
                 continue;
             };
             let state = app.state::<IslandState>();
-            let inside = state.rects.lock().unwrap().iter().any(|r| r.contains(x, y));
+            // A screen selection covers the display: the island stays out of it.
+            let selecting = app.get_webview_window(crate::capture::LABEL).is_some();
+            let inside = !selecting && state.rects.lock().unwrap().iter().any(|r| r.contains(x, y));
             let wants_input = inside || *state.capture.lock().unwrap();
             if wants_input != taking_input {
                 taking_input = wants_input;

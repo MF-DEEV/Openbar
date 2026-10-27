@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 mod bar;
+mod capture;
 mod com;
 mod downloads;
 mod discord_storage;
@@ -14,11 +15,14 @@ mod media;
 mod media_volume;
 mod microphone;
 mod notifications;
+mod ocr;
 mod prefs;
+mod scratchpad;
 mod sessions;
 mod settings;
 mod shell;
 mod sound;
+mod toggles;
 mod tray;
 
 use tauri::{Emitter, Manager, RunEvent};
@@ -91,6 +95,7 @@ pub fn run() {
         .manage(microphone::Shared::default())
         .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
+        .manage(capture::Shared::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -132,12 +137,24 @@ pub fn run() {
             shell::shell_icon,
             sound::sound_play,
             sound::sound_alarm,
+            capture::capture_run,
+            capture::capture_session,
+            capture::capture_pixels,
+            capture::capture_ready,
+            capture::capture_commit,
+            capture::tools_copy_text,
+            toggles::toggles_state,
+            toggles::toggles_run,
+            scratchpad::scratchpad_load,
+            scratchpad::scratchpad_save,
+            scratchpad::scratchpad_export,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             // Loaded before the island exists, so its first prefs_get finds them.
             app.manage(prefs::Prefs::load(app.handle()));
+            app.manage(scratchpad::Store::new(app.handle()));
             island::create(app.handle())?;
             fullscreen::watch(app.handle());
             microphone::start(app.handle().clone(), app.state::<microphone::Shared>().inner().clone());
