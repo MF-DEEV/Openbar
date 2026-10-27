@@ -18,6 +18,7 @@ import { CalendarOptions } from "./CalendarSettings";
 import { ControlsOptions, MixerOptions } from "./ControlsSettings";
 import { ScratchpadOptions, ToolsOptions } from "./ToolsSettings";
 import { ClipboardOptions } from "./ClipboardSettings";
+import { AgentsOptions } from "./AgentsSettings";
 import { useSettings } from "./state";
 import { T } from "./strings";
 import { Expander, Group, Page, Row, Select, SubRow, Toggle } from "./ui";
@@ -143,6 +144,7 @@ const ON_WINDOWS: ModuleId[] = [
   "scratchpad",
   "clipboard",
   "files",
+  "agents",
 ];
 
 function DownloadOptions() {
@@ -195,6 +197,8 @@ function Options({ id }: { id: ModuleId }) {
       return <ScratchpadOptions />;
     case "clipboard":
       return <ClipboardOptions />;
+    case "agents":
+      return <AgentsOptions />;
     case "music":
       return (
         <>

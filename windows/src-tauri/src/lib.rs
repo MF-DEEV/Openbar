@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 mod audio;
+mod agent_usage;
 mod bar;
 mod calendar;
 mod brightness;
@@ -57,6 +58,11 @@ pub fn microphone_probe_main(path: &str) -> ! {
     microphone::probe_main(path)
 }
 
+/// `Vorssaint.exe --agents-probe <file> [--limits]`: what the AI page would read.
+pub fn agents_probe_main(path: &str, limits: bool) -> ! {
+    agent_usage::probe_main(path, limits)
+}
+
 pub fn notifications_probe_main(path: &str) -> ! {
     notifications::probe_main(path)
 }
@@ -110,6 +116,7 @@ pub fn run() {
         .manage(keep_awake::Shared::default())
         .manage(capture::Shared::default())
         .manage(clipboard::Shared::default())
+        .manage(agent_usage::State::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -207,6 +214,10 @@ pub fn run() {
             files::files_zip,
             files::files_zip_cancel,
             files::files_kind,
+            agent_usage::agents_snapshot,
+            agent_usage::agents_page_visible,
+            agent_usage::agents_resets_refresh,
+            agent_usage::agents_resets_redeem,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -233,6 +244,7 @@ pub fn run() {
             calendar::start(app.handle().clone(), app.state::<calendar::Shared>().inner().clone());
             audio::start(app.handle().clone(), app.state::<audio::Shared>().inner().clone());
             clipboard::start(app.handle().clone(), app.state::<clipboard::Shared>().inner().clone());
+            agent_usage::start(app.handle().clone(), app.state::<agent_usage::State>().inner().clone());
             let prefs = app.state::<prefs::Prefs>().get();
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;

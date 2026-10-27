@@ -38,6 +38,7 @@ sha2 = "0.10"
 tauri-plugin-dialog = "2"
 zip = { version = "8.6", default-features = false, features = ["deflate-flate2-zlib-rs", "time"] }
 time = { version = "0.3", features = ["local-offset"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 
 [target.'cfg(windows)'.dependencies]
 uds_windows = "1"
@@ -47,6 +48,7 @@ webview2-com = "0.39"
 windows-core = "0.62"
 windows-collections = "0.3"
 windows = { version = "0.62", features = [
+  "Win32_Networking_WinHttp",
   "ApplicationModel",
   "ApplicationModel_Appointments",
   "ApplicationModel_DataTransfer",
@@ -114,7 +116,6 @@ windows = { version = "0.62", features = [
   "Win32_UI_Shell_PropertiesSystem",
   "Win32_UI_WindowsAndMessaging",
 ] }
-
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

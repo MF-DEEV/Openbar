@@ -151,7 +151,7 @@ export const T = {
     camera: "A mirror to check yourself before a call.",
     downloads: "Downloads in progress and just finished.",
     scratchpad: "Quick notes that save by themselves.",
-    agents: "Claude Code and Codex usage, limits and costs.",
+    agents: "Plan limits, tokens and API value of Claude, Codex, OpenCode and GitHub Copilot.",
     sessions: "Running Claude Code and Codex sessions, and what each one needs from you.",
     watch: "Any part of a window, read live, with an alert when it changes.",
   },
@@ -171,6 +171,9 @@ export const T = {
       "A running session shows in the closed island with the time it has left, or ∞ when it has no end.",
     volume: "Volume",
     volumeCaption: "The new level for a moment when it changes with the volume keys or from another app.",
+    agents: "AI agent at work",
+    agentsCaption:
+      "While Claude Code, Codex, OpenCode or GitHub Copilot works, its mark and the reading you chose beside the camera.",
   },
   behavior: {
     opening: "Opening",
@@ -310,6 +313,11 @@ export const T = {
     comfortable: "Comfortable",
     notice: "Notify when something is copied",
     noticeCaption: "Copied content stays private until you open the clipboard.",
+  },
+  agents: {
+    cardsKeys: "Alt+arrow keys move the focused card.",
+    cardShown: "shown",
+    cardHidden: "hidden",
   },
   saveFailed: "Couldn't save this change.",
 } as const;

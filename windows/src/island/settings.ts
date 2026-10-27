@@ -10,6 +10,7 @@ import type { LayoutPreset, Silhouette } from "./geometry";
 import type { ModuleId } from "./modules";
 import type { MonitorMetric, NetworkSpeedUnit } from "../system/types";
 import { DEFAULT_HIDDEN_CONTROLS, type ControlItem } from "../controls/types";
+import type { AgentCard, AgentPeriod, AgentReadout, LimitDisplay, LimitFocus } from "../agents/types";
 
 export type QuickSide = "left" | "right" | "bottom";
 export type QuickAction =
@@ -144,6 +145,31 @@ export interface IslandSettings {
   shelfRemoveAfterDrop: boolean;
   /** Files: the island closes once another app accepts dragged tiles. */
   shelfCloseAfterDrop: boolean;
+  // AI Agents (spec 03 §11; the Mac's notchAgents* keys).
+  /** Read each agent's logs; at least one stays on. */
+  agentsClaude: boolean;
+  agentsCodex: boolean;
+  agentsOpenCode: boolean;
+  agentsCopilot: boolean;
+  /** The cards' order; cards it leaves out follow in their default order. */
+  agentsCardOrder: AgentCard[];
+  agentsHiddenCards: AgentCard[];
+  /** The period Spending, Trend, Models and Projects cover. */
+  agentsPeriod: AgentPeriod;
+  agentsLimitDisplay: LimitDisplay;
+  agentsLimitFocus: LimitFocus;
+  /** The closed island shows an agent at work. */
+  agentsLiveActivity: boolean;
+  agentsReadout: AgentReadout;
+  agentsFinishAlert: boolean;
+  /** Seconds: the shortest turn worth a notice. */
+  agentsFinishMinimum: number;
+  agentsLimitAlert: boolean;
+  /** Percent used that earns a warning. */
+  agentsLimitThreshold: number;
+  /** USD of API value a day; 0 is off. */
+  agentsDailyBudget: number;
+  agentsPriceUpdates: boolean;
 }
 
 export const CLIPBOARD_LIMITS = [20, 50, 100, 250, 500, 1000, 10000, 0];
@@ -239,6 +265,23 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   dragReveal: true,
   shelfRemoveAfterDrop: true,
   shelfCloseAfterDrop: false,
+  agentsClaude: true,
+  agentsCodex: true,
+  agentsOpenCode: true,
+  agentsCopilot: true,
+  agentsCardOrder: [],
+  agentsHiddenCards: [],
+  agentsPeriod: "today",
+  agentsLimitDisplay: "remaining",
+  agentsLimitFocus: "mostUsed",
+  agentsLiveActivity: true,
+  agentsReadout: "elapsed",
+  agentsFinishAlert: true,
+  agentsFinishMinimum: 60,
+  agentsLimitAlert: true,
+  agentsLimitThreshold: 80,
+  agentsDailyBudget: 0,
+  agentsPriceUpdates: true,
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

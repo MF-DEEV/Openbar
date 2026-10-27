@@ -18,6 +18,7 @@ import {
 import { inTauri } from "./bridge";
 import { MONITOR_METRICS, type MonitorMetric } from "../system/types";
 import { CONTROL_ITEMS, type ControlItem } from "../controls/types";
+import { AGENT_CARDS, type AgentCard } from "../agents/types";
 
 /** The Sessions section's own preferences (spec 01-shell §7.2, sessions). */
 export interface SessionPrefs {
@@ -67,6 +68,10 @@ const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
   colorPickerFormat: ["hex", "rgb", "hsl"],
   scratchpadRetention: ["never", "day", "week", "month"],
   clipboardCardSize: ["compact", "comfortable"],
+  agentsPeriod: ["today", "week", "month"],
+  agentsLimitDisplay: ["remaining", "used"],
+  agentsLimitFocus: ["mostUsed", "session", "weekly"],
+  agentsReadout: ["elapsed", "tokens", "cost", "limit"],
 };
 
 /** Lists of ids or names: strings only, each once. */
@@ -81,6 +86,12 @@ const KNOWN = new Set<string>(MODULES.map((m) => m.id));
 function moduleList(value: unknown): ModuleId[] | undefined {
   if (!Array.isArray(value)) return undefined;
   return [...new Set(value.filter((id): id is ModuleId => typeof id === "string" && KNOWN.has(id)))];
+}
+
+/** Known AI page cards, each once. */
+function cardList(value: unknown): AgentCard[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return [...new Set(value.filter((id): id is AgentCard => AGENT_CARDS.includes(id as AgentCard)))];
 }
 
 /** Takes from `stored` only what has the default's type (and a known value), so a hand-edited file can't break a window. */
@@ -145,6 +156,17 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
   const moduleOrder = moduleList(raw.moduleOrder);
   const controlOrder = controlList(raw.controlOrder);
   const hiddenControls = controlList(raw.hiddenControls);
+  const agentsCardOrder = cardList(raw.agentsCardOrder);
+  const agentsHiddenCards = cardList(raw.agentsHiddenCards);
+  // Clamped as the Mac reads them (NotchAgentSupport.finishMinimum, limitThreshold, dailyBudget).
+  if (island.agentsFinishMinimum !== undefined)
+    island.agentsFinishMinimum = Math.min(3600, Math.max(0, island.agentsFinishMinimum));
+  if (island.agentsLimitThreshold !== undefined)
+    island.agentsLimitThreshold = Math.min(100, Math.max(1, island.agentsLimitThreshold));
+  if (island.agentsDailyBudget !== undefined) island.agentsDailyBudget = Math.max(0, island.agentsDailyBudget);
+  // At least one agent stays read, as the usage service treats none (agent_usage::settings).
+  const agents = ["agentsClaude", "agentsCodex", "agentsOpenCode", "agentsCopilot"] as const;
+  if (agents.every((key) => island[key] === false)) agents.forEach((key) => delete island[key]);
   if (island.homeModule !== undefined && island.homeModule !== "explore" && !KNOWN.has(island.homeModule)) {
     delete island.homeModule;
   }
@@ -167,6 +189,8 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
       ...(hiddenControls ? { hiddenControls } : {}),
       mixerAppArrangement: arrangement(raw.mixerAppArrangement),
       mixerHiddenApps: hiddenApps(raw.mixerHiddenApps),
+      ...(agentsCardOrder ? { agentsCardOrder } : {}),
+      ...(agentsHiddenCards ? { agentsHiddenCards } : {}),
       downloadFolders: Array.isArray(raw.downloadFolders)
         ? raw.downloadFolders.filter((v): v is string => typeof v === "string" && v.length > 0)
         : [],
