@@ -122,7 +122,7 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>>
     Ok(window)
 }
 
-/// Spans the chosen display's width and most of its height, from its top
+/// Spans the chosen display, from its top
 /// edge: room for the largest page, the floating buttons beside and below
 /// it, and the island's swing. Transparent and click-through outside the
 /// island, so its size costs nothing the person can notice, and it never
@@ -149,7 +149,9 @@ fn move_to<R: Runtime>(window: &WebviewWindow<R>, monitor: &tauri::Monitor) -> t
     let scale = monitor.scale_factor();
     let size = monitor.size();
     let width = size.width as f64 / scale;
-    let height = (size.height as f64 / scale * 0.8 + 96.0).min(size.height as f64 / scale);
+    // Keep one stable transparent canvas. Opening a popup must not resize
+    // the native window or trigger fullscreen transitions in the shell.
+    let height = size.height as f64 / scale;
     window.set_size(LogicalSize::new(width, height))?;
     window.set_position(PhysicalPosition::new(
         monitor.position().x,
@@ -274,7 +276,8 @@ pub fn show_in_captures<R: Runtime>(app: &AppHandle<R>, show: bool) {
 mod platform {
     use super::IslandState;
     use tauri::{Runtime, WebviewWindow};
-    use windows::Win32::Foundation::HWND;
+    use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+    use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON,
     };
@@ -282,7 +285,29 @@ mod platform {
         GWL_EXSTYLE, GetForegroundWindow, GetWindowLongPtrW, IsWindow, SetForegroundWindow,
         SetWindowDisplayAffinity, SetWindowLongPtrW, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
         WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
+        WS_EX_APPWINDOW, WM_STYLECHANGING, STYLESTRUCT,
     };
+
+    pub(super) fn overlay_style(style: u32) -> u32 {
+        (style | WS_EX_TOOLWINDOW.0) & !WS_EX_APPWINDOW.0
+    }
+
+    /// Tao rebuilds extended styles when mouse hit testing changes. Preserve
+    /// the tool-window flag *before* those styles reach Windows: otherwise an
+    /// interactive, display-sized canvas looks opaque to browser occlusion
+    /// tracking and video underneath can stop rendering.
+    unsafe extern "system" fn preserve_overlay_style(
+        hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM,
+        _id: usize, _data: usize,
+    ) -> LRESULT {
+        if message == WM_STYLECHANGING && wparam.0 as i32 == GWL_EXSTYLE.0 {
+            let styles = lparam.0 as *mut STYLESTRUCT;
+            if !styles.is_null() {
+                unsafe { (*styles).styleNew = overlay_style((*styles).styleNew); }
+            }
+        }
+        unsafe { DefSubclassProc(hwnd, message, wparam, lparam) }
+    }
 
     /// Left out of screenshots and recordings when the person asks.
     pub fn show_in_captures<R: Runtime>(window: &WebviewWindow<R>, show: bool) {
@@ -304,11 +329,12 @@ mod platform {
     pub fn style<R: Runtime>(window: &WebviewWindow<R>) {
         let Ok(hwnd) = window.hwnd() else { return };
         unsafe {
+            let _ = SetWindowSubclass(hwnd, Some(preserve_overlay_style), 3, 0);
             let ex = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
             SetWindowLongPtrW(
                 hwnd,
                 GWL_EXSTYLE,
-                ex | WS_EX_TOOLWINDOW.0 as isize | WS_EX_NOACTIVATE.0 as isize,
+                overlay_style(ex as u32) as isize | WS_EX_NOACTIVATE.0 as isize,
             );
         }
     }
@@ -388,6 +414,30 @@ mod platform {
 #[cfg(test)]
 mod tests {
     use super::HitRect;
+
+    #[cfg(windows)]
+    #[test]
+    fn mouse_and_focus_style_updates_keep_the_video_overlay_non_occluding() {
+        use windows::Win32::UI::WindowsAndMessaging::{
+            WS_EX_APPWINDOW, WS_EX_LAYERED, WS_EX_NOACTIVATE, WS_EX_NOREDIRECTIONBITMAP,
+            WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT,
+        };
+        let base = WS_EX_TOPMOST.0 | WS_EX_NOREDIRECTIONBITMAP.0;
+        // Closing, hovering, clicking, focusing an input and leaving the island
+        // all rebuild this style in Tao; each must remain a tool window.
+        for generated in [
+            base | WS_EX_LAYERED.0 | WS_EX_TRANSPARENT.0 | WS_EX_NOACTIVATE.0,
+            base,
+            base | WS_EX_APPWINDOW.0,
+            base | WS_EX_NOACTIVATE.0,
+        ] {
+            let actual = super::platform::overlay_style(generated);
+            assert_ne!(actual & WS_EX_TOOLWINDOW.0, 0);
+            assert_eq!(actual & WS_EX_APPWINDOW.0, 0);
+            assert_eq!(actual & !(WS_EX_TOOLWINDOW.0 | WS_EX_APPWINDOW.0),
+                generated & !(WS_EX_TOOLWINDOW.0 | WS_EX_APPWINDOW.0));
+        }
+    }
 
     fn rect(top: f64, bottom: f64) -> HitRect {
         HitRect {

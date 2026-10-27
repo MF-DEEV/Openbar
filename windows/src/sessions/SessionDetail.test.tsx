@@ -44,6 +44,42 @@ it("renders user messages and agent replies in order", () => {
   expect(html.match(/Last answer/g)).toHaveLength(1);
 });
 
+it("replaces image labels with thumbnail controls in the compact title and conversation", () => {
+  const session = {
+    ...demoSnapshot().sessions[0]!,
+    title: "[Image #1]",
+    chat: [{ id: 1, role: "user" as const, text: "[Image #1]", images: ["C:\\photo.png"], at: 1, endsTurn: false }],
+  };
+  for (const enlarged of [false, true]) {
+    const html = renderToStaticMarkup(<SessionDetail session={session} enlarged={enlarged} />);
+    expect(html).toContain('aria-label="Open image 1"');
+    expect(html).not.toContain("[Image #1]");
+  }
+  useSessions.setState((s) => ({ snapshot: { ...s.snapshot, previews: false } }));
+  expect(renderToStaticMarkup(<SessionDetail session={session} enlarged />)).not.toContain('aria-label="Open image 1"');
+});
+
+it("keeps image labels when the original attachment is unavailable", () => {
+  const session = { ...demoSnapshot().sessions[0]!, title: "[Image #1]", chat: [] };
+  expect(renderToStaticMarkup(<SessionDetail session={session} />)).toContain("[Image #1]");
+});
+
+it("shows pasted images in the composer and allows an image-only reply", () => {
+  const session = { ...demoSnapshot().sessions[0]!, phase: "idle" as const, permission: undefined };
+  useSessions.setState({
+    drafts: {},
+    attachments: {
+      [session.id]: [{ path: "C:\\photo.png", preview: "data:image/png;base64,abc" }],
+    },
+  });
+  const html = renderToStaticMarkup(<SessionDetail session={session} />);
+  expect(html).toContain('aria-label="Attached images"');
+  expect(html).toContain('aria-label="Remove image 1"');
+  expect(html).toContain('class="s-send is-ready"');
+  useSessions.getState().removeAttachment(session.id, "C:\\photo.png");
+  expect(useSessions.getState().attachments[session.id]).toEqual([]);
+});
+
 it("hides conversation content when previews are off and offers to enable it", () => {
   useSessions.setState((s) => ({ snapshot: { ...s.snapshot, previews: false } }));
   const session = {

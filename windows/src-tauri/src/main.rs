@@ -1,7 +1,12 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
-#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// The island must never own a console, including locally installed debug builds.
+// Closing a console owned by this process would also terminate the island.
+#![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--notifications-probe") {
+        let path = std::env::args().nth(2).unwrap_or_else(|| "notifications-probe.json".into());
+        vorssaint_windows_lib::notifications_probe_main(&path);
+    }
     if std::env::args().nth(1).as_deref() == Some("--hook") {
         vorssaint_windows_lib::hook_main();
     }

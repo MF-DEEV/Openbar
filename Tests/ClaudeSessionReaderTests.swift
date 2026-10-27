@@ -2,11 +2,13 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import ImageIO
 
 enum ClaudeSessionReaderTests {
     static func run(_ suite: TestSuite) {
         suite.run("sessions registry") { registry(suite) }
         suite.run("sessions transcript") { transcript(suite) }
+        suite.run("sessions prompt images") { promptImages(suite) }
         suite.run("sessions hosts") { hosts(suite) }
     }
 
@@ -71,6 +73,97 @@ enum ClaudeSessionReaderTests {
         suite.expect(ClaudeSessionRegistryReader.folders(home).map(\.path)
                      == ["/Users/me/.claude/sessions", "/Users/me/.config/claude/sessions"],
                      "both Claude Code homes are read")
+    }
+
+    // MARK: Prompt images
+
+    /// A real PNG of the given size, as a paste would carry.
+    static func png(width: Int, height: Int) -> Data {
+        let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        context.setFillColor(CGColor(red: 0.2, green: 0.6, blue: 0.9, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        let output = NSMutableData()
+        let destination = CGImageDestinationCreateWithData(output, "public.png" as CFString, 1, nil)!
+        CGImageDestinationAddImage(destination, context.makeImage()!, nil)
+        CGImageDestinationFinalize(destination)
+        return output as Data
+    }
+
+    static func imageBlock(_ data: String, type: String = "base64", media: String = "image/png") -> String {
+        #"{"type":"image","source":{"type":"\#(type)","media_type":"\#(media)","data":"\#(data)"}}"#
+    }
+
+    static func userLine(_ blocks: [String], at time: String = "2026-10-21T18:00:00.000Z", extra: String = "") -> String {
+        #"{"type":"user","message":{"role":"user","content":[\#(blocks.joined(separator: ","))]},"timestamp":"\#(time)"\#(extra)}"#
+    }
+
+    static func promptImages(_ suite: TestSuite) {
+        let at = AgentLogParser.timestamp("2026-10-21T18:00:00.000Z")!
+        let wide = png(width: 2000, height: 1000).base64EncodedString()
+        let small = png(width: 40, height: 30).base64EncodedString()
+        func prompts(_ facts: [ClaudeTranscriptFact]) -> [(text: String, images: [ClaudeChatImage])] {
+            facts.compactMap { if case .prompt(let text, _, let images) = $0 { return (text, images) }; return nil }
+        }
+
+        let alone = userLine([imageBlock(wide)])
+        let read = parse([alone], previews: true)
+        let shown = prompts(read)
+        suite.expect(read.contains(.turnBegan(at)) && shown.count == 1 && shown.first?.text == "" && shown.first?.images.count == 1,
+                     "a prompt of one image alone begins a turn and joins the conversation without text")
+        if case .preview(let data)? = shown.first?.images.first?.source,
+           let source = CGImageSourceCreateWithData(data as CFData, nil),
+           let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any] {
+            let width = properties[kCGImagePropertyPixelWidth] as? Int, height = properties[kCGImagePropertyPixelHeight] as? Int
+            suite.expect(width == ClaudeChatImage.previewSide && height == ClaudeChatImage.previewSide / 2,
+                         "the image is kept as a small preview of its own shape: \(width ?? 0)x\(height ?? 0)")
+            suite.expect(data.count < wide.utf8.count, "smaller than what the transcript holds")
+        } else {
+            suite.expect(false, "the image is kept as a preview")
+        }
+        let hidden = parse([alone], previews: false)
+        suite.expect(hidden.contains(.turnBegan(at)) && prompts(hidden).isEmpty,
+                     "with previews off the image still begins its turn but is never read")
+
+        let both = prompts(parse([userLine([#"{"type":"text","text":"[Image #1] what broke?"}"#, imageBlock(small)])],
+                                 previews: true))
+        suite.expect(both.first?.text == "[Image #1] what broke?" && both.first?.images.count == 1,
+                     "a prompt keeps its words and its image together")
+
+        let unread = [
+            imageBlock("https://example.com/a.png", type: "url"),
+            #"{"type":"image","source":{"type":"file","file_id":"f1"}}"#,
+            imageBlock(small, media: "text/plain"),
+            imageBlock("bm90IGFuIGltYWdl"),
+            #"{"type":"image"}"#,
+        ]
+        let skipped = parse([userLine(unread)], previews: true)
+        suite.expect(prompts(skipped).isEmpty && skipped.contains(.turnBegan(at)),
+                     "addresses, files, other kinds and bytes that are no image are never read")
+        let mixed = prompts(parse([userLine(unread + [imageBlock(small)])], previews: true))
+        suite.expect(mixed.first?.images.count == 1, "beside them a real image still shows")
+
+        let many = prompts(parse([userLine(Array(repeating: imageBlock(small), count: 20))], previews: true))
+        suite.expect(many.first?.images.count == ClaudeChatImage.perPrompt, "a prompt shows at most sixteen images")
+
+        // A real image padded past the limit is left out undecoded.
+        var padded = png(width: 40, height: 30)
+        padded.append(Data(count: ClaudeChatImage.largestInline / 4 * 3 + 3))
+        suite.expect(ClaudeChatImage.inline(base64: padded.base64EncodedString(), mediaType: "image/png") == nil
+                     && ClaudeChatImage.inline(base64: small, mediaType: "image/png") != nil,
+                     "inline data past its limit is left out")
+        suite.expect(ClaudeChatImage.inline(dataURL: "data:image/png;base64,\(small)") != nil
+                     && ClaudeChatImage.inline(dataURL: "https://example.com/a.png") == nil
+                     && ClaudeChatImage.inline(dataURL: "data:image/png,\(small)") == nil,
+                     "only base64 data addresses are read, never a web one")
+
+        let queued = #"{"type":"attachment","attachment":{"type":"queued_command","prompt":[{"type":"text","text":"Also this"},\#(imageBlock(small))]},"timestamp":"2026-10-21T18:01:00.000Z"}"#
+        let joined = prompts(parse([queued], previews: true))
+        suite.expect(joined.first?.text == "Also this" && joined.first?.images.count == 1,
+                     "a prompt queued while Claude works brings its image too")
+        let notice = userLine([#"{"type":"text","text":"<task-notification>done</task-notification>"}"#, imageBlock(small)],
+                              extra: #","origin":{"kind":"task-notification"}"#)
+        suite.expect(prompts(parse([notice], previews: true)).isEmpty, "a task notification is no prompt, with images or not")
     }
 
     // MARK: Transcript
@@ -138,7 +231,7 @@ enum ClaudeSessionReaderTests {
         let longReply = #"{"type":"assistant","message":{"role":"assistant","content":[{"type":"text","text":"\#(String(repeating: "a", count: 7000))"}]},"timestamp":"2026-10-21T17:55:00.000Z"}"#
         let said = parse([midTurn, summary, command, longReply], previews: true).compactMap { fact -> String? in
             switch fact {
-            case .prompt(let text, _), .text(let text, _, _): return text
+            case .prompt(let text, _, _), .text(let text, _, _): return text
             default: return nil
             }
         }

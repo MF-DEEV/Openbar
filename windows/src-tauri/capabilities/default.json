@@ -3,5 +3,10 @@
   "identifier": "default",
   "description": "Island, menu bar and settings windows",
   "windows": ["island", "bar", "settings"],
-  "permissions": ["core:default", "opener:default"]
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister"
+  ]
 }

@@ -117,7 +117,7 @@ final class ClaudeSessionService: ObservableObject {
             if engine.policy != policy {
                 engine.policy = policy
                 // Reading again with previews on fills in what was skipped.
-                if policy.previews { readers = [:]; subagentMeta = []; taskStamps = [:] }
+                if policy.previews { readers = [:]; subagentMeta = []; taskStamps = [:] } else { ClaudeChatImage.forget() }
                 for key in readers.keys { readers[key]?.reader.policy = policy }
                 // What was cleared leaves the island now, not at the next read.
                 publish(now: Date())
@@ -188,16 +188,13 @@ final class ClaudeSessionService: ObservableObject {
     /// none, so the paste goes to the text instead.
     @discardableResult
     func attachImages(from pasteboard: NSPasteboard, to id: String) -> Bool {
-        // A Codex session takes text only, so the paste goes to the text.
-        guard ClaudeImageAttachments.holdsImages(pasteboard),
-              sessions.first(where: { $0.id == id })?.provider != .codex else { return false }
+        guard ClaudeImageAttachments.holdsImages(pasteboard) else { return false }
         attach(ClaudeImageAttachments.images(from: pasteboard), to: id)
         return true
     }
 
     func attach(_ images: [URL], to id: String) {
-        // Codex takes text replies only; its sessions keep no attachments.
-        guard !images.isEmpty, sessions.first(where: { $0.id == id })?.provider != .codex else { return }
+        guard !images.isEmpty else { return }
         var list = attachments[id] ?? []
         for image in images where !list.contains(image) { list.append(image) }
         attachments[id] = Array(list.prefix(ClaudeImageAttachments.limit))
@@ -304,10 +301,9 @@ final class ClaudeSessionService: ObservableObject {
         }
         if session.provider == .codex {
             // Codex takes replies through its server: nothing is typed into
-            // the terminal. It reads text only.
-            guard images.isEmpty else { return completion(.unreachable) }
+            // the terminal, and images go as the files they are.
             queue.async { [self] in
-                let sent = codex?.reply(session.id, text: reply) ?? false
+                let sent = codex?.reply(session.id, text: reply, images: images) ?? false
                 if sent { codex?.acknowledge(session.id, now: Date()) }
                 // Refused while it waits on a prompt; otherwise Codex couldn't be reached.
                 let waiting = published.first { $0.id == session.id }.map { $0.phase.isWaiting || $0.waitingFor != nil } ?? false

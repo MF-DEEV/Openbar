@@ -1504,6 +1504,12 @@ enum FeatureCatalogTests {
                "WhatsApp Downloads folder access stays unused until that cleaner is turned on")
         suite.expect(activeSet(.filesAndFolders, on: [DefaultsKey.whatsAppDownloadsEnabled]) == [.cleaner],
                "the cleaner owns WhatsApp Downloads folder access")
+        suite.expect(activeSet(.filesAndFolders, on: [DefaultsKey.notchEnabled, DefaultsKey.notchDownloadsEnabled])
+                     == [.notchDownloads],
+               "island Downloads reads the Downloads folder without a chosen folder")
+        suite.expect(activeSet(.filesAndFolders, on: [DefaultsKey.notchEnabled, DefaultsKey.notchDownloadsEnabled],
+                               strings: [DefaultsKey.notchHiddenModules: "downloads"]) == [],
+               "hidden island Downloads reads no folder")
 
         suite.expect(activeSet(.fullDiskAccess) == [.cleaner, .uninstaller],
                "cleaner and uninstaller are on-demand full disk users")

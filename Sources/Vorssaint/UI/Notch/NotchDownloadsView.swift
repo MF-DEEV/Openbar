@@ -17,27 +17,63 @@ struct NotchDownloadsSettingsControls: View {
             Text(text.downloadsHint).font(.caption).foregroundStyle(.secondary)
             if downloads.folderUnavailable {
                 Text(text.folderUnavailable).font(.caption).foregroundStyle(.orange)
-            } else if let name = downloads.folderName {
-                Label(name, systemImage: "folder").font(.caption).lineLimit(1).truncationMode(.middle)
             }
-            HStack {
-                Button(text.chooseFolder, action: downloads.chooseFolder)
-                if downloads.folderName != nil || downloads.folderUnavailable {
-                    Button(text.clearFolder, action: downloads.forgetFolder)
+            ForEach(downloads.folders) { folder in
+                HStack(spacing: 8) {
+                    Image(systemName: folder.unavailable ? "exclamationmark.triangle" : "folder")
+                        .font(.system(size: 11))
+                        .foregroundStyle(folder.unavailable ? Color.orange : .secondary)
+                        .frame(width: 16)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(folder.url.lastPathComponent).lineLimit(1).truncationMode(.middle)
+                        Text(folder.unavailable ? text.folderUnavailable : NotchDownloadsSettingsControls.origin(of: folder, text))
+                            .foregroundStyle(folder.unavailable ? Color.orange : .secondary)
+                            .lineLimit(2)
+                    }
+                    .font(.caption)
+                    .help(folder.url.path)
+                    Spacer(minLength: 8)
+                    if !folder.bookmarks.isEmpty {
+                        Button { downloads.removeFolder(folder) } label: {
+                            Image(systemName: "minus.circle.fill").foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help(text.removeFolder)
+                        .accessibilityLabel(text.removeFolder)
+                    }
                 }
-            }.controlSize(.small)
+                .accessibilityElement(children: .combine)
+            }
+            Button(action: downloads.chooseFolder) {
+                Label(text.addFolder, systemImage: "plus")
+            }
+            .controlSize(.small)
+            .disabled(!AppFeature.notchDownloads.isAvailable)
         }
         .onChange(of: enabled) { NotchService.shared.syncWithPreferences() }
     }
+
+    /// Why a folder is watched: the Mac, the browsers that save there, or
+    /// the person who added it.
+    static func origin(of folder: NotchDownloadFolder, _ text: NotchFilesStrings) -> String {
+        var parts: [String] = []
+        if folder.sources.contains(.downloads) { parts.append(text.systemFolder) }
+        parts += folder.browsers
+        if !folder.bookmarks.isEmpty { parts.append(text.addedFolder) }
+        return parts.joined(separator: ", ")
+    }
 }
 
-/// Before a folder is chosen the page says what it will do and offers the one
+/// With nothing to watch the page says what it will do and offers the one
 /// step that starts it, in the same voice as the island's other empty pages.
 private struct NotchDownloadsSetupView: View {
     @ObservedObject private var downloads = NotchDownloadService.shared
     @ObservedObject private var l10n = L10n.shared
     @AppStorage(DefaultsKey.notchDownloadsEnabled) private var enabled = true
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
+    /// Folders are listed, yet none of them can be watched.
+    private var unavailable: Bool { downloads.folders.contains { $0.unavailable } }
 
     var body: some View {
         ViewThatFits(in: .vertical) {
@@ -60,7 +96,7 @@ private struct NotchDownloadsSetupView: View {
     }
 
     private var glyph: some View {
-        Image(systemName: downloads.folderUnavailable ? "exclamationmark.triangle" : "arrow.down.circle")
+        Image(systemName: unavailable ? "exclamationmark.triangle" : "arrow.down.circle")
             .font(.system(size: 26, weight: .light))
             .foregroundStyle(.white.opacity(0.65))
             .frame(width: 56, height: 56)
@@ -70,11 +106,11 @@ private struct NotchDownloadsSetupView: View {
 
     private var copy: some View {
         // Off, the page says what Downloads does beside its switch; on, which
-        // folder to choose.
-        Text(downloads.folderUnavailable ? text.folderUnavailable
+        // folder to add.
+        Text(unavailable && enabled ? text.folderUnavailable
              : offersSwitchOnly ? text.downloadsTitle : enabled ? text.downloadsHint : text.downloadsDescription)
             .font(.system(size: 12))
-            .foregroundStyle(downloads.folderUnavailable ? Color.orange : .white.opacity(0.65))
+            .foregroundStyle(unavailable && enabled ? Color.orange : .white.opacity(0.65))
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -95,28 +131,15 @@ private struct NotchDownloadsSetupView: View {
     }
 
     private var chooseActions: some View {
-        HStack(spacing: 8) {
-            Button(action: downloads.chooseFolder) {
-                Text(text.chooseFolder)
-                    .font(.system(size: 12, weight: .semibold))
-                    .padding(.horizontal, 14)
-                    .frame(height: 28)
-                    .background(.white.opacity(0.14), in: Capsule())
-                    .contentShape(Capsule())
-            }
-            .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-            if downloads.folderUnavailable {
-                Button(action: downloads.forgetFolder) {
-                    Text(text.clearFolder)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(.white.opacity(0.7))
-                        .padding(.horizontal, 10)
-                        .frame(height: 28)
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-            }
+        Button(action: downloads.chooseFolder) {
+            Text(text.addFolder)
+                .font(.system(size: 12, weight: .semibold))
+                .padding(.horizontal, 14)
+                .frame(height: 28)
+                .background(.white.opacity(0.14), in: Capsule())
+                .contentShape(Capsule())
         }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 14))
     }
 }
 
@@ -128,7 +151,8 @@ struct NotchDownloadsView: View {
     @Environment(\.notchSettingsPreview) private var preview
     private var text: NotchFilesStrings { FeatureStrings.notchFiles(l10n.language) }
 
-    private var needsSetup: Bool { !enabled || downloads.folderName == nil || downloads.folderUnavailable }
+    /// Something has to be watched before the page can list anything.
+    private var needsSetup: Bool { !enabled || !downloads.folders.contains { !$0.unavailable } }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -156,16 +180,19 @@ struct NotchDownloadsView: View {
         .onDisappear { if !preview { downloads.cancelNotchFolderChoice() } }
     }
 
-    /// The watched folder by name, with the choice of another one or none.
+    /// The watched folder by name, or Downloads for several. Each opens in
+    /// Finder; Settings removes them.
     private var folderMenu: some View {
-        let name = downloads.folderName ?? text.downloadsTitle
-        return NotchMenuButton(title: text.downloadsTitle, items: [
-            NotchMenuItem(title: text.chooseFolder, action: downloads.chooseFolder),
-            NotchMenuItem(title: text.clearFolder, action: downloads.forgetFolder)
-        ], cornerRadius: 9) {
+        let watched = downloads.folders.filter { !$0.unavailable }
+        let name = watched.count == 1 ? watched[0].url.lastPathComponent : text.downloadsTitle
+        return NotchMenuButton(title: text.downloadsTitle, items: watched.map { folder in
+            NotchMenuItem(title: folder.url.lastPathComponent, symbol: "folder") {
+                NSWorkspace.shared.open(folder.url)
+            }
+        } + [.separator, NotchMenuItem(title: text.addFolder, action: downloads.chooseFolder)], cornerRadius: 9) {
             NotchBandMenuLabel(title: name, symbol: "folder", truncation: .middle)
         }
-        .help(name)
+        .help(watched.map(\.url.path).joined(separator: "\n"))
         .accessibilityValue(name)
     }
 

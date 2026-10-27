@@ -70,6 +70,7 @@ export interface ChatMessage {
   id: number;
   role: "user" | "assistant";
   text: string;
+  images?: string[];
   at: number;
   endsTurn: boolean;
 }
@@ -133,6 +134,11 @@ export type SessionEvent =
 export type Decision = "allow" | "always" | "deny";
 
 export type ReplyFailure = "waiting" | "unreachable";
+
+export interface ReplyAttachment {
+  path: string;
+  preview: string;
+}
 
 export const isWorking = (p: Phase) => p === "generating" || p === "runningTool";
 export const isActive = (p: Phase) => isWorking(p) || p === "background";

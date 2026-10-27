@@ -12,12 +12,34 @@ enum CodexSessionTests {
         suite.run("codex sessions state") { state(suite) }
         suite.run("codex conversation parity") { CodexConversationTests.run(suite) }
         suite.run("codex conversation review") { CodexConversationReviewTests.run(suite) }
+        suite.run("codex conversation images") { CodexConversationTests.images(suite) }
+        suite.run("codex reply input") { replyInput(suite) }
         suite.run("codex sessions requests") { requests(suite) }
         suite.run("codex sessions commands") { commands(suite) }
         suite.run("codex sessions websocket") { websocket(suite) }
         suite.run("codex sessions home") { home(suite) }
         suite.run("codex sessions client") { client(suite) }
         suite.run("codex sessions review findings") { findings(suite) }
+    }
+
+    // MARK: Reply input
+
+    static func replyInput(_ suite: TestSuite) {
+        let shot = URL(fileURLWithPath: "/tmp/vorssaint-images/shot.png")
+        suite.expect(json(CodexSessionClient.input(text: "Look at this", images: [shot]))
+                         == #"[{"text":"Look at this","text_elements":[],"type":"text"},{"path":"\/tmp\/vorssaint-images\/shot.png","type":"localImage"}]"#,
+                     "a reply gives its text, then each image as the file Codex reads it from")
+        suite.expect(json(CodexSessionClient.input(text: " \n", images: [shot]))
+                         == #"[{"path":"\/tmp\/vorssaint-images\/shot.png","type":"localImage"}]"#,
+                     "images alone go without an empty text")
+        suite.expect(json(CodexSessionClient.input(text: "hi", images: []))
+                         == #"[{"text":"hi","text_elements":[],"type":"text"}]"#, "text alone is as before")
+        suite.expect(CodexSessionClient.input(text: "  ", images: []) == nil, "a reply of nothing is refused")
+        let many = (0..<8).map { URL(fileURLWithPath: "/tmp/\($0).png") }
+        suite.expect(CodexSessionClient.input(text: "", images: many)?.count == ClaudeImageAttachments.limit,
+                     "a reply carries at most five images")
+        suite.expect(CodexSessionClient.input(text: "", images: [URL(string: "https://example.com/a.png")!]) == nil,
+                     "an address that is no file is never sent")
     }
 
     // MARK: Review findings
@@ -1012,6 +1034,12 @@ enum CodexSessionTests {
         suite.expect(params(turn)["threadId"] as? String == "t2" && params(turn)["clientUserMessageId"] == nil,
                      "the new turn is for that thread")
         suite.expect(!client.reply("nope", text: "x"), "an unknown thread takes no reply")
+        suite.expect(!client.reply("t2", text: " ", images: []), "a reply of nothing is refused")
+        suite.expect(client.reply("t2", text: "", images: [URL(fileURLWithPath: "/tmp/shot.png")]),
+                     "an idle thread takes images alone")
+        let pictured = expectCall("turn/start", "a reply of images starts a turn")
+        suite.expect(json(params(pictured)["input"]) == #"[{"path":"\/tmp\/shot.png","type":"localImage"}]"#,
+                     "with each image as a local file: \(json(params(pictured)["input"]))")
 
         // A page open keeps its thread joined.
         client.focus(["t2"])

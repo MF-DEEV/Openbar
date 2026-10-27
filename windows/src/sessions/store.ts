@@ -8,7 +8,7 @@
 import { create } from "zustand";
 import { bridge } from "../shared/bridge";
 import { localCostumeStore } from "./clawd/costume";
-import type { Decision, ReplyFailure, Session, SessionEvent, Snapshot } from "./types";
+import type { Decision, ReplyAttachment, ReplyFailure, Session, SessionEvent, Snapshot } from "./types";
 import { DEFAULT_SESSION_PREFS, type SessionPrefs } from "../shared/prefs";
 
 /** A permission must be on screen this long before a click or Ctrl+Y can answer it. */
@@ -23,6 +23,7 @@ interface SessionsState {
   /** When each permission request first showed, by request id. */
   shownAt: Record<string, number>;
   drafts: Record<string, string>;
+  attachments: Record<string, ReplyAttachment[]>;
   names: Record<string, string>;
   lookedAt: Record<string, number>;
   renaming: boolean;
@@ -38,6 +39,8 @@ interface SessionsState {
   receive(snapshot: Snapshot): void;
   focus(id: string | null): void;
   setDraft(id: string, text: string): void;
+  addAttachments(id: string, images: ReplyAttachment[]): void;
+  removeAttachment(id: string, path: string): void;
   rename(id: string, name: string): void;
   decide(session: Session, decision: Decision): Promise<boolean>;
   answer(session: Session, answers: Record<string, string | string[]>): Promise<boolean>;
@@ -77,6 +80,7 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   focused: null,
   shownAt: {},
   drafts: {},
+  attachments: {},
   names: loadNames(),
   lookedAt: {},
   renaming: false,
@@ -113,6 +117,22 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   },
 
   setDraft: (id, text) => set((s) => ({ drafts: { ...s.drafts, [id]: text.slice(0, REPLY_LIMIT) } })),
+
+  addAttachments: (id, images) =>
+    set((s) => ({
+      attachments: {
+        ...s.attachments,
+        [id]: [...(s.attachments[id] ?? []), ...images].slice(0, 5),
+      },
+    })),
+
+  removeAttachment: (id, path) =>
+    set((s) => ({
+      attachments: {
+        ...s.attachments,
+        [id]: (s.attachments[id] ?? []).filter((image) => image.path !== path),
+      },
+    })),
 
   rename(id, name) {
     const trimmed = name.trim().slice(0, 60);
@@ -159,7 +179,8 @@ export const useSessions = create<SessionsState>()((set, get) => ({
     // undefined means no app answered at all (a plain browser).
     const result = await bridge.sessions.reply(session.id, body, images);
     const failure = result === undefined ? "unreachable" : result;
-    if (failure === null) set((s) => ({ drafts: { ...s.drafts, [session.id]: "" } }));
+    if (failure === null)
+      set((s) => ({ drafts: { ...s.drafts, [session.id]: "" }, attachments: { ...s.attachments, [session.id]: [] } }));
     return failure;
   },
 

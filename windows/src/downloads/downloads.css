@@ -1,0 +1,174 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 Vorssaint */
+
+.dl-page {
+  color: #fff;
+  font-size: 12px;
+}
+.dl-page h2 {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+.dl-empty {
+  color: #999;
+  line-height: 1.5;
+}
+.dl-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-bottom: 1px solid #202020;
+}
+.dl-file-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 52px;
+  height: 58px;
+  border-radius: 12px;
+  color: #60cdff;
+  background: #111b22;
+}
+.dl-file-icon.is-completed {
+  color: #69d69b;
+  background: #112018;
+}
+.dl-file-icon.is-interrupted {
+  color: #ffc069;
+  background: #241b10;
+}
+.dl-size {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  gap: 5px;
+  min-width: 90px;
+  min-height: 72px;
+  padding: 8px;
+  box-sizing: border-box;
+  border: 1px solid #252525;
+  border-radius: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.dl-size > svg,
+.dl-size > span {
+  color: #999;
+}
+.dl-size > strong {
+  font-size: 13px;
+  white-space: nowrap;
+}
+.dl-size > span {
+  font-size: 10px;
+}
+.dl-info {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.dl-info strong {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+.dl-info > span {
+  color: #aaa;
+  font-size: 11px;
+}
+.dl-info progress {
+  width: 100%;
+  height: 4px;
+  accent-color: #60cdff;
+}
+.dl-folder {
+  overflow-wrap: anywhere;
+  color: #999;
+  margin-top: 8px;
+}
+.dl-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 18px;
+  box-sizing: border-box;
+  color: #60cdff;
+  font-size: 11px;
+}
+.dl-strip > span {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.dl-strip > .dl-mini-progress {
+  display: block;
+  flex: none;
+  width: 26px;
+  height: 3px;
+  border-radius: 3px;
+  overflow: hidden;
+  background: #26323a;
+}
+.dl-strip > .dl-strip-name {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  margin: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  color: #ddd;
+}
+.dl-mini-progress > span {
+  display: block;
+  height: 100%;
+  background: #60cdff;
+  border-radius: inherit;
+}
+.dl-mini-progress.is-indeterminate > span {
+  width: 30%;
+  animation: dl-progress 1.4s ease-in-out infinite alternate;
+}
+.n-download-progress {
+  position: absolute;
+  bottom: 1px;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: #333;
+  overflow: hidden;
+  border-radius: 2px;
+}
+.n-download-progress > span {
+  display: block;
+  height: 100%;
+  background: #60cdff;
+}
+.n-download-progress.is-indeterminate > span {
+  width: 30%;
+  animation: dl-progress 1.4s ease-in-out infinite alternate;
+}
+@keyframes dl-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(335%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .n-download-progress.is-indeterminate > span,
+  .dl-mini-progress.is-indeterminate > span {
+    animation: none;
+    width: 100%;
+    opacity: 0.5;
+  }
+}

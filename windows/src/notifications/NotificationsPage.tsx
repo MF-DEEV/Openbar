@@ -2,8 +2,8 @@
 // Copyright (C) 2026 Vorssaint
 
 // The Notifications page (NotchNotificationsView.swift; spec 04 §2.1): a
-// rail of 240 pt cards, newest first, each with its app, time, title and
-// message, Open and Dismiss; an empty state; and the access row while
+// rail of 240 pt cards, newest first, each with its app, time and sender,
+// Open and Dismiss; an empty state; and the access row while
 // Windows has not let the island listen.
 
 import { AppWindow, Bell, Trash2, X } from "lucide-react";
@@ -11,9 +11,10 @@ import { EmptyState } from "../island/views/Controls";
 import { bridge } from "../shared/bridge";
 import { useNotifications } from "./store";
 import type { Item } from "./types";
+import { notificationPresentation } from "./presentation";
 
 const PRIVACY =
-  "Shows new banners only. Messages stay in memory and are cleared when you lock this PC or turn this off.";
+  "Notifications show the app icon, app name and sender only. Message text is not collected or displayed. Discord’s Do Not Disturb and muted conversations follow its desktop notification settings. Notification details are cleared when you lock this PC or turn this off.";
 
 function clock(time: number): string {
   return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(time * 1000));
@@ -32,12 +33,12 @@ export function NotificationsPage() {
         <div className="nt-access-text">
           <div className="n-empty-title">
             {access === "unavailable"
-              ? "Notifications need the Vorssaint package"
+              ? "Notification access is unavailable in this build"
               : "Let the island read new notifications"}
           </div>
           <div className="n-empty-detail">
             {access === "unavailable"
-              ? "Install Vorssaint with its installer so Windows can let it read notifications."
+              ? "This feature needs a Vorssaint build with Windows notification access. The current unsigned installer does not include the required package."
               : access === "denied"
                 ? "Windows says no. Allow it in Settings › Privacy & security › Notifications."
                 : "Windows asks you once. " + PRIVACY}
@@ -68,11 +69,29 @@ export function NotificationsPage() {
 }
 
 function Card({ item }: { item: Item }) {
+  const display = notificationPresentation(item);
   return (
     <div className="nt-card">
       <div className="nt-card-head">
-        {item.icon ? <img src={item.icon} alt="" className="nt-icon" /> : <Bell size={14} />}
-        <span className="nt-app">{item.app}</span>
+        {display.icon ? (
+          <img
+            key={display.icon}
+            src={display.icon}
+            alt=""
+            className="nt-icon"
+            onError={(event) => {
+              const image = event.currentTarget;
+              if (display.fallbackIcon && image.getAttribute("src") !== display.fallbackIcon) {
+                image.src = display.fallbackIcon;
+              } else image.style.visibility = "hidden";
+            }}
+          />
+        ) : (
+          <Bell size={14} />
+        )}
+        <span className="nt-app" title={display.app}>
+          {display.app}
+        </span>
         <span className="nt-time">{clock(item.time)}</span>
         <button
           type="button"
@@ -93,8 +112,9 @@ function Card({ item }: { item: Item }) {
           <X size={12} />
         </button>
       </div>
-      <div className="nt-title">{item.title}</div>
-      {item.body ? <div className="nt-body">{item.body}</div> : null}
+      <div className="nt-title" title={display.sender}>
+        {display.sender || display.app}
+      </div>
     </div>
   );
 }

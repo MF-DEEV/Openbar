@@ -110,6 +110,9 @@ final class CodexSessionState {
             var value: ClaudeChatMessage
             var live: Bool
             var revision: Int
+            /// What told the item's images apart when read, which stays when
+            /// older previews are let go.
+            var imageKeys: [Int] = []
         }
         var chat: [Message] = []
         var nextMessage = 0
@@ -120,18 +123,22 @@ final class CodexSessionState {
             guard let id = CodexSessionState.string(item, "id") else { return false }
             let role: ClaudeChatMessage.Role
             let text: String
+            var content: [[String: Any]] = []
             switch CodexSessionState.string(item, "type") {
             case "agentMessage":
                 role = .assistant
                 text = CodexSessionState.string(item, "text") ?? ""
             case "userMessage":
                 role = .user
-                text = (item["content"] as? [[String: Any]] ?? []).compactMap {
+                content = item["content"] as? [[String: Any]] ?? []
+                text = content.compactMap {
                     CodexSessionState.string($0, "type") == "text" ? CodexSessionState.string($0, "text") : nil
                 }.joined(separator: "\n")
             default: return false
             }
-            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+            // A prompt of images alone still shows.
+            let imageKeys = ClaudeChatImage.codexKeys(content)
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !imageKeys.isEmpty else { return false }
             let clipped = CodexSessionState.clip(text, limit: 16_000)
             let endsTurn = role == .assistant && CodexSessionState.string(item, "phase") == "final_answer"
             if let index = chat.firstIndex(where: { $0.itemID == id }) {
@@ -139,10 +146,14 @@ final class CodexSessionState {
                 guard live || !old.live else { return false }
                 chat[index].live = old.live || live
                 if live { chat[index].revision = revision }
-                guard old.value.text != clipped || old.value.endsTurn != endsTurn else { return false }
+                guard old.value.text != clipped || old.value.endsTurn != endsTurn || old.imageKeys != imageKeys
+                else { return false }
+                let images = old.imageKeys == imageKeys
+                    ? old.value.images : ClaudeChatImage.codex(content, reusing: old.value.images)
                 chat[index].value = ClaudeChatMessage(
                     id: old.value.id, role: role, text: clipped,
-                    at: old.value.at, endsTurn: endsTurn)
+                    at: old.value.at, endsTurn: endsTurn, images: images)
+                chat[index].imageKeys = imageKeys
             } else {
                 nextMessage += 1
                 chat.append(
@@ -150,9 +161,11 @@ final class CodexSessionState {
                         itemID: id,
                         value: ClaudeChatMessage(
                             id: nextMessage, role: role,
-                            text: clipped, at: at, endsTurn: endsTurn), live: live, revision: revision))
+                            text: clipped, at: at, endsTurn: endsTurn, images: ClaudeChatImage.codex(content)),
+                        live: live, revision: revision, imageKeys: imageKeys))
                 if chat.count > 100 { chat.removeFirst(chat.count - 100) }
             }
+            if !imageKeys.isEmpty { ClaudeChatImage.trim(&chat, images: \.value.images) }
             return true
         }
 

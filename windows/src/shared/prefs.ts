@@ -111,6 +111,9 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
       ...(hiddenModules ? { hiddenModules } : {}),
       ...(moduleOrder ? { moduleOrder } : {}),
       ...(quickAccess ? { quickAccess } : {}),
+      downloadFolders: Array.isArray(raw.downloadFolders)
+        ? raw.downloadFolders.filter((v): v is string => typeof v === "string" && v.length > 0)
+        : [],
       capsuleFit: { ...DEFAULT_SETTINGS.capsuleFit, ...checked(DEFAULT_SETTINGS.capsuleFit, raw.capsuleFit) },
       sections: { ...DEFAULT_SETTINGS.sections, ...sectionSwitches(raw.sections) },
     },

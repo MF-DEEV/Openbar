@@ -1,6 +1,6 @@
 # 07 — Codex CLI Sessions: data sources, approvals and replies
 
-Status: built on both platforms. Windows: `windows/src-tauri/src/sessions/codex/` (branch feat/windows). Mac: `Sources/Vorssaint/Services/ClaudeSessions/CodexSessionClient.swift` and `CodexSessionState.swift`. Where the builds differ from this research: cost is not priced yet (§10), replies are text only (no images), the island joins a thread only while it works or its page is open, and on the Mac Open finds the terminal UI by the thread's folder (the one `codex` process with a terminal there, else the only one running).
+Status: built on both platforms. Windows: `windows/src-tauri/src/sessions/codex/` (branch feat/windows). Mac: `Sources/Vorssaint/Services/ClaudeSessions/CodexSessionClient.swift` and `CodexSessionState.swift`. Where the builds differ from this research: cost is not priced yet (§10), the island joins a thread only while it works or its page is open, and on the Mac Open finds the terminal UI by the thread's folder (the one `codex` process with a terminal there, else the only one running).
 Audience: the developer adding OpenAI Codex CLI sessions to the Sessions section of the Windows island (Tauri 2 + Rust + React), next to the Claude Code sessions in `02-sessions.md`.
 Scope: the interactive `codex` TUI, run natively on Windows 11 in Windows Terminal, conhost or a VS Code-family terminal. WSL is out of scope. `codex exec`, Codex Cloud and the Codex desktop app are out of scope too; §6.4 says how to exclude them.
 

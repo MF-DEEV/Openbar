@@ -2,11 +2,13 @@
 // Copyright (C) 2026 Vorssaint
 
 import { SlidersHorizontal } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { bridge } from "../shared/bridge";
 
 export function VolumeControl({ source, name, accent }: { source: string; name: string; accent: string }) {
   const [open, setOpen] = useState(false);
+  const reduceMotion = useReducedMotion();
   const [level, setLevel] = useState<number | null>(null);
   const [failed, setFailed] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -92,39 +94,49 @@ export function VolumeControl({ source, name, accent }: { source: string; name: 
       >
         <SlidersHorizontal size={18} strokeWidth={2} />
       </button>
-      {open ? (
-        <div className="m-volume-popover" role="group" aria-label={`${name} volume`}>
-          <div className="m-volume-label">
-            <span>Volume</span>
-            <span>{failed ? "Unavailable" : level === null ? "..." : level + "%"}</span>
-          </div>
-          <input
-            type="range"
-            className="m-slider"
-            min={0}
-            max={100}
-            step={1}
-            value={level ?? 0}
-            disabled={level === null || failed}
+      <AnimatePresence>
+        {open ? (
+          <motion.div
+            className="m-volume-popover"
+            role="group"
             aria-label={`${name} volume`}
-            aria-valuetext={`${level ?? 0}%`}
-            style={{ "--fill": (level ?? 0) + "%", "--accent": accent } as CSSProperties}
-            onPointerDown={() => {
-              editing.current = true;
-            }}
-            onPointerUp={() => {
-              editing.current = false;
-            }}
-            onPointerCancel={() => {
-              editing.current = false;
-            }}
-            onBlur={() => {
-              editing.current = false;
-            }}
-            onChange={(event) => void change(Number(event.target.value))}
-          />
-        </div>
-      ) : null}
+            initial={{ opacity: 0, y: reduceMotion ? 0 : 6, scale: reduceMotion ? 1 : 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: reduceMotion ? 0 : 4, scale: reduceMotion ? 1 : 0.98 }}
+            transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+          >
+            <div className="m-volume-label">
+              <span>Volume</span>
+              <span>{failed ? "Unavailable" : level === null ? "..." : level + "%"}</span>
+            </div>
+            <input
+              type="range"
+              className="m-slider"
+              min={0}
+              max={100}
+              step={1}
+              value={level ?? 0}
+              disabled={level === null || failed}
+              aria-label={`${name} volume`}
+              aria-valuetext={`${level ?? 0}%`}
+              style={{ "--fill": (level ?? 0) + "%", "--accent": accent } as CSSProperties}
+              onPointerDown={() => {
+                editing.current = true;
+              }}
+              onPointerUp={() => {
+                editing.current = false;
+              }}
+              onPointerCancel={() => {
+                editing.current = false;
+              }}
+              onBlur={() => {
+                editing.current = false;
+              }}
+              onChange={(event) => void change(Number(event.target.value))}
+            />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }

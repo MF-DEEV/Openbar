@@ -35,6 +35,7 @@ enum PreferencesFeatureTests {
         suite.expect(!SettingsBackupSupport.exportKeys().contains(DefaultsKey.commandBarFileScopes)
             && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.whatsAppOrganizerDestinationPath)
             && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchDownloadsFolderBookmark)
+            && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.notchDownloadsFolderBookmarks)
             && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.wallpaperOwnBookmarks)
             && !SettingsBackupSupport.exportKeys().contains(DefaultsKey.mediaImageWatermarkLogoPath),
                "every chosen folder already excluded from backups stays excluded")

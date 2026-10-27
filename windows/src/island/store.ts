@@ -34,14 +34,18 @@ export interface Notice {
   opens?: ModuleId;
   /** A picture in the symbol slot (a song's cover). */
   image?: string;
+  /** A local source-app icon if Windows' supplied image cannot be decoded. */
+  imageFallback?: string;
+  /** Downloads: 0..1 for known totals; null for an unknown size. */
+  progress?: number | null;
 }
 
 /** Live activities in the Mac's priority order (NotchSupport.swift:1791-1799). */
 export const ACTIVITY_ORDER = [
   "timer",
   "watch",
-  "sessions",
   "downloads",
+  "sessions",
   "agents",
   "calendar",
   "music",
@@ -50,6 +54,7 @@ export const ACTIVITY_ORDER = [
 export type ActivityId = (typeof ACTIVITY_ORDER)[number];
 
 export interface ActivitySpec {
+  urgent?: boolean;
   /** Width each wing needs beside the camera, before the section's clamp. */
   wing: number;
   /** The capsule's one-row content width. */
@@ -59,6 +64,8 @@ export interface ActivitySpec {
 }
 
 export interface IslandState {
+  autoPresentAllowed: boolean;
+  attentionFullscreen: boolean;
   settings: IslandSettings;
   screen: Size;
   devicePixelRatio: number;
@@ -121,6 +128,8 @@ export function modulesOf(state: Pick<IslandState, "settings">): ModuleId[] {
 }
 
 export const useIsland = create<IslandState>()((set, get) => ({
+  autoPresentAllowed: false,
+  attentionFullscreen: false,
   settings: DEFAULT_SETTINGS,
   screen: { width: 1920, height: 1080 },
   devicePixelRatio: 1,
@@ -227,6 +236,9 @@ export const useIsland = create<IslandState>()((set, get) => ({
     set({ inside: true });
     if (s.expanded || s.pinned) return;
     if (s.hoverSuppressed) return;
+    if (s.attentionFullscreen || (!s.autoPresentAllowed && visibleActivity(s) === "sessions")) return;
+    // Download details are opened explicitly by clicking the compact strip.
+    if (!s.notice && visibleActivity(s) === "downloads") return;
     if (!opensOnHover(s.settings)) {
       // Click to open: the closed island only answers with a small pulse.
       if (!s.notice) set({ hoverEmphasized: true });
@@ -237,6 +249,8 @@ export const useIsland = create<IslandState>()((set, get) => ({
     hoverTimer = setTimeout(() => {
       const now = get();
       if (!now.inside || now.expanded) return;
+      if (now.attentionFullscreen || (!now.autoPresentAllowed && visibleActivity(now) === "sessions")) return;
+      if (!now.notice && visibleActivity(now) === "downloads") return;
       if (hoverExpands(now.settings)) now.open(undefined, { takeFocus: false, byHover: true });
       else set({ peeking: true });
     }, s.settings.hoverDelay * 1000);
@@ -315,6 +329,7 @@ export type PresentationKind = "resting" | "activity" | "notice" | "peek" | "exp
 /** The picked activity if it still runs, else the first in priority order. */
 export function visibleActivity(s: Pick<IslandState, "activities" | "pickedActivity">): ActivityId | null {
   if (s.pickedActivity && s.activities[s.pickedActivity]) return s.pickedActivity;
+  if (s.activities.sessions?.urgent && !s.activities.timer && !s.activities.watch) return "sessions";
   return ACTIVITY_ORDER.find((id) => s.activities[id]) ?? null;
 }
 

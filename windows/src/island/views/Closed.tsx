@@ -4,7 +4,7 @@
 // What the closed island shows: nothing at rest, a notice, or the hover
 // preview row (NotchView.surface; spec 01-shell §2.2).
 
-import { ChevronDown, LayoutGrid } from "lucide-react";
+import { ChevronDown, LayoutGrid, ArrowDownToLine } from "lucide-react";
 import { useContext } from "react";
 import { t } from "../../i18n";
 import { contentInsets, edgeInset, capsuleBody, capsuleRadius, type Geometry } from "../geometry";
@@ -48,6 +48,8 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
     <button
       type="button"
       className="n-notice"
+      aria-label={[notice.title, notice.detail].filter(Boolean).join(": ")}
+      title={[notice.title, notice.detail].filter(Boolean).join("\n")}
       style={{
         width: size.width,
         height: size.height,
@@ -59,11 +61,21 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
       onClick={() => useIsland.getState().clickClosed()}
     >
       <span className="n-notice-title">
+        {notice.kind === "downloads" ? <ArrowDownToLine size={14} aria-hidden="true" /> : null}
         {notice.image ? (
           <img
+            key={notice.image}
             className="n-notice-image"
             src={notice.image}
             alt=""
+            onError={(event) => {
+              const image = event.currentTarget;
+              if (notice.imageFallback && image.getAttribute("src") !== notice.imageFallback) {
+                image.src = notice.imageFallback;
+              } else {
+                image.style.visibility = "hidden";
+              }
+            }}
             style={{ width: metrics.imageSize, height: metrics.imageSize }}
           />
         ) : null}
@@ -72,6 +84,14 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
       {notice.detail ? (
         <span className="n-notice-detail" style={{ fontSize: Math.max(9, metrics.fontSize - 1) }}>
           {notice.detail}
+        </span>
+      ) : null}
+      {notice.progress !== undefined ? (
+        <span
+          className={`n-download-progress${notice.progress === null ? " is-indeterminate" : ""}`}
+          aria-hidden="true"
+        >
+          <span style={notice.progress === null ? undefined : { width: `${notice.progress * 100}%` }} />
         </span>
       ) : null}
     </button>

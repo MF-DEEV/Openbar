@@ -455,6 +455,8 @@ pub struct ChatMessage {
     pub id: i64,
     pub role: ChatRole,
     pub text: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub images: Vec<String>,
     pub at: Time,
     /// The reply the turn ended on, which answers what was asked; the
     /// replies before it tell of the work on the way.
@@ -631,6 +633,7 @@ pub enum TranscriptFact {
         text: String,
         at: Time,
     },
+    PromptImages { images: Vec<String>, at: Time },
     Title(String),
     Branch(String),
     Model(String),
@@ -1688,6 +1691,7 @@ mod tests {
             id: 1,
             role: ChatRole::User,
             text: "hi".into(),
+            images: Vec::new(),
             at: 2.0,
             ends_turn: false,
         };

@@ -32,6 +32,7 @@ unicode-segmentation = "1"
 getrandom = "0.3"
 tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 base64 = "0.22"
+image = { version = "0.25", default-features = false, features = ["png", "bmp"] }
 
 [target.'cfg(windows)'.dependencies]
 uds_windows = "1"
@@ -56,6 +57,8 @@ windows = { version = "0.62", features = [
   "Win32_Security_Authorization",
   "Win32_Storage_FileSystem",
   "Win32_System_Console",
+  "Win32_System_DataExchange",
+  "Win32_System_Memory",
   "Win32_System_Diagnostics_ToolHelp",
   "Win32_System_Registry",
   "Win32_System_Threading",

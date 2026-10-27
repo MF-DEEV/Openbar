@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Dynamic Island's Downloads page watches your Downloads folder and the folders Chrome, Edge, Brave, Arc, Vivaldi, Opera, Firefox, Zen and other browsers save to, plus any folders you add. A folder chosen before stays watched. Settings → Dynamic Island → Content → Downloads.
+
 ### Fixed
 - Wallpaper's Add image and Add folder open the file picker in front on the first click instead of behind other windows.
 - Scrolling Monitor settings with Bars as the usage display no longer freezes the app, and the menu bar preview now stays at the top of the page.

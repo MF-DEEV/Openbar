@@ -6,6 +6,7 @@
 
 import { create } from "zustand";
 import { bridge } from "../shared/bridge";
+import { useIsland } from "../island/store";
 import type { Access, Inbox, Item } from "./types";
 
 interface NotificationsState {
@@ -20,7 +21,16 @@ interface NotificationsState {
 export const useNotifications = create<NotificationsState>()((set) => ({
   access: "unavailable",
   items: [],
-  receive: (inbox) => set({ access: inbox.access, items: inbox.items }),
+  receive(inbox) {
+    set({ access: inbox.access, items: inbox.items });
+    const island = useIsland.getState();
+    if (
+      island.notice?.kind === "systemNotification" &&
+      !inbox.items.some((item) => `notification:${item.id}` === island.notice!.id)
+    ) {
+      island.dismissNotice(island.notice.id);
+    }
+  },
   async requestAccess() {
     const access = await bridge.notifications.requestAccess();
     if (access) set({ access });

@@ -306,8 +306,8 @@ final class ClaudeSessionEngine {
             if policy.previews { entry.lastText = text }
             say(text, as: .assistant, at: date, endsTurn: endsTurn, in: &entry)
             touch(date, in: &entry)
-        case .prompt(let text, let date):
-            say(text, as: .user, at: date, in: &entry)
+        case .prompt(let text, let date, let images):
+            say(text, as: .user, at: date, images: images, in: &entry)
         case .title(let title): if policy.previews { entry.title = title }
         case .branch(let branch): entry.branch = branch
         case .model(let model): entry.model = model
@@ -369,15 +369,20 @@ final class ClaudeSessionEngine {
     static let chatLength = 150
 
     private func say(_ text: String, as role: ClaudeChatMessage.Role, at date: Date, endsTurn: Bool = false,
-                     in entry: inout Activity) {
+                     images: [ClaudeChatImage] = [], in entry: inout Activity) {
         guard policy.previews else { return }
-        if let last = entry.chat.last, last.role == role, last.text == text {
+        // The same words twice are one message read twice; the same images
+        // sent again later are a new prompt.
+        if let last = entry.chat.last, last.role == role, last.text == text, last.images == images,
+           images.isEmpty || last.at == date {
             if endsTurn { entry.chat[entry.chat.count - 1].endsTurn = true }
             return
         }
         entry.said += 1
-        entry.chat.append(ClaudeChatMessage(id: entry.said, role: role, text: text, at: date, endsTurn: endsTurn))
+        entry.chat.append(ClaudeChatMessage(id: entry.said, role: role, text: text, at: date, endsTurn: endsTurn,
+                                            images: images))
         if entry.chat.count > Self.chatLength { entry.chat.removeFirst(entry.chat.count - Self.chatLength) }
+        if !images.isEmpty { ClaudeChatImage.trim(&entry.chat, images: \.images) }
     }
 
     private func apply(_ event: ClaudeHookFact.Event, date: Date, to entry: inout Activity) {

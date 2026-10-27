@@ -24,6 +24,7 @@ import { NoticeView, noticeWidth, Peek, Resting } from "./views/Closed";
 import { Expanded } from "./views/Expanded";
 import { QuickAccess } from "./views/QuickAccess";
 import { ActivityStrip } from "./views/Activity";
+import { useSessions } from "../sessions/store";
 
 function useWindowScreen() {
   const setScreen = useIsland((s) => s.setScreen);
@@ -119,8 +120,11 @@ function useKeyboard() {
 function useFocus() {
   const expanded = useIsland((s) => s.expanded);
   const focusRequest = useIsland((s) => s.focusRequest);
+  const previousRequest = useRef(focusRequest);
   useEffect(() => {
-    void bridge.setFocusable(expanded, expanded && focusRequest > 0);
+    const take = expanded && focusRequest !== previousRequest.current;
+    previousRequest.current = focusRequest;
+    void bridge.setFocusable(expanded, take);
   }, [expanded, focusRequest]);
 }
 
@@ -150,6 +154,12 @@ export function Island() {
     ? { width: noticeWidth(state.notice, geometry), height: geometry.stripHeight }
     : undefined;
   const shown = presentation(state, geometry, measured);
+  const waiting = useSessions((s) => s.snapshot.counts.waiting);
+  useEffect(() => {
+    void bridge.attention.compactSessions(
+      state.settings.enabled && !state.expanded && waiting > 0 && shown.key === "activity:sessions",
+    );
+  }, [state.settings.enabled, state.expanded, waiting, shown.key]);
 
   // The transition is decided when the presented content changes.
   const previous = useRef<Presentation>(shown);

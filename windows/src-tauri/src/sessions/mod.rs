@@ -11,6 +11,7 @@
 #![allow(dead_code)]
 
 pub mod codex;
+pub mod attachments;
 pub mod engine;
 pub mod hook_message;
 pub mod models;
