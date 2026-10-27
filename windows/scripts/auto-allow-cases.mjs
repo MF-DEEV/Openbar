@@ -60,6 +60,25 @@ export async function checkAutoAllow({ send, evaluate, base }) {
       `Requests must still be approved in the background (received ${result.approved})`,
     );
   }
+  const statusLayout = await evaluate(`(()=>{
+    const bar=document.querySelector('.s-auto-allow-status');
+    const label=bar.querySelector('.s-auto-allow-label').getBoundingClientRect();
+    const cancel=bar.querySelector('button');
+    const bounds=bar.getBoundingClientRect();
+    const button=cancel.getBoundingClientRect();
+    bar.click();
+    return {height:bounds.height,inset:label.left-bounds.left,gap:button.left-label.right,
+      buttonHeight:button.height,label:cancel.textContent.trim(),stillOn:sessions.getState().autoAllow[raw.id]};
+  })()`);
+  assert(
+    statusLayout.height >= 48 &&
+      statusLayout.inset >= 15 &&
+      statusLayout.gap >= 11 &&
+      statusLayout.buttonHeight >= 30 &&
+      statusLayout.label === "Cancel" &&
+      statusLayout.stillOn,
+    "Autoaccept needs a padded status bar with a separate Cancel button; clicking its background must do nothing",
+  );
   const screenshot = await send("Page.captureScreenshot", { format: "png" });
   await mkdir(resolve("../build"), { recursive: true });
   await writeFile(resolve("../build/auto-allow-working.png"), Buffer.from(screenshot.data, "base64"));
