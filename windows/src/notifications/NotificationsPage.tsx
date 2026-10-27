@@ -38,7 +38,7 @@ export function NotificationsPage() {
           </div>
           <div className="n-empty-detail">
             {access === "unavailable"
-              ? "This feature needs a Vorssaint build with Windows notification access. The current unsigned installer does not include the required package."
+              ? "Reading notifications needs the Vorssaint package the installer registers. Reinstall Vorssaint to add it, then open Notifications again."
               : access === "denied"
                 ? "Windows says no. Allow it in Settings › Privacy & security › Notifications."
                 : "Windows asks you once. " + PRIVACY}
