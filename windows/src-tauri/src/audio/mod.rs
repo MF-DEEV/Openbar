@@ -194,9 +194,13 @@ pub fn player_volume(matches: fn(&str, &str) -> bool, source: String, level: Opt
     }
 }
 
+/// The state once the audio thread has read it: an answer of "unsupported"
+/// means it really failed, not that it hasn't started yet.
 #[tauri::command]
-pub fn audio_state(state: tauri::State<'_, Shared>) -> State {
-    state.0.lock().unwrap().clone()
+pub async fn audio_state(state: tauri::State<'_, Shared>) -> Result<State, String> {
+    #[cfg(windows)]
+    let _ = blocking(|| with_engine(|_| Ok(()))).await;
+    Ok(state.0.lock().unwrap().clone())
 }
 
 #[tauri::command]

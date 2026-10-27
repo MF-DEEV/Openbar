@@ -110,6 +110,7 @@ export function MixerTrailing() {
 export function MixerPage({ width, height }: PageProps) {
   const options = useMixerUi((s) => s.options);
   const supported = useAudio((s) => s.state.supported);
+  const received = useAudio((s) => s.received);
   const hasMic = useAudio((s) => s.state.input.volume !== null);
   usePageLayer(options, () => useMixerUi.setState({ options: false }));
 
@@ -131,7 +132,11 @@ export function MixerPage({ width, height }: PageProps) {
       {hasMic ? <MicrophoneFader height={faderHeight} /> : null}
       <div className="mx-divider" aria-hidden="true" />
       <div className="mx-apps" style={{ width: Math.max(0, width - leading - 21) }}>
-        {supported ? <AppRail height={faderHeight} /> : <EmptyState icon={Volume2} title={S.unavailable} />}
+        {supported ? (
+          <AppRail height={faderHeight} />
+        ) : received ? (
+          <EmptyState icon={Volume2} title={S.unavailable} />
+        ) : null}
       </div>
     </div>
   );

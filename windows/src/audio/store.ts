@@ -17,6 +17,8 @@ type Holds = Record<string, { value: number | boolean; until: number }>;
 
 interface AudioStore {
   state: AudioState;
+  /** The audio thread has answered once; before that, "unsupported" means nothing yet. */
+  received: boolean;
   holds: Holds;
   /** The last switch or setting that failed, for the band's label. */
   error: string | null;
@@ -85,11 +87,12 @@ export const useAudio = create<AudioStore>()((set, get) => {
     );
   return {
     state: EMPTY_AUDIO,
+    received: false,
     holds: {},
     error: null,
 
     receive(state) {
-      set({ state: applyHolds(state, get().holds) });
+      set({ state: applyHolds(state, get().holds), received: true });
     },
 
     setOutput(change) {

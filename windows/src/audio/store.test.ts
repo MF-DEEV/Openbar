@@ -29,7 +29,7 @@ const reading = (volume: number, muted = false): AudioState => ({
 afterEach(() => {
   vi.useRealTimers();
   calls.length = 0;
-  useAudio.setState({ state: EMPTY_AUDIO, holds: {}, error: null });
+  useAudio.setState({ state: EMPTY_AUDIO, received: false, holds: {}, error: null });
 });
 
 describe("audio store", () => {
