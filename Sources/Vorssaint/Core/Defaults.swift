@@ -821,6 +821,12 @@ enum DefaultsKey {
     // Fits the island to one Mac's camera housing; never backed up.
     static let notchCameraFitWidth = "notchCameraFitWidth"
     static let notchCameraFitHeight = "notchCameraFitHeight"
+    static let notchSimulatedWidth = "notchSimulatedWidth"
+    static let notchSimulatedHeight = "notchSimulatedHeight"
+    static let notchShapeRoundness = "notchShapeRoundness"
+    static let notchShoulderWidth = "notchShoulderWidth"
+    static let notchShoulderHeight = "notchShoulderHeight"
+
     static let notchHapticFeedback = "notchHapticFeedback"
     static let notchTranslucentBackground = "notchTranslucentBackground"
     static let notchShelf = "notchShelf"
@@ -1444,6 +1450,12 @@ enum Defaults {
         DefaultsKey.notchCustomHeight: NotchSize.defaultHeight,
         DefaultsKey.notchCameraFitWidth: 0.0,
         DefaultsKey.notchCameraFitHeight: 0.0,
+        DefaultsKey.notchSimulatedWidth: 0.0,
+        DefaultsKey.notchSimulatedHeight: 0.0,
+        DefaultsKey.notchShapeRoundness: 100.0,
+        DefaultsKey.notchShoulderWidth: 100.0,
+        DefaultsKey.notchShoulderHeight: 100.0,
+
         DefaultsKey.notchHapticFeedback: true,
         DefaultsKey.notchTranslucentBackground: false,
         DefaultsKey.notchShelf: true,

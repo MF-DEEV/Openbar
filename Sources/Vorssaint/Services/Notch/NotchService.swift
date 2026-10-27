@@ -31,17 +31,24 @@ struct NotchNotice: Equatable {
 
     /// The sides this notice takes beside a camera, as its strip draws them.
     func wings(in geometry: NotchGeometry) -> NotchNoticeWings {
-        geometry.noticeWings(preferredWings(
-            wrapsMessage: NotchNotificationBannerLayout.messageLines(stripHeight: geometry.stripHeight) > 1))
+        var preferred = preferredWings(
+            wrapsMessage: NotchNotificationBannerLayout.messageLines(stripHeight: geometry.stripHeight) > 1,
+            stripHeight: geometry.stripHeight)
+        if !geometry.isNotched, !geometry.floats, geometry.shapeFit != .standard {
+            preferred.leading += max(0, contourInset(in: geometry) - inset(wing: preferred.leading))
+            preferred.trailing += max(0, contourInset(in: geometry) - inset(wing: preferred.trailing))
+        }
+        return geometry.noticeWings(preferred)
     }
 
-    func preferredWings(wrapsMessage: Bool) -> NotchNoticeWings {
+    func preferredWings(wrapsMessage: Bool, stripHeight: CGFloat? = nil) -> NotchNoticeWings {
         if let notification {
             let fitted = NotchNotificationBannerLayout.wings(for: notification, wrapsMessage: wrapsMessage)
             return NotchNoticeWings(leading: max(minimumWings.leading, fitted.leading),
                                     trailing: max(minimumWings.trailing, fitted.trailing))
         }
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        let trackMetrics = event == .track ? stripHeight.map(NotchNoticeMetrics.init(stripHeight:)) : nil
+        let font = NSFont.monospacedDigitSystemFont(ofSize: trackMetrics?.titleFont ?? 11, weight: .medium)
         let leading = ((level == nil ? title : detail) as NSString).size(withAttributes: [.font: font]).width
         // A level's wings are as wide as its mark and its reading; the meter
         // takes the same width on the other side.
@@ -53,9 +60,11 @@ struct NotchNotice: Equatable {
         let maximum: CGFloat = event == .accessory && level == nil ? 160 : 240
         func fitted(_ content: CGFloat) -> CGFloat { min(maximum, max(Self.minimumWing, ceil(content) + 16 + cameraGap)) }
         // An empty title leaves the mark alone, without the space after it.
-        let mark = fitted(leading > 0 ? leading + 18 + 8 : 18)
+        let markWidth = trackMetrics?.artwork ?? 18
+        let mark = fitted(leading > 0 ? leading + markWidth + 8 : markWidth)
         guard level == nil else { return NotchNoticeWings(leading: mark, trailing: mark) }
-        return NotchNoticeWings(leading: mark, trailing: fitted((detail as NSString).size(withAttributes: [.font: font]).width))
+        let detailFont = NSFont.monospacedDigitSystemFont(ofSize: trackMetrics?.detailFont ?? 11, weight: .medium)
+        return NotchNoticeWings(leading: mark, trailing: fitted((detail as NSString).size(withAttributes: [.font: detailFont]).width))
     }
 
     /// The wider side, for what still takes one width for both.
@@ -84,8 +93,14 @@ struct NotchNotice: Equatable {
     /// Room a closed notice keeps inside its curved ends, which a side as
     /// narrow as its content still clears; only a display too narrow for a
     /// side's content takes some of it.
-    func inset(wing: CGFloat) -> CGFloat {
-        level != nil && event != .accessory ? Self.levelInset : min(NotchNotificationBannerLayout.inset, wing / 2)
+    private func contourInset(in geometry: NotchGeometry) -> CGFloat {
+        geometry.compactActivityEdgeInset(boxHeight: min(26, max(0, geometry.stripHeight - 4)), radius: 4, gap: 6)
+    }
+
+    func inset(wing: CGFloat, geometry: NotchGeometry? = nil) -> CGFloat {
+        let base = level != nil && event != .accessory ? Self.levelInset : min(NotchNotificationBannerLayout.inset, wing / 2)
+        guard let geometry, !geometry.isNotched, !geometry.floats, geometry.shapeFit != .standard else { return base }
+        return min(max(base, contourInset(in: geometry)), max(0, wing - 18 - cameraGap))
     }
 
     /// Where the companion stands in this notice, as an offset of its centre
@@ -93,7 +108,7 @@ struct NotchNotice: Equatable {
     /// that carries it reads from the ends.
     func mascotOffset(in geometry: NotchGeometry) -> CGFloat {
         let wing = wings(in: geometry).leading
-        return -(geometry.noticeCameraGap / 2 + wing) + inset(wing: wing) + NotchMascotSupport.noticeSize / 2
+        return -(geometry.noticeCameraGap / 2 + wing) + inset(wing: wing, geometry: geometry) + NotchMascotSupport.noticeSize / 2
     }
 
     func previewContentHeight(width: CGFloat) -> CGFloat {
@@ -930,7 +945,8 @@ final class NotchService: ObservableObject {
         NotchCaptureControlsLayout(
             geometry: geometry,
             titleWidth: NotchCaptureControlsLayout.titleWidth(FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle),
-            capturesAudio: captureControls?.selectedTool.capturesAudio == true)
+            capturesAudio: captureControls?.selectedTool.capturesAudio == true,
+            toolCount: captureControls.map { $0.showsCaptureMenu ? $0.availableTools.count : 1 } ?? 5)
     }
 
     var surfaceSize: CGSize {
@@ -978,7 +994,7 @@ final class NotchService: ObservableObject {
     /// The open island around the Command Bar: the bar's width within the
     /// island's margins, and its height below the camera.
     var commandBarSurfaceSize: CGSize {
-        let width = max(geometry.cameraWidth + 80, CommandBarView.width + NotchLayout.horizontalInset * 2)
+        let width = max(geometry.cameraWidth + 80, CommandBarView.width + geometry.horizontalInset * 2)
         let height = geometry.safeContentTop + (commandBarHeight ?? CommandBarView.fieldHeight) + NotchLayout.bottomInset
         return CGSize(width: min(geometry.screen.width - 24, width), height: min(geometry.screen.height - 48, height))
     }
@@ -3521,7 +3537,7 @@ final class NotchService: ObservableObject {
                              capsuleFit: NotchCapsuleFit.current(),
                              hideMenuBarGap: UserDefaults.standard.bool(forKey: DefaultsKey.notchHideMenuBarGap),
                              outline: UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
-                             barEdge: 1 / max(1, screen.backingScaleFactor))
+                             barEdge: 1 / max(1, screen.backingScaleFactor), shapeFit: NotchShapeFit.current())
     }
 
     private func updateFullscreenVisibility(displayID: CGDirectDisplayID) {

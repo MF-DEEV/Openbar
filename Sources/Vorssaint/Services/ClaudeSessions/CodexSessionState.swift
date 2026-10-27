@@ -105,6 +105,56 @@ final class CodexSessionState {
         var ephemeral = false
         /// A read or a resume described it; until then only its status is known.
         var described = false
+        struct Message {
+            let itemID: String
+            var value: ClaudeChatMessage
+            var live: Bool
+            var revision: Int
+        }
+        var chat: [Message] = []
+        var nextMessage = 0
+        var historyOrder = 0
+
+        @discardableResult
+        mutating func message(_ item: [String: Any], at: Date, live: Bool, revision: Int = 0) -> Bool {
+            guard let id = CodexSessionState.string(item, "id") else { return false }
+            let role: ClaudeChatMessage.Role
+            let text: String
+            switch CodexSessionState.string(item, "type") {
+            case "agentMessage":
+                role = .assistant
+                text = CodexSessionState.string(item, "text") ?? ""
+            case "userMessage":
+                role = .user
+                text = (item["content"] as? [[String: Any]] ?? []).compactMap {
+                    CodexSessionState.string($0, "type") == "text" ? CodexSessionState.string($0, "text") : nil
+                }.joined(separator: "\n")
+            default: return false
+            }
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
+            let clipped = CodexSessionState.clip(text, limit: 16_000)
+            let endsTurn = role == .assistant && CodexSessionState.string(item, "phase") == "final_answer"
+            if let index = chat.firstIndex(where: { $0.itemID == id }) {
+                let old = chat[index]
+                guard live || !old.live else { return false }
+                chat[index].live = old.live || live
+                if live { chat[index].revision = revision }
+                guard old.value.text != clipped || old.value.endsTurn != endsTurn else { return false }
+                chat[index].value = ClaudeChatMessage(
+                    id: old.value.id, role: role, text: clipped,
+                    at: old.value.at, endsTurn: endsTurn)
+            } else {
+                nextMessage += 1
+                chat.append(
+                    Message(
+                        itemID: id,
+                        value: ClaudeChatMessage(
+                            id: nextMessage, role: role,
+                            text: clipped, at: at, endsTurn: endsTurn), live: live, revision: revision))
+                if chat.count > 100 { chat.removeFirst(chat.count - 100) }
+            }
+            return true
+        }
 
         init(id: String) { self.id = id }
 
@@ -112,6 +162,17 @@ final class CodexSessionState {
     }
 
     private(set) var threads: [String: Thread] = [:]
+    private(set) var previews = false
+    private(set) var chatRevision = 0
+
+    /// Turning previews off also drops content already received. Late history
+    /// responses and notifications cannot put it back while the switch is off.
+    func setPreviews(_ enabled: Bool) {
+        previews = enabled
+        if !enabled {
+            for id in Array(threads.keys) { threads[id]?.chat.removeAll() }
+        }
+    }
 
     init() {}
 
@@ -181,7 +242,7 @@ final class CodexSessionState {
 
     /// `thread/read`'s thread, or a thread from `thread/list`. A thread read
     /// back as not loaded is gone, as `thread/status/changed` says it.
-    func upsertThread(_ thread: [String: Any]) {
+    func upsertThread(_ thread: [String: Any], historyRevision: Int = 0, historyOrder: Int = 0) {
         guard let id = Self.string(thread, "id") else { return }
         if let status = thread["status"] as? [String: Any], Self.string(status, "type") == "notLoaded" {
             threads[id] = nil
@@ -199,6 +260,33 @@ final class CodexSessionState {
         entry.parent = Self.string(thread, "parentThreadId") ?? entry.parent
         if let ephemeral = Self.bool(thread["ephemeral"]) { entry.ephemeral = ephemeral }
         if let status = thread["status"] { entry.status = Status(json: status) }
+        if previews, historyOrder >= entry.historyOrder, let turns = thread["turns"] as? [[String: Any]] {
+            entry.historyOrder = historyOrder
+            for index in entry.chat.indices where entry.chat[index].revision <= historyRevision {
+                entry.chat[index].live = false
+            }
+            let existing = entry.chat
+            let historyItems = turns.flatMap { turn -> [(item: [String: Any], at: Date)] in
+                let at = Self.time(turn, "startedAt") ?? entry.updated ?? entry.created ?? Date()
+                return (turn["items"] as? [[String: Any]] ?? []).filter {
+                    ["agentMessage", "userMessage"].contains(Self.string($0, "type") ?? "")
+                }.map { ($0, at) }
+            }.suffix(100)
+            var history: [String] = []
+            var seen: Set<String> = []
+            for (item, at) in historyItems {
+                guard let itemID = Self.string(item, "id") else { continue }
+                entry.message(item, at: at, live: false)
+                if seen.insert(itemID).inserted { history.append(itemID) }
+            }
+            // Server order first, then live items missing from that response.
+            // A late read must not replace a newer item/completed notification.
+            var values = Dictionary(uniqueKeysWithValues: entry.chat.map { ($0.itemID, $0) })
+            for message in existing where message.live { values[message.itemID] = message }
+            entry.chat = (history + existing.filter { $0.live && !seen.contains($0.itemID) }.map(\.itemID))
+                .compactMap { values[$0] }
+            entry.chat = Array(entry.chat.suffix(100))
+        }
         threads[id] = entry
     }
 
@@ -260,8 +348,15 @@ final class CodexSessionState {
             return changed
         case "item/started", "item/completed":
             guard let id = threadID, var thread = threads[id],
-                  let item = params["item"] as? [String: Any], let kind = Self.string(item, "type"),
-                  Self.toolItems.contains(kind) else { return unchanged }
+                let item = params["item"] as? [String: Any], let kind = Self.string(item, "type")
+            else { return unchanged }
+            if previews, kind == "agentMessage" || kind == "userMessage" {
+                chatRevision += 1
+                let didChange = thread.message(item, at: now, live: true, revision: chatRevision)
+                threads[id] = thread
+                return didChange ? changed : unchanged
+            }
+            guard Self.toolItems.contains(kind) else { return unchanged }
             let itemID = Self.string(item, "id") ?? ""
             if method == "item/started" {
                 let started = Self.time(params, "startedAtMs") ?? now
@@ -400,7 +495,7 @@ final class CodexSessionState {
         // ones it cannot answer wait, the person answers in the terminal.
         let card = pending.first(where: \.answerable)
         let inTerminal = card == nil && !pending.isEmpty
-        return ClaudeSession(
+        var session = ClaudeSession(
             id: thread.id, pid: 0, cwd: thread.cwd, project: project,
             name: name ?? project, nameSource: name == nil ? nil : "user",
             branch: thread.branch, model: thread.model,
@@ -412,7 +507,11 @@ final class CodexSessionState {
             currentTool: phase == .runningTool || phase == .waitingPermission ? current : nil,
             permission: card.map(permission),
             timeline: timeline, subagents: [], tasks: nil, tokens: thread.tokens, cost: 0,
-            title: previews ? thread.preview : nil, lastText: nil, hooked: true, provider: .codex)
+            title: previews ? thread.preview : nil,
+            lastText: previews ? thread.chat.last(where: { $0.value.role == .assistant })?.value.text : nil,
+            hooked: true, provider: .codex)
+        if previews { session.chat = thread.chat.map(\.value) }
+        return session
     }
 
     // MARK: Tools

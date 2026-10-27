@@ -47,7 +47,9 @@ final class CodexSessionClient {
 
     /// What a response answers.
     private enum Waiting {
-        case initialize, loadedList, read, resume, other
+        case initialize, loadedList, other
+        case read(Int)
+        case resume(Int)
     }
 
     private let home: URL?
@@ -128,7 +130,17 @@ final class CodexSessionClient {
     }
 
     func snapshot(now: Date, previews: Bool) -> (sessions: [ClaudeSession], events: [ClaudeSessionEvent]) {
-        lock.withLock { state.snapshot(now: now, previews: previews) }
+        lock.withLock {
+            if state.previews != previews {
+                state.setPreviews(previews)
+                if previews {
+                    for id in state.threads.keys.sorted() {
+                        call("thread/read", ["threadId": id, "includeTurns": true], .read(state.chatRevision))
+                    }
+                }
+            }
+            return state.snapshot(now: now, previews: previews)
+        }
     }
 
     func owns(_ session: String) -> Bool {
@@ -213,7 +225,7 @@ final class CodexSessionClient {
         for id in join.sorted() {
             state.setSubscribed(id, true)
             // No overrides: with them Codex would change the person's thread.
-            call("thread/resume", ["threadId": id, "excludeTurns": true], .resume)
+            call("thread/resume", ["threadId": id, "excludeTurns": !state.previews], .resume(state.chatRevision))
         }
         for id in leave.sorted() {
             state.setSubscribed(id, false)
@@ -238,7 +250,7 @@ final class CodexSessionClient {
             case (let method?, nil):
                 let notified = state.notify(method, params: params, now: now)
                 if let new = notified.read {
-                    call("thread/read", ["threadId": new, "includeTurns": false], .read)
+                    call("thread/read", ["threadId": new, "includeTurns": state.previews], .read(state.chatRevision))
                 }
                 // A page's thread that closed or unloaded is no longer kept.
                 if let thread = params["threadId"] as? String, state.threads[thread] == nil {
@@ -257,15 +269,17 @@ final class CodexSessionClient {
                     return false
                 case .loadedList:
                     for thread in (result["data"] as? [Any] ?? []).compactMap({ $0 as? String }) {
-                        call("thread/read", ["threadId": thread, "includeTurns": false], .read)
+                        call(
+                            "thread/read", ["threadId": thread, "includeTurns": state.previews],
+                            .read(state.chatRevision))
                     }
                     if let cursor = result["nextCursor"] as? String {
                         call("thread/loaded/list", ["cursor": cursor], .loadedList)
                     }
                     return false
-                case .read, .resume:
+                case .read(let revision), .resume(let revision):
                     guard let thread = result["thread"] as? [String: Any] else { return false }
-                    state.upsertThread(thread)
+                    state.upsertThread(thread, historyRevision: revision, historyOrder: number)
                     if let id = thread["id"] as? String, state.threads[id] == nil { focused.remove(id) }
                     follow()
                     return true

@@ -110,6 +110,7 @@ struct MetricsTests {
             ("notch-music", { NotchMusicExtrasTests.run(suite) }),
             ("notch", {
                 NotchTests.run(suite)
+                NotchShapeParityTests.run(suite)
                 NotchCompactTests.run(suite)
                 NotchCapsuleTests.run(suite)
                 PlainTextLineMoverTests.run(suite)

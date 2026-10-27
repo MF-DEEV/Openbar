@@ -222,3 +222,28 @@ struct NotchTrackChange {
         return text
     }
 }
+
+/// Resolve the selected player to one mixer owner, never an arbitrary audio app.
+enum NotchMusicVolumeTarget {
+    struct Source {
+        let id: String
+        let pid: Int32
+        let bundle: String?
+        var bypassed = false
+    }
+
+    static func resolve(pid: Int32?, bundle: String?, sources: [Source]) -> String? {
+        if let pid, pid > 0 {
+            let exact = sources.filter { $0.pid == pid }
+            if exact.count == 1 {
+                let source = exact[0]
+                let conflict = bundle.map { !$0.isEmpty && source.bundle != nil && source.bundle != $0 } ?? false
+                if !conflict { return source.bypassed ? nil : source.id }
+            } else if !exact.isEmpty { return nil }
+        }
+        guard let bundle, !bundle.isEmpty else { return nil }
+        let matches = sources.filter { $0.bundle == bundle }
+        guard matches.count == 1, !matches[0].bypassed else { return nil }
+        return matches[0].id
+    }
+}
