@@ -41,7 +41,7 @@ export function VolumeLevel() {
   const output = useAudio((s) => s.state.output);
   const outputs = useAudio((s) => s.state.outputs);
   const canSwitch = useAudio((s) => s.state.canSwitch);
-  const error = useAudio((s) => s.error);
+  const error = useAudio((s) => (s.switchError?.input === false ? s.switchError.message : null));
   const mixerShown = useIsland((s) => modulesOf(s).includes("mixer"));
   const level = shownLevel(output);
   const muted = output.muted === true;

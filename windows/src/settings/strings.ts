@@ -109,7 +109,8 @@ export const T = {
     trackChangeCaption: "The cover, title and artist for a moment when the song changes.",
     more: "Brightness, clipboard and the other indicators come with their sections.",
     keepAwake: "Show “Keep awake” in the closed island",
-    keepAwakeCaption: "A running session appears beside the camera with the time it has left, or ∞ when it has no end.",
+    keepAwakeCaption:
+      "A running session shows in the closed island with the time it has left, or ∞ when it has no end.",
     volume: "Volume",
     volumeCaption: "The new level for a moment when it changes with the volume keys or from another app.",
   },

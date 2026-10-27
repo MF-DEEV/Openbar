@@ -96,10 +96,11 @@ fn emit(app: &AppHandle, state: &State) {
 /// Starts a session of `minutes` (0 = until turned off), replacing any running one.
 fn start(app: &AppHandle, shared: &Shared, minutes: u32) -> Result<State, String> {
     let minutes = sanitized(minutes);
+    // The new request is held before the old one goes, so a failure changes nothing.
+    let request = Request::create()?;
     let state = {
         let mut inner = shared.0.lock().unwrap();
-        inner.request = None;
-        inner.request = Some(Request::create()?);
+        inner.request = Some(request);
         inner.generation += 1;
         inner.state = State { active: true, ends_at: ends_at(now_ms(), minutes) };
         if let Some(end) = inner.state.ends_at {
@@ -112,15 +113,24 @@ fn start(app: &AppHandle, shared: &Shared, minutes: u32) -> Result<State, String
 }
 
 fn stop(app: &AppHandle, shared: &Shared) -> State {
+    stop_if(app, shared, None).unwrap_or_default()
+}
+
+/// Ends the session, or with `generation` only the session it names, under
+/// one lock so a session started meanwhile isn't ended by an old timer.
+fn stop_if(app: &AppHandle, shared: &Shared, generation: Option<u64>) -> Option<State> {
     let state = {
         let mut inner = shared.0.lock().unwrap();
+        if generation.is_some_and(|g| g != inner.generation) {
+            return None;
+        }
         inner.request = None;
         inner.generation += 1;
         inner.state = State::default();
         inner.state.clone()
     };
     emit(app, &state);
-    state
+    Some(state)
 }
 
 /// Ends the session at `end` by the wall clock, so time asleep with the lid
@@ -137,9 +147,7 @@ fn watch_end(app: AppHandle, shared: Shared, generation: u64, end: u64) {
                 return;
             }
         }
-        if shared.0.lock().unwrap().generation == generation {
-            stop(&app, &shared);
-        }
+        stop_if(&app, &shared, Some(generation));
     });
 }
 

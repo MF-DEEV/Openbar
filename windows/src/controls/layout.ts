@@ -58,10 +58,13 @@ export function controlsOf(
   return all.filter((item) => !hidden.includes(item) && isAvailable(item, modules));
 }
 
-/** Every tile the settings editor offers, in order, shown or not (NotchSettings.orderedShortcuts). */
-export function editableShortcuts(order: readonly ControlItem[]): ControlItem[] {
+/**
+ * Every tile the settings editor offers, in order, shown or not
+ * (NotchSettings.orderedShortcuts); a tile whose section is off isn't offered.
+ */
+export function editableShortcuts(order: readonly ControlItem[], modules: readonly ModuleId[]): ControlItem[] {
   return [...new Set([...order, ...CONTROL_ITEMS])].filter(
-    (i) => CONTROL_ITEMS.includes(i) && isShortcut(i) && !UNSUPPORTED.includes(i),
+    (i) => CONTROL_ITEMS.includes(i) && isShortcut(i) && isAvailable(i, modules),
   );
 }
 

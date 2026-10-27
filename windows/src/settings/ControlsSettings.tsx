@@ -8,6 +8,8 @@
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { editableShortcuts } from "../controls/layout";
 import type { ControlItem } from "../controls/types";
+import { visibleModules } from "../island/modules";
+import { sectionEnabled } from "../island/settings";
 import { useSettings } from "./state";
 import { T } from "./strings";
 import { Button, Select, SubRow, Toggle } from "./ui";
@@ -38,7 +40,11 @@ export function ControlsOptions() {
   const shown = (item: ControlItem) => !hidden.includes(item);
   const setShown = (item: ControlItem, on: boolean) =>
     set("hiddenControls", on ? hidden.filter((i) => i !== item) : [...hidden, item]);
-  const tiles = editableShortcuts(island.controlOrder);
+  // Every section, whatever the Content list shows: a hidden one still gets its tile back when shown.
+  const tiles = editableShortcuts(
+    island.controlOrder,
+    visibleModules(island.moduleOrder, island.hiddenModules, (id) => sectionEnabled(island, id)),
+  );
   const move = (item: ControlItem, by: -1 | 1) => {
     const next = [...tiles];
     const from = next.indexOf(item);

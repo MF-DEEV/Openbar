@@ -101,7 +101,7 @@ function MicrophoneTile() {
       title={muted ? S.micUnmute : S.micMute}
       active={muted}
       accent="alert"
-      onSelect={() => void useAudio.getState().toggleMicMute()}
+      onSelect={() => useAudio.getState().toggleMicMute()}
     />
   );
 }

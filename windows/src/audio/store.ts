@@ -20,14 +20,14 @@ interface AudioStore {
   /** The audio thread has answered once; before that, "unsupported" means nothing yet. */
   received: boolean;
   holds: Holds;
-  /** The last switch or setting that failed, for the band's label. */
-  error: string | null;
+  /** The last default-device switch that failed, for the band and the options (outputSwitchError, input.lastError). */
+  switchError: { input: boolean; message: string } | null;
   receive(state: AudioState): void;
   setOutput(change: { volume?: number; muted?: boolean }): void;
   setInput(change: { volume?: number; muted?: boolean }): void;
   setApp(key: string, change: { volume?: number; muted?: boolean }): void;
   setDefault(id: string): Promise<void>;
-  toggleMicMute(): Promise<void>;
+  toggleMicMute(): void;
 }
 
 function held<T extends number | boolean | null>(holds: Holds, field: string, value: T, now: number): T {
@@ -76,20 +76,47 @@ function hold(holds: Holds, prefix: string, change: { volume?: number; muted?: b
   return next;
 }
 
+const inFlight = new Map<string, { next?: () => Promise<unknown> }>();
+
+/**
+ * One call per `key` at a time, and only the newest waiting: each command
+ * runs on a thread of its own before the audio worker, so a slider's
+ * calls could otherwise land out of order and leave an older level.
+ */
+export function latest(key: string, send: () => Promise<unknown>): void {
+  const slot = inFlight.get(key);
+  if (slot) {
+    slot.next = send;
+    return;
+  }
+  const entry: { next?: () => Promise<unknown> } = {};
+  inFlight.set(key, entry);
+  const run = (fn: () => Promise<unknown>) => {
+    void fn()
+      .catch((e) => console.warn("audio:", message(e)))
+      .finally(() => {
+        const next = entry.next;
+        entry.next = undefined;
+        if (next) run(next);
+        else inFlight.delete(key);
+      });
+  };
+  run(send);
+}
+
+/** The queue a level change waits in: its own per field, so a mute never waits behind a drag. */
+const field = (prefix: string, change: { volume?: number; muted?: boolean }) =>
+  `${prefix}:${change.volume !== undefined ? "v" : ""}${change.muted !== undefined ? "m" : ""}`;
+
 const clamp = (v: number) => Math.min(1, Math.max(0, v));
 const message = (e: unknown) => (e instanceof Error ? e.message : String(e));
 
 export const useAudio = create<AudioStore>()((set, get) => {
-  const report = (promise: Promise<unknown>) =>
-    promise.then(
-      () => set({ error: null }),
-      (e) => set({ error: message(e) }),
-    );
   return {
     state: EMPTY_AUDIO,
     received: false,
     holds: {},
-    error: null,
+    switchError: null,
 
     receive(state) {
       set({ state: applyHolds(state, get().holds), received: true });
@@ -99,42 +126,40 @@ export const useAudio = create<AudioStore>()((set, get) => {
       const volume = change.volume === undefined ? undefined : clamp(change.volume);
       const holds = hold(get().holds, "output", { ...change, volume });
       set({ holds, state: applyHolds(get().state, holds) });
-      void report(bridge.audio.setOutput(volume, change.muted));
+      // A level that didn't take needs no message: its hold runs out and the
+      // slider returns to what the system reports.
+      latest(field("output", change), () => bridge.audio.setOutput(volume, change.muted));
     },
 
     setInput(change) {
       const volume = change.volume === undefined ? undefined : clamp(change.volume);
       const holds = hold(get().holds, "input", { ...change, volume });
       set({ holds, state: applyHolds(get().state, holds) });
-      void report(bridge.audio.setInput(volume, change.muted));
+      latest(field("input", change), () => bridge.audio.setInput(volume, change.muted));
     },
 
     setApp(key, change) {
       const volume = change.volume === undefined ? undefined : clamp(change.volume);
       const holds = hold(get().holds, `app:${key}`, { ...change, volume });
       set({ holds, state: applyHolds(get().state, holds) });
-      void report(bridge.audio.setApp(key, volume, change.muted));
+      latest(field(`app:${key}`, change), () => bridge.audio.setApp(key, volume, change.muted));
     },
 
     async setDefault(id) {
+      const input = get().state.inputs.some((d) => d.id === id);
       try {
         await bridge.audio.setDefault(id);
-        set({ error: null });
+        set({ switchError: null });
       } catch (e) {
-        set({ error: message(e) });
+        set({ switchError: { input, message: message(e) } });
       }
     },
 
-    async toggleMicMute() {
+    toggleMicMute() {
       const target = !get().state.micMuted;
       const holds = { ...pruned(get().holds, Date.now()), "mic.muted": { value: target, until: Date.now() + HOLD_MS } };
       set({ holds, state: applyHolds(get().state, holds) });
-      try {
-        await bridge.audio.micMute(target);
-        set({ error: null });
-      } catch (e) {
-        set({ error: message(e) });
-      }
+      latest("mic", () => bridge.audio.micMute(target));
     },
   };
 });

@@ -16,7 +16,7 @@ vi.mock("../shared/bridge", () => ({
     },
   },
 }));
-import { applyHolds, percent, shownLevel, useAudio } from "./store";
+import { applyHolds, latest, percent, shownLevel, useAudio } from "./store";
 import { EMPTY_AUDIO, type AudioState } from "./types";
 
 const reading = (volume: number, muted = false): AudioState => ({
@@ -29,7 +29,7 @@ const reading = (volume: number, muted = false): AudioState => ({
 afterEach(() => {
   vi.useRealTimers();
   calls.length = 0;
-  useAudio.setState({ state: EMPTY_AUDIO, received: false, holds: {}, error: null });
+  useAudio.setState({ state: EMPTY_AUDIO, received: false, holds: {}, switchError: null });
 });
 
 describe("audio store", () => {
@@ -54,15 +54,41 @@ describe("audio store", () => {
     expect(useAudio.getState().state.apps[0]).toMatchObject({ volume: 1, muted: true });
   });
 
-  it("keeps the switch error for the band", async () => {
-    await useAudio.getState().setDefault("x");
-    expect(useAudio.getState().error).toBe("Element not found");
+  it("keeps a switch error with the device's direction", async () => {
+    useAudio.getState().receive({ ...reading(0.5), inputs: [{ id: "mic", name: "Mic", isDefault: false }] });
+    await useAudio.getState().setDefault("mic");
+    expect(useAudio.getState().switchError).toEqual({ input: true, message: "Element not found" });
+    await useAudio.getState().setDefault("speakers");
+    expect(useAudio.getState().switchError).toEqual({ input: false, message: "Element not found" });
   });
 
   it("toggles Mic Mute to the opposite of what shows", async () => {
-    await useAudio.getState().toggleMicMute();
+    useAudio.getState().toggleMicMute();
+    await Promise.resolve();
     expect(calls).toEqual([["mic", true]]);
     expect(useAudio.getState().state.micMuted).toBe(true);
+  });
+
+  it("sends one call per field at a time, then only the newest", async () => {
+    const sent: number[] = [];
+    let release = () => {};
+    const slow = (n: number) => () =>
+      new Promise<void>((resolve) => {
+        sent.push(n);
+        release = resolve;
+      });
+    latest("k", slow(1));
+    latest("k", slow(2));
+    latest("k", slow(3));
+    expect(sent).toEqual([1]);
+    release();
+    await new Promise((r) => setTimeout(r));
+    expect(sent).toEqual([1, 3]);
+    release();
+    await new Promise((r) => setTimeout(r));
+    latest("k", slow(4));
+    expect(sent).toEqual([1, 3, 4]);
+    release();
   });
 
   it("drops expired holds", () => {

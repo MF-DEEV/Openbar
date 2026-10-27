@@ -60,7 +60,13 @@ describe("home page items", () => {
   });
 
   it("lists every Windows tile in the editor, in order, without levels or the card", () => {
-    expect(editableShortcuts(["scratchpad"])).toEqual([
+    expect(editableShortcuts(["timer"], ["controls", "mixer"])).toEqual([
+      "mixer",
+      "keepAwake",
+      "microphone",
+      "screenshot",
+    ]);
+    expect(editableShortcuts(["scratchpad"], ALL)).toEqual([
       "scratchpad",
       "mixer",
       "keepAwake",

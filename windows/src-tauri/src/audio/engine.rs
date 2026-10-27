@@ -194,7 +194,6 @@ impl IAudioSessionNotification_Impl for SessionEvents_Impl {
 
 /// The default device's level, with its change callback registered.
 struct Endpoint {
-    id: String,
     volume: IAudioEndpointVolume,
     callback: IAudioEndpointVolumeCallback,
 }
@@ -280,6 +279,11 @@ impl Engine {
             mic: load_mic(),
             watching: false,
         };
+        // Restored while muted: the microphones present now were present
+        // before, so one unmuted by hand meanwhile stays as it is.
+        if engine.mic.muted {
+            engine.mic.seen = engine.devices(eCapture, eConsole).into_iter().map(|d| d.id).collect();
+        }
         engine.reload_devices();
         Ok(engine)
     }
@@ -290,18 +294,27 @@ impl Engine {
         self.inputs = self.devices(eCapture, eConsole);
         let output = self.outputs.iter().find(|d| d.is_default).map(|d| d.id.clone());
         let input = self.inputs.iter().find(|d| d.is_default).map(|d| d.id.clone());
-        if self.output.as_ref().map(|e| &e.id) != output.as_ref() {
-            self.output = output.and_then(|id| self.endpoint(&id, true));
-        }
-        if self.input.as_ref().map(|e| &e.id) != input.as_ref() {
-            self.input = input.and_then(|id| self.endpoint(&id, false));
-        }
-        // A microphone plugged in while Mic Mute is on is muted too.
+        // Rebuilt on every device event: a device unplugged and back under the
+        // same id leaves the old interfaces dead.
+        self.output = None;
+        self.input = None;
+        self.managers.clear();
+        self.output = output.and_then(|id| self.endpoint(&id, true));
+        self.input = input.and_then(|id| self.endpoint(&id, false));
+        // A microphone plugged in while Mic Mute is on is muted too; one
+        // unplugged while it was turned off is unmuted on its return.
         let arrivals = self.mic.arrivals(&self.input_mutes());
         for id in &arrivals {
             let _ = self.set_device_mute(id, true);
         }
-        if !arrivals.is_empty() {
+        let present: Vec<String> = self.inputs.iter().map(|d| d.id.clone()).collect();
+        let owed = self.mic.owed(&present);
+        for id in &owed {
+            if self.set_device_mute(id, false).is_ok() {
+                self.mic.ours.remove(id);
+            }
+        }
+        if !arrivals.is_empty() || !owed.is_empty() {
             save_mic(&self.mic);
         }
         self.reload_sessions();
@@ -328,7 +341,7 @@ impl Engine {
         let volume = self.endpoint_volume(id)?;
         let callback: IAudioEndpointVolumeCallback = VolumeEvents { output }.into();
         unsafe { volume.RegisterControlChangeNotify(&callback) }.ok()?;
-        Some(Endpoint { id: id.to_string(), volume, callback })
+        Some(Endpoint { volume, callback })
     }
 
     fn endpoint_volume(&self, id: &str) -> Option<IAudioEndpointVolume> {
@@ -439,6 +452,10 @@ impl Engine {
                 Owner { key: exe.to_lowercase(), path: None, name: stem(&exe), system: false }
             }
         };
+        // A process that can't be opened has no start time to tell a reused PID by.
+        if created == 0 {
+            return owner;
+        }
         if self.owners.len() > 512 {
             self.owners.clear();
         }
@@ -551,22 +568,27 @@ impl Engine {
 
     /// Every session of the app; a level above zero unmutes it.
     pub fn set_app(&mut self, key: &str, volume: Option<f32>, muted: Option<bool>) -> Result<(), String> {
-        let mut found = false;
-        for s in self.sessions.iter().filter(|s| s.owner.key == key) {
-            found = true;
-            unsafe {
-                if let Some(v) = volume {
-                    s.simple.SetMasterVolume(v, &OWN_CHANGE).map_err(|e| e.message())?;
-                    if v > 0.0 && muted.is_none() {
-                        s.simple.SetMute(false, &OWN_CHANGE).map_err(|e| e.message())?;
-                    }
-                }
-                if let Some(m) = muted {
-                    s.simple.SetMute(m, &OWN_CHANGE).map_err(|e| e.message())?;
-                }
+        let (mut done, mut error) = (false, None);
+        let live = self.sessions.iter().filter(|s| {
+            s.owner.key == key && unsafe { s.control.GetState() }.is_ok_and(|state| state != AudioSessionStateExpired)
+        });
+        // One session gone bad doesn't stop the app's others.
+        for s in live {
+            let result = unsafe {
+                volume
+                    .map_or(Ok(()), |v| {
+                        s.simple.SetMasterVolume(v, &OWN_CHANGE).and_then(|_| {
+                            if v > 0.0 && muted.is_none() { s.simple.SetMute(false, &OWN_CHANGE) } else { Ok(()) }
+                        })
+                    })
+                    .and_then(|_| muted.map_or(Ok(()), |m| s.simple.SetMute(m, &OWN_CHANGE)))
+            };
+            match result {
+                Ok(()) => done = true,
+                Err(e) => error = Some(e.message()),
             }
         }
-        if found { Ok(()) } else { Err("The app has no audio session".into()) }
+        if done { Ok(()) } else { Err(error.unwrap_or_else(|| "The app has no audio session".into())) }
     }
 
     pub fn set_mic_mute(&mut self, muted: Option<bool>) -> Result<bool, String> {
@@ -576,8 +598,10 @@ impl Engine {
         }
         let ids = if target { self.mic.mute(&self.input_mutes()) } else { self.mic.unmute() };
         for id in &ids {
-            // A microphone unplugged meanwhile has nothing to undo.
-            let _ = self.set_device_mute(id, target);
+            // One unplugged meanwhile stays owed its unmute until it returns.
+            if self.set_device_mute(id, target).is_err() && !target {
+                self.mic.ours.insert(id.clone());
+            }
         }
         save_mic(&self.mic);
         Ok(target)

@@ -252,6 +252,8 @@ mod imp {
                         if !ok {
                             return None;
                         }
+                        // A monitor that reports no range takes the usual 0…100.
+                        let max = if max == 0 { 100 } else { max };
                         let id = format!("ddc:{device}#{i}");
                         maxima().lock().unwrap().insert(id.clone(), max);
                         // PHYSICAL_MONITOR is packed: copy the name out before reading it.

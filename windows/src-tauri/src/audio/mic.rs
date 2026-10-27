@@ -36,6 +36,15 @@ impl MicMute {
         std::mem::take(&mut self.ours).into_iter().collect()
     }
 
+    /// Unmuting a microphone that was unplugged fails; it stays owed and is
+    /// unmuted when it returns. Returns those of `present` still owed.
+    pub fn owed(&self, present: &[String]) -> Vec<String> {
+        if self.muted {
+            return Vec::new();
+        }
+        present.iter().filter(|id| self.ours.contains(*id)).cloned().collect()
+    }
+
     /// The microphones that arrived since muting and are live; they get muted.
     pub fn arrivals(&mut self, devices: &[(String, bool)]) -> Vec<String> {
         if !self.muted {
@@ -79,6 +88,19 @@ mod tests {
         let mut back = mic.unmute();
         back.sort();
         assert_eq!(back, vec!["a", "c"]);
+    }
+
+    #[test]
+    fn an_unplugged_microphone_is_unmuted_when_it_returns() {
+        let mut mic = MicMute::default();
+        mic.mute(&list(&[("a", false), ("b", false)]));
+        let _ = mic.unmute();
+        // Unmuting "b" failed: the engine keeps it owed.
+        mic.ours.insert("b".into());
+        assert_eq!(mic.owed(&["a".into()]), Vec::<String>::new());
+        assert_eq!(mic.owed(&["a".into(), "b".into()]), vec!["b"]);
+        mic.mute(&list(&[("a", false)]));
+        assert!(mic.owed(&["b".into()]).is_empty());
     }
 
     #[test]

@@ -36,7 +36,7 @@ import { EditablePercent, Switch } from "../shared/ui/controls";
 import { MenuButton, type MenuEntry, useMenu } from "../shared/ui/Menu";
 import { useReorder } from "../shared/ui/reorder";
 import { Slider } from "../shared/ui/Slider";
-import { percent, shownLevel, useAudio } from "../audio/store";
+import { latest, percent, shownLevel, useAudio } from "../audio/store";
 import type { AudioApp } from "../audio/types";
 import { arrange, type Arrangement, isPinned, isUnity, listedApps, moveBy, neighbor, togglePin } from "./arrangement";
 import { S } from "./strings";
@@ -72,7 +72,7 @@ function deviceEntries(devices: { id: string; name: string; isDefault: boolean }
 export function MixerLeading() {
   const outputs = useAudio((s) => s.state.outputs);
   const canSwitch = useAudio((s) => s.state.canSwitch);
-  const error = useAudio((s) => s.error);
+  const error = useAudio((s) => (s.switchError?.input === false ? s.switchError.message : null));
   const label = error ? S.couldNotSwitch(error) : (outputs.find((d) => d.isDefault)?.name ?? S.outputUnavailable);
   if (!canSwitch || outputs.length === 0)
     return (
@@ -116,9 +116,9 @@ export function MixerPage({ width, height }: PageProps) {
 
   // Apps and their peaks are read four times a second only while the page shows.
   useEffect(() => {
-    void bridge.audio.watchApps(true);
+    latest("watch", () => bridge.audio.watchApps(true));
     return () => {
-      void bridge.audio.watchApps(false);
+      latest("watch", () => bridge.audio.watchApps(false));
       useMixerUi.setState({ options: false });
     };
   }, []);
@@ -209,7 +209,7 @@ function MicrophoneFader({ height }: { height: number }) {
         mic
         muted={micMuted}
         label={micMuted ? S.micUnmute : S.micMute}
-        onClick={() => void useAudio.getState().toggleMicMute()}
+        onClick={() => useAudio.getState().toggleMicMute()}
       />
       <Slider
         vertical
@@ -391,7 +391,7 @@ function AppColumn(props: { app: AudioApp; height: number; arrangement: Arrangem
  */
 function MixerOptions() {
   const state = useAudio((s) => s.state);
-  const error = useAudio((s) => s.error);
+  const switchError = useAudio((s) => s.switchError);
   const hideInactive = useIsland((s) => s.settings.mixerHideInactiveApps);
   const hidden = useIsland((s) => s.settings.mixerHiddenApps);
   const output = state.outputs.find((d) => d.isDefault)?.name ?? S.outputUnavailable;
@@ -414,7 +414,7 @@ function MixerOptions() {
         <DeviceMenu label={S.chooseOutput} current={output} devices={state.outputs} canSwitch={state.canSwitch} />
       </Row>
       {state.outputs.length === 0 ? <p className="mx-message">{S.noOutputs}</p> : null}
-      {error ? <p className="mx-message">{S.couldNotSwitch(error)}</p> : null}
+      {switchError && !switchError.input ? <p className="mx-message">{S.couldNotSwitch(switchError.message)}</p> : null}
       <Row
         icon={state.micMuted ? <MicOff size={11} strokeWidth={2.25} /> : <Mic size={11} strokeWidth={2.25} />}
         title={S.microphone}
@@ -433,7 +433,7 @@ function MixerOptions() {
             className={`mx-small-mute${state.micMuted ? " is-muted" : ""}`}
             aria-label={state.micMuted ? S.micUnmute : S.micMute}
             title={state.micMuted ? S.micUnmute : S.micMute}
-            onClick={() => void useAudio.getState().toggleMicMute()}
+            onClick={() => useAudio.getState().toggleMicMute()}
           >
             {state.micMuted ? <MicOff size={11} strokeWidth={2.25} /> : <Mic size={11} strokeWidth={2.25} />}
           </button>
@@ -455,6 +455,7 @@ function MixerOptions() {
         </div>
       ) : null}
       {state.inputs.length === 0 ? <p className="mx-message">{S.noMicrophones}</p> : null}
+      {switchError?.input ? <p className="mx-message">{S.couldNotSwitch(switchError.message)}</p> : null}
       <div className="mx-options-divider" />
       <div className="mx-option-row">
         <span className="mx-option-title is-primary">{S.hideInactive}</span>

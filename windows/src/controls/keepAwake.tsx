@@ -38,8 +38,13 @@ export function nextTick(endsAt: number, now: number): number {
 }
 
 export async function toggleKeepAwake(): Promise<void> {
-  const next = await bridge.keepAwake.toggle();
-  if (next) useKeepAwake.setState({ state: next });
+  try {
+    const next = await bridge.keepAwake.toggle();
+    if (next) useKeepAwake.setState({ state: next });
+  } catch (e) {
+    // Windows refused the power request; the tile stays as it was.
+    console.warn("keep awake:", e);
+  }
 }
 
 /** The wider side: the cup, or the time left at 13 pt with the strip's insets. */
@@ -105,13 +110,13 @@ export function KeepAwakeStrip({ geometry, size }: ActivityViewProps) {
     >
       {capsule ? (
         <>
-          <Coffee size={14} strokeWidth={2.25} aria-hidden="true" />
+          <Coffee size={13} strokeWidth={2.25} aria-hidden="true" />
           {reading}
         </>
       ) : (
         <>
           <span className="ct-strip-wing" style={{ width: wing, paddingLeft: inset }}>
-            <Coffee size={14} strokeWidth={2.25} aria-hidden="true" />
+            <Coffee size={13} strokeWidth={2.25} aria-hidden="true" />
           </span>
           <span style={{ width: geometry.cameraWidth, flex: "none" }} />
           <span className="ct-strip-wing is-end" style={{ width: wing, paddingRight: inset }}>
