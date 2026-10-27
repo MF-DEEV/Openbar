@@ -4180,6 +4180,11 @@ final class NotchService: ObservableObject {
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in self?.scheduleSessionKeysSync() }
                 .store(in: &subscriptions)
+            // Another layout moves the letters, so the keys move with them.
+            NotificationCenter.default.publisher(for: GlobalShortcut.keyboardLayoutDidChange)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.scheduleSessionKeysSync() }
+                .store(in: &subscriptions)
             objectWillChange
                 .sink { [weak self] _ in self?.scheduleSessionKeysSync() }
                 .store(in: &subscriptions)
@@ -4192,6 +4197,12 @@ final class NotchService: ObservableObject {
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] id in if id == nil { self?.setSessionsEnlarged(false) } }
                 .store(in: &subscriptions)
+        }
+        if !NotchSupport.routes(.sessions) {
+            // Nothing follows the requests any more, so the keys go back now.
+            sessionKeysWork?.cancel(); sessionKeysWork = nil
+            sessionAllowKey.unregister()
+            sessionDenyKey.unregister()
         }
         if NotchSupport.routes(.agents) {
             AgentUsageService.shared.events.receive(on: DispatchQueue.main)
@@ -4286,7 +4297,14 @@ final class NotchService: ObservableObject {
     }
 
     /// A locked or asleep Mac shows nothing, so requests wait through it too.
-    private var sessionsMayPresent: Bool { sessionPresentingAllowed && !suspended }
+    /// What is in front is read again as well, so a request never takes
+    /// the island over another app whose activation went unannounced.
+    private var sessionsMayPresent: Bool {
+        guard sessionPresentingAllowed, !suspended, !hiddenInFullscreen else { return false }
+        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        return front == AssistiveKeyboard.bundleID
+            || NotchSessionAttention.allowsPresenting(frontmost: front, own: Bundle.main.bundleIdentifier)
+    }
 
     private var holdsSessionsFromHover: Bool {
         compactActivity == .sessions && ClaudeSessionService.shared.counts.waiting > 0 && !sessionsMayPresent

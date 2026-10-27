@@ -177,8 +177,11 @@ final class NotchDownloadService: ObservableObject {
                 self.discovery?.cancel()
                 let work = DispatchWorkItem { [weak self] in
                     guard let self else { return }
-                    // A disk mounted again lets its chosen folder resolve.
+                    // A disk mounted again lets its chosen folder resolve, and
+                    // access granted since in System Settings lets an
+                    // unreadable folder be read: each look tries both again.
                     if !self.missing.isEmpty { self.resolveChosenFolders(self.bookmarks) }
+                    self.unreadable.removeAll()
                     self.discoverFolders()
                 }
                 self.discovery = work

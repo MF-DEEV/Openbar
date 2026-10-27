@@ -63,12 +63,14 @@ enum NotchDownloadFolders {
 
     // MARK: Browser settings
 
-    /// The save and "Save as" folders from a Chromium profile's Preferences.
+    /// The download folder from a Chromium profile's Preferences. Its "Save
+    /// Page As" folder is only where a page was last saved, any folder at
+    /// all, so it is left out.
     static func chromiumDirectories(fromPreferences data: Data) -> [String] {
-        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
-        return ["download", "savefile"].compactMap {
-            (root[$0] as? [String: Any])?["default_directory"] as? String
-        }.filter { !$0.isEmpty }
+        guard let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let path = (root["download"] as? [String: Any])?["default_directory"] as? String,
+              !path.isEmpty else { return [] }
+        return [path]
     }
 
     /// Firefox's custom download folder. Its own folder list number says

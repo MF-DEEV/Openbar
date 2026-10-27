@@ -235,7 +235,7 @@ extension NotchClaudeSessionStrings {
         installHooks: "Install Hooks",
         removeHooks: "Remove Hooks",
         hooksFailedFormat: "Couldn’t change the settings: %@",
-        shortcutsHint: "⌘Y allows and ⌘N denies while the island has the keyboard.",
+        shortcutsHint: "⌘Y allows and ⌘N denies, even while another app is in front.",
         sendFailed: "Couldn’t reach that terminal",
         sendWhileWaiting: "It’s waiting on a prompt now. Answer it first.",
         bridgeTitle: "Antigravity extension",

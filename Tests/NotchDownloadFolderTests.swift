@@ -28,8 +28,12 @@ enum NotchDownloadFolderTests {
          "profile": {"name": "Work"}}
         """.utf8)
         suite.expect(NotchDownloadFolders.chromiumDirectories(fromPreferences: preferences)
-                     == ["/Volumes/Data/Downloads", "/Users/me/Saved \"Pages\""],
-                     "a Chromium profile yields its download and Save As folders, JSON escapes decoded")
+                     == ["/Volumes/Data/Downloads"],
+                     "a Chromium profile yields its download folder, not where a page was last saved")
+        suite.expect(NotchDownloadFolders.chromiumDirectories(
+                         fromPreferences: Data(#"{"download": {"default_directory": "/Users/me/Down \"Loads\""}}"#.utf8))
+                     == ["/Users/me/Down \"Loads\""],
+                     "JSON escapes in the folder are decoded")
         suite.expect(NotchDownloadFolders.chromiumDirectories(fromPreferences: Data(#"{"download": {}}"#.utf8)).isEmpty,
                      "a profile that never changed its folder names none")
         suite.expect(NotchDownloadFolders.chromiumDirectories(
@@ -189,7 +193,8 @@ enum NotchDownloadFolderTests {
             try Data(text.utf8).write(to: url)
         }
         try write(#"{"download": {"default_directory": "/Volumes/Chrome Default"}}"#, to: "Google/Chrome/Default/Preferences")
-        try write(#"{"savefile": {"default_directory": "~/Saved"}}"#, to: "Google/Chrome/Profile 2/Preferences")
+        try write(#"{"download": {"default_directory": "~/Saved"}, "savefile": {"default_directory": "/Volumes/SaveAs"}}"#,
+                  to: "Google/Chrome/Profile 2/Preferences")
         try write(#"{"download": {"default_directory": "relative/path"}}"#, to: "Google/Chrome/Profile 3/Preferences")
         try write("not json", to: "Microsoft Edge/Default/Preferences")
         try write(#"{"download": {"default_directory": "/Volumes/Opera"}}"#, to: "com.operasoftware.Opera/Preferences")
