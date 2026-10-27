@@ -173,6 +173,25 @@ pub fn answer(next: &mut dyn FnMut() -> Option<Value>, id: &str) -> Result<Value
     Err(Failure::Unreachable)
 }
 
+const NO_SERVERS: &str = "{\"mcpServers\":{}}";
+const NO_HOOKS: &str = "{\"disableAllHooks\":true}";
+
+/// The empty MCP config and the hooks switch, as JSON text for an executable.
+/// A `.cmd` shim runs through cmd.exe, whose quoting of JSON is fragile, so
+/// it gets the same JSON as files instead; both flags take either.
+fn config_args(executable: &Path) -> Option<(String, String)> {
+    let shim = executable.extension().is_some_and(|e| e.eq_ignore_ascii_case("cmd") || e.eq_ignore_ascii_case("bat"));
+    if !shim {
+        return Some((NO_SERVERS.into(), NO_HOOKS.into()));
+    }
+    let dir = super::archive::folder().unwrap_or_else(std::env::temp_dir);
+    std::fs::create_dir_all(&dir).ok()?;
+    let (mcp, hooks) = (dir.join("claude-mcp.json"), dir.join("claude-settings.json"));
+    std::fs::write(&mcp, NO_SERVERS).ok()?;
+    std::fs::write(&hooks, NO_HOOKS).ok()?;
+    Some((mcp.to_string_lossy().into_owned(), hooks.to_string_lossy().into_owned()))
+}
+
 /// One account check (§2.2).
 pub fn check(now: &dyn Fn() -> Time) -> Result<Limits, Failure> {
     let executable = executable().ok_or(Failure::Missing)?;
@@ -180,7 +199,8 @@ pub fn check(now: &dyn Fn() -> Time) -> Result<Limits, Failure> {
     let organization = read_profile().organization;
     let settings = super::files::claude_dir().and_then(|d| std::fs::read(d.join("settings.json")).ok());
     let env = environment(settings.as_deref(), &executable);
-    let args = ["--print", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--no-session-persistence", "--tools", "", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}", "--setting-sources", "", "--settings", "{\"disableAllHooks\":true}"];
+    let (mcp, hooks) = config_args(&executable).ok_or(Failure::Unreachable)?;
+    let args = ["--print", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--no-session-persistence", "--tools", "", "--strict-mcp-config", "--mcp-config", &mcp, "--setting-sources", "", "--settings", &hooks];
     let mut channel = Conversation::start(&executable, &args, &env, &["CLAUDECODE"], TIMEOUT).ok_or(Failure::Unreachable)?;
     let ask = |channel: &mut Conversation, id: &str, request: Value| -> Result<Value, Failure> {
         if !channel.send(&json!({"type": "control_request", "request_id": id, "request": request})) {
@@ -283,6 +303,14 @@ mod tests {
         assert!(env.contains(&("DISABLE_TELEMETRY".into(), "1".into())));
         assert!(env.contains(&("NO_PROXY".into(), "true".into())));
         assert!(!env.iter().any(|(k, _)| k == "SECRET"));
+    }
+
+    #[test]
+    fn a_cmd_shim_gets_its_json_as_files() {
+        assert_eq!(config_args(Path::new(r"C:\bin\claude.exe")).unwrap(), (NO_SERVERS.into(), NO_HOOKS.into()));
+        let (mcp, hooks) = config_args(Path::new(r"C:\npm\claude.CMD")).unwrap();
+        assert_eq!(std::fs::read_to_string(&mcp).unwrap(), NO_SERVERS);
+        assert_eq!(std::fs::read_to_string(&hooks).unwrap(), NO_HOOKS);
     }
 
     #[test]
