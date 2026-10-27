@@ -61,9 +61,10 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
       }}
       onClick={() => useIsland.getState().clickClosed()}
     >
-      <span className="n-notice-title">
+      <span className="n-notice-title" style={{ color: notice.tint }}>
         {notice.audio ? <AudioIcons muted={notice.audio.muted} deafened={notice.audio.deafened} /> : null}
         {notice.kind === "downloads" ? <ArrowDownToLine size={14} aria-hidden="true" /> : null}
+        {notice.icon ? <notice.icon size={14} strokeWidth={2} aria-hidden="true" /> : null}
         {notice.image ? (
           <img
             key={notice.image}
@@ -111,6 +112,7 @@ export function noticeWidth(notice: Notice, geometry: Geometry): number {
   const title =
     ctx.measureText(notice.title).width +
     (notice.image ? metrics.imageSize + 8 : 0) +
+    (notice.icon ? 14 + 8 : 0) +
     (notice.audio ? (notice.audio.deafened ? 47 : 24) : 0);
   ctx.font = `500 ${Math.max(9, metrics.fontSize - 1)}px 'Inter Variable', Inter, sans-serif`;
   const detail = notice.detail ? ctx.measureText(notice.detail).width : 0;

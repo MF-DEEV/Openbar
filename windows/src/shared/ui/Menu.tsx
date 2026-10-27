@@ -66,7 +66,7 @@ function frameBounds(): DOMRect {
 
 export function Menu(props: { anchor: MenuAnchor; entries: MenuEntry[]; onClose(): void; nested?: boolean }) {
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const [pos, setPos] = useState<{ left: number; top: number; maxHeight?: number } | null>(null);
   const [active, setActive] = useState(-1);
   const [sub, setSub] = useState<{ index: number; anchor: MenuAnchor } | null>(null);
   usePageLayer(!props.nested, props.onClose);
@@ -77,13 +77,28 @@ export function Menu(props: { anchor: MenuAnchor; entries: MenuEntry[]; onClose(
     const bounds = frameBounds();
     const w = el.offsetWidth;
     const h = el.offsetHeight;
+    // A long list (every minute of a break) scrolls inside the island, its checked entry in view.
+    const room = bounds.height - 16;
+    const maxHeight = h > room ? room : undefined;
     let left = props.anchor.alignRight ? props.anchor.x - w : props.anchor.x;
     let top = props.anchor.y;
-    if (top + h > bounds.bottom - 8) top = Math.max(bounds.top + 8, bounds.bottom - 8 - h);
+    if (top + Math.min(h, room) > bounds.bottom - 8) top = Math.max(bounds.top + 8, bounds.bottom - 8 - h);
     if (left + w > bounds.right - 8) left = bounds.right - 8 - w;
     left = Math.max(bounds.left + 8, left);
-    setPos({ left, top });
+    setPos({ left, top, maxHeight });
   }, [props.anchor.x, props.anchor.y, props.anchor.alignRight]);
+
+  // A scrolling menu opens on its checked entry and follows the keyboard.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el || !pos?.maxHeight) return;
+    const item = (active >= 0 ? el.children[active] : el.querySelector("[aria-checked='true']")) as HTMLElement | null;
+    if (!item) return;
+    if (active < 0) el.scrollTop = item.offsetTop - (el.clientHeight - item.offsetHeight) / 2;
+    else if (item.offsetTop < el.scrollTop) el.scrollTop = item.offsetTop;
+    else if (item.offsetTop + item.offsetHeight > el.scrollTop + el.clientHeight)
+      el.scrollTop = item.offsetTop + item.offsetHeight - el.clientHeight;
+  }, [pos?.maxHeight, active]);
 
   useEffect(() => {
     if (props.nested) return;
@@ -131,7 +146,11 @@ export function Menu(props: { anchor: MenuAnchor; entries: MenuEntry[]; onClose(
       ref={ref}
       role="menu"
       className="u-menu"
-      style={pos ? { left: pos.left, top: pos.top } : { left: -9999, top: -9999 }}
+      style={
+        pos
+          ? { left: pos.left, top: pos.top, maxHeight: pos.maxHeight, overflowY: pos.maxHeight ? "auto" : undefined }
+          : { left: -9999, top: -9999 }
+      }
       onContextMenu={(e) => e.preventDefault()}
     >
       {props.entries.map((entry, i) => {

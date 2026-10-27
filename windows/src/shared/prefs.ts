@@ -54,6 +54,7 @@ const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
   opening: ["click", "hoverPreview", "hoverExpand", "hiddenUntilHover"],
   // "all" is a Mac choice the Windows island doesn't have yet.
   display: ["primary", "cursor"],
+  timerMode: ["timer", "pomodoro", "stopwatch"],
 };
 
 const KNOWN = new Set<string>(MODULES.map((m) => m.id));

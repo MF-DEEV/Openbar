@@ -25,6 +25,11 @@ if (!inTauri && new URLSearchParams(location.search).has("music")) {
   });
 }
 
+// ?timer=running|paused|done|pomodoro|stopwatch starts a sample session.
+if (!inTauri && new URLSearchParams(location.search).has("timer")) {
+  void import("../timer/demo").then((demo) => demo.startDemo(new URLSearchParams(location.search).get("timer") ?? ""));
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     {dev?.has("clawd") ? (
