@@ -207,7 +207,7 @@ fn retire<R: Runtime>(app: &AppHandle<R>, removed: Vec<Item>) {
         let live = store::paths(&app.state::<Files>().state.lock().unwrap().shelf.items);
         for path in owned.iter().filter(|p| !live.contains(p)) {
             // Each payload sits in a folder of its own, named by an id.
-            if let Some(folder) = Path::new(path).parent().filter(|f| f.starts_with(&store) && *f != store) {
+            if let Some(folder) = store::owned_folder(path, &store) {
                 let _ = std::fs::remove_dir_all(folder);
             }
         }
@@ -228,11 +228,14 @@ pub fn add<R: Runtime>(app: &AppHandle<R>, items: Vec<Item>) -> bool {
     added
 }
 
-/// Payloads written for a drop the shelf could not take.
+/// Payloads written for a drop the shelf could not take. A tile already on
+/// the shelf may name the same file (one dragged out and back in): its
+/// folder stays.
 fn retire_now<R: Runtime>(app: &AppHandle<R>, items: &[Item]) {
     let Some(store) = app.state::<Files>().store_dir() else { return };
-    for path in store::paths(items).iter().filter(|p| store::is_owned(p, &store)) {
-        if let Some(folder) = Path::new(path).parent().filter(|f| *f != store) {
+    let live = store::paths(&app.state::<Files>().state.lock().unwrap().shelf.items);
+    for path in store::paths(items).iter().filter(|p| !live.contains(p)) {
+        if let Some(folder) = store::owned_folder(path, &store) {
             let _ = std::fs::remove_dir_all(folder);
         }
     }

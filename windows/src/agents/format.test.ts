@@ -15,6 +15,9 @@ import {
   PROVIDER_TINTS,
   tokens,
   utcDay,
+  normalizedModel,
+  tokenTotal,
+  cacheHitRate,
 } from "./format";
 
 describe("number formats (spec 03 §10.6)", () => {
@@ -96,5 +99,22 @@ describe("model names", () => {
     expect(modelName("gpt-5.6")).toBe("GPT-5.6");
     expect(modelName("gpt-5-2025-08-07")).toBe("GPT-5");
     expect(modelName("gemini-3-pro")).toBe("gemini-3-pro");
+  });
+});
+
+describe("model ids and token sums", () => {
+  it("normalizes provider prefixes, dotted versions and context tags", () => {
+    expect(normalizedModel("  Anthropic/Claude-Sonnet-4.5 ")).toBe("claude-sonnet-4-5");
+    expect(normalizedModel("us.anthropic.claude-opus-4-1-20250805-v1")).toBe("claude-opus-4-1-20250805-v1");
+    expect(normalizedModel("claude-opus-4-6[1m]")).toBe("claude-opus-4-6");
+    expect(normalizedModel("claude-haiku-4-5@20251001")).toBe("claude-haiku-4-5");
+    expect(normalizedModel("openai/gpt-5.6")).toBe("gpt-5.6");
+  });
+
+  it("sums every token kind and reads the cache's share of the prompt", () => {
+    const t = { input: 10, cacheWrite: 20, cacheRead: 70, output: 5, reasoning: 3 };
+    expect(tokenTotal(t)).toBe(105);
+    expect(cacheHitRate(t)).toBeCloseTo(0.7);
+    expect(cacheHitRate({ input: 0, cacheWrite: 0, cacheRead: 0, output: 9, reasoning: 0 })).toBeNull();
   });
 });

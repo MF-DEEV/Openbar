@@ -115,7 +115,8 @@ export function Menu(props: { anchor: MenuAnchor; entries: MenuEntry[]; onClose(
         e.preventDefault();
         e.stopPropagation();
         const dir = e.key === "ArrowDown" ? 1 : -1;
-        let i = active;
+        // Nothing highlighted yet: down starts at the first item, up at the last.
+        let i = active < 0 ? (dir > 0 ? -1 : 0) : active;
         for (let n = 0; n < items.length; n++) {
           i = (i + dir + items.length) % items.length;
           if (selectable(i)) break;

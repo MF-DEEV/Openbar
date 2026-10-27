@@ -175,6 +175,10 @@ fn read(data: &IDataObject, store: Option<&Path>, room: usize) -> Dropped {
     if let Some(descriptors) = ole::get(data, ole::format(CFSTR_FILEDESCRIPTORW)) {
         let contents = ole::format(CFSTR_FILECONTENTS);
         for file in payload::virtual_files(&descriptors).into_iter().take(room.min(MAX_VIRTUAL_FILES)) {
+            // A file declared too big is skipped before anything is copied.
+            if file.size.is_some_and(|size| size > MAX_VIRTUAL_SIZE) {
+                continue;
+            }
             let fill = |out: &mut File| ole::copy(data, contents, file.index, MAX_VIRTUAL_SIZE, file.size, out);
             if let Some(path) = write_payload(store, &file.name, fill) {
                 dropped.stored.push(Item::file(&path, None));

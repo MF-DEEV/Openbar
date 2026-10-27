@@ -42,6 +42,15 @@ export function Switch(props: { on: boolean; onChange(on: boolean): void; label:
   );
 }
 
+/** A typed percent: "40", "40 %" or "40,5"; null for anything else, an empty
+ * field included, which leaves the value as it was (MixerRoutingSupport.volumeFraction). */
+export function parsePercent(draft: string): number | null {
+  const text = draft.replace(/[%\s]/g, "").replace(",", ".");
+  if (text === "") return null;
+  const n = Number(text);
+  return Number.isFinite(n) ? n : null;
+}
+
 /** "n%" that turns into a field on click; a typed number is clamped to 0…max. */
 export function EditablePercent(props: {
   value: number;
@@ -59,8 +68,8 @@ export function EditablePercent(props: {
   }, [editing]);
   const shown = Math.round(props.value);
   const commit = () => {
-    const n = Number(draft.replace(/[%\s]/g, "").replace(",", "."));
-    if (Number.isFinite(n)) props.onCommit(Math.min(props.max, Math.max(0, n)));
+    const n = parsePercent(draft);
+    if (n !== null) props.onCommit(Math.min(props.max, Math.max(0, n)));
     setEditing(false);
   };
   if (editing)

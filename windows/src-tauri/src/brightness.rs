@@ -124,7 +124,7 @@ mod imp {
     use windows::Win32::System::Variant::{VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_UI1};
     use windows::Win32::System::Wmi::{
         IWbemClassObject, IWbemLocator, IWbemServices, WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY,
-        WBEM_GENERIC_FLAG_TYPE, WBEM_INFINITE, WbemLocator,
+        WBEM_GENERIC_FLAG_TYPE, WbemLocator,
     };
     use windows::core::{BOOL, BSTR, IUnknown, PCWSTR};
 
@@ -337,7 +337,8 @@ mod imp {
             loop {
                 let mut row = [None];
                 let mut returned = 0u32;
-                let hr = rows.Next(WBEM_INFINITE, &mut row, &mut returned);
+                // A stuck WMI service must not hold the brightness worker for good.
+                let hr = rows.Next(5000, &mut row, &mut returned);
                 if hr.is_err() || returned == 0 {
                     break;
                 }

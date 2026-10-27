@@ -150,7 +150,7 @@ mod imp {
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         FindWindowExW, FindWindowW, GetDesktopWindow, HWND_BROADCAST, PostMessageW, SMTO_ABORTIFHUNG,
-        SendMessageTimeoutW, SendMessageW, WM_COMMAND, WM_SETTINGCHANGE, WM_SYSCOMMAND,
+        SendMessageTimeoutW, WM_COMMAND, WM_SETTINGCHANGE, WM_SYSCOMMAND,
     };
     use windows::core::{HSTRING, Interface, PCWSTR, w};
 
@@ -186,8 +186,19 @@ mod imp {
             Action::HiddenFiles => toggle_hidden_files(),
             Action::DesktopIcons => {
                 let view = desktop_view().ok_or("the desktop isn't available")?;
-                unsafe { SendMessageW(view, WM_COMMAND, Some(WPARAM(TOGGLE_DESKTOP_ICONS)), Some(LPARAM(0))) };
-                Ok(())
+                // A hung Explorer must not hold the row in "running" for good.
+                let sent = unsafe {
+                    SendMessageTimeoutW(
+                        view,
+                        WM_COMMAND,
+                        WPARAM(TOGGLE_DESKTOP_ICONS),
+                        LPARAM(0),
+                        SMTO_ABORTIFHUNG,
+                        2000,
+                        None,
+                    )
+                };
+                if sent.0 == 0 { Err("the desktop didn't answer".into()) } else { Ok(()) }
             }
             Action::LockScreen => unsafe { LockWorkStation().map_err(|e| e.to_string()) },
             Action::DisplayOff => {

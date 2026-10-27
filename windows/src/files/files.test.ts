@@ -26,6 +26,11 @@ import {
   toggledPile,
   tooltipText,
   visibleItems,
+  allIds,
+  findItem,
+  holdsFile,
+  leafCount,
+  selectedItems,
 } from "./model";
 import { handleDrag } from "./register";
 import { IDLE_ZIP, useFiles } from "./store";
@@ -161,5 +166,29 @@ describe("a drag over the island", () => {
     expect(useIsland.getState().dropHint).toBe(false);
     handleDrag({ phase: "drop", added: true });
     expect(useIsland.getState().expanded).toBe(false);
+  });
+});
+
+describe("piles", () => {
+  const nested: ShelfItem[] = [
+    { id: "n", kind: "text", title: "n", text: "note" },
+    pile("outer", [
+      file("img", "C:\\x\\img.JPG"),
+      pile("inner", [file("deep"), { id: "l", kind: "link", title: "l" }]),
+    ]),
+  ];
+
+  it("finds, lists and selects items inside piles of piles, in shelf order", () => {
+    expect(findItem(nested, "deep")?.id).toBe("deep");
+    expect(findItem(nested, "missing")).toBeUndefined();
+    expect([...allIds(nested)]).toEqual(["n", "outer", "img", "inner", "deep", "l"]);
+    expect(selectedItems(nested, new Set(["l", "n", "inner"])).map((i) => i.id)).toEqual(["n", "inner", "l"]);
+  });
+
+  it("counts a pile's leaves and knows whether a file is among them", () => {
+    expect(leafCount(nested[1]!)).toBe(3);
+    expect(leafCount(nested[0]!)).toBe(1);
+    expect(holdsFile(nested)).toBe(true);
+    expect(holdsFile([nested[0]!, pile("links", [{ id: "x", kind: "link", title: "x" }])])).toBe(false);
   });
 });

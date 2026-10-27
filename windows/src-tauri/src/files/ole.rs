@@ -75,6 +75,8 @@ pub fn copy(data: &IDataObject, format: u16, index: i32, limit: u64, length: Opt
                         if read == 0 {
                             break true;
                         }
+                        // The source reports the count: never trust it past what was asked.
+                        let read = read.min(want);
                         total += read as u64;
                         if total > limit || out.write_all(&buffer[..read as usize]).is_err() {
                             break false;

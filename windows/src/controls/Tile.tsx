@@ -23,6 +23,7 @@ import { useIsland } from "../island/store";
 import { RollingDigits } from "../shared/ui/RollingDigits";
 import { useAudio } from "../audio/store";
 import { toggleKeepAwake, useKeepAwake } from "./keepAwake";
+import { showNetworkReading } from "../system/store";
 import { S } from "./strings";
 import { type TileReading, useTileRegistry } from "./tiles";
 import type { ControlItem, TileAccent } from "./types";
@@ -128,7 +129,12 @@ const PLAIN: Partial<Record<ControlItem, { icon: LucideIcon; title: () => string
   timer: { icon: Timer, title: () => t("module.timer"), onSelect: select("timer") },
   calendar: { icon: Calendar, title: () => t("module.calendar"), onSelect: select("calendar") },
   screenshot: { icon: Camera, title: () => S.screenshot, onSelect: screenshot },
-  speedTest: { icon: Gauge, title: () => S.speedTest, onSelect: select("system") },
+  // Windows has no speed test: the tile opens System's network reading (NotchControlsView showMetric(.network)).
+  speedTest: {
+    icon: Gauge,
+    title: () => S.speedTest,
+    onSelect: showNetworkReading,
+  },
   scratchpad: { icon: NotebookText, title: () => S.scratchpad, onSelect: select("scratchpad") },
 };
 

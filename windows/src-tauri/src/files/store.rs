@@ -541,10 +541,21 @@ pub fn sanitized(
 }
 
 /// A file the shelf itself wrote, which it may therefore delete; files the
-/// person dropped are never touched.
+/// person dropped are never touched. A path that climbs with `..` is never
+/// the shelf's: Windows would resolve it to somewhere outside the store.
 pub fn is_owned(path: &str, store: &Path) -> bool {
     let path = PathBuf::from(path);
-    path.starts_with(store) && path != store
+    path.starts_with(store)
+        && path != store
+        && path.components().all(|c| !matches!(c, std::path::Component::ParentDir | std::path::Component::CurDir))
+}
+
+/// The folder of its own an owned payload sits in, which goes with it.
+pub fn owned_folder(path: &str, store: &Path) -> Option<PathBuf> {
+    if !is_owned(path, store) {
+        return None;
+    }
+    Path::new(path).parent().filter(|f| *f != store).map(Path::to_path_buf)
 }
 
 #[cfg(test)]
@@ -713,5 +724,22 @@ mod tests {
         assert!(!is_owned("/data/shelf/files", store));
         assert!(!is_owned("/data/shelf/filesx/a.png", store));
         assert!(!is_owned("/home/a.png", store));
+    }
+
+    /// Edge-case proof: `is_owned` and `retire`'s parent filter compare path
+    /// components lexically, so `..` walks out of the store. A dropped CF_HDROP
+    /// path (or a hand-edited items.json) of this shape makes `retire`/`retire_now`
+    /// call `remove_dir_all` on a folder outside the store.
+    #[test]
+    fn a_path_climbing_out_of_the_store_is_not_owned() {
+        let store = Path::new("/data/shelf/files");
+        let dropped = "/data/shelf/files/../../../home/me/Documents/a.txt";
+        assert!(!is_owned(dropped, store));
+        assert_eq!(owned_folder(dropped, store), None, "would remove_dir_all /home/me/Documents");
+        assert_eq!(
+            owned_folder("/data/shelf/files/abc/Image.png", store),
+            Some(PathBuf::from("/data/shelf/files/abc"))
+        );
+        assert_eq!(owned_folder("/data/shelf/files/loose.png", store), None);
     }
 }

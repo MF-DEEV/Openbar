@@ -451,12 +451,15 @@ fn free_path(dir: &Path, stem: &str) -> PathBuf {
     path
 }
 
-/// Copies text for the page (the scratchpad's Copy all).
+/// Copies text for the page (the scratchpad's Copy all), kept out of the
+/// clipboard history as the Mac keeps it out.
 #[tauri::command]
 pub async fn tools_copy_text(text: String) -> Result<(), String> {
-    tauri::async_runtime::spawn_blocking(move || clipboard::set_text(&text))
-        .await
-        .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        if crate::clipboard::write_unrecorded_text(text) { Ok(()) } else { Err("the clipboard is busy".to_string()) }
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[cfg(windows)]

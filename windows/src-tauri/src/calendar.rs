@@ -799,10 +799,16 @@ pub async fn calendar_show_range(
 /// is open. If Windows shows no prompt from here, the page offers Settings.
 #[tauri::command]
 pub async fn calendar_request_access(state: tauri::State<'_, Shared>) -> Result<Access, ()> {
+    // The consent prompt waits on the person; one Windows never shows must
+    // not leave the page asking for good (Watch's borderless request did).
     #[cfg(windows)]
     let access = tauri::async_runtime::spawn_blocking(|| {
-        let _apartment = crate::com::Apartment::mta();
-        imp::request_access()
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _apartment = crate::com::Apartment::mta();
+            let _ = tx.send(imp::request_access());
+        });
+        rx.recv_timeout(std::time::Duration::from_secs(120)).unwrap_or(Access::NotAsked)
     })
     .await
     .unwrap_or(Access::Unavailable);

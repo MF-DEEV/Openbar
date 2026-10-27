@@ -6,6 +6,7 @@
 // (NotchService.selectedMetric).
 
 import { create } from "zustand";
+import { useIsland } from "../island/store";
 import { powerReading } from "./cards";
 import type { MetricKind, SystemSnapshot } from "./types";
 
@@ -71,3 +72,10 @@ export const useSystem = create<SystemState>()((set, get) => ({
   openDetail: (detail) => set({ detail }),
   closeDetail: () => set({ detail: null }),
 }));
+
+/** System's network reading (the Controls speed test tile). The page first:
+ * a detail opened while System isn't showing is closed at once. */
+export function showNetworkReading() {
+  useIsland.getState().select("system");
+  useSystem.getState().openDetail("network");
+}

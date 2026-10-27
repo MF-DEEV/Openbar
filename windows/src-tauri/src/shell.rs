@@ -201,8 +201,8 @@ mod imp {
                 return None;
             }
             // Bitmaps without alpha (some thumbnails) come back with alpha 0 everywhere.
-            if bgra.chunks_exact(4).all(|px| px[3] == 0) {
-                for px in bgra.chunks_exact_mut(4) {
+            if bgra.as_chunks::<4>().0.iter().all(|px| px[3] == 0) {
+                for px in bgra.as_chunks_mut::<4>().0 {
                     px[3] = 255;
                 }
             }

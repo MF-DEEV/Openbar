@@ -22,8 +22,11 @@ import {
   tiles,
   weekColumns,
   windowLabel,
+  limitsAreStale,
+  CLAUDE_FRESHNESS,
+  streak,
 } from "./model";
-import { emptySnapshot } from "./store";
+import { emptySnapshot, emptyTotals } from "./store";
 import type { LimitWindow, Limits } from "./types";
 
 const ids = (r: ReturnType<typeof rows>) => r.map((row) => row.map((t) => t.id));
@@ -190,5 +193,28 @@ describe("activity heatmap", () => {
     expect(weeks).toHaveLength(2);
     expect(weeks[0]![0]).toBe(days[0]);
     expect(weekColumns(days, 0)[0]![1]).toBe(days[0]);
+  });
+});
+
+describe("activity streak and limit freshness", () => {
+  const day = (requests: number) => ({
+    start: 0,
+    byProvider: requests ? { claude: { ...emptyTotals(), requests } } : {},
+  });
+  const withDays = (requests: number[]) => ({ ...emptySnapshot(), days: requests.map(day) });
+
+  it("counts days in a row with use, today only once it has some", () => {
+    expect(streak(withDays([1, 0, 3, 2, 5]))).toBe(3);
+    expect(streak(withDays([1, 0, 3, 2, 0]))).toBe(2);
+    expect(streak(withDays([4, 0, 0]))).toBe(0);
+    expect(streak(withDays([]))).toBe(0);
+  });
+
+  it("calls only Claude's limits stale, after half an hour", () => {
+    const limits = { observedAt: 1_000 } as Limits;
+    expect(limitsAreStale(limits, "claude", 1_000 + CLAUDE_FRESHNESS - 1)).toBe(false);
+    expect(limitsAreStale(limits, "claude", 1_000 + CLAUDE_FRESHNESS)).toBe(true);
+    expect(limitsAreStale(limits, "codex", 1_000 + 10 * CLAUDE_FRESHNESS)).toBe(false);
+    expect(limitsAreStale(undefined, "claude", 1e12)).toBe(false);
   });
 });

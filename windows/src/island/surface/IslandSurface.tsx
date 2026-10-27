@@ -41,7 +41,9 @@ export function IslandSurface(props: {
   const { geometry, target, children } = props;
   const outline = useIsland((s) => s.settings.outline);
   // The outline turns system orange while the timer has the closed island (NotchService.swift:2837-2838).
-  const timerShown = useIsland((s) => !s.expanded && !s.notice && !s.peeking && !s.dropHint && visibleActivity(s) === "timer");
+  const timerShown = useIsland(
+    (s) => !s.expanded && !s.notice && !s.peeking && !s.dropHint && visibleActivity(s) === "timer",
+  );
   const clipId = `island-clip-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const frameRef = useRef<HTMLDivElement>(null);
   const drawn = useRef<Size>(target);

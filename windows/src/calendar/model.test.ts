@@ -25,6 +25,9 @@ import {
   timeText,
   weekDays,
   weekNumber,
+  addMonths,
+  sameMonth,
+  startOfMonth,
 } from "./model";
 import type { CalendarEvent } from "./types";
 
@@ -259,5 +262,18 @@ describe("calendar choices", () => {
       c("4", "Calendar 9", "b", "Outlook"),
     ]);
     expect(groups.map((g) => g.map((x) => x.id))).toEqual([["2"], ["4", "3", "1"]]);
+  });
+});
+
+describe("month arithmetic", () => {
+  it("steps from the last day of a month to the first of the next, not past it", () => {
+    const jan31 = new Date(2026, 0, 31, 18, 30).getTime();
+    expect(new Date(addMonths(jan31, 1)).getMonth()).toBe(1);
+    expect(addMonths(jan31, 1)).toBe(new Date(2026, 1, 1).getTime());
+    expect(addMonths(jan31, -1)).toBe(new Date(2025, 11, 1).getTime());
+    expect(addMonths(jan31, 12)).toBe(new Date(2027, 0, 1).getTime());
+    expect(startOfMonth(jan31)).toBe(new Date(2026, 0, 1).getTime());
+    expect(sameMonth(jan31, new Date(2026, 0, 1).getTime())).toBe(true);
+    expect(sameMonth(jan31, new Date(2026, 1, 1).getTime())).toBe(false);
   });
 });

@@ -3,7 +3,16 @@
 
 import { describe, expect, it } from "vitest";
 import { cssColor, parseColor } from "./color";
-import { filterEntries, highlight, normalized, searchableText, searchTokens } from "./search";
+import {
+  filterEntries,
+  highlight,
+  normalized,
+  searchableText,
+  searchTokens,
+  dimensions,
+  fileName,
+  isImageFile,
+} from "./search";
 import type { ClipboardEntry } from "./types";
 
 function entry(id: string, text: string, extra: Partial<ClipboardEntry> = {}): ClipboardEntry {
@@ -100,5 +109,22 @@ describe("color entries", () => {
     expect(parseColor("rgb(300, 0, 0)")).toBeNull();
     expect(parseColor("#" + "f".repeat(100))).toBeNull();
     expect(cssColor({ red: 1, green: 0.5, blue: 0, alpha: 1 })).toBe("rgba(255, 128, 0, 1)");
+  });
+});
+
+describe("file entries", () => {
+  it("names a file from either separator and spots images by extension", () => {
+    expect(fileName("C:\\Users\\me\\Shot.PNG")).toBe("Shot.PNG");
+    expect(fileName("/tmp/notes.txt")).toBe("notes.txt");
+    expect(isImageFile("C:\\Users\\me\\Shot.PNG")).toBe(true);
+    expect(isImageFile("C:\\Users\\me\\photo.jpeg")).toBe(true);
+    expect(isImageFile("C:\\Users\\me\\.png")).toBe(false);
+    expect(isImageFile("C:\\png\\readme")).toBe(false);
+  });
+
+  it("writes an image's size only when both sides are known", () => {
+    expect(dimensions({ imageWidth: 1920, imageHeight: 1080 })).toBe("1920×1080");
+    expect(dimensions({ imageWidth: 1920, imageHeight: 0 })).toBe("");
+    expect(dimensions({ imageWidth: null, imageHeight: null })).toBe("");
   });
 });

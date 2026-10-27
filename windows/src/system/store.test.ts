@@ -20,7 +20,7 @@ import { DEFAULT_SETTINGS } from "../island/settings";
 import { useIsland } from "../island/store";
 import { demoSnapshot } from "./demo";
 import "./register";
-import { emptyHistory, HISTORY_LENGTH, pushHistory, useSystem } from "./store";
+import { emptyHistory, HISTORY_LENGTH, pushHistory, showNetworkReading, useSystem } from "./store";
 
 afterEach(() => {
   useIsland.getState().collapse();
@@ -86,5 +86,14 @@ describe("sampling follows the page", () => {
     useIsland.getState().pointerEnter();
     useIsland.getState().pointerExit();
     expect(watched.calls.length).toBe(count);
+  });
+});
+
+describe("the Controls speed test tile", () => {
+  it("lands on System's network reading", () => {
+    useIsland.getState().open("controls");
+    showNetworkReading();
+    expect(useIsland.getState().selected).toBe("system");
+    expect(useSystem.getState().detail).toBe("network");
   });
 });

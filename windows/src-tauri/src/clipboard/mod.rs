@@ -107,14 +107,25 @@ impl Store {
 
     fn load(dir: PathBuf) -> Self {
         let file = dir.join("history.json");
-        let mut store = Store { dir: Some(dir), ..Store::default() };
+        // A history set aside on an earlier launch still names its pictures.
+        let set_aside = |dir: &Path| {
+            std::fs::read_dir(dir).is_ok_and(|mut files| {
+                files.any(|f| f.is_ok_and(|f| f.file_name().to_string_lossy().starts_with("history.json.broken")))
+            })
+        };
+        let mut store = Store { keeps_images: set_aside(&dir), dir: Some(dir.clone()), ..Store::default() };
         match std::fs::read(&file) {
             Ok(bytes) => match history::decode(&bytes) {
                 Some(entries) => store.history.entries = entries,
                 None => {
-                    // Kept aside rather than overwritten by the next save.
+                    // Kept aside rather than overwritten by the next save,
+                    // and beside any history set aside before.
                     store.keeps_images = true;
-                    store.blocked = std::fs::rename(&file, file.with_extension("json.broken")).is_err();
+                    let mut aside = dir.join("history.json.broken");
+                    if aside.exists() {
+                        aside = dir.join(format!("history.json.broken-{}", history::new_id()));
+                    }
+                    store.blocked = std::fs::rename(&file, aside).is_err();
                 }
             },
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
@@ -458,6 +469,18 @@ fn write_own_text(_text: String) -> bool {
     false
 }
 
+/// Text copied that the history must not record, as its own copies aren't:
+/// the scratchpad's Copy all (spec 05 §11).
+pub fn write_unrecorded_text(text: String) -> bool {
+    #[cfg(windows)]
+    return native::write(&native::Payload::Text(text), true);
+    #[cfg(not(windows))]
+    {
+        let _ = text;
+        false
+    }
+}
+
 #[cfg(not(windows))]
 fn write_own_png(_png: Vec<u8>) -> bool {
     false
@@ -558,6 +581,30 @@ mod tests {
         let fresh = Store::load(dir.clone());
         assert!(!fresh.blocked && !fresh.keeps_images && fresh.history.entries.is_empty());
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// A damaged history.json set aside as `.broken` keeps its pictures on later
+    /// launches too, not only in the session that found it.
+    #[test]
+    fn pictures_of_a_set_aside_history_survive_the_next_launch() {
+        let dir = std::env::temp_dir().join(format!("vorssaint-clipboard-broken-{}", history::new_id()));
+        let mut store = Store { dir: Some(dir.clone()), ..Store::default() };
+        let images = store.images();
+        let image = Content::Image { png: vec![1, 2, 3], hash: "h".into(), width: 1, height: 1 };
+        store.history.promote(image, Source::default(), 1, |p| Store::store_image(images.as_deref(), p));
+        store.save();
+        // Launch 1: the file is damaged and set aside; pictures kept for this session.
+        std::fs::write(dir.join("history.json"), b"{oops").unwrap();
+        let first = Store::load(dir.clone());
+        first.clean_images();
+        first.save(); // the next copy (or any trim) writes a fresh, valid history.json
+        assert!(dir.join("history.json.broken").exists());
+        // Launch 2: what start() does.
+        let second = Store::load(dir.clone());
+        second.clean_images();
+        let left = std::fs::read_dir(images.as_ref().unwrap()).unwrap().count();
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(left, 1, "the picture named by history.json.broken was deleted on the next launch");
     }
 
     #[test]
