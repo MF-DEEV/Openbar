@@ -22,7 +22,7 @@ import {
   TextSearch,
   X,
 } from "lucide-react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { t } from "../i18n";
 import { useIsland } from "../island/store";
 import { IconButton, PillButton } from "../island/views/Controls";
@@ -62,10 +62,6 @@ export function watchedTitle(s: WatchSnapshot): string {
 
 export function WatchPage({ height }: PageProps) {
   const s = useWatch((state) => state.snapshot);
-  useEffect(() => {
-    watch.pageVisible(true);
-    return () => watch.pageVisible(false);
-  }, []);
   if (!s.target) return <Setup stacked={height >= STACKED_SETUP_HEIGHT} />;
   return (
     <div className="wt-page">

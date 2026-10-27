@@ -62,8 +62,22 @@ export const watch = {
   setText: (text: string) => void bridge.watch.setRule({ text }),
   setNumber: (number: string) => void bridge.watch.setRule({ number }),
   pinLine: (line: number | null) => void bridge.watch.pinLine(line),
-  pageVisible: (visible: boolean) => void bridge.watch.pageVisible(visible),
 };
+
+/** The page is drawn: the island open on it, not on the sections gallery (system/register.tsx). */
+export function pageVisible(): boolean {
+  const s = useIsland.getState();
+  return s.expanded && !s.showingSections && s.selected === "watch" && watchEnabled();
+}
+
+let sentVisible: boolean | null = null;
+/** Tells Rust when the page shows, so the area is read every second while it does. */
+export function syncPageVisible() {
+  const visible = pageVisible();
+  if (visible === sentVisible) return;
+  sentVisible = visible;
+  void bridge.watch.pageVisible(visible);
+}
 
 /**
  * The notice for an ended watch, unless its page is already open. Where the

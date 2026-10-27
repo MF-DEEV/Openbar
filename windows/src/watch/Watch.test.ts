@@ -61,6 +61,8 @@ const watching: WatchSnapshot = {
   startedAt: 0,
 };
 
+const notified = () => connection.calls.filter((c) => c[0] === "notify");
+
 beforeEach(() => {
   connection.calls.length = 0;
   connection.chooses = true;
@@ -143,7 +145,7 @@ describe("ending", () => {
       priority: 2,
       duration: 6,
     });
-    expect(connection.calls.filter((c) => c[0] === "notify")).toEqual([]);
+    expect(notified()).toEqual([]);
   });
 
   it("names a part of the display Watch", () => {
@@ -155,20 +157,20 @@ describe("ending", () => {
     useIsland.setState({ expanded: true, selected: "watch" });
     connection.finished(finished);
     expect(useIsland.getState().notice).toBeNull();
-    expect(connection.calls).toEqual([]);
+    expect(notified()).toEqual([]);
   });
 
   it("posts a Windows notification when the island hides over a full-screen app", () => {
     useIsland.setState({ attentionFullscreen: true });
     connection.finished(finished);
     expect(useIsland.getState().notice).toBeNull();
-    expect(connection.calls).toEqual([["notify", "It shows Done", "notes"]]);
+    expect(notified()).toEqual([["notify", "It shows Done", "notes"]]);
   });
 
   it("posts one when a higher notice holds the island", () => {
     useIsland.getState().showNotice({ id: "level", kind: "volume", title: "50%", priority: 3, duration: 3 });
     connection.finished({ ...finished, windowTitle: null });
-    expect(connection.calls).toEqual([["notify", "It shows Done", "Notepad"]]);
+    expect(notified()).toEqual([["notify", "It shows Done", "Notepad"]]);
   });
 
   it("words every outcome as the Mac does", () => {
@@ -186,7 +188,7 @@ describe("page actions", () => {
     const chosen = watch.choose();
     await vi.advanceTimersByTimeAsync(400);
     await chosen;
-    expect(connection.calls[0]).toEqual(["choose", false]);
+    expect(connection.calls.find((c) => c[0] === "choose")).toEqual(["choose", false]);
     expect(useIsland.getState().expanded).toBe(true);
     expect(useIsland.getState().selected).toBe("watch");
   });
@@ -219,5 +221,15 @@ describe("page actions", () => {
     expect(resolve({ island: { watchCondition: "blinks" } as never }).island.watchCondition).toBe("changes");
     expect(resolve({ island: { watchCondition: "reaches" } }).island.watchCondition).toBe("reaches");
     expect(resolve({}).island.watchSound).toBe(true);
+  });
+
+  it("reads every second only while the page itself shows", () => {
+    const visible = () => connection.calls.filter((c) => c[0] === "pageVisible").map((c) => c[1]);
+    useIsland.setState({ expanded: true, selected: "watch", showingSections: true });
+    useIsland.setState({ showingSections: false });
+    useIsland.setState({ selected: "music" });
+    useIsland.setState({ selected: "watch" });
+    useIsland.setState({ expanded: false });
+    expect(visible()).toEqual([true, false, true, false]);
   });
 });

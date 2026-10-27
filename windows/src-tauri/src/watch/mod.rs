@@ -431,7 +431,8 @@ fn read<R: Runtime>(app: &AppHandle<R>, generation: u64, source: &mut Option<pla
         }
     }
     publish(app);
-    let recognized = recognize(&frame);
+    // A failed recognition says nothing about the area: read it again next time.
+    let Some(recognized) = recognize(&frame) else { return };
     let preview = preview(&frame);
     let outcome = {
         let mut inner = shared.inner.lock().unwrap();
@@ -456,20 +457,23 @@ fn read<R: Runtime>(app: &AppHandle<R>, generation: u64, source: &mut Option<pla
 }
 
 /// The area's text, read at most 900 px a side (the OCR helper then scales
-/// small text up as it does for Copy text from screen).
-fn recognize(frame: &Frame) -> String {
+/// small text up as it does for Copy text from screen). Empty without an
+/// OCR language, as an area without text; None when recognition failed.
+fn recognize(frame: &Frame) -> Option<String> {
     let scale = support::recognition_scale(frame.width, frame.height);
     let result = if scale < 1.0 {
-        let Some(image) = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba.clone()) else {
-            return String::new();
-        };
+        let image = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba.clone())?;
         let (w, h) = crate::ocr::scaled_size(frame.width, frame.height, scale);
         let small = image::imageops::resize(&image, w, h, image::imageops::FilterType::Triangle);
         crate::ocr::recognize(small.as_raw(), w, h)
     } else {
         crate::ocr::recognize(&frame.rgba, frame.width, frame.height)
     };
-    result.map(|r| r.text()).unwrap_or_default()
+    match result {
+        Ok(result) => Some(result.text()),
+        Err(crate::ocr::OcrError::NoLanguage) => Some(String::new()),
+        Err(crate::ocr::OcrError::Failed(_)) => None,
+    }
 }
 
 /// A small PNG of the area for the page and the closed island.

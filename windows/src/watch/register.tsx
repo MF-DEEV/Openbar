@@ -8,7 +8,7 @@
 import { geometryOf, useIsland } from "../island/store";
 import { activityViews } from "../island/views/Activity";
 import { pages } from "../island/views/Expanded";
-import { isActive, subscribeWatch, useWatch, watchEnabled } from "./store";
+import { isActive, subscribeWatch, syncPageVisible, useWatch, watchEnabled } from "./store";
 import { WatchLeading, WatchPage, WatchTrailing } from "./WatchPage";
 import { capsuleContent, stripWing, WatchStrip } from "./WatchStrip";
 import "./watch.css";
@@ -33,5 +33,7 @@ function syncActivity() {
 useWatch.subscribe(syncActivity);
 useIsland.subscribe((s, prev) => {
   if (s.settings !== prev.settings || s.screen !== prev.screen) syncActivity();
+  syncPageVisible();
 });
+syncPageVisible();
 void subscribeWatch();

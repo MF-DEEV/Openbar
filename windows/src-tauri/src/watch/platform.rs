@@ -98,14 +98,15 @@ mod imp {
     use windows::Win32::Graphics::Dxgi::{IDXGIAdapter, IDXGIDevice};
     use windows::Win32::Graphics::Gdi::{
         BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleBitmap, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC,
-        DeleteObject, GetDC, GetDIBits, HGDIOBJ, MONITOR_DEFAULTTONEAREST, MonitorFromRect, ReleaseDC, SelectObject,
+        DeleteObject, GetDC, GetDIBits, HGDIOBJ, MONITOR_DEFAULTTONEAREST, MonitorFromRect, MonitorFromWindow, ReleaseDC,
+        SelectObject,
     };
     use windows::Win32::Storage::Xps::{PRINT_WINDOW_FLAGS, PrintWindow};
     use windows::Win32::System::WinRT::Direct3D11::{
         CreateDirect3D11DeviceFromDXGIDevice, IDirect3DDxgiInterfaceAccess,
     };
     use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemInterop;
-    use windows::Win32::UI::HiDpi::GetDpiForWindow;
+    use windows::Win32::UI::HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI};
     use windows::Win32::UI::WindowsAndMessaging::{
         GetWindowRect, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindow,
         PW_RENDERFULLCONTENT,
@@ -143,7 +144,15 @@ mod imp {
             if r.right <= r.left || r.bottom <= r.top {
                 return None;
             }
-            let dpi = GetDpiForWindow(hwnd);
+            // The display's own scale: an unaware or system-aware window
+            // reports 96 or the system's, while its frame and its picture
+            // are in the display's pixels.
+            let mut dpi = 0u32;
+            let mut unused = 0u32;
+            let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+            if GetDpiForMonitor(monitor, MDT_EFFECTIVE_DPI, &mut dpi, &mut unused).is_err() {
+                dpi = GetDpiForWindow(hwnd);
+            }
             let mut pid = 0;
             GetWindowThreadProcessId(hwnd, Some(&mut pid));
             let length = GetWindowTextLengthW(hwnd);
