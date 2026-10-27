@@ -370,7 +370,8 @@ mod imp {
                     return None;
                 }
                 let mut label = [0u16; 261];
-                let _ = unsafe { GetVolumeInformationW(&root, Some(&mut label), None, None, None, None) };
+                // An empty card slot says removable too, but has no volume to read.
+                unsafe { GetVolumeInformationW(&root, Some(&mut label), None, None, None, None) }.ok()?;
                 let len = label.iter().position(|&c| c == 0).unwrap_or(0);
                 Some(Volume {
                     usb: kind == DRIVE_FIXED && external_bus(&drive),
@@ -506,19 +507,21 @@ mod imp {
         }
     }
 
-    /// Asks Plug and Play to eject the disk's parent (the USB device),
-    /// with a veto buffer so Windows doesn't show its own dialog; a veto
-    /// (files open) is a failure. Three tries, as the device may be busy.
-    fn eject(drive: &str) -> bool {
-        let Some(disk) = disk_devinst(drive) else { return false };
+    /// The device to eject for a volume: the disk's parent (the USB device).
+    fn eject_target(drive: &str) -> Option<u32> {
+        let disk = disk_devinst(drive)?;
         let mut parent = 0u32;
-        if unsafe { CM_Get_Parent(&mut parent, disk, 0) } != CR_SUCCESS {
-            return false;
-        }
+        (unsafe { CM_Get_Parent(&mut parent, disk, 0) } == CR_SUCCESS).then_some(parent)
+    }
+
+    /// Asks Plug and Play to eject a device, with a veto buffer so Windows
+    /// doesn't show its own dialog; a veto (files open) is a failure. Three
+    /// tries, as the device may be busy.
+    fn eject(device: u32) -> bool {
         for _ in 0..3 {
             let mut veto = PNP_VETO_TYPE::default();
             let mut name = [0u16; 260];
-            let result = unsafe { CM_Request_Device_EjectW(parent, Some(&mut veto), Some(&mut name), 0) };
+            let result = unsafe { CM_Request_Device_EjectW(device, Some(&mut veto), Some(&mut name), 0) };
             if result == CR_SUCCESS && veto == PNP_VetoTypeUnknown {
                 return true;
             }
@@ -528,8 +531,17 @@ mod imp {
     }
 
     fn eject_all(excluded: &[String]) -> Result<(), String> {
-        let offered: Vec<_> = volumes().into_iter().filter(|v| offers_eject(v, excluded)).collect();
-        let failed = offered.iter().filter(|v| !eject(&v.drive)).count();
+        // Every device once: two partitions of one stick are one eject.
+        let mut devices = Vec::new();
+        let mut failed = 0;
+        for volume in volumes().into_iter().filter(|v| offers_eject(v, excluded)) {
+            match eject_target(&volume.drive) {
+                Some(device) if !devices.contains(&device) => devices.push(device),
+                Some(_) => {}
+                None => failed += 1,
+            }
+        }
+        failed += devices.into_iter().filter(|&device| !eject(device)).count();
         if failed == 0 { Ok(()) } else { Err(format!("{failed} disk(s) could not be ejected")) }
     }
 }

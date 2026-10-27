@@ -71,21 +71,27 @@ export function Overlay() {
   useEffect(() => {
     void (async () => {
       let loaded: { session: CaptureSession; pixels: Uint8ClampedArray<ArrayBuffer> } | null = null;
-      if (inTauri) {
-        const current = await bridge.capture.session();
-        const buffer = current ? await bridge.capture.pixels(current.id) : undefined;
-        if (current && buffer) loaded = { session: current, pixels: new Uint8ClampedArray(buffer) };
-      } else {
-        loaded = demoSession();
+      let current: CaptureSession | null | undefined;
+      try {
+        if (inTauri) {
+          current = await bridge.capture.session();
+          const buffer = current ? await bridge.capture.pixels(current.id) : undefined;
+          if (current && buffer) loaded = { session: current, pixels: new Uint8ClampedArray(buffer) };
+        } else {
+          loaded = demoSession();
+        }
+        if (!loaded) throw new Error("no capture");
+        const canvas = document.createElement("canvas");
+        canvas.width = loaded.session.width;
+        canvas.height = loaded.session.height;
+        const data = new ImageData(loaded.pixels, loaded.session.width, loaded.session.height);
+        canvas.getContext("2d", { willReadFrequently: true })!.putImageData(data, 0, 0);
+        source.current = canvas;
+        setSession(loaded.session);
+      } catch {
+        // A picture too big to draw: give the selection up rather than hang it.
+        if (current) commit(current, null);
       }
-      if (!loaded) return;
-      const canvas = document.createElement("canvas");
-      canvas.width = loaded.session.width;
-      canvas.height = loaded.session.height;
-      const data = new ImageData(loaded.pixels, loaded.session.width, loaded.session.height);
-      canvas.getContext("2d", { willReadFrequently: true })!.putImageData(data, 0, 0);
-      source.current = canvas;
-      setSession(loaded.session);
     })();
   }, []);
 
@@ -107,12 +113,18 @@ function useReady(session: CaptureSession) {
   }, [session.id]);
 }
 
-/** CSS pixels to picture pixels: the window spans the display exactly. */
-function toPicture(session: CaptureSession, clientX: number, clientY: number): Point {
-  return {
-    x: Math.min(session.width - 1, Math.max(0, Math.floor((clientX * session.width) / window.innerWidth))),
-    y: Math.min(session.height - 1, Math.max(0, Math.floor((clientY * session.height) / window.innerHeight))),
-  };
+/**
+ * CSS pixels to picture pixels: the window spans the display exactly. A
+ * pixel under the pointer stops at the last one; an area's edge may reach
+ * past it, so a drag to the corner takes the last row and column too.
+ */
+function toPicture(session: CaptureSession, clientX: number, clientY: number, edge = false): Point {
+  const x = (clientX * session.width) / window.innerWidth;
+  const y = (clientY * session.height) / window.innerHeight;
+  const clamp = (v: number, max: number) => Math.min(max, Math.max(0, edge ? Math.round(v) : Math.floor(v)));
+  return edge
+    ? { x: clamp(x, session.width), y: clamp(y, session.height) }
+    : { x: clamp(x, session.width - 1), y: clamp(y, session.height - 1) };
 }
 
 function useCancelKeys(session: CaptureSession, onKey?: (e: KeyboardEvent) => boolean) {
@@ -173,16 +185,16 @@ function AreaPicker({ session, source }: { session: CaptureSession; source: HTML
       onPointerDown={(e) => {
         if (e.button !== 0) return;
         e.currentTarget.setPointerCapture(e.pointerId);
-        const p = toPicture(session, e.clientX, e.clientY);
+        const p = toPicture(session, e.clientX, e.clientY, true);
         setAnchor(p);
         setArea({ ...p, width: 0, height: 0 });
       }}
       onPointerMove={(e) => {
-        if (anchor) setArea(normalized(anchor, toPicture(session, e.clientX, e.clientY)));
+        if (anchor) setArea(normalized(anchor, toPicture(session, e.clientX, e.clientY, true)));
       }}
       onPointerUp={(e) => {
         if (!anchor) return;
-        const chosen = normalized(anchor, toPicture(session, e.clientX, e.clientY));
+        const chosen = normalized(anchor, toPicture(session, e.clientX, e.clientY, true));
         setAnchor(null);
         if (chosen.width >= MIN_AREA && chosen.height >= MIN_AREA) commit(session, { kind: "area", ...chosen });
         else setArea(null);

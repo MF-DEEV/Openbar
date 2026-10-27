@@ -117,7 +117,13 @@ export function ScratchpadPage({ height }: PageProps) {
 
   useEffect(() => {
     void openScratchpad();
-    return () => void flush();
+    // Quitting with an edit still waiting on its 0.8 s save.
+    const leaving = () => void flush();
+    window.addEventListener("pagehide", leaving);
+    return () => {
+      window.removeEventListener("pagehide", leaving);
+      void flush();
+    };
   }, []);
 
   // A new or chosen pad puts the caret at the end of its text.
@@ -392,8 +398,10 @@ export function ScratchpadTrailing() {
         title={copied ? S.copied : S.copyAll}
         disabled={empty}
         onClick={() => {
-          void bridge.tools.copyText(pad.text);
-          setCopied(true);
+          bridge.tools.copyText(pad.text).then(
+            () => setCopied(true),
+            () => setCopied(false),
+          );
         }}
       >
         {copied ? <Check size={14} strokeWidth={2} /> : <Copy size={14} strokeWidth={2} />}

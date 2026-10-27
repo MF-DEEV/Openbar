@@ -90,12 +90,28 @@ struct Session {
     purpose: Purpose,
     frame: Arc<Frame>,
     reply: Option<mpsc::Sender<Option<Pick>>>,
+    /// The page drew the picture and the window is up.
+    shown: bool,
 }
 
 #[derive(Default)]
 pub struct Shared {
     session: Mutex<Option<Session>>,
     next: Mutex<u64>,
+    /// Held from the first look at the screen to the overlay closing.
+    busy: std::sync::atomic::AtomicBool,
+}
+
+/// An overlay page that never draws (it failed to load) gives up after this.
+const READY_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
+/// Lets go of `busy` however a selection ends.
+struct Busy<'a>(&'a std::sync::atomic::AtomicBool);
+
+impl Drop for Busy<'_> {
+    fn drop(&mut self) {
+        self.0.store(false, std::sync::atomic::Ordering::SeqCst);
+    }
 }
 
 /// What the overlay page needs to draw.
@@ -150,9 +166,10 @@ pub async fn select_area<R: Runtime>(app: &AppHandle<R>, purpose: Purpose) -> Op
 /// The selection and the frozen picture it was made on. Blocking.
 fn select<R: Runtime>(app: &AppHandle<R>, purpose: Purpose) -> Option<(Selection, Arc<Frame>)> {
     let shared = app.state::<Shared>();
-    if shared.session.lock().unwrap().is_some() {
+    if shared.busy.swap(true, std::sync::atomic::Ordering::SeqCst) {
         return None;
     }
+    let _busy = Busy(&shared.busy);
     let (handle, monitor) = platform::monitor_under_cursor()?;
     let frame = Arc::new(snapshot::capture(handle, monitor)?);
     let (tx, rx) = mpsc::channel();
@@ -166,13 +183,23 @@ fn select<R: Runtime>(app: &AppHandle<R>, purpose: Purpose) -> Option<(Selection
         purpose,
         frame: frame.clone(),
         reply: Some(tx),
+        shown: false,
     });
-    if open_overlay(app, monitor).is_err() {
+    if open_overlay(app, monitor, id).is_err() {
         *shared.session.lock().unwrap() = None;
         return None;
     }
     // Escape cancels even while another app keeps the keyboard.
     listen_escape(app, true);
+    let watchdog = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(READY_TIMEOUT);
+        let shared = watchdog.state::<Shared>();
+        let mut session = shared.session.lock().unwrap();
+        if let Some(session) = session.as_mut().filter(|s| s.id == id && !s.shown) {
+            session.reply.take();
+        }
+    });
     // A closed overlay drops the sender, which ends the wait with nothing.
     let pick = rx.recv().ok().flatten();
     listen_escape(app, false);
@@ -204,7 +231,7 @@ fn clamp_area(r: Rect, width: u32, height: u32) -> Option<Rect> {
     (x1 > x0 && y1 > y0).then(|| Rect { x: x0, y: y0, width: x1 - x0, height: y1 - y0 })
 }
 
-fn open_overlay<R: Runtime>(app: &AppHandle<R>, monitor: Rect) -> tauri::Result<()> {
+fn open_overlay<R: Runtime>(app: &AppHandle<R>, monitor: Rect, id: u64) -> tauri::Result<()> {
     if let Some(stale) = app.get_webview_window(LABEL) {
         let _ = stale.destroy();
     }
@@ -226,14 +253,16 @@ fn open_overlay<R: Runtime>(app: &AppHandle<R>, monitor: Rect) -> tauri::Result<
     let app = app.clone();
     window.on_window_event(move |event| {
         if let tauri::WindowEvent::Destroyed = event {
-            cancel(&app);
+            cancel(&app, Some(id));
         }
     });
     Ok(())
 }
 
-fn cancel<R: Runtime>(app: &AppHandle<R>) {
+/// Ends the selection `id` (any, for Escape) with nothing chosen.
+fn cancel<R: Runtime>(app: &AppHandle<R>, id: Option<u64>) {
     if let Some(session) = app.state::<Shared>().session.lock().unwrap().as_mut()
+        && id.is_none_or(|id| id == session.id)
         && let Some(reply) = session.reply.take()
     {
         let _ = reply.send(None);
@@ -247,7 +276,7 @@ fn listen_escape<R: Runtime>(app: &AppHandle<R>, on: bool) {
     if on {
         let _ = shortcuts.on_shortcut(escape, |app, _, event| {
             if event.state() == ShortcutState::Pressed {
-                cancel(app);
+                cancel(app, None);
             }
         });
     } else if shortcuts.is_registered(escape) {
@@ -293,9 +322,9 @@ pub fn capture_pixels(shared: tauri::State<'_, Shared>, id: u64) -> Result<tauri
 /// The page drew the picture: show it over the display and take the keyboard.
 #[tauri::command]
 pub fn capture_ready<R: Runtime>(app: AppHandle<R>, id: u64) {
-    let current = app.state::<Shared>().session.lock().unwrap().as_ref().map(|s| s.id);
-    if current != Some(id) {
-        return;
+    match app.state::<Shared>().session.lock().unwrap().as_mut().filter(|s| s.id == id) {
+        Some(session) => session.shown = true,
+        None => return,
     }
     if let Some(window) = app.get_webview_window(LABEL) {
         let _ = window.show();
@@ -327,6 +356,10 @@ pub async fn capture_run<R: Runtime>(app: AppHandle<R>, purpose: Purpose, name: 
 }
 
 fn run<R: Runtime>(app: &AppHandle<R>, purpose: Purpose, name: &str) -> Outcome {
+    // Watch selects through select_area; it has no tool of its own here.
+    if purpose == Purpose::Watch {
+        return Outcome::Cancelled;
+    }
     let Some((selection, frame)) = select(app, purpose) else {
         return Outcome::Cancelled;
     };

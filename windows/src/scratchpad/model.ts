@@ -108,16 +108,21 @@ export const sanitizedTextSize = (size: number) =>
 /**
  * Return inside a list item continues the list (PlainTextEditor
  * continuesLists): the same marker, the next number, an empty box for a
- * task. Return on an empty item ends the list instead. Null when the line
- * isn't a list item; `insert` replaces `[from, to)`.
+ * task. Return at the end of an empty item ends the list instead. Null when
+ * the line isn't a list item or the caret sits inside its marker; `insert`
+ * replaces `[from, to)`.
  */
 export function listContinuation(text: string, caret: number): { from: number; to: number; insert: string } | null {
   const lineStart = text.lastIndexOf("\n", caret - 1) + 1;
-  const line = text.slice(lineStart, caret);
+  const newline = text.indexOf("\n", caret);
+  const line = text.slice(lineStart, newline < 0 ? text.length : newline);
   const match = /^(\s*)([-*+]|\d+[.)])(\s+)(\[[ xX]\]\s+)?/.exec(line);
   if (!match) return null;
   const [marker, indent, bullet, space, box] = match as unknown as [string, string, string, string, string?];
-  if (line.length === marker.length) return { from: lineStart, to: caret, insert: "" };
+  if (line.trim() === marker.trim()) {
+    return caret === lineStart + line.length ? { from: lineStart, to: caret, insert: "" } : null;
+  }
+  if (caret <= lineStart + marker.length) return null;
   const number = /^\d+/.exec(bullet);
   const nextBullet = number ? `${Number(number[0]) + 1}${bullet.slice(number[0].length)}` : bullet;
   return { from: caret, to: caret, insert: `\n${indent}${nextBullet}${space}${box ? "[ ] " : ""}` };

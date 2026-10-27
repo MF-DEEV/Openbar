@@ -97,6 +97,12 @@ describe("editing", () => {
     expect(listContinuation("plain", 5)).toBeNull();
   });
 
+  it("leaves Return alone inside a marker and splits an item mid-line", () => {
+    expect(listContinuation("- foo", 2)).toBeNull();
+    expect(listContinuation("- foo", 1)).toBeNull();
+    expect(listContinuation("- foo bar", 5)).toEqual({ from: 5, to: 5, insert: "\n- " });
+  });
+
   it("flips the task box a preview click points at", () => {
     const text = "- [ ] one\n- [x] two";
     expect(toggleTaskAt(text, 0)).toBe("- [x] one\n- [x] two");
