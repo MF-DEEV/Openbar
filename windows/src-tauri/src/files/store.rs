@@ -446,8 +446,10 @@ fn lossy(value: &Value, dropped: &mut usize) -> Option<Item> {
         *dropped += 1;
         return None;
     };
-    if let Some(Value::Array(children)) = children {
-        item.children = children.iter().filter_map(|c| lossy(c, dropped)).collect();
+    match children {
+        Some(Value::Array(children)) => item.children = children.iter().filter_map(|c| lossy(c, dropped)).collect(),
+        None | Some(Value::Null) => {}
+        Some(_) => *dropped += 1,
     }
     Some(item)
 }

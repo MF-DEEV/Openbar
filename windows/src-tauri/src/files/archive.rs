@@ -87,7 +87,8 @@ pub fn archive(input: &Path, output: &Path, cancel: &AtomicBool) -> Result<(), F
     }
     let meta = fs::metadata(input).map_err(|e| io_failure(&input_name, e))?;
     let dir = output.parent().unwrap_or(Path::new("."));
-    let staged = dir.join(format!("{output_name}.{}.partial", &super::store::new_id()[..8]));
+    // Short, so a name near the 255-character limit still has room.
+    let staged = dir.join(format!(".vors-{}.partial", &super::store::new_id()[..8]));
     let result = (|| {
         let file = File::create_new(&staged).map_err(|e| io_failure(&output_name, e))?;
         let mut zip = ZipWriter::new(BufWriter::new(file));

@@ -91,16 +91,20 @@ impl Files {
     pub fn load<R: Runtime>(app: &AppHandle<R>) -> Self {
         let dir = app.path().app_config_dir().ok().map(|d| d.join("shelf"));
         let mut shelf = Shelf::default();
+        let mut rewrite = false;
         if let Some(dir) = &dir {
             let file = dir.join("items.json");
             match store::load(std::fs::read(&file).ok().as_deref()) {
                 Load::Items { items, complete } => {
-                    let exists = |p: &str| Path::new(p).exists();
+                    // A file on a drive that isn't connected now comes back with its drive.
+                    let exists = |p: &str| Path::new(p).exists() || !drive_present(p);
                     let refind = |i: &Item| identity::refind(i.path.as_deref()?, i.file_id.as_deref()?);
                     shelf.items = store::sanitized(items, &exists, &refind);
-                    // Only a store read whole may sweep files nothing points at.
+                    // Only a store read whole may be rewritten, or sweep files
+                    // nothing points at: a newer build's entries keep theirs.
                     if complete {
                         sweep(&dir.join("files"), &store::paths(&shelf.items));
+                        rewrite = true;
                     }
                 }
                 // Moved aside, never overwritten (prefs.rs does the same).
@@ -110,7 +114,9 @@ impl Files {
             }
         }
         let files = Files { dir, state: Mutex::new(State { shelf, ..Default::default() }) };
-        files.save(&files.state.lock().unwrap().shelf);
+        if rewrite {
+            files.save(&files.state.lock().unwrap().shelf);
+        }
         files
     }
 
@@ -555,11 +561,16 @@ fn emit_zip<R: Runtime>(app: &AppHandle<R>) {
 }
 
 #[tauri::command]
-pub fn files_zip_cancel(files: tauri::State<'_, Files>) {
-    let state = files.state.lock().unwrap();
-    if let Some(cancel) = &state.cancel {
+pub fn files_zip_cancel<R: Runtime>(app: AppHandle<R>) {
+    {
+        let files = app.state::<Files>();
+        let mut state = files.state.lock().unwrap();
+        let Some(cancel) = &state.cancel else { return };
         cancel.store(true, Ordering::Relaxed);
+        // Shown at once, so the cancel button can't be pressed twice.
+        state.zip.cancelled = true;
     }
+    emit_zip(&app);
 }
 
 /// Puts the drop target on the island once its webview exists.

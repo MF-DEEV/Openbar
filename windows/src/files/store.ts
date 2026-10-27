@@ -5,7 +5,7 @@
 // them, and what is the page's own (the selection and which piles are open).
 
 import { create } from "zustand";
-import { extended, NO_SELECTION, pruned, type Selection, toggled, toggledPile, visibleItems } from "./model";
+import { allIds, extended, NO_SELECTION, pruned, type Selection, toggled, toggledPile, visibleItems } from "./model";
 import type { FilesSnapshot, ShelfItem, ZipStatus } from "./types";
 
 export const IDLE_ZIP: ZipStatus = {
@@ -41,7 +41,8 @@ export const useFiles = create<FilesState>()((set, get) => ({
 
   receive(snapshot) {
     const s = get();
-    const known = new Set(s.items.map((item) => item.id));
+    // Ids at every depth: a pile dissolving into its last item is no arrival.
+    const known = allIds(s.items);
     const arrived = snapshot.items.some((item) => !known.has(item.id));
     set({
       items: snapshot.items,
