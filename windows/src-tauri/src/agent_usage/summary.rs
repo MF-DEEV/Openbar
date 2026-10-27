@@ -235,7 +235,10 @@ pub fn snapshot(input: Inputs) -> Snapshot {
     let today = local_day(now);
     let starts: Vec<Time> = (0..DAY_COUNT).rev().map(|n| local_start(today - Duration::days(n as i64))).collect();
     let tomorrow = local_start(today + Duration::days(1));
-    let hour_starts: Vec<Time> = (0..24).map(|h| starts[DAY_COUNT - 1] + h as f64 * 3600.0).collect();
+    // Local hours, so a daylight-saving day still splits at its clock hours.
+    let hour_starts: Vec<Time> = (0..24u32)
+        .map(|h| today.and_hms_opt(h, 0, 0).and_then(|t| Local.from_local_datetime(&t).earliest()).map_or(starts[DAY_COUNT - 1] + h as f64 * 3600.0, |d| d.timestamp() as f64))
+        .collect();
     let mut days: Vec<Bucket> = starts.iter().map(|t| Bucket { start: ms(*t), by_provider: BTreeMap::new() }).collect();
     let mut hours: Vec<Bucket> = hour_starts.iter().map(|t| Bucket { start: ms(*t), by_provider: BTreeMap::new() }).collect();
     let mut periods: [PeriodUsage; 3] = Default::default();

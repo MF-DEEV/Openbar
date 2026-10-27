@@ -63,6 +63,13 @@ pub fn roots() -> Vec<Root> {
     out.push(Root { provider: Provider::Opencode, path: data.join("opencode") });
     let copilot = env_dir("COPILOT_HOME").unwrap_or_else(|| home.join(".copilot"));
     out.push(Root { provider: Provider::Copilot, path: copilot.join("session-state") });
+    // One folder spelled two ways (slashes, short names, links) is read once.
+    for root in &mut out {
+        if let Ok(real) = std::fs::canonicalize(&root.path) {
+            let text = real.to_string_lossy().into_owned();
+            root.path = PathBuf::from(text.strip_prefix(r"\\?\").filter(|t| !t.starts_with("UNC")).unwrap_or(&text));
+        }
+    }
     let mut seen = Vec::<String>::new();
     out.retain(|r| {
         let key = r.path.to_string_lossy().to_lowercase();
@@ -83,6 +90,10 @@ pub fn found(provider: Provider) -> bool {
 /// beside the session's own `<session>.jsonl`.
 pub fn parent_of(path: &str) -> Option<String> {
     let at = path.rfind("\\subagents\\").or_else(|| path.rfind("/subagents/"))?;
+    // Only a log directly inside it: a folder named so above the root is not one.
+    if path[at + 11..].contains(['/', '\\']) {
+        return None;
+    }
     Some(format!("{}.jsonl", &path[..at]))
 }
 
@@ -394,6 +405,13 @@ const PID_DOMAIN: &str = "win32";
 #[cfg(not(windows))]
 const PID_DOMAIN: &str = "darwin";
 
+/// Claude Code writes `process.platform`, followed on Windows (and in Linux
+/// containers) by `:<hostname>` or more: Claude Code 2.1.312 builds it as
+/// `` `${platform}:${hostname().toLowerCase()}` `` on Windows.
+fn local_domain(domain: &str) -> bool {
+    domain == PID_DOMAIN || domain.strip_prefix(PID_DOMAIN).is_some_and(|rest| rest.starts_with(':'))
+}
+
 #[cfg(windows)]
 fn is_running(pid: u32) -> bool {
     use windows::Win32::Foundation::{CloseHandle, STILL_ACTIVE};
@@ -438,7 +456,7 @@ pub fn registry_with(roots: &[Root], running: &dyn Fn(u32) -> bool) -> Registry 
                 out.complete = false;
                 continue;
             };
-            if record.as_ref().and_then(|r| r.get("pidDomain")).and_then(|d| d.as_str()).is_some_and(|d| d != PID_DOMAIN) {
+            if record.as_ref().and_then(|r| r.get("pidDomain")).and_then(|d| d.as_str()).is_some_and(|d| !local_domain(d)) {
                 continue;
             }
             if running(pid as u32) {
@@ -526,15 +544,18 @@ mod tests {
         assert!(found[0].0.ends_with("abc.jsonl"));
         assert_eq!(parent_of(&found[1].0).as_deref(), Some(found[0].0.as_str()));
         assert_eq!(parent_of(r"C:\u\.claude\projects\p\abc\subagents\a.jsonl").as_deref(), Some(r"C:\u\.claude\projects\p\abc.jsonl"));
+        assert_eq!(parent_of(r"C:\subagents\.claude\projects\p\abc.jsonl"), None);
         // Registry beside the root.
         let sessions = dir.join("sessions");
         std::fs::create_dir_all(&sessions).unwrap();
         std::fs::write(sessions.join("10.json"), format!(r#"{{"pid":10,"sessionId":"abc","pidDomain":"{PID_DOMAIN}"}}"#)).unwrap();
         std::fs::write(sessions.join("11.json"), r#"{"pid":11,"sessionId":"vm","pidDomain":"linux"}"#).unwrap();
         std::fs::write(sessions.join("12.json"), r#"{"pid":12,"sessionId":"dead"}"#).unwrap();
+        std::fs::write(sessions.join("13.json"), format!(r#"{{"pid":10,"sessionId":"host","pidDomain":"{PID_DOMAIN}:my-pc"}}"#)).unwrap();
         let registry = registry_with(&roots, &|pid| pid == 10);
         assert!(registry.listed && registry.complete);
         assert!(registry.running.contains("abc") && registry.ended.contains("dead") && !registry.ended.contains("vm"));
+        assert!(registry.running.contains("host"), "a domain with the hostname is this PC's");
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

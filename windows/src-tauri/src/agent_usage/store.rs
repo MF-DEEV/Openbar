@@ -195,9 +195,12 @@ impl Store {
                         self.records[at].cost = cost;
                         self.records[at].reported_cost = reported;
                         if let Some(file) = turn
-                            && let Some(t) = self.turns.get_mut(file).filter(|t| record.date >= t.started - 1.0) {
-                                t.cost += extra;
-                            }
+                            && self.turns.get(file).or(self.waiting.get(file)).is_some_and(|t| record.date >= t.started - 1.0)
+                            && let Some(mut t) = self.turns.remove(file).or_else(|| self.waiting.remove(file))
+                        {
+                            t.cost += extra;
+                            self.turns.insert(file.into(), t);
+                        }
                     }
                 }
                 return;
@@ -472,6 +475,19 @@ mod tests {
         assert_eq!(store.index["shared"], 0);
         let restored = Store::from_saved(store.saved());
         assert_eq!(restored.records, store.records);
+    }
+
+    #[test]
+    fn a_late_opencode_cost_reaches_a_waiting_turn() {
+        let mut store = Store::default();
+        let row = |cost: f64, reported: bool| {
+            let tokens = Tokens { input: 5, ..Default::default() };
+            Entry::Usage { key: "oc".into(), record: Record { provider: Provider::Opencode, date: 10.0, model: "local".into(), project: "p".into(), session: "s".into(), requests: 1, tokens, cost: Some(cost), savings: 0.0, reported_cost: reported }, billable: Billable { tokens, ..Default::default() } }
+        };
+        store.apply(vec![Entry::TurnBegan(0.0), row(0.0, false)], "db#s", Provider::Opencode, true, None, 0.0, 0.0);
+        store.close_idle_turns(700.0, 600.0);
+        store.apply(vec![row(2.5, true)], "db#s", Provider::Opencode, true, None, 0.0, 700.0);
+        assert_eq!(store.turns["db#s"].cost, 2.5);
     }
 
     #[test]

@@ -99,7 +99,16 @@ pub fn agents_resets_refresh(state: tauri::State<'_, State>, force: bool) {
 pub async fn agents_resets_redeem(state: tauri::State<'_, State>) -> Result<String, String> {
     let (tx, rx) = channel();
     poke(&state, |c| c.redeem = Some(tx));
-    tauri::async_runtime::spawn_blocking(move || rx.recv_timeout(Duration::from_secs(45)).unwrap_or_else(|_| "failed".into())).await.map_err(|e| e.to_string())
+    let shared = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        rx.recv_timeout(Duration::from_secs(45)).unwrap_or_else(|_| {
+            // Not started by now, it never starts: the card says it failed.
+            shared.control.lock().unwrap().redeem = None;
+            "failed".into()
+        })
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 pub fn start<R: Runtime>(app: AppHandle<R>, state: State) {
@@ -198,7 +207,8 @@ fn settings(prefs: &Value) -> Settings {
 /// What finished in the background.
 enum Job {
     Claude(Result<Limits, claude::Failure>),
-    Resets(Result<codex::Summary, codex::Failure>),
+    /// A check's answer, with the redeems that had begun when it started.
+    Resets(Result<codex::Summary, codex::Failure>, u32),
     Redeem(Result<codex::Outcome, codex::Failure>, Option<codex::Summary>, Sender<String>),
     Prices(Option<pricing::PriceList>),
 }
@@ -212,6 +222,8 @@ struct Resets {
     attempted: Time,
     /// An attempt that got no answer: its key and credit, kept for a retry.
     pending: Option<(String, Option<String>, Time)>,
+    /// Redeems begun, so an older check's answer is set aside.
+    redeems: u32,
 }
 
 struct Service {
@@ -342,6 +354,9 @@ impl Service {
 
     fn begin(&mut self, roots: Vec<Root>, now: Time) {
         let providers = self.settings.as_ref().map(|s| s.providers.clone()).unwrap_or_default();
+        // The cached list's age sets the next download: once a day, not each launch.
+        let cached_at = prices::cache_path().and_then(|p| std::fs::metadata(p).ok()).map(|m| files::modified(&m));
+        self.price_due = self.price_due.max(cached_at.map_or(0.0, |t| t + prices::INTERVAL));
         // Prices first: the newer of the bundled and the cached list.
         if let Some(list) = pricing::PriceList::newer(pricing::PriceList::decode(pricing::BUNDLED.as_bytes()), prices::cached()) {
             pricing::install(list);
@@ -487,12 +502,9 @@ impl Service {
                 }
             });
         }
-        if cursor.restarted {
-            // What the old contents gave is taken back before they are read again.
-            if provider != Provider::Opencode {
-                self.store.forget_files(&HashSet::from([path.to_string()]));
-            }
-        }
+        // A log read again from its start gives its responses again, which
+        // count once by their keys; a restarted cursor is only never saved,
+        // so the next launch reads that log as rewritten (as on the Mac).
         let modified = cursor.modified;
         let tracks = cursor.tracks_turns();
         let mut parent = cursor.parent.clone();
@@ -571,8 +583,9 @@ impl Service {
                 self.resets.attempted = now;
                 self.dirty = true;
                 let tx = self.jobs.0.clone();
+                let redeems = self.resets.redeems;
                 std::thread::spawn(move || {
-                    let _ = tx.send(Job::Resets(codex::check(&model::now)));
+                    let _ = tx.send(Job::Resets(codex::check(&model::now), redeems));
                 });
             }
         }
@@ -603,6 +616,7 @@ impl Service {
         };
         self.resets.pending = Some(attempt.clone());
         self.resets.redeeming = true;
+        self.resets.redeems += 1;
         self.dirty = true;
         let tx = self.jobs.0.clone();
         std::thread::spawn(move || {
@@ -635,9 +649,11 @@ impl Service {
                     }
                 }
             }
-            Job::Resets(result) => {
+            Job::Resets(result, redeems) => {
                 self.resets.checking = false;
+                // A check that began before a redeem would bring back the count it spent.
                 match result {
+                    _ if redeems != self.resets.redeems => {}
                     Ok(summary) => self.accept_resets(summary),
                     Err(failure) => self.fail_resets(failure),
                 }
@@ -901,6 +917,45 @@ mod tests {
         // Tests never touch the person's real archive in %LOCALAPPDATA%.
         service.persist = false;
         Harness { service, events }
+    }
+
+    #[test]
+    fn a_rewritten_log_keeps_its_history_and_its_turn() {
+        let dir = std::env::temp_dir().join(format!("vorssaint-restart-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let projects = dir.join("projects").join("p");
+        std::fs::create_dir_all(&projects).unwrap();
+        let log = projects.join("s.jsonl");
+        let now = model::now();
+        let iso = |t: Time| chrono::DateTime::from_timestamp_millis((t * 1000.0) as i64).unwrap().to_rfc3339_opts(chrono::SecondsFormat::Millis, true);
+        let reply = |id: &str, t: Time, stop: &str| format!("{{\"type\":\"assistant\",\"timestamp\":\"{}\",\"requestId\":\"{id}\",\"message\":{{\"id\":\"{id}\",\"model\":\"claude-opus-5-5\",\"stop_reason\":\"{stop}\",\"usage\":{{\"output_tokens\":10}}}}}}\n", iso(t));
+        let prompt = format!("{{\"type\":\"user\",\"timestamp\":\"{}\",\"message\":{{\"content\":\"go\"}}}}\n", iso(now - 300.0));
+        std::fs::write(&log, format!("{prompt}{}{}", reply("a", now - 200.0, "tool_use"), reply("b", now - 100.0, "tool_use"))).unwrap();
+        let mut h = harness(json!({"island": {"agentsPriceUpdates": false, "agentsLimitAlert": false}}));
+        h.service.settings = Some(settings(&(h.service.prefs)()));
+        h.service.begin(vec![Root { provider: Provider::Claude, path: dir.join("projects") }], now);
+        assert_eq!(h.service.store.records.len(), 2);
+        // Rewritten shorter in place, then written on: read again from the start.
+        std::fs::write(&log, format!("{prompt}{}", reply("a", now - 200.0, "tool_use"))).unwrap();
+        h.service.poll(now);
+        use std::io::Write;
+        std::fs::OpenOptions::new().append(true).open(&log).unwrap().write_all(reply("c", now - 1.0, "end_turn").as_bytes()).unwrap();
+        h.service.poll(now);
+        h.service.poll(now);
+        assert_eq!(h.service.store.records.len(), 3, "what was read stays counted");
+        assert!(h.events.lock().unwrap().iter().any(|(n, e)| n == "agents://event" && e["kind"] == "finished"));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_check_begun_before_a_redeem_does_not_bring_back_its_count() {
+        let mut h = harness(json!({}));
+        let summary = |n| codex::Summary { available: n, credits: vec![], limits: None, checked_at: 0.0 };
+        h.service.resets.redeems = 1;
+        h.service.finish(Job::Resets(Ok(summary(2)), 0), 0.0);
+        assert!(h.service.resets.summary.is_none());
+        h.service.finish(Job::Resets(Ok(summary(1)), 1), 0.0);
+        assert_eq!(h.service.resets.summary.as_ref().map(|s| s.available), Some(1));
     }
 
     #[test]
