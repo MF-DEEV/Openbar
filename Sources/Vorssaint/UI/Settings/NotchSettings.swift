@@ -56,6 +56,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchVolume) private var volume = true
     @AppStorage(DefaultsKey.notchInputSource) private var inputSource = true
     @AppStorage(DefaultsKey.notchMicrophone) private var microphone = true
+    @AppStorage(DefaultsKey.notchVoiceChat) private var voiceChat = true
     @AppStorage(DefaultsKey.notchBrightness) private var brightness = true
     @AppStorage(DefaultsKey.notchBattery) private var battery = true
     @AppStorage(DefaultsKey.notchClipboard) private var clipboard = true
@@ -580,6 +581,10 @@ struct NotchSettings: View {
                     toggleCard(l10n.s.mixerInputTitle, symbol: "mic", value: $microphone, available: microphoneAvailable,
                                reason: AppFeature.micMute.enableReason(l10n), reservesReason: reserves,
                                unavailableAction: { AppFeature.micMute.showInFeatures() })
+                    // Discord's mute is read from Discord itself, so this card
+                    // never waits on another feature.
+                    toggleCard(FeatureStrings.notchVoice(l10n.language).title, symbol: DiscordVoiceSupport.mutedSymbol,
+                               value: $voiceChat, available: true, reservesReason: reserves)
                     if hasBattery {
                         toggleCard(text.battery, symbol: "battery.75percent", value: $battery, available: batteryAvailable,
                                    reason: AppFeature.monitorPower.enableReason(l10n), reservesReason: reserves,
@@ -607,7 +612,8 @@ struct NotchSettings: View {
                                available: true, reservesReason: reserves)
                 }
                 if accessoriesEnabled { Text(FeatureStrings.notchActivities(l10n.language).accessoryDescription).font(.caption).foregroundStyle(.secondary) }
-                if enabled, (volume || brightness || keyboardLight), !permissions.accessibility { PermissionRow(kind: .accessibility) }
+                if voiceChat { Text(FeatureStrings.notchVoice(l10n.language).hint).font(.caption).foregroundStyle(.secondary) }
+                if enabled, (volume || brightness || keyboardLight || voiceChat), !permissions.accessibility { PermissionRow(kind: .accessibility) }
             }
             let locked = FeatureStrings.notchLockScreen(l10n.language)
             SettingsCard(title: locked.title) {

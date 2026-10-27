@@ -12,6 +12,7 @@ import type { Decision, ReplyAttachment, ReplyFailure, SessionEvent, Snapshot } 
 import type { MusicCommand, NowPlaying } from "../music/types";
 import type { Access, Inbox, Item } from "../notifications/types";
 import type { DownloadSnapshot } from "../downloads/types";
+import type { MicrophoneSnapshot } from "../microphone/model";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 export interface AttentionContext {
@@ -42,6 +43,13 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
 }
 
 export const bridge = {
+  microphone: {
+    snapshot: () => call<MicrophoneSnapshot>("microphone_snapshot"),
+    onSnapshot(handler: (snapshot: MicrophoneSnapshot) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<MicrophoneSnapshot>("microphone://snapshot", (event) => handler(event.payload));
+    },
+  },
   attention: {
     current: async (): Promise<AttentionContext> =>
       (await call<AttentionContext>("attention_context")) ?? {

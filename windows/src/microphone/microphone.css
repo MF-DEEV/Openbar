@@ -1,0 +1,48 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 Vorssaint */
+
+.mic-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: 0;
+  color: #ff453a;
+  cursor: pointer;
+}
+.mic-icons {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: #46df95;
+}
+.mic-strip.is-muted,
+.mic-icons.is-muted {
+  color: #ff453a;
+}
+.mic-icons svg {
+  animation: mic-appear 220ms ease-out;
+  flex-shrink: 0;
+}
+.mic-muted-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px #ff453a55;
+}
+@keyframes mic-appear {
+  from {
+    opacity: 0;
+    transform: scale(0.65);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mic-icons svg {
+    animation: none;
+  }
+}

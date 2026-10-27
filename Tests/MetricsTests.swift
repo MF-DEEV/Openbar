@@ -108,6 +108,7 @@ struct MetricsTests {
             }),
             ("transient-paste", { TransientPasteTests.run(suite) }),
             ("notch-music", { NotchMusicExtrasTests.run(suite) }),
+            ("discord-voice", { DiscordVoiceTests.run(suite) }),
             ("notch", {
                 NotchTests.run(suite)
                 NotchShapeParityTests.run(suite)

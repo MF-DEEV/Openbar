@@ -1394,6 +1394,9 @@ enum FeatureCatalogTests {
                "radial menu accessibility follows the saved profiles, not the pre-profile wheel")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterEnabled]).contains(.scrollInverter),
                "an enabled feature counts as using its permission")
+        suite.expect(activeSet(.accessibility, on: [DefaultsKey.notchEnabled, DefaultsKey.notchVoiceChat]).contains(.notch)
+                && !activeSet(.accessibility, on: [DefaultsKey.notchEnabled]).contains(.notch),
+               "the island's microphone status counts as using accessibility, which reads Discord")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterHorizontalEnabled])
                 .contains(.scrollInverter),
                "horizontal-only inversion counts as using accessibility")
