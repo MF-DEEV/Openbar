@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 mod bar;
+mod calendar;
 mod com;
 mod downloads;
 mod discord_storage;
@@ -91,6 +92,7 @@ pub fn run() {
         .manage(microphone::Shared::default())
         .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
+        .manage(calendar::Shared::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -132,6 +134,11 @@ pub fn run() {
             shell::shell_icon,
             sound::sound_play,
             sound::sound_alarm,
+            calendar::calendar_snapshot,
+            calendar::calendar_show_range,
+            calendar::calendar_request_access,
+            calendar::calendar_open,
+            calendar::calendar_open_privacy_settings,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -151,6 +158,7 @@ pub fn run() {
                 app.handle().clone(),
                 app.state::<notifications::Shared>().inner().clone(),
             );
+            calendar::start(app.handle().clone(), app.state::<calendar::Shared>().inner().clone());
             let prefs = app.state::<prefs::Prefs>().get();
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;
