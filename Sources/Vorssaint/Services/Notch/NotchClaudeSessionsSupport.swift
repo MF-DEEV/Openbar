@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Carbon.HIToolbox
 import Foundation
 
 /// Decisions for the island's Sessions section, kept out of its views so they
@@ -84,6 +85,27 @@ enum NotchClaudeSessionsSupport {
 
     /// How long the buttons wait after the request on screen changes.
     static let settleDelay: TimeInterval = 0.8
+
+    /// How long the desktop or Vorssaint stays in front before a waiting
+    /// request takes the island, so passing through on the way to another
+    /// app does not open it.
+    static let presentingDelay: TimeInterval = 0.75
+
+    /// The keys that answer a request on screen, as the dialogs that ask
+    /// the same do, and the names they are claimed under while borrowed.
+    /// Each is the key that types its letter on the layout in use, so ⌘Y
+    /// is where the Y is on QWERTZ too.
+    static var allowShortcut: GlobalShortcut { commandShortcut(typing: "y", fallback: kVK_ANSI_Y) }
+    static var denyShortcut: GlobalShortcut { commandShortcut(typing: "n", fallback: kVK_ANSI_N) }
+    static let allowShortcutKey = "notchSessionsAllowShortcut"
+    static let denyShortcutKey = "notchSessionsDenyShortcut"
+
+    static func commandShortcut(typing letter: String, fallback: Int,
+                                label: (Int64) -> String? = { GlobalShortcut.layoutKeyLabel(for: $0, usesCommand: true) })
+        -> GlobalShortcut {
+        let code = (0..<128).first { label(Int64($0))?.lowercased() == letter }.map(Int64.init) ?? Int64(fallback)
+        return GlobalShortcut(keyCode: code, modifiers: .command)
+    }
 
     /// One count beside the camera: how many sessions are in a phase, and
     /// for the ones at work, whose they are.
