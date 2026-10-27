@@ -32,7 +32,10 @@
     Pop $0
     ${If} $0 != 0
       ; The installer runs per user, so only this step asks for elevation.
-      ExecShellWait "runas" "$R9" '${VORSSAINT_IDENTITY} -Action Trust' SW_HIDE
+      ; Elevation starts the program through the AppInfo service, which can't
+      ; see Sysnative, so this one uses System32: a 32-bit PowerShell, which is
+      ; enough to add a certificate to the machine store.
+      ExecShellWait "runas" "$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" '${VORSSAINT_IDENTITY} -Action Trust' SW_HIDE
       ClearErrors
     ${EndIf}
     ; Registered as the user who installs, whom the package is for.
