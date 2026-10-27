@@ -58,6 +58,12 @@ if (!inTauri && new URLSearchParams(location.search).has("tools")) {
   void import("../tools/demo").then((demo) => demo.startToolsDemo(new URLSearchParams(location.search).get("tools")));
 }
 
+if (!inTauri && new URLSearchParams(location.search).has("clipboard")) {
+  void Promise.all([import("../clipboard/demo"), import("../clipboard/store")]).then(([demo, store]) => {
+    store.useClipboard.getState().receive(demo.demoHistory());
+  });
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     {dev?.has("clawd") ? (

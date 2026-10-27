@@ -6,6 +6,7 @@ mod bar;
 mod calendar;
 mod brightness;
 mod capture;
+mod clipboard;
 mod com;
 mod downloads;
 mod discord_storage;
@@ -106,6 +107,7 @@ pub fn run() {
         .manage(audio::Shared::default())
         .manage(keep_awake::Shared::default())
         .manage(capture::Shared::default())
+        .manage(clipboard::Shared::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -179,6 +181,16 @@ pub fn run() {
             scratchpad::scratchpad_load,
             scratchpad::scratchpad_save,
             scratchpad::scratchpad_export,
+            clipboard::clipboard_snapshot,
+            clipboard::clipboard_copy,
+            clipboard::clipboard_paste,
+            clipboard::clipboard_toggle_pin,
+            clipboard::clipboard_remove,
+            clipboard::clipboard_move,
+            clipboard::clipboard_clear_recent,
+            clipboard::clipboard_copy_text,
+            clipboard::clipboard_copy_image,
+            clipboard::clipboard_beep,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -202,6 +214,7 @@ pub fn run() {
             system_monitor::start(app.handle().clone(), app.state::<system_monitor::Shared>().inner().clone());
             calendar::start(app.handle().clone(), app.state::<calendar::Shared>().inner().clone());
             audio::start(app.handle().clone(), app.state::<audio::Shared>().inner().clone());
+            clipboard::start(app.handle().clone(), app.state::<clipboard::Shared>().inner().clone());
             let prefs = app.state::<prefs::Prefs>().get();
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;

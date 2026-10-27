@@ -8,7 +8,13 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { MODULES, type ModuleId } from "../island/modules";
-import { DEFAULT_SETTINGS, type IslandSettings, type QuickButton } from "../island/settings";
+import {
+  CLIPBOARD_LIMITS,
+  CLIPBOARD_RETENTION_DAYS,
+  DEFAULT_SETTINGS,
+  type IslandSettings,
+  type QuickButton,
+} from "../island/settings";
 import { inTauri } from "./bridge";
 import { MONITOR_METRICS, type MonitorMetric } from "../system/types";
 import { CONTROL_ITEMS, type ControlItem } from "../controls/types";
@@ -60,6 +66,7 @@ const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
   networkSpeedUnit: ["bytes", "bits"],
   colorPickerFormat: ["hex", "rgb", "hsl"],
   scratchpadRetention: ["never", "day", "week", "month"],
+  clipboardCardSize: ["compact", "comfortable"],
 };
 
 /** Lists of ids or names: strings only, each once. */
@@ -141,6 +148,14 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
   if (island.homeModule !== undefined && island.homeModule !== "explore" && !KNOWN.has(island.homeModule)) {
     delete island.homeModule;
   }
+  // The Mac's choices only; any other number reads as the default.
+  if (island.clipboardHistoryLimit !== undefined && !CLIPBOARD_LIMITS.includes(island.clipboardHistoryLimit))
+    delete island.clipboardHistoryLimit;
+  if (
+    island.clipboardHistoryRetentionDays !== undefined &&
+    !CLIPBOARD_RETENTION_DAYS.includes(island.clipboardHistoryRetentionDays)
+  )
+    delete island.clipboardHistoryRetentionDays;
   return {
     island: {
       ...DEFAULT_SETTINGS,
@@ -161,6 +176,9 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
           stringList(raw[key]) ?? [],
         ]),
       ),
+      clipboardIgnoredApps: Array.isArray(raw.clipboardIgnoredApps)
+        ? raw.clipboardIgnoredApps.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+        : [],
       capsuleFit: { ...DEFAULT_SETTINGS.capsuleFit, ...checked(DEFAULT_SETTINGS.capsuleFit, raw.capsuleFit) },
       calendarExcluded: Array.isArray(raw.calendarExcluded)
         ? raw.calendarExcluded.filter((v): v is string => typeof v === "string")

@@ -19,6 +19,7 @@ import type { AudioState, BrightnessDisplay, KeepAwakeState } from "../audio/typ
 import type { CaptureOutcome, CapturePurpose, ToggleState } from "../tools/types";
 import type { CaptureSession, Pick } from "../capture/types";
 import type { ScratchpadDocument } from "../scratchpad/types";
+import type { ClipboardSnapshot, PasteResult } from "../clipboard/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 export interface AttentionContext {
@@ -243,6 +244,24 @@ export const bridge = {
     save: (document: ScratchpadDocument) => call("scratchpad_save", { document }),
     /** The saved path, or null when the person cancels. */
     export: (name: string, text: string) => call<string | null>("scratchpad_export", { name, text }),
+  },
+  clipboard: {
+    snapshot: () => call<ClipboardSnapshot>("clipboard_snapshot"),
+    onHistory(handler: (snapshot: ClipboardSnapshot) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<ClipboardSnapshot>("clipboard://history", (event) => handler(event.payload));
+    },
+    /** Puts the entry back on the clipboard; false when Windows wouldn't take it. */
+    copy: (id: string) => call<boolean>("clipboard_copy", { id }),
+    paste: (id: string) => call<PasteResult>("clipboard_paste", { id }),
+    togglePin: (id: string) => call("clipboard_toggle_pin", { id }),
+    remove: (id: string) => call("clipboard_remove", { id }),
+    move: (id: string, up: boolean) => call("clipboard_move", { id, up }),
+    /** Each unpinned entry the confirmation counted, with its copy time. */
+    clearRecent: (confirmed: Record<string, number>) => call("clipboard_clear_recent", { confirmed }),
+    copyText: (text: string) => call<boolean>("clipboard_copy_text", { text }),
+    copyImage: (dataUrl: string) => call<boolean>("clipboard_copy_image", { dataUrl }),
+    beep: () => call("clipboard_beep"),
   },
   onForegroundApp(handler: (name: string) => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});

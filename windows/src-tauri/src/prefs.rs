@@ -171,6 +171,7 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
     if let Some(service) = app.try_state::<crate::sessions::service::Shared>() {
         service.set_previews(previews);
     }
+    crate::clipboard::apply_prefs(app, before, value);
 }
 
 /// Registers Ctrl+Alt+Space or lets it go. Taken by another app, the island

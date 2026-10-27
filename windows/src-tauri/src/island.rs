@@ -267,6 +267,14 @@ pub fn island_set_focusable<R: Runtime>(
     Ok(())
 }
 
+/// The window that had the keyboard before the island took it (0 for none),
+/// where the clipboard pastes an entry.
+#[cfg(windows)]
+pub fn previous_foreground<R: Runtime>(app: &AppHandle<R>) -> isize {
+    app.try_state::<IslandState>()
+        .map_or(0, |state| *state.previous_foreground.lock().unwrap())
+}
+
 /// Settings › Behavior › Show in screenshots.
 pub fn show_in_captures<R: Runtime>(app: &AppHandle<R>, show: bool) {
     if let Some(window) = app.get_webview_window(LABEL) {

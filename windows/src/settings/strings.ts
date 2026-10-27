@@ -276,5 +276,32 @@ export const T = {
     mixerCaption:
       "Per-app volume goes up to 100%. Choosing an output or microphone makes it the Windows default for every app.",
   },
+  clipboard: {
+    // ClipboardFeatureStrings, ClipboardRetentionStrings, ClipboardIgnoredAppsStrings,
+    // NotchClipboardSizeStrings and NotchStrings on the Mac.
+    enable: "Save clipboard history",
+    enableCaption: "Stores copied text so you can reuse it later. Everything stays local and can be cleared anytime.",
+    includeImagesFiles: "Also save copied images and files",
+    includeImagesFilesCaption:
+      "Images join the history and files are remembered as links to their location. Pin and paste them like any text item.",
+    skipSensitive: "Skip text that looks sensitive",
+    skipSensitiveCaption:
+      "May skip ordinary text that resembles passwords or tokens. Content marked as confidential by its source app is always excluded.",
+    limit: "Limit",
+    limitUnlimited: "Unlimited",
+    retention: "Keep items for",
+    retentionCaption: "Older items are removed even below the limit. Pinned items are always kept.",
+    forever: "Forever",
+    days: (n: number) => (n === 1 ? "1 day" : `${n} days`),
+    ignoredApps: "Apps to skip",
+    ignoredAppsCaption:
+      "Nothing you copy in these apps is saved to the history. Enter each app's program name, one per line. Changes save when you leave this field.",
+    entrySize: "Entry size",
+    entrySizeCaption: "Compact entries show one or two lines and open up when the pointer rests on them.",
+    compact: "Compact",
+    comfortable: "Comfortable",
+    notice: "Notify when something is copied",
+    noticeCaption: "Copied content stays private until you open the clipboard.",
+  },
   saveFailed: "Couldn't save this change.",
 } as const;

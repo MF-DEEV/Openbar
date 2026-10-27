@@ -17,6 +17,7 @@ import { SystemOptions } from "./SystemSettings";
 import { CalendarOptions } from "./CalendarSettings";
 import { ControlsOptions, MixerOptions } from "./ControlsSettings";
 import { ScratchpadOptions, ToolsOptions } from "./ToolsSettings";
+import { ClipboardOptions } from "./ClipboardSettings";
 import { useSettings } from "./state";
 import { T } from "./strings";
 import { Expander, Group, Page, Row, Select, SubRow, Toggle } from "./ui";
@@ -140,6 +141,7 @@ const ON_WINDOWS: ModuleId[] = [
   "mixer",
 ];
 const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "tools", "scratchpad"];
+const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "clipboard"];
 
 function DownloadOptions() {
   const folders = useSettings((s) => s.prefs.island.downloadFolders);
@@ -189,6 +191,8 @@ function Options({ id }: { id: ModuleId }) {
       return <ToolsOptions />;
     case "scratchpad":
       return <ScratchpadOptions />;
+    case "clipboard":
+      return <ClipboardOptions />;
     case "music":
       return (
         <>
