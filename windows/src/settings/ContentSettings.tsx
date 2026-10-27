@@ -139,10 +139,11 @@ const ON_WINDOWS: ModuleId[] = [
   "calendar",
   "controls",
   "mixer",
+  "tools",
+  "scratchpad",
+  "clipboard",
+  "files",
 ];
-const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "tools", "scratchpad"];
-const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "clipboard"];
-const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "files"];
 
 function DownloadOptions() {
   const folders = useSettings((s) => s.prefs.island.downloadFolders);
@@ -223,6 +224,10 @@ function Options({ id }: { id: ModuleId }) {
               label={T.content.timerSound}
               checked={island.timerSoundEnabled}
               onChange={(on) => set("timerSoundEnabled", on)}
+            />
+          </SubRow>
+        </>
+      );
     case "files":
       return (
         <>

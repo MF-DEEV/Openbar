@@ -62,6 +62,8 @@ if (!inTauri && new URLSearchParams(location.search).has("clipboard")) {
   void Promise.all([import("../clipboard/demo"), import("../clipboard/store")]).then(([demo, store]) => {
     store.useClipboard.getState().receive(demo.demoHistory());
   });
+}
+
 if (!inTauri && new URLSearchParams(location.search).has("files")) {
   void Promise.all([import("../files/demo"), import("../files/store")]).then(([demo, store]) => {
     store.useFiles.getState().receive(demo.demoShelf());

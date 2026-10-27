@@ -4384,7 +4384,6 @@ dependencies = [
  "webview2-com",
  "widestring",
  "windows",
- "windows-core",
  "windows-collections",
  "windows-core",
  "zip",
