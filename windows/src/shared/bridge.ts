@@ -14,6 +14,7 @@ import type { Access, Inbox, Item } from "../notifications/types";
 import type { DownloadSnapshot } from "../downloads/types";
 import type { MicrophoneSnapshot } from "../microphone/model";
 import type { MetricKind, SystemSnapshot } from "../system/types";
+import type { CalendarAccess, CalendarSnapshot } from "../calendar/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 export interface AttentionContext {
@@ -141,6 +142,22 @@ export const bridge = {
       if (!inTauri) return Promise.resolve(() => {});
       return listen<SystemSnapshot>("system://snapshot", (event) => handler(event.payload));
     },
+  },
+  calendar: {
+    snapshot: () => call<CalendarSnapshot>("calendar_snapshot"),
+    onSnapshot(handler: (snapshot: CalendarSnapshot) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<CalendarSnapshot>("calendar://events", (event) => handler(event.payload));
+    },
+    /** The month grid's days to read besides the coming week, or null for the week alone; answers once read. */
+    showRange: (range: { start: number; end: number } | null) =>
+      call<CalendarSnapshot>("calendar_show_range", { start: range?.start ?? null, end: range?.end ?? null }),
+    /** Windows' consent prompt, asked off the UI thread. */
+    requestAccess: () => call<CalendarAccess>("calendar_request_access"),
+    /** The appointment in the default calendar app, or the app itself without one. */
+    open: (localId: string | null, instanceStart: number | null) =>
+      call<boolean>("calendar_open", { localId, instanceStart }),
+    openPrivacySettings: () => call<boolean>("calendar_open_privacy_settings"),
   },
   shell: {
     /** A PNG data URL: the file's icon, or its thumbnail when `thumbnail`. */

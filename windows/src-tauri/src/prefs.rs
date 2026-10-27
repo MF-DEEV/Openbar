@@ -163,6 +163,7 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
             && flag("/island/sections/notifications", true)
             && !notifications_hidden,
     );
+    crate::calendar::apply(app, before, value);
     let previews = value
         .pointer("/sessions/previews")
         .and_then(Value::as_bool)

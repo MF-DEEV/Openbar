@@ -14,6 +14,7 @@ import { MODULES, type ModuleId, visibleModules } from "../island/modules";
 import { DEFAULT_QUICK_ACCESS, sectionEnabled } from "../island/settings";
 import { SessionsOptions } from "./SessionsSettings";
 import { SystemOptions } from "./SystemSettings";
+import { CalendarOptions } from "./CalendarSettings";
 import { useSettings } from "./state";
 import { T } from "./strings";
 import { Expander, Group, Page, Row, Select, SubRow, Toggle } from "./ui";
@@ -125,7 +126,7 @@ function QuickAccessSettings() {
 const OWN_SWITCH: ModuleId[] = ["timer", "camera", "calendar", "notifications", "agents", "sessions", "watch"];
 
 /** What the Windows island already has; the rest show "coming to Windows". */
-const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "timer", "system"];
+const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "timer", "system", "calendar"];
 
 function DownloadOptions() {
   const folders = useSettings((s) => s.prefs.island.downloadFolders);
@@ -204,6 +205,8 @@ function Options({ id }: { id: ModuleId }) {
           </SubRow>
         </>
       );
+    case "calendar":
+      return <CalendarOptions />;
     default:
       return <p className="st-note">{T.content.noOptions}</p>;
   }

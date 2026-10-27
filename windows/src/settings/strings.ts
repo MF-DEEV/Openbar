@@ -200,5 +200,27 @@ export const T = {
     buddiesCaption:
       "Clawd for Claude Code, a little robot for Codex, each dressed at random. Click one on its session's page to change the outfit.",
   },
+  calendar: {
+    permission: "Read your calendars to show upcoming appointments. Events stay on this PC.",
+    access: "Calendar access",
+    granted: "Allowed",
+    notAsked: "Not allowed yet",
+    denied: "Denied in Windows Settings",
+    unavailable: "Unavailable in this build",
+    unavailableCaption:
+      "Reading calendars needs the Vorssaint package the installer registers. Reinstall Vorssaint to add it.",
+    allow: "Allow Calendar Access",
+    settings: "Open Windows Settings",
+    countdown: "Event countdown",
+    countdownHint:
+      "Show every timed event in the closed island during the hour before it starts. To count down to only some, turn this off and right-click them on the island’s Calendar page. Titles may appear in screen captures.",
+    timeLeft: "Time left in current event",
+    timeLeftHint:
+      "Show a timed event in progress in the closed island during the hour before it ends. Its title may appear in screen captures.",
+    weekNumbers: "Week numbers",
+    calendars: "Calendars shown",
+    noCalendars:
+      "No calendars found. Windows shares the calendars of its Calendar app and classic Outlook; the new Outlook keeps its own.",
+  },
   saveFailed: "Couldn't save this change.",
 } as const;

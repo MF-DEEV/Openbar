@@ -118,6 +118,16 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
         ? raw.downloadFolders.filter((v): v is string => typeof v === "string" && v.length > 0)
         : [],
       capsuleFit: { ...DEFAULT_SETTINGS.capsuleFit, ...checked(DEFAULT_SETTINGS.capsuleFit, raw.capsuleFit) },
+      calendarExcluded: Array.isArray(raw.calendarExcluded)
+        ? raw.calendarExcluded.filter((v): v is string => typeof v === "string")
+        : [],
+      calendarChosenCountdowns: isObject(raw.calendarChosenCountdowns)
+        ? Object.fromEntries(
+            Object.entries(raw.calendarChosenCountdowns).filter(
+              (entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]),
+            ),
+          )
+        : {},
       sections: { ...DEFAULT_SETTINGS.sections, ...sectionSwitches(raw.sections) },
       monitorInterval: [1, 2, 5].includes(raw.monitorInterval as number)
         ? (raw.monitorInterval as number)

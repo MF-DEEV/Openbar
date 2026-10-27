@@ -27,6 +27,7 @@ import { DeferredSessionAttention } from "../sessions/attention";
 import { MicrophoneStrip, subscribeMicrophone } from "../microphone/Microphone";
 import "../timer/register";
 import "../system/register";
+import "../calendar/register";
 
 activityViews.microphone = MicrophoneStrip;
 void subscribeMicrophone();
