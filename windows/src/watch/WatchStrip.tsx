@@ -29,8 +29,8 @@ const CAPSULE = { symbol: 12, slot: 16, spacing: 6, reading: 12, spinner: 16, ma
 
 /** min(16, h − 6), as the timer's reading. */
 export const stripTextSize = (stripHeight: number) => Math.min(16, stripHeight - 6);
-/** A working agent's mark: min(14, max(8, h − 14)). */
-export const stripEyeSize = (stripHeight: number) => Math.min(14, Math.max(8, stripHeight - 14));
+/** A working agent's mark, as the agents strip sizes it: min(14, max(8, h − 6)). */
+export const stripEyeSize = (stripHeight: number) => Math.min(14, Math.max(8, stripHeight - 6));
 
 const readingFont = (size: number) => `500 ${size}px 'Inter Variable', Inter, sans-serif`;
 

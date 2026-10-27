@@ -3,8 +3,12 @@
 
 // Sample watches for designing in a plain browser: island.html?watch (an
 // export at 42 %), ?watch=image (an area without text), ?watch=reading
-// (before the first reading), ?watch=hidden, ?watch=denied, ?watch=done.
+// (before the first reading), ?watch=hidden, ?watch=denied, ?watch=done,
+// ?watch=setup; add &open to start on the page, &compact or &capsule for
+// that layout or silhouette.
 
+import { useIsland } from "../island/store";
+import { setPrefs } from "../shared/prefs";
 import { useWatch } from "./store";
 import { IDLE, type WatchSnapshot } from "./types";
 
@@ -51,4 +55,8 @@ export function startWatchDemo(kind: string | null) {
     setup: IDLE,
   };
   useWatch.getState().receive(samples[kind || "watching"] ?? watching);
+  const params = new URLSearchParams(location.search);
+  if (params.has("compact")) void setPrefs({ island: { layout: "compact" } });
+  if (params.has("capsule")) void setPrefs({ island: { silhouette: "capsule" } });
+  if (params.has("open")) useIsland.getState().open("watch");
 }
