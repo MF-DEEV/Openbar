@@ -347,13 +347,20 @@ fn blank(text: String, kind: Kind, now: i64) -> Entry {
     }
 }
 
-/// The saved file's entries. A stored picture's name must be a bare file
-/// name, so a hand-edited file can't point the history elsewhere.
+/// The saved file's entries; None when it isn't a JSON list at all. An entry
+/// that doesn't read (a newer kind, a hand edit) is left out rather than
+/// losing the rest. A stored picture's name must be a bare file name, so a
+/// hand-edited file can't point the history elsewhere.
 pub fn decode(bytes: &[u8]) -> Option<Vec<Entry>> {
     let text = std::str::from_utf8(bytes).ok()?;
-    let mut entries: Vec<Entry> = serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()?;
+    let values: Vec<serde_json::Value> = serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()?;
+    let mut entries: Vec<Entry> = values.into_iter().filter_map(|v| serde_json::from_value(v).ok()).collect();
     for entry in &mut entries {
-        if entry.image_file.as_deref().is_some_and(|n| n.is_empty() || n.contains(['\\', '/', ':']) || n == "..") {
+        if entry
+            .image_file
+            .as_deref()
+            .is_some_and(|n| n.is_empty() || n.contains(['\\', '/', ':']) || n.starts_with('.'))
+        {
             entry.image_file = None;
         }
     }
@@ -484,6 +491,9 @@ mod tests {
         assert!(h.trim(0, 1, 100 * day + 1));
         assert_eq!(texts(&h), ["old", "c"]);
         assert!(!h.trim(0, 0, 100 * day));
+        // An entry copied exactly at the cutoff stays.
+        let edge = retained(&h.entries, 0, 1, 100 * day + day, usize::MAX);
+        assert_eq!(edge.len(), 2);
         // Unlimited keeps everything; retention counts whole days back from now.
         let entries = h.entries.clone();
         assert_eq!(retained(&entries, 0, 0, i64::MAX, usize::MAX).len(), 2);
@@ -531,6 +541,17 @@ mod tests {
         assert!(h.touch(&a, 99));
         assert_eq!(texts(&h), ["a", "c", "b"]);
         assert_eq!(h.entries[0].copied_at, 99);
+        // A pin keeps its place among the pins; an unknown id changes nothing.
+        let b = h.entries[2].id.clone();
+        h.toggle_pin(&a, 1);
+        h.toggle_pin(&b, 2);
+        assert_eq!(texts(&h), ["b", "a", "c"]);
+        assert!(h.touch(&a, 100));
+        assert_eq!(texts(&h), ["b", "a", "c"]);
+        assert!(!h.touch("missing", 1));
+        assert!(h.remove(&a));
+        assert!(!h.remove(&a));
+        assert_eq!(texts(&h), ["b", "c"]);
     }
 
     #[test]
@@ -561,6 +582,13 @@ mod tests {
         assert_eq!(decoded.len(), 1);
         assert_eq!((decoded[0].kind, decoded[0].text.as_str(), decoded[0].id.len()), (Kind::Text, "hi", 32));
         assert!(decode(b"{not json").is_none());
+        // One unreadable entry costs only itself.
+        let mixed = br#"[{"text":"keep"},{"text":"x","kind":"video"},{"text":"y","copiedAt":1.5e12},{"text":"","kind":"image","imageFile":".png"}]"#;
+        let kept: Vec<_> = decode(mixed).unwrap().into_iter().map(|e| e.text).collect();
+        assert_eq!(kept, ["keep"]);
+        // Pins come first whatever the file's order.
+        let order = br#"[{"text":"recent"},{"text":"pin","pinnedAt":1}]"#;
+        assert_eq!(decode(order).unwrap()[0].text, "pin");
         assert!(decode("\u{feff}[]".as_bytes()).unwrap().is_empty());
     }
 

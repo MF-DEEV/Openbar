@@ -63,7 +63,8 @@ fn is_web_url(text: &str) -> bool {
     let value = text.trim();
     let lower = value.to_ascii_lowercase();
     let rest = lower.strip_prefix("https://").or_else(|| lower.strip_prefix("http://"));
-    rest.is_some_and(|r| !r.is_empty() && !r.starts_with('/'))
+    // A host comes first: "https://?x" or "https:///x" has none.
+    rest.is_some_and(|r| r.chars().next().is_some_and(|c| !matches!(c, '/' | '?' | '#' | '@' | ':')))
         && !value.chars().any(|c| c.is_whitespace() || c.is_control())
 }
 
@@ -106,6 +107,8 @@ mod tests {
     fn long_mixed_words_are_sensitive_but_links_and_guids_are_not() {
         assert!(looks_sensitive("ghp_A1b2C3d4E5f6G7h8I9j0"));
         assert!(!looks_sensitive("https://example.com/a1b2c3d4e5?x=1&y=2"));
+        assert!(!looks_sensitive("HTTPS://example.com/a1b2c3d4e5f6?x=1"));
+        assert!(looks_sensitive("https://?a1b2c3d4e5f6g7h8"));
         assert!(!looks_sensitive("{0F8FAD5B-D9CB-469F-A165-70867728950E}"));
         assert!(!looks_sensitive("0f8fad5b-d9cb-469f-a165-70867728950e"));
         // Too short, a space inside, or no digit.

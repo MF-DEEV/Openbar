@@ -191,7 +191,11 @@ fn changed() {
     }
     // The next change's window starts with whoever is in front now.
     *FRONT.lock().unwrap() = front_exe.iter().cloned().collect();
-    let own = owner == me || front == me;
+    // A copy in the island's own fields comes from its WebView2 helper or
+    // no owner at all while the island is in front; any other app's copy
+    // stays that app's, so the ignore list still applies to it.
+    let webview = owner_exe.as_deref().is_some_and(|exe| exe.to_lowercase().ends_with("msedgewebview2.exe"));
+    let own = owner == me || (front == me && (owner == 0 || webview));
     let update = Update {
         own,
         exe: if own { None } else { owner_exe.or(front_exe) },

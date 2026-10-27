@@ -90,6 +90,12 @@ fn now_ms() -> i64 {
 pub struct Store {
     history: History,
     dir: Option<PathBuf>,
+    /// The saved history couldn't be read (another program held it): nothing
+    /// is saved or deleted, so the file and its pictures survive.
+    blocked: bool,
+    /// The saved history was damaged and set aside: its pictures stay, since
+    /// the entries naming them may yet be recovered from it.
+    keeps_images: bool,
 }
 
 pub type Shared = Arc<Mutex<Store>>;
@@ -101,20 +107,25 @@ impl Store {
 
     fn load(dir: PathBuf) -> Self {
         let file = dir.join("history.json");
-        let entries = match std::fs::read(&file) {
-            Ok(bytes) => history::decode(&bytes).unwrap_or_else(|| {
-                // Kept aside rather than overwritten by the next save.
-                let _ = std::fs::rename(&file, file.with_extension("json.broken"));
-                Vec::new()
-            }),
-            Err(_) => Vec::new(),
-        };
-        Store { history: History { entries }, dir: Some(dir) }
+        let mut store = Store { dir: Some(dir), ..Store::default() };
+        match std::fs::read(&file) {
+            Ok(bytes) => match history::decode(&bytes) {
+                Some(entries) => store.history.entries = entries,
+                None => {
+                    // Kept aside rather than overwritten by the next save.
+                    store.keeps_images = true;
+                    store.blocked = std::fs::rename(&file, file.with_extension("json.broken")).is_err();
+                }
+            },
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => store.blocked = true,
+        }
+        store
     }
 
     /// Written to a temporary file, then moved over the old one.
     fn save(&self) {
-        let Some(dir) = &self.dir else { return };
+        let Some(dir) = self.dir.as_ref().filter(|_| !self.blocked) else { return };
         if std::fs::create_dir_all(dir).is_err() {
             return;
         }
@@ -127,6 +138,9 @@ impl Store {
 
     /// Deletes pictures no entry uses any more.
     fn clean_images(&self) {
+        if self.blocked || self.keeps_images {
+            return;
+        }
         let Some(images) = self.images() else { return };
         let Ok(files) = std::fs::read_dir(&images) else { return };
         let used: std::collections::HashSet<&str> = self.history.image_files().collect();
@@ -489,6 +503,8 @@ mod tests {
         assert!(config.ignores(&[r"C:\Tools\notepad.exe".into(), r"D:\KeePass\KEEPASS.EXE".into()]));
         assert!(!config.ignores(&[r"C:\Tools\notkeepass.exe".into()]));
         assert!(!config.ignores(&[]));
+        assert_eq!(exe_name("  C:\\x\\App.EXE "), "app.exe");
+        assert_eq!(exe_name("  "), "");
     }
 
     #[test]
@@ -507,7 +523,7 @@ mod tests {
     #[test]
     fn the_store_saves_atomically_reloads_and_cleans_unused_pictures() {
         let dir = std::env::temp_dir().join(format!("vorssaint-clipboard-test-{}", history::new_id()));
-        let mut store = Store { history: History::default(), dir: Some(dir.clone()) };
+        let mut store = Store { dir: Some(dir.clone()), ..Store::default() };
         let images = store.images();
         let png = vec![1, 2, 3];
         let image = Content::Image { png: png.clone(), hash: "h".into(), width: 1, height: 1 };
@@ -524,10 +540,17 @@ mod tests {
         let snapshot = loaded.snapshot(None);
         let view = &snapshot.entries[1];
         assert_eq!(std::fs::read(view.image_path.as_ref().unwrap()).unwrap(), png);
-        // A damaged file is set aside, never overwritten.
+        // A damaged file is set aside, never overwritten, and its pictures stay.
         std::fs::write(dir.join("history.json"), b"{oops").unwrap();
-        assert!(Store::load(dir.clone()).history.entries.is_empty());
+        let damaged = Store::load(dir.clone());
+        assert!(damaged.history.entries.is_empty());
         assert!(dir.join("history.json.broken").exists());
+        damaged.clean_images();
+        assert_eq!(std::fs::read_dir(images.as_ref().unwrap()).unwrap().count(), 1);
+        // No file yet is an empty history that saves normally.
+        std::fs::remove_file(dir.join("history.json.broken")).unwrap();
+        let fresh = Store::load(dir.clone());
+        assert!(!fresh.blocked && !fresh.keeps_images && fresh.history.entries.is_empty());
         std::fs::remove_dir_all(dir).unwrap();
     }
 
