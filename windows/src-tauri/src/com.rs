@@ -77,6 +77,11 @@ impl Worker {
         sent.ok()?;
         rx.recv().ok()
     }
+
+    /// Queues `job` without waiting: COM callbacks hand their work over here.
+    pub fn post(&self, job: impl FnOnce() + Send + 'static) {
+        let _ = self.tx.lock().unwrap().send(Box::new(job));
+    }
 }
 
 #[cfg(test)]

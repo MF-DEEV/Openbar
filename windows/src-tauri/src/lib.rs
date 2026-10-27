@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+mod audio;
 mod bar;
+mod brightness;
 mod com;
 mod downloads;
 mod discord_storage;
@@ -10,6 +12,7 @@ mod fullscreen;
 mod hooks;
 mod hosts;
 mod island;
+mod keep_awake;
 mod media;
 mod media_volume;
 mod microphone;
@@ -91,6 +94,8 @@ pub fn run() {
         .manage(microphone::Shared::default())
         .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
+        .manage(audio::Shared::default())
+        .manage(keep_awake::Shared::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -132,6 +137,18 @@ pub fn run() {
             shell::shell_icon,
             sound::sound_play,
             sound::sound_alarm,
+            audio::audio_state,
+            audio::audio_set_output,
+            audio::audio_set_input,
+            audio::audio_set_default,
+            audio::audio_set_app,
+            audio::audio_watch_apps,
+            audio::mic_mute_set,
+            keep_awake::keep_awake_state,
+            keep_awake::keep_awake_set,
+            keep_awake::keep_awake_toggle,
+            brightness::brightness_displays,
+            brightness::brightness_set,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -151,6 +168,7 @@ pub fn run() {
                 app.handle().clone(),
                 app.state::<notifications::Shared>().inner().clone(),
             );
+            audio::start(app.handle().clone(), app.state::<audio::Shared>().inner().clone());
             let prefs = app.state::<prefs::Prefs>().get();
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;
