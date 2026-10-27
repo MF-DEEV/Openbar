@@ -7,7 +7,7 @@
 // then scrolls sideways. The page reports its own height.
 
 import { LayoutGrid, SlidersHorizontal } from "lucide-react";
-import { type CSSProperties, type ReactNode, useEffect } from "react";
+import { type CSSProperties, type ReactNode, useEffect, useMemo } from "react";
 import { create } from "zustand";
 import { t } from "../i18n";
 import { contentBudget } from "../island/geometry";
@@ -40,7 +40,9 @@ import { ShortcutTile } from "./Tile";
 import type { ControlItem } from "./types";
 
 /** The levels the band holds, set by the page that measures them. */
-const useBand = create<{ levels: ControlItem[] }>(() => ({ levels: [] }));
+/** The levels the band draws, and which copy of the page put them there. */
+const useBand = create<{ levels: ControlItem[]; owner: number }>(() => ({ levels: [], owner: 0 }));
+let nextOwner = 0;
 
 function Level({ item }: { item: ControlItem }) {
   return item === "volume" ? <VolumeLevel /> : <BrightnessLevel />;
@@ -102,11 +104,19 @@ export function ControlsPage({ width }: PageProps) {
   const height = Math.min(room, empty ? EMPTY_HEIGHT : layoutHeight(layout));
   const bandLevels = inBand ? levels.join(",") : "";
 
+  // During a page transition the outgoing copy unmounts after the incoming
+  // one filled the band, so a copy only clears what it put there itself.
+  const owner = useMemo(() => ++nextOwner, []);
   useEffect(() => {
-    useBand.setState({ levels: bandLevels ? (bandLevels.split(",") as ControlItem[]) : [] });
-  }, [bandLevels]);
+    useBand.setState({ levels: bandLevels ? (bandLevels.split(",") as ControlItem[]) : [], owner });
+  }, [bandLevels, owner]);
   useEffect(() => setPageContent("controls", height), [height, setPageContent]);
-  useEffect(() => () => useBand.setState({ levels: [] }), []);
+  useEffect(
+    () => () => {
+      if (useBand.getState().owner === owner) useBand.setState({ levels: [] });
+    },
+    [owner],
+  );
 
   if (empty) return <EmptyState icon={SlidersHorizontal} title={S.empty} />;
   return (
