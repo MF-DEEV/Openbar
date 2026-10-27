@@ -76,5 +76,7 @@ export interface SystemSnapshot {
   diskWrite: number | null;
   devices: DeviceReading[] | null;
   processes: ProcessRow[];
+  /** The detail `processes` were read for. */
+  processesFor: MetricKind | null;
   uptimeSeconds: number;
 }

@@ -70,8 +70,13 @@ describe("system preferences", () => {
     expect(stored.island.monitorInterval).toBe(5);
     expect(stored.island.networkSpeedUnit).toBe("bits");
     expect(stored.island.hiddenSystemMetrics).toEqual(["gpu", "power"]);
-    const bad = resolve({ island: { monitorInterval: 3, networkSpeedUnit: "nibbles" as never } });
+    const bad = resolve({
+      island: { monitorInterval: 3, networkSpeedUnit: "nibbles" as never, hiddenSystemMetrics: "gpu" as never },
+    });
     expect(bad.island.monitorInterval).toBe(2);
     expect(bad.island.networkSpeedUnit).toBe("bytes");
+    expect(bad.island.hiddenSystemMetrics).toEqual([]);
+    expect(resolve({ island: { monitorInterval: "2" as never } }).island.monitorInterval).toBe(2);
+    expect(resolve({ island: { monitorInterval: NaN } }).island.monitorInterval).toBe(2);
   });
 });

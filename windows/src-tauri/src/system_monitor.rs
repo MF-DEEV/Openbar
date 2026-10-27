@@ -23,7 +23,7 @@ use tauri::{AppHandle, Emitter, Manager};
 const WARM_UP: Duration = Duration::from_millis(400);
 
 /// A metric detail the page has open; CPU and memory add their top processes.
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum Detail {
     Cpu,
@@ -112,6 +112,9 @@ pub struct Snapshot {
     pub devices: Option<Vec<Device>>,
     /// The open detail's top processes (CPU or memory); empty otherwise.
     pub processes: Vec<ProcessRow>,
+    /// The detail the rows were read for, so a reading still on its way
+    /// when the page switched details isn't shown under the other one.
+    pub processes_for: Option<Detail>,
     pub uptime_seconds: u64,
 }
 
@@ -125,7 +128,8 @@ struct Control {
 pub struct Monitor {
     control: Mutex<Control>,
     wake: Condvar,
-    last: Mutex<Snapshot>,
+    /// None until the sampler has probed what this PC can read.
+    last: Mutex<Option<Snapshot>>,
 }
 
 pub type Shared = Arc<Monitor>;
@@ -141,9 +145,10 @@ pub fn system_monitor_watch(state: tauri::State<'_, Shared>, visible: bool, deta
     }
 }
 
-/// The latest reading, so a page opened again starts from it.
+/// The latest reading, so a page opened again starts from it; None before
+/// the first probe, so the page never mistakes "not yet" for "nothing".
 #[tauri::command]
-pub fn system_monitor_snapshot(state: tauri::State<'_, Shared>) -> Snapshot {
+pub fn system_monitor_snapshot(state: tauri::State<'_, Shared>) -> Option<Snapshot> {
     state.last.lock().unwrap().clone()
 }
 
@@ -155,7 +160,7 @@ pub fn start(app: AppHandle, shared: Shared) {
 
 fn run(app: AppHandle, shared: Shared) {
     let mut sampler = imp::Sampler::new();
-    shared.last.lock().unwrap().supported = sampler.supported();
+    *shared.last.lock().unwrap() = Some(Snapshot { supported: sampler.supported(), ..Default::default() });
     let mut seq = 0u64;
     loop {
         let control = {
@@ -174,7 +179,7 @@ fn run(app: AppHandle, shared: Shared) {
             seq += 1;
             let mut snapshot = sampler.sample(control.detail, interval);
             snapshot.seq = seq;
-            *shared.last.lock().unwrap() = snapshot.clone();
+            *shared.last.lock().unwrap() = Some(snapshot.clone());
             let _ = app.emit_to(crate::island::LABEL, "system://snapshot", &snapshot);
             if wait_unless_changed(&shared, &control, Duration::from_secs(interval)) {
                 break;
@@ -236,13 +241,12 @@ mod math {
         Some((1.0 - idle as f64 / total as f64).clamp(0.0, 1.0))
     }
 
-    /// Per-second rate of a cumulative counter. A counter that went back (an
-    /// adapter reset) reads as 0 for that tick rather than a spike (MetricFormat.netSpeed).
-    pub fn rate(previous: u64, current: u64, elapsed: f64) -> f64 {
-        if elapsed <= 0.0 || current < previous {
+    /// Bytes moved over `elapsed` seconds as a per-second rate; no time, no rate (MetricFormat.netSpeed).
+    pub fn per_second(bytes: u64, elapsed: f64) -> f64 {
+        if elapsed <= 0.0 || !elapsed.is_finite() {
             return 0.0;
         }
-        (current - previous) as f64 / elapsed
+        bytes as f64 / elapsed
     }
 
     /// A process's share of the machine from its CPU-time delta (100 ns units)
@@ -296,8 +300,7 @@ mod math {
         flags & HARDWARE != 0 && flags & FILTER == 0 && if_type != SOFTWARE_LOOPBACK && if_type != TUNNEL
     }
 
-    /// A battery's rate in watts; `BATTERY_UNKNOWN_RATE` (and a zero some
-    /// firmware reports while idle on AC) read as none.
+    /// A battery's rate in watts; `BATTERY_UNKNOWN_RATE` reads as none.
     pub fn battery_watts(rate_milliwatts: u32) -> Option<f64> {
         const UNKNOWN: u32 = 0x8000_0000;
         if rate_milliwatts == UNKNOWN {
@@ -337,6 +340,30 @@ mod math {
             c.starts_with("USB\\CLASS_09") || c.starts_with("USB\\CLASS_11")
         });
         removable && !infrastructure
+    }
+
+    /// Each adapter's (received, sent) byte counters, by interface LUID.
+    pub type Interfaces = std::collections::HashMap<u64, (u64, u64)>;
+
+    /// Bytes moved between two readings, counting only adapters present in
+    /// both: one plugged in or re-enabled mid-way would otherwise add its
+    /// whole lifetime in one tick, and one that went away would subtract.
+    pub fn interface_delta(previous: &Interfaces, current: &Interfaces) -> (u64, u64) {
+        current.iter().fold((0, 0), |(down, up), (luid, (received, sent))| match previous.get(luid) {
+            Some((was_received, was_sent)) => (
+                down + received.saturating_sub(*was_received),
+                up + sent.saturating_sub(*was_sent),
+            ),
+            None => (down, up),
+        })
+    }
+
+    /// Bytes since each adapter was first seen, which records new ones.
+    pub fn since_first_seen(baseline: &mut Interfaces, current: &Interfaces) -> (u64, u64) {
+        current.iter().fold((0, 0), |(down, up), (luid, (received, sent))| {
+            let (base_received, base_sent) = *baseline.entry(*luid).or_insert((*received, *sent));
+            (down + received.saturating_sub(base_received), up + sent.saturating_sub(base_sent))
+        })
     }
 
     /// Top rows by value, largest first.
@@ -405,13 +432,14 @@ mod imp {
             (valid && number.is_finite()).then_some(number)
         }
 
-        /// Each instance of a wildcard counter, by name.
-        fn instances(counter: PDH_HCOUNTER) -> Option<Vec<(String, f64)>> {
+        /// Each instance of a wildcard counter with valid data, by name, and
+        /// how many instances exist at all.
+        fn instances(counter: PDH_HCOUNTER) -> Option<(Vec<(String, f64)>, u32)> {
             let format = PDH_FMT(PDH_FMT_DOUBLE.0 | PDH_FMT_NOCAP100);
             let (mut size, mut count) = (0u32, 0u32);
             let status = unsafe { PdhGetFormattedCounterArrayW(counter, format, &mut size, &mut count, None) };
             if status == 0 && count == 0 {
-                return Some(Vec::new());
+                return Some((Vec::new(), 0));
             }
             if status != PDH_MORE_DATA {
                 return None;
@@ -425,16 +453,15 @@ mod imp {
                 return None;
             }
             unsafe { buffer.set_len((count as usize).min(buffer.capacity())) };
-            Some(
-                buffer
+            let valid = buffer
                     .iter()
                     .filter(|i| i.FmtValue.CStatus == PDH_CSTATUS_VALID_DATA || i.FmtValue.CStatus == PDH_CSTATUS_NEW_DATA)
                     .map(|i| {
                         let name = unsafe { i.szName.to_string() }.unwrap_or_default();
                         (name, unsafe { i.FmtValue.Anonymous.doubleValue })
                     })
-                    .collect(),
-            )
+                    .collect();
+            Some((valid, count))
         }
     }
 
@@ -442,12 +469,6 @@ mod imp {
         fn drop(&mut self) {
             unsafe { PdhCloseQuery(self.query) };
         }
-    }
-
-    #[derive(Clone, Copy)]
-    struct NetCounters {
-        received: u64,
-        sent: u64,
     }
 
     #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -467,8 +488,8 @@ mod imp {
         pdh: Option<Pdh>,
         gpu_seen: Option<bool>,
         times: Option<(u64, u64, u64)>,
-        net: Option<NetCounters>,
-        net_baseline: Option<NetCounters>,
+        net: Option<Interfaces>,
+        net_baseline: Interfaces,
         last: Instant,
         processes: HashMap<ProcessKey, u64>,
         process_names: HashMap<String, (Option<String>, String)>,
@@ -481,12 +502,16 @@ mod imp {
         pub fn new() -> Self {
             let pdh = Pdh::open();
             let net = network_counters();
+            let mut net_baseline = Interfaces::new();
+            if let Some(current) = &net {
+                since_first_seen(&mut net_baseline, current);
+            }
             Sampler {
                 pdh,
                 gpu_seen: None,
                 times: None,
                 net,
-                net_baseline: net,
+                net_baseline,
                 last: Instant::now(),
                 processes: HashMap::new(),
                 process_names: HashMap::new(),
@@ -513,7 +538,7 @@ mod imp {
                 pdh.collect();
             }
             self.times = system_times();
-            self.net = network_counters().or(self.net);
+            self.net = network_counters().or(self.net.take());
             self.processes.clear();
             if detail == Some(Detail::Cpu) {
                 self.processes = read_processes().into_iter().map(|p| (p.key, p.cpu_time)).collect();
@@ -535,12 +560,11 @@ mod imp {
                 .map(|v| (v / 100.0).clamp(0.0, 1.0))
                 .or_else(|| cpu_from_times(self.times?, times?));
             self.times = times;
-            if let Some(counter) = pdh.and_then(|p| p.gpu) {
-                let instances = Pdh::instances(counter);
-                if let Some(list) = &instances {
-                    self.gpu_seen = Some(!list.is_empty());
-                }
-                snapshot.gpu = instances.and_then(|list| gpu_usage(list.iter().map(|(n, v)| (n.as_str(), *v))));
+            if let Some(counter) = pdh.and_then(|p| p.gpu)
+                && let Some((list, count)) = Pdh::instances(counter)
+            {
+                self.gpu_seen = Some(count > 0);
+                snapshot.gpu = gpu_usage(list.iter().map(|(n, v)| (n.as_str(), *v)));
             }
             snapshot.disk_read = pdh.and_then(|p| Pdh::value(p.disk_read)).map(|v| v.max(0.0));
             snapshot.disk_write = pdh.and_then(|p| Pdh::value(p.disk_write)).map(|v| v.max(0.0));
@@ -551,13 +575,14 @@ mod imp {
             }
 
             if let Some(current) = network_counters() {
-                if let Some(previous) = self.net {
-                    snapshot.net_down = Some(rate(previous.received, current.received, elapsed));
-                    snapshot.net_up = Some(rate(previous.sent, current.sent, elapsed));
+                if let Some(previous) = &self.net {
+                    let (down, up) = interface_delta(previous, &current);
+                    snapshot.net_down = Some(per_second(down, elapsed));
+                    snapshot.net_up = Some(per_second(up, elapsed));
                 }
-                let base = *self.net_baseline.get_or_insert(current);
-                snapshot.net_total_down = Some(current.received.saturating_sub(base.received));
-                snapshot.net_total_up = Some(current.sent.saturating_sub(base.sent));
+                let (down, up) = since_first_seen(&mut self.net_baseline, &current);
+                snapshot.net_total_down = Some(down);
+                snapshot.net_total_up = Some(up);
                 self.net = Some(current);
             }
 
@@ -576,6 +601,7 @@ mod imp {
                 Some(Detail::Memory) => self.memory_rows(),
                 _ => Vec::new(),
             };
+            snapshot.processes_for = detail.filter(|d| matches!(d, Detail::Cpu | Detail::Memory));
             snapshot.uptime_seconds = unsafe { windows::Win32::System::SystemInformation::GetTickCount64() } / 1000;
             snapshot.supported = self.supported();
             snapshot
@@ -656,24 +682,25 @@ mod imp {
         (status.ullTotalPhys > 0).then(|| (status.ullTotalPhys.saturating_sub(status.ullAvailPhys), status.ullTotalPhys))
     }
 
-    fn network_counters() -> Option<NetCounters> {
-        use windows::Win32::NetworkManagement::IpHelper::{FreeMibTable, GetIfTable2, MIB_IF_TABLE2};
+    fn network_counters() -> Option<Interfaces> {
+        use windows::Win32::NetworkManagement::IpHelper::{FreeMibTable, GetIfTable2, MIB_IF_ROW2, MIB_IF_TABLE2};
         let mut table: *mut MIB_IF_TABLE2 = std::ptr::null_mut();
         if unsafe { GetIfTable2(&mut table) }.is_err() || table.is_null() {
             return None;
         }
-        let mut total = NetCounters { received: 0, sent: 0 };
+        let mut interfaces = Interfaces::new();
         unsafe {
-            let rows = std::slice::from_raw_parts((*table).Table.as_ptr(), (*table).NumEntries as usize);
+            // The rows run past the declared one-element array.
+            let first = std::ptr::addr_of!((*table).Table).cast::<MIB_IF_ROW2>();
+            let rows = std::slice::from_raw_parts(first, (*table).NumEntries as usize);
             for row in rows {
                 if counts_interface(row.InterfaceAndOperStatusFlags._bitfield, row.Type) {
-                    total.received = total.received.saturating_add(row.InOctets);
-                    total.sent = total.sent.saturating_add(row.OutOctets);
+                    interfaces.insert(row.InterfaceLuid.Value, (row.InOctets, row.OutOctets));
                 }
             }
             FreeMibTable(table as *const _);
         }
-        Some(total)
+        Some(interfaces)
     }
 
     fn battery() -> Option<Battery> {
@@ -815,7 +842,8 @@ mod imp {
                 )
             };
             if status.0 == LENGTH_MISMATCH && buffer.len() < 64 * 1024 * 1024 / 8 {
-                buffer = vec![0; (needed as usize + 64 * 1024).div_ceil(8)];
+                let bytes = (needed as usize + 64 * 1024).max(buffer.len() * 16);
+                buffer = vec![0; bytes.div_ceil(8)];
                 continue;
             }
             if status.is_err() {
@@ -908,11 +936,11 @@ mod tests {
     }
 
     #[test]
-    fn rates_are_per_second_and_ignore_resets() {
-        assert_eq!(rate(1_000, 3_000, 2.0), 1_000.0);
-        assert_eq!(rate(3_000, 1_000, 2.0), 0.0);
-        assert_eq!(rate(1_000, 3_000, 0.0), 0.0);
-        assert_eq!(rate(0, 500, 0.5), 1_000.0);
+    fn rates_are_per_second() {
+        assert_eq!(per_second(2_000, 2.0), 1_000.0);
+        assert_eq!(per_second(500, 0.5), 1_000.0);
+        assert_eq!(per_second(2_000, 0.0), 0.0);
+        assert_eq!(per_second(2_000, f64::NAN), 0.0);
     }
 
     #[test]
@@ -962,7 +990,24 @@ mod tests {
     }
 
     #[test]
+    fn network_counts_only_adapters_seen_twice() {
+        let interfaces = |rows: &[(u64, u64, u64)]| rows.iter().map(|(l, r, s)| (*l, (*r, *s))).collect::<Interfaces>();
+        let before = interfaces(&[(1, 1_000, 500), (2, 10, 10)]);
+        // Adapter 3 appears with its lifetime counters, adapter 2 goes away.
+        let after = interfaces(&[(1, 3_000, 900), (3, 9_000_000, 9_000_000)]);
+        assert_eq!(interface_delta(&before, &after), (2_000, 400));
+        // A counter that went back (reset) adds nothing.
+        assert_eq!(interface_delta(&after, &interfaces(&[(1, 100, 100)])), (0, 0));
+        let mut baseline = Interfaces::new();
+        assert_eq!(since_first_seen(&mut baseline, &before), (0, 0));
+        assert_eq!(since_first_seen(&mut baseline, &after), (2_000, 400));
+        let later = interfaces(&[(1, 3_500, 900), (3, 9_000_100, 9_000_000)]);
+        assert_eq!(since_first_seen(&mut baseline, &later), (2_600, 400));
+    }
+
+    #[test]
     fn battery_rate_is_signed_milliwatts() {
+        assert_eq!(battery_watts(0), Some(0.0));
         assert_eq!(battery_watts(12_500), Some(12.5));
         assert_eq!(battery_watts((-8_000i32) as u32), Some(-8.0));
         assert_eq!(battery_watts(0x8000_0000), None);

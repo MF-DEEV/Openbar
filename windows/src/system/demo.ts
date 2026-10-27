@@ -37,6 +37,7 @@ export function demoSnapshot(seq: number): SystemSnapshot {
       { name: "Desktop Window Manager", path: null, value: 3.1 },
       { name: "Vorssaint", path: null, value: 0.8 },
     ],
+    processesFor: "cpu",
     uptimeSeconds: 3 * 86_400 + 4 * 3_600 + 12 * 60,
   };
 }

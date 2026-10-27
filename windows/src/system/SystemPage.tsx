@@ -31,6 +31,7 @@ export function useCards(): Card[] {
 
 export function SystemPage({ width }: PageProps) {
   const cards = useCards();
+  const snapshot = useSystem((s) => s.snapshot);
   const detail = useSystem((s) => s.detail);
   const budget = useIsland((s) => contentBudget(geometryOf(s), false));
   const custom = useIsland((s) => s.settings.layout === "custom");
@@ -53,6 +54,8 @@ export function SystemPage({ width }: PageProps) {
     if (detail !== null && !open) useSystem.getState().closeDetail();
   }, [detail, open]);
 
+  // Nothing known yet (the monitor still probing): an empty page, not "unavailable".
+  if (snapshot === null) return null;
   if (detail && open) return <MetricDetail key={detail} kind={detail} onMeasure={setMeasured} />;
   if (cards.length === 0) return <EmptyState icon={Gauge} title={S.unavailable} />;
   const inset = hoverInset(width);

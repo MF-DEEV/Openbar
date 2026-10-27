@@ -113,13 +113,13 @@ describe("system cards", () => {
     expect(card.detail).toBe("↑ 1.0 Kbps");
   });
 
-  it("shows power only while charge flows", () => {
-    expect(powerReading(battery({ rateWatts: -11.6 }))).toEqual({ watts: 11.6, charging: false });
+  it("shows power while the battery reports a rate, without blinking at zero", () => {
+    expect(powerReading(battery({ rateWatts: -11.6 }))).toEqual({ watts: 11.6, pluggedIn: false });
     expect(powerReading(battery({ rateWatts: 25, pluggedIn: true, charging: true }))).toEqual({
       watts: 25,
-      charging: true,
+      pluggedIn: true,
     });
-    expect(powerReading(battery({ rateWatts: 0, pluggedIn: true }))).toBeNull();
+    expect(powerReading(battery({ rateWatts: 0, pluggedIn: true }))).toEqual({ watts: 0, pluggedIn: true });
     expect(powerReading(battery({ rateWatts: null }))).toBeNull();
     expect(powerReading(null)).toBeNull();
     const charging = systemCards(
@@ -131,6 +131,8 @@ describe("system cards", () => {
     expect(power.detail).toBe("Charging");
     expect(charging.find((c) => c.kind === "battery")!.charging).toBe(true);
     const full = systemCards(base({ battery: battery({ rateWatts: 0, pluggedIn: true }) }), options);
-    expect(full.some((c) => c.kind === "power")).toBe(false);
+    expect(full.find((c) => c.kind === "power")).toMatchObject({ value: "0W", detail: "Plugged in" });
+    const desktop = systemCards(base({ battery: battery({ rateWatts: null }) }), options);
+    expect(desktop.some((c) => c.kind === "power")).toBe(false);
   });
 });

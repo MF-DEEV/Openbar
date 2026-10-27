@@ -133,7 +133,8 @@ export const bridge = {
     },
   },
   system: {
-    snapshot: () => call<SystemSnapshot>("system_monitor_snapshot"),
+    /** Null until the monitor has probed what the PC can read. */
+    snapshot: () => call<SystemSnapshot | null>("system_monitor_snapshot"),
     /** Samples run only while the page is open; `detail` adds its process list. */
     watch: (visible: boolean, detail: MetricKind | null) => call("system_monitor_watch", { visible, detail }),
     onSnapshot(handler: (snapshot: SystemSnapshot) => void): Promise<UnlistenFn> {

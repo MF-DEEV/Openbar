@@ -83,10 +83,10 @@ export function MetricDetail({ kind, onMeasure }: { kind: MetricKind; onMeasure(
           {lists ? (
             <section className="sy-panel sy-rows">
               <div className="sy-panel-title">{S.usage}</div>
-              {snapshot.processes.length === 0 ? (
+              {snapshot.processesFor !== kind || snapshot.processes.length === 0 ? (
                 <div className="sy-panel-empty">{S.measuring}</div>
               ) : (
-                snapshot.processes.map((row) => <Process key={row.name} kind={kind} row={row} />)
+                snapshot.processes.map((row, i) => <Process key={`${i}-${row.name}`} kind={kind} row={row} />)
               )}
             </section>
           ) : null}
@@ -109,7 +109,10 @@ function useIcon(path: string | null): string | null {
     if (!icons.has(key))
       icons.set(
         key,
-        bridge.shell.icon(path, size).then((url) => url ?? null),
+        bridge.shell
+          .icon(path, size)
+          .then((url) => url ?? null)
+          .catch(() => null),
       );
     void icons.get(key)!.then((url) => live && setIcon(url));
     return () => {

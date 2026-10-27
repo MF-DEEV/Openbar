@@ -208,7 +208,7 @@ export function detailRows(kind: MetricKind, s: SystemSnapshot, inBits: boolean)
       const battery = s.battery;
       const power = powerReading(battery);
       const rows: Row[] = [
-        { title: S.system, value: power && !power.charging ? watts(power.watts) : "-" },
+        { title: S.system, value: power && !power.pluggedIn ? watts(power.watts) : "-" },
         { title: S.adapter, value: battery?.pluggedIn ? S.pluggedIn : "-" },
         { title: S.battery, value: batteryFlow(battery) },
       ];

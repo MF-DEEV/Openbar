@@ -43,16 +43,15 @@ const fraction = (value: number | null) => (value !== null && Number.isFinite(va
 const percentText = (value: number | null) => (fraction(value) === null ? null : percent(value!));
 
 /**
- * The power card: the draw while the battery feeds the PC, the charge going
- * in while it charges. Windows has no system or adapter wattage, so with no
- * flow either way there is nothing to show and the card hides.
+ * The power card, shown while the battery reports a rate (so it doesn't blink
+ * as the rate touches zero): the draw while the battery feeds the PC, the
+ * charge going in while plugged in. Windows has no system or adapter wattage.
  */
-export function powerReading(battery: BatteryReading | null): { watts: number; charging: boolean } | null {
+export function powerReading(battery: BatteryReading | null): { watts: number; pluggedIn: boolean } | null {
   const rate = battery?.rateWatts;
   if (rate === null || rate === undefined || !Number.isFinite(rate)) return null;
-  if (!battery!.pluggedIn && rate < 0) return { watts: -rate, charging: false };
-  if (battery!.pluggedIn && rate > 0) return { watts: rate, charging: true };
-  return null;
+  if (battery!.pluggedIn) return { watts: Math.max(0, rate), pluggedIn: true };
+  return { watts: Math.max(0, -rate), pluggedIn: false };
 }
 
 export function systemCards(
@@ -122,7 +121,7 @@ export function systemCards(
       kind: "power",
       title: S.power,
       value: wattsCompact(power.watts),
-      detail: power.charging ? S.charging : null,
+      detail: power.pluggedIn ? (battery!.charging ? S.charging : S.pluggedIn) : null,
       attention: false,
     });
   }
