@@ -10,6 +10,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { MODULES, type ModuleId } from "../island/modules";
 import { DEFAULT_SETTINGS, type IslandSettings, type QuickButton } from "../island/settings";
 import { inTauri } from "./bridge";
+import { MONITOR_METRICS, type MonitorMetric } from "../system/types";
 
 /** The Sessions section's own preferences (spec 01-shell §7.2, sessions). */
 export interface SessionPrefs {
@@ -54,6 +55,7 @@ const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
   opening: ["click", "hoverPreview", "hoverExpand", "hiddenUntilHover"],
   // "all" is a Mac choice the Windows island doesn't have yet.
   display: ["primary", "cursor"],
+  networkSpeedUnit: ["bytes", "bits"],
 };
 
 const KNOWN = new Set<string>(MODULES.map((m) => m.id));
@@ -116,6 +118,16 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
         : [],
       capsuleFit: { ...DEFAULT_SETTINGS.capsuleFit, ...checked(DEFAULT_SETTINGS.capsuleFit, raw.capsuleFit) },
       sections: { ...DEFAULT_SETTINGS.sections, ...sectionSwitches(raw.sections) },
+      monitorInterval: [1, 2, 5].includes(raw.monitorInterval as number)
+        ? (raw.monitorInterval as number)
+        : DEFAULT_SETTINGS.monitorInterval,
+      hiddenSystemMetrics: Array.isArray(raw.hiddenSystemMetrics)
+        ? [
+            ...new Set(
+              raw.hiddenSystemMetrics.filter((m): m is MonitorMetric => MONITOR_METRICS.includes(m as MonitorMetric)),
+            ),
+          ]
+        : [],
     },
     sessions: { ...DEFAULT_SESSION_PREFS, ...checked(DEFAULT_SESSION_PREFS, stored?.sessions) },
   };

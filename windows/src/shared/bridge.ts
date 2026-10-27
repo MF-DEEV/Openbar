@@ -13,6 +13,7 @@ import type { MusicCommand, NowPlaying } from "../music/types";
 import type { Access, Inbox, Item } from "../notifications/types";
 import type { DownloadSnapshot } from "../downloads/types";
 import type { MicrophoneSnapshot } from "../microphone/model";
+import type { MetricKind, SystemSnapshot } from "../system/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 export interface AttentionContext {
@@ -129,6 +130,15 @@ export const bridge = {
     onSnapshot(handler: (snapshot: DownloadSnapshot) => void): Promise<UnlistenFn> {
       if (!inTauri) return Promise.resolve(() => {});
       return listen<DownloadSnapshot>("downloads://snapshot", (event) => handler(event.payload));
+    },
+  },
+  system: {
+    snapshot: () => call<SystemSnapshot>("system_monitor_snapshot"),
+    /** Samples run only while the page is open; `detail` adds its process list. */
+    watch: (visible: boolean, detail: MetricKind | null) => call("system_monitor_watch", { visible, detail }),
+    onSnapshot(handler: (snapshot: SystemSnapshot) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<SystemSnapshot>("system://snapshot", (event) => handler(event.payload));
     },
   },
   shell: {
