@@ -92,7 +92,7 @@ pub fn limits(samples: &[Sample], now: Time, session_start: Option<Time>, organi
         window.estimated_resets_at = session.and_then(|s| s.1);
         result.push(window);
     }
-    (!result.is_empty()).then(|| Limits { provider: Provider::Claude, windows: result, observed_at: latest.date, source: LimitSource::ClaudeApp })
+    (!result.is_empty()).then_some(Limits { provider: Provider::Claude, windows: result, observed_at: latest.date, source: LimitSource::ClaudeApp })
 }
 
 /// (latest possible end, estimate) of the session the latest reading is in.
@@ -180,11 +180,10 @@ fn missed(moment: Time, history: &[&Sample], drops: &[Drop], key: &str, length: 
         let (start, end) = (next - 3600.0, next + 3600.0);
         let before = history.iter().rev().find(|s| s.date >= start && s.date < next && s.used.contains_key(key)).and_then(|s| s.used.get(key));
         let after = history.iter().find(|s| s.date > next && s.date <= end && s.used.contains_key(key)).and_then(|s| s.used.get(key));
-        if let (Some(&before), Some(&after)) = (before, after) {
-            if before >= 10.0 && after + 1.0 >= before && !drops.iter().any(|d| d.latest >= start && d.earliest <= end) {
+        if let (Some(&before), Some(&after)) = (before, after)
+            && before >= 10.0 && after + 1.0 >= before && !drops.iter().any(|d| d.latest >= start && d.earliest <= end) {
                 return true;
             }
-        }
         next += length;
     }
     false

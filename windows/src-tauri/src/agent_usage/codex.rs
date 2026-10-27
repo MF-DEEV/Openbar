@@ -111,7 +111,7 @@ pub fn sign_in_failure(account: &Value) -> Option<Failure> {
 pub fn limits(result: &Value, observed: Time) -> Option<Limits> {
     let snapshot = result.pointer("/rateLimitsByLimitId/codex").filter(|s| s.is_object()).or_else(|| result.get("rateLimits").filter(|s| s.is_object() && is_main_bucket(s)))?;
     let windows = codex_windows(snapshot, observed, &ACCOUNT_KEYS);
-    (!windows.is_empty()).then(|| Limits { provider: Provider::Codex, windows, observed_at: observed, source: LimitSource::Account })
+    (!windows.is_empty()).then_some(Limits { provider: Provider::Codex, windows, observed_at: observed, source: LimitSource::Account })
 }
 
 /// None for a Codex too old for resets.

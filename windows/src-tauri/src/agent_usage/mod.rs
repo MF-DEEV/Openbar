@@ -62,6 +62,9 @@ struct Control {
 }
 
 pub type State = Arc<Shared>;
+/// Reads the prefs, and hands an event to the island's windows.
+type ReadPrefs = Box<dyn Fn() -> Value + Send>;
+type Emit = Box<dyn Fn(&str, Value) + Send>;
 
 fn poke(state: &Shared, change: impl FnOnce(&mut Control)) {
     change(&mut state.control.lock().unwrap());
@@ -170,8 +173,8 @@ struct Resets {
 
 struct Service {
     state: State,
-    prefs: Box<dyn Fn() -> Value + Send>,
-    emit: Box<dyn Fn(&str, Value) + Send>,
+    prefs: ReadPrefs,
+    emit: Emit,
     jobs: (Sender<Job>, Receiver<Job>),
     settings: Option<Settings>,
     running: Option<Vec<Provider>>,
@@ -202,7 +205,7 @@ struct Service {
 }
 
 impl Service {
-    fn new(state: State, prefs: Box<dyn Fn() -> Value + Send>, emit: Box<dyn Fn(&str, Value) + Send>) -> Service {
+    fn new(state: State, prefs: ReadPrefs, emit: Emit) -> Service {
         Service {
             state,
             prefs,
@@ -336,11 +339,10 @@ impl Service {
         // History never replays as notices.
         self.store.reports_transitions = true;
         self.previous_limits = self.store.limits.clone();
-        if let Some(budget) = self.settings.as_ref().and_then(|s| s.daily_budget) {
-            if summary::today_cost(&self.store.records, self.providers(), now) >= budget {
+        if let Some(budget) = self.settings.as_ref().and_then(|s| s.daily_budget)
+            && summary::today_cost(&self.store.records, self.providers(), now) >= budget {
                 self.budget_day = Some(summary::local_day(now));
             }
-        }
         self.last_tick = now;
         self.last_discovery = now;
         self.dirty = true;
@@ -619,11 +621,10 @@ impl Service {
                     Some(list) => {
                         self.price_due = now + prices::INTERVAL;
                         let current = pricing::list();
-                        if let Some(newer) = pricing::PriceList::newer(Some((*current).clone()), Some(list)) {
-                            if pricing::install(newer) {
+                        if let Some(newer) = pricing::PriceList::newer(Some((*current).clone()), Some(list))
+                            && pricing::install(newer) {
                                 self.store.reprice();
                             }
-                        }
                     }
                     None => self.price_due = now + prices::RETRY,
                 }
@@ -731,11 +732,10 @@ impl Service {
             .map(|(id, _)| id.clone())
             .collect();
         for id in renewed {
-            if let Some((provider, _)) = self.warned.remove(&id) {
-                if let Some(window) = self.store.limits.get(&provider).and_then(|l| l.windows.iter().find(|w| w.id == id)).cloned() {
+            if let Some((provider, _)) = self.warned.remove(&id)
+                && let Some(window) = self.store.limits.get(&provider).and_then(|l| l.windows.iter().find(|w| w.id == id)).cloned() {
                     events.push(Event::LimitReset { provider, window });
                 }
-            }
         }
         self.previous_limits = self.store.limits.clone();
         for event in events {

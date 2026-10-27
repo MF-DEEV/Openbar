@@ -262,11 +262,10 @@ pub fn snapshot(input: Inputs) -> Snapshot {
         }
         let Some(day) = index_of(r.date, &starts) else { continue };
         days[day].by_provider.entry(r.provider).or_default().add(r);
-        if day == last {
-            if let Some(hour) = index_of(r.date, &hour_starts) {
+        if day == last
+            && let Some(hour) = index_of(r.date, &hour_starts) {
                 hours[hour].by_provider.entry(r.provider).or_default().add(r);
             }
-        }
         let name = names.entry(&r.model).or_insert_with(|| pricing::display_name(&r.model)).clone();
         let model_id = format!("{}:{name}", r.provider.key());
         for (i, span) in SPANS.iter().enumerate() {

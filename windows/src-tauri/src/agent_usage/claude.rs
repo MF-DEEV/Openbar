@@ -132,7 +132,7 @@ pub fn limits(result: &Value, observed: Time) -> Option<Limits> {
         let minutes = if kind == WindowKind::Session { 300 } else { 10_080 };
         windows.push(LimitWindow::new(format!("claude.{id}"), kind, Some(minutes), scope, percent, end));
     }
-    (!windows.is_empty()).then(|| Limits { provider: Provider::Claude, windows, observed_at: observed, source: LimitSource::Account })
+    (!windows.is_empty()).then_some(Limits { provider: Provider::Claude, windows, observed_at: observed, source: LimitSource::Account })
 }
 
 /// A window disappears at its renewal; one without a renewal after its own

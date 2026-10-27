@@ -66,6 +66,7 @@ impl Store {
 
     /// Applies one file's entries and returns the turns they finished.
     /// `parent` is the log whose turn a subagent's responses count toward.
+    #[allow(clippy::too_many_arguments)]
     pub fn apply(&mut self, entries: Vec<Entry>, file: &str, provider: Provider, tracks_turns: bool, parent: Option<&str>, modified: Time, now: Time) -> Vec<Event> {
         let mut events = Vec::new();
         for entry in entries {
@@ -76,11 +77,10 @@ impl Store {
                     self.add(record, billable, key, file, turn, !tracks_turns);
                 }
                 Entry::UsageModel { key, model } => {
-                    if let Some(&at) = self.index.get(&key) {
-                        if self.records[at].model.is_empty() {
+                    if let Some(&at) = self.index.get(&key)
+                        && self.records[at].model.is_empty() {
                             self.records[at].model = model;
                         }
-                    }
                 }
                 Entry::Limits(reading) => self.update_limits(reading),
                 Entry::Plan(plan, date) => {
@@ -194,11 +194,10 @@ impl Store {
                         let extra = cost.unwrap_or(0.0) - old.cost.unwrap_or(0.0);
                         self.records[at].cost = cost;
                         self.records[at].reported_cost = reported;
-                        if let Some(file) = turn {
-                            if let Some(t) = self.turns.get_mut(file).filter(|t| record.date >= t.started - 1.0) {
+                        if let Some(file) = turn
+                            && let Some(t) = self.turns.get_mut(file).filter(|t| record.date >= t.started - 1.0) {
                                 t.cost += extra;
                             }
-                        }
                     }
                 }
                 return;

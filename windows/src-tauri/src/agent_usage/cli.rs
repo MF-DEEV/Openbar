@@ -10,7 +10,7 @@ use serde_json::Value;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
+use std::sync::mpsc::{Receiver, channel};
 use std::time::{Duration, Instant};
 
 /// Output beyond this ends the conversation.
@@ -59,11 +59,10 @@ impl Conversation {
                         if total > MAXIMUM_OUTPUT {
                             break;
                         }
-                        if let Ok(value) = serde_json::from_slice::<Value>(&buffer) {
-                            if value.is_object() && tx.send(value).is_err() {
+                        if let Ok(value) = serde_json::from_slice::<Value>(&buffer)
+                            && value.is_object() && tx.send(value).is_err() {
                                 break;
                             }
-                        }
                     }
                 }
             }
@@ -82,10 +81,7 @@ impl Conversation {
     /// The next JSON object, until the conversation's one deadline.
     pub fn next(&mut self) -> Option<Value> {
         let left = self.deadline.checked_duration_since(Instant::now())?;
-        match self.lines.recv_timeout(left) {
-            Ok(value) => Some(value),
-            Err(RecvTimeoutError::Timeout | RecvTimeoutError::Disconnected) => None,
-        }
+        self.lines.recv_timeout(left).ok()
     }
 
     /// Closes stdin and waits up to `grace` for the CLI to exit, then kills it.

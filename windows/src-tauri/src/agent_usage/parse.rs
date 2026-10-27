@@ -115,7 +115,7 @@ fn object(line: &[u8]) -> Option<Map<String, Value>> {
     }
 }
 
-fn text<'a>(v: Option<&'a Value>) -> Option<&'a str> {
+fn text(v: Option<&Value>) -> Option<&str> {
     v.and_then(Value::as_str)
 }
 fn non_empty(v: Option<&Value>) -> Option<&str> {
@@ -175,24 +175,22 @@ fn claude(line: &[u8], state: &mut LogState, now: Time) -> Vec<Entry> {
     let is_user = |json: &Map<String, Value>| text(json.get("type")) == Some("user");
     // A local command prints its output without asking the model; only the
     // person's own text counts, never a tool result quoting the same words.
-    if contains(line, "[Request interrupted by user") || contains(line, "<local-command-std") {
-        if let Some(json) = object(line).filter(|j| is_user(j) && claude_ends_turn(j)) {
+    if (contains(line, "[Request interrupted by user") || contains(line, "<local-command-std"))
+        && let Some(json) = object(line).filter(|j| is_user(j) && claude_ends_turn(j)) {
             let _ = json;
             let open = std::mem::take(&mut state.turn_open);
             return if open { vec![Entry::TurnEnded { date: None, completed: false, duration: None }] } else { vec![] };
         }
-    }
     // A tool that ends the turn gets no reply after its result.
-    if contains(line, "\"toolEndsTurn\":true") {
-        if let Some(json) = object(line).filter(|j| is_user(j) && flag(j.get("toolEndsTurn")) && !flag(j.get("isSidechain"))) {
+    if contains(line, "\"toolEndsTurn\":true")
+        && let Some(json) = object(line).filter(|j| is_user(j) && flag(j.get("toolEndsTurn")) && !flag(j.get("isSidechain"))) {
             let open = std::mem::take(&mut state.turn_open);
             let date = timestamp(json.get("timestamp")).unwrap_or(now);
             return if open { vec![Entry::TurnEnded { date: Some(date), completed: true, duration: None }] } else { vec![] };
         }
-    }
     if state.turn_open {
-        if !state.running_commands.is_empty() {
-            if let Some(json) = object(line).filter(|j| is_user(j) && !flag(j.get("isMeta")) && !flag(j.get("isSidechain"))) {
+        if !state.running_commands.is_empty()
+            && let Some(json) = object(line).filter(|j| is_user(j) && !flag(j.get("isMeta")) && !flag(j.get("isSidechain"))) {
                 let blocks = json.get("message").and_then(|m| m.get("content")).and_then(Value::as_array);
                 let results: Vec<&Value> = blocks.map(|b| b.iter().filter(|x| text(x.get("type")) == Some("tool_result")).collect()).unwrap_or_default();
                 if results.is_empty() {
@@ -206,7 +204,6 @@ fn claude(line: &[u8], state: &mut LogState, now: Time) -> Vec<Entry> {
                     }
                 }
             }
-        }
         return vec![Entry::TurnActive(None)];
     }
     if contains(line, "\"isSidechain\":true") {
@@ -266,11 +263,10 @@ fn claude_assistant(line: &[u8], state: &mut LogState, now: Time) -> Vec<Entry> 
         }
         _ => {
             for block in message.get("content").and_then(Value::as_array).into_iter().flatten() {
-                if text(block.get("type")) == Some("tool_use") && text(block.get("name")) == Some("Bash") {
-                    if let Some(id) = text(block.get("id")) {
+                if text(block.get("type")) == Some("tool_use") && text(block.get("name")) == Some("Bash")
+                    && let Some(id) = text(block.get("id")) {
                         state.running_commands.insert(id.into());
                     }
-                }
             }
             entries.insert(0, if state.turn_open { Entry::TurnActive(Some(date)) } else { Entry::TurnBegan(date) });
             state.turn_open = true;
@@ -353,21 +349,18 @@ pub fn codex_windows(limits: &Value, observed: Time, keys: &WindowKeys) -> Vec<L
         let Some(used) = window.get(keys.used).and_then(Value::as_f64).filter(|u| u.is_finite()) else { continue };
         let minutes = window.get(keys.minutes).and_then(Value::as_f64).filter(|m| m.is_finite()).map(|m| m as i64);
         let mut resets = seconds(window.get(keys.resets));
-        if resets.is_none() {
-            if let Some(delay) = window.get("resets_in_seconds").and_then(Value::as_f64).filter(|d| d.is_finite()) {
+        if resets.is_none()
+            && let Some(delay) = window.get("resets_in_seconds").and_then(Value::as_f64).filter(|d| d.is_finite()) {
                 resets = Some(observed + delay.max(0.0));
             }
-        }
         let id = format!("codex.{}", minutes.map(|m| m.to_string()).unwrap_or_else(|| slot.into()));
         windows.push(LimitWindow::new(id, window_kind(minutes), minutes, None, used, resets));
     }
-    if windows.is_empty() {
-        if let Some(individual) = limits.get(keys.individual).filter(|i| i.is_object()) {
-            if let Some(remaining) = individual.get(keys.remaining).and_then(Value::as_f64).filter(|r| r.is_finite()) {
+    if windows.is_empty()
+        && let Some(individual) = limits.get(keys.individual).filter(|i| i.is_object())
+            && let Some(remaining) = individual.get(keys.remaining).and_then(Value::as_f64).filter(|r| r.is_finite()) {
                 windows.push(LimitWindow::new("codex.individual", WindowKind::Other, None, None, 100.0 - remaining, seconds(individual.get(keys.resets))));
             }
-        }
-    }
     windows.sort_by_key(|w| w.minutes.unwrap_or(i64::MAX));
     windows
 }
@@ -426,11 +419,10 @@ fn codex(line: &[u8], state: &mut LogState, now: Time) -> Vec<Entry> {
         Some("token_usage_record") => {
             let Some(usage) = payload.get("usage").filter(|u| u.is_object()) else { return vec![] };
             state.saw_usage_records = true;
-            if let Some(session) = non_empty(payload.get("session_id")) {
-                if state.session.is_empty() {
+            if let Some(session) = non_empty(payload.get("session_id"))
+                && state.session.is_empty() {
                     state.session = session.into();
                 }
-            }
             let response = text(payload.get("response_id")).unwrap_or("");
             let key = if response.is_empty() { format!("codex:{}:{}", state.session, date) } else { format!("codex:{response}") };
             vec![codex_usage(codex_tokens(usage), key, date, state)]
@@ -456,8 +448,8 @@ fn codex_event(payload: &Value, date: Time, state: &mut LogState) -> Vec<Entry> 
                 }
             }
             // Running totals repeat when only the limits changed.
-            if !state.saw_usage_records {
-                if let Some(total_usage) = payload.pointer("/info/total_token_usage").filter(|u| u.is_object()) {
+            if !state.saw_usage_records
+                && let Some(total_usage) = payload.pointer("/info/total_token_usage").filter(|u| u.is_object()) {
                     let total = codex_tokens(total_usage);
                     if Some(total) != state.last_total && total.total() > state.last_total.map_or(0, |t| t.total()) {
                         let delta = match payload.pointer("/info/last_token_usage").filter(|u| u.is_object()) {
@@ -469,7 +461,6 @@ fn codex_event(payload: &Value, date: Time, state: &mut LogState) -> Vec<Entry> 
                     }
                     state.last_total = Some(total);
                 }
-            }
             entries
         }
         Some("thread_settings_applied") => {
@@ -767,15 +758,13 @@ fn opencode(line: &[u8], state: &mut LogState, now: Time) -> Vec<Entry> {
             if s.settled_at.is_some_and(|settled| date >= settled) {
                 s.settled_at = None;
             }
-            if !id.is_empty() && !s.writing_reply.is_empty() && s.writing_reply != id && s.turn_open && !parent.is_empty() && parent == s.active_user_message {
-                if let (Some(prompt), Some(started)) = (s.active_prompt_date, s.turn_started) {
-                    if prompt > started {
+            if !id.is_empty() && !s.writing_reply.is_empty() && s.writing_reply != id && s.turn_open && !parent.is_empty() && parent == s.active_user_message
+                && let (Some(prompt), Some(started)) = (s.active_prompt_date, s.turn_started)
+                    && prompt > started {
                         entries.push(Entry::TurnEnded { date: None, completed: false, duration: None });
                         entries.push(Entry::TurnBegan(prompt));
                         s.turn_started = Some(prompt);
                     }
-                }
-            }
             if completed.is_none() && finish.is_none() && !error && !id.is_empty() {
                 s.writing_reply = id.clone();
             } else if s.writing_reply == id {
@@ -800,8 +789,8 @@ fn opencode(line: &[u8], state: &mut LogState, now: Time) -> Vec<Entry> {
                 if !already && active && s.turn_open {
                     let end = completed.or(seconds(json.get("time_updated"))).unwrap_or(date);
                     let duration = match s.turn_started {
-                        Some(started) => (end >= started).then(|| end - started),
-                        None => (end >= date).then(|| end - date),
+                        Some(started) => (end >= started).then_some(end - started),
+                        None => (end >= date).then_some(end - date),
                     };
                     s.turn_open = false;
                     s.turn_started = None;

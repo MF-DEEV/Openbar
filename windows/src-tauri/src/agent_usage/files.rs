@@ -118,11 +118,10 @@ pub fn discover(roots: &[Root], horizon: Time) -> Vec<(String, Provider)> {
                         continue;
                     }
                     let path = dir.path().join("events.jsonl");
-                    if let Ok(meta) = std::fs::metadata(&path) {
-                        if meta.is_file() && modified(&meta) >= horizon {
+                    if let Ok(meta) = std::fs::metadata(&path)
+                        && meta.is_file() && modified(&meta) >= horizon {
                             found.push((path.to_string_lossy().into_owned(), root.provider, modified(&meta), false));
                         }
-                    }
                 }
             }
             _ => walk(&root.path, &mut |path, meta| {
