@@ -64,6 +64,15 @@ export interface IslandSettings {
   downloadProgress: boolean;
   microphoneStatus: boolean;
   downloadFolders: string[];
+  /** Every timed event counts down in the closed island (notchCalendarCountdown). */
+  calendarCountdown: boolean;
+  /** The event under way counts down to its end (notchCalendarTimeLeft). */
+  calendarTimeLeft: boolean;
+  calendarWeekNumbers: boolean;
+  /** Calendar ids left out; a calendar added later starts shown (notchCalendarExcluded). */
+  calendarExcluded: string[];
+  /** Events chosen to count down one by one: countdown key → end, epoch ms (notchCalendarChosenCountdowns). */
+  calendarChosenCountdowns: Record<string, number>;
 }
 
 export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
@@ -110,6 +119,11 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   downloadProgress: true,
   microphoneStatus: true,
   downloadFolders: [],
+  calendarCountdown: false,
+  calendarTimeLeft: false,
+  calendarWeekNumbers: false,
+  calendarExcluded: [],
+  calendarChosenCountdowns: {},
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

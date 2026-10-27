@@ -25,6 +25,16 @@ if (!inTauri && new URLSearchParams(location.search).has("music")) {
   });
 }
 
+if (!inTauri && new URLSearchParams(location.search).has("calendar")) {
+  const access = new URLSearchParams(location.search).get("calendar") || "allowed";
+  void Promise.all([import("../calendar/demo"), import("../calendar/store"), import("../shared/prefs")]).then(
+    ([demo, store, prefs]) => {
+      store.receive(demo.demoCalendar(access as "allowed"));
+      void prefs.setPrefs({ island: { calendarCountdown: true } });
+    },
+  );
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     {dev?.has("clawd") ? (
