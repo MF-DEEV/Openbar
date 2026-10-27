@@ -147,6 +147,7 @@ pub fn run() {
             files::files_drag_out,
             files::files_zip,
             files::files_zip_cancel,
+            files::files_kind,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]

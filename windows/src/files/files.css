@@ -1,0 +1,401 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* The Files section (NotchFilesView, ShelfTilesView). Sizes are Mac points. */
+
+:root {
+  --fl-accent: #60cdff;
+  --fl-accent-wash: rgba(96, 205, 255, 0.16);
+}
+
+.fl-page {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+/* Empty: the drop area, a dashed 20-radius outline (0.75 pt, dash 4 5, white 18%). */
+.fl-empty {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+}
+
+.fl-empty-outline {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.fl-empty-outline rect {
+  x: 0.375px;
+  y: 0.375px;
+  width: calc(100% - 0.75px);
+  height: calc(100% - 0.75px);
+  rx: 20px;
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.18);
+  stroke-width: 0.75;
+  stroke-dasharray: 4 5;
+}
+
+/* Tiles: rows fill the height, columns run on sideways with no scroller. */
+.fl-rail {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 78px;
+  gap: 10px;
+  padding: 4px;
+  align-content: start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.fl-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.fl-tile {
+  position: relative;
+  box-sizing: border-box;
+  border-radius: 10px;
+  transition:
+    background-color 0.12s,
+    box-shadow 0.12s;
+}
+
+.fl-tile.is-selected {
+  background: var(--fl-accent-wash);
+  box-shadow: inset 0 0 0 2px var(--fl-accent);
+}
+
+.fl-well,
+.fl-plate {
+  position: absolute;
+  width: 64px;
+  height: 50px;
+  border-radius: 8px;
+  box-sizing: border-box;
+}
+
+.fl-plate {
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.fl-well {
+  left: 7px;
+  top: 6px;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* A real thumbnail sits 4 in; a generic icon 13 × 8 in. */
+.fl-well img {
+  object-fit: contain;
+  pointer-events: none;
+}
+
+.fl-well img.is-thumbnail {
+  width: 56px;
+  height: 42px;
+}
+
+.fl-well img.is-icon {
+  width: 38px;
+  height: 34px;
+}
+
+.fl-title {
+  position: absolute;
+  left: 3px;
+  top: 59px;
+  width: 72px;
+  height: 24px;
+  font-size: 10px;
+  line-height: 12px;
+  text-align: center;
+  color: var(--n-dim);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.fl-count {
+  position: absolute;
+  left: 50px;
+  top: 39px;
+  width: 22px;
+  height: 15px;
+  border-radius: 7.5px;
+  background: var(--fl-accent);
+  color: #000;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 15px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.fl-check,
+.fl-pin,
+.fl-remove,
+.fl-expand {
+  position: absolute;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.fl-check {
+  left: 4px;
+  width: 16px;
+  height: 16px;
+  background: var(--fl-accent);
+  color: #000;
+}
+
+.fl-pin,
+.fl-remove {
+  left: 58px;
+  top: 4px;
+  width: 17px;
+  height: 17px;
+}
+
+.fl-pin {
+  background: var(--fl-accent);
+  color: #000;
+}
+
+/* The remove button takes the pin's corner under the pointer. */
+.fl-remove {
+  display: none;
+  background: rgba(255, 255, 255, 0.55);
+  color: #000;
+}
+
+.fl-tile:hover .fl-remove {
+  display: grid;
+}
+
+.fl-tile:hover .fl-pin {
+  display: none;
+}
+
+.fl-expand {
+  left: 4px;
+  top: 4px;
+  width: 17px;
+  height: 17px;
+  background: rgba(255, 255, 255, 0.55);
+  color: #000;
+}
+
+.fl-remove:hover,
+.fl-expand:hover {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.fl-tooltip {
+  position: fixed;
+  z-index: 60;
+  max-width: 260px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: rgba(30, 30, 32, 0.98);
+  border: 0.5px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-size: 11px;
+  line-height: 1.35;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  pointer-events: none;
+  animation: fl-fade 0.14s ease-out;
+}
+
+@keyframes fl-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+/* The top row. */
+.fl-hint {
+  font-size: 10px;
+  line-height: 1.25;
+  color: var(--n-dim);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.fl-selected {
+  font-size: 12px;
+  color: var(--n-dim);
+  white-space: nowrap;
+}
+
+.fl-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+  color: var(--n-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.fl-progress-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fl-spinner {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  border-top-color: rgba(255, 255, 255, 0.85);
+  animation: fl-spin 0.8s linear infinite;
+}
+
+@keyframes fl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.fl-band {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.fl-band .n-icon-button:disabled,
+.fl-progress .n-icon-button:disabled {
+  opacity: 0.4;
+  pointer-events: none;
+}
+
+/* How the last ZIP ended, under the tiles. */
+.fl-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  font-size: 11px;
+  color: var(--n-dim);
+}
+
+.fl-status.is-failure {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  color: #ff9f0a;
+}
+
+.fl-saved {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #30d158;
+}
+
+.fl-status-button {
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font-size: 11px;
+  transition: background-color 0.15s;
+}
+
+.fl-status-button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.fl-status-button:active {
+  transform: scale(0.965);
+}
+
+/* The wand's popover. */
+.fl-popover {
+  width: 270px;
+  box-sizing: border-box;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fl-popover-action {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: -4px -6px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.fl-popover-action:hover,
+.fl-popover-action:focus-visible {
+  background: var(--n-wash);
+}
+
+.fl-popover p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--n-dim);
+}
+
+/* The closed island under a drag. */
+.fl-drop-hint {
+  box-sizing: border-box;
+  padding-inline: 18px;
+}
+
+.fl-drop-box {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 52px;
+  border-radius: 16px;
+  border: 1px dashed rgba(255, 255, 255, 0.24);
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fl-tile,
+  .fl-status-button {
+    transition: none;
+  }
+  .fl-tooltip {
+    animation: none;
+  }
+  .fl-spinner {
+    animation-duration: 2.4s;
+  }
+}

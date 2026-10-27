@@ -124,7 +124,7 @@ function QuickAccessSettings() {
 const OWN_SWITCH: ModuleId[] = ["timer", "camera", "calendar", "notifications", "agents", "sessions", "watch"];
 
 /** What the Windows island already has; the rest show "coming to Windows". */
-const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads"];
+const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "files"];
 
 function DownloadOptions() {
   const folders = useSettings((s) => s.prefs.island.downloadFolders);
@@ -182,6 +182,28 @@ function Options({ id }: { id: ModuleId }) {
       );
     case "notifications":
       return <p className="st-note">{T.content.notificationsCaption}</p>;
+    case "files":
+      return (
+        <>
+          <SubRow title={T.content.dragReveal} caption={T.content.dragRevealCaption}>
+            <Toggle label={T.content.dragReveal} checked={island.dragReveal} onChange={(on) => set("dragReveal", on)} />
+          </SubRow>
+          <SubRow title={T.content.shelfRemoveAfterDrop} caption={T.content.shelfRemoveAfterDropCaption}>
+            <Toggle
+              label={T.content.shelfRemoveAfterDrop}
+              checked={island.shelfRemoveAfterDrop}
+              onChange={(on) => set("shelfRemoveAfterDrop", on)}
+            />
+          </SubRow>
+          <SubRow title={T.content.shelfCloseAfterDrop} caption={T.content.shelfCloseAfterDropCaption}>
+            <Toggle
+              label={T.content.shelfCloseAfterDrop}
+              checked={island.shelfCloseAfterDrop}
+              onChange={(on) => set("shelfCloseAfterDrop", on)}
+            />
+          </SubRow>
+        </>
+      );
     default:
       return <p className="st-note">{T.content.noOptions}</p>;
   }

@@ -13,6 +13,7 @@ import type { MusicCommand, NowPlaying } from "../music/types";
 import type { Access, Inbox, Item } from "../notifications/types";
 import type { DownloadSnapshot } from "../downloads/types";
 import type { MicrophoneSnapshot } from "../microphone/model";
+import type { DragPhase, FilesSnapshot, OpenWithApp, ZipStatus } from "../files/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 export interface AttentionContext {
@@ -130,6 +131,42 @@ export const bridge = {
       if (!inTauri) return Promise.resolve(() => {});
       return listen<DownloadSnapshot>("downloads://snapshot", (event) => handler(event.payload));
     },
+  },
+  files: {
+    snapshot: () => call<FilesSnapshot>("files_snapshot"),
+    onShelf(handler: (snapshot: FilesSnapshot) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<FilesSnapshot>("files://shelf", (e) => handler(e.payload));
+    },
+    onZip(handler: (zip: ZipStatus) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<ZipStatus>("files://zip", (e) => handler(e.payload));
+    },
+    /** A drag over the island: entering, leaving, or dropped (and whether it landed). */
+    onDrag(handler: (drag: DragPhase) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<DragPhase>("files://drag", (e) => handler(e.payload));
+    },
+    /** Every file an action reached for is gone. */
+    onMissing(handler: () => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen("files://missing", () => handler());
+    },
+    remove: (ids: string[]) => call("files_remove", { ids }),
+    clear: () => call("files_clear"),
+    togglePin: (id: string) => call("files_toggle_pin", { id }),
+    open: (ids: string[]) => call("files_open", { ids }),
+    openWithApps: (ids: string[]) => call<OpenWithApp[]>("files_open_with_apps", { ids }),
+    openWith: (ids: string[], handler: string) => call("files_open_with", { ids, handler }),
+    reveal: (ids: string[]) => call("files_reveal", { ids }),
+    revealOutputs: () => call("files_reveal_outputs"),
+    share: (ids: string[]) => call<boolean>("files_share", { ids }),
+    /** A native drag of these tiles; resolves once dropped, true when a destination took them. */
+    dragOut: (ids: string[]) => call<boolean>("files_drag_out", { ids }),
+    /** Asks where to save, then starts the job; true when it started. */
+    zip: (ids: string[], title: string) => call<boolean>("files_zip", { ids, title }),
+    cancelZip: () => call("files_zip_cancel"),
+    kind: (path: string) => call<string | null>("files_kind", { path }),
   },
   shell: {
     /** A PNG data URL: the file's icon, or its thumbnail when `thumbnail`. */

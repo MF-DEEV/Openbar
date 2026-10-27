@@ -310,6 +310,15 @@ pub fn files_toggle_pin<R: Runtime>(app: AppHandle<R>, id: String) {
     });
 }
 
+/// The file's type as Explorer names it, for the tile's tooltip.
+#[tauri::command]
+pub async fn files_kind(path: String) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || crate::shell::type_name(&path))
+        .await
+        .ok()
+        .flatten()
+}
+
 #[tauri::command]
 pub async fn files_open<R: Runtime>(app: AppHandle<R>, ids: Vec<String>) {
     let paths = living_paths(&app, &ids);

@@ -64,6 +64,12 @@ export interface IslandSettings {
   downloadProgress: boolean;
   microphoneStatus: boolean;
   downloadFolders: string[];
+  /** Files: a drag over the closed island shows where to drop (notchDragReveal). */
+  dragReveal: boolean;
+  /** Files: tiles another app accepted leave the shelf; pinned ones stay. */
+  shelfRemoveAfterDrop: boolean;
+  /** Files: the island closes once another app accepts dragged tiles. */
+  shelfCloseAfterDrop: boolean;
 }
 
 export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
@@ -110,6 +116,9 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   downloadProgress: true,
   microphoneStatus: true,
   downloadFolders: [],
+  dragReveal: true,
+  shelfRemoveAfterDrop: true,
+  shelfCloseAfterDrop: false,
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */
