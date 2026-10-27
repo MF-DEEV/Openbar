@@ -13,6 +13,7 @@ import { t, type StringKey } from "../i18n";
 import { MODULES, type ModuleId, visibleModules } from "../island/modules";
 import { DEFAULT_QUICK_ACCESS, sectionEnabled } from "../island/settings";
 import { SessionsOptions } from "./SessionsSettings";
+import { ClipboardOptions } from "./ClipboardSettings";
 import { useSettings } from "./state";
 import { T } from "./strings";
 import { Expander, Group, Page, Row, Select, SubRow, Toggle } from "./ui";
@@ -124,7 +125,7 @@ function QuickAccessSettings() {
 const OWN_SWITCH: ModuleId[] = ["timer", "camera", "calendar", "notifications", "agents", "sessions", "watch"];
 
 /** What the Windows island already has; the rest show "coming to Windows". */
-const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads"];
+const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "clipboard"];
 
 function DownloadOptions() {
   const folders = useSettings((s) => s.prefs.island.downloadFolders);
@@ -168,6 +169,8 @@ function Options({ id }: { id: ModuleId }) {
       return <DownloadOptions />;
     case "sessions":
       return <SessionsOptions />;
+    case "clipboard":
+      return <ClipboardOptions />;
     case "music":
       return (
         <>
