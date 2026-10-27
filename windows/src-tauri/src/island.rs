@@ -79,6 +79,13 @@ pub struct IslandState {
     previous_foreground: Mutex<isize>,
 }
 
+impl IslandState {
+    /// Whether a point in the window's CSS pixels is on the island's shape.
+    pub fn contains(&self, x: f64, y: f64) -> bool {
+        self.rects.lock().unwrap().iter().any(|r| r.contains(x, y))
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum DisplayChoice {
@@ -113,6 +120,9 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>>
         .skip_taskbar(true)
         .focused(false)
         .visible(false)
+        // The Files shelf registers its own drop target, which also takes
+        // text and links (files::drop_target; spec 05 §6.4).
+        .disable_drag_drop_handler()
         .build()?;
     place(&window, DisplayChoice::Primary)?;
     window.set_ignore_cursor_events(true)?;

@@ -4,6 +4,7 @@
 mod bar;
 mod com;
 mod downloads;
+mod files;
 mod discord_storage;
 mod discord_keys;
 mod fullscreen;
@@ -77,6 +78,7 @@ pub fn run() {
             settings::open(app)
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -132,13 +134,28 @@ pub fn run() {
             shell::shell_icon,
             sound::sound_play,
             sound::sound_alarm,
+            files::files_snapshot,
+            files::files_remove,
+            files::files_clear,
+            files::files_toggle_pin,
+            files::files_open,
+            files::files_open_with_apps,
+            files::files_open_with,
+            files::files_reveal,
+            files::files_reveal_outputs,
+            files::files_share,
+            files::files_drag_out,
+            files::files_zip,
+            files::files_zip_cancel,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             // Loaded before the island exists, so its first prefs_get finds them.
             app.manage(prefs::Prefs::load(app.handle()));
+            app.manage(files::Files::load(app.handle()));
             island::create(app.handle())?;
+            files::install(app.handle());
             fullscreen::watch(app.handle());
             microphone::start(app.handle().clone(), app.state::<microphone::Shared>().inner().clone());
             downloads::start(app.handle().clone(), app.state::<downloads::Shared>().inner().clone());
