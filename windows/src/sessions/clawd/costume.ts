@@ -4,13 +4,86 @@
 // A Clawd's costume and the lot that draws it (ClawdCostume.swift; spec
 // 02-sessions §5.1-5.3). The lot must give the very same costume as the Mac
 // for the same session id, so the 64-bit math runs on BigInt and the part
-// lists keep the Mac's order: a part added in the middle would redress every
-// Clawd nobody dressed by hand.
+// lists keep the Mac's order. Seeded outfits use the original catalog so
+// adding accessories preserves the appearance of existing sessions.
 
-export const SHELLS = ["clay", "coral", "amber", "moss", "mint", "teal", "sky", "iris", "orchid", "rose"] as const;
-export const HATS = ["none", "beanie", "cap", "beret", "topHat", "crown", "party", "propeller", "chef"] as const;
-export const EYEWEAR = ["none", "glasses", "shades", "round", "monocle", "anaglyph"] as const;
-export const EXTRAS = ["none", "bow", "scarf", "bowTie", "flower", "headphones", "coffee"] as const;
+export const SHELLS = [
+  "clay",
+  "coral",
+  "amber",
+  "moss",
+  "mint",
+  "teal",
+  "sky",
+  "iris",
+  "orchid",
+  "rose",
+  "midnight",
+] as const;
+export const HATS = [
+  "none",
+  "beanie",
+  "cap",
+  "beret",
+  "topHat",
+  "crown",
+  "party",
+  "propeller",
+  "chef",
+  "doomHood",
+  "thorHelmet",
+  "lokiHorns",
+  "wonderTiara",
+] as const;
+export const EYEWEAR = [
+  "none",
+  "glasses",
+  "shades",
+  "round",
+  "monocle",
+  "anaglyph",
+  "batmanMask",
+  "ironManMask",
+  "spiderManMask",
+  "doomMask",
+  "wolverineMask",
+  "flashMask",
+  "captainMask",
+  "deadpoolMask",
+  "venomMask",
+  "blackPantherMask",
+  "daredevilMask",
+  "starLordMask",
+  "greenLanternMask",
+  "robinMask",
+] as const;
+export const EXTRAS = [
+  "none",
+  "bow",
+  "scarf",
+  "bowTie",
+  "flower",
+  "headphones",
+  "coffee",
+  "doomCape",
+  "strangeCape",
+  "thorCape",
+  "supermanCape",
+  "batmanCape",
+  "captainShield",
+  "mjolnir",
+  "aquamanTrident",
+  "lanternRing",
+  "wolverineClaws",
+  "batarang",
+  "hawkeyeBow",
+  "strangeSpell",
+  "webShooter",
+  "ironReactor",
+  "supermanEmblem",
+  "flashEmblem",
+  "lanternEmblem",
+] as const;
 
 export type ClawdShell = (typeof SHELLS)[number];
 export type ClawdHat = (typeof HATS)[number];
@@ -28,6 +101,7 @@ export type Rgb = readonly [number, number, number];
 
 /** sRGB out of 255. Clay is Claude Code's own `clawd_body`. */
 export const SHELL_RGB: Readonly<Record<ClawdShell, Rgb>> = {
+  midnight: [38, 40, 50],
   clay: [215, 119, 87],
   coral: [226, 86, 72],
   amber: [230, 166, 58],
@@ -119,24 +193,25 @@ function pick<T>(parts: readonly T[], chance: number, random: RandomSource): T {
 }
 
 /** One part after another from the same lot: seven numbers in all. */
-export function drawn(random: RandomSource, character: Character = "clawd"): ClawdCostume {
+export function drawn(random: RandomSource, character: Character = "clawd", originalCatalog = false): ClawdCostume {
   const favoured = FAVOURED_SHELL[character];
-  const weights = SHELLS.map((shell) => (shell === favoured ? CLAY_WEIGHT : 1));
+  const shells = originalCatalog ? SHELLS.slice(0, 10) : SHELLS;
+  const weights = shells.map((shell) => (shell === favoured ? CLAY_WEIGHT : 1));
   const total = weights.reduce((a, b) => a + b, 0);
   let ticket = Number(random.next() % BigInt(total));
   let shell: ClawdShell = favoured;
-  for (let i = 0; i < SHELLS.length; i++) {
+  for (let i = 0; i < shells.length; i++) {
     if (ticket < weights[i]) {
-      shell = SHELLS[i];
+      shell = shells[i];
       break;
     }
     ticket -= weights[i];
   }
   return {
     shell,
-    hat: pick(HATS, HAT_CHANCE, random),
-    eyewear: pick(EYEWEAR, EYEWEAR_CHANCE, random),
-    extra: pick(EXTRAS, EXTRA_CHANCE, random),
+    hat: pick(originalCatalog ? HATS.slice(0, 9) : HATS, HAT_CHANCE, random),
+    eyewear: pick(originalCatalog ? EYEWEAR.slice(0, 6) : EYEWEAR, EYEWEAR_CHANCE, random),
+    extra: pick(originalCatalog ? EXTRAS.slice(0, 7) : EXTRAS, EXTRA_CHANCE, random),
   };
 }
 
@@ -170,7 +245,7 @@ export function shellForAgentColor(color: string | null | undefined): ClawdShell
  * Claude Code knows it, sets the shell.
  */
 export function seeded(key: string, agentColor?: string | null, character: Character = "clawd"): ClawdCostume {
-  const costume = drawn(new ClawdRandom(seed(key)), character);
+  const costume = drawn(new ClawdRandom(seed(key)), character, true);
   const shell = shellForAgentColor(agentColor);
   return shell ? { ...costume, shell } : costume;
 }

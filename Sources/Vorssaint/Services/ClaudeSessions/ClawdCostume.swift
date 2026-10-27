@@ -37,7 +37,7 @@ extension ClaudeSessionProvider {
 
 /// The color of a Clawd's shell.
 enum ClawdShell: String, CaseIterable, Identifiable {
-    case clay, coral, amber, moss, mint, teal, sky, iris, orchid, rose
+    case clay, coral, amber, moss, mint, teal, sky, iris, orchid, rose, midnight
 
     var id: String { rawValue }
 
@@ -45,6 +45,7 @@ enum ClawdShell: String, CaseIterable, Identifiable {
     var rgb: (red: Int, green: Int, blue: Int) {
         switch self {
         // Claude Code's own `clawd_body`.
+        case .midnight: return (38, 40, 50)
         case .clay: return (215, 119, 87)
         case .coral: return (226, 86, 72)
         case .amber: return (230, 166, 58)
@@ -76,19 +77,19 @@ enum ClawdShell: String, CaseIterable, Identifiable {
 }
 
 enum ClawdHat: String, CaseIterable, Identifiable {
-    case none, beanie, cap, beret, topHat, crown, party, propeller, chef
+    case none, beanie, cap, beret, topHat, crown, party, propeller, chef, doomHood, thorHelmet, lokiHorns, wonderTiara
 
     var id: String { rawValue }
 }
 
 enum ClawdEyewear: String, CaseIterable, Identifiable {
-    case none, glasses, shades, round, monocle, anaglyph
+    case none, glasses, shades, round, monocle, anaglyph, batmanMask, ironManMask, spiderManMask, doomMask, wolverineMask, flashMask, captainMask, deadpoolMask, venomMask, blackPantherMask, daredevilMask, starLordMask, greenLanternMask, robinMask
 
     var id: String { rawValue }
 }
 
 enum ClawdExtra: String, CaseIterable, Identifiable {
-    case none, bow, scarf, bowTie, flower, headphones, coffee
+    case none, bow, scarf, bowTie, flower, headphones, coffee, doomCape, strangeCape, thorCape, supermanCape, batmanCape, captainShield, mjolnir, aquamanTrident, lanternRing, wolverineClaws, batarang, hawkeyeBow, strangeSpell, webShooter, ironReactor, supermanEmblem, flashEmblem, lanternEmblem
 
     var id: String { rawValue }
 }
@@ -126,7 +127,7 @@ struct ClawdCostume: Hashable {
     /// shell.
     static func seeded(_ key: String, character: ClawdCharacter = .clawd) -> ClawdCostume {
         var generator = ClawdRandom(seed: seed(key))
-        return drawn(using: &generator, character: character)
+        return drawn(using: &generator, character: character, originalCatalog: true)
     }
 
     /// A subagent's costume: drawn from its own key, in the shell of the
@@ -147,10 +148,13 @@ struct ClawdCostume: Hashable {
     }
 
     /// One part after another from the same lot, so each is its own draw.
+    /// Seeded outfits use the original catalog to preserve existing sessions;
+    /// Surprise me includes the full wardrobe.
     static func drawn<Generator: RandomNumberGenerator>(using generator: inout Generator,
-                                                        character: ClawdCharacter = .clawd) -> ClawdCostume {
+                                                        character: ClawdCharacter = .clawd,
+                                                        originalCatalog: Bool = false) -> ClawdCostume {
         let favoured = character.favouredShell
-        let shells = ClawdShell.allCases
+        let shells = originalCatalog ? Array(ClawdShell.allCases.prefix(10)) : ClawdShell.allCases
         let weights = shells.map { $0 == favoured ? clayWeight : 1 }
         var ticket = Int(generator.next() % UInt64(weights.reduce(0, +)))
         var shell = favoured
@@ -159,9 +163,9 @@ struct ClawdCostume: Hashable {
             ticket -= weight
         }
         return ClawdCostume(shell: shell,
-                            hat: pick(ClawdHat.allCases, chance: hatChance, using: &generator),
-                            eyewear: pick(ClawdEyewear.allCases, chance: eyewearChance, using: &generator),
-                            extra: pick(ClawdExtra.allCases, chance: extraChance, using: &generator))
+                            hat: pick(originalCatalog ? Array(ClawdHat.allCases.prefix(9)) : ClawdHat.allCases, chance: hatChance, using: &generator),
+                            eyewear: pick(originalCatalog ? Array(ClawdEyewear.allCases.prefix(6)) : ClawdEyewear.allCases, chance: eyewearChance, using: &generator),
+                            extra: pick(originalCatalog ? Array(ClawdExtra.allCases.prefix(7)) : ClawdExtra.allCases, chance: extraChance, using: &generator))
     }
 
     /// Nothing, the first case, with the chance left over; otherwise one of
