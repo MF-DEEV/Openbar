@@ -9,6 +9,7 @@ enum ClaudeSessionEngineTests {
         suite.run("sessions engine events") { events(suite) }
         suite.run("sessions engine permissions") { permissions(suite) }
         suite.run("sessions engine content") { content(suite) }
+        suite.run("sessions engine images") { images(suite) }
         suite.run("sessions engine bookkeeping") { bookkeeping(suite) }
         suite.run("sessions support") { support(suite) }
     }
@@ -436,6 +437,57 @@ enum ClaudeSessionEngineTests {
                      "the subagent is listed as running")
         sub.ingest(hook: hook(.subagentStopped(id: "a1"), 5, agent: "a1"), now: at(5))
         suite.expect(only(sub, 6)?.subagents.first?.isRunning == false, "and as done once it stops")
+    }
+
+    // MARK: Images
+
+    static func images(_ suite: TestSuite) {
+        func image(_ name: String) -> ClaudeChatImage {
+            ClaudeChatImage(key: name.hashValue, source: .preview(Data(name.utf8)))
+        }
+        let shot = image("shot")
+        let engine = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        engine.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        engine.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .prompt("", at: at(1), images: [shot]), .prompt("", at: at(1), images: [shot]),
+            .text("A red build.", at: at(2)),
+            .prompt("", at: at(3), images: [shot]), .prompt("[Image #1] and now?", at: at(4), images: [image("next")]),
+        ], now: at(4))
+        let chat = only(engine, 5)?.chat ?? []
+        suite.expect(chat.map(\.text) == ["", "A red build.", "", "[Image #1] and now?"]
+                     && chat.map(\.images.count) == [1, 0, 1, 1] && chat.first?.role == .user,
+                     "an image prompt joins the conversation once per reading, again when sent again: \(chat.map(\.text))")
+        engine.policy = ClaudeContentPolicy(previews: false)
+        suite.expect(only(engine, 6)?.chat.isEmpty == true, "turning previews off lets the images go with the words")
+
+        let hidden = ClaudeSessionEngine()
+        hidden.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        hidden.ingest(sessionID: "s1", facts: [.prompt("", at: at(1), images: [shot])], now: at(1))
+        suite.expect(only(hidden, 2)?.chat.isEmpty == true, "with previews off no image is kept")
+
+        let long = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        long.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        long.ingest(sessionID: "s1", facts: (0..<30).map { .prompt("Look \($0)", at: at(Double($0)), images: [image("i\($0)")]) },
+                    now: at(30))
+        let kept = only(long, 31)?.chat ?? []
+        suite.expect(kept.count == 30 && kept.reduce(0) { $0 + $1.images.count } == ClaudeChatImage.kept
+                     && kept.last?.images == [image("i29")] && kept.first?.images.isEmpty == true
+                     && kept.first?.text == "Look 0",
+                     "a long conversation keeps the previews of its latest prompts only, and every prompt's words")
+        var files = [ClaudeChatMessage(id: 1, role: .user, text: "", at: at(0),
+                                       images: [ClaudeChatImage.file("/tmp/a.png")!, image("x")]),
+                     ClaudeChatMessage(id: 2, role: .user, text: "", at: at(1), images: [image("y")])]
+        ClaudeChatImage.trim(&files, images: \.images, kept: 1)
+        suite.expect(files[0].images == [ClaudeChatImage.file("/tmp/a.png")!] && files[1].images.count == 1,
+                     "an image in a file costs nothing until shown, so it always stays")
+        suite.expect(ClaudeChatImage.file("relative/a.png") == nil, "only an absolute path names a file")
+
+        let label = NotchClaudeSessionsSupport.withoutImageLabels
+        suite.expect(label("[Image #1] what broke?", 1) == "what broke?" && label("[image #2]", 1) == "",
+                     "the labels of images shown beside the words go")
+        suite.expect(label("[Image #1] and [Image #2]", 1) == "[Image #1] and [Image #2]",
+                     "while an image is missing every label stays")
+        suite.expect(label("[Image #1] what broke?", 0) == "[Image #1] what broke?", "and with none shown")
     }
 
     // MARK: Content

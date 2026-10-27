@@ -33,17 +33,24 @@ struct NotchNotice: Equatable {
 
     /// The sides this notice takes beside a camera, as its strip draws them.
     func wings(in geometry: NotchGeometry) -> NotchNoticeWings {
-        geometry.noticeWings(preferredWings(
-            wrapsMessage: NotchNotificationBannerLayout.messageLines(stripHeight: geometry.stripHeight) > 1))
+        var preferred = preferredWings(
+            wrapsMessage: NotchNotificationBannerLayout.messageLines(stripHeight: geometry.stripHeight) > 1,
+            stripHeight: geometry.stripHeight)
+        if !geometry.isNotched, !geometry.floats, geometry.shapeFit != .standard {
+            preferred.leading += max(0, contourInset(in: geometry) - inset(wing: preferred.leading))
+            preferred.trailing += max(0, contourInset(in: geometry) - inset(wing: preferred.trailing))
+        }
+        return geometry.noticeWings(preferred)
     }
 
-    func preferredWings(wrapsMessage: Bool) -> NotchNoticeWings {
+    func preferredWings(wrapsMessage: Bool, stripHeight: CGFloat? = nil) -> NotchNoticeWings {
         if let notification {
             let fitted = NotchNotificationBannerLayout.wings(for: notification, wrapsMessage: wrapsMessage)
             return NotchNoticeWings(leading: max(minimumWings.leading, fitted.leading),
                                     trailing: max(minimumWings.trailing, fitted.trailing))
         }
-        let font = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        let trackMetrics = event == .track ? stripHeight.map(NotchNoticeMetrics.init(stripHeight:)) : nil
+        let font = NSFont.monospacedDigitSystemFont(ofSize: trackMetrics?.titleFont ?? 11, weight: .medium)
         let leading = ((level == nil ? title : detail) as NSString).size(withAttributes: [.font: font]).width
         // A level's wings are as wide as its mark and its reading; the meter
         // takes the same width on the other side.
@@ -55,9 +62,11 @@ struct NotchNotice: Equatable {
         let maximum: CGFloat = event == .accessory && level == nil ? 160 : 240
         func fitted(_ content: CGFloat) -> CGFloat { min(maximum, max(Self.minimumWing, ceil(content) + 16 + cameraGap)) }
         // An empty title leaves the mark alone, without the space after it.
+        let markWidth = trackMetrics?.artwork ?? self.markWidth
         let mark = fitted(leading > 0 ? leading + markWidth + 8 : markWidth)
         guard level == nil else { return NotchNoticeWings(leading: mark, trailing: mark) }
-        return NotchNoticeWings(leading: mark, trailing: fitted((detail as NSString).size(withAttributes: [.font: font]).width))
+        let detailFont = NSFont.monospacedDigitSystemFont(ofSize: trackMetrics?.detailFont ?? 11, weight: .medium)
+        return NotchNoticeWings(leading: mark, trailing: fitted((detail as NSString).size(withAttributes: [.font: detailFont]).width))
     }
 
     /// The wider side, for what still takes one width for both.
@@ -92,8 +101,14 @@ struct NotchNotice: Equatable {
     /// Room a closed notice keeps inside its curved ends, which a side as
     /// narrow as its content still clears; only a display too narrow for a
     /// side's content takes some of it.
-    func inset(wing: CGFloat) -> CGFloat {
-        level != nil && event != .accessory ? Self.levelInset : min(NotchNotificationBannerLayout.inset, wing / 2)
+    private func contourInset(in geometry: NotchGeometry) -> CGFloat {
+        geometry.compactActivityEdgeInset(boxHeight: min(26, max(0, geometry.stripHeight - 4)), radius: 4, gap: 6)
+    }
+
+    func inset(wing: CGFloat, geometry: NotchGeometry? = nil) -> CGFloat {
+        let base = level != nil && event != .accessory ? Self.levelInset : min(NotchNotificationBannerLayout.inset, wing / 2)
+        guard let geometry, !geometry.isNotched, !geometry.floats, geometry.shapeFit != .standard else { return base }
+        return min(max(base, contourInset(in: geometry)), max(0, wing - 18 - cameraGap))
     }
 
     /// Where the companion stands in this notice, as an offset of its centre
@@ -101,7 +116,7 @@ struct NotchNotice: Equatable {
     /// that carries it reads from the ends.
     func mascotOffset(in geometry: NotchGeometry) -> CGFloat {
         let wing = wings(in: geometry).leading
-        return -(geometry.noticeCameraGap / 2 + wing) + inset(wing: wing) + NotchMascotSupport.noticeSize / 2
+        return -(geometry.noticeCameraGap / 2 + wing) + inset(wing: wing, geometry: geometry) + NotchMascotSupport.noticeSize / 2
     }
 
     func previewContentHeight(width: CGFloat) -> CGFloat {
@@ -123,6 +138,16 @@ final class NotchService: ObservableObject {
     /// True when macOS refused the island's own shortcut, so Settings can say so.
     @Published private(set) var shortcutRegistrationFailed = false
     private let hotkey = QuickToolHotkey(id: 81)
+    /// ⌘Y and ⌘N answer a request on screen from any app, held only while
+    /// one shows and the island does not have the keyboard itself.
+    private let sessionAllowKey = QuickToolHotkey(id: 82)
+    private let sessionDenyKey = QuickToolHotkey(id: 83)
+    private var sessionKeysWork: DispatchWorkItem?
+    /// Whether a session's request may take the island now: the desktop or
+    /// Vorssaint has been in front a moment. Otherwise it waits as the count.
+    private var sessionPresentingAllowed = false
+    private var sessionPresentingWork: DispatchWorkItem?
+    private var sessionAttention = NotchSessionAttention()
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
     @Published private(set) var choosingFileDropDestination = false
@@ -260,6 +285,8 @@ final class NotchService: ObservableObject {
             guard hiddenInFullscreen != oldValue else { return }
             NotificationCenter.default.post(name: Self.fullscreenVisibilityDidChange, object: self,
                                             userInfo: ["hidden": hiddenInFullscreen])
+            // A request does not take the island over a full-screen app either.
+            DispatchQueue.main.async { [weak self] in self?.syncSessionPresenting() }
         }
     }
     private var settingsSignature = ""
@@ -949,7 +976,8 @@ final class NotchService: ObservableObject {
         NotchCaptureControlsLayout(
             geometry: geometry,
             titleWidth: NotchCaptureControlsLayout.titleWidth(FeatureStrings.screenshot(L10n.shared.language).screenCaptureTitle),
-            capturesAudio: captureControls?.selectedTool.capturesAudio == true)
+            capturesAudio: captureControls?.selectedTool.capturesAudio == true,
+            toolCount: captureControls.map { $0.showsCaptureMenu ? $0.availableTools.count : 1 } ?? 5)
     }
 
     var surfaceSize: CGSize {
@@ -997,7 +1025,7 @@ final class NotchService: ObservableObject {
     /// The open island around the Command Bar: the bar's width within the
     /// island's margins, and its height below the camera.
     var commandBarSurfaceSize: CGSize {
-        let width = max(geometry.cameraWidth + 80, CommandBarView.width + NotchLayout.horizontalInset * 2)
+        let width = max(geometry.cameraWidth + 80, CommandBarView.width + geometry.horizontalInset * 2)
         let height = geometry.safeContentTop + (commandBarHeight ?? CommandBarView.fieldHeight) + NotchLayout.bottomInset
         return CGSize(width: min(geometry.screen.width - 24, width), height: min(geometry.screen.height - 48, height))
     }
@@ -1276,6 +1304,8 @@ final class NotchService: ObservableObject {
     func stop(restoreCapture: Bool = true) {
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
         hotkey.unregister()
+        sessionAllowKey.unregister()
+        sessionDenyKey.unregister()
         if shortcutRegistrationFailed { shortcutRegistrationFailed = false }
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
@@ -1304,6 +1334,12 @@ final class NotchService: ObservableObject {
 
     private func tearDownPresentation() {
         screenRefreshWork?.cancel(); screenRefreshWork = nil
+        // Nothing is on screen for the keys to answer, and nothing presents.
+        sessionKeysWork?.cancel(); sessionKeysWork = nil
+        sessionAllowKey.unregister()
+        sessionDenyKey.unregister()
+        sessionPresentingWork?.cancel(); sessionPresentingWork = nil
+        sessionPresentingAllowed = false
         nextMascotVisitWork?.cancel(); nextMascotVisitWork = nil
         mascotVisitWork?.cancel(); mascotVisitWork = nil
         mascotStepBackWork?.cancel(); mascotStepBackWork = nil
@@ -1643,13 +1679,16 @@ final class NotchService: ObservableObject {
                   UserDefaults.standard.bool(forKey: DefaultsKey.notchOpenOnHover) else { return }
             if !hiddenInFullscreen, compactActivity != nil, compactActivityGeometry.compactActivityWingWidth > 0,
                !UserDefaults.standard.bool(forKey: DefaultsKey.notchHoverExpands) { return }
+            // Sessions waiting while another app is in front open on a click,
+            // not under a pointer passing on its way to the menu bar.
+            if holdsSessionsFromHover { return }
             let work = DispatchWorkItem { [weak self] in
                 guard let self else { return }
                 self.hoverWork = nil
                 // An opening that is no longer eligible keeps any following:
                 // an emphasis or a picker may still show, and the next move
                 // decides whether it is still needed.
-                guard self.running, !self.suspended, self.inside, !self.hoverState.suppressed,
+                guard self.running, !self.suspended, self.inside, !self.hoverState.suppressed, !self.holdsSessionsFromHover,
                       !self.expanded, !self.peeking, !self.pinned, !self.heldDrag, !self.keepsWorkingSurface,
                       !self.showsCompactActivityPicker,
                       self.captureControls == nil, (self.notice == nil || self.hiddenUntilHover), !self.dragPlaceholder,
@@ -1904,20 +1943,58 @@ final class NotchService: ObservableObject {
     /// open, or of the first session waiting on one. A question is answered
     /// on its card; ⌘N skips it only there, where it can be read.
     private func handleSessionKey(_ event: NSEvent) -> Bool {
-        guard selected == .sessions, !showingAppPanel, !showingSections, selectedMetric == nil,
-              let decision = NotchClaudeSessionsSupport.decision(
+        guard let decision = NotchClaudeSessionsSupport.decision(
                   key: event.charactersIgnoringModifiers,
                   commandOnly: event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command)
         else { return false }
+        return answerSessionRequest(decision)
+    }
+
+    /// The request on screen a key would answer with this decision.
+    private func sessionKeyRequest(for decision: ClaudeHookMessage.Decision) -> (id: String, request: String)? {
+        guard expanded, selected == .sessions, !showingAppPanel, !showingSections, selectedMetric == nil,
+              !showingCommandBar else { return nil }
         let sessions = ClaudeSessionService.shared
         // The wardrobe covers the request: a key must not answer what is not on screen.
-        guard sessions.dressingID == nil else { return false }
+        guard sessions.dressingID == nil else { return nil }
         let focused = sessions.focusedID.flatMap { id in sessions.sessions.first { $0.id == id } }
         guard let target = focused ?? sessions.sessions.first(where: { $0.permission.map { !$0.asksQuestions } ?? false }),
               let permission = target.permission,
-              !(permission.asksQuestions && decision != .deny) else { return false }
-        sessions.decide(target.id, request: permission.requestID, decision)
+              !(permission.asksQuestions && decision != .deny) else { return nil }
+        return (target.id, permission.requestID)
+    }
+
+    @discardableResult
+    private func answerSessionRequest(_ decision: ClaudeHookMessage.Decision) -> Bool {
+        guard let target = sessionKeyRequest(for: decision) else { return false }
+        ClaudeSessionService.shared.decide(target.id, request: target.request, decision)
         return true
+    }
+
+    /// Many changes come together; the keys follow them once.
+    private func scheduleSessionKeysSync() {
+        guard sessionKeysWork == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            self?.sessionKeysWork = nil
+            self?.syncSessionKeys()
+        }
+        sessionKeysWork = work
+        DispatchQueue.main.async(execute: work)
+    }
+
+    /// With the keyboard, the island reads ⌘Y and ⌘N itself. Without it,
+    /// they are borrowed from the app in front only while a request they
+    /// answer is on screen, and given back as soon as it is not, so the
+    /// app's own ⌘N works again.
+    private func syncSessionKeys() {
+        let borrows = running && !suspended && NotchSupport.routes(.sessions) && panel?.isKeyWindow != true
+            && captureControls == nil && !ShortcutCapture.isCapturing
+        sessionAllowKey.sync(enabled: borrows && sessionKeyRequest(for: .allow) != nil,
+                             shortcut: NotchClaudeSessionsSupport.allowShortcut,
+                             storageKey: NotchClaudeSessionsSupport.allowShortcutKey)
+        sessionDenyKey.sync(enabled: borrows && sessionKeyRequest(for: .deny) != nil,
+                            shortcut: NotchClaudeSessionsSupport.denyShortcut,
+                            storageKey: NotchClaudeSessionsSupport.denyShortcutKey)
     }
 
     /// The editor lives in the view, so the request goes out as a serial and
@@ -3559,7 +3636,7 @@ final class NotchService: ObservableObject {
                              capsuleFit: NotchCapsuleFit.current(),
                              hideMenuBarGap: UserDefaults.standard.bool(forKey: DefaultsKey.notchHideMenuBarGap),
                              outline: UserDefaults.standard.bool(forKey: DefaultsKey.notchOutlineEnabled),
-                             barEdge: 1 / max(1, screen.backingScaleFactor))
+                             barEdge: 1 / max(1, screen.backingScaleFactor), shapeFit: NotchShapeFit.current())
     }
 
     private func updateFullscreenVisibility(displayID: CGDirectDisplayID) {
@@ -3635,7 +3712,10 @@ final class NotchService: ObservableObject {
         observe(workspace, NSWorkspace.activeSpaceDidChangeNotification) { [weak self] in
             self?.fullscreenEnvironmentDidChange()
         }
-        observe(workspace, NSWorkspace.didActivateApplicationNotification) { [weak self] in self?.applicationDidActivate() }
+        observe(workspace, NSWorkspace.didActivateApplicationNotification) { [weak self] in
+            self?.applicationDidActivate()
+            self?.syncSessionPresenting()
+        }
         observe(workspace, NSWorkspace.willSleepNotification) { [weak self] in
             self?.updateSession { $0.sleeping = true }
         }
@@ -4139,12 +4219,41 @@ final class NotchService: ObservableObject {
             ClaudeSessionService.shared.events.receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.showSessionEvent($0) }
                 .store(in: &subscriptions)
+            // The sessions themselves tell what waits, so a request whose
+            // event came before launch or was missed still takes its turn.
+            ClaudeSessionService.shared.$sessions
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    self?.syncPendingSessions()
+                    self?.scheduleSessionKeysSync()
+                }.store(in: &subscriptions)
+            ClaudeSessionService.shared.$focusedID.combineLatest(ClaudeSessionService.shared.$dressingID)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.scheduleSessionKeysSync() }
+                .store(in: &subscriptions)
+            // Another layout moves the letters, so the keys move with them.
+            NotificationCenter.default.publisher(for: GlobalShortcut.keyboardLayoutDidChange)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in self?.scheduleSessionKeysSync() }
+                .store(in: &subscriptions)
+            objectWillChange
+                .sink { [weak self] _ in self?.scheduleSessionKeysSync() }
+                .store(in: &subscriptions)
+            sessionAllowKey.onPress = { [weak self] in self?.answerSessionRequest(.allow) }
+            sessionDenyKey.onPress = { [weak self] in self?.answerSessionRequest(.deny) }
+            syncSessionPresenting()
             // Leaving a session's page brings the island back to its size.
             ClaudeSessionService.shared.$focusedID
                 .removeDuplicates()
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] id in if id == nil { self?.setSessionsEnlarged(false) } }
                 .store(in: &subscriptions)
+        }
+        if !NotchSupport.routes(.sessions) {
+            // Nothing follows the requests any more, so the keys go back now.
+            sessionKeysWork?.cancel(); sessionKeysWork = nil
+            sessionAllowKey.unregister()
+            sessionDenyKey.unregister()
         }
         if NotchSupport.routes(.agents) {
             AgentUsageService.shared.events.receive(on: DispatchQueue.main)
@@ -4225,9 +4334,85 @@ final class NotchService: ObservableObject {
         }
     }
 
+    /// A request arriving while another app is in front waits; a finished
+    /// turn interrupts nothing and is told at once.
+    private func showSessionEvent(_ event: ClaudeSessionEvent) {
+        switch event {
+        case .needsPermission(let id, _), .needsInput(let id):
+            guard let session = ClaudeSessionService.shared.sessions.first(where: { $0.id == id }),
+                  let request = NotchSessionAttention.request(of: session),
+                  sessionAttention.handle(id, request: request, allowed: sessionsMayPresent) else { return }
+        case .finished: break
+        }
+        presentSessionEvent(event)
+    }
+
+    /// A locked or asleep Mac shows nothing, so requests wait through it too.
+    /// What is in front is read again as well, so a request never takes
+    /// the island over another app whose activation went unannounced.
+    private var sessionsMayPresent: Bool {
+        guard sessionPresentingAllowed, !suspended, !hiddenInFullscreen else { return false }
+        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        return front == AssistiveKeyboard.bundleID
+            || NotchSessionAttention.allowsPresenting(frontmost: front, own: Bundle.main.bundleIdentifier)
+    }
+
+    private var holdsSessionsFromHover: Bool {
+        compactActivity == .sessions && ClaudeSessionService.shared.counts.waiting > 0 && !sessionsMayPresent
+    }
+
+    /// Follows what is in front. Coming to the desktop or Vorssaint allows
+    /// requests after a moment, so passing through does not open the
+    /// island; going to another app holds them at once and takes their
+    /// notice away. Either way the requests on hand are read afresh.
+    private func syncSessionPresenting() {
+        guard running, NotchSupport.routes(.sessions) else { return }
+        let front = NSWorkspace.shared.frontmostApplication?.bundleIdentifier
+        // The on-screen keyboard comes forward to type into the app below.
+        guard front != AssistiveKeyboard.bundleID else { return }
+        let allows = !hiddenInFullscreen
+            && NotchSessionAttention.allowsPresenting(frontmost: front, own: Bundle.main.bundleIdentifier)
+        guard allows else {
+            sessionPresentingWork?.cancel(); sessionPresentingWork = nil
+            if sessionPresentingAllowed {
+                sessionPresentingAllowed = false
+                if let id = notice?.sessionID, notice?.event == .sessions,
+                   ClaudeSessionService.shared.sessions.contains(where: { $0.id == id && NotchSessionAttention.request(of: $0) != nil }) {
+                    dismissNotice()
+                }
+            }
+            syncPendingSessions()
+            return
+        }
+        guard !sessionPresentingAllowed, sessionPresentingWork == nil else { return }
+        let work = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            self.sessionPresentingWork = nil
+            self.sessionPresentingAllowed = true
+            self.syncPendingSessions()
+        }
+        sessionPresentingWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + NotchClaudeSessionsSupport.presentingDelay, execute: work)
+    }
+
+    /// Presents what the sessions wait on now that was not presented yet,
+    /// including requests from before launch or whose event never came.
+    private func syncPendingSessions() {
+        guard NotchSupport.routes(.sessions) else { return }
+        let sessions = ClaudeSessionService.shared.sessions
+        let waiting = Dictionary(sessions.compactMap { session in
+            NotchSessionAttention.request(of: session).map { (session.id, $0) }
+        }, uniquingKeysWith: { first, _ in first })
+        for id in sessionAttention.sync(waiting, allowed: sessionsMayPresent) {
+            guard let session = sessions.first(where: { $0.id == id }) else { continue }
+            presentSessionEvent(session.phase == .waitingInput ? .needsInput(id: id)
+                                : .needsPermission(id: id, tool: session.permission?.tool ?? ""))
+        }
+    }
+
     /// A session waiting on the person shows a notice and, when allowed,
     /// opens the island on its page; a finished turn only shows a notice.
-    private func showSessionEvent(_ event: ClaudeSessionEvent) {
+    private func presentSessionEvent(_ event: ClaudeSessionEvent) {
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
         let sessions = ClaudeSessionService.shared
         let id: String

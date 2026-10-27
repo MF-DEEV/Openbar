@@ -561,6 +561,7 @@ enum NotchMusicExtrasTests {
     }
 
     static func run(_ suite: TestSuite) {
+        NotchMusicVolumeTargetTests.run(suite)
         artistIdentity(suite)
         preferredPlayer(suite)
         preferredPlayerLoading(suite)

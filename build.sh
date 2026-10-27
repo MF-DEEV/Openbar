@@ -282,6 +282,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchFileToolsSupport.swift
         Sources/Vorssaint/Services/Notch/NotchDownloadSupport.swift
         Sources/Vorssaint/Services/Notch/NotchDownloadProgressObserver.swift
+        Sources/Vorssaint/Services/Notch/NotchDownloadFolders.swift
         Sources/Vorssaint/Core/NotchCalendarStrings.swift
         Sources/Vorssaint/Core/NotchNotificationStrings.swift
         Sources/Vorssaint/Core/NotchGestureStrings.swift
@@ -290,12 +291,14 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift
         Sources/Vorssaint/Core/NotchClaudeSessionStrings.swift
         Sources/Vorssaint/Services/Notch/NotchClaudeSessionsSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchSessionAttention.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionModels.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionEngine.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionRegistryReader.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeTranscriptReader.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionHosts.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeImageAttachments.swift
+        Sources/Vorssaint/Services/ClaudeSessions/ClaudeChatImages.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeHookMessage.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeHookServer.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeHookInstaller.swift

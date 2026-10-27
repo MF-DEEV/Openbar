@@ -19,9 +19,10 @@ struct NotchCaptureControlsView: View {
     var body: some View {
         VStack(spacing: 12) {
             header
-                .padding(.horizontal, NotchLayout.horizontalInset)
+                .padding(.horizontal, layout.horizontalInset)
                 .frame(height: layout.headerHeight)
-            HStack(spacing: 6) {
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: NotchCaptureControlsLayout.buttonSpacing),
+                                     count: layout.toolColumns), spacing: NotchCaptureControlsLayout.buttonSpacing) {
                 ForEach(options.showsCaptureMenu ? options.availableTools : [options.selectedTool], id: \.self) { tool in
                     NotchActionTile(symbol: tool.systemImageName,
                                     title: tool.settingsTitle(l10n.s, language: l10n.language),
@@ -29,9 +30,11 @@ struct NotchCaptureControlsView: View {
                         .focused($focusedControl, equals: .tool(tool))
                 }
             }
-            .padding(.horizontal, 18)
+            .padding(.horizontal, layout.toolInset)
             if options.selectedTool.capturesAudio {
-                NotchRecordingAudioOptions(options: options.recorderAudio, focusedControl: $focusedControl)
+                NotchRecordingAudioOptions(options: options.recorderAudio, focusedControl: $focusedControl,
+                                           stacked: layout.audioStacksVertically)
+                    .padding(.horizontal, layout.horizontalInset)
             }
         }
         .padding(.top, layout.headerTop)
@@ -99,16 +102,25 @@ private struct NotchRecordingAudioOptions: View {
     @ObservedObject var options: RecorderSelectionAudioOptions
     @ObservedObject private var l10n = L10n.shared
     var focusedControl: FocusState<NotchCaptureControl?>.Binding
+    let stacked: Bool
     var body: some View {
-        HStack(spacing: 16) {
-            Toggle(FeatureStrings.recorder(l10n.language).systemAudioTrackLabel, isOn: $options.systemAudio)
-                .focused(focusedControl, equals: .systemAudio)
-            Toggle(FeatureStrings.recorder(l10n.language).microphoneTrackLabel, isOn: $options.microphone)
-                .focused(focusedControl, equals: .microphone)
+        Group {
+            if stacked {
+                VStack(alignment: .leading, spacing: 6) { switches }
+            } else {
+                HStack(spacing: 16) { switches }
+            }
         }
         .toggleStyle(.switch)
         .tint(.green)
         .controlSize(.small)
         .fixedSize()
+    }
+
+    @ViewBuilder private var switches: some View {
+        Toggle(FeatureStrings.recorder(l10n.language).systemAudioTrackLabel, isOn: $options.systemAudio)
+            .focused(focusedControl, equals: .systemAudio)
+        Toggle(FeatureStrings.recorder(l10n.language).microphoneTrackLabel, isOn: $options.microphone)
+            .focused(focusedControl, equals: .microphone)
     }
 }

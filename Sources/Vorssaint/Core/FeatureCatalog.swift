@@ -523,8 +523,8 @@ extension AppFeature {
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
                     && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("notifications")
             case (.notchDownloads, .filesAndFolders):
+                // The Mac's Downloads folder is watched without a choice.
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
-                    && dataFor(DefaultsKey.notchDownloadsFolderBookmark) != nil
                     && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("downloads")
             case (.notchAgents, .automationTerminal):
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled) && boolFor(DefaultsKey.notchSessionsEnabled)

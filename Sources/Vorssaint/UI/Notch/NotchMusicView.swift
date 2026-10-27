@@ -237,6 +237,7 @@ struct NotchMusicView: View {
     /// middle three: shuffle before it and the output after it, each place
     /// kept when its button is not offered so play stays in the middle.
     private func transportRow<Leading: View, Middle: View>(
+        player: RadialNowPlayingSnapshot? = nil,
         @ViewBuilder leading: () -> Leading, @ViewBuilder middle: (CGFloat) -> Middle) -> some View {
         let slot = size.width / 5
         // An empty place keeps its width: a missing button must not pull the
@@ -245,7 +246,11 @@ struct NotchMusicView: View {
             Color.clear.frame(width: slot).overlay { leading() }
             middle(slot).frame(width: slot * 3)
             Color.clear.frame(width: slot).overlay {
-                if AppFeature.mixer.isAvailable { NotchMusicOutputButton() }
+                if let player {
+                    NotchMusicVolumeControl(track: player, tint: accent)
+                } else if AppFeature.mixer.isAvailable {
+                    NotchMusicOutputButton()
+                }
             }
         }
         .frame(height: NotchLayout.musicTransportHeight)
@@ -256,14 +261,10 @@ struct NotchMusicView: View {
     private func player(_ playback: NotchPlayback) -> some View {
         VStack(spacing: 0) {
             head(corner: !band.besideCamera && (showsLyrics || showsQueue || band.pageSectionsButton)) {
-                Button { RadialNowPlayingApplication.open(playback.track) } label: {
-                    NotchArtwork(image: service.artwork, size: NotchLayout.musicArtworkSize, source: playback.track)
-                        .scaleEffect(playback.isPlaying || reduceMotion ? 1 : 0.94)
-                        .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: playback.isPlaying)
-                }
-                .buttonStyle(NotchButtonStyle(cornerRadius: NotchLayout.musicArtworkSize * 0.19))
-                .help(text.mediaNowPlaying)
-                .accessibilityLabel(text.mediaNowPlaying)
+                NotchArtwork(image: service.artwork, size: NotchLayout.musicArtworkSize, source: playback.track)
+                    .scaleEffect(playback.isPlaying || reduceMotion ? 1 : 0.94)
+                    .animation(reduceMotion ? nil : .smooth(duration: 0.3), value: playback.isPlaying)
+                    .accessibilityLabel(text.mediaNowPlaying)
             } titles: {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(playback.track.title ?? text.mediaNowPlaying)
@@ -292,7 +293,7 @@ struct NotchMusicView: View {
             }
             NotchMusicTimeline(playback: playback, service: service, tint: accent, timesBeside: true)
                 .padding(.top, NotchLayout.musicHeadSpacing)
-            transportRow {
+            transportRow(player: playback.track) {
                 if !preview && shuffle.isOffered { shuffleButton }
             } middle: { slot in
                 NotchMusicTransport(playback: playback, slot: slot)
@@ -419,6 +420,80 @@ private enum NotchPlayerApps {
         if known.count >= 16 { known.removeAll() }
         known[pid] = (running?.bundleIdentifier ?? bundle, running?.localizedName, running?.icon)
         return (running?.localizedName, running?.icon)
+    }
+}
+
+/// The player's gain uses the existing mixer, including its routing and permissions.
+/// Output selection remains available inside the same popover.
+private struct NotchMusicVolumeControl: View {
+    let track: RadialNowPlayingSnapshot
+    let tint: Color
+    @ObservedObject private var mixer = AppVolumeMixer.shared
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var features = FeatureRuntime.shared
+    @Environment(\.notchSettingsPreview) private var preview
+    @State private var presented = false
+    private var text: NotchShapeStrings { FeatureStrings.notchShape(l10n.language) }
+
+    private var target: MixerApp? {
+        guard AppFeature.mixer.isAvailable, AppVolumeMixer.isSupported else { return nil }
+        let id = NotchMusicVolumeTarget.resolve(pid: track.appPID, bundle: track.appBundleIdentifier,
+            sources: mixer.apps.map {
+                NotchMusicVolumeTarget.Source(id: $0.id, pid: $0.ownerPid, bundle: $0.persistenceID, bypassed: $0.isBypassed)
+            })
+        return mixer.apps.first { $0.id == id }
+    }
+
+    var body: some View {
+        Button { presented.toggle() } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white.opacity(presented ? 0.9 : 0.55))
+                .frame(width: 44, height: 44)
+                .contentShape(Circle())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 22, lifts: false))
+        .accessibilityLabel(text.playerVolume)
+        .help(text.playerVolume)
+        .disabled(preview)
+        .popover(isPresented: $presented, arrowEdge: .bottom) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text(text.playerVolume).font(.headline)
+                    Spacer()
+                    Text(target.map { "\(MixerRoutingSupport.displayPercent(forVolume: $0.volume))%" } ?? text.unavailable)
+                        .monospacedDigit().foregroundStyle(.secondary)
+                }
+                if let app = target {
+                    Text(app.name).font(.caption).foregroundStyle(.secondary)
+                    NotchLevelSlider(value: Binding(get: { target?.volume ?? app.volume }, set: { value in
+                        guard !preview, let current = target else { return }
+                        mixer.setVolume(value, for: current)
+                    }), label: text.playerVolume, range: 0...AppVolumeMixer.maxVolume, tint: tint, marker: 1)
+                        .frame(height: 28)
+                } else {
+                    Slider(value: .constant(0), in: 0...1) { Text(text.playerVolume) }
+                        .disabled(true)
+                    Text(!AppVolumeMixer.isSupported ? l10n.s.mixerUnavailable : text.unavailable)
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if mixer.needsPermission {
+                    Text(l10n.s.mixerPermissionBody).font(.caption).foregroundStyle(.secondary)
+                    Button(l10n.s.permissionOpenSettings) { Permissions.shared.openAudioCaptureSettings() }
+                }
+                if AppFeature.mixer.isAvailable {
+                    Divider()
+                    HStack {
+                        Text(l10n.s.mixerSystemOutputTitle).font(.caption)
+                        Spacer()
+                        NotchMusicOutputButton()
+                    }
+                }
+            }
+            .padding(14).frame(width: 270)
+        }
+        .onChange(of: track.appPID) { presented = false }
+        .onChange(of: track.appBundleIdentifier) { presented = false }
     }
 }
 

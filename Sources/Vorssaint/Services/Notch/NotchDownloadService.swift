@@ -10,40 +10,64 @@ final class NotchDownloadService: ObservableObject {
 
     /// Progress may unpublish on any queue. Only this main-actor boundary
     /// holds the weak UI owner; native callbacks carry a Sendable reference.
+    /// Each folder subscribes on its own, so a nested folder's publication
+    /// reaches both and only the folder holding the file keeps it.
     @MainActor private final class ProgressCallbacks {
         weak var owner: NotchDownloadService?
-        let generation: UUID
+        let folder: String
+        let watch: UUID
 
-        init(owner: NotchDownloadService, generation: UUID) {
+        init(owner: NotchDownloadService, folder: String, watch: UUID) {
             self.owner = owner
-            self.generation = generation
+            self.folder = folder
+            self.watch = watch
         }
 
         func published(_ progress: Progress, id: UUID) {
-            guard let owner, owner.generation == generation else { return }
-            owner.progressObserver?.add(progress, id: id)
+            guard let owner, let current = owner.watches[folder], current.id == watch else { return }
+            current.observer.add(progress, id: id)
         }
 
         func unpublished(_ id: UUID) {
-            guard let owner, owner.generation == generation else { return }
-            owner.progressObserver?.remove(id)
+            guard let owner, let current = owner.watches[folder], current.id == watch else { return }
+            current.observer.remove(id)
         }
     }
+
+    /// One watched folder: its directory events and published progress.
+    private struct Watch {
+        let id: UUID
+        let folder: URL
+        let source: DispatchSourceFileSystemObject
+        let observer: NotchDownloadProgressObserver
+        let subscriber: Any
+    }
+
     @Published private(set) var items: [NotchDownloadItem] = []
-    @Published private(set) var folderName: String?
+    /// What is watched, and chosen folders that cannot be, for Settings and
+    /// the page's folder menu.
+    @Published private(set) var folders: [NotchDownloadFolder] = []
+    /// The last folder choice could not be kept.
     @Published private(set) var folderUnavailable = false
     var onArrival: ((NotchDownloadItem) -> Void)?
     /// A download went away unfinished: cancelled or failed.
     var onFailure: (() -> Void)?
 
-    private var folder: URL?
-    private var securityScope = false
-    private var directorySource: DispatchSourceFileSystemObject?
+    private var running = false
+    private var watches: [String: Watch] = [:]
+    /// The saved bookmarks the chosen folders were resolved from.
+    private var bookmarks: [Data] = []
+    private var chosen: [(url: URL, bookmark: Data)] = []
+    private var missing: [Data] = []
+    /// Chosen folders whose security scope this process holds.
+    private var scopes: [URL] = []
+    /// Folders that exist but could not be read. Retrying would only fail
+    /// again, so they wait for the next change in Settings.
+    private var unreadable: Set<String> = []
+    private var discovery: DispatchWorkItem?
     private var fileSources: [URL: DispatchSourceFileSystemObject] = [:]
-    private var subscriber: Any?
     private var announcements: NSObjectProtocol?
-    private var progressObserver: NotchDownloadProgressObserver?
-    private var progressItems: [NotchDownloadItem] = []
+    private var progressItems: [String: [NotchDownloadItem]] = [:]
     private var folderItems: [NotchDownloadItem] = []
     private var partials: [URL: NotchPartialDownload] = [:]
     private var finished: [NotchDownloadItem] = []
@@ -59,6 +83,11 @@ final class NotchDownloadService: ObservableObject {
     /// The pending chooser was begun from the island's Downloads page.
     private var chooserInNotch = false
     private let queue = DispatchQueue(label: "com.vorssaint.notch.downloads", qos: .utility)
+    /// Browsers change their folder without telling anyone; look again this often.
+    private static let discoveryInterval: TimeInterval = 30
+
+    private var watchedFolders: [URL] { watches.values.map(\.folder) }
+    private var progressObservers: [String: NotchDownloadProgressObserver] { watches.mapValues(\.observer) }
 
     private init() {}
 
@@ -66,20 +95,130 @@ final class NotchDownloadService: ObservableObject {
         guard NotchSupport.isEnabled(), AppFeature.notchDownloads.isAvailable,
               UserDefaults.standard.bool(forKey: DefaultsKey.notchDownloadsEnabled),
               NotchSupport.modules().contains(.downloads) else { stop(); return }
-        guard folder == nil else { return }
-        guard let bookmark = UserDefaults.standard.data(forKey: DefaultsKey.notchDownloadsFolderBookmark) else {
-            folderName = nil
-            folderUnavailable = false
-            return
+        let saved = UserDefaults.standard.array(forKey: DefaultsKey.notchDownloadsFolderBookmarks) as? [Data] ?? []
+        guard !running || saved != bookmarks else { return }
+        if !running { begin() }
+        resolveChosenFolders(saved)
+        unreadable.removeAll()
+        discoverFolders()
+    }
+
+    private func begin() {
+        running = true
+        let requested = generation
+        announcements = DistributedNotificationCenter.default().addObserver(
+            forName: NotchDownloadSupport.finishedNotification, object: nil, queue: .main) { [weak self] note in
+            guard let self, self.generation == requested, let path = note.object as? String else { return }
+            let folders = self.watchedFolders
+            self.queue.async { [weak self] in
+                let item = folders.lazy.compactMap { NotchDownloadSupport.announcedItem(atPath: path, folder: $0) }.first
+                DispatchQueue.main.async {
+                    guard let self, self.generation == requested, let item else { return }
+                    self.recordCompletion(item)
+                    self.refreshItems()
+                }
+            }
         }
-        var stale = false
-        guard let url = try? URL(resolvingBookmarkData: bookmark,
-                                 options: [.withSecurityScope, .withoutUI, .withoutMounting],
-                                 relativeTo: nil, bookmarkDataIsStale: &stale), !stale else {
-            folderUnavailable = true
-            return
+    }
+
+    /// Chosen folders keep their access through security-scoped bookmarks.
+    /// Their scope starts before any read, so a protected folder someone
+    /// picked never asks again.
+    private func resolveChosenFolders(_ saved: [Data]) {
+        let released = scopes
+        bookmarks = saved
+        chosen = []
+        missing = []
+        scopes = []
+        var renewed = saved
+        for (index, data) in saved.enumerated() {
+            var stale = false
+            guard let url = try? URL(resolvingBookmarkData: data,
+                                     options: [.withSecurityScope, .withoutUI, .withoutMounting],
+                                     relativeTo: nil, bookmarkDataIsStale: &stale), url.isFileURL else {
+                missing.append(data)
+                continue
+            }
+            if url.startAccessingSecurityScopedResource() { scopes.append(url) }
+            // A moved or renamed folder resolves stale: keep it under a fresh
+            // bookmark, made while its access is still held.
+            if stale {
+                guard let fresh = try? url.bookmarkData(options: .withSecurityScope,
+                                                        includingResourceValuesForKeys: nil, relativeTo: nil) else {
+                    missing.append(data)
+                    continue
+                }
+                renewed[index] = fresh
+                chosen.append((url, fresh))
+            } else {
+                chosen.append((url, data))
+            }
         }
-        start(url)
+        if renewed != saved {
+            bookmarks = renewed
+            UserDefaults.standard.set(renewed, forKey: DefaultsKey.notchDownloadsFolderBookmarks)
+        }
+        // Let an already-running file read finish before releasing its scope.
+        if !released.isEmpty { queue.async { released.forEach { $0.stopAccessingSecurityScopedResource() } } }
+    }
+
+    /// Browser settings are read off the main queue; the folders found
+    /// replace the watched set on it.
+    private func discoverFolders() {
+        discovery?.cancel(); discovery = nil
+        let requested = generation
+        let chosen = chosen, missing = missing
+        queue.async { [weak self] in
+            let found = NotchDownloadFolders.discover(chosen: chosen, missing: missing)
+            DispatchQueue.main.async {
+                guard let self, self.generation == requested, self.running else { return }
+                self.apply(found)
+                // Looks begun close together each finish here; keep one timer.
+                self.discovery?.cancel()
+                let work = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    // A disk mounted again lets its chosen folder resolve, and
+                    // access granted since in System Settings lets an
+                    // unreadable folder be read: each look tries both again.
+                    if !self.missing.isEmpty { self.resolveChosenFolders(self.bookmarks) }
+                    self.unreadable.removeAll()
+                    self.discoverFolders()
+                }
+                self.discovery = work
+                DispatchQueue.main.asyncAfter(deadline: .now() + Self.discoveryInterval, execute: work)
+            }
+        }
+    }
+
+    /// Watch exactly the folders found: new ones start, vanished ones end.
+    private func apply(_ found: [NotchDownloadFolder]) {
+        var listed: [NotchDownloadFolder] = []
+        var wanted = Set<String>()
+        for var folder in found {
+            let key = folder.url.path
+            if !folder.unavailable, !unreadable.contains(key), watches[key] == nil {
+                if let watch = startWatching(folder.url) { watches[key] = watch } else { unreadable.insert(key) }
+            }
+            if !folder.unavailable, unreadable.contains(key) { folder.unavailable = true }
+            if !folder.unavailable { wanted.insert(key) }
+            listed.append(folder)
+        }
+        // A folder just found unreadable can share its path with a chosen
+        // one that did not resolve; one row says both.
+        var rows: [String: Int] = [:]
+        listed = listed.reduce(into: []) { result, folder in
+            if let row = rows[folder.id] {
+                result[row].sources += folder.sources.filter { !result[row].sources.contains($0) }
+            } else {
+                rows[folder.id] = result.count
+                result.append(folder)
+            }
+        }
+        let ended = Set(watches.keys).subtracting(wanted)
+        for key in ended { endWatching(key) }
+        if folders != listed { folders = listed }
+        if !ended.isEmpty { refreshItems() }
+        scheduleScan()
     }
 
     func chooseFolder() {
@@ -89,7 +228,7 @@ final class NotchDownloadService: ObservableObject {
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
         panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-        panel.message = FeatureStrings.notchFiles(L10n.shared.language).downloadsHint
+        panel.message = FeatureStrings.notchFiles(L10n.shared.language).addFolderHint
         let parent = folderPickerParent()
         let beganInNotch = parent != nil
         let requested = UUID()
@@ -105,9 +244,12 @@ final class NotchDownloadService: ObservableObject {
                 do {
                     let data = try url.bookmarkData(options: .withSecurityScope,
                                                     includingResourceValuesForKeys: nil, relativeTo: nil)
-                    self.stop()
-                    UserDefaults.standard.set(data, forKey: DefaultsKey.notchDownloadsFolderBookmark)
+                    // Added beside the folders already watched. Adding one that
+                    // is watched anyway still keeps its access by this choice.
+                    let saved = UserDefaults.standard.array(forKey: DefaultsKey.notchDownloadsFolderBookmarks) as? [Data] ?? []
+                    UserDefaults.standard.set(saved + [data], forKey: DefaultsKey.notchDownloadsFolderBookmarks)
                     UserDefaults.standard.set(true, forKey: DefaultsKey.notchDownloadsEnabled)
+                    self.folderUnavailable = false
                     self.syncWithPreferences()
                     NotchService.shared.syncWithPreferences()
                 } catch { self.folderUnavailable = true }
@@ -154,12 +296,15 @@ final class NotchDownloadService: ObservableObject {
             && notch.selectedMetric == nil && notch.captureControls == nil
     }
 
-    func forgetFolder() {
-        stop()
-        UserDefaults.standard.removeObject(forKey: DefaultsKey.notchDownloadsFolderBookmark)
-        UserDefaults.standard.set(false, forKey: DefaultsKey.notchDownloadsEnabled)
-        folderName = nil
+    /// Removes a folder added in Settings. One the Mac or a browser also
+    /// names stays watched, without the added access.
+    func removeFolder(_ folder: NotchDownloadFolder) {
+        let removed = folder.bookmarks
+        guard !removed.isEmpty else { return }
+        let saved = UserDefaults.standard.array(forKey: DefaultsKey.notchDownloadsFolderBookmarks) as? [Data] ?? []
+        UserDefaults.standard.set(saved.filter { !removed.contains($0) }, forKey: DefaultsKey.notchDownloadsFolderBookmarks)
         folderUnavailable = false
+        syncWithPreferences()
     }
 
     private func cancelFolderChoice() {
@@ -180,24 +325,26 @@ final class NotchDownloadService: ObservableObject {
     func stop() {
         cancelFolderChoice()
         generation = UUID()
+        running = false
         scanWork?.cancel(); scanWork = nil
         expiry?.cancel(); expiry = nil
         inactivityExpiry?.cancel(); inactivityExpiry = nil
-        directorySource?.cancel(); directorySource = nil
+        discovery?.cancel(); discovery = nil
+        for key in Array(watches.keys) { endWatching(key) }
         fileSources.values.forEach { $0.cancel() }
         fileSources.removeAll()
-        progressObserver?.stop(); progressObserver = nil
-        progressItems = []
-        if let subscriber { Progress.removeSubscriber(subscriber) }
-        subscriber = nil
+        progressItems.removeAll()
         if let announcements { DistributedNotificationCenter.default().removeObserver(announcements) }
         announcements = nil
-        if let folder, securityScope {
-            // Let an already-running file read finish before releasing its scope.
-            queue.async { folder.stopAccessingSecurityScopedResource() }
-        }
-        folder = nil
-        securityScope = false
+        let released = scopes
+        // Let an already-running file read finish before releasing its scope.
+        if !released.isEmpty { queue.async { released.forEach { $0.stopAccessingSecurityScopedResource() } } }
+        scopes = []
+        bookmarks = []
+        chosen = []
+        missing = []
+        unreadable.removeAll()
+        folders = []
         folderItems.removeAll()
         partials.removeAll()
         finished.removeAll()
@@ -206,30 +353,21 @@ final class NotchDownloadService: ObservableObject {
         rescan = false
     }
 
-    private func start(_ url: URL) {
-        guard url.isFileURL else { folderUnavailable = true; return }
-        securityScope = url.startAccessingSecurityScopedResource()
-        guard let source = watch(url, directory: true) else {
-            if securityScope { url.stopAccessingSecurityScopedResource() }
-            securityScope = false
-            folderUnavailable = true
-            return
-        }
-        folder = url.standardizedFileURL
-        folderName = url.lastPathComponent
-        folderUnavailable = false
-        directorySource = source
+    private func startWatching(_ url: URL) -> Watch? {
+        guard url.isFileURL, let source = watch(url, directory: true) else { return nil }
+        let key = url.path
+        let id = UUID()
         let requested = generation
-        progressObserver = NotchDownloadProgressObserver(folder: url.standardizedFileURL, queue: queue) { [weak self] items, completed in
+        let observer = NotchDownloadProgressObserver(folder: url, queue: queue) { [weak self] items, completed in
             DispatchQueue.main.async {
-                guard let self, self.generation == requested else { return }
-                self.progressItems = items
+                guard let self, self.generation == requested, self.watches[key]?.id == id else { return }
+                self.progressItems[key] = items
                 completed.forEach(self.recordCompletion)
                 self.refreshItems()
             }
         }
-        let callbacks = MainActor.assumeIsolated { ProgressCallbacks(owner: self, generation: generation) }
-        subscriber = Progress.addSubscriber(forFileURL: url) { published in
+        let callbacks = MainActor.assumeIsolated { ProgressCallbacks(owner: self, folder: key, watch: id) }
+        let subscriber = Progress.addSubscriber(forFileURL: url) { published in
             let id = UUID()
             DispatchQueue.main.async {
                 callbacks.published(published, id: id)
@@ -240,20 +378,34 @@ final class NotchDownloadService: ObservableObject {
                 }
             }
         }
-        announcements = DistributedNotificationCenter.default().addObserver(
-            forName: NotchDownloadSupport.finishedNotification, object: nil, queue: .main) { [weak self] note in
-            guard let self, self.generation == requested, let folder = self.folder,
-                  let path = note.object as? String else { return }
-            self.queue.async { [weak self] in
-                let item = NotchDownloadSupport.announcedItem(atPath: path, folder: folder)
-                DispatchQueue.main.async {
-                    guard let self, self.generation == requested, let item else { return }
-                    self.recordCompletion(item)
-                    self.refreshItems()
-                }
+        return Watch(id: id, folder: url, source: source, observer: observer, subscriber: subscriber)
+    }
+
+    /// A folder left the watched set. What it held leaves the page with it,
+    /// without counting as finished or failed.
+    private func endWatching(_ key: String) {
+        guard let watch = watches.removeValue(forKey: key) else { return }
+        watch.source.cancel()
+        watch.observer.stop()
+        Progress.removeSubscriber(watch.subscriber)
+        progressItems.removeValue(forKey: key)
+        for (url, partial) in partials where partial.folderPath == key {
+            partials.removeValue(forKey: url)
+            for watched in [partial.url] + [partial.contentURL].compactMap({ $0 }) {
+                fileSources.removeValue(forKey: watched)?.cancel()
             }
         }
-        scheduleScan()
+        folderItems.removeAll { $0.url.deletingLastPathComponent().standardizedFileURL.path == key }
+    }
+
+    /// Folders the scan could not read. One still there is unreadable and
+    /// shown so; one gone may come back, which the next look will notice.
+    private func lose(_ keys: Set<String>, unreadable stillThere: Set<String>) {
+        guard !keys.isEmpty else { return }
+        keys.forEach(endWatching)
+        unreadable.formUnion(stillThere)
+        refreshItems()
+        discoverFolders()
     }
 
     private func watch(_ url: URL, directory: Bool) -> DispatchSourceFileSystemObject? {
@@ -261,12 +413,15 @@ final class NotchDownloadService: ObservableObject {
         guard descriptor >= 0 else { return nil }
         let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: descriptor,
             eventMask: [.write, .extend, .attrib, .rename, .delete, .revoke], queue: .main)
-        source.setEventHandler { [weak self] in
+        source.setEventHandler { [weak self, weak source] in
             guard let self else { return }
-            if directory, let source = self.directorySource,
-               !source.data.intersection([.rename, .delete, .revoke]).isEmpty {
-                self.stop()
-                self.folderUnavailable = true
+            if directory, let source, !source.data.intersection([.rename, .delete, .revoke]).isEmpty {
+                // Moved, deleted or unmounted: stop watching it and look again.
+                // A chosen folder that moved is found by its bookmark anew.
+                self.endWatching(url.path)
+                self.refreshItems()
+                self.resolveChosenFolders(self.bookmarks)
+                self.discoverFolders()
             } else { self.scheduleScan() }
         }
         source.setCancelHandler { close(descriptor) }
@@ -275,7 +430,7 @@ final class NotchDownloadService: ObservableObject {
     }
 
     private func scheduleScan() {
-        guard folder != nil, scanWork == nil else { return }
+        guard !watches.isEmpty, scanWork == nil else { return }
         let work = DispatchWorkItem { [weak self] in
             self?.scanWork = nil
             self?.scan()
@@ -285,16 +440,26 @@ final class NotchDownloadService: ObservableObject {
     }
 
     private func scan() {
-        guard let folder else { return }
+        let folders = watchedFolders
+        guard !folders.isEmpty else { return }
         guard !scanning else { rescan = true; return }
         scanning = true
         let id = generation
         let previous = partials
-        let observer = progressObserver
+        let observers = progressObservers
         queue.async { [weak self] in
-            let current = NotchDownloadSupport.scanFolder(folder)
-            let completed = previous.values.compactMap { old -> NotchDownloadItem? in
-                guard current?.partials[old.url] == nil,
+            var snapshots: [NotchDownloadSupport.FolderSnapshot] = []
+            var lost = Set<String>()
+            for folder in folders {
+                if let snapshot = NotchDownloadSupport.scanFolder(folder) { snapshots.append(snapshot) }
+                else { lost.insert(folder.path) }
+            }
+            let stillThere = lost.filter { NotchDownloadFolders.identity(of: URL(fileURLWithPath: $0)) != nil }
+            let current = NotchDownloadSupport.combined(snapshots)
+            // A folder that could not be read says nothing about its partials.
+            let judged = previous.values.filter { !lost.contains($0.folderPath) }
+            let completed = judged.compactMap { old -> NotchDownloadItem? in
+                guard current.partials[old.url] == nil,
                       !FileManager.default.fileExists(atPath: old.url.path),
                       let values = try? old.expectedURL.resourceValues(forKeys: NotchDownloadSupport.keys),
                       values.isRegularFile == true,
@@ -306,42 +471,43 @@ final class NotchDownloadService: ObservableObject {
             }
             // A partial gone with no file in its place and no other partial
             // taking it over did not finish.
-            let failed = current.map { current in
-                previous.values.filter { old in
-                    current.partials[old.url] == nil
-                        && !current.partials.values.contains { $0.expectedURL == old.expectedURL }
-                        && !FileManager.default.fileExists(atPath: old.url.path)
-                        && !FileManager.default.fileExists(atPath: old.expectedURL.path)
-                        && observer?.didFinish(old) != true
-                }
-            } ?? []
+            let failed = judged.filter { old in
+                current.partials[old.url] == nil
+                    && !current.partials.values.contains { $0.expectedURL == old.expectedURL }
+                    && !FileManager.default.fileExists(atPath: old.url.path)
+                    && !FileManager.default.fileExists(atPath: old.expectedURL.path)
+                    && observers[old.folderPath]?.didFinish(old) != true
+            }
             DispatchQueue.main.async {
                 guard let self, self.generation == id else { return }
                 self.scanning = false
-                guard let current else {
-                    self.stop(); self.folderUnavailable = true; return
+                // A folder can leave while its scan runs; what it held left with it.
+                let live = Set(self.watchedFolders.map(\.path))
+                let unfinished = failed.filter { live.contains($0.folderPath) }
+                self.partials = current.partials.filter { live.contains($0.value.folderPath) }
+                self.folderItems = current.files.filter {
+                    live.contains($0.url.deletingLastPathComponent().standardizedFileURL.path)
                 }
-                self.partials = current.partials
-                self.folderItems = current.files
-                let watched = Set(current.partials.values.flatMap { [$0.url] + [$0.contentURL].compactMap { $0 } })
+                let watched = Set(self.partials.values.flatMap { [$0.url] + [$0.contentURL].compactMap { $0 } })
                 let removed = Set(self.fileSources.keys).subtracting(watched)
                 for url in removed { self.fileSources.removeValue(forKey: url)?.cancel() }
                 for url in watched where self.fileSources[url] == nil {
                     self.fileSources[url] = self.watch(url, directory: false)
                 }
                 completed.forEach(self.recordCompletion)
-                if !failed.isEmpty {
+                if !unfinished.isEmpty {
                     // The publisher may finish just after its partial vanishes.
                     // Wait for its evidence, never for an unrelated arrival.
                     self.queue.asyncAfter(deadline: .now() + 2) { [weak self] in
-                        let unfinished = failed.contains { observer?.didFinish($0) != true }
+                        let failed = unfinished.contains { observers[$0.folderPath]?.didFinish($0) != true }
                         DispatchQueue.main.async {
-                            guard let self, self.generation == id, unfinished else { return }
+                            guard let self, self.generation == id, failed else { return }
                             self.onFailure?()
                         }
                     }
                 }
-                self.progressObserver?.requestRefresh()
+                self.progressObservers.values.forEach { $0.requestRefresh() }
+                self.lose(lost, unreadable: stillThere)
                 self.refreshItems()
                 if self.rescan { self.rescan = false; self.scheduleScan() }
             }
@@ -362,7 +528,7 @@ final class NotchDownloadService: ObservableObject {
     }
 
     private func refreshItems() {
-        guard folder != nil else { return }
+        guard running else { return }
         inactivityExpiry?.cancel(); inactivityExpiry = nil
         if let next = partials.values.map({ $0.modified.addingTimeInterval(120) })
             .filter({ $0 > Date() }).min() {
@@ -370,7 +536,7 @@ final class NotchDownloadService: ObservableObject {
             inactivityExpiry = work
             DispatchQueue.main.asyncAfter(deadline: .now() + max(0.1, next.timeIntervalSinceNow), execute: work)
         }
-        var active = progressItems
+        var active = progressItems.values.flatMap { $0 }
         var seen = Set<String>()
         active = active.filter { seen.insert($0.id).inserted }
         let represented = Set(active.map { $0.url.standardizedFileURL })

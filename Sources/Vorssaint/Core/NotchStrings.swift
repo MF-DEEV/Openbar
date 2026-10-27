@@ -1531,3 +1531,41 @@ extension NotchStrings {
     )
 
 }
+
+/// Controls shared with the Windows island, scoped to displays without a cutout.
+struct NotchShapeStrings {
+    let fit: String
+    let shoulderWidth: String
+    let shoulderHeight: String
+    let corners: String
+    let reset: String
+    let hint: String
+    let playerVolume: String
+    let unavailable: String
+}
+
+extension FeatureStrings {
+    static func notchShape(_ language: AppLanguage) -> NotchShapeStrings {
+        let words: [String]
+        switch language {
+        case .enUS: words = ["Shape fit", "Side curve width", "Side curve height", "Corner rounding", "Reset shape", "Applies to displays without a notch. The physical camera cutout keeps its own fit.", "Player volume", "Unavailable"]
+        case .ptBR: words = ["Ajuste da forma", "Largura da curva lateral", "Altura da curva lateral", "Arredondamento dos cantos", "Redefinir forma", "Aplica-se a telas sem notch. O recorte físico da câmera mantém seu próprio ajuste.", "Volume do player", "Indisponível"]
+        case .tr: words = ["Şekil ayarı", "Yan eğri genişliği", "Yan eğri yüksekliği", "Köşe yuvarlaklığı", "Şekli sıfırla", "Çentiksiz ekranlara uygulanır. Fiziksel kamera çentiğinin ayarı korunur.", "Oynatıcı ses düzeyi", "Kullanılamıyor"]
+        case .ru: words = ["Настройка формы", "Ширина боковой кривой", "Высота боковой кривой", "Скругление углов", "Сбросить форму", "Для экранов без выреза. Настройка физического выреза камеры сохраняется.", "Громкость проигрывателя", "Недоступно"]
+        case .es: words = ["Ajuste de forma", "Anchura de la curva lateral", "Altura de la curva lateral", "Redondeo de esquinas", "Restablecer forma", "Se aplica a pantallas sin muesca. El recorte físico de la cámara conserva su ajuste.", "Volumen del reproductor", "No disponible"]
+        case .sk: words = ["Prispôsobenie tvaru", "Šírka bočnej krivky", "Výška bočnej krivky", "Zaoblenie rohov", "Obnoviť tvar", "Platí pre displeje bez výrezu. Fyzický výrez kamery si zachová svoje nastavenie.", "Hlasitosť prehrávača", "Nedostupné"]
+        case .de: words = ["Form anpassen", "Breite der Seitenkurve", "Höhe der Seitenkurve", "Eckenrundung", "Form zurücksetzen", "Gilt für Displays ohne Aussparung. Die Anpassung an die physische Kamera bleibt erhalten.", "Player-Lautstärke", "Nicht verfügbar"]
+        case .fr: words = ["Ajustement de la forme", "Largeur de la courbe latérale", "Hauteur de la courbe latérale", "Arrondi des angles", "Réinitialiser la forme", "Pour les écrans sans encoche. Le réglage de la découpe physique de la caméra est conservé.", "Volume du lecteur", "Indisponible"]
+        case .it: words = ["Adattamento della forma", "Larghezza curva laterale", "Altezza curva laterale", "Arrotondamento angoli", "Reimposta forma", "Si applica agli schermi senza notch. Il ritaglio fisico della fotocamera mantiene la propria regolazione.", "Volume del lettore", "Non disponibile"]
+        case .ja: words = ["形状の調整", "側面カーブの幅", "側面カーブの高さ", "角の丸み", "形状をリセット", "ノッチのないディスプレイに適用されます。カメラの物理的な切り欠きの調整は保持されます。", "プレーヤーの音量", "利用不可"]
+        case .ko: words = ["모양 조정", "측면 곡선 너비", "측면 곡선 높이", "모서리 둥글기", "모양 재설정", "노치가 없는 디스플레이에 적용됩니다. 실제 카메라 노치의 조정은 유지됩니다.", "플레이어 음량", "사용할 수 없음"]
+        case .uk: words = ["Налаштування форми", "Ширина бічної кривої", "Висота бічної кривої", "Заокруглення кутів", "Скинути форму", "Для екранів без вирізу. Налаштування фізичного вирізу камери зберігається.", "Гучність програвача", "Недоступно"]
+        case .zhHans: words = ["形状调整", "侧边曲线宽度", "侧边曲线高度", "圆角程度", "重置形状", "适用于无刘海显示器。摄像头实体缺口保留原有调整。", "播放器音量", "不可用"]
+        case .zhTW: words = ["形狀調整", "側邊曲線寬度", "側邊曲線高度", "圓角程度", "重設形狀", "適用於無瀏海顯示器。攝影機實體缺口保留原有調整。", "播放器音量", "無法使用"]
+        case .zhHK: words = ["形狀調整", "側邊曲線闊度", "側邊曲線高度", "圓角程度", "重設形狀", "適用於沒有瀏海的顯示器。相機實體缺口保留原有調整。", "播放器音量", "無法使用"]
+        }
+        return NotchShapeStrings(fit: words[0], shoulderWidth: words[1], shoulderHeight: words[2],
+                                 corners: words[3], reset: words[4], hint: words[5],
+                                 playerVolume: words[6], unavailable: words[7])
+    }
+}

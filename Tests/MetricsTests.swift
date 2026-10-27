@@ -111,6 +111,7 @@ struct MetricsTests {
             ("discord-voice", { DiscordVoiceTests.run(suite) }),
             ("notch", {
                 NotchTests.run(suite)
+                NotchShapeParityTests.run(suite)
                 NotchCompactTests.run(suite)
                 NotchCapsuleTests.run(suite)
                 PlainTextLineMoverTests.run(suite)
@@ -129,6 +130,7 @@ struct MetricsTests {
                 NotchSessionAgentTests.run(suite)
                 NotchClawdViewTests.run(suite)
                 ClaudeAgentColorTests.run(suite)
+                NotchSessionAttentionTests.run(suite)
             }),
             ("codex-sessions", { CodexSessionTests.run(suite) }),
             ("codex-edge", { CodexSessionEdgeTests.run(suite) }),

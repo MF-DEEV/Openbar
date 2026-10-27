@@ -124,7 +124,7 @@ struct NotchIslandPreview: View {
                 }
             }
             .environment(\.notchBand, band)
-            .padding(.horizontal, NotchLayout.horizontalInset)
+            .padding(.horizontal, geometry.horizontalInset)
             .padding(.top, geometry.headerTopInset)
             .padding(.bottom, NotchLayout.bottomInset)
             .frame(width: size.width, height: size.height, alignment: .top)

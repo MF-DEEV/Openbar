@@ -130,7 +130,7 @@ struct NotchView: View {
         } else if let notice = service.notice ?? (service.peeking ? nil : service.departingNotice) {
             if service.noticeExpanded, let content = notice.notification {
                 NotchNotificationPreviewView(notice: notice, content: content, service: service)
-                    .padding(.horizontal, NotchLayout.horizontalInset)
+                    .padding(.horizontal, service.geometry.horizontalInset)
                     .padding(.top, service.geometry.safeContentTop)
                     .padding(.bottom, NotchLayout.bottomInset)
                     .frame(width: service.surfaceSize.width, height: service.surfaceSize.height, alignment: .top)
@@ -170,7 +170,7 @@ struct NotchView: View {
                 Spacer(minLength: 8)
                 NotchIconButton(symbol: "chevron.down", title: text.open) { service.open() }
             }
-            .padding(.horizontal, NotchLayout.horizontalInset).padding(.top, service.geometry.safeContentTop)
+            .padding(.horizontal, service.geometry.horizontalInset).padding(.top, service.geometry.safeContentTop)
         } else if let activity = service.compactActivity {
             if service.showsCompactActivityPicker {
                 let layout = service.compactActivityPickerLayout
@@ -285,7 +285,7 @@ struct NotchView: View {
         let wraps = geometry.pageTop == .wrapsCamera
         return page
             .frame(width: service.contentSize.width, height: service.contentSize.height, alignment: .top)
-            .clipShape(NotchPageClip(top: geometry.pageTopInset))
+            .clipShape(NotchPageClip(top: geometry.pageTopInset, inset: geometry.horizontalInset))
             // With no title on screen, VoiceOver still names the page.
             .accessibilityElement(children: .contain)
             .accessibilityLabel(pageName)
@@ -309,7 +309,7 @@ struct NotchView: View {
                 }
             }
             .environment(\.notchBand, band)
-            .padding(.horizontal, NotchLayout.horizontalInset)
+            .padding(.horizontal, service.geometry.horizontalInset)
             .padding(.top, geometry.headerTopInset)
             .padding(.bottom, NotchLayout.bottomInset)
             .frame(width: service.expandedSize.width, height: service.expandedSize.height, alignment: .top)
@@ -680,7 +680,7 @@ struct NotchRestingStrip: View {
     /// Centre battery content inside the wing's visible area, past its curved shoulder.
     private var restingBatteryInset: CGFloat {
         // Leave enough of the 44-point wing for the full 100% label at every height.
-        min(16, NotchLayout.shoulder(height: geometry.stripHeight) + NotchLayout.compactEdgeGap)
+        min(16, geometry.shapeFit.shoulder(height: geometry.stripHeight) + NotchLayout.compactEdgeGap)
     }
 
     /// A visit walks over what the island rests with, which steps aside
@@ -781,6 +781,7 @@ struct NotchShape: Shape {
     /// A capsule floating this far inside the top and bottom of the rect,
     /// with its own corners, instead of the outline hanging from the edge.
     var floatingGap: CGFloat? = nil
+    var shapeFit: NotchShapeFit = .standard
     var animatableData: CGFloat {
         get { radius }
         set { radius = newValue }
@@ -788,21 +789,23 @@ struct NotchShape: Shape {
 
     /// The island's outline at a surface of `height`, as its display draws it.
     static func island(height: CGFloat, geometry: NotchGeometry) -> NotchShape {
-        NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: height), floatingGap: geometry.floatingGap)
+        NotchShape(attached: true, radius: geometry.shapeFit.radius(height: height),
+                   floatingGap: geometry.floatingGap, shapeFit: geometry.shapeFit)
     }
 
     func path(in rect: CGRect) -> Path {
         guard attached else { return Path(roundedRect: rect, cornerRadius: radius) }
-        if let floatingGap { return Path(NotchLayout.capsulePath(in: rect, gap: floatingGap)) }
-        let shoulder = NotchLayout.shoulder(height: rect.height)
+        if let floatingGap { return Path(NotchLayout.capsulePath(in: rect, gap: floatingGap, roundness: shapeFit.roundness)) }
+        let shoulder = shapeFit.shoulder(height: rect.height, width: rect.width)
+        let rise = shapeFit.rise(height: rect.height)
         let bottom = min(radius, rect.height / 2, (rect.width - shoulder * 2) / 2)
         let tangent: CGFloat = 0.55228475
         var path = Path()
         path.move(to: CGPoint(x: 0, y: 0))
         path.addLine(to: CGPoint(x: rect.width, y: 0))
-        path.addCurve(to: CGPoint(x: rect.width - shoulder, y: shoulder),
+        path.addCurve(to: CGPoint(x: rect.width - shoulder, y: rise),
                       control1: CGPoint(x: rect.width - shoulder * tangent, y: 0),
-                      control2: CGPoint(x: rect.width - shoulder, y: shoulder * (1 - tangent)))
+                      control2: CGPoint(x: rect.width - shoulder, y: rise * (1 - tangent)))
         path.addLine(to: CGPoint(x: rect.width - shoulder, y: rect.height - bottom))
         path.addCurve(to: CGPoint(x: rect.width - shoulder - bottom, y: rect.height),
                       control1: CGPoint(x: rect.width - shoulder, y: rect.height - bottom * (1 - tangent)),
@@ -811,9 +814,9 @@ struct NotchShape: Shape {
         path.addCurve(to: CGPoint(x: shoulder, y: rect.height - bottom),
                       control1: CGPoint(x: shoulder + bottom * (1 - tangent), y: rect.height),
                       control2: CGPoint(x: shoulder, y: rect.height - bottom * (1 - tangent)))
-        path.addLine(to: CGPoint(x: shoulder, y: shoulder))
+        path.addLine(to: CGPoint(x: shoulder, y: rise))
         path.addCurve(to: .zero,
-                      control1: CGPoint(x: shoulder, y: shoulder * (1 - tangent)),
+                      control1: CGPoint(x: shoulder, y: rise * (1 - tangent)),
                       control2: CGPoint(x: shoulder * tangent, y: 0))
         path.closeSubpath()
         return path
@@ -850,10 +853,11 @@ extension NotchModule: PanelOrderItem {
 private struct NotchPageClip: Shape {
     /// From the top of the page to the top of the island.
     let top: CGFloat
+    var inset: CGFloat = NotchLayout.horizontalInset
 
     func path(in rect: CGRect) -> Path {
-        Path(CGRect(x: rect.minX - NotchLayout.horizontalInset, y: rect.minY - top,
-                    width: rect.width + NotchLayout.horizontalInset * 2,
+        Path(CGRect(x: rect.minX - inset, y: rect.minY - top,
+                    width: rect.width + inset * 2,
                     height: rect.height + top + NotchLayout.bottomInset))
     }
 }

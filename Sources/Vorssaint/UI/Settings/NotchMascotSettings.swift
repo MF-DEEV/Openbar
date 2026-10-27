@@ -569,6 +569,7 @@ struct NotchMascotStageModel {
     let track: NotchMascotTrack
     /// A real camera sits in the middle, not a drawn cutout.
     let hasCamera: Bool
+    let shapeFit: NotchShapeFit
 
     init(side: NotchMascotSide, geometry live: NotchGeometry = NotchService.shared.geometry,
          islandRuns: Bool = NotchService.shared.running) {
@@ -577,6 +578,7 @@ struct NotchMascotStageModel {
         let geometry = usable ? live : Self.template
         floatingGap = geometry.floatingGap
         hasCamera = geometry.isNotched
+        shapeFit = geometry.shapeFit
         if geometry.floats {
             let size = geometry.restingSize(showsContent: false)
             strip = size
@@ -613,8 +615,8 @@ struct NotchMascotStageModel {
     }
 
     func shape(height: CGFloat) -> NotchShape {
-        NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: height),
-                   floatingGap: floatingGap.map { $0 * height / max(1, strip.height) })
+        NotchShape(attached: true, radius: shapeFit.radius(height: height),
+                   floatingGap: floatingGap.map { $0 * height / max(1, strip.height) }, shapeFit: shapeFit)
     }
 }
 
