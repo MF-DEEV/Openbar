@@ -49,6 +49,15 @@ it("keeps the Codex auto allow toggle visible after approvals and during questio
     expect(html).toContain("Always: ON");
     expect(html).toContain('aria-pressed="true"');
   }
+  useSessions.setState({ autoAllow: {} });
+  for (const phase of ["generating", "idle", "finished"] as const) {
+    const html = renderToStaticMarkup(<SessionDetail session={{ ...base, phase, permission: undefined }} />);
+    expect(html).not.toContain("Always");
+    expect(html).not.toContain("Cancel autoaccept");
+  }
+  const manual = renderToStaticMarkup(<SessionDetail session={base} />);
+  expect(manual).toContain('aria-keyshortcuts="Control+t"');
+  expect(manual).not.toContain("Cancel autoaccept");
   expect(renderToStaticMarkup(<SessionDetail session={{ ...base, provider: "claude" }} />)).not.toContain("Always: ON");
 });
 

@@ -63,6 +63,17 @@ export async function checkAutoAllow({ send, evaluate, base }) {
   const screenshot = await send("Page.captureScreenshot", { format: "png" });
   await mkdir(resolve("../build"), { recursive: true });
   await writeFile(resolve("../build/auto-allow-working.png"), Buffer.from(screenshot.data, "base64"));
+  const cancelled = await evaluate(`(async()=>{
+    document.querySelector('button[aria-label="Cancel autoaccept"]').click();
+    for(let i=0;i<3;i++)await new Promise(requestAnimationFrame);
+    const hidden=!document.querySelector('button[aria-label="Cancel autoaccept"]') && !sessions.getState().autoAllow[raw.id];
+    receive('waitingPermission',{...raw.permission,requestId:'manual-again'});
+    await new Promise(r=>setTimeout(r,900));
+    document.querySelector('.s-card button[aria-keyshortcuts="Control+t"]').click();
+    for(let i=0;i<3;i++)await new Promise(requestAnimationFrame);
+    return hidden && !!document.querySelector('button[aria-label="Cancel autoaccept"]') && sessions.getState().autoAllow[raw.id];
+  })()`);
+  assert(cancelled, "The status bar must only cancel autoaccept; enabling it belongs to the approval card");
   const question = await evaluate(`(async()=>{
     receive('waitingInput',{...raw.permission,requestId:'question',questions:[{question:'Choose one',options:[],multiSelect:false}]});
     for(let i=0;i<6;i++)await new Promise(requestAnimationFrame);

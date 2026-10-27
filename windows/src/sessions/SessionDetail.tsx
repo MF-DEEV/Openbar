@@ -236,7 +236,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
 
         {session.provider === "codex" &&
         (!isWaiting(session.phase) || !session.permission || session.permission.questions.length > 0) ? (
-          <AutoAllowButton session={session} />
+          <AutoAllowButton session={session} activeOnly />
         ) : null}
         {isWaiting(session.phase) ? <PermissionCard session={session} onOpen={() => void open()} /> : null}
 
