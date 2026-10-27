@@ -276,7 +276,8 @@ pub fn snapshot(input: Inputs) -> Snapshot {
             periods[i].by_provider.entry(r.provider).or_default().add(r);
             models[i].entry(model_id.clone()).or_insert_with(|| Share { id: model_id.clone(), name: if name.is_empty() { "?".into() } else { name.clone() }, provider: Some(r.provider), totals: Totals::default() }).totals.add(r);
             if !r.project.is_empty() {
-                projects[i].entry(r.project.clone()).or_insert_with(|| Share { id: r.project.clone(), name: r.project.clone(), provider: None, totals: Totals::default() }).totals.add(r);
+                // Windows folder names compare without case: one project, its first spelling.
+                projects[i].entry(r.project.to_lowercase()).or_insert_with(|| Share { id: r.project.clone(), name: r.project.clone(), provider: None, totals: Totals::default() }).totals.add(r);
             }
         }
     }
@@ -385,7 +386,7 @@ mod tests {
         let records = vec![
             rec(Provider::Claude, now - 60.0, "claude-opus-5-5", "vors", Some(2.0), 10),
             rec(Provider::Codex, now - 2.0 * 86_400.0, "gpt-5.6", "api", Some(1.0), 5),
-            rec(Provider::Codex, now - 20.0 * 86_400.0, "mystery", "api", None, 7),
+            rec(Provider::Codex, now - 20.0 * 86_400.0, "mystery", "API", None, 7),
             rec(Provider::Copilot, now - 60.0, "x", "", Some(0.0), 0),
             rec(Provider::Claude, now - 100.0 * 86_400.0, "claude-opus-5-5", "old", Some(9.0), 1),
         ];

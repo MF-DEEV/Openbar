@@ -230,7 +230,8 @@ struct Service {
     claude_account: Option<Limits>,
     claude_failure: Option<claude::Failure>,
     claude_streak: u32,
-    claude_due: Time,
+    /// When the last account check began; the next is due an interval later.
+    claude_attempted: Time,
     claude_checking: bool,
     app_samples: Vec<claude_app::Sample>,
     app_modified: Option<SystemTime>,
@@ -267,7 +268,7 @@ impl Service {
             claude_account: None,
             claude_failure: None,
             claude_streak: 0,
-            claude_due: 0.0,
+            claude_attempted: f64::NEG_INFINITY,
             claude_checking: false,
             app_samples: vec![],
             app_modified: None,
@@ -349,7 +350,7 @@ impl Service {
         self.running = Some(providers.clone());
         self.store = Store::default();
         self.cursors.clear();
-        if let Some(saved) = archive::folder().and_then(|d| archive::load(&d, &providers)) {
+        if let Some(saved) = archive::folder().filter(|_| self.persist).and_then(|d| archive::load(&d, &providers)) {
             self.store = Store::from_saved(saved.store);
             self.store.reprice();
             let mut lost: HashSet<String> = HashSet::new();
@@ -550,7 +551,11 @@ impl Service {
         let Some(settings) = self.settings.clone() else { return };
         // Claude's account check (§2.2).
         let in_use = settings.limits_without_page || (page && settings.limits_card);
-        if self.on(Provider::Claude) && in_use && !self.claude_checking && now >= self.claude_due {
+        // Measured from the last attempt with the page as it is now, so opening
+        // the page brings a check due after a minute forward at once.
+        let due = self.claude_attempted + claude::interval(self.claude_failure, self.claude_streak, page);
+        if self.on(Provider::Claude) && in_use && !self.claude_checking && now >= due {
+            self.claude_attempted = now;
             self.claude_checking = true;
             let tx = self.jobs.0.clone();
             std::thread::spawn(move || {
@@ -613,7 +618,6 @@ impl Service {
     }
 
     fn finish(&mut self, job: Job, now: Time) {
-        let page = self.state.control.lock().unwrap().page_visible;
         match job {
             Job::Claude(result) => {
                 self.claude_checking = false;
@@ -630,7 +634,6 @@ impl Service {
                         self.claude_failure = Some(failure);
                     }
                 }
-                self.claude_due = now + claude::interval(self.claude_failure, self.claude_streak, page);
             }
             Job::Resets(result) => {
                 self.resets.checking = false;
@@ -894,7 +897,9 @@ mod tests {
     fn harness(prefs: Value) -> Harness {
         let events = Arc::new(Mutex::new(Vec::new()));
         let sink = events.clone();
-        let service = Service::new(Arc::new(Shared::default()), Box::new(move || prefs.clone()), Box::new(move |name, payload| sink.lock().unwrap().push((name.into(), payload))));
+        let mut service = Service::new(Arc::new(Shared::default()), Box::new(move || prefs.clone()), Box::new(move |name, payload| sink.lock().unwrap().push((name.into(), payload))));
+        // Tests never touch the person's real archive in %LOCALAPPDATA%.
+        service.persist = false;
         Harness { service, events }
     }
 
