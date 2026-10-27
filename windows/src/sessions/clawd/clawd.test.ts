@@ -6,7 +6,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   CLASSIC,
-  drawn,
   ClawdRandom,
   costumeCode,
   COSTUMES_KEPT,
@@ -79,9 +78,9 @@ describe("clawd costume lot", () => {
   it("draws the same costume as the Mac", () => {
     const id = "99c35831-5f0b-4c3e-9d0a-0f3c2a7b8e11";
     expect(sameCostume(seeded(id), seeded(id))).toBe(true);
-    expect(costumeCode(seeded(id))).toBe("v1:teal.none.monocle.none");
-    expect(costumeCode(seeded("0f9a6c1e-2b7d-4e55-8a31-c4d2e6f7a890"))).toBe("v1:orchid.beret.anaglyph.coffee");
-    expect(costumeCode(seeded("s/a1"))).toBe("v1:clay.propeller.none.scarf");
+    expect(costumeCode(seeded(id))).toBe("v1:clay.none.flashMask.none");
+    expect(costumeCode(seeded("0f9a6c1e-2b7d-4e55-8a31-c4d2e6f7a890"))).toBe("v1:coral.beret.anaglyph.lanternEmblem");
+    expect(costumeCode(seeded("s/a1"))).toBe("v1:coral.beret.none.strangeCape");
   });
 
   it("hashes non-ASCII ids as UTF-8", () => {
@@ -92,8 +91,15 @@ describe("clawd costume lot", () => {
     expect(seed("é")).toBe(expected);
   });
 
-  it("brings up every part about as often as meant", () => {
-    const costumes = Array.from({ length: 600 }, (_, i) => drawn(new ClawdRandom(seed(`session-${i}`))));
+  it("draws every accessory for new Codex chats too", () => {
+    const costumes = Array.from({ length: 600 }, (_, i) => seeded(`new-codex-${i}`, null, "codex"));
+    expect(new Set(costumes.map((c) => c.hat))).toEqual(new Set(HATS));
+    expect(new Set(costumes.map((c) => c.eyewear))).toEqual(new Set(EYEWEAR));
+    expect(new Set(costumes.map((c) => c.extra))).toEqual(new Set(EXTRAS));
+  });
+
+  it("gives new sessions every part about as often as meant", () => {
+    const costumes = Array.from({ length: 600 }, (_, i) => seeded(`session-${i}`));
     expect(new Set(costumes.map((c) => c.shell))).toEqual(new Set(SHELLS));
     expect(new Set(costumes.map((c) => c.hat))).toEqual(new Set(HATS));
     expect(new Set(costumes.map((c) => c.eyewear))).toEqual(new Set(EYEWEAR));

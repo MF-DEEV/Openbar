@@ -122,12 +122,11 @@ struct ClawdCostume: Hashable {
         return hash
     }
 
-    /// The costume `key` draws, the same each time. Clawd's lots are the
-    /// ones every earlier version drew; a Codex robot's only favour another
-    /// shell.
+    /// The costume a session draws from the full wardrobe, the same each time.
+    /// Clawd and Codex favour their own shell colors.
     static func seeded(_ key: String, character: ClawdCharacter = .clawd) -> ClawdCostume {
         var generator = ClawdRandom(seed: seed(key))
-        return drawn(using: &generator, character: character, originalCatalog: true)
+        return drawn(using: &generator, character: character)
     }
 
     /// A subagent's costume: drawn from its own key, in the shell of the
@@ -148,13 +147,11 @@ struct ClawdCostume: Hashable {
     }
 
     /// One part after another from the same lot, so each is its own draw.
-    /// Seeded outfits use the original catalog to preserve existing sessions;
-    /// Surprise me includes the full wardrobe.
+    /// New sessions and Surprise me both include the full wardrobe.
     static func drawn<Generator: RandomNumberGenerator>(using generator: inout Generator,
-                                                        character: ClawdCharacter = .clawd,
-                                                        originalCatalog: Bool = false) -> ClawdCostume {
+                                                        character: ClawdCharacter = .clawd) -> ClawdCostume {
         let favoured = character.favouredShell
-        let shells = originalCatalog ? Array(ClawdShell.allCases.prefix(10)) : ClawdShell.allCases
+        let shells = ClawdShell.allCases
         let weights = shells.map { $0 == favoured ? clayWeight : 1 }
         var ticket = Int(generator.next() % UInt64(weights.reduce(0, +)))
         var shell = favoured
@@ -163,9 +160,9 @@ struct ClawdCostume: Hashable {
             ticket -= weight
         }
         return ClawdCostume(shell: shell,
-                            hat: pick(originalCatalog ? Array(ClawdHat.allCases.prefix(9)) : ClawdHat.allCases, chance: hatChance, using: &generator),
-                            eyewear: pick(originalCatalog ? Array(ClawdEyewear.allCases.prefix(6)) : ClawdEyewear.allCases, chance: eyewearChance, using: &generator),
-                            extra: pick(originalCatalog ? Array(ClawdExtra.allCases.prefix(7)) : ClawdExtra.allCases, chance: extraChance, using: &generator))
+                            hat: pick(ClawdHat.allCases, chance: hatChance, using: &generator),
+                            eyewear: pick(ClawdEyewear.allCases, chance: eyewearChance, using: &generator),
+                            extra: pick(ClawdExtra.allCases, chance: extraChance, using: &generator))
     }
 
     /// Nothing, the first case, with the chance left over; otherwise one of

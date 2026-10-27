@@ -26,18 +26,13 @@ enum ClawdCostumeTests {
         generator = ClawdRandom(seed: 0)
         suite.expect(generator.next() == 0xe220_a839_7b1d_cdaf && generator.next() == 0x6e78_9e6a_a1b9_65f4,
                      "the lot is SplitMix64, giving its published numbers")
-        // A session nobody dressed wears its lot. Drawing in another order, or
-        // a part added in the middle of a list, would change every such
-        // Clawd at the next update.
-        suite.expect(ClawdCostume.seeded(id).code == "v1:teal.none.monocle.none"
-                     && ClawdCostume.seeded("0f9a6c1e-2b7d-4e55-8a31-c4d2e6f7a890").code == "v1:orchid.beret.anaglyph.coffee"
-                     && ClawdCostume.seeded("s/a1").code == "v1:clay.propeller.none.scarf",
-                     "a session draws the same costume from one version of the app to the next: \(ClawdCostume.seeded(id).code)")
+        // Shared golden outfits keep the Swift and Windows catalogs and draws aligned.
+        suite.expect(ClawdCostume.seeded(id).code == "v1:clay.none.flashMask.none"
+                     && ClawdCostume.seeded("0f9a6c1e-2b7d-4e55-8a31-c4d2e6f7a890").code == "v1:coral.beret.anaglyph.lanternEmblem"
+                     && ClawdCostume.seeded("s/a1").code == "v1:coral.beret.none.strangeCape",
+                     "a session draws the same full-catalog costume on both platforms: \(ClawdCostume.seeded(id).code)")
 
-        let costumes = (0..<600).map { index in
-            var random = ClawdRandom(seed: ClawdCostume.seed("session-\(index)"))
-            return ClawdCostume.drawn(using: &random)
-        }
+        let costumes = (0..<600).map { ClawdCostume.seeded("session-\($0)") }
         suite.expect(Set(costumes.map(\.shell)) == Set(ClawdShell.allCases), "every shell comes up")
         suite.expect(Set(costumes.map(\.hat)) == Set(ClawdHat.allCases)
                      && Set(costumes.map(\.eyewear)) == Set(ClawdEyewear.allCases)
@@ -82,8 +77,8 @@ enum ClawdCostumeTests {
                      "Claude Code sessions are Clawds favouring clay, Codex sessions robots favouring iris")
         let keys = (0..<600).map { "session-\($0)" }
         suite.expect(keys.allSatisfy { ClawdCostume.seeded($0, character: .clawd) == ClawdCostume.seeded($0) }
-                     && ClawdCostume.seeded("99c35831-5f0b-4c3e-9d0a-0f3c2a7b8e11").code == "v1:teal.none.monocle.none",
-                     "Clawd's lots are the ones every earlier version drew")
+                     && ClawdCostume.seeded("99c35831-5f0b-4c3e-9d0a-0f3c2a7b8e11").code == "v1:clay.none.flashMask.none",
+                     "Clawd and Codex share the full accessory catalog")
         let robots = keys.map { ClawdCostume.seeded($0, character: .codex) }
         let clawds = keys.map { ClawdCostume.seeded($0) }
         suite.expect(zip(robots, clawds).allSatisfy { $0.hat == $1.hat && $0.eyewear == $1.eyewear && $0.extra == $1.extra },
@@ -93,7 +88,7 @@ enum ClawdCostumeTests {
         }
         suite.expect(share(robots, .iris) > share(robots, .sky) * 1.8 && share(robots, .iris) > share(robots, .clay) * 1.8,
                      "the robot's iris comes up more often than any other shell: \(share(robots, .iris))")
-        suite.expect(Set(robots.map(\.shell)) == Set(ClawdShell.allCases.prefix(10)), "and every shell still comes up")
+        suite.expect(Set(robots.map(\.shell)) == Set(ClawdShell.allCases), "and every shell still comes up")
         suite.expect(zip(robots, clawds).contains { $0 != $1 }, "so a robot's lot is not always Clawd's")
         suite.expect(ClawdCostume.seeded("s/a1", agentColor: "green", character: .codex).shell == .moss,
                      "a subagent's color sets the robot's shell too")

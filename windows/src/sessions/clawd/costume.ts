@@ -4,8 +4,8 @@
 // A Clawd's costume and the lot that draws it (ClawdCostume.swift; spec
 // 02-sessions §5.1-5.3). The lot must give the very same costume as the Mac
 // for the same session id, so the 64-bit math runs on BigInt and the part
-// lists keep the Mac's order. Seeded outfits use the original catalog so
-// adding accessories preserves the appearance of existing sessions.
+// lists keep the Mac's order. New sessions draw from the full wardrobe,
+// including superhero accessories, and keep the same outfit for their id.
 
 export const SHELLS = [
   "clay",
@@ -193,9 +193,9 @@ function pick<T>(parts: readonly T[], chance: number, random: RandomSource): T {
 }
 
 /** One part after another from the same lot: seven numbers in all. */
-export function drawn(random: RandomSource, character: Character = "clawd", originalCatalog = false): ClawdCostume {
+export function drawn(random: RandomSource, character: Character = "clawd"): ClawdCostume {
   const favoured = FAVOURED_SHELL[character];
-  const shells = originalCatalog ? SHELLS.slice(0, 10) : SHELLS;
+  const shells = SHELLS;
   const weights = shells.map((shell) => (shell === favoured ? CLAY_WEIGHT : 1));
   const total = weights.reduce((a, b) => a + b, 0);
   let ticket = Number(random.next() % BigInt(total));
@@ -209,9 +209,9 @@ export function drawn(random: RandomSource, character: Character = "clawd", orig
   }
   return {
     shell,
-    hat: pick(originalCatalog ? HATS.slice(0, 9) : HATS, HAT_CHANCE, random),
-    eyewear: pick(originalCatalog ? EYEWEAR.slice(0, 6) : EYEWEAR, EYEWEAR_CHANCE, random),
-    extra: pick(originalCatalog ? EXTRAS.slice(0, 7) : EXTRAS, EXTRA_CHANCE, random),
+    hat: pick(HATS, HAT_CHANCE, random),
+    eyewear: pick(EYEWEAR, EYEWEAR_CHANCE, random),
+    extra: pick(EXTRAS, EXTRA_CHANCE, random),
   };
 }
 
@@ -245,7 +245,7 @@ export function shellForAgentColor(color: string | null | undefined): ClawdShell
  * Claude Code knows it, sets the shell.
  */
 export function seeded(key: string, agentColor?: string | null, character: Character = "clawd"): ClawdCostume {
-  const costume = drawn(new ClawdRandom(seed(key)), character, true);
+  const costume = drawn(new ClawdRandom(seed(key)), character);
   const shell = shellForAgentColor(agentColor);
   return shell ? { ...costume, shell } : costume;
 }
