@@ -33,6 +33,7 @@ mod timer;
 mod system_monitor;
 mod toggles;
 mod tray;
+mod watch;
 
 use tauri::{Emitter, Manager, RunEvent};
 use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
@@ -117,6 +118,7 @@ pub fn run() {
         .manage(capture::Shared::default())
         .manage(clipboard::Shared::default())
         .manage(agent_usage::State::default())
+        .manage(watch::Shared::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -218,6 +220,14 @@ pub fn run() {
             agent_usage::agents_page_visible,
             agent_usage::agents_resets_refresh,
             agent_usage::agents_resets_redeem,
+            watch::watch_snapshot,
+            watch::watch_choose,
+            watch::watch_stop,
+            watch::watch_again,
+            watch::watch_set_rule,
+            watch::watch_pin_line,
+            watch::watch_page_visible,
+            watch::watch_notify,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]

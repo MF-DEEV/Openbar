@@ -172,6 +172,7 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
         service.set_previews(previews);
     }
     crate::clipboard::apply_prefs(app, before, value);
+    crate::watch::apply_prefs(app);
 }
 
 /// Registers Ctrl+Alt+Space or lets it go. Taken by another app, the island

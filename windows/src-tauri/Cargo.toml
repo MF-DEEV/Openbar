@@ -39,6 +39,9 @@ tauri-plugin-dialog = "2"
 zip = { version = "8.6", default-features = false, features = ["deflate-flate2-zlib-rs", "time"] }
 time = { version = "0.3", features = ["local-offset"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# Watch folds accents and widths out of what it reads (both already in the tree via url/idna).
+icu_normalizer = { version = "2.4", default-features = false, features = ["compiled_data"] }
+icu_properties = { version = "2.4", default-features = false, features = ["compiled_data"] }
 
 [target.'cfg(windows)'.dependencies]
 uds_windows = "1"
@@ -52,8 +55,13 @@ windows = { version = "0.62", features = [
   "ApplicationModel",
   "ApplicationModel_Appointments",
   "ApplicationModel_DataTransfer",
+  "Data_Xml_Dom",
   "Foundation",
   "Foundation_Collections",
+  "Graphics",
+  "Graphics_Capture",
+  "Graphics_DirectX",
+  "Graphics_DirectX_Direct3D11",
   "Graphics_Imaging",
   "Media",
   "Media_Control",
@@ -84,6 +92,7 @@ windows = { version = "0.62", features = [
   "Win32_Security",
   "Win32_Security_Authorization",
   "Win32_Storage_FileSystem",
+  "Win32_Storage_Xps",
   "Win32_System_Com",
   "Win32_System_Com_StructuredStorage",
   "Win32_System_Console",
@@ -105,6 +114,9 @@ windows = { version = "0.62", features = [
   "Win32_System_Time",
   "Win32_System_Variant",
   "Win32_System_WindowsProgramming",
+  "Win32_System_WinRT",
+  "Win32_System_WinRT_Direct3D11",
+  "Win32_System_WinRT_Graphics_Capture",
   "Win32_System_Wmi",
   "Win32_UI_Accessibility",
   "Win32_UI_Controls",
