@@ -22,8 +22,6 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
-  delete fake.bridge.keepAwake;
-  delete fake.bridge.mic;
   await setPrefs({ island: { toolsHidden: null, toolsOrder: null, hiddenModules: null } });
   useTools.setState({ optionsItem: null, editing: false });
 });
@@ -31,20 +29,15 @@ afterEach(async () => {
 describe("the tools grid", () => {
   it("shows the Windows tools in the Mac's order and none of the Mac-only ones", () => {
     expect(toolLists(DEFAULT_SETTINGS).visible).toEqual([
+      "keepAwake",
       "toggles",
+      "micMute",
       "screenOCR",
       "colorPicker",
       "clipboard",
       "screenshot",
       "scratchpad",
     ]);
-  });
-
-  it("brings keep awake and the mic in once their backends are wired", () => {
-    const backend = { toggle: async () => {}, onState: async () => () => {} };
-    fake.bridge.keepAwake = backend;
-    fake.bridge.mic = backend;
-    expect(toolLists(DEFAULT_SETTINGS).visible.slice(0, 3)).toEqual(["keepAwake", "toggles", "micMute"]);
   });
 
   it("leaves out tools whose section is hidden", () => {
@@ -65,7 +58,7 @@ describe("edit mode", () => {
     setToolHidden("colorPicker", false);
     await Promise.resolve();
     lists = toolLists(useIsland.getState().settings);
-    expect(lists.visible.indexOf("colorPicker")).toBe(2);
+    expect(lists.visible.indexOf("colorPicker")).toBe(4);
     expect(lists.hidden).toEqual([]);
   });
 
@@ -76,11 +69,20 @@ describe("edit mode", () => {
   });
 
   it("reordering stores the whole order", async () => {
-    reorderTools(["screenshot", "toggles", "screenOCR", "colorPicker", "clipboard", "scratchpad"]);
+    reorderTools([
+      "screenshot",
+      "keepAwake",
+      "toggles",
+      "micMute",
+      "screenOCR",
+      "colorPicker",
+      "clipboard",
+      "scratchpad",
+    ]);
     await Promise.resolve();
     const { settings } = useIsland.getState();
-    expect(settings.toolsOrder[0]).toBe("keepAwake");
-    expect(toolLists(settings).visible[0]).toBe("screenshot");
+    expect(settings.toolsOrder[0]).toBe("screenshot");
+    expect(toolLists(settings).visible.slice(0, 2)).toEqual(["screenshot", "keepAwake"]);
   });
 });
 

@@ -11,6 +11,8 @@ import { pages } from "../island/views/Expanded";
 import { CalendarPage, MonthTitle, Navigation } from "./CalendarPage";
 import { CalendarStrip, stripSpec } from "./CalendarStrip";
 import { type Countdown, countdownTransition } from "./model";
+import { registerTileReading } from "../controls/tiles";
+import { useCalendarTile } from "./tile";
 import { calendarShown, currentCountdown, followOf, subscribeCalendar, useCalendar } from "./store";
 
 pages.calendar = { Page: CalendarPage, Leading: MonthTitle, Trailing: Navigation };
@@ -52,3 +54,9 @@ useIsland.subscribe((s, prev) => {
   if (s.settings !== prev.settings || s.screen !== prev.screen) syncCountdown();
 });
 void subscribeCalendar();
+
+// The Controls tile names the next timed event this week and when it starts.
+registerTileReading("calendar", () => {
+  const tile = useCalendarTile();
+  return tile.reading ? { title: tile.title, reading: tile.reading } : null;
+});

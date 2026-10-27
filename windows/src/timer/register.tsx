@@ -14,6 +14,8 @@ import { onTimerDrafts } from "./prefs";
 import { capsuleContent, stripWing, TimerStrip } from "./TimerStrip";
 import { syncPageHeight, timerPage } from "./TimerPage";
 import { catchUp, timer, timerEnabled, useTimer } from "./store";
+import { registerTileReading } from "../controls/tiles";
+import { useTimerTile } from "./tile";
 
 pages.timer = timerPage;
 activityViews.timer = TimerStrip;
@@ -54,3 +56,11 @@ document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") catchUp();
 });
 void bridge.timer.onDue(catchUp);
+
+// The Controls tile shows the clock and phase in orange while a session exists.
+registerTileReading("timer", () => {
+  const tile = useTimerTile();
+  return tile.active
+    ? { active: true, accent: "timer", icon: tile.icon, title: tile.title, reading: tile.reading }
+    : null;
+});
