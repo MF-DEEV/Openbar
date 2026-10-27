@@ -80,14 +80,14 @@ export function TimerStrip({ geometry, size }: { geometry: Geometry; size: Size 
   const iconSize = stripIconSize(geometry.stripHeight);
   const textSize = stripTextSize(geometry.stripHeight);
   return (
-    <div className="tm-strip" style={{ width: size.width, height: size.height }}>
+    // The whole strip opens the timer, the camera gap included, like the other strips.
+    <div className="tm-strip" style={{ width: size.width, height: size.height }} onClick={open}>
       <button
         type="button"
         className="tm-strip-wing"
         style={{ width: wing, paddingLeft: edgeInset(size, iconSize, iconSize / 2, 5, geometry.input) }}
         aria-label={label}
         title={label}
-        onClick={open}
       >
         {wing >= 28 ? <Mark size={iconSize} strokeWidth={2} aria-hidden /> : null}
       </button>
@@ -98,7 +98,6 @@ export function TimerStrip({ geometry, size }: { geometry: Geometry; size: Size 
         style={{ width: wing, paddingRight: edgeInset(size, textSize * 0.72, 0, 5, geometry.input) }}
         aria-label={label}
         title={label}
-        onClick={open}
       >
         {wing >= 42 ? <Reading text={reading} size={textSize} weight={500} /> : null}
       </button>
