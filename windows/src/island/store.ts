@@ -5,6 +5,7 @@
 // store holds what the island presents; `presentation` turns that into the
 // one thing drawn and its size, and the surface animates between them.
 
+import type { LucideIcon } from "lucide-react";
 import { create } from "zustand";
 import {
   activitySize,
@@ -39,6 +40,9 @@ export interface Notice {
   /** Downloads: 0..1 for known totals; null for an unknown size. */
   progress?: number | null;
   audio?: { muted: boolean; deafened: boolean; level: number };
+  /** A glyph in the symbol slot, and a colour for it and the title (the timer's orange). */
+  icon?: LucideIcon;
+  tint?: string;
 }
 
 /** Live activities in the Mac's priority order (NotchSupport.swift:1791-1799). */

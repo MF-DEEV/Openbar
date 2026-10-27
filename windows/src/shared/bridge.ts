@@ -141,6 +141,16 @@ export const bridge = {
     /** The chime every 2 s for up to 5 min, until turned off (timer, watch). */
     alarm: (key: string, on: boolean) => call("sound_alarm", { key, on }),
   },
+  timer: {
+    /** Windows' interrupt time in ms: monotonic, and it counts sleep. */
+    now: () => call<number>("timer_now_ms"),
+    /** Raises `timer://due` after `delayMs` of interrupt time (null cancels), however the webview throttles. */
+    wake: (delayMs: number | null) => call("timer_wake", { delayMs }),
+    onDue(handler: () => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen("timer://due", () => handler());
+    },
+  },
   onForegroundApp(handler: (name: string) => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});
     return listen<string>("bar://foreground-app", (e) => handler(e.payload));

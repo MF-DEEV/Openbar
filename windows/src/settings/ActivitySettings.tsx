@@ -4,7 +4,7 @@
 // Settings › Activity (NotchSettings.swift:540-639): the indicators the
 // closed island shows. Only those whose sections exist on Windows yet.
 
-import { Music, ArrowDownToLine, Mic } from "lucide-react";
+import { Music, ArrowDownToLine, Mic, Timer } from "lucide-react";
 import { useSettings } from "./state";
 import { T } from "./strings";
 import { Group, Page, Row, Toggle } from "./ui";
@@ -14,6 +14,7 @@ export function ActivitySettings() {
   const set = useSettings((s) => s.island);
   const musicShown = !island.hiddenModules.includes("music") && island.sections.music !== false;
   const downloadsShown = !island.hiddenModules.includes("downloads") && island.sections.downloads !== false;
+  const timerShown = !island.hiddenModules.includes("timer") && island.sections.timer !== false;
 
   return (
     <Page title={T.nav.activity} lead={T.activity.indicatorsLead}>
@@ -27,6 +28,19 @@ export function ActivitySettings() {
             label="Microphone Status"
             checked={island.microphoneStatus}
             onChange={(on) => set("microphoneStatus", on)}
+          />
+        </Row>
+        <Row
+          icon={Timer}
+          title={T.activity.timerCountdown}
+          caption={T.activity.timerCountdownCaption}
+          disabled={!timerShown}
+        >
+          <Toggle
+            label={T.activity.timerCountdown}
+            checked={!island.hideTimerCountdown && timerShown}
+            disabled={!timerShown}
+            onChange={(on) => set("hideTimerCountdown", !on)}
           />
         </Row>
         <Row

@@ -124,7 +124,7 @@ function QuickAccessSettings() {
 const OWN_SWITCH: ModuleId[] = ["timer", "camera", "calendar", "notifications", "agents", "sessions", "watch"];
 
 /** What the Windows island already has; the rest show "coming to Windows". */
-const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads"];
+const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads", "timer"];
 
 function DownloadOptions() {
   const folders = useSettings((s) => s.prefs.island.downloadFolders);
@@ -182,6 +182,25 @@ function Options({ id }: { id: ModuleId }) {
       );
     case "notifications":
       return <p className="st-note">{T.content.notificationsCaption}</p>;
+    case "timer":
+      return (
+        <>
+          <SubRow title={T.content.hideTimerCountdown} caption={T.content.hideTimerCountdownCaption}>
+            <Toggle
+              label={T.content.hideTimerCountdown}
+              checked={island.hideTimerCountdown}
+              onChange={(on) => set("hideTimerCountdown", on)}
+            />
+          </SubRow>
+          <SubRow title={T.content.timerSound} caption={T.content.timerSoundCaption}>
+            <Toggle
+              label={T.content.timerSound}
+              checked={island.timerSoundEnabled}
+              onChange={(on) => set("timerSoundEnabled", on)}
+            />
+          </SubRow>
+        </>
+      );
     default:
       return <p className="st-note">{T.content.noOptions}</p>;
   }

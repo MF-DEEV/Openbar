@@ -19,6 +19,7 @@ mod sessions;
 mod settings;
 mod shell;
 mod sound;
+mod timer;
 mod tray;
 
 use tauri::{Emitter, Manager, RunEvent};
@@ -132,6 +133,8 @@ pub fn run() {
             shell::shell_icon,
             sound::sound_play,
             sound::sound_alarm,
+            timer::timer_now_ms,
+            timer::timer_wake,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]

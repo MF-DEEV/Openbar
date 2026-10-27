@@ -64,6 +64,18 @@ export interface IslandSettings {
   downloadProgress: boolean;
   microphoneStatus: boolean;
   downloadFolders: string[];
+  /** Timer (spec 04 §4.5): the mode set up next and its values; a running cycle keeps its own copy. */
+  timerMode: "timer" | "pomodoro" | "stopwatch";
+  /** 1…180. */
+  timerMinutes: number;
+  timerSoundEnabled: boolean;
+  /** Hides a running countdown from the closed island; a finished timer always shows. */
+  hideTimerCountdown: boolean;
+  pomodoroFocusMinutes: number;
+  pomodoroShortBreakMinutes: number;
+  pomodoroLongBreakMinutes: number;
+  pomodoroLongBreakInterval: number;
+  pomodoroTotalSessions: number;
 }
 
 export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
@@ -110,6 +122,15 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   downloadProgress: true,
   microphoneStatus: true,
   downloadFolders: [],
+  timerMode: "timer",
+  timerMinutes: 15,
+  timerSoundEnabled: true,
+  hideTimerCountdown: false,
+  pomodoroFocusMinutes: 25,
+  pomodoroShortBreakMinutes: 5,
+  pomodoroLongBreakMinutes: 15,
+  pomodoroLongBreakInterval: 4,
+  pomodoroTotalSessions: 4,
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */
