@@ -102,7 +102,6 @@ function usePageHeight(count: number, width: number) {
   const layout = railLayout(count, width, budget);
   const height = editing || utility ? null : Math.min(budget, count === 0 ? EMPTY_HEIGHT : railHeight(layout.rows));
   useEffect(() => setPageContent("tools", height), [height, setPageContent]);
-  useEffect(() => () => setPageContent("tools", null), [setPageContent]);
   return layout;
 }
 
