@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 mod bar;
+mod clipboard;
 mod com;
 mod downloads;
 mod discord_storage;
@@ -91,6 +92,7 @@ pub fn run() {
         .manage(microphone::Shared::default())
         .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
+        .manage(clipboard::Shared::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -132,6 +134,16 @@ pub fn run() {
             shell::shell_icon,
             sound::sound_play,
             sound::sound_alarm,
+            clipboard::clipboard_snapshot,
+            clipboard::clipboard_copy,
+            clipboard::clipboard_paste,
+            clipboard::clipboard_toggle_pin,
+            clipboard::clipboard_remove,
+            clipboard::clipboard_move,
+            clipboard::clipboard_clear_recent,
+            clipboard::clipboard_copy_text,
+            clipboard::clipboard_copy_image,
+            clipboard::clipboard_beep,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -151,6 +163,7 @@ pub fn run() {
                 app.handle().clone(),
                 app.state::<notifications::Shared>().inner().clone(),
             );
+            clipboard::start(app.handle().clone(), app.state::<clipboard::Shared>().inner().clone());
             let prefs = app.state::<prefs::Prefs>().get();
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;
