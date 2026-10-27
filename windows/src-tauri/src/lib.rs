@@ -5,6 +5,7 @@ mod audio;
 mod bar;
 mod calendar;
 mod brightness;
+mod capture;
 mod com;
 mod downloads;
 mod discord_storage;
@@ -18,13 +19,16 @@ mod media;
 mod media_volume;
 mod microphone;
 mod notifications;
+mod ocr;
 mod prefs;
+mod scratchpad;
 mod sessions;
 mod settings;
 mod shell;
 mod sound;
 mod timer;
 mod system_monitor;
+mod toggles;
 mod tray;
 
 use tauri::{Emitter, Manager, RunEvent};
@@ -101,6 +105,7 @@ pub fn run() {
         .manage(calendar::Shared::default())
         .manage(audio::Shared::default())
         .manage(keep_awake::Shared::default())
+        .manage(capture::Shared::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -163,12 +168,24 @@ pub fn run() {
             keep_awake::keep_awake_toggle,
             brightness::brightness_displays,
             brightness::brightness_set,
+            capture::capture_run,
+            capture::capture_session,
+            capture::capture_pixels,
+            capture::capture_ready,
+            capture::capture_commit,
+            capture::tools_copy_text,
+            toggles::toggles_state,
+            toggles::toggles_run,
+            scratchpad::scratchpad_load,
+            scratchpad::scratchpad_save,
+            scratchpad::scratchpad_export,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             // Loaded before the island exists, so its first prefs_get finds them.
             app.manage(prefs::Prefs::load(app.handle()));
+            app.manage(scratchpad::Store::new(app.handle()));
             island::create(app.handle())?;
             fullscreen::watch(app.handle());
             microphone::start(app.handle().clone(), app.state::<microphone::Shared>().inner().clone());

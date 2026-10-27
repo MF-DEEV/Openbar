@@ -16,6 +16,9 @@ import type { MicrophoneSnapshot } from "../microphone/model";
 import type { MetricKind, SystemSnapshot } from "../system/types";
 import type { CalendarAccess, CalendarSnapshot } from "../calendar/types";
 import type { AudioState, BrightnessDisplay, KeepAwakeState } from "../audio/types";
+import type { CaptureOutcome, CapturePurpose, ToggleState } from "../tools/types";
+import type { CaptureSession, Pick } from "../capture/types";
+import type { ScratchpadDocument } from "../scratchpad/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 export interface AttentionContext {
@@ -218,6 +221,28 @@ export const bridge = {
   brightness: {
     displays: () => call<BrightnessDisplay[]>("brightness_displays"),
     set: (id: string, value: number) => call("brightness_set", { id, value }),
+  },
+  capture: {
+    /** Collapse the island first: the frozen picture is taken right away. */
+    run: (purpose: CapturePurpose, name: string) => call<CaptureOutcome>("capture_run", { purpose, name }),
+    // The overlay window's side (capture.html).
+    session: () => call<CaptureSession | null>("capture_session"),
+    pixels: (id: number) => call<ArrayBuffer>("capture_pixels", { id }),
+    ready: (id: number) => call("capture_ready", { id }),
+    commit: (id: number, pick: Pick | null) => call("capture_commit", { id, pick }),
+  },
+  tools: {
+    copyText: (text: string) => call("tools_copy_text", { text }),
+  },
+  toggles: {
+    state: () => call<ToggleState>("toggles_state"),
+    run: (action: string) => call<void>("toggles_run", { action }),
+  },
+  scratchpad: {
+    load: () => call<ScratchpadDocument | null>("scratchpad_load"),
+    save: (document: ScratchpadDocument) => call("scratchpad_save", { document }),
+    /** The saved path, or null when the person cancels. */
+    export: (name: string, text: string) => call<string | null>("scratchpad_export", { name, text }),
   },
   onForegroundApp(handler: (name: string) => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});

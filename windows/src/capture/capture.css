@@ -1,0 +1,117 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* The screen selection window: the frozen display, the area or the loupe. */
+
+:root {
+  color-scheme: dark;
+  font-family: "Inter Variable", Inter, "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+}
+
+.cp-surface {
+  position: fixed;
+  inset: 0;
+  cursor: crosshair;
+  touch-action: none;
+}
+
+.cp-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.cp-hint {
+  position: absolute;
+  top: 28px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 7px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.72);
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: cp-in 0.18s ease-out;
+}
+
+.cp-size {
+  position: absolute;
+  transform: translateX(-100%);
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.cp-loupe {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.cp-loupe-pixels {
+  display: block;
+  border-radius: 14px;
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.9),
+    0 0 0 3px rgba(0, 0, 0, 0.35),
+    0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.cp-readout {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 9px 0 5px;
+  border-radius: 13px;
+  background: rgba(0, 0, 0, 0.78);
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.cp-swatch {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+@keyframes cp-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cp-hint {
+    animation: none;
+  }
+}
