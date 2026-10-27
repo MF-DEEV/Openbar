@@ -72,6 +72,7 @@ const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
   agentsLimitDisplay: ["remaining", "used"],
   agentsLimitFocus: ["mostUsed", "session", "weekly"],
   agentsReadout: ["elapsed", "tokens", "cost", "limit"],
+  watchCondition: ["changes", "settles", "contains", "reaches"],
 };
 
 /** Lists of ids or names: strings only, each once. */

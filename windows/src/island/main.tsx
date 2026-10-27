@@ -76,6 +76,11 @@ if (!inTauri && new URLSearchParams(location.search).has("agents")) {
   });
 }
 
+// ?watch=image|reading|hidden|denied|done|setup shows a sample watched area.
+if (!inTauri && new URLSearchParams(location.search).has("watch")) {
+  void import("../watch/demo").then((demo) => demo.startWatchDemo(new URLSearchParams(location.search).get("watch")));
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     {dev?.has("clawd") ? (

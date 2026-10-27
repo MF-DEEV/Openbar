@@ -11,6 +11,7 @@ import type { ModuleId } from "./modules";
 import type { MonitorMetric, NetworkSpeedUnit } from "../system/types";
 import { DEFAULT_HIDDEN_CONTROLS, type ControlItem } from "../controls/types";
 import type { AgentCard, AgentPeriod, AgentReadout, LimitDisplay, LimitFocus } from "../agents/types";
+import type { WatchCondition } from "../watch/types";
 
 export type QuickSide = "left" | "right" | "bottom";
 export type QuickAction =
@@ -170,6 +171,10 @@ export interface IslandSettings {
   /** USD of API value a day; 0 is off. */
   agentsDailyBudget: number;
   agentsPriceUpdates: boolean;
+  /** Watch (spec 04 §6.3): a chime when a watch ends (notchWatchSound). */
+  watchSound: boolean;
+  /** The rule a watch starts with (notchWatchCondition); typed text and numbers aren't kept. */
+  watchCondition: WatchCondition;
 }
 
 export const CLIPBOARD_LIMITS = [20, 50, 100, 250, 500, 1000, 10000, 0];
@@ -282,6 +287,8 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   agentsLimitThreshold: 80,
   agentsDailyBudget: 0,
   agentsPriceUpdates: true,
+  watchSound: true,
+  watchCondition: "changes",
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

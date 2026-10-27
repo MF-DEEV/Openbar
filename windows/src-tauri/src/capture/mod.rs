@@ -154,7 +154,6 @@ pub enum Outcome {
 
 /// Waits for the person to choose an area (or a point when picking a
 /// colour) on the display under the pointer. See the module docs.
-#[allow(dead_code, reason = "the Watch section's way in")]
 pub async fn select_area<R: Runtime>(app: &AppHandle<R>, purpose: Purpose) -> Option<Selection> {
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || select(&app, purpose).map(|(s, _)| s))

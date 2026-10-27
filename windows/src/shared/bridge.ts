@@ -22,6 +22,7 @@ import type { ScratchpadDocument } from "../scratchpad/types";
 import type { ClipboardSnapshot, PasteResult } from "../clipboard/types";
 import type { DragPhase, FilesSnapshot, OpenWithApp, ZipStatus } from "../files/types";
 import type { AgentEvent, AgentSnapshot, RedeemOutcome } from "../agents/types";
+import type { WatchCondition, WatchFinished, WatchSnapshot } from "../watch/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 export interface AttentionContext {
@@ -317,6 +318,33 @@ export const bridge = {
     copyText: (text: string) => call<boolean>("clipboard_copy_text", { text }),
     copyImage: (dataUrl: string) => call<boolean>("clipboard_copy_image", { dataUrl }),
     beep: () => call("clipboard_beep"),
+  },
+  watch: {
+    snapshot: () => call<WatchSnapshot>("watch_snapshot"),
+    onState(handler: (snapshot: WatchSnapshot) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<WatchSnapshot>("watch://state", (event) => handler(event.payload));
+    },
+    onFinished(handler: (event: WatchFinished) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<WatchFinished>("watch://finished", (event) => handler(event.payload));
+    },
+    /** Collapse the island first: the overlay takes the screen at once. True when a watch started. */
+    choose: () => call<boolean>("watch_choose"),
+    stop: () => call("watch_stop"),
+    again: () => call<boolean>("watch_again"),
+    /** Only what is given changes; text and numbers as typed, read by Rust in the person's number format. */
+    setRule: (rule: { condition?: WatchCondition; text?: string; number?: string }) =>
+      call("watch_set_rule", {
+        condition: rule.condition ?? null,
+        text: rule.text ?? null,
+        number: rule.number ?? null,
+      }),
+    pinLine: (line: number | null) => call("watch_pin_line", { line }),
+    /** The page is open: the area is read every second instead of two. */
+    pageVisible: (visible: boolean) => call("watch_page_visible", { visible }),
+    /** A Windows notification; false when the app has no identity to post it. */
+    notify: (title: string, body: string) => call<boolean>("watch_notify", { title, body }),
   },
   onForegroundApp(handler: (name: string) => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});
