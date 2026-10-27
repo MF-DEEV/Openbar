@@ -65,7 +65,7 @@ Nothing leaves your Mac. Prompts, replies, titles and commands stay unread until
 
 ## On Windows
 
-The Dynamic Island also runs on Windows 11, with the same Sessions list for Claude Code and Codex, Now Playing and notifications. It is a beta with its own installer: download it from the [Windows releases](https://github.com/MF-DEEV/vorssaint-utils/releases?q=windows&expanded=true) (x64 for most PCs, arm64 for Snapdragon), and read [windows/README.md](windows/README.md) for what it does and how to build it.
+The Dynamic Island also runs on Windows 11, with the same sections: Sessions for Claude Code and Codex, Controls, the volume mixer, Now Playing, clipboard history, the Files shelf, System, Tools, Calendar, notifications, Timer, Downloads, AI Agents and Watch. It is a beta with its own installer: download it from the [Windows releases](https://github.com/MF-DEEV/vorssaint-utils/releases?q=windows&expanded=true) (x64 for most PCs, arm64 for Snapdragon), and read [windows/README.md](windows/README.md) for what it does and how to build it.
 
 ## About this fork
 

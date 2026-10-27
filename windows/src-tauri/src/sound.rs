@@ -105,6 +105,7 @@ pub fn stop_alarm(key: &str) {
     }
 }
 
+#[cfg(test)]
 pub fn alarm_running(key: &str) -> bool {
     alarms().lock().unwrap().contains_key(key)
 }

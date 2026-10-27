@@ -59,7 +59,6 @@ pub fn microphone_probe_main(path: &str) -> ! {
     microphone::probe_main(path)
 }
 
-/// `Vorssaint.exe --agents-probe <file> [--limits]`: what the AI page would read.
 /// `Vorssaint.exe --watch-probe <file> <title>`: times Watch's capture steps for a window.
 #[cfg(windows)]
 pub fn watch_probe_main(path: &str, title: &str) -> ! {
@@ -67,6 +66,7 @@ pub fn watch_probe_main(path: &str, title: &str) -> ! {
     std::process::exit(0)
 }
 
+/// `Vorssaint.exe --agents-probe <file> [--limits]`: what the AI page would read.
 pub fn agents_probe_main(path: &str, limits: bool) -> ! {
     agent_usage::probe_main(path, limits)
 }

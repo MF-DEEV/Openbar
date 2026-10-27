@@ -167,7 +167,7 @@ export const T = {
     timerCountdownCaption: "The time left beside the camera while a timer runs. A finished timer always shows.",
     trackChange: "New track",
     trackChangeCaption: "The cover, title and artist for a moment when the song changes.",
-    more: "Brightness, clipboard and the other indicators come with their sections.",
+    more: "The clipboard’s “Copied” notice is in Content › Clipboard.",
     keepAwake: "Show “Keep awake” in the closed island",
     keepAwakeCaption:
       "A running session shows in the closed island with the time it has left, or ∞ when it has no end.",
