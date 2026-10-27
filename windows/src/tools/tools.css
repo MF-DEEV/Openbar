@@ -1,0 +1,517 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* The Tools section (QuickLauncherView.swift, island branch). Sizes in points from the Mac. */
+
+.tl-page {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+/* Rail: rows while every column fits, else columns that scroll sideways. */
+
+.tl-rail {
+  display: flex;
+  flex-direction: column;
+}
+
+.tl-rail-row {
+  display: grid;
+  grid-auto-flow: column;
+  justify-content: center;
+}
+
+.tl-rail.is-scrolling {
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  mask-image: linear-gradient(90deg, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+}
+
+.tl-rail.is-scrolling::-webkit-scrollbar {
+  display: none;
+}
+
+.tl-rail-column {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+}
+
+/* A tile: 32 pt glyph circle, 6 between it and a two-line 10 pt title. */
+
+.tl-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 0;
+  border-radius: 13px;
+}
+
+.tl-glyph {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.065);
+  color: rgba(255, 255, 255, 0.85);
+  transition:
+    background-color 0.15s ease-out,
+    transform 0.28s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.tl-cell:hover .tl-glyph,
+.tl-cell.is-selected .tl-glyph {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.tl-cell:active .tl-glyph {
+  transform: scale(0.965);
+  opacity: 0.8;
+}
+
+.tl-glyph.is-active {
+  color: #0a84ff;
+}
+
+.tl-glyph.is-muted {
+  color: #ff453a;
+}
+
+.tl-active-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #30d158;
+}
+
+.tl-cell-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: calc(2 * 1.25em);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: center;
+  color: #fff;
+}
+
+.tl-empty {
+  display: grid;
+  place-items: center;
+  padding: 26px 0;
+  box-sizing: border-box;
+  font-size: 11px;
+  color: var(--n-dim);
+  text-align: center;
+}
+
+/* Edit mode: hint, five-column grid, options card, "Add back" tray. */
+
+.tl-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.tl-edit::-webkit-scrollbar {
+  display: none;
+}
+
+.tl-edit > * {
+  flex: none;
+}
+
+.tl-hint {
+  margin: 0;
+  font-size: 9.5px;
+  color: var(--n-dim);
+  text-align: center;
+}
+
+.tl-edit-grid {
+  display: grid;
+  padding-top: 7px;
+}
+
+.tl-edit-cell {
+  position: relative;
+  touch-action: none;
+}
+
+.tl-edit-cell.is-moving {
+  opacity: 0.55;
+}
+
+.tl-minus {
+  position: absolute;
+  top: -3px;
+  left: calc(50% + 16px - 7px);
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ff453a;
+  color: #fff;
+}
+
+.tl-gear {
+  position: absolute;
+  top: -7px;
+  left: -7px;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.55);
+  color: #000;
+  pointer-events: none;
+}
+
+.tl-gear.is-open {
+  background: #0a84ff;
+  color: #fff;
+}
+
+.tl-tray {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.tl-tray-title {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--n-dim);
+}
+
+.tl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.tl-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #000;
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.tl-chip:hover {
+  background: #1c1c1e;
+}
+
+.tl-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  background: #000;
+  font-size: 11px;
+}
+
+.tl-options-head,
+.tl-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tl-options-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  color: var(--n-dim);
+}
+
+.tl-options-close {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  color: #000;
+}
+
+.tl-segmented {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 2px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tl-segmented button {
+  height: 20px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--n-dim);
+}
+
+.tl-segmented button.is-on {
+  background: rgba(255, 255, 255, 0.22);
+  color: #fff;
+}
+
+/* The way back while a utility is open (NotchBandBackButton). */
+
+.tl-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 8px 0 4px;
+  margin-left: -4px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tl-back:hover {
+  background: var(--n-wash);
+}
+
+/* Quick toggles */
+
+.tl-toggles {
+  display: flex;
+  flex-direction: column;
+}
+
+.tl-toggles-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.tl-toggles-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.tl-toggle-group {
+  display: flex;
+  flex-direction: column;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.065);
+  overflow: hidden;
+}
+
+.tl-toggle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 7px 12px;
+  text-align: left;
+  transition: background-color 0.15s ease-out;
+}
+
+.tl-toggle + .tl-toggle {
+  box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.08);
+}
+
+.tl-toggle:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.tl-toggle:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tl-toggle:disabled {
+  opacity: 0.6;
+}
+
+.tl-toggle-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.tl-toggle.is-running .tl-toggle-icon svg {
+  animation: tl-spin 0.9s linear infinite;
+}
+
+@keyframes tl-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.tl-toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.tl-toggle-title {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.tl-toggle-caption {
+  font-size: 10.5px;
+  color: var(--n-dim);
+}
+
+.tl-toggle-caption.is-news {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.tl-toggle.is-failed .tl-toggle-caption {
+  color: #ff9f0a;
+}
+
+/* A question asked inside the island. */
+
+.tl-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.6);
+  animation: tl-fade 0.15s ease-out;
+}
+
+.tl-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(300px, 100%);
+  padding: 14px;
+  box-sizing: border-box;
+  border-radius: 14px;
+  background: #1c1c1e;
+  box-shadow: 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+  animation: tl-rise 0.18s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.tl-sheet-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tl-sheet-message {
+  font-size: 11.5px;
+  color: var(--n-dim);
+}
+
+.tl-sheet-field {
+  width: 100%;
+  box-sizing: border-box;
+  height: 26px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+.tl-sheet-field:focus {
+  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.6);
+}
+
+.tl-sheet-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.tl-sheet-button {
+  height: 26px;
+  padding: 0 12px;
+  border-radius: 13px;
+  font-size: 12px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.tl-sheet-button:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.tl-sheet-button.is-default {
+  background: #0a84ff;
+  font-weight: 600;
+}
+
+.tl-sheet-button.is-destructive {
+  background: #ff453a;
+}
+
+.tl-sheet-button:disabled {
+  opacity: 0.4;
+}
+
+@keyframes tl-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes tl-rise {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tl-glyph,
+  .tl-toggle {
+    transition: none;
+  }
+
+  .tl-cell:active .tl-glyph {
+    transform: none;
+  }
+
+  .tl-sheet-backdrop,
+  .tl-sheet,
+  .tl-toggle.is-running .tl-toggle-icon svg {
+    animation: none;
+  }
+}

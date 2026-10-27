@@ -8,7 +8,7 @@
 // window takes the pointer.
 
 import { type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
-import { useIsland } from "../store";
+import { useIsland, visibleActivity } from "../store";
 import { bridge, type HitRect } from "../../shared/bridge";
 import { type Geometry, hitShape, islandPath } from "../geometry";
 import { MotionTimeline, type Size } from "../motion";
@@ -40,6 +40,10 @@ export function IslandSurface(props: {
 }) {
   const { geometry, target, children } = props;
   const outline = useIsland((s) => s.settings.outline);
+  // The outline turns system orange while the timer has the closed island (NotchService.swift:2837-2838).
+  const timerShown = useIsland(
+    (s) => !s.expanded && !s.notice && !s.peeking && !s.dropHint && visibleActivity(s) === "timer",
+  );
   const clipId = `island-clip-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const frameRef = useRef<HTMLDivElement>(null);
   const drawn = useRef<Size>(target);
@@ -134,7 +138,13 @@ export function IslandSurface(props: {
         {/* Settings › Layout › Show outline: a 2 pt stroke of which only the
             inner 1 pt shows, white at 65% (spec 01-shell §1.8). */}
         {outline ? (
-          <path d={d} fill="none" stroke="rgba(255,255,255,0.65)" strokeWidth={2} clipPath={`url(#${clipId})`} />
+          <path
+            d={d}
+            fill="none"
+            stroke={timerShown ? "rgba(255,159,10,0.65)" : "rgba(255,255,255,0.65)"}
+            strokeWidth={2}
+            clipPath={`url(#${clipId})`}
+          />
         ) : null}
       </svg>
       <div className="island-content" style={{ clipPath: `path("${d}")` }}>

@@ -79,6 +79,14 @@ pub struct IslandState {
     previous_foreground: Mutex<isize>,
 }
 
+impl IslandState {
+    /// Whether a point in the window's CSS pixels is on the island's shape.
+    #[cfg_attr(not(windows), allow(dead_code))]
+    pub fn contains(&self, x: f64, y: f64) -> bool {
+        self.rects.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter().any(|r| r.contains(x, y))
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq, Default)]
 #[serde(rename_all = "camelCase")]
 pub enum DisplayChoice {
@@ -113,6 +121,9 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>>
         .skip_taskbar(true)
         .focused(false)
         .visible(false)
+        // The Files shelf registers its own drop target, which also takes
+        // text and links (files::drop_target; spec 05 §6.4).
+        .disable_drag_drop_handler()
         .build()?;
     place(&window, DisplayChoice::Primary)?;
     window.set_ignore_cursor_events(true)?;
@@ -207,7 +218,9 @@ fn watch_pointer<R: Runtime>(app: AppHandle<R>) {
                 continue;
             };
             let state = app.state::<IslandState>();
-            let inside = state.rects.lock().unwrap().iter().any(|r| r.contains(x, y));
+            // A screen selection covers the display: the island stays out of it.
+            let selecting = app.get_webview_window(crate::capture::LABEL).is_some();
+            let inside = !selecting && state.rects.lock().unwrap().iter().any(|r| r.contains(x, y));
             let wants_input = inside || *state.capture.lock().unwrap();
             if wants_input != taking_input {
                 taking_input = wants_input;
@@ -263,6 +276,14 @@ pub fn island_set_focusable<R: Runtime>(
     let window = app.get_webview_window(LABEL).ok_or("no island window")?;
     platform::set_focusable(&window, &state, focusable, take);
     Ok(())
+}
+
+/// The window that had the keyboard before the island took it (0 for none),
+/// where the clipboard pastes an entry.
+#[cfg(windows)]
+pub fn previous_foreground<R: Runtime>(app: &AppHandle<R>) -> isize {
+    app.try_state::<IslandState>()
+        .map_or(0, |state| *state.previous_foreground.lock().unwrap())
 }
 
 /// Settings › Behavior › Show in screenshots.

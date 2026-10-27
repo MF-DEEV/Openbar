@@ -25,6 +25,15 @@ import { DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/D
 import { bridge, type AttentionContext } from "../shared/bridge";
 import { DeferredSessionAttention } from "../sessions/attention";
 import { MicrophoneStrip, subscribeMicrophone } from "../microphone/Microphone";
+import "../timer/register";
+import "../system/register";
+import "../calendar/register";
+import "../controls/register";
+import "../tools/register";
+import "../clipboard/register";
+import "../files/register";
+import "../agents/register";
+import "../watch/register";
 
 activityViews.microphone = MicrophoneStrip;
 void subscribeMicrophone();

@@ -23,3 +23,6 @@ dist-ssr
 *.sln
 *.sw?
 *.tsbuildinfo
+
+# The signed identity package (tools/package-identity/build-sparse.ps1)
+packaging/out/

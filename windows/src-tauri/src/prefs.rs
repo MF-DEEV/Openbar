@@ -152,7 +152,6 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
     };
     shortcut(app, flag("/island/shortcutEnabled", true));
     crate::fullscreen::set_hides(flag("/island/hideInFullscreen", true));
-    crate::island::show_in_captures(app, flag("/island/showInCaptures", true));
     let notifications_hidden = value
         .pointer("/island/hiddenModules")
         .and_then(Value::as_array)
@@ -163,6 +162,7 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
             && flag("/island/sections/notifications", true)
             && !notifications_hidden,
     );
+    crate::calendar::apply(app, before, value);
     let previews = value
         .pointer("/sessions/previews")
         .and_then(Value::as_bool)
@@ -170,6 +170,9 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
     if let Some(service) = app.try_state::<crate::sessions::service::Shared>() {
         service.set_previews(previews);
     }
+    crate::clipboard::apply_prefs(app, before, value);
+    // Also applies Show in screenshots, which a watched display region overrides.
+    crate::watch::apply_prefs(app);
 }
 
 /// Registers Ctrl+Alt+Space or lets it go. Taken by another app, the island

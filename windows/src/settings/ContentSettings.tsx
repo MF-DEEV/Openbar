@@ -13,6 +13,12 @@ import { t, type StringKey } from "../i18n";
 import { MODULES, type ModuleId, visibleModules } from "../island/modules";
 import { DEFAULT_QUICK_ACCESS, sectionEnabled } from "../island/settings";
 import { SessionsOptions } from "./SessionsSettings";
+import { SystemOptions } from "./SystemSettings";
+import { CalendarOptions } from "./CalendarSettings";
+import { ControlsOptions, MixerOptions } from "./ControlsSettings";
+import { ScratchpadOptions, ToolsOptions } from "./ToolsSettings";
+import { ClipboardOptions } from "./ClipboardSettings";
+import { AgentsOptions } from "./AgentsSettings";
 import { useSettings } from "./state";
 import { T } from "./strings";
 import { Expander, Group, Page, Row, Select, SubRow, Toggle } from "./ui";
@@ -124,7 +130,23 @@ function QuickAccessSettings() {
 const OWN_SWITCH: ModuleId[] = ["timer", "camera", "calendar", "notifications", "agents", "sessions", "watch"];
 
 /** What the Windows island already has; the rest show "coming to Windows". */
-const ON_WINDOWS: ModuleId[] = ["music", "notifications", "sessions", "downloads"];
+const ON_WINDOWS: ModuleId[] = [
+  "music",
+  "notifications",
+  "sessions",
+  "downloads",
+  "timer",
+  "system",
+  "calendar",
+  "controls",
+  "mixer",
+  "tools",
+  "scratchpad",
+  "clipboard",
+  "files",
+  "agents",
+  "watch",
+];
 
 function DownloadOptions() {
   const folders = useSettings((s) => s.prefs.island.downloadFolders);
@@ -168,6 +190,16 @@ function Options({ id }: { id: ModuleId }) {
       return <DownloadOptions />;
     case "sessions":
       return <SessionsOptions />;
+    case "system":
+      return <SystemOptions />;
+    case "tools":
+      return <ToolsOptions />;
+    case "scratchpad":
+      return <ScratchpadOptions />;
+    case "clipboard":
+      return <ClipboardOptions />;
+    case "agents":
+      return <AgentsOptions />;
     case "music":
       return (
         <>
@@ -182,6 +214,59 @@ function Options({ id }: { id: ModuleId }) {
       );
     case "notifications":
       return <p className="st-note">{T.content.notificationsCaption}</p>;
+    case "timer":
+      return (
+        <>
+          <SubRow title={T.content.hideTimerCountdown} caption={T.content.hideTimerCountdownCaption}>
+            <Toggle
+              label={T.content.hideTimerCountdown}
+              checked={island.hideTimerCountdown}
+              onChange={(on) => set("hideTimerCountdown", on)}
+            />
+          </SubRow>
+          <SubRow title={T.content.timerSound} caption={T.content.timerSoundCaption}>
+            <Toggle
+              label={T.content.timerSound}
+              checked={island.timerSoundEnabled}
+              onChange={(on) => set("timerSoundEnabled", on)}
+            />
+          </SubRow>
+        </>
+      );
+    case "files":
+      return (
+        <>
+          <SubRow title={T.content.dragReveal} caption={T.content.dragRevealCaption}>
+            <Toggle label={T.content.dragReveal} checked={island.dragReveal} onChange={(on) => set("dragReveal", on)} />
+          </SubRow>
+          <SubRow title={T.content.shelfRemoveAfterDrop} caption={T.content.shelfRemoveAfterDropCaption}>
+            <Toggle
+              label={T.content.shelfRemoveAfterDrop}
+              checked={island.shelfRemoveAfterDrop}
+              onChange={(on) => set("shelfRemoveAfterDrop", on)}
+            />
+          </SubRow>
+          <SubRow title={T.content.shelfCloseAfterDrop} caption={T.content.shelfCloseAfterDropCaption}>
+            <Toggle
+              label={T.content.shelfCloseAfterDrop}
+              checked={island.shelfCloseAfterDrop}
+              onChange={(on) => set("shelfCloseAfterDrop", on)}
+            />
+          </SubRow>
+        </>
+      );
+    case "calendar":
+      return <CalendarOptions />;
+    case "watch":
+      return (
+        <SubRow title={T.content.watchSound} caption={T.content.watchSoundCaption}>
+          <Toggle label={T.content.watchSound} checked={island.watchSound} onChange={(on) => set("watchSound", on)} />
+        </SubRow>
+      );
+    case "controls":
+      return <ControlsOptions />;
+    case "mixer":
+      return <MixerOptions />;
     default:
       return <p className="st-note">{T.content.noOptions}</p>;
   }
