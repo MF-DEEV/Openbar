@@ -54,7 +54,15 @@ const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
   opening: ["click", "hoverPreview", "hoverExpand", "hiddenUntilHover"],
   // "all" is a Mac choice the Windows island doesn't have yet.
   display: ["primary", "cursor"],
+  colorPickerFormat: ["hex", "rgb", "hsl"],
+  scratchpadRetention: ["never", "day", "week", "month"],
 };
+
+/** Lists of ids or names: strings only, each once. */
+function stringList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return [...new Set(value.filter((v): v is string => typeof v === "string" && v.trim().length > 0))];
+}
 
 const KNOWN = new Set<string>(MODULES.map((m) => m.id));
 
@@ -114,6 +122,12 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
       downloadFolders: Array.isArray(raw.downloadFolders)
         ? raw.downloadFolders.filter((v): v is string => typeof v === "string" && v.length > 0)
         : [],
+      ...Object.fromEntries(
+        (["toolsOrder", "toolsHidden", "togglesOrder", "togglesHidden", "ejectExcluded"] as const).map((key) => [
+          key,
+          stringList(raw[key]) ?? [],
+        ]),
+      ),
       capsuleFit: { ...DEFAULT_SETTINGS.capsuleFit, ...checked(DEFAULT_SETTINGS.capsuleFit, raw.capsuleFit) },
       sections: { ...DEFAULT_SETTINGS.sections, ...sectionSwitches(raw.sections) },
     },

@@ -25,6 +25,10 @@ if (!inTauri && new URLSearchParams(location.search).has("music")) {
   });
 }
 
+if (!inTauri && new URLSearchParams(location.search).has("tools")) {
+  void import("../tools/demo").then((demo) => demo.startToolsDemo(new URLSearchParams(location.search).get("tools")));
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     {dev?.has("clawd") ? (

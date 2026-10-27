@@ -23,6 +23,8 @@ export interface QuickButton {
 export type OpeningMode = "click" | "hoverPreview" | "hoverExpand" | "hiddenUntilHover";
 export type DisplayChoice = "primary" | "cursor" | "all";
 export type HomeDestination = ModuleId | "explore";
+export type ColorPickerFormat = "hex" | "rgb" | "hsl";
+export type ScratchpadRetention = "never" | "day" | "week" | "month";
 
 export interface IslandSettings {
   enabled: boolean;
@@ -64,6 +66,20 @@ export interface IslandSettings {
   downloadProgress: boolean;
   microphoneStatus: boolean;
   downloadFolders: string[];
+  /** Tools: the grid's order and hidden tools (quickLauncherItemOrder / quickLauncherHiddenItems). */
+  toolsOrder: string[];
+  toolsHidden: string[];
+  /** The colour picker copies in this format (colorPickerFormat); bare hex drops the # (colorPickerBareHex). */
+  colorPickerFormat: ColorPickerFormat;
+  colorPickerBareHex: boolean;
+  /** Quick toggles: row order (panelToggleOrder) and the rows switched off (panelToggle*). */
+  togglesOrder: string[];
+  togglesHidden: string[];
+  /** Volumes "Eject all disks" leaves alone, by label or drive (diskEjectExcludedVolumes). */
+  ejectExcluded: string[];
+  /** Scratchpad text size, 10–22 (scratchpadTextSize), and when unused text clears (scratchpadRetention). */
+  scratchpadTextSize: number;
+  scratchpadRetention: ScratchpadRetention;
 }
 
 export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
@@ -110,6 +126,15 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   downloadProgress: true,
   microphoneStatus: true,
   downloadFolders: [],
+  toolsOrder: [],
+  toolsHidden: [],
+  colorPickerFormat: "hex",
+  colorPickerBareHex: false,
+  togglesOrder: [],
+  togglesHidden: [],
+  ejectExcluded: [],
+  scratchpadTextSize: 13,
+  scratchpadRetention: "never",
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

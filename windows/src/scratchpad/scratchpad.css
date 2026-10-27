@@ -1,0 +1,245 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* The Scratchpad section (NotchScratchpadView.swift). Sizes in points from the Mac. */
+
+.sp-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+
+.sp-save-failed {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.sp-surface {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.sp-editor {
+  display: block;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 6px 11px;
+  border: 0;
+  outline: none;
+  resize: none;
+  background: transparent;
+  color: #fff;
+  caret-color: #fff;
+  font: inherit;
+  font-size: 1em;
+  line-height: 1.38;
+  user-select: text;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.sp-editor::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* The formatted reading. */
+
+.sp-preview {
+  height: 100%;
+  box-sizing: border-box;
+  padding: 6px 11px;
+  overflow-y: auto;
+  line-height: 1.38;
+  user-select: text;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.sp-preview > :first-child {
+  margin-top: 0;
+}
+
+.sp-preview p,
+.sp-preview ul,
+.sp-preview ol,
+.sp-preview blockquote,
+.sp-preview pre {
+  margin: 0 0 0.5em;
+}
+
+.sp-preview h1,
+.sp-preview h2,
+.sp-preview h3 {
+  margin: 0.4em 0 0.3em;
+  line-height: 1.2;
+}
+
+.sp-preview h1 {
+  font-size: 1.6em;
+}
+
+.sp-preview h2 {
+  font-size: 1.35em;
+}
+
+.sp-preview h3 {
+  font-size: 1.15em;
+}
+
+.sp-preview ul,
+.sp-preview ol {
+  padding-left: 1.4em;
+}
+
+.sp-preview li.task-list-item {
+  list-style: none;
+  margin-left: -1.2em;
+}
+
+.sp-preview input[type="checkbox"] {
+  margin: 0 0.4em 0 0;
+  vertical-align: -0.1em;
+  accent-color: #0a84ff;
+}
+
+.sp-preview blockquote {
+  padding-left: 0.8em;
+  border-left: 2px solid rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.sp-preview code {
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 0.92em;
+  padding: 0.05em 0.3em;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.sp-preview pre code {
+  display: block;
+  padding: 0.5em 0.7em;
+  overflow-x: auto;
+}
+
+.sp-preview a {
+  color: #64d2ff;
+}
+
+.sp-preview hr {
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Top row: tabs and a new pad on the left, the pad's actions on the right. */
+
+.sp-leading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.sp-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.sp-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.sp-tab {
+  display: flex;
+  align-items: center;
+  flex: none;
+  height: 22px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  touch-action: none;
+  transition: background-color 0.15s ease-out;
+}
+
+.sp-tab:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.sp-tab.is-selected {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.sp-tab.is-moving {
+  opacity: 0.6;
+}
+
+.sp-tab-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 10px;
+  border-radius: 11px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.sp-tab.is-selected .sp-tab-label {
+  padding-right: 8px;
+}
+
+.sp-tab:has(.sp-tab-close) .sp-tab-label {
+  padding-right: 0;
+}
+
+.sp-tab-name {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sp-tab-close {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  margin: 0 5px 0 4px;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.sp-tab-close:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.sp-trailing {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sp-leading .n-icon-button:disabled,
+.sp-trailing .n-icon-button:disabled {
+  opacity: 0.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sp-tab {
+    transition: none;
+  }
+}

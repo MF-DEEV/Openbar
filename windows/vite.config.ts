@@ -9,13 +9,14 @@ const host = process.env.TAURI_DEV_HOST;
 export default defineConfig(() => ({
   plugins: [react()],
 
-  // One page per window: the island, the menu bar and the settings window.
+  // One page per window: the island, the menu bar, the settings window and the screen selection.
   build: {
     rollupOptions: {
       input: {
         island: resolve(import.meta.dirname, "island.html"),
         settings: resolve(import.meta.dirname, "settings.html"),
         bar: resolve(import.meta.dirname, "bar.html"),
+        capture: resolve(import.meta.dirname, "capture.html"),
       },
     },
   },
