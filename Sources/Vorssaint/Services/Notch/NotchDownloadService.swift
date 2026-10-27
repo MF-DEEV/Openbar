@@ -130,16 +130,33 @@ final class NotchDownloadService: ObservableObject {
         chosen = []
         missing = []
         scopes = []
-        for data in saved {
+        var renewed = saved
+        for (index, data) in saved.enumerated() {
             var stale = false
             guard let url = try? URL(resolvingBookmarkData: data,
                                      options: [.withSecurityScope, .withoutUI, .withoutMounting],
-                                     relativeTo: nil, bookmarkDataIsStale: &stale), !stale, url.isFileURL else {
+                                     relativeTo: nil, bookmarkDataIsStale: &stale), url.isFileURL else {
                 missing.append(data)
                 continue
             }
             if url.startAccessingSecurityScopedResource() { scopes.append(url) }
-            chosen.append((url, data))
+            // A moved or renamed folder resolves stale: keep it under a fresh
+            // bookmark, made while its access is still held.
+            if stale {
+                guard let fresh = try? url.bookmarkData(options: .withSecurityScope,
+                                                        includingResourceValuesForKeys: nil, relativeTo: nil) else {
+                    missing.append(data)
+                    continue
+                }
+                renewed[index] = fresh
+                chosen.append((url, fresh))
+            } else {
+                chosen.append((url, data))
+            }
+        }
+        if renewed != saved {
+            bookmarks = renewed
+            UserDefaults.standard.set(renewed, forKey: DefaultsKey.notchDownloadsFolderBookmarks)
         }
         // Let an already-running file read finish before releasing its scope.
         if !released.isEmpty { queue.async { released.forEach { $0.stopAccessingSecurityScopedResource() } } }
@@ -158,7 +175,12 @@ final class NotchDownloadService: ObservableObject {
                 self.apply(found)
                 // Looks begun close together each finish here; keep one timer.
                 self.discovery?.cancel()
-                let work = DispatchWorkItem { [weak self] in self?.discoverFolders() }
+                let work = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    // A disk mounted again lets its chosen folder resolve.
+                    if !self.missing.isEmpty { self.resolveChosenFolders(self.bookmarks) }
+                    self.discoverFolders()
+                }
                 self.discovery = work
                 DispatchQueue.main.asyncAfter(deadline: .now() + Self.discoveryInterval, execute: work)
             }
@@ -177,6 +199,17 @@ final class NotchDownloadService: ObservableObject {
             if !folder.unavailable, unreadable.contains(key) { folder.unavailable = true }
             if !folder.unavailable { wanted.insert(key) }
             listed.append(folder)
+        }
+        // A folder just found unreadable can share its path with a chosen
+        // one that did not resolve; one row says both.
+        var rows: [String: Int] = [:]
+        listed = listed.reduce(into: []) { result, folder in
+            if let row = rows[folder.id] {
+                result[row].sources += folder.sources.filter { !result[row].sources.contains($0) }
+            } else {
+                rows[folder.id] = result.count
+                result.append(folder)
+            }
         }
         let ended = Set(watches.keys).subtracting(wanted)
         for key in ended { endWatching(key) }
@@ -445,22 +478,27 @@ final class NotchDownloadService: ObservableObject {
             DispatchQueue.main.async {
                 guard let self, self.generation == id else { return }
                 self.scanning = false
-                self.partials = current.partials
-                self.folderItems = current.files
-                let watched = Set(current.partials.values.flatMap { [$0.url] + [$0.contentURL].compactMap { $0 } })
+                // A folder can leave while its scan runs; what it held left with it.
+                let live = Set(self.watchedFolders.map(\.path))
+                let unfinished = failed.filter { live.contains($0.folderPath) }
+                self.partials = current.partials.filter { live.contains($0.value.folderPath) }
+                self.folderItems = current.files.filter {
+                    live.contains($0.url.deletingLastPathComponent().standardizedFileURL.path)
+                }
+                let watched = Set(self.partials.values.flatMap { [$0.url] + [$0.contentURL].compactMap { $0 } })
                 let removed = Set(self.fileSources.keys).subtracting(watched)
                 for url in removed { self.fileSources.removeValue(forKey: url)?.cancel() }
                 for url in watched where self.fileSources[url] == nil {
                     self.fileSources[url] = self.watch(url, directory: false)
                 }
                 completed.forEach(self.recordCompletion)
-                if !failed.isEmpty {
+                if !unfinished.isEmpty {
                     // The publisher may finish just after its partial vanishes.
                     // Wait for its evidence, never for an unrelated arrival.
                     self.queue.asyncAfter(deadline: .now() + 2) { [weak self] in
-                        let unfinished = failed.contains { observers[$0.folderPath]?.didFinish($0) != true }
+                        let failed = unfinished.contains { observers[$0.folderPath]?.didFinish($0) != true }
                         DispatchQueue.main.async {
-                            guard let self, self.generation == id, unfinished else { return }
+                            guard let self, self.generation == id, failed else { return }
                             self.onFailure?()
                         }
                     }

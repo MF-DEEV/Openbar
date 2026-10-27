@@ -51,6 +51,7 @@ enum NotchDownloadScanTests {
     static func run(_ suite: TestSuite, folder: URL) throws {
         try concurrentDownloads(suite, folder: folder)
         try severalFolders(suite, folder: folder)
+        try folderLeavingDuringScan(suite, folder: folder)
         for completion in ["before", "after", "cancelled", "unknown", "stopped"] {
             try archive(suite, folder: folder, completion: completion)
         }
@@ -129,6 +130,38 @@ enum NotchDownloadScanTests {
         let deadline = Date().addingTimeInterval(2.2)
         _ = wait { Date() >= deadline }
         suite.expect(failures == 0, "a partial in a folder that vanished or cannot be read is not called a failure")
+    }
+
+    /// A folder that stops being watched while its scan runs does not come
+    /// back with the result, and its partial never counts as failed later.
+    private static func folderLeavingDuringScan(_ suite: TestSuite, folder: URL) throws {
+        let fm = FileManager.default
+        let kept = folder.appendingPathComponent("leaving-kept", isDirectory: true)
+        let leaving = folder.appendingPathComponent("leaving-gone", isDirectory: true)
+        try fm.createDirectory(at: kept, withIntermediateDirectories: false)
+        try fm.createDirectory(at: leaving, withIntermediateDirectories: false)
+        let partial = leaving.appendingPathComponent("late.zip.part")
+        try Data([1]).write(to: partial)
+        try Data([2]).write(to: leaving.appendingPathComponent("listed.txt"))
+        let service = Service()
+        service.folder = kept
+        service.extraFolders = [leaving]
+        var failures = 0
+        service.onFailure = { failures += 1 }
+        defer { service.stop(); service.queue.sync {} }
+        service.scan()
+        // Unwatched before the scan's result reaches the main queue.
+        service.extraFolders = []
+        suite.expect(wait { service.refreshes > 0 && !service.scanning },
+                     "the scan begun with both folders finishes")
+        suite.expect(service.partials.isEmpty && service.folderItems.isEmpty,
+                     "a folder unwatched during its scan brings back neither its partials nor its files")
+        try fm.removeItem(at: partial)
+        service.scan()
+        _ = wait { !service.scanning && service.refreshes > 1 }
+        let deadline = Date().addingTimeInterval(2.2)
+        _ = wait { Date() >= deadline }
+        suite.expect(failures == 0, "a partial of a folder no longer watched is never called a failure")
     }
 
     private static func archive(_ suite: TestSuite, folder: URL, completion: String) throws {

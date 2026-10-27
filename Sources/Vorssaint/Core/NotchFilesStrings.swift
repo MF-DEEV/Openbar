@@ -33,7 +33,7 @@ extension FeatureStrings {
             archiveHint: "Each selected item is saved as a separate ZIP. Originals stay unchanged.",
             saved: "Saved",
             downloadsTitle: "Downloads",
-            downloadsDescription: "See files arriving in your Downloads folder, your browsers' download folders and any folder you add, directly in the Dynamic Island.",
+            downloadsDescription: "See files arriving in your Downloads folder, your browsers’ download folders and any folder you add, directly in the Dynamic Island.",
             downloadsHint: "Watches your Downloads folder and the folders your browsers save to. Add any other folder where downloads arrive.",
             addFolder: "Add Folder…",
             addFolderHint: "Choose a folder where downloads arrive. It is watched alongside your Downloads folder.",
