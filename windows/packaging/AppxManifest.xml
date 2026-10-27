@@ -2,10 +2,12 @@
 <!--
   A sparse package: no files of its own, only an identity for Vorssaint.exe,
   which stays where the installer put it (the external location). Windows
-  lets an app with an identity ask for the notification listener, which the
-  island's Notifications section needs. Register it with
+  lets an app with an identity ask for the notification listener (the
+  Notifications section) and read the appointment store (the Calendar
+  section). Register it with
     Add-AppxPackage -Register AppxManifest.xml -ExternalLocation <exe folder>
-  (developer mode), or install the signed .msix the installer carries.
+  (developer mode), or install the signed .msix the installer carries
+  (tools/package-identity/build-sparse.ps1 makes it; the Version is set there).
 -->
 <Package
   xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
@@ -35,6 +37,7 @@
     </Application>
   </Applications>
   <Capabilities>
+    <uap:Capability Name="appointments" />
     <uap3:Capability Name="userNotificationListener" />
     <rescap:Capability Name="runFullTrust" />
   </Capabilities>

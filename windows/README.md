@@ -39,7 +39,8 @@ To remove it, use **Settings › Apps › Installed apps › Vorssaint › Unins
 - **Now Playing.** Whatever plays in Spotify, a browser or Media Player shows beside the camera with its cover and moving bars. Open it to see the song, scrub, shuffle and control playback. Media keys keep working as usual.
 - **Microphone Status.** Muting in Discord shows a red microphone; deafening shows both red headphones and a red microphone, with a short animated notice when muted or unmuted. The unmute notice disappears after three seconds; an active, unmuted microphone has no persistent indicator. Toggle this in **Activity › Microphone Status**. Visible Discord controls in Polish or English provide live mute/deafen state. While Discord is minimized or hidden in the tray, the island follows the mute/deafen shortcuts configured in Discord, including supported keyboard and mouse combinations. It observes those combinations without registering or intercepting them. Returning to Discord synchronizes the state with its controls. The app reads the local keybind configuration without changing it. Browser Discord is not monitored. No audio is recorded and no Discord login or token is needed.
 - **Download progress.** New file transfers show a small live indicator. Click it to open a Downloads page with file icons, names and transferred MB; download details never pop up automatically. The app watches the Windows Downloads folder, configured Brave, Chrome, Edge, Vivaldi, Opera and Firefox download folders, plus folders added in **Content › Downloads**. Other programs writing to those folders are supported too. Chromium browsers provide total sizes when available; other transfers show received bytes and an indeterminate indicator. File copies in these folders also appear. Subfolders, protected application caches and downloads outside monitored folders are not scanned. Turn monitoring off in **Activity › Download progress**. Only local metadata and the browser's download records are read; file contents and browsing URLs are not collected.
-- **Notifications (requires package identity).** Discord, Messenger and other Windows notifications show the app icon, app name and sender, without message text. Discord's Do Not Disturb and muted chats follow its desktop notifications. See [setup and current installer limitation](docs/notifications.md).
+- **Notifications (requires package identity).** Discord, Messenger and other Windows notifications show the app icon, app name and sender, without message text. Discord's Do Not Disturb and muted chats follow its desktop notifications. See [package identity and setup](docs/notifications.md).
+- **Calendar (requires package identity).** The week as a strip, or the month beside your agenda on a tall island, with every appointment from the Windows Calendar app and classic Outlook. In the hour before a meeting the closed island counts down to it (**Content › Calendar › Event countdown**, or right-click one appointment and choose **Add Countdown**). Windows asks once for calendar access. The new Outlook keeps its calendar to itself, so its appointments don't show.
 - **Claude Code and Codex sessions.** Every session running on your PC, in one list. Each shows its folder, branch and what it's doing: working, running a tool, waiting for you, or done.
   - **Allow from the island.** On the desktop, a session that needs approval opens with the whole command in view. While another app or a game is in front, it stays in the small waiting-hand indicator without taking focus. Returning to the desktop checks all still-pending requests, including ones that were waiting before the app started. Allow, Deny or Always.
   - **Answer questions.** Pick one of the answers a session offers, or write your own.
@@ -65,8 +66,8 @@ Nothing to install. While Codex runs, the island talks to the app server Codex s
 
 ## Not yet
 
-- Timer, calendar, clipboard, captures, files, system, tools, camera, scratchpad, AI usage and Watch show "Coming to Windows soon".
-- Mirroring Windows notifications needs a signed package, which this installer doesn't carry yet. Its page says so.
+- Timer, clipboard, captures, files, system, tools, camera, scratchpad, AI usage and Watch show "Coming to Windows soon".
+- Notifications and Calendar need the signed identity package. Only installers built with it (see below) carry it; without it their pages say so.
 - There are no automatic updates. To update, run the newer installer over the old one; your settings stay.
 - The settings window is in English.
 - Codex sessions are tested end to end on Windows. Claude Code sessions use the same island, but their hooks and replies typed into Windows Terminal haven't been tested end to end on Windows yet.
@@ -87,6 +88,24 @@ The installer lands in `src-tauri/target/release/bundle/nsis/`. The installers i
 bunx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc
 bunx tauri build --runner cargo-xwin --target aarch64-pc-windows-msvc
 ```
+
+### The identity package
+
+Notifications and Calendar need a package identity, which a signed sparse package lends `Vorssaint.exe`. Build it once per release on Windows with the Windows SDK; the signing key stays outside the repository:
+
+```powershell
+$env:VORSSAINT_SIGNING_PFX = 'C:\keys\vorssaint-signing.pfx'
+$env:VORSSAINT_SIGNING_PASSWORD = '…'
+.\tools\package-identity\build-sparse.ps1 -NewCertificate   # the first time only; later runs reuse the PFX
+```
+
+From the Mac, `tools/package-identity/build-sparse-vm.sh` runs the same script in the build VM and copies the result back. Either way `packaging/out` gets `Vorssaint.msix` and `Vorssaint.cer`, and an installer built with
+
+```sh
+bunx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --config src-tauri/tauri.identity.conf.json
+```
+
+carries them. See [docs/notifications.md](docs/notifications.md) for what the installer does with them.
 
 For a local update of an existing Windows installation, build with `bun run tauri build --no-bundle`, then run:
 
