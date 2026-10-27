@@ -38,6 +38,8 @@ image = { version = "0.25", default-features = false, features = ["png", "bmp"] 
 [target.'cfg(windows)'.dependencies]
 uds_windows = "1"
 widestring = "1"
+# The `interface` and `implement` macros expand to `::windows_core` paths.
+windows-core = "0.62"
 windows = { version = "0.62", features = [
   "ApplicationModel",
   "ApplicationModel_Appointments",
@@ -51,6 +53,7 @@ windows = { version = "0.62", features = [
   "UI",
   "UI_Notifications",
   "UI_Notifications_Management",
+  "Win32_Devices_Display",
   "Win32_Foundation",
   "Win32_Globalization",
   "Win32_Graphics_Gdi",
@@ -65,14 +68,17 @@ windows = { version = "0.62", features = [
   "Win32_System_Console",
   "Win32_System_DataExchange",
   "Win32_System_Memory",
+  "Win32_System_Power",
   "Win32_System_Diagnostics_ToolHelp",
   "Win32_System_Registry",
   "Win32_System_Threading",
   "Win32_System_WindowsProgramming",
   "Win32_System_Time",
+  "Win32_System_Wmi",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_Accessibility",
   "Win32_UI_Shell",
+  "Win32_UI_Shell_PropertiesSystem",
   "Win32_UI_WindowsAndMessaging",
   "Wdk_System_SystemInformation",
   "Win32_Devices_Bluetooth",
@@ -81,7 +87,6 @@ windows = { version = "0.62", features = [
   "Win32_NetworkManagement_IpHelper",
   "Win32_NetworkManagement_Ndis",
   "Win32_System_Performance",
-  "Win32_System_Power",
   "Win32_System_SystemInformation",
 ] }
 

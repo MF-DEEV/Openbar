@@ -49,6 +49,11 @@ if (!inTauri && new URLSearchParams(location.search).has("calendar")) {
   );
 }
 
+// ?controls fills Controls and the Mixer with sample audio.
+if (!inTauri && new URLSearchParams(location.search).has("controls")) {
+  void import("../controls/demo").then((demo) => demo.fillDemo());
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     {dev?.has("clawd") ? (

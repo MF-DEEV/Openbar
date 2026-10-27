@@ -9,6 +9,7 @@
 import type { LayoutPreset, Silhouette } from "./geometry";
 import type { ModuleId } from "./modules";
 import type { MonitorMetric, NetworkSpeedUnit } from "../system/types";
+import { DEFAULT_HIDDEN_CONTROLS, type ControlItem } from "../controls/types";
 
 export type QuickSide = "left" | "right" | "bottom";
 export type QuickAction =
@@ -91,6 +92,22 @@ export interface IslandSettings {
   calendarExcluded: string[];
   /** Events chosen to count down one by one: countdown key → end, epoch ms (notchCalendarChosenCountdowns). */
   calendarChosenCountdowns: Record<string, number>;
+  /** The home page's order and hidden items (notchControlOrder, notchHiddenControls). */
+  controlOrder: ControlItem[];
+  hiddenControls: ControlItem[];
+  /** The brightness level instead of its setup row (brightnessControlEnabled). */
+  brightnessControlEnabled: boolean;
+  /** A running Keep Awake session takes the closed island (notchKeepAwakeActivity). */
+  keepAwakeActivity: boolean;
+  /** Minutes the Keep Awake tile runs for; 0 until turned off (defaultDurationMinutes). */
+  keepAwakeDuration: number;
+  /** The volume notice when the level changes outside the island (notchVolume). */
+  volumeNotice: boolean;
+  /** Pinned apps and the mixer's order, by exe path (mixerAppArrangement). */
+  mixerAppArrangement: { order: string[]; pinned: string[] };
+  /** Apps kept out of the mixer: exe path → name (mixerHiddenApps). */
+  mixerHiddenApps: Record<string, string>;
+  mixerHideInactiveApps: boolean;
 }
 
 export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
@@ -154,6 +171,15 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   calendarWeekNumbers: false,
   calendarExcluded: [],
   calendarChosenCountdowns: {},
+  controlOrder: [],
+  hiddenControls: DEFAULT_HIDDEN_CONTROLS,
+  brightnessControlEnabled: false,
+  keepAwakeActivity: false,
+  keepAwakeDuration: 0,
+  volumeNotice: true,
+  mixerAppArrangement: { order: [], pinned: [] },
+  mixerHiddenApps: {},
+  mixerHideInactiveApps: false,
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

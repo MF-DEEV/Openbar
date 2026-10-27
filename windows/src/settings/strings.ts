@@ -140,7 +140,12 @@ export const T = {
     timerCountdownCaption: "The time left beside the camera while a timer runs. A finished timer always shows.",
     trackChange: "New track",
     trackChangeCaption: "The cover, title and artist for a moment when the song changes.",
-    more: "Volume, brightness, clipboard and the other indicators come with their sections.",
+    more: "Brightness, clipboard and the other indicators come with their sections.",
+    keepAwake: "Show “Keep awake” in the closed island",
+    keepAwakeCaption:
+      "A running session shows in the closed island with the time it has left, or ∞ when it has no end.",
+    volume: "Volume",
+    volumeCaption: "The new level for a moment when it changes with the volume keys or from another app.",
   },
   behavior: {
     opening: "Opening",
@@ -221,6 +226,38 @@ export const T = {
     calendars: "Calendars shown",
     noCalendars:
       "No calendars found. Windows shares the calendars of its Calendar app and classic Outlook; the new Outlook keeps its own.",
+  },
+  controls: {
+    music: "Now Playing",
+    volume: "Volume",
+    brightness: "Brightness",
+    keepAwake: "Keep awake",
+    microphone: "Mute microphone",
+    mixer: "Volume mixer",
+    timer: "Timer",
+    calendar: "Calendar",
+    screenshot: "Screenshot",
+    speedTest: "Speed test",
+    scratchpad: "Scratchpad",
+    levelsCaption: "The levels sit in the island's top row when they fit, else in a row below it.",
+    shortcuts: "Controls and shortcuts",
+    shortcutsCaption: "Turn tiles on or off and move them. The island shows them in this order.",
+    brightnessSliders: "Brightness slider",
+    brightnessSlidersCaption:
+      "Sets the brightness of this PC's screen, and of external displays that accept DDC/CI. Off shows a shortcut to this setting instead.",
+    keepAwakeFor: "Keep awake for",
+    keepAwakeForCaption:
+      "How long the Keep awake tile keeps the PC and display from idling to sleep. Closing the lid or pressing the power button still sleeps it.",
+    untilOff: "Until turned off",
+    minutes: (n: number) => (n < 60 ? `${n} minutes` : n === 60 ? "1 hour" : `${n / 60} hours`),
+    hideInactive: "Hide inactive apps",
+    hideInactiveCaption: "Lists only apps that play, are muted or are set off 100%.",
+    hiddenApps: "Hidden apps",
+    hiddenAppsCaption: (n: number) =>
+      n === 0 ? "Every app that plays shows in the mixer." : `${n} hidden from the mixer.`,
+    showAll: "Show all",
+    mixerCaption:
+      "Per-app volume goes up to 100%. Choosing an output or microphone makes it the Windows default for every app.",
   },
   saveFailed: "Couldn't save this change.",
 } as const;

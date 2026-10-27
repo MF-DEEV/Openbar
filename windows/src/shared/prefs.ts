@@ -11,6 +11,7 @@ import { MODULES, type ModuleId } from "../island/modules";
 import { DEFAULT_SETTINGS, type IslandSettings, type QuickButton } from "../island/settings";
 import { inTauri } from "./bridge";
 import { MONITOR_METRICS, type MonitorMetric } from "../system/types";
+import { CONTROL_ITEMS, type ControlItem } from "../controls/types";
 
 /** The Sessions section's own preferences (spec 01-shell §7.2, sessions). */
 export interface SessionPrefs {
@@ -98,12 +99,37 @@ function quickButtons(value: unknown): QuickButton[] | undefined {
   });
 }
 
+/** Known home-page items, each once. */
+function controlList(value: unknown): ControlItem[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const known = new Set<string>(CONTROL_ITEMS);
+  return [...new Set(value.filter((id): id is ControlItem => typeof id === "string" && known.has(id)))];
+}
+
+const strings = (value: unknown): string[] =>
+  Array.isArray(value) ? [...new Set(value.filter((v): v is string => typeof v === "string" && v.length > 0))] : [];
+
+/** The mixer's pinned apps and order; anything else reads as none. */
+function arrangement(value: unknown): IslandSettings["mixerAppArrangement"] {
+  if (!isObject(value)) return DEFAULT_SETTINGS.mixerAppArrangement;
+  return { order: strings(value.order), pinned: strings(value.pinned) };
+}
+
+function hiddenApps(value: unknown): Record<string, string> {
+  if (!isObject(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter(([key, name]) => key.length > 0 && typeof name === "string"),
+  ) as Record<string, string>;
+}
+
 export function resolve(stored: StoredPrefs | null | undefined): Prefs {
   const island = checked(DEFAULT_SETTINGS, stored?.island);
   const raw = isObject(stored?.island) ? stored.island : {};
   const quickAccess = quickButtons(raw.quickAccess);
   const hiddenModules = moduleList(raw.hiddenModules);
   const moduleOrder = moduleList(raw.moduleOrder);
+  const controlOrder = controlList(raw.controlOrder);
+  const hiddenControls = controlList(raw.hiddenControls);
   if (island.homeModule !== undefined && island.homeModule !== "explore" && !KNOWN.has(island.homeModule)) {
     delete island.homeModule;
   }
@@ -114,6 +140,10 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
       ...(hiddenModules ? { hiddenModules } : {}),
       ...(moduleOrder ? { moduleOrder } : {}),
       ...(quickAccess ? { quickAccess } : {}),
+      ...(controlOrder ? { controlOrder } : {}),
+      ...(hiddenControls ? { hiddenControls } : {}),
+      mixerAppArrangement: arrangement(raw.mixerAppArrangement),
+      mixerHiddenApps: hiddenApps(raw.mixerHiddenApps),
       downloadFolders: Array.isArray(raw.downloadFolders)
         ? raw.downloadFolders.filter((v): v is string => typeof v === "string" && v.length > 0)
         : [],

@@ -4295,6 +4295,7 @@ dependencies = [
  "unicode-segmentation",
  "widestring",
  "windows",
+ "windows-core",
 ]
 
 [[package]]
