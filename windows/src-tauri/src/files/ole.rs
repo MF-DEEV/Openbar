@@ -8,7 +8,9 @@ use std::io::Write;
 use std::mem::ManuallyDrop;
 
 use windows::Win32::Foundation::{GlobalFree, HGLOBAL};
-use windows::Win32::System::Com::{DVASPECT_CONTENT, FORMATETC, IDataObject, STGMEDIUM, STGMEDIUM_0, TYMED_HGLOBAL, TYMED_ISTREAM};
+use windows::Win32::System::Com::{
+    DVASPECT_CONTENT, FORMATETC, IDataObject, STGMEDIUM, STGMEDIUM_0, STREAM_SEEK_SET, TYMED_HGLOBAL, TYMED_ISTREAM,
+};
 use windows::Win32::System::DataExchange::RegisterClipboardFormatW;
 use windows::Win32::System::Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock};
 use windows::Win32::System::Ole::ReleaseStgMedium;
@@ -34,9 +36,10 @@ pub fn has(data: &IDataObject, format: u16) -> bool {
     unsafe { data.QueryGetData(&etc(format, -1, tymed)) }.is_ok()
 }
 
-/// Copies a format's contents into `out`, up to `limit` bytes. False when
-/// the format is missing, unreadable or larger than the limit.
-pub fn copy(data: &IDataObject, format: u16, index: i32, limit: u64, out: &mut dyn Write) -> bool {
+/// Copies a format's contents into `out`: `length` bytes when known (a block
+/// of memory can be longer than what it holds), refusing more than `limit`.
+/// False when the format is missing, unreadable or too large.
+pub fn copy(data: &IDataObject, format: u16, index: i32, limit: u64, length: Option<u64>, out: &mut dyn Write) -> bool {
     let tymed = (TYMED_HGLOBAL.0 | TYMED_ISTREAM.0) as u32;
     let Ok(mut medium) = (unsafe { data.GetData(&etc(format, index, tymed)) }) else {
         return false;
@@ -44,7 +47,7 @@ pub fn copy(data: &IDataObject, format: u16, index: i32, limit: u64, out: &mut d
     let ok = unsafe {
         if medium.tymed == TYMED_HGLOBAL.0 as u32 {
             let global = medium.u.hGlobal;
-            let size = GlobalSize(global);
+            let size = length.map_or(GlobalSize(global), |l| (l as usize).min(GlobalSize(global)));
             let start = GlobalLock(global) as *const u8;
             let ok = !start.is_null()
                 && size as u64 <= limit
@@ -54,11 +57,18 @@ pub fn copy(data: &IDataObject, format: u16, index: i32, limit: u64, out: &mut d
         } else if medium.tymed == TYMED_ISTREAM.0 as u32 {
             match (*medium.u.pstm).clone() {
                 Some(stream) => {
+                    // Some sources hand the stream over already read from.
+                    let _ = stream.Seek(0, STREAM_SEEK_SET, None);
                     let mut buffer = vec![0u8; 1 << 20];
                     let mut total = 0u64;
+                    let end = length.unwrap_or(u64::MAX);
                     loop {
+                        let want = (buffer.len() as u64).min(end - total) as u32;
+                        if want == 0 {
+                            break true;
+                        }
                         let mut read = 0u32;
-                        let hr = stream.Read(buffer.as_mut_ptr() as *mut _, buffer.len() as u32, Some(&mut read));
+                        let hr = stream.Read(buffer.as_mut_ptr() as *mut _, want, Some(&mut read));
                         if hr.is_err() {
                             break false;
                         }
@@ -84,7 +94,7 @@ pub fn copy(data: &IDataObject, format: u16, index: i32, limit: u64, out: &mut d
 /// A small format's bytes (text, links, file lists, descriptors).
 pub fn get(data: &IDataObject, format: u16) -> Option<Vec<u8>> {
     let mut bytes = Vec::new();
-    copy(data, format, -1, 64 << 20, &mut bytes).then_some(bytes)
+    copy(data, format, -1, 64 << 20, None, &mut bytes).then_some(bytes)
 }
 
 /// Puts `bytes` on the data object as an HGLOBAL it then owns.

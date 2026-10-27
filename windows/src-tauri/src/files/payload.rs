@@ -41,22 +41,42 @@ pub fn wide_bytes(text: &str) -> Vec<u8> {
 pub const DESCRIPTOR_SIZE: usize = 4 + 16 + 8 + 8 + 4 + 24 + 8 + 520;
 const NAME_OFFSET: usize = DESCRIPTOR_SIZE - 520;
 const ATTRIBUTES_OFFSET: usize = 4 + 16 + 8 + 8;
+const SIZE_OFFSET: usize = ATTRIBUTES_OFFSET + 4 + 24;
 const FILE_ATTRIBUTE_DIRECTORY: u32 = 0x10;
+/// dwFlags: which descriptor fields the source filled in.
+const FD_ATTRIBUTES: u32 = 0x04;
+const FD_FILESIZE: u32 = 0x40;
 
-/// The virtual files in a FileGroupDescriptorW: (index, safe file name).
-/// Folders are left out; their contents arrive as their own entries.
-pub fn virtual_files(bytes: &[u8]) -> Vec<(i32, String)> {
+/// A virtual file in a FileGroupDescriptorW.
+#[derive(Debug, PartialEq)]
+pub struct VirtualFile {
+    pub index: i32,
+    /// A name safe to create.
+    pub name: String,
+    /// The size, when the source gave one: a block of memory may be longer.
+    pub size: Option<u64>,
+}
+
+/// The virtual files in a FileGroupDescriptorW. Folders are left out;
+/// their contents arrive as their own entries.
+pub fn virtual_files(bytes: &[u8]) -> Vec<VirtualFile> {
     let count = u32_at(bytes, 0).unwrap_or(0) as usize;
     (0..count.min(4096))
         .filter_map(|i| {
             let at = 4 + i * DESCRIPTOR_SIZE;
             let descriptor = bytes.get(at..at + DESCRIPTOR_SIZE)?;
+            let flags = u32_at(descriptor, 0)?;
             let attributes = u32_at(descriptor, ATTRIBUTES_OFFSET)?;
-            if attributes & FILE_ATTRIBUTE_DIRECTORY != 0 {
+            if flags & FD_ATTRIBUTES != 0 && attributes & FILE_ATTRIBUTE_DIRECTORY != 0 {
                 return None;
             }
+            let size = (flags & FD_FILESIZE != 0).then(|| {
+                let high = u32_at(descriptor, SIZE_OFFSET).unwrap_or(0) as u64;
+                let low = u32_at(descriptor, SIZE_OFFSET + 4).unwrap_or(0) as u64;
+                high << 32 | low
+            });
             let name = safe_name(&wide_string(&descriptor[NAME_OFFSET..]))?;
-            Some((i as i32, name))
+            Some(VirtualFile { index: i as i32, name, size })
         })
         .collect()
 }
@@ -120,15 +140,26 @@ mod tests {
 
     #[test]
     fn reads_virtual_file_names_and_skips_folders() {
-        let mut bytes = 3u32.to_le_bytes().to_vec();
-        for (name, attributes) in [("photo.jpg", 0u32), ("folder", 0x10), (r"sub\re:port?.pdf", 0)] {
+        let mut bytes = 4u32.to_le_bytes().to_vec();
+        let entries = [
+            ("photo.jpg", FD_FILESIZE, 0u32, 7u32),
+            ("folder", FD_ATTRIBUTES, 0x10, 0),
+            (r"sub\re:port?.pdf", 0, 0, 0),
+            // Attributes the source didn't mark as given don't count.
+            ("notes.txt", 0, 0x10, 0),
+        ];
+        for (name, flags, attributes, size) in entries {
             let mut d = vec![0u8; DESCRIPTOR_SIZE];
+            d[0..4].copy_from_slice(&flags.to_le_bytes());
             d[ATTRIBUTES_OFFSET..ATTRIBUTES_OFFSET + 4].copy_from_slice(&attributes.to_le_bytes());
+            d[SIZE_OFFSET + 4..SIZE_OFFSET + 8].copy_from_slice(&size.to_le_bytes());
             let wide = wide_bytes(name);
             d[NAME_OFFSET..NAME_OFFSET + wide.len()].copy_from_slice(&wide);
             bytes.extend(d);
         }
-        assert_eq!(virtual_files(&bytes), [(0, "photo.jpg".to_string()), (2, "re_port_.pdf".to_string())]);
+        let found = virtual_files(&bytes);
+        let names: Vec<_> = found.iter().map(|f| (f.index, f.name.as_str(), f.size)).collect();
+        assert_eq!(names, [(0, "photo.jpg", Some(7)), (2, "re_port_.pdf", None), (3, "notes.txt", None)]);
     }
 
     #[test]

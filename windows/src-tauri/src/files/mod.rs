@@ -247,7 +247,14 @@ pub fn drag_phase<R: Runtime>(app: &AppHandle<R>, phase: &'static str, added: bo
 #[cfg_attr(not(windows), allow(dead_code))]
 /// Whether a drag entering the island may land on the shelf.
 pub fn accepts_drops<R: Runtime>(app: &AppHandle<R>) -> bool {
-    enabled(app) && !app.state::<Files>().state.lock().unwrap().dragging_out
+    // Called inside OLE's DragEnter, where a panic would end the app.
+    enabled(app)
+        && !app
+            .state::<Files>()
+            .state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .dragging_out
 }
 
 /// The file leaves under `ids`, found again when moved. When every file is

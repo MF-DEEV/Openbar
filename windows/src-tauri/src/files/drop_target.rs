@@ -36,9 +36,11 @@ use super::payload;
 use super::ole;
 use super::store::{Dropped, Item, new_id};
 
-/// Virtual files: at most this many per drop, each at most this big.
+/// Virtual files: at most this many per drop, each at most this big. They
+/// are copied while the drop lasts (the data object lives only that long),
+/// which holds the island and the source, so the ceiling stays modest.
 const MAX_VIRTUAL_FILES: usize = 50;
-const MAX_VIRTUAL_SIZE: u64 = 2 << 30;
+const MAX_VIRTUAL_SIZE: u64 = 512 << 20;
 
 enum Event<'a> {
     Enter,
@@ -91,8 +93,12 @@ impl IDropTarget_Impl for Target_Impl {
         pt: &POINTL,
         effect: *mut DROPEFFECT,
     ) -> windows::core::Result<()> {
-        let accepted = data.as_ref().is_some_and(holds_content) && (self.handle)(Event::Enter);
-        let chosen = if accepted { effect_for(unsafe { *effect }) } else { DROPEFFECT_NONE };
+        // Told only when the drag can land, so a Leave or Drop always follows.
+        let offered = effect_for(unsafe { *effect });
+        let accepted = offered != DROPEFFECT_NONE
+            && data.as_ref().is_some_and(holds_content)
+            && (self.handle)(Event::Enter);
+        let chosen = if accepted { offered } else { DROPEFFECT_NONE };
         self.effect.set(chosen);
         unsafe {
             *effect = chosen;
@@ -168,8 +174,9 @@ fn read(data: &IDataObject, store: Option<&Path>, room: usize) -> Dropped {
     // Virtual files: a browser's image, a mail attachment.
     if let Some(descriptors) = ole::get(data, ole::format(CFSTR_FILEDESCRIPTORW)) {
         let contents = ole::format(CFSTR_FILECONTENTS);
-        for (index, name) in payload::virtual_files(&descriptors).into_iter().take(room.min(MAX_VIRTUAL_FILES)) {
-            if let Some(path) = write_payload(store, &name, |file| ole::copy(data, contents, index, MAX_VIRTUAL_SIZE, file)) {
+        for file in payload::virtual_files(&descriptors).into_iter().take(room.min(MAX_VIRTUAL_FILES)) {
+            let fill = |out: &mut File| ole::copy(data, contents, file.index, MAX_VIRTUAL_SIZE, file.size, out);
+            if let Some(path) = write_payload(store, &file.name, fill) {
                 dropped.stored.push(Item::file(&path, None));
             }
         }
@@ -260,5 +267,7 @@ fn handle<R: Runtime>(app: &AppHandle<R>, event: Event) -> bool {
 }
 
 fn store_room(files: &super::Files) -> usize {
-    super::store::MAX_LEAVES.saturating_sub(files.state.lock().unwrap().shelf.leaf_count())
+    // Never a panic inside an OLE callback: it would end the app.
+    let state = files.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    super::store::MAX_LEAVES.saturating_sub(state.shelf.leaf_count())
 }

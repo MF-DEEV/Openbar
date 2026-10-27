@@ -6,12 +6,12 @@
 //! object for the files (as Explorer drags them) and plain text for notes
 //! and links. It runs on the island's thread, where the button went down.
 //!
-//! While OLE runs its drag loop that thread can't process Tauri's messages,
-//! so the pointer watcher's click-through changes would wait for the drop.
-//! The source keeps the island's hit area right itself instead: the window
-//! is hit-testable over the island's shape (a drop back on the island goes
-//! nowhere) and click-through everywhere else, so every other window under
-//! the pointer can take the drop.
+//! While OLE runs its drag loop on that thread, the pointer watcher's
+//! click-through changes may wait behind it, so the source keeps the
+//! island's hit area right itself as well: the window is hit-testable over
+//! the island's shape (a drop back on the island goes nowhere) and
+//! click-through everywhere else, so every other window under the pointer
+//! can take the drop.
 //!
 //! Explorer's optimized move reports no effect even after moving the file;
 //! the real result is in "Performed DropEffect", or in the file being gone.

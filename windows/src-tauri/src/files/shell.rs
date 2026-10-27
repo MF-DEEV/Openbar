@@ -103,7 +103,7 @@ mod imp {
     use windows::Win32::UI::Shell::Common::ITEMIDLIST;
     use windows::Win32::UI::Shell::{
         ASSOC_FILTER_RECOMMENDED, BHID_DataObject, IAssocHandler, IDataTransferManagerInterop, ILFree,
-        SHAssocEnumHandlers, SHCreateShellItemArrayFromIDLists, SHELLEXECUTEINFOW, SHOpenFolderAndSelectItems,
+        SHAssocEnumHandlers, SEE_MASK_NOASYNC, SHCreateShellItemArrayFromIDLists, SHELLEXECUTEINFOW, SHOpenFolderAndSelectItems,
         SHParseDisplayName, ShellExecuteExW,
     };
     use windows::Win32::UI::WindowsAndMessaging::{ASFW_ANY, AllowSetForegroundWindow, SW_SHOWNORMAL};
@@ -151,6 +151,8 @@ mod imp {
             let file = HSTRING::from(path.as_str());
             let mut info = SHELLEXECUTEINFOW {
                 cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+                // This worker has no message loop to finish the launch on.
+                fMask: SEE_MASK_NOASYNC,
                 lpFile: windows::core::PCWSTR(file.as_ptr()),
                 nShow: SW_SHOWNORMAL.0,
                 ..Default::default()
