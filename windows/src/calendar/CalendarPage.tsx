@@ -410,7 +410,7 @@ function AgendaHeader() {
 
 function Spinner() {
   return (
-    <div className="cal-loading" role="status" aria-label="Loading">
+    <div className="cal-loading" role="status" aria-label={C.loading}>
       <LoaderCircle size={16} className="cal-spinner" />
     </div>
   );
@@ -572,7 +572,7 @@ function PermissionCard() {
               {C.allow}
             </PillButton>
           )}
-          {requesting ? <LoaderCircle size={14} className="cal-spinner" aria-label="Loading" /> : null}
+          {requesting ? <LoaderCircle size={14} className="cal-spinner" aria-label={C.loading} /> : null}
         </div>
       )}
       {failed ? <p className="cal-permission-failed">{C.requestFailed}</p> : null}

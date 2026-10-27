@@ -21,6 +21,7 @@ export const C = {
   ongoing: "Happening now",
   allDay: "All day",
   untitled: "Untitled event",
+  loading: "Loading",
   openCalendar: "Open Calendar",
   week: "Next 7 days",
   today: "Today",
