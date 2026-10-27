@@ -11,6 +11,11 @@ fn main() {
         let path = std::env::args().nth(2).unwrap_or_else(|| "notifications-probe.json".into());
         vorssaint_windows_lib::notifications_probe_main(&path);
     }
+    if std::env::args().nth(1).as_deref() == Some("--agents-probe") {
+        let path = std::env::args().nth(2).unwrap_or_else(|| "agents-probe.json".into());
+        let limits = std::env::args().any(|a| a == "--limits");
+        vorssaint_windows_lib::agents_probe_main(&path, limits);
+    }
     if std::env::args().nth(1).as_deref() == Some("--hook") {
         vorssaint_windows_lib::hook_main();
     }

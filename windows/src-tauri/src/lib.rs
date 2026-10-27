@@ -46,6 +46,11 @@ pub fn microphone_probe_main(path: &str) -> ! {
     microphone::probe_main(path)
 }
 
+/// `Vorssaint.exe --agents-probe <file> [--limits]`: what the AI page would read.
+pub fn agents_probe_main(path: &str, limits: bool) -> ! {
+    agent_usage::probe_main(path, limits)
+}
+
 pub fn notifications_probe_main(path: &str) -> ! {
     notifications::probe_main(path)
 }

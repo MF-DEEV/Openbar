@@ -73,7 +73,14 @@ fn poke(state: &Shared, change: impl FnOnce(&mut Control)) {
 
 #[tauri::command]
 pub fn agents_snapshot(state: tauri::State<'_, State>) -> Value {
-    state.snapshot.lock().unwrap().clone()
+    let snapshot = state.snapshot.lock().unwrap().clone();
+    if snapshot.is_null() { empty_snapshot() } else { snapshot }
+}
+
+/// The snapshot while nothing was read: a whole one, so the page never meets a missing field.
+fn empty_snapshot() -> Value {
+    let found = Provider::ALL.into_iter().map(|p| (p, files::found(p))).collect();
+    serde_json::to_value(summary::Snapshot { found, ..Default::default() }).unwrap_or(Value::Null)
 }
 
 /// The AI page is on screen: Claude's limits are checked every minute.
@@ -111,6 +118,42 @@ pub fn start<R: Runtime>(app: AppHandle<R>, state: State) {
             service.run();
         })
         .expect("agent usage thread");
+}
+
+/// `Vorssaint.exe --agents-probe <file> [--limits]`: reads every log once,
+/// as the island does at launch, and writes the snapshot with where the logs
+/// and CLIs were found. `--limits` also asks Claude Code and Codex for the
+/// account limits. It never spends a reset and never writes the archive.
+pub fn probe_main(path: &str, limits: bool) -> ! {
+    let prefs = json!({"island": {"agentsPriceUpdates": false}});
+    let state: State = Arc::default();
+    let mut service = Service::new(state.clone(), Box::new(move || prefs.clone()), Box::new(|_, _| {}));
+    service.persist = false;
+    service.settings = Some(settings(&(service.prefs)()));
+    let now = model::now();
+    service.begin(files::roots(), now);
+    let roots: Vec<Value> = files::roots().iter().map(|r| json!({"provider": r.provider, "path": r.path, "exists": r.path.is_dir()})).collect();
+    let mut out = json!({
+        "roots": roots,
+        "logs": service.cursors.len(),
+        "records": service.store.records.len(),
+        "claudeExecutable": claude::executable(),
+        "codexExecutable": codex::executable(),
+        "archive": archive::folder(),
+        "snapshot": state.snapshot.lock().unwrap().clone(),
+    });
+    if limits {
+        out["claudeCheck"] = match claude::check(&model::now) {
+            Ok(l) => json!(l.windows.iter().map(summary::WindowOut::from).collect::<Vec<_>>()),
+            Err(f) => json!(f.key()),
+        };
+        out["codexCheck"] = match codex::check(&model::now) {
+            Ok(s) => json!({"resets": s.available, "windows": s.limits.map(|l| l.windows.iter().map(summary::WindowOut::from).collect::<Vec<_>>())}),
+            Err(f) => json!(f.key()),
+        };
+    }
+    let written = std::fs::write(path, serde_json::to_vec_pretty(&out).unwrap_or_default());
+    std::process::exit(if written.is_ok() { 0 } else { 1 })
 }
 
 /// The section's switches as the island reads them.
@@ -198,6 +241,8 @@ struct Service {
     price_due: Time,
     price_checking: bool,
     published: Option<Value>,
+    /// Off for the probe, which must not touch the running island's archive.
+    persist: bool,
     dirty: bool,
     last_tick: Time,
     last_discovery: Time,
@@ -233,6 +278,7 @@ impl Service {
             price_due: 0.0,
             price_checking: false,
             published: None,
+            persist: true,
             dirty: true,
             last_tick: 0.0,
             last_discovery: 0.0,
@@ -372,14 +418,14 @@ impl Service {
         self.warned.clear();
         self.budget_day = None;
         self.published = None;
-        let empty = json!({"loaded": false});
+        let empty = empty_snapshot();
         *self.state.snapshot.lock().unwrap() = empty.clone();
         (self.emit)("agents://snapshot", empty);
     }
 
     fn save(&mut self, now: Time) {
         self.last_save = now;
-        let Some(dir) = archive::folder() else { return };
+        let Some(dir) = archive::folder().filter(|_| self.persist) else { return };
         let Some(providers) = self.running.clone() else { return };
         let cursors = self.cursors.values_mut().filter(|c| c.provider != Provider::Opencode && !c.restarted).filter_map(Cursor::saved).collect();
         let _ = archive::save(&dir, &archive::Archive { version: archive::PARSER_VERSION, providers, store: self.store.saved(), cursors });
