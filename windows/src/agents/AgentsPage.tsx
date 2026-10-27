@@ -89,8 +89,19 @@ export function AgentsPage({ width, height }: PageProps) {
       </div>
     );
   }
-  if (providers.length === 0) return <EmptyState icon={Sparkles} title={A.empty} />;
-  if (rows.length === 0) return <EmptyState icon={LayoutGrid} title={A.noCards} />;
+  // The Mac's empty view: the glyph above one 12 pt secondary line, 250 wide.
+  if (providers.length === 0)
+    return (
+      <div className="ag-empty">
+        <EmptyState icon={Sparkles} title={A.empty} />
+      </div>
+    );
+  if (rows.length === 0)
+    return (
+      <div className="ag-empty">
+        <EmptyState icon={LayoutGrid} title={A.noCards} />
+      </div>
+    );
 
   return (
     <div className="ag-page" style={{ height, overflowY: contentHeight(rows) > height + 0.5 ? "auto" : "hidden" }}>

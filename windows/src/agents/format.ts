@@ -80,10 +80,14 @@ export function countdown(to: number, now: number): string {
   return duration(Math.max(60, seconds), seconds >= 3600 ? 2 : 1);
 }
 
-const relativeFormat = new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto", style: "short" });
+const relativeFormats = {
+  short: new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto", style: "short" }),
+  long: new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto", style: "long" }),
+};
 
-/** "5 min. ago", "yesterday", "in 2 hr.": the Mac's named, abbreviated relative date. */
-export function relative(date: number, now: number): string {
+/** "5 min. ago", "yesterday", "in 2 hr.": the Mac's named relative date, abbreviated unless `long`. */
+export function relative(date: number, now: number, style: "short" | "long" = "short"): string {
+  const relativeFormat = relativeFormats[style];
   const seconds = (date - now) / 1000;
   const magnitude = Math.abs(seconds);
   if (magnitude < 60) return relativeFormat.format(0, "second");

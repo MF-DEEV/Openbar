@@ -74,7 +74,6 @@ export const A = {
   // Settings
   settingsDescription:
     "Reads the usage Claude Code, Codex, OpenCode and GitHub Copilot record on this PC and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your PC.",
-  agents: "Agents",
   found: "Found on this PC",
   notFound: "Not found on this PC",
   cardsTitle: "Cards",
@@ -115,9 +114,6 @@ export const A = {
   priceUpdatesHint:
     "Downloads the public price list from GitHub once a day, so new models get an API value without an app update. Nothing about your usage is sent.",
   pricesFrom: (day: string) => `Price list of ${day}`,
-  liveStrip: "AI agent activity",
-  liveStripCaption:
-    "While Claude Code, Codex, OpenCode or GitHub Copilot works, its mark and a reading beside the camera.",
 };
 
 export const periodName = (period: AgentPeriod): string =>

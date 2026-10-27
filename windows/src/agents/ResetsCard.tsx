@@ -88,7 +88,7 @@ export function ResetsCard({ resets, now }: { resets: ResetsState; now: number }
       const soon = next !== null && next - now < 86_400_000;
       content = (
         <Action
-          message={next !== null ? A.resetsExpiry(relative(next, now)) : ""}
+          message={next !== null ? A.resetsExpiry(relative(next, now, "long")) : ""}
           tint={soon ? LIMIT_ORANGE : undefined}
         >
           {useButton}

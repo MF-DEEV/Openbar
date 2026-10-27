@@ -34,6 +34,17 @@
   color: rgba(255, 255, 255, 0.55);
 }
 
+.ag-empty {
+  height: 100%;
+}
+
+.ag-empty .n-empty-title {
+  max-width: 250px;
+  font-size: 12px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.55);
+}
+
 /* Card chrome: padding 12 × 10 on the control surface, radius 18. */
 .ag-card {
   box-sizing: border-box;
@@ -168,7 +179,7 @@
 .ag-band-menu:focus-visible,
 .ag-strip:focus-visible {
   outline: 2px solid rgba(255, 255, 255, 0.6);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
 /* Limits */
