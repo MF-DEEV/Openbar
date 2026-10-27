@@ -3,12 +3,11 @@
 
 import { SETTLE_DELAY, useSessions } from "./store";
 import type { Session } from "./types";
+import { hidesAutoApproval } from "./presentation";
 
 export function automaticallyAllows(session: Session): boolean {
   return (
-    session.provider === "codex" &&
-    !!useSessions.getState().autoAllow[session.id] &&
-    session.phase === "waitingPermission" &&
+    hidesAutoApproval(session, useSessions.getState().autoAllow) &&
     !!session.permission &&
     !session.permission.questions.length
   );

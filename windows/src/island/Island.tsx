@@ -25,6 +25,7 @@ import { Expanded } from "./views/Expanded";
 import { QuickAccess } from "./views/QuickAccess";
 import { ActivityPicker } from "./views/ActivityPicker";
 import { useSessions } from "../sessions/store";
+import { presentedSnapshot } from "../sessions/presentation";
 
 function useWindowScreen() {
   const setScreen = useIsland((s) => s.setScreen);
@@ -162,7 +163,7 @@ export function Island() {
     ? { width: noticeWidth(state.notice, geometry), height: geometry.stripHeight }
     : undefined;
   const shown = presentation(state, geometry, measured);
-  const waiting = useSessions((s) => s.snapshot.counts.waiting);
+  const waiting = useSessions((s) => presentedSnapshot(s).counts.waiting);
   useEffect(() => {
     void bridge.attention.compactSessions(
       state.settings.enabled && !state.expanded && waiting > 0 && shown.key === "activity:sessions",

@@ -13,6 +13,7 @@ import { useNow } from "./useNow";
 import { S } from "./strings";
 import { settled, useSessions } from "./store";
 import { isWaiting, type Session } from "./types";
+import { presentedSnapshot } from "./presentation";
 
 /** waitingPermission 0 · waitingInput 1 · working 2 · background 3 · finished 4 · idle 5 (§3.6). */
 const RANK: Record<Session["phase"], number> = {
@@ -44,7 +45,7 @@ export function orderSessions(sessions: Session[]): Session[] {
 const REORDER = { type: "spring", stiffness: 322.3, damping: 30.5 } as const;
 
 export function SessionsList() {
-  const sessions = useSessions((s) => s.snapshot.sessions);
+  const sessions = useSessions((s) => presentedSnapshot(s).sessions);
   const now = useNow();
   if (sessions.length === 0) {
     return <EmptyState icon={GalleryVerticalEnd} title={S.emptyTitle} detail={S.emptyDetail} />;
