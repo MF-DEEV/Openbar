@@ -684,7 +684,7 @@ struct NotchClaudeSessionReplyField: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(.white.opacity(dropping ? 0.6 : focused ? 0.3 : 0), lineWidth: 1)
             }
-            .modifier(NotchClaudeImageInput(sessionID: session.id, takesImages: session.provider != .codex, dropping: $dropping))
+            .modifier(NotchClaudeImageInput(sessionID: session.id, dropping: $dropping))
             if let problem {
                 Label(problem, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 10))

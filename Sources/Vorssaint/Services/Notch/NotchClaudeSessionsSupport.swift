@@ -341,6 +341,19 @@ enum NotchClaudeSessionsSupport {
         return (answers, onTheWay)
     }
 
+    static let imageLabel = try? NSRegularExpression(pattern: #"\[Image\s*#\d+\]"#, options: [.caseInsensitive])
+
+    /// A prompt's text without the `[Image #1]` labels standing for the
+    /// images shown beside it. While any of those images is missing, every
+    /// label stays, so nothing sent disappears without a trace.
+    static func withoutImageLabels(_ text: String, images: Int) -> String {
+        guard images > 0, let label = imageLabel else { return text }
+        let range = NSRange(text.startIndex..., in: text)
+        guard label.numberOfMatches(in: text, range: range) <= images else { return text }
+        return label.stringByReplacingMatches(in: text, range: range, withTemplate: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     /// Text sizes a session's enlarged page offers.
     static let largeTextSizes: ClosedRange<Double> = 12...24
     static func largeTextSize(_ size: Double) -> Double {

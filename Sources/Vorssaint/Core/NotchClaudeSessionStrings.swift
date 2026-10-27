@@ -45,6 +45,8 @@ struct NotchClaudeSessionStrings {
     let sendShortcut: String
     let pasteImages: String
     let removeImage: String
+    let imageFormat: String
+    let imageUnavailable: String
     let send: String
     let replyPlaceholder: String
     let replyPlaceholderCodex: String
@@ -141,6 +143,7 @@ struct NotchClaudeSessionStrings {
     func finishedAfter(_ duration: String) -> String { String(format: finishedAfterFormat, duration) }
     func hooksFailed(_ reason: String) -> String { String(format: hooksFailedFormat, reason) }
     func dressUp(_ name: String) -> String { String(format: dressUpFormat, name) }
+    func image(_ number: Int) -> String { String(format: imageFormat, number) }
 
     func name(_ shell: ClawdShell) -> String { shells[shell] ?? shell.rawValue }
     func name(_ hat: ClawdHat) -> String { hat == .none ? nothing : hats[hat] ?? hat.rawValue }
@@ -201,6 +204,8 @@ extension NotchClaudeSessionStrings {
         sendShortcut: "⌘↩ sends",
         pasteImages: "⌘V or drop to add images",
         removeImage: "Remove image",
+        imageFormat: "Image %d",
+        imageUnavailable: "Image unavailable",
         send: "Send",
         replyPlaceholder: "Reply to Claude…",
         replyPlaceholderCodex: "Reply to Codex…",

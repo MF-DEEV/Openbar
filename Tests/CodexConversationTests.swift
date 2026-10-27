@@ -107,4 +107,42 @@ enum CodexConversationTests {
         state.reset()
         suite.expect(state.threads.isEmpty, "daemon disconnect discards chat with the thread")
     }
+
+    static func images(_ suite: TestSuite) {
+        let state = CodexSessionState()
+        let now = Date(timeIntervalSince1970: 1_792_600_000)
+        let small = ClaudeSessionReaderTests.png(width: 40, height: 30).base64EncodedString()
+        let item: [String: Any] = [
+            "id": "pic", "type": "userMessage",
+            "content": [
+                ["type": "localImage", "path": "/tmp/codex/photo.png"],
+                ["type": "image", "url": "data:image/png;base64,\(small)"],
+                ["type": "image", "url": "https://example.com/remote.png"],
+                ["type": "localImage", "path": "relative.png"],
+            ],
+        ]
+        func shown(_ previews: Bool = true) -> ClaudeSession? { state.snapshot(now: now, previews: previews).sessions.first }
+        state.upsertThread(["id": "t", "cwd": "/tmp/app", "status": ["type": "idle"]])
+        state.setPreviews(true)
+        let event: [String: Any] = ["threadId": "t", "item": item]
+        suite.expect(state.notify("item/completed", params: event, now: now).changed, "a prompt of images alone shows")
+        suite.expect(!state.notify("item/completed", params: event, now: now).changed, "and is not added twice")
+        let images = shown()?.chat.first?.images ?? []
+        suite.expect(shown()?.chat.count == 1 && shown()?.chat.first?.text == "" && images.count == 2,
+                     "a local file and an inline image show; a web address and a relative path never do")
+        suite.expect(images.first?.source == .file("/tmp/codex/photo.png"), "the file is named, read only when shown")
+        if case .preview? = images.last?.source {} else { suite.expect(false, "the inline image is kept as a preview") }
+        state.upsertThread(["id": "t", "turns": [["startedAt": now.timeIntervalSince1970, "items": [item]]]])
+        suite.expect(shown()?.chat.count == 1 && shown()?.chat.first?.images == images,
+                     "history read again keeps the same images")
+        suite.expect(shown(false)?.chat.isEmpty == true, "a hidden snapshot shows no image")
+        let many: [String: Any] = [
+            "id": "many", "type": "userMessage",
+            "content": (0..<20).map { ["type": "localImage", "path": "/tmp/\($0).png"] },
+        ]
+        state.notify("item/completed", params: ["threadId": "t", "item": many], now: now)
+        suite.expect(shown()?.chat.last?.images.count == ClaudeChatImage.perPrompt, "a prompt shows at most sixteen images")
+        state.setPreviews(false)
+        suite.expect(state.threads["t"]?.chat.isEmpty == true, "turning previews off lets the images go")
+    }
 }

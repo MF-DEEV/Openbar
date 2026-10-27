@@ -173,11 +173,11 @@ final class CodexSessionClient {
     }
 
     /// A prompt for an idle thread, or one queued after the current turn of a working one.
-    func reply(_ session: String, text: String) -> Bool {
+    func reply(_ session: String, text: String, images: [URL] = []) -> Bool {
         lock.withLock {
-            guard isConnected, let thread = state.threads[session], state.pending(session: session).isEmpty
+            guard isConnected, let thread = state.threads[session], state.pending(session: session).isEmpty,
+                  let input = Self.input(text: text, images: images)
             else { return false }
-            let input: [[String: Any]] = [["type": "text", "text": text, "text_elements": [Any]()]]
             if thread.isActive {
                 call("thread/queue/add", ["threadId": session, "input": input, "clientUserMessageId": Self.uuidV7()],
                      .other)
@@ -186,6 +186,19 @@ final class CodexSessionClient {
             }
             return true
         }
+    }
+
+    /// What a reply gives Codex: its text, unless there is none, then each
+    /// image as the file Codex reads it from. Nil when there is neither.
+    static func input(text: String, images: [URL]) -> [[String: Any]]? {
+        var input: [[String: Any]] = []
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            input.append(["type": "text", "text": text, "text_elements": [Any]()])
+        }
+        for image in images.prefix(ClaudeImageAttachments.limit) where image.isFileURL {
+            input.append(["type": "localImage", "path": image.path])
+        }
+        return input.isEmpty ? nil : input
     }
 
     /// Joined to Codex's app-server right now.
