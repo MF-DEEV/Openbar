@@ -25,6 +25,19 @@ describe("AI Agents preferences", () => {
     expect(island.agentsPriceUpdates).toBe(true);
   });
 
+  it("read every agent switched off as all on, as the usage service does", () => {
+    const { island } = resolve({
+      island: { agentsClaude: false, agentsCodex: false, agentsOpenCode: false, agentsCopilot: false },
+    });
+    expect([island.agentsClaude, island.agentsCodex, island.agentsOpenCode, island.agentsCopilot]).toEqual([
+      true,
+      true,
+      true,
+      true,
+    ]);
+    expect(resolve({ island: { agentsClaude: false } }).island.agentsClaude).toBe(false);
+  });
+
   it("read unknown choices as the default", () => {
     const { island } = resolve({
       island: {

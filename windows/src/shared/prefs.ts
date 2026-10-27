@@ -120,6 +120,9 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
   if (island.agentsLimitThreshold !== undefined)
     island.agentsLimitThreshold = Math.min(100, Math.max(1, island.agentsLimitThreshold));
   if (island.agentsDailyBudget !== undefined) island.agentsDailyBudget = Math.max(0, island.agentsDailyBudget);
+  // At least one agent stays read, as the usage service treats none (agent_usage::settings).
+  const agents = ["agentsClaude", "agentsCodex", "agentsOpenCode", "agentsCopilot"] as const;
+  if (agents.every((key) => island[key] === false)) agents.forEach((key) => delete island[key]);
   if (island.homeModule !== undefined && island.homeModule !== "explore" && !KNOWN.has(island.homeModule)) {
     delete island.homeModule;
   }

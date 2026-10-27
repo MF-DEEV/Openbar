@@ -69,7 +69,7 @@ function useNow(): number {
 }
 
 /** "30 sec", "1 min" and so on, for the finish minimum. */
-const shortDuration = (seconds: number) => (seconds < 60 ? `${seconds} sec` : `${seconds / 60} min`);
+const shortDuration = (seconds: number) => (seconds < 60 ? A.seconds(seconds) : A.minutes(seconds / 60));
 
 export function AgentsOptions() {
   const island = useSettings((s) => s.prefs.island);
@@ -264,6 +264,7 @@ function CardsEditor() {
               className={`ag-st-tile${included ? " is-included" : ""}${reorder.moving === card ? " is-moving" : ""}`}
               aria-pressed={included}
               aria-label={`${cardName(card)}: ${included ? T.agents.cardShown : T.agents.cardHidden}`}
+              title={cardName(card)}
               onClick={() => toggle(card)}
               onKeyDown={(e) => {
                 if (e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowUp")) {
@@ -315,7 +316,7 @@ function ClaudeLimitsStatus({ snapshot }: { snapshot: AgentSnapshot }) {
   let action: { label: string; url: string } | null = null;
   if (accountAt !== null) {
     tone = fresh(accountAt) ? "ok" : "warn";
-    lines = [`Claude Code · ${A.updated(relative(Math.min(accountAt, now), now))}`];
+    lines = [A.claudeCodeUpdated(relative(Math.min(accountAt, now), now))];
   } else if (fresh(appAt)) {
     tone = "ok";
     lines = [A.claudeLimitsCurrent(relative(Math.min(appAt!, now), now))];
@@ -343,6 +344,8 @@ function ClaudeLimitsStatus({ snapshot }: { snapshot: AgentSnapshot }) {
           <button
             type="button"
             className="st-button"
+            aria-label={action.label}
+            title={action.label}
             onClick={() => void (inTauri ? openUrl(action.url) : window.open(action.url))}
           >
             {action.label}

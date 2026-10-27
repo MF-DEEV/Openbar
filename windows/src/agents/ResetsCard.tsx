@@ -172,9 +172,12 @@ function Action(props: { message: string; emphasized?: boolean; tint?: string; c
 /** 20 tall, padding 9, Codex's tint at 20 % when prominent, white 10 % otherwise. */
 function Pill(props: { children: ReactNode; prominent?: boolean; icon?: boolean; onClick(): void }) {
   const prominent = props.prominent ?? true;
+  const label = typeof props.children === "string" ? props.children : undefined;
   return (
     <button
       type="button"
+      aria-label={label}
+      title={label}
       className={`ag-pill${prominent ? " is-prominent" : ""}`}
       style={prominent ? { color: TINT } : undefined}
       onClick={props.onClick}

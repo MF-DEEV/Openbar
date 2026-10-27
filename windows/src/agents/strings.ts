@@ -50,6 +50,9 @@ export const A = {
   left: (share: string) => `${share} left`,
   used: (share: string) => `${share} used`,
   updated: (when: string) => `Updated ${when}`,
+  claudeCodeUpdated: (when: string) => `Claude Code · Updated ${when}`,
+  seconds: (n: number) => `${n} sec`,
+  minutes: (n: number) => `${n} min`,
   readoutLimit: "Limit",
   valueNote: "API value is what the same work would cost at API list prices. Plans charge a fixed price instead.",
   // Resets (Codex's banked resets)
