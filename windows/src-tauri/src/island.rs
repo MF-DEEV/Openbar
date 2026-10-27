@@ -81,6 +81,7 @@ pub struct IslandState {
 
 impl IslandState {
     /// Whether a point in the window's CSS pixels is on the island's shape.
+    #[cfg_attr(not(windows), allow(dead_code))]
     pub fn contains(&self, x: f64, y: f64) -> bool {
         self.rects.lock().unwrap().iter().any(|r| r.contains(x, y))
     }

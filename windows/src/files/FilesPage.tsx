@@ -196,8 +196,9 @@ function ZipPopover(props: { anchor: HTMLElement; onClose(): void; onZip(): void
     const el = ref.current;
     if (!el) return;
     const at = props.anchor.getBoundingClientRect();
-    const frame = document.querySelector(".island-frame")?.getBoundingClientRect();
-    const right = (frame?.right ?? window.innerWidth) - 8;
+    // Inside the open island: only its shape takes the pointer on Windows.
+    const island = document.querySelector(".n-expanded")?.getBoundingClientRect();
+    const right = (island?.right ?? window.innerWidth) - 12;
     setPos({ left: Math.min(at.left + at.width / 2 - el.offsetWidth / 2, right - el.offsetWidth), top: at.bottom + 6 });
   }, [props.anchor]);
   useEffect(() => {

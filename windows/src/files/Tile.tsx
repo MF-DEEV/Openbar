@@ -149,7 +149,7 @@ export function Tile({ item }: { item: ShelfItem }) {
             {
               label: S.openWith,
               disabled: apps !== null && apps.length === 0,
-              submenu: apps ?? [{ label: "…", disabled: true }],
+              submenu: apps === null ? [{ label: "…", disabled: true }] : apps.length ? apps : undefined,
             },
             { label: S.share, icon: Share, onSelect: () => void bridge.files.share(ids) },
             { kind: "separator" },

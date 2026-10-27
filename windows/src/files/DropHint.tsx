@@ -6,7 +6,7 @@
 
 import { Inbox } from "lucide-react";
 import { useContext } from "react";
-import type { Geometry } from "../island/geometry";
+import { contentInsets, type Geometry } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { DrawnSize } from "../island/surface/DrawnSize";
 import { S } from "./strings";
@@ -17,7 +17,13 @@ export function DropHint(props: { geometry: Geometry; size: Size }) {
   return (
     <div
       className="fl-drop-hint"
-      style={{ width: size.width, height: size.height, paddingTop: props.geometry.safeContentTop }}
+      style={{
+        width: size.width,
+        height: size.height,
+        paddingTop: props.geometry.safeContentTop,
+        // 18 in, or clear of the outline's curved ends, like the peek row.
+        paddingInline: Math.max(18, contentInsets(props.geometry, size).horizontal),
+      }}
     >
       <div className="fl-drop-box">
         <Inbox size={15} strokeWidth={2} aria-hidden="true" />

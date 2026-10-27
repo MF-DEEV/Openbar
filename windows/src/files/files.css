@@ -41,6 +41,12 @@
   stroke-dasharray: 4 5;
 }
 
+/* NotchEmptyView's message is 12 pt regular. */
+.fl-empty .n-empty-title {
+  font-size: 12px;
+  font-weight: 400;
+}
+
 /* Tiles: rows fill the height, columns run on sideways with no scroller. */
 .fl-rail {
   flex: 1;
@@ -371,7 +377,6 @@
 /* The closed island under a drag. */
 .fl-drop-hint {
   box-sizing: border-box;
-  padding-inline: 18px;
 }
 
 .fl-drop-box {
