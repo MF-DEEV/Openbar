@@ -26,6 +26,7 @@ import { bridge, type AttentionContext } from "../shared/bridge";
 import { DeferredSessionAttention } from "../sessions/attention";
 import { MicrophoneStrip, subscribeMicrophone } from "../microphone/Microphone";
 import "../timer/register";
+import "../system/register";
 
 activityViews.microphone = MicrophoneStrip;
 void subscribeMicrophone();

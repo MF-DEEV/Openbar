@@ -30,6 +30,15 @@ if (!inTauri && new URLSearchParams(location.search).has("timer")) {
   void import("../timer/demo").then((demo) => demo.startDemo(new URLSearchParams(location.search).get("timer") ?? ""));
 }
 
+// ?system streams sample readings into the System section, one every 2 s.
+if (!inTauri && new URLSearchParams(location.search).has("system")) {
+  void Promise.all([import("../system/demo"), import("../system/store")]).then(([demo, store]) => {
+    let seq = 0;
+    for (; seq < 60; seq++) store.useSystem.getState().receive(demo.demoSnapshot(seq + 1));
+    setInterval(() => store.useSystem.getState().receive(demo.demoSnapshot(++seq)), 2000);
+  });
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     {dev?.has("clawd") ? (

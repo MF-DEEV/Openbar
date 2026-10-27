@@ -8,6 +8,7 @@
 
 import type { LayoutPreset, Silhouette } from "./geometry";
 import type { ModuleId } from "./modules";
+import type { MonitorMetric, NetworkSpeedUnit } from "../system/types";
 
 export type QuickSide = "left" | "right" | "bottom";
 export type QuickAction =
@@ -76,6 +77,11 @@ export interface IslandSettings {
   pomodoroLongBreakMinutes: number;
   pomodoroLongBreakInterval: number;
   pomodoroTotalSessions: number;
+  /** Seconds between System readings: 1, 2 or 5 (monitorInterval). */
+  monitorInterval: number;
+  networkSpeedUnit: NetworkSpeedUnit;
+  /** System cards switched off (the Mac's monitor* features). */
+  hiddenSystemMetrics: MonitorMetric[];
 }
 
 export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
@@ -131,6 +137,9 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   pomodoroLongBreakMinutes: 15,
   pomodoroLongBreakInterval: 4,
   pomodoroTotalSessions: 4,
+  monitorInterval: 2,
+  networkSpeedUnit: "bytes",
+  hiddenSystemMetrics: [],
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

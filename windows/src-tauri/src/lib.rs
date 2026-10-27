@@ -20,6 +20,7 @@ mod settings;
 mod shell;
 mod sound;
 mod timer;
+mod system_monitor;
 mod tray;
 
 use tauri::{Emitter, Manager, RunEvent};
@@ -92,6 +93,7 @@ pub fn run() {
         .manage(microphone::Shared::default())
         .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
+        .manage(system_monitor::Shared::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -135,6 +137,8 @@ pub fn run() {
             sound::sound_alarm,
             timer::timer_now_ms,
             timer::timer_wake,
+            system_monitor::system_monitor_watch,
+            system_monitor::system_monitor_snapshot,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
@@ -154,6 +158,7 @@ pub fn run() {
                 app.handle().clone(),
                 app.state::<notifications::Shared>().inner().clone(),
             );
+            system_monitor::start(app.handle().clone(), app.state::<system_monitor::Shared>().inner().clone());
             let prefs = app.state::<prefs::Prefs>().get();
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;

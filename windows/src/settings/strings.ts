@@ -84,6 +84,33 @@ export const T = {
     notificationsCaption:
       "Discord, Messenger and other desktop notifications show only the app icon, app name and sender. Message text is not collected or displayed. Discord’s Do Not Disturb and muted chats follow its desktop notification settings.",
   },
+  system: {
+    interval: "Update every",
+    intervalCaption:
+      "How often the cards read while the System section is open. Nothing is measured while it's closed.",
+    interval1: "1 second",
+    interval2: "2 seconds",
+    interval5: "5 seconds",
+    speedUnit: "Network speed unit",
+    metrics: {
+      cpu: "CPU",
+      gpu: "GPU",
+      memory: "Memory",
+      network: "Network",
+      disk: "Disk",
+      power: "Power",
+      connectedDevices: "Connected Devices",
+    },
+    captions: {
+      cpu: "Processor usage",
+      gpu: "Graphics usage",
+      memory: "Memory use",
+      network: "Network speed and usage",
+      disk: "Disk space and activity",
+      power: "Battery, power and charging",
+      connectedDevices: "Count connected USB and Bluetooth devices",
+    },
+  },
   summaries: {
     controls: "Playback, volume, brightness and your shortcuts.",
     mixer: "The volume of each app, and where sound plays.",
