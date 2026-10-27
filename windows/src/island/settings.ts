@@ -8,6 +8,7 @@
 
 import type { LayoutPreset, Silhouette } from "./geometry";
 import type { ModuleId } from "./modules";
+import type { AgentCard, AgentPeriod, AgentReadout, LimitDisplay, LimitFocus } from "../agents/types";
 
 export type QuickSide = "left" | "right" | "bottom";
 export type QuickAction =
@@ -64,6 +65,31 @@ export interface IslandSettings {
   downloadProgress: boolean;
   microphoneStatus: boolean;
   downloadFolders: string[];
+  // AI Agents (spec 03 §11; the Mac's notchAgents* keys).
+  /** Read each agent's logs; at least one stays on. */
+  agentsClaude: boolean;
+  agentsCodex: boolean;
+  agentsOpenCode: boolean;
+  agentsCopilot: boolean;
+  /** The cards' order; cards it leaves out follow in their default order. */
+  agentsCardOrder: AgentCard[];
+  agentsHiddenCards: AgentCard[];
+  /** The period Spending, Trend, Models and Projects cover. */
+  agentsPeriod: AgentPeriod;
+  agentsLimitDisplay: LimitDisplay;
+  agentsLimitFocus: LimitFocus;
+  /** The closed island shows an agent at work. */
+  agentsLiveActivity: boolean;
+  agentsReadout: AgentReadout;
+  agentsFinishAlert: boolean;
+  /** Seconds: the shortest turn worth a notice. */
+  agentsFinishMinimum: number;
+  agentsLimitAlert: boolean;
+  /** Percent used that earns a warning. */
+  agentsLimitThreshold: number;
+  /** USD of API value a day; 0 is off. */
+  agentsDailyBudget: number;
+  agentsPriceUpdates: boolean;
 }
 
 export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
@@ -110,6 +136,23 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   downloadProgress: true,
   microphoneStatus: true,
   downloadFolders: [],
+  agentsClaude: true,
+  agentsCodex: true,
+  agentsOpenCode: true,
+  agentsCopilot: true,
+  agentsCardOrder: [],
+  agentsHiddenCards: [],
+  agentsPeriod: "today",
+  agentsLimitDisplay: "remaining",
+  agentsLimitFocus: "mostUsed",
+  agentsLiveActivity: true,
+  agentsReadout: "elapsed",
+  agentsFinishAlert: true,
+  agentsFinishMinimum: 60,
+  agentsLimitAlert: true,
+  agentsLimitThreshold: 80,
+  agentsDailyBudget: 0,
+  agentsPriceUpdates: true,
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

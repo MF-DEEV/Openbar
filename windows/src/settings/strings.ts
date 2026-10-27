@@ -95,7 +95,7 @@ export const T = {
     camera: "A mirror to check yourself before a call.",
     downloads: "Downloads in progress and just finished.",
     scratchpad: "Quick notes that save by themselves.",
-    agents: "Claude Code and Codex usage, limits and costs.",
+    agents: "Plan limits, tokens and API value of Claude, Codex, OpenCode and GitHub Copilot.",
     sessions: "Running Claude Code and Codex sessions, and what each one needs from you.",
     watch: "Any part of a window, read live, with an alert when it changes.",
   },
@@ -107,6 +107,9 @@ export const T = {
     indicatorsLead: "Short notices the closed island shows when something changes.",
     trackChange: "New track",
     trackChangeCaption: "The cover, title and artist for a moment when the song changes.",
+    agents: "AI agent at work",
+    agentsCaption:
+      "While Claude Code, Codex, OpenCode or GitHub Copilot works, its mark and the reading you chose beside the camera.",
     more: "Volume, brightness, clipboard and the other indicators come with their sections.",
   },
   behavior: {
@@ -166,6 +169,11 @@ export const T = {
     buddies: "A buddy for every session",
     buddiesCaption:
       "Clawd for Claude Code, a little robot for Codex, each dressed at random. Click one on its session's page to change the outfit.",
+  },
+  agents: {
+    cardsKeys: "Alt+arrow keys move the focused card.",
+    cardShown: "shown",
+    cardHidden: "hidden",
   },
   saveFailed: "Couldn't save this change.",
 } as const;

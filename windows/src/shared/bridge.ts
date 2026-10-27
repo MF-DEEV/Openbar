@@ -13,6 +13,7 @@ import type { MusicCommand, NowPlaying } from "../music/types";
 import type { Access, Inbox, Item } from "../notifications/types";
 import type { DownloadSnapshot } from "../downloads/types";
 import type { MicrophoneSnapshot } from "../microphone/model";
+import type { AgentEvent, AgentSnapshot, RedeemOutcome } from "../agents/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 export interface AttentionContext {
@@ -130,6 +131,23 @@ export const bridge = {
       if (!inTauri) return Promise.resolve(() => {});
       return listen<DownloadSnapshot>("downloads://snapshot", (event) => handler(event.payload));
     },
+  },
+  agents: {
+    snapshot: () => call<AgentSnapshot>("agents_snapshot"),
+    onSnapshot(handler: (snapshot: AgentSnapshot) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<AgentSnapshot>("agents://snapshot", (event) => handler(event.payload));
+    },
+    onEvent(handler: (event: AgentEvent) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<AgentEvent>("agents://event", (event) => handler(event.payload));
+    },
+    /** The AI page is on screen: Claude's limits are checked every minute instead of five. */
+    pageVisible: (visible: boolean) => call("agents_page_visible", { visible }),
+    /** Codex's banked resets, read again when stale (or now when `force`). */
+    refreshResets: (force: boolean) => call("agents_resets_refresh", { force }),
+    /** Spends one banked reset. Only ever behind the Resets card's confirmation. */
+    redeemReset: () => call<RedeemOutcome>("agents_resets_redeem"),
   },
   shell: {
     /** A PNG data URL: the file's icon, or its thumbnail when `thumbnail`. */
