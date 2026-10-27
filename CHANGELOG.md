@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Dynamic Island shows when you mute your microphone or deafen in Discord, with a red mark while muted, and a short notice when you unmute. It follows your Discord shortcuts while Discord is hidden. Settings → Dynamic Island → Activity → Microphone status.
+
 ### Fixed
 - Wallpaper's Add image and Add folder open the file picker in front on the first click instead of behind other windows.
 - Scrolling Monitor settings with Bars as the usage display no longer freezes the app, and the menu bar preview now stays at the top of the page.

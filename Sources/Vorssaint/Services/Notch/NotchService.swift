@@ -21,6 +21,8 @@ struct NotchNotice: Equatable {
     var mascot: NotchMascotReaction? = nil
     /// The Claude Code or Codex session a Sessions notice is about, whose page it opens.
     var sessionID: String? = nil
+    /// The microphone a voice notice is about: its marks and their red.
+    var voice: VoiceChatReading? = nil
     /// A banner that replaces one still on screen keeps at least its wings,
     /// so a burst of messages does not resize the island with each one.
     var minimumWings = NotchNoticeWings.zero
@@ -53,13 +55,19 @@ struct NotchNotice: Equatable {
         let maximum: CGFloat = event == .accessory && level == nil ? 160 : 240
         func fitted(_ content: CGFloat) -> CGFloat { min(maximum, max(Self.minimumWing, ceil(content) + 16 + cameraGap)) }
         // An empty title leaves the mark alone, without the space after it.
-        let mark = fitted(leading > 0 ? leading + 18 + 8 : 18)
+        let mark = fitted(leading > 0 ? leading + markWidth + 8 : markWidth)
         guard level == nil else { return NotchNoticeWings(leading: mark, trailing: mark) }
         return NotchNoticeWings(leading: mark, trailing: fitted((detail as NSString).size(withAttributes: [.font: font]).width))
     }
 
     /// The wider side, for what still takes one width for both.
     var preferredWingWidth: CGFloat { preferredWings.widest }
+
+    /// Deafened headphones stand beside the muted microphone.
+    var markCount: Int { voice?.deafened == true ? 2 : 1 }
+
+    /// The room the marks take before the title.
+    var markWidth: CGFloat { CGFloat(markCount) * 18 + CGFloat(markCount - 1) * 2 }
 
     /// The narrowest side a text notice keeps: its curved end and some air.
     static let minimumWing: CGFloat = 36
@@ -524,14 +532,18 @@ final class NotchService: ObservableObject {
         NotchKeepAwakeSupport.showsActivity() && KeepAwakeManager.shared.isActive
     }
 
+    var hasVoiceActivity: Bool {
+        DiscordVoiceSupport.isEnabled() && DiscordVoiceSupport.reading(DiscordVoiceService.shared.snapshot).active
+    }
+
     var compactActivity: NotchCompactActivity? {
         // A new song waiting for its notice is not drawn yet.
         activitySelection.current(available: awaitsTrackNotice ? compactActivities.filter { $0 != .music } : compactActivities)
     }
 
     var compactActivities: [NotchCompactActivity] {
-        NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, sessions: hasSessionActivity,
-                                      downloads: hasDownloadActivity,
+        NotchSupport.compactActivities(timer: hasTimerActivity, watch: hasWatchActivity, voiceChat: hasVoiceActivity,
+                                      sessions: hasSessionActivity, downloads: hasDownloadActivity,
                                       agents: hasAgentActivity, calendar: hasCalendarActivity,
                                       music: hasMusicActivity, keepAwake: hasKeepAwakeActivity)
     }
@@ -660,6 +672,8 @@ final class NotchService: ObservableObject {
                                                     paired: companion != nil)
         // Its reading is a countdown like the timer's, so it takes the timer's wings.
         case .keepAwake: return geometry.compactTimerGeometry(showsDownloads: false, wing: keepAwakeStripWing(in: geometry))
+        // A mark and a dot, in the timer's wings like Keep Awake's cup.
+        case .voiceChat: return geometry.compactTimerGeometry(showsDownloads: false, wing: voiceStripWing(in: geometry))
         default: return geometry
         }
     }
@@ -676,6 +690,11 @@ final class NotchService: ObservableObject {
             ]).width.rounded(.up)
         let inset = provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
         return reading + inset + NotchTimerSupport.stripCameraGap
+    }
+
+    private func voiceStripWing(in geometry: NotchGeometry) -> CGFloat {
+        DiscordVoiceSupport.stripWing(deafened: DiscordVoiceSupport.reading(DiscordVoiceService.shared.snapshot).deafened,
+                                      in: geometry)
     }
 
     private func keepAwakeStripWing(in geometry: NotchGeometry) -> CGFloat {
@@ -1014,7 +1033,7 @@ final class NotchService: ObservableObject {
         let layout = NotchCapsuleLayout.self
         guard let content = notice.notification else {
             return layout.surface(content: layout.noticeContent(title: notice.title, detail: notice.detail,
-                                                                level: notice.level != nil),
+                                                                level: notice.level != nil, marks: notice.markCount),
                                   maximum: layout.Maximum.notice, geometry: geometry)
         }
         return layout.surface(content: layout.notificationContent(title: content.compactTitle, message: content.compactDetail,
@@ -1084,6 +1103,9 @@ final class NotchService: ObservableObject {
                 NotchKeepAwakeSupport.compactText(until: $0, now: Date(), locale: Locale(identifier: language.rawValue))
             }
             return layout.keepAwakeSurface(reading: reading, geometry: geometry)
+        case .voiceChat:
+            return layout.voiceSurface(deafened: DiscordVoiceSupport.reading(DiscordVoiceService.shared.snapshot).deafened,
+                                       geometry: geometry)
         }
     }
 
@@ -1165,6 +1187,9 @@ final class NotchService: ObservableObject {
         NotchCalendarService.shared.syncWithPreferences()
         NotchNotificationService.shared.syncWithPreferences()
         NotchAudioLevelService.shared.syncWithPreferences()
+        DiscordVoiceService.shared.syncWithPreferences()
+        // Turned off, the status takes its notice with it, as on Windows.
+        if !DiscordVoiceSupport.isEnabled(), notice?.event == .voiceChat { dismissNotice() }
         AgentUsageService.shared.syncWithPreferences()
         followsPointer = displayPreference == .pointer || displayPreference == .all
         showsOnAllDisplays = displayPreference == .all
@@ -1314,6 +1339,7 @@ final class NotchService: ObservableObject {
         stopPower()
         NotchMusicService.shared.stop()
         NotchAudioLevelService.shared.stop()
+        DiscordVoiceService.shared.stop()
         CameraPreviewService.shared.hideEmbedded()
         NotchAccessoryService.shared.suspend()
         NotchDownloadService.shared.stop()
@@ -2477,6 +2503,18 @@ final class NotchService: ObservableObject {
         return show(NotchNotice(event: .microphone, title: "",
                                 detail: muted ? text.micMutedHUD : text.micUnmutedHUD,
                                 symbol: muted ? "mic.slash.fill" : "mic.fill", mascot: muted ? .hush : .perk))
+    }
+
+    /// Discord's mute or deafen changing: the marks on one side of the
+    /// camera, what happened on the other.
+    private func showVoiceChange(from previous: VoiceChatSnapshot, to next: VoiceChatSnapshot, initial: Bool) {
+        guard let reading = DiscordVoiceSupport.announcement(from: previous, to: next, initial: initial,
+                                                             enabled: DiscordVoiceSupport.isEnabled())
+        else { return }
+        show(NotchNotice(event: .voiceChat, title: "Discord",
+                         detail: FeatureStrings.notchVoice(L10n.shared.language).status(reading),
+                         symbol: reading.muted ? DiscordVoiceSupport.mutedSymbol : DiscordVoiceSupport.openSymbol,
+                         voice: reading))
     }
 
     /// A partial result is confirmed by the floating panel alone, so the
@@ -4074,6 +4112,19 @@ final class NotchService: ObservableObject {
                     self?.syncMenuSpaceMonitoring()
                     self?.objectWillChange.send()
                     self?.refreshPresentation()
+                }.store(in: &subscriptions)
+        }
+        if NotchSupport.routes(.voiceChat) {
+            // The first reading is the state as found, not a change to announce.
+            var previous: VoiceChatSnapshot?
+            DiscordVoiceService.shared.$snapshot.removeDuplicates().receive(on: DispatchQueue.main)
+                .sink { [weak self] snapshot in
+                    defer { previous = snapshot }
+                    guard let self else { return }
+                    self.syncMenuSpaceMonitoring()
+                    self.objectWillChange.send()
+                    self.refreshPresentation()
+                    self.showVoiceChange(from: previous ?? snapshot, to: snapshot, initial: previous == nil)
                 }.store(in: &subscriptions)
         }
         if NotchSupport.routes(.sessions) {

@@ -538,6 +538,8 @@ extension AppFeature {
                     || (boolFor(DefaultsKey.notchBrightness) && isAvailable(.brightness)
                         && boolFor(DefaultsKey.brightnessControlEnabled))
                     || (boolFor(DefaultsKey.notchClipboardWindow) && isAvailable(.clipboardHistory))
+                    // Discord's controls and shortcuts are read through Accessibility.
+                    || boolFor(DefaultsKey.notchVoiceChat)
             case (.radialMenu, .accessibility):
                 if let profiles = dataFor(DefaultsKey.radialMenuProfiles) {
                     return RadialMenuSupport.needsAccessibility(RadialMenuSupport.decodeProfiles(profiles))

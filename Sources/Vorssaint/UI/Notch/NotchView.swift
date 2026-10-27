@@ -239,6 +239,7 @@ struct NotchView: View {
             case .calendar: NotchCapsuleCalendarStrip(service: service, size: size)
             case .music: NotchCapsuleMusicStrip(service: service, size: size, interactive: true)
             case .keepAwake: NotchCapsuleKeepAwakeStrip(service: service, size: size)
+            case .voiceChat: NotchCapsuleVoiceStrip(service: service, size: size)
             }
         } else {
             // Handed down, the wings stay as they were drawn while a strip
@@ -254,6 +255,7 @@ struct NotchView: View {
             case .calendar: NotchCalendarStrip(service: service, displayGeometry: geometry)
             case .music: NotchMusicStrip(service: service, displayGeometry: geometry, interactive: true)
             case .keepAwake: NotchKeepAwakeStrip(service: service, displayGeometry: geometry)
+            case .voiceChat: NotchVoiceStrip(service: service, displayGeometry: geometry)
             }
         }
     }

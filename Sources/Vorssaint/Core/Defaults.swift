@@ -940,6 +940,7 @@ enum DefaultsKey {
     static let notchVolume = "notchVolume"
     static let notchInputSource = "notchInputSource"
     static let notchMicrophone = "notchMicrophone"
+    static let notchVoiceChat = "notchVoiceChat" // Discord mute and deafen in the closed island
     static let notchBrightness = "notchBrightness"
     static let notchBattery = "notchBattery"
     static let notchClipboard = "notchClipboard"
@@ -1540,6 +1541,7 @@ enum Defaults {
         DefaultsKey.notchVolume: true,
         DefaultsKey.notchInputSource: true,
         DefaultsKey.notchMicrophone: true,
+        DefaultsKey.notchVoiceChat: true,
         DefaultsKey.notchBrightness: true,
         DefaultsKey.notchBattery: true,
         DefaultsKey.notchClipboard: true,

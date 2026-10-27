@@ -825,7 +825,7 @@ enum NotchMusicStripLayout {
 }
 
 enum NotchCompactActivity: String, Identifiable {
-    case timer, watch, sessions, downloads, agents, calendar, music, keepAwake
+    case timer, watch, voiceChat, sessions, downloads, agents, calendar, music, keepAwake
 
     var id: String { rawValue }
 
@@ -833,6 +833,7 @@ enum NotchCompactActivity: String, Identifiable {
         switch self {
         case .timer: return FeatureStrings.notchActivities(language).timer
         case .watch: return FeatureStrings.notchWatch(language).title
+        case .voiceChat: return FeatureStrings.notchVoice(language).title
         case .sessions: return FeatureStrings.notchClaudeSessions(language).title
         case .downloads: return FeatureStrings.notchFiles(language).downloadsTitle
         case .agents: return FeatureStrings.notchAgents(language).title
@@ -842,11 +843,13 @@ enum NotchCompactActivity: String, Identifiable {
         }
     }
 
-    /// Keep Awake has no page of its own: its tile is on Controls.
+    /// Keep Awake has no page of its own: its tile is on Controls. Nor has
+    /// the microphone's status, whose mute tile is there too.
     var module: NotchModule {
         switch self {
         case .timer: return .timer
         case .watch: return .watch
+        case .voiceChat: return .controls
         case .sessions: return .sessions
         case .downloads: return .downloads
         case .agents: return .agents
@@ -857,7 +860,11 @@ enum NotchCompactActivity: String, Identifiable {
     }
 
     var symbol: String {
-        self == .keepAwake ? NotchControlItem.keepAwake.symbol : module.symbol
+        switch self {
+        case .keepAwake: return NotchControlItem.keepAwake.symbol
+        case .voiceChat: return DiscordVoiceSupport.mutedSymbol
+        default: return module.symbol
+        }
     }
 }
 
@@ -1084,10 +1091,18 @@ enum NotchCapsuleLayout {
 
     /// The row a notice reads in: its mark, its title and its detail, or a
     /// level's mark, meter and reading.
-    static func noticeContent(title: String, detail: String, level: Bool) -> CGFloat {
+    static func noticeContent(title: String, detail: String, level: Bool, marks: Int = 1) -> CGFloat {
         if level { return symbolWidth + spacing + meterWidth + spacing + levelReadingWidth(detail) }
         let detailWidth = width(detail, font: detailFont)
-        return symbolWidth + spacing + width(title, font: titleFont) + (detailWidth > 0 ? groupSpacing + detailWidth : 0)
+        let mark = CGFloat(max(1, marks)) * symbolWidth + CGFloat(max(0, marks - 1)) * markSpacing
+        return mark + spacing + width(title, font: titleFont) + (detailWidth > 0 ? groupSpacing + detailWidth : 0)
+    }
+
+    /// A muted microphone: its marks, and headphones beside it when deafened,
+    /// then the red dot that says it stays muted.
+    static func voiceSurface(deafened: Bool, geometry: NotchGeometry) -> CGSize {
+        let marks = (deafened ? symbolWidth + markSpacing : 0) + symbolWidth
+        return surface(content: marks + spacing + calendarDotSide, maximum: Maximum.activity, geometry: geometry)
     }
 
     /// A mirrored banner: the app's icon, the sender and the message.
@@ -1598,11 +1613,12 @@ enum NotchQuickAccessLayout {
 }
 
 enum NotchEvent: String, CaseIterable {
-    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, sessions, track, microphone, watch, inputSource
+    case volume, brightness, battery, clipboard, capture, systemNotification, keyboardLight, timer, accessory, download, agents, sessions, track, microphone, voiceChat, watch, inputSource
 
     var preferenceKey: String {
         switch self {
         case .microphone: return DefaultsKey.notchMicrophone
+        case .voiceChat: return DefaultsKey.notchVoiceChat
         case .track: return DefaultsKey.notchTrackChange
         case .timer: return DefaultsKey.notchTimerEnabled
         case .watch: return DefaultsKey.notchWatchEnabled
@@ -1623,7 +1639,7 @@ enum NotchEvent: String, CaseIterable {
 
     var priority: Int {
         switch self {
-        case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 3
+        case .volume, .brightness, .keyboardLight, .microphone, .voiceChat, .inputSource: return 3
         case .capture, .timer, .watch, .sessions: return 2
         case .battery, .systemNotification, .accessory, .agents: return 1
         case .clipboard, .download, .track: return 0
@@ -1633,7 +1649,8 @@ enum NotchEvent: String, CaseIterable {
     var duration: TimeInterval {
         switch self {
         case .volume, .brightness, .keyboardLight, .microphone, .inputSource: return 1.6
-        case .systemNotification, .track: return 3
+        // Long enough to read who is muted, as the Windows island shows it.
+        case .systemNotification, .track, .voiceChat: return 3
         case .timer, .download, .watch, .sessions: return 6
         case .agents: return 5
         case .battery, .accessory: return 4
@@ -1788,11 +1805,15 @@ enum NotchSupport {
     /// Keep Awake comes last: a session can run all day, even more than
     /// music plays, and it only says that the Mac stays awake. A watch
     /// follows the timer: the person started both and is waiting on them.
-    static func compactActivities(timer: Bool, watch: Bool = false, sessions: Bool = false, downloads: Bool, agents: Bool,
-                                  calendar: Bool, music: Bool, keepAwake: Bool = false) -> [NotchCompactActivity] {
+    static func compactActivities(timer: Bool, watch: Bool = false, voiceChat: Bool = false, sessions: Bool = false,
+                                  downloads: Bool, agents: Bool, calendar: Bool, music: Bool,
+                                  keepAwake: Bool = false) -> [NotchCompactActivity] {
         // Sessions come before the AI reading: they can be waiting on the person.
+        // A muted microphone follows what the person is waiting on, before
+        // everything else, as on Windows: talking into it unheard is the mistake.
         let candidates: [(Bool, NotchCompactActivity)] = [
-            (timer, .timer), (watch, .watch), (sessions, .sessions), (downloads, .downloads), (agents, .agents),
+            (timer, .timer), (watch, .watch), (voiceChat, .voiceChat), (sessions, .sessions), (downloads, .downloads),
+            (agents, .agents),
             (calendar, .calendar), (music, .music), (keepAwake, .keepAwake)
         ]
         return candidates.compactMap { $0.0 ? $0.1 : nil }
@@ -2045,8 +2066,9 @@ enum NotchSupport {
             return AppFeature.screenshot.isAvailable(in: defaults)
                 && modules(in: defaults).contains(.captures)
         case .track: return modules(in: defaults).contains(.music)
-        // A layout notice needs no feature of its own, only its own toggle.
-        case .inputSource: return true
+        // A layout notice needs no feature of its own, only its own toggle;
+        // nor does Discord's mute, which needs Accessibility to be read.
+        case .inputSource, .voiceChat: return true
         }
     }
 

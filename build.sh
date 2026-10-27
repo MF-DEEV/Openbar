@@ -259,6 +259,10 @@ if (( TEST )); then
         Sources/Vorssaint/Core/NotchEditorStrings.swift
         Sources/Vorssaint/UI/Settings/NotchSettingsTabRow.swift
         Sources/Vorssaint/Core/NotchActivityStrings.swift
+        Sources/Vorssaint/Core/NotchVoiceStrings.swift
+        Sources/Vorssaint/Services/Discord/DiscordStorage.swift
+        Sources/Vorssaint/Services/Discord/DiscordKeybinds.swift
+        Sources/Vorssaint/Services/Discord/DiscordVoiceSupport.swift
         Sources/Vorssaint/Services/Notch/NotchTimerSupport.swift
         Sources/Vorssaint/Services/Notch/NotchTimerAlert.swift
         Sources/Vorssaint/UI/Notch/NotchIslandAlert.swift

@@ -23,11 +23,14 @@ struct NotchNoticeView: View {
             ? ClaudeSessionPhase.finished.tint : ClaudeSessionPhase.waitingPermission.tint
         // The timer's notice keeps the orange its strip and page wear.
         case .timer: return .orange
+        case .voiceChat: return NotchVoiceMarks.tint(notice.voice)
         default: return .white
         }
     }
     /// The words of a timer's notice share its orange too.
     private var textTint: Color { notice.event == .timer ? .orange : .white }
+    /// A muted microphone's status is read in the red of its marks.
+    private var detailTint: Color { notice.voice?.muted == true ? NotchVoiceMarks.mutedTint : textTint.opacity(0.8) }
     /// With the companion on, it stands in for the symbol, and reacts unless
     /// its reactions are off.
     private var companionReaction: NotchMascotReaction? {
@@ -103,13 +106,15 @@ struct NotchNoticeView: View {
                             .transition(.identity)
                     } else if notice.event == .track {
                         NotchTrackArtwork(size: min(18, geometry.stripHeight - 6))
+                    } else if let voice = notice.voice {
+                        NotchVoiceMarks(reading: voice, size: 14, spacing: 2, slot: 18)
                     } else {
                         Image(systemName: notice.symbol)
                             .font(.system(size: 14, weight: .medium))
                             .foregroundStyle(tint)
                     }
                 }
-                .frame(width: 18)
+                .frame(width: notice.markWidth)
                 Text(notice.level == nil ? notice.title : notice.detail)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(textTint)
@@ -140,7 +145,7 @@ struct NotchNoticeView: View {
         } else {
             Text(notice.detail)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(textTint.opacity(0.8))
+                .foregroundStyle(detailTint)
                 .lineLimit(1)
                 .truncationMode(notice.event == .accessory ? .middle : .tail)
                 .frame(maxWidth: .infinity, alignment: .trailing)
