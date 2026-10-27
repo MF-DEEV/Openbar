@@ -207,6 +207,7 @@ function AreaPicker({ session, source }: { session: CaptureSession; source: HTML
       <canvas ref={canvas} className="cp-canvas" width={session.width} height={session.height} />
       {area ? null : (
         <div className="cp-hint" role="status">
+          {session.purpose === "watch" ? `${S.purposeWatch} · ` : null}
           {S.hintDrag} · {S.hintFullScreen} · {S.hintCancel}
         </div>
       )}

@@ -145,6 +145,7 @@ const ON_WINDOWS: ModuleId[] = [
   "clipboard",
   "files",
   "agents",
+  "watch",
 ];
 
 function DownloadOptions() {
@@ -256,6 +257,12 @@ function Options({ id }: { id: ModuleId }) {
       );
     case "calendar":
       return <CalendarOptions />;
+    case "watch":
+      return (
+        <SubRow title={T.content.watchSound} caption={T.content.watchSoundCaption}>
+          <Toggle label={T.content.watchSound} checked={island.watchSound} onChange={(on) => set("watchSound", on)} />
+        </SubRow>
+      );
     case "controls":
       return <ControlsOptions />;
     case "mixer":

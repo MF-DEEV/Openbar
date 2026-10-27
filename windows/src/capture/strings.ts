@@ -5,6 +5,8 @@
 
 export const S = {
   hintDrag: "Drag to select an area",
+  /** Watch's purpose, shown first (NotchWatchStrings.purpose). */
+  purposeWatch: "Choose what to watch",
   hintFullScreen: "Enter captures the whole screen",
   hintPick: "Click to copy the color",
   hintNudge: "Arrow keys move one pixel",

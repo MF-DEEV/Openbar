@@ -81,6 +81,8 @@ export const T = {
     hideTimerCountdownCaption: "A running timer stays off the closed island. A finished one still shows.",
     timerSound: "Play sound when time is up",
     timerSoundCaption: "A chime every 2 seconds, for up to 5 minutes, until you dismiss the timer.",
+    watchSound: "Play a sound",
+    watchSoundCaption: "A chime when what you watch changes, finishes or shows what you are waiting for.",
     colorFormat: "Color picker format",
     colorFormatCaption: "How a picked color is copied.",
     bareHex: "Copy hex without the # prefix",
