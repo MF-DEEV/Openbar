@@ -42,7 +42,7 @@ vi.mock("../shared/bridge", () => ({
 
 import { DEFAULT_SETTINGS } from "../island/settings";
 import { useIsland, visibleActivity } from "../island/store";
-import { loadPrefs } from "../shared/prefs";
+import { loadPrefs, resolve } from "../shared/prefs";
 import "./register";
 import { showsThumbnail, useWatch, watch } from "./store";
 import { outcomeTitle, S } from "./strings";
@@ -213,5 +213,11 @@ describe("page actions", () => {
     );
     expect(formatTarget(null)).toBe("");
     expect(formatTarget(12500)).not.toMatch(/[ ,.  ]/);
+  });
+
+  it("reads an unknown saved condition as When it changes", () => {
+    expect(resolve({ island: { watchCondition: "blinks" } as never }).island.watchCondition).toBe("changes");
+    expect(resolve({ island: { watchCondition: "reaches" } }).island.watchCondition).toBe("reaches");
+    expect(resolve({}).island.watchSound).toBe(true);
   });
 });

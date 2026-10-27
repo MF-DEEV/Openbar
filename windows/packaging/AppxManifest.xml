@@ -40,5 +40,7 @@
     <uap:Capability Name="appointments" />
     <uap3:Capability Name="userNotificationListener" />
     <rescap:Capability Name="runFullTrust" />
+    <!-- Watch: capture a window without the yellow border. -->
+    <rescap:Capability Name="graphicsCaptureWithoutBorder" />
   </Capabilities>
 </Package>

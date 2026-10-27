@@ -42,6 +42,7 @@ To remove it, use **Settings › Apps › Installed apps › Vorssaint › Unins
 - **System.** CPU, GPU, memory, battery, network, free disk space, battery power draw and connected USB and Bluetooth devices, as cards that turn orange when something needs attention. Click a card for its recent history and, for CPU and memory, the apps using the most. Readings are taken only while the page is open. Set how often it updates, the network unit and which cards show in **Content › System**.
 - **Notifications (requires package identity).** Discord, Messenger and other Windows notifications show the app icon, app name and sender, without message text. Discord's Do Not Disturb and muted chats follow its desktop notifications. See [package identity and setup](docs/notifications.md).
 - **Calendar (requires package identity).** The week as a strip, or the month beside your agenda on a tall island, with every appointment from the Windows Calendar app and classic Outlook. In the hour before a meeting the closed island counts down to it (**Content › Calendar › Event countdown**, or right-click one appointment and choose **Add Countdown**). Windows asks once for calendar access. The new Outlook keeps its calendar to itself, so its appointments don't show.
+- **Watch.** Drag over any part of a window, like a progress bar, a build status or a score, and the closed island shows what it reads beside a breathing eye. It tells you when the area changes, stops changing, shows the text you typed or reaches a number. The window is followed even when covered or on another desktop, and Windows draws its yellow capture border around it unless it allows borderless capture. The area is read on your PC with Windows' own text recognition; nothing is saved or sent.
 - **Claude Code and Codex sessions.** Every session running on your PC, in one list. Each shows its folder, branch and what it's doing: working, running a tool, waiting for you, or done.
   - **Allow from the island.** On the desktop, a session that needs approval opens with the whole command in view. While another app or a game is in front, it stays in the small waiting-hand indicator without taking focus. Returning to the desktop checks all still-pending requests, including ones that were waiting before the app started. Allow, Deny or Always.
   - **Answer questions.** Pick one of the answers a session offers, or write your own.
@@ -67,7 +68,7 @@ Nothing to install. While Codex runs, the island talks to the app server Codex s
 
 ## Not yet
 
-- Clipboard, captures, files, tools, camera, scratchpad, AI usage and Watch show "Coming to Windows soon".
+- Clipboard, captures, files, tools, camera, scratchpad and AI usage show "Coming to Windows soon".
 - Notifications and Calendar need the signed identity package. Only installers built with it (see below) carry it; without it their pages say so.
 - There are no automatic updates. To update, run the newer installer over the old one; your settings stay.
 - The settings window is in English.
