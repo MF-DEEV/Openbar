@@ -86,7 +86,7 @@ mod imp {
     use windows::Graphics::DirectX::DirectXPixelFormat;
     use windows::Graphics::SizeInt32;
     use windows::Security::Authorization::AppCapabilityAccess::AppCapabilityAccessStatus;
-    use windows::Win32::Foundation::{E_ACCESSDENIED, E_FAIL, HMODULE, HWND, RECT};
+    use windows::Win32::Foundation::{E_ACCESSDENIED, E_FAIL, HMODULE, HWND, LPARAM, RECT};
     use windows::Win32::Graphics::Direct3D::{D3D_DRIVER_TYPE, D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP};
     use windows::Win32::Graphics::Direct3D11::{
         D3D11_BOX, D3D11_CPU_ACCESS_READ, D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_MAP_READ,
@@ -212,13 +212,81 @@ mod imp {
         post().is_ok()
     }
 
-    /// Asked once: whether captures may leave out the yellow border.
+    /// `Vorssaint.exe --watch-probe <file> <window title part>`: runs the capture
+    /// steps for that window one by one and writes how long each took, line by
+    /// line, so a step that never returns shows as the last line.
+    pub fn probe(path: &str, title: &str) {
+        use std::io::Write;
+        let Ok(mut out) = std::fs::File::create(path) else { return };
+        let began = Instant::now();
+        let mut line = |text: String| {
+            let _ = writeln!(out, "{:>6} ms  {text}", began.elapsed().as_millis());
+            let _ = out.flush();
+        };
+        let _apartment = crate::com::Apartment::mta();
+        let found = unsafe {
+            use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW, IsWindowVisible};
+            unsafe extern "system" fn each(h: HWND, data: LPARAM) -> windows::core::BOOL {
+                let (title, found) = unsafe { &mut *(data.0 as *mut (String, isize)) };
+                let mut buf = [0u16; 512];
+                let n = unsafe { GetWindowTextW(h, &mut buf) } as usize;
+                if unsafe { IsWindowVisible(h) }.as_bool() && String::from_utf16_lossy(&buf[..n]).contains(title.as_str()) {
+                    *found = h.0 as isize;
+                    return false.into();
+                }
+                true.into()
+            }
+            let mut data = (title.to_string(), 0isize);
+            let _ = EnumWindows(Some(each), LPARAM(&mut data as *mut _ as isize));
+            data.1
+        };
+        line(format!("window {found:#x}"));
+        if found == 0 {
+            return;
+        }
+        line(format!("supported {:?}", GraphicsCaptureSession::IsSupported()));
+        line(format!("device {:?}", device().map(|_| ())));
+        line("borderless access…".into());
+        line(format!("borderless {}", borderless()));
+        let kind = Kind::Window { hwnd: found, crop: Area { x: 0.0, y: 0.0, width: 200.0, height: 60.0 } };
+        let start = Capture::start(&kind);
+        line(format!("start {:?}", start.as_ref().map(|_| ())));
+        if let Ok(mut capture) = start {
+            for _ in 0..10 {
+                std::thread::sleep(Duration::from_millis(300));
+                let grab = capture.grab(Area { x: 0.0, y: 0.0, width: 200.0, height: 60.0 }, (800.0, 600.0));
+                if let Ok(Grab::Frame(f)) = &grab {
+                    line("ocr…".into());
+                    let text = crate::ocr::recognize(&f.rgba, f.width, f.height).map(|r| r.text());
+                    line(format!("ocr {:?}", text.map_err(|e| format!("{e:?}"))));
+                }
+                line(format!("grab {}", match grab {
+                    Ok(Grab::Frame(f)) => format!("frame {}x{}", f.width, f.height),
+                    Ok(Grab::Waiting) => "waiting".into(),
+                    Ok(Grab::Missing) => "missing".into(),
+                    Ok(Grab::Denied) => "denied".into(),
+                    Err(e) => format!("error {e:?}"),
+                }));
+            }
+        }
+        line(format!("print_window {:?}", print_window(found).map(|f| (f.width, f.height))));
+    }
+
+    /// Asked once: whether captures may leave out the yellow border. The
+    /// answer may wait on a consent Windows never shows a background thread,
+    /// so after a moment the watch goes on with the border.
     fn borderless() -> bool {
         static ALLOWED: OnceLock<bool> = OnceLock::new();
         *ALLOWED.get_or_init(|| {
-            GraphicsCaptureAccess::RequestAccessAsync(GraphicsCaptureAccessKind::Borderless)
-                .and_then(|op| op.join())
-                .is_ok_and(|status| status == AppCapabilityAccessStatus::Allowed)
+            let (tx, rx) = std::sync::mpsc::channel();
+            let _ = std::thread::Builder::new().name("watch-borderless".into()).spawn(move || {
+                let _apartment = crate::com::Apartment::mta();
+                let allowed = GraphicsCaptureAccess::RequestAccessAsync(GraphicsCaptureAccessKind::Borderless)
+                    .and_then(|op| op.join())
+                    .is_ok_and(|status| status == AppCapabilityAccessStatus::Allowed);
+                let _ = tx.send(allowed);
+            });
+            rx.recv_timeout(Duration::from_millis(1500)).unwrap_or(false)
         })
     }
 

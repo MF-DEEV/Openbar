@@ -18,6 +18,12 @@
 //! closed island show.
 
 mod platform;
+
+/// `Vorssaint.exe --watch-probe`: times the capture steps for a window (see platform::probe).
+#[cfg(windows)]
+pub fn probe(path: &str, title: &str) {
+    platform::probe(path, title);
+}
 pub mod support;
 
 use std::sync::{Condvar, Mutex};
