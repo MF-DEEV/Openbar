@@ -88,7 +88,12 @@ const READOUTS: { option: model.PomodoroOption; pref: TimerPref; duration: boole
 /** The breaks and sessions as readouts: the name small and dim, the value in orange, every allowed value in a menu. */
 function Readouts() {
   return (
-    <div className="tm-readouts" style={{ height: READOUTS_ROW }}>
+    <div
+      className="tm-readouts"
+      style={{ height: READOUTS_ROW }}
+      // Past a narrow island they run sideways; a mouse wheel scrolls them too.
+      onWheel={(e) => (e.currentTarget.scrollLeft += e.deltaX || e.deltaY)}
+    >
       {READOUTS.map((r) => (
         <Readout key={r.option} {...r} />
       ))}
