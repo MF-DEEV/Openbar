@@ -65,6 +65,8 @@ pub struct Update {
 static ON_UPDATE: OnceLock<Box<dyn Fn(Update) + Send + Sync>> = OnceLock::new();
 static WINDOW: AtomicIsize = AtomicIsize::new(0);
 static OWN_SEQUENCE: AtomicU32 = AtomicU32::new(0);
+/// The last change heard, so a repeated notice for it isn't read twice.
+static SEEN_SEQUENCE: AtomicU32 = AtomicU32::new(0);
 /// The last window in front that isn't Vorssaint's, for a paste when the
 /// island never recorded where it came from (opened by hover, then clicked).
 static LAST_FOREIGN: AtomicIsize = AtomicIsize::new(0);
@@ -174,7 +176,10 @@ unsafe extern "system" fn foreground_changed(
 /// by the caller's worker.
 fn changed() {
     let sequence = unsafe { GetClipboardSequenceNumber() };
-    if sequence == OWN_SEQUENCE.load(Ordering::SeqCst) || available(format(HISTORY_MARK)) {
+    if SEEN_SEQUENCE.swap(sequence, Ordering::SeqCst) == sequence
+        || sequence == OWN_SEQUENCE.load(Ordering::SeqCst)
+        || available(format(HISTORY_MARK))
+    {
         return;
     }
     let me = unsafe { GetCurrentProcessId() };
@@ -281,7 +286,8 @@ fn private(open: &Opened) -> bool {
 /// browsers put a rendered bitmap beside copied cells and text.
 pub fn read(include_images_files: bool) -> Option<Content> {
     let open = open(None)?;
-    if private(&open) {
+    // A history copy may have landed while this read waited its turn.
+    if private(&open) || available(format(HISTORY_MARK)) {
         return None;
     }
     if include_images_files {

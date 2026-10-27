@@ -100,7 +100,8 @@ function swiftUI(inner: string): Rgba | null {
 }
 
 export function parseColor(text: string): Rgba | null {
-  if (new TextEncoder().encode(text).length > MAX_LENGTH) return null;
+  // Checked cheaply first: every card asks on every render.
+  if (text.length > MAX_LENGTH || new TextEncoder().encode(text).length > MAX_LENGTH) return null;
   const value = text.trim().toLowerCase();
   if (value.startsWith("#")) return hex(value.slice(1));
   const rgbArgs = args(value, ["rgba", "rgb"]);

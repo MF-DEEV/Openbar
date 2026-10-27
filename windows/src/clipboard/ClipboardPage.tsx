@@ -122,7 +122,7 @@ export function ClipboardPage({ width }: PageProps) {
   useEffect(() => {
     useClipboard.getState().setSearchOpen(false);
     input.current?.focus();
-    return () => useClipboard.getState().setSearchOpen(false);
+    return () => useClipboard.setState({ searchOpen: false, confirmClear: null });
   }, []);
   useEffect(() => {
     if (searchRequest > 0) input.current?.focus();
@@ -141,9 +141,12 @@ export function ClipboardPage({ width }: PageProps) {
   // The tick answers one copy; the copied entry moves to the top, and the list follows it.
   useEffect(() => {
     if (!copied) return;
-    rows.current.get(copied)?.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
     const timer = setTimeout(() => setCopied(null), COPIED_MS);
     return () => clearTimeout(timer);
+  }, [copied]);
+  useEffect(() => {
+    if (copied)
+      rows.current.get(copied)?.scrollIntoView({ block: "nearest", behavior: reducedMotion() ? "auto" : "smooth" });
   }, [copied, ids]);
 
   // The "Ctrl+n" badges show only while the island has the keyboard.
@@ -215,7 +218,12 @@ export function ClipboardPage({ width }: PageProps) {
   // a menu's own arrows stop there, and Escape belongs to the island.
   const onKey = useRef<(e: KeyboardEvent) => void>(() => {});
   onKey.current = (e) => {
-    if (e.defaultPrevented || confirmClear || menu.isOpen) return;
+    if (e.defaultPrevented) return;
+    if (confirmClear || menu.isOpen) {
+      // Typing over a menu or the sheet goes nowhere, not into the hidden field.
+      if (clipboardKey(e)?.kind === "reveal" && document.activeElement === input.current) e.preventDefault();
+      return;
+    }
     const place = pastePlace(e);
     if (place !== null) {
       e.preventDefault();

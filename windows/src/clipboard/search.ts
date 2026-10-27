@@ -94,15 +94,28 @@ function score(text: string, textWords: Set<string>, query: string, tokens: stri
 }
 
 /** The entries that match `query`, best first; all of them, in order, for an empty one. */
+/** Each entry folded once: a snapshot's entries stay the same objects while the person types. */
+const foldedEntries = new WeakMap<ClipboardEntry, { text: string; words: Set<string> }>();
+
+function folded(entry: ClipboardEntry) {
+  let hit = foldedEntries.get(entry);
+  if (!hit) {
+    const text = normalized(searchableText(entry));
+    hit = { text, words: words(text) };
+    foldedEntries.set(entry, hit);
+  }
+  return hit;
+}
+
 export function filterEntries<T extends ClipboardEntry>(entries: T[], query: string): T[] {
-  const folded = normalized(query);
-  const tokens = folded.split(/\s+/).filter(Boolean);
+  const foldedQuery = normalized(query);
+  const tokens = foldedQuery.split(/\s+/).filter(Boolean);
   if (tokens.length === 0) return entries;
   return entries
     .map((entry, index) => {
-      const text = normalized(searchableText(entry));
+      const { text, words: textWords } = folded(entry);
       if (!tokens.every((t) => text.includes(t))) return null;
-      return { entry, index, score: score(text, words(text), folded, tokens, entry.pinned) };
+      return { entry, index, score: score(text, textWords, foldedQuery, tokens, entry.pinned) };
     })
     .filter((m): m is { entry: T; index: number; score: number } => m !== null)
     .sort((a, b) => b.score - a.score || a.index - b.index)

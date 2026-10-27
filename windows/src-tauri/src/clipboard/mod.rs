@@ -392,7 +392,13 @@ pub async fn clipboard_paste<R: Runtime>(app: AppHandle<R>, id: String) -> &'sta
         }
         #[cfg(windows)]
         if let Some(target) = native::paste_target(previous).filter(|&t| !native::blocks_input(t)) {
-            std::thread::spawn(move || native::send_paste(target));
+            // The entry stays on the clipboard either way; a target that
+            // never came forward gets nothing typed, and says so.
+            std::thread::spawn(move || {
+                if !native::send_paste(target) {
+                    native::beep();
+                }
+            });
             return "pasting";
         }
         "copied"

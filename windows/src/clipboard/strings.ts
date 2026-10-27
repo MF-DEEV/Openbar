@@ -24,7 +24,6 @@ export const C = {
   delete: "Delete item",
   moveUp: "Move up",
   moveDown: "Move down",
-  clickRow: "Click to paste into the previous app",
   imageEntryLabel: "Image",
   fileCount: (n: number) => `${n} files`,
   /** The "⌘1" badge, Windows style. */

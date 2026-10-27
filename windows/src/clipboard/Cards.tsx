@@ -115,7 +115,7 @@ export function CardButton(props: {
 
 function KindGlyph({ entry }: { entry: ClipboardEntry }) {
   const Icon = entry.kind === "image" ? ImageIcon : entry.kind === "files" ? File : AlignLeft;
-  return <Icon className="cb-glyph" size={11} strokeWidth={2} aria-hidden="true" />;
+  return <Icon className="cb-glyph" size={10} strokeWidth={2} aria-hidden="true" />;
 }
 
 /** The app the entry came from, or the kind of entry when that is unknown. */
