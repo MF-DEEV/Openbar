@@ -7,7 +7,7 @@
 // supported process lists, with Task Manager a click away (the Mac's Activity
 // Monitor button). Escape steps back to the cards.
 
-import { Bluetooth, ChevronLeft, SquareArrowOutUpRight, Usb } from "lucide-react";
+import { Bluetooth, ChevronLeft, LoaderCircle, ShieldCheck, SquareArrowOutUpRight, Usb } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePageLayer } from "../island/pageLayer";
 import { useIsland } from "../island/store";
@@ -101,7 +101,12 @@ export function MetricDetail({ kind, onMeasure }: { kind: MetricKind; onMeasure(
                 </button>
               </div>
               {emptyText !== null ? (
-                <div className="sy-panel-empty">{emptyText}</div>
+                <div className="sy-panel-empty">
+                  {emptyText}
+                  {snapshot.processesFor === kind && snapshot.processStatus === "needsApproval" ? (
+                    <NetworkApproval />
+                  ) : null}
+                </div>
               ) : (
                 snapshot.processes.map((row, i) => (
                   <Process key={`${i}-${row.name}`} kind={kind} row={row} inBits={inBits} />
@@ -140,6 +145,26 @@ function useIcon(path: string | null): string | null {
     };
   }, [path]);
   return icon;
+}
+
+/** Windows' prompt for the helper that reads per-app traffic (network_helper.rs). */
+function NetworkApproval() {
+  const [asking, setAsking] = useState(false);
+  const allow = () => {
+    setAsking(true);
+    void bridge.system.approveNetwork().finally(() => setAsking(false));
+  };
+  return asking ? (
+    <span className="sy-speed-testing sy-approve" role="status">
+      <LoaderCircle className="sy-spin" size={13} aria-hidden />
+      {S.networkApproving}
+    </span>
+  ) : (
+    <button type="button" className="sy-speed-button sy-approve" onClick={allow}>
+      <ShieldCheck size={12} strokeWidth={2.2} aria-hidden />
+      {S.networkApprove}
+    </button>
+  );
 }
 
 function Process({ kind, row, inBits }: { kind: MetricKind; row: ProcessRow; inBits: boolean }) {

@@ -63,7 +63,14 @@ export interface ProcessRow {
   netUp: number | null;
 }
 
-export type ProcessStatus = "measuring" | "ready" | "unavailable" | "permissionDenied" | "incomplete";
+export type ProcessStatus =
+  | "measuring"
+  | "ready"
+  | "unavailable"
+  | "permissionDenied"
+  | "incomplete"
+  /** Network only: an administrator can allow it once (Allow button). */
+  | "needsApproval";
 
 export interface SystemSnapshot {
   seq: number;

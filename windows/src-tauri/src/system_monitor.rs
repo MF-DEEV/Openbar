@@ -105,6 +105,8 @@ pub enum ProcessStatus {
     Unavailable,
     PermissionDenied,
     Incomplete,
+    /// Windows can allow it once, when the user approves (network_helper.rs).
+    NeedsApproval,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
@@ -144,6 +146,8 @@ struct Control {
     visible: bool,
     detail: Option<Detail>,
     shutdown: bool,
+    /// Bumped once the network helper is approved, so the open detail starts it.
+    approvals: u64,
 }
 
 #[derive(Default)]
@@ -172,11 +176,26 @@ pub fn system_monitor_watch(
         visible,
         detail: detail.filter(|_| visible),
         shutdown: false,
+        approvals: control.approvals,
     };
     if *control != next {
         *control = next;
         state.wake.notify_all();
     }
+}
+
+/// The network detail's Allow button: Windows asks for an administrator's
+/// approval once (network_helper.rs). False when declined or unavailable.
+#[tauri::command]
+pub async fn system_network_approve(state: tauri::State<'_, Shared>) -> Result<bool, ()> {
+    let approved = tauri::async_runtime::spawn_blocking(imp::approve_network)
+        .await
+        .unwrap_or(false);
+    if approved {
+        state.control.lock().unwrap().approvals += 1;
+        state.wake.notify_all();
+    }
+    Ok(approved)
 }
 
 /// The latest reading, so a page opened again starts from it; None before
@@ -520,11 +539,25 @@ use math::*;
 #[path = "network_process.rs"]
 mod network_process;
 
+#[cfg_attr(not(windows), allow(dead_code))]
+#[path = "network_helper.rs"]
+mod network_helper;
+
+/// `Vorssaint.exe --network-helper` and its install/remove steps; returns for
+/// any other argument.
+pub fn network_helper_main(arg: &str) {
+    #[cfg(windows)]
+    network_helper::command_main(arg);
+    #[cfg(not(windows))]
+    let _ = arg;
+}
+
 // MARK: Windows
 
 #[cfg(windows)]
 mod imp {
-    use super::network_process::NetworkTrace;
+    use super::network_helper::HelperClient;
+    use super::network_process::{Bytes, NetworkTrace};
     use super::*;
     use std::collections::HashMap;
     use windows::Win32::System::Performance::*;
@@ -659,8 +692,36 @@ mod imp {
         wear: Option<(Option<f64>, Option<u32>)>,
         tick: u64,
         processors: u32,
-        network_trace: Option<NetworkTrace>,
+        network_trace: Option<NetworkSource>,
         network_status: ProcessStatus,
+    }
+
+    /// The island's own trace when Windows lets it start one (elevated, or
+    /// UAC off); otherwise the approved helper's.
+    enum NetworkSource {
+        Trace(NetworkTrace),
+        Helper(HelperClient),
+    }
+
+    impl NetworkSource {
+        fn start() -> Result<Self, ProcessStatus> {
+            match NetworkTrace::start() {
+                Ok(trace) => Ok(NetworkSource::Trace(trace)),
+                Err(ProcessStatus::PermissionDenied) => HelperClient::start().map(Self::Helper),
+                Err(status) => Err(status),
+            }
+        }
+
+        fn sample(&mut self) -> (ProcessStatus, HashMap<u32, Bytes>, f64) {
+            match self {
+                NetworkSource::Trace(trace) => trace.sample(),
+                NetworkSource::Helper(helper) => helper.sample(),
+            }
+        }
+    }
+
+    pub fn approve_network() -> bool {
+        super::network_helper::approve()
     }
 
     impl Sampler {
@@ -718,7 +779,7 @@ mod imp {
                     .collect();
             }
             if detail == Some(Detail::Network) {
-                match NetworkTrace::start() {
+                match NetworkSource::start() {
                     Ok(trace) => {
                         self.network_trace = Some(trace);
                         self.network_status = ProcessStatus::Measuring;
@@ -1572,6 +1633,10 @@ mod imp {
     /// Off Windows there is nothing to read; the page shows "monitor unavailable".
     pub struct Sampler;
 
+    pub fn approve_network() -> bool {
+        false
+    }
+
     impl Sampler {
         pub fn new() -> Self {
             Sampler
@@ -1873,6 +1938,7 @@ mod tests {
             visible: true,
             detail: None,
             shutdown: false,
+            approvals: 0,
         };
         *monitor.control.lock().unwrap() = seen.clone();
         assert!(!wait_unless_changed(
@@ -1881,6 +1947,10 @@ mod tests {
             Duration::from_millis(5)
         ));
         monitor.control.lock().unwrap().detail = Some(Detail::Cpu);
+        assert!(wait_unless_changed(&monitor, &seen, Duration::from_secs(5)));
+        // An approved network helper restarts the open detail's collector.
+        *monitor.control.lock().unwrap() = seen.clone();
+        monitor.control.lock().unwrap().approvals += 1;
         assert!(wait_unless_changed(&monitor, &seen, Duration::from_secs(5)));
     }
 }

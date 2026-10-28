@@ -45,6 +45,9 @@ fn main() {
             .unwrap_or_else(|| "speed-test-probe.txt".into());
         vorssaint_windows_lib::speed_test_probe_main(&path);
     }
+    if let Some(arg) = std::env::args().nth(1) {
+        vorssaint_windows_lib::network_helper_main(&arg);
+    }
     if std::env::args().nth(1).as_deref() == Some("--remove-hooks") {
         vorssaint_windows_lib::remove_hooks_main();
     }

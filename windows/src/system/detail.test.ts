@@ -71,6 +71,7 @@ describe("metric details", () => {
     expect(processEmptyText("network", { ...network, processStatus: "permissionDenied" })).toBe(
       S.networkPermissionDenied,
     );
+    expect(processEmptyText("network", { ...network, processStatus: "needsApproval" })).toBe(S.networkNeedsApproval);
     expect(processEmptyText("network", { ...network, processStatus: "incomplete" })).toBe(S.networkIncomplete);
     expect(processEmptyText("network", { ...network, processStatus: "measuring" })).toBe(S.measuring);
     expect(processEmptyText("network", { ...network, processes: [] })).toBe(S.networkAppsIdle);

@@ -253,6 +253,8 @@ export function processEmptyText(kind: MetricKind, snapshot: SystemSnapshot): st
       return kind === "power" ? S.energyUnavailable : S.processesUnavailable;
     case "permissionDenied":
       return S.networkPermissionDenied;
+    case "needsApproval":
+      return S.networkNeedsApproval;
     case "incomplete":
       return S.networkIncomplete;
     case "measuring":

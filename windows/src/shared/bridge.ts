@@ -150,6 +150,8 @@ export const bridge = {
       if (!inTauri) return Promise.resolve(() => {});
       return listen<SystemSnapshot>("system://snapshot", (event) => handler(event.payload));
     },
+    /** Asks Windows once for the per-app network list; false when declined. */
+    approveNetwork: () => call<boolean>("system_network_approve"),
     speedTest: () => call<SpeedTestState>("speed_test_state"),
     /** Starts the network detail's speed test unless one is running. */
     startSpeedTest: () => call<SpeedTestState>("speed_test_start"),

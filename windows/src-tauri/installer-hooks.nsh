@@ -2,9 +2,11 @@
 ; Copyright (C) 2026 Vorssaint
 ;
 ; Hooks into Tauri's NSIS installer. Uninstalling closes the island and
-; takes out what the app added for this user: its Start with Windows entry
-; and its hooks in Claude Code's settings (with a backup, as Settings does),
-; so Claude never calls a program that's gone. An update keeps both.
+; takes out what the app added for this user: its Start with Windows entry,
+; its hooks in Claude Code's settings (with a backup, as Settings does),
+; so Claude never calls a program that's gone, and the network helper an
+; administrator may have allowed (docs/process-metrics.md). An update keeps
+; them all.
 ;
 ; An installer built with tauri.identity.conf.json also carries the signed
 ; sparse package that gives Vorssaint.exe its identity (notifications,
@@ -48,6 +50,9 @@
   nsExec::Exec 'taskkill /IM "Vorssaint.exe" /F'
   ${If} $UpdateMode <> 1
     nsExec::Exec '"$INSTDIR\Vorssaint.exe" --remove-hooks'
+    ; The per-app network helper, if it was approved: removing it takes an
+    ; administrator again, so Windows asks only on PCs that have it.
+    nsExec::Exec '"$INSTDIR\Vorssaint.exe" --remove-network-helper'
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Vorssaint"
     ${If} ${FileExists} "$INSTDIR\identity\identity.ps1"
       !insertmacro VORSSAINT_POWERSHELL

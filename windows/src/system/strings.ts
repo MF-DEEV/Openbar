@@ -24,7 +24,10 @@ export const S = {
   processesIdle: "No active processes",
   networkAppsIdle: "No apps using the network",
   processesUnavailable: "Process metrics unavailable on this PC",
-  networkPermissionDenied: "Per-app network activity requires Windows tracing permissions",
+  networkPermissionDenied: "Showing which apps use the network needs an administrator account",
+  networkNeedsApproval: "Windows asks an administrator once before showing which apps use the network",
+  networkApprove: "Allow",
+  networkApproving: "Waiting for Windows…",
   networkIncomplete: "Network events were lost. Measuring again…",
   energyUnavailable: "Per-app energy measurements unavailable on Windows",
   /** monitorOpenActivityMonitor, Task Manager being the PC's Activity Monitor. */
