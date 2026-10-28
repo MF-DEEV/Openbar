@@ -48,6 +48,9 @@ useSystem.subscribe((s, prev) => {
 /** Listen first, so the stored reading fetched next can't overwrite a newer one. */
 export async function subscribeSystem() {
   await bridge.system.onSnapshot((snapshot) => useSystem.getState().receive(snapshot));
+  await bridge.system.onSpeedTest((state) => useSystem.getState().receiveSpeedTest(state));
   await fetchStored();
+  const speedTest = await bridge.system.speedTest();
+  if (speedTest) useSystem.getState().receiveSpeedTest(speedTest);
 }
 void subscribeSystem();

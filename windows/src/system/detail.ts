@@ -2,8 +2,9 @@
 // Copyright (C) 2026 Vorssaint
 
 // What a metric's detail reads (MetricDetailView.swift): the summary's value
-// and line, its history graph and its rows. Temperatures, memory pressure,
-// adapter watts and the speed test have no Windows source and are left out.
+// and line, its history graph and its rows. Temperatures, memory pressure
+// and adapter watts have no Windows source and are left out. The network
+// detail's speed test is its own card (SpeedTestCard.tsx).
 
 import { powerReading } from "./cards";
 import {

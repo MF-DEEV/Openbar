@@ -3,7 +3,7 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const watched = vi.hoisted(() => ({ calls: [] as [boolean, string | null][] }));
+const watched = vi.hoisted(() => ({ calls: [] as [boolean, string | null][], speedStarts: 0 }));
 vi.mock("../shared/bridge", () => ({
   bridge: {
     system: {
@@ -12,6 +12,11 @@ vi.mock("../shared/bridge", () => ({
       },
       snapshot: async () => undefined,
       onSnapshot: async () => () => {},
+      speedTest: async () => undefined,
+      startSpeedTest: async () => {
+        watched.speedStarts++;
+      },
+      onSpeedTest: async () => () => {},
     },
   },
 }));
@@ -20,13 +25,14 @@ import { DEFAULT_SETTINGS } from "../island/settings";
 import { useIsland } from "../island/store";
 import { demoSnapshot } from "./demo";
 import "./register";
-import { emptyHistory, HISTORY_LENGTH, pushHistory, showNetworkReading, useSystem } from "./store";
+import { emptyHistory, HISTORY_LENGTH, idleSpeedTest, pushHistory, showNetworkReading, useSystem } from "./store";
 
 afterEach(() => {
   useIsland.getState().collapse();
   useIsland.setState({ settings: DEFAULT_SETTINGS });
-  useSystem.setState({ snapshot: null, history: emptyHistory(), detail: null });
+  useSystem.setState({ snapshot: null, history: emptyHistory(), detail: null, speedTest: idleSpeedTest });
   watched.calls = [];
+  watched.speedStarts = 0;
 });
 
 describe("system history", () => {
@@ -95,5 +101,32 @@ describe("the Controls speed test tile", () => {
     showNetworkReading();
     expect(useIsland.getState().selected).toBe("system");
     expect(useSystem.getState().detail).toBe("network");
+  });
+});
+
+describe("the speed test", () => {
+  it("asks the app to start one only when none is running", () => {
+    useSystem.getState().startSpeedTest();
+    expect(watched.speedStarts).toBe(1);
+    for (const phase of ["latency", "download", "upload"] as const) {
+      useSystem.getState().receiveSpeedTest({ ...idleSpeedTest, phase });
+      useSystem.getState().startSpeedTest();
+    }
+    expect(watched.speedStarts).toBe(1);
+    useSystem.getState().receiveSpeedTest({ ...idleSpeedTest, phase: "done", downloadMbps: 1, uploadMbps: 1 });
+    useSystem.getState().startSpeedTest();
+    useSystem.getState().receiveSpeedTest({ ...idleSpeedTest, phase: "failed" });
+    useSystem.getState().startSpeedTest();
+    expect(watched.speedStarts).toBe(3);
+  });
+
+  it("keeps its result when the detail closes", () => {
+    useIsland.getState().open("system");
+    useSystem.getState().openDetail("network");
+    const done = { ...idleSpeedTest, phase: "done" as const, latencyMs: 9, downloadMbps: 300, uploadMbps: 40 };
+    useSystem.getState().receiveSpeedTest(done);
+    useIsland.getState().collapse();
+    expect(useSystem.getState().detail).toBe(null);
+    expect(useSystem.getState().speedTest).toEqual(done);
   });
 });

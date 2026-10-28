@@ -156,3 +156,8 @@ export function graphCeiling(peak: number, unitStep: number): number {
 export function networkGraphCeiling(peak: number, inBits: boolean): number {
   return inBits ? graphCeiling(peak * 8, 1000) / 8 : graphCeiling(peak, 1024);
 }
+
+/** A speed test result in Mbps: whole from 100, else one decimal (MetricDetailView.mbps). */
+export function mbps(value: number): string {
+  return value >= 100 ? value.toFixed(0) : value.toFixed(1);
+}
