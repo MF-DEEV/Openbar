@@ -289,6 +289,14 @@ export const bridge = {
     /** Minutes starts a session (0 = until turned off); null ends it. */
     set: (minutes: number | null) => call<KeepAwakeState>("keep_awake_set", { minutes }),
   },
+  power: {
+    /** Battery Saver (Energy saver), the Mac's Low Power Mode. */
+    saver: () => call<boolean>("power_saver_on"),
+    onSaver(handler: (on: boolean) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<boolean>("power://saver", (e) => handler(e.payload));
+    },
+  },
   brightness: {
     displays: () => call<BrightnessDisplay[]>("brightness_displays"),
     set: (id: string, value: number) => call("brightness_set", { id, value }),

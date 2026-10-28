@@ -721,7 +721,7 @@ Palette (`:447-495`):
 
 Motion per session phase (`NotchClaudeSessionsSupport.swift:189-199`): generating→`think`, runningTool→`work`, background→`slow`, waitingPermission→`alert`, waitingInput→`ask`, finished→`content`, idle→`doze` if dozing else `rest`. Subagents: running→`work`, done→`done` (`:232-234`). Notices: the finished symbol→`content`, the input symbol→`ask`, otherwise `alert`, with no bubbles (`:223-229`).
 
-Pose function (`NotchClawdSprite.swift:113-218`). Rate = 12 steps/s (halved in Low Power Mode **[WIN]**: Battery Saver). `t` = seconds since the motion began, where the start is back-dated to `session.phaseSince` so every Clawd of one session moves as one. `step = floor(t·12)`; `tick = (step/3) % 2`.
+Pose function (`NotchClawdSprite.swift:113-218`). Rate = 12 steps/s (halved in Low Power Mode **[WIN]**: Energy saver). `t` = seconds since the motion began, where the start is back-dated to `session.phaseSince` so every Clawd of one session moves as one. `step = floor(t·12)`; `tick = (step/3) % 2`.
 - `rest`: eyes = blink ? closed : glance; rise = breath(2.4 s).
 - `content`: happy eyes; breath 2.4.
 - `doze`: closed; breath 3.2; bubble `sleep(floor(t/0.7) % 3)`.
@@ -889,4 +889,4 @@ Privacy rules (enforce them in Rust, not in the UI):
 13. **Hash parity.** The project color and costume seeding use 64-bit FNV-1a/SplitMix64. A JS implementation must use BigInt; a `Number` approximation silently changes every costume. Keep the test vectors from §5.2 in the Windows test suite.
 14. **Thinking word** is seeded from seconds since **2001-01-01** (Apple reference date), not the Unix epoch. This only matters for cross-platform parity of the word shown.
 15. **Notices vs Windows focus.** Auto-expanding the island must not steal keyboard focus (the Mac opens it with `takeFocus: false`). The Tauri window must be a no-activate topmost window (`WS_EX_NOACTIVATE`), and keyboard shortcuts (⌘Y/⌘N → proposed Ctrl+Y / Ctrl+N) only apply while the island has focus.
-16. Not ported or not applicable: macOS TCC-protected folder skipping (§1.8 step 4), Automation consent, the Accessibility window raise, and Low Power Mode (map it to Windows Battery Saver: `GetSystemPowerStatus().SystemStatusFlag`).
+16. Not ported or not applicable: macOS TCC-protected folder skipping (§1.8 step 4), Automation consent, the Accessibility window raise. Low Power Mode is ported as Energy saver (`power_saver.rs`): `GUID_ENERGY_SAVER_STATUS` on 24H2 and later, `GUID_POWER_SAVING_STATUS` (Battery Saver) before it. `PowerManager.EnergySaverStatus` and `SystemStatusFlag` stay Disabled/0 while Energy saver runs on AC power (checked on 26H2), so they are not used.
