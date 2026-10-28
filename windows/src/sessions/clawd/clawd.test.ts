@@ -320,6 +320,26 @@ describe("clawd drawing", () => {
     expect(at(CLASSIC, 0, 9)).toBe("c");
   });
 
+  it("draws every part as the Mac does", () => {
+    // The Mac draws from its own copy of these drawings
+    // (NotchClawdSprite.swift); the same fingerprint on both keeps the
+    // copies alike pixel for pixel.
+    let fingerprint = 0x811c9dc5;
+    for (const character of ["clawd", "codex"] as const) {
+      const parts: ClawdCostume[] = [
+        ...HATS.map((hat) => ({ ...CLASSIC, hat })),
+        ...EYEWEAR.map((eyewear) => ({ ...CLASSIC, eyewear })),
+        ...EXTRAS.map((extra) => ({ ...CLASSIC, extra })),
+      ];
+      for (const costume of parts) {
+        for (const letter of letters(costume, basePose(), character)) {
+          fingerprint = Math.imul(fingerprint ^ (letter ?? ".").charCodeAt(0), 0x01000193) >>> 0;
+        }
+      }
+    }
+    expect(fingerprint.toString(16)).toBe("99f16c5e");
+  });
+
   it("covers the eyes with opaque glasses and hero masks", () => {
     for (const eyewear of EYEWEAR) {
       const worn: ClawdCostume = { ...CLASSIC, eyewear };
