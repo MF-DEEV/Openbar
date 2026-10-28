@@ -564,22 +564,22 @@ function rightHand(arms: Arms, character: Character = "clawd"): [number, number]
 }
 
 // Capes hang from the shoulders to the ground behind the legs and arms,
-// in shadow, edged in a bright color so they stand out on the island's
-// black and on a shell of their own color. Clasps are drawn in front, with
-// the other extras.
+// in shadow (#), edged (+) in a bright color so they stand out on the
+// island's black and on a shell of their own color. Clasps are drawn in
+// front, with the other extras.
 const CAPE_ROWS = [
-  "...eFFFFFFFFFFFFFe...",
-  "...eFFFFFFFFFFFFFe...",
-  "..eFFFFFFFFFFFFFFFe..",
-  "..eFFFFFFFFFFFFFFFe..",
-  ".eFFFFFFFFFFFFFFFFFe.",
-  ".eFFFFFFFFFFFFFFFFFe.",
-  "eFFFFFFFFFFFFFFFFFFFe",
-  "eFFFFFFFFFFFFFFFFFFFe",
-  "eFFFFFFFFFFFFFFFFFFFe",
+  "..+#############+..",
+  "..+#############+..",
+  "..+#############+..",
+  ".+###############+.",
+  ".+###############+.",
+  ".+###############+.",
+  "+#################+",
+  "+#################+",
+  "+#################+",
 ];
-const CAPE_HEMS = ["eFF.FFFF.FFF.FFFF.FFe", "eF.FFFF.FFFFF.FFFF.Fe"];
-const BAT_CAPE_HEM = "eF.FF.FF.FFF.FF.FF.Fe";
+const CAPE_HEMS = ["+#.####.###.####.#+", "+###.###.#.###.###+"];
+const BAT_CAPE_HEM = "+#.##.##.#.##.##.#+";
 
 export function capeStamps(extra: ClawdExtra, tick: number): Stamp[] {
   let fill: string, edge: string;
@@ -601,8 +601,10 @@ export function capeStamps(extra: ClawdExtra, tick: number): Stamp[] {
       return [];
   }
   const hem = extra === "batmanCape" ? BAT_CAPE_HEM : CAPE_HEMS[tick === 0 ? 0 : 1];
-  const drawn = [...CAPE_ROWS, hem].map((row) => row.replace(/F/g, fill).replace(/e/g, edge));
-  const stamps = [s(-4, 0, drawn)];
+  const drawn = [...CAPE_ROWS, hem].map((row) =>
+    [...row].map((c) => (c === "#" ? fill : c === "+" ? edge : c)).join(""),
+  );
+  const stamps = [s(-3, 0, drawn)];
   if (extra === "strangeCape") {
     // The Cloak of Levitation's high collar stands up beside the head.
     stamps.push(s(-2, -3, ["y..", "Ry.", "RRy"]), s(12, -3, ["..y", ".yR", "yRR"]));

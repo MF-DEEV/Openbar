@@ -337,7 +337,7 @@ describe("clawd drawing", () => {
         }
       }
     }
-    expect(fingerprint.toString(16)).toBe("54f1eaf2");
+    expect(fingerprint.toString(16)).toBe("99f16c5e");
   });
 
   it("covers the eyes with opaque glasses and hero masks", () => {

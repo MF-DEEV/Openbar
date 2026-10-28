@@ -88,7 +88,7 @@ enum NotchClawdSpriteTests {
                 }
             }
         }
-        suite.expect(fingerprint == 0x54f1_eaf2, "every part is drawn as on Windows: \(String(fingerprint, radix: 16))")
+        suite.expect(fingerprint == 0x99f1_6c5e, "every part is drawn as on Windows: \(String(fingerprint, radix: 16))")
         for shell in ClawdShell.allCases {
             suite.expect(NotchClawdSprite.accent(for: shell) != shell, "a hat on \(shell) is told from the shell")
         }

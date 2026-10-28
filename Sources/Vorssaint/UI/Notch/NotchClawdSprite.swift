@@ -608,21 +608,21 @@ enum NotchClawdSprite {
     }
 
     // Capes hang from the shoulders to the ground behind the legs and arms,
-    // in shadow, edged in a bright color so they stand out on the island's
-    // black and on a shell of their own color.
-    // Clasps are drawn in front, with the other extras.
-    private static let capeRows = ["...eFFFFFFFFFFFFFe...",
-                                   "...eFFFFFFFFFFFFFe...",
-                                   "..eFFFFFFFFFFFFFFFe..",
-                                   "..eFFFFFFFFFFFFFFFe..",
-                                   ".eFFFFFFFFFFFFFFFFFe.",
-                                   ".eFFFFFFFFFFFFFFFFFe.",
-                                   "eFFFFFFFFFFFFFFFFFFFe",
-                                   "eFFFFFFFFFFFFFFFFFFFe",
-                                   "eFFFFFFFFFFFFFFFFFFFe"]
-    private static let capeHems = ["eFF.FFFF.FFF.FFFF.FFe",
-                                   "eF.FFFF.FFFFF.FFFF.Fe"]
-    private static let batCapeHem = "eF.FF.FF.FFF.FF.FF.Fe"
+    // in shadow (#), edged (+) in a bright color so they stand out on the
+    // island's black and on a shell of their own color. Clasps are drawn in
+    // front, with the other extras.
+    private static let capeRows = ["..+#############+..",
+                                   "..+#############+..",
+                                   "..+#############+..",
+                                   ".+###############+.",
+                                   ".+###############+.",
+                                   ".+###############+.",
+                                   "+#################+",
+                                   "+#################+",
+                                   "+#################+"]
+    private static let capeHems = ["+#.####.###.####.#+",
+                                   "+###.###.#.###.###+"]
+    private static let batCapeHem = "+#.##.##.#.##.##.#+"
 
     private static func cape(_ extra: ClawdExtra, tick: Int) -> [Stamp] {
         let fill: Character, edge: Character
@@ -635,9 +635,9 @@ enum NotchClawdSprite {
         }
         let hem = extra == .batmanCape ? batCapeHem : capeHems[tick == 0 ? 0 : 1]
         let drawn = (capeRows + [hem]).map { row in
-            String(row.map { $0 == "F" ? fill : $0 == "e" ? edge : $0 })
+            String(row.map { $0 == "#" ? fill : $0 == "+" ? edge : $0 })
         }
-        var stamps = [Stamp(x: -4, y: 0, rows: drawn)]
+        var stamps = [Stamp(x: -3, y: 0, rows: drawn)]
         if extra == .strangeCape {
             // The Cloak of Levitation's high collar stands up beside the head.
             stamps += [Stamp(x: -2, y: -3, rows: ["y..", "Ry.", "RRy"]),
