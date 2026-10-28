@@ -10,41 +10,56 @@
 //! current value as they're registered. The island's Clawds halve their
 //! steps from the moment it changes.
 
-use std::sync::OnceLock;
-use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Mutex, MutexGuard, OnceLock};
 use tauri::{AppHandle, Emitter};
 
 pub const EVENT: &str = "power://saver";
 
 static APP: OnceLock<AppHandle> = OnceLock::new();
-/// ENERGY_SAVER_OFF (0), _STANDARD (1) or _HIGH_SAVINGS (2).
-static ENERGY_SAVER: AtomicU32 = AtomicU32::new(0);
-/// Battery Saver off (0) or on (1), before Energy saver replaced it.
-static BATTERY_SAVER: AtomicU32 = AtomicU32::new(0);
-static ON: AtomicBool = AtomicBool::new(false);
+/// One lock for both settings, so callbacks arriving together can't send a stale state last.
+static STATE: Mutex<Saver> = Mutex::new(Saver {
+    energy_saver: 0,
+    battery_saver: 0,
+    on: false,
+});
+
+struct Saver {
+    /// ENERGY_SAVER_OFF (0), _STANDARD (1) or _HIGH_SAVINGS (2).
+    energy_saver: u32,
+    /// Battery Saver off (0) or on (1), before Energy saver replaced it.
+    battery_saver: u32,
+    /// The state last sent.
+    on: bool,
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+enum Setting {
+    EnergySaver,
+    BatterySaver,
+}
+
+fn state() -> MutexGuard<'static, Saver> {
+    STATE.lock().unwrap_or_else(|e| e.into_inner())
+}
 
 #[tauri::command]
 pub fn power_saver_on() -> bool {
-    ON.load(Ordering::Relaxed)
+    state().on
 }
 
+/// Takes a setting's new value and returns the state to send when it changed.
 /// Either one saving energy counts, in any of Energy saver's modes.
-fn saving(energy_saver: u32, battery_saver: u32) -> bool {
-    energy_saver != 0 || battery_saver != 0
-}
-
-/// Sends the state to every window when it differs from the last one sent.
 #[cfg_attr(not(windows), allow(dead_code))]
-fn changed() {
-    let on = saving(
-        ENERGY_SAVER.load(Ordering::Relaxed),
-        BATTERY_SAVER.load(Ordering::Relaxed),
-    );
-    if ON.swap(on, Ordering::Relaxed) != on
-        && let Some(app) = APP.get()
-    {
-        let _ = app.emit(EVENT, on);
+fn update(saver: &mut Saver, setting: Setting, value: u32) -> Option<bool> {
+    match setting {
+        Setting::EnergySaver => saver.energy_saver = value,
+        Setting::BatterySaver => saver.battery_saver = value,
     }
+    let on = saver.energy_saver != 0 || saver.battery_saver != 0;
+    (saver.on != on).then(|| {
+        saver.on = on;
+        on
+    })
 }
 
 #[cfg(windows)]
@@ -103,26 +118,52 @@ unsafe extern "system" fn notified(
             .read_unaligned()
     };
     let guid = unsafe { (*setting).PowerSetting };
-    if guid == GUID_ENERGY_SAVER_STATUS {
-        ENERGY_SAVER.store(value, Ordering::Relaxed);
+    let setting = if guid == GUID_ENERGY_SAVER_STATUS {
+        Setting::EnergySaver
     } else if guid == GUID_POWER_SAVING_STATUS {
-        BATTERY_SAVER.store(value, Ordering::Relaxed);
+        Setting::BatterySaver
     } else {
         return 0;
+    };
+    let mut saver = state();
+    if let Some(on) = update(&mut saver, setting, value)
+        && let Some(app) = APP.get()
+    {
+        // Sent under the lock, so the windows hear the changes in order.
+        let _ = app.emit(EVENT, on);
     }
-    changed();
     0
 }
 
 #[cfg(test)]
 mod tests {
-    use super::saving;
+    use super::{Saver, Setting, update};
 
     #[test]
-    fn any_saver_mode_counts() {
-        assert!(!saving(0, 0));
-        assert!(saving(1, 0), "Energy saver, standard");
-        assert!(saving(2, 0), "Energy saver, high savings");
-        assert!(saving(0, 1), "Battery Saver");
+    fn any_saver_mode_counts_and_only_changes_are_sent() {
+        let mut saver = Saver {
+            energy_saver: 0,
+            battery_saver: 0,
+            on: false,
+        };
+        assert_eq!(update(&mut saver, Setting::BatterySaver, 0), None);
+        assert_eq!(
+            update(&mut saver, Setting::EnergySaver, 1),
+            Some(true),
+            "standard"
+        );
+        assert_eq!(
+            update(&mut saver, Setting::EnergySaver, 2),
+            None,
+            "high savings"
+        );
+        assert_eq!(update(&mut saver, Setting::BatterySaver, 1), None);
+        assert_eq!(
+            update(&mut saver, Setting::EnergySaver, 0),
+            None,
+            "Battery Saver still on"
+        );
+        assert_eq!(update(&mut saver, Setting::BatterySaver, 0), Some(false));
+        assert!(!saver.on);
     }
 }

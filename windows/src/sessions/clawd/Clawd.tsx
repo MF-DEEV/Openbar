@@ -84,12 +84,17 @@ export function setClawdLowPower(on: boolean) {
 }
 
 // The window showing Clawds (the island) follows it. The event is heard
-// before the first reading is asked for, so a change in between isn't lost;
-// without either, the Clawds keep the full rate.
+// before the first reading is asked for, and once one is heard the reading,
+// which may answer later, is older and ignored. Without either, the Clawds
+// keep the full rate.
+let heard = false;
 void bridge.power
-  .onSaver(setClawdLowPower)
+  .onSaver((on) => {
+    heard = true;
+    setClawdLowPower(on);
+  })
   .then(() => bridge.power.saver())
-  .then((on) => on !== undefined && setClawdLowPower(on))
+  .then((on) => on !== undefined && !heard && setClawdLowPower(on))
   .catch(() => {});
 
 // MARK: Images

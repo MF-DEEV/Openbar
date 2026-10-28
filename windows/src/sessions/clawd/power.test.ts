@@ -11,6 +11,7 @@ const power = vi.hoisted(() => ({
   handler: undefined as ((on: boolean) => void) | undefined,
   on: true as boolean | undefined,
   calls: [] as string[],
+  read: undefined as (() => Promise<boolean | undefined>) | undefined,
 }));
 
 vi.mock("../../shared/bridge", () => ({
@@ -18,7 +19,7 @@ vi.mock("../../shared/bridge", () => ({
     power: {
       saver: () => {
         power.calls.push("read");
-        return Promise.resolve(power.on);
+        return power.read ? power.read() : Promise.resolve(power.on);
       },
       onSaver: (handler: (on: boolean) => void) => {
         power.calls.push("listen");
@@ -35,6 +36,7 @@ beforeEach(() => {
   power.handler = undefined;
   power.on = true;
   power.calls.length = 0;
+  power.read = undefined;
 });
 
 describe("Clawd clock under Energy saver", () => {
@@ -52,6 +54,18 @@ describe("Clawd clock under Energy saver", () => {
     await import("./Clawd");
     await vi.waitFor(() => expect(power.calls).toHaveLength(2));
     expect(power.calls).toEqual(["listen", "read"]);
+  });
+
+  it("lets an event heard first win over a reading that answers after it", async () => {
+    let answer!: (on: boolean) => void;
+    const reading = new Promise<boolean>((resolve) => (answer = resolve));
+    power.read = () => reading;
+    const { clockPeriod } = await import("./Clawd");
+    await vi.waitFor(() => expect(power.calls).toEqual(["listen", "read"]));
+    power.handler!(true);
+    answer(false);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(clockPeriod()).toBe(1000 / (RATE / 2));
   });
 
   it("keeps the full rate when there's no reading (outside the app)", async () => {
