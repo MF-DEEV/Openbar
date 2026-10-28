@@ -96,8 +96,10 @@ pub struct State {
     pub priority: Priority,
     /// The output switcher is on but Windows refused its shortcut.
     pub switcher_refused: bool,
-    /// Why the last automatic priority switch failed (outputSwitchError).
+    /// Why the last automatic output priority switch failed (outputSwitchError).
     pub priority_error: Option<String>,
+    /// The same for the microphone list.
+    pub input_priority_error: Option<String>,
     /// The last switcher press found no chosen output that is connected.
     pub switch_failed: bool,
     /// Finer volume steps are on but Windows refused the volume keys.
@@ -139,9 +141,15 @@ impl Options {
         let defaults = Options::default();
         // The options belong to the Mixer: with the section turned off in
         // Settings they rest, as the Mac's do while the mixer isn't available.
-        let mixer = island("sections/mixer")
-            .and_then(serde_json::Value::as_bool)
-            .unwrap_or(true);
+        // Settings hides the Mixer through the section list, as the other
+        // backends read it (prefs.rs notifications, downloads.rs).
+        let hidden = island("hiddenModules")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some("mixer")));
+        let mixer = !hidden
+            && island("sections/mixer")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(true);
         Options {
             lower_on_disconnect: mixer && flag("mixerLowerVolumeOnHeadphonesDisconnect"),
             // Read like the pages read it: a number rounded to a whole percent.
@@ -394,10 +402,7 @@ pub fn recording_window_closed<R: Runtime>(app: &AppHandle<R>) {
 /// The app is quitting: what the Mixer options changed is handed back.
 pub fn stop() {
     #[cfg(windows)]
-    let _ = with_engine(|e| {
-        e.restore_lowered();
-        Ok(())
-    });
+    engine::with_existing(|e| e.restore_lowered());
 }
 
 /// The global shortcut handler's question: was this the switcher's key? It
@@ -738,6 +743,7 @@ mod tests {
         assert_eq!(json["switcherRefused"], true);
         assert_eq!(json["switchFailed"], false);
         assert_eq!(json["rollerFailed"], false);
+        assert!(json["priorityError"].is_null() && json["inputPriorityError"].is_null());
         // What only the backend uses stays out of the page's state.
         assert!(json["outputs"][0].get("headphones").is_none());
         assert!(json["outputs"][0].get("tier").is_none());
@@ -761,6 +767,39 @@ mod tests {
         assert_eq!(options.lower_percent, 100);
         assert_eq!(options.shortcut, "Ctrl+Alt+KeyO");
         assert_eq!(options.cycle, ["a", "b"]);
+    }
+
+    #[test]
+    fn the_options_rest_while_the_mixer_is_hidden_or_off() {
+        let on = serde_json::json!({
+            "mixerLowerVolumeOnHeadphonesDisconnect": true,
+            "preciseVolumeRollerEnabled": true,
+            "soundOutputSwitcherEnabled": true,
+        });
+        let with = |extra: serde_json::Value| {
+            let mut island = on.clone();
+            island
+                .as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            Options::from_prefs(&serde_json::json!({ "island": island }))
+        };
+        let active = with(serde_json::json!({ "hiddenModules": ["music"] }));
+        assert!(active.lower_on_disconnect && active.roller && active.switcher);
+        for rest in [
+            with(serde_json::json!({ "hiddenModules": ["mixer"] })),
+            with(serde_json::json!({ "sections": { "mixer": false } })),
+        ] {
+            assert!(!rest.lower_on_disconnect && !rest.roller && !rest.switcher);
+        }
+    }
+
+    #[test]
+    fn a_fractional_percent_rounds_as_the_pages_round_it() {
+        let options = Options::from_prefs(&serde_json::json!({ "island": {
+            "mixerHeadphonesDisconnectVolumePercent": 37.5,
+        }}));
+        assert_eq!(options.lower_percent, 38);
     }
 
     #[test]

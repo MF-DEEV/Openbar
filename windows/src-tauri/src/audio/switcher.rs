@@ -69,6 +69,7 @@ mod tests {
         assert!(reserved(&parse("Ctrl+Alt+Space")));
         assert!(reserved(&parse("Ctrl+KeyY")));
         assert!(reserved(&parse("Ctrl+KeyT")));
+        assert!(reserved(&parse("Ctrl+KeyN")));
         assert!(!reserved(&parse("Ctrl+Shift+KeyY")));
         assert!(!reserved(&parse(DEFAULT_SHORTCUT)));
         assert!(has_modifier(&parse("Alt+F5")));

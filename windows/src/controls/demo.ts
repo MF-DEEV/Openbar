@@ -48,6 +48,7 @@ export function demoAudio(): AudioState {
     },
     switcherRefused: false,
     priorityError: null,
+    inputPriorityError: null,
     switchFailed: false,
     rollerFailed: false,
   };

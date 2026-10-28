@@ -149,8 +149,8 @@ pub fn sanitized_list(ids: &[String]) -> Vec<String> {
 
 /// What is saved: both switches, both lists, and the last-known names of
 /// listed devices, so an unplugged one still reads as itself.
-#[derive(Clone, Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
-#[serde(rename_all = "camelCase", default)]
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Saved {
     pub output_enabled: bool,
     pub input_enabled: bool,
@@ -562,7 +562,7 @@ mod tests {
             sanitized_list(&ids(&["a", "a", " ", "b"])),
             ids(&["a", "b"])
         );
-        let saved: Saved = serde_json::from_str(r#"{"outputEnabled":true}"#).unwrap();
+        let saved = Saved::from_value(&serde_json::json!({"outputEnabled": true}));
         assert!(saved.output_enabled && !saved.input_enabled && saved.outputs.is_empty());
     }
 }

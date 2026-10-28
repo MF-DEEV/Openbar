@@ -56,8 +56,10 @@ export interface AudioState {
   priority: AudioPriority;
   /** The output switcher is on but Windows refused its shortcut. */
   switcherRefused: boolean;
-  /** Why the last automatic priority switch failed. */
+  /** Why the last automatic output priority switch failed. */
   priorityError: string | null;
+  /** The same for the microphone list. */
+  inputPriorityError: string | null;
   /** The last switcher press found no chosen output that is connected. */
   switchFailed: boolean;
   /** Finer volume steps are on but Windows refused the volume keys. */
@@ -90,6 +92,7 @@ export const EMPTY_AUDIO: AudioState = {
   priority: { outputEnabled: false, inputEnabled: false, outputs: [], inputs: [] },
   switcherRefused: false,
   priorityError: null,
+  inputPriorityError: null,
   switchFailed: false,
   rollerFailed: false,
 };

@@ -461,6 +461,7 @@ function MixerOptions() {
       ) : null}
       {state.inputs.length === 0 ? <p className="mx-message">{S.noMicrophones}</p> : null}
       {switchError?.input ? <p className="mx-message">{S.couldNotSwitch(switchError.message)}</p> : null}
+      {state.inputPriorityError ? <p className="mx-message">{S.couldNotSwitch(state.inputPriorityError)}</p> : null}
       <div className="mx-options-divider" />
       <div className="mx-option-row">
         <span className="mx-option-title is-primary">{S.hideInactive}</span>

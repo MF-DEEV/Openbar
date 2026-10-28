@@ -56,6 +56,7 @@ describe("shortcuts the recorder refuses", () => {
     expect(reservedBy("Ctrl+Alt+Space")).toBe("island");
     expect(reservedBy("Ctrl+KeyY")).toBe("sessions");
     expect(reservedBy("Ctrl+KeyT")).toBe("sessions");
+    expect(reservedBy("Ctrl+KeyN")).toBe("sessions");
     expect(reservedBy("Ctrl+Shift+KeyY")).toBeNull();
     expect(reservedBy("Ctrl+Alt+Shift+KeyS")).toBeNull();
   });

@@ -112,6 +112,18 @@ fn with<T>(job: impl FnOnce(&mut Engine) -> Result<T, String>) -> Result<T, Stri
     })
 }
 
+/// Runs `job` on the audio thread only if the engine already exists, and
+/// waits; for quitting, which must not start one.
+pub fn with_existing(job: impl FnOnce(&mut Engine) + Send + 'static) {
+    let _ = worker().run(move || {
+        ENGINE.with(|cell| {
+            if let Some(engine) = cell.borrow_mut().as_mut() {
+                job(engine);
+            }
+        })
+    });
+}
+
 /// Runs `job` on the audio thread without waiting, then publishes.
 pub fn post(job: impl FnOnce(&mut Engine) + Send + 'static) {
     worker().post(move || {
@@ -315,8 +327,10 @@ pub struct Engine {
     placement_generation: u64,
     guard: Guard,
     switch_failed: bool,
-    /// Why the last automatic priority switch failed.
+    /// Why the last automatic switch of each list failed (the Mac's
+    /// outputSwitchError and the microphone's lastError).
     priority_error: Option<String>,
+    input_priority_error: Option<String>,
 }
 
 impl Drop for Engine {
@@ -359,6 +373,7 @@ impl Engine {
             guard: Guard::default(),
             switch_failed: false,
             priority_error: None,
+            input_priority_error: None,
         };
         // Restored while muted: the microphones present now were present
         // before, so one unmuted by hand meanwhile stays as it is.
@@ -694,6 +709,7 @@ impl Engine {
             switcher_refused: super::SWITCHER_REFUSED.load(Ordering::SeqCst),
             switch_failed: self.switch_failed,
             priority_error: self.priority_error.clone(),
+            input_priority_error: self.input_priority_error.clone(),
             roller_failed: super::ROLLER_FAILED.load(Ordering::SeqCst),
         }
     }
@@ -894,12 +910,18 @@ impl Engine {
                 continue;
             };
             // A failed switch says why, as the Mac's outputSwitchError does.
-            match self.policy.as_ref().map(|p| p.set_default(target)) {
+            let result = self.policy.as_ref().map(|p| p.set_default(target));
+            let error = if output {
+                &mut self.priority_error
+            } else {
+                &mut self.input_priority_error
+            };
+            match result {
                 Some(Ok(())) => {
                     switched = true;
-                    self.priority_error = None;
+                    *error = None;
                 }
-                Some(Err(e)) => self.priority_error = Some(e),
+                Some(Err(e)) => *error = Some(e),
                 None => {}
             }
         }
@@ -952,7 +974,11 @@ impl Engine {
             due |= enabled && !*on;
             *on = enabled;
             if !enabled {
-                self.priority_error = None;
+                if output {
+                    self.priority_error = None;
+                } else {
+                    self.input_priority_error = None;
+                }
             }
         }
         if let Some(ids) = ids {
@@ -984,6 +1010,7 @@ impl Engine {
         };
         self.switch_failed = !ok;
         if ok {
+            self.priority_error = None;
             self.reload_devices();
         }
     }
@@ -1105,6 +1132,12 @@ impl Engine {
             .as_ref()
             .ok_or("Switching devices is unavailable")?;
         policy.set_default(id)?;
+        // A device picked by hand answers the last automatic failure.
+        if self.outputs.iter().any(|d| d.id == id) {
+            self.priority_error = None;
+        } else {
+            self.input_priority_error = None;
+        }
         self.reload_devices();
         Ok(())
     }

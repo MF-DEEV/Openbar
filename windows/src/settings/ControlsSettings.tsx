@@ -158,11 +158,10 @@ export function MixerOptions() {
       ) : null}
       <SubRow
         title={M.preciseRoller}
-        caption={
-          <Lines
-            lines={[M.preciseRollerCaption, island.preciseVolumeRollerEnabled && rollerFailed && M.preciseRollerFailed]}
-          />
-        }
+        caption={lines([
+          M.preciseRollerCaption,
+          island.preciseVolumeRollerEnabled && rollerFailed && M.preciseRollerFailed,
+        ])}
       >
         <Toggle
           label={M.preciseRoller}
@@ -228,15 +227,11 @@ function OutputSwitcherOptions() {
         <>
           <SubRow
             title={M.shortcut}
-            caption={
-              <Lines
-                lines={[
-                  row.problem ?? (row.recording && M.shortcutRecordingCaption),
-                  refused && !row.recording && M.shortcutUnavailable,
-                  failed && M.switcherNoAvailable,
-                ]}
-              />
-            }
+            caption={lines([
+              row.problem ?? (row.recording && M.shortcutRecordingCaption),
+              refused && !row.recording && M.shortcutUnavailable,
+              failed && M.switcherNoAvailable,
+            ])}
           >
             <ShortcutField
               className="st-button st-shortcut"
@@ -264,10 +259,10 @@ function OutputSwitcherOptions() {
   );
 }
 
-/** Several caption lines, the ones that apply. */
-function Lines({ lines }: { lines: (string | false | null | undefined)[] }) {
-  const shown = lines.filter((l): l is string => typeof l === "string" && l.length > 0);
-  if (shown.length === 0) return null;
+/** Several caption lines, the ones that apply; none leaves the row without a caption. */
+function lines(all: (string | false | null | undefined)[]) {
+  const shown = all.filter((l): l is string => typeof l === "string" && l.length > 0);
+  if (shown.length === 0) return undefined;
   return (
     <>
       {shown.map((line, i) => (
@@ -282,7 +277,8 @@ function Lines({ lines }: { lines: (string | false | null | undefined)[] }) {
 /** AudioPriorityDisclosure as Settings › Audio priority draws it: both lists, open. */
 function AudioPriorityOptions() {
   const priority = useAudio((s) => s.state.priority);
-  const priorityError = useAudio((s) => s.state.priorityError);
+  const outputError = useAudio((s) => s.state.priorityError);
+  const inputError = useAudio((s) => s.state.inputPriorityError);
   const outputs = useAudio((s) => s.state.outputs);
   const inputs = useAudio((s) => s.state.inputs);
   const lists = [
@@ -292,6 +288,7 @@ function AudioPriorityOptions() {
       help: M.priorityOutputEnable,
       enabled: priority.outputEnabled,
       devices: priority.outputs,
+      error: outputError,
       current: outputs.find((d) => d.isDefault)?.id,
     },
     {
@@ -300,6 +297,7 @@ function AudioPriorityOptions() {
       help: M.priorityInputEnable,
       enabled: priority.inputEnabled,
       devices: priority.inputs,
+      error: inputError,
       current: inputs.find((d) => d.isDefault)?.id,
     },
   ];
@@ -322,8 +320,8 @@ function AudioPriorityOptions() {
                   ? list.output
                     ? M.noOutputs
                     : M.noMicrophones
-                  : list.output && priorityError
-                    ? M.couldNotSwitch(priorityError)
+                  : list.error
+                    ? M.couldNotSwitch(list.error)
                     : undefined
               }
             >
