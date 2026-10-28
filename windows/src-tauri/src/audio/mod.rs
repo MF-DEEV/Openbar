@@ -21,7 +21,7 @@ mod roller;
 mod switcher;
 mod tree;
 
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
@@ -166,6 +166,8 @@ static ROLLER_FAILED: AtomicBool = AtomicBool::new(false);
 /// The switcher shortcut held now, and whether a shortcut field is recording.
 static SWITCHER_KEY: Mutex<Option<tauri_plugin_global_shortcut::Shortcut>> = Mutex::new(None);
 static RECORDING: AtomicBool = AtomicBool::new(false);
+/// The held shortcut's id (0 for none), for the shortcut handler.
+static SWITCHER_ID: AtomicU32 = AtomicU32::new(0);
 
 fn options() -> Options {
     OPTIONS.lock().unwrap().clone().unwrap_or_default()
@@ -302,7 +304,7 @@ pub fn apply_prefs<R: Runtime>(app: &AppHandle<R>, value: &serde_json::Value) {
         .as_ref()
         .is_none_or(|b| b.switcher != next.switcher || b.shortcut != next.shortcut)
     {
-        sync_switcher(app, &next);
+        sync_switcher(app);
     }
     #[cfg(windows)]
     {
@@ -316,11 +318,15 @@ pub fn apply_prefs<R: Runtime>(app: &AppHandle<R>, value: &serde_json::Value) {
 }
 
 /// Takes the switcher's shortcut while it is on and no field is recording.
-fn sync_switcher<R: Runtime>(app: &AppHandle<R>, options: &Options) {
+/// A preference change and the end of a recording can arrive together, so
+/// the whole decision is made under the lock from the newest options and
+/// recording state: whichever call runs last leaves the right shortcut.
+fn sync_switcher<R: Runtime>(app: &AppHandle<R>) {
     use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
     let shortcuts = app.global_shortcut();
-    let recording = RECORDING.load(Ordering::SeqCst);
     let mut held = SWITCHER_KEY.lock().unwrap();
+    let options = options();
+    let recording = RECORDING.load(Ordering::SeqCst);
     let wanted = (options.switcher && !recording)
         .then(|| options.shortcut.parse::<Shortcut>().ok())
         .flatten();
@@ -328,6 +334,7 @@ fn sync_switcher<R: Runtime>(app: &AppHandle<R>, options: &Options) {
         return;
     }
     if let Some(old) = held.take() {
+        SWITCHER_ID.store(0, Ordering::SeqCst);
         let _ = shortcuts.unregister(old);
     }
     // The island's own toggle is never given away.
@@ -336,6 +343,7 @@ fn sync_switcher<R: Runtime>(app: &AppHandle<R>, options: &Options) {
         Some(key) => match shortcuts.register(key) {
             Ok(()) => {
                 *held = Some(key);
+                SWITCHER_ID.store(key.id(), Ordering::SeqCst);
                 false
             }
             Err(_) => true,
@@ -346,9 +354,12 @@ fn sync_switcher<R: Runtime>(app: &AppHandle<R>, options: &Options) {
     SWITCHER_REFUSED.store(refused, Ordering::SeqCst);
 }
 
-/// The global shortcut handler's question: was this the switcher's key?
+/// The global shortcut handler's question: was this the switcher's key? It
+/// runs on the main thread, which a registration holding SWITCHER_KEY may be
+/// waiting for, so it reads the id alone.
 pub fn is_switcher_shortcut(shortcut: &tauri_plugin_global_shortcut::Shortcut) -> bool {
-    SWITCHER_KEY.lock().unwrap().as_ref() == Some(shortcut)
+    let id = SWITCHER_ID.load(Ordering::SeqCst);
+    id != 0 && id == shortcut.id()
 }
 
 /// The switcher's shortcut was pressed: the next chosen output plays.
@@ -368,7 +379,7 @@ pub(crate) fn roller_step(direction: roller::Direction) {
 #[tauri::command]
 pub fn audio_switcher_recording<R: Runtime>(app: AppHandle<R>, on: bool) {
     RECORDING.store(on, Ordering::SeqCst);
-    sync_switcher(&app, &options());
+    sync_switcher(&app);
     #[cfg(windows)]
     engine::post(|_| {});
 }
