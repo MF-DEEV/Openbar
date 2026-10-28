@@ -127,7 +127,7 @@ pub async fn shell_icon(path: String, size: u32, thumbnail: bool) -> Option<Stri
 }
 
 /// Task Manager, as the System detail's process list opens it; false when
-/// the shell refused (Task Manager disabled by policy, say).
+/// it couldn't be started.
 #[tauri::command]
 pub async fn shell_open_task_manager() -> bool {
     tauri::async_runtime::spawn_blocking(|| worker().run(imp::open_task_manager).unwrap_or(false))
@@ -150,18 +150,17 @@ mod imp {
         QueryFullProcessImageNameW,
     };
     use windows::Win32::UI::Shell::{
-        IShellItemImageFactory, SEE_MASK_NOASYNC, SHCreateItemFromParsingName, SHELLEXECUTEINFOW,
-        SHFILEINFOW, SHGFI_TYPENAME, SHGetFileInfoW, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
-        SIIGBF_RESIZETOFIT, ShellExecuteExW,
+        IShellItemImageFactory, SEE_MASK_DOENVSUBST, SEE_MASK_NOASYNC, SHCreateItemFromParsingName,
+        SHELLEXECUTEINFOW, SHFILEINFOW, SHGFI_TYPENAME, SHGetFileInfoW, SIIGBF_BIGGERSIZEOK,
+        SIIGBF_ICONONLY, SIIGBF_RESIZETOFIT, ShellExecuteExW,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
         ASFW_ANY, AllowSetForegroundWindow, SW_SHOWNORMAL,
     };
     use windows::core::{HSTRING, PCWSTR, PWSTR, w};
 
-    /// Through the shell, not CreateProcess: Taskmgr.exe asks for the highest
-    /// level available, which CreateProcess refuses an admin (error 740) and
-    /// the shell auto-elevates. A running Task Manager comes to the front.
+    /// By its System32 path: a bare name is looked for in the current
+    /// directory first. A running Task Manager comes to the front.
     pub fn open_task_manager() -> bool {
         unsafe {
             let _ = AllowSetForegroundWindow(ASFW_ANY);
@@ -169,8 +168,8 @@ mod imp {
         let mut info = SHELLEXECUTEINFOW {
             cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
             // This worker has no message loop to finish the launch on.
-            fMask: SEE_MASK_NOASYNC,
-            lpFile: w!("taskmgr.exe"),
+            fMask: SEE_MASK_NOASYNC | SEE_MASK_DOENVSUBST,
+            lpFile: w!(r"%SystemRoot%\System32\Taskmgr.exe"),
             nShow: SW_SHOWNORMAL.0,
             ..Default::default()
         };

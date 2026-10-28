@@ -224,7 +224,7 @@ export const bridge = {
     /** A PNG data URL: the file's icon, or its thumbnail when `thumbnail`. */
     icon: (path: string, size: number, thumbnail = false) =>
       call<string | null>("shell_icon", { path, size, thumbnail }),
-    /** Task Manager, or the running one brought forward; false when the shell refused. */
+    /** Task Manager, or the running one brought forward; false when it couldn't be started. */
     openTaskManager: () => call<boolean>("shell_open_task_manager"),
   },
   sound: {
