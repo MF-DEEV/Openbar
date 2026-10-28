@@ -19,6 +19,8 @@ export const S = {
   unavailable: "Sensors unavailable on this PC",
   back: "Back",
   usage: "Hardware usage",
+  /** monitorOpenActivityMonitor, Task Manager being the PC's Activity Monitor. */
+  openTaskManager: "Open Task Manager",
   upFor: "Up for",
   measuring: "Measuring…",
   download: "Download",

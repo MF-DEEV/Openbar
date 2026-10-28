@@ -714,6 +714,7 @@ Cards, in order (:27-87):
 | Connected devices | `Windows.Devices.Enumeration` (Bluetooth + USB); see the connected-devices spec |
 
 - **Priority**: no live activity (the battery notice and the low-battery tint belong to the shell spec).
+- **Open Activity Monitor** (`MetricDetailView.swift` `ActivityMonitorButton`), in the header of every detail's apps list (CPU, GPU, memory, power, network). **Windows:** on CPU and memory, the details with a process list (GPU, network and energy lists: #58); opens Task Manager with `ShellExecuteExW("%SystemRoot%\System32\Taskmgr.exe")` (by path: a bare name is looked for in the current directory first). A running Task Manager comes to the front.
 
 ---
 
