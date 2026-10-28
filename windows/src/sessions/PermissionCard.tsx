@@ -16,6 +16,7 @@ import { OWN_ANSWER_LIMIT, SETTLE_DELAY, useSessions } from "./store";
 import type { Question, Session } from "./types";
 import { handlePermissionKey } from "./permissionKeys";
 import { subscribeGlobalPermissionKeys } from "./globalPermissionKeys";
+import { AutoAllowButton } from "./AutoAllowButton";
 
 /** True once the current request has been on screen for SETTLE_DELAY. */
 function useSettled(requestId: string | undefined): boolean {
@@ -103,10 +104,14 @@ function ToolRequest({ session }: { session: Session }) {
           {S.deny}
         </button>
         <span className="s-spacer" />
-        {p.offersAlways ? (
+        {session.provider === "codex" ? (
+          <AutoAllowButton session={session} disabled={!ready} />
+        ) : p.offersAlways ? (
           <button
             type="button"
             className="s-button is-secondary"
+            aria-keyshortcuts="Control+t"
+            title="Ctrl+T"
             disabled={!ready}
             onClick={() => void decide(session, "always")}
           >

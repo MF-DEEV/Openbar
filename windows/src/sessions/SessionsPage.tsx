@@ -15,11 +15,12 @@ import { displayName } from "./format";
 import { countItems } from "./SessionsStrip";
 import { S } from "./strings";
 import { useSessions } from "./store";
+import { presentedSnapshot } from "./presentation";
 import "./sessions.css";
 
 function useFocusedSession() {
   const focused = useSessions((s) => s.focused);
-  return useSessions((s) => (focused ? s.snapshot.sessions.find((x) => x.id === focused) : undefined));
+  return useSessions((s) => (focused ? presentedSnapshot(s).sessions.find((x) => x.id === focused) : undefined));
 }
 
 function Page() {
@@ -35,7 +36,7 @@ function Page() {
 
 /** Counts with 9 pt symbols and 11 pt numbers, or the total when nothing is going on. */
 function Counts() {
-  const counts = useSessions((s) => s.snapshot.counts);
+  const counts = useSessions((s) => presentedSnapshot(s).counts);
   const total = useSessions((s) => s.snapshot.sessions.length);
   const items = countItems(counts);
   if (items.length === 0) return total > 0 ? <span className="s-band-total">{total}</span> : null;

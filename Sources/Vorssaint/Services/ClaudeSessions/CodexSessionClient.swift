@@ -172,6 +172,11 @@ final class CodexSessionClient {
         }
     }
 
+    /// Whether the request with this island id still waits on the session's row.
+    func waits(_ session: String, requestID: String) -> Bool {
+        lock.withLock { state.pending(session: session).contains { $0.requestID == requestID } }
+    }
+
     /// A prompt for an idle thread, or one queued after the current turn of a working one.
     func reply(_ session: String, text: String, images: [URL] = []) -> Bool {
         lock.withLock {

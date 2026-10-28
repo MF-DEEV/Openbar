@@ -56,8 +56,8 @@ struct NotchClaudeSessionsView: View {
             }
             NotchService.shared.setPageLayer(.sessions, close: close)
         }
-        // Clawds turned off take their wardrobe with them, and ⌘Y and ⌘N
-        // answer the page again.
+        // Clawds turned off take their wardrobe with them, and ⌘Y, ⌘N and
+        // ⌘T answer the page again.
         .onChange(of: buddies) { _, shown in
             if !shown { service.dress(nil) }
         }

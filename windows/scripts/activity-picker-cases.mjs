@@ -98,6 +98,34 @@ export async function checkActivityPicker({ send, evaluate, base }) {
     "Closing ran the resize twice",
   );
   assert.equal(await evaluate(`document.querySelectorAll('.n-activity-picker').length`), 0);
+  for (const activity of ["music", "sessions"]) {
+    await evaluate(`island.setState({pickedActivity:${JSON.stringify(activity)}})`);
+    await new Promise((r) => setTimeout(r, 250));
+    const hover = await evaluate(`(async()=>{
+      const samples=[];
+      for(const action of ['pointerEnter','pointerExit','pointerEnter','pointerExit']) {
+        island.getState()[action]();
+        for(let i=0;i<12;i++) {
+          await new Promise(requestAnimationFrame);
+          const header=document.querySelector('.n-activity-picker-strip');
+          const content=header.firstElementChild;
+          const scale=new DOMMatrixReadOnly(getComputedStyle(content).transform);
+          const surface=document.querySelector('.island-backdrop path[id]').getBBox();
+          samples.push({x:scale.a,y:scale.d,width:surface.width/parseFloat(header.style.width),height:surface.height/parseFloat(header.style.height)});
+        }
+      }
+      return samples;
+    })()`);
+    assert(
+      hover.every((s) => Math.abs(s.x - s.width) < 0.001 && Math.abs(s.y - s.height) < 0.001),
+      `${activity} icons must follow the backdrop on every hover frame, including interrupted motion`,
+    );
+    assert(
+      hover.some((s) => s.x > 1.002 && s.x < 1.028),
+      "Hover must include intermediate frames",
+    );
+    await new Promise((r) => setTimeout(r, 600));
+  }
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
   await evaluate(`island.getState().activateActivity('music')`);
   await frames();

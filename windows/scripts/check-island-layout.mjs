@@ -11,6 +11,7 @@ import { createServer } from "vite";
 import { checkSettingsSelect } from "./settings-select-cases.mjs";
 import { checkQuickAccessEditor } from "./quick-access-cases.mjs";
 import { checkActivityPicker } from "./activity-picker-cases.mjs";
+import { checkAutoAllow } from "./auto-allow-cases.mjs";
 
 const browserPath = [
   process.env.ISLAND_TEST_BROWSER,
@@ -79,7 +80,9 @@ try {
     mobile: false,
   });
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
-  if (process.argv.includes("--activity-picker")) {
+  if (process.argv.includes("--auto-allow")) {
+    await checkAutoAllow({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--activity-picker")) {
     await checkActivityPicker({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--quick-access")) {
     await checkQuickAccessEditor({ send, evaluate, base: server.resolvedUrls.local[0] });

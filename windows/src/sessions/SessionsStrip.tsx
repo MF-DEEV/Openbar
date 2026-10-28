@@ -13,6 +13,7 @@ import { useIsland } from "../island/store";
 import { CLAUDE_TINT, CODEX_TINT, FINISHED_TINT, WAITING_TINT } from "./format";
 import { S } from "./strings";
 import { useSessions } from "./store";
+import { presentedSnapshot } from "./presentation";
 import type { Counts } from "./types";
 
 /** min(15, strip − 7): 15 pt in the Windows bar's 24 pt strip. */
@@ -49,7 +50,7 @@ export function stripWing(counts: Counts, stripHeight: number): number {
 }
 
 export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Size }) {
-  const counts = useSessions((s) => s.snapshot.counts);
+  const counts = useSessions((s) => presentedSnapshot(s).counts);
   const textSize = stripTextSize(geometry.stripHeight);
   const capsule = geometry.floatingGap !== null;
   const iconInset = capsule ? 0 : edgeInset(size, 18, 9, 5, geometry.input);
@@ -57,7 +58,9 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
   const wing = capsule ? undefined : (size.width - geometry.cameraWidth) / 2;
 
   const open = () => {
-    const waiting = useSessions.getState().snapshot.sessions.find((s) => s.permission || s.phase.startsWith("waiting"));
+    const waiting = presentedSnapshot(useSessions.getState()).sessions.find(
+      (s) => s.permission || s.phase.startsWith("waiting"),
+    );
     const opened = useIsland.getState().activateActivity("sessions");
     if (opened && waiting) useSessions.getState().focus(waiting.id);
   };

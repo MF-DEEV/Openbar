@@ -73,13 +73,24 @@ it("leaves editor shortcuts, composition and other modifiers alone", () => {
     { target: editor },
     { isComposing: true },
     { ctrlKey: false },
-    { shiftKey: true },
     { altKey: true },
     { metaKey: true },
   ]) {
     expect(handlePermissionKey(key("y", changes), session.id, session.permission!.requestId)).toBe(false);
   }
   expect(decide).not.toHaveBeenCalled();
+});
+
+it("Ctrl+T selects Always and enables continuous approvals only for the displayed Codex session", () => {
+  expect(handlePermissionKey(key("t"), session.id, session.permission!.requestId)).toBe(true);
+  expect(decide).toHaveBeenCalledExactlyOnceWith(session, "always");
+  decide.mockClear();
+  const codex = { ...session, provider: "codex" as const };
+  useSessions.setState({ snapshot: { ...demoSnapshot(), sessions: [codex] }, autoAllow: {} });
+  expect(handlePermissionKey(key("T"), codex.id, codex.permission!.requestId)).toBe(true);
+  expect(useSessions.getState().autoAllow[codex.id]).toBe(true);
+  expect(decide).not.toHaveBeenCalled();
+  expect(handlePermissionKey(key("n", { shiftKey: true }), codex.id, codex.permission!.requestId)).toBe(false);
 });
 
 it("does not approve a question form or answer under the wardrobe", () => {

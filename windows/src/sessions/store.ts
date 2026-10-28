@@ -29,6 +29,9 @@ interface SessionsState {
   renaming: boolean;
   /** The wardrobe is open on the focused session's page. */
   wardrobe: boolean;
+  /** Explicit opt-in for the current Codex turn; cleared when it ends. */
+  autoAllow: Record<string, boolean>;
+  toggleAutoAllow(id: string): void;
   /** The section's preferences (Settings › Content › Sessions). */
   prefs: SessionPrefs;
   /** Outfits changed in the wardrobe, by session (or subagent) key. */
@@ -85,6 +88,16 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   lookedAt: {},
   renaming: false,
   wardrobe: false,
+  autoAllow: {},
+  toggleAutoAllow(id) {
+    if (
+      !get().snapshot.sessions.some(
+        (s) => s.id === id && s.provider === "codex" && s.phase !== "finished" && s.phase !== "idle",
+      )
+    )
+      return;
+    set((s) => ({ autoAllow: { ...s.autoAllow, [id]: !s.autoAllow[id] } }));
+  },
   prefs: DEFAULT_SESSION_PREFS,
   costumes: costumeStore.all(),
   openFailedUntil: 0,
@@ -96,13 +109,32 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   },
 
   receive(snapshot) {
+    const previous = get();
+    // Expire consent before subscribers can schedule approvals for a new turn.
+    // Comparing turn starts also covers a completion missed between snapshots.
+    const autoAllow = Object.fromEntries(
+      Object.entries(previous.autoAllow).filter(([id, enabled]) => {
+        if (!enabled) return false;
+        const session = snapshot.sessions.find((s) => s.id === id);
+        const before = previous.snapshot.sessions.find((s) => s.id === id);
+        return (
+          session?.provider === "codex" &&
+          session.phase !== "finished" &&
+          session.phase !== "idle" &&
+          !!before &&
+          (before.turnStarted === undefined ||
+            session.turnStarted === undefined ||
+            before.turnStarted === session.turnStarted)
+        );
+      }),
+    );
     const shownAt: Record<string, number> = {};
     const t = now();
     for (const s of snapshot.sessions) {
       const id = s.permission?.requestId;
       if (id) shownAt[id] = get().shownAt[id] ?? t;
     }
-    set({ snapshot, shownAt });
+    set({ snapshot, shownAt, autoAllow });
   },
 
   focus(id) {

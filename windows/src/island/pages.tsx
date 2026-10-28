@@ -24,6 +24,8 @@ import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
 import { DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
 import { bridge, type AttentionContext } from "../shared/bridge";
 import { DeferredSessionAttention } from "../sessions/attention";
+import { subscribeAutoAllow } from "../sessions/autoAllow";
+import { hidesAutoApproval, presentedSnapshot } from "../sessions/presentation";
 import { MicrophoneStrip, subscribeMicrophone } from "../microphone/Microphone";
 import "../timer/register";
 import "../system/register";
@@ -63,10 +65,11 @@ pages.downloads = { Page: DownloadsPage };
 activityViews.downloads = DownloadStrip;
 void subscribeDownloads();
 activityViews.sessions = SessionsStrip;
+subscribeAutoAllow();
 
 /** Sessions show beside the camera while any is working, waiting or done. */
 function syncSessionsActivity() {
-  const { counts } = useSessions.getState().snapshot;
+  const { counts } = presentedSnapshot(useSessions.getState());
   const island = useIsland.getState();
   const empty = counts.working + counts.waiting + counts.finished === 0;
   if (empty || !shown("sessions") || !useSessions.getState().prefs.live) {
@@ -84,8 +87,9 @@ function syncSessionsActivity() {
 }
 
 useSessions.subscribe((s, prev) => {
-  if (s.snapshot.counts !== prev.snapshot.counts || s.prefs.live !== prev.prefs.live) syncSessionsActivity();
-  if (s.snapshot !== prev.snapshot) syncPendingSessions();
+  if (presentedSnapshot(s).counts !== presentedSnapshot(prev).counts || s.prefs.live !== prev.prefs.live)
+    syncSessionsActivity();
+  if (s.snapshot !== prev.snapshot || s.autoAllow !== prev.autoAllow) syncPendingSessions();
 });
 useIsland.subscribe((s, prev) => {
   if (
@@ -108,6 +112,7 @@ function presentSessionEvent(event: SessionEvent) {
   const sessions = useSessions.getState();
   const session = sessions.snapshot.sessions.find((s) => s.id === event.id);
   if (!session) return;
+  if (hidesAutoApproval(session, sessions.autoAllow)) return;
   const island = useIsland.getState();
   const name = displayName(session, sessions.names[session.id]);
   if (!shown("sessions")) return;
@@ -140,6 +145,7 @@ const sessionAttention = new DeferredSessionAttention(
   (event) => {
     const session = useSessions.getState().snapshot.sessions.find((s) => s.id === event.id);
     if (!session || !session.phase.startsWith("waiting")) return undefined;
+    if (hidesAutoApproval(session, useSessions.getState().autoAllow)) return undefined;
     return session.permission?.requestId ?? `${session.phase}:${session.phaseSince}`;
   },
   presentSessionEvent,

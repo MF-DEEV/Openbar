@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { SessionDetail } from "./SessionDetail";
 import { demoSnapshot } from "./demo";
 import { useSessions } from "./store";
@@ -22,7 +22,45 @@ vi.mock("./store", async (importOriginal) => {
 });
 
 beforeEach(() => {
-  useSessions.setState({ snapshot: { ...demoSnapshot(), previews: true }, wardrobe: false, renaming: false });
+  useSessions.setState({
+    snapshot: { ...demoSnapshot(), previews: true },
+    wardrobe: false,
+    renaming: false,
+    autoAllow: {},
+  });
+});
+
+afterEach(() => vi.unstubAllGlobals());
+
+it("keeps the Codex auto allow toggle visible after approvals and during questions", () => {
+  vi.stubGlobal("window", { matchMedia: () => ({ matches: true }) });
+  const base = { ...demoSnapshot().sessions[0]!, provider: "codex" as const };
+  useSessions.setState({ autoAllow: { [base.id]: true } });
+  for (const session of [
+    base,
+    { ...base, phase: "runningTool" as const, permission: undefined },
+    {
+      ...base,
+      phase: "waitingInput" as const,
+      permission: { ...base.permission!, questions: [{ question: "Which?", options: [], multiSelect: false }] },
+    },
+  ]) {
+    const html = renderToStaticMarkup(<SessionDetail session={session} />);
+    expect(html).toContain("Always: ON");
+    expect(html).toContain(
+      session.phase === "waitingPermission" ? 'aria-pressed="true"' : 'aria-label="Cancel autoaccept"',
+    );
+  }
+  useSessions.setState({ autoAllow: {} });
+  for (const phase of ["generating", "idle", "finished"] as const) {
+    const html = renderToStaticMarkup(<SessionDetail session={{ ...base, phase, permission: undefined }} />);
+    expect(html).not.toContain("Always");
+    expect(html).not.toContain("Cancel autoaccept");
+  }
+  const manual = renderToStaticMarkup(<SessionDetail session={base} />);
+  expect(manual).toContain('aria-keyshortcuts="Control+t"');
+  expect(manual).not.toContain("Cancel autoaccept");
+  expect(renderToStaticMarkup(<SessionDetail session={{ ...base, provider: "claude" }} />)).not.toContain("Always: ON");
 });
 
 it("renders user messages and agent replies in order", () => {

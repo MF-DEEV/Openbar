@@ -3,6 +3,17 @@
 
 import { useIsland } from "../island/store";
 import { settled, useSessions } from "./store";
+import type { Session } from "./types";
+
+export type PermissionKey = "y" | "n" | "always";
+
+export async function performPermissionKey(session: Session, key: PermissionKey): Promise<boolean> {
+  if (key === "always" && session.provider === "codex") {
+    useSessions.getState().toggleAutoAllow(session.id);
+    return true;
+  }
+  return useSessions.getState().decide(session, key === "always" ? "always" : key === "y" ? "allow" : "deny");
+}
 
 export function permissionKeyTarget(sessionId: string, requestId: string) {
   const island = useIsland.getState();
@@ -34,12 +45,12 @@ export function handlePermissionKey(event: KeyboardEvent, sessionId: string, req
     event.repeat ||
     !event.ctrlKey ||
     event.altKey ||
-    event.shiftKey ||
-    event.metaKey
+    event.metaKey ||
+    event.shiftKey
   )
     return false;
   const key = event.key.toLowerCase();
-  if (key !== "y" && key !== "n") return false;
+  if (key !== "y" && key !== "n" && key !== "t") return false;
   const state = useSessions.getState();
   const target = event.target as HTMLElement | null;
   if (
@@ -49,9 +60,10 @@ export function handlePermissionKey(event: KeyboardEvent, sessionId: string, req
     return false;
   const session = permissionKeyTarget(sessionId, requestId);
   if (!session) return false;
+  if (key === "t" && session.provider !== "codex" && !session.permission!.offersAlways) return false;
   event.preventDefault();
   event.stopPropagation();
   // Consume the shortcut during the same settling interval as the buttons.
-  if (settled(state, session)) void state.decide(session, key === "y" ? "allow" : "deny");
+  if (settled(state, session)) void performPermissionKey(session, key === "t" ? "always" : key);
   return true;
 }

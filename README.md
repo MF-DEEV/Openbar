@@ -24,12 +24,12 @@ This is an unofficial fork of [Vorssaint](https://github.com/vorssaint/vorssaint
 ## What it does
 
 - **Every session at a glance.** Running sessions are listed beside the camera with their name, project, git branch and state: working, running a tool, waiting for permission, waiting for you, done or idle. Each project gets its own color, and a session that sat idle for a while fades out.
-- **Allow from the island.** When Claude asks to run something, the island opens on its own with the whole command in view once you are at the desktop or in Vorssaint; while you work in another app, the request waits as a count on the closed island instead. Allow, Deny or Always, by click or with ⌘Y and ⌘N, which work from any app while the request is on screen.
+- **Allow from the island.** When Claude asks to run something, the island opens on its own with the whole command in view once you are at the desktop or in Vorssaint; while you work in another app, the request waits as a count on the closed island instead. Allow, Deny or Always, by click or with ⌘Y, ⌘N and ⌘T, which work from any app while the request is on screen.
 - **Answer Claude's questions.** Questions Claude asks with options show up as a card. Pick one, pick several, or write your own answer.
 - **Reply without switching apps.** Type a reply in the island and it reaches the session in Terminal or Antigravity as if typed there. ⌘↩ sends, and ⌘V or a drop adds images.
 - **Watch it work.** Enlarge a session's page to read the whole conversation as it grows, with recent tools, tasks, cost and the model beside it, or fold the details away.
 - **Subagents too.** Agents a session starts get rows of their own, including the ones sent to the background, colored like their agent definitions.
-- **Codex too.** Codex CLI sessions join the same list, under Codex's own mark and color, with a little terminal robot instead of Clawd. Its approvals, questions and replies go through Codex's own server, so there is nothing to install.
+- **Codex too.** Codex CLI sessions join the same list, under Codex's own mark and color, with a little terminal robot instead of Clawd. Its approvals, questions and replies go through Codex's own server, so there is nothing to install. Always on a Codex request allows every request of the task under way, with Always: ON on its page and Cancel to stop it, until the task ends.
 - **A Clawd for every session.** Each session and subagent gets a pixel Clawd in a random costume. Open the wardrobe to change its shell, hat, eyewear and extras, or let Surprise me pick.
 
 ## Set it up

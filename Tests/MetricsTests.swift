@@ -131,6 +131,7 @@ struct MetricsTests {
                 NotchClawdViewTests.run(suite)
                 ClaudeAgentColorTests.run(suite)
                 NotchSessionAttentionTests.run(suite)
+                NotchSessionAutoAllowTests.run(suite)
             }),
             ("codex-sessions", { CodexSessionTests.run(suite) }),
             ("codex-edge", { CodexSessionEdgeTests.run(suite) }),

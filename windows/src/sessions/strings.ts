@@ -67,7 +67,7 @@ export const S = {
   inputNotice: "Waiting for you",
   finishedNotice: "Done",
   finishedAfter: (d: string) => `Done after ${d}`,
-  shortcutsHint: "Ctrl+Y allows and Ctrl+N denies, even while another app is focused.",
+  shortcutsHint: "Ctrl+Y allows, Ctrl+T selects Always, Ctrl+N denies. Works while another app is focused.",
   sendFailed: "Couldn’t reach that terminal",
   sendWhileWaiting: "It’s waiting on a prompt now. Answer it first.",
   openFailed: "Couldn’t find that window",

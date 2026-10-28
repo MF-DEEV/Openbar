@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { useId, useRef } from "react";
+import { useContext, useId, useRef } from "react";
 import { t } from "../../i18n";
 import { activityPickerLayout, activitySize, type Geometry } from "../geometry";
 import { moduleInfo } from "../modules";
@@ -19,6 +19,8 @@ export function ActivityPicker({ geometry, size, visible }: { geometry: Geometry
   const highlight = useId();
   const buttons = useRef(new Map<ActivityId, HTMLButtonElement>());
   const reduce = useReducedMotion();
+  const drawn = useContext(DrawnSize) ?? size;
+  const closingPicker = useRef(false);
   if (!selected) return null;
   const strips = choices.map((id) =>
     activitySize(geometry, state.activities[id]!.wing, state.activities[id]!.capsuleContent),
@@ -26,7 +28,15 @@ export function ActivityPicker({ geometry, size, visible }: { geometry: Geometry
   const layout = activityPickerLayout(geometry, strips);
   const activity = state.activities[selected]!;
   const strip = activitySize(geometry, activity.wing, activity.capsuleContent);
-  const scale = visible ? 1 : size.width / strip.width;
+  // Keep the header at its natural size while the taller chooser closes.
+  // Hover, however, rides the surface's actual springs on both axes instead
+  // of running a second animation toward its destination size.
+  if (visible) closingPicker.current = true;
+  else if (Math.abs(drawn.width - size.width) < 0.5 && Math.abs(drawn.height - size.height) < 0.5)
+    closingPicker.current = false;
+  const naturalSize = visible || closingPicker.current;
+  const scaleX = naturalSize ? 1 : drawn.width / strip.width;
+  const scaleY = naturalSize ? 1 : drawn.height / strip.height;
   return (
     <div
       className={`n-compact-activity${visible ? " is-choosing" : ""}`}
@@ -41,16 +51,17 @@ export function ActivityPicker({ geometry, size, visible }: { geometry: Geometry
               width: strip.width,
               height: strip.height,
               left: `calc(50% - ${strip.width / 2}px)`,
-              transformOrigin: "50% 0",
             }}
             initial={{ opacity: 0, filter: reduce ? "blur(0px)" : "blur(4px)" }}
-            animate={{ opacity: 1, filter: "blur(0px)", scale }}
+            animate={{ opacity: 1, filter: "blur(0px)" }}
             exit={{ opacity: 0, filter: reduce ? "blur(0px)" : "blur(4px)" }}
             transition={{ duration: reduce ? 0 : 0.12 }}
           >
-            <DrawnSize.Provider value={strip}>
-              <ActivityStrip id={selected} geometry={geometry} size={strip} />
-            </DrawnSize.Provider>
+            <div style={{ transform: `scale(${scaleX}, ${scaleY})`, transformOrigin: "50% 0" }}>
+              <DrawnSize.Provider value={strip}>
+                <ActivityStrip id={selected} geometry={geometry} size={strip} />
+              </DrawnSize.Provider>
+            </div>
           </motion.div>
         </AnimatePresence>
       </div>
