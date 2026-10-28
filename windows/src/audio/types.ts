@@ -28,6 +28,21 @@ export interface AudioApp {
   system: boolean;
 }
 
+/** One entry of a priority list: connected, or remembered by its last name. */
+export interface RankedDevice {
+  id: string;
+  name: string;
+  available: boolean;
+}
+
+/** Audio priority (AudioPriorityService): a switch and an ordered list each. */
+export interface AudioPriority {
+  outputEnabled: boolean;
+  inputEnabled: boolean;
+  outputs: RankedDevice[];
+  inputs: RankedDevice[];
+}
+
 export interface AudioState {
   supported: boolean;
   output: AudioLevel;
@@ -38,6 +53,17 @@ export interface AudioState {
   canSwitch: boolean;
   micMuted: boolean;
   apps: AudioApp[];
+  priority: AudioPriority;
+  /** The output switcher is on but Windows refused its shortcut. */
+  switcherRefused: boolean;
+  /** Why the last automatic output priority switch failed. */
+  priorityError: string | null;
+  /** The same for the microphone list. */
+  inputPriorityError: string | null;
+  /** The last switcher press found no chosen output that is connected. */
+  switchFailed: boolean;
+  /** Finer volume steps are on but Windows refused the volume keys. */
+  rollerFailed: boolean;
 }
 
 export interface KeepAwakeState {
@@ -63,4 +89,10 @@ export const EMPTY_AUDIO: AudioState = {
   canSwitch: false,
   micMuted: false,
   apps: [],
+  priority: { outputEnabled: false, inputEnabled: false, outputs: [], inputs: [] },
+  switcherRefused: false,
+  priorityError: null,
+  inputPriorityError: null,
+  switchFailed: false,
+  rollerFailed: false,
 };

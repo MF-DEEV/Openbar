@@ -72,4 +72,38 @@ describe("controls and mixer prefs", () => {
     expect(prefs.island.brightnessControlEnabled).toBe(false);
     expect(prefs.island.keepAwakeActivity).toBe(false);
   });
+
+  it("keeps the Mixer options within what the backend reads", () => {
+    const prefs = resolve({
+      island: {
+        mixerHeadphonesDisconnectVolumePercent: 140.4,
+        soundOutputSwitcherShortcut: "  ",
+        soundOutputSwitcherDevices: ["a", "", "a", 3, " ", "b"] as never,
+      },
+    });
+    expect(prefs.island.mixerHeadphonesDisconnectVolumePercent).toBe(100);
+    expect(prefs.island.soundOutputSwitcherShortcut).toBe(DEFAULT_SETTINGS.soundOutputSwitcherShortcut);
+    expect(prefs.island.soundOutputSwitcherDevices).toEqual(["a", "b"]);
+    expect(
+      resolve({ island: { mixerHeadphonesDisconnectVolumePercent: -3 } }).island.mixerHeadphonesDisconnectVolumePercent,
+    ).toBe(0);
+    expect(
+      resolve({ island: { mixerHeadphonesDisconnectVolumePercent: 32.6 } }).island
+        .mixerHeadphonesDisconnectVolumePercent,
+    ).toBe(33);
+    expect(
+      resolve({ island: { mixerHeadphonesDisconnectVolumePercent: "x" as never } }).island
+        .mixerHeadphonesDisconnectVolumePercent,
+    ).toBe(DEFAULT_SETTINGS.mixerHeadphonesDisconnectVolumePercent);
+  });
+
+  it("starts the Mixer options off, as the Mac does", () => {
+    const { island } = resolve(null);
+    expect(island.mixerLowerVolumeOnHeadphonesDisconnect).toBe(false);
+    expect(island.mixerHeadphonesDisconnectVolumePercent).toBe(25);
+    expect(island.preciseVolumeRollerEnabled).toBe(false);
+    expect(island.soundOutputSwitcherEnabled).toBe(false);
+    expect(island.soundOutputSwitcherShortcut).toBe("Ctrl+Alt+Shift+KeyS");
+    expect(island.soundOutputSwitcherDevices).toEqual([]);
+  });
 });

@@ -9,7 +9,8 @@
 //!
 //! Sources: PDH for CPU (`% Processor Utility`, as Task Manager), GPU engines
 //! and disk activity, `GlobalMemoryStatusEx`, `GetSystemPowerStatus` and the
-//! battery state's charge rate, `GetIfTable2` on hardware interfaces,
+//! battery state's charge rate, the battery driver's capacities and cycle
+//! count (`IOCTL_BATTERY_QUERY_INFORMATION`), `GetIfTable2` on hardware interfaces,
 //! `GetDiskFreeSpaceExW` on the system drive, SetupAPI for USB devices and the
 //! Bluetooth API for connected classic devices. Fans have no Windows API.
 
@@ -59,6 +60,10 @@ pub struct Battery {
     pub rate_watts: Option<f64>,
     /// Windows' estimate while on battery.
     pub seconds_left: Option<u32>,
+    /// Full charge over design capacity, at most 100 (PowerSampler.healthPercent).
+    pub health_percent: Option<f64>,
+    /// None when the battery doesn't count its cycles.
+    pub cycle_count: Option<u32>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
@@ -406,7 +411,43 @@ mod math {
             plugged_in,
             rate_watts: None,
             seconds_left: (!plugged_in && seconds != u32::MAX).then_some(seconds),
+            health_percent: None,
+            cycle_count: None,
         })
+    }
+
+    /// One battery's `BATTERY_INFORMATION`, as far as its wear goes.
+    #[derive(Clone, Copy, Debug)]
+    pub struct BatteryPack {
+        /// `BATTERY_CAPACITY_RELATIVE`: the capacities aren't mWh.
+        pub relative: bool,
+        pub designed: u32,
+        pub full_charged: u32,
+        /// 0 when the battery doesn't count its cycles.
+        pub cycles: u32,
+    }
+
+    /// Health and cycle count across the PC's batteries: the packs' full
+    /// charge over their design capacity, at most 100 (PowerSampler), and the
+    /// most worn pack's cycles. Relative or unknown capacities give no health.
+    pub fn battery_wear(packs: &[BatteryPack]) -> (Option<f64>, Option<u32>) {
+        const UNKNOWN_CAPACITY: u32 = u32::MAX;
+        let measured = packs.iter().filter(|p| {
+            !p.relative
+                && p.designed > 0
+                && p.designed != UNKNOWN_CAPACITY
+                && p.full_charged > 0
+                && p.full_charged != UNKNOWN_CAPACITY
+        });
+        let (full, designed) = measured.fold((0u64, 0u64), |(full, designed), p| {
+            (
+                full + u64::from(p.full_charged),
+                designed + u64::from(p.designed),
+            )
+        });
+        let health = (designed > 0).then(|| (full as f64 / designed as f64 * 100.0).min(100.0));
+        let cycles = packs.iter().map(|p| p.cycles).filter(|&c| c > 0).max();
+        (health, cycles)
     }
 
     /// External USB devices only (USBDeviceSampler.parseDevice): no root hubs,
@@ -614,6 +655,8 @@ mod imp {
         processes: HashMap<ProcessKey, u64>,
         process_names: HashMap<String, (Option<String>, String)>,
         devices: Option<Vec<Device>>,
+        /// Health and cycles; they change over weeks, so read once a minute.
+        wear: Option<(Option<f64>, Option<u32>)>,
         tick: u64,
         processors: u32,
         network_trace: Option<NetworkTrace>,
@@ -638,6 +681,7 @@ mod imp {
                 processes: HashMap::new(),
                 process_names: HashMap::new(),
                 devices: None,
+                wear: None,
                 tick: 0,
                 processors: std::thread::available_parallelism()
                     .map(|n| n.get() as u32)
@@ -736,6 +780,15 @@ mod imp {
             }
 
             snapshot.battery = battery();
+            if let Some(battery) = &mut snapshot.battery {
+                if self.wear.is_none() || self.tick.is_multiple_of(sample_stride(60, interval)) {
+                    self.wear = Some(battery_wear(&battery_packs()));
+                }
+                (battery.health_percent, battery.cycle_count) = self.wear.unwrap_or_default();
+            } else {
+                // A battery put in later is read at once, not after the minute.
+                self.wear = None;
+            }
             snapshot.disk = system_drive_space();
 
             // Device lists change rarely: every 2 s at most (MonitorSamplingPolicy, foreground).
@@ -1030,6 +1083,137 @@ mod imp {
             battery.rate_watts = battery_watts(state.Rate);
         }
         Some(battery)
+    }
+
+    /// Every battery's capacities and cycle count, as Microsoft's battery
+    /// enumeration sample reads them; no rights needed.
+    fn battery_packs() -> Vec<BatteryPack> {
+        use windows::Win32::Devices::DeviceAndDriverInstallation::{
+            DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, GUID_DEVCLASS_BATTERY, SP_DEVICE_INTERFACE_DATA,
+            SP_DEVICE_INTERFACE_DETAIL_DATA_W, SetupDiDestroyDeviceInfoList,
+            SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
+        };
+        use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE};
+        use windows::Win32::Storage::FileSystem::{
+            CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+        };
+        let mut packs = Vec::new();
+        unsafe {
+            let Ok(set) = SetupDiGetClassDevsW(
+                Some(&GUID_DEVCLASS_BATTERY),
+                PCWSTR::null(),
+                None,
+                DIGCF_PRESENT | DIGCF_DEVICEINTERFACE,
+            ) else {
+                return packs;
+            };
+            for index in 0..100 {
+                let mut interface = SP_DEVICE_INTERFACE_DATA {
+                    cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+                    ..Default::default()
+                };
+                if SetupDiEnumDeviceInterfaces(
+                    set,
+                    None,
+                    &GUID_DEVCLASS_BATTERY,
+                    index,
+                    &mut interface,
+                )
+                .is_err()
+                {
+                    break;
+                }
+                // The detail is a size field then the path, in one u32-aligned buffer.
+                let mut buffer = [0u32; 512];
+                let detail = buffer
+                    .as_mut_ptr()
+                    .cast::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
+                (*detail).cbSize = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32;
+                if SetupDiGetDeviceInterfaceDetailW(
+                    set,
+                    &interface,
+                    Some(detail),
+                    (buffer.len() * 4) as u32,
+                    None,
+                    None,
+                )
+                .is_err()
+                {
+                    continue;
+                }
+                let Ok(handle) = CreateFileW(
+                    PCWSTR((*detail).DevicePath.as_ptr()),
+                    (GENERIC_READ | GENERIC_WRITE).0,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    None,
+                    OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL,
+                    None,
+                ) else {
+                    continue;
+                };
+                if let Some(pack) = battery_pack(handle) {
+                    packs.push(pack);
+                }
+                let _ = CloseHandle(handle);
+            }
+            let _ = SetupDiDestroyDeviceInfoList(set);
+        }
+        packs
+    }
+
+    /// One battery's information; None for a slot without a battery.
+    fn battery_pack(handle: windows::Win32::Foundation::HANDLE) -> Option<BatteryPack> {
+        use windows::Win32::System::IO::DeviceIoControl;
+        use windows::Win32::System::Power::{
+            BATTERY_CAPACITY_RELATIVE, BATTERY_INFORMATION, BATTERY_QUERY_INFORMATION,
+            BATTERY_TAG_INVALID, BatteryInformation, IOCTL_BATTERY_QUERY_INFORMATION,
+            IOCTL_BATTERY_QUERY_TAG,
+        };
+        let wait = 0u32;
+        let mut tag = BATTERY_TAG_INVALID;
+        let mut returned = 0u32;
+        unsafe {
+            DeviceIoControl(
+                handle,
+                IOCTL_BATTERY_QUERY_TAG,
+                Some((&wait as *const u32).cast()),
+                size_of::<u32>() as u32,
+                Some((&mut tag as *mut u32).cast()),
+                size_of::<u32>() as u32,
+                Some(&mut returned),
+                None,
+            )
+            .ok()?;
+        }
+        if tag == BATTERY_TAG_INVALID {
+            return None;
+        }
+        let query = BATTERY_QUERY_INFORMATION {
+            BatteryTag: tag,
+            InformationLevel: BatteryInformation,
+            AtRate: 0,
+        };
+        let mut info = BATTERY_INFORMATION::default();
+        unsafe {
+            DeviceIoControl(
+                handle,
+                IOCTL_BATTERY_QUERY_INFORMATION,
+                Some((&query as *const BATTERY_QUERY_INFORMATION).cast()),
+                size_of::<BATTERY_QUERY_INFORMATION>() as u32,
+                Some((&mut info as *mut BATTERY_INFORMATION).cast()),
+                size_of::<BATTERY_INFORMATION>() as u32,
+                Some(&mut returned),
+                None,
+            )
+            .ok()?;
+        }
+        Some(BatteryPack {
+            relative: info.Capabilities & BATTERY_CAPACITY_RELATIVE != 0,
+            designed: info.DesignedCapacity,
+            full_charged: info.FullChargedCapacity,
+            cycles: info.CycleCount,
+        })
     }
 
     fn system_drive_space() -> Option<Disk> {
@@ -1573,6 +1757,41 @@ mod tests {
     }
 
     #[test]
+    fn battery_wear_reads_full_charge_over_design() {
+        let pack = |designed, full_charged, cycles| BatteryPack {
+            relative: false,
+            designed,
+            full_charged,
+            cycles,
+        };
+        assert_eq!(battery_wear(&[]), (None, None));
+        let (health, cycles) = battery_wear(&[pack(57_000, 51_300, 212)]);
+        assert!((health.unwrap() - 90.0).abs() < 1e-9);
+        assert_eq!(cycles, Some(212));
+        // A fresh battery can hold more than its design; health stops at 100.
+        assert_eq!(battery_wear(&[pack(50_000, 52_000, 3)]).0, Some(100.0));
+        // No cycle counter reads 0.
+        assert_eq!(battery_wear(&[pack(50_000, 40_000, 0)]).1, None);
+        // Unknown or relative capacities give no health, but cycles still count.
+        assert_eq!(battery_wear(&[pack(0, 40_000, 9)]), (None, Some(9)));
+        assert_eq!(battery_wear(&[pack(u32::MAX, 40_000, 0)]), (None, None));
+        assert_eq!(battery_wear(&[pack(50_000, u32::MAX, 0)]), (None, None));
+        let relative = BatteryPack {
+            relative: true,
+            ..pack(100, 80, 5)
+        };
+        assert_eq!(battery_wear(&[relative]), (None, Some(5)));
+        // Two packs: capacities add up; the most worn pack's cycles.
+        let (health, cycles) =
+            battery_wear(&[pack(40_000, 36_000, 120), pack(20_000, 12_000, 480)]);
+        assert!((health.unwrap() - 80.0).abs() < 1e-9);
+        assert_eq!(cycles, Some(480));
+        // A pack without readings doesn't drag the other down.
+        let (health, _) = battery_wear(&[pack(40_000, 36_000, 0), pack(0, 0, 0)]);
+        assert!((health.unwrap() - 90.0).abs() < 1e-9);
+    }
+
+    #[test]
     fn usb_counts_external_devices_only() {
         let none: [String; 0] = [];
         assert!(counts_usb_device(
@@ -1631,6 +1850,17 @@ mod tests {
         assert_eq!(json["cpu"], 0.5);
         assert_eq!(json["memoryUsed"], 1);
         assert!(json["battery"].is_null());
+        let battery = Snapshot {
+            battery: Some(Battery {
+                health_percent: Some(91.5),
+                cycle_count: Some(212),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&battery).unwrap();
+        assert_eq!(json["battery"]["healthPercent"], 91.5);
+        assert_eq!(json["battery"]["cycleCount"], 212);
         assert_eq!(json["supported"]["gpu"], false);
         let detail: Detail = serde_json::from_str("\"connectedDevices\"").unwrap();
         assert_eq!(detail, Detail::ConnectedDevices);

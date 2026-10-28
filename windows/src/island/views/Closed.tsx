@@ -13,6 +13,8 @@ import { type Notice, useIsland } from "../store";
 import { IconButton } from "./Controls";
 import { DrawnSize } from "../surface/DrawnSize";
 import { AudioIcons } from "../../microphone/Microphone";
+import { SessionNoticeMark } from "../../sessions/SessionAvatar";
+import { CLAWD_SIZES } from "../../sessions/clawd/sprite";
 
 export function Resting(props: { size: Size }) {
   const size = useContext(DrawnSize) ?? props.size;
@@ -65,6 +67,9 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
         {notice.audio ? <AudioIcons muted={notice.audio.muted} deafened={notice.audio.deafened} /> : null}
         {notice.kind === "downloads" ? <ArrowDownToLine size={14} aria-hidden="true" /> : null}
         {notice.icon ? <notice.icon size={14} strokeWidth={2} aria-hidden="true" /> : null}
+        {notice.session ? (
+          <SessionNoticeMark key={notice.session.id} session={notice.session} height={metrics.imageSize + 4} />
+        ) : null}
         {notice.image ? (
           <img
             key={notice.image}
@@ -113,6 +118,7 @@ export function noticeWidth(notice: Notice, geometry: Geometry): number {
     ctx.measureText(notice.title).width +
     (notice.image ? metrics.imageSize + 8 : 0) +
     (notice.icon ? 14 + 8 : 0) +
+    (notice.session ? CLAWD_SIZES.notice.width + 8 : 0) +
     (notice.audio ? (notice.audio.deafened ? 47 : 24) : 0);
   ctx.font = `500 ${Math.max(9, metrics.fontSize - 1)}px 'Inter Variable', Inter, sans-serif`;
   const detail = notice.detail ? ctx.measureText(notice.detail).width : 0;

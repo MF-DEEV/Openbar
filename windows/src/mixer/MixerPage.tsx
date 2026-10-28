@@ -39,6 +39,7 @@ import { Slider } from "../shared/ui/Slider";
 import { latest, percent, shownLevel, useAudio } from "../audio/store";
 import type { AudioApp } from "../audio/types";
 import { arrange, type Arrangement, isPinned, isUnity, listedApps, moveBy, neighbor, togglePin } from "./arrangement";
+import { AudioPriority, HeadphoneGuard, OutputSwitcher, PreciseRoller } from "./MixerOptionsControls";
 import { S } from "./strings";
 
 const MASTER_WIDTH = 72;
@@ -387,7 +388,10 @@ function AppColumn(props: { app: AudioApp; height: number; arrangement: Arrangem
 
 /**
  * Everything the desk leaves out, in one list that scrolls: the output, the
- * microphone and its level, and the list's own options.
+ * microphone and its level, then the panel's options (NotchMixerOptions):
+ * idle apps, the headphone guard, finer volume steps, the output switcher,
+ * audio priority and the hidden apps. Switching devices needs IPolicyConfig,
+ * so the switcher and priority show only where it answered.
  */
 function MixerOptions() {
   const state = useAudio((s) => s.state);
@@ -415,6 +419,7 @@ function MixerOptions() {
       </Row>
       {state.outputs.length === 0 ? <p className="mx-message">{S.noOutputs}</p> : null}
       {switchError && !switchError.input ? <p className="mx-message">{S.couldNotSwitch(switchError.message)}</p> : null}
+      {state.priorityError ? <p className="mx-message">{S.couldNotSwitch(state.priorityError)}</p> : null}
       <Row
         icon={state.micMuted ? <MicOff size={11} strokeWidth={2.25} /> : <Mic size={11} strokeWidth={2.25} />}
         title={S.microphone}
@@ -456,6 +461,7 @@ function MixerOptions() {
       ) : null}
       {state.inputs.length === 0 ? <p className="mx-message">{S.noMicrophones}</p> : null}
       {switchError?.input ? <p className="mx-message">{S.couldNotSwitch(switchError.message)}</p> : null}
+      {state.inputPriorityError ? <p className="mx-message">{S.couldNotSwitch(state.inputPriorityError)}</p> : null}
       <div className="mx-options-divider" />
       <div className="mx-option-row">
         <span className="mx-option-title is-primary">{S.hideInactive}</span>
@@ -465,6 +471,10 @@ function MixerOptions() {
           onChange={(on) => void setPrefs({ island: { mixerHideInactiveApps: on } })}
         />
       </div>
+      <HeadphoneGuard />
+      <PreciseRoller />
+      {state.canSwitch ? <OutputSwitcher /> : null}
+      {state.canSwitch ? <AudioPriority /> : null}
       <div className="mx-option-row">
         <span className="mx-option-title">{S.visibleApps}</span>
         <MenuButton className="mx-device-menu" label={S.visibleApps} entries={listEntries}>

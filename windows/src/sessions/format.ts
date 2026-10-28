@@ -153,7 +153,7 @@ export function activityText(session: Session, name: string): string {
 /** Idle for five minutes since it last did anything or was looked at: the Clawd dozes. */
 export function dozing(session: Session, now: number, lookedAt?: number): boolean {
   if (session.phase !== "idle") return false;
-  const last = Math.max(session.lastActive ?? session.phaseSince, lookedAt ?? 0);
+  const last = Math.max(session.lastActive ?? session.phaseSince, session.lookedAt ?? 0, lookedAt ?? 0);
   return now - last >= 300;
 }
 

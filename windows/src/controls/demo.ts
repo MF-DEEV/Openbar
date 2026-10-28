@@ -36,6 +36,21 @@ export function demoAudio(): AudioState {
       app("c:\\discord.exe", "Discord", 1, false, true),
       app("system", "System sounds", 1),
     ],
+    priority: {
+      outputEnabled: true,
+      inputEnabled: false,
+      outputs: [
+        { id: "headphones", name: "WH-1000XM5", available: true },
+        { id: "speakers", name: "Speakers (Realtek Audio)", available: true },
+        { id: "dock", name: "USB Dock Audio", available: false },
+      ],
+      inputs: [{ id: "mic", name: "Microphone Array (Realtek Audio)", available: true }],
+    },
+    switcherRefused: false,
+    priorityError: null,
+    inputPriorityError: null,
+    switchFailed: false,
+    rollerFailed: false,
   };
 }
 

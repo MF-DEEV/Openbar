@@ -1,7 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import type { SessionEvent } from "./types";
+import type { Session, SessionEvent } from "./types";
+
+/**
+ * Whether a sessions notice leaves when the person turns to an app: only one
+ * about a session still waiting does, and a finished turn's stays
+ * (NotchService.swift:4399-4405). A notice with no session always leaves.
+ */
+export function noticeLeavesWhenBusy(about: string | undefined, sessions: readonly Session[]): boolean {
+  return !about || sessions.some((session) => session.id === about && session.phase.startsWith("waiting"));
+}
 
 /** Defer pending prompts while another app is in use; never replay resolved requests. */
 export class DeferredSessionAttention {

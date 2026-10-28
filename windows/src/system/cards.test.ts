@@ -18,6 +18,8 @@ const battery = (patch: Partial<BatteryReading>): BatteryReading => ({
   pluggedIn: false,
   rateWatts: null,
   secondsLeft: null,
+  healthPercent: null,
+  cycleCount: null,
   ...patch,
 });
 const options = { hidden: [], inBits: false };
