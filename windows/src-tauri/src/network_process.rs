@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-//! An owned, real-time SystemTraceProvider session. The app never requests
-//! elevation, takes over the global kernel logger or writes a disk trace.
-//! Starting a system logger still requires Windows tracing privileges; callers
-//! must expose access denied rather than treating it as zero traffic.
+//! An owned, real-time SystemTraceProvider session. It never takes over the
+//! global kernel logger or writes a disk trace. Starting a system logger
+//! requires Windows tracing privileges; callers must expose access denied
+//! rather than treating it as zero traffic. Without them the island reads the
+//! same trace from the approved helper (network_helper.rs).
 
 use super::ProcessStatus;
 use std::collections::HashMap;
