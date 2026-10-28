@@ -80,6 +80,16 @@ On the Mac this fork ships no builds of its own; you build it from source as abo
 - [Claude Code session notes](docs/claude-sessions-spike.md), what Claude Code exposes and how the island uses it
 - [Codex session notes](docs/codex-sessions.md), how the island talks to Codex's app server
 
+### Checks on pull requests
+
+Every pull request runs [PR checks](.github/workflows/pr.yml) for the parts it changes, each under fifteen minutes, and `main` only takes it once **CI ok** passes. You can run the same checks before you push:
+
+- Mac: `./build.sh --test`
+- Windows UI, in `windows/`: `bun run typecheck`, `bun run format:check`, `bun run test`
+- Windows backend, in `windows/src-tauri/`: `cargo fmt --check`, then `cargo xwin clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings` (the clippy step needs `bun run build` in `windows/` first)
+
+The full release build with its selftest and DMG runs after a merge to `main`, and you can start it by hand on a branch from the Actions tab (**CI**, Run workflow).
+
 ## License
 
 [GPL 3.0 or later](LICENSE). Vorssaint is copyright 2026 Vorssaint; the changes in this fork are copyright 2026 MF DEV under the same license.

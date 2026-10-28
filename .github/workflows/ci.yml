@@ -1,9 +1,11 @@
 name: CI
 
+# The fork runs the full release build after a merge, or by hand on a branch;
+# pull requests get the faster pr.yml checks.
 on:
   push:
     branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
