@@ -48,3 +48,28 @@ describe("preferences", () => {
     stop();
   });
 });
+
+describe("controls and mixer prefs", () => {
+  it("keeps known home-page items and a well-formed arrangement", () => {
+    const prefs = resolve({
+      island: {
+        controlOrder: ["timer", "nope", "timer", 3] as never,
+        hiddenControls: ["mixer"],
+        mixerAppArrangement: { order: ["c:\\a.exe", 1, ""], pinned: "x" } as never,
+        mixerHiddenApps: { "c:\\b.exe": "B", bad: 2 } as never,
+      },
+    });
+    expect(prefs.island.controlOrder).toEqual(["timer"]);
+    expect(prefs.island.hiddenControls).toEqual(["mixer"]);
+    expect(prefs.island.mixerAppArrangement).toEqual({ order: ["c:\\a.exe"], pinned: [] });
+    expect(prefs.island.mixerHiddenApps).toEqual({ "c:\\b.exe": "B" });
+  });
+
+  it("falls back to the Mac's defaults", () => {
+    const prefs = resolve({ island: { mixerAppArrangement: [] as never } });
+    expect(prefs.island.hiddenControls).toContain("microphone");
+    expect(prefs.island.mixerAppArrangement).toEqual({ order: [], pinned: [] });
+    expect(prefs.island.brightnessControlEnabled).toBe(false);
+    expect(prefs.island.keepAwakeActivity).toBe(false);
+  });
+});

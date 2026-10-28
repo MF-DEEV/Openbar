@@ -7,7 +7,13 @@ import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
 /** 28 × 28, radius 9, glyph 12 medium at 55% (white on a 12% wash when selected). */
-export function IconButton(props: { icon: LucideIcon; label: string; selected?: boolean; onClick?: () => void }) {
+export function IconButton(props: {
+  icon: LucideIcon;
+  label: string;
+  selected?: boolean;
+  disabled?: boolean;
+  onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
+}) {
   const Icon = props.icon;
   return (
     <button
@@ -16,6 +22,7 @@ export function IconButton(props: { icon: LucideIcon; label: string; selected?: 
       aria-label={props.label}
       title={props.label}
       aria-pressed={props.selected}
+      disabled={props.disabled}
       onClick={props.onClick}
     >
       <Icon size={14} strokeWidth={2} />

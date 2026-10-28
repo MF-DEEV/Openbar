@@ -6,12 +6,17 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Dynamic Island shows when you mute your microphone or deafen in Discord, with a red mark while muted, and a short notice when you unmute. It follows your Discord shortcuts while Discord is hidden. Settings → Dynamic Island → Activity → Microphone status.
+- Dynamic Island's Downloads page watches your Downloads folder and the folders Chrome, Edge, Brave, Arc, Vivaldi, Opera, Firefox, Zen and other browsers save to, plus any folders you add. A folder chosen before stays watched. Settings → Dynamic Island → Content → Downloads.
+
 ### Fixed
 - Wallpaper's Add image and Add folder open the file picker in front on the first click instead of behind other windows.
 - Scrolling Monitor settings with Bars as the usage display no longer freezes the app, and the menu bar preview now stays at the top of the page.
 - Volume mixer sliders no longer jump back to the previous volume for a moment after you change them.
 - Command Bar opened inside Dynamic Island grows smoothly to its full size instead of stuttering as its list appears.
 - Quit Protection no longer quits the foreground app when you press Q on another app in the macOS Command-Tab switcher.
+- Dynamic Island's Sessions no longer lists Claude Code's own memory and suggestion helpers as subagents that never finish. Subagents end when their session goes idle, and a session whose subagent still works shows as working in the background instead of done.
 
 ### Contributors
 Thanks to @Chubi01, @EugeneCarldotme, @Memphizzz, @mr-tco and @npcmail010.

@@ -32,8 +32,11 @@ export const pages: Partial<Record<ModuleId, PageDefinition>> = {};
 
 export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolean }) {
   const { geometry, size, hasRow } = props;
-  const showingSections = useIsland((s) => s.showingSections);
-  const selected = useIsland((s) => s.selected);
+  // Each layer keeps the page it opened with: its content key names that
+  // page, and while it fades out it must not draw a second copy of the
+  // page replacing it (whose effects would then run twice).
+  const [showingSections] = useState(() => useIsland.getState().showingSections);
+  const [selected] = useState(() => useIsland.getState().selected);
   const pinned = useIsland((s) => s.pinned);
   const hasExploreBubble = useIsland((s) => s.settings.quickAccess.some((b) => b.action.kind === "explore"));
   const pageHeight = useIsland((s) => s.pageContent[selected]);

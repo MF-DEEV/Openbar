@@ -1,0 +1,346 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 Vorssaint */
+/* The System section (sy-): NotchSystemView's card grid and MetricDetailView. */
+
+.sy-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sy-row {
+  display: flex;
+  gap: 10px;
+}
+
+/* NotchButtonStyle(cornerRadius: 18) on NotchControlSurface. */
+.sy-card {
+  position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  height: 72px;
+  padding: 0 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.065);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: stretch;
+  gap: 6px;
+  text-align: left;
+  color: #fff;
+  transition:
+    transform 0.32s cubic-bezier(0.3, 1.3, 0.5, 1),
+    opacity 0.15s;
+}
+
+.sy-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+
+.sy-card:hover {
+  transform: scale(1.022);
+}
+
+.sy-card:hover::after {
+  opacity: 0.09;
+}
+
+.sy-card:active {
+  transform: scale(0.965);
+  opacity: 0.8;
+}
+
+.sy-card-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 13px;
+  color: var(--n-dim);
+}
+
+.sy-card-label span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.sy-card-label svg {
+  flex: none;
+}
+
+/* 22 pt medium, 15 pt over a second line; shrinks to fit down to 0.75. */
+.sy-card-value {
+  display: block;
+  width: max-content;
+  max-width: none;
+  font-size: 22px;
+  font-weight: 500;
+  line-height: 26px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  transform: scale(var(--sy-fit, 1));
+  transform-origin: left center;
+}
+
+.sy-card.has-detail .sy-card-value {
+  font-size: 15px;
+  line-height: 18px;
+}
+
+.sy-card-detail {
+  font-size: 11px;
+  line-height: 13px;
+  color: var(--n-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* NotchMeter: a 5 pt capsule on a 14 % track. */
+.sy-meter {
+  display: block;
+  height: 5px;
+  border-radius: 2.5px;
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.sy-meter > span {
+  display: block;
+  height: 100%;
+  border-radius: 2.5px;
+  background: rgba(255, 255, 255, 0.9);
+  transition:
+    width 0.25s cubic-bezier(0.25, 0.1, 0.25, 1),
+    background-color 0.25s;
+}
+
+.sy-meter.is-attention > span {
+  background: rgba(255, 159, 10, 0.9);
+}
+
+/* Detail */
+
+.sy-detail {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.sy-detail-bar {
+  flex: none;
+  height: 36px;
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+}
+
+/* NotchBandBackButton: chevron 12 pt at 55 %, title 13 pt semibold. */
+.sy-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 7px 0 4px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #fff;
+  transition:
+    transform 0.32s cubic-bezier(0.3, 1.3, 0.5, 1),
+    background-color 0.15s;
+}
+
+.sy-back svg {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.sy-back:hover {
+  background: var(--n-wash);
+  transform: scale(1.022);
+}
+
+.sy-back:active {
+  transform: scale(0.965);
+  opacity: 0.8;
+}
+
+.sy-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+
+.sy-detail-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* panelCard in the island: padding 12 on a radius 18 surface. */
+.sy-panel {
+  flex: none;
+  padding: 12px;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.sy-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.sy-summary-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.sy-summary-head > svg {
+  flex: none;
+  margin-top: 8px;
+}
+
+.sy-summary-value {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 32px;
+  font-variant-numeric: tabular-nums;
+}
+
+.sy-summary-line {
+  font-size: 10.5px;
+  font-weight: 500;
+  color: var(--n-dim);
+}
+
+.sy-graph {
+  position: relative;
+}
+
+.sy-graph svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.sy-graph-line {
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.sy-graph-zero {
+  stroke: rgba(255, 255, 255, 0.16);
+  stroke-width: 1;
+  vector-effect: non-scaling-stroke;
+}
+
+.sy-graph-ceiling {
+  stroke: rgba(255, 255, 255, 0.22);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  vector-effect: non-scaling-stroke;
+}
+
+/* Over the oldest samples, centred on the dashed rule. */
+.sy-graph-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translateY(-50%);
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(40, 40, 42, 0.92);
+  font-size: 9px;
+  line-height: 12px;
+  color: var(--n-dim);
+  font-variant-numeric: tabular-nums;
+}
+
+.sy-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.sy-row-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  color: var(--n-dim);
+}
+
+.sy-row-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 10.5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sy-row-value {
+  flex: none;
+  max-width: 60%;
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sy-panel-title {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--n-faint);
+}
+
+.sy-panel-empty {
+  font-size: 10.5px;
+  color: var(--n-faint);
+}
+
+.sy-process .sy-row-title {
+  font-size: 11px;
+  color: #fff;
+}
+
+.sy-process-icon {
+  flex: none;
+  width: 15px;
+  height: 15px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sy-card,
+  .sy-back,
+  .sy-meter > span {
+    transition: none;
+  }
+  .sy-card:hover,
+  .sy-card:active,
+  .sy-back:hover,
+  .sy-back:active {
+    transform: none;
+  }
+}

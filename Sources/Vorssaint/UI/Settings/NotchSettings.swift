@@ -56,6 +56,7 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchVolume) private var volume = true
     @AppStorage(DefaultsKey.notchInputSource) private var inputSource = true
     @AppStorage(DefaultsKey.notchMicrophone) private var microphone = true
+    @AppStorage(DefaultsKey.notchVoiceChat) private var voiceChat = true
     @AppStorage(DefaultsKey.notchBrightness) private var brightness = true
     @AppStorage(DefaultsKey.notchBattery) private var battery = true
     @AppStorage(DefaultsKey.notchClipboard) private var clipboard = true
@@ -83,6 +84,11 @@ struct NotchSettings: View {
     @AppStorage(DefaultsKey.notchHideMenuBarGap) private var hideMenuBarGap = false
     @AppStorage(DefaultsKey.notchCustomWidth) private var customWidth = NotchSize.defaultWidth
     @AppStorage(DefaultsKey.notchCustomHeight) private var customHeight = NotchSize.defaultHeight
+    @AppStorage(DefaultsKey.notchSimulatedWidth) private var simulatedWidth = 0.0
+    @AppStorage(DefaultsKey.notchSimulatedHeight) private var simulatedHeight = 0.0
+    @AppStorage(DefaultsKey.notchShapeRoundness) private var shapeRoundness = 100.0
+    @AppStorage(DefaultsKey.notchShoulderWidth) private var shoulderWidth = 100.0
+    @AppStorage(DefaultsKey.notchShoulderHeight) private var shoulderHeight = 100.0
     @AppStorage(DefaultsKey.notchCameraFitWidth) private var cameraFitWidth = 0.0
     @AppStorage(DefaultsKey.notchCameraFitHeight) private var cameraFitHeight = 0.0
     @AppStorage(DefaultsKey.notchCapsuleFitWidth) private var capsuleFitWidth = 0.0
@@ -120,6 +126,7 @@ struct NotchSettings: View {
          String(showPlayingMusic), String(includeOtherPlayers), idle, hiddenControls, controlOrder, size,
          String(timerEnabled), String(timerSoundEnabled), String(hideTimerCountdown),
          String(cameraEnabled), String(accessoriesEnabled), String(outlineEnabled), String(hideMenuBarGap),
+         String(simulatedWidth), String(simulatedHeight), String(shapeRoundness), String(shoulderWidth), String(shoulderHeight),
          String(customWidth), String(customHeight), String(cameraFitWidth), String(cameraFitHeight),
          String(capsuleFitWidth), String(capsuleFitHeight), String(capsuleFitDrop), String(hapticFeedback),
          String(shelfWindow), String(dragReveal), String(captureControls), String(quickPanel), String(appPanel),
@@ -249,39 +256,12 @@ struct NotchSettings: View {
                           isOn: liquidGlassIsOn ? .constant(true) : $translucentBackground)
                     .disabled(liquidGlassIsOn)
             }
-            // Only a display without a camera can float the island.
-            if NotchSupport.hasDisplayWithoutNotch {
-                SettingsCard(title: text.withoutNotch) {
-                    HStack(spacing: 10) {
-                        silhouetteChoice(.capsule, title: text.capsuleShape)
-                        silhouetteChoice(.notch, title: text.notchShape)
-                    }
-                    // An island kept on a camera, or away with the lid closed,
-                    // shows neither shape, so the card says where to change that.
-                    if enabled, !NotchService.reachesDisplayWithoutNotch(NotchDisplay(rawValue: display) ?? .automatic) {
-                        Text(text.withoutNotchUnreached).font(.caption).foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        Button(text.showOnAllDisplays) { display = NotchDisplay.all.rawValue }
-                    }
-                }
-                if NotchSilhouette(rawValue: silhouette) ?? .capsule == .capsule {
-                    SettingsCard(title: text.capsuleFit) {
-                        Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 10) {
-                            // Even widths keep the capsule centred on whole points.
-                            fitSlider(text.width, card: text.capsuleFit, value: $capsuleFitWidth,
-                                      range: NotchCapsuleFit.widthRange, step: 2)
-                            fitSlider(text.height, card: text.capsuleFit, value: $capsuleFitHeight,
-                                      range: NotchCapsuleFit.heightRange, step: 1)
-                            fitSlider(text.fromTop, card: text.capsuleFit, value: $capsuleFitDrop,
-                                      range: NotchCapsuleFit.dropRange, step: 1)
-                        }
-                        Text(text.capsuleFitHint).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-            }
-            SettingsCard {
-                switchRow("capsule", text.showOutline, isOn: $outlineEnabled)
-            }
+            NotchShapeSettings(silhouette: $silhouette, simulatedWidth: $simulatedWidth, simulatedHeight: $simulatedHeight,
+                               shapeRoundness: $shapeRoundness, shoulderWidth: $shoulderWidth, shoulderHeight: $shoulderHeight,
+                               capsuleFitWidth: $capsuleFitWidth, capsuleFitHeight: $capsuleFitHeight, capsuleFitDrop: $capsuleFitDrop,
+                               showDisplayHint: enabled && NotchSupport.hasDisplayWithoutNotch && !NotchService.reachesDisplayWithoutNotch(NotchDisplay(rawValue: display) ?? .automatic),
+                               showAllDisplays: { display = NotchDisplay.all.rawValue })
+            SettingsCard { switchRow("capsule", text.showOutline, isOn: $outlineEnabled) }
             // Only a physical camera has an outline to match.
             if NotchSupport.hasNotchedDisplay {
                 SettingsCard(title: text.cameraFit) {
@@ -601,6 +581,10 @@ struct NotchSettings: View {
                     toggleCard(l10n.s.mixerInputTitle, symbol: "mic", value: $microphone, available: microphoneAvailable,
                                reason: AppFeature.micMute.enableReason(l10n), reservesReason: reserves,
                                unavailableAction: { AppFeature.micMute.showInFeatures() })
+                    // Discord's mute is read from Discord itself, so this card
+                    // never waits on another feature.
+                    toggleCard(FeatureStrings.notchVoice(l10n.language).title, symbol: DiscordVoiceSupport.mutedSymbol,
+                               value: $voiceChat, available: true, reservesReason: reserves)
                     if hasBattery {
                         toggleCard(text.battery, symbol: "battery.75percent", value: $battery, available: batteryAvailable,
                                    reason: AppFeature.monitorPower.enableReason(l10n), reservesReason: reserves,
@@ -628,7 +612,8 @@ struct NotchSettings: View {
                                available: true, reservesReason: reserves)
                 }
                 if accessoriesEnabled { Text(FeatureStrings.notchActivities(l10n.language).accessoryDescription).font(.caption).foregroundStyle(.secondary) }
-                if enabled, (volume || brightness || keyboardLight), !permissions.accessibility { PermissionRow(kind: .accessibility) }
+                if voiceChat { Text(FeatureStrings.notchVoice(l10n.language).hint).font(.caption).foregroundStyle(.secondary) }
+                if enabled, (volume || brightness || keyboardLight || voiceChat), !permissions.accessibility { PermissionRow(kind: .accessibility) }
             }
             let locked = FeatureStrings.notchLockScreen(l10n.language)
             SettingsCard(title: locked.title) {
@@ -801,20 +786,6 @@ struct NotchSettings: View {
         Button(action: action) {
             VStack(spacing: 8) {
                 Image(systemName: symbol).font(.system(size: 20, weight: .medium))
-                Text(title).font(.system(size: 11, weight: .medium)).lineLimit(2).multilineTextAlignment(.center)
-            }.frame(maxWidth: .infinity, minHeight: 68).padding(8)
-                .foregroundStyle(selected ? Color.accentColor : .primary)
-                .background(selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
-                .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1) }
-        }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
-    }
-
-    /// Each outline in a slice of menu bar, drawn as the island draws it.
-    private func silhouetteChoice(_ item: NotchSilhouette, title: String) -> some View {
-        let selected = (NotchSilhouette(rawValue: silhouette) ?? .capsule) == item
-        return Button { silhouette = item.rawValue } label: {
-            VStack(spacing: 10) {
-                NotchSilhouetteSample(silhouette: item)
                 Text(title).font(.system(size: 11, weight: .medium)).lineLimit(2).multilineTextAlignment(.center)
             }.frame(maxWidth: .infinity, minHeight: 68).padding(8)
                 .foregroundStyle(selected ? Color.accentColor : .primary)
@@ -1062,35 +1033,3 @@ extension NotchControlItem: PanelOrderItem {}
 
 /// A standard menu bar on a display without a camera, at half size, with
 /// the resting island in it.
-private struct NotchSilhouetteSample: View {
-    let silhouette: NotchSilhouette
-
-    var body: some View {
-        let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1440, height: 900), safeAreaTop: 0,
-                                     cameraWidth: 0, menuBarHeight: 24, silhouette: silhouette)
-        let island = geometry.restingSize(showsContent: false)
-        ZStack(alignment: .top) {
-            Rectangle().fill(.primary.opacity(0.08)).frame(height: geometry.menuBarHeight)
-            // Menus on the left and status items on the right, clear of the island.
-            HStack(spacing: 9) {
-                ForEach([26, 36, 30], id: \.self) { width in
-                    Capsule().fill(.primary.opacity(0.22)).frame(width: CGFloat(width), height: 8)
-                }
-                Spacer(minLength: 0)
-                ForEach(0..<3, id: \.self) { _ in
-                    Circle().fill(.primary.opacity(0.22)).frame(width: 12, height: 12)
-                }
-            }
-            .padding(.horizontal, 14)
-            .frame(height: geometry.menuBarHeight)
-            NotchShape.island(height: island.height, geometry: geometry).fill(.black)
-                .frame(width: island.width, height: island.height)
-        }
-        .frame(width: 400, height: 48, alignment: .top)
-        .background(.primary.opacity(0.04))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .scaleEffect(0.5)
-        .frame(width: 200, height: 24)
-        .accessibilityHidden(true)
-    }
-}

@@ -3344,8 +3344,10 @@ enum NotchTests {
                                          encoding: .utf8)) ?? ""
         let notchServiceSource = (try? String(contentsOfFile: "Sources/Vorssaint/Services/Notch/NotchService.swift",
                                               encoding: .utf8)) ?? ""
-        suite.expect(notchSettings.contains("if enabled, !NotchService.reachesDisplayWithoutNotch(NotchDisplay(rawValue: display) ?? .automatic) {")
-                     && notchSettings.contains("Button(text.showOnAllDisplays) { display = NotchDisplay.all.rawValue }")
+        let shapeSettings = (try? String(contentsOfFile: "Sources/Vorssaint/UI/Settings/NotchShapeSettings.swift", encoding: .utf8)) ?? ""
+        suite.expect(notchSettings.contains("showDisplayHint: enabled && NotchSupport.hasDisplayWithoutNotch && !NotchService.reachesDisplayWithoutNotch(NotchDisplay(rawValue: display) ?? .automatic)")
+                     && notchSettings.contains("showAllDisplays: { display = NotchDisplay.all.rawValue }")
+                     && shapeSettings.contains("if showDisplayHint") && shapeSettings.contains("Button(text.showOnAllDisplays, action: showAllDisplays)")
                      && notchServiceSource.contains("NotchSupport.reachesDisplayWithoutNotch(preference: preference, builtIn: layout.builtIn,")
                      && notchServiceSource.contains("notched: layout.notched, main: layout.main, hasLid: hasLid)"),
                "the Displays without a notch card offers All displays only while the chosen display keeps the island off them")

@@ -523,8 +523,8 @@ extension AppFeature {
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
                     && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("notifications")
             case (.notchDownloads, .filesAndFolders):
+                // The Mac's Downloads folder is watched without a choice.
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled)
-                    && dataFor(DefaultsKey.notchDownloadsFolderBookmark) != nil
                     && !(stringFor(DefaultsKey.notchHiddenModules) ?? "").split(separator: ",").contains("downloads")
             case (.notchAgents, .automationTerminal):
                 return isAvailable(.notch) && boolFor(DefaultsKey.notchEnabled) && boolFor(DefaultsKey.notchSessionsEnabled)
@@ -538,6 +538,8 @@ extension AppFeature {
                     || (boolFor(DefaultsKey.notchBrightness) && isAvailable(.brightness)
                         && boolFor(DefaultsKey.brightnessControlEnabled))
                     || (boolFor(DefaultsKey.notchClipboardWindow) && isAvailable(.clipboardHistory))
+                    // Discord's controls and shortcuts are read through Accessibility.
+                    || boolFor(DefaultsKey.notchVoiceChat)
             case (.radialMenu, .accessibility):
                 if let profiles = dataFor(DefaultsKey.radialMenuProfiles) {
                     return RadialMenuSupport.needsAccessibility(RadialMenuSupport.decodeProfiles(profiles))

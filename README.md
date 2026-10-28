@@ -24,7 +24,7 @@ This is an unofficial fork of [Vorssaint](https://github.com/vorssaint/vorssaint
 ## What it does
 
 - **Every session at a glance.** Running sessions are listed beside the camera with their name, project, git branch and state: working, running a tool, waiting for permission, waiting for you, done or idle. Each project gets its own color, and a session that sat idle for a while fades out.
-- **Allow from the island.** When Claude asks to run something, the island opens on its own with the whole command in view. Allow, Deny or Always, by click or with ⌘Y and ⌘N.
+- **Allow from the island.** When Claude asks to run something, the island opens on its own with the whole command in view once you are at the desktop or in Vorssaint; while you work in another app, the request waits as a count on the closed island instead. Allow, Deny or Always, by click or with ⌘Y and ⌘N, which work from any app while the request is on screen.
 - **Answer Claude's questions.** Questions Claude asks with options show up as a card. Pick one, pick several, or write your own answer.
 - **Reply without switching apps.** Type a reply in the island and it reaches the session in Terminal or Antigravity as if typed there. ⌘↩ sends, and ⌘V or a drop adds images.
 - **Watch it work.** Enlarge a session's page to read the whole conversation as it grows, with recent tools, tasks, cost and the model beside it, or fold the details away.
@@ -65,7 +65,7 @@ Nothing leaves your Mac. Prompts, replies, titles and commands stay unread until
 
 ## On Windows
 
-The Dynamic Island also runs on Windows 11, with the same Sessions list for Claude Code and Codex, Now Playing and notifications. It is a beta with its own installer: download it from the [Windows releases](https://github.com/MF-DEEV/vorssaint-utils/releases?q=windows&expanded=true) (x64 for most PCs, arm64 for Snapdragon), and read [windows/README.md](windows/README.md) for what it does and how to build it.
+The Dynamic Island also runs on Windows 11, with the same sections: Sessions for Claude Code and Codex, Controls, the volume mixer, Now Playing, clipboard history, the Files shelf, System, Tools, Calendar, notifications, Timer, Downloads, AI Agents and Watch. It is a beta with its own installer: download it from the [Windows releases](https://github.com/MF-DEEV/vorssaint-utils/releases?q=windows&expanded=true) (x64 for most PCs, arm64 for Snapdragon), and read [windows/README.md](windows/README.md) for what it does and how to build it.
 
 ## About this fork
 

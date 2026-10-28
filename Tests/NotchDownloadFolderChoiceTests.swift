@@ -120,6 +120,7 @@ enum NotchDownloadFolderChoiceContract {
         final class Store {
             var values: [String: Any] = [:]
             func set(_ value: Any, forKey key: String) { values[key] = value }
+            func array(forKey key: String) -> [Any]? { values[key] as? [Any] }
         }
     }
     enum L10n {
@@ -169,11 +170,21 @@ enum NotchDownloadFolderChoiceTests {
                 Context.DispatchQueue.main.drain()
                 suite.expect(Context.NSApp.keyWindow === window && window.focusReturns == 1 && notch.pinned == pinned,
                        "successful folder selection returns to the same Downloads surface without altering pin")
-                suite.expect(Context.UserDefaults.standard.values[DefaultsKey.notchDownloadsFolderBookmark] as? Data == Data([1, 2, 3])
+                suite.expect(Context.UserDefaults.standard.values[DefaultsKey.notchDownloadsFolderBookmarks] as? [Data] == [Data([1, 2, 3])]
                        && Context.UserDefaults.standard.values[DefaultsKey.notchDownloadsEnabled] as? Bool == true,
                        "only successful selection saves the folder authority and enables monitoring")
             }
         }
+        Context.reset(fromNotch: false)
+        let adding = Context.Service()
+        adding.chooseFolder()
+        adding.chooser?.finish(.OK)
+        adding.chooseFolder()
+        adding.chooser?.finish(.OK)
+        suite.expect(Context.UserDefaults.standard.values[DefaultsKey.notchDownloadsFolderBookmarks] as? [Data]
+                     == [Data([1, 2, 3]), Data([1, 2, 3])] && adding.syncs == 2 && adding.stops == 0,
+               "each chosen folder is added beside the others, without stopping what is already watched")
+
         Context.reset()
         let cancelled = Context.Service()
         let original = Context.NotchService.shared.presentationWindow!

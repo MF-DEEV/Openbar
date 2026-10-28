@@ -1,0 +1,413 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 Vorssaint */
+/* The home page (ct-): levels, the player's card, the shortcut rail and the Keep Awake strip. */
+
+.ct-page {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  height: 100%;
+}
+
+/* Levels */
+
+.ct-band-levels,
+.ct-level-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ct-level {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 76px;
+  height: 28px;
+  container-type: inline-size;
+}
+
+.ct-level-glyph {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  color: #fff;
+}
+
+.ct-level-glyph.is-button:hover:enabled {
+  background: var(--n-wash);
+}
+
+.ct-level-glyph.is-button:active:enabled {
+  transform: scale(0.965);
+  opacity: 0.8;
+}
+
+.ct-level-glyph.is-button:disabled {
+  opacity: 0.4;
+}
+
+.ct-level-glyph.is-muted {
+  color: #ff453a;
+}
+
+.ct-level-glyph svg {
+  animation: ct-glyph-in 0.24s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+@keyframes ct-glyph-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+.ct-level-note {
+  flex: 1;
+  min-width: 0;
+  font-size: 10px;
+  color: var(--n-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ct-chooser {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 16px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--n-dim);
+}
+
+.ct-chooser:hover,
+.ct-chooser[aria-expanded="true"] {
+  background: var(--n-wash);
+  color: #fff;
+}
+
+/* The brightness setup row: the sun, its name and the way to Settings. */
+
+.ct-setup-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ct-setup-button {
+  flex: none;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  font-size: 11px;
+  color: var(--n-dim);
+  white-space: nowrap;
+}
+
+.ct-setup-button:hover {
+  background: var(--n-wash);
+  color: #fff;
+}
+
+@container (max-width: 150px) {
+  .ct-setup-title {
+    display: none;
+  }
+  .ct-setup-button {
+    margin-right: auto;
+  }
+}
+
+/* The player's card */
+
+.ct-music {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: none;
+  padding: 0 12px;
+  border-radius: 18px;
+  container-type: inline-size;
+}
+
+.ct-music-cover {
+  flex: none;
+  border-radius: 11px;
+  transition: transform 0.28s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+
+.ct-music-cover:hover {
+  transform: scale(1.022);
+}
+
+.ct-music-cover:active {
+  transform: scale(0.965);
+  opacity: 0.8;
+}
+
+.ct-music-body {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  column-gap: 12px;
+  row-gap: 4px;
+  flex: 1;
+  min-width: 0;
+}
+
+.ct-music-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1 1 80px;
+  min-width: 80px;
+  text-align: left;
+}
+
+.ct-music-title,
+.ct-music-artist {
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ct-music-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.ct-music-artist {
+  font-size: 11px;
+  color: var(--n-dim);
+}
+
+.ct-music-artist.is-failed {
+  color: #ff9f0a;
+}
+
+.ct-music-transport {
+  display: flex;
+  align-items: center;
+  flex: none;
+}
+
+.ct-music-button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  transition: transform 0.28s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+
+.ct-music-button:hover:enabled {
+  background: var(--n-wash);
+}
+
+.ct-music-button:active:enabled {
+  transform: scale(0.965);
+  opacity: 0.8;
+}
+
+.ct-music-button:disabled {
+  opacity: 0.4;
+}
+
+/* Under the title on a narrow card, which keeps the title alone (NotchMusicControlsView). */
+@container (max-width: 270px) {
+  .ct-music-transport {
+    width: 100%;
+    justify-content: center;
+  }
+  .ct-music-artist {
+    display: none;
+  }
+}
+
+/* The shortcut rail */
+
+.ct-rail {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  column-gap: var(--ct-gap);
+  row-gap: var(--ct-row-gap);
+  align-self: center;
+  flex: none;
+}
+
+.ct-rail.is-scrolling {
+  display: grid;
+  grid-template-rows: repeat(var(--ct-rows), var(--ct-tile-h));
+  grid-auto-flow: column;
+  grid-auto-columns: var(--ct-tile-w);
+  align-self: stretch;
+  justify-content: start;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.ct-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: var(--ct-tile-w);
+  height: var(--ct-tile-h);
+  padding: 0 4px;
+  border-radius: 14px;
+  transition:
+    transform 0.32s cubic-bezier(0.3, 1.3, 0.5, 1),
+    background-color 0.15s;
+}
+
+.ct-tile:hover {
+  background: var(--n-wash);
+  transform: scale(1.022);
+}
+
+.ct-tile:active {
+  transform: scale(0.965);
+  opacity: 0.8;
+}
+
+.ct-tile-circle {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.075);
+  color: rgba(255, 255, 255, 0.85);
+  transition:
+    background-color 0.26s cubic-bezier(0.25, 0.1, 0.25, 1),
+    color 0.26s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.ct-tile-circle svg {
+  animation: ct-glyph-in 0.26s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+.ct-tile.is-active[data-accent="selection"] .ct-tile-circle {
+  background: #fff;
+  color: #000;
+}
+
+.ct-tile.is-active[data-accent="alert"] .ct-tile-circle {
+  background: #ff453a;
+  color: #fff;
+}
+
+.ct-tile.is-active[data-accent="awake"] .ct-tile-circle {
+  background: #ffd60a;
+  color: #000;
+}
+
+.ct-tile.is-active[data-accent="timer"] .ct-tile-circle {
+  background: #ff9f0a;
+  color: #000;
+}
+
+.ct-tile-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  width: 100%;
+  height: 28px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 13px;
+  text-align: center;
+}
+
+.ct-tile-title {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.ct-tile-reading {
+  max-width: 100%;
+  font-weight: 600;
+  overflow: hidden;
+}
+
+.ct-tile-under {
+  max-width: 100%;
+  color: rgba(255, 255, 255, 0.7);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The Keep Awake strip in the closed island: all yellow. */
+
+.ct-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #ffd60a;
+}
+
+.ct-strip.is-capsule {
+  justify-content: center;
+  gap: 6px;
+}
+
+.ct-strip-wing {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+}
+
+.ct-strip-wing.is-end {
+  justify-content: flex-end;
+}
+
+.ct-strip-reading {
+  font-size: 13px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ct-tile,
+  .ct-tile-circle,
+  .ct-music-cover,
+  .ct-music-button {
+    transition: none;
+  }
+  .ct-tile:hover,
+  .ct-tile:active,
+  .ct-music-cover:hover,
+  .ct-music-cover:active,
+  .ct-music-button:active:enabled,
+  .ct-level-glyph.is-button:active:enabled {
+    transform: none;
+  }
+  .ct-level-glyph svg,
+  .ct-tile-circle svg {
+    animation: none;
+  }
+}

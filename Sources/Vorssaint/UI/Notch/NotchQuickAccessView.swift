@@ -153,7 +153,7 @@ struct NotchQuickAccessView: View {
                 }
                 .contentShape(Circle())
         }
-        .buttonStyle(NotchButtonStyle(cornerRadius: NotchQuickAccessLayout.diameter / 2))
+        .buttonStyle(NotchButtonStyle(cornerRadius: NotchQuickAccessLayout.diameter / 2, lifts: false))
         .help(title)
         .accessibilityLabel(title)
         .accessibilityAddTraits(selected ? .isSelected : [])

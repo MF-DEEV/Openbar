@@ -1,22 +1,39 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+mod audio;
+mod agent_usage;
 mod bar;
+mod calendar;
+mod brightness;
+mod capture;
+mod clipboard;
+mod com;
 mod downloads;
+mod files;
 mod discord_storage;
 mod discord_keys;
 mod fullscreen;
 mod hooks;
 mod hosts;
 mod island;
+mod keep_awake;
 mod media;
 mod media_volume;
 mod microphone;
 mod notifications;
+mod ocr;
 mod prefs;
+mod scratchpad;
 mod sessions;
 mod settings;
+mod shell;
+mod sound;
+mod timer;
+mod system_monitor;
+mod toggles;
 mod tray;
+mod watch;
 
 use tauri::{Emitter, Manager, RunEvent};
 use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
@@ -40,6 +57,18 @@ pub fn music_probe_main(path: &str) -> ! {
 
 pub fn microphone_probe_main(path: &str) -> ! {
     microphone::probe_main(path)
+}
+
+/// `Vorssaint.exe --watch-probe <file> <title>`: times Watch's capture steps for a window.
+#[cfg(windows)]
+pub fn watch_probe_main(path: &str, title: &str) -> ! {
+    watch::probe(path, title);
+    std::process::exit(0)
+}
+
+/// `Vorssaint.exe --agents-probe <file> [--limits]`: what the AI page would read.
+pub fn agents_probe_main(path: &str, limits: bool) -> ! {
+    agent_usage::probe_main(path, limits)
 }
 
 pub fn notifications_probe_main(path: &str) -> ! {
@@ -74,6 +103,7 @@ pub fn run() {
             settings::open(app)
         }))
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -88,6 +118,14 @@ pub fn run() {
         .manage(microphone::Shared::default())
         .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
+        .manage(system_monitor::Shared::default())
+        .manage(calendar::Shared::default())
+        .manage(audio::Shared::default())
+        .manage(keep_awake::Shared::default())
+        .manage(capture::Shared::default())
+        .manage(clipboard::Shared::default())
+        .manage(agent_usage::State::default())
+        .manage(watch::Shared::default())
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -126,13 +164,87 @@ pub fn run() {
             sessions::service::sessions_image,
             sessions::attachments::sessions_attach_image,
             sessions::attachments::sessions_clipboard_images,
+            shell::shell_icon,
+            sound::sound_play,
+            sound::sound_alarm,
+            timer::timer_now_ms,
+            timer::timer_wake,
+            system_monitor::system_monitor_watch,
+            system_monitor::system_monitor_snapshot,
+            calendar::calendar_snapshot,
+            calendar::calendar_show_range,
+            calendar::calendar_request_access,
+            calendar::calendar_open,
+            calendar::calendar_open_privacy_settings,
+            audio::audio_state,
+            audio::audio_set_output,
+            audio::audio_set_input,
+            audio::audio_set_default,
+            audio::audio_set_app,
+            audio::audio_watch_apps,
+            audio::mic_mute_set,
+            keep_awake::keep_awake_state,
+            keep_awake::keep_awake_set,
+            keep_awake::keep_awake_toggle,
+            brightness::brightness_displays,
+            brightness::brightness_set,
+            capture::capture_run,
+            capture::capture_session,
+            capture::capture_pixels,
+            capture::capture_ready,
+            capture::capture_commit,
+            capture::tools_copy_text,
+            toggles::toggles_state,
+            toggles::toggles_run,
+            scratchpad::scratchpad_load,
+            scratchpad::scratchpad_save,
+            scratchpad::scratchpad_export,
+            clipboard::clipboard_snapshot,
+            clipboard::clipboard_copy,
+            clipboard::clipboard_paste,
+            clipboard::clipboard_toggle_pin,
+            clipboard::clipboard_remove,
+            clipboard::clipboard_move,
+            clipboard::clipboard_clear_recent,
+            clipboard::clipboard_copy_text,
+            clipboard::clipboard_copy_image,
+            clipboard::clipboard_beep,
+            files::files_snapshot,
+            files::files_remove,
+            files::files_clear,
+            files::files_toggle_pin,
+            files::files_open,
+            files::files_open_with_apps,
+            files::files_open_with,
+            files::files_reveal,
+            files::files_reveal_outputs,
+            files::files_share,
+            files::files_drag_out,
+            files::files_zip,
+            files::files_zip_cancel,
+            files::files_kind,
+            agent_usage::agents_snapshot,
+            agent_usage::agents_page_visible,
+            agent_usage::agents_resets_refresh,
+            agent_usage::agents_resets_redeem,
+            watch::watch_snapshot,
+            watch::watch_choose,
+            watch::watch_stop,
+            watch::watch_again,
+            watch::watch_set_rule,
+            watch::watch_pin_line,
+            watch::watch_page_visible,
+            watch::watch_notify,
         ])
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             // Loaded before the island exists, so its first prefs_get finds them.
             app.manage(prefs::Prefs::load(app.handle()));
+            app.manage(scratchpad::Store::new(app.handle()));
+            app.manage(files::Files::load(app.handle()));
             island::create(app.handle())?;
+            files::install(app.handle());
             fullscreen::watch(app.handle());
             microphone::start(app.handle().clone(), app.state::<microphone::Shared>().inner().clone());
             downloads::start(app.handle().clone(), app.state::<downloads::Shared>().inner().clone());
@@ -145,6 +257,11 @@ pub fn run() {
                 app.handle().clone(),
                 app.state::<notifications::Shared>().inner().clone(),
             );
+            system_monitor::start(app.handle().clone(), app.state::<system_monitor::Shared>().inner().clone());
+            calendar::start(app.handle().clone(), app.state::<calendar::Shared>().inner().clone());
+            audio::start(app.handle().clone(), app.state::<audio::Shared>().inner().clone());
+            clipboard::start(app.handle().clone(), app.state::<clipboard::Shared>().inner().clone());
+            agent_usage::start(app.handle().clone(), app.state::<agent_usage::State>().inner().clone());
             let prefs = app.state::<prefs::Prefs>().get();
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;

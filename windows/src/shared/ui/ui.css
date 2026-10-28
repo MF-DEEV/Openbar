@@ -1,0 +1,313 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 Vorssaint */
+/* Shared section atoms (u-): sliders, menus, cards, switches, rolling digits. */
+
+/* Slider */
+
+.u-slider {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  touch-action: none;
+  outline: none;
+}
+
+.u-slider.is-vertical {
+  height: auto;
+  width: 40px;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.u-slider-track {
+  position: relative;
+  width: 100%;
+  height: var(--u-thickness);
+  border-radius: calc(var(--u-thickness) / 2);
+  background: rgba(255, 255, 255, 0.14);
+  overflow: hidden;
+}
+
+.u-slider.is-vertical .u-slider-track {
+  width: var(--u-thickness);
+  height: 100%;
+}
+
+.u-slider-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: var(--u-fill);
+  background: var(--u-tint);
+  opacity: 0.9;
+  transition: width 0.18s ease-out;
+}
+
+.u-slider.is-vertical .u-slider-fill {
+  top: auto;
+  right: 0;
+  width: auto;
+  height: var(--u-fill);
+  transition: height 0.18s ease-out;
+}
+
+.u-slider.is-dragging .u-slider-fill {
+  transition: none;
+}
+
+.u-slider-tick {
+  position: absolute;
+  background: rgba(0, 0, 0, 0.45);
+  left: var(--u-tick);
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+.u-slider.is-vertical .u-slider-tick {
+  left: 0;
+  right: 0;
+  top: auto;
+  bottom: var(--u-tick);
+  width: auto;
+  height: 1px;
+}
+
+.u-slider[aria-disabled="true"] {
+  opacity: 0.4;
+}
+
+.u-slider:focus-visible .u-slider-track {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+
+/* Menu */
+
+.u-menu {
+  position: fixed;
+  z-index: 50;
+  min-width: 160px;
+  max-width: 300px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(30, 30, 32, 0.98);
+  border: 0.5px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 8px 24px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  font-size: 12px;
+  pointer-events: auto;
+  animation: u-menu-in 0.12s ease-out;
+}
+
+.u-menu .u-menu {
+  position: fixed;
+}
+
+@keyframes u-menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+
+.u-menu-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 24px;
+  padding: 0 8px 0 2px;
+  border-radius: 6px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.u-menu-item.is-active:enabled {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.u-menu-item:disabled {
+  opacity: 0.4;
+}
+
+.u-menu-item.is-destructive {
+  color: #ff6961;
+}
+
+.u-menu-check {
+  width: 14px;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+
+.u-menu-icon {
+  flex: none;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.u-menu-image {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.u-menu-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.u-menu-detail {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 11px;
+}
+
+.u-menu-chevron {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.u-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.u-menu-header {
+  padding: 4px 8px 2px 22px;
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+/* Surface */
+
+.u-surface {
+  background: rgba(255, 255, 255, 0.065);
+}
+
+.u-surface.is-selected {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* Switch */
+
+.u-switch {
+  position: relative;
+  width: 26px;
+  height: 15px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.18);
+  transition: background-color 0.15s;
+  flex: none;
+}
+
+.u-switch.is-on {
+  background: #30d158;
+}
+
+.u-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 0.18s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+
+.u-switch.is-on .u-switch-knob {
+  transform: translateX(11px);
+}
+
+.u-switch:disabled {
+  opacity: 0.4;
+}
+
+/* Editable percent */
+
+.u-percent {
+  height: 28px;
+  min-width: 40px;
+  padding: 0 4px;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+
+.u-percent:hover:enabled {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+input.u-percent {
+  width: 44px;
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-family: inherit;
+  outline: none;
+}
+
+/* Rolling digits */
+
+.u-rolling {
+  display: inline-flex;
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+.u-rolling-cell {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+}
+
+.u-rolling-digit {
+  display: inline-block;
+  animation: 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.u-rolling-digit.is-up {
+  animation-name: u-roll-up;
+}
+
+.u-rolling-digit.is-down {
+  animation-name: u-roll-down;
+}
+
+@keyframes u-roll-up {
+  from {
+    transform: translateY(70%);
+    opacity: 0;
+  }
+}
+
+@keyframes u-roll-down {
+  from {
+    transform: translateY(-70%);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .u-rolling-digit,
+  .u-menu {
+    animation: none;
+  }
+  .u-slider-fill,
+  .u-switch,
+  .u-switch-knob {
+    transition: none;
+  }
+}

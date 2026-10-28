@@ -300,7 +300,15 @@ struct NotchClaudeSessionDetailView: View {
                                     color: .white.withAlphaComponent(0.8), maxLines: 6)
             }
         } else if !previews {
-            Text(text.previewsOff(for: session.provider)).font(.system(size: 10)).foregroundStyle(.tertiary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(text.previewsOff(for: session.provider)).font(.system(size: 10)).foregroundStyle(.tertiary)
+                Button(text.contentPreview) {
+                    previews = true
+                    service.syncWithPreferences()
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 8))
+                .help(text.contentPreviewHint)
+            }
         }
     }
 
@@ -676,7 +684,7 @@ struct NotchClaudeSessionReplyField: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(.white.opacity(dropping ? 0.6 : focused ? 0.3 : 0), lineWidth: 1)
             }
-            .modifier(NotchClaudeImageInput(sessionID: session.id, takesImages: session.provider != .codex, dropping: $dropping))
+            .modifier(NotchClaudeImageInput(sessionID: session.id, dropping: $dropping))
             if let problem {
                 Label(problem, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 10))

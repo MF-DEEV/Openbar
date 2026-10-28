@@ -280,6 +280,8 @@ struct ClaudeChatMessage: Equatable, Identifiable {
     /// The reply the turn ended on, which answers what was asked; the
     /// replies before it tell of the work on the way.
     var endsTurn = false
+    /// Images the person sent with a prompt.
+    var images: [ClaudeChatImage] = []
 }
 
 struct ClaudeSessionCounts: Equatable {
@@ -333,8 +335,9 @@ enum ClaudeTranscriptFact: Equatable {
     case toolFinished(id: String, at: Date, failed: Bool)
     /// What the model wrote; the text a turn ends on ends that turn.
     case text(String, at: Date, endsTurn: Bool = false)
-    /// A prompt the person typed, read only when previews are allowed.
-    case prompt(String, at: Date)
+    /// A prompt the person typed, with the images sent along, read only
+    /// when previews are allowed. A prompt of images alone has no text.
+    case prompt(String, at: Date, images: [ClaudeChatImage] = [])
     case title(String)
     case branch(String)
     case model(String)

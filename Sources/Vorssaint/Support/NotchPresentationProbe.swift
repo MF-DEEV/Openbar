@@ -408,6 +408,7 @@ enum NotchPresentationProbe {
 
     /// Every flag `runAndExit` dispatches on, in the order it checks them.
     enum Mode: String, CaseIterable {
+        case shapeParity = "--shape-parity-test"
         case standard = "--notch-presentation-test"
         case mediaLayout = "--media-layout"
         case missionControl = "--mission-control"
@@ -427,6 +428,7 @@ enum NotchPresentationProbe {
         for mode in Mode.allCases {
             guard let index = arguments.firstIndex(of: mode.rawValue) else { continue }
             switch mode {
+            case .shapeParity: NotchShapeParityProbe.runAndExit()
             case .standard: continue
             case .mediaLayout: NotchMediaPresentationProbe.runAndExit()
             case .missionControl: runMissionControlAndExit()

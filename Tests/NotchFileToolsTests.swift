@@ -6,6 +6,7 @@ import Foundation
 enum NotchFileToolsTests {
     static func run(_ suite: TestSuite) {
         NotchDownloadFolderChoiceTests.run(suite)
+        NotchDownloadFolderTests.run(suite)
         MediaDialogHostTests.run { suite.expect($0, $1) }
         ShelfDragCompletionTests.run(suite)
         let domain = "com.vorssaint.tests.notch-files"

@@ -123,6 +123,8 @@ enum NotchHoverTests {
         func refreshCapsuleMusic() { capsuleMusicRefreshes += 1 }
         var compactActivity: NotchCompactActivity?
         var compactActivities: [NotchCompactActivity] = []
+        /// Sessions waiting while another app is in front, which hover leaves closed.
+        var holdsSessionsFromHover = false
         var activityPickerMenuOpen = false
         var hoverState = NotchHoverState()
         var hiddenHoverMonitors: [Any] = []
@@ -234,6 +236,26 @@ enum NotchHoverTests {
                 picker.hiddenInFullscreen = true
                 suite.expect(!picker.showsCompactActivityPicker, "full-screen content hiding retains priority")
             }
+        }
+        for physical in [false, true] {
+            let waiting = fixture(physical: physical)
+            waiting.compactActivity = .sessions
+            waiting.holdsSessionsFromHover = true
+            waiting.hover(true)
+            DispatchQueue.main.advance(1)
+            suite.expect(waiting.openings == 0 && waiting.hoverWork == nil && !waiting.peeking,
+                         "a waiting session does not open under the pointer while another app is in front")
+            let back = fixture(physical: physical)
+            back.compactActivity = .sessions
+            back.hover(true)
+            DispatchQueue.main.advance(1)
+            suite.expect(back.openings == 1, "back at the desktop, hover opens it")
+            let leftMeanwhile = fixture(physical: physical)
+            leftMeanwhile.hover(true)
+            leftMeanwhile.holdsSessionsFromHover = true
+            DispatchQueue.main.advance(1)
+            suite.expect(leftMeanwhile.openings == 0,
+                         "an opening already on its way is dropped once another app comes forward")
         }
         for physical in [false, true] {
             let clickOnly = fixture(physical: physical)

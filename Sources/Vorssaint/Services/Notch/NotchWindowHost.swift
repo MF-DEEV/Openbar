@@ -86,6 +86,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             guard let self else { return nil }
             return self.currentGeometry.screen.midX - self.panel.frame.minX - self.canvas.convert(CGPoint.zero, to: nil).x
         }
+        canvas.setShapeFit(geometry.shapeFit)
         canvas.setFloatingGap(geometry.floatingGap)
         canvas.layoutSubtreeIfNeeded()
         appliedFrame = panel.frame
@@ -165,6 +166,7 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
                  hideWhenSettled: Bool = false, usesGlass: Bool = false, steady: Bool = false) {
         // Choosing the capsule or the notch redraws the island at once, even
         // at a size it already has.
+        canvas.setShapeFit(geometry.shapeFit)
         canvas.setFloatingGap(geometry.floatingGap)
         hidesWhenSettled = hideWhenSettled
         if hideWhenSettled {
@@ -483,7 +485,8 @@ final class NotchWindowHost: NSObject, CAAnimationDelegate {
             return
         }
         // The silhouette's shoulders sit outside its vertical body.
-        let shoulder = NotchLayout.shoulder(height: targetSize.height)
+        let shoulder = currentGeometry.floats ? NotchLayout.shoulder(height: targetSize.height)
+            : currentGeometry.shapeFit.shoulder(height: targetSize.height, width: targetSize.width)
         // Placed on the controls' own stage, so a resized window leaves them be.
         let islandX = canvas.convert(CGPoint(x: islandMinX(quickAccessNotchSize), y: 0), to: container.quickView).x
         let body = CGRect(x: islandX + shoulder, y: 0,
@@ -1032,6 +1035,7 @@ private final class NotchCanvas: NSView {
     private let edge = CAShapeLayer()
     private let edgeMask = CALayer()
     /// Nil hangs the island from the top edge; a capsule floats this far inside it.
+    private(set) var shapeFit = NotchShapeFit.standard
     private(set) var floatingGap: CGFloat?
     /// The size the silhouette's model path was drawn for.
     private var silhouetteSize = CGSize.zero
@@ -1138,6 +1142,14 @@ private final class NotchCanvas: NSView {
     /// Switching between the capsule and the hanging outline redraws the
     /// resting island at once. A capsule's outline goes all the way round:
     /// it floats clear of the screen's edge.
+    func setShapeFit(_ fit: NotchShapeFit) {
+        guard shapeFit != fit else { return }
+        stopMotion()
+        shapeFit = fit
+        needsLayout = true
+        layoutSubtreeIfNeeded()
+    }
+
     func setFloatingGap(_ gap: CGFloat?) {
         guard floatingGap != gap else { return }
         floatingGap = gap
@@ -1336,8 +1348,8 @@ private final class NotchCanvas: NSView {
     /// still on its way to the camera's, or away from it, is `offset` from there.
     func silhouettePath(for size: CGSize, offset: CGFloat = 0) -> CGPath {
         var translation = CGAffineTransform(translationX: islandX(size) + offset - silhouette.frame.minX, y: 0)
-        let path = NotchShape(attached: true, radius: NotchLayout.surfaceRadius(height: size.height),
-                              floatingGap: floatingGap)
+        let path = NotchShape(attached: true, radius: shapeFit.radius(height: size.height),
+                              floatingGap: floatingGap, shapeFit: shapeFit)
             .path(in: CGRect(origin: .zero, size: size)).cgPath
         return path.copy(using: &translation) ?? path
     }
