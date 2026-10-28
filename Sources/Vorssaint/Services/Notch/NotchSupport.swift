@@ -366,13 +366,13 @@ enum NotchLayout {
     /// which is no wider than that: about 380 points between its sides.
     static let musicContentWidth: CGFloat = 344
     /// Beside a camera each side keeps the cover, or the lyrics and queue
-    /// toggles, clear of it.
-    static let musicBandSide: CGFloat = 70
-    static let musicArtworkSize: CGFloat = 56
+    /// toggles, clear of it, with the gap the song keeps from the cover.
+    static var musicBandSide: CGFloat { musicArtworkSize + 14 }
+    static let musicArtworkSize: CGFloat = 68
     /// The song's title and artist, a line each.
     static let musicTitleHeight: CGFloat = 38
-    static let musicTimelineHeight: CGFloat = 14
-    static let musicTransportHeight: CGFloat = 44
+    static let musicTimelineHeight: CGFloat = 16
+    static let musicTransportHeight: CGFloat = 46
     /// From the cover to the timeline, or to the buttons with nothing playing.
     static let musicHeadSpacing: CGFloat = 14
     /// Below a camera the title clears it by this much.
@@ -780,6 +780,27 @@ enum NotchHoverEmphasis {
         let growth = min(10, freeSide)
         // A capsule stretches along the bar and stays inside it.
         return CGSize(width: resting.width + growth * 2, height: resting.height + (geometry.floats ? 0 : 5))
+    }
+}
+
+/// A line too long for its place reads in full by sliding: it rests at its
+/// start, slides until its end shows, rests there and slides back.
+enum NotchScrollingTextMotion {
+    /// Points per second, slow enough to read along.
+    static let speed: CGFloat = 30
+    /// The rest at each end.
+    static let rest: TimeInterval = 1.5
+
+    /// How far the line has slid `elapsed` seconds into its loop, for a line
+    /// `distance` points longer than its place.
+    static func offset(distance: CGFloat, elapsed: TimeInterval) -> CGFloat {
+        guard distance > 0, elapsed.isFinite else { return 0 }
+        let travel = TimeInterval(distance / speed)
+        let time = max(0, elapsed).truncatingRemainder(dividingBy: 2 * (rest + travel))
+        if time < rest { return 0 }
+        if time < rest + travel { return distance * CGFloat((time - rest) / travel) }
+        if time < 2 * rest + travel { return distance }
+        return distance * CGFloat(1 - (time - 2 * rest - travel) / travel)
     }
 }
 
@@ -1498,6 +1519,12 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
     ])
     var actions: [NotchQuickAction] { buttons.compactMap(\.action) }
     var hasBottom: Bool { buttons.contains { $0.side == .bottom } }
+    /// The first five buttons in their places, however they came back: a
+    /// button removed and added again is the same button with a new ID.
+    var isInitial: Bool {
+        buttons.map { [$0.actionID, $0.side.rawValue, $0.label] }
+            == Self.initial.buttons.map { [$0.actionID, $0.side.rawValue, $0.label] }
+    }
 
     init(buttons: [NotchQuickButton]) { self.buttons = buttons }
 

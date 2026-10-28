@@ -810,6 +810,46 @@ struct NotchBandMenuLabel: View {
     }
 }
 
+/// One line that reads in full without taking more than its place: a line
+/// too long slides along it (`NotchScrollingTextMotion`), so what stands
+/// beside it never moves. Reduce Motion keeps it still and cut short.
+struct NotchScrollingText: View {
+    let text: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var fullWidth: CGFloat = 0
+    @State private var placeWidth: CGFloat = 0
+    /// When the current text started its loop, so a new one starts at its start.
+    @State private var start = Date()
+
+    var body: some View {
+        let distance = max(0, fullWidth - placeWidth)
+        // The hidden line gives the place a line's height and the width it is offered.
+        Text(text).lineLimit(1).hidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { placeWidth = $0 }
+            .background(alignment: .leading) {
+                Text(text).lineLimit(1).fixedSize().hidden()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fullWidth = $0 }
+            }
+            .overlay(alignment: .leading) {
+                if !reduceMotion, distance > 1 {
+                    TimelineView(.animation(minimumInterval: 1.0 / 60)) { context in
+                        Text(text).lineLimit(1).fixedSize()
+                            .offset(x: -NotchScrollingTextMotion.offset(distance: distance,
+                                                                        elapsed: context.date.timeIntervalSince(start)))
+                    }
+                } else {
+                    Text(text).lineLimit(1)
+                }
+            }
+            .clipped()
+            .onChange(of: text) { start = Date() }
+            .help(text)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(text)
+    }
+}
+
 /// A chooser whose current choice reads in full: up to two centred lines, or
 /// one line cut in the middle, with the list as a native menu below it.
 struct NotchDeviceMenu: View {
