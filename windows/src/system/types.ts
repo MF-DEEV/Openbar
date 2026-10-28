@@ -84,3 +84,14 @@ export interface SystemSnapshot {
   processesFor: MetricKind | null;
   uptimeSeconds: number;
 }
+
+/** What speed_test.rs sends (SpeedTest.swift's published values). */
+export type SpeedTestPhase = "idle" | "latency" | "download" | "upload" | "done" | "failed";
+
+export interface SpeedTestState {
+  phase: SpeedTestPhase;
+  latencyMs: number | null;
+  downloadMbps: number | null;
+  uploadMbps: number | null;
+  error: string | null;
+}

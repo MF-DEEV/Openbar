@@ -13,7 +13,7 @@ import type { MusicCommand, NowPlaying } from "../music/types";
 import type { Access, Inbox, Item } from "../notifications/types";
 import type { DownloadSnapshot } from "../downloads/types";
 import type { MicrophoneSnapshot } from "../microphone/model";
-import type { MetricKind, SystemSnapshot } from "../system/types";
+import type { MetricKind, SpeedTestState, SystemSnapshot } from "../system/types";
 import type { CalendarAccess, CalendarSnapshot } from "../calendar/types";
 import type { AudioState, BrightnessDisplay, KeepAwakeState } from "../audio/types";
 import type { CaptureOutcome, CapturePurpose, ToggleState } from "../tools/types";
@@ -149,6 +149,13 @@ export const bridge = {
     onSnapshot(handler: (snapshot: SystemSnapshot) => void): Promise<UnlistenFn> {
       if (!inTauri) return Promise.resolve(() => {});
       return listen<SystemSnapshot>("system://snapshot", (event) => handler(event.payload));
+    },
+    speedTest: () => call<SpeedTestState>("speed_test_state"),
+    /** Starts the network detail's speed test unless one is running. */
+    startSpeedTest: () => call<SpeedTestState>("speed_test_start"),
+    onSpeedTest(handler: (state: SpeedTestState) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<SpeedTestState>("speedtest://state", (event) => handler(event.payload));
     },
   },
   calendar: {

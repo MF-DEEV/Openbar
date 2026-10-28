@@ -5,7 +5,7 @@
 // a laptop on battery with a busy CPU, a nearly full disk and a minute of
 // history behind each graph.
 
-import type { SystemSnapshot } from "./types";
+import type { SpeedTestState, SystemSnapshot } from "./types";
 
 export function demoSnapshot(seq: number): SystemSnapshot {
   const wave = (base: number, swing: number, phase = 0) => base + swing * Math.sin(seq / 3 + phase);
@@ -48,4 +48,18 @@ export function demoSnapshot(seq: number): SystemSnapshot {
     processesFor: "cpu",
     uptimeSeconds: 3 * 86_400 + 4 * 3_600 + 12 * 60,
   };
+}
+
+/** A speed test's states over about three seconds, as speed_test.rs sends them. */
+export function playSpeedTest(report: (state: SpeedTestState) => void, fail = false) {
+  const base: SpeedTestState = { phase: "latency", latencyMs: null, downloadMbps: null, uploadMbps: null, error: null };
+  const steps: SpeedTestState[] = [
+    base,
+    { ...base, phase: "download", latencyMs: 11.6 },
+    fail
+      ? { ...base, phase: "failed", latencyMs: 11.6, error: "HTTP 503" }
+      : { ...base, phase: "upload", latencyMs: 11.6, downloadMbps: 412.37 },
+    ...(fail ? [] : [{ ...base, phase: "done", latencyMs: 11.6, downloadMbps: 412.37, uploadMbps: 38.92 } as const]),
+  ];
+  steps.forEach((step, i) => setTimeout(() => report(step), i * 1000));
 }

@@ -29,6 +29,7 @@ mod sessions;
 mod settings;
 mod shell;
 mod sound;
+mod speed_test;
 mod system_monitor;
 mod timer;
 mod toggles;
@@ -73,6 +74,11 @@ pub fn agents_probe_main(path: &str, limits: bool) -> ! {
 
 pub fn notifications_probe_main(path: &str) -> ! {
     notifications::probe_main(path)
+}
+
+/// `Vorssaint.exe --speed-test-probe <file>`: runs the network detail's speed test.
+pub fn speed_test_probe_main(path: &str) -> ! {
+    speed_test::probe_main(path)
 }
 
 /// `Vorssaint.exe --remove-hooks`: the uninstaller takes Vorssaint's hooks out
@@ -127,6 +133,7 @@ pub fn run() {
         .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
         .manage(system_monitor::Shared::default())
+        .manage(speed_test::Shared::default())
         .manage(calendar::Shared::default())
         .manage(audio::Shared::default())
         .manage(keep_awake::Shared::default())
@@ -180,6 +187,8 @@ pub fn run() {
             timer::timer_wake,
             system_monitor::system_monitor_watch,
             system_monitor::system_monitor_snapshot,
+            speed_test::speed_test_state,
+            speed_test::speed_test_start,
             calendar::calendar_snapshot,
             calendar::calendar_show_range,
             calendar::calendar_request_access,

@@ -129,7 +129,7 @@ const PLAIN: Partial<Record<ControlItem, { icon: LucideIcon; title: () => string
   timer: { icon: Timer, title: () => t("module.timer"), onSelect: select("timer") },
   calendar: { icon: Calendar, title: () => t("module.calendar"), onSelect: select("calendar") },
   screenshot: { icon: Camera, title: () => S.screenshot, onSelect: screenshot },
-  // Windows has no speed test: the tile opens System's network reading (NotchControlsView showMetric(.network)).
+  // The tile opens System's network reading, where the speed test is (NotchControlsView showMetric(.network)).
   speedTest: {
     icon: Gauge,
     title: () => S.speedTest,
