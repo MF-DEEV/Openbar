@@ -710,6 +710,9 @@ mod imp {
                     self.wear = Some(battery_wear(&battery_packs()));
                 }
                 (battery.health_percent, battery.cycle_count) = self.wear.unwrap_or_default();
+            } else {
+                // A battery put in later is read at once, not after the minute.
+                self.wear = None;
             }
             snapshot.disk = system_drive_space();
 
