@@ -36,7 +36,7 @@ To remove it, use **Settings › Apps › Installed apps › Vorssaint › Unins
 ## What it does
 
 - **A notch at the top of the screen.** A black island hangs from the top edge, like the camera housing on a MacBook, or floats as a capsule if you prefer. It grows into pages when you click it and steps aside for games and films in full screen.
-- **Now Playing.** Whatever plays in Spotify, a browser or Media Player shows beside the camera with its cover and moving bars. Open it to see the song, scrub, shuffle and control playback. Media keys keep working as usual.
+- **Now Playing.** Whatever plays in Spotify, a browser or Media Player shows beside the camera with its cover and moving bars. Open it to see the song, scrub, shuffle and control playback. Open **Lyrics** for synchronized lyrics from LRCLIB, import an `.lrc` file, adjust timing or click a verse to seek. Media keys keep working as usual.
 - **Choose a live activity.** When music and sessions are active together, clicking the compact island shows **Sessions / Music**. Pick what its strip shows, then click the strip to open that page. Hover only enlarges the strip by 3%. The selection closes when the pointer leaves or you press Escape.
 - **A layout that fits.** The island's content scales proportionally with custom width and height. Covers, text, controls and spacing keep their proportions; long track titles scroll within their row.
 - **Controls.** The home page: volume with a quick switch between outputs, the brightness of your displays (turn it on in **Content › Controls**), what's playing, and tiles for Keep awake, the timer, the next calendar event, the mixer and more. Choose and order the tiles in **Content › Controls**.
@@ -71,7 +71,8 @@ Nothing to install. While Codex runs, the island talks to the app server Codex s
 
 ## Private by default
 
-- Nothing the island reads leaves your PC. There is no telemetry, no analytics and no account.
+- There is no telemetry, no analytics and no account.
+- Automatic lyrics lookup sends the current song's title, artist, album and duration, when available, to LRCLIB. Imported lyrics and timing adjustments stay on your PC.
 - Prompts, replies, session titles and command output stay hidden unless you turn on **Show previews** in **Content › Sessions**. With it on, they are kept in memory only and cleared when you turn it off.
 - A permission prompt always shows what it would run, so nothing is allowed unread.
 - Your settings live in `%APPDATA%\com.vorssaint.island\settings.json` and only hold what you changed.

@@ -7,6 +7,7 @@
 import { create } from "zustand";
 import { bridge } from "../shared/bridge";
 import { tintOf } from "./tint";
+import { useLyrics } from "./lyricsStore";
 import type { MusicCommand, NowPlaying, Playback } from "./types";
 
 /** A reading that finds nothing right after a playing song waits this long. */
@@ -23,7 +24,7 @@ interface MusicState {
   failed: boolean;
   receive(now: NowPlaying): void;
   command(command: MusicCommand): Promise<void>;
-  seek(seconds: number): Promise<void>;
+  seek(seconds: number): Promise<boolean>;
   shuffle(on: boolean): Promise<void>;
 }
 
@@ -42,11 +43,15 @@ export const useMusic = create<MusicState>()((set, get) => ({
     clearTimeout(gapTimer);
     if (!next && current?.isPlaying) {
       // A gap between songs: hold the last one briefly.
-      gapTimer = setTimeout(() => set({ playback: null, tint: null }), GAP_GRACE);
+      gapTimer = setTimeout(() => {
+        set({ playback: null, tint: null });
+        void useLyrics.getState().select(null);
+      }, GAP_GRACE);
       set({ sources: now.sources });
       return;
     }
     const optimistic = get().optimistic;
+    void useLyrics.getState().select(next);
     const confirmed = optimistic && next && next.isPlaying === optimistic.playing;
     set({
       playback: next,
@@ -76,8 +81,14 @@ export const useMusic = create<MusicState>()((set, get) => ({
   },
 
   async seek(seconds) {
-    const ok = await bridge.music.seek(seconds);
-    set({ failed: ok === false });
+    try {
+      const ok = await bridge.music.seek(seconds);
+      set({ failed: ok === false });
+      return ok !== false;
+    } catch {
+      set({ failed: true });
+      return false;
+    }
   },
 
   async shuffle(on) {
