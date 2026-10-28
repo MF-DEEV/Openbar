@@ -22,6 +22,7 @@ import {
 import type { Size } from "./motion";
 import { type ModuleId, moduleInfo, visibleModules } from "./modules";
 import { DEFAULT_SETTINGS, hoverExpands, type IslandSettings, opensOnHover, sectionEnabled } from "./settings";
+import type { Provider, SessionEvent } from "../sessions/types";
 
 export interface Notice {
   id: string;
@@ -44,6 +45,10 @@ export interface Notice {
   /** A glyph in the symbol slot, and a colour for it and the title (the timer's orange). */
   icon?: LucideIcon;
   tint?: string;
+  /** The session a sessions notice is about: its Clawd stands in the symbol slot (NotchNotice.sessionID). */
+  session?: { id: string; provider: Provider; event: SessionEvent["kind"] };
+  /** Runs once a tap has opened `opens`: a session notice focuses its session. */
+  onOpen?: () => void;
 }
 
 /** Live activities in the Mac's priority order (NotchSupport.swift:1791-1799). */
@@ -246,9 +251,11 @@ export const useIsland = create<IslandState>()((set, get) => ({
       return;
     }
     if (s.notice) {
-      const opens = s.notice.opens;
+      const { opens, onOpen } = s.notice;
       s.dismissNotice();
       get().open(opens);
+      // Only once its section is really shown: a hidden one opens another.
+      if (get().expanded && get().selected === opens) onOpen?.();
       return;
     }
     const choices = compactActivities(s);

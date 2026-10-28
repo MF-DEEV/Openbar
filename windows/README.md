@@ -133,7 +133,7 @@ This keeps a backup of the installed executable and preserves settings. It rejec
 
 Tests run with `bun run test` and, in `src-tauri` after `bun run build`, `cargo test`; the [checks on pull requests](../README.md#checks-on-pull-requests) list everything CI runs. The design notes behind the port are in [`docs/spec`](docs/spec).
 
-On Windows with Microsoft Edge installed, browser regressions are available as `npm run test:island-layout`, `npm run test:settings-select`, `npm run test:quick-access` and `npm run test:activity-picker`. They launch an isolated headless browser with sample sessions and media, and save screenshots under the repository's ignored `build/` directory. Set `ISLAND_TEST_BROWSER` to use another Chromium executable. The activity-picker check also samples animation frames to catch duplicated strips or a vertical jump while closing.
+On Windows with Microsoft Edge installed, browser regressions are available as `npm run test:island-layout`, `npm run test:settings-select`, `npm run test:quick-access`, `npm run test:activity-picker` and `npm run test:session-notice`. They launch an isolated headless browser with sample sessions and media, and save screenshots under the repository's ignored `build/` directory. Set `ISLAND_TEST_BROWSER` to use another Chromium executable. The activity-picker check also samples animation frames to catch duplicated strips or a vertical jump while closing. The session-notice check taps a waiting session's notice and expects that session's page, not the list.
 
 ## License
 
