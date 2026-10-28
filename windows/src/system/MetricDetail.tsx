@@ -4,9 +4,10 @@
 // A metric's detail in the island (MetricDetailView.swift, notch
 // presentation): a back button where the Mac's band has it, the summary with
 // its history graph, the readings, and for CPU and memory the processes using
-// the most. Escape steps back to the cards.
+// the most, with Task Manager a click away (the Mac's Activity Monitor
+// button). Escape steps back to the cards.
 
-import { Bluetooth, ChevronLeft, Usb } from "lucide-react";
+import { Bluetooth, ChevronLeft, SquareArrowOutUpRight, Usb } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePageLayer } from "../island/pageLayer";
 import { useIsland } from "../island/store";
@@ -82,7 +83,18 @@ export function MetricDetail({ kind, onMeasure }: { kind: MetricKind; onMeasure(
           </section>
           {lists ? (
             <section className="sy-panel sy-rows">
-              <div className="sy-panel-title">{S.usage}</div>
+              <div className="sy-panel-head">
+                <div className="sy-panel-title">{S.usage}</div>
+                <button
+                  type="button"
+                  className="sy-open-app"
+                  aria-label={S.openTaskManager}
+                  title={S.openTaskManager}
+                  onClick={() => void bridge.shell.openTaskManager()}
+                >
+                  <SquareArrowOutUpRight size={10} strokeWidth={2.2} aria-hidden />
+                </button>
+              </div>
               {snapshot.processesFor !== kind || snapshot.processes.length === 0 ? (
                 <div className="sy-panel-empty">{S.measuring}</div>
               ) : (

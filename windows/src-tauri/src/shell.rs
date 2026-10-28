@@ -4,7 +4,8 @@
 //! Names, icons and thumbnails from the Windows shell, as the island's pages
 //! show them: an app's display name (its FileDescription), an exe or file
 //! icon, or a file's thumbnail, encoded as a PNG data URL. All shell calls
-//! run on one STA thread; results are cached by path and size.
+//! run on one STA thread; results are cached by path and size. It also opens
+//! Task Manager, the Mac's "Open Activity Monitor".
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
@@ -125,6 +126,15 @@ pub async fn shell_icon(path: String, size: u32, thumbnail: bool) -> Option<Stri
     .flatten()
 }
 
+/// Task Manager, as the System detail's process list opens it; false when
+/// the shell refused (Task Manager disabled by policy, say).
+#[tauri::command]
+pub async fn shell_open_task_manager() -> bool {
+    tauri::async_runtime::spawn_blocking(|| worker().run(imp::open_task_manager).unwrap_or(false))
+        .await
+        .unwrap_or(false)
+}
+
 #[cfg(windows)]
 mod imp {
     use windows::Win32::Foundation::{CloseHandle, SIZE};
@@ -140,10 +150,32 @@ mod imp {
         QueryFullProcessImageNameW,
     };
     use windows::Win32::UI::Shell::{
-        IShellItemImageFactory, SHCreateItemFromParsingName, SHFILEINFOW, SHGFI_TYPENAME,
-        SHGetFileInfoW, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY, SIIGBF_RESIZETOFIT,
+        IShellItemImageFactory, SEE_MASK_NOASYNC, SHCreateItemFromParsingName, SHELLEXECUTEINFOW,
+        SHFILEINFOW, SHGFI_TYPENAME, SHGetFileInfoW, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY,
+        SIIGBF_RESIZETOFIT, ShellExecuteExW,
     };
-    use windows::core::{HSTRING, PCWSTR, PWSTR};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        ASFW_ANY, AllowSetForegroundWindow, SW_SHOWNORMAL,
+    };
+    use windows::core::{HSTRING, PCWSTR, PWSTR, w};
+
+    /// Through the shell, not CreateProcess: Taskmgr.exe asks for the highest
+    /// level available, which CreateProcess refuses an admin (error 740) and
+    /// the shell auto-elevates. A running Task Manager comes to the front.
+    pub fn open_task_manager() -> bool {
+        unsafe {
+            let _ = AllowSetForegroundWindow(ASFW_ANY);
+        }
+        let mut info = SHELLEXECUTEINFOW {
+            cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+            // This worker has no message loop to finish the launch on.
+            fMask: SEE_MASK_NOASYNC,
+            lpFile: w!("taskmgr.exe"),
+            nShow: SW_SHOWNORMAL.0,
+            ..Default::default()
+        };
+        unsafe { ShellExecuteExW(&mut info) }.is_ok()
+    }
 
     pub fn image(path: &str, width: u32, height: u32, icon_only: bool) -> Option<Vec<u8>> {
         unsafe {
@@ -299,6 +331,9 @@ mod imp {
 
 #[cfg(not(windows))]
 mod imp {
+    pub fn open_task_manager() -> bool {
+        false
+    }
     pub fn image(_path: &str, _w: u32, _h: u32, _icon_only: bool) -> Option<Vec<u8>> {
         None
     }

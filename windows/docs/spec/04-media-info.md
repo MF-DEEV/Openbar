@@ -714,6 +714,7 @@ Cards, in order (:27-87):
 | Connected devices | `Windows.Devices.Enumeration` (Bluetooth + USB); see the connected-devices spec |
 
 - **Priority**: no live activity (the battery notice and the low-battery tint belong to the shell spec).
+- **Open Activity Monitor** (`MetricDetailView.swift` `ActivityMonitorButton`, beside the CPU and memory details' process list). **Windows:** opens Task Manager with `ShellExecuteExW("taskmgr.exe")`; `CreateProcess` fails for admins with error 740, as Taskmgr asks for the highest level available. A running Task Manager comes to the front.
 
 ---
 
