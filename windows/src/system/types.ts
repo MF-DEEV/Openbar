@@ -36,6 +36,10 @@ export interface BatteryReading {
   /** Watts into the battery: positive while charging, negative while it drains. */
   rateWatts: number | null;
   secondsLeft: number | null;
+  /** Full charge over design capacity, 0…100. */
+  healthPercent: number | null;
+  /** Null when the battery doesn't count its cycles. */
+  cycleCount: number | null;
 }
 
 export interface DiskReading {

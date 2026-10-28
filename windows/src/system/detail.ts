@@ -3,8 +3,7 @@
 
 // What a metric's detail reads (MetricDetailView.swift): the summary's value
 // and line, its history graph and its rows. Temperatures, memory pressure,
-// battery health and cycles, adapter watts and the speed test have no
-// Windows source and are left out.
+// adapter watts and the speed test have no Windows source and are left out.
 
 import { powerReading } from "./cards";
 import {
@@ -203,6 +202,11 @@ export function detailRows(kind: MetricKind, s: SystemSnapshot, inBits: boolean)
       return [
         { title: S.charge, value: measured(s.battery?.percent == null ? null : `${s.battery.percent}%`) },
         { title: S.battery, value: batteryFlow(s.battery) },
+        {
+          title: S.batteryHealth,
+          value: s.battery?.healthPercent == null ? "-" : `${Math.round(s.battery.healthPercent)}%`,
+        },
+        { title: S.cycles, value: s.battery?.cycleCount == null ? "-" : String(s.battery.cycleCount) },
       ];
     case "power": {
       const battery = s.battery;
