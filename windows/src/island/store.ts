@@ -9,6 +9,7 @@ import type { LucideIcon } from "lucide-react";
 import { create } from "zustand";
 import {
   activitySize,
+  activityPickerLayout,
   contentInsets,
   expandedHeight,
   expandedWidth,
@@ -95,6 +96,7 @@ export interface IslandState {
   activities: Partial<Record<ActivityId, ActivitySpec>>;
   /** The activity the person picked from the picker, while it lasts. */
   pickedActivity: ActivityId | null;
+  activityPickerOpen: boolean;
   /** Bumped by each open so the window asks for keyboard focus. */
   focusRequest: number;
   /** Pages with a height of their own (music, timer, controls) report it here. */
@@ -112,6 +114,9 @@ export interface IslandState {
   collapse(): void;
   toggle(): void;
   clickClosed(): void;
+  activateActivity(id: ActivityId): boolean;
+  selectCompactActivity(id: ActivityId): void;
+  dismissActivityPicker(): void;
   pointerEnter(): void;
   pointerExit(): void;
   select(module: ModuleId): void;
@@ -153,7 +158,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
   peeking: false,
   showingSections: false,
   sectionQuery: "",
-  selected: "controls",
+  selected: "sessions",
   sessionsEnlarged: false,
   inside: false,
   hoverEmphasized: false,
@@ -162,6 +167,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
   noticeExpanded: false,
   activities: {},
   pickedActivity: null,
+  activityPickerOpen: false,
   focusRequest: 0,
   pageContent: {},
   dropHint: false,
@@ -195,6 +201,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
       opts.sections ?? (!module && !s.expanded && s.settings.returnHome && s.settings.homeModule === "explore");
     set({
       expanded: true,
+      activityPickerOpen: false,
       peeking: false,
       selected,
       showingSections: sections,
@@ -215,6 +222,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
     const s = get();
     set({
       expanded: false,
+      activityPickerOpen: false,
       peeking: false,
       pinned: false,
       showingSections: false,
@@ -243,7 +251,57 @@ export const useIsland = create<IslandState>()((set, get) => ({
       get().open(opens);
       return;
     }
+    const choices = compactActivities(s);
+    if (choices.length > 1) {
+      get().activateActivity(s.pickedActivity && choices.includes(s.pickedActivity) ? s.pickedActivity : choices[0]!);
+      return;
+    }
     get().open();
+  },
+
+  activateActivity(id) {
+    const s = get();
+    if (!s.settings.enabled) return false;
+    const available = compactActivities(s);
+    if (available.length > 1 && !s.expanded) {
+      const chosen = available.includes(id) ? id : available[0]!;
+      if (!s.activityPickerOpen) {
+        clearHoverTimers();
+        set({
+          activityPickerOpen: true,
+          pickedActivity: chosen,
+          peeking: false,
+          hoverEmphasized: false,
+          hoverSuppressed: false,
+          focusRequest: s.focusRequest + 1,
+        });
+        return false;
+      }
+      const current = s.pickedActivity && available.includes(s.pickedActivity) ? s.pickedActivity : chosen;
+      get().open(s.activities[current]?.opens);
+      return true;
+    }
+    get().open(s.activities[id]?.opens);
+    return true;
+  },
+
+  selectCompactActivity(id) {
+    const s = get();
+    if (!compactActivities(s).includes(id)) return;
+    clearHoverTimers();
+    set({
+      pickedActivity: id,
+      activityPickerOpen: true,
+      peeking: false,
+      hoverEmphasized: false,
+      hoverSuppressed: false,
+      focusRequest: s.focusRequest + 1,
+    });
+  },
+
+  dismissActivityPicker() {
+    clearHoverTimers();
+    set((s) => ({ activityPickerOpen: false, hoverSuppressed: s.inside }));
   },
 
   pointerEnter() {
@@ -254,7 +312,13 @@ export const useIsland = create<IslandState>()((set, get) => ({
     set({ inside: true });
     if (s.expanded || s.pinned) return;
     if (s.hoverSuppressed) return;
-    if (s.attentionFullscreen || (!s.autoPresentAllowed && visibleActivity(s) === "sessions")) return;
+    if (s.attentionFullscreen) return;
+    if (showsActivityPicker(get())) return;
+    if (!s.notice && compactActivities(get()).length > 1) {
+      set({ hoverEmphasized: true });
+      return;
+    }
+    if (!s.autoPresentAllowed && visibleActivity(s) === "sessions") return;
     // Download details are opened explicitly by clicking the compact strip.
     if (!s.notice && visibleActivity(s) === "downloads") return;
     if (!opensOnHover(s.settings)) {
@@ -267,6 +331,11 @@ export const useIsland = create<IslandState>()((set, get) => ({
     hoverTimer = setTimeout(() => {
       const now = get();
       if (!now.inside || now.expanded || now.dropHint) return;
+      if (showsActivityPicker(now)) return;
+      if (!now.notice && compactActivities(now).length > 1) {
+        set({ hoverEmphasized: true });
+        return;
+      }
       if (now.attentionFullscreen || (!now.autoPresentAllowed && visibleActivity(now) === "sessions")) return;
       if (!now.notice && visibleActivity(now) === "downloads") return;
       if (hoverExpands(now.settings)) now.open(undefined, { takeFocus: false, byHover: true });
@@ -278,7 +347,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
     const s = get();
     clearTimeout(hoverTimer);
     hoverTimer = undefined;
-    set({ inside: false, hoverEmphasized: false, hoverSuppressed: false });
+    set({ inside: false, activityPickerOpen: false, hoverEmphasized: false, hoverSuppressed: false });
     const closesOnExit = s.peeking || (s.expanded && s.openedByHover && !s.clickedSinceOpening && !s.pinned);
     if (!closesOnExit) return;
     const delay = s.expanded ? s.settings.closeDelay : 0.12;
@@ -328,7 +397,12 @@ export const useIsland = create<IslandState>()((set, get) => ({
       if (spec) activities[id] = spec;
       else delete activities[id];
       const left = Object.keys(activities).length > 0;
-      return { activities, pickedActivity: left ? s.pickedActivity : null };
+      const available = compactActivities({ ...s, activities });
+      return {
+        activities,
+        pickedActivity: left && s.pickedActivity && activities[s.pickedActivity] ? s.pickedActivity : null,
+        activityPickerOpen: available.length > 1 && s.activityPickerOpen,
+      };
     });
   },
 
@@ -342,7 +416,27 @@ export const useIsland = create<IslandState>()((set, get) => ({
 
 // MARK: Presentation
 
-export type PresentationKind = "resting" | "activity" | "notice" | "peek" | "dropHint" | "expanded";
+export type PresentationKind = "resting" | "activity" | "notice" | "peek" | "dropHint" | "expanded" | "picker";
+
+/** Microphone status is an indicator, rather than a competing activity on the Mac. */
+export function compactActivities(s: Pick<IslandState, "activities" | "settings">): ActivityId[] {
+  const modules = modulesOf(s);
+  return ACTIVITY_ORDER.filter(
+    (id) => id !== "microphone" && s.activities[id] && modules.includes(s.activities[id]!.opens),
+  );
+}
+
+export function showsActivityPicker(s: IslandState): boolean {
+  return (
+    !s.expanded &&
+    !s.peeking &&
+    !s.notice &&
+    !s.attentionFullscreen &&
+    !s.hoverSuppressed &&
+    s.activityPickerOpen &&
+    compactActivities(s).length > 1
+  );
+}
 
 /** The picked activity if it still runs, else the first in priority order. */
 export function visibleActivity(s: Pick<IslandState, "activities" | "pickedActivity">): ActivityId | null {
@@ -418,6 +512,13 @@ export function presentation(s: IslandState, geometry: Geometry, measuredNotice?
     return { kind: "notice", key: `notice:${s.notice.kind}`, size, hasRow: false };
   }
   if (s.peeking) return { kind: "peek", key: "peek", size: peekSize(geometry), hasRow: false };
+  if (showsActivityPicker(s)) {
+    const choices = compactActivities(s);
+    const strips = choices.map((id) =>
+      activitySize(geometry, s.activities[id]!.wing, s.activities[id]!.capsuleContent),
+    );
+    return { kind: "picker", key: "picker", size: activityPickerLayout(geometry, strips).size, hasRow: false };
+  }
   const activity = visibleActivity(s);
   if (activity) {
     const spec = s.activities[activity]!;

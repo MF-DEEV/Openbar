@@ -37,6 +37,8 @@ To remove it, use **Settings › Apps › Installed apps › Vorssaint › Unins
 
 - **A notch at the top of the screen.** A black island hangs from the top edge, like the camera housing on a MacBook, or floats as a capsule if you prefer. It grows into pages when you click it and steps aside for games and films in full screen.
 - **Now Playing.** Whatever plays in Spotify, a browser or Media Player shows beside the camera with its cover and moving bars. Open it to see the song, scrub, shuffle and control playback. Media keys keep working as usual.
+- **Choose a live activity.** When music and sessions are active together, clicking the compact island shows **Sessions / Music**. Pick what its strip shows, then click the strip to open that page. Hover only enlarges the strip by 3%. The selection closes when the pointer leaves or you press Escape.
+- **A layout that fits.** The island's content scales proportionally with custom width and height. Covers, text, controls and spacing keep their proportions; long track titles scroll within their row.
 - **Controls.** The home page: volume with a quick switch between outputs, the brightness of your displays (turn it on in **Content › Controls**), what's playing, and tiles for Keep awake, the timer, the next calendar event, the mixer and more. Choose and order the tiles in **Content › Controls**.
 - **Volume mixer.** The master volume, the microphone and a column for every app playing sound, each with its own level and mute. Pin apps, reorder them with Ctrl+drag, hide the ones you don't need, and switch the output or input device from the top row.
 - **Timer.** A countdown, Pomodoro or stopwatch. Pick the minutes on a ruler; the time left shows beside the camera, and a chime repeats when it's up, for up to five minutes or until you dismiss it.
@@ -57,7 +59,7 @@ To remove it, use **Settings › Apps › Installed apps › Vorssaint › Unins
   - **Reply without switching apps.** Type in the island and it reaches the session.
   - **Open.** Brings the session's terminal window forward.
   - **A buddy for every session.** Clawd for Claude Code and a little terminal robot for Codex, each in a random outfit you can change.
-- **Settings like Windows.** Size, shape, which sections show and in what order, how it opens, which display it uses, starting with Windows and more, in a window that follows your light or dark theme. In **Content**, choose the functions for the lower left and right shortcut circles, or click either highlighted circle in the island preview to change it immediately.
+- **Settings like Windows.** Size, shape, which sections show and in what order, how it opens, which display it uses, starting with Windows and more, in a window that follows your light or dark theme. In **Content**, use **+** beneath the preview to add shortcut circles, choose their actions, move them left, right or below the island, reorder or remove them. Each position fits three circles. **Restore defaults** returns the original five shortcuts. Preview circles and settings rows share animated, keyboard-accessible menus.
 
 ### Using it with Claude Code
 
@@ -129,6 +131,8 @@ For a local update of an existing Windows installation, build with `bun run taur
 This keeps a backup of the installed executable and preserves settings. It rejects console executables, so a local build cannot accidentally make the island depend on a terminal window. The island uses the Windows GUI subsystem in both release and debug builds; use a full Tauri build for installation so the frontend is bundled and no development server is needed.
 
 Tests run with `bun run test` and, in `src-tauri`, `cargo test`. The design notes behind the port are in [`docs/spec`](docs/spec).
+
+On Windows with Microsoft Edge installed, browser regressions are available as `npm run test:island-layout`, `npm run test:settings-select`, `npm run test:quick-access` and `npm run test:activity-picker`. They launch an isolated headless browser with sample sessions and media, and save screenshots under the repository's ignored `build/` directory. Set `ISLAND_TEST_BROWSER` to use another Chromium executable. The activity-picker check also samples animation frames to catch duplicated strips or a vertical jump while closing.
 
 ## License
 

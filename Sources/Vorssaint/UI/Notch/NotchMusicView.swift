@@ -171,11 +171,11 @@ struct NotchMusicView: View {
                     if !service.sources.isEmpty || !service.sourceIsAutomatic {
                         sourcePicker(nil)
                     } else {
-                        Text(text.mediaNothingPlaying).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                        Text(text.mediaNothingPlaying).font(.system(size: 16, weight: .semibold)).lineLimit(1)
                     }
                     // Where the song's artist goes: which app the buttons open.
                     if opens {
-                        Text(openTitle).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                        Text(openTitle).font(.system(size: 14)).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
             } accessory: {
@@ -223,13 +223,14 @@ struct NotchMusicView: View {
         }
     }
 
-    /// The player's own shuffle switch. A player not yet allowed to be
+    /// The player's own shuffle switch, green while on whatever the cover's
+    /// colour, so it reads at a glance. A player not yet allowed to be
     /// controlled asks for that first, as the playback buttons do.
     private var shuffleButton: some View {
         let strings = FeatureStrings.notchMusicExtras(l10n.language)
         let consent = shuffle.availability?.access == .consent
         return NotchMusicSideButton(symbol: "shuffle", title: strings.shuffle, hint: consent ? strings.allowPlayback : nil,
-                                    active: shuffle.enabled == true, tint: accent) { shuffle.toggle() }
+                                    active: shuffle.enabled == true, tint: Color(nsColor: .systemGreen)) { shuffle.toggle() }
             .disabled(shuffle.requestingAccess || !shuffle.allowed)
     }
 
@@ -267,15 +268,12 @@ struct NotchMusicView: View {
                     .accessibilityLabel(text.mediaNowPlaying)
             } titles: {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(playback.track.title ?? text.mediaNowPlaying)
-                        .font(.system(size: 14, weight: .semibold))
-                        .lineLimit(1)
-                        .help(playback.track.title ?? text.mediaNowPlaying)
-                    Text(service.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
-                         : playback.track.artist ?? playback.track.album ?? text.mediaNowPlaying)
-                        .font(.system(size: 13))
+                    NotchScrollingText(text: playback.track.title ?? text.mediaNowPlaying)
+                        .font(.system(size: 16, weight: .semibold))
+                    NotchScrollingText(text: service.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
+                                       : playback.track.artist ?? playback.track.album ?? text.mediaNowPlaying)
+                        .font(.system(size: 14))
                         .foregroundStyle(service.commandFailed ? .orange : .secondary)
-                        .lineLimit(1)
                 }
             } accessory: {
                 // Which player the buttons drive, by its icon, when there is a choice.
@@ -372,9 +370,8 @@ struct NotchMusicView: View {
 }
 
 /// A switch beside the transport, drawn like its buttons: a dimmed glyph
-/// with no plate while it is off. On, it takes the timeline's colour on the
-/// faint plate the island's other toggles use, which still reads where a
-/// neutral cover leaves that colour white.
+/// with no plate while it is off. On, it takes its tint on the faint plate
+/// the island's other toggles use.
 private struct NotchMusicSideButton: View {
     let symbol: String
     let title: String
@@ -385,13 +382,13 @@ private struct NotchMusicSideButton: View {
     let action: () -> Void
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let height: CGFloat = 44
+    private let height: CGFloat = 46
     private let plate: CGFloat = 32
 
     var body: some View {
         Button(action: action) {
             Image(systemName: symbol)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(active ? tint : .white.opacity(isEnabled ? 0.55 : 0.3))
                 .contentTransition(.symbolEffect(.replace))
                 .frame(width: plate, height: plate)
@@ -447,9 +444,9 @@ private struct NotchMusicVolumeControl: View {
     var body: some View {
         Button { presented.toggle() } label: {
             Image(systemName: "slider.horizontal.3")
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white.opacity(presented ? 0.9 : 0.55))
-                .frame(width: 44, height: 44)
+                .frame(width: 46, height: 46)
                 .contentShape(Circle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 22, lifts: false))
@@ -522,9 +519,9 @@ private struct NotchMusicOutputButton: View {
     var body: some View {
         NotchMenuButton(title: l10n.s.mixerSystemOutputTitle, items: items, cornerRadius: 22) {
             Image(systemName: symbol)
-                .font(.system(size: 16, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.55))
-                .frame(width: 44, height: 44)
+                .frame(width: 46, height: 46)
                 .contentShape(Circle())
         }
         .help(mixer.outputSwitchError ?? deviceName)
@@ -543,13 +540,13 @@ struct NotchMusicIdleTransport: View {
     var slot: CGFloat? = nil
     @ObservedObject private var l10n = L10n.shared
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
-    private var height: CGFloat { compact ? 36 : 44 }
+    private var height: CGFloat { compact ? 36 : 46 }
 
     var body: some View {
         HStack(spacing: slot == nil ? (compact ? 12 : 18) : 0) {
-            button("backward.fill", title: text.mediaPrevious, size: compact ? 16 : 19).frame(width: slot)
-            button("play.fill", title: text.mediaPlayPause, size: compact ? 22 : slot == nil ? 26 : 28).frame(width: slot)
-            button("forward.fill", title: text.mediaNext, size: compact ? 16 : 19).frame(width: slot)
+            button("backward.fill", title: text.mediaPrevious, size: compact ? 16 : 20).frame(width: slot)
+            button("play.fill", title: text.mediaPlayPause, size: compact ? 22 : slot == nil ? 26 : 30).frame(width: slot)
+            button("forward.fill", title: text.mediaNext, size: compact ? 16 : 20).frame(width: slot)
         }
         .frame(height: height)
     }
@@ -587,7 +584,7 @@ private struct NotchMusicTransport: View {
     /// takes its round trip to say so. It gives way to the player's word.
     @State private var requestedPlaying: Bool?
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
-    private var height: CGFloat { compact ? 36 : 44 }
+    private var height: CGFloat { compact ? 36 : 46 }
     private var showsPlaying: Bool { requestedPlaying ?? playback.isPlaying }
 
     var body: some View {
@@ -641,7 +638,7 @@ private struct NotchMusicTransport: View {
             } else { service.requestAutomationAccess() }
         } label: {
             Image(systemName: showsPlaying ? "pause.fill" : "play.fill")
-                .font(.system(size: compact ? 22 : slot == nil ? 26 : 28, weight: .semibold))
+                .font(.system(size: compact ? 22 : slot == nil ? 26 : 30, weight: .semibold))
                 .foregroundStyle(.white)
                 .contentTransition(.symbolEffect(.replace))
                 .animation(reduceMotion ? nil : .smooth(duration: 0.22), value: showsPlaying)
@@ -671,7 +668,7 @@ private struct NotchMusicTransport: View {
     private func playbackButton(_ symbol: String, title: String, command: NotchMusicService.Command) -> some View {
         Button { service.send(command, context: playback.commandContext) } label: {
             Image(systemName: symbol)
-                .font(.system(size: compact ? 16 : 19, weight: .semibold))
+                .font(.system(size: compact ? 16 : 20, weight: .semibold))
                 .foregroundStyle(.white)
                 .frame(width: height, height: height)
                 .contentShape(Circle())
@@ -726,7 +723,8 @@ struct NotchMusicTimeline: View {
                         }
                     }
                 }
-                .font(.system(size: 10, weight: .medium))
+                // The island's player reads a size up from the lock screen's.
+                .font(.system(size: timesBeside ? 11 : 10, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
             }
@@ -770,7 +768,7 @@ struct NotchMusicTimeline: View {
                         pendingSeek = UUID()
                     }
                 })
-                .frame(height: 10)
+                .frame(height: timesBeside ? 12 : 10)
                 .disabled(service.commandPending)
         } else {
             NotchMeter(value: position / playback.duration, height: 6, tint: tint)

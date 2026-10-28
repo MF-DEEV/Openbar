@@ -76,7 +76,7 @@ export function DownloadStrip({ geometry, size }: ActivityViewProps) {
     <button
       className="dl-strip"
       style={{ width: size.width, height: size.height, paddingInline: padding }}
-      onClick={() => useIsland.getState().open("downloads")}
+      onClick={() => useIsland.getState().activateActivity("downloads")}
       aria-label={first ? `Downloads: ${first.name}` : "Downloads"}
       title={first?.name}
     >

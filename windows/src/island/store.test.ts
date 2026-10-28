@@ -23,7 +23,8 @@ describe("presentation", () => {
   it("pulses on hover when clicking opens", () => {
     useIsland.getState().pointerEnter();
     const s = useIsland.getState();
-    expect(presentation(s, geometryOf(s)).size).toEqual({ width: 155, height: 29 });
+    expect(presentation(s, geometryOf(s)).size.width).toBeCloseTo(135 * 1.03);
+    expect(presentation(s, geometryOf(s)).size.height).toBeCloseTo(24 * 1.03);
   });
 });
 
@@ -67,6 +68,16 @@ describe("media activity priority", () => {
 });
 
 describe("state machine", () => {
+  it("opens Sessions by default on first click and after visiting another page", () => {
+    const s = useIsland.getState();
+    s.clickClosed();
+    expect(useIsland.getState()).toMatchObject({ expanded: true, selected: "sessions", showingSections: false });
+    s.select("controls");
+    s.collapse();
+    s.clickClosed();
+    expect(useIsland.getState()).toMatchObject({ expanded: true, selected: "sessions", showingSections: false });
+  });
+
   it("escape closes the gallery first, then the island", () => {
     const s = useIsland.getState();
     s.open(undefined, { sections: true });

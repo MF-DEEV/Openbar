@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-// The Music page (NotchMusicView.swift; spec 04 §1.2): a 56 pt cover with
+// The Music page (NotchMusicView.swift; spec 04 §1.2): a 68 pt cover with
 // the title beside it, the timeline, and five equal transport slots so play
 // stays centred. Idle, the buttons open the player.
 
@@ -10,15 +10,16 @@ import { useEffect, useRef, useState } from "react";
 import { useIsland } from "../island/store";
 import { VolumeControl } from "./VolumeControl";
 import { EqualizerBars } from "./EqualizerBars";
+import { ScrollingText } from "./ScrollingText";
 import { isPlaying, useMusic } from "./store";
 import { position, time, type Playback } from "./types";
 
 export const MUSIC_WIDTH = 344;
-const COVER = 56;
+const COVER = 68;
 
-/** head + 14 + (timeline 14 + 10 while it has one) + 44 + 8 (NotchLayout.player). */
+/** head + 14 + (timeline 16 + 10 while it has one) + 46 + 8 (NotchLayout.player). */
 export function playerHeight(p: Playback | null): number {
-  return COVER + 14 + (p && p.duration > 0 ? 14 + 10 : 0) + 44 + 8;
+  return COVER + 14 + (p && p.duration > 0 ? 16 + 10 : 0) + 46 + 8;
 }
 
 export function Cover(props: { src?: string; size: number; radius: number; dimmed?: boolean }) {
@@ -63,14 +64,20 @@ export function MusicPage() {
           <Cover src={playback?.artwork} size={COVER} radius={COVER * 0.19} dimmed={!!playback && !playing} />
         </div>
         <div className="m-titles">
-          <div className="m-title">{playback ? playback.title || playback.sourceName : "Nothing playing"}</div>
-          <div className={`m-artist${failed ? " is-failed" : ""}`}>
-            {failed
-              ? "Could not change playback."
-              : playback
-                ? playback.artist || playback.album || "Now playing"
-                : "Your music and playback controls appear here."}
-          </div>
+          <ScrollingText
+            className="m-title"
+            text={playback ? playback.title || playback.sourceName : "Nothing playing"}
+          />
+          <ScrollingText
+            className={`m-artist${failed ? " is-failed" : ""}`}
+            text={
+              failed
+                ? "Could not change playback."
+                : playback
+                  ? playback.artist || playback.album || "Now playing"
+                  : "Your music and playback controls appear here."
+            }
+          />
         </div>
         {playback ? (
           <div className="m-accessory">
@@ -88,9 +95,9 @@ export function MusicPage() {
               aria-label="Shuffle"
               aria-pressed={playback.shuffle}
               onClick={() => void useMusic.getState().shuffle(!playback.shuffle)}
-              style={{ color: playback.shuffle ? accent : "rgba(255,255,255,0.55)" }}
+              style={{ color: playback.shuffle ? "#30d158" : "rgba(255,255,255,0.55)" }}
             >
-              <Shuffle size={16} strokeWidth={2.25} />
+              <Shuffle size={17} strokeWidth={2.25} />
             </button>
           ) : null}
         </Slot>
@@ -103,7 +110,7 @@ export function MusicPage() {
             style={{ visibility: playback && !playback.canPrevious ? "hidden" : undefined }}
             onClick={() => (playback ? void command("previous") : undefined)}
           >
-            <Rewind size={21} fill="currentColor" strokeWidth={0} />
+            <Rewind size={22} fill="currentColor" strokeWidth={0} />
           </button>
         </Slot>
         <Slot>
@@ -115,9 +122,9 @@ export function MusicPage() {
             onClick={() => void command("toggle")}
           >
             {playing ? (
-              <Pause size={30} fill="currentColor" strokeWidth={0} />
+              <Pause size={32} fill="currentColor" strokeWidth={0} />
             ) : (
-              <Play size={30} fill="currentColor" strokeWidth={0} />
+              <Play size={32} fill="currentColor" strokeWidth={0} />
             )}
           </button>
         </Slot>
@@ -130,7 +137,7 @@ export function MusicPage() {
             style={{ visibility: playback && !playback.canNext ? "hidden" : undefined }}
             onClick={() => (playback ? void command("next") : undefined)}
           >
-            <FastForward size={21} fill="currentColor" strokeWidth={0} />
+            <FastForward size={22} fill="currentColor" strokeWidth={0} />
           </button>
         </Slot>
         <Slot>

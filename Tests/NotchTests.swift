@@ -182,6 +182,38 @@ enum NotchTests {
                && NotchLayout.musicPlayerHeight(band: 37.5, playing: false)
                    == NotchLayout.musicPlayerHeight(band: 37.5) - NotchLayout.musicTimelineHeight - NotchLayout.rowSpacing,
                "the player is a small cover beside the camera, the song below it, the timeline and one row of buttons")
+        // A title 60 points too long rests 1.5 s, slides for 2 s, rests, slides back.
+        let slide = { NotchScrollingTextMotion.offset(distance: 60, elapsed: $0) }
+        suite.expect(slide(0) == 0 && slide(1.4) == 0 && abs(slide(2.5) - 30) < 0.001 && slide(3.6) == 60
+                     && slide(4.9) == 60 && abs(slide(6) - 30) < 0.001 && abs(slide(7)) < 0.001
+                     && slide(7.1) == 0 && abs(slide(7 + 2.5) - 30) < 0.001,
+                     "a long line rests at its start, slides to its end, rests and slides back, then repeats")
+        suite.expect(NotchScrollingTextMotion.offset(distance: 0, elapsed: 3) == 0
+                     && NotchScrollingTextMotion.offset(distance: -5, elapsed: 3) == 0
+                     && NotchScrollingTextMotion.offset(distance: 60, elapsed: -1) == 0
+                     && NotchScrollingTextMotion.offset(distance: 60, elapsed: .infinity) == 0
+                     && NotchScrollingTextMotion.offset(distance: 60, elapsed: .nan) == 0,
+                     "a line that fits, or a clock that ran backwards or broke, stays at its start")
+        suite.expect((0..<200).allSatisfy { step in
+                        let value = NotchScrollingTextMotion.offset(distance: 60, elapsed: Double(step) * 0.07)
+                        return value >= 0 && value <= 60
+                     }, "the line never slides past either of its ends")
+        // A short line and a long one read at the same speed, each repeating
+        // on a loop of its own length, and each slide meets its rests.
+        let slideRest = NotchScrollingTextMotion.rest, slideSpeed = NotchScrollingTextMotion.speed
+        let lengths: [CGFloat] = [15, 240]
+        suite.expect(lengths.allSatisfy { (distance: CGFloat) -> Bool in
+                        let travel = TimeInterval(distance / slideSpeed), loop = 2 * (slideRest + travel)
+                        let at = { NotchScrollingTextMotion.offset(distance: distance, elapsed: $0) }
+                        return abs(at(slideRest + 0.25) - slideSpeed * 0.25) < 0.001
+                            && abs(at(slideRest + travel / 2 + loop * 3) - distance / 2) < 0.001
+                            && abs(at(slideRest + travel - 1e-6) - distance) < 0.001
+                            && at(loop - 1e-6) < 0.001
+                     }, "every long line slides at one reading speed, meets each rest without a jump and repeats")
+        // Beside a camera the larger cover and controls still fit the compact
+        // preset's page, so the player never grows the island past it.
+        suite.expect(NotchLayout.musicPlayerHeight(band: 37.5) <= NotchLayout.compactContentHeight,
+                     "the player beside a camera fits the compact island")
     }
 
     private static func presentationSpacingContracts(_ suite: TestSuite) {
@@ -2060,6 +2092,31 @@ enum NotchTests {
         defaults.set(true, forKey: AppFeature.notchTimer.availabilityKey)
         suite.expect(NotchQuickAccessConfiguration.current(in: defaults) == initialLayout,
                "reinstalled utilities return to their original positions")
+        var trimmed = NotchQuickAccessConfiguration.initial
+        trimmed.buttons.removeAll { $0.actionID == NotchQuickAction.module(.timer).id }
+        suite.expect(NotchQuickAccessConfiguration.initial.isInitial && !trimmed.isInitial,
+                     "restoring the default buttons is offered once a button is gone")
+        // The editor's + appends a button to the end of the list.
+        trimmed.buttons.append(NotchQuickButton(action: .module(.timer), side: .left))
+        suite.expect(trimmed.isInitial,
+                     "a default button removed and added again in its place counts as the default layout")
+        // The editor's Position menu moves a button to the end of its new side.
+        var travelled = NotchQuickAccessConfiguration.initial
+        let mixer = travelled.buttons.first { $0.actionID == NotchQuickAction.module(.mixer).id }!.id
+        travelled.move(mixer, to: .bottom)
+        suite.expect(!travelled.isInitial, "a button moved to another side is a change restoring undoes")
+        travelled.move(mixer, to: .right)
+        suite.expect(travelled.isInitial, "a button moved away and back to its place counts as the default layout")
+        var reorderedDefault = NotchQuickAccessConfiguration.initial
+        let timer = reorderedDefault.buttons.first { $0.actionID == NotchQuickAction.module(.timer).id }!.id
+        reorderedDefault.reorder(timer, by: -1)
+        var renamed = NotchQuickAccessConfiguration.initial
+        renamed.buttons[0].label = "Explore"
+        suite.expect(!reorderedDefault.isInitial && !renamed.isInitial,
+                     "a side in another order, or a renamed button, is a change restoring undoes")
+        let restoredLayout = try? JSONDecoder().decode(NotchQuickAccessConfiguration.self, from: NotchQuickAccessConfiguration.initial.encoded)
+        suite.expect(restoredLayout?.sanitized().isInitial == true,
+                     "the restored layout reads back as the default buttons")
         defaults.set("music", forKey: DefaultsKey.notchHiddenModules)
         suite.expect(NotchQuickAccessConfiguration.current(in: defaults).actions == [.explore, .module(.timer), .settings, .module(.mixer)],
                "a section switched off takes its button out of the island")

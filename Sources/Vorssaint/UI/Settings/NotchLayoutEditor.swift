@@ -126,8 +126,17 @@ struct NotchLayoutEditor: View {
             }
             .frame(height: Self.canvasHeight)
             .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: layout)
-            Text(editor.layoutHint).font(.callout).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(editor.layoutHint).font(.callout).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                // The first five buttons, their actions and their places.
+                Button(editor.restoreButtons) {
+                    editingID = nil; addingSide = nil
+                    configuration = .initial
+                }
+                .disabled(layout.isInitial)
+                .accessibilityIdentifier("notch.layout.restoreButtons")
+            }
         }
     }
 

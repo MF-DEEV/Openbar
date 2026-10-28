@@ -10,12 +10,12 @@ import { arrivalTime, type Size } from "./motion";
 import { MODULES } from "./modules";
 import { closeTopLayer } from "./pageLayer";
 import {
-  type ActivityId,
   type ContentTransition,
   geometryOf,
   modulesOf,
   type Presentation,
   presentation,
+  showsActivityPicker,
   transitionBetween,
   useIsland,
 } from "./store";
@@ -24,7 +24,7 @@ import { IslandSurface } from "./surface/IslandSurface";
 import { NoticeView, noticeWidth, Peek, Resting } from "./views/Closed";
 import { Expanded } from "./views/Expanded";
 import { QuickAccess } from "./views/QuickAccess";
-import { ActivityStrip } from "./views/Activity";
+import { ActivityPicker } from "./views/ActivityPicker";
 import { useSessions } from "../sessions/store";
 import { DropHint } from "../files/DropHint";
 
@@ -50,6 +50,7 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
       const outside = bridge.onOutsideClick(() => {
         const s = useIsland.getState();
         if (s.expanded && !s.pinned && !s.held) s.collapse();
+        else if (s.activityPickerOpen) s.dismissActivityPicker();
       });
       return () => {
         void unlisten.then((f) => f());
@@ -63,6 +64,7 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
     const onDown = (e: MouseEvent) => {
       const s = useIsland.getState();
       if (s.expanded && !s.pinned && !(e.target as Element).closest(".island-frame, .n-quick, .u-menu")) s.collapse();
+      else if (s.activityPickerOpen && !(e.target as Element).closest(".island-frame")) s.dismissActivityPicker();
     };
     el.addEventListener("mouseenter", pointerEnter);
     el.addEventListener("mouseleave", pointerExit);
@@ -80,7 +82,13 @@ function useKeyboard() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = useIsland.getState();
-      if (!s.expanded) return;
+      if (!s.expanded) {
+        if (e.key === "Escape" && !e.isComposing && showsActivityPicker(s)) {
+          e.preventDefault();
+          s.dismissActivityPicker();
+        }
+        return;
+      }
       if (e.key === "Escape" && !e.isComposing) {
         e.preventDefault();
         if (!closeTopLayer()) s.stepBack();
@@ -120,7 +128,7 @@ function useKeyboard() {
 
 /** The window takes the keyboard while the island is open, and gives it back when it closes. */
 function useFocus() {
-  const expanded = useIsland((s) => s.expanded);
+  const expanded = useIsland((s) => s.expanded || s.activityPickerOpen);
   const focusRequest = useIsland((s) => s.focusRequest);
   const previousRequest = useRef(focusRequest);
   useEffect(() => {
@@ -185,6 +193,9 @@ export function Island() {
 
   let content;
   switch (shown.kind) {
+    case "picker":
+      content = <ActivityPicker geometry={geometry} size={shown.size} visible />;
+      break;
     case "expanded":
       content = <Expanded geometry={geometry} size={shown.size} hasRow={shown.hasRow} />;
       break;
@@ -198,9 +209,7 @@ export function Island() {
       content = <DropHint geometry={geometry} size={shown.size} />;
       break;
     case "activity":
-      content = (
-        <ActivityStrip id={shown.key.slice("activity:".length) as ActivityId} geometry={geometry} size={shown.size} />
-      );
+      content = <ActivityPicker geometry={geometry} size={shown.size} visible={false} />;
       break;
     default:
       content = <Resting size={shown.size} />;
@@ -219,7 +228,7 @@ export function Island() {
     <div className={`island-root${hidden ? " is-hidden" : ""}`} ref={frame}>
       <IslandSurface geometry={geometry} target={shown.size}>
         <ContentStage
-          contentKey={shown.key}
+          contentKey={shown.kind === "activity" || shown.kind === "picker" ? "compact:activity" : shown.key}
           transition={transition.current}
           width={shown.size.width}
           height={shown.size.height}

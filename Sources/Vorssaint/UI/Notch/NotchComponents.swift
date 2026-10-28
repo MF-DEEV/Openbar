@@ -810,6 +810,53 @@ struct NotchBandMenuLabel: View {
     }
 }
 
+/// One line that reads in full without taking more than its place: a line
+/// too long slides along it (`NotchScrollingTextMotion`), so what stands
+/// beside it never moves. Reduce Motion keeps it still and cut short.
+/// (The switcher's `ScrollingTitle` instead loops a fixed-width name.)
+struct NotchScrollingText: View {
+    let text: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var fullWidth: CGFloat = 0
+    @State private var placeWidth: CGFloat = 0
+    /// When the line started its loop. A new text, or a place that changes
+    /// how far it has to slide, starts it again at rest at its start rather
+    /// than wherever the old loop had reached.
+    @State private var start = Date()
+
+    var body: some View {
+        let distance = max(0, fullWidth - placeWidth)
+        // The hidden line gives the place a line's height and the width it is offered.
+        Text(text).lineLimit(1).hidden()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { placeWidth = $0 }
+            .background(alignment: .leading) {
+                Text(text).lineLimit(1).fixedSize().hidden()
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fullWidth = $0 }
+            }
+            .overlay(alignment: .leading) {
+                if reduceMotion {
+                    Text(text).lineLimit(1)
+                } else if distance > 0.5 {
+                    TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
+                        Text(text).lineLimit(1).fixedSize()
+                            .offset(x: -NotchScrollingTextMotion.offset(distance: distance,
+                                                                        elapsed: context.date.timeIntervalSince(start)))
+                    }
+                } else {
+                    // Whole: a fraction of a point over is clipped, not cut short by an ellipsis.
+                    Text(text).lineLimit(1).fixedSize()
+                }
+            }
+            .clipped()
+            .onChange(of: text) { start = Date() }
+            .onChange(of: distance) { start = Date() }
+            .help(text)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(text)
+    }
+}
+
 /// A chooser whose current choice reads in full: up to two centred lines, or
 /// one line cut in the middle, with the list as a native menu below it.
 struct NotchDeviceMenu: View {

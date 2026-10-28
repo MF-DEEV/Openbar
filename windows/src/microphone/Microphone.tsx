@@ -30,7 +30,7 @@ function syncActivity() {
   const enabled = island.settings.enabled && island.settings.microphoneStatus;
   island.setActivity(
     "microphone",
-    enabled && state.active ? { wing: 54, capsuleContent: 84, opens: "controls" } : null,
+    enabled && state.active ? { wing: 54, capsuleContent: 84, opens: "sessions" } : null,
   );
   if (!enabled && island.notice?.kind === "microphone") island.dismissNotice();
 }
@@ -88,7 +88,7 @@ export function MicrophoneStrip({ geometry, size }: ActivityViewProps) {
       style={{ width: size.width, height: size.height, paddingInline: padding }}
       aria-label={text}
       title={text}
-      onClick={() => useIsland.getState().open("controls")}
+      onClick={() => useIsland.getState().clickClosed()}
     >
       <AudioIcons muted={state.muted} deafened={state.deafened} />
       <span className="mic-muted-dot" aria-hidden="true" />

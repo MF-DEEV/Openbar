@@ -32,6 +32,8 @@ const en = {
   "island.collapse": "Collapse",
   "island.search": "Search",
   "island.comingSoon": "Coming to Windows soon",
+  "island.activities": "Live activities",
+  "activity.music": "Music",
 } as const;
 
 export type StringKey = keyof typeof en;

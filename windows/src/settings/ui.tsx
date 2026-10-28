@@ -8,6 +8,9 @@
 
 import { ChevronDown, type LucideIcon } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
+import type { Option } from "./Select";
+export { Select } from "./Select";
+export type { Option } from "./Select";
 
 export function Page(props: { title: string; lead?: string; children: ReactNode }) {
   return (
@@ -150,11 +153,6 @@ export function Toggle(props: {
   );
 }
 
-export interface Option<T extends string> {
-  value: T;
-  label: string;
-}
-
 /** A few mutually exclusive choices shown side by side. */
 export function Segmented<T extends string>(props: {
   value: T;
@@ -179,33 +177,6 @@ export function Segmented<T extends string>(props: {
         </button>
       ))}
     </div>
-  );
-}
-
-/** A longer list of choices: a native select styled like Windows' combo box. */
-export function Select<T extends string>(props: {
-  value: T;
-  options: Option<T>[];
-  onChange: (v: T) => void;
-  label: string;
-  disabled?: boolean;
-}) {
-  return (
-    <span className="st-select">
-      <select
-        value={props.value}
-        aria-label={props.label}
-        disabled={props.disabled}
-        onChange={(e) => props.onChange(e.target.value as T)}
-      >
-        {props.options.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <ChevronDown size={14} className="st-select-chevron" aria-hidden />
-    </span>
   );
 }
 

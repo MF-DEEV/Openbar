@@ -9,6 +9,10 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "test": "vitest run",
+    "test:island-layout": "node scripts/check-island-layout.mjs",
+    "test:settings-select": "node scripts/check-island-layout.mjs --settings",
+    "test:quick-access": "node scripts/check-island-layout.mjs --quick-access",
+    "test:activity-picker": "node scripts/check-island-layout.mjs --activity-picker",
     "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tsconfig.node.json",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
