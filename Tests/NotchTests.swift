@@ -182,8 +182,6 @@ enum NotchTests {
                && NotchLayout.musicPlayerHeight(band: 37.5, playing: false)
                    == NotchLayout.musicPlayerHeight(band: 37.5) - NotchLayout.musicTimelineHeight - NotchLayout.rowSpacing,
                "the player is a small cover beside the camera, the song below it, the timeline and one row of buttons")
-        suite.expect(NotchLayout.musicBandSide >= NotchLayout.musicArtworkSize + 14,
-                     "the cover beside a camera keeps the song's gap from it")
         // A title 60 points too long rests 1.5 s, slides for 2 s, rests, slides back.
         let slide = { NotchScrollingTextMotion.offset(distance: 60, elapsed: $0) }
         suite.expect(slide(0) == 0 && slide(1.4) == 0 && abs(slide(2.5) - 30) < 0.001 && slide(3.6) == 60
@@ -200,6 +198,22 @@ enum NotchTests {
                         let value = NotchScrollingTextMotion.offset(distance: 60, elapsed: Double(step) * 0.07)
                         return value >= 0 && value <= 60
                      }, "the line never slides past either of its ends")
+        // A short line and a long one read at the same speed, each repeating
+        // on a loop of its own length, and each slide meets its rests.
+        let slideRest = NotchScrollingTextMotion.rest, slideSpeed = NotchScrollingTextMotion.speed
+        let lengths: [CGFloat] = [15, 240]
+        suite.expect(lengths.allSatisfy { (distance: CGFloat) -> Bool in
+                        let travel = TimeInterval(distance / slideSpeed), loop = 2 * (slideRest + travel)
+                        let at = { NotchScrollingTextMotion.offset(distance: distance, elapsed: $0) }
+                        return abs(at(slideRest + 0.25) - slideSpeed * 0.25) < 0.001
+                            && abs(at(slideRest + travel / 2 + loop * 3) - distance / 2) < 0.001
+                            && abs(at(slideRest + travel - 1e-6) - distance) < 0.001
+                            && at(loop - 1e-6) < 0.001
+                     }, "every long line slides at one reading speed, meets each rest without a jump and repeats")
+        // Beside a camera the larger cover and controls still fit the compact
+        // preset's page, so the player never grows the island past it.
+        suite.expect(NotchLayout.musicPlayerHeight(band: 37.5) <= NotchLayout.compactContentHeight,
+                     "the player beside a camera fits the compact island")
     }
 
     private static func presentationSpacingContracts(_ suite: TestSuite) {
@@ -2082,14 +2096,24 @@ enum NotchTests {
         trimmed.buttons.removeAll { $0.actionID == NotchQuickAction.module(.timer).id }
         suite.expect(NotchQuickAccessConfiguration.initial.isInitial && !trimmed.isInitial,
                      "restoring the default buttons is offered once a button is gone")
-        trimmed.buttons.insert(NotchQuickButton(action: .module(.timer), side: .left), at: 1)
+        // The editor's + appends a button to the end of the list.
+        trimmed.buttons.append(NotchQuickButton(action: .module(.timer), side: .left))
         suite.expect(trimmed.isInitial,
                      "a default button removed and added again in its place counts as the default layout")
-        trimmed.buttons[1].side = .right
+        // The editor's Position menu moves a button to the end of its new side.
+        var travelled = NotchQuickAccessConfiguration.initial
+        let mixer = travelled.buttons.first { $0.actionID == NotchQuickAction.module(.mixer).id }!.id
+        travelled.move(mixer, to: .bottom)
+        suite.expect(!travelled.isInitial, "a button moved to another side is a change restoring undoes")
+        travelled.move(mixer, to: .right)
+        suite.expect(travelled.isInitial, "a button moved away and back to its place counts as the default layout")
+        var reorderedDefault = NotchQuickAccessConfiguration.initial
+        let timer = reorderedDefault.buttons.first { $0.actionID == NotchQuickAction.module(.timer).id }!.id
+        reorderedDefault.reorder(timer, by: -1)
         var renamed = NotchQuickAccessConfiguration.initial
         renamed.buttons[0].label = "Explore"
-        suite.expect(!trimmed.isInitial && !renamed.isInitial,
-                     "a button moved to another side or renamed is a change restoring undoes")
+        suite.expect(!reorderedDefault.isInitial && !renamed.isInitial,
+                     "a side in another order, or a renamed button, is a change restoring undoes")
         let restoredLayout = try? JSONDecoder().decode(NotchQuickAccessConfiguration.self, from: NotchQuickAccessConfiguration.initial.encoded)
         suite.expect(restoredLayout?.sanitized().isInitial == true,
                      "the restored layout reads back as the default buttons")

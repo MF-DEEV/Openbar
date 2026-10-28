@@ -171,11 +171,11 @@ struct NotchMusicView: View {
                     if !service.sources.isEmpty || !service.sourceIsAutomatic {
                         sourcePicker(nil)
                     } else {
-                        Text(text.mediaNothingPlaying).font(.system(size: 14, weight: .semibold)).lineLimit(1)
+                        Text(text.mediaNothingPlaying).font(.system(size: 16, weight: .semibold)).lineLimit(1)
                     }
                     // Where the song's artist goes: which app the buttons open.
                     if opens {
-                        Text(openTitle).font(.system(size: 13)).foregroundStyle(.secondary).lineLimit(1)
+                        Text(openTitle).font(.system(size: 14)).foregroundStyle(.secondary).lineLimit(1)
                     }
                 }
             } accessory: {
@@ -269,10 +269,10 @@ struct NotchMusicView: View {
             } titles: {
                 VStack(alignment: .leading, spacing: 2) {
                     NotchScrollingText(text: playback.track.title ?? text.mediaNowPlaying)
-                        .font(.system(size: 14, weight: .semibold))
+                        .font(.system(size: 16, weight: .semibold))
                     NotchScrollingText(text: service.commandFailed ? FeatureStrings.notchMusicExtras(l10n.language).playbackFailed
                                        : playback.track.artist ?? playback.track.album ?? text.mediaNowPlaying)
-                        .font(.system(size: 13))
+                        .font(.system(size: 14))
                         .foregroundStyle(service.commandFailed ? .orange : .secondary)
                 }
             } accessory: {
@@ -382,7 +382,7 @@ private struct NotchMusicSideButton: View {
     let action: () -> Void
     @Environment(\.isEnabled) private var isEnabled
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private let height: CGFloat = 44
+    private let height: CGFloat = 46
     private let plate: CGFloat = 32
 
     var body: some View {
@@ -446,7 +446,7 @@ private struct NotchMusicVolumeControl: View {
             Image(systemName: "slider.horizontal.3")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white.opacity(presented ? 0.9 : 0.55))
-                .frame(width: 44, height: 44)
+                .frame(width: 46, height: 46)
                 .contentShape(Circle())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 22, lifts: false))
@@ -521,7 +521,7 @@ private struct NotchMusicOutputButton: View {
             Image(systemName: symbol)
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.55))
-                .frame(width: 44, height: 44)
+                .frame(width: 46, height: 46)
                 .contentShape(Circle())
         }
         .help(mixer.outputSwitchError ?? deviceName)
@@ -540,7 +540,7 @@ struct NotchMusicIdleTransport: View {
     var slot: CGFloat? = nil
     @ObservedObject private var l10n = L10n.shared
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
-    private var height: CGFloat { compact ? 36 : 44 }
+    private var height: CGFloat { compact ? 36 : 46 }
 
     var body: some View {
         HStack(spacing: slot == nil ? (compact ? 12 : 18) : 0) {
@@ -584,7 +584,7 @@ private struct NotchMusicTransport: View {
     /// takes its round trip to say so. It gives way to the player's word.
     @State private var requestedPlaying: Bool?
     private var text: RadialMenuFeatureStrings { FeatureStrings.radialMenu(l10n.language) }
-    private var height: CGFloat { compact ? 36 : 44 }
+    private var height: CGFloat { compact ? 36 : 46 }
     private var showsPlaying: Bool { requestedPlaying ?? playback.isPlaying }
 
     var body: some View {
@@ -723,7 +723,8 @@ struct NotchMusicTimeline: View {
                         }
                     }
                 }
-                .font(.system(size: 10, weight: .medium))
+                // The island's player reads a size up from the lock screen's.
+                .font(.system(size: timesBeside ? 11 : 10, weight: .medium))
                 .monospacedDigit()
                 .foregroundStyle(.secondary)
             }
@@ -767,7 +768,7 @@ struct NotchMusicTimeline: View {
                         pendingSeek = UUID()
                     }
                 })
-                .frame(height: 10)
+                .frame(height: timesBeside ? 12 : 10)
                 .disabled(service.commandPending)
         } else {
             NotchMeter(value: position / playback.duration, height: 6, tint: tint)

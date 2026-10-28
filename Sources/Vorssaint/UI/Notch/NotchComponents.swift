@@ -813,12 +813,15 @@ struct NotchBandMenuLabel: View {
 /// One line that reads in full without taking more than its place: a line
 /// too long slides along it (`NotchScrollingTextMotion`), so what stands
 /// beside it never moves. Reduce Motion keeps it still and cut short.
+/// (The switcher's `ScrollingTitle` instead loops a fixed-width name.)
 struct NotchScrollingText: View {
     let text: String
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var fullWidth: CGFloat = 0
     @State private var placeWidth: CGFloat = 0
-    /// When the current text started its loop, so a new one starts at its start.
+    /// When the line started its loop. A new text, or a place that changes
+    /// how far it has to slide, starts it again at rest at its start rather
+    /// than wherever the old loop had reached.
     @State private var start = Date()
 
     var body: some View {
@@ -832,18 +835,22 @@ struct NotchScrollingText: View {
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fullWidth = $0 }
             }
             .overlay(alignment: .leading) {
-                if !reduceMotion, distance > 1 {
-                    TimelineView(.animation(minimumInterval: 1.0 / 60)) { context in
+                if reduceMotion {
+                    Text(text).lineLimit(1)
+                } else if distance > 0.5 {
+                    TimelineView(.animation(minimumInterval: 1.0 / 30)) { context in
                         Text(text).lineLimit(1).fixedSize()
                             .offset(x: -NotchScrollingTextMotion.offset(distance: distance,
                                                                         elapsed: context.date.timeIntervalSince(start)))
                     }
                 } else {
-                    Text(text).lineLimit(1)
+                    // Whole: a fraction of a point over is clipped, not cut short by an ellipsis.
+                    Text(text).lineLimit(1).fixedSize()
                 }
             }
             .clipped()
             .onChange(of: text) { start = Date() }
+            .onChange(of: distance) { start = Date() }
             .help(text)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(text)

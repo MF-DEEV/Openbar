@@ -317,7 +317,7 @@ enum NotchLayout {
     /// detail, a hosted utility) still get a readable page inside a preset.
     static let pageContentHeight: CGFloat = 320
     static let rowSpacing: CGFloat = 10
-    /// The home page's card row: the player's 56-point cover inside its padding.
+    /// The home page's card row: a 56-point cover inside its padding.
     static let cardHeight: CGFloat = 80
     static let minimumCardHeight: CGFloat = 68
     /// A level in the island's top row at its narrowest: its glyph and a
@@ -1520,10 +1520,15 @@ struct NotchQuickAccessConfiguration: Equatable, Codable {
     var actions: [NotchQuickAction] { buttons.compactMap(\.action) }
     var hasBottom: Bool { buttons.contains { $0.side == .bottom } }
     /// The first five buttons in their places, however they came back: a
-    /// button removed and added again is the same button with a new ID.
+    /// button removed and added again is the same button with a new ID, and
+    /// the list's order only counts within each side, as the island draws it.
     var isInitial: Bool {
-        buttons.map { [$0.actionID, $0.side.rawValue, $0.label] }
-            == Self.initial.buttons.map { [$0.actionID, $0.side.rawValue, $0.label] }
+        NotchQuickAccessSide.allCases.allSatisfy { side in
+            let placed = { (buttons: [NotchQuickButton]) in
+                buttons.filter { $0.side == side }.map { [$0.actionID, $0.label] }
+            }
+            return placed(buttons) == placed(Self.initial.buttons)
+        }
     }
 
     init(buttons: [NotchQuickButton]) { self.buttons = buttons }
