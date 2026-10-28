@@ -55,7 +55,7 @@ enum ClawdShell: String, CaseIterable, Identifiable {
         case .iris: return (116, 112, 226)
         case .orchid: return (178, 98, 214)
         case .rose: return (230, 112, 156)
-        case .midnight: return (38, 40, 50)
+        case .midnight: return (74, 82, 118)
         }
     }
 

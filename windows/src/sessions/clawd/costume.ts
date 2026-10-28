@@ -101,7 +101,7 @@ export type Rgb = readonly [number, number, number];
 
 /** sRGB out of 255. Clay is Claude Code's own `clawd_body`. */
 export const SHELL_RGB: Readonly<Record<ClawdShell, Rgb>> = {
-  midnight: [38, 40, 50],
+  midnight: [74, 82, 118],
   clay: [215, 119, 87],
   coral: [226, 86, 72],
   amber: [230, 166, 58],
