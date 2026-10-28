@@ -137,6 +137,9 @@ function presentSessionEvent(event: SessionEvent) {
     priority: 2,
     duration: 6,
     opens: "sessions",
+    session: { id: session.id, provider: session.provider, event: event.kind },
+    // A tap lands on this session's page (NotchService.swift:2523).
+    onOpen: () => useSessions.getState().focus(session.id),
   });
 }
 
