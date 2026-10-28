@@ -60,7 +60,7 @@ export interface AudioState {
   priorityError: string | null;
   /** The last switcher press found no chosen output that is connected. */
   switchFailed: boolean;
-  /** Finer volume steps are on but the volume keys couldn't be hooked. */
+  /** Finer volume steps are on but Windows refused the volume keys. */
   rollerFailed: boolean;
 }
 

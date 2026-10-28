@@ -107,6 +107,9 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
+                    if audio::roller_key(shortcut, event.state() == ShortcutState::Pressed) {
+                        return;
+                    }
                     if event.state() != ShortcutState::Pressed {
                         return;
                     }

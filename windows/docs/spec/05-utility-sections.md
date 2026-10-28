@@ -176,7 +176,7 @@ Source: `NMV:13-155` (page), `NMV:193-293` (master and mic faders), `NMV:341-479
 | Bypassed apps | Not needed: sessions work for every app. Drop `isBypassed`. |
 | Hidden apps list, pin and order persistence | App-level JSON keyed by exe path or AppUserModelID (Windows' equivalent of `persistenceID`, the bundle ID). |
 | Lower on headphone disconnect | `PKEY_AudioEndpoint_FormFactor == Headphones/Headset` or the Mac's name terms, followed through `IMMNotificationClient` (`audio/guard.rs`). The level goes back when headphones are the output again, or when the app quits. A driver that keeps one endpoint for a switching jack isn't seen. |
-| Precise volume roller | A `WH_KEYBOARD_LL` hook owns `VK_VOLUME_UP/DOWN` (Alt, Ctrl or Win leave them to Windows) and steps the output 1% instead of Windows' 2%, with the Mac's gate for wheel bursts (`audio/roller.rs`). The swallowed key shows no Windows flyout; the island's volume notice is the feedback. |
+| Precise volume roller | While on, the volume keys alone or with Shift are registered as global shortcuts (`RegisterHotKey` through the plugin), so Windows never sees them; with Alt, Ctrl or Win they stay Windows'. Each press steps the output 1% instead of Windows' 2%, with the Mac's gate for wheel bursts, and a held key repeats after 500 ms every 50 ms until released (`audio/roller.rs`). A `WH_KEYBOARD_LL` hook was tried first: Windows didn't call it while the Settings window was in front. The held key shows no Windows flyout; the island's volume notice is the feedback. |
 
 ---
 

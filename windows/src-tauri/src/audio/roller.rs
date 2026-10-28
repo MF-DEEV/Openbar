@@ -3,10 +3,12 @@
 
 //! Use finer volume steps (PreciseVolumeRollerService.swift): the volume
 //! keys and wheels move the output 1% at a time instead of Windows' 2%, and
-//! the bursts a wheel sends are thinned the way the Mac thins them. A
-//! low-level keyboard hook owns the two volume keys while this is on; with
-//! Alt, Ctrl or Win held they are left to Windows, as the Mac leaves them to
-//! macOS with Option, Command or Control.
+//! the bursts a wheel sends are thinned the way the Mac thins them. While
+//! this is on the two keys (alone or with Shift) are held as global
+//! shortcuts, so Windows never sees them; with Alt, Ctrl or Win they are a
+//! different combination and stay Windows', as the Mac leaves them to macOS
+//! with Option, Command or Control. A low-level keyboard hook was tried
+//! first: Windows didn't call it while the Settings window was in front.
 
 use std::time::{Duration, Instant};
 
@@ -60,26 +62,6 @@ impl Gate {
     }
 }
 
-/// PreciseVolumeKeyOwnership: whether a press belongs to Windows is decided
-/// when the key goes down and holds until it comes up, so letting go of a
-/// modifier halfway doesn't hand the rest of the press over.
-#[derive(Default)]
-pub struct Ownership {
-    left_to_system: std::collections::HashMap<u32, bool>,
-}
-
-impl Ownership {
-    pub fn leaves_to_system(&mut self, key: u32, down: bool, repeat: bool, modifier: bool) -> bool {
-        if !down {
-            return self.left_to_system.remove(&key).unwrap_or(true);
-        }
-        if !repeat {
-            self.left_to_system.insert(key, modifier);
-        }
-        *self.left_to_system.get(&key).unwrap_or(&true)
-    }
-}
-
 /// One finer step from `current`, on whole percents.
 pub fn stepped(current: f32, direction: Direction) -> f32 {
     let percent = (current * 100.0).round();
@@ -90,121 +72,29 @@ pub fn stepped(current: f32, direction: Direction) -> f32 {
     next.clamp(0.0, 100.0) / 100.0
 }
 
-#[cfg(windows)]
-pub use hook::set_enabled;
+/// The keys held while this is on.
+pub fn shortcuts() -> [(tauri_plugin_global_shortcut::Shortcut, Direction); 4] {
+    use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+    [
+        (Shortcut::new(None, Code::AudioVolumeUp), Direction::Up),
+        (Shortcut::new(None, Code::AudioVolumeDown), Direction::Down),
+        (
+            Shortcut::new(Some(Modifiers::SHIFT), Code::AudioVolumeUp),
+            Direction::Up,
+        ),
+        (
+            Shortcut::new(Some(Modifiers::SHIFT), Code::AudioVolumeDown),
+            Direction::Down,
+        ),
+    ]
+}
 
-#[cfg(windows)]
-mod hook {
-    use std::cell::RefCell;
-    use std::collections::HashSet;
-    use std::sync::Mutex;
-    use std::time::Instant;
-
-    use windows::Win32::Foundation::{LPARAM, LRESULT, WPARAM};
-    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-    use windows::Win32::System::Threading::GetCurrentThreadId;
-    use windows::Win32::UI::Input::KeyboardAndMouse::{
-        GetAsyncKeyState, VK_CONTROL, VK_LWIN, VK_MENU, VK_RWIN, VK_VOLUME_DOWN, VK_VOLUME_UP,
-    };
-    use windows::Win32::UI::WindowsAndMessaging::{
-        CallNextHookEx, DispatchMessageW, GetMessageW, HC_ACTION, KBDLLHOOKSTRUCT, MSG,
-        PostThreadMessageW, SetWindowsHookExW, TranslateMessage, UnhookWindowsHookEx,
-        WH_KEYBOARD_LL, WM_KEYDOWN, WM_QUIT, WM_SYSKEYDOWN,
-    };
-
-    use super::{Direction, Gate, Ownership};
-
-    /// The hook thread's id while it runs.
-    static THREAD: Mutex<Option<u32>> = Mutex::new(None);
-
-    thread_local! {
-        static KEYS: RefCell<(Gate, Ownership, HashSet<u32>)> = RefCell::default();
-    }
-
-    /// Installs or removes the hook. Err when Windows refused it.
-    pub fn set_enabled(on: bool) -> Result<(), String> {
-        let mut thread = THREAD.lock().unwrap();
-        match (on, *thread) {
-            (true, None) => {
-                let (tx, rx) = std::sync::mpsc::channel();
-                std::thread::Builder::new()
-                    .name("vorssaint-volume-keys".into())
-                    .spawn(move || run(tx))
-                    .map_err(|e| e.to_string())?;
-                let id = rx.recv().map_err(|e| e.to_string())??;
-                *thread = Some(id);
-            }
-            (false, Some(id)) => {
-                let _ = unsafe { PostThreadMessageW(id, WM_QUIT, WPARAM(0), LPARAM(0)) };
-                *thread = None;
-            }
-            _ => {}
-        }
-        Ok(())
-    }
-
-    fn run(ready: std::sync::mpsc::Sender<Result<u32, String>>) {
-        let module = unsafe { GetModuleHandleW(None) }.ok();
-        let hook = match unsafe {
-            SetWindowsHookExW(WH_KEYBOARD_LL, Some(proc), module.map(Into::into), 0)
-        } {
-            Ok(hook) => hook,
-            Err(e) => {
-                let _ = ready.send(Err(e.message()));
-                return;
-            }
-        };
-        let _ = ready.send(Ok(unsafe { GetCurrentThreadId() }));
-        let mut msg = MSG::default();
-        while unsafe { GetMessageW(&mut msg, None, 0, 0) }.as_bool() {
-            unsafe {
-                let _ = TranslateMessage(&msg);
-                DispatchMessageW(&msg);
-            }
-        }
-        let _ = unsafe { UnhookWindowsHookEx(hook) };
-    }
-
-    fn held(key: windows::Win32::UI::Input::KeyboardAndMouse::VIRTUAL_KEY) -> bool {
-        (unsafe { GetAsyncKeyState(i32::from(key.0)) } as u16 & 0x8000) != 0
-    }
-
-    /// Answers within the hook's time limit: the level is set on the audio
-    /// thread, never here.
-    unsafe extern "system" fn proc(code: i32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
-        if code == HC_ACTION as i32 {
-            let info = unsafe { &*(lparam.0 as *const KBDLLHOOKSTRUCT) };
-            let direction = match info.vkCode {
-                k if k == u32::from(VK_VOLUME_UP.0) => Some(Direction::Up),
-                k if k == u32::from(VK_VOLUME_DOWN.0) => Some(Direction::Down),
-                _ => None,
-            };
-            if let Some(direction) = direction {
-                let down = matches!(wparam.0 as u32, WM_KEYDOWN | WM_SYSKEYDOWN);
-                let modifier = held(VK_MENU) || held(VK_CONTROL) || held(VK_LWIN) || held(VK_RWIN);
-                let owned = KEYS.with(|keys| {
-                    let (gate, ownership, pressed) = &mut *keys.borrow_mut();
-                    let repeat = if down {
-                        !pressed.insert(info.vkCode)
-                    } else {
-                        pressed.remove(&info.vkCode);
-                        false
-                    };
-                    if ownership.leaves_to_system(info.vkCode, down, repeat, modifier) {
-                        return false;
-                    }
-                    if down && gate.accepts(direction, Instant::now()) {
-                        crate::audio::roller_step(direction);
-                    }
-                    true
-                });
-                if owned {
-                    return LRESULT(1);
-                }
-            }
-        }
-        unsafe { CallNextHookEx(None, code, wparam, lparam) }
-    }
+/// Which way a held key moves the volume, if it is one of them.
+pub fn direction(shortcut: &tauri_plugin_global_shortcut::Shortcut) -> Option<Direction> {
+    shortcuts()
+        .into_iter()
+        .find(|(s, _)| s == shortcut)
+        .map(|(_, d)| d)
 }
 
 #[cfg(test)]
@@ -234,15 +124,24 @@ mod tests {
     }
 
     #[test]
-    fn a_press_with_a_modifier_stays_the_systems_until_released() {
-        let mut o = Ownership::default();
-        assert!(o.leaves_to_system(1, true, false, true));
-        assert!(o.leaves_to_system(1, true, true, false));
-        assert!(o.leaves_to_system(1, false, false, false));
-        assert!(!o.leaves_to_system(1, true, false, false));
-        assert!(!o.leaves_to_system(1, false, false, true));
-        // A release never seen going down is the system's.
-        assert!(o.leaves_to_system(2, false, false, false));
+    fn the_plain_and_shifted_keys_are_held_and_nothing_else() {
+        use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+        assert_eq!(
+            direction(&Shortcut::new(None, Code::AudioVolumeUp)),
+            Some(Direction::Up)
+        );
+        assert_eq!(
+            direction(&Shortcut::new(
+                Some(Modifiers::SHIFT),
+                Code::AudioVolumeDown
+            )),
+            Some(Direction::Down)
+        );
+        assert_eq!(
+            direction(&Shortcut::new(Some(Modifiers::ALT), Code::AudioVolumeUp)),
+            None
+        );
+        assert_eq!(direction(&Shortcut::new(None, Code::AudioVolumeMute)), None);
     }
 
     #[test]

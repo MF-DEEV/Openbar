@@ -100,7 +100,7 @@ pub struct State {
     pub priority_error: Option<String>,
     /// The last switcher press found no chosen output that is connected.
     pub switch_failed: bool,
-    /// Finer volume steps are on but the volume keys couldn't be hooked.
+    /// Finer volume steps are on but Windows refused the volume keys.
     pub roller_failed: bool,
 }
 
@@ -303,7 +303,7 @@ pub fn start(app: AppHandle, shared: Shared) {
 
 /// The Mixer options from the preferences, at launch and on every change:
 /// the headphone guard reads them on the next device change, the volume
-/// keys are hooked or let go, and the switcher's shortcut is taken or freed.
+/// keys are held or let go, and the switcher's shortcut is taken or freed.
 pub fn apply_prefs<R: Runtime>(app: &AppHandle<R>, value: &serde_json::Value) {
     let next = Options::from_prefs(value);
     let before = OPTIONS.lock().unwrap().replace(next.clone());
@@ -311,8 +311,7 @@ pub fn apply_prefs<R: Runtime>(app: &AppHandle<R>, value: &serde_json::Value) {
         return;
     }
     if before.as_ref().is_none_or(|b| b.roller != next.roller) {
-        #[cfg(windows)]
-        ROLLER_FAILED.store(roller::set_enabled(next.roller).is_err(), Ordering::SeqCst);
+        sync_roller(app, next.roller);
     }
     if before
         .as_ref()
@@ -415,10 +414,69 @@ pub fn switch_to_next_output() {
     engine::post(|e| e.switch_to_next(&options().cycle));
 }
 
-/// A finer volume key press (roller.rs), applied on the audio thread.
-#[cfg(windows)]
-pub(crate) fn roller_step(direction: roller::Direction) {
-    engine::post(move |e| e.step_output(direction));
+/// Holds the volume keys while finer steps are on, or gives them back.
+fn sync_roller<R: Runtime>(app: &AppHandle<R>, on: bool) {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let shortcuts = app.global_shortcut();
+    let mut failed = false;
+    for (key, _) in roller::shortcuts() {
+        match (on, shortcuts.is_registered(key)) {
+            (true, false) => failed |= shortcuts.register(key).is_err(),
+            (false, true) => {
+                let _ = shortcuts.unregister(key);
+            }
+            _ => {}
+        }
+    }
+    if !on {
+        ROLLER_PRESS.fetch_add(1, Ordering::SeqCst);
+    }
+    ROLLER_FAILED.store(on && failed, Ordering::SeqCst);
+}
+
+static ROLLER_GATE: Mutex<Option<roller::Gate>> = Mutex::new(None);
+/// Counts presses and releases, so a held key's repeats stop at release.
+static ROLLER_PRESS: AtomicU32 = AtomicU32::new(0);
+/// Like the keyboard's own repeat: a wait, then steady steps.
+const ROLLER_REPEAT_DELAY_MS: u64 = 500;
+const ROLLER_REPEAT_MS: u64 = 50;
+
+/// A held volume key went down or up. The shortcut is registered without
+/// repeats, so a key held down steps again here until it comes up. Returns
+/// false for any other shortcut.
+pub fn roller_key(shortcut: &tauri_plugin_global_shortcut::Shortcut, pressed: bool) -> bool {
+    let Some(direction) = roller::direction(shortcut) else {
+        return false;
+    };
+    let press = ROLLER_PRESS.fetch_add(1, Ordering::SeqCst) + 1;
+    if pressed {
+        roller_step(direction);
+        let _ = std::thread::Builder::new()
+            .name("vorssaint-volume-repeat".into())
+            .spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(ROLLER_REPEAT_DELAY_MS));
+                while ROLLER_PRESS.load(Ordering::SeqCst) == press {
+                    roller_step(direction);
+                    std::thread::sleep(std::time::Duration::from_millis(ROLLER_REPEAT_MS));
+                }
+            });
+    }
+    true
+}
+
+/// One finer step, when the wheel gate lets it through (roller.rs).
+fn roller_step(direction: roller::Direction) {
+    let accepted = ROLLER_GATE
+        .lock()
+        .unwrap()
+        .get_or_insert_with(roller::Gate::default)
+        .accepts(direction, std::time::Instant::now());
+    #[cfg(windows)]
+    if accepted {
+        engine::post(move |e| e.step_output(direction));
+    }
+    #[cfg(not(windows))]
+    let _ = accepted;
 }
 
 /// Lets go of the switcher's shortcut while a shortcut field records, so the
