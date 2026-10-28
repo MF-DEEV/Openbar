@@ -82,11 +82,11 @@ On the Mac this fork ships no builds of its own; you build it from source as abo
 
 ### Checks on pull requests
 
-Every pull request runs [PR checks](.github/workflows/pr.yml) for the parts it changes, each under fifteen minutes, and `main` only takes it once **CI ok** passes. You can run the same checks before you push:
+Every pull request runs [PR checks](.github/workflows/pr.yml) for the parts it changes, each job capped at fifteen minutes, and **CI ok** sums them up as the one check to require before merging into `main`. You can run the same checks before you push:
 
 - Mac: `./build.sh --test`
 - Windows UI, in `windows/`: `bun run typecheck`, `bun run format:check`, `bun run test`
-- Windows backend, in `windows/src-tauri/`: `cargo fmt --check`, then `cargo xwin clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings` (the clippy step needs `bun run build` in `windows/` first)
+- Windows backend, in `windows/src-tauri/`, after `bun run build` in `windows/`: `cargo fmt --check`, `cargo xwin clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings` and `cargo test`. CI pins Rust 1.99.1 (`RUST_TOOLCHAIN` in the workflow), so a newer local toolchain can report lints CI does not.
 
 The release build and its selftest are not part of CI; run `./build.sh && ./build/Vorssaint --selftest` yourself for runtime, UI or bundled resource changes.
 

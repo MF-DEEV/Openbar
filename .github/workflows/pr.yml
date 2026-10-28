@@ -2,12 +2,16 @@ name: PR checks
 
 # The checks a pull request has to pass, kept under a quarter of an hour.
 # Each part runs only when the pull request touches it, and `CI ok` is the one
-# check the main ruleset requires: it fails when any job failed or was
+# check for the main ruleset to require: it fails when any job failed or was
 # cancelled and passes when the rest succeeded or had nothing to check.
+# Pushes to main run everything, which also keeps a Rust cache that new pull
+# requests can start from.
 # This is the fork's only workflow: the release build and selftest are run by
 # hand (./build.sh && ./build/Vorssaint --selftest).
 on:
   pull_request:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -15,7 +19,7 @@ permissions:
 
 concurrency:
   group: pr-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   # Pinned so a new Rust release cannot bring new clippy lints into an
@@ -113,6 +117,8 @@ jobs:
     defaults:
       run:
         working-directory: windows
+        # bash fails a step on any command, not just the last one as pwsh does.
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -120,8 +126,8 @@ jobs:
 
       - name: Rust toolchain
         run: |
-          rustup toolchain install "$env:RUST_TOOLCHAIN" --profile minimal -c clippy,rustfmt
-          rustup override set "$env:RUST_TOOLCHAIN"
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal -c clippy,rustfmt
+          rustup default "$RUST_TOOLCHAIN"
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
@@ -151,6 +157,8 @@ jobs:
     defaults:
       run:
         working-directory: windows
+        # bash fails a step on any command, not just the last one as pwsh does.
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
@@ -158,8 +166,8 @@ jobs:
 
       - name: Rust toolchain
         run: |
-          rustup toolchain install "$env:RUST_TOOLCHAIN" --profile minimal
-          rustup override set "$env:RUST_TOOLCHAIN"
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup default "$RUST_TOOLCHAIN"
 
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:

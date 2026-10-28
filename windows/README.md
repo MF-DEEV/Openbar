@@ -130,7 +130,7 @@ For a local update of an existing Windows installation, build with `bun run taur
 
 This keeps a backup of the installed executable and preserves settings. It rejects console executables, so a local build cannot accidentally make the island depend on a terminal window. The island uses the Windows GUI subsystem in both release and debug builds; use a full Tauri build for installation so the frontend is bundled and no development server is needed.
 
-Tests run with `bun run test` and, in `src-tauri`, `cargo test`. The design notes behind the port are in [`docs/spec`](docs/spec).
+Tests run with `bun run test` and, in `src-tauri` after `bun run build`, `cargo test`; the [checks on pull requests](../README.md#checks-on-pull-requests) list everything CI runs. The design notes behind the port are in [`docs/spec`](docs/spec).
 
 On Windows with Microsoft Edge installed, browser regressions are available as `npm run test:island-layout`, `npm run test:settings-select`, `npm run test:quick-access` and `npm run test:activity-picker`. They launch an isolated headless browser with sample sessions and media, and save screenshots under the repository's ignored `build/` directory. Set `ISLAND_TEST_BROWSER` to use another Chromium executable. The activity-picker check also samples animation frames to catch duplicated strips or a vertical jump while closing.
 
