@@ -66,7 +66,7 @@ fix and preserve legitimate use, rather than pinning private implementation text
 
 The test executable compiles a selected set of sources, so passing tests does not
 prove the app builds. Build the app and run its selftest for runtime, UI or bundled
-resource changes. CI also checks the optimized build, selftest, tests and packaging.
+resource changes. CI runs the tests only; the build and selftest are yours to run.
 Builds should finish without warnings.
 
 For behavior involving windows, permissions or hardware, describe what you actually
@@ -108,7 +108,7 @@ Publication requires an explicit release decision, including beta or stable.
 Before sending a version tag, validate the final commit on `main`, confirm its
 verified signature, and match `Resources/Info.plist` and the release notes to the
 chosen version. Use a signed tag such as `vX.Y.Z-beta.N` or `vX.Y.Z`.
-Sending the tag starts [the release workflow](.github/workflows/release.yml).
+Sending the tag starts [the release workflow](https://github.com/vorssaint/vorssaint-utils/blob/main/.github/workflows/release.yml).
 
 The protected `release-signing` environment holds the signing and notarization
 credentials. The workflow builds, signs and notarizes the app and DMG, then

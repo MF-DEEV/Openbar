@@ -98,7 +98,7 @@ legacy_identity_installed() {
 # actually relies on. When no identity is installed, create the stable local one
 # up front instead of falling through to ad-hoc — setup-signing.sh is free,
 # offline and idempotent. Gating on the install rather than the variant keeps
-# this off CI, where neither ci.yml nor release.yml passes --install.
+# this off CI, which never passes --install.
 if (( DEV || INSTALL )) && [[ -z "$(developer_id_identity)" ]] \
     && ! legacy_identity_installed; then
     echo "▸ No signing identity installed; creating the stable local one…"

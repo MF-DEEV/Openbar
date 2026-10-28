@@ -88,7 +88,7 @@ Every pull request runs [PR checks](.github/workflows/pr.yml) for the parts it c
 - Windows UI, in `windows/`: `bun run typecheck`, `bun run format:check`, `bun run test`
 - Windows backend, in `windows/src-tauri/`: `cargo fmt --check`, then `cargo xwin clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings` (the clippy step needs `bun run build` in `windows/` first)
 
-The full release build with its selftest and DMG runs after a merge to `main`, and you can start it by hand on a branch from the Actions tab (**CI**, Run workflow).
+The release build and its selftest are not part of CI; run `./build.sh && ./build/Vorssaint --selftest` yourself for runtime, UI or bundled resource changes.
 
 ## License
 

@@ -4,7 +4,8 @@ name: PR checks
 # Each part runs only when the pull request touches it, and `CI ok` is the one
 # check the main ruleset requires: it fails when any job failed or was
 # cancelled and passes when the rest succeeded or had nothing to check.
-# The full release build, selftest and DMG stay in ci.yml, after the merge.
+# This is the fork's only workflow: the release build and selftest are run by
+# hand (./build.sh && ./build/Vorssaint --selftest).
 on:
   pull_request:
   workflow_dispatch:
