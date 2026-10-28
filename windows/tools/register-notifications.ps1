@@ -23,4 +23,4 @@ $manifestPath = Join-Path $PSScriptRoot '..\packaging\AppxManifest.xml'
 $manifest = (Resolve-Path -LiteralPath $manifestPath).ProviderPath
 $externalLocation = $executable.DirectoryName
 Add-AppxPackage -Path $manifest -Register -ExternalLocation $externalLocation
-Write-Output 'Notification identity registered for this build. Restart Vorssaint, open Notifications, and allow Windows notification access.'
+Write-Output 'Package identity registered for this build. Restart Vorssaint, open Notifications or Calendar, and allow access.'

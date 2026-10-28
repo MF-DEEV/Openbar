@@ -1,0 +1,292 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 Vorssaint */
+
+/* The Timer section (NotchTimerView.swift; spec 04 §4.2-4.3), tinted system orange. */
+
+:root {
+  --tm-orange: #ff9f0a;
+}
+
+.tm-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+/* MARK: Setup */
+
+.tm-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tm-ruler-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tm-ruler {
+  display: block;
+  flex: 1;
+  min-width: 0;
+  touch-action: none;
+  border-radius: 7px;
+  outline: none;
+}
+
+/* Keyboard focus: a 1 pt orange rounded rect (radius 7). */
+.tm-ruler:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--tm-orange);
+}
+
+.tm-clock {
+  flex: none;
+  color: var(--tm-orange);
+  font-weight: 200;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.tm-readouts {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(max-content, 1fr);
+  column-gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.tm-readout {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1px;
+  height: 28px;
+  padding: 0 4px;
+  border-radius: 6px;
+  text-align: left;
+  transition: background-color 0.15s;
+}
+
+.tm-readout:hover {
+  background: var(--n-wash);
+}
+
+.tm-readout-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--n-dim);
+}
+
+.tm-readout-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--tm-orange);
+  white-space: nowrap;
+}
+
+.tm-readout-value svg {
+  color: var(--n-dim);
+}
+
+/* MARK: Running */
+
+.tm-active {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.tm-round {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  color: var(--tm-orange);
+  background: rgba(255, 159, 10, 0.28);
+  transition:
+    transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1),
+    background-color 0.15s;
+}
+
+.tm-round:hover {
+  background: rgba(255, 159, 10, 0.36);
+}
+
+.tm-round:active {
+  transform: scale(0.965);
+  opacity: 0.8;
+}
+
+/* MARK: Top row */
+
+.tm-modes-slot {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.tm-modes {
+  position: relative;
+  display: flex;
+  gap: 14px;
+}
+
+.tm-mode {
+  height: 24px;
+  padding: 0 4px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.5);
+  transition:
+    color 0.15s,
+    background-color 0.15s;
+}
+
+.tm-mode:hover {
+  background: var(--n-wash);
+}
+
+.tm-mode.is-selected {
+  color: #fff;
+}
+
+/* The 2 pt orange line slides under the chosen word (spring 0.3 s, damping 0.8). */
+.tm-mode-line {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--tm-orange);
+  pointer-events: none;
+  transition:
+    transform 0.3s cubic-bezier(0.3, 1.15, 0.5, 1),
+    width 0.3s cubic-bezier(0.3, 1.15, 0.5, 1);
+}
+
+.tm-mode-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 28px;
+  min-width: 0;
+  padding: 0 4px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.tm-mode-menu:hover {
+  background: var(--n-wash);
+}
+
+.tm-start {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 14px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  color: var(--tm-orange);
+  background: rgba(255, 159, 10, 0.18);
+  transition:
+    transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1),
+    background-color 0.15s;
+}
+
+.tm-start:hover {
+  background: rgba(255, 159, 10, 0.26);
+}
+
+.tm-start:active {
+  transform: scale(0.965);
+  opacity: 0.8;
+}
+
+.tm-phase {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 6px;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.tm-phase-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--tm-orange);
+  white-space: nowrap;
+}
+
+.tm-phase-progress {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--n-dim);
+  white-space: nowrap;
+}
+
+/* MARK: Strip */
+
+.tm-strip {
+  display: flex;
+  align-items: center;
+  color: var(--tm-orange);
+}
+
+.tm-strip.is-capsule {
+  justify-content: center;
+}
+
+.tm-strip-wing {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.tm-strip-wing.is-end {
+  justify-content: flex-end;
+}
+
+.tm-strip-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.tm-strip-reading {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tm-mode-line,
+  .tm-round,
+  .tm-start,
+  .tm-mode,
+  .tm-readout {
+    transition: none;
+  }
+}

@@ -8,6 +8,10 @@
 
 import type { LayoutPreset, Silhouette } from "./geometry";
 import type { ModuleId } from "./modules";
+import type { MonitorMetric, NetworkSpeedUnit } from "../system/types";
+import { DEFAULT_HIDDEN_CONTROLS, type ControlItem } from "../controls/types";
+import type { AgentCard, AgentPeriod, AgentReadout, LimitDisplay, LimitFocus } from "../agents/types";
+import type { WatchCondition } from "../watch/types";
 
 export type QuickSide = "left" | "right" | "bottom";
 export type QuickAction =
@@ -23,6 +27,8 @@ export interface QuickButton {
 export type OpeningMode = "click" | "hoverPreview" | "hoverExpand" | "hiddenUntilHover";
 export type DisplayChoice = "primary" | "cursor" | "all";
 export type HomeDestination = ModuleId | "explore";
+export type ColorPickerFormat = "hex" | "rgb" | "hsl";
+export type ScratchpadRetention = "never" | "day" | "week" | "month";
 
 export interface IslandSettings {
   enabled: boolean;
@@ -64,7 +70,115 @@ export interface IslandSettings {
   downloadProgress: boolean;
   microphoneStatus: boolean;
   downloadFolders: string[];
+  /** Timer (spec 04 §4.5): the mode set up next and its values; a running cycle keeps its own copy. */
+  timerMode: "timer" | "pomodoro" | "stopwatch";
+  /** 1…180. */
+  timerMinutes: number;
+  timerSoundEnabled: boolean;
+  /** Hides a running countdown from the closed island; a finished timer always shows. */
+  hideTimerCountdown: boolean;
+  pomodoroFocusMinutes: number;
+  pomodoroShortBreakMinutes: number;
+  pomodoroLongBreakMinutes: number;
+  pomodoroLongBreakInterval: number;
+  pomodoroTotalSessions: number;
+  /** Seconds between System readings: 1, 2 or 5 (monitorInterval). */
+  monitorInterval: number;
+  networkSpeedUnit: NetworkSpeedUnit;
+  /** System cards switched off (the Mac's monitor* features). */
+  hiddenSystemMetrics: MonitorMetric[];
+  /** Every timed event counts down in the closed island (notchCalendarCountdown). */
+  calendarCountdown: boolean;
+  /** The event under way counts down to its end (notchCalendarTimeLeft). */
+  calendarTimeLeft: boolean;
+  calendarWeekNumbers: boolean;
+  /** Calendar ids left out; a calendar added later starts shown (notchCalendarExcluded). */
+  calendarExcluded: string[];
+  /** Events chosen to count down one by one: countdown key → end, epoch ms (notchCalendarChosenCountdowns). */
+  calendarChosenCountdowns: Record<string, number>;
+  /** The home page's order and hidden items (notchControlOrder, notchHiddenControls). */
+  controlOrder: ControlItem[];
+  hiddenControls: ControlItem[];
+  /** The brightness level instead of its setup row (brightnessControlEnabled). */
+  brightnessControlEnabled: boolean;
+  /** A running Keep Awake session takes the closed island (notchKeepAwakeActivity). */
+  keepAwakeActivity: boolean;
+  /** Minutes the Keep Awake tile runs for; 0 until turned off (defaultDurationMinutes). */
+  keepAwakeDuration: number;
+  /** The volume notice when the level changes outside the island (notchVolume). */
+  volumeNotice: boolean;
+  /** Pinned apps and the mixer's order, by exe path (mixerAppArrangement). */
+  mixerAppArrangement: { order: string[]; pinned: string[] };
+  /** Apps kept out of the mixer: exe path → name (mixerHiddenApps). */
+  mixerHiddenApps: Record<string, string>;
+  mixerHideInactiveApps: boolean;
+  /** Tools: the grid's order and hidden tools (quickLauncherItemOrder / quickLauncherHiddenItems). */
+  toolsOrder: string[];
+  toolsHidden: string[];
+  /** The colour picker copies in this format (colorPickerFormat); bare hex drops the # (colorPickerBareHex). */
+  colorPickerFormat: ColorPickerFormat;
+  colorPickerBareHex: boolean;
+  /** Quick toggles: row order (panelToggleOrder) and the rows switched off (panelToggle*). */
+  togglesOrder: string[];
+  togglesHidden: string[];
+  /** Volumes "Eject all disks" leaves alone, by label or drive (diskEjectExcludedVolumes). */
+  ejectExcluded: string[];
+  /** Scratchpad text size, 10–22 (scratchpadTextSize), and when unused text clears (scratchpadRetention). */
+  scratchpadTextSize: number;
+  scratchpadRetention: ScratchpadRetention;
+  /** Clipboard history (clipboardHistory*; spec 05 §3.2). Off until the person turns it on. */
+  clipboardHistoryEnabled: boolean;
+  /** One of CLIPBOARD_LIMITS; 0 is unlimited. */
+  clipboardHistoryLimit: number;
+  /** One of CLIPBOARD_RETENTION_DAYS; 0 keeps entries. */
+  clipboardHistoryRetentionDays: number;
+  clipboardHistoryIncludeImagesFiles: boolean;
+  clipboardFilterSensitiveText: boolean;
+  /** Exe names whose copies are never saved ("KeePass.exe"). */
+  clipboardIgnoredApps: string[];
+  /** notchClipboardCardSize. */
+  clipboardCardSize: "compact" | "comfortable";
+  /** The "Copied" notice (notchClipboard). */
+  clipboardNotice: boolean;
+  /** Files: a drag over the closed island shows where to drop (notchDragReveal). */
+  dragReveal: boolean;
+  /** Files: tiles another app accepted leave the shelf; pinned ones stay. */
+  shelfRemoveAfterDrop: boolean;
+  /** Files: the island closes once another app accepts dragged tiles. */
+  shelfCloseAfterDrop: boolean;
+  // AI Agents (spec 03 §11; the Mac's notchAgents* keys).
+  /** Read each agent's logs; at least one stays on. */
+  agentsClaude: boolean;
+  agentsCodex: boolean;
+  agentsOpenCode: boolean;
+  agentsCopilot: boolean;
+  /** The cards' order; cards it leaves out follow in their default order. */
+  agentsCardOrder: AgentCard[];
+  agentsHiddenCards: AgentCard[];
+  /** The period Spending, Trend, Models and Projects cover. */
+  agentsPeriod: AgentPeriod;
+  agentsLimitDisplay: LimitDisplay;
+  agentsLimitFocus: LimitFocus;
+  /** The closed island shows an agent at work. */
+  agentsLiveActivity: boolean;
+  agentsReadout: AgentReadout;
+  agentsFinishAlert: boolean;
+  /** Seconds: the shortest turn worth a notice. */
+  agentsFinishMinimum: number;
+  agentsLimitAlert: boolean;
+  /** Percent used that earns a warning. */
+  agentsLimitThreshold: number;
+  /** USD of API value a day; 0 is off. */
+  agentsDailyBudget: number;
+  agentsPriceUpdates: boolean;
+  /** Watch (spec 04 §6.3): a chime when a watch ends (notchWatchSound). */
+  watchSound: boolean;
+  /** The rule a watch starts with (notchWatchCondition); typed text and numbers aren't kept. */
+  watchCondition: WatchCondition;
 }
+
+export const CLIPBOARD_LIMITS = [20, 50, 100, 250, 500, 1000, 10000, 0];
+export const CLIPBOARD_RETENTION_DAYS = [1, 7, 30, 90, 365, 0];
 
 export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
   { id: "00000000-0000-4000-8000-000000000001", action: { kind: "explore" }, side: "left" },
@@ -110,6 +224,71 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   downloadProgress: true,
   microphoneStatus: true,
   downloadFolders: [],
+  timerMode: "timer",
+  timerMinutes: 15,
+  timerSoundEnabled: true,
+  hideTimerCountdown: false,
+  pomodoroFocusMinutes: 25,
+  pomodoroShortBreakMinutes: 5,
+  pomodoroLongBreakMinutes: 15,
+  pomodoroLongBreakInterval: 4,
+  pomodoroTotalSessions: 4,
+  monitorInterval: 2,
+  networkSpeedUnit: "bytes",
+  hiddenSystemMetrics: [],
+  calendarCountdown: false,
+  calendarTimeLeft: false,
+  calendarWeekNumbers: false,
+  calendarExcluded: [],
+  calendarChosenCountdowns: {},
+  controlOrder: [],
+  hiddenControls: DEFAULT_HIDDEN_CONTROLS,
+  brightnessControlEnabled: false,
+  keepAwakeActivity: false,
+  keepAwakeDuration: 0,
+  volumeNotice: true,
+  mixerAppArrangement: { order: [], pinned: [] },
+  mixerHiddenApps: {},
+  mixerHideInactiveApps: false,
+  toolsOrder: [],
+  toolsHidden: [],
+  colorPickerFormat: "hex",
+  colorPickerBareHex: false,
+  togglesOrder: [],
+  togglesHidden: [],
+  ejectExcluded: [],
+  scratchpadTextSize: 13,
+  scratchpadRetention: "never",
+  clipboardHistoryEnabled: false,
+  clipboardHistoryLimit: 50,
+  clipboardHistoryRetentionDays: 0,
+  clipboardHistoryIncludeImagesFiles: true,
+  clipboardFilterSensitiveText: false,
+  clipboardIgnoredApps: [],
+  clipboardCardSize: "comfortable",
+  clipboardNotice: true,
+  dragReveal: true,
+  shelfRemoveAfterDrop: true,
+  shelfCloseAfterDrop: false,
+  agentsClaude: true,
+  agentsCodex: true,
+  agentsOpenCode: true,
+  agentsCopilot: true,
+  agentsCardOrder: [],
+  agentsHiddenCards: [],
+  agentsPeriod: "today",
+  agentsLimitDisplay: "remaining",
+  agentsLimitFocus: "mostUsed",
+  agentsLiveActivity: true,
+  agentsReadout: "elapsed",
+  agentsFinishAlert: true,
+  agentsFinishMinimum: 60,
+  agentsLimitAlert: true,
+  agentsLimitThreshold: 80,
+  agentsDailyBudget: 0,
+  agentsPriceUpdates: true,
+  watchSound: true,
+  watchCondition: "changes",
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

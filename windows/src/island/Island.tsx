@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { bridge, inTauri } from "../shared/bridge";
 import { arrivalTime, type Size } from "./motion";
 import { MODULES } from "./modules";
+import { closeTopLayer } from "./pageLayer";
 import {
   type ContentTransition,
   geometryOf,
@@ -26,6 +27,7 @@ import { QuickAccess } from "./views/QuickAccess";
 import { ActivityPicker } from "./views/ActivityPicker";
 import { useSessions } from "../sessions/store";
 import { presentedSnapshot } from "../sessions/presentation";
+import { DropHint } from "../files/DropHint";
 
 function useWindowScreen() {
   const setScreen = useIsland((s) => s.setScreen);
@@ -48,7 +50,7 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
       const toggle = bridge.onToggle(() => useIsland.getState().toggle());
       const outside = bridge.onOutsideClick(() => {
         const s = useIsland.getState();
-        if (s.expanded && !s.pinned) s.collapse();
+        if (s.expanded && !s.pinned && !s.held) s.collapse();
         else if (s.activityPickerOpen) s.dismissActivityPicker();
       });
       return () => {
@@ -62,7 +64,7 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
     if (!el) return;
     const onDown = (e: MouseEvent) => {
       const s = useIsland.getState();
-      if (s.expanded && !s.pinned && !(e.target as Element).closest(".island-frame, .n-quick")) s.collapse();
+      if (s.expanded && !s.pinned && !(e.target as Element).closest(".island-frame, .n-quick, .u-menu")) s.collapse();
       else if (s.activityPickerOpen && !(e.target as Element).closest(".island-frame")) s.dismissActivityPicker();
     };
     el.addEventListener("mouseenter", pointerEnter);
@@ -90,7 +92,7 @@ function useKeyboard() {
       }
       if (e.key === "Escape" && !e.isComposing) {
         e.preventDefault();
-        s.stepBack();
+        if (!closeTopLayer()) s.stepBack();
         return;
       }
       if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === "k") {
@@ -203,6 +205,9 @@ export function Island() {
       break;
     case "peek":
       content = <Peek geometry={geometry} size={shown.size} />;
+      break;
+    case "dropHint":
+      content = <DropHint geometry={geometry} size={shown.size} />;
       break;
     case "activity":
       content = <ActivityPicker geometry={geometry} size={shown.size} visible={false} />;

@@ -126,8 +126,17 @@ struct NotchLayoutEditor: View {
             }
             .frame(height: Self.canvasHeight)
             .animation(reduceMotion ? nil : .smooth(duration: 0.2), value: layout)
-            Text(editor.layoutHint).font(.callout).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                Text(editor.layoutHint).font(.callout).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                // The first five buttons, their actions and their places.
+                Button(editor.restoreButtons) {
+                    editingID = nil; addingSide = nil
+                    configuration = .initial
+                }
+                .disabled(layout.isInitial)
+                .accessibilityIdentifier("notch.layout.restoreButtons")
+            }
         }
     }
 
@@ -145,11 +154,13 @@ struct NotchLayoutEditor: View {
     /// row when nothing floats for it.
     private var previewGeometry: NotchGeometry {
         let floats = notch.geometry.floats
+        let isNotched = notch.geometry.isNotched
         let geometry = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1920, height: 1080),
-                                     safeAreaTop: floats ? 0 : 32,
-                                     cameraWidth: floats ? 0 : 210, layout: layout,
+                                     safeAreaTop: isNotched ? 32 : 0,
+                                     cameraWidth: isNotched ? 210 : 0, layout: layout,
                                      menuBarHeight: floats ? notch.geometry.menuBarHeight : 24,
-                                     customWidth: width, customHeight: height, silhouette: floats ? .capsule : .notch)
+                                     customWidth: width, customHeight: height, silhouette: floats ? .capsule : .notch,
+                                     capsuleFit: NotchCapsuleFit.current(), shapeFit: NotchShapeFit.current())
         return geometry.page(.controls, controls: NotchSupport.controls(),
                              sectionsButton: !configuration.actions.contains(.explore))
     }
@@ -267,7 +278,7 @@ struct NotchLayoutEditor: View {
         let items = NotchSupport.controls()
         let levels = items.filter(\.isLevel)
         let shortcuts = items.filter { !$0.isLevel && $0 != .music }
-        let contentWidth = max(0, actualWidth - NotchLayout.horizontalInset * 2)
+        let contentWidth = max(0, actualWidth - previewGeometry.horizontalInset * 2)
         let contentHeight = max(0, actualHeight - previewGeometry.headerTopInset - previewGeometry.headerChromeHeight)
         let band = NotchBand(geometry: previewGeometry, contentWidth: contentWidth)
         let inBand = NotchLayout.bandLevelCount(levels.count, band: band)
@@ -315,7 +326,7 @@ struct NotchLayoutEditor: View {
                 .frame(width: contentWidth, height: contentHeight, alignment: .top)
                 .clipped()
             }
-            .padding(.horizontal, NotchLayout.horizontalInset)
+            .padding(.horizontal, previewGeometry.horizontalInset)
             .padding(.top, previewGeometry.headerTopInset)
             .padding(.bottom, NotchLayout.bottomInset)
             .frame(width: actualWidth, height: actualHeight, alignment: .top)

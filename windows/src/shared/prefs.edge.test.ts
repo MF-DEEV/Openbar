@@ -13,6 +13,20 @@ import { mergePatch, resolve, type StoredPrefs } from "./prefs";
 const stored = (island: Record<string, unknown>) => ({ island }) as unknown as StoredPrefs;
 
 describe("stored preferences of the wrong shape", () => {
+  it("keep only calendar ids and finite chosen-countdown ends", () => {
+    const p = resolve(
+      stored({
+        calendarExcluded: ["a", 3, null, "b"],
+        calendarChosenCountdowns: { ok: 5, nan: Number.NaN, inf: Infinity, text: "7", none: null },
+      }),
+    );
+    expect(p.island.calendarExcluded).toEqual(["a", "b"]);
+    expect(p.island.calendarChosenCountdowns).toEqual({ ok: 5 });
+    const wrong = resolve(stored({ calendarExcluded: "a", calendarChosenCountdowns: [1, 2] }));
+    expect(wrong.island.calendarExcluded).toEqual([]);
+    expect(wrong.island.calendarChosenCountdowns).toEqual({});
+  });
+
   it("read a non-list hiddenModules or moduleOrder as the default", () => {
     const p = resolve(stored({ hiddenModules: 5, moduleOrder: null }));
     expect(p.island.hiddenModules).toEqual(DEFAULT_SETTINGS.hiddenModules);

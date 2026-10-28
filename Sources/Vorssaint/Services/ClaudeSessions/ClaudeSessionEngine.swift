@@ -36,6 +36,8 @@ final class ClaudeSessionEngine {
         /// Subagents reported done before anything else was known of them;
         /// the end applies once they are.
         var endedAgents: [String: Date] = [:]
+        /// When each subagent was last seen working, by its transcript.
+        var agentSeen: [String: Date] = [:]
         /// Commands and subagents left running in the background, by the call
         /// that started them.
         var background: [String: Background] = [:]
@@ -60,6 +62,21 @@ final class ClaudeSessionEngine {
 
         var openTool: ClaudeToolUse? { tools.last { $0.isRunning } }
         var runningBackground: [Background] { background.values.filter { $0.ended == nil }.sorted { $0.started < $1.started } }
+        var runningSubagents: [ClaudeSubagent] { subagents.values.filter(\.isRunning).sorted { $0.started < $1.started } }
+
+        /// The session came to rest: the subagents last seen working before
+        /// then ended, and the background jobs they were; one seen working
+        /// later works again. Idle, with not even a command of its own
+        /// running, every job begun before then ended too.
+        mutating func rest(at date: Date, idle: Bool) {
+            for (id, agent) in subagents where agent.isRunning && max(agent.started, agentSeen[id] ?? agent.started) <= date {
+                subagents[id]?.finished = date
+            }
+            for (key, job) in background where job.ended == nil && job.started <= date
+                && (idle || job.task.map { subagents[$0]?.isRunning == false } == true) {
+                background[key]?.ended = date
+            }
+        }
     }
 
     struct Background {
@@ -76,7 +93,9 @@ final class ClaudeSessionEngine {
 
     private var records: [String: ClaudeSessionRecord] = [:]
     private var activity: [String: Activity] = [:]
-    private var phases: [String: (phase: ClaudeSessionPhase, since: Date)] = [:]
+    /// Each session's phase, since when, and since when it has worked or
+    /// waited without a break.
+    private var phases: [String: (phase: ClaudeSessionPhase, since: Date, worked: Date)] = [:]
 
     init(policy: ClaudeContentPolicy = ClaudeContentPolicy()) {
         self.policy = policy
@@ -113,6 +132,12 @@ final class ClaudeSessionEngine {
                 }
                 activity[id] = entry
             }
+            // Claude Code reads busy while any subagent works, in the turn or
+            // in the background, so at rest none does, even one whose end
+            // was never read.
+            if record.status == .idle || record.status == .shell, let changed = record.statusUpdated {
+                activity[id]?.rest(at: changed, idle: record.status == .idle)
+            }
             // And it went to work before its prompt was read.
             if record.status == .busy, let changed = record.statusUpdated {
                 var entry = activity[id] ?? Activity(firstSeen: now)
@@ -135,6 +160,10 @@ final class ClaudeSessionEngine {
         guard !facts.isEmpty else { return }
         var entry = activity[id] ?? Activity(firstSeen: now)
         for fact in facts { apply(fact, to: &entry) }
+        // Subagents first read after the registry came to rest ended by then.
+        if let record = records[id], record.status == .idle || record.status == .shell, let changed = record.statusUpdated {
+            entry.rest(at: changed, idle: record.status == .idle)
+        }
         activity[id] = entry
     }
 
@@ -198,7 +227,9 @@ final class ClaudeSessionEngine {
             let phase = Self.phase(record: record, activity: entry, now: now)
             let previous = phases[id]
             let since = previous?.phase == phase ? previous?.since ?? now : now
-            phases[id] = (phase, since)
+            let busy = { (phase: ClaudeSessionPhase) in phase.isActive || phase.isWaiting }
+            let worked = busy(phase) ? previous.flatMap { busy($0.phase) ? $0.worked : nil } ?? since : since
+            phases[id] = (phase, since, worked)
             if let previous, previous.phase != phase {
                 switch phase {
                 case .waitingPermission:
@@ -207,8 +238,10 @@ final class ClaudeSessionEngine {
                     events.append(.needsInput(id: id))
                 // Only a turn that ended after the work was seen begin is news;
                 // going back to a result already shown, as after a recap, is not.
-                case .finished where (previous.phase.isActive || previous.phase.isWaiting)
-                    && (entry.turnEnded ?? .distantPast) >= previous.since:
+                // A turn that ended while its work went on in the background
+                // is told once that work ends.
+                case .finished where busy(previous.phase)
+                    && (entry.turnEnded ?? .distantPast) >= (previous.phase == .background ? previous.worked : previous.since):
                     let duration = entry.turnStarted.flatMap { start in entry.turnEnded.map { $0.timeIntervalSince(start) } }
                     events.append(.finished(id: id, duration: duration))
                 default: break
@@ -245,10 +278,14 @@ final class ClaudeSessionEngine {
         // it waits for runs; a dev server or an emulator left running is not
         // work, and when nothing was seen start, it counts as work. While a
         // subagent it sent to the background works, it says "busy" though
-        // the turn ended.
+        // the turn ended; a subagent's own subagents are sent off in its
+        // transcript, so the ones listed as working count too.
         let running = entry.runningBackground
         if record.status == .shell, running.isEmpty || running.contains(where: { !$0.service }) { return .background }
-        if record.status == .busy, running.contains(where: { !$0.service && $0.task != nil }) { return .background }
+        if record.status == .busy,
+           running.contains(where: { !$0.service && $0.task != nil }) || !entry.runningSubagents.isEmpty {
+            return .background
+        }
         if let ended = entry.turnEnded, entry.completed, now.timeIntervalSince(ended) < finishedFor,
            (entry.acknowledged ?? .distantPast) < ended {
             return .finished
@@ -290,7 +327,8 @@ final class ClaudeSessionEngine {
             tokens: tokens, cost: cost,
             title: previews ? entry.title : nil, lastText: previews ? entry.lastText : nil,
             hooked: entry.hooked, chat: previews ? entry.chat : [],
-            backgroundLabel: previews ? entry.runningBackground.last { !$0.service }?.label : nil,
+            backgroundLabel: previews
+                ? entry.runningBackground.last { !$0.service }?.label ?? entry.runningSubagents.last?.description : nil,
             services: record.status == .shell || phase == .background ? entry.runningBackground.filter(\.service).count : 0)
     }
 
@@ -306,8 +344,8 @@ final class ClaudeSessionEngine {
             if policy.previews { entry.lastText = text }
             say(text, as: .assistant, at: date, endsTurn: endsTurn, in: &entry)
             touch(date, in: &entry)
-        case .prompt(let text, let date):
-            say(text, as: .user, at: date, in: &entry)
+        case .prompt(let text, let date, let images):
+            say(text, as: .user, at: date, images: images, in: &entry)
         case .title(let title): if policy.previews { entry.title = title }
         case .branch(let branch): entry.branch = branch
         case .model(let model): entry.model = model
@@ -315,6 +353,7 @@ final class ClaudeSessionEngine {
             let known = entry.usage[key]
             entry.usage[key] = (known?.tokens.merged(with: tokens) ?? tokens, max(known?.cost ?? 0, cost))
         case .subagentActivity(let id, let date):
+            entry.agentSeen[id] = max(entry.agentSeen[id] ?? date, date)
             if entry.subagents[id] == nil {
                 entry.subagents[id] = ClaudeSubagent(id: id, type: ClaudeSubagent.untyped, started: date)
                 if let ended = entry.endedAgents[id], ended >= date { entry.subagents[id]?.finished = ended }
@@ -369,15 +408,20 @@ final class ClaudeSessionEngine {
     static let chatLength = 150
 
     private func say(_ text: String, as role: ClaudeChatMessage.Role, at date: Date, endsTurn: Bool = false,
-                     in entry: inout Activity) {
+                     images: [ClaudeChatImage] = [], in entry: inout Activity) {
         guard policy.previews else { return }
-        if let last = entry.chat.last, last.role == role, last.text == text {
+        // The same words twice are one message read twice; the same images
+        // sent again later are a new prompt.
+        if let last = entry.chat.last, last.role == role, last.text == text, last.images == images,
+           images.isEmpty || last.at == date {
             if endsTurn { entry.chat[entry.chat.count - 1].endsTurn = true }
             return
         }
         entry.said += 1
-        entry.chat.append(ClaudeChatMessage(id: entry.said, role: role, text: text, at: date, endsTurn: endsTurn))
+        entry.chat.append(ClaudeChatMessage(id: entry.said, role: role, text: text, at: date, endsTurn: endsTurn,
+                                            images: images))
         if entry.chat.count > Self.chatLength { entry.chat.removeFirst(entry.chat.count - Self.chatLength) }
+        if !images.isEmpty { ClaudeChatImage.trim(&entry.chat, images: \.images) }
     }
 
     private func apply(_ event: ClaudeHookFact.Event, date: Date, to entry: inout Activity) {
@@ -429,9 +473,12 @@ final class ClaudeSessionEngine {
             permission.toolID = permission.toolID ?? ""
             apply(.permissionRequested(permission), date: date, to: &entry)
         default:
-            if entry.subagents[agent] == nil {
-                entry.subagents[agent] = ClaudeSubagent(id: agent, type: ClaudeSubagent.untyped, started: date)
-            }
+            // Claude Code's own forks, like the one that saves memories, run
+            // tools under an agent id of their own but never start or stop
+            // as subagents and keep no transcript: only a subagent the start
+            // hook or a transcript told of is listed. A hook is dated when it
+            // arrived, not by Claude Code's clock, so it does not say when a
+            // subagent last worked.
             entry.lastFact = max(entry.lastFact ?? date, date)
         }
     }

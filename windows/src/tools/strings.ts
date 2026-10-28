@@ -1,0 +1,76 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+// English copy for the Tools section, from the Mac (Localization.swift,
+// QuickToggleStrings.swift, ScreenshotStrings.swift), with Windows' own
+// names where the Mac names a Mac thing (Recycle Bin, not Trash).
+
+export const S = {
+  customize: "Customize tools",
+  done: "Done",
+  editHint: "Use the tune button to choose, hide and drag the tools around.",
+  addSection: "Add back",
+  empty: "All tools are hidden. Use the tune button to add them back.",
+  hideItem: "Hide from panel",
+  showItem: (title: string) => `Add ${title}`,
+  options: "Options",
+  close: "Close",
+  back: "Back",
+
+  keepAwake: "Keep awake",
+  toggles: "Quick toggles",
+  micMute: "Mute microphone",
+  micUnmute: "Unmute microphone",
+  screenOCR: "Copy text from screen",
+  colorPicker: "Color picker",
+  clipboard: "Clipboard",
+  screenshot: "Screenshot",
+  scratchpad: "Scratchpad",
+
+  colorFormat: "Copied format",
+  bareHex: "Copy without the # prefix",
+
+  // Notices
+  screenshotCopied: "Screenshot copied",
+  savedTo: (folder: string) => `Saved to ${folder}`,
+  savedAndCopied: (folder: string) => `Saved to ${folder} and copied`,
+  captureFailed: "The screen could not be captured",
+  textCopied: "Text copied",
+  noText: "No text found",
+  noLanguage: "No text recognition language",
+  noLanguageDetail: "Add a language with OCR in Settings › Time & language",
+  colorCopied: "Color copied",
+
+  // Quick toggles
+  darkMode: "Dark mode",
+  hiddenFiles: "Hidden files",
+  desktopIcons: "Desktop icons",
+  darkModeToDark: "Switch to dark mode",
+  darkModeToLight: "Switch to light mode",
+  darkModeCaption: "Changes the appearance of the whole system.",
+  micMuteCaption: "Cuts the microphone with a click, across every app.",
+  emptyTrashTitle: "Empty the Recycle Bin",
+  emptyTrashCaption: "Removes everything from the Recycle Bin.",
+  emptyTrashConfirmTitle: "Empty the Recycle Bin?",
+  emptyTrashConfirmMessage: "All items in the Recycle Bin will be removed. This cannot be undone.",
+  emptyTrashConfirmButton: "Empty the Recycle Bin",
+  cancel: "Cancel",
+  ejectTitle: "Eject all disks",
+  ejectCaption: "Safely ejects every external disk.",
+  ejecting: "Ejecting…",
+  ejectFailed: "Could not eject",
+  noExternalDisk: "No external disk ready to eject.",
+  hiddenFilesShow: "Show hidden files",
+  hiddenFilesHide: "Hide hidden files",
+  desktopIconsShow: "Show desktop icons",
+  desktopIconsHide: "Hide desktop icons",
+  explorerCaption: "Open File Explorer windows refresh to apply it.",
+  desktopCaption: "The desktop updates right away.",
+  lockScreenTitle: "Lock the screen",
+  lockScreenCaption: "Asks for your PIN or password to come back.",
+  displayOffTitle: "Turn off the display",
+  displayOffCaption: "The PC keeps running with the display off.",
+  screenSaverTitle: "Start the screen saver",
+  screenSaverCaption: "Starts right away, on every display.",
+  actionFailed: "Could not complete.",
+} as const;

@@ -821,6 +821,12 @@ enum DefaultsKey {
     // Fits the island to one Mac's camera housing; never backed up.
     static let notchCameraFitWidth = "notchCameraFitWidth"
     static let notchCameraFitHeight = "notchCameraFitHeight"
+    static let notchSimulatedWidth = "notchSimulatedWidth"
+    static let notchSimulatedHeight = "notchSimulatedHeight"
+    static let notchShapeRoundness = "notchShapeRoundness"
+    static let notchShoulderWidth = "notchShoulderWidth"
+    static let notchShoulderHeight = "notchShoulderHeight"
+
     static let notchHapticFeedback = "notchHapticFeedback"
     static let notchTranslucentBackground = "notchTranslucentBackground"
     static let notchShelf = "notchShelf"
@@ -854,7 +860,11 @@ enum DefaultsKey {
     static let notchLiveEqualizer = "notchLiveEqualizer"
     static let notchQueueEnabled = "notchQueueEnabled"
     static let notchDownloadsEnabled = "notchDownloadsEnabled"
+    /// The one folder earlier versions watched; read once to migrate it.
     static let notchDownloadsFolderBookmark = "notchDownloadsFolderBookmark"
+    /// Folders added in Settings, as security-scoped bookmarks. The Mac's
+    /// Downloads and the browsers' own folders are found, never stored.
+    static let notchDownloadsFolderBookmarks = "notchDownloadsFolderBookmarks"
     // Watch: any part of any window read live in the island.
     static let notchWatchEnabled = "notchWatchEnabled"
     static let notchWatchSound = "notchWatchSound"
@@ -940,6 +950,7 @@ enum DefaultsKey {
     static let notchVolume = "notchVolume"
     static let notchInputSource = "notchInputSource"
     static let notchMicrophone = "notchMicrophone"
+    static let notchVoiceChat = "notchVoiceChat" // Discord mute and deafen in the closed island
     static let notchBrightness = "notchBrightness"
     static let notchBattery = "notchBattery"
     static let notchClipboard = "notchClipboard"
@@ -1444,6 +1455,12 @@ enum Defaults {
         DefaultsKey.notchCustomHeight: NotchSize.defaultHeight,
         DefaultsKey.notchCameraFitWidth: 0.0,
         DefaultsKey.notchCameraFitHeight: 0.0,
+        DefaultsKey.notchSimulatedWidth: 0.0,
+        DefaultsKey.notchSimulatedHeight: 0.0,
+        DefaultsKey.notchShapeRoundness: 100.0,
+        DefaultsKey.notchShoulderWidth: 100.0,
+        DefaultsKey.notchShoulderHeight: 100.0,
+
         DefaultsKey.notchHapticFeedback: true,
         DefaultsKey.notchTranslucentBackground: false,
         DefaultsKey.notchShelf: true,
@@ -1540,6 +1557,7 @@ enum Defaults {
         DefaultsKey.notchVolume: true,
         DefaultsKey.notchInputSource: true,
         DefaultsKey.notchMicrophone: true,
+        DefaultsKey.notchVoiceChat: true,
         DefaultsKey.notchBrightness: true,
         DefaultsKey.notchBattery: true,
         DefaultsKey.notchClipboard: true,
@@ -2007,6 +2025,7 @@ enum Defaults {
         migrateSwitcherPreviewSize(in: defaults)
         migrateSwitcherPreviewExcludedApps(in: defaults)
         migrateNotchWatchAvailability(in: defaults)
+        migrateNotchDownloadsFolders(in: defaults)
         defaults.register(defaults: registeredDefaults)
         defaults.register(defaults: AppFeature.availabilityDefaults)
         activateBetaChannelIfRunningBeta(in: defaults)
@@ -2263,6 +2282,16 @@ enum Defaults {
               defaults.object(forKey: AppFeature.notch.availabilityKey) as? Bool == false
         else { return }
         defaults.set(false, forKey: AppFeature.notchWatch.availabilityKey)
+    }
+
+    /// Downloads watched one chosen folder; it now watches several. The old
+    /// choice becomes the first added folder, so an update keeps it.
+    static func migrateNotchDownloadsFolders(in defaults: UserDefaults) {
+        guard let legacy = defaults.data(forKey: DefaultsKey.notchDownloadsFolderBookmark) else { return }
+        var saved = defaults.array(forKey: DefaultsKey.notchDownloadsFolderBookmarks) as? [Data] ?? []
+        if !saved.contains(legacy) { saved.insert(legacy, at: 0) }
+        defaults.set(saved, forKey: DefaultsKey.notchDownloadsFolderBookmarks)
+        defaults.removeObject(forKey: DefaultsKey.notchDownloadsFolderBookmark)
     }
 
     /// Linear scrolling reached development builds installed, before new

@@ -10,12 +10,36 @@ import Foundation
 enum CodexSessionTests {
     static func run(_ suite: TestSuite) {
         suite.run("codex sessions state") { state(suite) }
+        suite.run("codex conversation parity") { CodexConversationTests.run(suite) }
+        suite.run("codex conversation review") { CodexConversationReviewTests.run(suite) }
+        suite.run("codex conversation images") { CodexConversationTests.images(suite) }
+        suite.run("codex reply input") { replyInput(suite) }
         suite.run("codex sessions requests") { requests(suite) }
         suite.run("codex sessions commands") { commands(suite) }
         suite.run("codex sessions websocket") { websocket(suite) }
         suite.run("codex sessions home") { home(suite) }
         suite.run("codex sessions client") { client(suite) }
         suite.run("codex sessions review findings") { findings(suite) }
+    }
+
+    // MARK: Reply input
+
+    static func replyInput(_ suite: TestSuite) {
+        let shot = URL(fileURLWithPath: "/tmp/vorssaint-images/shot.png")
+        suite.expect(json(CodexSessionClient.input(text: "Look at this", images: [shot]))
+                         == #"[{"text":"Look at this","text_elements":[],"type":"text"},{"path":"\/tmp\/vorssaint-images\/shot.png","type":"localImage"}]"#,
+                     "a reply gives its text, then each image as the file Codex reads it from")
+        suite.expect(json(CodexSessionClient.input(text: " \n", images: [shot]))
+                         == #"[{"path":"\/tmp\/vorssaint-images\/shot.png","type":"localImage"}]"#,
+                     "images alone go without an empty text")
+        suite.expect(json(CodexSessionClient.input(text: "hi", images: []))
+                         == #"[{"text":"hi","text_elements":[],"type":"text"}]"#, "text alone is as before")
+        suite.expect(CodexSessionClient.input(text: "  ", images: []) == nil, "a reply of nothing is refused")
+        let many = (0..<8).map { URL(fileURLWithPath: "/tmp/\($0).png") }
+        suite.expect(CodexSessionClient.input(text: "", images: many)?.count == ClaudeImageAttachments.limit,
+                     "a reply carries at most five images")
+        suite.expect(CodexSessionClient.input(text: "", images: [URL(string: "https://example.com/a.png")!]) == nil,
+                     "an address that is no file is never sent")
     }
 
     // MARK: Review findings
@@ -890,6 +914,62 @@ enum CodexSessionTests {
         suite.expect(shown.last?.phase == .idle && shown.last?.project == "api", "the idle one rests")
         suite.expect(changes.count > 0, "the island hears that sessions changed")
 
+        // Preview changes travel over the real socket and populate the same
+        // snapshot the island consumes, without reconnecting the session.
+        let historyReads = (0..<3).compactMap { _ in expectCall("thread/read", "enabling previews reloads history") }
+        suite.expect(
+            Set(historyReads.compactMap { params($0)["threadId"] as? String }) == ["t1", "t2", "t3"]
+                && historyReads.allSatisfy { params($0)["includeTurns"] as? Bool == true },
+            "history is requested for every known thread only after opt-in")
+        let history: [[String: Any]] = [
+            [
+                "startedAt": 100,
+                "items": [
+                    ["type": "userMessage", "id": "u1", "content": [["type": "text", "text": "Hello"]]],
+                    ["type": "agentMessage", "id": "a1", "text": "Answer", "phase": "final_answer"],
+                ],
+            ]
+        ]
+        for read in historyReads {
+            let id = params(read)["threadId"] as? String ?? ""
+            if id == "t1" {
+                var thread = t1
+                thread["turns"] = history
+                daemon.send(["id": read["id"] ?? 0, "result": ["thread": thread]])
+            }
+        }
+        suite.expect(
+            eventually {
+                client.snapshot(now: Date(), previews: true).sessions.first?.chat.map(\.text) == ["Hello", "Answer"]
+            },
+            "daemon history reaches the island's conversation")
+        daemon.send([
+            "method": "item/completed",
+            "params": [
+                "threadId": "t1",
+                "item": [
+                    "type": "agentMessage", "id": "a2", "text": "New answer", "phase": "final_answer",
+                ],
+            ],
+        ])
+        suite.expect(
+            eventually { client.snapshot(now: Date(), previews: true).sessions.first?.lastText == "New answer" },
+            "a live Codex reply updates the compact preview")
+        let hidden = client.snapshot(now: Date(), previews: false).sessions.first
+        suite.expect(
+            hidden?.chat.isEmpty == true && hidden?.lastText == nil, "disabling previews clears the conversation")
+        // A response already on its way must not restore content after opt-out.
+        if let read = historyReads.first(where: { params($0)["threadId"] as? String == "t2" }) {
+            daemon.send([
+                "id": read["id"] ?? 0,
+                "result": [
+                    "thread": [
+                        "id": "t2", "turns": history,
+                    ]
+                ],
+            ])
+        }
+
         // An approval, answered from the island.
         daemon.send(["id": 7, "method": "item/commandExecution/requestApproval",
                      "params": ["threadId": "t1", "command": "/bin/zsh -lc 'rm -rf build'", "cwd": "/Users/me/code/app"]])
@@ -954,6 +1034,12 @@ enum CodexSessionTests {
         suite.expect(params(turn)["threadId"] as? String == "t2" && params(turn)["clientUserMessageId"] == nil,
                      "the new turn is for that thread")
         suite.expect(!client.reply("nope", text: "x"), "an unknown thread takes no reply")
+        suite.expect(!client.reply("t2", text: " ", images: []), "a reply of nothing is refused")
+        suite.expect(client.reply("t2", text: "", images: [URL(fileURLWithPath: "/tmp/shot.png")]),
+                     "an idle thread takes images alone")
+        let pictured = expectCall("turn/start", "a reply of images starts a turn")
+        suite.expect(json(params(pictured)["input"]) == #"[{"path":"\/tmp\/shot.png","type":"localImage"}]"#,
+                     "with each image as a local file: \(json(params(pictured)["input"]))")
 
         // A page open keeps its thread joined.
         client.focus(["t2"])

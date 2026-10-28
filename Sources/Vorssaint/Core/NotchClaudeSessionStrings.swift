@@ -17,6 +17,12 @@ struct NotchClaudeSessionStrings {
     let idle: String
     let allow: String
     let alwaysAllow: String
+    /// Always while it allows every request of a Codex turn.
+    let alwaysOn: String
+    let alwaysOnHelp: String
+    let alwaysOffHelp: String
+    let cancelAlways: String
+    let cancelAlwaysHelp: String
     let deny: String
     let answerInTerminal: String
     let question: String
@@ -45,6 +51,8 @@ struct NotchClaudeSessionStrings {
     let sendShortcut: String
     let pasteImages: String
     let removeImage: String
+    let imageFormat: String
+    let imageUnavailable: String
     let send: String
     let replyPlaceholder: String
     let replyPlaceholderCodex: String
@@ -75,6 +83,8 @@ struct NotchClaudeSessionStrings {
     let removeHooks: String
     let hooksFailedFormat: String
     let shortcutsHint: String
+    /// The same, on a card that offers Always.
+    let shortcutsHintAlways: String
     let sendFailed: String
     let sendWhileWaiting: String
     let bridgeTitle: String
@@ -141,6 +151,7 @@ struct NotchClaudeSessionStrings {
     func finishedAfter(_ duration: String) -> String { String(format: finishedAfterFormat, duration) }
     func hooksFailed(_ reason: String) -> String { String(format: hooksFailedFormat, reason) }
     func dressUp(_ name: String) -> String { String(format: dressUpFormat, name) }
+    func image(_ number: Int) -> String { String(format: imageFormat, number) }
 
     func name(_ shell: ClawdShell) -> String { shells[shell] ?? shell.rawValue }
     func name(_ hat: ClawdHat) -> String { hat == .none ? nothing : hats[hat] ?? hat.rawValue }
@@ -173,6 +184,11 @@ extension NotchClaudeSessionStrings {
         idle: "Idle",
         allow: "Allow",
         alwaysAllow: "Always",
+        alwaysOn: "Always: ON",
+        alwaysOnHelp: "⌘T. Allows every request of this Codex task as it comes. Turns off when the task ends.",
+        alwaysOffHelp: "Allowing every request of this Codex task. Click to turn it off.",
+        cancelAlways: "Cancel",
+        cancelAlwaysHelp: "Stop allowing this task’s requests by itself.",
         deny: "Deny",
         answerInTerminal: "Answer this one in the terminal.",
         question: "Claude asks",
@@ -201,6 +217,8 @@ extension NotchClaudeSessionStrings {
         sendShortcut: "⌘↩ sends",
         pasteImages: "⌘V or drop to add images",
         removeImage: "Remove image",
+        imageFormat: "Image %d",
+        imageUnavailable: "Image unavailable",
         send: "Send",
         replyPlaceholder: "Reply to Claude…",
         replyPlaceholderCodex: "Reply to Codex…",
@@ -230,7 +248,8 @@ extension NotchClaudeSessionStrings {
         installHooks: "Install Hooks",
         removeHooks: "Remove Hooks",
         hooksFailedFormat: "Couldn’t change the settings: %@",
-        shortcutsHint: "⌘Y allows and ⌘N denies while the island has the keyboard.",
+        shortcutsHint: "⌘Y allows and ⌘N denies, even while another app is in front.",
+        shortcutsHintAlways: "⌘Y allows, ⌘T picks Always and ⌘N denies, even while another app is in front.",
         sendFailed: "Couldn’t reach that terminal",
         sendWhileWaiting: "It’s waiting on a prompt now. Answer it first.",
         bridgeTitle: "Antigravity extension",

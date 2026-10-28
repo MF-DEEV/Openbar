@@ -55,6 +55,7 @@ struct NotchClaudeSessionDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     header(now: context.date)
+                    NotchClaudeAutoAllowBar(session: session, text: text)
                     if session.phase.isWaiting { NotchClaudeSessionPermissionCard(session: session, text: text, open: open) }
                     if let title = session.title {
                         Text(title)
@@ -300,7 +301,15 @@ struct NotchClaudeSessionDetailView: View {
                                     color: .white.withAlphaComponent(0.8), maxLines: 6)
             }
         } else if !previews {
-            Text(text.previewsOff(for: session.provider)).font(.system(size: 10)).foregroundStyle(.tertiary)
+            VStack(alignment: .leading, spacing: 6) {
+                Text(text.previewsOff(for: session.provider)).font(.system(size: 10)).foregroundStyle(.tertiary)
+                Button(text.contentPreview) {
+                    previews = true
+                    service.syncWithPreferences()
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 8))
+                .help(text.contentPreviewHint)
+            }
         }
     }
 
@@ -385,8 +394,12 @@ struct NotchClaudeSessionPermissionCard: View {
                 }
                 .disabled(settling)
                 Spacer(minLength: 0)
-                if permission.offersAlways {
-                    NotchClaudeDecisionButton(title: text.alwaysAllow, symbol: "checkmark.seal", role: .secondary) {
+                if session.provider == .codex {
+                    NotchClaudeAutoAllowButton(session: session, text: text)
+                        .disabled(settling)
+                } else if permission.offersAlways {
+                    NotchClaudeDecisionButton(title: text.alwaysAllow, symbol: "checkmark.seal", role: .secondary,
+                                              help: text.alwaysAllow + " (⌘T)") {
                         service.decide(session.id, request: permission.requestID, .allowAlways)
                     }
                     .disabled(settling)
@@ -401,8 +414,9 @@ struct NotchClaudeSessionPermissionCard: View {
                 NotchClaudeDecisionButton(title: text.open, symbol: "arrow.up.forward.app", role: .secondary, action: open)
             }
         }
-        if session.permission != nil {
-            Text(text.shortcutsHint).font(.system(size: 9.5)).foregroundStyle(.tertiary)
+        if let permission = session.permission {
+            Text(session.provider == .codex || permission.offersAlways ? text.shortcutsHintAlways : text.shortcutsHint)
+                .font(.system(size: 9.5)).foregroundStyle(.tertiary)
         }
     }
 }
@@ -587,6 +601,7 @@ struct NotchClaudeDecisionButton: View {
     let symbol: String
     let role: Role
     var compact = false
+    var help: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -602,15 +617,74 @@ struct NotchClaudeDecisionButton: View {
             .contentShape(Capsule())
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-        .help(title)
+        .help(help ?? title)
         .accessibilityLabel(title)
     }
 
+    static let allowColor = Color(red: 0.36, green: 0.84, blue: 0.52)
+
     private var background: Color {
         switch role {
-        case .allow: return Color(red: 0.36, green: 0.84, blue: 0.52)
+        case .allow: return Self.allowColor
         case .deny: return Color.red.opacity(0.32)
         case .secondary: return .white.opacity(0.12)
+        }
+    }
+}
+
+/// Always on a Codex card: every request of the task under way is allowed
+/// as it comes, this one too, until the task ends. Pressed again, it stops.
+struct NotchClaudeAutoAllowButton: View {
+    let session: ClaudeSession
+    let text: NotchClaudeSessionStrings
+    @ObservedObject private var service = ClaudeSessionService.shared
+
+    var body: some View {
+        let on = service.autoAllowed.contains(session.id)
+        NotchClaudeDecisionButton(title: on ? text.alwaysOn : text.alwaysAllow, symbol: "checkmark.seal",
+                                  role: on ? .allow : .secondary, help: on ? text.alwaysOffHelp : text.alwaysOnHelp) {
+            service.setAutoAllow(session.id)
+        }
+        .disabled(!NotchClaudeSessionsSupport.canAutoAllow(session))
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// While Always allows a Codex task's requests, the page says so, with the
+/// way to stop it. It is turned on only from a request's card.
+struct NotchClaudeAutoAllowBar: View {
+    let session: ClaudeSession
+    let text: NotchClaudeSessionStrings
+    @ObservedObject private var service = ClaudeSessionService.shared
+
+    var body: some View {
+        // A card that asks still shows its own controls; the bar stays above it.
+        if session.provider == .codex, service.autoAllowed.contains(session.id),
+           !session.phase.isWaiting || session.permission == nil || session.permission?.asksQuestions == true {
+            HStack(spacing: 10) {
+                HStack(spacing: 6) {
+                    Image(systemName: "checkmark.seal.fill").font(.system(size: 12, weight: .semibold))
+                    Text(text.alwaysOn).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+                }
+                .accessibilityElement(children: .combine)
+                Spacer(minLength: 0)
+                Button { service.setAutoAllow(session.id, false) } label: {
+                    Text(text.cancelAlways)
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .padding(.horizontal, 14)
+                        .frame(height: 26)
+                        .background(.black.opacity(0.12), in: Capsule())
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 13))
+                .help(text.cancelAlwaysHelp)
+            }
+            .foregroundStyle(Color(red: 0.04, green: 0.14, blue: 0.07))
+            .padding(.leading, 12)
+            .padding(.trailing, 7)
+            .frame(minHeight: 40)
+            .background(NotchClaudeDecisionButton.allowColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
         }
     }
 }
@@ -676,7 +750,7 @@ struct NotchClaudeSessionReplyField: View {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .strokeBorder(.white.opacity(dropping ? 0.6 : focused ? 0.3 : 0), lineWidth: 1)
             }
-            .modifier(NotchClaudeImageInput(sessionID: session.id, takesImages: session.provider != .codex, dropping: $dropping))
+            .modifier(NotchClaudeImageInput(sessionID: session.id, dropping: $dropping))
             if let problem {
                 Label(problem, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 10))

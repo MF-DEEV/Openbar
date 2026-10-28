@@ -47,7 +47,9 @@ final class CodexSessionClient {
 
     /// What a response answers.
     private enum Waiting {
-        case initialize, loadedList, read, resume, other
+        case initialize, loadedList, other
+        case read(Int)
+        case resume(Int)
     }
 
     private let home: URL?
@@ -128,7 +130,17 @@ final class CodexSessionClient {
     }
 
     func snapshot(now: Date, previews: Bool) -> (sessions: [ClaudeSession], events: [ClaudeSessionEvent]) {
-        lock.withLock { state.snapshot(now: now, previews: previews) }
+        lock.withLock {
+            if state.previews != previews {
+                state.setPreviews(previews)
+                if previews {
+                    for id in state.threads.keys.sorted() {
+                        call("thread/read", ["threadId": id, "includeTurns": true], .read(state.chatRevision))
+                    }
+                }
+            }
+            return state.snapshot(now: now, previews: previews)
+        }
     }
 
     func owns(_ session: String) -> Bool {
@@ -160,12 +172,17 @@ final class CodexSessionClient {
         }
     }
 
+    /// Whether the request with this island id still waits on the session's row.
+    func waits(_ session: String, requestID: String) -> Bool {
+        lock.withLock { state.pending(session: session).contains { $0.requestID == requestID } }
+    }
+
     /// A prompt for an idle thread, or one queued after the current turn of a working one.
-    func reply(_ session: String, text: String) -> Bool {
+    func reply(_ session: String, text: String, images: [URL] = []) -> Bool {
         lock.withLock {
-            guard isConnected, let thread = state.threads[session], state.pending(session: session).isEmpty
+            guard isConnected, let thread = state.threads[session], state.pending(session: session).isEmpty,
+                  let input = Self.input(text: text, images: images)
             else { return false }
-            let input: [[String: Any]] = [["type": "text", "text": text, "text_elements": [Any]()]]
             if thread.isActive {
                 call("thread/queue/add", ["threadId": session, "input": input, "clientUserMessageId": Self.uuidV7()],
                      .other)
@@ -174,6 +191,19 @@ final class CodexSessionClient {
             }
             return true
         }
+    }
+
+    /// What a reply gives Codex: its text, unless there is none, then each
+    /// image as the file Codex reads it from. Nil when there is neither.
+    static func input(text: String, images: [URL]) -> [[String: Any]]? {
+        var input: [[String: Any]] = []
+        if !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            input.append(["type": "text", "text": text, "text_elements": [Any]()])
+        }
+        for image in images.prefix(ClaudeImageAttachments.limit) where image.isFileURL {
+            input.append(["type": "localImage", "path": image.path])
+        }
+        return input.isEmpty ? nil : input
     }
 
     /// Joined to Codex's app-server right now.
@@ -213,7 +243,7 @@ final class CodexSessionClient {
         for id in join.sorted() {
             state.setSubscribed(id, true)
             // No overrides: with them Codex would change the person's thread.
-            call("thread/resume", ["threadId": id, "excludeTurns": true], .resume)
+            call("thread/resume", ["threadId": id, "excludeTurns": !state.previews], .resume(state.chatRevision))
         }
         for id in leave.sorted() {
             state.setSubscribed(id, false)
@@ -238,7 +268,7 @@ final class CodexSessionClient {
             case (let method?, nil):
                 let notified = state.notify(method, params: params, now: now)
                 if let new = notified.read {
-                    call("thread/read", ["threadId": new, "includeTurns": false], .read)
+                    call("thread/read", ["threadId": new, "includeTurns": state.previews], .read(state.chatRevision))
                 }
                 // A page's thread that closed or unloaded is no longer kept.
                 if let thread = params["threadId"] as? String, state.threads[thread] == nil {
@@ -257,15 +287,17 @@ final class CodexSessionClient {
                     return false
                 case .loadedList:
                     for thread in (result["data"] as? [Any] ?? []).compactMap({ $0 as? String }) {
-                        call("thread/read", ["threadId": thread, "includeTurns": false], .read)
+                        call(
+                            "thread/read", ["threadId": thread, "includeTurns": state.previews],
+                            .read(state.chatRevision))
                     }
                     if let cursor = result["nextCursor"] as? String {
                         call("thread/loaded/list", ["cursor": cursor], .loadedList)
                     }
                     return false
-                case .read, .resume:
+                case .read(let revision), .resume(let revision):
                     guard let thread = result["thread"] as? [String: Any] else { return false }
-                    state.upsertThread(thread)
+                    state.upsertThread(thread, historyRevision: revision, historyOrder: number)
                     if let id = thread["id"] as? String, state.threads[id] == nil { focused.remove(id) }
                     follow()
                     return true

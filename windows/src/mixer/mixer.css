@@ -1,0 +1,386 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 Vorssaint */
+/* The mixer (mx-): the band, the desk of faders and the options layer. */
+
+/* Band */
+
+.mx-band-menu {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 9px;
+  color: var(--n-dim);
+}
+
+.mx-band-menu:hover,
+.mx-band-menu[aria-expanded="true"] {
+  background: var(--n-wash);
+  color: #fff;
+}
+
+.mx-band-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--n-dim);
+}
+
+.mx-band-menu .mx-band-label {
+  color: inherit;
+}
+
+/* Desk */
+
+.mx-desk {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  height: 100%;
+}
+
+.mx-divider {
+  flex: none;
+  align-self: stretch;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.mx-apps {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+}
+
+.mx-rail {
+  display: flex;
+  gap: 8px;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+}
+
+.mx-column-slot {
+  flex: none;
+  border-radius: 14px;
+  transition:
+    transform 0.2s cubic-bezier(0.25, 0.1, 0.25, 1),
+    opacity 0.2s;
+}
+
+.mx-column-slot.is-moving {
+  opacity: 0.7;
+  transform: scale(0.97);
+}
+
+.mx-fader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.mx-track {
+  flex: none;
+  height: var(--mx-track);
+}
+
+.mx-note {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+  color: var(--n-dim);
+  text-align: center;
+}
+
+.mx-mute {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 14px;
+  color: #fff;
+  transition: transform 0.28s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+
+.mx-mute:hover:enabled {
+  background: var(--n-wash);
+}
+
+.mx-mute:active:enabled {
+  transform: scale(0.965);
+  opacity: 0.8;
+}
+
+.mx-mute:disabled {
+  opacity: 0.4;
+}
+
+.mx-mute.is-muted,
+.mx-foot-button.is-muted,
+.mx-small-mute.is-muted {
+  color: #ff453a;
+}
+
+.mx-mute svg,
+.mx-small-mute svg {
+  animation: mx-glyph-in 0.24s cubic-bezier(0.25, 0.1, 0.25, 1);
+}
+
+@keyframes mx-glyph-in {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+/* App column */
+
+.mx-head {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 32px;
+  flex: none;
+}
+
+.mx-pin {
+  position: absolute;
+  left: 2px;
+  color: var(--n-dim);
+}
+
+.mx-icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  color: var(--n-dim);
+}
+
+.mx-icon img {
+  width: 28px;
+  height: 28px;
+}
+
+/* The app is playing: a green dot with a black ring, bottom right. */
+.mx-playing {
+  position: absolute;
+  right: -1px;
+  bottom: -1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #30d158;
+  box-shadow: 0 0 0 1.2px #000;
+  animation: mx-dot-in 0.2s ease-out;
+}
+
+@keyframes mx-dot-in {
+  from {
+    transform: scale(0);
+  }
+}
+
+.mx-actions {
+  position: absolute;
+  right: 0;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 28px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.mx-actions:hover,
+.mx-actions[aria-expanded="true"] {
+  background: var(--n-wash);
+  color: #fff;
+}
+
+.mx-foot {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  height: 28px;
+  flex: none;
+}
+
+.mx-foot .u-percent {
+  color: var(--n-dim);
+}
+
+.mx-foot-button {
+  position: absolute;
+  top: 0;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 5px;
+  color: var(--n-dim);
+  transition: opacity 0.15s;
+}
+
+.mx-foot-button.is-reset {
+  left: 0;
+}
+
+.mx-foot-button:not(.is-reset) {
+  right: 0;
+}
+
+.mx-foot-button:hover:enabled {
+  background: var(--n-wash);
+}
+
+/* Options */
+
+.mx-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  padding-right: 4px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  animation: mx-options-in 0.18s ease-out;
+}
+
+@keyframes mx-options-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.mx-option-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+  flex: none;
+}
+
+.mx-option-icon {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  flex: none;
+  color: var(--n-dim);
+}
+
+.mx-option-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--n-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mx-option-title.is-primary {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #fff;
+}
+
+.mx-device-menu {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  width: 200px;
+  max-width: 60%;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 6px;
+  color: #fff;
+}
+
+.mx-device-menu:hover,
+.mx-device-menu[aria-expanded="true"] {
+  background: var(--n-wash);
+}
+
+.mx-device-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.mx-device-name.is-static {
+  width: 200px;
+  max-width: 60%;
+  text-align: right;
+}
+
+.mx-small-mute {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  flex: none;
+  border-radius: 6px;
+}
+
+.mx-small-mute:hover {
+  background: var(--n-wash);
+}
+
+.mx-option-row .u-slider {
+  height: 22px;
+}
+
+.u-percent.is-small {
+  height: 18px;
+  min-width: 36px;
+  font-size: 10px;
+}
+
+.mx-message {
+  margin: 0 0 0 26px;
+  font-size: 9.5px;
+  color: var(--n-dim);
+}
+
+.mx-options-divider {
+  height: 1px;
+  margin: 2px 0;
+  background: rgba(255, 255, 255, 0.12);
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mx-column-slot,
+  .mx-mute {
+    transition: none;
+  }
+  .mx-column-slot.is-moving,
+  .mx-mute:active:enabled {
+    transform: none;
+  }
+  .mx-mute svg,
+  .mx-small-mute svg,
+  .mx-playing,
+  .mx-options {
+    animation: none;
+  }
+}

@@ -47,6 +47,7 @@ struct NotchClaudeSessionLargeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 header(now: context.date)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+                NotchClaudeAutoAllowBar(session: session, text: text)
                 if session.phase.isWaiting {
                     // Several questions run taller than the page; past most of
                     // it they scroll, leaving the conversation and the reply.
@@ -234,7 +235,15 @@ struct NotchClaudeSessionLargeView: View {
 
     @ViewBuilder private var conversation: some View {
         if !previews {
-            Text(text.previewsOff(for: session.provider)).font(.system(size: size - 1)).foregroundStyle(.tertiary)
+            VStack(alignment: .leading, spacing: 8) {
+                Text(text.previewsOff(for: session.provider)).font(.system(size: size - 1)).foregroundStyle(.tertiary)
+                Button(text.contentPreview) {
+                    previews = true
+                    ClaudeSessionService.shared.syncWithPreferences()
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 8))
+                .help(text.contentPreviewHint)
+            }
         } else if session.chat.isEmpty && !session.phase.isWorking {
             Text(text.noMessages).font(.system(size: size - 1)).foregroundStyle(.tertiary)
         } else {
@@ -278,15 +287,21 @@ struct NotchClaudeSessionLargeView: View {
     @ViewBuilder private func bubble(_ message: ClaudeChatMessage, answer: Bool, onTheWay: Bool) -> some View {
         switch message.role {
         case .user:
+            let words = NotchClaudeSessionsSupport.withoutImageLabels(message.text, images: message.images.count)
             VStack(alignment: .trailing, spacing: 4) {
-                Text(message.text)
-                    .font(.system(size: size))
-                    .foregroundStyle(.white.opacity(0.95))
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 9)
-                    .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                if !message.images.isEmpty {
+                    NotchClaudeChatImages(images: message.images, text: text, side: size * 4.5)
+                }
+                if !words.isEmpty {
+                    Text(words)
+                        .font(.system(size: size))
+                        .foregroundStyle(.white.opacity(0.95))
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .background(.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
                 Text(message.at, style: .time).font(.system(size: 10)).foregroundStyle(.tertiary)
             }
             .padding(.leading, 60)
@@ -549,7 +564,7 @@ struct NotchClaudeSessionComposer: View {
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
                         .strokeBorder(.white.opacity(dropping ? 0.6 : focused ? 0.3 : 0.08), lineWidth: 1)
                 }
-                .modifier(NotchClaudeImageInput(sessionID: session.id, takesImages: session.provider != .codex, dropping: $dropping))
+                .modifier(NotchClaudeImageInput(sessionID: session.id, dropping: $dropping))
                 Button(action: send) {
                     Group {
                         if sending { ProgressView().controlSize(.small) } else {
@@ -685,24 +700,147 @@ struct NotchClaudeThumbnail: View {
     }
 }
 
-/// Lets a reply take images: ⌘V adds the pasteboard's images, or pastes
-/// text when it holds none, and images dropped on the field are added.
-struct NotchClaudeImageInput: ViewModifier {
-    let sessionID: String
-    /// Codex takes text replies only: its field neither pastes nor takes
-    /// dropped images, so none is copied aside for nothing.
-    var takesImages = true
-    @Binding var dropping: Bool
+/// The images a prompt carried, in rows from the right as its bubble sits.
+struct NotchClaudeChatImages: View {
+    let images: [ClaudeChatImage]
+    let text: NotchClaudeSessionStrings
+    let side: CGFloat
 
-    @ViewBuilder func body(content: Content) -> some View {
-        if takesImages {
-            withImages(content)
-        } else {
-            content
+    var body: some View {
+        NotchClaudeTrailingFlow(spacing: 6) {
+            ForEach(Array(images.enumerated()), id: \.offset) { index, image in
+                NotchClaudeChatImageView(image: image, side: side, label: text.image(index + 1),
+                                         unavailable: text.imageUnavailable)
+            }
+        }
+    }
+}
+
+/// One image of a prompt, read away from the main thread when shown; a
+/// click opens it larger.
+struct NotchClaudeChatImageView: View {
+    let image: ClaudeChatImage
+    let side: CGFloat
+    let label: String
+    let unavailable: String
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var picture: NSImage?
+    @State private var failed = false
+    @State private var enlarged = false
+    /// The image being read, so a late read for one shown before is dropped.
+    @State private var shownKey: Int?
+
+    /// The most room the larger picture takes.
+    static let largest = CGSize(width: 520, height: 380)
+
+    var body: some View {
+        Button { enlarged = true } label: {
+            ZStack {
+                Color.white.opacity(0.06)
+                if let picture {
+                    Image(nsImage: picture).resizable().scaledToFill().transition(.opacity)
+                } else if failed {
+                    Image(systemName: "photo").font(.system(size: side * 0.28)).foregroundStyle(.white.opacity(0.3))
+                } else {
+                    ProgressView().controlSize(.small)
+                }
+            }
+            .frame(width: side, height: side)
+            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .overlay { RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.15), lineWidth: 1) }
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 10))
+        .disabled(picture == nil)
+        .help(failed ? unavailable : label)
+        .accessibilityLabel(failed ? "\(label), \(unavailable)" : label)
+        .popover(isPresented: $enlarged) {
+            if let picture {
+                let size = Self.fitted(picture.size)
+                Image(nsImage: picture).resizable().scaledToFit()
+                    .frame(width: size.width, height: size.height)
+                    .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .padding(8)
+                    .accessibilityLabel(label)
+            }
+        }
+        .onAppear(perform: load)
+        .onChange(of: image.key) { _, _ in load() }
+    }
+
+    private func load() {
+        let shown = image
+        shownKey = shown.key
+        if let known = ClaudeChatImage.cached(shown) {
+            picture = known
+            failed = false
+            return
+        }
+        picture = nil
+        failed = false
+        ClaudeChatImage.load(shown) { loaded in
+            guard shownKey == shown.key else { return }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.18)) {
+                picture = loaded
+                failed = loaded == nil
+            }
         }
     }
 
-    private func withImages(_ content: Content) -> some View {
+    /// The picture's own size, shrunk to fit the room it may take.
+    static func fitted(_ size: CGSize) -> CGSize {
+        guard size.width > 0, size.height > 0 else { return largest }
+        let scale = min(1, largest.width / size.width, largest.height / size.height)
+        return CGSize(width: (size.width * scale).rounded(), height: (size.height * scale).rounded())
+    }
+}
+
+/// Views laid out in rows that fill from the right, each row as wide as
+/// what it holds.
+struct NotchClaudeTrailingFlow: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = rows(width: proposal.width ?? .infinity, subviews: subviews)
+        let height = rows.reduce(0) { $0 + $1.height } + spacing * CGFloat(max(0, rows.count - 1))
+        return CGSize(width: rows.map(\.width).max() ?? 0, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var y = bounds.minY
+        for row in rows(width: bounds.width, subviews: subviews) {
+            var x = bounds.maxX - row.width
+            for index in row.items {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+                x += size.width + spacing
+            }
+            y += row.height + spacing
+        }
+    }
+
+    private func rows(width: CGFloat, subviews: Subviews) -> [(items: [Int], width: CGFloat, height: CGFloat)] {
+        var rows: [(items: [Int], width: CGFloat, height: CGFloat)] = []
+        for index in subviews.indices {
+            let size = subviews[index].sizeThatFits(.unspecified)
+            if let last = rows.last, !last.items.isEmpty, last.width + spacing + size.width <= width {
+                rows[rows.count - 1] = (last.items + [index], last.width + spacing + size.width, max(last.height, size.height))
+            } else {
+                rows.append(([index], size.width, size.height))
+            }
+        }
+        return rows
+    }
+}
+
+/// Lets a reply take images: ⌘V adds the pasteboard's images, or pastes
+/// text when it holds none, and images dropped on the field are added.
+/// Claude reads them from the terminal, Codex as files its server is given.
+struct NotchClaudeImageInput: ViewModifier {
+    let sessionID: String
+    @Binding var dropping: Bool
+
+    func body(content: Content) -> some View {
         content
             .background {
                 Button("") {
