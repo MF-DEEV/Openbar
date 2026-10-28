@@ -10,6 +10,7 @@
 // only when its pose changes, which keeps ten of them in the island cheap.
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { bridge } from "../../shared/bridge";
 import { costumeCode, seed as seedOf, type Character, type ClawdCostume } from "./costume";
 import {
   HEIGHT,
@@ -32,9 +33,12 @@ let lowPower = false;
 
 const hidden = () => typeof document !== "undefined" && document.visibilityState === "hidden";
 
+/** Milliseconds between the clock's steps. */
+export const clockPeriod = () => 1000 / (lowPower ? RATE / 2 : RATE);
+
 function schedule() {
   if (timer !== undefined || listeners.size === 0 || hidden()) return;
-  const period = 1000 / (lowPower ? RATE / 2 : RATE);
+  const period = clockPeriod();
   timer = setTimeout(
     () => {
       timer = undefined;
@@ -78,6 +82,13 @@ export function setClawdLowPower(on: boolean) {
   timer = undefined;
   schedule();
 }
+
+// Every window follows it on its own. The event is heard before the first
+// reading is asked for, so a change in between isn't lost.
+void bridge.power
+  .onSaver(setClawdLowPower)
+  .then(() => bridge.power.saver())
+  .then((on) => on !== undefined && setClawdLowPower(on));
 
 // MARK: Images
 
