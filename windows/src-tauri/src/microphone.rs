@@ -179,14 +179,12 @@ mod imp {
                     &MMDeviceEnumerator,
                     None,
                     CLSCTX_ALL,
-                ) {
-                    if let Ok(devices) =
-                        enumerator.EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE)
-                    {
-                        for i in 0..devices.GetCount().unwrap_or(0) {
-                            if let Ok(device) = devices.Item(i) {
-                                self.inputs.push(device);
-                            }
+                ) && let Ok(devices) =
+                    enumerator.EnumAudioEndpoints(eCapture, DEVICE_STATE_ACTIVE)
+                {
+                    for i in 0..devices.GetCount().unwrap_or(0) {
+                        if let Ok(device) = devices.Item(i) {
+                            self.inputs.push(device);
                         }
                     }
                 }
@@ -263,16 +261,15 @@ mod imp {
                 if let Some(state) = self.read_visible_discord(&handles) {
                     let foreground = GetForegroundWindow();
                     let discord_focused = handles.iter().any(|(window, _)| *window == foreground);
-                    if discord_focused
+                    if (discord_focused
                         || self.last_ui != Some(state)
-                        || self.monitor.state().is_none()
-                    {
-                        if self.monitor.live(crate::discord_storage::VoiceState {
+                        || self.monitor.state().is_none())
+                        && self.monitor.live(crate::discord_storage::VoiceState {
                             muted: state.muted,
                             deafened: state.deafened,
-                        }) {
-                            self.last_ui = Some(state);
-                        }
+                        })
+                    {
+                        self.last_ui = Some(state);
                     }
                 }
                 if let Some(root) = std::env::var_os("APPDATA") {
@@ -290,10 +287,10 @@ mod imp {
                     }
                     // A startup seed only; a persisted snapshot is not a live
                     // signal and cannot undo a click or a configured shortcut.
-                    if self.monitor.state().is_none() {
-                        if let Some(state) = self.storage.read(&directory) {
-                            self.monitor.seed(state);
-                        }
+                    if self.monitor.state().is_none()
+                        && let Some(state) = self.storage.read(&directory)
+                    {
+                        self.monitor.seed(state);
                     }
                 }
                 self.monitor.state().map(|state| DiscordState {
@@ -310,20 +307,17 @@ mod imp {
             unsafe {
                 // Keep provider references while Discord is in the background. Do
                 // not retain a state after controls disappear or a process exits.
-                if let Some((window, mic, headphones)) = &self.controls {
-                    if IsWindow(Some(*window)).as_bool()
-                        && !IsIconic(*window).as_bool()
-                        && IsWindowVisible(*window).as_bool()
-                    {
-                        if let (Some((false, muted)), Some((true, deafened))) =
-                            (read_control(mic), read_control(headphones))
-                        {
-                            return Some(DiscordState {
-                                muted: muted || deafened,
-                                deafened,
-                            });
-                        }
-                    }
+                if let Some((window, mic, headphones)) = &self.controls
+                    && IsWindow(Some(*window)).as_bool()
+                    && !IsIconic(*window).as_bool()
+                    && IsWindowVisible(*window).as_bool()
+                    && let (Some((false, muted)), Some((true, deafened))) =
+                        (read_control(mic), read_control(headphones))
+                {
+                    return Some(DiscordState {
+                        muted: muted || deafened,
+                        deafened,
+                    });
                 }
                 self.controls = None;
                 if self.automation.is_none() {

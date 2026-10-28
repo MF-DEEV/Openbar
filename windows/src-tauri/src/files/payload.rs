@@ -224,7 +224,7 @@ mod tests {
             "https://example.com"
         );
         let mut odd = wide_bytes("hi");
-        odd.extend([b'x']);
+        odd.extend(*b"x");
         assert_eq!(wide_string(&odd), "hi");
     }
 

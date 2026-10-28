@@ -236,10 +236,10 @@ fn locations(extra: &[PathBuf]) -> Locations {
             windows::Win32::System::Com::CoTaskMemFree(Some(path.0.cast()));
         }
     }
-    if out.folders.is_empty() {
-        if let Some(home) = std::env::var_os("USERPROFILE") {
-            add_folder(&mut out.folders, PathBuf::from(home).join("Downloads"));
-        }
+    if out.folders.is_empty()
+        && let Some(home) = std::env::var_os("USERPROFILE")
+    {
+        add_folder(&mut out.folders, PathBuf::from(home).join("Downloads"));
     }
     for folder in extra {
         add_folder(&mut out.folders, folder.clone());
@@ -273,38 +273,34 @@ fn locations(extra: &[PathBuf]) -> Locations {
             if !profile.join("Preferences").is_file() {
                 continue;
             }
-            if let Ok(bytes) = std::fs::read(profile.join("Preferences")) {
-                if let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) {
-                    if let Some(path) = value
-                        .pointer("/download/default_directory")
-                        .and_then(|v| v.as_str())
-                    {
-                        add_folder(&mut out.folders, path.into());
-                    }
-                }
+            if let Ok(bytes) = std::fs::read(profile.join("Preferences"))
+                && let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes)
+                && let Some(path) = value
+                    .pointer("/download/default_directory")
+                    .and_then(|v| v.as_str())
+            {
+                add_folder(&mut out.folders, path.into());
             }
             if profile.join("History").is_file() {
                 out.profiles.push((profile.join("History"), name.into()));
             }
         }
     }
-    if let Some(base) = std::env::var_os("APPDATA") {
-        if let Ok(profiles) =
+    if let Some(base) = std::env::var_os("APPDATA")
+        && let Ok(profiles) =
             std::fs::read_dir(PathBuf::from(base).join(r"Mozilla\Firefox\Profiles"))
-        {
-            for profile in profiles.flatten().take(64) {
-                if let Ok(prefs) = std::fs::read_to_string(profile.path().join("prefs.js")) {
-                    for line in prefs
-                        .lines()
-                        .filter(|l| l.starts_with("user_pref(\"browser.download.dir\","))
+    {
+        for profile in profiles.flatten().take(64) {
+            if let Ok(prefs) = std::fs::read_to_string(profile.path().join("prefs.js")) {
+                for line in prefs
+                    .lines()
+                    .filter(|l| l.starts_with("user_pref(\"browser.download.dir\","))
+                {
+                    if let Some((_, value)) = line.split_once(',')
+                        && let Ok(path) =
+                            serde_json::from_str::<String>(value.trim().trim_end_matches(");"))
                     {
-                        if let Some((_, value)) = line.split_once(',') {
-                            if let Ok(path) =
-                                serde_json::from_str::<String>(value.trim().trim_end_matches(");"))
-                            {
-                                add_folder(&mut out.folders, path.into());
-                            }
-                        }
+                        add_folder(&mut out.folders, path.into());
                     }
                 }
             }
@@ -374,7 +370,7 @@ pub fn start<R: Runtime>(app: AppHandle<R>, state: Shared) {
                         .collect()
                 })
                 .unwrap_or_default();
-            if on && (tick % 30 == 0 || folders != extra || places.folders.is_empty()) {
+            if on && (tick.is_multiple_of(30) || folders != extra || places.folders.is_empty()) {
                 places = locations(&folders);
                 extra = folders;
             }

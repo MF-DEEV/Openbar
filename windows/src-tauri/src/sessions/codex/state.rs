@@ -389,10 +389,10 @@ impl State {
                     .into_iter()
                     .flatten()
                 {
-                    if let Some(id) = str_at(item, "id") {
-                        if seen.insert(id.to_string()) {
-                            order.push(id.to_string());
-                        }
+                    if let Some(id) = str_at(item, "id")
+                        && seen.insert(id.to_string())
+                    {
+                        order.push(id.to_string());
                     }
                     entry.message(item, at);
                 }

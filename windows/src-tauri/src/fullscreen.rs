@@ -30,10 +30,9 @@ pub fn attention_context<R: Runtime>(app: AppHandle<R>) -> AttentionContext {
     #[cfg(windows)]
     {
         use tauri::Manager;
-        return app
-            .get_webview_window(crate::island::LABEL)
+        app.get_webview_window(crate::island::LABEL)
             .map(|w| imp::context(&w))
-            .unwrap_or_default();
+            .unwrap_or_default()
     }
     #[cfg(not(windows))]
     {
@@ -218,10 +217,10 @@ mod imp {
     }
 
     pub fn set_compact(on: bool) {
-        if COMPACT_SESSIONS.swap(on, Ordering::Relaxed) != on {
-            if let Some(notify) = ON_FULLSCREEN.get() {
-                notify();
-            }
+        if COMPACT_SESSIONS.swap(on, Ordering::Relaxed) != on
+            && let Some(notify) = ON_FULLSCREEN.get()
+        {
+            notify();
         }
     }
 

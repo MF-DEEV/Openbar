@@ -132,10 +132,10 @@ impl Tracker {
             let windows_match =
                 (!pressed(91) && !pressed(92)) || binding.keys.iter().any(|k| [91, 92].contains(k));
             let down = chord && modifiers_match && windows_match;
-            if let Some(previous) = self.down[index] {
-                if previous != down {
-                    changes.push((binding.id.clone(), binding.action, down));
-                }
+            if let Some(previous) = self.down[index]
+                && previous != down
+            {
+                changes.push((binding.id.clone(), binding.action, down));
             }
             self.down[index] = Some(down);
         }
@@ -183,19 +183,11 @@ impl Tracker {
     }
 }
 
+#[derive(Default)]
 pub struct Monitor {
     shared: Arc<Mutex<Tracker>>,
     stopped: Arc<AtomicBool>,
     started: bool,
-}
-impl Default for Monitor {
-    fn default() -> Self {
-        Self {
-            shared: Arc::default(),
-            stopped: Arc::default(),
-            started: false,
-        }
-    }
 }
 impl Drop for Monitor {
     fn drop(&mut self) {

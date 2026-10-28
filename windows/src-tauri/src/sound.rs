@@ -144,7 +144,9 @@ mod tests {
         assert_eq!(wav.len(), 44 + data);
         assert!(data > RATE as usize); // longer than half a second
         let peak = wav[44..]
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|b| i16::from_le_bytes([b[0], b[1]]).unsigned_abs())
             .max()
             .unwrap();

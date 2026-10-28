@@ -155,13 +155,12 @@ fn read_shared(file: File) -> Option<Vec<u8>> {
 }
 
 fn newer<T>(current: &mut Option<Record<T>>, candidate: Option<Record<T>>) {
-    if let Some(candidate) = candidate {
-        if current
+    if let Some(candidate) = candidate
+        && current
             .as_ref()
             .is_none_or(|v| candidate.sequence > v.sequence)
-        {
-            *current = Some(candidate);
-        }
+    {
+        *current = Some(candidate);
     }
 }
 
@@ -183,7 +182,9 @@ fn json_value(value: &[u8]) -> Option<serde_json::Value> {
         1 => value.iter().map(|&b| char::from(b)).collect::<String>(),
         0 if value.len() % 2 == 0 => String::from_utf16(
             &value
-                .chunks_exact(2)
+                .as_chunks::<2>()
+                .0
+                .iter()
                 .map(|b| u16::from_le_bytes([b[0], b[1]]))
                 .collect::<Vec<_>>(),
         )
