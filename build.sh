@@ -701,8 +701,11 @@ mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
 cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
-# The Antigravity extension the Sessions page types replies through.
+# The Antigravity extension the Sessions page types replies through. A copy
+# also sits next to the bare binary, where `build/Vorssaint --selftest` looks.
 ditto Tools/AntigravityBridge "$STAGE/Contents/Resources/AntigravityBridge"
+rm -rf build/AntigravityBridge
+ditto Tools/AntigravityBridge build/AntigravityBridge
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
