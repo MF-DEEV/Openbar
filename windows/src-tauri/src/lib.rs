@@ -180,6 +180,7 @@ pub fn run() {
             sessions::attachments::sessions_attach_image,
             sessions::attachments::sessions_clipboard_images,
             shell::shell_icon,
+            shell::shell_open_task_manager,
             sound::sound_play,
             sound::sound_alarm,
             timer::timer_now_ms,

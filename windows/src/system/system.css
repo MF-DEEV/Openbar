@@ -315,6 +315,32 @@
   color: var(--n-faint);
 }
 
+.sy-panel-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sy-panel-head .sy-panel-title {
+  flex: 1;
+}
+
+/* ActivityMonitorButton: a faint glyph whose circle shows on hover. */
+.sy-open-app {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: var(--n-dim);
+  transition: background-color 0.12s ease-out;
+}
+
+.sy-open-app:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .sy-panel-empty {
   font-size: 10.5px;
   color: var(--n-faint);
@@ -406,6 +432,7 @@
   .sy-card,
   .sy-back,
   .sy-speed-button,
+  .sy-open-app,
   .sy-meter > span {
     transition: none;
   }
