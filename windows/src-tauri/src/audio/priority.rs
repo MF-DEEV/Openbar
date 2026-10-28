@@ -359,6 +359,50 @@ mod tests {
     }
 
     #[test]
+    fn several_newcomers_are_placed_in_a_stable_order() {
+        let mut list = ids(&["speakers", "cable"]);
+        let mut t = Tracker::default();
+        let available = ids(&["speakers", "cable", "usb2", "usb1", "bt"]);
+        assert!(merge(&mut list, &mut t, &available, Some("bt"), tiers));
+        // Seen again before placement: nothing new waits.
+        assert!(!merge(&mut list, &mut t, &available, Some("bt"), tiers));
+        place(&mut list, &mut t, &available, Some("bt"), tiers);
+        assert_eq!(list, ids(&["bt", "speakers", "usb1", "usb2", "cable"]));
+        assert!(t.unplaced.is_empty());
+    }
+
+    #[test]
+    fn nothing_listed_and_connected_is_no_target() {
+        let t = Tracker::default();
+        let available: HashSet<String> = ids(&["speakers"]).into_iter().collect();
+        assert_eq!(target(&[], &t, &available, Some("speakers")), None);
+        assert_eq!(
+            target(&ids(&["bt"]), &t, &available, Some("speakers")),
+            None
+        );
+        assert_eq!(
+            target(&ids(&["bt", "speakers"]), &t, &available, None),
+            Some("speakers")
+        );
+    }
+
+    #[test]
+    fn a_full_list_keeps_its_length() {
+        let mut list: Vec<String> = (0..64).map(|i| format!("d{i}")).collect();
+        let mut t = Tracker::default();
+        let available = ids(&["new"]);
+        merge(&mut list, &mut t, &available, Some("new"), |_| {
+            Tier::Hardware
+        });
+        place(&mut list, &mut t, &available, Some("new"), |_| {
+            Tier::Hardware
+        });
+        assert_eq!(list.len(), 64);
+        assert_eq!(list[0], "new");
+        assert!(!list.contains(&"d63".to_string()));
+    }
+
+    #[test]
     fn tiers_follow_the_bus_and_virtual_names() {
         assert_eq!(
             tier("HDAUDIO", "Speakers (Realtek(R) Audio)"),

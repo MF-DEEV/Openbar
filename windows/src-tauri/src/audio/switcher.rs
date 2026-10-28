@@ -77,4 +77,50 @@ mod tests {
         let parsed: Result<tauri_plugin_global_shortcut::Shortcut, _> = DEFAULT_SHORTCUT.parse();
         assert!(parsed.is_ok());
     }
+
+    /// What src/shared/shortcut.ts records: the modifiers, then the key's code.
+    #[test]
+    fn every_kind_of_recorded_shortcut_parses() {
+        use tauri_plugin_global_shortcut::Shortcut;
+        for accelerator in [
+            "Ctrl+Alt+Shift+KeyS",
+            "Super+F24",
+            "Alt+Digit2",
+            "Ctrl+Numpad0",
+            "Ctrl+Backquote",
+            "Ctrl+Backslash",
+            "Ctrl+BracketLeft",
+            "Ctrl+Quote",
+            "Ctrl+Space",
+            "Ctrl+Enter",
+            "Ctrl+PageUp",
+            "Ctrl+PageDown",
+            "Ctrl+ArrowUp",
+            "Ctrl+PrintScreen",
+            "Ctrl+Pause",
+        ] {
+            assert!(
+                accelerator.parse::<Shortcut>().is_ok(),
+                "{accelerator} does not parse"
+            );
+        }
+    }
+
+    /// The pages refuse "Ctrl+Alt+Space" as the island's own toggle.
+    #[test]
+    fn the_toggle_the_pages_refuse_is_the_islands_toggle() {
+        let parsed: tauri_plugin_global_shortcut::Shortcut = "Ctrl+Alt+Space".parse().unwrap();
+        assert_eq!(parsed, crate::toggle_shortcut());
+        assert_eq!(parsed.id(), crate::toggle_shortcut().id());
+    }
+
+    #[test]
+    fn padded_choices_still_count() {
+        let available = set(&["a", "b"]);
+        assert_eq!(
+            next(Some("a"), &ids(&[" a ", "b", "", "b"]), &available),
+            Some("b")
+        );
+        assert!(nothing_to_do_is_fine(&ids(&[" a"]), &available));
+    }
 }

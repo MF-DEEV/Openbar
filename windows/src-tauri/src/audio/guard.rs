@@ -294,6 +294,51 @@ mod tests {
     }
 
     #[test]
+    fn headphones_still_named_the_default_after_leaving_are_remembered() {
+        let mut g = Guard::default();
+        g.observe(&outs(&[("hp", true), ("spk", false)]), Some("hp"), true, 25);
+        // The list no longer has them, but Windows hasn't moved yet.
+        let alone = outs(&[("spk", false)]);
+        assert_eq!(g.observe(&alone, Some("hp"), true, 25), Action::None);
+        assert!(matches!(
+            g.observe(&alone, Some("spk"), true, 25),
+            Action::Lower { .. }
+        ));
+    }
+
+    #[test]
+    fn a_lowered_output_away_when_headphones_return_is_restored_later() {
+        let mut g = Guard::default();
+        g.observe(&outs(&[("hp", true), ("spk", false)]), Some("hp"), true, 25);
+        g.observe(&outs(&[("spk", false)]), Some("spk"), true, 25);
+        g.lowered("spk", Some(0.8), 0.25, false);
+        // The speakers are unplugged too before the headphones come back.
+        assert_eq!(
+            g.observe(&outs(&[("hp", true)]), Some("hp"), true, 25),
+            Action::None
+        );
+        assert!(g.lowered.is_some());
+        let Action::Restore(lowered) =
+            g.observe(&outs(&[("hp", true), ("spk", false)]), Some("hp"), true, 25)
+        else {
+            panic!("expected a restore");
+        };
+        assert_eq!(lowered.id, "spk");
+    }
+
+    #[test]
+    fn an_unknown_earlier_level_is_not_owed_back() {
+        let mut g = Guard::default();
+        g.lowered("spk", None, 0.25, false);
+        assert!(g.lowered.is_none());
+        // Nothing to restore when the headphones return.
+        assert_eq!(
+            g.observe(&outs(&[("hp", true), ("spk", false)]), Some("hp"), true, 25),
+            Action::None
+        );
+    }
+
+    #[test]
     fn percents_are_clamped() {
         assert_eq!(sanitized_percent(-5), 0);
         assert_eq!(sanitized_percent(250), 100);

@@ -603,4 +603,73 @@ mod tests {
         assert_eq!(json["micMuted"], true);
         assert!(json["output"]["volume"].is_null());
     }
+
+    #[test]
+    fn the_mixer_options_state_serializes_for_the_island() {
+        let state = State {
+            outputs: vec![Device {
+                id: "hp".into(),
+                name: "Headphones".into(),
+                is_default: true,
+                headphones: true,
+                tier: Some(priority::Tier::Hardware),
+            }],
+            priority: Priority {
+                output_enabled: true,
+                outputs: vec![Ranked {
+                    id: "hp".into(),
+                    name: "Headphones".into(),
+                    available: false,
+                }],
+                ..Default::default()
+            },
+            switcher_refused: true,
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&state).unwrap();
+        assert_eq!(json["priority"]["outputEnabled"], true);
+        assert_eq!(json["priority"]["inputEnabled"], false);
+        assert_eq!(json["priority"]["outputs"][0]["available"], false);
+        assert_eq!(json["switcherRefused"], true);
+        assert_eq!(json["switchFailed"], false);
+        assert_eq!(json["rollerFailed"], false);
+        // What only the backend uses stays out of the page's state.
+        assert!(json["outputs"][0].get("headphones").is_none());
+        assert!(json["outputs"][0].get("tier").is_none());
+    }
+
+    #[test]
+    fn mixer_options_read_the_island_prefs() {
+        assert_eq!(
+            Options::from_prefs(&serde_json::json!({})),
+            Options::default()
+        );
+        let options = Options::from_prefs(&serde_json::json!({ "island": {
+            "mixerLowerVolumeOnHeadphonesDisconnect": true,
+            "mixerHeadphonesDisconnectVolumePercent": 140,
+            "preciseVolumeRollerEnabled": true,
+            "soundOutputSwitcherEnabled": true,
+            "soundOutputSwitcherShortcut": "Ctrl+Alt+KeyO",
+            "soundOutputSwitcherDevices": ["a", " ", "a", 3, "b"],
+        }}));
+        assert!(options.lower_on_disconnect && options.roller && options.switcher);
+        assert_eq!(options.lower_percent, 100);
+        assert_eq!(options.shortcut, "Ctrl+Alt+KeyO");
+        assert_eq!(options.cycle, ["a", "b"]);
+    }
+
+    #[test]
+    fn unreadable_mixer_options_fall_back_to_the_defaults() {
+        let options = Options::from_prefs(&serde_json::json!({ "island": {
+            "mixerLowerVolumeOnHeadphonesDisconnect": "yes",
+            "mixerHeadphonesDisconnectVolumePercent": "low",
+            "soundOutputSwitcherShortcut": "  ",
+            "soundOutputSwitcherDevices": "a",
+        }}));
+        assert_eq!(options, Options::default());
+        let negative = Options::from_prefs(&serde_json::json!({ "island": {
+            "mixerHeadphonesDisconnectVolumePercent": -10,
+        }}));
+        assert_eq!(negative.lower_percent, 0);
+    }
 }
