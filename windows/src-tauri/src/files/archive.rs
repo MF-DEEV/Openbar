@@ -97,15 +97,21 @@ pub fn archive(input: &Path, output: &Path, cancel: &AtomicBool) -> Result<(), F
         } else {
             add_file(&mut zip, input, &input_name, cancel)?;
         }
-        let writer = zip.finish().map_err(|e| io_failure(&output_name, e.into()))?;
-        let file = writer.into_inner().map_err(|e| io_failure(&output_name, e.into_error()))?;
+        let writer = zip
+            .finish()
+            .map_err(|e| io_failure(&output_name, e.into()))?;
+        let file = writer
+            .into_inner()
+            .map_err(|e| io_failure(&output_name, e.into_error()))?;
         file.sync_all().map_err(|e| io_failure(&output_name, e))?;
         drop(file);
         if cancel.load(Ordering::Relaxed) {
             return Err(Failure::Cancelled);
         }
         identity::rename_no_replace(&staged, output).map_err(|e| match e.kind() {
-            io::ErrorKind::AlreadyExists => Failure::Exists { name: output_name.clone() },
+            io::ErrorKind::AlreadyExists => Failure::Exists {
+                name: output_name.clone(),
+            },
             _ => io_failure(&output_name, e),
         })
     })();
@@ -140,7 +146,8 @@ fn add_file(zip: &mut Zip, path: &Path, entry: &str, cancel: &AtomicBool) -> Res
     let name = name_of(path);
     let mut source = File::open(path).map_err(|e| io_failure(&name, e))?;
     let meta = source.metadata().map_err(|e| io_failure(&name, e))?;
-    zip.start_file(entry, options(&meta)).map_err(|e| io_failure(&name, e.into()))?;
+    zip.start_file(entry, options(&meta))
+        .map_err(|e| io_failure(&name, e.into()))?;
     let mut buffer = vec![0u8; 1 << 20];
     loop {
         if cancel.load(Ordering::Relaxed) {
@@ -150,7 +157,8 @@ fn add_file(zip: &mut Zip, path: &Path, entry: &str, cancel: &AtomicBool) -> Res
         if read == 0 {
             return Ok(());
         }
-        zip.write_all(&buffer[..read]).map_err(|e| io_failure(&name, e))?;
+        zip.write_all(&buffer[..read])
+            .map_err(|e| io_failure(&name, e))?;
     }
 }
 
@@ -201,7 +209,10 @@ fn name_of(path: &Path) -> String {
 }
 
 fn io_failure(name: &str, error: io::Error) -> Failure {
-    Failure::Io { name: name.to_string(), detail: error.to_string() }
+    Failure::Io {
+        name: name.to_string(),
+        detail: error.to_string(),
+    }
 }
 
 #[cfg(test)]
@@ -219,12 +230,24 @@ mod tests {
     fn names_are_unique_and_keep_the_extension() {
         let dir = temp();
         let none = HashSet::new();
-        assert_eq!(unique_zip_path(&dir, "report.pdf", &none), dir.join("report.pdf.zip"));
+        assert_eq!(
+            unique_zip_path(&dir, "report.pdf", &none),
+            dir.join("report.pdf.zip")
+        );
         fs::write(dir.join("report.pdf.zip"), "").unwrap();
-        assert_eq!(unique_zip_path(&dir, "report.pdf", &none), dir.join("report.pdf 2.zip"));
+        assert_eq!(
+            unique_zip_path(&dir, "report.pdf", &none),
+            dir.join("report.pdf 2.zip")
+        );
         let reserved = HashSet::from([dir.join("report.pdf 2.zip")]);
-        assert_eq!(unique_zip_path(&dir, "report.pdf", &reserved), dir.join("report.pdf 3.zip"));
-        assert_eq!(unique_zip_path(&dir, "Folder", &none), dir.join("Folder.zip"));
+        assert_eq!(
+            unique_zip_path(&dir, "report.pdf", &reserved),
+            dir.join("report.pdf 3.zip")
+        );
+        assert_eq!(
+            unique_zip_path(&dir, "Folder", &none),
+            dir.join("Folder.zip")
+        );
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -268,10 +291,21 @@ mod tests {
         names.sort();
         assert_eq!(names, ["Docs/", "Docs/a.txt", "Docs/empty/"]);
         let mut text = String::new();
-        zip.by_name("Docs/a.txt").unwrap().read_to_string(&mut text).unwrap();
+        zip.by_name("Docs/a.txt")
+            .unwrap()
+            .read_to_string(&mut text)
+            .unwrap();
         assert_eq!(text, "hello");
-        assert_eq!(archive(&input, &output, &cancel), Err(Failure::Exists { name: "Docs.zip".into() }));
-        assert_eq!(archive(&input, &input.join("in.zip"), &cancel), Err(Failure::Inside));
+        assert_eq!(
+            archive(&input, &output, &cancel),
+            Err(Failure::Exists {
+                name: "Docs.zip".into()
+            })
+        );
+        assert_eq!(
+            archive(&input, &input.join("in.zip"), &cancel),
+            Err(Failure::Inside)
+        );
         // No staged leftovers.
         assert_eq!(fs::read_dir(&dir).unwrap().count(), 2);
         fs::remove_dir_all(&dir).unwrap();
@@ -282,7 +316,10 @@ mod tests {
         let dir = temp();
         fs::write(dir.join("a.txt"), "hello").unwrap();
         let cancel = AtomicBool::new(true);
-        assert_eq!(archive(&dir.join("a.txt"), &dir.join("a.txt.zip"), &cancel), Err(Failure::Cancelled));
+        assert_eq!(
+            archive(&dir.join("a.txt"), &dir.join("a.txt.zip"), &cancel),
+            Err(Failure::Cancelled)
+        );
         assert_eq!(fs::read_dir(&dir).unwrap().count(), 1);
         fs::remove_dir_all(&dir).unwrap();
     }

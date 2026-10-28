@@ -41,10 +41,17 @@ const LAUNCHERS: &[&str] = &[
 ];
 
 /// Hosts that only ever play for the app that embeds them.
-const HELPERS: &[&str] = &["msedgewebview2.exe", "cefsharp.browsersubprocess.exe", "crashpad_handler.exe"];
+const HELPERS: &[&str] = &[
+    "msedgewebview2.exe",
+    "cefsharp.browsersubprocess.exe",
+    "crashpad_handler.exe",
+];
 
 fn file_name(path: &str) -> String {
-    path.rsplit(['\\', '/']).next().unwrap_or(path).to_ascii_lowercase()
+    path.rsplit(['\\', '/'])
+        .next()
+        .unwrap_or(path)
+        .to_ascii_lowercase()
 }
 
 fn directory(path: &str) -> String {
@@ -77,7 +84,8 @@ fn rolls_up(child: &str, parent: &str, windows_dir: &str) -> bool {
         return true;
     }
     let child_dir = directory(child);
-    !parent_dir.is_empty() && (child_dir == parent_dir || child_dir.starts_with(&format!("{parent_dir}\\")))
+    !parent_dir.is_empty()
+        && (child_dir == parent_dir || child_dir.starts_with(&format!("{parent_dir}\\")))
 }
 
 /// The PID whose app owns `pid`'s sound.
@@ -85,8 +93,12 @@ pub fn root(pid: u32, procs: &HashMap<u32, Proc>, windows_dir: &str) -> u32 {
     let mut current = pid;
     // A tree deeper than this is a loop of reused PIDs.
     for _ in 0..16 {
-        let Some(child) = procs.get(&current) else { break };
-        let Some(parent) = procs.get(&child.parent) else { break };
+        let Some(child) = procs.get(&current) else {
+            break;
+        };
+        let Some(parent) = procs.get(&child.parent) else {
+            break;
+        };
         if child.parent == current || parent.created > child.created {
             break;
         }
@@ -107,14 +119,27 @@ mod tests {
     fn tree(entries: &[(u32, u32, &str, u64)]) -> HashMap<u32, Proc> {
         entries
             .iter()
-            .map(|&(pid, parent, exe, created)| (pid, Proc { parent, exe: exe.into(), created }))
+            .map(|&(pid, parent, exe, created)| {
+                (
+                    pid,
+                    Proc {
+                        parent,
+                        exe: exe.into(),
+                        created,
+                    },
+                )
+            })
             .collect()
     }
 
     #[test]
     fn chrome_audio_service_rolls_up_to_the_browser() {
         let chrome = r"C:\Program Files\Google\Chrome\Application\chrome.exe";
-        let procs = tree(&[(1, 0, r"C:\Windows\explorer.exe", 1), (10, 1, chrome, 5), (20, 10, chrome, 6)]);
+        let procs = tree(&[
+            (1, 0, r"C:\Windows\explorer.exe", 1),
+            (10, 1, chrome, 5),
+            (20, 10, chrome, 6),
+        ]);
         assert_eq!(root(20, &procs, WIN), 10);
     }
 
@@ -122,7 +147,12 @@ mod tests {
     fn webview2_rolls_up_to_its_host_app() {
         let procs = tree(&[
             (10, 1, r"C:\Users\me\AppData\Local\Teams\ms-teams.exe", 5),
-            (20, 10, r"C:\Program Files (x86)\Microsoft\EdgeWebView\Application\msedgewebview2.exe", 6),
+            (
+                20,
+                10,
+                r"C:\Program Files (x86)\Microsoft\EdgeWebView\Application\msedgewebview2.exe",
+                6,
+            ),
         ]);
         assert_eq!(root(20, &procs, WIN), 10);
     }
@@ -140,7 +170,12 @@ mod tests {
     fn an_app_started_from_a_shell_or_terminal_stays_itself() {
         let procs = tree(&[
             (1, 0, r"C:\Windows\explorer.exe", 1),
-            (5, 1, r"C:\Program Files\WindowsApps\Terminal\WindowsTerminal.exe", 2),
+            (
+                5,
+                1,
+                r"C:\Program Files\WindowsApps\Terminal\WindowsTerminal.exe",
+                2,
+            ),
             (10, 5, r"C:\Program Files\mpv\mpv.exe", 3),
             (11, 1, r"C:\Program Files\Spotify\Spotify.exe", 3),
         ]);
@@ -150,7 +185,10 @@ mod tests {
 
     #[test]
     fn an_unrelated_app_does_not_adopt_its_child() {
-        let procs = tree(&[(10, 1, r"C:\Program Files\Launcher\launcher.exe", 5), (20, 10, r"D:\Games\game.exe", 6)]);
+        let procs = tree(&[
+            (10, 1, r"C:\Program Files\Launcher\launcher.exe", 5),
+            (20, 10, r"D:\Games\game.exe", 6),
+        ]);
         assert_eq!(root(20, &procs, WIN), 20);
     }
 

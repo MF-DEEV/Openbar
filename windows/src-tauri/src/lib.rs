@@ -1,18 +1,18 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-mod audio;
 mod agent_usage;
+mod audio;
 mod bar;
-mod calendar;
 mod brightness;
+mod calendar;
 mod capture;
 mod clipboard;
 mod com;
+mod discord_keys;
+mod discord_storage;
 mod downloads;
 mod files;
-mod discord_storage;
-mod discord_keys;
 mod fullscreen;
 mod hooks;
 mod hosts;
@@ -29,8 +29,8 @@ mod sessions;
 mod settings;
 mod shell;
 mod sound;
-mod timer;
 mod system_monitor;
+mod timer;
 mod toggles;
 mod tray;
 mod watch;
@@ -246,8 +246,14 @@ pub fn run() {
             island::create(app.handle())?;
             files::install(app.handle());
             fullscreen::watch(app.handle());
-            microphone::start(app.handle().clone(), app.state::<microphone::Shared>().inner().clone());
-            downloads::start(app.handle().clone(), app.state::<downloads::Shared>().inner().clone());
+            microphone::start(
+                app.handle().clone(),
+                app.state::<microphone::Shared>().inner().clone(),
+            );
+            downloads::start(
+                app.handle().clone(),
+                app.state::<downloads::Shared>().inner().clone(),
+            );
             app.manage(sessions::service::Service::start(app.handle().clone()));
             media::start(
                 app.handle().clone(),
@@ -257,11 +263,26 @@ pub fn run() {
                 app.handle().clone(),
                 app.state::<notifications::Shared>().inner().clone(),
             );
-            system_monitor::start(app.handle().clone(), app.state::<system_monitor::Shared>().inner().clone());
-            calendar::start(app.handle().clone(), app.state::<calendar::Shared>().inner().clone());
-            audio::start(app.handle().clone(), app.state::<audio::Shared>().inner().clone());
-            clipboard::start(app.handle().clone(), app.state::<clipboard::Shared>().inner().clone());
-            agent_usage::start(app.handle().clone(), app.state::<agent_usage::State>().inner().clone());
+            system_monitor::start(
+                app.handle().clone(),
+                app.state::<system_monitor::Shared>().inner().clone(),
+            );
+            calendar::start(
+                app.handle().clone(),
+                app.state::<calendar::Shared>().inner().clone(),
+            );
+            audio::start(
+                app.handle().clone(),
+                app.state::<audio::Shared>().inner().clone(),
+            );
+            clipboard::start(
+                app.handle().clone(),
+                app.state::<clipboard::Shared>().inner().clone(),
+            );
+            agent_usage::start(
+                app.handle().clone(),
+                app.state::<agent_usage::State>().inner().clone(),
+            );
             let prefs = app.state::<prefs::Prefs>().get();
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;

@@ -57,7 +57,11 @@ pub fn to_device(value: f32, max: u32) -> u32 {
 
 /// The display's value as 0…1; a display reporting no range reads as full.
 pub fn from_device(current: u32, max: u32) -> f32 {
-    if max == 0 { 1.0 } else { (current.min(max) as f32) / max as f32 }
+    if max == 0 {
+        1.0
+    } else {
+        (current.min(max) as f32) / max as f32
+    }
 }
 
 /// Applies the newest level of each display, then waits out the interval
@@ -110,21 +114,24 @@ mod imp {
         DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME, DISPLAYCONFIG_DEVICE_INFO_GET_TARGET_NAME,
         DISPLAYCONFIG_MODE_INFO, DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DISPLAYPORT_EMBEDDED,
         DISPLAYCONFIG_OUTPUT_TECHNOLOGY_INTERNAL, DISPLAYCONFIG_OUTPUT_TECHNOLOGY_UDI_EMBEDDED,
-        DISPLAYCONFIG_PATH_INFO, DISPLAYCONFIG_SOURCE_DEVICE_NAME, DISPLAYCONFIG_TARGET_DEVICE_NAME,
-        DestroyPhysicalMonitors, DisplayConfigGetDeviceInfo, GetDisplayConfigBufferSizes,
-        GetNumberOfPhysicalMonitorsFromHMONITOR, GetPhysicalMonitorsFromHMONITOR, GetVCPFeatureAndVCPFeatureReply,
-        PHYSICAL_MONITOR, QDC_ONLY_ACTIVE_PATHS, QueryDisplayConfig, SetVCPFeature,
+        DISPLAYCONFIG_PATH_INFO, DISPLAYCONFIG_SOURCE_DEVICE_NAME,
+        DISPLAYCONFIG_TARGET_DEVICE_NAME, DestroyPhysicalMonitors, DisplayConfigGetDeviceInfo,
+        GetDisplayConfigBufferSizes, GetNumberOfPhysicalMonitorsFromHMONITOR,
+        GetPhysicalMonitorsFromHMONITOR, GetVCPFeatureAndVCPFeatureReply, PHYSICAL_MONITOR,
+        QDC_ONLY_ACTIVE_PATHS, QueryDisplayConfig, SetVCPFeature,
     };
     use windows::Win32::Foundation::{ERROR_SUCCESS, LPARAM, RECT};
-    use windows::Win32::Graphics::Gdi::{EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW};
+    use windows::Win32::Graphics::Gdi::{
+        EnumDisplayMonitors, GetMonitorInfoW, HDC, HMONITOR, MONITORINFO, MONITORINFOEXW,
+    };
     use windows::Win32::System::Com::{
-        CLSCTX_INPROC_SERVER, CoCreateInstance, CoSetProxyBlanket, EOAC_NONE, RPC_C_AUTHN_LEVEL_CALL,
-        RPC_C_IMP_LEVEL_IMPERSONATE,
+        CLSCTX_INPROC_SERVER, CoCreateInstance, CoSetProxyBlanket, EOAC_NONE,
+        RPC_C_AUTHN_LEVEL_CALL, RPC_C_IMP_LEVEL_IMPERSONATE,
     };
     use windows::Win32::System::Variant::{VARIANT, VARIANT_0, VARIANT_0_0, VARIANT_0_0_0, VT_UI1};
     use windows::Win32::System::Wmi::{
-        IWbemClassObject, IWbemLocator, IWbemServices, WBEM_FLAG_FORWARD_ONLY, WBEM_FLAG_RETURN_IMMEDIATELY,
-        WBEM_GENERIC_FLAG_TYPE, WbemLocator,
+        IWbemClassObject, IWbemLocator, IWbemServices, WBEM_FLAG_FORWARD_ONLY,
+        WBEM_FLAG_RETURN_IMMEDIATELY, WBEM_GENERIC_FLAG_TYPE, WbemLocator,
     };
     use windows::core::{BOOL, BSTR, IUnknown, PCWSTR};
 
@@ -144,7 +151,9 @@ mod imp {
         let mut map = HashMap::new();
         unsafe {
             let (mut paths, mut modes) = (0u32, 0u32);
-            if GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut paths, &mut modes) != ERROR_SUCCESS {
+            if GetDisplayConfigBufferSizes(QDC_ONLY_ACTIVE_PATHS, &mut paths, &mut modes)
+                != ERROR_SUCCESS
+            {
                 return map;
             }
             let mut path_info = vec![DISPLAYCONFIG_PATH_INFO::default(); paths as usize];
@@ -189,7 +198,12 @@ mod imp {
         map
     }
 
-    unsafe extern "system" fn collect(monitor: HMONITOR, _: HDC, _: *mut RECT, data: LPARAM) -> BOOL {
+    unsafe extern "system" fn collect(
+        monitor: HMONITOR,
+        _: HDC,
+        _: *mut RECT,
+        data: LPARAM,
+    ) -> BOOL {
         unsafe {
             let list = &mut *(data.0 as *mut Vec<(HMONITOR, String)>);
             let mut info = MONITORINFOEXW::default();
@@ -204,13 +218,21 @@ mod imp {
     fn monitors() -> Vec<(HMONITOR, String)> {
         let mut list: Vec<(HMONITOR, String)> = Vec::new();
         unsafe {
-            let _ = EnumDisplayMonitors(None, None, Some(collect), LPARAM(&mut list as *mut _ as isize));
+            let _ = EnumDisplayMonitors(
+                None,
+                None,
+                Some(collect),
+                LPARAM(&mut list as *mut _ as isize),
+            );
         }
         list
     }
 
     /// The physical monitors behind one display, released after `use_them`.
-    fn with_physical<T>(monitor: HMONITOR, use_them: impl FnOnce(&[PHYSICAL_MONITOR]) -> T) -> Option<T> {
+    fn with_physical<T>(
+        monitor: HMONITOR,
+        use_them: impl FnOnce(&[PHYSICAL_MONITOR]) -> T,
+    ) -> Option<T> {
         unsafe {
             let mut count = 0u32;
             GetNumberOfPhysicalMonitorsFromHMONITOR(monitor, &mut count).ok()?;
@@ -230,7 +252,10 @@ mod imp {
         let mut out = wmi_displays(&targets);
         let has_panel = !out.is_empty();
         for (monitor, device) in monitors() {
-            let (name, built_in) = targets.get(&device.to_lowercase()).cloned().unwrap_or_default();
+            let (name, built_in) = targets
+                .get(&device.to_lowercase())
+                .cloned()
+                .unwrap_or_default();
             // The panel answers through WMI, and rarely over DDC/CI.
             if built_in && has_panel {
                 continue;
@@ -266,7 +291,12 @@ mod imp {
                         } else {
                             device.trim_start_matches(r"\\.\").to_string()
                         };
-                        Some(Display { id, name, brightness: from_device(current, max), built_in })
+                        Some(Display {
+                            id,
+                            name,
+                            brightness: from_device(current, max),
+                            built_in,
+                        })
                     })
                     .collect::<Vec<_>>()
             });
@@ -289,8 +319,14 @@ mod imp {
             .ok_or("Display unavailable")?;
         with_physical(monitor, |list| {
             let physical = list.get(index).ok_or("Display unavailable")?;
-            let ok = unsafe { SetVCPFeature(physical.hPhysicalMonitor, BRIGHTNESS, to_device(value, max)) } != 0;
-            if ok { Ok(()) } else { Err("The display refused the change".to_string()) }
+            let ok = unsafe {
+                SetVCPFeature(physical.hPhysicalMonitor, BRIGHTNESS, to_device(value, max))
+            } != 0;
+            if ok {
+                Ok(())
+            } else {
+                Err("The display refused the change".to_string())
+            }
         })
         .ok_or("Display unavailable")?
     }
@@ -299,10 +335,18 @@ mod imp {
 
     fn services() -> Result<IWbemServices, String> {
         unsafe {
-            let locator: IWbemLocator =
-                CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER).map_err(|e| e.message())?;
+            let locator: IWbemLocator = CoCreateInstance(&WbemLocator, None, CLSCTX_INPROC_SERVER)
+                .map_err(|e| e.message())?;
             let services = locator
-                .ConnectServer(&BSTR::from(r"ROOT\WMI"), &BSTR::new(), &BSTR::new(), &BSTR::new(), 0, &BSTR::new(), None)
+                .ConnectServer(
+                    &BSTR::from(r"ROOT\WMI"),
+                    &BSTR::new(),
+                    &BSTR::new(),
+                    &BSTR::new(),
+                    0,
+                    &BSTR::new(),
+                    None,
+                )
                 .map_err(|e| e.message())?;
             blanket(&services.clone().into());
             Ok(services)
@@ -329,8 +373,10 @@ mod imp {
     fn query(services: &IWbemServices, wql: &str) -> Vec<IWbemClassObject> {
         let mut out = Vec::new();
         unsafe {
-            let flags = WBEM_GENERIC_FLAG_TYPE(WBEM_FLAG_FORWARD_ONLY.0 | WBEM_FLAG_RETURN_IMMEDIATELY.0);
-            let Ok(rows) = services.ExecQuery(&BSTR::from("WQL"), &BSTR::from(wql), flags, None) else {
+            let flags =
+                WBEM_GENERIC_FLAG_TYPE(WBEM_FLAG_FORWARD_ONLY.0 | WBEM_FLAG_RETURN_IMMEDIATELY.0);
+            let Ok(rows) = services.ExecQuery(&BSTR::from("WQL"), &BSTR::from(wql), flags, None)
+            else {
                 return out;
             };
             blanket(&rows.clone().into());
@@ -358,25 +404,38 @@ mod imp {
     }
 
     fn text(object: &IWbemClassObject, name: &str) -> Option<String> {
-        property(object, name).and_then(|v| BSTR::try_from(&v).ok()).map(|b| b.to_string())
+        property(object, name)
+            .and_then(|v| BSTR::try_from(&v).ok())
+            .map(|b| b.to_string())
     }
 
     fn wmi_displays(targets: &HashMap<String, (String, bool)>) -> Vec<Display> {
-        let Ok(services) = services() else { return Vec::new() };
-        let panel = targets.values().find(|(_, built_in)| *built_in).map(|(name, _)| name.clone());
-        query(&services, "SELECT InstanceName, CurrentBrightness FROM WmiMonitorBrightness WHERE Active = TRUE")
-            .iter()
-            .filter_map(|row| {
-                let instance = text(row, "InstanceName")?;
-                let level = property(row, "CurrentBrightness").and_then(|v| u32::try_from(&v).ok())?;
-                Some(Display {
-                    id: format!("wmi:{instance}"),
-                    name: panel.clone().filter(|n| !n.is_empty()).unwrap_or_else(|| "Built-in display".into()),
-                    brightness: from_device(level, 100),
-                    built_in: true,
-                })
+        let Ok(services) = services() else {
+            return Vec::new();
+        };
+        let panel = targets
+            .values()
+            .find(|(_, built_in)| *built_in)
+            .map(|(name, _)| name.clone());
+        query(
+            &services,
+            "SELECT InstanceName, CurrentBrightness FROM WmiMonitorBrightness WHERE Active = TRUE",
+        )
+        .iter()
+        .filter_map(|row| {
+            let instance = text(row, "InstanceName")?;
+            let level = property(row, "CurrentBrightness").and_then(|v| u32::try_from(&v).ok())?;
+            Some(Display {
+                id: format!("wmi:{instance}"),
+                name: panel
+                    .clone()
+                    .filter(|n| !n.is_empty())
+                    .unwrap_or_else(|| "Built-in display".into()),
+                brightness: from_device(level, 100),
+                built_in: true,
             })
-            .collect()
+        })
+        .collect()
     }
 
     /// A VT_UI1 VARIANT: WmiSetBrightness takes its level as a uint8.
@@ -401,26 +460,50 @@ mod imp {
 
     fn wmi_set(instance: &str, value: f32) -> Result<(), String> {
         let services = services()?;
-        let target = query(&services, "SELECT InstanceName FROM WmiMonitorBrightnessMethods WHERE Active = TRUE")
-            .into_iter()
-            .find(|row| text(row, "InstanceName").as_deref() == Some(instance))
-            .ok_or("Display unavailable")?;
+        let target = query(
+            &services,
+            "SELECT InstanceName FROM WmiMonitorBrightnessMethods WHERE Active = TRUE",
+        )
+        .into_iter()
+        .find(|row| text(row, "InstanceName").as_deref() == Some(instance))
+        .ok_or("Display unavailable")?;
         let path = text(&target, "__PATH").ok_or("Display unavailable")?;
         unsafe {
             let mut class = None;
             services
-                .GetObject(&BSTR::from("WmiMonitorBrightnessMethods"), WBEM_GENERIC_FLAG_TYPE(0), None, Some(&mut class), None)
+                .GetObject(
+                    &BSTR::from("WmiMonitorBrightnessMethods"),
+                    WBEM_GENERIC_FLAG_TYPE(0),
+                    None,
+                    Some(&mut class),
+                    None,
+                )
                 .map_err(|e| e.message())?;
             let class: IWbemClassObject = class.ok_or("WMI has no brightness methods")?;
             let mut signature = None;
             let name: Vec<u16> = "WmiSetBrightness".encode_utf16().chain(Some(0)).collect();
-            class.GetMethod(PCWSTR(name.as_ptr()), 0, &mut signature, std::ptr::null_mut()).map_err(|e| e.message())?;
+            class
+                .GetMethod(
+                    PCWSTR(name.as_ptr()),
+                    0,
+                    &mut signature,
+                    std::ptr::null_mut(),
+                )
+                .map_err(|e| e.message())?;
             let signature: IWbemClassObject = signature.ok_or("WMI has no WmiSetBrightness")?;
             let input = signature.SpawnInstance(0).map_err(|e| e.message())?;
             put(&input, "Timeout", &VARIANT::from(1i32))?;
             put(&input, "Brightness", &byte(to_device(value, 100) as u8))?;
             services
-                .ExecMethod(&BSTR::from(path), &BSTR::from("WmiSetBrightness"), WBEM_GENERIC_FLAG_TYPE(0), None, &input, None, None)
+                .ExecMethod(
+                    &BSTR::from(path),
+                    &BSTR::from("WmiSetBrightness"),
+                    WBEM_GENERIC_FLAG_TYPE(0),
+                    None,
+                    &input,
+                    None,
+                    None,
+                )
                 .map_err(|e| e.message())
         }
     }

@@ -17,9 +17,9 @@
 //! (`PW_RENDERFULLCONTENT`) and a display region is read with the capture
 //! overlay's DXGI/`BitBlt` snapshot, every tick.
 
+use super::support::Area;
 #[cfg(any(windows, test))]
 use super::support::PixelRect;
-use super::support::Area;
 use crate::capture::snapshot::Frame;
 
 /// The watched window as Windows has it now.
@@ -51,18 +51,29 @@ fn crop_bgra(bgra: &[u8], pitch: usize, rect: PixelRect) -> Frame {
     let (x, w) = (rect.x as usize, rect.width as usize);
     let mut rgba = Vec::with_capacity(w * rect.height as usize * 4);
     for y in rect.y as usize..(rect.y + rect.height) as usize {
-        for px in bgra[y * pitch + x * 4..y * pitch + (x + w) * 4].as_chunks::<4>().0 {
+        for px in bgra[y * pitch + x * 4..y * pitch + (x + w) * 4]
+            .as_chunks::<4>()
+            .0
+        {
             rgba.extend_from_slice(&[px[2], px[1], px[0], 255]);
         }
     }
-    Frame { width: rect.width, height: rect.height, rgba }
+    Frame {
+        width: rect.width,
+        height: rect.height,
+        rgba,
+    }
 }
 
 /// The toast's XML: the outcome, then where it happened.
 #[cfg(any(windows, test))]
 fn toast_xml(title: &str, body: &str) -> String {
     let escape = |s: &str| {
-        s.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&apos;")
+        s.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;")
+            .replace('\'', "&apos;")
     };
     format!(
         "<toast><visual><binding template=\"ToastGeneric\"><text>{}</text><text>{}</text></binding></visual></toast>",
@@ -79,15 +90,17 @@ mod imp {
     use std::time::{Duration, Instant};
 
     use windows::Graphics::Capture::{
-        Direct3D11CaptureFramePool, GraphicsCaptureAccess, GraphicsCaptureAccessKind, GraphicsCaptureItem,
-        GraphicsCaptureSession,
+        Direct3D11CaptureFramePool, GraphicsCaptureAccess, GraphicsCaptureAccessKind,
+        GraphicsCaptureItem, GraphicsCaptureSession,
     };
     use windows::Graphics::DirectX::Direct3D11::IDirect3DDevice;
     use windows::Graphics::DirectX::DirectXPixelFormat;
     use windows::Graphics::SizeInt32;
     use windows::Security::Authorization::AppCapabilityAccess::AppCapabilityAccessStatus;
     use windows::Win32::Foundation::{E_ACCESSDENIED, E_FAIL, HMODULE, HWND, LPARAM, RECT};
-    use windows::Win32::Graphics::Direct3D::{D3D_DRIVER_TYPE, D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP};
+    use windows::Win32::Graphics::Direct3D::{
+        D3D_DRIVER_TYPE, D3D_DRIVER_TYPE_HARDWARE, D3D_DRIVER_TYPE_WARP,
+    };
     use windows::Win32::Graphics::Direct3D11::{
         D3D11_BOX, D3D11_CPU_ACCESS_READ, D3D11_CREATE_DEVICE_BGRA_SUPPORT, D3D11_MAP_READ,
         D3D11_MAPPED_SUBRESOURCE, D3D11_SDK_VERSION, D3D11_TEXTURE2D_DESC, D3D11_USAGE_DEFAULT,
@@ -97,9 +110,9 @@ mod imp {
     use windows::Win32::Graphics::Dxgi::Common::{DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_SAMPLE_DESC};
     use windows::Win32::Graphics::Dxgi::{IDXGIAdapter, IDXGIDevice};
     use windows::Win32::Graphics::Gdi::{
-        BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleBitmap, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC,
-        DeleteObject, GetDC, GetDIBits, HGDIOBJ, MONITOR_DEFAULTTONEAREST, MonitorFromRect, MonitorFromWindow, ReleaseDC,
-        SelectObject,
+        BI_RGB, BITMAPINFO, BITMAPINFOHEADER, CreateCompatibleBitmap, CreateCompatibleDC,
+        DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDC, GetDIBits, HGDIOBJ,
+        MONITOR_DEFAULTTONEAREST, MonitorFromRect, MonitorFromWindow, ReleaseDC, SelectObject,
     };
     use windows::Win32::Storage::Xps::{PRINT_WINDOW_FLAGS, PrintWindow};
     use windows::Win32::System::WinRT::Direct3D11::{
@@ -108,8 +121,8 @@ mod imp {
     use windows::Win32::System::WinRT::Graphics::Capture::IGraphicsCaptureItemInterop;
     use windows::Win32::UI::HiDpi::{GetDpiForMonitor, GetDpiForWindow, MDT_EFFECTIVE_DPI};
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetWindowRect, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic, IsWindow,
-        PW_RENDERFULLCONTENT,
+        GetWindowRect, GetWindowTextLengthW, GetWindowTextW, GetWindowThreadProcessId, IsIconic,
+        IsWindow, PW_RENDERFULLCONTENT,
     };
     use windows::core::{HSTRING, Interface, PCWSTR, Result};
 
@@ -188,8 +201,11 @@ mod imp {
             let n = unsafe { GetLocaleInfoEx(PCWSTR::null(), kind, Some(&mut buffer)) };
             (n > 1).then(|| String::from_utf16_lossy(&buffer[..n as usize - 1]))
         };
-        let decimal = read(LOCALE_SDECIMAL).filter(|d| !d.is_empty()).unwrap_or_else(|| ".".into());
-        let spaced = read(LOCALE_STHOUSAND).is_some_and(|g| !g.is_empty() && g.chars().all(char::is_whitespace));
+        let decimal = read(LOCALE_SDECIMAL)
+            .filter(|d| !d.is_empty())
+            .unwrap_or_else(|| ".".into());
+        let spaced = read(LOCALE_STHOUSAND)
+            .is_some_and(|g| !g.is_empty() && g.chars().all(char::is_whitespace));
         (decimal, spaced)
     }
 
@@ -199,7 +215,9 @@ mod imp {
         use windows::ApplicationModel::Package;
         use windows::Data::Xml::Dom::XmlDocument;
         use windows::UI::Notifications::{ToastNotification, ToastNotificationManager};
-        let Ok(_apartment) = crate::com::Apartment::mta() else { return false };
+        let Ok(_apartment) = crate::com::Apartment::mta() else {
+            return false;
+        };
         if Package::Current().is_err() {
             return false;
         }
@@ -217,7 +235,9 @@ mod imp {
     /// line, so a step that never returns shows as the last line.
     pub fn probe(path: &str, title: &str) {
         use std::io::Write;
-        let Ok(mut out) = std::fs::File::create(path) else { return };
+        let Ok(mut out) = std::fs::File::create(path) else {
+            return;
+        };
         let began = Instant::now();
         let mut line = |text: String| {
             let _ = writeln!(out, "{:>6} ms  {text}", began.elapsed().as_millis());
@@ -225,12 +245,16 @@ mod imp {
         };
         let _apartment = crate::com::Apartment::mta();
         let found = unsafe {
-            use windows::Win32::UI::WindowsAndMessaging::{EnumWindows, GetWindowTextW, IsWindowVisible};
+            use windows::Win32::UI::WindowsAndMessaging::{
+                EnumWindows, GetWindowTextW, IsWindowVisible,
+            };
             unsafe extern "system" fn each(h: HWND, data: LPARAM) -> windows::core::BOOL {
                 let (title, found) = unsafe { &mut *(data.0 as *mut (String, isize)) };
                 let mut buf = [0u16; 512];
                 let n = unsafe { GetWindowTextW(h, &mut buf) } as usize;
-                if unsafe { IsWindowVisible(h) }.as_bool() && String::from_utf16_lossy(&buf[..n]).contains(title.as_str()) {
+                if unsafe { IsWindowVisible(h) }.as_bool()
+                    && String::from_utf16_lossy(&buf[..n]).contains(title.as_str())
+                {
                     *found = h.0 as isize;
                     return false.into();
                 }
@@ -244,32 +268,57 @@ mod imp {
         if found == 0 {
             return;
         }
-        line(format!("supported {:?}", GraphicsCaptureSession::IsSupported()));
+        line(format!(
+            "supported {:?}",
+            GraphicsCaptureSession::IsSupported()
+        ));
         line(format!("device {:?}", device().map(|_| ())));
         line("borderless access…".into());
         line(format!("borderless {}", borderless()));
-        let kind = Kind::Window { hwnd: found, crop: Area { x: 0.0, y: 0.0, width: 200.0, height: 60.0 } };
+        let kind = Kind::Window {
+            hwnd: found,
+            crop: Area {
+                x: 0.0,
+                y: 0.0,
+                width: 200.0,
+                height: 60.0,
+            },
+        };
         let start = Capture::start(&kind);
         line(format!("start {:?}", start.as_ref().map(|_| ())));
         if let Ok(mut capture) = start {
             for _ in 0..10 {
                 std::thread::sleep(Duration::from_millis(300));
-                let grab = capture.grab(Area { x: 0.0, y: 0.0, width: 200.0, height: 60.0 }, (800.0, 600.0));
+                let grab = capture.grab(
+                    Area {
+                        x: 0.0,
+                        y: 0.0,
+                        width: 200.0,
+                        height: 60.0,
+                    },
+                    (800.0, 600.0),
+                );
                 if let Ok(Grab::Frame(f)) = &grab {
                     line("ocr…".into());
                     let text = crate::ocr::recognize(&f.rgba, f.width, f.height).map(|r| r.text());
                     line(format!("ocr {:?}", text.map_err(|e| format!("{e:?}"))));
                 }
-                line(format!("grab {}", match grab {
-                    Ok(Grab::Frame(f)) => format!("frame {}x{}", f.width, f.height),
-                    Ok(Grab::Waiting) => "waiting".into(),
-                    Ok(Grab::Missing) => "missing".into(),
-                    Ok(Grab::Denied) => "denied".into(),
-                    Err(e) => format!("error {e:?}"),
-                }));
+                line(format!(
+                    "grab {}",
+                    match grab {
+                        Ok(Grab::Frame(f)) => format!("frame {}x{}", f.width, f.height),
+                        Ok(Grab::Waiting) => "waiting".into(),
+                        Ok(Grab::Missing) => "missing".into(),
+                        Ok(Grab::Denied) => "denied".into(),
+                        Err(e) => format!("error {e:?}"),
+                    }
+                ));
             }
         }
-        line(format!("print_window {:?}", print_window(found).map(|f| (f.width, f.height))));
+        line(format!(
+            "print_window {:?}",
+            print_window(found).map(|f| (f.width, f.height))
+        ));
     }
 
     /// Asked once: whether captures may leave out the yellow border. The
@@ -279,14 +328,19 @@ mod imp {
         static ALLOWED: OnceLock<bool> = OnceLock::new();
         *ALLOWED.get_or_init(|| {
             let (tx, rx) = std::sync::mpsc::channel();
-            let _ = std::thread::Builder::new().name("watch-borderless".into()).spawn(move || {
-                let _apartment = crate::com::Apartment::mta();
-                let allowed = GraphicsCaptureAccess::RequestAccessAsync(GraphicsCaptureAccessKind::Borderless)
+            let _ = std::thread::Builder::new()
+                .name("watch-borderless".into())
+                .spawn(move || {
+                    let _apartment = crate::com::Apartment::mta();
+                    let allowed = GraphicsCaptureAccess::RequestAccessAsync(
+                        GraphicsCaptureAccessKind::Borderless,
+                    )
                     .and_then(|op| op.join())
                     .is_ok_and(|status| status == AppCapabilityAccessStatus::Allowed);
-                let _ = tx.send(allowed);
-            });
-            rx.recv_timeout(Duration::from_millis(1500)).unwrap_or(false)
+                    let _ = tx.send(allowed);
+                });
+            rx.recv_timeout(Duration::from_millis(1500))
+                .unwrap_or(false)
         })
     }
 
@@ -303,7 +357,11 @@ mod imp {
                 Ok(capture) => (Some(capture), false),
                 Err(e) => (None, e.code() == E_ACCESSDENIED),
             };
-            Source { kind: kind.clone(), capture, denied }
+            Source {
+                kind: kind.clone(),
+                capture,
+                denied,
+            }
         }
 
         /// The area now: `crop` in the units of `space`, the size of what
@@ -325,7 +383,12 @@ mod imp {
             };
             let area = whole.and_then(|whole| {
                 let r = pixel_crop(crop, space, (whole.width, whole.height))?;
-                Some(whole.crop(Rect { x: r.x as i32, y: r.y as i32, width: r.width as i32, height: r.height as i32 }))
+                Some(whole.crop(Rect {
+                    x: r.x as i32,
+                    y: r.y as i32,
+                    width: r.width as i32,
+                    height: r.height as i32,
+                }))
             });
             match area {
                 Some(frame) => Grab::Frame(frame),
@@ -368,10 +431,14 @@ mod imp {
             }
             let (device, context) = device()?;
             let direct3d: IDirect3DDevice =
-                unsafe { CreateDirect3D11DeviceFromDXGIDevice(&device.cast::<IDXGIDevice>()?)? }.cast()?;
-            let interop = windows::core::factory::<GraphicsCaptureItem, IGraphicsCaptureItemInterop>()?;
+                unsafe { CreateDirect3D11DeviceFromDXGIDevice(&device.cast::<IDXGIDevice>()?)? }
+                    .cast()?;
+            let interop =
+                windows::core::factory::<GraphicsCaptureItem, IGraphicsCaptureItemInterop>()?;
             let item: GraphicsCaptureItem = match kind {
-                Kind::Window { hwnd: handle, .. } => unsafe { interop.CreateForWindow(hwnd(*handle))? },
+                Kind::Window { hwnd: handle, .. } => unsafe {
+                    interop.CreateForWindow(hwnd(*handle))?
+                },
                 Kind::Display { monitor, .. } => unsafe {
                     interop.CreateForMonitor(windows::Win32::Graphics::Gdi::HMONITOR(
                         monitor_handle(*monitor) as *mut _,
@@ -426,15 +493,38 @@ mod imp {
                         Some(kept) if (kept.1, kept.2) == (w, h) => kept.0,
                         _ => self.texture(w, h, false)?,
                     };
-                    let whole = D3D11_BOX { left: 0, top: 0, front: 0, right: w, bottom: h, back: 1 };
-                    unsafe { self.context.CopySubresourceRegion(&last, 0, 0, 0, 0, &texture, 0, Some(&whole)) };
+                    let whole = D3D11_BOX {
+                        left: 0,
+                        top: 0,
+                        front: 0,
+                        right: w,
+                        bottom: h,
+                        back: 1,
+                    };
+                    unsafe {
+                        self.context.CopySubresourceRegion(
+                            &last,
+                            0,
+                            0,
+                            0,
+                            0,
+                            &texture,
+                            0,
+                            Some(&whole),
+                        )
+                    };
                     self.last = Some((last, w, h));
                 }
                 let _ = frame.Close();
                 // A resized window: the pool follows, the next frame fills it.
                 if (size.Width, size.Height) != (self.size.Width, self.size.Height) {
                     self.size = size;
-                    self.pool.Recreate(&self.direct3d, DirectXPixelFormat::B8G8R8A8UIntNormalized, 2, size)?;
+                    self.pool.Recreate(
+                        &self.direct3d,
+                        DirectXPixelFormat::B8G8R8A8UIntNormalized,
+                        2,
+                        size,
+                    )?;
                 }
             }
             let Some((last, w, h)) = self.last.clone() else {
@@ -444,19 +534,42 @@ mod imp {
                     Grab::Missing
                 });
             };
-            let Some(r) = pixel_crop(crop, space, (w, h)) else { return Ok(Grab::Missing) };
+            let Some(r) = pixel_crop(crop, space, (w, h)) else {
+                return Ok(Grab::Missing);
+            };
             let staging = match self.staging.take() {
                 Some(kept) if (kept.1, kept.2) == (r.width, r.height) => kept.0,
                 _ => self.texture(r.width, r.height, true)?,
             };
-            let region = D3D11_BOX { left: r.x, top: r.y, front: 0, right: r.x + r.width, bottom: r.y + r.height, back: 1 };
+            let region = D3D11_BOX {
+                left: r.x,
+                top: r.y,
+                front: 0,
+                right: r.x + r.width,
+                bottom: r.y + r.height,
+                back: 1,
+            };
             let frame = unsafe {
-                self.context.CopySubresourceRegion(&staging, 0, 0, 0, 0, &last, 0, Some(&region));
+                self.context
+                    .CopySubresourceRegion(&staging, 0, 0, 0, 0, &last, 0, Some(&region));
                 let mut mapped = D3D11_MAPPED_SUBRESOURCE::default();
-                self.context.Map(&staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped))?;
+                self.context
+                    .Map(&staging, 0, D3D11_MAP_READ, 0, Some(&mut mapped))?;
                 let pitch = mapped.RowPitch as usize;
-                let bytes = std::slice::from_raw_parts(mapped.pData.cast::<u8>(), pitch * r.height as usize);
-                let frame = crop_bgra(bytes, pitch, PixelRect { x: 0, y: 0, width: r.width, height: r.height });
+                let bytes = std::slice::from_raw_parts(
+                    mapped.pData.cast::<u8>(),
+                    pitch * r.height as usize,
+                );
+                let frame = crop_bgra(
+                    bytes,
+                    pitch,
+                    PixelRect {
+                        x: 0,
+                        y: 0,
+                        width: r.width,
+                        height: r.height,
+                    },
+                );
                 self.context.Unmap(&staging, 0);
                 frame
             };
@@ -472,14 +585,28 @@ mod imp {
                 MipLevels: 1,
                 ArraySize: 1,
                 Format: DXGI_FORMAT_B8G8R8A8_UNORM,
-                SampleDesc: DXGI_SAMPLE_DESC { Count: 1, Quality: 0 },
-                Usage: if staging { D3D11_USAGE_STAGING } else { D3D11_USAGE_DEFAULT },
+                SampleDesc: DXGI_SAMPLE_DESC {
+                    Count: 1,
+                    Quality: 0,
+                },
+                Usage: if staging {
+                    D3D11_USAGE_STAGING
+                } else {
+                    D3D11_USAGE_DEFAULT
+                },
                 BindFlags: 0,
-                CPUAccessFlags: if staging { D3D11_CPU_ACCESS_READ.0 as u32 } else { 0 },
+                CPUAccessFlags: if staging {
+                    D3D11_CPU_ACCESS_READ.0 as u32
+                } else {
+                    0
+                },
                 MiscFlags: 0,
             };
             let mut texture = None;
-            unsafe { self.device.CreateTexture2D(&desc, None, Some(&mut texture))? };
+            unsafe {
+                self.device
+                    .CreateTexture2D(&desc, None, Some(&mut texture))?
+            };
             texture.ok_or_else(|| E_FAIL.into())
         }
     }
@@ -536,7 +663,8 @@ mod imp {
             let memory = CreateCompatibleDC(Some(screen));
             let bitmap = CreateCompatibleBitmap(screen, w, h);
             let previous = SelectObject(memory, HGDIOBJ(bitmap.0));
-            let printed = PrintWindow(hwnd, memory, PRINT_WINDOW_FLAGS(PW_RENDERFULLCONTENT)).as_bool();
+            let printed =
+                PrintWindow(hwnd, memory, PRINT_WINDOW_FLAGS(PW_RENDERFULLCONTENT)).as_bool();
             SelectObject(memory, previous);
             let mut header = BITMAPINFO {
                 bmiHeader: BITMAPINFOHEADER {
@@ -551,8 +679,15 @@ mod imp {
                 ..Default::default()
             };
             let mut bgra = vec![0u8; w as usize * h as usize * 4];
-            let lines =
-                GetDIBits(memory, bitmap, 0, h as u32, Some(bgra.as_mut_ptr().cast()), &mut header, DIB_RGB_COLORS);
+            let lines = GetDIBits(
+                memory,
+                bitmap,
+                0,
+                h as u32,
+                Some(bgra.as_mut_ptr().cast()),
+                &mut header,
+                DIB_RGB_COLORS,
+            );
             let _ = DeleteObject(HGDIOBJ(bitmap.0));
             let _ = DeleteDC(memory);
             ReleaseDC(None, screen);
@@ -616,13 +751,28 @@ mod tests {
     fn bgra_crops_into_tight_opaque_rgba() {
         // 3 × 2 BGRA with an 16-byte pitch; each pixel's blue is its index.
         let mut bgra = vec![0u8; 16 * 2];
-        for (i, (x, y)) in [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)].into_iter().enumerate() {
+        for (i, (x, y)) in [(0, 0), (1, 0), (2, 0), (0, 1), (1, 1), (2, 1)]
+            .into_iter()
+            .enumerate()
+        {
             bgra[y * 16 + x * 4] = i as u8;
             bgra[y * 16 + x * 4 + 2] = 100;
         }
-        let frame = crop_bgra(&bgra, 16, PixelRect { x: 1, y: 0, width: 2, height: 2 });
+        let frame = crop_bgra(
+            &bgra,
+            16,
+            PixelRect {
+                x: 1,
+                y: 0,
+                width: 2,
+                height: 2,
+            },
+        );
         assert_eq!((frame.width, frame.height), (2, 2));
-        assert_eq!(frame.rgba.chunks(4).map(|p| p[2]).collect::<Vec<_>>(), [1, 2, 4, 5]);
+        assert_eq!(
+            frame.rgba.chunks(4).map(|p| p[2]).collect::<Vec<_>>(),
+            [1, 2, 4, 5]
+        );
         assert!(frame.rgba.chunks(4).all(|p| p[0] == 100 && p[3] == 255));
     }
 

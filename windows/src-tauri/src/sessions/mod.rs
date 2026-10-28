@@ -10,8 +10,8 @@
 // The service and the UI that call these land separately.
 #![allow(dead_code)]
 
-pub mod codex;
 pub mod attachments;
+pub mod codex;
 pub mod engine;
 pub mod hook_message;
 pub mod models;

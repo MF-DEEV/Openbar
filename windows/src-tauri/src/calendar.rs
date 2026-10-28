@@ -808,7 +808,8 @@ pub async fn calendar_request_access(state: tauri::State<'_, Shared>) -> Result<
             let _apartment = crate::com::Apartment::mta();
             let _ = tx.send(imp::request_access());
         });
-        rx.recv_timeout(std::time::Duration::from_secs(120)).unwrap_or(Access::NotAsked)
+        rx.recv_timeout(std::time::Duration::from_secs(120))
+            .unwrap_or(Access::NotAsked)
     })
     .await
     .unwrap_or(Access::Unavailable);

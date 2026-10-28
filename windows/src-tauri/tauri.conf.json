@@ -18,16 +18,8 @@
   },
   "bundle": {
     "active": true,
-    "targets": [
-      "nsis"
-    ],
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ],
+    "targets": ["nsis"],
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
     "publisher": "Vorssaint",
     "copyright": "Copyright (C) 2026 Vorssaint. GPL-3.0-or-later.",
     "shortDescription": "Dynamic Island for Windows",
@@ -40,9 +32,7 @@
       },
       "nsis": {
         "installMode": "currentUser",
-        "languages": [
-          "English"
-        ],
+        "languages": ["English"],
         "displayLanguageSelector": false,
         "startMenuFolder": "Vorssaint",
         "installerHooks": "installer-hooks.nsh"

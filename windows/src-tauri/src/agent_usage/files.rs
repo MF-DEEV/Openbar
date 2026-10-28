@@ -33,7 +33,10 @@ pub fn home() -> Option<PathBuf> {
 }
 
 fn env_dir(name: &str) -> Option<PathBuf> {
-    std::env::var_os(name).filter(|v| !v.is_empty()).map(PathBuf::from).filter(|p| p.is_absolute())
+    std::env::var_os(name)
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from)
+        .filter(|p| p.is_absolute())
 }
 
 /// `%CODEX_HOME%` or `%USERPROFILE%\.codex`.
@@ -50,24 +53,49 @@ pub fn claude_dir() -> Option<PathBuf> {
 /// relocation variables are honoured (§13.8).
 pub fn roots() -> Vec<Root> {
     let Some(home) = home() else { return vec![] };
-    let mut out = vec![Root { provider: Provider::Claude, path: home.join(".claude").join("projects") }];
+    let mut out = vec![Root {
+        provider: Provider::Claude,
+        path: home.join(".claude").join("projects"),
+    }];
     if let Some(dir) = env_dir("CLAUDE_CONFIG_DIR") {
-        out.push(Root { provider: Provider::Claude, path: dir.join("projects") });
+        out.push(Root {
+            provider: Provider::Claude,
+            path: dir.join("projects"),
+        });
     }
-    out.push(Root { provider: Provider::Claude, path: home.join(".config").join("claude").join("projects") });
+    out.push(Root {
+        provider: Provider::Claude,
+        path: home.join(".config").join("claude").join("projects"),
+    });
     if let Some(codex) = codex_home() {
-        out.push(Root { provider: Provider::Codex, path: codex.join("sessions") });
-        out.push(Root { provider: Provider::Codex, path: codex.join("archived_sessions") });
+        out.push(Root {
+            provider: Provider::Codex,
+            path: codex.join("sessions"),
+        });
+        out.push(Root {
+            provider: Provider::Codex,
+            path: codex.join("archived_sessions"),
+        });
     }
     let data = env_dir("XDG_DATA_HOME").unwrap_or_else(|| home.join(".local").join("share"));
-    out.push(Root { provider: Provider::Opencode, path: data.join("opencode") });
+    out.push(Root {
+        provider: Provider::Opencode,
+        path: data.join("opencode"),
+    });
     let copilot = env_dir("COPILOT_HOME").unwrap_or_else(|| home.join(".copilot"));
-    out.push(Root { provider: Provider::Copilot, path: copilot.join("session-state") });
+    out.push(Root {
+        provider: Provider::Copilot,
+        path: copilot.join("session-state"),
+    });
     // One folder spelled two ways (slashes, short names, links) is read once.
     for root in &mut out {
         if let Ok(real) = std::fs::canonicalize(&root.path) {
             let text = real.to_string_lossy().into_owned();
-            root.path = PathBuf::from(text.strip_prefix(r"\\?\").filter(|t| !t.starts_with("UNC")).unwrap_or(&text));
+            root.path = PathBuf::from(
+                text.strip_prefix(r"\\?\")
+                    .filter(|t| !t.starts_with("UNC"))
+                    .unwrap_or(&text),
+            );
         }
     }
     let mut seen = Vec::<String>::new();
@@ -83,13 +111,17 @@ pub fn roots() -> Vec<Root> {
 
 /// Whether a provider's logs exist on this PC (Settings: "Found on this PC").
 pub fn found(provider: Provider) -> bool {
-    roots().iter().any(|r| r.provider == provider && r.path.is_dir())
+    roots()
+        .iter()
+        .any(|r| r.provider == provider && r.path.is_dir())
 }
 
 /// Claude Code keeps a session's subagents in `<session>\subagents\`,
 /// beside the session's own `<session>.jsonl`.
 pub fn parent_of(path: &str) -> Option<String> {
-    let at = path.rfind("\\subagents\\").or_else(|| path.rfind("/subagents/"))?;
+    let at = path
+        .rfind("\\subagents\\")
+        .or_else(|| path.rfind("/subagents/"))?;
     // Only a log directly inside it: a folder named so above the root is not one.
     if path[at + 11..].contains(['/', '\\']) {
         return None;
@@ -98,13 +130,19 @@ pub fn parent_of(path: &str) -> Option<String> {
 }
 
 pub fn modified(meta: &std::fs::Metadata) -> Time {
-    meta.modified().ok().and_then(|m| m.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs_f64()).unwrap_or(0.0)
+    meta.modified()
+        .ok()
+        .and_then(|m| m.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
 }
 
 /// The newer of the database and its write-ahead log.
 pub fn opencode_modified(path: &Path) -> Option<Time> {
     let meta = std::fs::metadata(path).ok().filter(|m| m.is_file())?;
-    let wal = std::fs::metadata(format!("{}-wal", path.display())).map(|m| modified(&m)).unwrap_or(0.0);
+    let wal = std::fs::metadata(format!("{}-wal", path.display()))
+        .map(|m| modified(&m))
+        .unwrap_or(0.0);
     Some(modified(&meta).max(wal))
 }
 
@@ -124,15 +162,26 @@ pub fn discover(roots: &[Root], horizon: Time) -> Vec<(String, Provider)> {
             // A session folder can hold a whole workspace checkout: only
             // `<session>\events.jsonl` is looked at.
             Provider::Copilot => {
-                for dir in std::fs::read_dir(&root.path).into_iter().flatten().flatten() {
+                for dir in std::fs::read_dir(&root.path)
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                {
                     if dir.file_name().to_string_lossy().starts_with('.') {
                         continue;
                     }
                     let path = dir.path().join("events.jsonl");
                     if let Ok(meta) = std::fs::metadata(&path)
-                        && meta.is_file() && modified(&meta) >= horizon {
-                            found.push((path.to_string_lossy().into_owned(), root.provider, modified(&meta), false));
-                        }
+                        && meta.is_file()
+                        && modified(&meta) >= horizon
+                    {
+                        found.push((
+                            path.to_string_lossy().into_owned(),
+                            root.provider,
+                            modified(&meta),
+                            false,
+                        ));
+                    }
                 }
             }
             _ => walk(&root.path, &mut |path, meta| {
@@ -145,13 +194,18 @@ pub fn discover(roots: &[Root], horizon: Time) -> Vec<(String, Provider)> {
         }
     }
     found.sort_by(|a, b| a.3.cmp(&b.3).then(a.2.total_cmp(&b.2)));
-    found.into_iter().map(|(p, provider, _, _)| (p, provider)).collect()
+    found
+        .into_iter()
+        .map(|(p, provider, _, _)| (p, provider))
+        .collect()
 }
 
 /// Every regular file under `dir`; links and junctions are not followed.
 fn walk(dir: &Path, visit: &mut dyn FnMut(&Path, &std::fs::Metadata)) {
     for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
-        let Ok(kind) = entry.file_type() else { continue };
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
         if kind.is_symlink() {
             continue;
         }
@@ -181,7 +235,9 @@ pub fn open_shared(path: &Path) -> std::io::Result<File> {
 pub fn identity(file: &File) -> u64 {
     use std::os::windows::io::AsRawHandle;
     use windows::Win32::Foundation::HANDLE;
-    use windows::Win32::Storage::FileSystem::{BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle};
+    use windows::Win32::Storage::FileSystem::{
+        BY_HANDLE_FILE_INFORMATION, GetFileInformationByHandle,
+    };
     let mut info = BY_HANDLE_FILE_INFORMATION::default();
     match unsafe { GetFileInformationByHandle(HANDLE(file.as_raw_handle()), &mut info) } {
         Ok(()) => ((info.nFileIndexHigh as u64) << 32) | info.nFileIndexLow as u64,
@@ -263,8 +319,18 @@ pub struct SavedCursor {
 
 impl Cursor {
     pub fn new(path: &str, provider: Provider) -> Cursor {
-        let parent = if provider == Provider::Claude { parent_of(path) } else { None };
-        Cursor { path: path.into(), provider, parent, codex_parent_search: usize::MAX, ..Default::default() }
+        let parent = if provider == Provider::Claude {
+            parent_of(path)
+        } else {
+            None
+        };
+        Cursor {
+            path: path.into(),
+            provider,
+            parent,
+            codex_parent_search: usize::MAX,
+            ..Default::default()
+        }
     }
 
     /// Subagents report to a turn another file tracks.
@@ -277,20 +343,34 @@ impl Cursor {
     }
 
     /// The log of the thread a Codex subagent works for: the one written last.
-    pub fn codex_parent<'a>(&mut self, logs: impl Iterator<Item = (&'a str, &'a LogState, Time)>, count: usize) -> Option<String> {
-        if self.provider != Provider::Codex || self.state.codex_root.is_empty() || self.tracks_turns() {
+    pub fn codex_parent<'a>(
+        &mut self,
+        logs: impl Iterator<Item = (&'a str, &'a LogState, Time)>,
+        count: usize,
+    ) -> Option<String> {
+        if self.provider != Provider::Codex
+            || self.state.codex_root.is_empty()
+            || self.tracks_turns()
+        {
             return None;
         }
         if self.codex_parent_search != count {
             self.codex_parent_search = count;
             let root = self.state.codex_root.clone();
-            self.codex_parent = logs.filter(|(_, s, _)| !s.codex_subagent && s.session == root).max_by(|a, b| a.2.total_cmp(&b.2)).map(|(p, _, _)| p.to_string());
+            self.codex_parent = logs
+                .filter(|(_, s, _)| !s.codex_subagent && s.session == root)
+                .max_by(|a, b| a.2.total_cmp(&b.2))
+                .map(|(p, _, _)| p.to_string());
         }
         self.codex_parent.clone()
     }
 
     fn boundary(&self) -> u64 {
-        if self.discarding { self.offset } else { self.offset - self.pending.len() as u64 }
+        if self.discarding {
+            self.offset
+        } else {
+            self.offset - self.pending.len() as u64
+        }
     }
 
     pub fn start_over(&mut self, identity: u64) {
@@ -316,13 +396,24 @@ impl Cursor {
                 value
             }
         };
-        Some(SavedCursor { path: self.path.clone(), provider: self.provider, offset: end, identity: self.identity, discarding: self.discarding, modified: self.modified, state: self.state.clone(), fingerprint })
+        Some(SavedCursor {
+            path: self.path.clone(),
+            provider: self.provider,
+            offset: end,
+            identity: self.identity,
+            discarding: self.discarding,
+            modified: self.modified,
+            state: self.state.clone(),
+            fingerprint,
+        })
     }
 
     /// None when the path no longer holds the log read up to the saved offset.
     pub fn restore(saved: SavedCursor) -> Option<Cursor> {
         let mut file = open_shared(Path::new(&saved.path)).ok()?;
-        if identity(&file) != saved.identity || fingerprint(&mut file, saved.offset)? != saved.fingerprint {
+        if identity(&file) != saved.identity
+            || fingerprint(&mut file, saved.offset)? != saved.fingerprint
+        {
             return None;
         }
         let mut cursor = Cursor::new(&saved.path, saved.provider);
@@ -338,8 +429,14 @@ impl Cursor {
     /// Reads what was appended since the last call and hands over each
     /// complete line; a line still being written waits for its end. A
     /// replaced, truncated or rewritten file starts over.
-    pub fn read_appended(&mut self, keep: &dyn Fn(&[u8]) -> bool, line: &mut dyn FnMut(&mut LogState, &[u8])) {
-        let Ok(mut file) = open_shared(Path::new(&self.path)) else { return };
+    pub fn read_appended(
+        &mut self,
+        keep: &dyn Fn(&[u8]) -> bool,
+        line: &mut dyn FnMut(&mut LogState, &[u8]),
+    ) {
+        let Ok(mut file) = open_shared(Path::new(&self.path)) else {
+            return;
+        };
         let Ok(meta) = file.metadata() else { return };
         if !meta.is_file() {
             return;
@@ -347,7 +444,10 @@ impl Cursor {
         let size = meta.len();
         let id = identity(&file);
         self.modified = modified(&meta);
-        let rewritten = size > self.offset && self.fingerprinted.is_some_and(|(offset, identity, value)| identity == id && fingerprint(&mut file, offset) != Some(value));
+        let rewritten = size > self.offset
+            && self.fingerprinted.is_some_and(|(offset, identity, value)| {
+                identity == id && fingerprint(&mut file, offset) != Some(value)
+            });
         if id != self.identity || size < self.offset || rewritten {
             self.start_over(id);
         }
@@ -355,7 +455,9 @@ impl Cursor {
             let mut chunk = vec![0u8; CHUNK.min((size - self.offset) as usize)];
             while self.offset < size {
                 let wanted = CHUNK.min((size - self.offset) as usize);
-                let Ok(read) = file.read(&mut chunk[..wanted]) else { break };
+                let Ok(read) = file.read(&mut chunk[..wanted]) else {
+                    break;
+                };
                 if read == 0 {
                     break;
                 }
@@ -364,12 +466,20 @@ impl Cursor {
             }
         }
         let end = self.boundary();
-        if self.fingerprinted.is_none_or(|(o, i, _)| o != end || i != self.identity) {
+        if self
+            .fingerprinted
+            .is_none_or(|(o, i, _)| o != end || i != self.identity)
+        {
             self.fingerprinted = fingerprint(&mut file, end).map(|v| (end, self.identity, v));
         }
     }
 
-    fn split(&mut self, chunk: &[u8], keep: &dyn Fn(&[u8]) -> bool, line: &mut dyn FnMut(&mut LogState, &[u8])) {
+    fn split(
+        &mut self,
+        chunk: &[u8],
+        keep: &dyn Fn(&[u8]) -> bool,
+        line: &mut dyn FnMut(&mut LogState, &[u8]),
+    ) {
         let carried = self.pending.len();
         let mut buffer = std::mem::take(&mut self.pending);
         buffer.extend_from_slice(chunk);
@@ -409,13 +519,18 @@ const PID_DOMAIN: &str = "darwin";
 /// containers) by `:<hostname>` or more: Claude Code 2.1.312 builds it as
 /// `` `${platform}:${hostname().toLowerCase()}` `` on Windows.
 fn local_domain(domain: &str) -> bool {
-    domain == PID_DOMAIN || domain.strip_prefix(PID_DOMAIN).is_some_and(|rest| rest.starts_with(':'))
+    domain == PID_DOMAIN
+        || domain
+            .strip_prefix(PID_DOMAIN)
+            .is_some_and(|rest| rest.starts_with(':'))
 }
 
 #[cfg(windows)]
 fn is_running(pid: u32) -> bool {
     use windows::Win32::Foundation::{CloseHandle, STILL_ACTIVE};
-    use windows::Win32::System::Threading::{GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION};
+    use windows::Win32::System::Threading::{
+        GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
+    };
     if pid == 0 {
         return false;
     }
@@ -442,21 +557,49 @@ pub fn registry(roots: &[Root]) -> Registry {
 }
 
 pub fn registry_with(roots: &[Root], running: &dyn Fn(u32) -> bool) -> Registry {
-    let mut out = Registry { complete: true, ..Default::default() };
+    let mut out = Registry {
+        complete: true,
+        ..Default::default()
+    };
     for root in roots.iter().filter(|r| r.provider == Provider::Claude) {
-        let Some(folder) = root.path.parent().map(|p| p.join("sessions")) else { continue };
-        let Ok(entries) = std::fs::read_dir(&folder) else { continue };
+        let Some(folder) = root.path.parent().map(|p| p.join("sessions")) else {
+            continue;
+        };
+        let Ok(entries) = std::fs::read_dir(&folder) else {
+            continue;
+        };
         out.listed = true;
         for entry in entries.flatten() {
             let name = entry.file_name().to_string_lossy().into_owned();
-            let Some(stem) = name.strip_suffix(".json").filter(|s| s.parse::<u32>().is_ok()) else { continue };
+            let Some(stem) = name
+                .strip_suffix(".json")
+                .filter(|s| s.parse::<u32>().is_ok())
+            else {
+                continue;
+            };
             let _ = stem;
-            let record = std::fs::read(entry.path()).ok().filter(|b| b.len() < 1 << 16).and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok());
-            let Some((pid, session)) = record.as_ref().and_then(|r| Some((r.get("pid")?.as_u64()?, r.get("sessionId")?.as_str().filter(|s| !s.is_empty())?.to_string()))) else {
+            let record = std::fs::read(entry.path())
+                .ok()
+                .filter(|b| b.len() < 1 << 16)
+                .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok());
+            let Some((pid, session)) = record.as_ref().and_then(|r| {
+                Some((
+                    r.get("pid")?.as_u64()?,
+                    r.get("sessionId")?
+                        .as_str()
+                        .filter(|s| !s.is_empty())?
+                        .to_string(),
+                ))
+            }) else {
                 out.complete = false;
                 continue;
             };
-            if record.as_ref().and_then(|r| r.get("pidDomain")).and_then(|d| d.as_str()).is_some_and(|d| !local_domain(d)) {
+            if record
+                .as_ref()
+                .and_then(|r| r.get("pidDomain"))
+                .and_then(|d| d.as_str())
+                .is_some_and(|d| !local_domain(d))
+            {
                 continue;
             }
             if running(pid as u32) {
@@ -478,7 +621,8 @@ mod tests {
     use std::io::Write;
 
     fn temp(name: &str) -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("vorssaint-agents-{name}-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("vorssaint-agents-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         dir
@@ -486,7 +630,9 @@ mod tests {
 
     fn collect(cursor: &mut Cursor) -> Vec<String> {
         let mut lines = Vec::new();
-        cursor.read_appended(&|_| true, &mut |_, l| lines.push(String::from_utf8_lossy(l).into_owned()));
+        cursor.read_appended(&|_| true, &mut |_, l| {
+            lines.push(String::from_utf8_lossy(l).into_owned())
+        });
         lines
     }
 
@@ -498,15 +644,30 @@ mod tests {
         let mut cursor = Cursor::new(&path.to_string_lossy(), Provider::Codex);
         assert_eq!(collect(&mut cursor), ["one", "two"]);
         assert!(collect(&mut cursor).is_empty(), "nothing new");
-        std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all(b"ee\nfour\n").unwrap();
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap()
+            .write_all(b"ee\nfour\n")
+            .unwrap();
         assert_eq!(collect(&mut cursor), ["three", "four"]);
         // Saved progress resumes at the line boundary.
-        std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all(b"fi").unwrap();
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap()
+            .write_all(b"fi")
+            .unwrap();
         assert!(collect(&mut cursor).is_empty());
         let saved = cursor.saved().unwrap();
         assert_eq!(saved.offset, std::fs::metadata(&path).unwrap().len() - 2);
         let mut resumed = Cursor::restore(saved.clone()).expect("unchanged log resumes");
-        std::fs::OpenOptions::new().append(true).open(&path).unwrap().write_all(b"ve\n").unwrap();
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .unwrap()
+            .write_all(b"ve\n")
+            .unwrap();
         assert_eq!(collect(&mut resumed), ["five"]);
         // A log rewritten in place is read again from its start.
         std::fs::write(&path, "ONE\r\nTWO\nTHREE\nFOUR\nFIVE\nsix\n").unwrap();
@@ -535,27 +696,59 @@ mod tests {
         let dir = temp("discover");
         let projects = dir.join("projects").join("C--repo");
         std::fs::create_dir_all(projects.join("abc").join("subagents")).unwrap();
-        std::fs::write(projects.join("abc").join("subagents").join("agent-1.jsonl"), "{}\n").unwrap();
+        std::fs::write(
+            projects.join("abc").join("subagents").join("agent-1.jsonl"),
+            "{}\n",
+        )
+        .unwrap();
         std::fs::write(projects.join("abc.jsonl"), "{}\n").unwrap();
         std::fs::write(projects.join("notes.txt"), "x").unwrap();
-        let roots = [Root { provider: Provider::Claude, path: dir.join("projects") }];
+        let roots = [Root {
+            provider: Provider::Claude,
+            path: dir.join("projects"),
+        }];
         let found = discover(&roots, 0.0);
         assert_eq!(found.len(), 2);
         assert!(found[0].0.ends_with("abc.jsonl"));
         assert_eq!(parent_of(&found[1].0).as_deref(), Some(found[0].0.as_str()));
-        assert_eq!(parent_of(r"C:\u\.claude\projects\p\abc\subagents\a.jsonl").as_deref(), Some(r"C:\u\.claude\projects\p\abc.jsonl"));
-        assert_eq!(parent_of(r"C:\subagents\.claude\projects\p\abc.jsonl"), None);
+        assert_eq!(
+            parent_of(r"C:\u\.claude\projects\p\abc\subagents\a.jsonl").as_deref(),
+            Some(r"C:\u\.claude\projects\p\abc.jsonl")
+        );
+        assert_eq!(
+            parent_of(r"C:\subagents\.claude\projects\p\abc.jsonl"),
+            None
+        );
         // Registry beside the root.
         let sessions = dir.join("sessions");
         std::fs::create_dir_all(&sessions).unwrap();
-        std::fs::write(sessions.join("10.json"), format!(r#"{{"pid":10,"sessionId":"abc","pidDomain":"{PID_DOMAIN}"}}"#)).unwrap();
-        std::fs::write(sessions.join("11.json"), r#"{"pid":11,"sessionId":"vm","pidDomain":"linux"}"#).unwrap();
+        std::fs::write(
+            sessions.join("10.json"),
+            format!(r#"{{"pid":10,"sessionId":"abc","pidDomain":"{PID_DOMAIN}"}}"#),
+        )
+        .unwrap();
+        std::fs::write(
+            sessions.join("11.json"),
+            r#"{"pid":11,"sessionId":"vm","pidDomain":"linux"}"#,
+        )
+        .unwrap();
         std::fs::write(sessions.join("12.json"), r#"{"pid":12,"sessionId":"dead"}"#).unwrap();
-        std::fs::write(sessions.join("13.json"), format!(r#"{{"pid":10,"sessionId":"host","pidDomain":"{PID_DOMAIN}:my-pc"}}"#)).unwrap();
+        std::fs::write(
+            sessions.join("13.json"),
+            format!(r#"{{"pid":10,"sessionId":"host","pidDomain":"{PID_DOMAIN}:my-pc"}}"#),
+        )
+        .unwrap();
         let registry = registry_with(&roots, &|pid| pid == 10);
         assert!(registry.listed && registry.complete);
-        assert!(registry.running.contains("abc") && registry.ended.contains("dead") && !registry.ended.contains("vm"));
-        assert!(registry.running.contains("host"), "a domain with the hostname is this PC's");
+        assert!(
+            registry.running.contains("abc")
+                && registry.ended.contains("dead")
+                && !registry.ended.contains("vm")
+        );
+        assert!(
+            registry.running.contains("host"),
+            "a domain with the hostname is this PC's"
+        );
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

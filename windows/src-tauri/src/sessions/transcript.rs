@@ -469,7 +469,8 @@ fn subagent_facts(
 
 /// A string's text, or the text blocks of a list of blocks.
 fn images_of(content: Option<&Value>) -> Vec<String> {
-    dicts(content).into_iter()
+    dicts(content)
+        .into_iter()
         .filter(|block| str_of(block.get("type")) == Some("image"))
         .filter_map(|block| {
             let source = block.get("source")?;
@@ -482,7 +483,9 @@ fn images_of(content: Option<&Value>) -> Vec<String> {
                 }
                 _ => None,
             }
-        }).take(16).collect()
+        })
+        .take(16)
+        .collect()
 }
 
 fn texts_of(content: Option<&Value>) -> Vec<String> {
@@ -1253,8 +1256,16 @@ mod tests {
     fn image_only_prompts_keep_attachments_only_with_previews() {
         let line = r#"{"type":"user","message":{"content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"aGVsbG8="}}]}}"#;
         let facts = parse(&[line], true);
-        assert!(facts.iter().any(|f| matches!(f, TranscriptFact::PromptImages { images, .. }
-            if images == &["data:image/png;base64,aGVsbG8="])));
-        assert!(!parse(&[line], false).iter().any(|f| matches!(f, TranscriptFact::PromptImages { .. })));
+        assert!(
+            facts
+                .iter()
+                .any(|f| matches!(f, TranscriptFact::PromptImages { images, .. }
+            if images == &["data:image/png;base64,aGVsbG8="]))
+        );
+        assert!(
+            !parse(&[line], false)
+                .iter()
+                .any(|f| matches!(f, TranscriptFact::PromptImages { .. }))
+        );
     }
 }

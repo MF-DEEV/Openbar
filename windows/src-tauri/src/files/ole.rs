@@ -9,10 +9,13 @@ use std::mem::ManuallyDrop;
 
 use windows::Win32::Foundation::{GlobalFree, HGLOBAL};
 use windows::Win32::System::Com::{
-    DVASPECT_CONTENT, FORMATETC, IDataObject, STGMEDIUM, STGMEDIUM_0, STREAM_SEEK_SET, TYMED_HGLOBAL, TYMED_ISTREAM,
+    DVASPECT_CONTENT, FORMATETC, IDataObject, STGMEDIUM, STGMEDIUM_0, STREAM_SEEK_SET,
+    TYMED_HGLOBAL, TYMED_ISTREAM,
 };
 use windows::Win32::System::DataExchange::RegisterClipboardFormatW;
-use windows::Win32::System::Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock};
+use windows::Win32::System::Memory::{
+    GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock,
+};
 use windows::Win32::System::Ole::ReleaseStgMedium;
 use windows::core::PCWSTR;
 
@@ -39,7 +42,14 @@ pub fn has(data: &IDataObject, format: u16) -> bool {
 /// Copies a format's contents into `out`: `length` bytes when known (a block
 /// of memory can be longer than what it holds), refusing more than `limit`.
 /// False when the format is missing, unreadable or too large.
-pub fn copy(data: &IDataObject, format: u16, index: i32, limit: u64, length: Option<u64>, out: &mut dyn Write) -> bool {
+pub fn copy(
+    data: &IDataObject,
+    format: u16,
+    index: i32,
+    limit: u64,
+    length: Option<u64>,
+    out: &mut dyn Write,
+) -> bool {
     let tymed = (TYMED_HGLOBAL.0 | TYMED_ISTREAM.0) as u32;
     let Ok(mut medium) = (unsafe { data.GetData(&etc(format, index, tymed)) }) else {
         return false;
@@ -51,7 +61,9 @@ pub fn copy(data: &IDataObject, format: u16, index: i32, limit: u64, length: Opt
             let start = GlobalLock(global) as *const u8;
             let ok = !start.is_null()
                 && size as u64 <= limit
-                && out.write_all(std::slice::from_raw_parts(start, size)).is_ok();
+                && out
+                    .write_all(std::slice::from_raw_parts(start, size))
+                    .is_ok();
             let _ = GlobalUnlock(global);
             ok
         } else if medium.tymed == TYMED_ISTREAM.0 as u32 {

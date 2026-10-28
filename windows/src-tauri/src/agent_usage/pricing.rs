@@ -53,7 +53,15 @@ pub struct PriceList {
 
 impl PriceList {
     pub fn empty() -> PriceList {
-        PriceList { updated: String::new(), claude: vec![], codex: vec![], claude_plans: vec![], codex_plans: vec![], web_search: 0.0, us_only_multiplier: 1.0 }
+        PriceList {
+            updated: String::new(),
+            claude: vec![],
+            codex: vec![],
+            claude_plans: vec![],
+            codex_plans: vec![],
+            web_search: 0.0,
+            us_only_multiplier: 1.0,
+        }
     }
 
     pub fn decode(bytes: &[u8]) -> Option<PriceList> {
@@ -64,7 +72,11 @@ impl PriceList {
         if number(json.get("schema"), 1.0, 1000.0)? != 1.0 {
             return None;
         }
-        let updated = json.get("updated")?.as_str().filter(|d| valid_day(d))?.to_string();
+        let updated = json
+            .get("updated")?
+            .as_str()
+            .filter(|d| valid_day(d))?
+            .to_string();
         let claude = json.get("claude")?;
         let codex = json.get("codex")?;
         Some(PriceList {
@@ -96,16 +108,31 @@ fn models(value: Option<&Value>, claude: bool) -> Option<Vec<(String, Price)>> {
     let mut out: Vec<(String, Price)> = Vec::new();
     for entry in entries {
         let id = entry.get("id")?.as_str()?;
-        if !identifier(id, 64) || out.iter().any(|(seen, _)| seen == id) || id.starts_with("claude-") != claude {
+        if !identifier(id, 64)
+            || out.iter().any(|(seen, _)| seen == id)
+            || id.starts_with("claude-") != claude
+        {
             return None;
         }
         let input = number(entry.get("input"), 0.0, 1000.0)?;
         let output = number(entry.get("output"), 0.0, 1000.0)?;
         let cache_read = number(entry.get("cacheRead"), 0.0, 1000.0)?;
         // Fields left out fall back to plain input pricing.
-        let cache_write = if entry.get("cacheWrite").is_none() { input } else { number(entry.get("cacheWrite"), 0.0, 1000.0)? };
-        let cache_write_long = if entry.get("cacheWriteLong").is_none() { cache_write } else { number(entry.get("cacheWriteLong"), 0.0, 1000.0)? };
-        let fast_multiplier = if entry.get("fastMultiplier").is_none() { 1.0 } else { number(entry.get("fastMultiplier"), 1.0, 10.0)? };
+        let cache_write = if entry.get("cacheWrite").is_none() {
+            input
+        } else {
+            number(entry.get("cacheWrite"), 0.0, 1000.0)?
+        };
+        let cache_write_long = if entry.get("cacheWriteLong").is_none() {
+            cache_write
+        } else {
+            number(entry.get("cacheWriteLong"), 0.0, 1000.0)?
+        };
+        let fast_multiplier = if entry.get("fastMultiplier").is_none() {
+            1.0
+        } else {
+            number(entry.get("fastMultiplier"), 1.0, 10.0)?
+        };
         let long_context = match entry.get("longContext") {
             None => None,
             Some(object) => Some(LongContext {
@@ -114,7 +141,18 @@ fn models(value: Option<&Value>, claude: bool) -> Option<Vec<(String, Price)>> {
                 output: number(object.get("outputMultiplier"), 1.0, 10.0)?,
             }),
         };
-        out.push((id.to_string(), Price { input, output, cache_read, cache_write, cache_write_long, fast_multiplier, long_context }));
+        out.push((
+            id.to_string(),
+            Price {
+                input,
+                output,
+                cache_read,
+                cache_write,
+                cache_write_long,
+                fast_multiplier,
+                long_context,
+            },
+        ));
     }
     Some(out)
 }
@@ -135,14 +173,21 @@ fn plans(value: Option<&Value>) -> Option<Vec<PlanEntry>> {
             None => None,
             Some(_) => Some(number(entry.get("monthly"), 0.0, 100_000.0)?),
         };
-        out.push(PlanEntry { matcher: matcher.into(), name: name.into(), monthly });
+        out.push(PlanEntry {
+            matcher: matcher.into(),
+            name: name.into(),
+            monthly,
+        });
     }
     Some(out)
 }
 
 /// Lowercase letters, digits, dots, dashes and underscores.
 fn identifier(text: &str, length: usize) -> bool {
-    (1..=length).contains(&text.chars().count()) && text.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '-' | '_'))
+    (1..=length).contains(&text.chars().count())
+        && text
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || matches!(c, '.' | '-' | '_'))
 }
 
 /// A finite number inside the range; true or false is not one.
@@ -156,7 +201,13 @@ fn valid_day(text: &str) -> bool {
     if parts.len() != 3 || parts[0].len() != 4 || parts[1].len() != 2 || parts[2].len() != 2 {
         return false;
     }
-    let (Ok(y), Ok(m), Ok(d)) = (parts[0].parse::<i32>(), parts[1].parse::<u32>(), parts[2].parse::<u32>()) else { return false };
+    let (Ok(y), Ok(m), Ok(d)) = (
+        parts[0].parse::<i32>(),
+        parts[1].parse::<u32>(),
+        parts[2].parse::<u32>(),
+    ) else {
+        return false;
+    };
     (2024..=2100).contains(&y) && chrono::NaiveDate::from_ymd_opt(y, m, d).is_some()
 }
 
@@ -164,7 +215,11 @@ fn valid_day(text: &str) -> bool {
 
 fn installed() -> &'static RwLock<Arc<PriceList>> {
     static LIST: std::sync::OnceLock<RwLock<Arc<PriceList>>> = std::sync::OnceLock::new();
-    LIST.get_or_init(|| RwLock::new(Arc::new(PriceList::decode(BUNDLED.as_bytes()).unwrap_or_else(PriceList::empty))))
+    LIST.get_or_init(|| {
+        RwLock::new(Arc::new(
+            PriceList::decode(BUNDLED.as_bytes()).unwrap_or_else(PriceList::empty),
+        ))
+    })
 }
 
 pub fn list() -> Arc<PriceList> {
@@ -205,13 +260,30 @@ pub fn normalized(model: &str) -> String {
     id
 }
 
-const SIBLINGS: [&str; 12] = ["mini", "nano", "pro", "lite", "research", "search", "audio", "realtime", "transcribe", "tts", "cyber", "image"];
+const SIBLINGS: [&str; 12] = [
+    "mini",
+    "nano",
+    "pro",
+    "lite",
+    "research",
+    "search",
+    "audio",
+    "realtime",
+    "transcribe",
+    "tts",
+    "cyber",
+    "image",
+];
 
 /// A family matches at a word boundary, and a number after it must be a date.
 fn matches(id: &str, family: &str) -> bool {
-    let Some(rest) = id.strip_prefix(family) else { return false };
+    let Some(rest) = id.strip_prefix(family) else {
+        return false;
+    };
     let mut chars = rest.chars();
-    let Some(next) = chars.next() else { return true };
+    let Some(next) = chars.next() else {
+        return true;
+    };
     if !matches!(next, '-' | '_' | ':') {
         return false;
     }
@@ -221,8 +293,15 @@ fn matches(id: &str, family: &str) -> bool {
 
 pub fn price<'a>(model: &str, list: &'a PriceList) -> Option<&'a Price> {
     let id = normalized(model);
-    let table = if id.starts_with("claude-") { &list.claude } else { &list.codex };
-    let (family, price) = table.iter().filter(|(family, _)| matches(&id, family)).max_by_key(|(family, _)| family.len())?;
+    let table = if id.starts_with("claude-") {
+        &list.claude
+    } else {
+        &list.codex
+    };
+    let (family, price) = table
+        .iter()
+        .filter(|(family, _)| matches(&id, family))
+        .max_by_key(|(family, _)| family.len())?;
     // A sibling the list does not name is priced very differently: no figure.
     let rest = &id[family.len()..];
     if SIBLINGS.iter().any(|s| rest.contains(s)) {
@@ -236,15 +315,25 @@ pub fn cost_in(billable: &Billable, model: &str, list: &PriceList) -> (Option<f6
     if billable.aggregate && billable.tokens.total() == 0 {
         return (Some(0.0), 0.0);
     }
-    let Some(price) = price(model, list) else { return (None, 0.0) };
+    let Some(price) = price(model, list) else {
+        return (None, 0.0);
+    };
     let t = &billable.tokens;
     let long = billable.long_cache_write.max(0).min(t.cache_write);
-    let mut multiplier = if billable.fast { price.fast_multiplier } else { 1.0 };
+    let mut multiplier = if billable.fast {
+        price.fast_multiplier
+    } else {
+        1.0
+    };
     if billable.domestic {
         multiplier *= list.us_only_multiplier;
     }
     let (mut input_rate, mut output_rate) = (multiplier, multiplier);
-    if let Some(lc) = price.long_context.as_ref().filter(|lc| !billable.aggregate && t.prompt() > lc.above) {
+    if let Some(lc) = price
+        .long_context
+        .as_ref()
+        .filter(|lc| !billable.aggregate && t.prompt() > lc.above)
+    {
         input_rate *= lc.input;
         output_rate *= lc.output;
     }
@@ -255,7 +344,8 @@ pub fn cost_in(billable: &Billable, model: &str, list: &PriceList) -> (Option<f6
         + t.output as f64 * price.output * output_rate)
         / 1_000_000.0
         + billable.web_searches.max(0) as f64 * list.web_search;
-    let savings = t.cache_read as f64 * (price.input - price.cache_read).max(0.0) * input_rate / 1_000_000.0;
+    let savings =
+        t.cache_read as f64 * (price.input - price.cache_read).max(0.0) * input_rate / 1_000_000.0;
     (Some(cost), savings)
 }
 
@@ -284,40 +374,92 @@ pub fn display_name(model: &str) -> String {
         let parts: Vec<&str> = family
             .split('-')
             .filter(|p| !p.is_empty() && !date(p) && *p != "latest")
-            .filter(|p| !(p.starts_with('v') && p[1..].chars().next().is_some_and(|c| c.is_ascii_digit())))
+            .filter(|p| {
+                !(p.starts_with('v') && p[1..].chars().next().is_some_and(|c| c.is_ascii_digit()))
+            })
             .collect();
         let words: Vec<&str> = parts.iter().copied().filter(|p| !numeric(p)).collect();
-        let version = parts.iter().copied().filter(|p| numeric(p)).collect::<Vec<_>>().join(".");
-        let mut name = vec![words.first().map(|w| capitalized(w)).unwrap_or_default(), version];
+        let version = parts
+            .iter()
+            .copied()
+            .filter(|p| numeric(p))
+            .collect::<Vec<_>>()
+            .join(".");
+        let mut name = vec![
+            words.first().map(|w| capitalized(w)).unwrap_or_default(),
+            version,
+        ];
         name.extend(words.iter().skip(1).map(|w| capitalized(w)));
-        return name.into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" ");
+        return name
+            .into_iter()
+            .filter(|s| !s.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
     }
-    let Some(rest) = id.strip_prefix("gpt-") else { return id };
-    let mut parts: Vec<&str> = rest.split('-').filter(|p| !p.is_empty() && *p != "latest" && !date(p)).collect();
+    let Some(rest) = id.strip_prefix("gpt-") else {
+        return id;
+    };
+    let mut parts: Vec<&str> = rest
+        .split('-')
+        .filter(|p| !p.is_empty() && *p != "latest" && !date(p))
+        .collect();
     if parts.len() >= 4 {
         let n = parts.len();
-        let year = parts[n - 3].parse::<i32>().is_ok_and(|y| (2000..=2100).contains(&y));
-        if year && parts[n - 2..].iter().all(|p| p.len() == 2 && p.chars().all(|c| c.is_ascii_digit())) {
+        let year = parts[n - 3]
+            .parse::<i32>()
+            .is_ok_and(|y| (2000..=2100).contains(&y));
+        if year
+            && parts[n - 2..]
+                .iter()
+                .all(|p| p.len() == 2 && p.chars().all(|c| c.is_ascii_digit()))
+        {
             parts.truncate(n - 3);
         }
     }
-    let Some(first) = parts.first() else { return "GPT".into() };
-    let head = if first.starts_with(|c: char| c.is_ascii_digit()) { format!("GPT-{first}") } else { format!("GPT {}", capitalized(first)) };
-    std::iter::once(head).chain(parts.iter().skip(1).map(|p| capitalized(p))).collect::<Vec<_>>().join(" ")
+    let Some(first) = parts.first() else {
+        return "GPT".into();
+    };
+    let head = if first.starts_with(|c: char| c.is_ascii_digit()) {
+        format!("GPT-{first}")
+    } else {
+        format!("GPT {}", capitalized(first))
+    };
+    std::iter::once(head)
+        .chain(parts.iter().skip(1).map(|p| capitalized(p)))
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 // MARK: Plans
 
 /// Matched by substring of "<rate limit tier> <organization type>", in list order.
-pub fn claude_plan(organization_type: Option<&str>, rate_limit_tier: Option<&str>, list: &PriceList) -> Option<Plan> {
+pub fn claude_plan(
+    organization_type: Option<&str>,
+    rate_limit_tier: Option<&str>,
+    list: &PriceList,
+) -> Option<Plan> {
     let kind = organization_type.unwrap_or("").to_lowercase();
     let recorded = format!("{} {}", rate_limit_tier.unwrap_or("").to_lowercase(), kind);
-    if let Some(plan) = list.claude_plans.iter().find(|p| recorded.contains(&p.matcher)) {
-        return Some(Plan { name: plan.name.clone(), monthly_price: plan.monthly });
+    if let Some(plan) = list
+        .claude_plans
+        .iter()
+        .find(|p| recorded.contains(&p.matcher))
+    {
+        return Some(Plan {
+            name: plan.name.clone(),
+            monthly_price: plan.monthly,
+        });
     }
     let name = kind.replace("claude_", "").replace('_', " ");
     let name = name.trim();
-    (!name.is_empty()).then(|| Plan { name: name.split(' ').map(capitalized).collect::<Vec<_>>().join(" "), monthly_price: None })
+    (!name.is_empty()).then(|| Plan {
+        name: name
+            .split(' ')
+            .map(capitalized)
+            .collect::<Vec<_>>()
+            .join(" "),
+        monthly_price: None,
+    })
 }
 
 /// Exact match on the plan type, else the type capitalized.
@@ -327,11 +469,20 @@ pub fn codex_plan(plan_type: Option<&str>, list: &PriceList) -> Option<Plan> {
         return None;
     }
     if let Some(plan) = list.codex_plans.iter().find(|p| p.matcher == raw) {
-        return Some(Plan { name: plan.name.clone(), monthly_price: plan.monthly });
+        return Some(Plan {
+            name: plan.name.clone(),
+            monthly_price: plan.monthly,
+        });
     }
     let mut chars = raw.chars();
-    let first = chars.next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_default();
-    Some(Plan { name: first + chars.as_str(), monthly_price: None })
+    let first = chars
+        .next()
+        .map(|c| c.to_uppercase().collect::<String>())
+        .unwrap_or_default();
+    Some(Plan {
+        name: first + chars.as_str(),
+        monthly_price: None,
+    })
 }
 
 #[cfg(test)]
@@ -367,21 +518,46 @@ mod tests {
         let mut shipped = bundled();
         let mut downloaded = bundled();
         downloaded.web_search = 0.5;
-        assert_eq!(PriceList::newer(Some(shipped.clone()), Some(downloaded.clone())).unwrap().web_search, 0.5);
+        assert_eq!(
+            PriceList::newer(Some(shipped.clone()), Some(downloaded.clone()))
+                .unwrap()
+                .web_search,
+            0.5
+        );
         shipped.updated = "2026-12-01".into();
-        assert_eq!(PriceList::newer(Some(shipped), Some(downloaded)).unwrap().updated, "2026-12-01");
+        assert_eq!(
+            PriceList::newer(Some(shipped), Some(downloaded))
+                .unwrap()
+                .updated,
+            "2026-12-01"
+        );
     }
 
     #[test]
     fn models_match_their_family_at_a_word_boundary() {
         let list = bundled();
-        assert_eq!(normalized(" anthropic/Claude-Sonnet-4.5@20250929 "), "claude-sonnet-4-5");
+        assert_eq!(
+            normalized(" anthropic/Claude-Sonnet-4.5@20250929 "),
+            "claude-sonnet-4-5"
+        );
         assert_eq!(normalized("openai/gpt-5.6[1m]"), "gpt-5.6");
         assert!(price("claude-opus-5-5", &list).is_some());
-        assert!(price("claude-opus-5-5-20261001", &list).is_some(), "a dated snapshot is the same model");
-        assert!(price("claude-sonnet-4.5", &list).is_some(), "Copilot's dotted name");
-        assert!(price("claude-opus-5-9", &list).is_none(), "a later version is not its family");
-        assert!(price("gpt-5.6-mini", &list).is_none() || list.codex.iter().any(|(id, _)| id == "gpt-5.6-mini"));
+        assert!(
+            price("claude-opus-5-5-20261001", &list).is_some(),
+            "a dated snapshot is the same model"
+        );
+        assert!(
+            price("claude-sonnet-4.5", &list).is_some(),
+            "Copilot's dotted name"
+        );
+        assert!(
+            price("claude-opus-5-9", &list).is_none(),
+            "a later version is not its family"
+        );
+        assert!(
+            price("gpt-5.6-mini", &list).is_none()
+                || list.codex.iter().any(|(id, _)| id == "gpt-5.6-mini")
+        );
         assert!(price("gemini-3-pro", &list).is_none());
     }
 
@@ -390,23 +566,73 @@ mod tests {
         let mut list = PriceList::empty();
         list.web_search = 0.01;
         list.us_only_multiplier = 1.1;
-        list.claude.push(("claude-test-1".into(), Price { input: 3.0, output: 15.0, cache_read: 0.3, cache_write: 3.75, cache_write_long: 6.0, fast_multiplier: 2.0, long_context: Some(LongContext { above: 200_000, input: 2.0, output: 1.5 }) }));
-        let tokens = Tokens { input: 1_000_000, cache_write: 1_000_000, cache_read: 1_000_000, output: 1_000_000, reasoning: 0 };
-        let b = Billable { tokens, long_cache_write: 500_000, ..Default::default() };
+        list.claude.push((
+            "claude-test-1".into(),
+            Price {
+                input: 3.0,
+                output: 15.0,
+                cache_read: 0.3,
+                cache_write: 3.75,
+                cache_write_long: 6.0,
+                fast_multiplier: 2.0,
+                long_context: Some(LongContext {
+                    above: 200_000,
+                    input: 2.0,
+                    output: 1.5,
+                }),
+            },
+        ));
+        let tokens = Tokens {
+            input: 1_000_000,
+            cache_write: 1_000_000,
+            cache_read: 1_000_000,
+            output: 1_000_000,
+            reasoning: 0,
+        };
+        let b = Billable {
+            tokens,
+            long_cache_write: 500_000,
+            ..Default::default()
+        };
         let (cost, savings) = cost_in(&b, "claude-test-1", &list);
         // Long context applies: 3M prompt > 200K.
         let expected = 3.0 * 2.0 + 0.5 * 3.75 * 2.0 + 0.5 * 6.0 * 2.0 + 0.3 * 2.0 + 15.0 * 1.5;
         assert!((cost.unwrap() - expected).abs() < 1e-9);
         assert!((savings - 2.7 * 2.0).abs() < 1e-9);
-        let small = Billable { tokens: Tokens { input: 1000, output: 1000, ..Default::default() }, fast: true, domestic: true, web_searches: 2, ..Default::default() };
+        let small = Billable {
+            tokens: Tokens {
+                input: 1000,
+                output: 1000,
+                ..Default::default()
+            },
+            fast: true,
+            domestic: true,
+            web_searches: 2,
+            ..Default::default()
+        };
         let (cost, _) = cost_in(&small, "claude-test-1", &list);
         let expected = (1000.0 * 3.0 + 1000.0 * 15.0) * 2.0 * 1.1 / 1e6 + 0.02;
         assert!((cost.unwrap() - expected).abs() < 1e-12);
         // Aggregates never take the long-context premium; empty ones cost nothing.
-        let aggregate = Billable { tokens, aggregate: true, ..Default::default() };
+        let aggregate = Billable {
+            tokens,
+            aggregate: true,
+            ..Default::default()
+        };
         let (cost, _) = cost_in(&aggregate, "claude-test-1", &list);
         assert!((cost.unwrap() - (3.0 + 3.75 + 0.3 + 15.0)).abs() < 1e-9);
-        assert_eq!(cost_in(&Billable { aggregate: true, ..Default::default() }, "unknown", &list).0, Some(0.0));
+        assert_eq!(
+            cost_in(
+                &Billable {
+                    aggregate: true,
+                    ..Default::default()
+                },
+                "unknown",
+                &list
+            )
+            .0,
+            Some(0.0)
+        );
         assert_eq!(cost_in(&b, "unknown-model", &list).0, None);
     }
 
@@ -426,9 +652,17 @@ mod tests {
         let list = bundled();
         let max = claude_plan(Some("claude_max"), Some("default_claude_max_20x"), &list).unwrap();
         assert_eq!(max.monthly_price, Some(200.0));
-        assert_eq!(claude_plan(Some("claude_galaxy_tier"), None, &list).unwrap().name, "Galaxy Tier");
+        assert_eq!(
+            claude_plan(Some("claude_galaxy_tier"), None, &list)
+                .unwrap()
+                .name,
+            "Galaxy Tier"
+        );
         assert_eq!(claude_plan(None, None, &list), None);
-        assert_eq!(codex_plan(Some("plus"), &list).unwrap().monthly_price, Some(20.0));
+        assert_eq!(
+            codex_plan(Some("plus"), &list).unwrap().monthly_price,
+            Some(20.0)
+        );
         assert_eq!(codex_plan(Some("ultra"), &list).unwrap().name, "Ultra");
     }
 }

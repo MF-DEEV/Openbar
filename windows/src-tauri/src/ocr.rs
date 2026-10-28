@@ -35,7 +35,11 @@ pub struct OcrResult {
 impl OcrResult {
     /// The lines, one per line of text; empty when nothing was found.
     pub fn text(&self) -> String {
-        self.lines.iter().map(|l| l.text.as_str()).collect::<Vec<_>>().join("\n")
+        self.lines
+            .iter()
+            .map(|l| l.text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 }
 
@@ -131,16 +135,22 @@ mod imp {
         let _apartment = crate::com::Apartment::mta().map_err(OcrError::Failed)?;
         let failed = |e: windows::core::Error| OcrError::Failed(e.to_string());
         // Null when no installed OCR language matches the profile's.
-        let engine = OcrEngine::TryCreateFromUserProfileLanguages().map_err(|_| OcrError::NoLanguage)?;
+        let engine =
+            OcrEngine::TryCreateFromUserProfileLanguages().map_err(|_| OcrError::NoLanguage)?;
         let max = OcrEngine::MaxImageDimension().unwrap_or(10_000);
         let scale = scale_for(width, height, max);
         let (w, h) = scaled_size(width, height, scale);
         let pixels = rgba[..width as usize * height as usize * 4].to_vec();
-        let source = RgbaImage::from_raw(width, height, pixels).ok_or(OcrError::Failed("bad picture".into()))?;
+        let source = RgbaImage::from_raw(width, height, pixels)
+            .ok_or(OcrError::Failed("bad picture".into()))?;
         let scaled = if (w, h) == (width, height) {
             source
         } else {
-            let filter = if scale > 1.0 { imageops::FilterType::CatmullRom } else { imageops::FilterType::Triangle };
+            let filter = if scale > 1.0 {
+                imageops::FilterType::CatmullRom
+            } else {
+                imageops::FilterType::Triangle
+            };
             imageops::resize(&source, w, h, filter)
         };
         let mut bgra = scaled.into_raw();
@@ -150,14 +160,23 @@ mod imp {
         let writer = DataWriter::new().map_err(failed)?;
         writer.WriteBytes(&bgra).map_err(failed)?;
         let buffer = writer.DetachBuffer().map_err(failed)?;
-        let bitmap = SoftwareBitmap::CreateCopyFromBuffer(&buffer, BitmapPixelFormat::Bgra8, w as i32, h as i32)
+        let bitmap = SoftwareBitmap::CreateCopyFromBuffer(
+            &buffer,
+            BitmapPixelFormat::Bgra8,
+            w as i32,
+            h as i32,
+        )
+        .map_err(failed)?;
+        let result = engine
+            .RecognizeAsync(&bitmap)
+            .and_then(|op| op.join())
             .map_err(failed)?;
-        let result = engine.RecognizeAsync(&bitmap).and_then(|op| op.join()).map_err(failed)?;
         let mut lines = Vec::new();
         for line in result.Lines().map_err(failed)? {
             let text = line.Text().map_err(failed)?.to_string();
             // A line's box is its words' union, back in the input's pixels.
-            let (mut left, mut top, mut right, mut bottom) = (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
+            let (mut left, mut top, mut right, mut bottom) =
+                (f64::MAX, f64::MAX, f64::MIN, f64::MIN);
             for word in line.Words().map_err(failed)? {
                 let r = word.BoundingRect().map_err(failed)?;
                 left = left.min(r.X as f64);
@@ -176,7 +195,9 @@ mod imp {
                 height: (bottom - top) / scale,
             });
         }
-        Ok(OcrResult { lines: reading_order(lines) })
+        Ok(OcrResult {
+            lines: reading_order(lines),
+        })
     }
 }
 
@@ -194,7 +215,13 @@ mod tests {
     use super::*;
 
     fn line(text: &str, x: f64, y: f64) -> OcrLine {
-        OcrLine { text: text.into(), x, y, width: 40.0, height: 12.0 }
+        OcrLine {
+            text: text.into(),
+            x,
+            y,
+            width: 40.0,
+            height: 12.0,
+        }
     }
 
     #[test]
@@ -222,14 +249,20 @@ mod tests {
             line("left", 0.0, 0.0),
             line("   ", 0.0, 80.0),
         ];
-        let result = OcrResult { lines: reading_order(lines) };
+        let result = OcrResult {
+            lines: reading_order(lines),
+        };
         assert_eq!(result.text(), "left\nright\nsecond row");
     }
 
     #[test]
     fn a_wobbling_baseline_stays_on_its_row() {
         // The right word sits 5 px lower than the left: still one row.
-        let lines = vec![line("b", 100.0, 5.0), line("a", 0.0, 0.0), line("c", 0.0, 30.0)];
+        let lines = vec![
+            line("b", 100.0, 5.0),
+            line("a", 0.0, 0.0),
+            line("c", 0.0, 30.0),
+        ];
         let text: Vec<_> = reading_order(lines).into_iter().map(|l| l.text).collect();
         assert_eq!(text, ["a", "b", "c"]);
     }

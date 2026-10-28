@@ -19,45 +19,67 @@ pub struct AttentionContext {
 }
 
 fn desktop_or_own(class: &str, own: bool) -> bool {
-    own || matches!(class, "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd")
+    own || matches!(
+        class,
+        "Progman" | "WorkerW" | "Shell_TrayWnd" | "Shell_SecondaryTrayWnd"
+    )
 }
 
 #[tauri::command]
 pub fn attention_context<R: Runtime>(app: AppHandle<R>) -> AttentionContext {
-    #[cfg(windows)] {
+    #[cfg(windows)]
+    {
         use tauri::Manager;
-        return app.get_webview_window(crate::island::LABEL).map(|w| imp::context(&w)).unwrap_or_default();
+        return app
+            .get_webview_window(crate::island::LABEL)
+            .map(|w| imp::context(&w))
+            .unwrap_or_default();
     }
-    #[cfg(not(windows))] { let _ = app; AttentionContext { can_auto_present: true, fullscreen: false, busy: false } }
+    #[cfg(not(windows))]
+    {
+        let _ = app;
+        AttentionContext {
+            can_auto_present: true,
+            fullscreen: false,
+            busy: false,
+        }
+    }
 }
 
 #[tauri::command]
 pub fn attention_compact_sessions(on: bool) {
-    #[cfg(windows)] imp::set_compact(on);
-    #[cfg(not(windows))] let _ = on;
+    #[cfg(windows)]
+    imp::set_compact(on);
+    #[cfg(not(windows))]
+    let _ = on;
 }
 
 fn fullscreen_candidate(eligible: bool, bounds: [i32; 4], display: [i32; 4]) -> bool {
-    eligible && display[2] > display[0] && display[3] > display[1]
-        && bounds[0] <= display[0] && bounds[1] <= display[1]
-        && bounds[2] >= display[2] && bounds[3] >= display[3]
+    eligible
+        && display[2] > display[0]
+        && display[3] > display[1]
+        && bounds[0] <= display[0]
+        && bounds[1] <= display[1]
+        && bounds[2] >= display[2]
+        && bounds[3] >= display[3]
 }
 
 #[cfg(windows)]
 mod imp {
+    use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::{Mutex, OnceLock};
     use std::time::{Duration, Instant};
-    use std::sync::atomic::{AtomicBool, Ordering};
 
     use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow};
-    use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM, RECT};
+    use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
     use windows::Win32::UI::Shell::{
         ABM_NEW, ABM_REMOVE, ABN_FULLSCREENAPP, APPBARDATA, DefSubclassProc, SHAppBarMessage,
         SetWindowSubclass,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        GetClassNameW, GetForegroundWindow, GetWindowLongPtrW, GetWindowRect,
-        GetWindowThreadProcessId, IsIconic, IsWindowVisible, ShowWindow, SW_SHOWNOACTIVATE, GWL_STYLE, WM_APP, WS_CAPTION,
+        GWL_STYLE, GetClassNameW, GetForegroundWindow, GetWindowLongPtrW, GetWindowRect,
+        GetWindowThreadProcessId, IsIconic, IsWindowVisible, SW_SHOWNOACTIVATE, ShowWindow, WM_APP,
+        WS_CAPTION,
     };
 
     use crate::island;
@@ -71,13 +93,23 @@ mod imp {
     static SAFE_SINCE: Mutex<Option<Instant>> = Mutex::new(None);
 
     pub fn context<R: Runtime>(window: &WebviewWindow<R>) -> super::AttentionContext {
-        let Ok(Some(monitor)) = window.current_monitor() else { return super::AttentionContext::default() };
+        let Ok(Some(monitor)) = window.current_monitor() else {
+            return super::AttentionContext::default();
+        };
         let position = monitor.position();
         let size = monitor.size();
-        let display = [position.x, position.y, position.x + size.width as i32, position.y + size.height as i32];
+        let display = [
+            position.x,
+            position.y,
+            position.x + size.width as i32,
+            position.y + size.height as i32,
+        ];
         unsafe {
             let foreground = GetForegroundWindow();
-            if foreground.0.is_null() { *SAFE_SINCE.lock().unwrap() = None; return super::AttentionContext::default() }
+            if foreground.0.is_null() {
+                *SAFE_SINCE.lock().unwrap() = None;
+                return super::AttentionContext::default();
+            }
             let mut pid = 0;
             GetWindowThreadProcessId(foreground, Some(&mut pid));
             let mut class = [0u16; 64];
@@ -85,15 +117,33 @@ mod imp {
             let class = String::from_utf16_lossy(&class[..count]);
             let own = pid == std::process::id();
             let desktop = super::desktop_or_own(&class, own);
-            let captioned = GetWindowLongPtrW(foreground, GWL_STYLE) & WS_CAPTION.0 as isize == WS_CAPTION.0 as isize;
+            let captioned = GetWindowLongPtrW(foreground, GWL_STYLE) & WS_CAPTION.0 as isize
+                == WS_CAPTION.0 as isize;
             let mut bounds = RECT::default();
             let rect_ok = GetWindowRect(foreground, &mut bounds).is_ok();
             let exact = [bounds.left, bounds.top, bounds.right, bounds.bottom] == display;
-            let eligible = !own && !desktop && (!captioned || exact) && rect_ok
-                && IsWindowVisible(foreground).as_bool() && !IsIconic(foreground).as_bool();
+            let eligible = !own
+                && !desktop
+                && (!captioned || exact)
+                && rect_ok
+                && IsWindowVisible(foreground).as_bool()
+                && !IsIconic(foreground).as_bool();
             let mut since = SAFE_SINCE.lock().unwrap();
-            let allowed = if desktop { since.get_or_insert_with(Instant::now).elapsed() >= Duration::from_millis(750) } else { *since = None; false };
-            super::AttentionContext { can_auto_present: allowed, fullscreen: super::fullscreen_candidate(eligible, [bounds.left, bounds.top, bounds.right, bounds.bottom], display), busy: !desktop }
+            let allowed = if desktop {
+                since.get_or_insert_with(Instant::now).elapsed() >= Duration::from_millis(750)
+            } else {
+                *since = None;
+                false
+            };
+            super::AttentionContext {
+                can_auto_present: allowed,
+                fullscreen: super::fullscreen_candidate(
+                    eligible,
+                    [bounds.left, bounds.top, bounds.right, bounds.bottom],
+                    display,
+                ),
+                busy: !desktop,
+            }
         }
     }
 
@@ -124,14 +174,23 @@ mod imp {
                     let _ = handle.emit("island://attention-context", context);
                 }
                 drop(before);
-                let hide = HIDES.load(Ordering::Relaxed) && context.fullscreen && !COMPACT_SESSIONS.load(Ordering::Relaxed);
+                let hide = HIDES.load(Ordering::Relaxed)
+                    && context.fullscreen
+                    && !COMPACT_SESSIONS.load(Ordering::Relaxed);
                 if w.is_visible().unwrap_or(!hide) == hide {
-                    if hide { let _ = w.hide(); }
-                    else if context.fullscreen && COMPACT_SESSIONS.load(Ordering::Relaxed) {
+                    if hide {
+                        let _ = w.hide();
+                    } else if context.fullscreen && COMPACT_SESSIONS.load(Ordering::Relaxed) {
                         // A game's pause-on-focus-loss must never fire just
                         // because a waiting indicator became visible.
-                        if let Ok(hwnd) = w.hwnd() { unsafe { let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE); } }
-                    } else { let _ = w.show(); }
+                        if let Ok(hwnd) = w.hwnd() {
+                            unsafe {
+                                let _ = ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+                            }
+                        }
+                    } else {
+                        let _ = w.show();
+                    }
                     let _ = handle.emit("island://fullscreen", hide);
                 }
             }
@@ -149,7 +208,9 @@ mod imp {
         std::thread::spawn(move || {
             while !STOPPED.load(Ordering::Relaxed) {
                 let _ = handle.run_on_main_thread(|| {
-                    if let Some(notify) = ON_FULLSCREEN.get() { notify(); }
+                    if let Some(notify) = ON_FULLSCREEN.get() {
+                        notify();
+                    }
                 });
                 std::thread::sleep(Duration::from_millis(250));
             }
@@ -158,7 +219,9 @@ mod imp {
 
     pub fn set_compact(on: bool) {
         if COMPACT_SESSIONS.swap(on, Ordering::Relaxed) != on {
-            if let Some(notify) = ON_FULLSCREEN.get() { notify(); }
+            if let Some(notify) = ON_FULLSCREEN.get() {
+                notify();
+            }
         }
     }
 
@@ -259,7 +322,11 @@ mod tests {
     fn real_fullscreen_must_cover_the_islands_display() {
         assert!(fullscreen_candidate(true, SCREEN, SCREEN));
         assert!(!fullscreen_candidate(true, [2560, 0, 5120, 1440], SCREEN));
-        assert!(fullscreen_candidate(true, [-1920, 0, 0, 1080], [-1920, 0, 0, 1080]));
+        assert!(fullscreen_candidate(
+            true,
+            [-1920, 0, 0, 1080],
+            [-1920, 0, 0, 1080]
+        ));
         assert!(!fullscreen_candidate(true, [0, 0, 0, 0], [0, 0, 0, 0]));
     }
 }

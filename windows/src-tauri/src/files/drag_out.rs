@@ -19,22 +19,25 @@
 use std::path::Path;
 
 use windows::Win32::Foundation::{
-    COLORREF, DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, DRAGDROP_S_USEDEFAULTCURSORS, HWND, POINT, RECT, S_OK, SIZE,
+    COLORREF, DRAGDROP_S_CANCEL, DRAGDROP_S_DROP, DRAGDROP_S_USEDEFAULTCURSORS, HWND, POINT, RECT,
+    S_OK, SIZE,
 };
 use windows::Win32::Graphics::Gdi::{BITMAP, DeleteObject, GetObjectW, HGDIOBJ};
 use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance, IDataObject};
 use windows::Win32::System::Ole::{
-    CF_UNICODETEXT, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_MOVE, DROPEFFECT_NONE, DoDragDrop, IDropSource,
-    IDropSource_Impl,
+    CF_UNICODETEXT, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_MOVE, DROPEFFECT_NONE, DoDragDrop,
+    IDropSource, IDropSource_Impl,
 };
 use windows::Win32::System::SystemServices::{MK_LBUTTON, MODIFIERKEYS_FLAGS};
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::Shell::{
-    CFSTR_INETURLW, CFSTR_PERFORMEDDROPEFFECT, CLSID_DragDropHelper, IDragSourceHelper, IShellItemImageFactory,
-    SHCreateDataObject, SHCreateItemFromParsingName, SHDRAGIMAGE, SIIGBF_RESIZETOFIT,
+    CFSTR_INETURLW, CFSTR_PERFORMEDDROPEFFECT, CLSID_DragDropHelper, IDragSourceHelper,
+    IShellItemImageFactory, SHCreateDataObject, SHCreateItemFromParsingName, SHDRAGIMAGE,
+    SIIGBF_RESIZETOFIT,
 };
 use windows::Win32::UI::WindowsAndMessaging::{
-    GWL_EXSTYLE, GetCursorPos, GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, WS_EX_LAYERED, WS_EX_TRANSPARENT,
+    GWL_EXSTYLE, GetCursorPos, GetWindowLongPtrW, GetWindowRect, SetWindowLongPtrW, WS_EX_LAYERED,
+    WS_EX_TRANSPARENT,
 };
 use windows::core::{BOOL, HRESULT, HSTRING, implement};
 
@@ -56,7 +59,8 @@ impl Source {
         unsafe {
             let mut pointer = POINT::default();
             let mut frame = RECT::default();
-            if GetCursorPos(&mut pointer).is_err() || GetWindowRect(self.hwnd, &mut frame).is_err() {
+            if GetCursorPos(&mut pointer).is_err() || GetWindowRect(self.hwnd, &mut frame).is_err()
+            {
                 return;
             }
             let scale = match GetDpiForWindow(self.hwnd) {
@@ -69,7 +73,11 @@ impl Source {
             );
             let style = GetWindowLongPtrW(self.hwnd, GWL_EXSTYLE);
             let through = (WS_EX_TRANSPARENT.0 | WS_EX_LAYERED.0) as isize;
-            let wanted = if inside { style & !through } else { style | through };
+            let wanted = if inside {
+                style & !through
+            } else {
+                style | through
+            };
             if wanted != style {
                 SetWindowLongPtrW(self.hwnd, GWL_EXSTYLE, wanted);
             }
@@ -97,7 +105,13 @@ impl IDropSource_Impl for Source_Impl {
 
 /// Drags `paths` (files) and `texts` (notes and links). Answers whether a
 /// destination took them.
-pub fn run(hwnd: isize, paths: &[String], texts: &[String], allow_move: bool, on_island: OnIsland) -> bool {
+pub fn run(
+    hwnd: isize,
+    paths: &[String],
+    texts: &[String],
+    allow_move: bool,
+    on_island: OnIsland,
+) -> bool {
     let hwnd = HWND(hwnd as _);
     let data: windows::core::Result<IDataObject> = if paths.is_empty() {
         unsafe { SHCreateDataObject(None, None, None::<&IDataObject>) }
@@ -106,18 +120,30 @@ pub fn run(hwnd: isize, paths: &[String], texts: &[String], allow_move: bool, on
     };
     let Ok(data) = data else { return false };
     if !texts.is_empty() {
-        let _ = ole::set(&data, CF_UNICODETEXT.0, &payload::wide_bytes(&texts.join("\r\n")));
+        let _ = ole::set(
+            &data,
+            CF_UNICODETEXT.0,
+            &payload::wide_bytes(&texts.join("\r\n")),
+        );
         if let [only] = texts
             && store::is_link(only)
         {
-            let _ = ole::set(&data, ole::format(CFSTR_INETURLW), &payload::wide_bytes(only));
+            let _ = ole::set(
+                &data,
+                ole::format(CFSTR_INETURLW),
+                &payload::wide_bytes(only),
+            );
         }
     }
     if let Some(first) = paths.first() {
         drag_image(&data, first);
     }
     let source = Source { hwnd, on_island };
-    let allowed = if allow_move { DROPEFFECT(DROPEFFECT_COPY.0 | DROPEFFECT_MOVE.0) } else { DROPEFFECT_COPY };
+    let allowed = if allow_move {
+        DROPEFFECT(DROPEFFECT_COPY.0 | DROPEFFECT_MOVE.0)
+    } else {
+        DROPEFFECT_COPY
+    };
     let source: IDropSource = source.into();
     let mut effect = DROPEFFECT_NONE;
     let result = unsafe { DoDragDrop(&data, &source, allowed, &mut effect) };
@@ -128,7 +154,10 @@ pub fn run(hwnd: isize, paths: &[String], texts: &[String], allow_move: bool, on
         return true;
     }
     let performed = ole::get(&data, ole::format(CFSTR_PERFORMEDDROPEFFECT))
-        .and_then(|b| b.get(..4).map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]])))
+        .and_then(|b| {
+            b.get(..4)
+                .map(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        })
         .unwrap_or(0);
     performed != DROPEFFECT_NONE.0 || paths.iter().any(|p| !Path::new(p).exists())
 }
@@ -136,19 +165,36 @@ pub fn run(hwnd: isize, paths: &[String], texts: &[String], allow_move: bool, on
 /// The first file's thumbnail under the pointer while it travels.
 fn drag_image(data: &IDataObject, path: &str) {
     unsafe {
-        let Ok(helper) = CoCreateInstance::<_, IDragSourceHelper>(&CLSID_DragDropHelper, None, CLSCTX_INPROC_SERVER)
+        let Ok(helper) = CoCreateInstance::<_, IDragSourceHelper>(
+            &CLSID_DragDropHelper,
+            None,
+            CLSCTX_INPROC_SERVER,
+        ) else {
+            return;
+        };
+        let Ok(factory) =
+            SHCreateItemFromParsingName::<_, _, IShellItemImageFactory>(&HSTRING::from(path), None)
         else {
             return;
         };
-        let Ok(factory) = SHCreateItemFromParsingName::<_, _, IShellItemImageFactory>(&HSTRING::from(path), None) else {
+        let Ok(bitmap) = factory.GetImage(SIZE { cx: 96, cy: 96 }, SIIGBF_RESIZETOFIT) else {
             return;
         };
-        let Ok(bitmap) = factory.GetImage(SIZE { cx: 96, cy: 96 }, SIIGBF_RESIZETOFIT) else { return };
         let mut info = BITMAP::default();
-        GetObjectW(HGDIOBJ(bitmap.0), std::mem::size_of::<BITMAP>() as i32, Some(&mut info as *mut _ as *mut _));
+        GetObjectW(
+            HGDIOBJ(bitmap.0),
+            std::mem::size_of::<BITMAP>() as i32,
+            Some(&mut info as *mut _ as *mut _),
+        );
         let image = SHDRAGIMAGE {
-            sizeDragImage: SIZE { cx: info.bmWidth, cy: info.bmHeight.abs() },
-            ptOffset: POINT { x: info.bmWidth / 2, y: info.bmHeight.abs() / 2 },
+            sizeDragImage: SIZE {
+                cx: info.bmWidth,
+                cy: info.bmHeight.abs(),
+            },
+            ptOffset: POINT {
+                x: info.bmWidth / 2,
+                y: info.bmHeight.abs() / 2,
+            },
             hbmpDragImage: bitmap,
             crColorKey: COLORREF(u32::MAX),
         };

@@ -34,11 +34,17 @@ struct Inner {
 pub struct Shared(Arc<Mutex<Inner>>);
 
 pub fn sanitized(minutes: u32) -> u32 {
-    if DURATIONS.contains(&minutes) { minutes } else { 0 }
+    if DURATIONS.contains(&minutes) {
+        minutes
+    } else {
+        0
+    }
 }
 
 fn now_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
 }
 
 fn ends_at(now: u64, minutes: u32) -> Option<u64> {
@@ -51,14 +57,24 @@ struct Request(#[cfg_attr(not(windows), allow(dead_code))] isize);
 impl Request {
     #[cfg(windows)]
     fn create() -> Result<Self, String> {
-        use windows::Win32::System::Power::{PowerCreateRequest, PowerRequestDisplayRequired, PowerRequestSystemRequired, PowerSetRequest};
-        use windows::Win32::System::Threading::{POWER_REQUEST_CONTEXT_SIMPLE_STRING, REASON_CONTEXT, REASON_CONTEXT_0};
+        use windows::Win32::System::Power::{
+            PowerCreateRequest, PowerRequestDisplayRequired, PowerRequestSystemRequired,
+            PowerSetRequest,
+        };
+        use windows::Win32::System::Threading::{
+            POWER_REQUEST_CONTEXT_SIMPLE_STRING, REASON_CONTEXT, REASON_CONTEXT_0,
+        };
         use windows::core::PWSTR;
-        let mut reason: Vec<u16> = "Vorssaint: Keep awake is on".encode_utf16().chain(Some(0)).collect();
+        let mut reason: Vec<u16> = "Vorssaint: Keep awake is on"
+            .encode_utf16()
+            .chain(Some(0))
+            .collect();
         let context = REASON_CONTEXT {
             Version: 0, // POWER_REQUEST_CONTEXT_VERSION
             Flags: POWER_REQUEST_CONTEXT_SIMPLE_STRING,
-            Reason: REASON_CONTEXT_0 { SimpleReasonString: PWSTR(reason.as_mut_ptr()) },
+            Reason: REASON_CONTEXT_0 {
+                SimpleReasonString: PWSTR(reason.as_mut_ptr()),
+            },
         };
         unsafe {
             let handle = PowerCreateRequest(&context).map_err(|e| e.message())?;
@@ -79,7 +95,9 @@ impl Request {
 impl Drop for Request {
     fn drop(&mut self) {
         use windows::Win32::Foundation::{CloseHandle, HANDLE};
-        use windows::Win32::System::Power::{PowerClearRequest, PowerRequestDisplayRequired, PowerRequestSystemRequired};
+        use windows::Win32::System::Power::{
+            PowerClearRequest, PowerRequestDisplayRequired, PowerRequestSystemRequired,
+        };
         let handle = HANDLE(self.0 as *mut _);
         unsafe {
             let _ = PowerClearRequest(handle, PowerRequestDisplayRequired);
@@ -102,7 +120,10 @@ fn start(app: &AppHandle, shared: &Shared, minutes: u32) -> Result<State, String
         let mut inner = shared.0.lock().unwrap();
         inner.request = Some(request);
         inner.generation += 1;
-        inner.state = State { active: true, ends_at: ends_at(now_ms(), minutes) };
+        inner.state = State {
+            active: true,
+            ends_at: ends_at(now_ms(), minutes),
+        };
         if let Some(end) = inner.state.ends_at {
             watch_end(app.clone(), shared.clone(), inner.generation, end);
         }
@@ -158,7 +179,11 @@ pub fn keep_awake_state(state: tauri::State<'_, Shared>) -> State {
 
 /// `minutes` starts a session (0 = until turned off); None ends it.
 #[tauri::command]
-pub fn keep_awake_set(app: AppHandle, state: tauri::State<'_, Shared>, minutes: Option<u32>) -> Result<State, String> {
+pub fn keep_awake_set(
+    app: AppHandle,
+    state: tauri::State<'_, Shared>,
+    minutes: Option<u32>,
+) -> Result<State, String> {
     match minutes {
         Some(m) => start(&app, &state, m),
         None => Ok(stop(&app, &state)),
@@ -200,7 +225,11 @@ mod tests {
 
     #[test]
     fn the_state_names_its_end_for_the_island() {
-        let json = serde_json::to_value(State { active: true, ends_at: None }).unwrap();
+        let json = serde_json::to_value(State {
+            active: true,
+            ends_at: None,
+        })
+        .unwrap();
         assert_eq!(json["active"], true);
         assert!(json["endsAt"].is_null());
     }

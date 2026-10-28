@@ -618,7 +618,11 @@ fn apply_fact(fact: &TranscriptFact, previews: bool, entry: &mut Activity) {
         }
         TranscriptFact::PromptImages { images, at } => {
             if previews {
-                if !entry.chat.last().is_some_and(|m| m.role == ChatRole::User && m.at == *at) {
+                if !entry
+                    .chat
+                    .last()
+                    .is_some_and(|m| m.role == ChatRole::User && m.at == *at)
+                {
                     say("", ChatRole::User, *at, false, previews, entry);
                 }
                 if let Some(message) = entry.chat.last_mut() {

@@ -24,7 +24,11 @@ impl MicMute {
     pub fn mute(&mut self, devices: &[(String, bool)]) -> Vec<String> {
         self.muted = true;
         self.seen = devices.iter().map(|(id, _)| id.clone()).collect();
-        let fresh: Vec<String> = devices.iter().filter(|(_, m)| !m).map(|(id, _)| id.clone()).collect();
+        let fresh: Vec<String> = devices
+            .iter()
+            .filter(|(_, m)| !m)
+            .map(|(id, _)| id.clone())
+            .collect();
         self.ours.extend(fresh.iter().cloned());
         fresh
     }
@@ -42,7 +46,11 @@ impl MicMute {
         if self.muted {
             return Vec::new();
         }
-        present.iter().filter(|id| self.ours.contains(*id)).cloned().collect()
+        present
+            .iter()
+            .filter(|id| self.ours.contains(*id))
+            .cloned()
+            .collect()
     }
 
     /// The microphones that arrived since muting and are live; they get muted.
@@ -83,8 +91,14 @@ mod tests {
         let mut mic = MicMute::default();
         mic.mute(&list(&[("a", false)]));
         // "a" unmuted by hand stays unmuted; "c" plugged in gets muted once.
-        assert_eq!(mic.arrivals(&list(&[("a", false), ("c", false)])), vec!["c"]);
-        assert!(mic.arrivals(&list(&[("a", false), ("c", false)])).is_empty());
+        assert_eq!(
+            mic.arrivals(&list(&[("a", false), ("c", false)])),
+            vec!["c"]
+        );
+        assert!(
+            mic.arrivals(&list(&[("a", false), ("c", false)]))
+                .is_empty()
+        );
         let mut back = mic.unmute();
         back.sort();
         assert_eq!(back, vec!["a", "c"]);

@@ -136,8 +136,15 @@ pub type Shared = Arc<Monitor>;
 
 /// The page opens (`visible`) or closes, or opens a metric's detail.
 #[tauri::command]
-pub fn system_monitor_watch(state: tauri::State<'_, Shared>, visible: bool, detail: Option<Detail>) {
-    let next = Control { visible, detail: detail.filter(|_| visible) };
+pub fn system_monitor_watch(
+    state: tauri::State<'_, Shared>,
+    visible: bool,
+    detail: Option<Detail>,
+) {
+    let next = Control {
+        visible,
+        detail: detail.filter(|_| visible),
+    };
     let mut control = state.control.lock().unwrap();
     if *control != next {
         *control = next;
@@ -160,7 +167,10 @@ pub fn start(app: AppHandle, shared: Shared) {
 
 fn run(app: AppHandle, shared: Shared) {
     let mut sampler = imp::Sampler::new();
-    *shared.last.lock().unwrap() = Some(Snapshot { supported: sampler.supported(), ..Default::default() });
+    *shared.last.lock().unwrap() = Some(Snapshot {
+        supported: sampler.supported(),
+        ..Default::default()
+    });
     let mut seq = 0u64;
     loop {
         let control = {
@@ -208,11 +218,17 @@ fn wait_unless_changed(shared: &Monitor, seen: &Control, period: Duration) -> bo
 /// `monitorInterval`: 1, 2 or 5 seconds, anything else reads as 2 (Defaults.sanitizedMonitorInterval).
 fn monitor_interval(app: &AppHandle) -> u64 {
     let prefs = app.state::<crate::prefs::Prefs>().get();
-    sanitized_interval(prefs.pointer("/island/monitorInterval").and_then(|v| v.as_u64()))
+    sanitized_interval(
+        prefs
+            .pointer("/island/monitorInterval")
+            .and_then(|v| v.as_u64()),
+    )
 }
 
 fn sanitized_interval(value: Option<u64>) -> u64 {
-    value.filter(|seconds| matches!(seconds, 1 | 2 | 5)).unwrap_or(2)
+    value
+        .filter(|seconds| matches!(seconds, 1 | 2 | 5))
+        .unwrap_or(2)
 }
 
 // MARK: Pure arithmetic (shared by the Windows sampler and its tests)
@@ -262,7 +278,9 @@ mod math {
     /// The rows never claim more than the CPU meter (MetricFormat.processReconciliationScale).
     pub fn reconciliation_scale(sampled_total: f64, aggregate_percent: Option<f64>) -> f64 {
         match aggregate_percent {
-            Some(aggregate) if sampled_total.is_finite() && sampled_total > 0.0 && aggregate.is_finite() => {
+            Some(aggregate)
+                if sampled_total.is_finite() && sampled_total > 0.0 && aggregate.is_finite() =>
+            {
                 (aggregate.clamp(0.0, 100.0) / sampled_total).min(1.0)
             }
             _ => 1.0,
@@ -277,9 +295,15 @@ mod math {
         let mut any = false;
         for (name, value) in instances {
             any = true;
-            let Some(luid) = name.find("luid_") else { continue };
-            let Some(engtype) = name.find("_engtype_") else { continue };
-            let Some(eng) = name[luid..].find("_eng_").map(|i| luid + i) else { continue };
+            let Some(luid) = name.find("luid_") else {
+                continue;
+            };
+            let Some(engtype) = name.find("_engtype_") else {
+                continue;
+            };
+            let Some(eng) = name[luid..].find("_eng_").map(|i| luid + i) else {
+                continue;
+            };
             // Adapter (luid + phys) and engine type; the engine index is summed in.
             let key = format!("{}|{}", &name[luid..eng], &name[engtype + 9..]);
             *engines.entry(key).or_default() += value.max(0.0);
@@ -297,7 +321,10 @@ mod math {
         const FILTER: u8 = 1 << 1;
         const SOFTWARE_LOOPBACK: u32 = 24;
         const TUNNEL: u32 = 131;
-        flags & HARDWARE != 0 && flags & FILTER == 0 && if_type != SOFTWARE_LOOPBACK && if_type != TUNNEL
+        flags & HARDWARE != 0
+            && flags & FILTER == 0
+            && if_type != SOFTWARE_LOOPBACK
+            && if_type != TUNNEL
     }
 
     /// A battery's rate in watts; `BATTERY_UNKNOWN_RATE` reads as none.
@@ -310,7 +337,12 @@ mod math {
     }
 
     /// `SYSTEM_POWER_STATUS` as the card reads it; None without a battery.
-    pub fn battery_from_status(ac_line: u8, flag: u8, percent: u8, seconds: u32) -> Option<Battery> {
+    pub fn battery_from_status(
+        ac_line: u8,
+        flag: u8,
+        percent: u8,
+        seconds: u32,
+    ) -> Option<Battery> {
         const NO_BATTERY: u8 = 128;
         const UNKNOWN: u8 = 255;
         const CHARGING: u8 = 8;
@@ -330,7 +362,11 @@ mod math {
     /// External USB devices only (USBDeviceSampler.parseDevice): no root hubs,
     /// no interfaces of a composite device, no hubs (class 09) or billboards
     /// (class 11), nothing built in.
-    pub fn counts_usb_device(instance_id: &str, compatible_ids: &[String], removable: bool) -> bool {
+    pub fn counts_usb_device(
+        instance_id: &str,
+        compatible_ids: &[String],
+        removable: bool,
+    ) -> bool {
         let id = instance_id.to_ascii_uppercase();
         if !id.starts_with("USB\\") || id.starts_with("USB\\ROOT_HUB") || id.contains("&MI_") {
             return false;
@@ -349,26 +385,39 @@ mod math {
     /// both: one plugged in or re-enabled mid-way would otherwise add its
     /// whole lifetime in one tick, and one that went away would subtract.
     pub fn interface_delta(previous: &Interfaces, current: &Interfaces) -> (u64, u64) {
-        current.iter().fold((0, 0), |(down, up), (luid, (received, sent))| match previous.get(luid) {
-            Some((was_received, was_sent)) => (
-                down + received.saturating_sub(*was_received),
-                up + sent.saturating_sub(*was_sent),
-            ),
-            None => (down, up),
-        })
+        current.iter().fold(
+            (0, 0),
+            |(down, up), (luid, (received, sent))| match previous.get(luid) {
+                Some((was_received, was_sent)) => (
+                    down + received.saturating_sub(*was_received),
+                    up + sent.saturating_sub(*was_sent),
+                ),
+                None => (down, up),
+            },
+        )
     }
 
     /// Bytes since each adapter was first seen, which records new ones.
     pub fn since_first_seen(baseline: &mut Interfaces, current: &Interfaces) -> (u64, u64) {
-        current.iter().fold((0, 0), |(down, up), (luid, (received, sent))| {
-            let (base_received, base_sent) = *baseline.entry(*luid).or_insert((*received, *sent));
-            (down + received.saturating_sub(base_received), up + sent.saturating_sub(base_sent))
-        })
+        current
+            .iter()
+            .fold((0, 0), |(down, up), (luid, (received, sent))| {
+                let (base_received, base_sent) =
+                    *baseline.entry(*luid).or_insert((*received, *sent));
+                (
+                    down + received.saturating_sub(base_received),
+                    up + sent.saturating_sub(base_sent),
+                )
+            })
     }
 
     /// Top rows by value, largest first.
     pub fn top_rows(mut rows: Vec<ProcessRow>, limit: usize) -> Vec<ProcessRow> {
-        rows.sort_by(|a, b| b.value.total_cmp(&a.value).then_with(|| a.name.cmp(&b.name)));
+        rows.sort_by(|a, b| {
+            b.value
+                .total_cmp(&a.value)
+                .then_with(|| a.name.cmp(&b.name))
+        });
         rows.truncate(limit);
         rows
     }
@@ -382,8 +431,8 @@ use math::*;
 mod imp {
     use super::*;
     use std::collections::HashMap;
-    use windows::core::{w, PCWSTR};
     use windows::Win32::System::Performance::*;
+    use windows::core::{PCWSTR, w};
 
     const PDH_FMT_NOCAP100: u32 = 0x8000;
 
@@ -405,7 +454,8 @@ mod imp {
             // English names work on every display language.
             let add = |path: PCWSTR| {
                 let mut counter = PDH_HCOUNTER::default();
-                (unsafe { PdhAddEnglishCounterW(query, path, 0, &mut counter) } == 0).then_some(counter)
+                (unsafe { PdhAddEnglishCounterW(query, path, 0, &mut counter) } == 0)
+                    .then_some(counter)
             };
             let cpu = add(w!("\\Processor Information(_Total)\\% Processor Utility"))
                 .or_else(|| add(w!("\\Processor Information(_Total)\\% Processor Time")))
@@ -427,7 +477,9 @@ mod imp {
             let mut value = PDH_FMT_COUNTERVALUE::default();
             let format = PDH_FMT(PDH_FMT_DOUBLE.0 | PDH_FMT_NOCAP100);
             let status = unsafe { PdhGetFormattedCounterValue(counter?, format, None, &mut value) };
-            let valid = status == 0 && (value.CStatus == PDH_CSTATUS_VALID_DATA || value.CStatus == PDH_CSTATUS_NEW_DATA);
+            let valid = status == 0
+                && (value.CStatus == PDH_CSTATUS_VALID_DATA
+                    || value.CStatus == PDH_CSTATUS_NEW_DATA);
             let number = unsafe { value.Anonymous.doubleValue };
             (valid && number.is_finite()).then_some(number)
         }
@@ -437,7 +489,9 @@ mod imp {
         fn instances(counter: PDH_HCOUNTER) -> Option<(Vec<(String, f64)>, u32)> {
             let format = PDH_FMT(PDH_FMT_DOUBLE.0 | PDH_FMT_NOCAP100);
             let (mut size, mut count) = (0u32, 0u32);
-            let status = unsafe { PdhGetFormattedCounterArrayW(counter, format, &mut size, &mut count, None) };
+            let status = unsafe {
+                PdhGetFormattedCounterArrayW(counter, format, &mut size, &mut count, None)
+            };
             if status == 0 && count == 0 {
                 return Some((Vec::new(), 0));
             }
@@ -445,22 +499,32 @@ mod imp {
                 return None;
             }
             let item = std::mem::size_of::<PDH_FMT_COUNTERVALUE_ITEM_W>();
-            let mut buffer: Vec<PDH_FMT_COUNTERVALUE_ITEM_W> = Vec::with_capacity((size as usize).div_ceil(item) + 1);
+            let mut buffer: Vec<PDH_FMT_COUNTERVALUE_ITEM_W> =
+                Vec::with_capacity((size as usize).div_ceil(item) + 1);
             let status = unsafe {
-                PdhGetFormattedCounterArrayW(counter, format, &mut size, &mut count, Some(buffer.as_mut_ptr()))
+                PdhGetFormattedCounterArrayW(
+                    counter,
+                    format,
+                    &mut size,
+                    &mut count,
+                    Some(buffer.as_mut_ptr()),
+                )
             };
             if status != 0 {
                 return None;
             }
             unsafe { buffer.set_len((count as usize).min(buffer.capacity())) };
             let valid = buffer
-                    .iter()
-                    .filter(|i| i.FmtValue.CStatus == PDH_CSTATUS_VALID_DATA || i.FmtValue.CStatus == PDH_CSTATUS_NEW_DATA)
-                    .map(|i| {
-                        let name = unsafe { i.szName.to_string() }.unwrap_or_default();
-                        (name, unsafe { i.FmtValue.Anonymous.doubleValue })
-                    })
-                    .collect();
+                .iter()
+                .filter(|i| {
+                    i.FmtValue.CStatus == PDH_CSTATUS_VALID_DATA
+                        || i.FmtValue.CStatus == PDH_CSTATUS_NEW_DATA
+                })
+                .map(|i| {
+                    let name = unsafe { i.szName.to_string() }.unwrap_or_default();
+                    (name, unsafe { i.FmtValue.Anonymous.doubleValue })
+                })
+                .collect();
             Some((valid, count))
         }
     }
@@ -517,14 +581,17 @@ mod imp {
                 process_names: HashMap::new(),
                 devices: None,
                 tick: 0,
-                processors: std::thread::available_parallelism().map(|n| n.get() as u32).unwrap_or(1),
+                processors: std::thread::available_parallelism()
+                    .map(|n| n.get() as u32)
+                    .unwrap_or(1),
             }
         }
 
         pub fn supported(&self) -> Supported {
             Supported {
                 cpu: true,
-                gpu: self.pdh.as_ref().is_some_and(|p| p.gpu.is_some()) && self.gpu_seen != Some(false),
+                gpu: self.pdh.as_ref().is_some_and(|p| p.gpu.is_some())
+                    && self.gpu_seen != Some(false),
                 memory: true,
                 network: self.net.is_some(),
                 disk: system_drive_space().is_some(),
@@ -541,7 +608,10 @@ mod imp {
             self.net = network_counters().or(self.net.take());
             self.processes.clear();
             if detail == Some(Detail::Cpu) {
-                self.processes = read_processes().into_iter().map(|p| (p.key, p.cpu_time)).collect();
+                self.processes = read_processes()
+                    .into_iter()
+                    .map(|p| (p.key, p.cpu_time))
+                    .collect();
             }
             self.last = Instant::now();
             self.tick = 0;
@@ -566,8 +636,12 @@ mod imp {
                 self.gpu_seen = Some(count > 0);
                 snapshot.gpu = gpu_usage(list.iter().map(|(n, v)| (n.as_str(), *v)));
             }
-            snapshot.disk_read = pdh.and_then(|p| Pdh::value(p.disk_read)).map(|v| v.max(0.0));
-            snapshot.disk_write = pdh.and_then(|p| Pdh::value(p.disk_write)).map(|v| v.max(0.0));
+            snapshot.disk_read = pdh
+                .and_then(|p| Pdh::value(p.disk_read))
+                .map(|v| v.max(0.0));
+            snapshot.disk_write = pdh
+                .and_then(|p| Pdh::value(p.disk_write))
+                .map(|v| v.max(0.0));
 
             if let Some((used, total)) = memory() {
                 snapshot.memory_used = Some(used);
@@ -602,7 +676,8 @@ mod imp {
                 _ => Vec::new(),
             };
             snapshot.processes_for = detail.filter(|d| matches!(d, Detail::Cpu | Detail::Memory));
-            snapshot.uptime_seconds = unsafe { windows::Win32::System::SystemInformation::GetTickCount64() } / 1000;
+            snapshot.uptime_seconds =
+                unsafe { windows::Win32::System::SystemInformation::GetTickCount64() } / 1000;
             snapshot.supported = self.supported();
             snapshot
         }
@@ -611,9 +686,14 @@ mod imp {
             let entries = read_processes();
             let mut by_image: HashMap<String, (f64, u32)> = HashMap::new();
             for entry in &entries {
-                let Some(previous) = self.processes.get(&entry.key) else { continue };
-                let percent = process_cpu_percent(*previous, entry.cpu_time, elapsed, self.processors);
-                let slot = by_image.entry(entry.image.clone()).or_insert((0.0, entry.key.pid));
+                let Some(previous) = self.processes.get(&entry.key) else {
+                    continue;
+                };
+                let percent =
+                    process_cpu_percent(*previous, entry.cpu_time, elapsed, self.processors);
+                let slot = by_image
+                    .entry(entry.image.clone())
+                    .or_insert((0.0, entry.key.pid));
                 slot.0 += percent;
             }
             self.processes = entries.iter().map(|p| (p.key, p.cpu_time)).collect();
@@ -630,7 +710,9 @@ mod imp {
         fn memory_rows(&mut self) -> Vec<ProcessRow> {
             let mut by_image: HashMap<String, (u64, u32, u64)> = HashMap::new();
             for entry in read_processes() {
-                let slot = by_image.entry(entry.image.clone()).or_insert((0, entry.key.pid, 0));
+                let slot = by_image
+                    .entry(entry.image.clone())
+                    .or_insert((0, entry.key.pid, 0));
                 slot.0 += entry.private_bytes;
                 // The group's largest process names it.
                 if entry.private_bytes > slot.2 {
@@ -639,9 +721,12 @@ mod imp {
                 }
             }
             let mut ranked: Vec<_> = by_image.into_iter().collect();
-            ranked.sort_by_key(|entry| std::cmp::Reverse(entry.1 .0));
+            ranked.sort_by_key(|entry| std::cmp::Reverse(entry.1.0));
             ranked.truncate(PROCESS_ROWS);
-            let rows = ranked.into_iter().map(|(image, (bytes, pid, _))| self.row(&image, pid, bytes as f64)).collect();
+            let rows = ranked
+                .into_iter()
+                .map(|(image, (bytes, pid, _))| self.row(&image, pid, bytes as f64))
+                .collect();
             top_rows(rows, PROCESS_ROWS)
         }
 
@@ -653,7 +738,14 @@ mod imp {
                 .or_insert_with(|| match crate::shell::process_path(pid) {
                     Some(path) => {
                         let name = crate::shell::app_name(&path);
-                        (Some(path), if name.is_empty() { image.to_string() } else { name })
+                        (
+                            Some(path),
+                            if name.is_empty() {
+                                image.to_string()
+                            } else {
+                                name
+                            },
+                        )
                     }
                     None => (None, image.trim_end_matches(".exe").to_string()),
                 })
@@ -668,22 +760,42 @@ mod imp {
 
     fn system_times() -> Option<(u64, u64, u64)> {
         use windows::Win32::Foundation::FILETIME;
-        let (mut idle, mut kernel, mut user) = (FILETIME::default(), FILETIME::default(), FILETIME::default());
-        unsafe { windows::Win32::System::Threading::GetSystemTimes(Some(&mut idle), Some(&mut kernel), Some(&mut user)) }
-            .ok()?;
+        let (mut idle, mut kernel, mut user) = (
+            FILETIME::default(),
+            FILETIME::default(),
+            FILETIME::default(),
+        );
+        unsafe {
+            windows::Win32::System::Threading::GetSystemTimes(
+                Some(&mut idle),
+                Some(&mut kernel),
+                Some(&mut user),
+            )
+        }
+        .ok()?;
         Some((filetime(idle), filetime(kernel), filetime(user)))
     }
 
     /// Used = total − available, as Task Manager's "In use" (spec 04 §8).
     fn memory() -> Option<(u64, u64)> {
         use windows::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
-        let mut status = MEMORYSTATUSEX { dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32, ..Default::default() };
+        let mut status = MEMORYSTATUSEX {
+            dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32,
+            ..Default::default()
+        };
         unsafe { GlobalMemoryStatusEx(&mut status) }.ok()?;
-        (status.ullTotalPhys > 0).then(|| (status.ullTotalPhys.saturating_sub(status.ullAvailPhys), status.ullTotalPhys))
+        (status.ullTotalPhys > 0).then(|| {
+            (
+                status.ullTotalPhys.saturating_sub(status.ullAvailPhys),
+                status.ullTotalPhys,
+            )
+        })
     }
 
     fn network_counters() -> Option<Interfaces> {
-        use windows::Win32::NetworkManagement::IpHelper::{FreeMibTable, GetIfTable2, MIB_IF_ROW2, MIB_IF_TABLE2};
+        use windows::Win32::NetworkManagement::IpHelper::{
+            FreeMibTable, GetIfTable2, MIB_IF_ROW2, MIB_IF_TABLE2,
+        };
         let mut table: *mut MIB_IF_TABLE2 = std::ptr::null_mut();
         if unsafe { GetIfTable2(&mut table) }.is_err() || table.is_null() {
             return None;
@@ -705,7 +817,8 @@ mod imp {
 
     fn battery() -> Option<Battery> {
         use windows::Win32::System::Power::{
-            CallNtPowerInformation, GetSystemPowerStatus, SystemBatteryState, SYSTEM_BATTERY_STATE, SYSTEM_POWER_STATUS,
+            CallNtPowerInformation, GetSystemPowerStatus, SYSTEM_BATTERY_STATE,
+            SYSTEM_POWER_STATUS, SystemBatteryState,
         };
         let mut status = SYSTEM_POWER_STATUS::default();
         unsafe { GetSystemPowerStatus(&mut status) }.ok()?;
@@ -737,7 +850,11 @@ mod imp {
         let root = windows::core::HSTRING::from(format!("{drive}\\"));
         let (mut free, mut total) = (0u64, 0u64);
         unsafe { GetDiskFreeSpaceExW(&root, Some(&mut free), Some(&mut total), None) }.ok()?;
-        (total > 0).then_some(Disk { name: drive, free, total })
+        (total > 0).then_some(Disk {
+            name: drive,
+            free,
+            total,
+        })
     }
 
     fn connected_devices() -> Vec<Device> {
@@ -749,17 +866,33 @@ mod imp {
 
     fn usb_devices() -> Vec<Device> {
         use windows::Win32::Devices::DeviceAndDriverInstallation::*;
-        use windows::Win32::Devices::Properties::{DEVPKEY_Device_BusReportedDeviceDesc, DEVPROPTYPE};
+        use windows::Win32::Devices::Properties::{
+            DEVPKEY_Device_BusReportedDeviceDesc, DEVPROPTYPE,
+        };
         let mut out = Vec::new();
-        let Ok(set) = (unsafe { SetupDiGetClassDevsW(None, w!("USB"), None, DIGCF_PRESENT | DIGCF_ALLCLASSES) }) else {
+        let Ok(set) = (unsafe {
+            SetupDiGetClassDevsW(None, w!("USB"), None, DIGCF_PRESENT | DIGCF_ALLCLASSES)
+        }) else {
             return out;
         };
         let wide = |bytes: &[u8]| -> Vec<String> {
-            let units: Vec<u16> = bytes.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
-            units.split(|u| *u == 0).filter(|s| !s.is_empty()).map(String::from_utf16_lossy).collect()
+            let units: Vec<u16> = bytes
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|c| u16::from_le_bytes(*c))
+                .collect();
+            units
+                .split(|u| *u == 0)
+                .filter(|s| !s.is_empty())
+                .map(String::from_utf16_lossy)
+                .collect()
         };
         for index in 0.. {
-            let mut data = SP_DEVINFO_DATA { cbSize: std::mem::size_of::<SP_DEVINFO_DATA>() as u32, ..Default::default() };
+            let mut data = SP_DEVINFO_DATA {
+                cbSize: std::mem::size_of::<SP_DEVINFO_DATA>() as u32,
+                ..Default::default()
+            };
             if unsafe { SetupDiEnumDeviceInfo(set, index, &mut data) }.is_err() {
                 break;
             }
@@ -767,23 +900,45 @@ mod imp {
             if unsafe { SetupDiGetDeviceInstanceIdW(set, &data, Some(&mut id), None) }.is_err() {
                 continue;
             }
-            let id = String::from_utf16_lossy(&id[..id.iter().position(|u| *u == 0).unwrap_or(id.len())]);
+            let id = String::from_utf16_lossy(
+                &id[..id.iter().position(|u| *u == 0).unwrap_or(id.len())],
+            );
             let registry = |property| {
                 let mut bytes = vec![0u8; 2048];
-                unsafe { SetupDiGetDeviceRegistryPropertyW(set, &data, property, None, Some(&mut bytes), None) }
-                    .ok()
-                    .map(|_| bytes)
+                unsafe {
+                    SetupDiGetDeviceRegistryPropertyW(
+                        set,
+                        &data,
+                        property,
+                        None,
+                        Some(&mut bytes),
+                        None,
+                    )
+                }
+                .ok()
+                .map(|_| bytes)
             };
-            let compatible = registry(SPDRP_COMPATIBLEIDS).map(|b| wide(&b)).unwrap_or_default();
-            let removable = registry(SPDRP_CAPABILITIES)
-                .is_some_and(|b| u32::from_le_bytes([b[0], b[1], b[2], b[3]]) & CM_DEVCAP_REMOVABLE.0 != 0);
+            let compatible = registry(SPDRP_COMPATIBLEIDS)
+                .map(|b| wide(&b))
+                .unwrap_or_default();
+            let removable = registry(SPDRP_CAPABILITIES).is_some_and(|b| {
+                u32::from_le_bytes([b[0], b[1], b[2], b[3]]) & CM_DEVCAP_REMOVABLE.0 != 0
+            });
             if !counts_usb_device(&id, &compatible, removable) {
                 continue;
             }
             let mut kind = DEVPROPTYPE::default();
             let mut bytes = vec![0u8; 1024];
             let reported = unsafe {
-                SetupDiGetDevicePropertyW(set, &data, &DEVPKEY_Device_BusReportedDeviceDesc, &mut kind, Some(&mut bytes), None, 0)
+                SetupDiGetDevicePropertyW(
+                    set,
+                    &data,
+                    &DEVPKEY_Device_BusReportedDeviceDesc,
+                    &mut kind,
+                    Some(&mut bytes),
+                    None,
+                    0,
+                )
             }
             .ok()
             .and_then(|_| wide(&bytes).into_iter().next());
@@ -791,7 +946,10 @@ mod imp {
                 .or_else(|| registry(SPDRP_FRIENDLYNAME).and_then(|b| wide(&b).into_iter().next()))
                 .or_else(|| registry(SPDRP_DEVICEDESC).and_then(|b| wide(&b).into_iter().next()))
                 .unwrap_or_default();
-            out.push(Device { name: name.trim().to_string(), bluetooth: false });
+            out.push(Device {
+                name: name.trim().to_string(),
+                bluetooth: false,
+            });
         }
         let _ = unsafe { SetupDiDestroyDeviceInfoList(set) };
         out
@@ -806,14 +964,29 @@ mod imp {
             fReturnConnected: true.into(),
             ..Default::default()
         };
-        let mut info = BLUETOOTH_DEVICE_INFO { dwSize: std::mem::size_of::<BLUETOOTH_DEVICE_INFO>() as u32, ..Default::default() };
-        let Ok(find) = (unsafe { BluetoothFindFirstDevice(&params, &mut info) }) else { return out };
+        let mut info = BLUETOOTH_DEVICE_INFO {
+            dwSize: std::mem::size_of::<BLUETOOTH_DEVICE_INFO>() as u32,
+            ..Default::default()
+        };
+        let Ok(find) = (unsafe { BluetoothFindFirstDevice(&params, &mut info) }) else {
+            return out;
+        };
         loop {
             if info.fConnected.as_bool() {
-                let end = info.szName.iter().position(|u| *u == 0).unwrap_or(info.szName.len());
-                out.push(Device { name: String::from_utf16_lossy(&info.szName[..end]), bluetooth: true });
+                let end = info
+                    .szName
+                    .iter()
+                    .position(|u| *u == 0)
+                    .unwrap_or(info.szName.len());
+                out.push(Device {
+                    name: String::from_utf16_lossy(&info.szName[..end]),
+                    bluetooth: true,
+                });
             }
-            info = BLUETOOTH_DEVICE_INFO { dwSize: std::mem::size_of::<BLUETOOTH_DEVICE_INFO>() as u32, ..Default::default() };
+            info = BLUETOOTH_DEVICE_INFO {
+                dwSize: std::mem::size_of::<BLUETOOTH_DEVICE_INFO>() as u32,
+                ..Default::default()
+            };
             if unsafe { BluetoothFindNextDevice(find, &mut info) }.is_err() {
                 break;
             }
@@ -827,7 +1000,9 @@ mod imp {
     /// `Reserved1`: private working set at 0, create time at 24, user at 32,
     /// kernel at 40).
     fn read_processes() -> Vec<ProcessEntry> {
-        use windows::Wdk::System::SystemInformation::{NtQuerySystemInformation, SystemProcessInformation};
+        use windows::Wdk::System::SystemInformation::{
+            NtQuerySystemInformation, SystemProcessInformation,
+        };
         use windows::Win32::System::WindowsProgramming::SYSTEM_PROCESS_INFORMATION;
         const LENGTH_MISMATCH: i32 = 0xC000_0004_u32 as i32;
         let mut buffer: Vec<u64> = vec![0; 512 * 1024 / 8];
@@ -857,19 +1032,30 @@ mod imp {
         loop {
             let info = unsafe { &*base.add(offset).cast::<SYSTEM_PROCESS_INFORMATION>() };
             let pid = info.UniqueProcessId.0 as usize as u32;
-            let field = |at: usize| i64::from_le_bytes(info.Reserved1[at..at + 8].try_into().unwrap());
+            let field =
+                |at: usize| i64::from_le_bytes(info.Reserved1[at..at + 8].try_into().unwrap());
             if pid != 0 {
                 let image = if info.ImageName.Buffer.is_null() {
                     String::new()
                 } else {
                     let units = unsafe {
-                        std::slice::from_raw_parts(info.ImageName.Buffer.0, usize::from(info.ImageName.Length) / 2)
+                        std::slice::from_raw_parts(
+                            info.ImageName.Buffer.0,
+                            usize::from(info.ImageName.Length) / 2,
+                        )
                     };
                     String::from_utf16_lossy(units)
                 };
                 out.push(ProcessEntry {
-                    key: ProcessKey { pid, created: field(24) },
-                    image: if image.is_empty() { "System".into() } else { image },
+                    key: ProcessKey {
+                        pid,
+                        created: field(24),
+                    },
+                    image: if image.is_empty() {
+                        "System".into()
+                    } else {
+                        image
+                    },
                     cpu_time: (field(32).max(0) + field(40).max(0)) as u64,
                     private_bytes: field(0).max(0) as u64,
                 });
@@ -975,7 +1161,10 @@ mod tests {
             ("pid_1_luid_0x0_0xB_phys_0_eng_0_engtype_3D", 60.0),
         ];
         assert_eq!(gpu_usage(two), Some(0.6));
-        assert_eq!(gpu_usage([("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 250.0)]), Some(1.0));
+        assert_eq!(
+            gpu_usage([("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 250.0)]),
+            Some(1.0)
+        );
         assert_eq!(gpu_usage(std::iter::empty()), None);
     }
 
@@ -983,7 +1172,10 @@ mod tests {
     fn only_physical_interfaces_count() {
         assert!(counts_interface(0b0000_0001, 6));
         assert!(counts_interface(0b0000_0101, 71));
-        assert!(!counts_interface(0b0000_0011, 6), "an NDIS filter repeats the adapter's counters");
+        assert!(
+            !counts_interface(0b0000_0011, 6),
+            "an NDIS filter repeats the adapter's counters"
+        );
         assert!(!counts_interface(0, 6), "virtual adapters");
         assert!(!counts_interface(1, 24));
         assert!(!counts_interface(1, 131));
@@ -991,13 +1183,20 @@ mod tests {
 
     #[test]
     fn network_counts_only_adapters_seen_twice() {
-        let interfaces = |rows: &[(u64, u64, u64)]| rows.iter().map(|(l, r, s)| (*l, (*r, *s))).collect::<Interfaces>();
+        let interfaces = |rows: &[(u64, u64, u64)]| {
+            rows.iter()
+                .map(|(l, r, s)| (*l, (*r, *s)))
+                .collect::<Interfaces>()
+        };
         let before = interfaces(&[(1, 1_000, 500), (2, 10, 10)]);
         // Adapter 3 appears with its lifetime counters, adapter 2 goes away.
         let after = interfaces(&[(1, 3_000, 900), (3, 9_000_000, 9_000_000)]);
         assert_eq!(interface_delta(&before, &after), (2_000, 400));
         // A counter that went back (reset) adds nothing.
-        assert_eq!(interface_delta(&after, &interfaces(&[(1, 100, 100)])), (0, 0));
+        assert_eq!(
+            interface_delta(&after, &interfaces(&[(1, 100, 100)])),
+            (0, 0)
+        );
         let mut baseline = Interfaces::new();
         assert_eq!(since_first_seen(&mut baseline, &before), (0, 0));
         assert_eq!(since_first_seen(&mut baseline, &after), (2_000, 400));
@@ -1024,32 +1223,65 @@ mod tests {
         let draining = battery_from_status(0, 2, 15, 3_600).unwrap();
         assert!(!draining.charging && !draining.plugged_in);
         assert_eq!(draining.seconds_left, Some(3_600));
-        assert_eq!(battery_from_status(0, 1, 255, u32::MAX).unwrap().percent, None);
+        assert_eq!(
+            battery_from_status(0, 1, 255, u32::MAX).unwrap().percent,
+            None
+        );
     }
 
     #[test]
     fn usb_counts_external_devices_only() {
         let none: [String; 0] = [];
-        assert!(counts_usb_device("USB\\VID_046D&PID_C52B\\5&1A2B", &["USB\\Class_03".into()], true));
+        assert!(counts_usb_device(
+            "USB\\VID_046D&PID_C52B\\5&1A2B",
+            &["USB\\Class_03".into()],
+            true
+        ));
         assert!(!counts_usb_device("USB\\ROOT_HUB30\\4&2B", &none, true));
-        assert!(!counts_usb_device("USB\\VID_046D&PID_C52B&MI_00\\6&1", &none, true));
-        assert!(!counts_usb_device("USB\\VID_05E3&PID_0610\\5&1", &["USB\\Class_09&SubClass_00".into()], true));
-        assert!(!counts_usb_device("USB\\VID_2109&PID_0103\\5&1", &["USB\\Class_11".into()], true));
-        assert!(!counts_usb_device("USB\\VID_8087&PID_0026\\5&1", &none, false), "built in");
+        assert!(!counts_usb_device(
+            "USB\\VID_046D&PID_C52B&MI_00\\6&1",
+            &none,
+            true
+        ));
+        assert!(!counts_usb_device(
+            "USB\\VID_05E3&PID_0610\\5&1",
+            &["USB\\Class_09&SubClass_00".into()],
+            true
+        ));
+        assert!(!counts_usb_device(
+            "USB\\VID_2109&PID_0103\\5&1",
+            &["USB\\Class_11".into()],
+            true
+        ));
+        assert!(
+            !counts_usb_device("USB\\VID_8087&PID_0026\\5&1", &none, false),
+            "built in"
+        );
         assert!(!counts_usb_device("HID\\VID_046D", &none, true));
     }
 
     #[test]
     fn rows_rank_largest_first() {
-        let row = |name: &str, value: f64| ProcessRow { name: name.into(), path: None, value };
-        let rows = top_rows(vec![row("b", 1.0), row("a", 5.0), row("c", 3.0), row("d", 3.0)], 3);
+        let row = |name: &str, value: f64| ProcessRow {
+            name: name.into(),
+            path: None,
+            value,
+        };
+        let rows = top_rows(
+            vec![row("b", 1.0), row("a", 5.0), row("c", 3.0), row("d", 3.0)],
+            3,
+        );
         let names: Vec<_> = rows.iter().map(|r| r.name.as_str()).collect();
         assert_eq!(names, ["a", "c", "d"]);
     }
 
     #[test]
     fn snapshot_serializes_for_the_page() {
-        let snapshot = Snapshot { cpu: Some(0.5), memory_used: Some(1), ..Default::default() };
+        let snapshot = Snapshot {
+            cpu: Some(0.5),
+            memory_used: Some(1),
+            ..Default::default()
+        };
         let json = serde_json::to_value(&snapshot).unwrap();
         assert_eq!(json["cpu"], 0.5);
         assert_eq!(json["memoryUsed"], 1);
@@ -1062,9 +1294,16 @@ mod tests {
     #[test]
     fn watch_wakes_the_sampler_only_on_change() {
         let monitor = Monitor::default();
-        let seen = Control { visible: true, detail: None };
+        let seen = Control {
+            visible: true,
+            detail: None,
+        };
         *monitor.control.lock().unwrap() = seen.clone();
-        assert!(!wait_unless_changed(&monitor, &seen, Duration::from_millis(5)));
+        assert!(!wait_unless_changed(
+            &monitor,
+            &seen,
+            Duration::from_millis(5)
+        ));
         monitor.control.lock().unwrap().detail = Some(Detail::Cpu);
         assert!(wait_unless_changed(&monitor, &seen, Duration::from_secs(5)));
     }

@@ -30,8 +30,12 @@ pub fn chime_wav() -> &'static [u8] {
                 let attack = (t / 0.004).min(1.0);
                 let decay = (-t * 5.5).exp();
                 let tone = (2.0 * std::f32::consts::PI * freq * t).sin()
-                    + 0.35 * (2.0 * std::f32::consts::PI * freq * 2.76 * t).sin() * (-t * 9.0).exp()
-                    + 0.15 * (2.0 * std::f32::consts::PI * freq * 5.4 * t).sin() * (-t * 14.0).exp();
+                    + 0.35
+                        * (2.0 * std::f32::consts::PI * freq * 2.76 * t).sin()
+                        * (-t * 9.0).exp()
+                    + 0.15
+                        * (2.0 * std::f32::consts::PI * freq * 5.4 * t).sin()
+                        * (-t * 14.0).exp();
                 *sample += 0.28 * attack * decay * tone;
             }
         }
@@ -78,7 +82,10 @@ fn alarms() -> &'static Mutex<HashMap<String, Arc<AtomicBool>>> {
 pub fn start_alarm(key: &str) {
     stop_alarm(key);
     let stop = Arc::new(AtomicBool::new(false));
-    alarms().lock().unwrap().insert(key.to_string(), stop.clone());
+    alarms()
+        .lock()
+        .unwrap()
+        .insert(key.to_string(), stop.clone());
     let key = key.to_string();
     std::thread::spawn(move || {
         let began = Instant::now();
@@ -141,7 +148,10 @@ mod tests {
             .map(|b| i16::from_le_bytes([b[0], b[1]]).unsigned_abs())
             .max()
             .unwrap();
-        assert!(peak > 3000 && peak < i16::MAX as u16, "audible without clipping: {peak}");
+        assert!(
+            peak > 3000 && peak < i16::MAX as u16,
+            "audible without clipping: {peak}"
+        );
     }
 
     #[test]

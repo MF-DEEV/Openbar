@@ -155,7 +155,11 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
     let notifications_hidden = value
         .pointer("/island/hiddenModules")
         .and_then(Value::as_array)
-        .is_some_and(|modules| modules.iter().any(|id| id.as_str() == Some("notifications")));
+        .is_some_and(|modules| {
+            modules
+                .iter()
+                .any(|id| id.as_str() == Some("notifications"))
+        });
     crate::notifications::set_enabled(
         app,
         flag("/island/enabled", true)

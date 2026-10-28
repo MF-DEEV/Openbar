@@ -50,14 +50,23 @@ mod tests {
     #[test]
     fn rejects_invalid_levels_before_accessing_audio_sessions() {
         for level in [f32::NAN, f32::INFINITY, -0.1, 1.1] {
-            assert_eq!(volume("Spotify.exe", Some(level)), Err("Invalid volume level".into()));
+            assert_eq!(
+                volume("Spotify.exe", Some(level)),
+                Err("Invalid volume level".into())
+            );
         }
     }
     #[test]
     fn matches_packaged_and_desktop_players_without_matching_other_apps() {
-        assert!(matches_player("SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify", "Spotify"));
+        assert!(matches_player(
+            "SpotifyAB.SpotifyMusic_zpdnekdrzrea0!Spotify",
+            "Spotify"
+        ));
         assert!(matches_player("Chrome", "chrome"));
-        assert!(matches_player("Microsoft.ZuneMusic_8wekyb3d8bbwe!Microsoft.ZuneMusic", "Music.UI"));
+        assert!(matches_player(
+            "Microsoft.ZuneMusic_8wekyb3d8bbwe!Microsoft.ZuneMusic",
+            "Music.UI"
+        ));
         assert!(matches_player("custom-player.exe", "custom-player"));
         assert!(!matches_player("Spotify.exe", "chrome"));
         assert!(!matches_player("Chrome", "chromedriver"));

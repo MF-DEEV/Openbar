@@ -854,9 +854,14 @@ pub async fn sessions_image(
 ) -> Result<String, String> {
     {
         let inner = service.inner.lock().unwrap();
-        if !inner.engine.policy().previews || !inner.sessions.iter()
-            .filter(|s| s.id == session_id)
-            .flat_map(|s| &s.chat).any(|m| m.images.contains(&source)) {
+        if !inner.engine.policy().previews
+            || !inner
+                .sessions
+                .iter()
+                .filter(|s| s.id == session_id)
+                .flat_map(|s| &s.chat)
+                .any(|m| m.images.contains(&source))
+        {
             return Err("Image unavailable".into());
         }
     }
@@ -872,22 +877,35 @@ pub async fn sessions_image(
         } else {
             let file = File::open(&source).map_err(|_| "Image unavailable")?;
             let mut bytes = Vec::new();
-            file.take(LIMIT + 1).read_to_end(&mut bytes).map_err(|_| "Image unavailable")?;
+            file.take(LIMIT + 1)
+                .read_to_end(&mut bytes)
+                .map_err(|_| "Image unavailable")?;
             bytes
         };
-        if bytes.len() as u64 > LIMIT { return Err("Image too large".into()); }
+        if bytes.len() as u64 > LIMIT {
+            return Err("Image too large".into());
+        }
         let (mime, _) = image_format(&bytes).ok_or("Unsupported image")?;
         Ok(format!("data:{mime};base64,{}", STANDARD.encode(bytes)))
-    }).await.map_err(|_| "Image unavailable".to_string())?
+    })
+    .await
+    .map_err(|_| "Image unavailable".to_string())?
 }
 
 pub(super) fn image_format(bytes: &[u8]) -> Option<(&'static str, &'static str)> {
-    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") { Some(("image/png", "png")) }
-    else if bytes.starts_with(b"\xff\xd8\xff") { Some(("image/jpeg", "jpg")) }
-    else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") { Some(("image/gif", "gif")) }
-    else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") { Some(("image/webp", "webp")) }
-    else if bytes.starts_with(b"BM") { Some(("image/bmp", "bmp")) }
-    else { None }
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some(("image/png", "png"))
+    } else if bytes.starts_with(b"\xff\xd8\xff") {
+        Some(("image/jpeg", "jpg"))
+    } else if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        Some(("image/gif", "gif"))
+    } else if bytes.starts_with(b"RIFF") && bytes.get(8..12) == Some(b"WEBP") {
+        Some(("image/webp", "webp"))
+    } else if bytes.starts_with(b"BM") {
+        Some(("image/bmp", "bmp"))
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]

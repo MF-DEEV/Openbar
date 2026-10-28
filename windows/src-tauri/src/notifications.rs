@@ -151,7 +151,7 @@ mod imp {
     };
     use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx};
     use windows::Win32::UI::Shell::{
-        SHQueryUserNotificationState, QUNS_ACCEPTS_NOTIFICATIONS, QUNS_NOT_PRESENT,
+        QUNS_ACCEPTS_NOTIFICATIONS, QUNS_NOT_PRESENT, SHQueryUserNotificationState,
     };
 
     use super::{Access, Item, Shared};
@@ -188,18 +188,26 @@ mod imp {
     }
 
     pub fn probe() -> serde_json::Value {
-        unsafe { let _ = CoInitializeEx(None, COINIT_MULTITHREADED); }
-        let identity = Package::Current().ok().and_then(|p| p.Id().ok())
-            .and_then(|id| id.Name().ok()).map(|name| name.to_string());
+        unsafe {
+            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        }
+        let identity = Package::Current()
+            .ok()
+            .and_then(|p| p.Id().ok())
+            .and_then(|id| id.Name().ok())
+            .map(|name| name.to_string());
         let status = access();
         let (count, error) = if status == Access::Allowed {
             match UserNotificationListener::Current()
                 .and_then(|l| l.GetNotificationsAsync(NotificationKinds::Toast))
-                .and_then(|op| op.join()) {
+                .and_then(|op| op.join())
+            {
                 Ok(list) => (list.Size().ok(), None),
                 Err(error) => (None, Some(format!("{}", error))),
             }
-        } else { (None, None) };
+        } else {
+            (None, None)
+        };
         serde_json::json!({ "identity": identity, "access": status,
             "notificationCount": count, "error": error })
     }
@@ -319,10 +327,10 @@ mod imp {
                     {
                         let notes: Vec<UserNotification> = list.into_iter().collect();
                         let ids: Vec<u32> = notes.iter().filter_map(|n| n.Id().ok()).collect();
-                        let fresh = shared.lock().unwrap().poll(
-                            &ids,
-                            shell.is_none_or(|s| s == QUNS_ACCEPTS_NOTIFICATIONS),
-                        );
+                        let fresh = shared
+                            .lock()
+                            .unwrap()
+                            .poll(&ids, shell.is_none_or(|s| s == QUNS_ACCEPTS_NOTIFICATIONS));
                         for n in notes
                             .iter()
                             .filter(|n| n.Id().is_ok_and(|id| fresh.contains(&id)))

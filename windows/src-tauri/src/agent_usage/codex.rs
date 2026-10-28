@@ -93,8 +93,15 @@ pub fn executable() -> Option<PathBuf> {
 }
 
 pub fn failure(error: Option<&Value>) -> Failure {
-    let message = error.and_then(|e| e.get("message")).and_then(Value::as_str).unwrap_or("").to_lowercase();
-    if error.and_then(|e| e.get("code")).and_then(Value::as_i64) == Some(-32601) || message.contains("unknown variant") || message.contains("method not found") {
+    let message = error
+        .and_then(|e| e.get("message"))
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .to_lowercase();
+    if error.and_then(|e| e.get("code")).and_then(Value::as_i64) == Some(-32601)
+        || message.contains("unknown variant")
+        || message.contains("method not found")
+    {
         Failure::Outdated
     } else if message.contains("authentication") || message.contains("not logged in") {
         Failure::NeedsSignIn
@@ -105,13 +112,26 @@ pub fn failure(error: Option<&Value>) -> Failure {
 
 /// API-key and cloud accounts have no plan to limit.
 pub fn sign_in_failure(account: &Value) -> Option<Failure> {
-    (account.pointer("/account/type").and_then(Value::as_str) != Some("chatgpt")).then_some(Failure::NeedsSignIn)
+    (account.pointer("/account/type").and_then(Value::as_str) != Some("chatgpt"))
+        .then_some(Failure::NeedsSignIn)
 }
 
 pub fn limits(result: &Value, observed: Time) -> Option<Limits> {
-    let snapshot = result.pointer("/rateLimitsByLimitId/codex").filter(|s| s.is_object()).or_else(|| result.get("rateLimits").filter(|s| s.is_object() && is_main_bucket(s)))?;
+    let snapshot = result
+        .pointer("/rateLimitsByLimitId/codex")
+        .filter(|s| s.is_object())
+        .or_else(|| {
+            result
+                .get("rateLimits")
+                .filter(|s| s.is_object() && is_main_bucket(s))
+        })?;
     let windows = codex_windows(snapshot, observed, &ACCOUNT_KEYS);
-    (!windows.is_empty()).then_some(Limits { provider: Provider::Codex, windows, observed_at: observed, source: LimitSource::Account })
+    (!windows.is_empty()).then_some(Limits {
+        provider: Provider::Codex,
+        windows,
+        observed_at: observed,
+        source: LimitSource::Account,
+    })
 }
 
 /// None for a Codex too old for resets.
@@ -124,19 +144,35 @@ pub fn summary(result: &Value, now: Time) -> Option<Summary> {
         .flatten()
         .filter_map(|c| {
             let id = c.get("id")?.as_str().filter(|s| !s.is_empty())?;
-            if c.get("status").and_then(Value::as_str).unwrap_or("available") != "available" {
+            if c.get("status")
+                .and_then(Value::as_str)
+                .unwrap_or("available")
+                != "available"
+            {
                 return None;
             }
             let expires = seconds(c.get("expiresAt"));
             if expires.is_some_and(|e| e <= now) {
                 return None;
             }
-            Some(Credit { id: id.into(), expires_at: expires })
+            Some(Credit {
+                id: id.into(),
+                expires_at: expires,
+            })
         })
         .collect();
-    listed.sort_by(|a, b| a.expires_at.unwrap_or(f64::MAX).total_cmp(&b.expires_at.unwrap_or(f64::MAX)));
+    listed.sort_by(|a, b| {
+        a.expires_at
+            .unwrap_or(f64::MAX)
+            .total_cmp(&b.expires_at.unwrap_or(f64::MAX))
+    });
     let available = (listed.len() as i64).max(int(credits.get("availableCount")));
-    Some(Summary { available, credits: listed, limits: limits(result, now), checked_at: now })
+    Some(Summary {
+        available,
+        credits: listed,
+        limits: limits(result, now),
+        checked_at: now,
+    })
 }
 
 pub fn outcome(result: &Value) -> Option<Outcome> {
@@ -159,8 +195,18 @@ impl Server {
         let executable = executable().ok_or(Failure::Missing)?;
         let env = vec![("PATH".to_string(), cli::child_path(&executable))];
         // Account metadata needs no plugins or marketplace updates.
-        let channel = Conversation::start(&executable, &["-c", "features.plugins=false", "app-server"], &env, &[], timeout).ok_or(Failure::Unreachable)?;
-        let mut server = Server { channel, last_id: 0 };
+        let channel = Conversation::start(
+            &executable,
+            &["-c", "features.plugins=false", "app-server"],
+            &env,
+            &[],
+            timeout,
+        )
+        .ok_or(Failure::Unreachable)?;
+        let mut server = Server {
+            channel,
+            last_id: 0,
+        };
         server.ask("initialize", json!({"clientInfo": {"name": "vorssaint", "title": "Vorssaint", "version": env!("CARGO_PKG_VERSION")}, "capabilities": null}))?;
         if !server.channel.send(&json!({"method": "initialized"})) {
             return Err(Failure::Unreachable);
@@ -171,7 +217,10 @@ impl Server {
     fn ask(&mut self, method: &str, params: Value) -> Result<Value, Failure> {
         self.last_id += 1;
         let id = self.last_id;
-        if !self.channel.send(&json!({"id": id, "method": method, "params": params})) {
+        if !self
+            .channel
+            .send(&json!({"id": id, "method": method, "params": params}))
+        {
             return Err(Failure::Unreachable);
         }
         response(&mut || self.channel.next(), id)
@@ -192,7 +241,8 @@ impl Drop for Server {
 /// The answer to `id`; notifications and the server's own requests are skipped.
 pub fn response(next: &mut dyn FnMut() -> Option<Value>, id: i64) -> Result<Value, Failure> {
     while let Some(message) = next() {
-        if message.get("method").is_some() || message.get("id").and_then(Value::as_i64) != Some(id) {
+        if message.get("method").is_some() || message.get("id").and_then(Value::as_i64) != Some(id)
+        {
             continue;
         }
         if let Some(result) = message.get("result").filter(|r| r.is_object()) {
@@ -214,7 +264,11 @@ pub fn check(now: &dyn Fn() -> Time) -> Result<Summary, Failure> {
 }
 
 /// Spends the reset that expires first, with `key` for idempotency.
-pub fn redeem(credit: Option<&str>, key: &str, now: &dyn Fn() -> Time) -> (Result<Outcome, Failure>, Option<Summary>) {
+pub fn redeem(
+    credit: Option<&str>,
+    key: &str,
+    now: &dyn Fn() -> Time,
+) -> (Result<Outcome, Failure>, Option<Summary>) {
     let mut server = match Server::start(REDEEM_TIMEOUT) {
         Ok(server) => server,
         Err(failure) => return (Err(failure), None),
@@ -223,7 +277,9 @@ pub fn redeem(credit: Option<&str>, key: &str, now: &dyn Fn() -> Time) -> (Resul
     if let Some(credit) = credit {
         params["creditId"] = Value::from(credit);
     }
-    let outcome = server.ask("account/rateLimitResetCredit/consume", params).and_then(|r| outcome(&r).ok_or(Failure::Unreachable));
+    let outcome = server
+        .ask("account/rateLimitResetCredit/consume", params)
+        .and_then(|r| outcome(&r).ok_or(Failure::Unreachable));
     let summary = server.summary(now()).ok();
     (outcome, summary)
 }
@@ -235,7 +291,14 @@ pub fn uuid() -> String {
     b[6] = (b[6] & 0x0f) | 0x40;
     b[8] = (b[8] & 0x3f) | 0x80;
     let h: String = b.iter().map(|x| format!("{x:02x}")).collect();
-    format!("{}-{}-{}-{}-{}", &h[..8], &h[8..12], &h[12..16], &h[16..20], &h[20..])
+    format!(
+        "{}-{}-{}-{}-{}",
+        &h[..8],
+        &h[8..12],
+        &h[12..16],
+        &h[16..20],
+        &h[20..]
+    )
 }
 
 #[cfg(test)]
@@ -254,11 +317,24 @@ mod tests {
         });
         let s = summary(&result, 1_790_000_000.0).unwrap();
         assert_eq!(s.available, 3);
-        assert_eq!(s.credits.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(), ["soon", "late"]);
+        assert_eq!(
+            s.credits.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+            ["soon", "late"]
+        );
         let limits = s.limits.unwrap();
-        assert_eq!(limits.windows.iter().map(|w| w.id.as_str()).collect::<Vec<_>>(), ["codex.300", "codex.10080"]);
+        assert_eq!(
+            limits
+                .windows
+                .iter()
+                .map(|w| w.id.as_str())
+                .collect::<Vec<_>>(),
+            ["codex.300", "codex.10080"]
+        );
         assert_eq!(limits.source, LimitSource::Account);
-        assert!(summary(&json!({"rateLimits": {}}), 0.0).is_none(), "too old for resets");
+        assert!(
+            summary(&json!({"rateLimits": {}}), 0.0).is_none(),
+            "too old for resets"
+        );
         let single = json!({"rateLimits": {"limitId": "codex", "primary": {"usedPercent": 50, "windowDurationMins": 300}}});
         assert_eq!(limits_of(&single), 1);
         let other = json!({"rateLimits": {"limitId": "gpt-x", "primary": {"usedPercent": 50, "windowDurationMins": 300}}});
@@ -271,15 +347,40 @@ mod tests {
 
     #[test]
     fn responses_skip_notifications_and_errors_are_mapped() {
-        let lines = [json!({"method": "account/updated", "params": {}}), json!({"id": 1, "result": {}}), json!({"id": 2, "result": {"outcome": "reset"}})];
+        let lines = [
+            json!({"method": "account/updated", "params": {}}),
+            json!({"id": 1, "result": {}}),
+            json!({"id": 2, "result": {"outcome": "reset"}}),
+        ];
         let mut it = lines.into_iter();
-        assert_eq!(outcome(&response(&mut || it.next(), 2).unwrap()), Some(Outcome::Reset));
-        assert_eq!(failure(Some(&json!({"code": -32601, "message": "x"}))), Failure::Outdated);
-        assert_eq!(failure(Some(&json!({"message": "unknown variant `account/x`"}))), Failure::Outdated);
-        assert_eq!(failure(Some(&json!({"message": "Not logged in"}))), Failure::NeedsSignIn);
-        assert_eq!(failure(Some(&json!({"message": "rate limited"}))), Failure::Refused);
-        assert_eq!(sign_in_failure(&json!({"account": {"type": "apiKey"}})), Some(Failure::NeedsSignIn));
-        assert_eq!(sign_in_failure(&json!({"account": {"type": "chatgpt", "planType": "plus"}})), None);
+        assert_eq!(
+            outcome(&response(&mut || it.next(), 2).unwrap()),
+            Some(Outcome::Reset)
+        );
+        assert_eq!(
+            failure(Some(&json!({"code": -32601, "message": "x"}))),
+            Failure::Outdated
+        );
+        assert_eq!(
+            failure(Some(&json!({"message": "unknown variant `account/x`"}))),
+            Failure::Outdated
+        );
+        assert_eq!(
+            failure(Some(&json!({"message": "Not logged in"}))),
+            Failure::NeedsSignIn
+        );
+        assert_eq!(
+            failure(Some(&json!({"message": "rate limited"}))),
+            Failure::Refused
+        );
+        assert_eq!(
+            sign_in_failure(&json!({"account": {"type": "apiKey"}})),
+            Some(Failure::NeedsSignIn)
+        );
+        assert_eq!(
+            sign_in_failure(&json!({"account": {"type": "chatgpt", "planType": "plus"}})),
+            None
+        );
         assert_eq!(uuid().len(), 36);
     }
 }

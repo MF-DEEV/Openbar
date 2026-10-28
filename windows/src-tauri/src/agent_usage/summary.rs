@@ -6,7 +6,9 @@
 //! calendar; dates leave as milliseconds since 1970, as `src/agents/types.ts`
 //! expects them.
 
-use super::model::{LimitSource, LimitWindow, Limits, LiveSession, Plan, Provider, Record, Time, Tokens, WindowKind};
+use super::model::{
+    LimitSource, LimitWindow, Limits, LiveSession, Plan, Provider, Record, Time, Tokens, WindowKind,
+};
 use super::pricing;
 use chrono::{DateTime, Duration, Local, NaiveDate, TimeZone};
 use serde::Serialize;
@@ -46,7 +48,11 @@ impl Totals {
     }
     /// Cost when every response had a price, tokens otherwise.
     fn weight(&self, by_cost: bool) -> f64 {
-        if by_cost { self.cost } else { self.tokens.total() as f64 }
+        if by_cost {
+            self.cost
+        } else {
+            self.tokens.total() as f64
+        }
     }
 }
 
@@ -89,7 +95,15 @@ pub struct WindowOut {
 
 impl From<&LimitWindow> for WindowOut {
     fn from(w: &LimitWindow) -> WindowOut {
-        WindowOut { id: w.id.clone(), kind: w.kind, minutes: w.minutes, scope: w.scope.clone(), used_percent: w.used_percent, resets_at: ms_opt(w.resets_at), estimated_resets_at: ms_opt(w.estimated_resets_at) }
+        WindowOut {
+            id: w.id.clone(),
+            kind: w.kind,
+            minutes: w.minutes,
+            scope: w.scope.clone(),
+            used_percent: w.used_percent,
+            resets_at: ms_opt(w.resets_at),
+            estimated_resets_at: ms_opt(w.estimated_resets_at),
+        }
     }
 }
 
@@ -187,7 +201,9 @@ pub struct Snapshot {
 
 /// Local midnight of the day holding `t`.
 pub fn local_day(t: Time) -> NaiveDate {
-    DateTime::from_timestamp_millis((t * 1000.0) as i64).map(|d| d.with_timezone(&Local).date_naive()).unwrap_or_default()
+    DateTime::from_timestamp_millis((t * 1000.0) as i64)
+        .map(|d| d.with_timezone(&Local).date_naive())
+        .unwrap_or_default()
 }
 
 fn local_start(day: NaiveDate) -> Time {
@@ -195,7 +211,10 @@ fn local_start(day: NaiveDate) -> Time {
     let midnight = day.and_hms_opt(0, 0, 0).unwrap_or_default();
     match Local.from_local_datetime(&midnight).earliest() {
         Some(d) => d.timestamp() as f64,
-        None => Local.from_local_datetime(&(midnight + Duration::hours(1))).earliest().map_or(0.0, |d| d.timestamp() as f64),
+        None => Local
+            .from_local_datetime(&(midnight + Duration::hours(1)))
+            .earliest()
+            .map_or(0.0, |d| d.timestamp() as f64),
     }
 }
 
@@ -218,29 +237,93 @@ pub struct Inputs<'a> {
 }
 
 pub fn snapshot(input: Inputs) -> Snapshot {
-    let Inputs { records, limits, live, plans, providers, now } = input;
+    let Inputs {
+        records,
+        limits,
+        live,
+        plans,
+        providers,
+        now,
+    } = input;
     let on = |p: &Provider| providers.contains(p);
-    let mut s = Snapshot { loaded: true, now: ms(now), ..Default::default() };
+    let mut s = Snapshot {
+        loaded: true,
+        now: ms(now),
+        ..Default::default()
+    };
     for (p, l) in limits.iter().filter(|(p, _)| on(p)) {
-        s.limits.insert(*p, LimitsOut { provider: *p, windows: l.windows.iter().map(WindowOut::from).collect(), observed_at: ms(l.observed_at), source: l.source });
+        s.limits.insert(
+            *p,
+            LimitsOut {
+                provider: *p,
+                windows: l.windows.iter().map(WindowOut::from).collect(),
+                observed_at: ms(l.observed_at),
+                source: l.source,
+            },
+        );
     }
     for (p, plan) in plans.iter().filter(|(p, _)| on(p)) {
-        s.plans.insert(*p, PlanOut { name: plan.name.clone(), monthly_price: plan.monthly_price });
+        s.plans.insert(
+            *p,
+            PlanOut {
+                name: plan.name.clone(),
+                monthly_price: plan.monthly_price,
+            },
+        );
     }
     let mut live: Vec<LiveSession> = live.into_iter().filter(|t| on(&t.provider)).collect();
     live.sort_by(|a, b| a.started.total_cmp(&b.started));
-    let mut seen: std::collections::BTreeSet<Provider> = s.limits.keys().copied().chain(live.iter().map(|t| t.provider)).collect();
-    s.live = live.iter().map(|t| LiveOut { id: t.id.clone(), provider: t.provider, started: ms(t.started), last_activity: ms(t.last_activity), model: t.model.clone(), project: t.project.clone(), tokens: t.tokens, cost: t.cost }).collect();
+    let mut seen: std::collections::BTreeSet<Provider> = s
+        .limits
+        .keys()
+        .copied()
+        .chain(live.iter().map(|t| t.provider))
+        .collect();
+    s.live = live
+        .iter()
+        .map(|t| LiveOut {
+            id: t.id.clone(),
+            provider: t.provider,
+            started: ms(t.started),
+            last_activity: ms(t.last_activity),
+            model: t.model.clone(),
+            project: t.project.clone(),
+            tokens: t.tokens,
+            cost: t.cost,
+        })
+        .collect();
 
     let today = local_day(now);
-    let starts: Vec<Time> = (0..DAY_COUNT).rev().map(|n| local_start(today - Duration::days(n as i64))).collect();
+    let starts: Vec<Time> = (0..DAY_COUNT)
+        .rev()
+        .map(|n| local_start(today - Duration::days(n as i64)))
+        .collect();
     let tomorrow = local_start(today + Duration::days(1));
     // Local hours, so a daylight-saving day still splits at its clock hours.
     let hour_starts: Vec<Time> = (0..24u32)
-        .map(|h| today.and_hms_opt(h, 0, 0).and_then(|t| Local.from_local_datetime(&t).earliest()).map_or(starts[DAY_COUNT - 1] + h as f64 * 3600.0, |d| d.timestamp() as f64))
+        .map(|h| {
+            today
+                .and_hms_opt(h, 0, 0)
+                .and_then(|t| Local.from_local_datetime(&t).earliest())
+                .map_or(starts[DAY_COUNT - 1] + h as f64 * 3600.0, |d| {
+                    d.timestamp() as f64
+                })
+        })
         .collect();
-    let mut days: Vec<Bucket> = starts.iter().map(|t| Bucket { start: ms(*t), by_provider: BTreeMap::new() }).collect();
-    let mut hours: Vec<Bucket> = hour_starts.iter().map(|t| Bucket { start: ms(*t), by_provider: BTreeMap::new() }).collect();
+    let mut days: Vec<Bucket> = starts
+        .iter()
+        .map(|t| Bucket {
+            start: ms(*t),
+            by_provider: BTreeMap::new(),
+        })
+        .collect();
+    let mut hours: Vec<Bucket> = hour_starts
+        .iter()
+        .map(|t| Bucket {
+            start: ms(*t),
+            by_provider: BTreeMap::new(),
+        })
+        .collect();
     let mut periods: [PeriodUsage; 3] = Default::default();
     let mut models: [HashMap<String, Share>; 3] = Default::default();
     let mut projects: [HashMap<String, Share>; 3] = Default::default();
@@ -263,13 +346,23 @@ pub fn snapshot(input: Inputs) -> Snapshot {
         if r.date >= tomorrow {
             continue;
         }
-        let Some(day) = index_of(r.date, &starts) else { continue };
+        let Some(day) = index_of(r.date, &starts) else {
+            continue;
+        };
         days[day].by_provider.entry(r.provider).or_default().add(r);
         if day == last
-            && let Some(hour) = index_of(r.date, &hour_starts) {
-                hours[hour].by_provider.entry(r.provider).or_default().add(r);
-            }
-        let name = names.entry(&r.model).or_insert_with(|| pricing::display_name(&r.model)).clone();
+            && let Some(hour) = index_of(r.date, &hour_starts)
+        {
+            hours[hour]
+                .by_provider
+                .entry(r.provider)
+                .or_default()
+                .add(r);
+        }
+        let name = names
+            .entry(&r.model)
+            .or_insert_with(|| pricing::display_name(&r.model))
+            .clone();
         let model_id = format!("{}:{name}", r.provider.key());
         for (i, span) in SPANS.iter().enumerate() {
             if day + span <= last {
@@ -277,17 +370,45 @@ pub fn snapshot(input: Inputs) -> Snapshot {
             }
             periods[i].total.add(r);
             periods[i].by_provider.entry(r.provider).or_default().add(r);
-            models[i].entry(model_id.clone()).or_insert_with(|| Share { id: model_id.clone(), name: if name.is_empty() { "?".into() } else { name.clone() }, provider: Some(r.provider), totals: Totals::default() }).totals.add(r);
+            models[i]
+                .entry(model_id.clone())
+                .or_insert_with(|| Share {
+                    id: model_id.clone(),
+                    name: if name.is_empty() {
+                        "?".into()
+                    } else {
+                        name.clone()
+                    },
+                    provider: Some(r.provider),
+                    totals: Totals::default(),
+                })
+                .totals
+                .add(r);
             if !r.project.is_empty() {
                 // Windows folder names compare without case: one project, its first spelling.
-                projects[i].entry(r.project.to_lowercase()).or_insert_with(|| Share { id: r.project.clone(), name: r.project.clone(), provider: None, totals: Totals::default() }).totals.add(r);
+                projects[i]
+                    .entry(r.project.to_lowercase())
+                    .or_insert_with(|| Share {
+                        id: r.project.clone(),
+                        name: r.project.clone(),
+                        provider: None,
+                        totals: Totals::default(),
+                    })
+                    .totals
+                    .add(r);
             }
         }
     }
     for i in 0..3 {
         let by_cost = periods[i].total.unpriced == 0;
-        periods[i].models = sorted(std::mem::take(&mut models[i]).into_values().collect(), by_cost);
-        periods[i].projects = sorted(std::mem::take(&mut projects[i]).into_values().collect(), by_cost);
+        periods[i].models = sorted(
+            std::mem::take(&mut models[i]).into_values().collect(),
+            by_cost,
+        );
+        periods[i].projects = sorted(
+            std::mem::take(&mut projects[i]).into_values().collect(),
+            by_cost,
+        );
     }
     let scale = 3600.0 / BURN_WINDOW;
     for rate in s.burn_rate.values_mut() {
@@ -296,16 +417,29 @@ pub fn snapshot(input: Inputs) -> Snapshot {
         rate.tokens = rate.tokens.scaled(scale);
     }
     let [today_usage, week, month] = periods;
-    s.periods = Periods { today: today_usage, week, month };
+    s.periods = Periods {
+        today: today_usage,
+        week,
+        month,
+    };
     s.days = days;
     s.hours = hours;
-    s.claude_block = current_block(&claude, now).map(|(start, end, totals)| BlockOut { start: ms(start), end: ms(end), totals });
+    s.claude_block = current_block(&claude, now).map(|(start, end, totals)| BlockOut {
+        start: ms(start),
+        end: ms(end),
+        totals,
+    });
     s.seen = seen.into_iter().collect();
     s
 }
 
 fn sorted(mut shares: Vec<Share>, by_cost: bool) -> Vec<Share> {
-    shares.sort_by(|a, b| b.totals.weight(by_cost).total_cmp(&a.totals.weight(by_cost)).then_with(|| a.name.cmp(&b.name)));
+    shares.sort_by(|a, b| {
+        b.totals
+            .weight(by_cost)
+            .total_cmp(&a.totals.weight(by_cost))
+            .then_with(|| a.name.cmp(&b.name))
+    });
     shares
 }
 
@@ -331,7 +465,11 @@ pub fn current_block(records: &[&Record], now: Time) -> Option<(Time, Time, Tota
 /// Today's API value, for the daily budget.
 pub fn today_cost(records: &[Record], providers: &[Provider], now: Time) -> f64 {
     let start = local_start(local_day(now));
-    records.iter().filter(|r| providers.contains(&r.provider) && r.date >= start && r.date <= now).filter_map(|r| r.cost).sum()
+    records
+        .iter()
+        .filter(|r| providers.contains(&r.provider) && r.date >= start && r.date <= now)
+        .filter_map(|r| r.cost)
+        .sum()
 }
 
 // MARK: Limits (AgentLimitSupport)
@@ -341,7 +479,9 @@ pub fn crossings(previous: Option<&Limits>, current: &Limits, threshold: f64) ->
     if threshold <= 0.0 {
         return vec![];
     }
-    let Some(previous) = previous else { return vec![] };
+    let Some(previous) = previous else {
+        return vec![];
+    };
     current
         .windows
         .iter()
@@ -349,8 +489,12 @@ pub fn crossings(previous: Option<&Limits>, current: &Limits, threshold: f64) ->
             if w.used_percent < threshold {
                 return false;
             }
-            let Some(before) = previous.windows.iter().find(|b| b.id == w.id) else { return false };
-            before.used_percent < threshold || renewed(before, w, current.observed_at) || (current.source == LimitSource::Account && began(w, previous.observed_at))
+            let Some(before) = previous.windows.iter().find(|b| b.id == w.id) else {
+                return false;
+            };
+            before.used_percent < threshold
+                || renewed(before, w, current.observed_at)
+                || (current.source == LimitSource::Account && began(w, previous.observed_at))
         })
         .cloned()
         .collect()
@@ -379,39 +523,129 @@ pub fn renewed(before: &LimitWindow, w: &LimitWindow, observed_at: Time) -> bool
 mod tests {
     use super::*;
 
-    fn rec(provider: Provider, date: Time, model: &str, project: &str, cost: Option<f64>, output: i64) -> Record {
-        Record { provider, date, model: model.into(), project: project.into(), session: "s".into(), requests: 1, tokens: Tokens { output, ..Default::default() }, cost, savings: 0.0, reported_cost: false }
+    fn rec(
+        provider: Provider,
+        date: Time,
+        model: &str,
+        project: &str,
+        cost: Option<f64>,
+        output: i64,
+    ) -> Record {
+        Record {
+            provider,
+            date,
+            model: model.into(),
+            project: project.into(),
+            session: "s".into(),
+            requests: 1,
+            tokens: Tokens {
+                output,
+                ..Default::default()
+            },
+            cost,
+            savings: 0.0,
+            reported_cost: false,
+        }
     }
 
     #[test]
     fn periods_days_hours_and_shares() {
         let now = local_start(local_day(1_790_000_000.0)) + 12.0 * 3600.0;
         let records = vec![
-            rec(Provider::Claude, now - 60.0, "claude-opus-5-5", "vors", Some(2.0), 10),
-            rec(Provider::Codex, now - 2.0 * 86_400.0, "gpt-5.6", "api", Some(1.0), 5),
-            rec(Provider::Codex, now - 20.0 * 86_400.0, "mystery", "API", None, 7),
+            rec(
+                Provider::Claude,
+                now - 60.0,
+                "claude-opus-5-5",
+                "vors",
+                Some(2.0),
+                10,
+            ),
+            rec(
+                Provider::Codex,
+                now - 2.0 * 86_400.0,
+                "gpt-5.6",
+                "api",
+                Some(1.0),
+                5,
+            ),
+            rec(
+                Provider::Codex,
+                now - 20.0 * 86_400.0,
+                "mystery",
+                "API",
+                None,
+                7,
+            ),
             rec(Provider::Copilot, now - 60.0, "x", "", Some(0.0), 0),
-            rec(Provider::Claude, now - 100.0 * 86_400.0, "claude-opus-5-5", "old", Some(9.0), 1),
+            rec(
+                Provider::Claude,
+                now - 100.0 * 86_400.0,
+                "claude-opus-5-5",
+                "old",
+                Some(9.0),
+                1,
+            ),
         ];
         let limits = HashMap::new();
         let plans = HashMap::new();
         let providers = [Provider::Claude, Provider::Codex, Provider::Opencode];
-        let s = snapshot(Inputs { records: &records, limits: &limits, live: vec![], plans: &plans, providers: &providers, now });
+        let s = snapshot(Inputs {
+            records: &records,
+            limits: &limits,
+            live: vec![],
+            plans: &plans,
+            providers: &providers,
+            now,
+        });
         assert_eq!(s.days.len(), 91);
         assert_eq!(s.hours.len(), 24);
         assert_eq!(s.periods.today.total.cost, 2.0);
         assert_eq!(s.periods.week.total.cost, 3.0);
         assert_eq!(s.periods.month.total.unpriced, 1);
-        assert_eq!(s.periods.week.models[0].name, "Opus 5.5", "a fully priced week sorts by cost");
-        assert_eq!(s.periods.month.models.iter().map(|m| m.id.as_str()).collect::<Vec<_>>(), ["claude:Opus 5.5", "codex:mystery", "codex:GPT-5.6"], "an unpriced month sorts by tokens");
-        assert_eq!(s.periods.month.projects.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(), ["api", "vors"]);
-        assert_eq!(s.seen, vec![Provider::Claude, Provider::Codex], "Copilot is switched off");
-        assert_eq!(s.days.last().unwrap().by_provider[&Provider::Claude].cost, 2.0);
+        assert_eq!(
+            s.periods.week.models[0].name, "Opus 5.5",
+            "a fully priced week sorts by cost"
+        );
+        assert_eq!(
+            s.periods
+                .month
+                .models
+                .iter()
+                .map(|m| m.id.as_str())
+                .collect::<Vec<_>>(),
+            ["claude:Opus 5.5", "codex:mystery", "codex:GPT-5.6"],
+            "an unpriced month sorts by tokens"
+        );
+        assert_eq!(
+            s.periods
+                .month
+                .projects
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            ["api", "vors"]
+        );
+        assert_eq!(
+            s.seen,
+            vec![Provider::Claude, Provider::Codex],
+            "Copilot is switched off"
+        );
+        assert_eq!(
+            s.days.last().unwrap().by_provider[&Provider::Claude].cost,
+            2.0
+        );
         assert_eq!(s.hours[11].by_provider[&Provider::Claude].cost, 2.0);
         assert!(s.claude_block.is_some());
-        assert_eq!(s.burn_rate[&Provider::Claude].cost, 4.0, "half an hour scaled to an hour");
+        assert_eq!(
+            s.burn_rate[&Provider::Claude].cost,
+            4.0,
+            "half an hour scaled to an hour"
+        );
         let json = serde_json::to_value(&s).unwrap();
-        assert!(json.pointer("/periods/week/byProvider/codex/tokens/cacheRead").is_some());
+        assert!(
+            json.pointer("/periods/week/byProvider/codex/tokens/cacheRead")
+                .is_some()
+        );
         assert!(json.get("claudeBlock").is_some() && json.get("priceDay").is_some());
     }
 
@@ -421,21 +655,45 @@ mod tests {
         let records = [r(0.0), r(3600.0), r(5.0 * 3600.0 + 10.0), r(6.0 * 3600.0)];
         let refs: Vec<&Record> = records.iter().collect();
         let (start, end, totals) = current_block(&refs, 7.0 * 3600.0).unwrap();
-        assert_eq!((start, end, totals.requests), (5.0 * 3600.0 + 10.0, 10.0 * 3600.0 + 10.0, 2));
+        assert_eq!(
+            (start, end, totals.requests),
+            (5.0 * 3600.0 + 10.0, 10.0 * 3600.0 + 10.0, 2)
+        );
         assert!(current_block(&refs, 11.0 * 3600.0).is_none());
     }
 
     #[test]
     fn crossings_warn_once_and_again_after_a_renewal() {
-        let window = |used: f64, resets: f64| LimitWindow::new("codex.300", WindowKind::Session, Some(300), None, used, Some(resets));
-        let at = |w: LimitWindow, t: Time, source| Limits { provider: Provider::Codex, windows: vec![w], observed_at: t, source };
+        let window = |used: f64, resets: f64| {
+            LimitWindow::new(
+                "codex.300",
+                WindowKind::Session,
+                Some(300),
+                None,
+                used,
+                Some(resets),
+            )
+        };
+        let at = |w: LimitWindow, t: Time, source| Limits {
+            provider: Provider::Codex,
+            windows: vec![w],
+            observed_at: t,
+            source,
+        };
         let a = at(window(70.0, 10_000.0), 100.0, LimitSource::SessionLog);
         let b = at(window(85.0, 10_000.0), 200.0, LimitSource::SessionLog);
         assert_eq!(crossings(Some(&a), &b, 80.0).len(), 1);
-        assert!(crossings(Some(&b), &b, 80.0).is_empty(), "still above, not again");
+        assert!(
+            crossings(Some(&b), &b, 80.0).is_empty(),
+            "still above, not again"
+        );
         assert!(crossings(None, &b, 80.0).is_empty());
         let renewed = at(window(82.0, 30_000.0), 10_100.0, LimitSource::SessionLog);
-        assert_eq!(crossings(Some(&b), &renewed, 80.0).len(), 1, "a renewed window that is again above warns");
+        assert_eq!(
+            crossings(Some(&b), &renewed, 80.0).len(),
+            1,
+            "a renewed window that is again above warns"
+        );
         assert!(super::renewed(&window(50.0, 0.0), &window(10.0, 0.0), 0.0));
     }
 }

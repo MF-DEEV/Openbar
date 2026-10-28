@@ -10,12 +10,12 @@
 
 #![cfg_attr(not(windows), allow(dead_code))]
 
-mod mic;
-mod tree;
 #[cfg(windows)]
 mod engine;
+mod mic;
 #[cfg(windows)]
 mod policy;
+mod tree;
 
 use std::sync::{Arc, Mutex, OnceLock};
 use tauri::{AppHandle, Emitter, Manager};
@@ -115,7 +115,9 @@ pub fn group(readings: &[Reading]) -> Vec<App> {
 /// A volume from the webview: finite and within 0…1.
 fn checked(volume: Option<f32>) -> Result<Option<f32>, String> {
     match volume {
-        Some(v) if !v.is_finite() || !(0.0..=1.0).contains(&v) => Err("Invalid volume level".into()),
+        Some(v) if !v.is_finite() || !(0.0..=1.0).contains(&v) => {
+            Err("Invalid volume level".into())
+        }
         other => Ok(other),
     }
 }
@@ -127,7 +129,9 @@ static APP: OnceLock<(AppHandle, Shared)> = OnceLock::new();
 
 /// Stores `next` and tells the island, only when something changed.
 fn publish(next: State) {
-    let Some((app, shared)) = APP.get() else { return };
+    let Some((app, shared)) = APP.get() else {
+        return;
+    };
     let changed = {
         let mut current = shared.0.lock().unwrap();
         if *current == next {
@@ -151,7 +155,11 @@ fn level_from_outside(volume: f32, muted: bool) {
             volume: f32,
             muted: bool,
         }
-        let _ = app.emit_to(crate::island::LABEL, "audio://volume-changed", Payload { volume, muted });
+        let _ = app.emit_to(
+            crate::island::LABEL,
+            "audio://volume-changed",
+            Payload { volume, muted },
+        );
     }
 }
 
@@ -177,13 +185,21 @@ fn unavailable<T>() -> Result<T, String> {
     Err("System audio is available on Windows".into())
 }
 
-async fn blocking<T: Send + 'static>(job: impl FnOnce() -> Result<T, String> + Send + 'static) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(job).await.map_err(|e| e.to_string())?
+async fn blocking<T: Send + 'static>(
+    job: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(job)
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 /// A player's volume for the Music page (media_volume.rs): the loudest of
 /// the sessions whose own exe `matches`, set first when `level` is given.
-pub fn player_volume(matches: fn(&str, &str) -> bool, source: String, level: Option<f32>) -> Result<f32, String> {
+pub fn player_volume(
+    matches: fn(&str, &str) -> bool,
+    source: String,
+    level: Option<f32>,
+) -> Result<f32, String> {
     let level = checked(level)?;
     #[cfg(windows)]
     return with_engine(move |e| e.player_volume(&|exe| matches(&source, exe), level));
@@ -249,7 +265,11 @@ pub async fn audio_set_default(id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub async fn audio_set_app(key: String, volume: Option<f32>, muted: Option<bool>) -> Result<(), String> {
+pub async fn audio_set_app(
+    key: String,
+    volume: Option<f32>,
+    muted: Option<bool>,
+) -> Result<(), String> {
     let volume = checked(volume)?;
     blocking(move || {
         #[cfg(windows)]
@@ -321,7 +341,10 @@ mod tests {
             reading("c:\\chrome.exe", "Google Chrome", 0.8, false, true),
             reading("c:\\spotify.exe", "Spotify", 1.0, true, false),
         ]);
-        assert_eq!(apps.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), ["Google Chrome", "Spotify", "System sounds"]);
+        assert_eq!(
+            apps.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(),
+            ["Google Chrome", "Spotify", "System sounds"]
+        );
         let chrome = &apps[0];
         assert_eq!(chrome.volume, 0.8);
         assert!(!chrome.muted && chrome.playing);
@@ -340,7 +363,11 @@ mod tests {
 
     #[test]
     fn the_state_serializes_for_the_island() {
-        let state = State { can_switch: true, mic_muted: true, ..Default::default() };
+        let state = State {
+            can_switch: true,
+            mic_muted: true,
+            ..Default::default()
+        };
         let json = serde_json::to_value(&state).unwrap();
         assert_eq!(json["canSwitch"], true);
         assert_eq!(json["micMuted"], true);

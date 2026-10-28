@@ -32,7 +32,9 @@ pub fn open(paths: Vec<String>) {
 pub fn handlers(paths: Vec<String>) -> Vec<Handler> {
     #[cfg(windows)]
     {
-        let found = worker().run(move || imp::handlers(&paths)).unwrap_or_default();
+        let found = worker()
+            .run(move || imp::handlers(&paths))
+            .unwrap_or_default();
         found
             .into_iter()
             .map(|(id, name, icon_source)| Handler {
@@ -68,12 +70,21 @@ pub async fn share<R: Runtime>(app: &AppHandle<R>, paths: Vec<String>) -> bool {
     #[cfg(windows)]
     {
         use tauri::Manager;
-        let Some(window) = app.get_webview_window(crate::island::LABEL) else { return false };
-        let Ok(hwnd) = window.hwnd() else { return false };
+        let Some(window) = app.get_webview_window(crate::island::LABEL) else {
+            return false;
+        };
+        let Ok(hwnd) = window.hwnd() else {
+            return false;
+        };
         let hwnd = hwnd.0 as isize;
         let (tx, rx) = std::sync::mpsc::channel();
         // The share sheet belongs to the window's own thread.
-        if app.run_on_main_thread(move || { let _ = tx.send(imp::share(hwnd, paths).is_ok()); }).is_err() {
+        if app
+            .run_on_main_thread(move || {
+                let _ = tx.send(imp::share(hwnd, paths).is_ok());
+            })
+            .is_err()
+        {
             return false;
         }
         tauri::async_runtime::spawn_blocking(move || rx.recv().unwrap_or(false))
@@ -102,11 +113,13 @@ mod imp {
     use windows::Win32::System::Com::{CoTaskMemFree, IDataObject};
     use windows::Win32::UI::Shell::Common::ITEMIDLIST;
     use windows::Win32::UI::Shell::{
-        ASSOC_FILTER_RECOMMENDED, BHID_DataObject, IAssocHandler, IDataTransferManagerInterop, ILFree,
-        SHAssocEnumHandlers, SEE_MASK_NOASYNC, SHCreateShellItemArrayFromIDLists, SHELLEXECUTEINFOW, SHOpenFolderAndSelectItems,
-        SHParseDisplayName, ShellExecuteExW,
+        ASSOC_FILTER_RECOMMENDED, BHID_DataObject, IAssocHandler, IDataTransferManagerInterop,
+        ILFree, SEE_MASK_NOASYNC, SHAssocEnumHandlers, SHCreateShellItemArrayFromIDLists,
+        SHELLEXECUTEINFOW, SHOpenFolderAndSelectItems, SHParseDisplayName, ShellExecuteExW,
     };
-    use windows::Win32::UI::WindowsAndMessaging::{ASFW_ANY, AllowSetForegroundWindow, SW_SHOWNORMAL};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        ASFW_ANY, AllowSetForegroundWindow, SW_SHOWNORMAL,
+    };
     use windows::core::{HSTRING, Interface, PWSTR};
     use windows_collections::IIterable;
 
@@ -117,7 +130,9 @@ mod imp {
             let mut out = Pidls(Vec::new());
             for path in paths {
                 let mut pidl = std::ptr::null_mut();
-                unsafe { SHParseDisplayName(&HSTRING::from(path.as_str()), None, &mut pidl, 0, None)? };
+                unsafe {
+                    SHParseDisplayName(&HSTRING::from(path.as_str()), None, &mut pidl, 0, None)?
+                };
                 out.0.push(pidl);
             }
             Ok(out)
@@ -172,7 +187,9 @@ mod imp {
     /// Recommended handlers for a file's extension; folders have none.
     fn handlers_for(path: &str) -> Vec<IAssocHandler> {
         let path = Path::new(path);
-        let Some(ext) = path.extension().filter(|_| !path.is_dir()) else { return Vec::new() };
+        let Some(ext) = path.extension().filter(|_| !path.is_dir()) else {
+            return Vec::new();
+        };
         let ext = HSTRING::from(format!(".{}", ext.to_string_lossy()));
         let Ok(list) = (unsafe { SHAssocEnumHandlers(&ext, ASSOC_FILTER_RECOMMENDED) }) else {
             return Vec::new();
@@ -195,18 +212,29 @@ mod imp {
         for path in paths {
             let mut here = Vec::new();
             for handler in handlers_for(path) {
-                let Ok(id) = (unsafe { handler.GetName() }).map(take) else { continue };
-                let name = unsafe { handler.GetUIName() }.map(take).unwrap_or_else(|_| id.clone());
+                let Ok(id) = (unsafe { handler.GetName() }).map(take) else {
+                    continue;
+                };
+                let name = unsafe { handler.GetUIName() }
+                    .map(take)
+                    .unwrap_or_else(|_| id.clone());
                 // A desktop app is named by its exe; a Store app by its
                 // AppUserModelID, whose icon the Apps folder knows.
-                let icon = if Path::new(&id).is_absolute() { id.clone() } else { format!(r"shell:AppsFolder\{id}") };
+                let icon = if Path::new(&id).is_absolute() {
+                    id.clone()
+                } else {
+                    format!(r"shell:AppsFolder\{id}")
+                };
                 here.push((id, name, icon));
             }
             common = Some(match common {
                 None => here,
                 Some(previous) => {
                     let ids: HashSet<&String> = here.iter().map(|h| &h.0).collect();
-                    previous.into_iter().filter(|h| ids.contains(&h.0)).collect()
+                    previous
+                        .into_iter()
+                        .filter(|h| ids.contains(&h.0))
+                        .collect()
                 }
             });
         }
@@ -220,10 +248,11 @@ mod imp {
 
     pub fn open_with(paths: &[String], id: &str) {
         let Some(first) = paths.first() else { return };
-        let Some(handler) = handlers_for(first)
-            .into_iter()
-            .find(|h| unsafe { h.GetName() }.map(take).is_ok_and(|name| name == id))
-        else {
+        let Some(handler) = handlers_for(first).into_iter().find(|h| {
+            unsafe { h.GetName() }
+                .map(take)
+                .is_ok_and(|name| name == id)
+        }) else {
             return;
         };
         let Ok(data) = data_object(paths) else { return };
@@ -237,8 +266,12 @@ mod imp {
     pub fn reveal(paths: &[String]) {
         let mut folders: Vec<(String, Vec<String>)> = Vec::new();
         for path in paths {
-            let parent = Path::new(path).parent().map(|p| p.to_string_lossy().into_owned());
-            let parent = parent.filter(|p| !p.is_empty()).unwrap_or_else(|| path.clone());
+            let parent = Path::new(path)
+                .parent()
+                .map(|p| p.to_string_lossy().into_owned());
+            let parent = parent
+                .filter(|p| !p.is_empty())
+                .unwrap_or_else(|| path.clone());
             match folders.iter_mut().find(|(f, _)| *f == parent) {
                 Some((_, files)) => files.push(path.clone()),
                 None => folders.push((parent, vec![path.clone()])),
@@ -248,7 +281,9 @@ mod imp {
             let _ = AllowSetForegroundWindow(ASFW_ANY);
         }
         for (folder, files) in folders {
-            let (Ok(folder), Ok(files)) = (Pidls::parse(&[folder]), Pidls::parse(&files)) else { continue };
+            let (Ok(folder), Ok(files)) = (Pidls::parse(&[folder]), Pidls::parse(&files)) else {
+                continue;
+            };
             unsafe {
                 let _ = SHOpenFolderAndSelectItems(folder.0[0], Some(&files.as_const()), 0);
             }
@@ -280,20 +315,29 @@ mod imp {
             0 | 1 => first,
             n => format!("{first} +{}", n - 1),
         };
-        let token = manager.DataRequested(&TypedEventHandler::<DataTransferManager, DataRequestedEventArgs>::new(
-            move |_, args| {
-                let Some(args) = args.as_ref() else { return Ok(()) };
-                let data = args.Request()?.Data()?;
-                data.Properties()?.SetTitle(&HSTRING::from(title.as_str()))?;
-                let items: Vec<Option<IStorageItem>> = paths
-                    .iter()
-                    .filter_map(|p| StorageFile::GetFileFromPathAsync(&HSTRING::from(p.as_str())).ok()?.join().ok())
-                    .filter_map(|f| f.cast::<IStorageItem>().ok())
-                    .map(Some)
-                    .collect();
-                data.SetStorageItemsReadOnly(&IIterable::<IStorageItem>::from(items))
-            },
-        ))?;
+        let token = manager.DataRequested(&TypedEventHandler::<
+            DataTransferManager,
+            DataRequestedEventArgs,
+        >::new(move |_, args| {
+            let Some(args) = args.as_ref() else {
+                return Ok(());
+            };
+            let data = args.Request()?.Data()?;
+            data.Properties()?
+                .SetTitle(&HSTRING::from(title.as_str()))?;
+            let items: Vec<Option<IStorageItem>> = paths
+                .iter()
+                .filter_map(|p| {
+                    StorageFile::GetFileFromPathAsync(&HSTRING::from(p.as_str()))
+                        .ok()?
+                        .join()
+                        .ok()
+                })
+                .filter_map(|f| f.cast::<IStorageItem>().ok())
+                .map(Some)
+                .collect();
+            data.SetStorageItemsReadOnly(&IIterable::<IStorageItem>::from(items))
+        }))?;
         SHARE.with(|slot| *slot.borrow_mut() = Some((manager, token)));
         unsafe { interop.ShowShareUIForWindow(hwnd) }
     }

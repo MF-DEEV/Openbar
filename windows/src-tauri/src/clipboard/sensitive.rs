@@ -44,7 +44,9 @@ pub fn looks_sensitive(text: &str) -> bool {
     }
     let letter = text.chars().any(char::is_alphabetic);
     let digit = text.chars().any(char::is_numeric);
-    let symbol = text.chars().any(|c| !c.is_alphanumeric() && !c.is_whitespace());
+    let symbol = text
+        .chars()
+        .any(|c| !c.is_alphanumeric() && !c.is_whitespace());
     letter && digit && symbol
 }
 
@@ -52,20 +54,30 @@ pub fn looks_sensitive(text: &str) -> bool {
 /// one shape every system uses for a generated identifier (issue #423).
 fn is_identifier_code(text: &str) -> bool {
     let value = text.trim();
-    let value = value.strip_prefix('{').and_then(|v| v.strip_suffix('}')).unwrap_or(value);
+    let value = value
+        .strip_prefix('{')
+        .and_then(|v| v.strip_suffix('}'))
+        .unwrap_or(value);
     let groups: Vec<&str> = value.split('-').collect();
     groups.iter().map(|g| g.len()).eq([8, 4, 4, 4, 12])
-        && groups.iter().all(|g| g.chars().all(|c| c.is_ascii_hexdigit()))
+        && groups
+            .iter()
+            .all(|g| g.chars().all(|c| c.is_ascii_hexdigit()))
 }
 
 /// An http or https link with a host, as `URL(string:)` reads one.
 fn is_web_url(text: &str) -> bool {
     let value = text.trim();
     let lower = value.to_ascii_lowercase();
-    let rest = lower.strip_prefix("https://").or_else(|| lower.strip_prefix("http://"));
+    let rest = lower
+        .strip_prefix("https://")
+        .or_else(|| lower.strip_prefix("http://"));
     // A host comes first: "https://?x" or "https:///x" has none.
-    rest.is_some_and(|r| r.chars().next().is_some_and(|c| !matches!(c, '/' | '?' | '#' | '@' | ':')))
-        && !value.chars().any(|c| c.is_whitespace() || c.is_control())
+    rest.is_some_and(|r| {
+        r.chars()
+            .next()
+            .is_some_and(|c| !matches!(c, '/' | '?' | '#' | '@' | ':'))
+    }) && !value.chars().any(|c| c.is_whitespace() || c.is_control())
 }
 
 #[cfg(test)]

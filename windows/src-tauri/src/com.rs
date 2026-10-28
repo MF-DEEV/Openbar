@@ -54,15 +54,21 @@ pub struct Worker {
 impl Worker {
     pub fn spawn(name: &str, sta: bool) -> Self {
         let (tx, rx) = std::sync::mpsc::channel::<Box<dyn FnOnce() + Send>>();
-        let _ = std::thread::Builder::new().name(name.into()).spawn(move || {
-            #[cfg(windows)]
-            let _apartment = if sta { Apartment::sta() } else { Apartment::mta() };
-            #[cfg(not(windows))]
-            let _ = sta;
-            for job in rx {
-                job();
-            }
-        });
+        let _ = std::thread::Builder::new()
+            .name(name.into())
+            .spawn(move || {
+                #[cfg(windows)]
+                let _apartment = if sta {
+                    Apartment::sta()
+                } else {
+                    Apartment::mta()
+                };
+                #[cfg(not(windows))]
+                let _ = sta;
+                for job in rx {
+                    job();
+                }
+            });
         Worker {
             tx: std::sync::Mutex::new(tx),
         }

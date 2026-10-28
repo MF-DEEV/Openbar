@@ -5,9 +5,17 @@
   "version": "1.1.0",
   "publisher": "vorssaint",
   "license": "GPL-3.0-or-later",
-  "engines": { "vscode": "^1.80.0" },
-  "categories": ["Other"],
-  "activationEvents": ["onStartupFinished"],
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./extension.js",
-  "extensionKind": ["ui"]
+  "extensionKind": [
+    "ui"
+  ]
 }

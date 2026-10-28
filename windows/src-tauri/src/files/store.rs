@@ -173,7 +173,10 @@ pub fn is_link(url: &str) -> bool {
         && scheme
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || "+-.".contains(c))
-        && scheme.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+        && scheme
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic())
         && !scheme.eq_ignore_ascii_case("file")
         && !rest.trim().is_empty()
         && !url.contains(char::is_whitespace)
@@ -257,9 +260,13 @@ impl Shelf {
 
     pub fn find(&self, id: &str) -> Option<&Item> {
         fn walk<'a>(items: &'a [Item], id: &str) -> Option<&'a Item> {
-            items
-                .iter()
-                .find_map(|i| if i.id == id { Some(i) } else { walk(&i.children, id) })
+            items.iter().find_map(|i| {
+                if i.id == id {
+                    Some(i)
+                } else {
+                    walk(&i.children, id)
+                }
+            })
         }
         walk(&self.items, id)
     }
@@ -268,7 +275,11 @@ impl Shelf {
     /// it, which inherits the pile's pin; an emptied pile disappears.
     /// Returns what was taken out.
     pub fn remove(&mut self, ids: &HashSet<String>) -> Vec<Item> {
-        fn remove_in(items: Vec<Item>, ids: &HashSet<String>, removed: &mut Vec<Item>) -> Vec<Item> {
+        fn remove_in(
+            items: Vec<Item>,
+            ids: &HashSet<String>,
+            removed: &mut Vec<Item>,
+        ) -> Vec<Item> {
             let mut kept = Vec::new();
             for item in items {
                 if ids.contains(&item.id) {
@@ -307,7 +318,10 @@ impl Shelf {
         if protected.is_empty() {
             return std::mem::take(&mut self.items);
         }
-        let removable: HashSet<String> = leaf_ids(&self.items).difference(&protected).cloned().collect();
+        let removable: HashSet<String> = leaf_ids(&self.items)
+            .difference(&protected)
+            .cloned()
+            .collect();
         self.remove(&removable)
     }
 
@@ -425,18 +439,29 @@ pub enum Load {
 /// drops only itself (ShelfPersistenceSupport.load).
 pub fn load(bytes: Option<&[u8]>) -> Load {
     let Some(bytes) = bytes else {
-        return Load::Items { items: Vec::new(), complete: true };
+        return Load::Items {
+            items: Vec::new(),
+            complete: true,
+        };
     };
     let text = String::from_utf8_lossy(bytes);
-    let Ok(Value::Array(entries)) = serde_json::from_str::<Value>(text.trim_start_matches('\u{feff}')) else {
+    let Ok(Value::Array(entries)) =
+        serde_json::from_str::<Value>(text.trim_start_matches('\u{feff}'))
+    else {
         return Load::Unreadable;
     };
     let mut dropped = 0;
-    let items: Vec<Item> = entries.iter().filter_map(|v| lossy(v, &mut dropped)).collect();
+    let items: Vec<Item> = entries
+        .iter()
+        .filter_map(|v| lossy(v, &mut dropped))
+        .collect();
     if !entries.is_empty() && items.is_empty() {
         return Load::Unreadable;
     }
-    Load::Items { items, complete: dropped == 0 }
+    Load::Items {
+        items,
+        complete: dropped == 0,
+    }
 }
 
 fn lossy(value: &Value, dropped: &mut usize) -> Option<Item> {
@@ -447,7 +472,9 @@ fn lossy(value: &Value, dropped: &mut usize) -> Option<Item> {
         return None;
     };
     match children {
-        Some(Value::Array(children)) => item.children = children.iter().filter_map(|c| lossy(c, dropped)).collect(),
+        Some(Value::Array(children)) => {
+            item.children = children.iter().filter_map(|c| lossy(c, dropped)).collect()
+        }
         None | Some(Value::Null) => {}
         Some(_) => *dropped += 1,
     }
@@ -547,7 +574,12 @@ pub fn is_owned(path: &str, store: &Path) -> bool {
     let path = PathBuf::from(path);
     path.starts_with(store)
         && path != store
-        && path.components().all(|c| !matches!(c, std::path::Component::ParentDir | std::path::Component::CurDir))
+        && path.components().all(|c| {
+            !matches!(
+                c,
+                std::path::Component::ParentDir | std::path::Component::CurDir
+            )
+        })
 }
 
 /// The folder of its own an owned payload sits in, which goes with it.
@@ -555,7 +587,10 @@ pub fn owned_folder(path: &str, store: &Path) -> Option<PathBuf> {
     if !is_owned(path, store) {
         return None;
     }
-    Path::new(path).parent().filter(|f| *f != store).map(Path::to_path_buf)
+    Path::new(path)
+        .parent()
+        .filter(|f| *f != store)
+        .map(Path::to_path_buf)
 }
 
 #[cfg(test)]
@@ -574,7 +609,9 @@ mod tests {
     fn several_dropped_together_become_one_pile_titled_by_its_first_item() {
         let mut shelf = Shelf::default();
         shelf.add(vec![file(r"C:\a\one.txt")]).unwrap();
-        let pile = shelf.add(vec![file(r"C:\a\two.txt"), file(r"C:\a\three.png")]).unwrap();
+        let pile = shelf
+            .add(vec![file(r"C:\a\two.txt"), file(r"C:\a\three.png")])
+            .unwrap();
         assert_eq!(ids(&shelf.items), ["one.txt", "two.txt +1"]);
         let pile = shelf.find(&pile).unwrap();
         assert_eq!(pile.kind, Kind::Batch);
@@ -598,7 +635,9 @@ mod tests {
     #[test]
     fn removing_from_a_bigger_pile_retitles_it() {
         let mut shelf = Shelf::default();
-        let pile = shelf.add(vec![file("C:/x/a"), file("C:/x/b"), file("C:/x/c")]).unwrap();
+        let pile = shelf
+            .add(vec![file("C:/x/a"), file("C:/x/b"), file("C:/x/c")])
+            .unwrap();
         let first = shelf.find(&pile).unwrap().children[0].id.clone();
         shelf.remove(&HashSet::from([first]));
         assert_eq!(shelf.find(&pile).unwrap().title, "b +1");
@@ -659,9 +698,18 @@ mod tests {
         let link = items_from_drop(link);
         assert_eq!(link[0].kind, Kind::Link);
         assert_eq!(link[0].title, "example.com:8080");
-        let text = Dropped { text: Some("  \n First line  \nsecond".into()), ..Default::default() };
+        let text = Dropped {
+            text: Some("  \n First line  \nsecond".into()),
+            ..Default::default()
+        };
         assert_eq!(ids(&items_from_drop(text)), ["First line"]);
-        assert!(items_from_drop(Dropped { text: Some("   ".into()), ..Default::default() }).is_empty());
+        assert!(
+            items_from_drop(Dropped {
+                text: Some("   ".into()),
+                ..Default::default()
+            })
+            .is_empty()
+        );
     }
 
     #[test]
@@ -677,13 +725,29 @@ mod tests {
     #[test]
     fn the_saved_shelf_round_trips() {
         let mut shelf = Shelf::default();
-        let a = shelf.add(vec![Item::file(r"C:\a\one.txt", Some("1:2".into()))]).unwrap();
-        shelf.add(vec![Item::text("note").unwrap(), Item::link("https://example.com").unwrap()]).unwrap();
+        let a = shelf
+            .add(vec![Item::file(r"C:\a\one.txt", Some("1:2".into()))])
+            .unwrap();
+        shelf
+            .add(vec![
+                Item::text("note").unwrap(),
+                Item::link("https://example.com").unwrap(),
+            ])
+            .unwrap();
         shelf.toggle_pin(&a);
         let bytes = encode(&shelf.items);
-        assert_eq!(load(Some(&bytes)), Load::Items { items: shelf.items.clone(), complete: true });
+        assert_eq!(
+            load(Some(&bytes)),
+            Load::Items {
+                items: shelf.items.clone(),
+                complete: true
+            }
+        );
         // Unpinned items don't write the flag at all.
-        assert_eq!(String::from_utf8(bytes).unwrap().matches("pinned").count(), 1);
+        assert_eq!(
+            String::from_utf8(bytes).unwrap().matches("pinned").count(),
+            1
+        );
     }
 
     #[test]
@@ -691,26 +755,40 @@ mod tests {
         let json = br#"[{"id":"1","kind":"file","title":"a","path":"C:/a"},
             {"id":"2","kind":"batch","title":"p","children":[{"id":"3","kind":"hologram"},{"id":"4","kind":"text","text":"t"}]},
             {"id":"5","kind":"hologram"}]"#;
-        let Load::Items { items, complete } = load(Some(json)) else { panic!() };
+        let Load::Items { items, complete } = load(Some(json)) else {
+            panic!()
+        };
         assert!(!complete);
         assert_eq!(items.len(), 2);
         assert_eq!(items[1].children.len(), 1);
         assert_eq!(load(Some(b"{}")), Load::Unreadable);
         assert_eq!(load(Some(br#"[{"kind":"hologram"}]"#)), Load::Unreadable);
-        assert_eq!(load(None), Load::Items { items: vec![], complete: true });
+        assert_eq!(
+            load(None),
+            Load::Items {
+                items: vec![],
+                complete: true
+            }
+        );
     }
 
     #[test]
     fn restoring_heals_moved_files_and_collapses_piles() {
         let mut shelf = Shelf::default();
-        shelf.add(vec![Item::file("C:/gone/old.txt", Some("7:9".into()))]).unwrap();
-        let pile = shelf.add(vec![file("C:/x/alive"), file("C:/x/dead")]).unwrap();
+        shelf
+            .add(vec![Item::file("C:/gone/old.txt", Some("7:9".into()))])
+            .unwrap();
+        let pile = shelf
+            .add(vec![file("C:/x/alive"), file("C:/x/dead")])
+            .unwrap();
         shelf.toggle_pin(&pile);
         let mut stale = Item::text("x").unwrap();
         stale.text = Some("   ".into());
         shelf.items.push(stale);
         let exists = |p: &str| p == "C:/x/alive" || p == "C:/moved/new.txt";
-        let refind = |i: &Item| (i.file_id.as_deref() == Some("7:9")).then(|| "C:/moved/new.txt".to_string());
+        let refind = |i: &Item| {
+            (i.file_id.as_deref() == Some("7:9")).then(|| "C:/moved/new.txt".to_string())
+        };
         let restored = sanitized(shelf.items, &exists, &refind);
         assert_eq!(ids(&restored), ["new.txt", "alive"]);
         assert_eq!(restored[0].path.as_deref(), Some("C:/moved/new.txt"));
@@ -735,7 +813,11 @@ mod tests {
         let store = Path::new("/data/shelf/files");
         let dropped = "/data/shelf/files/../../../home/me/Documents/a.txt";
         assert!(!is_owned(dropped, store));
-        assert_eq!(owned_folder(dropped, store), None, "would remove_dir_all /home/me/Documents");
+        assert_eq!(
+            owned_folder(dropped, store),
+            None,
+            "would remove_dir_all /home/me/Documents"
+        );
         assert_eq!(
             owned_folder("/data/shelf/files/abc/Image.png", store),
             Some(PathBuf::from("/data/shelf/files/abc"))

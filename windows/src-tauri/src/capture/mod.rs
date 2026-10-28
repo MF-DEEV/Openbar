@@ -37,7 +37,9 @@ use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{AppHandle, Manager, PhysicalPosition, PhysicalSize, Runtime, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    AppHandle, Manager, PhysicalPosition, PhysicalSize, Runtime, WebviewUrl, WebviewWindowBuilder,
+};
 
 use self::color::ColorFormat;
 use self::snapshot::Frame;
@@ -81,8 +83,16 @@ pub struct Selection {
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq)]
 #[serde(tag = "kind", rename_all = "camelCase")]
 pub enum Pick {
-    Area { x: i32, y: i32, width: i32, height: i32 },
-    Point { x: i32, y: i32 },
+    Area {
+        x: i32,
+        y: i32,
+        width: i32,
+        height: i32,
+    },
+    Point {
+        x: i32,
+        y: i32,
+    },
 }
 
 struct Session {
@@ -207,18 +217,49 @@ fn select<R: Runtime>(app: &AppHandle<R>, purpose: Purpose) -> Option<(Selection
         let _ = window.destroy();
     }
     let rect = match pick? {
-        Pick::Area { x, y, width, height } => {
-            let r = clamp_area(Rect { x, y, width, height }, frame.width, frame.height)?;
-            Rect { x: monitor.x + r.x, y: monitor.y + r.y, ..r }
+        Pick::Area {
+            x,
+            y,
+            width,
+            height,
+        } => {
+            let r = clamp_area(
+                Rect {
+                    x,
+                    y,
+                    width,
+                    height,
+                },
+                frame.width,
+                frame.height,
+            )?;
+            Rect {
+                x: monitor.x + r.x,
+                y: monitor.y + r.y,
+                ..r
+            }
         }
         Pick::Point { x, y } => {
             frame.pixel(x, y)?;
-            Rect { x: monitor.x + x, y: monitor.y + y, width: 1, height: 1 }
+            Rect {
+                x: monitor.x + x,
+                y: monitor.y + y,
+                width: 1,
+                height: 1,
+            }
         }
     };
     let (cx, cy) = rect.center();
     let window = platform::window_at(cx, cy);
-    Some((Selection { purpose, rect, monitor, window }, frame))
+    Some((
+        Selection {
+            purpose,
+            rect,
+            monitor,
+            window,
+        },
+        frame,
+    ))
 }
 
 /// The area inside a `width` × `height` picture, or none when empty.
@@ -227,7 +268,12 @@ fn clamp_area(r: Rect, width: u32, height: u32) -> Option<Rect> {
     let y0 = r.y.clamp(0, height as i32);
     let x1 = (r.x + r.width).clamp(0, width as i32);
     let y1 = (r.y + r.height).clamp(0, height as i32);
-    (x1 > x0 && y1 > y0).then(|| Rect { x: x0, y: y0, width: x1 - x0, height: y1 - y0 })
+    (x1 > x0 && y1 > y0).then(|| Rect {
+        x: x0,
+        y: y0,
+        width: x1 - x0,
+        height: y1 - y0,
+    })
 }
 
 fn open_overlay<R: Runtime>(app: &AppHandle<R>, monitor: Rect, id: u64) -> tauri::Result<()> {
@@ -247,7 +293,10 @@ fn open_overlay<R: Runtime>(app: &AppHandle<R>, monitor: Rect, id: u64) -> tauri
         .visible(false)
         .build()?;
     window.set_position(PhysicalPosition::new(monitor.x, monitor.y))?;
-    window.set_size(PhysicalSize::new(monitor.width as u32, monitor.height as u32))?;
+    window.set_size(PhysicalSize::new(
+        monitor.width as u32,
+        monitor.height as u32,
+    ))?;
     platform::exclude_from_capture(&window);
     let app = app.clone();
     window.on_window_event(move |event| {
@@ -284,12 +333,21 @@ fn listen_escape<R: Runtime>(app: &AppHandle<R>, on: bool) {
 }
 
 fn island_pref(app: &AppHandle<impl Runtime>, key: &str) -> Option<Value> {
-    app.try_state::<crate::prefs::Prefs>()?.get().pointer(&format!("/island/{key}")).cloned()
+    app.try_state::<crate::prefs::Prefs>()?
+        .get()
+        .pointer(&format!("/island/{key}"))
+        .cloned()
 }
 
 fn color_prefs(app: &AppHandle<impl Runtime>) -> (ColorFormat, bool) {
-    let format = ColorFormat::from_pref(island_pref(app, "colorPickerFormat").as_ref().and_then(Value::as_str));
-    let bare = island_pref(app, "colorPickerBareHex").and_then(|v| v.as_bool()).unwrap_or(false);
+    let format = ColorFormat::from_pref(
+        island_pref(app, "colorPickerFormat")
+            .as_ref()
+            .and_then(Value::as_str),
+    );
+    let bare = island_pref(app, "colorPickerBareHex")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
     (format, bare)
 }
 
@@ -312,16 +370,29 @@ pub fn capture_session<R: Runtime>(app: AppHandle<R>) -> Option<SessionInfo> {
 
 /// The frozen picture as raw RGBA, sent as bytes rather than JSON.
 #[tauri::command]
-pub fn capture_pixels(shared: tauri::State<'_, Shared>, id: u64) -> Result<tauri::ipc::Response, String> {
+pub fn capture_pixels(
+    shared: tauri::State<'_, Shared>,
+    id: u64,
+) -> Result<tauri::ipc::Response, String> {
     let session = shared.session.lock().unwrap();
-    let session = session.as_ref().filter(|s| s.id == id).ok_or("no capture")?;
+    let session = session
+        .as_ref()
+        .filter(|s| s.id == id)
+        .ok_or("no capture")?;
     Ok(tauri::ipc::Response::new(session.frame.rgba.clone()))
 }
 
 /// The page drew the picture: show it over the display and take the keyboard.
 #[tauri::command]
 pub fn capture_ready<R: Runtime>(app: AppHandle<R>, id: u64) {
-    match app.state::<Shared>().session.lock().unwrap().as_mut().filter(|s| s.id == id) {
+    match app
+        .state::<Shared>()
+        .session
+        .lock()
+        .unwrap()
+        .as_mut()
+        .filter(|s| s.id == id)
+    {
         Some(session) => session.shown = true,
         None => return,
     }
@@ -335,7 +406,12 @@ pub fn capture_ready<R: Runtime>(app: AppHandle<R>, id: u64) {
 /// The person's choice, or `None` to cancel.
 #[tauri::command]
 pub fn capture_commit(shared: tauri::State<'_, Shared>, id: u64, pick: Option<Pick>) {
-    if let Some(session) = shared.session.lock().unwrap().as_mut().filter(|s| s.id == id)
+    if let Some(session) = shared
+        .session
+        .lock()
+        .unwrap()
+        .as_mut()
+        .filter(|s| s.id == id)
         && let Some(reply) = session.reply.take()
     {
         let _ = reply.send(pick);
@@ -351,7 +427,9 @@ pub fn capture_commit(shared: tauri::State<'_, Shared>, id: u64, pick: Option<Pi
 pub async fn capture_run<R: Runtime>(app: AppHandle<R>, purpose: Purpose, name: String) -> Outcome {
     tauri::async_runtime::spawn_blocking(move || run(&app, purpose, &name))
         .await
-        .unwrap_or(Outcome::Failed { message: "capture stopped".into() })
+        .unwrap_or(Outcome::Failed {
+            message: "capture stopped".into(),
+        })
 }
 
 fn run<R: Runtime>(app: &AppHandle<R>, purpose: Purpose, name: &str) -> Outcome {
@@ -373,7 +451,9 @@ fn run<R: Runtime>(app: &AppHandle<R>, purpose: Purpose, name: &str) -> Outcome 
             let crop = frame.crop(local);
             match crate::ocr::recognize(&crop.rgba, crop.width, crop.height) {
                 Err(crate::ocr::OcrError::NoLanguage) => Outcome::NoLanguage,
-                Err(e) => Outcome::Failed { message: e.to_string() },
+                Err(e) => Outcome::Failed {
+                    message: e.to_string(),
+                },
                 Ok(result) => match result.text() {
                     text if text.trim().is_empty() => Outcome::NoText,
                     text => match clipboard::set_text(&text) {
@@ -390,7 +470,10 @@ fn run<R: Runtime>(app: &AppHandle<R>, purpose: Purpose, name: &str) -> Outcome 
             let (format, bare) = color_prefs(app);
             let value = color::format(r, g, b, format, bare);
             match clipboard::set_text(&value) {
-                Ok(()) => Outcome::Color { value, hex: color::format(r, g, b, ColorFormat::Hex, false) },
+                Ok(()) => Outcome::Color {
+                    value,
+                    hex: color::format(r, g, b, ColorFormat::Hex, false),
+                },
                 Err(message) => Outcome::Failed { message },
             }
         }
@@ -400,7 +483,9 @@ fn run<R: Runtime>(app: &AppHandle<R>, purpose: Purpose, name: &str) -> Outcome 
 /// Saves to the Screenshots folder and copies; either alone still counts.
 fn screenshot(crop: &Frame, name: &str) -> Outcome {
     let Some(png) = crate::shell::encode_png(&crop.rgba, crop.width, crop.height) else {
-        return Outcome::Failed { message: "the picture could not be encoded".into() };
+        return Outcome::Failed {
+            message: "the picture could not be encoded".into(),
+        };
     };
     let copied = clipboard::set_image(&crop.rgba, crop.width, crop.height, &png).is_ok();
     let folder = platform::screenshots_folder();
@@ -411,7 +496,9 @@ fn screenshot(crop: &Frame, name: &str) -> Outcome {
         Some(path)
     });
     if path.is_none() && !copied {
-        return Outcome::Failed { message: "the screenshot could not be saved or copied".into() };
+        return Outcome::Failed {
+            message: "the screenshot could not be saved or copied".into(),
+        };
     }
     Outcome::Screenshot {
         path: path.map(|p| p.to_string_lossy().into_owned()),
@@ -424,8 +511,13 @@ fn screenshot(crop: &Frame, name: &str) -> Outcome {
 /// A small picture for the notice, 44 px tall at most.
 fn thumbnail(crop: &Frame) -> Option<String> {
     let image = image::RgbaImage::from_raw(crop.width, crop.height, crop.rgba.clone())?;
-    let scale = (44.0 / crop.height as f64).min(88.0 / crop.width as f64).min(1.0);
-    let (w, h) = (((crop.width as f64 * scale).round() as u32).max(1), ((crop.height as f64 * scale).round() as u32).max(1));
+    let scale = (44.0 / crop.height as f64)
+        .min(88.0 / crop.width as f64)
+        .min(1.0);
+    let (w, h) = (
+        ((crop.width as f64 * scale).round() as u32).max(1),
+        ((crop.height as f64 * scale).round() as u32).max(1),
+    );
     let small = image::imageops::thumbnail(&image, w, h);
     crate::shell::encode_png(small.as_raw(), w, h).map(|png| crate::shell::png_data_url(&png))
 }
@@ -434,10 +526,20 @@ fn thumbnail(crop: &Frame) -> Option<String> {
 fn file_stem(name: &str) -> String {
     let clean: String = name
         .chars()
-        .map(|c| if "<>:\"/\\|?*".contains(c) || c.is_control() { '-' } else { c })
+        .map(|c| {
+            if "<>:\"/\\|?*".contains(c) || c.is_control() {
+                '-'
+            } else {
+                c
+            }
+        })
         .collect();
     let clean = clean.trim().trim_end_matches('.').to_string();
-    if clean.is_empty() { "Screenshot".into() } else { clean }
+    if clean.is_empty() {
+        "Screenshot".into()
+    } else {
+        clean
+    }
 }
 
 /// `stem.png`, or `stem (2).png` and so on when taken.
@@ -456,7 +558,11 @@ fn free_path(dir: &Path, stem: &str) -> PathBuf {
 #[tauri::command]
 pub async fn tools_copy_text(text: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
-        if crate::clipboard::write_unrecorded_text(text) { Ok(()) } else { Err("the clipboard is busy".to_string()) }
+        if crate::clipboard::write_unrecorded_text(text) {
+            Ok(())
+        } else {
+            Err("the clipboard is busy".to_string())
+        }
     })
     .await
     .map_err(|e| e.to_string())?
@@ -469,14 +575,18 @@ mod platform {
     use tauri::{Runtime, WebviewWindow};
     use windows::Win32::Foundation::{HWND, POINT, RECT};
     use windows::Win32::Graphics::Dwm::{DWMWA_CLOAKED, DwmGetWindowAttribute};
-    use windows::Win32::Graphics::Gdi::{GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromPoint};
+    use windows::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromPoint,
+    };
     use windows::Win32::System::Com::CoTaskMemFree;
     use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentProcessId};
-    use windows::Win32::UI::Shell::{FOLDERID_Pictures, FOLDERID_Screenshots, KF_FLAG_CREATE, SHGetKnownFolderPath};
+    use windows::Win32::UI::Shell::{
+        FOLDERID_Pictures, FOLDERID_Screenshots, KF_FLAG_CREATE, SHGetKnownFolderPath,
+    };
     use windows::Win32::UI::WindowsAndMessaging::{
-        BringWindowToTop, GW_HWNDNEXT, GetClassNameW, GetCursorPos, GetForegroundWindow, GetTopWindow, GetWindow,
-        GetWindowRect, GetWindowThreadProcessId, IsIconic, IsWindowVisible, SetForegroundWindow,
-        SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE,
+        BringWindowToTop, GW_HWNDNEXT, GetClassNameW, GetCursorPos, GetForegroundWindow,
+        GetTopWindow, GetWindow, GetWindowRect, GetWindowThreadProcessId, IsIconic,
+        IsWindowVisible, SetForegroundWindow, SetWindowDisplayAffinity, WDA_EXCLUDEFROMCAPTURE,
     };
 
     pub fn monitor_under_cursor() -> Option<(isize, Rect)> {
@@ -484,10 +594,21 @@ mod platform {
             let mut point = POINT::default();
             GetCursorPos(&mut point).ok()?;
             let monitor = MonitorFromPoint(point, MONITOR_DEFAULTTONEAREST);
-            let mut info = MONITORINFO { cbSize: size_of::<MONITORINFO>() as u32, ..Default::default() };
+            let mut info = MONITORINFO {
+                cbSize: size_of::<MONITORINFO>() as u32,
+                ..Default::default()
+            };
             GetMonitorInfoW(monitor, &mut info).ok().ok()?;
             let r = info.rcMonitor;
-            Some((monitor.0 as isize, Rect { x: r.left, y: r.top, width: r.right - r.left, height: r.bottom - r.top }))
+            Some((
+                monitor.0 as isize,
+                Rect {
+                    x: r.left,
+                    y: r.top,
+                    width: r.right - r.left,
+                    height: r.bottom - r.top,
+                },
+            ))
         }
     }
 
@@ -538,13 +659,22 @@ mod platform {
                     continue;
                 }
                 let mut r = RECT::default();
-                if GetWindowRect(hwnd, &mut r).is_err() || x < r.left || x >= r.right || y < r.top || y >= r.bottom {
+                if GetWindowRect(hwnd, &mut r).is_err()
+                    || x < r.left
+                    || x >= r.right
+                    || y < r.top
+                    || y >= r.bottom
+                {
                     continue;
                 }
                 let mut class = [0u16; 32];
                 let n = GetClassNameW(hwnd, &mut class).max(0) as usize;
                 let class = String::from_utf16_lossy(&class[..n]);
-                return if class == "Progman" || class == "WorkerW" { 0 } else { hwnd.0 as isize };
+                return if class == "Progman" || class == "WorkerW" {
+                    0
+                } else {
+                    hwnd.0 as isize
+                };
             }
             0
         }
@@ -553,7 +683,8 @@ mod platform {
     fn cloaked(hwnd: HWND) -> bool {
         let mut value = 0u32;
         unsafe {
-            DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, (&mut value as *mut u32).cast(), 4).is_ok() && value != 0
+            DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, (&mut value as *mut u32).cast(), 4).is_ok()
+                && value != 0
         }
     }
 
@@ -565,7 +696,8 @@ mod platform {
             CoTaskMemFree(Some(path.0 as *const _));
             out
         };
-        known(&FOLDERID_Screenshots).or_else(|| known(&FOLDERID_Pictures).map(|p| p.join("Screenshots")))
+        known(&FOLDERID_Screenshots)
+            .or_else(|| known(&FOLDERID_Pictures).map(|p| p.join("Screenshots")))
     }
 }
 
@@ -576,7 +708,15 @@ mod platform {
     use tauri::{Runtime, WebviewWindow};
 
     pub fn monitor_under_cursor() -> Option<(isize, Rect)> {
-        Some((0, Rect { x: 0, y: 0, width: 1440, height: 900 }))
+        Some((
+            0,
+            Rect {
+                x: 0,
+                y: 0,
+                width: 1440,
+                height: 900,
+            },
+        ))
     }
 
     pub fn exclude_from_capture<R: Runtime>(window: &WebviewWindow<R>) {
@@ -590,7 +730,8 @@ mod platform {
     }
 
     pub fn screenshots_folder() -> Option<PathBuf> {
-        std::env::var_os("HOME").map(|home| PathBuf::from(home).join("Pictures").join("Screenshots"))
+        std::env::var_os("HOME")
+            .map(|home| PathBuf::from(home).join("Pictures").join("Screenshots"))
     }
 }
 
@@ -600,23 +741,77 @@ mod tests {
 
     #[test]
     fn areas_clamp_to_the_picture_and_empty_ones_drop() {
-        let r = clamp_area(Rect { x: -10, y: 5, width: 50, height: 2000 }, 100, 100).unwrap();
-        assert_eq!(r, Rect { x: 0, y: 5, width: 40, height: 95 });
-        assert_eq!(clamp_area(Rect { x: 10, y: 10, width: 0, height: 5 }, 100, 100), None);
-        assert_eq!(clamp_area(Rect { x: 120, y: 10, width: 5, height: 5 }, 100, 100), None);
+        let r = clamp_area(
+            Rect {
+                x: -10,
+                y: 5,
+                width: 50,
+                height: 2000,
+            },
+            100,
+            100,
+        )
+        .unwrap();
+        assert_eq!(
+            r,
+            Rect {
+                x: 0,
+                y: 5,
+                width: 40,
+                height: 95
+            }
+        );
+        assert_eq!(
+            clamp_area(
+                Rect {
+                    x: 10,
+                    y: 10,
+                    width: 0,
+                    height: 5
+                },
+                100,
+                100
+            ),
+            None
+        );
+        assert_eq!(
+            clamp_area(
+                Rect {
+                    x: 120,
+                    y: 10,
+                    width: 5,
+                    height: 5
+                },
+                100,
+                100
+            ),
+            None
+        );
     }
 
     #[test]
     fn picks_deserialize_from_the_page() {
-        let area: Pick = serde_json::from_str(r#"{"kind":"area","x":1,"y":2,"width":3,"height":4}"#).unwrap();
-        assert_eq!(area, Pick::Area { x: 1, y: 2, width: 3, height: 4 });
+        let area: Pick =
+            serde_json::from_str(r#"{"kind":"area","x":1,"y":2,"width":3,"height":4}"#).unwrap();
+        assert_eq!(
+            area,
+            Pick::Area {
+                x: 1,
+                y: 2,
+                width: 3,
+                height: 4
+            }
+        );
         let point: Pick = serde_json::from_str(r#"{"kind":"point","x":7,"y":8}"#).unwrap();
         assert_eq!(point, Pick::Point { x: 7, y: 8 });
     }
 
     #[test]
     fn file_names_lose_reserved_characters() {
-        assert_eq!(file_stem("Screenshot 2026-10-27 140322"), "Screenshot 2026-10-27 140322");
+        assert_eq!(
+            file_stem("Screenshot 2026-10-27 140322"),
+            "Screenshot 2026-10-27 140322"
+        );
         assert_eq!(file_stem("a/b:c?"), "a-b-c-");
         assert_eq!(file_stem("  ..  "), "Screenshot");
     }
@@ -633,8 +828,15 @@ mod tests {
 
     #[test]
     fn outcomes_serialize_with_a_kind() {
-        let json = serde_json::to_value(Outcome::Color { value: "#FFFFFF".into(), hex: "#FFFFFF".into() }).unwrap();
+        let json = serde_json::to_value(Outcome::Color {
+            value: "#FFFFFF".into(),
+            hex: "#FFFFFF".into(),
+        })
+        .unwrap();
         assert_eq!(json["kind"], "color");
-        assert_eq!(serde_json::to_value(Outcome::NoLanguage).unwrap()["kind"], "noLanguage");
+        assert_eq!(
+            serde_json::to_value(Outcome::NoLanguage).unwrap()["kind"],
+            "noLanguage"
+        );
     }
 }

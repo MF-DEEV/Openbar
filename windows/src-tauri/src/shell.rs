@@ -51,7 +51,11 @@ pub fn bgra_premultiplied_to_rgba(bgra: &[u8]) -> Vec<u8> {
     let mut out = Vec::with_capacity(bgra.len());
     for px in bgra.as_chunks::<4>().0 {
         let (b, g, r, a) = (px[0] as u32, px[1] as u32, px[2] as u32, px[3] as u32);
-        let un = |c: u32| (c * 255 + a / 2).checked_div(a).map_or(0, |v| v.min(255) as u8);
+        let un = |c: u32| {
+            (c * 255 + a / 2)
+                .checked_div(a)
+                .map_or(0, |v| v.min(255) as u8)
+        };
         out.extend_from_slice(&[un(r), un(g), un(b), a as u8]);
     }
     out
@@ -125,18 +129,19 @@ pub async fn shell_icon(path: String, size: u32, thumbnail: bool) -> Option<Stri
 mod imp {
     use windows::Win32::Foundation::{CloseHandle, SIZE};
     use windows::Win32::Graphics::Gdi::{
-        BITMAP, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, DeleteObject, GetDC, GetDIBits,
-        GetObjectW, HGDIOBJ, ReleaseDC,
+        BI_RGB, BITMAP, BITMAPINFO, BITMAPINFOHEADER, DIB_RGB_COLORS, DeleteObject, GetDC,
+        GetDIBits, GetObjectW, HGDIOBJ, ReleaseDC,
     };
     use windows::Win32::Storage::FileSystem::{
         FILE_FLAGS_AND_ATTRIBUTES, GetFileVersionInfoSizeW, GetFileVersionInfoW, VerQueryValueW,
     };
     use windows::Win32::System::Threading::{
-        OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION, QueryFullProcessImageNameW,
+        OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+        QueryFullProcessImageNameW,
     };
     use windows::Win32::UI::Shell::{
-        IShellItemImageFactory, SHCreateItemFromParsingName, SHFILEINFOW, SHGFI_TYPENAME, SHGetFileInfoW,
-        SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY, SIIGBF_RESIZETOFIT,
+        IShellItemImageFactory, SHCreateItemFromParsingName, SHFILEINFOW, SHGFI_TYPENAME,
+        SHGetFileInfoW, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY, SIIGBF_RESIZETOFIT,
     };
     use windows::core::{HSTRING, PCWSTR, PWSTR};
 
@@ -150,7 +155,13 @@ mod imp {
                 SIIGBF_RESIZETOFIT
             };
             let bitmap = factory
-                .GetImage(SIZE { cx: width as i32, cy: height as i32 }, flags)
+                .GetImage(
+                    SIZE {
+                        cx: width as i32,
+                        cy: height as i32,
+                    },
+                    flags,
+                )
                 .ok()?;
             let png = bitmap_png(bitmap);
             let _ = DeleteObject(HGDIOBJ(bitmap.0));
@@ -237,7 +248,9 @@ mod imp {
                 table = format!("{:04X}{:04X}", pair[0], pair[1]);
             }
             let key = HSTRING::from(format!("\\StringFileInfo\\{table}\\FileDescription"));
-            if !VerQueryValueW(data.as_ptr() as *const _, &key, &mut ptr, &mut len).as_bool() || len == 0 {
+            if !VerQueryValueW(data.as_ptr() as *const _, &key, &mut ptr, &mut len).as_bool()
+                || len == 0
+            {
                 return None;
             }
             let text = std::slice::from_raw_parts(ptr as *const u16, len as usize);
@@ -307,9 +320,18 @@ mod tests {
     #[test]
     fn premultiplied_pixels_are_straightened() {
         // Half-transparent pure red, premultiplied: B=0 G=0 R=128 A=128.
-        assert_eq!(bgra_premultiplied_to_rgba(&[0, 0, 128, 128]), vec![255, 0, 0, 128]);
-        assert_eq!(bgra_premultiplied_to_rgba(&[10, 20, 30, 0]), vec![0, 0, 0, 0]);
-        assert_eq!(bgra_premultiplied_to_rgba(&[1, 2, 3, 255]), vec![3, 2, 1, 255]);
+        assert_eq!(
+            bgra_premultiplied_to_rgba(&[0, 0, 128, 128]),
+            vec![255, 0, 0, 128]
+        );
+        assert_eq!(
+            bgra_premultiplied_to_rgba(&[10, 20, 30, 0]),
+            vec![0, 0, 0, 0]
+        );
+        assert_eq!(
+            bgra_premultiplied_to_rgba(&[1, 2, 3, 255]),
+            vec![3, 2, 1, 255]
+        );
     }
 
     #[test]
@@ -321,6 +343,13 @@ mod tests {
 
     #[test]
     fn an_unknown_exe_is_named_after_its_file() {
-        assert_eq!(app_name(r"C:\nowhere\Some App.exe").replace('\\', "/").rsplit('/').next().unwrap(), "Some App");
+        assert_eq!(
+            app_name(r"C:\nowhere\Some App.exe")
+                .replace('\\', "/")
+                .rsplit('/')
+                .next()
+                .unwrap(),
+            "Some App"
+        );
     }
 }

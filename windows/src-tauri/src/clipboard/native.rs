@@ -10,30 +10,36 @@ use std::sync::atomic::{AtomicIsize, AtomicU32, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::{Duration, Instant};
 
-use windows::Win32::Foundation::{CloseHandle, GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Foundation::{
+    CloseHandle, GlobalFree, HANDLE, HGLOBAL, HWND, LPARAM, LRESULT, WPARAM,
+};
 use windows::Win32::Security::{GetTokenInformation, TOKEN_ELEVATION, TOKEN_QUERY, TokenElevation};
 use windows::Win32::System::DataExchange::{
-    AddClipboardFormatListener, CloseClipboard, EmptyClipboard, GetClipboardData, GetClipboardOwner,
-    GetClipboardSequenceNumber, IsClipboardFormatAvailable, OpenClipboard, RegisterClipboardFormatW,
-    SetClipboardData,
+    AddClipboardFormatListener, CloseClipboard, EmptyClipboard, GetClipboardData,
+    GetClipboardOwner, GetClipboardSequenceNumber, IsClipboardFormatAvailable, OpenClipboard,
+    RegisterClipboardFormatW, SetClipboardData,
 };
 use windows::Win32::System::Diagnostics::Debug::MessageBeep;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
-use windows::Win32::System::Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock};
+use windows::Win32::System::Memory::{
+    GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalSize, GlobalUnlock,
+};
 use windows::Win32::System::Threading::{
-    GetCurrentProcess, GetCurrentProcessId, OpenProcess, OpenProcessToken, PROCESS_QUERY_LIMITED_INFORMATION,
+    GetCurrentProcess, GetCurrentProcessId, OpenProcess, OpenProcessToken,
+    PROCESS_QUERY_LIMITED_INFORMATION,
 };
 use windows::Win32::UI::Accessibility::{HWINEVENTHOOK, SetWinEventHook};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
-    GetAsyncKeyState, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBD_EVENT_FLAGS, KEYBDINPUT, KEYEVENTF_EXTENDEDKEY,
-    KEYEVENTF_KEYUP, SendInput, VIRTUAL_KEY, VK_CONTROL, VK_LMENU, VK_LSHIFT, VK_LWIN, VK_RCONTROL, VK_RETURN,
-    VK_RMENU, VK_RSHIFT, VK_RWIN, VK_V,
+    GetAsyncKeyState, INPUT, INPUT_0, INPUT_KEYBOARD, KEYBD_EVENT_FLAGS, KEYBDINPUT,
+    KEYEVENTF_EXTENDEDKEY, KEYEVENTF_KEYUP, SendInput, VIRTUAL_KEY, VK_CONTROL, VK_LMENU,
+    VK_LSHIFT, VK_LWIN, VK_RCONTROL, VK_RETURN, VK_RMENU, VK_RSHIFT, VK_RWIN, VK_V,
 };
 use windows::Win32::UI::Shell::{DragQueryFileW, HDROP};
 use windows::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DispatchMessageW, EVENT_SYSTEM_FOREGROUND, GetForegroundWindow, GetMessageW,
-    GetWindowThreadProcessId, HWND_MESSAGE, IsWindow, MB_OK, MSG, RegisterClassW, SetForegroundWindow,
-    WINDOW_EX_STYLE, WINDOW_STYLE, WINEVENT_OUTOFCONTEXT, WINEVENT_SKIPOWNPROCESS, WM_CLIPBOARDUPDATE, WNDCLASSW,
+    CreateWindowExW, DefWindowProcW, DispatchMessageW, EVENT_SYSTEM_FOREGROUND,
+    GetForegroundWindow, GetMessageW, GetWindowThreadProcessId, HWND_MESSAGE, IsWindow, MB_OK, MSG,
+    RegisterClassW, SetForegroundWindow, WINDOW_EX_STYLE, WINDOW_STYLE, WINEVENT_OUTOFCONTEXT,
+    WINEVENT_SKIPOWNPROCESS, WM_CLIPBOARDUPDATE, WNDCLASSW,
 };
 use windows::core::{HSTRING, PCWSTR, w};
 
@@ -95,53 +101,68 @@ pub fn listen(on_update: impl Fn(Update) + Send + Sync + 'static) {
     if ON_UPDATE.set(Box::new(on_update)).is_err() {
         return;
     }
-    let _ = std::thread::Builder::new().name("vorssaint-clipboard".into()).spawn(|| unsafe {
-        let instance = GetModuleHandleW(PCWSTR::null()).unwrap_or_default();
-        let class = w!("VorssaintClipboardListener");
-        let wc = WNDCLASSW {
-            lpfnWndProc: Some(window_proc),
-            hInstance: instance.into(),
-            lpszClassName: class,
-            ..Default::default()
-        };
-        RegisterClassW(&wc);
-        let Ok(hwnd) = CreateWindowExW(
-            WINDOW_EX_STYLE::default(),
-            class,
-            PCWSTR::null(),
-            WINDOW_STYLE::default(),
-            0,
-            0,
-            0,
-            0,
-            Some(HWND_MESSAGE),
-            None,
-            Some(instance.into()),
-            None,
-        ) else {
-            return;
-        };
-        WINDOW.store(hwnd.0 as isize, Ordering::SeqCst);
-        let _ = AddClipboardFormatListener(hwnd);
-        // Out-of-context hooks call back on this thread, from its message loop.
-        let _hook = SetWinEventHook(
-            EVENT_SYSTEM_FOREGROUND,
-            EVENT_SYSTEM_FOREGROUND,
-            None,
-            Some(foreground_changed),
-            0,
-            0,
-            WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
-        );
-        foreground_changed(HWINEVENTHOOK::default(), 0, GetForegroundWindow(), 0, 0, 0, 0);
-        let mut msg = MSG::default();
-        while GetMessageW(&mut msg, None, 0, 0).as_bool() {
-            DispatchMessageW(&msg);
-        }
-    });
+    let _ = std::thread::Builder::new()
+        .name("vorssaint-clipboard".into())
+        .spawn(|| unsafe {
+            let instance = GetModuleHandleW(PCWSTR::null()).unwrap_or_default();
+            let class = w!("VorssaintClipboardListener");
+            let wc = WNDCLASSW {
+                lpfnWndProc: Some(window_proc),
+                hInstance: instance.into(),
+                lpszClassName: class,
+                ..Default::default()
+            };
+            RegisterClassW(&wc);
+            let Ok(hwnd) = CreateWindowExW(
+                WINDOW_EX_STYLE::default(),
+                class,
+                PCWSTR::null(),
+                WINDOW_STYLE::default(),
+                0,
+                0,
+                0,
+                0,
+                Some(HWND_MESSAGE),
+                None,
+                Some(instance.into()),
+                None,
+            ) else {
+                return;
+            };
+            WINDOW.store(hwnd.0 as isize, Ordering::SeqCst);
+            let _ = AddClipboardFormatListener(hwnd);
+            // Out-of-context hooks call back on this thread, from its message loop.
+            let _hook = SetWinEventHook(
+                EVENT_SYSTEM_FOREGROUND,
+                EVENT_SYSTEM_FOREGROUND,
+                None,
+                Some(foreground_changed),
+                0,
+                0,
+                WINEVENT_OUTOFCONTEXT | WINEVENT_SKIPOWNPROCESS,
+            );
+            foreground_changed(
+                HWINEVENTHOOK::default(),
+                0,
+                GetForegroundWindow(),
+                0,
+                0,
+                0,
+                0,
+            );
+            let mut msg = MSG::default();
+            while GetMessageW(&mut msg, None, 0, 0).as_bool() {
+                DispatchMessageW(&msg);
+            }
+        });
 }
 
-unsafe extern "system" fn window_proc(hwnd: HWND, msg: u32, wparam: WPARAM, lparam: LPARAM) -> LRESULT {
+unsafe extern "system" fn window_proc(
+    hwnd: HWND,
+    msg: u32,
+    wparam: WPARAM,
+    lparam: LPARAM,
+) -> LRESULT {
     if msg == WM_CLIPBOARDUPDATE {
         changed();
         return LRESULT(0);
@@ -185,7 +206,11 @@ fn changed() {
     let me = unsafe { GetCurrentProcessId() };
     let owner = unsafe { GetClipboardOwner() }.map(pid_of).unwrap_or(0);
     let front = pid_of(unsafe { GetForegroundWindow() });
-    let exe_of = |pid: u32| (pid != 0 && pid != me).then(|| crate::shell::process_path(pid)).flatten();
+    let exe_of = |pid: u32| {
+        (pid != 0 && pid != me)
+            .then(|| crate::shell::process_path(pid))
+            .flatten()
+    };
     let owner_exe = exe_of(owner);
     let front_exe = exe_of(front);
     let mut candidates = std::mem::take(&mut *FRONT.lock().unwrap());
@@ -199,7 +224,9 @@ fn changed() {
     // A copy in the island's own fields comes from its WebView2 helper or
     // no owner at all while the island is in front; any other app's copy
     // stays that app's, so the ignore list still applies to it.
-    let webview = owner_exe.as_deref().is_some_and(|exe| exe.to_lowercase().ends_with("msedgewebview2.exe"));
+    let webview = owner_exe
+        .as_deref()
+        .is_some_and(|exe| exe.to_lowercase().ends_with("msedgewebview2.exe"));
     let own = owner == me || (front == me && (owner == 0 || webview));
     let update = Update {
         own,
@@ -292,10 +319,14 @@ pub fn read(include_images_files: bool) -> Option<Content> {
     }
     if include_images_files {
         match hdrop_paths(&open, MAX_FILES) {
-            Some((count, paths)) if count <= MAX_FILES && !paths.is_empty() => return Some(Content::Files(paths)),
+            Some((count, paths)) if count <= MAX_FILES && !paths.is_empty() => {
+                return Some(Content::Files(paths));
+            }
             Some(_) => {}
             // A remote desktop's file copy carries descriptors, not paths (§15.1).
-            None if available(format("FileGroupDescriptorW")) || available(format("FileGroupDescriptor")) => {
+            None if available(format("FileGroupDescriptorW"))
+                || available(format("FileGroupDescriptor")) =>
+            {
                 return None;
             }
             None => {}
@@ -303,7 +334,12 @@ pub fn read(include_images_files: bool) -> Option<Content> {
     }
     if available(CF_UNICODETEXT) {
         let raw = bytes(&open, CF_UNICODETEXT, MAX_TEXT_BYTES)?;
-        let units: Vec<u16> = raw.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
+        let units: Vec<u16> = raw
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| u16::from_le_bytes(*c))
+            .collect();
         let text = formats::text_from_utf16(&units);
         if !text.trim().is_empty() || !include_images_files {
             return Some(Content::Text(text));
@@ -315,14 +351,26 @@ pub fn read(include_images_files: bool) -> Option<Content> {
     if let Some(png) = bytes(&open, format("PNG"), MAX_IMAGE_BYTES)
         && let Some((width, height)) = formats::png_dimensions(&png)
     {
-        return Some(Content::Image { hash: formats::sha256_hex(&png), png, width, height });
+        return Some(Content::Image {
+            hash: formats::sha256_hex(&png),
+            png,
+            width,
+            height,
+        });
     }
     for dib_format in [CF_DIBV5, CF_DIB] {
         if let Some(dib) = bytes(&open, dib_format, MAX_RAW_IMAGE_BYTES) {
             drop(open);
-            let png = formats::dib_png(dib).ok().filter(|png| png.len() <= MAX_IMAGE_BYTES)?;
+            let png = formats::dib_png(dib)
+                .ok()
+                .filter(|png| png.len() <= MAX_IMAGE_BYTES)?;
             let (width, height) = formats::png_dimensions(&png)?;
-            return Some(Content::Image { hash: formats::sha256_hex(&png), png, width, height });
+            return Some(Content::Image {
+                hash: formats::sha256_hex(&png),
+                png,
+                width,
+                height,
+            });
         }
     }
     None
@@ -364,7 +412,9 @@ pub fn write(payload: &Payload, from_history: bool) -> bool {
     if window.0.is_null() {
         return false;
     }
-    let Some(open) = open(Some(window)) else { return false };
+    let Some(open) = open(Some(window)) else {
+        return false;
+    };
     if unsafe { EmptyClipboard() }.is_err() {
         return false;
     }
@@ -378,7 +428,9 @@ pub fn write(payload: &Payload, from_history: bool) -> bool {
 
 fn set(format: u32, data: &[u8]) -> bool {
     unsafe {
-        let Ok(memory) = GlobalAlloc(GMEM_MOVEABLE, data.len().max(1)) else { return false };
+        let Ok(memory) = GlobalAlloc(GMEM_MOVEABLE, data.len().max(1)) else {
+            return false;
+        };
         let pointer = GlobalLock(memory);
         if pointer.is_null() {
             let _ = GlobalFree(Some(memory));
@@ -402,10 +454,12 @@ fn set(format: u32, data: &[u8]) -> bool {
 /// the last other app in front. Never one of Vorssaint's own windows.
 pub fn paste_target(island_previous: isize) -> Option<isize> {
     let me = unsafe { GetCurrentProcessId() };
-    [island_previous, LAST_FOREIGN.load(Ordering::SeqCst)].into_iter().find(|&raw| {
-        let hwnd = HWND(raw as _);
-        raw != 0 && unsafe { IsWindow(Some(hwnd)) }.as_bool() && pid_of(hwnd) != me
-    })
+    [island_previous, LAST_FOREIGN.load(Ordering::SeqCst)]
+        .into_iter()
+        .find(|&raw| {
+            let hwnd = HWND(raw as _);
+            raw != 0 && unsafe { IsWindow(Some(hwnd)) }.as_bool() && pid_of(hwnd) != me
+        })
 }
 
 fn token_elevated(process: HANDLE) -> Option<bool> {
@@ -457,7 +511,15 @@ fn key(vk: VIRTUAL_KEY, up: bool) -> INPUT {
     }
     INPUT {
         r#type: INPUT_KEYBOARD,
-        Anonymous: INPUT_0 { ki: KEYBDINPUT { wVk: vk, wScan: 0, dwFlags: flags, time: 0, dwExtraInfo: 0 } },
+        Anonymous: INPUT_0 {
+            ki: KEYBDINPUT {
+                wVk: vk,
+                wScan: 0,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
     }
 }
 
@@ -478,7 +540,9 @@ pub fn send_paste(target: isize) -> bool {
         }
         std::thread::sleep(Duration::from_millis(50));
         let mut inputs = vec![key(VK_CONTROL, false)];
-        for held in [VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN, VK_RETURN] {
+        for held in [
+            VK_LSHIFT, VK_RSHIFT, VK_LMENU, VK_RMENU, VK_LWIN, VK_RWIN, VK_RETURN,
+        ] {
             if GetAsyncKeyState(held.0 as i32) as u16 & 0x8000 != 0 {
                 inputs.push(key(held, true));
             }

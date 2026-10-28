@@ -22,18 +22,19 @@ use webview2_com::Microsoft::Web::WebView2::Win32::ICoreWebView2Controller4;
 use windows::Win32::Foundation::{HWND, LPARAM, POINT, POINTL};
 use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance, IDataObject};
 use windows::Win32::System::Ole::{
-    CF_DIB, CF_HDROP, CF_UNICODETEXT, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK, DROPEFFECT_NONE, IDropTarget,
-    IDropTarget_Impl, RegisterDragDrop, RevokeDragDrop,
+    CF_DIB, CF_HDROP, CF_UNICODETEXT, DROPEFFECT, DROPEFFECT_COPY, DROPEFFECT_LINK,
+    DROPEFFECT_NONE, IDropTarget, IDropTarget_Impl, RegisterDragDrop, RevokeDragDrop,
 };
 use windows::Win32::System::SystemServices::MODIFIERKEYS_FLAGS;
 use windows::Win32::UI::Shell::{
-    CFSTR_FILECONTENTS, CFSTR_FILEDESCRIPTORW, CFSTR_INETURLW, CLSID_DragDropHelper, IDropTargetHelper,
+    CFSTR_FILECONTENTS, CFSTR_FILEDESCRIPTORW, CFSTR_INETURLW, CLSID_DragDropHelper,
+    IDropTargetHelper,
 };
 use windows::Win32::UI::WindowsAndMessaging::EnumChildWindows;
 use windows::core::{BOOL, Interface, Ref, implement, w};
 
-use super::payload;
 use super::ole;
+use super::payload;
 use super::store::{Dropped, Item, new_id};
 
 /// Virtual files: at most this many per drop, each at most this big. They
@@ -109,7 +110,12 @@ impl IDropTarget_Impl for Target_Impl {
         Ok(())
     }
 
-    fn DragOver(&self, _keys: MODIFIERKEYS_FLAGS, pt: &POINTL, effect: *mut DROPEFFECT) -> windows::core::Result<()> {
+    fn DragOver(
+        &self,
+        _keys: MODIFIERKEYS_FLAGS,
+        pt: &POINTL,
+        effect: *mut DROPEFFECT,
+    ) -> windows::core::Result<()> {
         let chosen = if self.effect.get() == DROPEFFECT_NONE {
             DROPEFFECT_NONE
         } else {
@@ -147,15 +153,26 @@ impl IDropTarget_Impl for Target_Impl {
                 let _ = helper.Drop(data, &POINT { x: pt.x, y: pt.y }, offered);
             }
         }
-        let landed = offered != DROPEFFECT_NONE && data.as_ref().is_some_and(|d| (self.handle)(Event::Drop(d)));
-        unsafe { *effect = if landed { effect_for(*effect) } else { DROPEFFECT_NONE } };
+        let landed = offered != DROPEFFECT_NONE
+            && data.as_ref().is_some_and(|d| (self.handle)(Event::Drop(d)));
+        unsafe {
+            *effect = if landed {
+                effect_for(*effect)
+            } else {
+                DROPEFFECT_NONE
+            }
+        };
         Ok(())
     }
 }
 
 /// What a drop holds, with pictures and virtual files written to `store`.
 fn read(data: &IDataObject, store: Option<&Path>, room: usize) -> Dropped {
-    let wide = |format: u16| ole::get(data, format).map(|b| payload::wide_string(&b)).filter(|s| !s.trim().is_empty());
+    let wide = |format: u16| {
+        ole::get(data, format)
+            .map(|b| payload::wide_string(&b))
+            .filter(|s| !s.trim().is_empty())
+    };
     let mut dropped = Dropped {
         url: wide(ole::format(CFSTR_INETURLW)),
         text: wide(CF_UNICODETEXT.0),
@@ -170,25 +187,35 @@ fn read(data: &IDataObject, store: Option<&Path>, room: usize) -> Dropped {
             })
             .collect();
     }
-    let Some(store) = store.filter(|_| dropped.paths.is_empty()) else { return dropped };
+    let Some(store) = store.filter(|_| dropped.paths.is_empty()) else {
+        return dropped;
+    };
     // Virtual files: a browser's image, a mail attachment.
     if let Some(descriptors) = ole::get(data, ole::format(CFSTR_FILEDESCRIPTORW)) {
         let contents = ole::format(CFSTR_FILECONTENTS);
-        for file in payload::virtual_files(&descriptors).into_iter().take(room.min(MAX_VIRTUAL_FILES)) {
+        for file in payload::virtual_files(&descriptors)
+            .into_iter()
+            .take(room.min(MAX_VIRTUAL_FILES))
+        {
             // A file declared too big is skipped before anything is copied.
             if file.size.is_some_and(|size| size > MAX_VIRTUAL_SIZE) {
                 continue;
             }
-            let fill = |out: &mut File| ole::copy(data, contents, file.index, MAX_VIRTUAL_SIZE, file.size, out);
+            let fill = |out: &mut File| {
+                ole::copy(data, contents, file.index, MAX_VIRTUAL_SIZE, file.size, out)
+            };
             if let Some(path) = write_payload(store, &file.name, fill) {
                 dropped.stored.push(Item::file(&path, None));
             }
         }
     }
     if dropped.stored.is_empty() {
-        let png = ole::get(data, ole::format(w!("PNG"))).or_else(|| ole::get(data, CF_DIB.0).and_then(|d| payload::dib_to_png(&d)));
+        let png = ole::get(data, ole::format(w!("PNG")))
+            .or_else(|| ole::get(data, CF_DIB.0).and_then(|d| payload::dib_to_png(&d)));
         if let Some(png) = png
-            && let Some(path) = write_payload(store, "Image.png", |file| std::io::Write::write_all(file, &png).is_ok())
+            && let Some(path) = write_payload(store, "Image.png", |file| {
+                std::io::Write::write_all(file, &png).is_ok()
+            })
         {
             dropped.stored.push(Item::image(&path));
         }
@@ -201,7 +228,9 @@ fn write_payload(store: &Path, name: &str, fill: impl FnOnce(&mut File) -> bool)
     let folder = store.join(new_id());
     std::fs::create_dir_all(&folder).ok()?;
     let path = folder.join(name);
-    let written = File::create_new(&path).ok().is_some_and(|mut file| fill(&mut file));
+    let written = File::create_new(&path)
+        .ok()
+        .is_some_and(|mut file| fill(&mut file));
     if !written {
         let _ = std::fs::remove_dir_all(&folder);
         return None;
@@ -211,7 +240,9 @@ fn write_payload(store: &Path, name: &str, fill: impl FnOnce(&mut File) -> bool)
 
 /// Registers the target on the island's webview. Runs on the island's thread.
 pub fn install<R: Runtime>(app: &AppHandle<R>) {
-    let Some(window) = app.get_webview_window(crate::island::LABEL) else { return };
+    let Some(window) = app.get_webview_window(crate::island::LABEL) else {
+        return;
+    };
     let app = app.clone();
     let _ = window.with_webview(move |webview| unsafe {
         let controller = webview.controller();
@@ -223,8 +254,13 @@ pub fn install<R: Runtime>(app: &AppHandle<R>) {
             return;
         }
         let mut windows = vec![container];
-        let _ = EnumChildWindows(Some(container), Some(collect), LPARAM(&mut windows as *mut Vec<HWND> as isize));
-        let helper: Option<IDropTargetHelper> = CoCreateInstance(&CLSID_DragDropHelper, None, CLSCTX_INPROC_SERVER).ok();
+        let _ = EnumChildWindows(
+            Some(container),
+            Some(collect),
+            LPARAM(&mut windows as *mut Vec<HWND> as isize),
+        );
+        let helper: Option<IDropTargetHelper> =
+            CoCreateInstance(&CLSID_DragDropHelper, None, CLSCTX_INPROC_SERVER).ok();
         for hwnd in windows {
             let app = app.clone();
             let target: IDropTarget = Target {
@@ -272,6 +308,9 @@ fn handle<R: Runtime>(app: &AppHandle<R>, event: Event) -> bool {
 
 fn store_room(files: &super::Files) -> usize {
     // Never a panic inside an OLE callback: it would end the app.
-    let state = files.state.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    let state = files
+        .state
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner);
     super::store::MAX_LEAVES.saturating_sub(state.shelf.leaf_count())
 }

@@ -17,7 +17,11 @@ pub const RETRY: f64 = 6.0 * 3600.0;
 
 /// `%APPDATA%\com.vorssaint.island\agent-prices.json`.
 pub fn cache_path() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|a| PathBuf::from(a).join("com.vorssaint.island").join("agent-prices.json"))
+    std::env::var_os("APPDATA").map(|a| {
+        PathBuf::from(a)
+            .join("com.vorssaint.island")
+            .join("agent-prices.json")
+    })
 }
 
 pub fn cached() -> Option<PriceList> {
@@ -52,28 +56,65 @@ fn get() -> Option<Vec<u8>> {
     }
     let agent = HSTRING::from(format!("Vorssaint/{}", env!("CARGO_PKG_VERSION")));
     unsafe {
-        let session = Handle(WinHttpOpen(&agent, WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, PCWSTR::null(), PCWSTR::null(), 0));
+        let session = Handle(WinHttpOpen(
+            &agent,
+            WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
+            PCWSTR::null(),
+            PCWSTR::null(),
+            0,
+        ));
         if session.0.is_null() {
             return None;
         }
         WinHttpSetTimeouts(session.0, 15_000, 15_000, 15_000, 15_000).ok()?;
-        let connect = Handle(WinHttpConnect(session.0, &HSTRING::from(HOST), INTERNET_DEFAULT_HTTPS_PORT, 0));
+        let connect = Handle(WinHttpConnect(
+            session.0,
+            &HSTRING::from(HOST),
+            INTERNET_DEFAULT_HTTPS_PORT,
+            0,
+        ));
         if connect.0.is_null() {
             return None;
         }
-        let request = Handle(WinHttpOpenRequest(connect.0, &HSTRING::from("GET"), &HSTRING::from(PATH), PCWSTR::null(), PCWSTR::null(), std::ptr::null(), WINHTTP_FLAG_SECURE | WINHTTP_FLAG_REFRESH));
+        let request = Handle(WinHttpOpenRequest(
+            connect.0,
+            &HSTRING::from("GET"),
+            &HSTRING::from(PATH),
+            PCWSTR::null(),
+            PCWSTR::null(),
+            std::ptr::null(),
+            WINHTTP_FLAG_SECURE | WINHTTP_FLAG_REFRESH,
+        ));
         if request.0.is_null() {
             return None;
         }
         let never = WINHTTP_OPTION_REDIRECT_POLICY_NEVER.to_le_bytes();
-        WinHttpSetOption(Some(request.0), WINHTTP_OPTION_REDIRECT_POLICY, Some(&never)).ok()?;
+        WinHttpSetOption(
+            Some(request.0),
+            WINHTTP_OPTION_REDIRECT_POLICY,
+            Some(&never),
+        )
+        .ok()?;
         let no_cookies = WINHTTP_DISABLE_COOKIES.to_le_bytes();
-        WinHttpSetOption(Some(request.0), WINHTTP_OPTION_DISABLE_FEATURE, Some(&no_cookies)).ok()?;
+        WinHttpSetOption(
+            Some(request.0),
+            WINHTTP_OPTION_DISABLE_FEATURE,
+            Some(&no_cookies),
+        )
+        .ok()?;
         WinHttpSendRequest(request.0, None, None, 0, 0, 0).ok()?;
         WinHttpReceiveResponse(request.0, std::ptr::null_mut()).ok()?;
         let mut status = 0u32;
         let mut size = 4u32;
-        WinHttpQueryHeaders(request.0, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, PCWSTR::null(), Some((&mut status as *mut u32).cast()), &mut size, std::ptr::null_mut()).ok()?;
+        WinHttpQueryHeaders(
+            request.0,
+            WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER,
+            PCWSTR::null(),
+            Some((&mut status as *mut u32).cast()),
+            &mut size,
+            std::ptr::null_mut(),
+        )
+        .ok()?;
         if status != 200 {
             return None;
         }
@@ -81,7 +122,13 @@ fn get() -> Option<Vec<u8>> {
         let mut buffer = vec![0u8; 16 << 10];
         loop {
             let mut read = 0u32;
-            WinHttpReadData(request.0, buffer.as_mut_ptr().cast(), buffer.len() as u32, &mut read).ok()?;
+            WinHttpReadData(
+                request.0,
+                buffer.as_mut_ptr().cast(),
+                buffer.len() as u32,
+                &mut read,
+            )
+            .ok()?;
             if read == 0 {
                 break;
             }

@@ -16,24 +16,42 @@ pub fn dropfiles(bytes: &[u8]) -> Vec<String> {
     };
     let list = bytes.get(offset as usize..).unwrap_or_default();
     let strings: Vec<String> = if wide != 0 {
-        let units: Vec<u16> = list.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
-        units.split(|&u| u == 0).map(String::from_utf16_lossy).collect()
+        let units: Vec<u16> = list
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .map(|c| u16::from_le_bytes(*c))
+            .collect();
+        units
+            .split(|&u| u == 0)
+            .map(String::from_utf16_lossy)
+            .collect()
     } else {
-        list.split(|&b| b == 0).map(|s| String::from_utf8_lossy(s).into_owned()).collect()
+        list.split(|&b| b == 0)
+            .map(|s| String::from_utf8_lossy(s).into_owned())
+            .collect()
     };
     strings.into_iter().take_while(|s| !s.is_empty()).collect()
 }
 
 /// A nul-terminated UTF-16 string, as CF_UNICODETEXT and URL formats carry.
 pub fn wide_string(bytes: &[u8]) -> String {
-    let units: Vec<u16> = bytes.as_chunks::<2>().0.iter().map(|c| u16::from_le_bytes(*c)).collect();
+    let units: Vec<u16> = bytes
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|c| u16::from_le_bytes(*c))
+        .collect();
     let end = units.iter().position(|&u| u == 0).unwrap_or(units.len());
     String::from_utf16_lossy(&units[..end])
 }
 
 /// The UTF-16LE bytes, nul-terminated, for setting a wide string format.
 pub fn wide_bytes(text: &str) -> Vec<u8> {
-    text.encode_utf16().chain([0]).flat_map(u16::to_le_bytes).collect()
+    text.encode_utf16()
+        .chain([0])
+        .flat_map(u16::to_le_bytes)
+        .collect()
 }
 
 /// Size of FILEDESCRIPTORW, packed: flags, clsid, sizel, pointl,
@@ -76,7 +94,11 @@ pub fn virtual_files(bytes: &[u8]) -> Vec<VirtualFile> {
                 high << 32 | low
             });
             let name = safe_name(&wide_string(&descriptor[NAME_OFFSET..]))?;
-            Some(VirtualFile { index: i as i32, name, size })
+            Some(VirtualFile {
+                index: i as i32,
+                name,
+                size,
+            })
         })
         .collect()
 }
@@ -87,7 +109,13 @@ pub fn safe_name(name: &str) -> Option<String> {
     let last = name.rsplit(['\\', '/']).next().unwrap_or(name);
     let cleaned: String = last
         .chars()
-        .map(|c| if c < ' ' || "<>:\"|?*".contains(c) { '_' } else { c })
+        .map(|c| {
+            if c < ' ' || "<>:\"|?*".contains(c) {
+                '_'
+            } else {
+                c
+            }
+        })
         .collect();
     let cleaned = cleaned.trim().trim_end_matches('.').to_string();
     (!cleaned.is_empty() && cleaned != "..").then_some(cleaned)
@@ -100,8 +128,16 @@ pub fn dib_to_png(dib: &[u8]) -> Option<Vec<u8>> {
     let compression = u32_at(dib, 16)?;
     let used = u32_at(dib, 32).unwrap_or(0) as usize;
     // BI_BITFIELDS with a plain BITMAPINFOHEADER puts three masks after it.
-    let masks = if header == 40 && compression == 3 { 12 } else { 0 };
-    let colors = if bits <= 8 && used == 0 { 1 << bits } else { used };
+    let masks = if header == 40 && compression == 3 {
+        12
+    } else {
+        0
+    };
+    let colors = if bits <= 8 && used == 0 {
+        1 << bits
+    } else {
+        used
+    };
     let palette = colors * 4;
     let offset = 14 + header + masks + palette;
     let mut file = Vec::with_capacity(14 + dib.len());
@@ -110,7 +146,9 @@ pub fn dib_to_png(dib: &[u8]) -> Option<Vec<u8>> {
     file.extend_from_slice(&[0; 4]);
     file.extend_from_slice(&(offset as u32).to_le_bytes());
     file.extend_from_slice(dib);
-    let mut image = image::load_from_memory_with_format(&file, image::ImageFormat::Bmp).ok()?.to_rgba8();
+    let mut image = image::load_from_memory_with_format(&file, image::ImageFormat::Bmp)
+        .ok()?
+        .to_rgba8();
     // Many apps leave the alpha byte of 32-bit DIBs at zero.
     if image.pixels().all(|p| p[3] == 0) {
         image.pixels_mut().for_each(|p| p[3] = 255);
@@ -158,8 +196,18 @@ mod tests {
             bytes.extend(d);
         }
         let found = virtual_files(&bytes);
-        let names: Vec<_> = found.iter().map(|f| (f.index, f.name.as_str(), f.size)).collect();
-        assert_eq!(names, [(0, "photo.jpg", Some(7)), (2, "re_port_.pdf", None), (3, "notes.txt", None)]);
+        let names: Vec<_> = found
+            .iter()
+            .map(|f| (f.index, f.name.as_str(), f.size))
+            .collect();
+        assert_eq!(
+            names,
+            [
+                (0, "photo.jpg", Some(7)),
+                (2, "re_port_.pdf", None),
+                (3, "notes.txt", None)
+            ]
+        );
     }
 
     #[test]
@@ -171,7 +219,10 @@ mod tests {
 
     #[test]
     fn wide_strings_stop_at_the_nul() {
-        assert_eq!(wide_string(&wide_bytes("https://example.com")), "https://example.com");
+        assert_eq!(
+            wide_string(&wide_bytes("https://example.com")),
+            "https://example.com"
+        );
         let mut odd = wide_bytes("hi");
         odd.extend([b'x']);
         assert_eq!(wide_string(&odd), "hi");

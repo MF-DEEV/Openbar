@@ -95,8 +95,16 @@ impl Entry {
                 let (prefix, cut) = prefix(&self.text, PREVIEW_CHARACTERS);
                 let collapsed = prefix.replace("\r\n", " ").replace(['\n', '\r', '\t'], " ");
                 let collapsed = collapsed.trim();
-                let visible = if collapsed.is_empty() { prefix } else { collapsed };
-                if cut { format!("{visible}…") } else { visible.to_string() }
+                let visible = if collapsed.is_empty() {
+                    prefix
+                } else {
+                    collapsed
+                };
+                if cut {
+                    format!("{visible}…")
+                } else {
+                    visible.to_string()
+                }
             }
             Kind::Image => self.dimensions(),
             Kind::Files => self.file_names().join(", "),
@@ -110,10 +118,17 @@ impl Entry {
             return self.preview();
         }
         let (prefix, cut) = prefix(&self.text, PREVIEW_CHARACTERS);
-        let spaced = prefix.replace("\r\n", "\n").replace('\r', "\n").replace('\t', " ");
+        let spaced = prefix
+            .replace("\r\n", "\n")
+            .replace('\r', "\n")
+            .replace('\t', " ");
         let spaced = spaced.trim();
         let visible = if spaced.is_empty() { prefix } else { spaced };
-        if cut { format!("{visible}…") } else { visible.to_string() }
+        if cut {
+            format!("{visible}…")
+        } else {
+            visible.to_string()
+        }
     }
 
     pub fn dimensions(&self) -> String {
@@ -153,7 +168,12 @@ fn prefix(text: &str, n: usize) -> (&str, bool) {
 #[derive(Clone, Debug, PartialEq)]
 pub enum Content {
     Text(String),
-    Image { png: Vec<u8>, hash: String, width: u32, height: u32 },
+    Image {
+        png: Vec<u8>,
+        hash: String,
+        width: u32,
+        height: u32,
+    },
     Files(Vec<String>),
 }
 
@@ -174,7 +194,11 @@ pub fn sanitized_limit(value: i64) -> i64 {
 }
 
 pub fn sanitized_retention(value: i64) -> i64 {
-    if RETENTION_DAYS.contains(&value) { value } else { 0 }
+    if RETENTION_DAYS.contains(&value) {
+        value
+    } else {
+        0
+    }
 }
 
 /// Pinned entries first, then recent ones, each group in its own order.
@@ -186,7 +210,13 @@ pub fn normalized(entries: Vec<Entry>) -> Vec<Entry> {
 /// Pinned entries never expire and sit outside the limit; recent ones keep
 /// the newest `limit` (0 = all) copied within `retention_days` (0 = forever),
 /// and all text stays within `text_bytes` (`retainedEntries`, CHSup:335-364).
-pub fn retained(entries: &[Entry], limit: i64, retention_days: i64, now: i64, text_bytes: usize) -> Vec<Entry> {
+pub fn retained(
+    entries: &[Entry],
+    limit: i64,
+    retention_days: i64,
+    now: i64,
+    text_bytes: usize,
+) -> Vec<Entry> {
     let mut remaining = text_bytes;
     let mut keep = |candidates: Vec<&Entry>, limit: Option<usize>| {
         let mut out = Vec::new();
@@ -194,7 +224,11 @@ pub fn retained(entries: &[Entry], limit: i64, retention_days: i64, now: i64, te
             if limit.is_some_and(|l| out.len() >= l) {
                 break;
             }
-            let bytes = if entry.kind == Kind::Text { entry.text.len() } else { 0 };
+            let bytes = if entry.kind == Kind::Text {
+                entry.text.len()
+            } else {
+                0
+            };
             if bytes > remaining {
                 continue;
             }
@@ -222,7 +256,10 @@ pub struct History {
 
 impl History {
     fn first_recent(&self) -> usize {
-        self.entries.iter().position(|e| !e.is_pinned()).unwrap_or(self.entries.len())
+        self.entries
+            .iter()
+            .position(|e| !e.is_pinned())
+            .unwrap_or(self.entries.len())
     }
 
     /// A new copy, or an old one copied again, lands on top of the recent
@@ -236,23 +273,45 @@ impl History {
         now: i64,
         store_image: impl FnOnce(&[u8]) -> Option<String>,
     ) -> Option<String> {
-        let existing = self.entries.iter().position(|e| e.matches(&content)).map(|i| self.entries.remove(i));
+        let existing = self
+            .entries
+            .iter()
+            .position(|e| e.matches(&content))
+            .map(|i| self.entries.remove(i));
         let mut entry = match (existing, content) {
-            (Some(old), _) => Entry { copied_at: now, ..old },
+            (Some(old), _) => Entry {
+                copied_at: now,
+                ..old
+            },
             (None, Content::Text(text)) => blank(text, Kind::Text, now),
-            (None, Content::Image { png, hash, width, height }) => Entry {
+            (
+                None,
+                Content::Image {
+                    png,
+                    hash,
+                    width,
+                    height,
+                },
+            ) => Entry {
                 image_file: Some(store_image(&png)?),
                 image_hash: Some(hash),
                 image_width: Some(width),
                 image_height: Some(height),
                 ..blank(String::new(), Kind::Image, now)
             },
-            (None, Content::Files(paths)) => Entry { file_paths: paths, ..blank(String::new(), Kind::Files, now) },
+            (None, Content::Files(paths)) => Entry {
+                file_paths: paths,
+                ..blank(String::new(), Kind::Files, now)
+            },
         };
         entry.source_exe = source.exe;
         entry.source_name = source.name;
         let id = entry.id.clone();
-        let at = if entry.is_pinned() { 0 } else { self.first_recent() };
+        let at = if entry.is_pinned() {
+            0
+        } else {
+            self.first_recent()
+        };
         self.entries.insert(at, entry);
         self.entries = normalized(std::mem::take(&mut self.entries));
         Some(id)
@@ -261,10 +320,16 @@ impl History {
     /// Copying an entry back counts as using it: a recent one moves to the
     /// top of the recent list (`touch`, CHS:278-307).
     pub fn touch(&mut self, id: &str, now: i64) -> bool {
-        let Some(index) = self.entries.iter().position(|e| e.id == id) else { return false };
+        let Some(index) = self.entries.iter().position(|e| e.id == id) else {
+            return false;
+        };
         let mut entry = self.entries.remove(index);
         entry.copied_at = now;
-        let at = if entry.is_pinned() { index } else { self.first_recent() };
+        let at = if entry.is_pinned() {
+            index
+        } else {
+            self.first_recent()
+        };
         self.entries.insert(at, entry);
         true
     }
@@ -272,7 +337,9 @@ impl History {
     /// A pin goes to the top of the pins; an unpinned entry to the top of the
     /// recent ones, dated now so retention doesn't drop it on the spot (CHS:309-346).
     pub fn toggle_pin(&mut self, id: &str, now: i64) -> bool {
-        let Some(index) = self.entries.iter().position(|e| e.id == id) else { return false };
+        let Some(index) = self.entries.iter().position(|e| e.id == id) else {
+            return false;
+        };
         let mut entry = self.entries.remove(index);
         if entry.is_pinned() {
             entry.pinned_at = None;
@@ -296,14 +363,22 @@ impl History {
     fn move_destination(&self, id: &str, up: bool) -> Option<(usize, usize)> {
         let from = self.entries.iter().position(|e| e.id == id)?;
         let pinned = self.entries[from].is_pinned();
-        let group: Vec<usize> = (0..self.entries.len()).filter(|&i| self.entries[i].is_pinned() == pinned).collect();
+        let group: Vec<usize> = (0..self.entries.len())
+            .filter(|&i| self.entries[i].is_pinned() == pinned)
+            .collect();
         let at = group.iter().position(|&i| i == from)?;
-        let to = if up { group.get(at.checked_sub(1)?)? } else { group.get(at + 1)? };
+        let to = if up {
+            group.get(at.checked_sub(1)?)?
+        } else {
+            group.get(at + 1)?
+        };
         Some((from, *to))
     }
 
     pub fn move_entry(&mut self, id: &str, up: bool) -> bool {
-        let Some((from, to)) = self.move_destination(id, up) else { return false };
+        let Some((from, to)) = self.move_destination(id, up) else {
+            return false;
+        };
         self.entries.swap(from, to);
         true
     }
@@ -312,13 +387,20 @@ impl History {
     /// were then: a copy that lands while it was open survives (CHS:382-386).
     pub fn clear_recent(&mut self, confirmed: &HashMap<String, i64>) -> bool {
         let before = self.entries.len();
-        self.entries.retain(|e| e.is_pinned() || confirmed.get(&e.id) != Some(&e.copied_at));
+        self.entries
+            .retain(|e| e.is_pinned() || confirmed.get(&e.id) != Some(&e.copied_at));
         self.entries.len() != before
     }
 
     /// Applies the limit and retention; true when anything was dropped.
     pub fn trim(&mut self, limit: i64, retention_days: i64, now: i64) -> bool {
-        let next = retained(&self.entries, limit, retention_days, now, MAX_STORED_TEXT_BYTES);
+        let next = retained(
+            &self.entries,
+            limit,
+            retention_days,
+            now,
+            MAX_STORED_TEXT_BYTES,
+        );
         let changed = next.len() != self.entries.len();
         self.entries = next;
         changed
@@ -353,8 +435,12 @@ fn blank(text: String, kind: Kind, now: i64) -> Entry {
 /// hand-edited file can't point the history elsewhere.
 pub fn decode(bytes: &[u8]) -> Option<Vec<Entry>> {
     let text = std::str::from_utf8(bytes).ok()?;
-    let values: Vec<serde_json::Value> = serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()?;
-    let mut entries: Vec<Entry> = values.into_iter().filter_map(|v| serde_json::from_value(v).ok()).collect();
+    let values: Vec<serde_json::Value> =
+        serde_json::from_str(text.trim_start_matches('\u{feff}')).ok()?;
+    let mut entries: Vec<Entry> = values
+        .into_iter()
+        .filter_map(|v| serde_json::from_value(v).ok())
+        .collect();
     for entry in &mut entries {
         if entry
             .image_file
@@ -435,8 +521,15 @@ mod tests {
     fn copying_again_refreshes_the_entry_instead_of_duplicating_it() {
         let mut h = history(&["a", "b", "c"]);
         let id = h.entries.iter().find(|e| e.text == "a").unwrap().id.clone();
-        let source = Source { exe: Some(r"C:\app.exe".into()), name: Some("App".into()) };
-        assert_eq!(h.promote(text("a"), source.clone(), 10, |_| None).as_deref(), Some(id.as_str()));
+        let source = Source {
+            exe: Some(r"C:\app.exe".into()),
+            name: Some("App".into()),
+        };
+        assert_eq!(
+            h.promote(text("a"), source.clone(), 10, |_| None)
+                .as_deref(),
+            Some(id.as_str())
+        );
         assert_eq!(texts(&h), ["a", "c", "b"]);
         assert_eq!(h.entries[0].copied_at, 10);
         assert_eq!(h.entries[0].source_exe, source.exe);
@@ -458,10 +551,21 @@ mod tests {
     #[test]
     fn images_match_by_hash_and_files_by_their_paths() {
         let mut h = History::default();
-        let image = |hash: &str| Content::Image { png: vec![1], hash: hash.into(), width: 2, height: 3 };
+        let image = |hash: &str| Content::Image {
+            png: vec![1],
+            hash: hash.into(),
+            width: 2,
+            height: 3,
+        };
         let mut stored = 0;
-        h.promote(image("x"), Source::default(), 1, |_| { stored += 1; Some("x.png".into()) });
-        h.promote(image("x"), Source::default(), 2, |_| { stored += 1; Some("y.png".into()) });
+        h.promote(image("x"), Source::default(), 1, |_| {
+            stored += 1;
+            Some("x.png".into())
+        });
+        h.promote(image("x"), Source::default(), 2, |_| {
+            stored += 1;
+            Some("y.png".into())
+        });
         assert_eq!((h.entries.len(), stored), (1, 1));
         assert_eq!(h.entries[0].image_file.as_deref(), Some("x.png"));
         // A picture that couldn't be saved isn't recorded.
@@ -517,7 +621,10 @@ mod tests {
         assert_eq!(texts(&h), ["a", "b"]);
         h.toggle_pin(&a, 42);
         assert_eq!(texts(&h), ["a", "b"]);
-        assert_eq!((h.entries[0].is_pinned(), h.entries[0].copied_at), (false, 42));
+        assert_eq!(
+            (h.entries[0].is_pinned(), h.entries[0].copied_at),
+            (false, 42)
+        );
     }
 
     #[test]
@@ -559,7 +666,12 @@ mod tests {
         let mut h = history(&["a", "b", "c"]);
         let c = h.entries[0].id.clone();
         h.toggle_pin(&c, 0);
-        let confirmed: HashMap<_, _> = h.entries.iter().filter(|e| !e.is_pinned()).map(|e| (e.id.clone(), e.copied_at)).collect();
+        let confirmed: HashMap<_, _> = h
+            .entries
+            .iter()
+            .filter(|e| !e.is_pinned())
+            .map(|e| (e.id.clone(), e.copied_at))
+            .collect();
         // "a" is copied again while the confirmation is open.
         h.promote(text("a"), Source::default(), 50, |_| None);
         assert!(h.clear_recent(&confirmed));
@@ -569,18 +681,37 @@ mod tests {
     #[test]
     fn history_json_round_trips_and_tolerates_old_or_hostile_files() {
         let mut h = history(&["a"]);
-        h.promote(Content::Files(vec![r"C:\x.txt".into()]), Source { exe: Some("e".into()), name: None }, 3, |_| None);
+        h.promote(
+            Content::Files(vec![r"C:\x.txt".into()]),
+            Source {
+                exe: Some("e".into()),
+                name: None,
+            },
+            3,
+            |_| None,
+        );
         let id = h.entries[0].id.clone();
         h.toggle_pin(&id, 9);
         let bytes = encode(&h.entries);
         assert_eq!(decode(&bytes).unwrap(), h.entries);
         let json = String::from_utf8(bytes).unwrap();
-        assert!(json.contains("\"copiedAt\"") && json.contains("\"pinnedAt\":9") && json.contains("\"filePaths\""));
+        assert!(
+            json.contains("\"copiedAt\"")
+                && json.contains("\"pinnedAt\":9")
+                && json.contains("\"filePaths\"")
+        );
         // A minimal older entry decodes as text; a path in place of a file name is dropped.
         let old = br#"[{"text":"hi"},{"text":"","kind":"image","imageFile":"..\\..\\secret.png"}]"#;
         let decoded = decode(old).unwrap();
         assert_eq!(decoded.len(), 1);
-        assert_eq!((decoded[0].kind, decoded[0].text.as_str(), decoded[0].id.len()), (Kind::Text, "hi", 32));
+        assert_eq!(
+            (
+                decoded[0].kind,
+                decoded[0].text.as_str(),
+                decoded[0].id.len()
+            ),
+            (Kind::Text, "hi", 32)
+        );
         assert!(decode(b"{not json").is_none());
         // One unreadable entry costs only itself.
         let mixed = br#"[{"text":"keep"},{"text":"x","kind":"video"},{"text":"y","copiedAt":1.5e12},{"text":"","kind":"image","imageFile":".png"}]"#;
