@@ -313,7 +313,7 @@ final class ClaudeSessionService: ObservableObject {
     /// With nil it turns over.
     func setAutoAllow(_ id: String, _ on: Bool? = nil) {
         queue.async { [self] in
-            guard autoAllow.set(id, on: on, session: latest.first { $0.id == id }) else { return }
+            guard autoAllow.set(id, on: on, session: latest.first { $0.id == id }, now: Date()) else { return }
             publish(now: Date())
         }
     }
@@ -334,8 +334,9 @@ final class ClaudeSessionService: ObservableObject {
             queue.async { [self] in
                 let sent = codex?.reply(session.id, text: reply, images: images) ?? false
                 if sent { codex?.acknowledge(session.id, now: Date()) }
-                // Refused while it waits on a prompt; otherwise Codex couldn't be reached.
-                let waiting = published.first { $0.id == session.id }.map { $0.phase.isWaiting || $0.waitingFor != nil } ?? false
+                // Refused while it waits on a prompt, one Always answers too;
+                // otherwise Codex couldn't be reached.
+                let waiting = latest.first { $0.id == session.id }.map { $0.phase.isWaiting || $0.waitingFor != nil } ?? false
                 finishSend(sent ? nil : (waiting ? .waiting : .unreachable), session: session, completion: completion)
             }
             return
@@ -654,7 +655,8 @@ final class ClaudeSessionService: ObservableObject {
         let sorted = NotchClaudeSessionsSupport.sorted(claude + codexSessions)
         let shown = autoAllowing(sorted, now: now)
         let allowed = autoAllow.sessions
-        let hidden = Set(sorted.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed) }.map(\.id))
+        let hidden = Set(sorted.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed, now: now) }
+            .map(\.id))
         let events = (snapshot.events + fromCodex.events).filter { NotchClaudeSessionsSupport.shows($0, hidden: hidden) }
         let changed = shown != published || allowed != publishedAutoAllow
         published = shown
@@ -699,14 +701,17 @@ final class ClaudeSessionService: ObservableObject {
             autoAllowWork[answer.id] = work
             queue.asyncAfter(deadline: .now() + answer.after, execute: work)
         }
-        return NotchClaudeSessionsSupport.presented(sessions, autoAllowed: autoAllow.sessions)
+        return NotchClaudeSessionsSupport.presented(sessions, autoAllowed: autoAllow.sessions, now: now)
     }
 
     /// Allows a request Always covers, if it still waits and Always still holds.
     private func autoAllowNow(_ id: String, request: String) {
         autoAllowWork[id] = nil
-        guard timer != nil, let codex, autoAllow.fire(id, request: request, in: latest) else { return }
-        if !codex.answer(id, requestID: request, answer: .allow) { autoAllow.failed(id) }
+        guard timer != nil, let codex, autoAllow.fire(id, request: request, in: latest, now: Date()) else { return }
+        // One answered in the terminal meanwhile is no failure; one Codex refused ends Always.
+        if !codex.answer(id, requestID: request, answer: .allow), codex.waits(id, requestID: request) {
+            autoAllow.failed(id)
+        }
         publish(now: Date())
     }
 

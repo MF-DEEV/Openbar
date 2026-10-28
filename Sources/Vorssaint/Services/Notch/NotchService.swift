@@ -138,8 +138,8 @@ final class NotchService: ObservableObject {
     /// True when macOS refused the island's own shortcut, so Settings can say so.
     @Published private(set) var shortcutRegistrationFailed = false
     private let hotkey = QuickToolHotkey(id: 81)
-    /// ⌘Y and ⌘N answer a request on screen from any app, held only while
-    /// one shows and the island does not have the keyboard itself.
+    /// ⌘Y, ⌘N and ⌘T answer a request on screen from any app, held only
+    /// while one shows and the island does not have the keyboard itself.
     private let sessionAllowKey = QuickToolHotkey(id: 82)
     private let sessionDenyKey = QuickToolHotkey(id: 83)
     private let sessionAlwaysKey = QuickToolHotkey(id: 84)
@@ -1944,13 +1944,15 @@ final class NotchService: ObservableObject {
 
     /// ⌘Y allows and ⌘N denies the permission of the session whose page is
     /// open, or of the first session waiting on one; ⌘T picks Always where
-    /// the card offers it. A question is answered on its card; ⌘N skips it
+    /// the open page's card offers it. A question is answered on its card; ⌘N skips it
     /// only there, where it can be read.
     private func handleSessionKey(_ event: NSEvent) -> Bool {
         guard let decision = NotchClaudeSessionsSupport.decision(
                   key: event.charactersIgnoringModifiers,
                   commandOnly: event.modifierFlags.intersection([.command, .control, .option, .shift]) == .command)
         else { return false }
+        // ⌘T held down turns Always over once, not on and off as it repeats.
+        if event.isARepeat, decision == .allowAlways { return sessionKeyRequest(for: decision) != nil }
         return answerSessionRequest(decision)
     }
 
@@ -1966,8 +1968,10 @@ final class NotchService: ObservableObject {
         guard let target = focused ?? sessions.sessions.first(where: { $0.permission.map { !$0.asksQuestions } ?? false }),
               let permission = target.permission,
               !(permission.asksQuestions && decision != .deny),
-              // Always is on Codex's card for its turn, on Claude Code's where it offers rules.
-              decision != .allowAlways || target.provider == .codex || permission.offersAlways else { return nil }
+              // Always shows only on the open page's card: Codex's for its turn,
+              // Claude Code's where it offers rules.
+              decision != .allowAlways || (focused != nil && (target.provider == .codex || permission.offersAlways))
+        else { return nil }
         return (target.id, permission.requestID, target.provider)
     }
 

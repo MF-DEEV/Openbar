@@ -13,6 +13,7 @@ enum NotchSessionAutoAllowTests {
         suite.run("session always waits and answers once") { answers(suite) }
         suite.run("session always ends with the turn") { ends(suite) }
         suite.run("session always lets go of answers no longer due") { cancels(suite) }
+        suite.run("session always edges") { edges(suite) }
         suite.run("session always key") { key(suite) }
     }
 
@@ -21,7 +22,7 @@ enum NotchSessionAutoAllowTests {
     static func codex(_ phase: ClaudeSessionPhase = .waitingPermission, id: String = "c", request: String? = "r1",
                       questions: Bool = false, turn: Date? = NotchSessionAutoAllowTests.turn) -> ClaudeSession {
         var session = NotchSessionAgentTests.session(id, phase, provider: .codex)
-        session.phaseSince = Date(timeIntervalSinceReferenceDate: 200)
+        session.phaseSince = at(0)
         session.turnStarted = turn
         session.permission = request.map {
             var permission = ClaudePermission(requestID: $0, tool: "Command", summary: nil, offersAlways: true,
@@ -36,21 +37,24 @@ enum NotchSessionAutoAllowTests {
 
     static func hides(_ suite: TestSuite) {
         let on: Set<String> = ["c"]
-        suite.expect(NotchClaudeSessionsSupport.hidesAutoApproval(codex(), autoAllowed: on), "a Codex request it covers")
-        suite.expect(NotchClaudeSessionsSupport.hidesAutoApproval(codex(request: nil), autoAllowed: on),
+        suite.expect(NotchClaudeSessionsSupport.hidesAutoApproval(codex(), autoAllowed: on, now: at(1)),
+                     "a Codex request it covers")
+        suite.expect(NotchClaudeSessionsSupport.hidesAutoApproval(codex(request: nil), autoAllowed: on, now: at(1)),
                      "and the moments Codex says it waits with no request listed")
-        suite.expect(!NotchClaudeSessionsSupport.hidesAutoApproval(codex(), autoAllowed: []), "not without Always")
-        suite.expect(!NotchClaudeSessionsSupport.hidesAutoApproval(codex(questions: true), autoAllowed: on),
+        suite.expect(!NotchClaudeSessionsSupport.hidesAutoApproval(codex(), autoAllowed: [], now: at(1)),
+                     "not without Always")
+        suite.expect(!NotchClaudeSessionsSupport.hidesAutoApproval(codex(questions: true), autoAllowed: on, now: at(1)),
                      "a question still waits for an answer")
         var terminal = codex(request: nil)
         terminal.waitingFor = CodexSessionState.answerInTerminal
-        suite.expect(!NotchClaudeSessionsSupport.hidesAutoApproval(terminal, autoAllowed: on),
+        suite.expect(!NotchClaudeSessionsSupport.hidesAutoApproval(terminal, autoAllowed: on, now: at(1)),
                      "a request only the terminal answers still shows")
         var claude = codex()
         claude.provider = .claude
-        suite.expect(!NotchClaudeSessionsSupport.hidesAutoApproval(claude, autoAllowed: on), "Claude Code's never")
-        suite.expect(NotchClaudeSessionsSupport.autoAllowRequest(codex(), autoAllowed: on) == "r1"
-                     && NotchClaudeSessionsSupport.autoAllowRequest(codex(request: nil), autoAllowed: on) == nil,
+        suite.expect(!NotchClaudeSessionsSupport.hidesAutoApproval(claude, autoAllowed: on, now: at(1)),
+                     "Claude Code's never")
+        suite.expect(NotchClaudeSessionsSupport.autoAllowRequest(codex(), autoAllowed: on, now: at(1)) == "r1"
+                     && NotchClaudeSessionsSupport.autoAllowRequest(codex(request: nil), autoAllowed: on, now: at(1)) == nil,
                      "only a listed request is answered")
         suite.expect(!NotchClaudeSessionsSupport.shows(.needsPermission(id: "c", tool: "Codex"), hidden: ["c"])
                      && NotchClaudeSessionsSupport.shows(.needsPermission(id: "d", tool: "Codex"), hidden: ["c"])
@@ -63,7 +67,7 @@ enum NotchSessionAutoAllowTests {
         other.permission = ClaudePermission(requestID: "x", tool: "Bash", summary: nil, offersAlways: false,
                                             since: other.phaseSince)
         let raw = [codex(), other]
-        let shown = NotchClaudeSessionsSupport.presented(raw, autoAllowed: ["c"])
+        let shown = NotchClaudeSessionsSupport.presented(raw, autoAllowed: ["c"], now: at(1))
         let hidden = shown.first { $0.id == "c" }
         suite.expect(hidden?.phase == .generating && hidden?.permission == nil && hidden?.waitingFor == nil,
                      "the session is shown at work, with no card: \(String(describing: hidden?.phase))")
@@ -75,24 +79,28 @@ enum NotchSessionAutoAllowTests {
         suite.expect(raw[0].permission?.requestID == "r1", "the request itself stays as it came")
         var running = codex()
         running.currentTool = ClaudeToolUse(id: "t", name: "Command", started: turn)
-        suite.expect(NotchClaudeSessionsSupport.presented([running], autoAllowed: ["c"]).first?.phase == .runningTool,
+        suite.expect(NotchClaudeSessionsSupport.presented([running], autoAllowed: ["c"], now: at(1)).first?.phase
+                     == .runningTool,
                      "with its command under way it runs a tool")
-        suite.expect(NotchClaudeSessionsSupport.presented(raw, autoAllowed: []) == raw, "without Always nothing changes")
+        suite.expect(NotchClaudeSessionsSupport.presented(raw, autoAllowed: [], now: at(1)) == raw,
+                     "without Always nothing changes")
     }
 
     static func turnsOn(_ suite: TestSuite) {
         var always = NotchSessionAutoAllow()
-        suite.expect(!always.set("c", on: nil, session: nil), "a session the island does not list")
-        suite.expect(!always.set("c", on: nil, session: codex(.idle, request: nil)), "an idle one")
-        suite.expect(!always.set("c", on: nil, session: codex(.finished, request: nil)), "a finished one")
+        suite.expect(!always.set("c", on: nil, session: nil, now: at(0)), "a session the island does not list")
+        suite.expect(!always.set("c", on: nil, session: codex(.idle, request: nil), now: at(0)), "an idle one")
+        suite.expect(!always.set("c", on: nil, session: codex(.finished, request: nil), now: at(0)), "a finished one")
         var claude = codex()
         claude.provider = .claude
-        suite.expect(!always.set("c", on: nil, session: claude), "or Claude Code's")
+        suite.expect(!always.set("c", on: nil, session: claude, now: at(0)), "or Claude Code's")
         suite.expect(always.sessions.isEmpty, "none of them gets Always")
-        suite.expect(always.set("c", on: nil, session: codex(.generating, request: nil)), "a Codex session at work does")
-        suite.expect(always.set("c", on: nil, session: codex()) && always.sessions.isEmpty, "pressed again, it stops")
-        suite.expect(!always.set("c", on: false, session: codex()), "turning off what is off changes nothing")
-        suite.expect(always.set("c", on: true, session: codex()) && !always.set("c", on: true, session: codex()),
+        suite.expect(always.set("c", on: nil, session: codex(.generating, request: nil), now: at(0)),
+                     "a Codex session at work does")
+        suite.expect(always.set("c", on: nil, session: codex(), now: at(0)) && always.sessions.isEmpty, "pressed again, it stops")
+        suite.expect(!always.set("c", on: false, session: codex(), now: at(0)), "turning off what is off changes nothing")
+        suite.expect(always.set("c", on: true, session: codex(), now: at(0))
+                     && !always.set("c", on: true, session: codex(), now: at(0)),
                      "nor does turning on what is on")
     }
 
@@ -100,14 +108,14 @@ enum NotchSessionAutoAllowTests {
         var always = NotchSessionAutoAllow()
         // The request came at 0 and is still settling when Always comes on.
         _ = always.update([codex()], now: at(0))
-        _ = always.set("c", on: true, session: codex())
+        _ = always.set("c", on: true, session: codex(), now: at(0))
         let plan = always.update([codex()], now: at(0.3))
         suite.expect(plan.schedule.count == 1 && plan.schedule[0].request == "r1"
                      && abs(plan.schedule[0].after - (NotchClaudeSessionsSupport.settleDelay - 0.3)) < 0.001,
                      "the request waits out the rest of the settle delay: \(plan)")
         suite.expect(always.update([codex()], now: at(0.5)) == .init(), "and is not planned twice")
-        suite.expect(always.fire("c", request: "r1", in: [codex()]), "when its time comes it is answered")
-        suite.expect(!always.fire("c", request: "r1", in: [codex()]), "once")
+        suite.expect(always.fire("c", request: "r1", in: [codex()], now: at(1)), "when its time comes it is answered")
+        suite.expect(!always.fire("c", request: "r1", in: [codex()], now: at(1)), "once")
         suite.expect(always.update([codex()], now: at(1.2)) == .init(),
                      "a request still listed after its answer is not answered again")
         let next = always.update([codex(request: "r2")], now: at(1.5))
@@ -118,18 +126,18 @@ enum NotchSessionAutoAllowTests {
 
         var late = NotchSessionAutoAllow()
         _ = late.update([codex()], now: at(0))
-        _ = late.set("c", on: true, session: codex())
+        _ = late.set("c", on: true, session: codex(), now: at(0))
         suite.expect(late.update([codex()], now: at(5)).schedule.first?.after == 0,
                      "Always given on the card answers the request on it at once")
         late.failed("c")
         suite.expect(late.sessions.isEmpty, "an answer Codex did not take ends Always")
-        suite.expect(!late.fire("c", request: "r1", in: [codex()]), "and nothing more is sent")
+        suite.expect(!late.fire("c", request: "r1", in: [codex()], now: at(1)), "and nothing more is sent")
     }
 
     static func ends(_ suite: TestSuite) {
         func given(_ session: ClaudeSession = codex()) -> NotchSessionAutoAllow {
             var always = NotchSessionAutoAllow()
-            _ = always.set("c", on: true, session: session)
+            _ = always.set("c", on: true, session: session, now: at(0))
             _ = always.update([session], now: at(0))
             return always
         }
@@ -160,16 +168,70 @@ enum NotchSessionAutoAllowTests {
 
     static func cancels(_ suite: TestSuite) {
         var always = NotchSessionAutoAllow()
-        _ = always.set("c", on: true, session: codex())
+        _ = always.set("c", on: true, session: codex(), now: at(0))
         _ = always.update([codex()], now: at(0))
         suite.expect(always.update([codex(.runningTool, request: nil)], now: at(0.2)).cancel == ["c"],
                      "a request answered in the terminal lets its answer go")
-        suite.expect(!always.fire("c", request: "r1", in: [codex(.runningTool, request: nil)]),
+        suite.expect(!always.fire("c", request: "r1", in: [codex(.runningTool, request: nil)], now: at(1)),
                      "and a late one sends nothing")
         _ = always.update([codex(request: "r2")], now: at(0.4))
-        _ = always.set("c", on: false, session: codex(request: "r2"))
+        _ = always.set("c", on: false, session: codex(request: "r2"), now: at(0))
         suite.expect(always.update([codex(request: "r2")], now: at(0.5)).cancel == ["c"], "so does turning Always off")
-        suite.expect(!always.fire("c", request: "r2", in: [codex(request: "r2")]), "after which nothing is sent")
+        suite.expect(!always.fire("c", request: "r2", in: [codex(request: "r2")], now: at(1)), "after which nothing is sent")
+    }
+
+    static func edges(_ suite: TestSuite) {
+        // Codex read the thread mid-turn: the turn's start was never seen.
+        var unseen = NotchSessionAutoAllow()
+        _ = unseen.set("c", on: true, session: codex(turn: nil), now: at(0))
+        _ = unseen.update([codex(turn: nil)], now: at(1))
+        _ = unseen.update([codex(.generating, request: nil, turn: at(5))], now: at(6))
+        suite.expect(unseen.sessions.isEmpty, "the next turn, though the end of this one went unseen, takes it")
+
+        let hiddenNow = { (now: Date) in
+            NotchClaudeSessionsSupport.hidesAutoApproval(codex(request: nil), autoAllowed: ["c"], now: now)
+        }
+        suite.expect(hiddenNow(at(1)) && !hiddenNow(at(NotchClaudeSessionsSupport.statusOnlyWait + 0.1)),
+                     "a wait with no request the island holds shows again after a moment, to be answered in the terminal")
+        suite.expect(NotchClaudeSessionsSupport.hidesAutoApproval(codex(), autoAllowed: ["c"], now: at(60)),
+                     "a request it holds stays hidden until answered")
+        suite.expect(!NotchClaudeSessionsSupport.hidesAutoApproval(codex(.waitingInput), autoAllowed: ["c"], now: at(1)),
+                     "Codex waiting for input is never hidden")
+
+        // A refused answer ends Always; given again, the request is tried again.
+        var again = NotchSessionAutoAllow()
+        _ = again.set("c", on: true, session: codex(), now: at(0))
+        _ = again.update([codex()], now: at(1))
+        _ = again.fire("c", request: "r1", in: [codex()], now: at(1))
+        again.failed("c")
+        _ = again.update([codex()], now: at(2))
+        _ = again.set("c", on: true, session: codex(), now: at(3))
+        suite.expect(again.update([codex()], now: at(3)).schedule.map(\.request) == ["r1"],
+                     "Always given again answers the request it was refused for")
+
+        var two = NotchSessionAutoAllow()
+        let d = codex(id: "d", request: "r9")
+        _ = two.set("c", on: true, session: codex(), now: at(0))
+        _ = two.set("d", on: true, session: d, now: at(0))
+        suite.expect(Set(two.update([codex(), d], now: at(0)).schedule.map(\.id)) == ["c", "d"],
+                     "each session's request is planned at once")
+        _ = two.set("c", on: false, session: codex(), now: at(0.1))
+        let plan = two.update([codex(), d], now: at(0.2))
+        suite.expect(plan.cancel == ["c"] && two.sessions == ["d"] && two.scheduled == ["d": "r9"],
+                     "turning one off leaves the other's: \(plan)")
+
+        var next = NotchSessionAutoAllow()
+        _ = next.set("c", on: true, session: codex(), now: at(0))
+        _ = next.update([codex()], now: at(0))
+        let swap = next.update([codex(request: "r2")], now: at(0.4))
+        suite.expect(swap.cancel == ["c"] && swap.schedule == [.init(id: "c", request: "r2",
+                                                                   after: NotchClaudeSessionsSupport.settleDelay)],
+                     "a request replaced before its answer lets it go for the new one: \(swap)")
+        var question = codex(request: "r2")
+        question.permission?.questions = [ClaudeQuestion(question: "Which?")]
+        suite.expect(next.scheduled == ["c": "r2"], "the new request waits for its answer")
+        suite.expect(!next.fire("c", request: "r2", in: [question], now: at(1.3)),
+                     "a request that turned into a question is not allowed")
     }
 
     static func key(_ suite: TestSuite) {

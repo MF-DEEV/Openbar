@@ -429,35 +429,44 @@ enum NotchClaudeSessionsSupport {
         session.provider == .codex && session.phase != .finished && session.phase != .idle
     }
 
-    /// Whether Always, given while the turn begun at `turn` ran, still
-    /// holds: until that turn ends, the session goes, or another turn starts,
-    /// even one whose end the island missed.
-    static func keepsAutoAllow(_ session: ClaudeSession?, turn: Date?) -> Bool {
+    /// Whether Always, given at `given` while the turn begun at `turn` ran,
+    /// still holds: until that turn ends, the session goes, or another turn
+    /// starts, even one whose end the island missed. A turn whose start the
+    /// island never saw ends with the first one that starts after it.
+    static func keepsAutoAllow(_ session: ClaudeSession?, turn: Date?, given: Date) -> Bool {
         guard let session, canAutoAllow(session) else { return false }
-        return turn == nil || session.turnStarted == nil || turn == session.turnStarted
+        guard let started = session.turnStarted else { return true }
+        return turn.map { $0 == started } ?? (started <= given)
     }
+
+    /// How long Codex may say it waits with no request the island holds
+    /// before that shows as a wait again: briefly around a request it
+    /// answers, never for one only the terminal can see.
+    static let statusOnlyWait: TimeInterval = 3
 
     /// A wait Always answers, shown as the work it is: the request, and the
     /// moments around it when Codex says it waits with no request listed.
     /// Questions, and requests only the terminal can answer, still wait.
-    static func hidesAutoApproval(_ session: ClaudeSession, autoAllowed: Set<String>) -> Bool {
+    static func hidesAutoApproval(_ session: ClaudeSession, autoAllowed: Set<String>, now: Date) -> Bool {
         autoAllowed.contains(session.id) && session.provider == .codex && session.phase == .waitingPermission
             && session.waitingFor != CodexSessionState.answerInTerminal && session.permission?.asksQuestions != true
+            && (session.permission != nil || now.timeIntervalSince(session.phaseSince) < statusOnlyWait)
     }
 
     /// The request Always answers for the person, once it settled.
-    static func autoAllowRequest(_ session: ClaudeSession, autoAllowed: Set<String>) -> String? {
-        guard hidesAutoApproval(session, autoAllowed: autoAllowed) else { return nil }
+    static func autoAllowRequest(_ session: ClaudeSession, autoAllowed: Set<String>, now: Date) -> String? {
+        guard hidesAutoApproval(session, autoAllowed: autoAllowed, now: now) else { return nil }
         return session.permission?.requestID
     }
 
     /// The sessions as the island shows them: a wait Always answers is
     /// work under way, so no count, notice or card shows a request for it.
     /// What the service answers stays as it came.
-    static func presented(_ sessions: [ClaudeSession], autoAllowed: Set<String>) -> [ClaudeSession] {
-        guard sessions.contains(where: { hidesAutoApproval($0, autoAllowed: autoAllowed) }) else { return sessions }
+    static func presented(_ sessions: [ClaudeSession], autoAllowed: Set<String>, now: Date) -> [ClaudeSession] {
+        let hides = { hidesAutoApproval($0, autoAllowed: autoAllowed, now: now) }
+        guard sessions.contains(where: hides) else { return sessions }
         return sorted(sessions.map { session in
-            guard hidesAutoApproval(session, autoAllowed: autoAllowed) else { return session }
+            guard hides(session) else { return session }
             var working = session
             working.phase = session.currentTool != nil ? .runningTool : .generating
             working.phaseSince = session.turnStarted ?? session.phaseSince
@@ -519,9 +528,14 @@ enum NotchClaudeSessionsSupport {
 /// Always for Codex turns: which sessions have it, and which requests it
 /// answers and when. The service keeps one on its queue and runs what it says.
 struct NotchSessionAutoAllow {
-    /// Sessions given Always, with the turn it was given in; nil until
-    /// that turn's start is known.
-    private(set) var turns: [String: Date?] = [:]
+    struct Given: Equatable {
+        /// The turn it was given in; nil until that turn's start is known.
+        var turn: Date?
+        let at: Date
+    }
+
+    /// Sessions given Always, and when.
+    private(set) var turns: [String: Given] = [:]
     /// When each session's request first came, as long as a click or a key
     /// waits on it, so Always waits as long.
     private var seen: [String: (request: String, at: Date)] = [:]
@@ -546,11 +560,13 @@ struct NotchSessionAutoAllow {
 
     /// Turns Always on for a session at work, or off; with nil it turns
     /// over. False when nothing changed.
-    mutating func set(_ id: String, on: Bool?, session: ClaudeSession?) -> Bool {
+    mutating func set(_ id: String, on: Bool?, session: ClaudeSession?, now: Date) -> Bool {
         if on ?? (turns[id] == nil) {
             guard turns[id] == nil, let session, session.id == id, NotchClaudeSessionsSupport.canAutoAllow(session)
             else { return false }
-            turns[id] = .some(session.turnStarted)
+            turns[id] = Given(turn: session.turnStarted, at: now)
+            // A request Codex refused before is tried again, or it would stay hidden unanswered.
+            tried = tried.filter { !$0.hasPrefix(id + "\n") }
             return true
         }
         return turns.removeValue(forKey: id) != nil
@@ -566,16 +582,16 @@ struct NotchSessionAutoAllow {
         }
         let listed = Set(sessions.map(\.id))
         seen = seen.filter { listed.contains($0.key) }
-        turns = turns.filter { id, turn in
-            NotchClaudeSessionsSupport.keepsAutoAllow(sessions.first { $0.id == id }, turn: turn)
+        turns = turns.filter { id, given in
+            NotchClaudeSessionsSupport.keepsAutoAllow(sessions.first { $0.id == id }, turn: given.turn, given: given.at)
         }
-        for (id, turn) in turns where turn == nil {
-            turns[id] = .some(sessions.first { $0.id == id }?.turnStarted)
+        for (id, given) in turns where given.turn == nil {
+            turns[id]?.turn = sessions.first { $0.id == id }?.turnStarted
         }
         let allowed = self.sessions
         var due: [String: String] = [:]
         for session in sessions {
-            if let request = NotchClaudeSessionsSupport.autoAllowRequest(session, autoAllowed: allowed) {
+            if let request = NotchClaudeSessionsSupport.autoAllowRequest(session, autoAllowed: allowed, now: now) {
                 due[session.id] = request
             }
         }
@@ -598,11 +614,11 @@ struct NotchSessionAutoAllow {
 
     /// When an answer's time comes: whether the request still waits and
     /// Always still holds. One that does is not answered again.
-    mutating func fire(_ id: String, request: String, in sessions: [ClaudeSession]) -> Bool {
+    mutating func fire(_ id: String, request: String, in sessions: [ClaudeSession], now: Date) -> Bool {
         guard scheduled[id] == request else { return false }
         scheduled[id] = nil
         guard let session = sessions.first(where: { $0.id == id }),
-              NotchClaudeSessionsSupport.autoAllowRequest(session, autoAllowed: self.sessions) == request
+              NotchClaudeSessionsSupport.autoAllowRequest(session, autoAllowed: self.sessions, now: now) == request
         else { return false }
         tried.insert(Self.key(id, request))
         return true

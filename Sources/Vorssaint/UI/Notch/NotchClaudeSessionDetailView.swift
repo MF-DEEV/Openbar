@@ -398,7 +398,8 @@ struct NotchClaudeSessionPermissionCard: View {
                     NotchClaudeAutoAllowButton(session: session, text: text)
                         .disabled(settling)
                 } else if permission.offersAlways {
-                    NotchClaudeDecisionButton(title: text.alwaysAllow, symbol: "checkmark.seal", role: .secondary) {
+                    NotchClaudeDecisionButton(title: text.alwaysAllow, symbol: "checkmark.seal", role: .secondary,
+                                              help: text.alwaysAllow + " (⌘T)") {
                         service.decide(session.id, request: permission.requestID, .allowAlways)
                     }
                     .disabled(settling)
