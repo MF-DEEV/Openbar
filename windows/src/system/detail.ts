@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 // What a metric's detail reads (MetricDetailView.swift): the summary's value
-// and line, its history graph and its rows. Temperatures, memory pressure,
+// and line, its history graph and its rows. Temperatures,
 // battery health and cycles, adapter watts and the speed test have no
 // Windows source and are left out.
 
@@ -60,6 +60,21 @@ export interface Row {
   value: string;
   /** A device row's glyph. */
   bluetooth?: boolean;
+}
+
+/** Memory-only native details; missing measurements must never look like zero. */
+export function memoryDetailRows(s: SystemSnapshot): (Row & { description: string })[] {
+  const measuredBytes = (value: number | null) => (value == null ? S.metricUnavailable : bytes(value));
+  return [
+    {
+      title: S.memoryPressure,
+      value: s.memoryPressure == null ? S.metricUnavailable : percent(s.memoryPressure),
+      description: S.memoryPressureHelp,
+    },
+    { title: S.memoryCompressed, value: measuredBytes(s.memoryCompressed), description: S.memoryCompressedHelp },
+    { title: S.memoryCached, value: measuredBytes(s.memoryCached), description: S.memoryCachedHelp },
+    { title: S.memorySwapUsed, value: measuredBytes(s.memorySwapUsed), description: S.memorySwapUsedHelp },
+  ];
 }
 
 const usedFraction = (s: SystemSnapshot) =>

@@ -8,6 +8,7 @@
 import { create } from "zustand";
 import { bridge } from "../shared/bridge";
 import { localCostumeStore } from "./clawd/costume";
+import { autoAllowConsent } from "./autoAllowConsent";
 import type { Decision, ReplyAttachment, ReplyFailure, Session, SessionEvent, Snapshot } from "./types";
 import { DEFAULT_SESSION_PREFS, type SessionPrefs } from "../shared/prefs";
 
@@ -61,6 +62,7 @@ const EMPTY: Snapshot = {
 
 const now = () => Date.now() / 1000;
 const costumeStore = localCostumeStore();
+const autoAllowStore = autoAllowConsent();
 
 function loadNames(): Record<string, string> {
   try {
@@ -112,22 +114,25 @@ export const useSessions = create<SessionsState>()((set, get) => ({
     const previous = get();
     // Expire consent before subscribers can schedule approvals for a new turn.
     // Comparing turn starts also covers a completion missed between snapshots.
-    const autoAllow = Object.fromEntries(
-      Object.entries(previous.autoAllow).filter(([id, enabled]) => {
-        if (!enabled) return false;
-        const session = snapshot.sessions.find((s) => s.id === id);
-        const before = previous.snapshot.sessions.find((s) => s.id === id);
-        return (
-          session?.provider === "codex" &&
-          session.phase !== "finished" &&
-          session.phase !== "idle" &&
-          !!before &&
-          (before.turnStarted === undefined ||
-            session.turnStarted === undefined ||
-            before.turnStarted === session.turnStarted)
-        );
-      }),
-    );
+    const autoAllow = {
+      ...autoAllowStore.restore(snapshot.sessions),
+      ...Object.fromEntries(
+        Object.entries(previous.autoAllow).filter(([id, enabled]) => {
+          if (!enabled) return false;
+          const session = snapshot.sessions.find((s) => s.id === id);
+          const before = previous.snapshot.sessions.find((s) => s.id === id);
+          return (
+            session?.provider === "codex" &&
+            session.phase !== "finished" &&
+            session.phase !== "idle" &&
+            !!before &&
+            (before.turnStarted === undefined ||
+              session.turnStarted === undefined ||
+              before.turnStarted === session.turnStarted)
+          );
+        }),
+      ),
+    };
     const shownAt: Record<string, number> = {};
     const t = now();
     for (const s of snapshot.sessions) {
@@ -223,6 +228,14 @@ export const useSessions = create<SessionsState>()((set, get) => ({
     return ok;
   },
 }));
+
+// Includes explicit cancellation and failed approvals, which update the store
+// directly. Never persist a blanket setting for future tasks.
+useSessions.subscribe((state, previous) => {
+  if (state.autoAllow !== previous.autoAllow || state.snapshot !== previous.snapshot) {
+    autoAllowStore.save(state.snapshot.sessions, state.autoAllow);
+  }
+});
 
 export function subscribeSessions(onEvent: (e: SessionEvent) => void): () => void {
   const a = bridge.sessions.onSnapshot((s) => useSessions.getState().receive(s));

@@ -65,6 +65,14 @@ export interface SystemSnapshot {
   gpu: number | null;
   memoryUsed: number | null;
   memoryTotal: number | null;
+  /** Windows headroom approximation, 0..1: max(RAM used / total, commit / limit). */
+  memoryPressure: number | null;
+  /** Resident MemCompression store working set, bytes; null when not exposed. */
+  memoryCompressed: number | null;
+  /** Windows system cache (standby + system working set), bytes. */
+  memoryCached: number | null;
+  /** Current usage across pagefiles, bytes; not commit charge. */
+  memorySwapUsed: number | null;
   battery: BatteryReading | null;
   /** Bytes per second. */
   netDown: number | null;

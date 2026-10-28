@@ -17,6 +17,11 @@ export function demoSnapshot(seq: number): SystemSnapshot {
     gpu: wave(0.32, 0.12, 1),
     memoryUsed: Math.round(memoryTotal * wave(0.63, 0.02, 2)),
     memoryTotal,
+    // Browser previews have no native source for memory details.
+    memoryPressure: null,
+    memoryCompressed: null,
+    memoryCached: null,
+    memorySwapUsed: null,
     battery: { percent: 18, charging: false, pluggedIn: false, rateWatts: -wave(11.4, 2), secondsLeft: 4_200 },
     netDown: Math.max(0, wave(2_400_000, 1_800_000, 0.5)),
     netUp: Math.max(0, wave(180_000, 120_000, 2.5)),

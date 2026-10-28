@@ -98,6 +98,17 @@ pub struct Snapshot {
     pub gpu: Option<f64>,
     pub memory_used: Option<u64>,
     pub memory_total: Option<u64>,
+    /// Windows approximation: max(physical RAM used / total, commit / limit), 0..1.
+    /// This is headroom consumption, not macOS's memory pressure algorithm.
+    pub memory_pressure: Option<f64>,
+    /// Resident working set of the kernel's MemCompression store, in bytes.
+    /// None when Windows does not expose that process; absence is not zero.
+    pub memory_compressed: Option<u64>,
+    /// GetPerformanceInfo SystemCache * PageSize (standby + system working set).
+    pub memory_cached: Option<u64>,
+    /// EnumPageFilesW TotalInUse, summed across pagefiles and converted to bytes.
+    /// Not commit charge, pagefile capacity, or cumulative disk writes.
+    pub memory_swap_used: Option<u64>,
     /// None on machines without a battery.
     pub battery: Option<Battery>,
     /// Bytes per second.
@@ -546,6 +557,8 @@ mod imp {
         image: String,
         cpu_time: u64,
         private_bytes: u64,
+        working_set: u64,
+        parent_pid: u32,
     }
 
     pub struct Sampler {
@@ -647,6 +660,9 @@ mod imp {
                 snapshot.memory_used = Some(used);
                 snapshot.memory_total = Some(total);
             }
+            if detail == Some(Detail::Memory) {
+                memory_details(&mut snapshot);
+            }
 
             if let Some(current) = network_counters() {
                 if let Some(previous) = &self.net {
@@ -672,7 +688,17 @@ mod imp {
 
             snapshot.processes = match detail {
                 Some(Detail::Cpu) => self.cpu_rows(elapsed, snapshot.cpu.map(|c| c * 100.0)),
-                Some(Detail::Memory) => self.memory_rows(),
+                Some(Detail::Memory) => {
+                    let entries = read_processes();
+                    snapshot.memory_compressed = entries
+                        .iter()
+                        .find(|p| {
+                            matches!(p.image.as_str(), "MemCompression" | "Memory Compression")
+                                && p.parent_pid == 4
+                        })
+                        .map(|p| p.working_set);
+                    self.memory_rows(entries)
+                }
                 _ => Vec::new(),
             };
             snapshot.processes_for = detail.filter(|d| matches!(d, Detail::Cpu | Detail::Memory));
@@ -707,9 +733,9 @@ mod imp {
             top_rows(rows, PROCESS_ROWS)
         }
 
-        fn memory_rows(&mut self) -> Vec<ProcessRow> {
+        fn memory_rows(&mut self, entries: Vec<ProcessEntry>) -> Vec<ProcessRow> {
             let mut by_image: HashMap<String, (u64, u32, u64)> = HashMap::new();
-            for entry in read_processes() {
+            for entry in entries {
                 let slot = by_image
                     .entry(entry.image.clone())
                     .or_insert((0, entry.key.pid, 0));
@@ -751,6 +777,46 @@ mod imp {
                 })
                 .clone();
             ProcessRow { name, path, value }
+        }
+    }
+
+    /// Native cache and pagefile measurements; failure of one source never
+    /// changes the existing physical-memory readings or substitutes commit.
+    fn memory_details(snapshot: &mut Snapshot) {
+        use windows::Win32::System::ProcessStatus::{
+            ENUM_PAGE_FILE_INFORMATION, K32EnumPageFilesW, K32GetPerformanceInfo,
+            PERFORMANCE_INFORMATION,
+        };
+        let mut info = PERFORMANCE_INFORMATION::default();
+        let size = std::mem::size_of::<PERFORMANCE_INFORMATION>() as u32;
+        if !unsafe { K32GetPerformanceInfo(&mut info, size) }.as_bool() || info.PageSize == 0 {
+            return;
+        }
+        snapshot.memory_cached = (info.SystemCache as u64).checked_mul(info.PageSize as u64);
+        if info.PhysicalTotal > 0 && info.CommitLimit > 0 {
+            snapshot.memory_pressure = Some(
+                (1.0 - info.PhysicalAvailable as f64 / info.PhysicalTotal as f64)
+                    .max(info.CommitTotal as f64 / info.CommitLimit as f64)
+                    .clamp(0.0, 1.0),
+            );
+        }
+        unsafe extern "system" fn pagefile(
+            context: *mut std::ffi::c_void,
+            info: *mut ENUM_PAGE_FILE_INFORMATION,
+            _name: PCWSTR,
+        ) -> windows::core::BOOL {
+            // EnumPageFiles calls synchronously with our live accumulator and
+            // a valid structure. Use checked arithmetic; never panic across FFI.
+            let pages = unsafe { &mut *context.cast::<Option<u64>>() };
+            *pages = pages.and_then(|sum| sum.checked_add(unsafe { (*info).TotalInUse } as u64));
+            true.into()
+        }
+        let mut pages = Some(0u64);
+        if unsafe { K32EnumPageFilesW(Some(pagefile), (&mut pages as *mut Option<u64>).cast()) }
+            .as_bool()
+        {
+            // Successful enumeration with no pagefiles means zero usage.
+            snapshot.memory_swap_used = pages.and_then(|p| p.checked_mul(info.PageSize as u64));
         }
     }
 
@@ -1058,6 +1124,8 @@ mod imp {
                     },
                     cpu_time: (field(32).max(0) + field(40).max(0)) as u64,
                     private_bytes: field(0).max(0) as u64,
+                    working_set: info.WorkingSetSize as u64,
+                    parent_pid: info.Reserved2 as usize as u32,
                 });
             }
             if info.NextEntryOffset == 0 {
@@ -1066,6 +1134,42 @@ mod imp {
             offset += info.NextEntryOffset as usize;
         }
         out
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        #[ignore = "reads the host's native memory and pagefile statistics"]
+        fn live_memory_details() {
+            let mut sampler = Sampler::new();
+            sampler.prime(Some(Detail::Memory));
+            let snapshot = sampler.sample(Some(Detail::Memory), 1);
+            eprintln!(
+                "Memory: used {:?} / {:?}, pressure {:?}, compressed {:?}, cached {:?}, pagefile {:?}",
+                snapshot.memory_used,
+                snapshot.memory_total,
+                snapshot.memory_pressure,
+                snapshot.memory_compressed,
+                snapshot.memory_cached,
+                snapshot.memory_swap_used,
+            );
+            assert!(snapshot.memory_total.is_some_and(|total| total > 0));
+            assert!(
+                snapshot
+                    .memory_pressure
+                    .is_some_and(|p| (0.0..=1.0).contains(&p))
+            );
+            assert!(snapshot.memory_cached.is_some());
+            assert!(snapshot.memory_swap_used.is_some());
+            assert_eq!(snapshot.processes_for, Some(Detail::Memory));
+            // A reading for another detail must not retain memory-only values.
+            let next = sampler.sample(Some(Detail::Cpu), 1);
+            assert_eq!(next.memory_pressure, None);
+            assert_eq!(next.memory_compressed, None);
+            assert_eq!(next.memory_cached, None);
+            assert_eq!(next.memory_swap_used, None);
+        }
     }
 }
 
@@ -1280,11 +1384,18 @@ mod tests {
         let snapshot = Snapshot {
             cpu: Some(0.5),
             memory_used: Some(1),
+            memory_pressure: Some(0.75),
+            memory_compressed: Some(0),
+            memory_cached: Some(4096),
             ..Default::default()
         };
         let json = serde_json::to_value(&snapshot).unwrap();
         assert_eq!(json["cpu"], 0.5);
         assert_eq!(json["memoryUsed"], 1);
+        assert_eq!(json["memoryPressure"], 0.75);
+        assert_eq!(json["memoryCompressed"], 0);
+        assert_eq!(json["memoryCached"], 4096);
+        assert_eq!(json.get("memorySwapUsed"), Some(&serde_json::Value::Null));
         assert!(json["battery"].is_null());
         assert_eq!(json["supported"]["gpu"], false);
         let detail: Detail = serde_json::from_str("\"connectedDevices\"").unwrap();

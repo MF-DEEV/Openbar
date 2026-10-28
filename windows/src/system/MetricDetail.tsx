@@ -11,7 +11,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePageLayer } from "../island/pageLayer";
 import { useIsland } from "../island/store";
 import { bridge } from "../shared/bridge";
-import { detailRows, processValue, summary, TITLES } from "./detail";
+import { detailRows, memoryDetailRows, processValue, summary, TITLES } from "./detail";
 import { Sparkline } from "./Sparkline";
 import { useSystem } from "./store";
 import { GLYPHS } from "./glyphs";
@@ -80,6 +80,17 @@ export function MetricDetail({ kind, onMeasure }: { kind: MetricKind; onMeasure(
               </div>
             ))}
           </section>
+          {kind === "memory" ? (
+            <section className="sy-panel sy-rows" aria-label={S.memoryDetails}>
+              <div className="sy-panel-title">{S.memoryDetails}</div>
+              {memoryDetailRows(snapshot).map((row) => (
+                <div key={row.title} className="sy-row-line" title={row.description}>
+                  <span className="sy-row-title">{row.title}</span>
+                  <span className="sy-row-value">{row.value}</span>
+                </div>
+              ))}
+            </section>
+          ) : null}
           {lists ? (
             <section className="sy-panel sy-rows">
               <div className="sy-panel-title">{S.usage}</div>
