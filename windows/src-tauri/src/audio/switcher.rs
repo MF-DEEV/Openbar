@@ -10,6 +10,25 @@ use std::collections::HashSet;
 /// The Mac's Control-Option-Command-S, on Windows' three modifiers.
 pub const DEFAULT_SHORTCUT: &str = "Ctrl+Alt+Shift+KeyS";
 
+/// Shortcuts the island already uses: its toggle, and the keys a Sessions
+/// approval takes while it shows (sessions/globalPermissionKeys.ts).
+pub fn reserved(shortcut: &tauri_plugin_global_shortcut::Shortcut) -> bool {
+    use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+    *shortcut == crate::toggle_shortcut()
+        || [Code::KeyY, Code::KeyN, Code::KeyT]
+            .into_iter()
+            .any(|key| *shortcut == Shortcut::new(Some(Modifiers::CONTROL), key))
+}
+
+/// ShortcutRecorderButton's rule: Ctrl, Alt or Win with the key, so a hand-
+/// edited "Escape" can't take a key from every app.
+pub fn has_modifier(shortcut: &tauri_plugin_global_shortcut::Shortcut) -> bool {
+    use tauri_plugin_global_shortcut::Modifiers;
+    shortcut
+        .mods
+        .intersects(Modifiers::CONTROL | Modifiers::ALT | Modifiers::SUPER)
+}
+
 /// MixerRoutingSupport.nextSelectedOutputDeviceUID: the chosen output after
 /// the current one, wrapping; the first one when the current isn't chosen;
 /// None when nothing chosen is connected or the only one already plays.
@@ -43,6 +62,19 @@ pub fn nothing_to_do_is_fine(selected: &[String], available: &HashSet<String>) -
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_islands_own_keys_are_reserved_and_a_modifier_is_required() {
+        let parse = |s: &str| s.parse::<tauri_plugin_global_shortcut::Shortcut>().unwrap();
+        assert!(reserved(&parse("Ctrl+Alt+Space")));
+        assert!(reserved(&parse("Ctrl+KeyY")));
+        assert!(reserved(&parse("Ctrl+KeyT")));
+        assert!(!reserved(&parse("Ctrl+Shift+KeyY")));
+        assert!(!reserved(&parse(DEFAULT_SHORTCUT)));
+        assert!(has_modifier(&parse("Alt+F5")));
+        assert!(!has_modifier(&parse("Shift+F5")));
+        assert!(!has_modifier(&parse("Escape")));
+    }
 
     fn set(v: &[&str]) -> HashSet<String> {
         v.iter().map(|s| s.to_string()).collect()

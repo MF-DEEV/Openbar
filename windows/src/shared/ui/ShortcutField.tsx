@@ -2,13 +2,13 @@
 // Copyright (C) 2026 Vorssaint
 
 // A shortcut that records the next combination when clicked
-// (ShortcutRecorderButton.swift): it reads "Press the new shortcut" until a
-// key with Ctrl, Alt or Win comes, and Escape or a click elsewhere keeps
-// the old one.
+// (ShortcutRecorderButton.swift): it reads "Press keys" until a key with
+// Ctrl, Alt or Win comes, and Escape or a click elsewhere keeps the old one.
+// A key without them is refused through `onInvalid`.
 
 import { useEffect, useRef, useState } from "react";
 import { usePageLayer } from "../../island/pageLayer";
-import { acceleratorFrom, formatAccelerator } from "../shortcut";
+import { acceleratorFrom, formatAccelerator, needsModifier } from "../shortcut";
 
 export function ShortcutField(props: {
   value: string;
@@ -17,6 +17,8 @@ export function ShortcutField(props: {
   recordingLabel: string;
   /** Told when recording starts and stops, so the shortcut's owner can let go of it meanwhile. */
   onRecording?(on: boolean): void;
+  /** A key came without Ctrl, Alt or Win; recording goes on. */
+  onInvalid?(): void;
   className?: string;
   disabled?: boolean;
 }) {
@@ -37,7 +39,10 @@ export function ShortcutField(props: {
         return;
       }
       const accelerator = acceleratorFrom(e);
-      if (!accelerator) return;
+      if (!accelerator) {
+        if (needsModifier(e)) latest.current.onInvalid?.();
+        return;
+      }
       setRecording(false);
       latest.current.onChange(accelerator);
     };

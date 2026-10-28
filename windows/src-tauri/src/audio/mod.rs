@@ -96,6 +96,8 @@ pub struct State {
     pub priority: Priority,
     /// The output switcher is on but Windows refused its shortcut.
     pub switcher_refused: bool,
+    /// Why the last automatic priority switch failed (outputSwitchError).
+    pub priority_error: Option<String>,
     /// The last switcher press found no chosen output that is connected.
     pub switch_failed: bool,
     /// Finer volume steps are on but the volume keys couldn't be hooked.
@@ -135,13 +137,22 @@ impl Options {
                 .unwrap_or(false)
         };
         let defaults = Options::default();
+        // The options belong to the Mixer: with the section turned off in
+        // Settings they rest, as the Mac's do while the mixer isn't available.
+        let mixer = island("sections/mixer")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true);
         Options {
-            lower_on_disconnect: flag("mixerLowerVolumeOnHeadphonesDisconnect"),
+            lower_on_disconnect: mixer && flag("mixerLowerVolumeOnHeadphonesDisconnect"),
+            // Read like the pages read it: a number rounded to a whole percent.
             lower_percent: island("mixerHeadphonesDisconnectVolumePercent")
-                .and_then(serde_json::Value::as_i64)
-                .map_or(defaults.lower_percent, guard::sanitized_percent),
-            roller: flag("preciseVolumeRollerEnabled"),
-            switcher: flag("soundOutputSwitcherEnabled"),
+                .and_then(serde_json::Value::as_f64)
+                .filter(|v| v.is_finite())
+                .map_or(defaults.lower_percent, |v| {
+                    guard::sanitized_percent(v.round() as i64)
+                }),
+            roller: mixer && flag("preciseVolumeRollerEnabled"),
+            switcher: mixer && flag("soundOutputSwitcherEnabled"),
             shortcut: island("soundOutputSwitcherShortcut")
                 .and_then(serde_json::Value::as_str)
                 .filter(|s| !s.trim().is_empty())
@@ -166,6 +177,9 @@ static ROLLER_FAILED: AtomicBool = AtomicBool::new(false);
 /// The switcher shortcut held now, and whether a shortcut field is recording.
 static SWITCHER_KEY: Mutex<Option<tauri_plugin_global_shortcut::Shortcut>> = Mutex::new(None);
 static RECORDING: AtomicBool = AtomicBool::new(false);
+/// IPolicyConfig answered, so switching outputs can work; until the audio
+/// thread has probed it, the switcher holds no shortcut.
+static CAN_SWITCH: AtomicBool = AtomicBool::new(false);
 /// The held shortcut's id (0 for none), for the shortcut handler.
 static SWITCHER_ID: AtomicU32 = AtomicU32::new(0);
 
@@ -308,9 +322,13 @@ pub fn apply_prefs<R: Runtime>(app: &AppHandle<R>, value: &serde_json::Value) {
     }
     #[cfg(windows)]
     {
-        let cycle_changed = before.as_ref().is_some_and(|b| b.cycle != next.cycle);
+        // A new cycle, or the switcher turned off or on, starts without the
+        // last press's error (SoundOutputSwitcher.unregisterHotkey).
+        let fresh = before
+            .as_ref()
+            .is_some_and(|b| b.cycle != next.cycle || b.switcher != next.switcher);
         engine::post(move |e| {
-            if cycle_changed {
+            if fresh {
                 e.clear_switch_failure();
             }
         });
@@ -327,7 +345,8 @@ fn sync_switcher<R: Runtime>(app: &AppHandle<R>) {
     let mut held = SWITCHER_KEY.lock().unwrap();
     let options = options();
     let recording = RECORDING.load(Ordering::SeqCst);
-    let wanted = (options.switcher && !recording)
+    let can_switch = CAN_SWITCH.load(Ordering::SeqCst);
+    let wanted = (options.switcher && can_switch && !recording)
         .then(|| options.shortcut.parse::<Shortcut>().ok())
         .flatten();
     if held.is_some() && *held == wanted {
@@ -337,9 +356,8 @@ fn sync_switcher<R: Runtime>(app: &AppHandle<R>) {
         SWITCHER_ID.store(0, Ordering::SeqCst);
         let _ = shortcuts.unregister(old);
     }
-    // The island's own toggle is never given away.
     let refused = match wanted {
-        Some(key) if key == crate::toggle_shortcut() => true,
+        Some(key) if switcher::reserved(&key) || !switcher::has_modifier(&key) => true,
         Some(key) => match shortcuts.register(key) {
             Ok(()) => {
                 *held = Some(key);
@@ -349,9 +367,38 @@ fn sync_switcher<R: Runtime>(app: &AppHandle<R>) {
             Err(_) => true,
         },
         // On but unreadable; while a field records, nothing is refused.
-        None => options.switcher && !recording,
+        None => options.switcher && can_switch && !recording,
     };
     SWITCHER_REFUSED.store(refused, Ordering::SeqCst);
+}
+
+/// The audio thread has probed IPolicyConfig. The shortcut is taken on the
+/// main thread: a registration waits for it, so the audio thread must not.
+pub(crate) fn switching_probed(can_switch: bool) {
+    CAN_SWITCH.store(can_switch, Ordering::SeqCst);
+    if let Some((app, _)) = APP.get() {
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || sync_switcher(&handle));
+    }
+}
+
+/// A window that may be recording a shortcut closed: no recording outlives
+/// it, so the switcher takes its shortcut back.
+pub fn recording_window_closed<R: Runtime>(app: &AppHandle<R>) {
+    if RECORDING.swap(false, Ordering::SeqCst) {
+        sync_switcher(app);
+        #[cfg(windows)]
+        engine::post(|_| {});
+    }
+}
+
+/// The app is quitting: what the Mixer options changed is handed back.
+pub fn stop() {
+    #[cfg(windows)]
+    let _ = with_engine(|e| {
+        e.restore_lowered();
+        Ok(())
+    });
 }
 
 /// The global shortcut handler's question: was this the switcher's key? It

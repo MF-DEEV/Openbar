@@ -12,10 +12,11 @@ import { latest, subscribeAudio, useAudio } from "../audio/store";
 import { editableShortcuts } from "../controls/layout";
 import type { ControlItem } from "../controls/types";
 import { visibleModules } from "../island/modules";
-import { sectionEnabled } from "../island/settings";
 import { useSettings } from "./state";
 import { T } from "./strings";
+import { DEFAULT_SWITCHER_SHORTCUT, sectionEnabled } from "../island/settings";
 import { cycleOrder } from "../mixer/arrangement";
+import { useSwitcherShortcut } from "../mixer/switcherShortcut";
 import { S as M } from "../mixer/strings";
 import { bridge } from "../shared/bridge";
 import { ShortcutField } from "../shared/ui/ShortcutField";
@@ -142,21 +143,26 @@ export function MixerOptions() {
           onChange={(on) => set("mixerLowerVolumeOnHeadphonesDisconnect", on)}
         />
       </SubRow>
-      <SubRow title={M.headphonesDisconnectVolume} disabled={!island.mixerLowerVolumeOnHeadphonesDisconnect}>
-        <Slider
-          label={M.headphonesDisconnectVolume}
-          min={0}
-          max={100}
-          step={5}
-          value={island.mixerHeadphonesDisconnectVolumePercent}
-          format={(v) => `${v}%`}
-          disabled={!island.mixerLowerVolumeOnHeadphonesDisconnect}
-          onChange={(v) => set("mixerHeadphonesDisconnectVolumePercent", v)}
-        />
-      </SubRow>
+      {island.mixerLowerVolumeOnHeadphonesDisconnect ? (
+        <SubRow title={M.headphonesDisconnectVolume}>
+          <Slider
+            label={M.headphonesDisconnectVolume}
+            min={0}
+            max={100}
+            step={5}
+            value={island.mixerHeadphonesDisconnectVolumePercent}
+            format={(v) => `${v}%`}
+            onChange={(v) => set("mixerHeadphonesDisconnectVolumePercent", v)}
+          />
+        </SubRow>
+      ) : null}
       <SubRow
         title={M.preciseRoller}
-        caption={island.preciseVolumeRollerEnabled && rollerFailed ? M.preciseRollerFailed : M.preciseRollerCaption}
+        caption={
+          <Lines
+            lines={[M.preciseRollerCaption, island.preciseVolumeRollerEnabled && rollerFailed && M.preciseRollerFailed]}
+          />
+        }
       >
         <Toggle
           label={M.preciseRoller}
@@ -210,33 +216,64 @@ function OutputSwitcherOptions() {
       "soundOutputSwitcherDevices",
       cycleOrder(v ? [...chosen.filter((c) => c !== id), id] : chosen.filter((c) => c !== id), outputs),
     );
+  const row = useSwitcherShortcut((accelerator) => set("soundOutputSwitcherShortcut", accelerator));
+  const shortcut = island.soundOutputSwitcherShortcut;
   return (
     <>
+      <SubRow title={M.switcherTitle} />
       <SubRow title={M.switcher} caption={M.switcherCaption}>
         <Toggle label={M.switcher} checked={on} onChange={enable} />
       </SubRow>
-      <SubRow
-        title={M.shortcut}
-        caption={refused ? M.shortcutUnavailable : failed ? M.switcherNoAvailable : undefined}
-        disabled={!on}
-      >
-        <ShortcutField
-          className="st-button st-shortcut"
-          label={M.shortcut}
-          recordingLabel={M.shortcutRecording}
-          value={island.soundOutputSwitcherShortcut}
-          disabled={!on}
-          onRecording={(r) => void bridge.audio.switcherRecording(r)}
-          onChange={(accelerator) => {
-            if (accelerator !== "Ctrl+Alt+Space") set("soundOutputSwitcherShortcut", accelerator);
-          }}
-        />
-      </SubRow>
-      <SubRow title={M.switcherDevices} disabled={!on} caption={outputs.length === 0 ? M.noOutputs : undefined} />
-      {outputs.map((d) => (
-        <SubRow key={d.id} title={d.isDefault ? `${d.name} (${M.current})` : d.name} disabled={!on}>
-          <Toggle label={d.name} checked={chosen.includes(d.id)} disabled={!on} onChange={(v) => choose(d.id, v)} />
-        </SubRow>
+      {on ? (
+        <>
+          <SubRow
+            title={M.shortcut}
+            caption={
+              <Lines
+                lines={[
+                  row.problem ?? (row.recording && M.shortcutRecordingCaption),
+                  refused && !row.recording && M.shortcutUnavailable,
+                  failed && M.switcherNoAvailable,
+                ]}
+              />
+            }
+          >
+            <ShortcutField
+              className="st-button st-shortcut"
+              label={M.shortcut}
+              recordingLabel={M.shortcutPressKeys}
+              value={shortcut}
+              {...row.field}
+            />
+            <Button
+              disabled={shortcut === DEFAULT_SWITCHER_SHORTCUT}
+              onClick={() => row.reset(DEFAULT_SWITCHER_SHORTCUT)}
+            >
+              {M.shortcutReset}
+            </Button>
+          </SubRow>
+          <SubRow title={M.switcherDevices} caption={outputs.length === 0 ? M.noOutputs : undefined} />
+          {outputs.map((d) => (
+            <SubRow key={d.id} title={d.isDefault ? `${d.name} (${M.current})` : d.name}>
+              <Toggle label={d.name} checked={chosen.includes(d.id)} onChange={(v) => choose(d.id, v)} />
+            </SubRow>
+          ))}
+        </>
+      ) : null}
+    </>
+  );
+}
+
+/** Several caption lines, the ones that apply. */
+function Lines({ lines }: { lines: (string | false | null | undefined)[] }) {
+  const shown = lines.filter((l): l is string => typeof l === "string" && l.length > 0);
+  if (shown.length === 0) return null;
+  return (
+    <>
+      {shown.map((line, i) => (
+        <span key={i} className="st-caption-line">
+          {line}
+        </span>
       ))}
     </>
   );
@@ -245,6 +282,7 @@ function OutputSwitcherOptions() {
 /** AudioPriorityDisclosure as Settings › Audio priority draws it: both lists, open. */
 function AudioPriorityOptions() {
   const priority = useAudio((s) => s.state.priority);
+  const priorityError = useAudio((s) => s.state.priorityError);
   const outputs = useAudio((s) => s.state.outputs);
   const inputs = useAudio((s) => s.state.inputs);
   const lists = [
@@ -277,7 +315,18 @@ function AudioPriorityOptions() {
         const ids = list.devices.map((d) => d.id);
         return (
           <Fragment key={String(list.output)}>
-            <SubRow title={list.title} caption={list.help}>
+            <SubRow
+              title={list.title}
+              caption={
+                list.devices.length === 0
+                  ? list.output
+                    ? M.noOutputs
+                    : M.noMicrophones
+                  : list.output && priorityError
+                    ? M.couldNotSwitch(priorityError)
+                    : undefined
+              }
+            >
               <Toggle
                 label={list.help}
                 checked={list.enabled}

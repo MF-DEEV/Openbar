@@ -65,6 +65,23 @@ export function acceleratorFrom(event: KeyLike): string | null {
   return [...mods, event.code].join("+");
 }
 
+/** A key the plugin takes, pressed without Ctrl, Alt or Win (ShortcutRecorderButton's shortcutInvalid). */
+export function needsModifier(event: KeyLike): boolean {
+  return keyLabel(event.code) !== null && !event.ctrlKey && !event.altKey && !event.metaKey;
+}
+
+/** Shortcuts the island already holds (audio/switcher.rs `reserved`): its toggle, and the Sessions approval keys. */
+const RESERVED: Record<string, "island" | "sessions"> = {
+  "Ctrl+Alt+Space": "island",
+  "Ctrl+KeyY": "sessions",
+  "Ctrl+KeyN": "sessions",
+  "Ctrl+KeyT": "sessions",
+};
+
+export function reservedBy(accelerator: string): "island" | "sessions" | null {
+  return RESERVED[accelerator] ?? null;
+}
+
 /** How a stored shortcut reads: "Ctrl+Alt+Shift+S". */
 export function formatAccelerator(accelerator: string): string {
   const parts = accelerator.split("+").filter((p) => p.length > 0);

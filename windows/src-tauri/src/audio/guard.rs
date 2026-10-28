@@ -13,6 +13,9 @@ const WORN_FORM_FACTORS: [u32; 2] = [3, 5];
 
 /// MixerRoutingSupport.outputLooksLikeHeadphones, with Windows' own form
 /// factor first: Bluetooth and USB headphones report it, many jacks too.
+/// The Mac also reads a device's data source to catch a jack that switches
+/// inside one device; Windows gives a jack-sensing endpoint its own form
+/// factor instead, and a driver that keeps one endpoint for both isn't seen.
 pub fn looks_like_headphones(name: &str, form_factor: Option<u32>) -> bool {
     if form_factor.is_some_and(|f| WORN_FORM_FACTORS.contains(&f)) {
         return true;
@@ -87,8 +90,6 @@ pub struct Guard {
     /// The headphones that were the output last, while they still are or
     /// until a fallback from them is handled.
     headphones: Option<String>,
-    /// The output the guard last lowered, so one fallback lowers it once.
-    last_lowered: Option<String>,
     pub lowered: Option<Lowered>,
 }
 
@@ -111,7 +112,6 @@ impl Guard {
         };
         if current.headphones {
             self.headphones = Some(current.id.to_string());
-            self.last_lowered = None;
             return match self.lowered.take() {
                 Some(lowered) if outputs.iter().any(|o| o.id == lowered.id) => {
                     Action::Restore(lowered)
@@ -130,7 +130,8 @@ impl Guard {
         if outputs.iter().any(|o| o.id == headphones && o.headphones) {
             return Action::None;
         }
-        if !enabled || self.last_lowered.as_deref() == Some(default) {
+        // Taking the headphones above means one fallback lowers only once.
+        if !enabled {
             return Action::None;
         }
         Action::Lower {
@@ -144,7 +145,6 @@ impl Guard {
     /// `muted` whether this set a mute the output didn't have. Only a real
     /// drop (or that mute) is owed back.
     pub fn lowered(&mut self, id: &str, previous: Option<f32>, applied: f32, muted: bool) {
-        self.last_lowered = Some(id.to_string());
         if let Some(previous) = previous
             && (previous > applied || muted)
         {

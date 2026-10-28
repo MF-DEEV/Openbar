@@ -410,6 +410,23 @@
   margin-left: auto;
 }
 
+.mx-reset-shortcut {
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  color: var(--n-dim);
+}
+
+.mx-reset-shortcut:hover:enabled {
+  background: var(--n-wash);
+  color: #fff;
+}
+
+.mx-reset-shortcut:disabled {
+  opacity: 0.35;
+}
+
 .mx-stepper-row {
   display: flex;
   align-items: center;

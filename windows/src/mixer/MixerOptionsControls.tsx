@@ -21,6 +21,7 @@ import {
   Volume2,
 } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
+import { DEFAULT_SWITCHER_SHORTCUT } from "../island/settings";
 import { useIsland } from "../island/store";
 import { bridge } from "../shared/bridge";
 import { setPrefs } from "../shared/prefs";
@@ -30,6 +31,7 @@ import { ShortcutField } from "../shared/ui/ShortcutField";
 import { latest, useAudio } from "../audio/store";
 import type { RankedDevice } from "../audio/types";
 import { cycleOrder } from "./arrangement";
+import { useSwitcherShortcut } from "./switcherShortcut";
 import { S } from "./strings";
 
 /** Defaults.minimumMixerHeadphonesDisconnectVolumePercent…100, in steps of 5. */
@@ -102,7 +104,7 @@ export function OutputSwitcher() {
   const outputs = useAudio((s) => s.state.outputs);
   const refused = useAudio((s) => s.state.switcherRefused);
   const failed = useAudio((s) => s.state.switchFailed);
-  const [taken, setTaken] = useState(false);
+  const row = useSwitcherShortcut((accelerator) => save({ soundOutputSwitcherShortcut: accelerator }));
   const enable = (v: boolean) => {
     const current = outputs.find((d) => d.isDefault);
     // Turned on with nothing chosen: the output playing now starts the cycle.
@@ -128,21 +130,25 @@ export function OutputSwitcher() {
             <ShortcutField
               className="mx-shortcut"
               label={S.shortcut}
-              recordingLabel={S.shortcutRecording}
+              recordingLabel={S.shortcutPressKeys}
               value={shortcut}
-              onRecording={(r) => void bridge.audio.switcherRecording(r)}
-              onChange={(accelerator) => {
-                const isToggle = accelerator === "Ctrl+Alt+Space";
-                setTaken(isToggle);
-                if (!isToggle) save({ soundOutputSwitcherShortcut: accelerator });
-              }}
+              {...row.field}
             />
+            <button
+              type="button"
+              className="mx-reset-shortcut"
+              disabled={shortcut === DEFAULT_SWITCHER_SHORTCUT}
+              onClick={() => row.reset(DEFAULT_SWITCHER_SHORTCUT)}
+            >
+              {S.shortcutReset}
+            </button>
           </div>
-          {taken ? (
-            <Message icon={<Keyboard size={9} />}>{S.shortcutTaken}</Message>
-          ) : refused ? (
-            <Message icon={<Keyboard size={9} />}>{S.shortcutUnavailable}</Message>
+          {row.problem ? (
+            <Message icon={<Keyboard size={9} />}>{row.problem}</Message>
+          ) : row.recording ? (
+            <Caption>{S.shortcutRecordingCaption}</Caption>
           ) : null}
+          {refused && !row.recording ? <Message icon={<Keyboard size={9} />}>{S.shortcutUnavailable}</Message> : null}
           {failed ? <Message icon={<Speaker size={9} />}>{S.switcherNoAvailable}</Message> : null}
           <span className="mx-option-subtitle">{S.switcherDevices}</span>
           {outputs.length === 0 ? (
@@ -179,7 +185,13 @@ function PriorityList(props: { output: boolean; devices: RankedDevice[]; current
   const [ids, setLocal] = usePendingOrder(serverIds);
   const send = (next: string[]) => {
     setLocal(next);
-    latest(props.output ? "priority:out" : "priority:in", () => bridge.audio.setPriority(props.output, { ids: next }));
+    // A save that fails puts the backend's order back.
+    latest(props.output ? "priority:out" : "priority:in", () =>
+      bridge.audio.setPriority(props.output, { ids: next }).catch((e: unknown) => {
+        setLocal(null);
+        throw e;
+      }),
+    );
   };
   const reorder = useReorder({ ids, axis: "y", onReorder: send });
   const byId = new Map(props.devices.map((d) => [d.id, d]));

@@ -1120,3 +1120,7 @@ select {
   border-color: var(--st-accent);
   color: var(--st-text-3);
 }
+
+.st-caption-line {
+  display: block;
+}

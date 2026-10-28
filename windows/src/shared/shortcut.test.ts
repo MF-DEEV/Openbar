@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import { describe, expect, it } from "vitest";
-import { acceleratorFrom, formatAccelerator } from "./shortcut";
+import { acceleratorFrom, formatAccelerator, needsModifier, reservedBy } from "./shortcut";
 
 const press = (code: string, mods: Partial<Record<"ctrlKey" | "altKey" | "shiftKey" | "metaKey", boolean>> = {}) => ({
   code,
@@ -48,5 +48,23 @@ describe("recorded shortcuts", () => {
     expect(formatAccelerator("Alt+PageDown")).toBe("Alt+Page Down");
     expect(formatAccelerator("Shift+Alt+Space")).toBe("Alt+Shift+Space");
     expect(formatAccelerator("Ctrl+Mystery")).toBe("Ctrl+Mystery");
+  });
+});
+
+describe("shortcuts the recorder refuses", () => {
+  it("names the island's own keys, as audio/switcher.rs reserves them", () => {
+    expect(reservedBy("Ctrl+Alt+Space")).toBe("island");
+    expect(reservedBy("Ctrl+KeyY")).toBe("sessions");
+    expect(reservedBy("Ctrl+KeyT")).toBe("sessions");
+    expect(reservedBy("Ctrl+Shift+KeyY")).toBeNull();
+    expect(reservedBy("Ctrl+Alt+Shift+KeyS")).toBeNull();
+  });
+
+  it("asks for a modifier only for a key it could take", () => {
+    expect(needsModifier(press("KeyS"))).toBe(true);
+    expect(needsModifier(press("KeyS", { shiftKey: true }))).toBe(true);
+    expect(needsModifier(press("KeyS", { altKey: true }))).toBe(false);
+    expect(needsModifier(press("ShiftLeft", { shiftKey: true }))).toBe(false);
+    expect(needsModifier(press("IntlBackslash"))).toBe(false);
   });
 });

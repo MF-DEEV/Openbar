@@ -197,6 +197,9 @@ export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
   { id: "00000000-0000-4000-8000-000000000005", action: { kind: "module", module: "music" }, side: "bottom" },
 ];
 
+/** The Mac's Control-Option-Command-S on Windows' three modifiers (audio/switcher.rs DEFAULT_SHORTCUT). */
+export const DEFAULT_SWITCHER_SHORTCUT = "Ctrl+Alt+Shift+KeyS";
+
 export const DEFAULT_SETTINGS: IslandSettings = {
   enabled: true,
   silhouette: "notch",
@@ -263,7 +266,7 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   mixerHeadphonesDisconnectVolumePercent: 25,
   preciseVolumeRollerEnabled: false,
   soundOutputSwitcherEnabled: false,
-  soundOutputSwitcherShortcut: "Ctrl+Alt+Shift+KeyS",
+  soundOutputSwitcherShortcut: DEFAULT_SWITCHER_SHORTCUT,
   soundOutputSwitcherDevices: [],
   toolsOrder: [],
   toolsHidden: [],

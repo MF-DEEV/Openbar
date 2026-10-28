@@ -45,8 +45,18 @@ pub fn tier(enumerator: &str, name: &str) -> Tier {
     if VIRTUAL_NAMES.iter().any(|v| name.contains(v)) {
         return Tier::Virtual;
     }
+    // A display's speakers ride the same HD Audio bus as the board's, but
+    // the Mac ranks HDMI and DisplayPort with plugged-in hardware.
+    const DISPLAY_NAMES: [&str; 5] = [
+        "hdmi",
+        "displayport",
+        "display audio",
+        "nvidia high definition",
+        "amd high definition",
+    ];
+    let display = DISPLAY_NAMES.iter().any(|d| name.contains(d));
     match enumerator.to_uppercase().as_str() {
-        "HDAUDIO" | "INTELAUDIO" | "ACPI" | "PCI" => Tier::BuiltIn,
+        "HDAUDIO" | "INTELAUDIO" | "ACPI" | "PCI" if !display => Tier::BuiltIn,
         "ROOT" | "SW" | "SWD" => Tier::Virtual,
         _ => Tier::Hardware,
     }
@@ -149,32 +159,89 @@ pub struct Saved {
     pub names: HashMap<String, String>,
 }
 
+impl Saved {
+    /// Reads the saved file field by field, so one damaged field doesn't
+    /// throw away the rest, and cleans the lists as the Mac does on load.
+    pub fn from_value(value: &serde_json::Value) -> Self {
+        let flag = |key: &str| {
+            value
+                .get(key)
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false)
+        };
+        let list = |key: &str| {
+            let ids: Vec<String> = value
+                .get(key)
+                .and_then(serde_json::Value::as_array)
+                .map(|a| {
+                    a.iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect()
+                })
+                .unwrap_or_default();
+            sanitized_list(&ids)
+        };
+        let names = value
+            .get("names")
+            .and_then(serde_json::Value::as_object)
+            .map(|o| {
+                o.iter()
+                    .filter_map(|(id, name)| Some((id.clone(), name.as_str()?.to_string())))
+                    .collect()
+            })
+            .unwrap_or_default();
+        Saved {
+            output_enabled: flag("outputEnabled"),
+            input_enabled: flag("inputEnabled"),
+            outputs: list("outputs"),
+            inputs: list("inputs"),
+            names,
+        }
+    }
+}
+
 /// One list's live side: the availability the last pass settled on, the
-/// devices still waiting for their place, and whether a pass is owed.
+/// newest one waiting for the next pass, the devices still waiting for their
+/// place, and whether a pass is owed.
 #[derive(Default)]
 pub struct Tracker {
     pub settled: Option<HashSet<String>>,
+    pending: Option<HashSet<String>>,
     pub unplaced: HashSet<String>,
-    /// The list or its switch changed, or a device came or went.
+    /// The list or its switch changed.
     pub due: bool,
 }
 
 impl Tracker {
-    /// Takes a fresh inventory. The first one is the baseline, not every
-    /// device connecting at launch. Returns true when a device came or went.
+    /// Takes a fresh inventory. The first one that isn't empty is the
+    /// baseline, not every device connecting at launch: Windows can answer
+    /// with no devices while its audio service starts. Returns true when a
+    /// pass should look at it.
     pub fn observe(&mut self, available: &HashSet<String>) -> bool {
-        match &self.settled {
-            None => {
+        let Some(settled) = &self.settled else {
+            if !available.is_empty() {
                 self.settled = Some(available.clone());
-                false
             }
-            Some(previous) if previous != available => {
-                self.settled = Some(available.clone());
-                self.due = true;
+            return false;
+        };
+        let differs = settled != available || self.pending.is_some();
+        self.pending = Some(available.clone());
+        differs
+    }
+
+    /// At the pass: only the settled set against the final one counts, so a
+    /// device that drops out and comes back inside the pass's delay isn't a
+    /// hardware change (AudioPriorityService.enforceAvailabilityChanges).
+    /// Returns whether this list owes a pass, and clears it.
+    pub fn settle(&mut self) -> bool {
+        let changed = match (self.pending.take(), &self.settled) {
+            (Some(pending), Some(settled)) if pending != *settled => {
+                self.settled = Some(pending);
                 true
             }
-            Some(_) => false,
-        }
+            _ => false,
+        };
+        std::mem::take(&mut self.due) || changed
     }
 }
 
@@ -212,9 +279,17 @@ pub fn place(
     let mut waiting: Vec<String> = tracker.unplaced.drain().collect();
     waiting.sort();
     for id in waiting {
-        if available.contains(&id) {
-            *list = placing_new(&id, list, current == Some(id.as_str()), &tier);
+        if !available.contains(&id) || list.contains(&id) {
+            continue;
         }
+        // A full list makes room by forgetting its lowest device that isn't
+        // connected, so a newcomer is never cut off again on every pass.
+        if list.len() >= MAX_LIST
+            && let Some(gone) = list.iter().rposition(|d| !available.contains(d))
+        {
+            list.remove(gone);
+        }
+        *list = placing_new(&id, list, current == Some(id.as_str()), &tier);
     }
     *list = sanitized_list(list);
 }
@@ -294,16 +369,69 @@ mod tests {
         assert_eq!(first_available(&[], &available), None);
     }
 
+    fn set(v: &[&str]) -> HashSet<String> {
+        ids(v).into_iter().collect()
+    }
+
     #[test]
     fn the_first_inventory_is_a_baseline_and_later_changes_are_due() {
         let mut t = Tracker::default();
-        let a: HashSet<String> = ids(&["speakers"]).into_iter().collect();
-        assert!(!t.observe(&a));
-        assert!(!t.due);
-        assert!(!t.observe(&a));
-        let b: HashSet<String> = ids(&["speakers", "bt"]).into_iter().collect();
-        assert!(t.observe(&b));
-        assert!(t.due);
+        assert!(!t.observe(&set(&["speakers"])));
+        assert!(!t.settle());
+        assert!(!t.observe(&set(&["speakers"])));
+        assert!(t.observe(&set(&["speakers", "bt"])));
+        assert!(t.settle());
+        assert!(!t.settle());
+    }
+
+    #[test]
+    fn an_empty_first_inventory_is_no_baseline() {
+        let mut t = Tracker::default();
+        assert!(!t.observe(&set(&[])));
+        assert!(!t.observe(&set(&["speakers", "bt"])));
+        assert!(!t.settle());
+    }
+
+    #[test]
+    fn a_device_back_before_the_pass_is_no_change() {
+        let mut t = Tracker::default();
+        t.observe(&set(&["a", "b"]));
+        assert!(t.observe(&set(&["b"])));
+        assert!(t.observe(&set(&["a", "b"])));
+        assert!(!t.settle());
+        // A list change still owes its pass.
+        t.due = true;
+        assert!(t.settle());
+    }
+
+    #[test]
+    fn a_full_list_forgets_a_gone_device_for_a_newcomer() {
+        let mut list: Vec<String> = (0..64).map(|i| format!("d{i}")).collect();
+        let mut t = Tracker::default();
+        let available: Vec<String> = ids(&["d0", "new"]);
+        merge(&mut list, &mut t, &available, Some("d0"), |_| {
+            Tier::Hardware
+        });
+        place(&mut list, &mut t, &available, Some("d0"), |_| {
+            Tier::Hardware
+        });
+        assert_eq!(list.len(), 64);
+        assert_eq!(list.last().map(String::as_str), Some("new"));
+        assert!(!list.contains(&"d63".to_string()));
+    }
+
+    #[test]
+    fn a_damaged_saved_field_keeps_the_others() {
+        let saved = Saved::from_value(&serde_json::json!({
+            "outputEnabled": true,
+            "outputs": ["a", "a", " ", 3, "b"],
+            "inputs": "x",
+            "names": {"a": "Speakers", "b": 7}
+        }));
+        assert!(saved.output_enabled && !saved.input_enabled);
+        assert_eq!(saved.outputs, ids(&["a", "b"]));
+        assert!(saved.inputs.is_empty());
+        assert_eq!(saved.names.len(), 1);
     }
 
     #[test]
@@ -411,6 +539,14 @@ mod tests {
         assert_eq!(tier("USB", "Headset (Jabra)"), Tier::Hardware);
         assert_eq!(tier("BTHENUM", "Headphones (WH-1000XM5)"), Tier::Hardware);
         assert_eq!(tier("ROOT", "Speakers"), Tier::Virtual);
+        assert_eq!(
+            tier("HDAUDIO", "LG ULTRAGEAR (NVIDIA High Definition Audio)"),
+            Tier::Hardware
+        );
+        assert_eq!(
+            tier("INTELAUDIO", "Monitor (Intel(R) Display Audio)"),
+            Tier::Hardware
+        );
         assert_eq!(
             tier("", "CABLE Input (VB-Audio Virtual Cable)"),
             Tier::Virtual

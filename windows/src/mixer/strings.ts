@@ -51,12 +51,20 @@ export const S = {
   switcherTitle: "Output switcher",
   switcherDevices: "Outputs in cycle",
   switcherNoAvailable: "Select at least one available output.",
+  /** shelfHotkeyLabel. */
   shortcut: "Shortcut",
-  shortcutRecording: "Press the new shortcut",
+  /** shortcutPressKeys, on the field while it records. */
+  shortcutPressKeys: "Press keys",
+  /** ShortcutRecordingCaption: shortcutRecording and shortcutEscapeHint. */
+  shortcutRecordingCaption: "Press the new shortcut. Escape cancels.",
+  shortcutReset: "Reset",
+  /** shortcutInvalid, with Windows' modifier names. */
+  shortcutInvalid: "Use at least Ctrl, Alt or Win with a key.",
   /** shortcutUnavailable, with Windows in place of macOS. */
   shortcutUnavailable: "Windows rejected this shortcut. Choose another one.",
-  /** Windows' own: the island's toggle can't be given away. */
-  shortcutTaken: "Ctrl+Alt+Space opens the island. Choose another one.",
+  /** shortcutConflictFormat, naming what already holds the keys. */
+  shortcutConflict: (who: "island" | "sessions") =>
+    `This shortcut is already used by ${who === "island" ? "Show or hide the island" : "Sessions approvals"}.`,
   priority: "Audio priority",
   priorityCaption:
     "Devices are selected in priority order. When a higher-priority device connects, it becomes active. When the active one disconnects, the next available takes over.",

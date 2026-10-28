@@ -301,6 +301,7 @@ pub fn run() {
     app.run(|app, event| {
         if let RunEvent::Exit = event {
             fullscreen::stop(app);
+            audio::stop();
         }
     });
 }

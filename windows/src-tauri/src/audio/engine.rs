@@ -315,6 +315,8 @@ pub struct Engine {
     placement_generation: u64,
     guard: Guard,
     switch_failed: bool,
+    /// Why the last automatic priority switch failed.
+    priority_error: Option<String>,
 }
 
 impl Drop for Engine {
@@ -356,6 +358,7 @@ impl Engine {
             placement_generation: 0,
             guard: Guard::default(),
             switch_failed: false,
+            priority_error: None,
         };
         // Restored while muted: the microphones present now were present
         // before, so one unmuted by hand meanwhile stays as it is.
@@ -367,6 +370,7 @@ impl Engine {
                 .collect();
         }
         engine.reload_devices();
+        super::switching_probed(engine.policy.is_some());
         Ok(engine)
     }
 
@@ -689,6 +693,7 @@ impl Engine {
             priority: self.priority_view(),
             switcher_refused: super::SWITCHER_REFUSED.load(Ordering::SeqCst),
             switch_failed: self.switch_failed,
+            priority_error: self.priority_error.clone(),
             roller_failed: super::ROLLER_FAILED.load(Ordering::SeqCst),
         }
     }
@@ -725,6 +730,7 @@ impl Engine {
                     return;
                 };
                 let previous = unsafe { endpoint.GetMasterVolumeLevelScalar() }.ok();
+                // Not the island's own context: its volume notice shows the lowered level.
                 if unsafe { endpoint.SetMasterVolumeLevelScalar(volume, &GUID::zeroed()) }.is_err()
                 {
                     return;
@@ -735,22 +741,7 @@ impl Engine {
                     && unsafe { endpoint.SetMute(true, &GUID::zeroed()) }.is_ok();
                 self.guard.lowered(&id, previous, volume, muted);
             }
-            guard::Action::Restore(lowered) => {
-                let Some(endpoint) = self.endpoint_volume(&lowered.id) else {
-                    return;
-                };
-                let current = unsafe { endpoint.GetMasterVolumeLevelScalar() }.ok();
-                if !guard::should_restore(&lowered, current) {
-                    return;
-                }
-                let _ =
-                    unsafe { endpoint.SetMasterVolumeLevelScalar(lowered.previous, &OWN_CHANGE) };
-                if lowered.muted_by_lowering
-                    && unsafe { endpoint.GetMute() }.is_ok_and(|m| m.as_bool())
-                {
-                    let _ = unsafe { endpoint.SetMute(false, &OWN_CHANGE) };
-                }
-            }
+            guard::Action::Restore(lowered) => self.restore(&lowered),
         }
     }
 
@@ -893,7 +884,7 @@ impl Engine {
                     self.priority.input_enabled,
                 )
             };
-            if !std::mem::take(&mut tracker.due) || !enabled {
+            if !tracker.settle() || !enabled {
                 continue;
             }
             let available = devices.iter().map(|d| d.id.clone()).collect();
@@ -902,10 +893,14 @@ impl Engine {
             else {
                 continue;
             };
-            if let Some(policy) = &self.policy
-                && policy.set_default(target).is_ok()
-            {
-                switched = true;
+            // A failed switch says why, as the Mac's outputSwitchError does.
+            match self.policy.as_ref().map(|p| p.set_default(target)) {
+                Some(Ok(())) => {
+                    switched = true;
+                    self.priority_error = None;
+                }
+                Some(Err(e)) => self.priority_error = Some(e),
+                None => {}
             }
         }
         if switched {
@@ -956,6 +951,9 @@ impl Engine {
         if let Some(enabled) = enabled {
             due |= enabled && !*on;
             *on = enabled;
+            if !enabled {
+                self.priority_error = None;
+            }
         }
         if let Some(ids) = ids {
             let ids = priority::sanitized_list(&ids);
@@ -992,6 +990,31 @@ impl Engine {
 
     pub fn clear_switch_failure(&mut self) {
         self.switch_failed = false;
+    }
+
+    /// The app is quitting: speakers the guard lowered get their level back
+    /// while it is still the one the guard set (AppVolumeMixer.stopAll).
+    pub fn restore_lowered(&mut self) {
+        let Some(lowered) = self.guard.lowered.take() else {
+            return;
+        };
+        self.restore(&lowered);
+    }
+
+    fn restore(&self, lowered: &guard::Lowered) {
+        let Some(endpoint) = self.endpoint_volume(&lowered.id) else {
+            return;
+        };
+        let current = unsafe { endpoint.GetMasterVolumeLevelScalar() }.ok();
+        if !guard::should_restore(lowered, current) {
+            return;
+        }
+        let _ = unsafe { endpoint.SetMasterVolumeLevelScalar(lowered.previous, &OWN_CHANGE) };
+        // A mute switched off since was someone's choice, and one the guard
+        // didn't set was never its to undo.
+        if lowered.muted_by_lowering && unsafe { endpoint.GetMute() }.is_ok_and(|m| m.as_bool()) {
+            let _ = unsafe { endpoint.SetMute(false, &OWN_CHANGE) };
+        }
     }
 
     // MARK: Finer volume keys
@@ -1280,7 +1303,8 @@ fn stem(exe: &str) -> String {
 fn load_priority() -> Saved {
     super::saved_file(PRIORITY_FILE)
         .and_then(|path| std::fs::read(path).ok())
-        .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .map(|value| Saved::from_value(&value))
         .unwrap_or_default()
 }
 

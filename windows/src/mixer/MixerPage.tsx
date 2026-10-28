@@ -419,6 +419,7 @@ function MixerOptions() {
       </Row>
       {state.outputs.length === 0 ? <p className="mx-message">{S.noOutputs}</p> : null}
       {switchError && !switchError.input ? <p className="mx-message">{S.couldNotSwitch(switchError.message)}</p> : null}
+      {state.priorityError ? <p className="mx-message">{S.couldNotSwitch(state.priorityError)}</p> : null}
       <Row
         icon={state.micMuted ? <MicOff size={11} strokeWidth={2.25} /> : <Mic size={11} strokeWidth={2.25} />}
         title={S.microphone}

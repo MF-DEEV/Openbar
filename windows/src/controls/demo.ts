@@ -47,6 +47,7 @@ export function demoAudio(): AudioState {
       inputs: [{ id: "mic", name: "Microphone Array (Realtek Audio)", available: true }],
     },
     switcherRefused: false,
+    priorityError: null,
     switchFailed: false,
     rollerFailed: false,
   };
