@@ -107,8 +107,16 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if shortcut == &toggle_shortcut() && event.state() == ShortcutState::Pressed {
+                    if audio::roller_key(shortcut, event.state() == ShortcutState::Pressed) {
+                        return;
+                    }
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    if shortcut == &toggle_shortcut() {
                         let _ = app.emit_to(island::LABEL, "island://toggle", ());
+                    } else if audio::is_switcher_shortcut(shortcut) {
+                        audio::switch_to_next_output();
                     }
                 })
                 .build(),
@@ -183,6 +191,8 @@ pub fn run() {
             audio::audio_set_app,
             audio::audio_watch_apps,
             audio::mic_mute_set,
+            audio::audio_priority_set,
+            audio::audio_switcher_recording,
             keep_awake::keep_awake_state,
             keep_awake::keep_awake_set,
             keep_awake::keep_awake_toggle,
@@ -294,6 +304,7 @@ pub fn run() {
     app.run(|app, event| {
         if let RunEvent::Exit = event {
             fullscreen::stop(app);
+            audio::stop();
         }
     });
 }

@@ -165,6 +165,13 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
   if (island.agentsLimitThreshold !== undefined)
     island.agentsLimitThreshold = Math.min(100, Math.max(1, island.agentsLimitThreshold));
   if (island.agentsDailyBudget !== undefined) island.agentsDailyBudget = Math.max(0, island.agentsDailyBudget);
+  if (island.mixerHeadphonesDisconnectVolumePercent !== undefined)
+    island.mixerHeadphonesDisconnectVolumePercent = Math.min(
+      100,
+      Math.max(0, Math.round(island.mixerHeadphonesDisconnectVolumePercent)),
+    );
+  if (island.soundOutputSwitcherShortcut !== undefined && island.soundOutputSwitcherShortcut.trim() === "")
+    delete island.soundOutputSwitcherShortcut;
   // At least one agent stays read, as the usage service treats none (agent_usage::settings).
   const agents = ["agentsClaude", "agentsCodex", "agentsOpenCode", "agentsCopilot"] as const;
   if (agents.every((key) => island[key] === false)) agents.forEach((key) => delete island[key]);
@@ -196,10 +203,16 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
         ? raw.downloadFolders.filter((v): v is string => typeof v === "string" && v.length > 0)
         : [],
       ...Object.fromEntries(
-        (["toolsOrder", "toolsHidden", "togglesOrder", "togglesHidden", "ejectExcluded"] as const).map((key) => [
-          key,
-          stringList(raw[key]) ?? [],
-        ]),
+        (
+          [
+            "toolsOrder",
+            "toolsHidden",
+            "togglesOrder",
+            "togglesHidden",
+            "ejectExcluded",
+            "soundOutputSwitcherDevices",
+          ] as const
+        ).map((key) => [key, stringList(raw[key]) ?? []]),
       ),
       clipboardIgnoredApps: Array.isArray(raw.clipboardIgnoredApps)
         ? raw.clipboardIgnoredApps.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
