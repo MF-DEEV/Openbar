@@ -224,7 +224,9 @@ impl Tracker {
             }
             return false;
         };
-        let differs = settled != available || self.pending.is_some();
+        // Back to where it settled before the pass still owes that pass,
+        // which then finds nothing changed; an unchanged list owes none.
+        let differs = settled != available || self.pending.as_ref().is_some_and(|p| p != available);
         self.pending = Some(available.clone());
         differs
     }
@@ -390,6 +392,14 @@ mod tests {
         assert!(!t.observe(&set(&[])));
         assert!(!t.observe(&set(&["speakers", "bt"])));
         assert!(!t.settle());
+    }
+
+    #[test]
+    fn an_unchanged_inventory_owes_no_pass() {
+        let mut t = Tracker::default();
+        t.observe(&set(&["a"]));
+        assert!(!t.observe(&set(&["a"])));
+        assert!(!t.observe(&set(&["a"])));
     }
 
     #[test]

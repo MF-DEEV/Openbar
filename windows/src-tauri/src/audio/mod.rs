@@ -147,6 +147,9 @@ impl Options {
             .and_then(serde_json::Value::as_array)
             .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some("mixer")));
         let mixer = !hidden
+            && island("enabled")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(true)
             && island("sections/mixer")
                 .and_then(serde_json::Value::as_bool)
                 .unwrap_or(true);
@@ -385,7 +388,11 @@ pub(crate) fn switching_probed(can_switch: bool) {
     CAN_SWITCH.store(can_switch, Ordering::SeqCst);
     if let Some((app, _)) = APP.get() {
         let handle = app.clone();
-        let _ = app.run_on_main_thread(move || sync_switcher(&handle));
+        let _ = app.run_on_main_thread(move || {
+            sync_switcher(&handle);
+            #[cfg(windows)]
+            engine::post(|_| {});
+        });
     }
 }
 
@@ -434,14 +441,24 @@ fn sync_roller<R: Runtime>(app: &AppHandle<R>, on: bool) {
         }
     }
     if !on {
-        ROLLER_PRESS.fetch_add(1, Ordering::SeqCst);
+        for press in &ROLLER_PRESS {
+            press.fetch_add(1, Ordering::SeqCst);
+        }
     }
     ROLLER_FAILED.store(on && failed, Ordering::SeqCst);
 }
 
 static ROLLER_GATE: Mutex<Option<roller::Gate>> = Mutex::new(None);
-/// Counts presses and releases, so a held key's repeats stop at release.
-static ROLLER_PRESS: AtomicU32 = AtomicU32::new(0);
+/// Counts each key's presses and releases (up, down), so a held key's
+/// repeats stop at its release, or when the other key is pressed.
+static ROLLER_PRESS: [AtomicU32; 2] = [AtomicU32::new(0), AtomicU32::new(0)];
+
+fn roller_index(direction: roller::Direction) -> usize {
+    match direction {
+        roller::Direction::Up => 0,
+        roller::Direction::Down => 1,
+    }
+}
 /// Like the keyboard's own repeat: a wait, then steady steps.
 const ROLLER_REPEAT_DELAY_MS: u64 = 500;
 const ROLLER_REPEAT_MS: u64 = 50;
@@ -453,14 +470,17 @@ pub fn roller_key(shortcut: &tauri_plugin_global_shortcut::Shortcut, pressed: bo
     let Some(direction) = roller::direction(shortcut) else {
         return false;
     };
-    let press = ROLLER_PRESS.fetch_add(1, Ordering::SeqCst) + 1;
+    let index = roller_index(direction);
+    let press = ROLLER_PRESS[index].fetch_add(1, Ordering::SeqCst) + 1;
     if pressed {
+        // Like the keyboard, a new key takes over the repeat.
+        ROLLER_PRESS[1 - index].fetch_add(1, Ordering::SeqCst);
         roller_step(direction);
         let _ = std::thread::Builder::new()
             .name("vorssaint-volume-repeat".into())
             .spawn(move || {
                 std::thread::sleep(std::time::Duration::from_millis(ROLLER_REPEAT_DELAY_MS));
-                while ROLLER_PRESS.load(Ordering::SeqCst) == press {
+                while ROLLER_PRESS[index].load(Ordering::SeqCst) == press {
                     roller_step(direction);
                     std::thread::sleep(std::time::Duration::from_millis(ROLLER_REPEAT_MS));
                 }
@@ -789,6 +809,7 @@ mod tests {
         for rest in [
             with(serde_json::json!({ "hiddenModules": ["mixer"] })),
             with(serde_json::json!({ "sections": { "mixer": false } })),
+            with(serde_json::json!({ "enabled": false })),
         ] {
             assert!(!rest.lower_on_disconnect && !rest.roller && !rest.switcher);
         }
