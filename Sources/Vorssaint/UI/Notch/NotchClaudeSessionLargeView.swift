@@ -47,6 +47,7 @@ struct NotchClaudeSessionLargeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 header(now: context.date)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeight = $0 }
+                NotchClaudeAutoAllowBar(session: session, text: text)
                 if session.phase.isWaiting {
                     // Several questions run taller than the page; past most of
                     // it they scroll, leaving the conversation and the reply.

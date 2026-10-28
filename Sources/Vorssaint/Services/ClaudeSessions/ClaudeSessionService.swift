@@ -38,6 +38,8 @@ final class ClaudeSessionService: ObservableObject {
     @Published private(set) var dressingID: String?
     /// The permission each session shows and since when. Main thread.
     private var shownRequests: [String: (request: String, at: Date)] = [:]
+    /// Codex sessions whose requests Always allows until their turn ends.
+    @Published private(set) var autoAllowed: Set<String> = []
     let events = PassthroughSubject<ClaudeSessionEvent, Never>()
     /// Whether Claude Code's settings hold this app's hooks; nil until checked.
     @Published private(set) var hooksInstalled: Bool?
@@ -88,6 +90,12 @@ final class ClaudeSessionService: ObservableObject {
     private var lastRecords: [Int32: ClaudeSessionRecord] = [:]
     private let agentColors = ClaudeAgentColors()
     private var server: ClaudeHookServer?
+    /// The sessions as they came, before Always hid the waits it answers.
+    private var latest: [ClaudeSession] = []
+    /// Codex sessions given Always, and the answers it has on their way.
+    private var autoAllow = NotchSessionAutoAllow()
+    private var autoAllowWork: [String: DispatchWorkItem] = [:]
+    private var publishedAutoAllow: Set<String> = []
     /// Codex's sessions, from the app-server its terminal UIs share. They join
     /// the same list as Claude Code's (docs/codex-sessions.md).
     private var codex: CodexSessionClient?
@@ -159,10 +167,17 @@ final class ClaudeSessionService: ObservableObject {
         permissionWatch = nil
         sessions = []
         counts = ClaudeSessionCounts()
+        autoAllowed = []
         queue.async { [self] in
             timer?.cancel()
             timer = nil
             interval = 0
+            // Always holds for one run of the section, like the turn it covers.
+            latest = []
+            autoAllow = NotchSessionAutoAllow()
+            autoAllowWork.values.forEach { $0.cancel() }
+            autoAllowWork = [:]
+            publishedAutoAllow = []
             readers = [:]
             transcripts = [:]
             subagentMeta = []
@@ -260,10 +275,7 @@ final class ClaudeSessionService: ObservableObject {
     /// Answers the request the person saw, and only that one: a newer request
     /// for the same session, or one already settled, is left alone.
     func decide(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision) {
-        // A request is answerable once it has been on screen a moment, so a
-        // click or ⌘Y meant for the one before it cannot answer it.
-        guard let shown = shownRequests[id], shown.request == request,
-              Date().timeIntervalSince(shown.at) >= NotchClaudeSessionsSupport.settleDelay else { return }
+        guard settled(id, request: request) else { return }
         queue.async { [self] in
             // Codex takes its answer through its own server; the first answer wins there.
             if let codex, codex.owns(id) {
@@ -285,6 +297,23 @@ final class ClaudeSessionService: ObservableObject {
             asked.connection.finish(ClaudeHookMessage.reply(decision, suggestions: asked.suggestions, input: asked.question))
             engine.resolvePermission(requestID: request)
             engine.acknowledge(id, now: Date())
+            publish(now: Date())
+        }
+    }
+
+    /// A request is answerable once it has been on screen a moment, so a
+    /// click or ⌘Y meant for the one before it cannot answer it.
+    func settled(_ id: String, request: String) -> Bool {
+        guard let shown = shownRequests[id], shown.request == request else { return false }
+        return Date().timeIntervalSince(shown.at) >= NotchClaudeSessionsSupport.settleDelay
+    }
+
+    /// Always on a Codex session: every request of the turn under way is
+    /// allowed as it comes, the one waiting now too, until the turn ends.
+    /// With nil it turns over.
+    func setAutoAllow(_ id: String, _ on: Bool? = nil) {
+        queue.async { [self] in
+            guard autoAllow.set(id, on: on, session: latest.first { $0.id == id }) else { return }
             publish(now: Date())
         }
     }
@@ -623,16 +652,21 @@ final class ClaudeSessionService: ObservableObject {
             placed(session, others: fromCodex.sessions.filter { $0.id != session.id }.map(\.cwd))
         }
         let sorted = NotchClaudeSessionsSupport.sorted(claude + codexSessions)
-        let events = snapshot.events + fromCodex.events
-        let changed = sorted != published
-        published = sorted
+        let shown = autoAllowing(sorted, now: now)
+        let allowed = autoAllow.sessions
+        let hidden = Set(sorted.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed) }.map(\.id))
+        let events = (snapshot.events + fromCodex.events).filter { NotchClaudeSessionsSupport.shows($0, hidden: hidden) }
+        let changed = shown != published || allowed != publishedAutoAllow
+        published = shown
+        publishedAutoAllow = allowed
         guard changed || !events.isEmpty else { return }
         DispatchQueue.main.async { [self] in
             guard running else { return }
             if changed {
-                sessions = sorted
-                counts = ClaudeSessionCounts(sorted)
-                for session in sorted {
+                sessions = shown
+                counts = ClaudeSessionCounts(shown)
+                if autoAllowed != allowed { autoAllowed = allowed }
+                for session in shown {
                     let request = session.permission?.requestID
                     if shownRequests[session.id]?.request != request {
                         shownRequests[session.id] = request.map { (request: $0, at: Date()) }
@@ -641,7 +675,7 @@ final class ClaudeSessionService: ObservableObject {
                 // A session that left forgets its request: one coming back
                 // (Codex numbers requests afresh after a restart) waits its
                 // settle delay again.
-                let listed = Set(sorted.map(\.id))
+                let listed = Set(shown.map(\.id))
                 shownRequests = shownRequests.filter { listed.contains($0.key) }
                 if let focusedID, !listed.contains(focusedID) {
                     self.focusedID = nil
@@ -652,6 +686,28 @@ final class ClaudeSessionService: ObservableObject {
             }
             events.forEach(self.events.send)
         }
+    }
+
+    /// Keeps Always to the turn it was given in, sends each answer it
+    /// plans, and gives the sessions as the island shows them. On the queue.
+    private func autoAllowing(_ sessions: [ClaudeSession], now: Date) -> [ClaudeSession] {
+        latest = sessions
+        let plan = autoAllow.update(sessions, now: now)
+        for id in plan.cancel { autoAllowWork.removeValue(forKey: id)?.cancel() }
+        for answer in plan.schedule {
+            let work = DispatchWorkItem { [weak self] in self?.autoAllowNow(answer.id, request: answer.request) }
+            autoAllowWork[answer.id] = work
+            queue.asyncAfter(deadline: .now() + answer.after, execute: work)
+        }
+        return NotchClaudeSessionsSupport.presented(sessions, autoAllowed: autoAllow.sessions)
+    }
+
+    /// Allows a request Always covers, if it still waits and Always still holds.
+    private func autoAllowNow(_ id: String, request: String) {
+        autoAllowWork[id] = nil
+        guard timer != nil, let codex, autoAllow.fire(id, request: request, in: latest) else { return }
+        if !codex.answer(id, requestID: request, answer: .allow) { autoAllow.failed(id) }
+        publish(now: Date())
     }
 
     /// A Codex session with the terminal UI that shows it: the one codex

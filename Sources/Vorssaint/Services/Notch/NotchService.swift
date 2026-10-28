@@ -142,6 +142,7 @@ final class NotchService: ObservableObject {
     /// one shows and the island does not have the keyboard itself.
     private let sessionAllowKey = QuickToolHotkey(id: 82)
     private let sessionDenyKey = QuickToolHotkey(id: 83)
+    private let sessionAlwaysKey = QuickToolHotkey(id: 84)
     private var sessionKeysWork: DispatchWorkItem?
     /// Whether a session's request may take the island now: the desktop or
     /// Vorssaint has been in front a moment. Otherwise it waits as the count.
@@ -1306,6 +1307,7 @@ final class NotchService: ObservableObject {
         hotkey.unregister()
         sessionAllowKey.unregister()
         sessionDenyKey.unregister()
+        sessionAlwaysKey.unregister()
         if shortcutRegistrationFailed { shortcutRegistrationFailed = false }
         NotchLyricsService.shared.stop()
         NotchFileToolsService.shared.stop()
@@ -1338,6 +1340,7 @@ final class NotchService: ObservableObject {
         sessionKeysWork?.cancel(); sessionKeysWork = nil
         sessionAllowKey.unregister()
         sessionDenyKey.unregister()
+        sessionAlwaysKey.unregister()
         sessionPresentingWork?.cancel(); sessionPresentingWork = nil
         sessionPresentingAllowed = false
         nextMascotVisitWork?.cancel(); nextMascotVisitWork = nil
@@ -1940,8 +1943,9 @@ final class NotchService: ObservableObject {
     }
 
     /// ⌘Y allows and ⌘N denies the permission of the session whose page is
-    /// open, or of the first session waiting on one. A question is answered
-    /// on its card; ⌘N skips it only there, where it can be read.
+    /// open, or of the first session waiting on one; ⌘T picks Always where
+    /// the card offers it. A question is answered on its card; ⌘N skips it
+    /// only there, where it can be read.
     private func handleSessionKey(_ event: NSEvent) -> Bool {
         guard let decision = NotchClaudeSessionsSupport.decision(
                   key: event.charactersIgnoringModifiers,
@@ -1951,7 +1955,8 @@ final class NotchService: ObservableObject {
     }
 
     /// The request on screen a key would answer with this decision.
-    private func sessionKeyRequest(for decision: ClaudeHookMessage.Decision) -> (id: String, request: String)? {
+    private func sessionKeyRequest(for decision: ClaudeHookMessage.Decision)
+        -> (id: String, request: String, provider: ClaudeSessionProvider)? {
         guard expanded, selected == .sessions, !showingAppPanel, !showingSections, selectedMetric == nil,
               !showingCommandBar else { return nil }
         let sessions = ClaudeSessionService.shared
@@ -1960,14 +1965,22 @@ final class NotchService: ObservableObject {
         let focused = sessions.focusedID.flatMap { id in sessions.sessions.first { $0.id == id } }
         guard let target = focused ?? sessions.sessions.first(where: { $0.permission.map { !$0.asksQuestions } ?? false }),
               let permission = target.permission,
-              !(permission.asksQuestions && decision != .deny) else { return nil }
-        return (target.id, permission.requestID)
+              !(permission.asksQuestions && decision != .deny),
+              // Always is on Codex's card for its turn, on Claude Code's where it offers rules.
+              decision != .allowAlways || target.provider == .codex || permission.offersAlways else { return nil }
+        return (target.id, permission.requestID, target.provider)
     }
 
     @discardableResult
     private func answerSessionRequest(_ decision: ClaudeHookMessage.Decision) -> Bool {
         guard let target = sessionKeyRequest(for: decision) else { return false }
-        ClaudeSessionService.shared.decide(target.id, request: target.request, decision)
+        let sessions = ClaudeSessionService.shared
+        if decision == .allowAlways, target.provider == .codex {
+            // Waits the same moment as the buttons, so a key meant for the request before cannot turn it on.
+            if sessions.settled(target.id, request: target.request) { sessions.setAutoAllow(target.id) }
+        } else {
+            sessions.decide(target.id, request: target.request, decision)
+        }
         return true
     }
 
@@ -1982,7 +1995,7 @@ final class NotchService: ObservableObject {
         DispatchQueue.main.async(execute: work)
     }
 
-    /// With the keyboard, the island reads ⌘Y and ⌘N itself. Without it,
+    /// With the keyboard, the island reads ⌘Y, ⌘N and ⌘T itself. Without it,
     /// they are borrowed from the app in front only while a request they
     /// answer is on screen, and given back as soon as it is not, so the
     /// app's own ⌘N works again.
@@ -1995,6 +2008,9 @@ final class NotchService: ObservableObject {
         sessionDenyKey.sync(enabled: borrows && sessionKeyRequest(for: .deny) != nil,
                             shortcut: NotchClaudeSessionsSupport.denyShortcut,
                             storageKey: NotchClaudeSessionsSupport.denyShortcutKey)
+        sessionAlwaysKey.sync(enabled: borrows && sessionKeyRequest(for: .allowAlways) != nil,
+                              shortcut: NotchClaudeSessionsSupport.alwaysShortcut,
+                              storageKey: NotchClaudeSessionsSupport.alwaysShortcutKey)
     }
 
     /// The editor lives in the view, so the request goes out as a serial and
@@ -4241,6 +4257,7 @@ final class NotchService: ObservableObject {
                 .store(in: &subscriptions)
             sessionAllowKey.onPress = { [weak self] in self?.answerSessionRequest(.allow) }
             sessionDenyKey.onPress = { [weak self] in self?.answerSessionRequest(.deny) }
+            sessionAlwaysKey.onPress = { [weak self] in self?.answerSessionRequest(.allowAlways) }
             syncSessionPresenting()
             // Leaving a session's page brings the island back to its size.
             ClaudeSessionService.shared.$focusedID
@@ -4254,6 +4271,7 @@ final class NotchService: ObservableObject {
             sessionKeysWork?.cancel(); sessionKeysWork = nil
             sessionAllowKey.unregister()
             sessionDenyKey.unregister()
+            sessionAlwaysKey.unregister()
         }
         if NotchSupport.routes(.agents) {
             AgentUsageService.shared.events.receive(on: DispatchQueue.main)
