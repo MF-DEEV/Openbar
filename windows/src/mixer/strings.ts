@@ -36,4 +36,46 @@ export const S = {
   /** The Mac's Command-drag, on Windows' Ctrl. */
   arrange: "Hold Ctrl and drag to reorder",
   systemSounds: "System sounds",
+  // MixerOptionsControls, SoundOutputSwitcherControls, AudioPriorityDisclosure.
+  lowerOnHeadphonesDisconnect: "Lower volume when headphones disconnect",
+  lowerOnHeadphonesDisconnectCaption: "Adjusts output when wired or Bluetooth headphones disconnect.",
+  headphonesDisconnectVolume: "Volume after disconnect",
+  lower: "Lower",
+  raise: "Raise",
+  preciseRoller: "Use finer volume steps",
+  preciseRollerCaption: "Turns volume wheels and keys into smaller system volume steps.",
+  /** preciseVolumeRollerTapFailed. */
+  preciseRollerFailed: "Could not listen for volume keys.",
+  switcher: "Switch outputs with shortcut",
+  switcherCaption: "Choose outputs and use the shortcut to move to the next available one.",
+  switcherTitle: "Output switcher",
+  switcherDevices: "Outputs in cycle",
+  switcherNoAvailable: "Select at least one available output.",
+  /** shelfHotkeyLabel. */
+  shortcut: "Shortcut",
+  /** shortcutPressKeys, on the field while it records. */
+  shortcutPressKeys: "Press keys",
+  /** ShortcutRecordingCaption: shortcutRecording and shortcutEscapeHint. */
+  shortcutRecordingCaption: "Press the new shortcut. Escape cancels.",
+  shortcutReset: "Reset",
+  /** shortcutInvalid, with Windows' modifier names. */
+  shortcutInvalid: "Use at least Ctrl, Alt or Win with a key.",
+  /** shortcutUnavailable, with Windows in place of macOS. */
+  shortcutUnavailable: "Windows rejected this shortcut. Choose another one.",
+  /** shortcutConflictFormat, naming what already holds the keys. */
+  shortcutConflict: (who: "island" | "sessions") =>
+    `This shortcut is already used by ${who === "island" ? "Show or hide the island" : "Sessions approvals"}.`,
+  priority: "Audio priority",
+  priorityCaption:
+    "Devices are selected in priority order. When a higher-priority device connects, it becomes active. When the active one disconnects, the next available takes over.",
+  priorityOutputs: "Output priority",
+  priorityInputs: "Microphone priority",
+  priorityOutputEnable: "Automatically switch to the highest-priority output",
+  priorityInputEnable: "Automatically switch to the highest-priority microphone",
+  priorityMoveUp: "Move up",
+  priorityMoveDown: "Move down",
+  priorityUnavailable: "Unavailable",
+  priorityCurrent: "Current",
+  /** mixerOutputCurrent, the "(current)" after a device's name. */
+  current: "current",
 } as const;

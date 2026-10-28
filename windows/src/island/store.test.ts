@@ -96,6 +96,40 @@ describe("state machine", () => {
     expect(useIsland.getState().notice?.id).toBe("c");
   });
 
+  it("a tap on a notice opens its section, then runs what the notice adds", () => {
+    const seen: unknown[] = [];
+    useIsland.getState().showNotice({
+      id: "n",
+      kind: "sessions",
+      title: "api",
+      priority: 2,
+      duration: 6,
+      opens: "sessions",
+      session: { id: "s1", provider: "claude", event: "finished" },
+      onOpen: () => seen.push(useIsland.getState().selected),
+    });
+    useIsland.getState().clickClosed();
+    expect(useIsland.getState()).toMatchObject({ notice: null, expanded: true, selected: "sessions" });
+    expect(seen).toEqual(["sessions"]);
+  });
+
+  it("a tap that cannot open the notice's section leaves the rest undone", () => {
+    const seen: string[] = [];
+    useIsland.getState().showNotice({
+      id: "n",
+      kind: "sessions",
+      title: "api",
+      priority: 2,
+      duration: 6,
+      opens: "sessions",
+      onOpen: () => seen.push("focused"),
+    });
+    useIsland.setState((s) => ({ settings: { ...s.settings, hiddenModules: ["sessions"] } }));
+    useIsland.getState().clickClosed();
+    expect(useIsland.getState().selected).not.toBe("sessions");
+    expect(seen).toEqual([]);
+  });
+
   it("closing with the pointer inside suppresses hover until it leaves", () => {
     const s = useIsland.getState();
     s.pointerEnter();

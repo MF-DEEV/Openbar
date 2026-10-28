@@ -5,7 +5,7 @@
 
 use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
-const LABEL: &str = "settings";
+pub const LABEL: &str = "settings";
 
 /// Opens (or brings forward) the settings window. On Windows a webview
 /// built on the thread that runs the event loop never loads (Tauri's
@@ -22,12 +22,21 @@ fn show<R: Runtime>(app: &AppHandle<R>) {
         let _ = window.set_focus();
         return;
     }
-    let _ = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("settings.html".into()))
+    let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("settings.html".into()))
         .title("Vorssaint Settings")
         .inner_size(860.0, 620.0)
         .min_inner_size(720.0, 480.0)
         .center()
         .build();
+    // Closed while its shortcut field recorded: the page never says it stopped.
+    if let Ok(window) = window {
+        let handle = app.clone();
+        window.on_window_event(move |event| {
+            if let tauri::WindowEvent::Destroyed = event {
+                crate::audio::recording_window_closed(&handle);
+            }
+        });
+    }
 }
 
 #[tauri::command]

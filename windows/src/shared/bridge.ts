@@ -13,7 +13,7 @@ import type { MusicCommand, NowPlaying } from "../music/types";
 import type { Access, Inbox, Item } from "../notifications/types";
 import type { DownloadSnapshot } from "../downloads/types";
 import type { MicrophoneSnapshot } from "../microphone/model";
-import type { MetricKind, SystemSnapshot } from "../system/types";
+import type { MetricKind, SpeedTestState, SystemSnapshot } from "../system/types";
 import type { CalendarAccess, CalendarSnapshot } from "../calendar/types";
 import type { AudioState, BrightnessDisplay, KeepAwakeState } from "../audio/types";
 import type { CaptureOutcome, CapturePurpose, ToggleState } from "../tools/types";
@@ -150,6 +150,13 @@ export const bridge = {
       if (!inTauri) return Promise.resolve(() => {});
       return listen<SystemSnapshot>("system://snapshot", (event) => handler(event.payload));
     },
+    speedTest: () => call<SpeedTestState>("speed_test_state"),
+    /** Starts the network detail's speed test unless one is running. */
+    startSpeedTest: () => call<SpeedTestState>("speed_test_start"),
+    onSpeedTest(handler: (state: SpeedTestState) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<SpeedTestState>("speedtest://state", (event) => handler(event.payload));
+    },
   },
   calendar: {
     snapshot: () => call<CalendarSnapshot>("calendar_snapshot"),
@@ -224,6 +231,8 @@ export const bridge = {
     /** A PNG data URL: the file's icon, or its thumbnail when `thumbnail`. */
     icon: (path: string, size: number, thumbnail = false) =>
       call<string | null>("shell_icon", { path, size, thumbnail }),
+    /** Task Manager, or the running one brought forward; false when it couldn't be started. */
+    openTaskManager: () => call<boolean>("shell_open_task_manager"),
   },
   sound: {
     play: () => call("sound_play"),
@@ -263,6 +272,11 @@ export const bridge = {
     watchApps: (on: boolean) => call("audio_watch_apps", { on }),
     /** Mic Mute on every microphone; undefined toggles. Resolves to the new state. */
     micMute: (muted?: boolean) => call<boolean>("mic_mute_set", { muted: muted ?? null }),
+    /** Audio priority: a list's automatic switching, or its new order (outputs, else microphones). */
+    setPriority: (output: boolean, change: { enabled?: boolean; ids?: string[] }) =>
+      call("audio_priority_set", { output, enabled: change.enabled ?? null, ids: change.ids ?? null }),
+    /** A shortcut field records: the output switcher lets go of its shortcut meanwhile. */
+    switcherRecording: (on: boolean) => call("audio_switcher_recording", { on }),
   },
   keepAwake: {
     state: () => call<KeepAwakeState>("keep_awake_state"),
@@ -274,6 +288,14 @@ export const bridge = {
     toggle: () => call<KeepAwakeState>("keep_awake_toggle"),
     /** Minutes starts a session (0 = until turned off); null ends it. */
     set: (minutes: number | null) => call<KeepAwakeState>("keep_awake_set", { minutes }),
+  },
+  power: {
+    /** Battery Saver (Energy saver), the Mac's Low Power Mode. */
+    saver: () => call<boolean>("power_saver_on"),
+    onSaver(handler: (on: boolean) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<boolean>("power://saver", (e) => handler(e.payload));
+    },
   },
   brightness: {
     displays: () => call<BrightnessDisplay[]>("brightness_displays"),

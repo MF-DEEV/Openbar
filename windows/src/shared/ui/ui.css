@@ -311,3 +311,133 @@ input.u-percent {
     transition: none;
   }
 }
+
+/* Checkbox (the Mac island's `.toggleStyle(.checkbox)`) */
+
+.u-check {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 18px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: #fff;
+  cursor: default;
+}
+
+.u-check input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
+
+.u-check-box {
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+  color: transparent;
+  transition:
+    background-color 0.12s,
+    box-shadow 0.12s;
+}
+
+.u-check:hover .u-check-box {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.u-check input:checked + .u-check-box {
+  background: #0a84ff;
+  box-shadow: none;
+  color: #fff;
+}
+
+.u-check input:checked + .u-check-box svg {
+  animation: u-check-in 0.16s ease-out;
+}
+
+@keyframes u-check-in {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+}
+
+.u-check input:focus-visible + .u-check-box {
+  outline: 2px solid #0a84ff;
+  outline-offset: 2px;
+}
+
+.u-check:active:not(.is-disabled) .u-check-box {
+  transform: scale(0.92);
+}
+
+.u-check.is-disabled {
+  opacity: 0.4;
+}
+
+.u-check-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.u-check.is-small {
+  font-size: 10.5px;
+  font-weight: 400;
+}
+
+/* Shortcut recorder */
+
+.u-shortcut {
+  height: 22px;
+  min-width: 96px;
+  max-width: 60%;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--n-wash);
+  font-size: 11px;
+  font-weight: 500;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition:
+    background-color 0.12s,
+    box-shadow 0.12s;
+}
+
+.u-shortcut:hover:enabled {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.u-shortcut.is-recording {
+  box-shadow: inset 0 0 0 1px #0a84ff;
+  color: var(--n-dim);
+  animation: u-shortcut-wait 1.2s ease-in-out infinite;
+}
+
+@keyframes u-shortcut-wait {
+  50% {
+    box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .u-check-box,
+  .u-shortcut {
+    transition: none;
+  }
+  .u-check input:checked + .u-check-box svg,
+  .u-shortcut.is-recording {
+    animation: none;
+  }
+}

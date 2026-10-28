@@ -175,6 +175,7 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
         service.set_previews(previews);
     }
     crate::clipboard::apply_prefs(app, before, value);
+    crate::audio::apply_prefs(app, value);
     // Also applies Show in screenshots, which a watched display region overrides.
     crate::watch::apply_prefs(app);
 }

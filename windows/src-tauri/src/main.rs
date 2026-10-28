@@ -39,6 +39,12 @@ fn main() {
             .unwrap_or_else(|| "music-probe.txt".into());
         vorssaint_windows_lib::music_probe_main(&path);
     }
+    if std::env::args().nth(1).as_deref() == Some("--speed-test-probe") {
+        let path = std::env::args()
+            .nth(2)
+            .unwrap_or_else(|| "speed-test-probe.txt".into());
+        vorssaint_windows_lib::speed_test_probe_main(&path);
+    }
     if std::env::args().nth(1).as_deref() == Some("--remove-hooks") {
         vorssaint_windows_lib::remove_hooks_main();
     }

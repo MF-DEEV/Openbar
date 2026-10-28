@@ -40,6 +40,16 @@ describe("metric details", () => {
     expect(power.map((r) => r.title)).toEqual(["System", "Adapter", "Battery", "Battery time remaining"]);
     expect(power.at(-1)!.value).toBe("1h 10m");
     expect(detailRows("battery", snapshot, false)[1]!.value).toMatch(/ W · On battery$/);
+    expect(detailRows("battery", snapshot, false).slice(2)).toEqual([
+      { title: "Battery health", value: "88%" },
+      { title: "Cycles", value: "412" },
+    ]);
+    const unread = { ...snapshot, battery: { ...snapshot.battery!, healthPercent: null, cycleCount: null } };
+    expect(
+      detailRows("battery", unread, false)
+        .slice(2)
+        .map((r) => r.value),
+    ).toEqual(["-", "-"]);
     expect(detailRows("connectedDevices", { ...snapshot, devices: [] }, false)).toEqual([
       { title: "No external devices connected", value: "" },
     ]);

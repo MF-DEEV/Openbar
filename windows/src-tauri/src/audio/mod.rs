@@ -12,13 +12,18 @@
 
 #[cfg(windows)]
 mod engine;
+mod guard;
 mod mic;
 #[cfg(windows)]
 mod policy;
+mod priority;
+mod roller;
+mod switcher;
 mod tree;
 
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,6 +31,30 @@ pub struct Device {
     pub id: String,
     pub name: String,
     pub is_default: bool,
+    /// Worn (form factor or name), for the headphone guard.
+    #[serde(skip)]
+    pub headphones: bool,
+    /// Built in, plugged in or virtual, for where audio priority ranks it.
+    #[serde(skip)]
+    pub tier: Option<priority::Tier>,
+}
+
+/// One entry of a priority list, connected or remembered by its last name.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Ranked {
+    pub id: String,
+    pub name: String,
+    pub available: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Priority {
+    pub output_enabled: bool,
+    pub input_enabled: bool,
+    pub outputs: Vec<Ranked>,
+    pub inputs: Vec<Ranked>,
 }
 
 /// A level and mute; None while unknown (no device, or it refused to say).
@@ -64,6 +93,109 @@ pub struct State {
     pub can_switch: bool,
     pub mic_muted: bool,
     pub apps: Vec<App>,
+    pub priority: Priority,
+    /// The output switcher is on but Windows refused its shortcut.
+    pub switcher_refused: bool,
+    /// Why the last automatic output priority switch failed (outputSwitchError).
+    pub priority_error: Option<String>,
+    /// The same for the microphone list.
+    pub input_priority_error: Option<String>,
+    /// The last switcher press found no chosen output that is connected.
+    pub switch_failed: bool,
+    /// Finer volume steps are on but Windows refused the volume keys.
+    pub roller_failed: bool,
+}
+
+/// The Mixer options the backend acts on itself (prefs `island.*`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Options {
+    pub lower_on_disconnect: bool,
+    pub lower_percent: u8,
+    pub roller: bool,
+    pub switcher: bool,
+    pub shortcut: String,
+    pub cycle: Vec<String>,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Options {
+            lower_on_disconnect: false,
+            lower_percent: guard::DEFAULT_PERCENT,
+            roller: false,
+            switcher: false,
+            shortcut: switcher::DEFAULT_SHORTCUT.into(),
+            cycle: Vec::new(),
+        }
+    }
+}
+
+impl Options {
+    fn from_prefs(value: &serde_json::Value) -> Self {
+        let island = |key: &str| value.pointer(&format!("/island/{key}"));
+        let flag = |key: &str| {
+            island(key)
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false)
+        };
+        let defaults = Options::default();
+        // The options belong to the Mixer: with the section turned off in
+        // Settings they rest, as the Mac's do while the mixer isn't available.
+        // Settings hides the Mixer through the section list, as the other
+        // backends read it (prefs.rs notifications, downloads.rs).
+        let hidden = island("hiddenModules")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some("mixer")));
+        let mixer = !hidden
+            && island("enabled")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(true)
+            && island("sections/mixer")
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(true);
+        Options {
+            lower_on_disconnect: mixer && flag("mixerLowerVolumeOnHeadphonesDisconnect"),
+            // Read like the pages read it: a number rounded to a whole percent.
+            lower_percent: island("mixerHeadphonesDisconnectVolumePercent")
+                .and_then(serde_json::Value::as_f64)
+                .filter(|v| v.is_finite())
+                .map_or(defaults.lower_percent, |v| {
+                    guard::sanitized_percent(v.round() as i64)
+                }),
+            roller: mixer && flag("preciseVolumeRollerEnabled"),
+            switcher: mixer && flag("soundOutputSwitcherEnabled"),
+            shortcut: island("soundOutputSwitcherShortcut")
+                .and_then(serde_json::Value::as_str)
+                .filter(|s| !s.trim().is_empty())
+                .map_or(defaults.shortcut, str::to_string),
+            cycle: island("soundOutputSwitcherDevices")
+                .and_then(serde_json::Value::as_array)
+                .map(|ids| {
+                    let ids: Vec<String> = ids
+                        .iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect();
+                    priority::sanitized_list(&ids)
+                })
+                .unwrap_or_default(),
+        }
+    }
+}
+
+static OPTIONS: Mutex<Option<Options>> = Mutex::new(None);
+static SWITCHER_REFUSED: AtomicBool = AtomicBool::new(false);
+static ROLLER_FAILED: AtomicBool = AtomicBool::new(false);
+/// The switcher shortcut held now, and whether a shortcut field is recording.
+static SWITCHER_KEY: Mutex<Option<tauri_plugin_global_shortcut::Shortcut>> = Mutex::new(None);
+static RECORDING: AtomicBool = AtomicBool::new(false);
+/// IPolicyConfig answered, so switching outputs can work; until the audio
+/// thread has probed it, the switcher holds no shortcut.
+static CAN_SWITCH: AtomicBool = AtomicBool::new(false);
+/// The held shortcut's id (0 for none), for the shortcut handler.
+static SWITCHER_ID: AtomicU32 = AtomicU32::new(0);
+
+fn options() -> Options {
+    OPTIONS.lock().unwrap().clone().unwrap_or_default()
 }
 
 /// One session's reading before grouping.
@@ -142,7 +274,10 @@ fn publish(next: State) {
         }
     };
     if changed {
-        let _ = app.emit_to(crate::island::LABEL, "audio://state", &next);
+        // Settings shows the Mixer options too.
+        for label in [crate::island::LABEL, crate::settings::LABEL] {
+            let _ = app.emit_to(label, "audio://state", &next);
+        }
     }
 }
 
@@ -175,6 +310,231 @@ pub fn start(app: AppHandle, shared: Shared) {
     }
     #[cfg(windows)]
     engine::start();
+}
+
+/// The Mixer options from the preferences, at launch and on every change:
+/// the headphone guard reads them on the next device change, the volume
+/// keys are held or let go, and the switcher's shortcut is taken or freed.
+pub fn apply_prefs<R: Runtime>(app: &AppHandle<R>, value: &serde_json::Value) {
+    let next = Options::from_prefs(value);
+    let before = OPTIONS.lock().unwrap().replace(next.clone());
+    if before.as_ref().is_some_and(|b| *b == next) {
+        return;
+    }
+    if before.as_ref().is_none_or(|b| b.roller != next.roller) {
+        sync_roller(app, next.roller);
+    }
+    if before
+        .as_ref()
+        .is_none_or(|b| b.switcher != next.switcher || b.shortcut != next.shortcut)
+    {
+        sync_switcher(app);
+    }
+    #[cfg(windows)]
+    {
+        // A new cycle, or the switcher turned off or on, starts without the
+        // last press's error (SoundOutputSwitcher.unregisterHotkey).
+        let fresh = before
+            .as_ref()
+            .is_some_and(|b| b.cycle != next.cycle || b.switcher != next.switcher);
+        engine::post(move |e| {
+            if fresh {
+                e.clear_switch_failure();
+            }
+        });
+    }
+}
+
+/// Takes the switcher's shortcut while it is on and no field is recording.
+/// A preference change and the end of a recording can arrive together, so
+/// the whole decision is made under the lock from the newest options and
+/// recording state: whichever call runs last leaves the right shortcut.
+fn sync_switcher<R: Runtime>(app: &AppHandle<R>) {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
+    let shortcuts = app.global_shortcut();
+    let mut held = SWITCHER_KEY.lock().unwrap();
+    let options = options();
+    let recording = RECORDING.load(Ordering::SeqCst);
+    let can_switch = CAN_SWITCH.load(Ordering::SeqCst);
+    let wanted = (options.switcher && can_switch && !recording)
+        .then(|| options.shortcut.parse::<Shortcut>().ok())
+        .flatten();
+    if held.is_some() && *held == wanted {
+        return;
+    }
+    if let Some(old) = held.take() {
+        SWITCHER_ID.store(0, Ordering::SeqCst);
+        let _ = shortcuts.unregister(old);
+    }
+    let refused = match wanted {
+        Some(key) if switcher::reserved(&key) || !switcher::has_modifier(&key) => true,
+        Some(key) => match shortcuts.register(key) {
+            Ok(()) => {
+                *held = Some(key);
+                SWITCHER_ID.store(key.id(), Ordering::SeqCst);
+                false
+            }
+            Err(_) => true,
+        },
+        // On but unreadable; while a field records, nothing is refused.
+        None => options.switcher && can_switch && !recording,
+    };
+    SWITCHER_REFUSED.store(refused, Ordering::SeqCst);
+}
+
+/// The audio thread has probed IPolicyConfig. The shortcut is taken on the
+/// main thread: a registration waits for it, so the audio thread must not.
+pub(crate) fn switching_probed(can_switch: bool) {
+    CAN_SWITCH.store(can_switch, Ordering::SeqCst);
+    if let Some((app, _)) = APP.get() {
+        let handle = app.clone();
+        let _ = app.run_on_main_thread(move || {
+            sync_switcher(&handle);
+            #[cfg(windows)]
+            engine::post(|_| {});
+        });
+    }
+}
+
+/// A window that may be recording a shortcut closed: no recording outlives
+/// it, so the switcher takes its shortcut back.
+pub fn recording_window_closed<R: Runtime>(app: &AppHandle<R>) {
+    if RECORDING.swap(false, Ordering::SeqCst) {
+        sync_switcher(app);
+        #[cfg(windows)]
+        engine::post(|_| {});
+    }
+}
+
+/// The app is quitting: what the Mixer options changed is handed back.
+pub fn stop() {
+    #[cfg(windows)]
+    engine::with_existing(|e| e.restore_lowered());
+}
+
+/// The global shortcut handler's question: was this the switcher's key? It
+/// runs on the main thread, which a registration holding SWITCHER_KEY may be
+/// waiting for, so it reads the id alone.
+pub fn is_switcher_shortcut(shortcut: &tauri_plugin_global_shortcut::Shortcut) -> bool {
+    let id = SWITCHER_ID.load(Ordering::SeqCst);
+    id != 0 && id == shortcut.id()
+}
+
+/// The switcher's shortcut was pressed: the next chosen output plays.
+pub fn switch_to_next_output() {
+    #[cfg(windows)]
+    engine::post(|e| e.switch_to_next(&options().cycle));
+}
+
+/// Holds the volume keys while finer steps are on, or gives them back.
+fn sync_roller<R: Runtime>(app: &AppHandle<R>, on: bool) {
+    use tauri_plugin_global_shortcut::GlobalShortcutExt;
+    let shortcuts = app.global_shortcut();
+    let mut failed = false;
+    for (key, _) in roller::shortcuts() {
+        match (on, shortcuts.is_registered(key)) {
+            (true, false) => failed |= shortcuts.register(key).is_err(),
+            (false, true) => {
+                let _ = shortcuts.unregister(key);
+            }
+            _ => {}
+        }
+    }
+    if !on {
+        for press in &ROLLER_PRESS {
+            press.fetch_add(1, Ordering::SeqCst);
+        }
+    }
+    ROLLER_FAILED.store(on && failed, Ordering::SeqCst);
+}
+
+static ROLLER_GATE: Mutex<Option<roller::Gate>> = Mutex::new(None);
+/// Counts each key's presses and releases (up, down), so a held key's
+/// repeats stop at its release, or when the other key is pressed.
+static ROLLER_PRESS: [AtomicU32; 2] = [AtomicU32::new(0), AtomicU32::new(0)];
+
+fn roller_index(direction: roller::Direction) -> usize {
+    match direction {
+        roller::Direction::Up => 0,
+        roller::Direction::Down => 1,
+    }
+}
+/// Like the keyboard's own repeat: a wait, then steady steps.
+const ROLLER_REPEAT_DELAY_MS: u64 = 500;
+const ROLLER_REPEAT_MS: u64 = 50;
+
+/// A held volume key went down or up. The shortcut is registered without
+/// repeats, so a key held down steps again here until it comes up. Returns
+/// false for any other shortcut.
+pub fn roller_key(shortcut: &tauri_plugin_global_shortcut::Shortcut, pressed: bool) -> bool {
+    let Some(direction) = roller::direction(shortcut) else {
+        return false;
+    };
+    let index = roller_index(direction);
+    let press = ROLLER_PRESS[index].fetch_add(1, Ordering::SeqCst) + 1;
+    if pressed {
+        // Like the keyboard, a new key takes over the repeat.
+        ROLLER_PRESS[1 - index].fetch_add(1, Ordering::SeqCst);
+        roller_step(direction);
+        let _ = std::thread::Builder::new()
+            .name("vorssaint-volume-repeat".into())
+            .spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(ROLLER_REPEAT_DELAY_MS));
+                while ROLLER_PRESS[index].load(Ordering::SeqCst) == press {
+                    roller_step(direction);
+                    std::thread::sleep(std::time::Duration::from_millis(ROLLER_REPEAT_MS));
+                }
+            });
+    }
+    true
+}
+
+/// One finer step, when the wheel gate lets it through (roller.rs).
+fn roller_step(direction: roller::Direction) {
+    let accepted = ROLLER_GATE
+        .lock()
+        .unwrap()
+        .get_or_insert_with(roller::Gate::default)
+        .accepts(direction, std::time::Instant::now());
+    #[cfg(windows)]
+    if accepted {
+        engine::post(move |e| e.step_output(direction));
+    }
+    #[cfg(not(windows))]
+    let _ = accepted;
+}
+
+/// Lets go of the switcher's shortcut while a shortcut field records, so the
+/// very combination it uses can be typed (SoundOutputSwitcher.suspendShortcut).
+#[tauri::command]
+pub fn audio_switcher_recording<R: Runtime>(app: AppHandle<R>, on: bool) {
+    RECORDING.store(on, Ordering::SeqCst);
+    sync_switcher(&app);
+    #[cfg(windows)]
+    engine::post(|_| {});
+}
+
+/// Audio priority: turns a list's automatic switching on or off, or saves
+/// its new order (`output` picks the outputs' list, else the microphones').
+#[tauri::command]
+pub async fn audio_priority_set(
+    output: bool,
+    enabled: Option<bool>,
+    ids: Option<Vec<String>>,
+) -> Result<(), String> {
+    blocking(move || {
+        #[cfg(windows)]
+        return with_engine(move |e| {
+            e.set_priority(output, enabled, ids);
+            Ok(())
+        });
+        #[cfg(not(windows))]
+        {
+            let _ = (output, enabled, ids);
+            unavailable()
+        }
+    })
+    .await
 }
 
 #[cfg(windows)]
@@ -372,5 +732,109 @@ mod tests {
         assert_eq!(json["canSwitch"], true);
         assert_eq!(json["micMuted"], true);
         assert!(json["output"]["volume"].is_null());
+    }
+
+    #[test]
+    fn the_mixer_options_state_serializes_for_the_island() {
+        let state = State {
+            outputs: vec![Device {
+                id: "hp".into(),
+                name: "Headphones".into(),
+                is_default: true,
+                headphones: true,
+                tier: Some(priority::Tier::Hardware),
+            }],
+            priority: Priority {
+                output_enabled: true,
+                outputs: vec![Ranked {
+                    id: "hp".into(),
+                    name: "Headphones".into(),
+                    available: false,
+                }],
+                ..Default::default()
+            },
+            switcher_refused: true,
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&state).unwrap();
+        assert_eq!(json["priority"]["outputEnabled"], true);
+        assert_eq!(json["priority"]["inputEnabled"], false);
+        assert_eq!(json["priority"]["outputs"][0]["available"], false);
+        assert_eq!(json["switcherRefused"], true);
+        assert_eq!(json["switchFailed"], false);
+        assert_eq!(json["rollerFailed"], false);
+        assert!(json["priorityError"].is_null() && json["inputPriorityError"].is_null());
+        // What only the backend uses stays out of the page's state.
+        assert!(json["outputs"][0].get("headphones").is_none());
+        assert!(json["outputs"][0].get("tier").is_none());
+    }
+
+    #[test]
+    fn mixer_options_read_the_island_prefs() {
+        assert_eq!(
+            Options::from_prefs(&serde_json::json!({})),
+            Options::default()
+        );
+        let options = Options::from_prefs(&serde_json::json!({ "island": {
+            "mixerLowerVolumeOnHeadphonesDisconnect": true,
+            "mixerHeadphonesDisconnectVolumePercent": 140,
+            "preciseVolumeRollerEnabled": true,
+            "soundOutputSwitcherEnabled": true,
+            "soundOutputSwitcherShortcut": "Ctrl+Alt+KeyO",
+            "soundOutputSwitcherDevices": ["a", " ", "a", 3, "b"],
+        }}));
+        assert!(options.lower_on_disconnect && options.roller && options.switcher);
+        assert_eq!(options.lower_percent, 100);
+        assert_eq!(options.shortcut, "Ctrl+Alt+KeyO");
+        assert_eq!(options.cycle, ["a", "b"]);
+    }
+
+    #[test]
+    fn the_options_rest_while_the_mixer_is_hidden_or_off() {
+        let on = serde_json::json!({
+            "mixerLowerVolumeOnHeadphonesDisconnect": true,
+            "preciseVolumeRollerEnabled": true,
+            "soundOutputSwitcherEnabled": true,
+        });
+        let with = |extra: serde_json::Value| {
+            let mut island = on.clone();
+            island
+                .as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            Options::from_prefs(&serde_json::json!({ "island": island }))
+        };
+        let active = with(serde_json::json!({ "hiddenModules": ["music"] }));
+        assert!(active.lower_on_disconnect && active.roller && active.switcher);
+        for rest in [
+            with(serde_json::json!({ "hiddenModules": ["mixer"] })),
+            with(serde_json::json!({ "sections": { "mixer": false } })),
+            with(serde_json::json!({ "enabled": false })),
+        ] {
+            assert!(!rest.lower_on_disconnect && !rest.roller && !rest.switcher);
+        }
+    }
+
+    #[test]
+    fn a_fractional_percent_rounds_as_the_pages_round_it() {
+        let options = Options::from_prefs(&serde_json::json!({ "island": {
+            "mixerHeadphonesDisconnectVolumePercent": 37.5,
+        }}));
+        assert_eq!(options.lower_percent, 38);
+    }
+
+    #[test]
+    fn unreadable_mixer_options_fall_back_to_the_defaults() {
+        let options = Options::from_prefs(&serde_json::json!({ "island": {
+            "mixerLowerVolumeOnHeadphonesDisconnect": "yes",
+            "mixerHeadphonesDisconnectVolumePercent": "low",
+            "soundOutputSwitcherShortcut": "  ",
+            "soundOutputSwitcherDevices": "a",
+        }}));
+        assert_eq!(options, Options::default());
+        let negative = Options::from_prefs(&serde_json::json!({ "island": {
+            "mixerHeadphonesDisconnectVolumePercent": -10,
+        }}));
+        assert_eq!(negative.lower_percent, 0);
     }
 }

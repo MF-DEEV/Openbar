@@ -36,6 +36,10 @@ export interface BatteryReading {
   /** Watts into the battery: positive while charging, negative while it drains. */
   rateWatts: number | null;
   secondsLeft: number | null;
+  /** Full charge over design capacity, 0…100. */
+  healthPercent: number | null;
+  /** Null when the battery doesn't count its cycles. */
+  cycleCount: number | null;
 }
 
 export interface DiskReading {
@@ -79,4 +83,15 @@ export interface SystemSnapshot {
   /** The detail `processes` were read for. */
   processesFor: MetricKind | null;
   uptimeSeconds: number;
+}
+
+/** What speed_test.rs sends (SpeedTest.swift's published values). */
+export type SpeedTestPhase = "idle" | "latency" | "download" | "upload" | "done" | "failed";
+
+export interface SpeedTestState {
+  phase: SpeedTestPhase;
+  latencyMs: number | null;
+  downloadMbps: number | null;
+  uploadMbps: number | null;
+  error: string | null;
 }
