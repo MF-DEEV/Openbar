@@ -3,6 +3,7 @@
 
 // A session's face: its Clawd in the outfit drawn for it (or chosen in the
 // wardrobe), moving with its phase; a round phase badge with buddies off.
+// A sleeping session's row fades as a whole (SessionsList), not the face.
 
 import { PhaseBadge } from "./Avatar";
 import { Clawd } from "./clawd/Clawd";
@@ -23,10 +24,9 @@ export function SessionAvatar(props: { session: Session; now: number; lookedAt?:
   const s = SIZES[props.size];
   const buddies = useSessions((st) => st.prefs.buddies);
   const kept = useSessions((st) => st.costumes[session.id]);
-  const asleep = dozing(session, props.now, props.lookedAt);
   if (!buddies) {
     return (
-      <span className="s-avatar" style={{ width: s.width, height: s.height, opacity: asleep ? 0.65 : 1 }}>
+      <span className="s-avatar" style={{ width: s.width, height: s.height }}>
         <PhaseBadge phase={session.phase} provider={session.provider} size={s.badge} />
       </span>
     );
@@ -36,12 +36,11 @@ export function SessionAvatar(props: { session: Session; now: number; lookedAt?:
       <Clawd
         character={session.provider === "codex" ? "codex" : "clawd"}
         costume={resolvedCostume(session.id, kept, null, session.provider === "codex" ? "codex" : "clawd")}
-        motion={motionForPhase(session.phase, asleep)}
+        motion={motionForPhase(session.phase, dozing(session, props.now, props.lookedAt))}
         seed={session.id}
         since={session.phaseSince * 1000}
         width={s.width}
         height={s.height}
-        style={{ opacity: asleep ? 0.65 : 1 }}
       />
     </span>
   );

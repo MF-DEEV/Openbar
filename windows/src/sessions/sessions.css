@@ -31,6 +31,24 @@
   box-shadow: inset 0 0 0 1px rgba(255, 199, 71, 0.55);
 }
 
+/* A sleeping session's row fades its face and words, not its surface, to
+   `DOZING_OPACITY`, and comes back under the pointer or the keyboard. */
+.s-row > * {
+  transition: opacity 0.2s ease-out;
+}
+
+@media not (prefers-contrast: more) {
+  .s-row.is-dozing:not(:hover, :focus-visible) > * {
+    opacity: 0.65;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-row > * {
+    transition: none;
+  }
+}
+
 .s-avatar {
   flex: none;
   display: grid;
