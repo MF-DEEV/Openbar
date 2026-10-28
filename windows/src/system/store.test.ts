@@ -3,7 +3,12 @@
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const watched = vi.hoisted(() => ({ calls: [] as [boolean, string | null][], speedStarts: 0 }));
+const watched = vi.hoisted(() => ({
+  calls: [] as [boolean, string | null][],
+  speedStarts: 0,
+  speedHandler: null as ((state: SpeedTestState) => void) | null,
+  speedStored: async (): Promise<SpeedTestState | undefined> => undefined,
+}));
 vi.mock("../shared/bridge", () => ({
   bridge: {
     system: {
@@ -12,11 +17,14 @@ vi.mock("../shared/bridge", () => ({
       },
       snapshot: async () => undefined,
       onSnapshot: async () => () => {},
-      speedTest: async () => undefined,
+      speedTest: () => watched.speedStored(),
       startSpeedTest: async () => {
         watched.speedStarts++;
       },
-      onSpeedTest: async () => () => {},
+      onSpeedTest: async (handler: (state: SpeedTestState) => void) => {
+        watched.speedHandler = handler;
+        return () => {};
+      },
     },
   },
 }));
@@ -24,8 +32,9 @@ vi.mock("../shared/bridge", () => ({
 import { DEFAULT_SETTINGS } from "../island/settings";
 import { useIsland } from "../island/store";
 import { demoSnapshot } from "./demo";
-import "./register";
+import { subscribeSystem } from "./register";
 import { emptyHistory, HISTORY_LENGTH, idleSpeedTest, pushHistory, showNetworkReading, useSystem } from "./store";
+import type { SpeedTestState } from "./types";
 
 afterEach(() => {
   useIsland.getState().collapse();
@@ -128,5 +137,18 @@ describe("the speed test", () => {
     useIsland.getState().collapse();
     expect(useSystem.getState().detail).toBe(null);
     expect(useSystem.getState().speedTest).toEqual(done);
+  });
+
+  it("keeps a state that came while the stored one was fetched", async () => {
+    let answer: ((state: SpeedTestState) => void) | undefined;
+    watched.speedStored = () => new Promise((resolve) => (answer = resolve));
+    const subscribing = subscribeSystem();
+    await vi.waitFor(() => expect(answer).toBeDefined());
+    const done = { ...idleSpeedTest, phase: "done" as const, downloadMbps: 300, uploadMbps: 40 };
+    watched.speedHandler!(done);
+    answer!({ ...idleSpeedTest, phase: "upload" });
+    await subscribing;
+    expect(useSystem.getState().speedTest).toEqual(done);
+    watched.speedStored = async () => undefined;
   });
 });

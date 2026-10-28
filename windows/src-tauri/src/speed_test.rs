@@ -4,7 +4,8 @@
 //! The network detail's speed test (SpeedTest.swift on the Mac): latency,
 //! then download, then upload, against Cloudflare's public speed endpoints
 //! (the ones speed.cloudflare.com uses). Each transfer is time-boxed so the
-//! test stays bounded on any connection, and the upload body is zeros, so no
+//! test stays bounded on any connection (every wait in it times out when the
+//! box closes), and the upload body is zeros, so no
 //! user data leaves the PC. Started by the user only; there is no cancel, as
 //! on the Mac.
 
@@ -66,10 +67,21 @@ pub enum Failure {
 
 /// One run's connection to the speed endpoints. `more` gets each read or
 /// written byte count and answers whether to keep going; a stop is an `Ok`.
+/// A transfer gives up waiting at `until`, with a `Network` failure.
 pub trait Link {
     fn ping(&mut self) -> Result<(), Failure>;
-    fn download(&mut self, bytes: u64, more: &mut dyn FnMut(u64) -> bool) -> Result<(), Failure>;
-    fn upload(&mut self, bytes: u64, more: &mut dyn FnMut(u64) -> bool) -> Result<(), Failure>;
+    fn download(
+        &mut self,
+        bytes: u64,
+        until: Instant,
+        more: &mut dyn FnMut(u64) -> bool,
+    ) -> Result<(), Failure>;
+    fn upload(
+        &mut self,
+        bytes: u64,
+        until: Instant,
+        more: &mut dyn FnMut(u64) -> bool,
+    ) -> Result<(), Failure>;
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -124,9 +136,10 @@ fn failed(mut state: State, failure: Failure, report: &mut dyn FnMut(&State)) ->
 }
 
 /// Megabits per second over the time box. Downloads repeat until the box
-/// closes; the upload is one body.
+/// closes, also after a dropped connection; the upload is one body.
 fn measure(link: &mut dyn Link, transfer: Transfer, sample: Duration) -> Result<f64, Failure> {
     let started = Instant::now();
+    let until = started + sample;
     let moved = std::cell::Cell::new(0u64);
     let mut more = |n: u64| {
         moved.set(moved.get() + n);
@@ -134,13 +147,19 @@ fn measure(link: &mut dyn Link, transfer: Transfer, sample: Duration) -> Result<
     };
     loop {
         let result = match transfer {
-            Transfer::Download => link.download(DOWNLOAD_BYTES, &mut more),
-            Transfer::Upload => link.upload(UPLOAD_BYTES, &mut more),
+            Transfer::Download => link.download(DOWNLOAD_BYTES, until, &mut more),
+            Transfer::Upload => link.upload(UPLOAD_BYTES, until, &mut more),
         };
+        let open = started.elapsed() < sample;
         match result {
+            // The box closed on a wait: what moved counts, as when the Mac's time box cancels.
+            Err(Failure::Network(_)) if !open => break,
+            Err(Failure::Network(_)) if moved.get() > 0 && transfer == Transfer::Download => {
+                continue;
+            }
             Err(Failure::Network(_)) if moved.get() > 0 => break,
             Err(failure) => return Err(failure),
-            Ok(()) if transfer == Transfer::Download && started.elapsed() < sample => continue,
+            Ok(()) if transfer == Transfer::Download && open => continue,
             Ok(()) => break,
         }
     }
@@ -178,35 +197,31 @@ pub fn speed_test_start(app: AppHandle, state: tauri::State<'_, Shared>) -> Stat
     };
     emit(&app, &first);
     std::thread::spawn(move || {
-        let mut report = |s: &State| {
+        run_online(&mut |s: &State| {
             *shared.0.lock().unwrap() = s.clone();
             emit(&app, s);
-        };
-        match WinHttp::open() {
-            Some(mut link) => {
-                run(&mut link, SAMPLE, &mut report);
-            }
-            None => report(&State {
-                phase: Phase::Failed,
-                error: Some("WinHttpOpen failed".into()),
-                ..State::default()
-            }),
-        }
+        })
     });
     first
+}
+
+/// Runs the test against Cloudflare.
+fn run_online(report: &mut dyn FnMut(&State)) {
+    match WinHttp::open() {
+        Ok(mut link) => {
+            run(&mut link, SAMPLE, report);
+        }
+        Err(failure) => {
+            failed(State::default(), failure, report);
+        }
+    }
 }
 
 /// `Vorssaint.exe --speed-test-probe <file>`: runs a test, writing each step
 /// and the result as JSON lines.
 pub fn probe_main(path: &str) -> ! {
     let mut lines = Vec::new();
-    let mut report = |s: &State| lines.push(serde_json::to_string(s).unwrap_or_default());
-    match WinHttp::open() {
-        Some(mut link) => {
-            run(&mut link, SAMPLE, &mut report);
-        }
-        None => lines.push("{\"error\":\"WinHttpOpen failed\"}".into()),
-    }
+    run_online(&mut |s: &State| lines.push(serde_json::to_string(s).unwrap_or_default()));
     let _ = std::fs::write(path, lines.join("\n") + "\n");
     std::process::exit(0)
 }
@@ -215,13 +230,20 @@ pub fn probe_main(path: &str) -> ! {
 /// connection (as URLSession does on the Mac).
 #[cfg(windows)]
 struct WinHttp {
-    /// Outlives `connect`, which is opened on it.
-    _session: Handle,
+    // Fields drop in order: the connection closes before its session.
     connect: Handle,
+    _session: Handle,
 }
 
 #[cfg(windows)]
 struct Handle(*mut core::ffi::c_void);
+
+/// A request, and when its waits must end.
+#[cfg(windows)]
+struct Request {
+    handle: Handle,
+    until: Option<Instant>,
+}
 
 #[cfg(windows)]
 impl Drop for Handle {
@@ -236,12 +258,19 @@ impl Drop for Handle {
 
 #[cfg(windows)]
 fn network(error: windows::core::Error) -> Failure {
-    Failure::Network(error.message())
+    // WinHTTP's own errors (12xxx) have no system message, so the code goes too.
+    let code = format!("{:#010x}", error.code().0);
+    let message = error.message();
+    Failure::Network(if message.is_empty() {
+        code
+    } else {
+        format!("{message} ({code})")
+    })
 }
 
 #[cfg(windows)]
 impl WinHttp {
-    fn open() -> Option<Self> {
+    fn open() -> Result<Self, Failure> {
         use windows::Win32::Networking::WinHttp::*;
         use windows::core::{HSTRING, PCWSTR};
         let agent = HSTRING::from(format!("Vorssaint/{}", env!("CARGO_PKG_VERSION")));
@@ -254,10 +283,10 @@ impl WinHttp {
                 0,
             ));
             if session.0.is_null() {
-                return None;
+                return Err(network(windows::core::Error::from_thread()));
             }
-            // The Mac's 20 s request timeout; a stalled read ends the transfer.
-            WinHttpSetTimeouts(session.0, 20_000, 20_000, 20_000, 20_000).ok()?;
+            // The Mac's 20 s request timeout, for the pings.
+            WinHttpSetTimeouts(session.0, 20_000, 20_000, 20_000, 20_000).map_err(network)?;
             let connect = Handle(WinHttpConnect(
                 session.0,
                 &HSTRING::from(HOST),
@@ -265,17 +294,17 @@ impl WinHttp {
                 0,
             ));
             if connect.0.is_null() {
-                return None;
+                return Err(network(windows::core::Error::from_thread()));
             }
-            Some(Self {
-                _session: session,
+            Ok(Self {
                 connect,
+                _session: session,
             })
         }
     }
 
     /// An uncached, cookieless request, not yet sent.
-    fn request(&self, verb: &str, path: &str) -> Result<Handle, Failure> {
+    fn request(&self, verb: &str, path: &str, until: Option<Instant>) -> Result<Request, Failure> {
         use windows::Win32::Networking::WinHttp::*;
         use windows::core::{HSTRING, PCWSTR};
         unsafe {
@@ -298,14 +327,43 @@ impl WinHttp {
                 Some(&no_cookies),
             )
             .map_err(network)?;
-            Ok(request)
+            Ok(Request {
+                handle: request,
+                until,
+            })
         }
+    }
+}
+
+#[cfg(windows)]
+impl Request {
+    /// With `until`, the next wait times out then. WinHTTP's timeouts count
+    /// per call, so this runs before each one: a stall ends with the box.
+    fn bound(&self) -> Result<(), Failure> {
+        use windows::Win32::Networking::WinHttp::WinHttpSetTimeouts;
+        let Some(until) = self.until else {
+            return Ok(());
+        };
+        // 0 would mean never; 1 ms times out at once.
+        let left = until
+            .saturating_duration_since(Instant::now())
+            .as_millis()
+            .clamp(1, 20_000) as i32;
+        unsafe { WinHttpSetTimeouts(self.handle.0, left, left, left, left).map_err(network) }
+    }
+
+    fn send(&self, headers: Option<&[u16]>, total: u32) -> Result<(), Failure> {
+        use windows::Win32::Networking::WinHttp::WinHttpSendRequest;
+        self.bound()?;
+        unsafe { WinHttpSendRequest(self.handle.0, headers, None, 0, total, 0).map_err(network) }
     }
 
     /// Waits for the answer; anything but a 2xx is a rejection.
-    fn answer(request: &Handle) -> Result<(), Failure> {
+    fn answer(&self) -> Result<(), Failure> {
         use windows::Win32::Networking::WinHttp::*;
         use windows::core::PCWSTR;
+        self.bound()?;
+        let request = &self.handle;
         unsafe {
             WinHttpReceiveResponse(request.0, std::ptr::null_mut()).map_err(network)?;
             let mut status = 0u32;
@@ -328,14 +386,15 @@ impl WinHttp {
     }
 
     /// Reads the body, telling `more` each read; false stops it.
-    fn read(request: &Handle, more: &mut dyn FnMut(u64) -> bool) -> Result<(), Failure> {
+    fn read(&self, more: &mut dyn FnMut(u64) -> bool) -> Result<(), Failure> {
         use windows::Win32::Networking::WinHttp::WinHttpReadData;
         let mut buffer = vec![0u8; 64 << 10];
         loop {
             let mut read = 0u32;
+            self.bound()?;
             unsafe {
                 WinHttpReadData(
-                    request.0,
+                    self.handle.0,
                     buffer.as_mut_ptr().cast(),
                     buffer.len() as u32,
                     &mut read,
@@ -352,39 +411,51 @@ impl WinHttp {
 #[cfg(windows)]
 impl Link for WinHttp {
     fn ping(&mut self) -> Result<(), Failure> {
-        use windows::Win32::Networking::WinHttp::WinHttpSendRequest;
-        let request = self.request("GET", "/__down?bytes=0")?;
-        unsafe { WinHttpSendRequest(request.0, None, None, 0, 0, 0).map_err(network)? };
-        Self::answer(&request)?;
-        Self::read(&request, &mut |_| true)
+        let request = self.request("GET", "/__down?bytes=0", None)?;
+        request.send(None, 0)?;
+        request.answer()?;
+        request.read(&mut |_| true)
     }
 
-    fn download(&mut self, bytes: u64, more: &mut dyn FnMut(u64) -> bool) -> Result<(), Failure> {
-        use windows::Win32::Networking::WinHttp::WinHttpSendRequest;
-        let request = self.request("GET", &format!("/__down?bytes={bytes}"))?;
-        unsafe { WinHttpSendRequest(request.0, None, None, 0, 0, 0).map_err(network)? };
-        Self::answer(&request)?;
-        Self::read(&request, more)
+    fn download(
+        &mut self,
+        bytes: u64,
+        until: Instant,
+        more: &mut dyn FnMut(u64) -> bool,
+    ) -> Result<(), Failure> {
+        let request = self.request("GET", &format!("/__down?bytes={bytes}"), Some(until))?;
+        request.send(None, 0)?;
+        request.answer()?;
+        request.read(more)
     }
 
-    fn upload(&mut self, bytes: u64, more: &mut dyn FnMut(u64) -> bool) -> Result<(), Failure> {
-        use windows::Win32::Networking::WinHttp::{WinHttpSendRequest, WinHttpWriteData};
-        let request = self.request("POST", "/__up")?;
+    fn upload(
+        &mut self,
+        bytes: u64,
+        until: Instant,
+        more: &mut dyn FnMut(u64) -> bool,
+    ) -> Result<(), Failure> {
+        use windows::Win32::Networking::WinHttp::WinHttpWriteData;
+        let request = self.request("POST", "/__up", Some(until))?;
         let headers: Vec<u16> = "Content-Type: application/octet-stream"
             .encode_utf16()
             .collect();
         let total = u32::try_from(bytes).unwrap_or(u32::MAX);
-        unsafe {
-            WinHttpSendRequest(request.0, Some(&headers), None, 0, total, 0).map_err(network)?;
-        }
+        request.send(Some(&headers), total)?;
         let zeros = vec![0u8; 64 << 10];
         let mut left = u64::from(total);
         while left > 0 {
             let chunk = left.min(zeros.len() as u64) as u32;
             let mut written = 0u32;
+            request.bound()?;
             unsafe {
-                WinHttpWriteData(request.0, Some(zeros.as_ptr().cast()), chunk, &mut written)
-                    .map_err(network)?;
+                WinHttpWriteData(
+                    request.handle.0,
+                    Some(zeros.as_ptr().cast()),
+                    chunk,
+                    &mut written,
+                )
+                .map_err(network)?;
             }
             left -= u64::from(written);
             // Stopped mid-body: dropping the request aborts it.
@@ -392,8 +463,8 @@ impl Link for WinHttp {
                 return Ok(());
             }
         }
-        Self::answer(&request)?;
-        Self::read(&request, &mut |_| true)
+        request.answer()?;
+        request.read(&mut |_| true)
     }
 }
 
@@ -403,21 +474,31 @@ struct WinHttp;
 
 #[cfg(not(windows))]
 impl WinHttp {
-    fn open() -> Option<Self> {
-        None
+    fn open() -> Result<Self, Failure> {
+        Err(Failure::Network("unsupported".into()))
     }
 }
 
 #[cfg(not(windows))]
 impl Link for WinHttp {
     fn ping(&mut self) -> Result<(), Failure> {
-        Err(Failure::Network("unsupported".into()))
+        unreachable!()
     }
-    fn download(&mut self, _: u64, _: &mut dyn FnMut(u64) -> bool) -> Result<(), Failure> {
-        Err(Failure::Network("unsupported".into()))
+    fn download(
+        &mut self,
+        _: u64,
+        _: Instant,
+        _: &mut dyn FnMut(u64) -> bool,
+    ) -> Result<(), Failure> {
+        unreachable!()
     }
-    fn upload(&mut self, _: u64, _: &mut dyn FnMut(u64) -> bool) -> Result<(), Failure> {
-        Err(Failure::Network("unsupported".into()))
+    fn upload(
+        &mut self,
+        _: u64,
+        _: Instant,
+        _: &mut dyn FnMut(u64) -> bool,
+    ) -> Result<(), Failure> {
+        unreachable!()
     }
 }
 
@@ -427,12 +508,15 @@ mod tests {
 
     /// A link that answers from a script: each request takes the next
     /// outcome, and a transfer delivers `chunk` bytes per call until stopped
-    /// or its `limit` of calls runs out.
+    /// or its limit of calls runs out (`limit` downloading, `upload_limit`
+    /// uploading). With `stall`, it then hangs until its wait times out.
     struct Scripted {
         outcomes: Vec<Result<(), Failure>>,
         requests: Vec<&'static str>,
         chunk: u64,
         limit: usize,
+        upload_limit: usize,
+        stall: bool,
     }
 
     impl Scripted {
@@ -442,6 +526,8 @@ mod tests {
                 requests: Vec::new(),
                 chunk: 1_000_000,
                 limit: usize::MAX,
+                upload_limit: usize::MAX,
+                stall: false,
             }
         }
 
@@ -457,17 +543,27 @@ mod tests {
         fn transfer(
             &mut self,
             kind: &'static str,
+            until: Instant,
             more: &mut dyn FnMut(u64) -> bool,
         ) -> Result<(), Failure> {
             let outcome = self.next(kind);
             if let Err(Failure::Rejected(_)) = outcome {
                 return outcome;
             }
-            for _ in 0..self.limit {
+            let limit = if kind == "upload" {
+                self.upload_limit
+            } else {
+                self.limit
+            };
+            for _ in 0..limit {
                 std::thread::sleep(Duration::from_millis(2));
                 if !more(self.chunk) {
                     return Ok(());
                 }
+            }
+            if self.stall {
+                std::thread::sleep(until.saturating_duration_since(Instant::now()));
+                return Err(Failure::Network("timed out".into()));
             }
             outcome
         }
@@ -477,11 +573,21 @@ mod tests {
         fn ping(&mut self) -> Result<(), Failure> {
             self.next("ping")
         }
-        fn download(&mut self, _: u64, more: &mut dyn FnMut(u64) -> bool) -> Result<(), Failure> {
-            self.transfer("download", more)
+        fn download(
+            &mut self,
+            _: u64,
+            until: Instant,
+            more: &mut dyn FnMut(u64) -> bool,
+        ) -> Result<(), Failure> {
+            self.transfer("download", until, more)
         }
-        fn upload(&mut self, _: u64, more: &mut dyn FnMut(u64) -> bool) -> Result<(), Failure> {
-            self.transfer("upload", more)
+        fn upload(
+            &mut self,
+            _: u64,
+            until: Instant,
+            more: &mut dyn FnMut(u64) -> bool,
+        ) -> Result<(), Failure> {
+            self.transfer("upload", until, more)
         }
     }
 
@@ -578,6 +684,49 @@ mod tests {
         let (end, _) = phases(&mut link);
         assert_eq!(end.phase, Phase::Done);
         assert!(end.download_mbps.unwrap() > 0.0);
+        // As on the Mac, the box is filled with a new request.
+        assert!(link.requests.iter().filter(|r| **r == "download").count() > 1);
+    }
+
+    #[test]
+    fn an_upload_lost_after_data_still_measures() {
+        let mut outcomes = pings();
+        outcomes.extend([Ok(()), Err(Failure::Network("reset".into()))]);
+        let mut link = Scripted::new(outcomes);
+        link.upload_limit = 3;
+        let (end, _) = phases(&mut link);
+        assert_eq!(end.phase, Phase::Done);
+        assert!(end.upload_mbps.unwrap() > 0.0);
+        assert_eq!(link.requests.iter().filter(|r| **r == "upload").count(), 1);
+    }
+
+    #[test]
+    fn a_stall_before_any_data_reads_zero_when_the_box_closes() {
+        let mut link = Scripted::new(pings());
+        link.limit = 0;
+        link.upload_limit = 0;
+        link.stall = true;
+        let started = Instant::now();
+        let (end, _) = phases(&mut link);
+        assert_eq!(end.phase, Phase::Done);
+        assert_eq!(end.download_mbps, Some(0.0));
+        assert_eq!(end.upload_mbps, Some(0.0));
+        assert!(started.elapsed() < QUICK * 4, "{:?}", started.elapsed());
+    }
+
+    #[test]
+    fn a_stall_after_data_ends_with_the_box() {
+        let mut link = Scripted::new(pings());
+        link.limit = 3;
+        link.chunk = 125_000;
+        link.stall = true;
+        let started = Instant::now();
+        let (end, _) = phases(&mut link);
+        assert_eq!(end.phase, Phase::Done);
+        // 3 Mb over a ~40 ms box, not over a longer stall.
+        let down = end.download_mbps.unwrap();
+        assert!(down > 30.0 && down < 100.0, "{down}");
+        assert!(started.elapsed() < QUICK * 4, "{:?}", started.elapsed());
     }
 
     #[test]
