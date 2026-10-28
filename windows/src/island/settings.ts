@@ -112,6 +112,15 @@ export interface IslandSettings {
   /** Apps kept out of the mixer: exe path → name (mixerHiddenApps). */
   mixerHiddenApps: Record<string, string>;
   mixerHideInactiveApps: boolean;
+  /** Lower the speakers when headphones disconnect, to this 0–100 level (mixerLowerVolumeOnHeadphonesDisconnect, mixerHeadphonesDisconnectVolumePercent). */
+  mixerLowerVolumeOnHeadphonesDisconnect: boolean;
+  mixerHeadphonesDisconnectVolumePercent: number;
+  /** The volume keys move 1% at a time (preciseVolumeRollerEnabled). */
+  preciseVolumeRollerEnabled: boolean;
+  /** One shortcut moves the output through the chosen devices (soundOutputSwitcher*). The shortcut is an accelerator such as "Ctrl+Alt+Shift+KeyS". */
+  soundOutputSwitcherEnabled: boolean;
+  soundOutputSwitcherShortcut: string;
+  soundOutputSwitcherDevices: string[];
   /** Tools: the grid's order and hidden tools (quickLauncherItemOrder / quickLauncherHiddenItems). */
   toolsOrder: string[];
   toolsHidden: string[];
@@ -250,6 +259,12 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   mixerAppArrangement: { order: [], pinned: [] },
   mixerHiddenApps: {},
   mixerHideInactiveApps: false,
+  mixerLowerVolumeOnHeadphonesDisconnect: false,
+  mixerHeadphonesDisconnectVolumePercent: 25,
+  preciseVolumeRollerEnabled: false,
+  soundOutputSwitcherEnabled: false,
+  soundOutputSwitcherShortcut: "Ctrl+Alt+Shift+KeyS",
+  soundOutputSwitcherDevices: [],
   toolsOrder: [],
   toolsHidden: [],
   colorPickerFormat: "hex",

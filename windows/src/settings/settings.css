@@ -1108,3 +1108,15 @@ select {
   height: 8px;
   border-radius: 50%;
 }
+
+/* Mixer › shortcut and priority lists */
+
+.st-shortcut {
+  min-width: 150px;
+  font-variant-numeric: tabular-nums;
+}
+
+.st-shortcut.is-recording {
+  border-color: var(--st-accent);
+  color: var(--st-text-3);
+}

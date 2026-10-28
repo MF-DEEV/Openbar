@@ -42,6 +42,32 @@ export function Switch(props: { on: boolean; onChange(on: boolean): void; label:
   );
 }
 
+/** A checkbox with its label, as the Mac's island options draw `.toggleStyle(.checkbox)`. */
+export function Checkbox(props: {
+  checked: boolean;
+  onChange(checked: boolean): void;
+  label: string;
+  className?: string;
+  disabled?: boolean;
+}) {
+  return (
+    <label className={`u-check${props.className ? " " + props.className : ""}${props.disabled ? " is-disabled" : ""}`}>
+      <input
+        type="checkbox"
+        checked={props.checked}
+        disabled={props.disabled}
+        onChange={(e) => props.onChange(e.target.checked)}
+      />
+      <span className="u-check-box" aria-hidden="true">
+        <svg viewBox="0 0 10 10" width="9" height="9">
+          <path d="M1.8 5.2 4 7.4 8.2 2.6" fill="none" stroke="currentColor" strokeWidth="1.7" />
+        </svg>
+      </span>
+      <span className="u-check-label">{props.label}</span>
+    </label>
+  );
+}
+
 /** A typed percent: "40", "40 %" or "40,5"; null for anything else, an empty
  * field included, which leaves the value as it was (MixerRoutingSupport.volumeFraction). */
 export function parsePercent(draft: string): number | null {

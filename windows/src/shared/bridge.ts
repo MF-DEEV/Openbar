@@ -263,6 +263,11 @@ export const bridge = {
     watchApps: (on: boolean) => call("audio_watch_apps", { on }),
     /** Mic Mute on every microphone; undefined toggles. Resolves to the new state. */
     micMute: (muted?: boolean) => call<boolean>("mic_mute_set", { muted: muted ?? null }),
+    /** Audio priority: a list's automatic switching, or its new order (outputs, else microphones). */
+    setPriority: (output: boolean, change: { enabled?: boolean; ids?: string[] }) =>
+      call("audio_priority_set", { output, enabled: change.enabled ?? null, ids: change.ids ?? null }),
+    /** A shortcut field records: the output switcher lets go of its shortcut meanwhile. */
+    switcherRecording: (on: boolean) => call("audio_switcher_recording", { on }),
   },
   keepAwake: {
     state: () => call<KeepAwakeState>("keep_awake_state"),

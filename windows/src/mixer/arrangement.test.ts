@@ -3,7 +3,17 @@
 
 import { describe, expect, it } from "vitest";
 import type { AudioApp } from "../audio/types";
-import { arrange, type Arrangement, listedApps, move, moveBy, neighbor, ordered, togglePin } from "./arrangement";
+import {
+  arrange,
+  type Arrangement,
+  cycleOrder,
+  listedApps,
+  move,
+  moveBy,
+  neighbor,
+  ordered,
+  togglePin,
+} from "./arrangement";
 
 const none: Arrangement = { order: [], pinned: [] };
 const app = (key: string, extra: Partial<AudioApp> = {}): AudioApp => ({
@@ -65,5 +75,13 @@ describe("mixer arrangement", () => {
     const hidden = { hidden: "Hidden" };
     expect(listedApps(apps, none, hidden, false).map((a) => a.key)).toEqual(["idle", "playing", "quiet", "muted"]);
     expect(listedApps(apps, none, hidden, true).map((a) => a.key)).toEqual(["playing", "quiet", "muted"]);
+  });
+});
+
+describe("output switcher cycle", () => {
+  it("follows the outputs' order and keeps disconnected choices last", () => {
+    const outputs = [{ id: "a" }, { id: "b" }, { id: "c" }];
+    expect(cycleOrder(["c", "gone", "a"], outputs)).toEqual(["a", "c", "gone"]);
+    expect(cycleOrder([], outputs)).toEqual([]);
   });
 });
