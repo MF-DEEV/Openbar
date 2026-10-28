@@ -9,6 +9,10 @@ All notable changes to this project are documented here. The format follows
 ### Added
 - Dynamic Island shows when you mute your microphone or deafen in Discord, with a red mark while muted, and a short notice when you unmute. It follows your Discord shortcuts while Discord is hidden. Settings → Dynamic Island → Activity → Microphone status.
 - Dynamic Island's Downloads page watches your Downloads folder and the folders Chrome, Edge, Brave, Arc, Vivaldi, Opera, Firefox, Zen and other browsers save to, plus any folders you add. A folder chosen before stays watched. Settings → Dynamic Island → Content → Downloads.
+- Dynamic Island's quick access buttons can go back to the original five in one click. Settings → Dynamic Island → Layout → Restore default buttons.
+
+### Changed
+- Dynamic Island's Now Playing page has a larger cover, song title and playback buttons. A song title or artist too long for its row slides along it so you can read it all, and stays still with Reduce Motion on. Shuffle turns green while it is on.
 
 ### Fixed
 - Wallpaper's Add image and Add folder open the file picker in front on the first click instead of behind other windows.
