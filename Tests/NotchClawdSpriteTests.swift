@@ -40,7 +40,7 @@ enum NotchClawdSpriteTests {
     }
 
     static func drawing(_ suite: TestSuite) {
-        suite.expect(everyCostume.count == 10 * 9 * 6 * 7, "a Clawd can be dressed \(everyCostume.count) ways")
+        suite.expect(everyCostume.count == 11 * 13 * 20 * 25, "a Clawd can be dressed \(everyCostume.count) ways")
         // Each part is drawn on its own, so each part checked on its own
         // stands for every costume it is part of; the tallest hat with the
         // widest extra checks that they fit together too.
@@ -70,7 +70,7 @@ enum NotchClawdSpriteTests {
         for eyewear in ClawdEyewear.allCases {
             let worn = ClawdCostume(shell: .clay, hat: .none, eyewear: eyewear, extra: .none)
             let eyes = [(3, 2), (3, 3), (9, 2), (9, 3)].map { letter(worn, column: $0.0, row: $0.1) }
-            let covers = eyewear == .shades || eyewear == .anaglyph
+            let covers = eyewear == .shades || eyewear == .anaglyph || eyewear.rawValue.hasSuffix("Mask")
             suite.expect(covers ? !eyes.contains("E") : eyes.allSatisfy { $0 == "E" },
                          "\(eyewear) \(covers ? "covers" : "shows") the eyes: \(eyes)")
         }

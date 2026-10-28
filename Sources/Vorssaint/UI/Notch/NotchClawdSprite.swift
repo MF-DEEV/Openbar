@@ -256,6 +256,7 @@ enum NotchClawdSprite {
                 }
             }
         }
+        cape(costume.extra, tick: pose.tick).forEach { put($0) }
         // Legs reach the ground under a rising body, and tuck in off it.
         for (x, left) in feet(character) {
             let lifted = (pose.legs == .stepLeft && left) || (pose.legs == .stepRight && !left)
@@ -381,6 +382,137 @@ enum NotchClawdSprite {
                                             "WRRRRRWTTTTTW",
                                             "WRRRRRWTTTTTW",
                                             ".WWWWW.WWWWW."])
+        case .batmanMask:
+            return Stamp(x: 0, y: -3, rows: ["K...........K",
+                                            "KK.........KK",
+                                            "KKKKKKKKKKKKK",
+                                            "KKKKKKKKKKKKK",
+                                            "KKKKKKKKKKKKK",
+                                            "KKWWWKKKWWWKK",
+                                            "KKKKKKKKKKKKK",
+                                            "KKKKK.N.KKKKK",
+                                            "KKK..NNN..KKK",
+                                            ".KK..NNN..KK."])
+        case .ironManMask:
+            return Stamp(x: 0, y: 0, rows: [".RRRYYYYYRRR.",
+                                            "RYYYYYYYYYYYR",
+                                            "RYYTTYYYTTYYR",
+                                            "RYYYYYYYYYYYR",
+                                            "RRYYYYYYYYYRR",
+                                            "RRYYYsssYYYRR",
+                                            ".RRYYYYYYYRR.",
+                                            "..RRRRRRRRR.."])
+        case .spiderManMask:
+            return Stamp(x: 0, y: -1, rows: [".RRRRRRRRRRR.",
+                                            "RRRRRRKRRRRRR",
+                                            "RKWWWKRKWWWKR",
+                                            "RKKWWKRKWWKKR",
+                                            "RRKWWKRKWWKRR",
+                                            ".BBRRRKRRRBB."])
+        case .doomMask:
+            return Stamp(x: 0, y: 0, rows: [".SSSSSSSSSSS.",
+                                            "SSssSSSSSssSS",
+                                            "SSKKKSSSKKKSS",
+                                            "SSSSSSsSSSSSS",
+                                            "SSsSSsssSSsSS",
+                                            "SSsSSKKKSSsSS",
+                                            ".SSSSsKsSSSS.",
+                                            "..SSSSSSSSS.."])
+        case .wolverineMask:
+            return Stamp(x: 0, y: -3, rows: ["K...........K",
+                                            "KK.........KK",
+                                            "KKK.......KKK",
+                                            "KKKKYYYYYKKKK",
+                                            "KKKKYYYYYKKKK",
+                                            "KKWWWYYYWWWKK",
+                                            "KKKYYYYYYYKKK",
+                                            "KKKYY.N.YYKKK",
+                                            ".KKYNNNNNYKK.",
+                                            "..YYNNNNNYY.."])
+        case .flashMask:
+            return Stamp(x: -1, y: 0, rows: ["..RRRRRRRRRRR..",
+                                            ".RRRRRRRRRRRRR.",
+                                            "YRRWWRRRRRWWRRY",
+                                            "YYRRRRRRRRRRRYY",
+                                            ".YRRRRRRRRRRY..",
+                                            "..RRRNNNNNRRR..",
+                                            "...RRNNNNNRR...",
+                                            "....RRRRRRR...."])
+        case .captainMask:
+            return Stamp(x: 0, y: 0, rows: [".BBBBWWWBBBB.",
+                                            "BBBBWBBBWBBBB",
+                                            "BBWWWWWWWBBBB",
+                                            "BBBWWBBBWWBBB",
+                                            "BBBBBBBBBBBBB",
+                                            "BBB.NNNNN.BBB",
+                                            ".BBNNNNNNNBB.",
+                                            "..BBNNNNNBB.."])
+        case .deadpoolMask:
+            return Stamp(x: 0, y: 0, rows: [".RRRRRRRRRRR.",
+                                            "RRKKRRRRRKKRR",
+                                            "RKKKKRRRKKKKR",
+                                            "RKWWKRRRKWWKR",
+                                            "RKKKKRRRKKKKR",
+                                            "RRKKRRRRRKKRR",
+                                            ".RRRRRKRRRRR.",
+                                            "..RRRRRRRRR.."])
+        case .venomMask:
+            return Stamp(x: 0, y: 0, rows: [".KKKKKKKKKKK.",
+                                            "KWKKKKKKKKKWK",
+                                            "KWWKKKKKKKWWK",
+                                            "KWWWKKKKKWWWK",
+                                            "KKKKKKKKKKKKK",
+                                            "KWKWKWKWKWKWK",
+                                            ".KWKWKWKWKWK.",
+                                            "..KKRRRRRKK.."])
+        case .blackPantherMask:
+            return Stamp(x: 0, y: -2, rows: ["K...........K",
+                                            "KK.........KK",
+                                            "KKKKKKKKKKKKK",
+                                            "KsKKKKsKKKKsK",
+                                            "KKsWWKsKWWsKK",
+                                            "KKKKKsKsKKKKK",
+                                            "KKsKKKsKKKsKK",
+                                            "KKKsKKsKKsKKK",
+                                            ".KKKsKsKsKKK.",
+                                            "..KKKsssKKK.."])
+        case .daredevilMask:
+            return Stamp(x: 0, y: -1, rows: ["..R.......R..",
+                                            ".RRRRRRRRRRR.",
+                                            "RRRRRRRRRRRRR",
+                                            "RRKKKRRRKKKRR",
+                                            "RRRRRRRRRRRRR",
+                                            "RRRRRNNNRRRRR",
+                                            ".RRRNNNNNRRR.",
+                                            "..RRNNNNNRR..",
+                                            "...RRRRRRR..."])
+        case .starLordMask:
+            return Stamp(x: 0, y: 0, rows: [".SSSSSSSSSSS.",
+                                            "SSsssSSSsssSS",
+                                            "SsRRRsSsRRRsS",
+                                            "SsRRRsSsRRRsS",
+                                            "SSsssSSSsssSS",
+                                            "SSSSsssssSSSS",
+                                            ".SSSsKKKsSSS.",
+                                            "..SSsKKKsSS.."])
+        case .greenLanternMask:
+            return Stamp(x: 0, y: 0, rows: [".QQQQQQQQQQQ.",
+                                            "QQQQQQQQQQQQQ",
+                                            "QQWWWQQQWWWQQ",
+                                            "QQQQQQQQQQQQQ",
+                                            ".QQQQQQQQQQQ.",
+                                            "..QQQNNNQQQ..",
+                                            "...NNNNNNN...",
+                                            "....NNNNN...."])
+        case .robinMask:
+            return Stamp(x: 0, y: 0, rows: [".KKKKKKKKKKK.",
+                                            "KKKKKKKKKKKKK",
+                                            "KKWWWKKKWWWKK",
+                                            "KKKKKKKKKKKKK",
+                                            ".KKKKKKKKKKK.",
+                                            "..KKKNNNKKK..",
+                                            "...NNNNNNN...",
+                                            "....NNNNN...."])
         }
     }
 
@@ -437,6 +569,31 @@ enum NotchClawdSprite {
                                               ".WWWWWWWWW.",
                                               "..WWWWWWW..",
                                               "..wwwwwww.."])]
+        case .doomHood:
+            return [Stamp(x: 0, y: -4, rows: ["...QQQQQQQ...",
+                                            ".QQQQqqqQQQQ.",
+                                            "QQQqq...qqQQQ",
+                                            "QQq.......qQQ",
+                                            "Qq.........qQ",
+                                            "Q...........Q"])]
+        case .thorHelmet:
+            return [Stamp(x: -2, y: -5, rows: ["W...............W",
+                                            "WW.............WW",
+                                            ".WW..SSSSSSS..WW.",
+                                            "..WWSSSSSSSSSWW..",
+                                            "...SSSSSSSSSSS..."])]
+        case .lokiHorns:
+            return [Stamp(x: 0, y: -7, rows: ["Y...........Y",
+                                            "YY.........YY",
+                                            ".Y.........Y.",
+                                            ".YY.......YY.",
+                                            "..YY.....YY..",
+                                            "...YYYYYYY...",
+                                            "...QQQYQQQ..."])]
+        case .wonderTiara:
+            return [Stamp(x: 0, y: -2, rows: ["Y.....Y.....Y",
+                                            "YYYYYYYYYYYYY",
+                                            ".YYYYRYYYYYY."])]
         }
     }
 
@@ -456,6 +613,58 @@ enum NotchClawdSprite {
         case .typeRight: return (15, 4)
         case .up, .waveUp: return (15, -2)
         case .waveOut: return (16, 0)
+        }
+    }
+
+    // Capes follow the body behind its legs and arms; clasps are drawn in front.
+    private static func cape(_ extra: ClawdExtra, tick: Int) -> [Stamp] {
+        switch extra {
+        case .doomCape:
+            return [Stamp(x: -3, y: 0, rows: [".....QQQQQQQQQ.....",
+                                            "....QQQQQQQQQQQ....",
+                                            "...QQQQQQQQQQQQQ...",
+                                            "..QQQQQQQQQQQQQQQ..",
+                                            ".QQQQQQQQQQQQQQQQQ.",
+                                            "QQQQQQQQQQQQQQQQQQQ",
+                                            "QQQQQQQQQQQQQQQQQQQ",
+                                            "qQQQqQQQqQQQqQQQqQQ"] + [tick == 0 ? "QQ.QQQ.QQQQQ.QQQ.QQ" : "Q.QQQ.QQQQQ.QQQ.QQQ"])]
+        case .strangeCape:
+            return [Stamp(x: -3, y: 0, rows: [".....RRRRRRRRR.....",
+                                            "....RRRRRRRRRRR....",
+                                            "...RRRRRRRRRRRRR...",
+                                            "..RRRRRRRRRRRRRRR..",
+                                            ".RRRRRRRRRRRRRRRRR.",
+                                            "RRRRRRRRRRRRRRRRRRR",
+                                            "RRRRRRRRRRRRRRRRRRR",
+                                            "yRRRyRRRyRRRyRRRyRR"] + [tick == 0 ? "RR.RRR.RRRRR.RRR.RR" : "R.RRR.RRRRR.RRR.RRR"])]
+        case .thorCape:
+            return [Stamp(x: -3, y: 0, rows: [".....RRRRRRRRR.....",
+                                            "....RRRRRRRRRRR....",
+                                            "...RRRRRRRRRRRRR...",
+                                            "..RRRRRRRRRRRRRRR..",
+                                            ".RRRRRRRRRRRRRRRRR.",
+                                            "RRRRRRRRRRRRRRRRRRR",
+                                            "RRRRRRRRRRRRRRRRRRR",
+                                            "DRRRDRRRDRRRDRRRDRR"] + [tick == 0 ? "RR.RRR.RRRRR.RRR.RR" : "R.RRR.RRRRR.RRR.RRR"])]
+        case .supermanCape:
+            return [Stamp(x: -3, y: 0, rows: [".....RRRRRRRRR.....",
+                                            "....RRRRRRRRRRR....",
+                                            "...RRRRRRRRRRRRR...",
+                                            "..RRRRRRRRRRRRRRR..",
+                                            ".RRRRRRRRRRRRRRRRR.",
+                                            "RRRRRRRRRRRRRRRRRRR",
+                                            "RRRRRRRRRRRRRRRRRRR",
+                                            "yRRRyRRRyRRRyRRRyRR"] + [tick == 0 ? "RR.RRR.RRRRR.RRR.RR" : "R.RRR.RRRRR.RRR.RRR"])]
+        case .batmanCape:
+            return [Stamp(x: -3, y: 0, rows: [".....KKKKKKKKK.....",
+                                            "....KKKKKKKKKKK....",
+                                            "...KKKKKKKKKKKKK...",
+                                            "..KKKKKKKKKKKKKKK..",
+                                            ".KKKKKKKKKKKKKKKKK.",
+                                            "KKKKKKKKKKKKKKKKKKK",
+                                            "KKKKKKKKKKKKKKKKKKK",
+                                            "DKKKDKKKDKKKDKKKDKK"] + [tick == 0 ? "KK.KKK.KKKKK.KKK.KK" : "K.KKK.KKKKK.KKK.KKK"])]
+        default: return []
         }
     }
 
@@ -486,6 +695,121 @@ enum NotchClawdSprite {
             let hand = rightHand(arms, character: character)
             let steam = tick == 0 ? [".w.", "w.."] : ["w..", ".w."]
             return [Stamp(x: hand.x, y: hand.y - 2, rows: steam + ["NNN", "WWW", "WWW"])]
+        case .doomCape:
+            return [Stamp(x: 0, y: 0, rows: ["QQY.......YQQ"])]
+        case .strangeCape:
+            return [Stamp(x: 0, y: 0, rows: ["RRR.......RRR",
+                                            "RRRY.....YRRR"])]
+        case .thorCape:
+            return [Stamp(x: 0, y: 0, rows: ["SS.........SS"])]
+        case .supermanCape:
+            return [Stamp(x: 0, y: 0, rows: ["..RRYYYYYRR..",
+                                            "...RYRYYYR..."])]
+        case .batmanCape:
+            return [Stamp(x: 0, y: 0, rows: ["KKY.......YKK"])]
+        case .captainShield:
+            let hand = rightHand(arms, character: character)
+            return [Stamp(x: 6, y: min(-3, hand.y - 4), rows: ["....RRRRR....",
+                                            "...RRWWWRR...",
+                                            "..RWWRRRWWR..",
+                                            ".RWRRBWBRRWR.",
+                                            "RRWRBBWBBRWRR",
+                                            "RWRWWWWWWWRWR",
+                                            "RWRBWWWWWBRWR",
+                                            "RWRBBWWWBBRWR",
+                                            "RRWRWWBWWRWRR",
+                                            ".RWRWBBBWRWR.",
+                                            "..RWWRRRWWR..",
+                                            "...RRWWWRR...",
+                                            "....RRRRR...."])]
+        case .mjolnir:
+            let hand = rightHand(arms, character: character)
+            return [Stamp(x: 10, y: hand.y - 4, rows: ["SSSSSSSSS",
+                                            "SwwwwwwwS",
+                                            "SSSSSSSSS",
+                                            "....N....",
+                                            "....N....",
+                                            "....N....",
+                                            "....Y...."])]
+        case .aquamanTrident:
+            let hand = rightHand(arms, character: character)
+            return [Stamp(x: 12, y: hand.y - 4, rows: ["Y..Y..Y",
+                                            "Y..Y..Y",
+                                            ".YYYYY.",
+                                            "...Y...",
+                                            "...Y...",
+                                            "...Y...",
+                                            "...Y...",
+                                            "...Y...",
+                                            "...Y..."])]
+        case .lanternRing:
+            let hand = rightHand(arms, character: character)
+            return [Stamp(x: 12, y: hand.y - 4, rows: ["..QQQ..",
+                                            ".QWWWQ.",
+                                            "QWWWWWQ",
+                                            "QWQQQWQ",
+                                            "QWQWQWQ",
+                                            ".QWWWQ.",
+                                            "..QQQ.."])]
+        case .wolverineClaws:
+            let hand = rightHand(arms, character: character)
+            return [Stamp(x: 10, y: hand.y - 4, rows: ["S.S.S",
+                                            "S.S.S",
+                                            "S.S.S",
+                                            "S.S.S",
+                                            ".SSS.",
+                                            ".NNN."])]
+        case .batarang:
+            let hand = rightHand(arms, character: character)
+            return [Stamp(x: 10, y: hand.y - 4, rows: ["K.......K",
+                                            "KK.K.K.KK",
+                                            "KKKKKKKKK",
+                                            ".KKKKKKK.",
+                                            "..K.K.K.."])]
+        case .hawkeyeBow:
+            let hand = rightHand(arms, character: character)
+            return [Stamp(x: 10, y: hand.y - 4, rows: [".a...",
+                                            "..a..",
+                                            "..aK.",
+                                            "...aK",
+                                            "..aK.",
+                                            "..a..",
+                                            ".a..."])]
+        case .strangeSpell:
+            let hand = rightHand(arms, character: character)
+            return [Stamp(x: 10, y: hand.y - 4, rows: ["..YYY..",
+                                            ".Y...Y.",
+                                            "Y.YYY.Y",
+                                            "Y.Y.Y.Y",
+                                            "Y.YYY.Y",
+                                            ".Y...Y.",
+                                            "..YYY.."])]
+        case .webShooter:
+            let hand = rightHand(arms, character: character)
+            return [Stamp(x: 10, y: hand.y - 4, rows: ["W..W..W",
+                                            ".W.W.W.",
+                                            "..WWW..",
+                                            "WWWWWWW",
+                                            "..WWW..",
+                                            ".W.W.W.",
+                                            "W..W..W"])]
+        case .ironReactor:
+            return [Stamp(x: 5, y: 5, rows: ["TTT",
+                                            "TWT",
+                                            "TTT"])]
+        case .supermanEmblem:
+            return [Stamp(x: 3, y: 4, rows: ["YYYYYYY",
+                                            "YRRRRRY",
+                                            ".YYRRY.",
+                                            "..YYY.."])]
+        case .flashEmblem:
+            return [Stamp(x: 5, y: 5, rows: ["WYY",
+                                            "YYW",
+                                            "WYW"])]
+        case .lanternEmblem:
+            return [Stamp(x: 5, y: 5, rows: ["WWW",
+                                            "WQW",
+                                            "WWW"])]
         }
     }
 
@@ -529,6 +853,8 @@ enum NotchClawdSprite {
         case "c": return shaded(shell)
         case "A": return accent
         case "a": return shaded(accent)
+        case "Q": return (44, 142, 76)
+        case "q": return (26, 84, 48)
         case "E": return (24, 22, 26)
         case "K": return (32, 32, 38)
         case "D": return (66, 66, 78)
@@ -555,6 +881,7 @@ enum NotchClawdSprite {
     /// far enough from it to stand out.
     static func accent(for shell: ClawdShell) -> ClawdShell {
         switch shell {
+        case .midnight: return .sky
         case .clay: return .sky
         case .coral: return .teal
         case .amber: return .iris

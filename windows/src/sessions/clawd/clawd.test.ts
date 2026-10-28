@@ -78,9 +78,9 @@ describe("clawd costume lot", () => {
   it("draws the same costume as the Mac", () => {
     const id = "99c35831-5f0b-4c3e-9d0a-0f3c2a7b8e11";
     expect(sameCostume(seeded(id), seeded(id))).toBe(true);
-    expect(costumeCode(seeded(id))).toBe("v1:teal.none.monocle.none");
-    expect(costumeCode(seeded("0f9a6c1e-2b7d-4e55-8a31-c4d2e6f7a890"))).toBe("v1:orchid.beret.anaglyph.coffee");
-    expect(costumeCode(seeded("s/a1"))).toBe("v1:clay.propeller.none.scarf");
+    expect(costumeCode(seeded(id))).toBe("v1:clay.none.flashMask.none");
+    expect(costumeCode(seeded("0f9a6c1e-2b7d-4e55-8a31-c4d2e6f7a890"))).toBe("v1:coral.beret.anaglyph.lanternEmblem");
+    expect(costumeCode(seeded("s/a1"))).toBe("v1:coral.beret.none.strangeCape");
   });
 
   it("hashes non-ASCII ids as UTF-8", () => {
@@ -91,7 +91,14 @@ describe("clawd costume lot", () => {
     expect(seed("é")).toBe(expected);
   });
 
-  it("brings up every part about as often as meant", () => {
+  it("draws every accessory for new Codex chats too", () => {
+    const costumes = Array.from({ length: 600 }, (_, i) => seeded(`new-codex-${i}`, null, "codex"));
+    expect(new Set(costumes.map((c) => c.hat))).toEqual(new Set(HATS));
+    expect(new Set(costumes.map((c) => c.eyewear))).toEqual(new Set(EYEWEAR));
+    expect(new Set(costumes.map((c) => c.extra))).toEqual(new Set(EXTRAS));
+  });
+
+  it("gives new sessions every part about as often as meant", () => {
     const costumes = Array.from({ length: 600 }, (_, i) => seeded(`session-${i}`));
     expect(new Set(costumes.map((c) => c.shell))).toEqual(new Set(SHELLS));
     expect(new Set(costumes.map((c) => c.hat))).toEqual(new Set(HATS));
@@ -134,7 +141,13 @@ describe("clawd costume keeping", () => {
   it("keeps as a short versioned line and reads back", () => {
     expect(costumeCode(costume)).toBe("v1:sky.topHat.shades.bowTie");
     expect(parseCostume(costumeCode(costume), CLASSIC)).toEqual(costume);
-    for (const c of [CLASSIC, ...Array.from({ length: 50 }, (_, i) => seeded(`k${i}`))]) {
+    for (const c of [
+      CLASSIC,
+      ...Array.from({ length: 50 }, (_, i) => seeded(`k${i}`)),
+      ...HATS.map((hat) => ({ ...CLASSIC, hat })),
+      ...EYEWEAR.map((eyewear) => ({ ...CLASSIC, eyewear })),
+      ...EXTRAS.map((extra) => ({ ...CLASSIC, extra })),
+    ]) {
       expect(parseCostume(costumeCode(c), CLASSIC)).toEqual(c);
     }
   });
@@ -281,18 +294,20 @@ describe("clawd drawing", () => {
     const poses = reachingPoses();
     const clipped: string[] = [];
     const unpainted = new Set<string>();
-    for (const c of costumes) {
-      for (const p of poses) {
-        if (clippedPixels(c, p) > 0) clipped.push(`${costumeCode(c)} ${poseKey(p)}`);
-        for (const l of letters(c, p)) if (l && !color(l, c)) unpainted.add(l);
+    for (const character of ["clawd", "codex"] as const) {
+      for (const c of costumes) {
+        for (const p of poses) {
+          if (clippedPixels(c, p, character) > 0) clipped.push(`${character} ${costumeCode(c)} ${poseKey(p)}`);
+          for (const l of letters(c, p, character)) if (l && !color(l, c, character)) unpainted.add(l);
+        }
       }
     }
     expect(clipped).toEqual([]);
     expect([...unpainted]).toEqual([]);
   });
 
-  it("can be dressed 3780 ways", () => {
-    expect(SHELLS.length * HATS.length * EYEWEAR.length * EXTRAS.length).toBe(10 * 9 * 6 * 7);
+  it("can be dressed with the expanded hero catalog", () => {
+    expect(SHELLS.length * HATS.length * EYEWEAR.length * EXTRAS.length).toBe(11 * 13 * 20 * 25);
   });
 
   const at = (c: ClawdCostume, column: number, row: number) =>
@@ -305,7 +320,7 @@ describe("clawd drawing", () => {
     expect(at(CLASSIC, 0, 9)).toBe("c");
   });
 
-  it("covers the eyes only with shades and 3D glasses", () => {
+  it("covers the eyes with opaque glasses and hero masks", () => {
     for (const eyewear of EYEWEAR) {
       const worn: ClawdCostume = { ...CLASSIC, eyewear };
       const eyes = [
@@ -314,7 +329,7 @@ describe("clawd drawing", () => {
         [9, 2],
         [9, 3],
       ].map(([x, y]) => at(worn, x, y));
-      if (eyewear === "shades" || eyewear === "anaglyph") expect(eyes).not.toContain("E");
+      if (eyewear === "shades" || eyewear === "anaglyph" || eyewear.endsWith("Mask")) expect(eyes).not.toContain("E");
       else expect(eyes.every((e) => e === "E")).toBe(true);
     }
   });

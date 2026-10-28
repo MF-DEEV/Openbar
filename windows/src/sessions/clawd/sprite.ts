@@ -337,6 +337,151 @@ export const EYEWEAR_STAMPS: Readonly<Record<Exclude<ClawdEyewear, "none">, Stam
   round: s(1, 1, [".KKK...KKK.", "K...KKK...K", "K...K.K...K", ".KKK...KKK."]),
   monocle: s(7, 1, [".YYY.", "Y...Y", "Y...Y", ".YYY.", "....y", "...y.", "...y."]),
   anaglyph: s(0, 1, ["WWWWWWWWWWWWW", "WRRRRRWTTTTTW", "WRRRRRWTTTTTW", ".WWWWW.WWWWW."]),
+  batmanMask: s(0, -3, [
+    "K...........K",
+    "KK.........KK",
+    "KKKKKKKKKKKKK",
+    "KKKKKKKKKKKKK",
+    "KKKKKKKKKKKKK",
+    "KKWWWKKKWWWKK",
+    "KKKKKKKKKKKKK",
+    "KKKKK.N.KKKKK",
+    "KKK..NNN..KKK",
+    ".KK..NNN..KK.",
+  ]),
+  ironManMask: s(0, 0, [
+    ".RRRYYYYYRRR.",
+    "RYYYYYYYYYYYR",
+    "RYYTTYYYTTYYR",
+    "RYYYYYYYYYYYR",
+    "RRYYYYYYYYYRR",
+    "RRYYYsssYYYRR",
+    ".RRYYYYYYYRR.",
+    "..RRRRRRRRR..",
+  ]),
+  spiderManMask: s(0, -1, [
+    ".RRRRRRRRRRR.",
+    "RRRRRRKRRRRRR",
+    "RKWWWKRKWWWKR",
+    "RKKWWKRKWWKKR",
+    "RRKWWKRKWWKRR",
+    ".BBRRRKRRRBB.",
+  ]),
+  doomMask: s(0, 0, [
+    ".SSSSSSSSSSS.",
+    "SSssSSSSSssSS",
+    "SSKKKSSSKKKSS",
+    "SSSSSSsSSSSSS",
+    "SSsSSsssSSsSS",
+    "SSsSSKKKSSsSS",
+    ".SSSSsKsSSSS.",
+    "..SSSSSSSSS..",
+  ]),
+  wolverineMask: s(0, -3, [
+    "K...........K",
+    "KK.........KK",
+    "KKK.......KKK",
+    "KKKKYYYYYKKKK",
+    "KKKKYYYYYKKKK",
+    "KKWWWYYYWWWKK",
+    "KKKYYYYYYYKKK",
+    "KKKYY.N.YYKKK",
+    ".KKYNNNNNYKK.",
+    "..YYNNNNNYY..",
+  ]),
+  flashMask: s(-1, 0, [
+    "..RRRRRRRRRRR..",
+    ".RRRRRRRRRRRRR.",
+    "YRRWWRRRRRWWRRY",
+    "YYRRRRRRRRRRRYY",
+    ".YRRRRRRRRRRY..",
+    "..RRRNNNNNRRR..",
+    "...RRNNNNNRR...",
+    "....RRRRRRR....",
+  ]),
+  captainMask: s(0, 0, [
+    ".BBBBWWWBBBB.",
+    "BBBBWBBBWBBBB",
+    "BBWWWWWWWBBBB",
+    "BBBWWBBBWWBBB",
+    "BBBBBBBBBBBBB",
+    "BBB.NNNNN.BBB",
+    ".BBNNNNNNNBB.",
+    "..BBNNNNNBB..",
+  ]),
+  deadpoolMask: s(0, 0, [
+    ".RRRRRRRRRRR.",
+    "RRKKRRRRRKKRR",
+    "RKKKKRRRKKKKR",
+    "RKWWKRRRKWWKR",
+    "RKKKKRRRKKKKR",
+    "RRKKRRRRRKKRR",
+    ".RRRRRKRRRRR.",
+    "..RRRRRRRRR..",
+  ]),
+  venomMask: s(0, 0, [
+    ".KKKKKKKKKKK.",
+    "KWKKKKKKKKKWK",
+    "KWWKKKKKKKWWK",
+    "KWWWKKKKKWWWK",
+    "KKKKKKKKKKKKK",
+    "KWKWKWKWKWKWK",
+    ".KWKWKWKWKWK.",
+    "..KKRRRRRKK..",
+  ]),
+  blackPantherMask: s(0, -2, [
+    "K...........K",
+    "KK.........KK",
+    "KKKKKKKKKKKKK",
+    "KsKKKKsKKKKsK",
+    "KKsWWKsKWWsKK",
+    "KKKKKsKsKKKKK",
+    "KKsKKKsKKKsKK",
+    "KKKsKKsKKsKKK",
+    ".KKKsKsKsKKK.",
+    "..KKKsssKKK..",
+  ]),
+  daredevilMask: s(0, -1, [
+    "..R.......R..",
+    ".RRRRRRRRRRR.",
+    "RRRRRRRRRRRRR",
+    "RRKKKRRRKKKRR",
+    "RRRRRRRRRRRRR",
+    "RRRRRNNNRRRRR",
+    ".RRRNNNNNRRR.",
+    "..RRNNNNNRR..",
+    "...RRRRRRR...",
+  ]),
+  starLordMask: s(0, 0, [
+    ".SSSSSSSSSSS.",
+    "SSsssSSSsssSS",
+    "SsRRRsSsRRRsS",
+    "SsRRRsSsRRRsS",
+    "SSsssSSSsssSS",
+    "SSSSsssssSSSS",
+    ".SSSsKKKsSSS.",
+    "..SSsKKKsSS..",
+  ]),
+  greenLanternMask: s(0, 0, [
+    ".QQQQQQQQQQQ.",
+    "QQQQQQQQQQQQQ",
+    "QQWWWQQQWWWQQ",
+    "QQQQQQQQQQQQQ",
+    ".QQQQQQQQQQQ.",
+    "..QQQNNNQQQ..",
+    "...NNNNNNN...",
+    "....NNNNN....",
+  ]),
+  robinMask: s(0, 0, [
+    ".KKKKKKKKKKK.",
+    "KKKKKKKKKKKKK",
+    "KKWWWKKKWWWKK",
+    "KKKKKKKKKKKKK",
+    ".KKKKKKKKKKK.",
+    "..KKKNNNKKK..",
+    "...NNNNNNN...",
+    "....NNNNN....",
+  ]),
 };
 
 export function hatStamps(hat: ClawdHat, tick: number): Stamp[] {
@@ -367,6 +512,41 @@ export function hatStamps(hat: ClawdHat, tick: number): Stamp[] {
       ];
     case "chef":
       return [s(1, -6, ["..WWW.WWW..", ".WWWWWWWWW.", "WWWWWWWWWWW", ".WWWWWWWWW.", "..WWWWWWW..", "..wwwwwww.."])];
+    case "doomHood":
+      return [
+        s(0, -4, [
+          "...QQQQQQQ...",
+          ".QQQQqqqQQQQ.",
+          "QQQqq...qqQQQ",
+          "QQq.......qQQ",
+          "Qq.........qQ",
+          "Q...........Q",
+        ]),
+      ];
+    case "thorHelmet":
+      return [
+        s(-2, -5, [
+          "W...............W",
+          "WW.............WW",
+          ".WW..SSSSSSS..WW.",
+          "..WWSSSSSSSSSWW..",
+          "...SSSSSSSSSSS...",
+        ]),
+      ];
+    case "lokiHorns":
+      return [
+        s(0, -7, [
+          "Y...........Y",
+          "YY.........YY",
+          ".Y.........Y.",
+          ".YY.......YY.",
+          "..YY.....YY..",
+          "...YYYYYYY...",
+          "...QQQYQQQ...",
+        ]),
+      ];
+    case "wonderTiara":
+      return [s(0, -2, ["Y.....Y.....Y", "YYYYYYYYYYYYY", ".YYYYRYYYYYY."])];
   }
 }
 
@@ -400,6 +580,93 @@ function rightHand(arms: Arms, character: Character = "clawd"): [number, number]
   }
 }
 
+export function capeStamps(extra: ClawdExtra, tick: number): Stamp[] {
+  switch (extra) {
+    case "doomCape":
+      return [
+        s(-3, 0, [
+          ...[
+            ".....QQQQQQQQQ.....",
+            "....QQQQQQQQQQQ....",
+            "...QQQQQQQQQQQQQ...",
+            "..QQQQQQQQQQQQQQQ..",
+            ".QQQQQQQQQQQQQQQQQ.",
+            "QQQQQQQQQQQQQQQQQQQ",
+            "QQQQQQQQQQQQQQQQQQQ",
+            "qQQQqQQQqQQQqQQQqQQ",
+          ],
+          tick === 0 ? "QQ.QQQ.QQQQQ.QQQ.QQ" : "Q.QQQ.QQQQQ.QQQ.QQQ",
+        ]),
+      ];
+    case "strangeCape":
+      return [
+        s(-3, 0, [
+          ...[
+            ".....RRRRRRRRR.....",
+            "....RRRRRRRRRRR....",
+            "...RRRRRRRRRRRRR...",
+            "..RRRRRRRRRRRRRRR..",
+            ".RRRRRRRRRRRRRRRRR.",
+            "RRRRRRRRRRRRRRRRRRR",
+            "RRRRRRRRRRRRRRRRRRR",
+            "yRRRyRRRyRRRyRRRyRR",
+          ],
+          tick === 0 ? "RR.RRR.RRRRR.RRR.RR" : "R.RRR.RRRRR.RRR.RRR",
+        ]),
+      ];
+    case "thorCape":
+      return [
+        s(-3, 0, [
+          ...[
+            ".....RRRRRRRRR.....",
+            "....RRRRRRRRRRR....",
+            "...RRRRRRRRRRRRR...",
+            "..RRRRRRRRRRRRRRR..",
+            ".RRRRRRRRRRRRRRRRR.",
+            "RRRRRRRRRRRRRRRRRRR",
+            "RRRRRRRRRRRRRRRRRRR",
+            "DRRRDRRRDRRRDRRRDRR",
+          ],
+          tick === 0 ? "RR.RRR.RRRRR.RRR.RR" : "R.RRR.RRRRR.RRR.RRR",
+        ]),
+      ];
+    case "supermanCape":
+      return [
+        s(-3, 0, [
+          ...[
+            ".....RRRRRRRRR.....",
+            "....RRRRRRRRRRR....",
+            "...RRRRRRRRRRRRR...",
+            "..RRRRRRRRRRRRRRR..",
+            ".RRRRRRRRRRRRRRRRR.",
+            "RRRRRRRRRRRRRRRRRRR",
+            "RRRRRRRRRRRRRRRRRRR",
+            "yRRRyRRRyRRRyRRRyRR",
+          ],
+          tick === 0 ? "RR.RRR.RRRRR.RRR.RR" : "R.RRR.RRRRR.RRR.RRR",
+        ]),
+      ];
+    case "batmanCape":
+      return [
+        s(-3, 0, [
+          ...[
+            ".....KKKKKKKKK.....",
+            "....KKKKKKKKKKK....",
+            "...KKKKKKKKKKKKK...",
+            "..KKKKKKKKKKKKKKK..",
+            ".KKKKKKKKKKKKKKKKK.",
+            "KKKKKKKKKKKKKKKKKKK",
+            "KKKKKKKKKKKKKKKKKKK",
+            "DKKKDKKKDKKKDKKKDKK",
+          ],
+          tick === 0 ? "KK.KKK.KKKKK.KKK.KK" : "K.KKK.KKKKK.KKK.KKK",
+        ]),
+      ];
+    default:
+      return [];
+  }
+}
+
 export function extraStamps(extra: ClawdExtra, arms: Arms, tick: number, character: Character = "clawd"): Stamp[] {
   switch (extra) {
     case "none":
@@ -429,6 +696,90 @@ export function extraStamps(extra: ClawdExtra, arms: Arms, tick: number, charact
       const steam = tick === 0 ? [".w.", "w.."] : ["w..", ".w."];
       return [s(x, y - 2, [...steam, "NNN", "WWW", "WWW"])];
     }
+    case "doomCape":
+      return [s(0, 0, ["QQY.......YQQ"])];
+    case "strangeCape":
+      return [s(0, 0, ["RRR.......RRR", "RRRY.....YRRR"])];
+    case "thorCape":
+      return [s(0, 0, ["SS.........SS"])];
+    case "supermanCape":
+      return [s(0, 0, ["..RRYYYYYRR..", "...RYRYYYR..."])];
+    case "batmanCape":
+      return [s(0, 0, ["KKY.......YKK"])];
+    case "captainShield": {
+      const [, y] = rightHand(arms, character);
+      return [
+        s(6, Math.min(-3, y - 4), [
+          "....RRRRR....",
+          "...RRWWWRR...",
+          "..RWWRRRWWR..",
+          ".RWRRBWBRRWR.",
+          "RRWRBBWBBRWRR",
+          "RWRWWWWWWWRWR",
+          "RWRBWWWWWBRWR",
+          "RWRBBWWWBBRWR",
+          "RRWRWWBWWRWRR",
+          ".RWRWBBBWRWR.",
+          "..RWWRRRWWR..",
+          "...RRWWWRR...",
+          "....RRRRR....",
+        ]),
+      ];
+    }
+    case "mjolnir": {
+      const [, y] = rightHand(arms, character);
+      return [
+        s(10, y - 4, ["SSSSSSSSS", "SwwwwwwwS", "SSSSSSSSS", "....N....", "....N....", "....N....", "....Y...."]),
+      ];
+    }
+    case "aquamanTrident": {
+      const [, y] = rightHand(arms, character);
+      return [
+        s(12, y - 4, [
+          "Y..Y..Y",
+          "Y..Y..Y",
+          ".YYYYY.",
+          "...Y...",
+          "...Y...",
+          "...Y...",
+          "...Y...",
+          "...Y...",
+          "...Y...",
+        ]),
+      ];
+    }
+    case "lanternRing": {
+      const [, y] = rightHand(arms, character);
+      return [s(12, y - 4, ["..QQQ..", ".QWWWQ.", "QWWWWWQ", "QWQQQWQ", "QWQWQWQ", ".QWWWQ.", "..QQQ.."])];
+    }
+    case "wolverineClaws": {
+      const [, y] = rightHand(arms, character);
+      return [s(10, y - 4, ["S.S.S", "S.S.S", "S.S.S", "S.S.S", ".SSS.", ".NNN."])];
+    }
+    case "batarang": {
+      const [, y] = rightHand(arms, character);
+      return [s(10, y - 4, ["K.......K", "KK.K.K.KK", "KKKKKKKKK", ".KKKKKKK.", "..K.K.K.."])];
+    }
+    case "hawkeyeBow": {
+      const [, y] = rightHand(arms, character);
+      return [s(10, y - 4, [".a...", "..a..", "..aK.", "...aK", "..aK.", "..a..", ".a..."])];
+    }
+    case "strangeSpell": {
+      const [, y] = rightHand(arms, character);
+      return [s(10, y - 4, ["..YYY..", ".Y...Y.", "Y.YYY.Y", "Y.Y.Y.Y", "Y.YYY.Y", ".Y...Y.", "..YYY.."])];
+    }
+    case "webShooter": {
+      const [, y] = rightHand(arms, character);
+      return [s(10, y - 4, ["W..W..W", ".W.W.W.", "..WWW..", "WWWWWWW", "..WWW..", ".W.W.W.", "W..W..W"])];
+    }
+    case "ironReactor":
+      return [s(5, 5, ["TTT", "TWT", "TTT"])];
+    case "supermanEmblem":
+      return [s(3, 4, ["YYYYYYY", "YRRRRRY", ".YYRRY.", "..YYY.."])];
+    case "flashEmblem":
+      return [s(5, 5, ["WYY", "YYW", "WYW"])];
+    case "lanternEmblem":
+      return [s(5, 5, ["WWW", "WQW", "WWW"])];
   }
 }
 
@@ -525,6 +876,7 @@ function compose(
       }
     });
   };
+  capeStamps(costume.extra, p.tick).forEach((stamp) => put(stamp));
   // Legs reach the ground under a rising body, and tuck in off it.
   for (const [x, left] of LEGS[character]) {
     const lifted = (p.legs === "stepLeft" && left) || (p.legs === "stepRight" && !left);
@@ -570,6 +922,7 @@ export function clippedPixels(costume: ClawdCostume, p: ClawdPose, character: Ch
 
 /** The color hats, scarves and headphones come in on each shell: far enough from it to stand out. */
 export const ACCENT: Readonly<Record<ClawdShell, ClawdShell>> = {
+  midnight: "sky",
   clay: "sky",
   coral: "teal",
   amber: "iris",
@@ -584,6 +937,8 @@ export const ACCENT: Readonly<Record<ClawdShell, ClawdShell>> = {
 
 /** The fixed letters; C, c, A and a come from the costume. */
 export const PALETTE: Readonly<Record<string, Rgb>> = {
+  Q: [44, 142, 76],
+  q: [26, 84, 48],
   E: [24, 22, 26],
   K: [32, 32, 38],
   D: [66, 66, 78],

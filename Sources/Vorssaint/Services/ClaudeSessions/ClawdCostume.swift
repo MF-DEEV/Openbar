@@ -37,7 +37,7 @@ extension ClaudeSessionProvider {
 
 /// The color of a Clawd's shell.
 enum ClawdShell: String, CaseIterable, Identifiable {
-    case clay, coral, amber, moss, mint, teal, sky, iris, orchid, rose
+    case clay, coral, amber, moss, mint, teal, sky, iris, orchid, rose, midnight
 
     var id: String { rawValue }
 
@@ -55,6 +55,7 @@ enum ClawdShell: String, CaseIterable, Identifiable {
         case .iris: return (116, 112, 226)
         case .orchid: return (178, 98, 214)
         case .rose: return (230, 112, 156)
+        case .midnight: return (74, 82, 118)
         }
     }
 
@@ -76,19 +77,19 @@ enum ClawdShell: String, CaseIterable, Identifiable {
 }
 
 enum ClawdHat: String, CaseIterable, Identifiable {
-    case none, beanie, cap, beret, topHat, crown, party, propeller, chef
+    case none, beanie, cap, beret, topHat, crown, party, propeller, chef, doomHood, thorHelmet, lokiHorns, wonderTiara
 
     var id: String { rawValue }
 }
 
 enum ClawdEyewear: String, CaseIterable, Identifiable {
-    case none, glasses, shades, round, monocle, anaglyph
+    case none, glasses, shades, round, monocle, anaglyph, batmanMask, ironManMask, spiderManMask, doomMask, wolverineMask, flashMask, captainMask, deadpoolMask, venomMask, blackPantherMask, daredevilMask, starLordMask, greenLanternMask, robinMask
 
     var id: String { rawValue }
 }
 
 enum ClawdExtra: String, CaseIterable, Identifiable {
-    case none, bow, scarf, bowTie, flower, headphones, coffee
+    case none, bow, scarf, bowTie, flower, headphones, coffee, doomCape, strangeCape, thorCape, supermanCape, batmanCape, captainShield, mjolnir, aquamanTrident, lanternRing, wolverineClaws, batarang, hawkeyeBow, strangeSpell, webShooter, ironReactor, supermanEmblem, flashEmblem, lanternEmblem
 
     var id: String { rawValue }
 }
@@ -121,9 +122,8 @@ struct ClawdCostume: Hashable {
         return hash
     }
 
-    /// The costume `key` draws, the same each time. Clawd's lots are the
-    /// ones every earlier version drew; a Codex robot's only favour another
-    /// shell.
+    /// The costume a session draws from the full wardrobe, the same each time.
+    /// Clawd and Codex favour their own shell colors.
     static func seeded(_ key: String, character: ClawdCharacter = .clawd) -> ClawdCostume {
         var generator = ClawdRandom(seed: seed(key))
         return drawn(using: &generator, character: character)
@@ -147,6 +147,7 @@ struct ClawdCostume: Hashable {
     }
 
     /// One part after another from the same lot, so each is its own draw.
+    /// New sessions and Surprise me both include the full wardrobe.
     static func drawn<Generator: RandomNumberGenerator>(using generator: inout Generator,
                                                         character: ClawdCharacter = .clawd) -> ClawdCostume {
         let favoured = character.favouredShell

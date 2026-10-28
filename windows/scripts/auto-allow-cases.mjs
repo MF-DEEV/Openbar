@@ -67,17 +67,19 @@ export async function checkAutoAllow({ send, evaluate, base }) {
     const bounds=bar.getBoundingClientRect();
     const button=cancel.getBoundingClientRect();
     bar.click();
-    return {height:bounds.height,inset:label.left-bounds.left,gap:button.left-label.right,
+    return {width:bounds.width,available:bar.parentElement.getBoundingClientRect().width,height:bounds.height,inset:label.left-bounds.left,gap:button.left-label.right,
       buttonHeight:button.height,label:cancel.textContent.trim(),stillOn:sessions.getState().autoAllow[raw.id]};
   })()`);
   assert(
-    statusLayout.height >= 48 &&
-      statusLayout.inset >= 15 &&
-      statusLayout.gap >= 11 &&
-      statusLayout.buttonHeight >= 30 &&
+    Math.abs(statusLayout.width - statusLayout.available) <= 2 &&
+      statusLayout.height >= 28 &&
+      statusLayout.height <= 30 &&
+      statusLayout.inset >= 9 &&
+      statusLayout.gap >= 7 &&
+      statusLayout.buttonHeight >= 22 &&
       statusLayout.label === "Cancel" &&
       statusLayout.stillOn,
-    "Autoaccept needs a padded status bar with a separate Cancel button; clicking its background must do nothing",
+    "Autoaccept needs a slim full-width status bar with a separate Cancel button; clicking its background must do nothing",
   );
   const screenshot = await send("Page.captureScreenshot", { format: "png" });
   await mkdir(resolve("../build"), { recursive: true });

@@ -26,13 +26,11 @@ enum ClawdCostumeTests {
         generator = ClawdRandom(seed: 0)
         suite.expect(generator.next() == 0xe220_a839_7b1d_cdaf && generator.next() == 0x6e78_9e6a_a1b9_65f4,
                      "the lot is SplitMix64, giving its published numbers")
-        // A session nobody dressed wears its lot. Drawing in another order, or
-        // a part added in the middle of a list, would change every such
-        // Clawd at the next update.
-        suite.expect(ClawdCostume.seeded(id).code == "v1:teal.none.monocle.none"
-                     && ClawdCostume.seeded("0f9a6c1e-2b7d-4e55-8a31-c4d2e6f7a890").code == "v1:orchid.beret.anaglyph.coffee"
-                     && ClawdCostume.seeded("s/a1").code == "v1:clay.propeller.none.scarf",
-                     "a session draws the same costume from one version of the app to the next: \(ClawdCostume.seeded(id).code)")
+        // Shared golden outfits keep the Swift and Windows catalogs and draws aligned.
+        suite.expect(ClawdCostume.seeded(id).code == "v1:clay.none.flashMask.none"
+                     && ClawdCostume.seeded("0f9a6c1e-2b7d-4e55-8a31-c4d2e6f7a890").code == "v1:coral.beret.anaglyph.lanternEmblem"
+                     && ClawdCostume.seeded("s/a1").code == "v1:coral.beret.none.strangeCape",
+                     "a session draws the same full-catalog costume on both platforms: \(ClawdCostume.seeded(id).code)")
 
         let costumes = (0..<600).map { ClawdCostume.seeded("session-\($0)") }
         suite.expect(Set(costumes.map(\.shell)) == Set(ClawdShell.allCases), "every shell comes up")
@@ -79,8 +77,8 @@ enum ClawdCostumeTests {
                      "Claude Code sessions are Clawds favouring clay, Codex sessions robots favouring iris")
         let keys = (0..<600).map { "session-\($0)" }
         suite.expect(keys.allSatisfy { ClawdCostume.seeded($0, character: .clawd) == ClawdCostume.seeded($0) }
-                     && ClawdCostume.seeded("99c35831-5f0b-4c3e-9d0a-0f3c2a7b8e11").code == "v1:teal.none.monocle.none",
-                     "Clawd's lots are the ones every earlier version drew")
+                     && ClawdCostume.seeded("99c35831-5f0b-4c3e-9d0a-0f3c2a7b8e11").code == "v1:clay.none.flashMask.none",
+                     "Clawd and Codex share the full accessory catalog")
         let robots = keys.map { ClawdCostume.seeded($0, character: .codex) }
         let clawds = keys.map { ClawdCostume.seeded($0) }
         suite.expect(zip(robots, clawds).allSatisfy { $0.hat == $1.hat && $0.eyewear == $1.eyewear && $0.extra == $1.extra },
@@ -116,7 +114,12 @@ enum ClawdCostumeTests {
         let costume = ClawdCostume(shell: .sky, hat: .topHat, eyewear: .shades, extra: .bowTie)
         suite.expect(costume.code == "v1:sky.topHat.shades.bowTie", "a costume keeps as a short versioned line: \(costume.code)")
         suite.expect(ClawdCostume(code: costume.code, fallback: .classic) == costume, "and reads back the same")
-        for costume in [ClawdCostume.classic] + (0..<50).map({ ClawdCostume.seeded("k\($0)") }) {
+        let classic = ClawdCostume.classic
+        // Every part on its own too, the superhero ones included.
+        let parts = ClawdHat.allCases.map { ClawdCostume(shell: classic.shell, hat: $0, eyewear: classic.eyewear, extra: classic.extra) }
+            + ClawdEyewear.allCases.map { ClawdCostume(shell: classic.shell, hat: classic.hat, eyewear: $0, extra: classic.extra) }
+            + ClawdExtra.allCases.map { ClawdCostume(shell: classic.shell, hat: classic.hat, eyewear: classic.eyewear, extra: $0) }
+        for costume in [classic] + (0..<50).map({ ClawdCostume.seeded("k\($0)") }) + parts {
             suite.expect(ClawdCostume(code: costume.code, fallback: .classic) == costume, "\(costume.code) round trips")
         }
         let fallback = ClawdCostume(shell: .rose, hat: .crown, eyewear: .monocle, extra: .coffee)
