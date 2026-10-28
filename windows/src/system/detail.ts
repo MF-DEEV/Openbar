@@ -24,7 +24,7 @@ import {
 import type { Line } from "./Sparkline";
 import type { History } from "./store";
 import { S } from "./strings";
-import type { BatteryReading, MetricKind, SystemSnapshot } from "./types";
+import type { BatteryReading, MetricKind, ProcessRow, SystemSnapshot } from "./types";
 
 /** The panel's metric colors in dark appearance (PanelMetricColor). */
 export const COLORS = {
@@ -232,4 +232,27 @@ export function detailRows(kind: MetricKind, s: SystemSnapshot, inBits: boolean)
 /** CPU rows read "12.3%", memory rows a size. */
 export function processValue(kind: MetricKind, value: number): string {
   return kind === "memory" ? bytes(value) : `${value.toFixed(1)}%`;
+}
+
+export function processRowValue(kind: MetricKind, row: ProcessRow, inBits: boolean): string {
+  if (kind !== "network") return processValue(kind, row.value);
+  const rate = (value: number | null) => (value === null ? "-" : networkRateCompact(value, inBits));
+  return `↓${rate(row.netDown)} ↑${rate(row.netUp)}`;
+}
+
+/** A stale response belongs to the previous detail, even if it had rows. */
+export function processEmptyText(kind: MetricKind, snapshot: SystemSnapshot): string | null {
+  if (snapshot.processesFor !== kind) return S.measuring;
+  switch (snapshot.processStatus) {
+    case "unavailable":
+      return kind === "power" ? S.energyUnavailable : S.processesUnavailable;
+    case "permissionDenied":
+      return S.networkPermissionDenied;
+    case "incomplete":
+      return S.networkIncomplete;
+    case "measuring":
+      return S.measuring;
+    case "ready":
+      return snapshot.processes.length > 0 ? null : kind === "network" ? S.networkAppsIdle : S.processesIdle;
+  }
 }

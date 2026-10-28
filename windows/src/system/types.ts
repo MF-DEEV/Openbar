@@ -53,9 +53,13 @@ export interface DeviceReading {
 export interface ProcessRow {
   name: string;
   path: string | null;
-  /** CPU: percent of the machine. Memory: private bytes. */
+  /** CPU/GPU: percent. Memory: private bytes. Network: total bytes/sec. */
   value: number;
+  netDown: number | null;
+  netUp: number | null;
 }
+
+export type ProcessStatus = "measuring" | "ready" | "unavailable" | "permissionDenied" | "incomplete";
 
 export interface SystemSnapshot {
   seq: number;
@@ -76,6 +80,7 @@ export interface SystemSnapshot {
   diskWrite: number | null;
   devices: DeviceReading[] | null;
   processes: ProcessRow[];
+  processStatus: ProcessStatus;
   /** The detail `processes` were read for. */
   processesFor: MetricKind | null;
   uptimeSeconds: number;

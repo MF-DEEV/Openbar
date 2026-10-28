@@ -31,12 +31,13 @@ export function demoSnapshot(seq: number): SystemSnapshot {
       { name: "WH-1000XM5", bluetooth: true },
     ],
     processes: [
-      { name: "Google Chrome", path: null, value: 21.4 },
-      { name: "Visual Studio Code", path: null, value: 12.9 },
-      { name: "Microsoft Teams", path: null, value: 6.2 },
-      { name: "Desktop Window Manager", path: null, value: 3.1 },
-      { name: "Vorssaint", path: null, value: 0.8 },
+      { name: "Google Chrome", path: null, value: 21.4, netDown: null, netUp: null },
+      { name: "Visual Studio Code", path: null, value: 12.9, netDown: null, netUp: null },
+      { name: "Microsoft Teams", path: null, value: 6.2, netDown: null, netUp: null },
+      { name: "Desktop Window Manager", path: null, value: 3.1, netDown: null, netUp: null },
+      { name: "Vorssaint", path: null, value: 0.8, netDown: null, netUp: null },
     ],
+    processStatus: "ready",
     processesFor: "cpu",
     uptimeSeconds: 3 * 86_400 + 4 * 3_600 + 12 * 60,
   };

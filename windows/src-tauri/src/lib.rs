@@ -293,6 +293,7 @@ pub fn run() {
 
     app.run(|app, event| {
         if let RunEvent::Exit = event {
+            system_monitor::stop(app.state::<system_monitor::Shared>().inner());
             fullscreen::stop(app);
         }
     });
