@@ -4,21 +4,29 @@
 
 fn main() {
     if std::env::args().nth(1).as_deref() == Some("--microphone-probe") {
-        let path = std::env::args().nth(2).unwrap_or_else(|| "microphone-probe.json".into());
+        let path = std::env::args()
+            .nth(2)
+            .unwrap_or_else(|| "microphone-probe.json".into());
         vorssaint_windows_lib::microphone_probe_main(&path);
     }
     if std::env::args().nth(1).as_deref() == Some("--notifications-probe") {
-        let path = std::env::args().nth(2).unwrap_or_else(|| "notifications-probe.json".into());
+        let path = std::env::args()
+            .nth(2)
+            .unwrap_or_else(|| "notifications-probe.json".into());
         vorssaint_windows_lib::notifications_probe_main(&path);
     }
     #[cfg(windows)]
     if std::env::args().nth(1).as_deref() == Some("--watch-probe") {
-        let path = std::env::args().nth(2).unwrap_or_else(|| "watch-probe.txt".into());
+        let path = std::env::args()
+            .nth(2)
+            .unwrap_or_else(|| "watch-probe.txt".into());
         let title = std::env::args().nth(3).unwrap_or_default();
         vorssaint_windows_lib::watch_probe_main(&path, &title);
     }
     if std::env::args().nth(1).as_deref() == Some("--agents-probe") {
-        let path = std::env::args().nth(2).unwrap_or_else(|| "agents-probe.json".into());
+        let path = std::env::args()
+            .nth(2)
+            .unwrap_or_else(|| "agents-probe.json".into());
         let limits = std::env::args().any(|a| a == "--limits");
         vorssaint_windows_lib::agents_probe_main(&path, limits);
     }

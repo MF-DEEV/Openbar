@@ -80,6 +80,16 @@ On the Mac this fork ships no builds of its own; you build it from source as abo
 - [Claude Code session notes](docs/claude-sessions-spike.md), what Claude Code exposes and how the island uses it
 - [Codex session notes](docs/codex-sessions.md), how the island talks to Codex's app server
 
+### Checks on pull requests
+
+Every pull request runs [PR checks](.github/workflows/pr.yml) for the parts it changes, each job capped at fifteen minutes, and **CI ok** sums them up as the one check to require before merging into `main`. You can run the same checks before you push:
+
+- Mac: `./build.sh --test`
+- Windows UI, in `windows/`: `bun run typecheck`, `bun run format:check`, `bun run test`
+- Windows backend, in `windows/src-tauri/`, after `bun run build` in `windows/`: `cargo fmt --check`, `cargo xwin clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings` and `cargo test`. CI pins Rust 1.99.1 (`RUST_TOOLCHAIN` in the workflow), so a newer local toolchain can report lints CI does not.
+
+The release build and its selftest are not part of CI; run `./build.sh && ./build/Vorssaint --selftest` yourself for runtime, UI or bundled resource changes.
+
 ## License
 
 [GPL 3.0 or later](LICENSE). Vorssaint is copyright 2026 Vorssaint; the changes in this fork are copyright 2026 MF DEV under the same license.

@@ -83,7 +83,11 @@ impl IslandState {
     /// Whether a point in the window's CSS pixels is on the island's shape.
     #[cfg_attr(not(windows), allow(dead_code))]
     pub fn contains(&self, x: f64, y: f64) -> bool {
-        self.rects.lock().unwrap_or_else(std::sync::PoisonError::into_inner).iter().any(|r| r.contains(x, y))
+        self.rects
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .iter()
+            .any(|r| r.contains(x, y))
     }
 }
 
@@ -298,15 +302,14 @@ mod platform {
     use super::IslandState;
     use tauri::{Runtime, WebviewWindow};
     use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
-    use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
     use windows::Win32::UI::Input::KeyboardAndMouse::{
         GetAsyncKeyState, VK_LBUTTON, VK_MBUTTON, VK_RBUTTON,
     };
+    use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
     use windows::Win32::UI::WindowsAndMessaging::{
-        GWL_EXSTYLE, GetForegroundWindow, GetWindowLongPtrW, IsWindow, SetForegroundWindow,
-        SetWindowDisplayAffinity, SetWindowLongPtrW, WDA_EXCLUDEFROMCAPTURE, WDA_NONE,
-        WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
-        WS_EX_APPWINDOW, WM_STYLECHANGING, STYLESTRUCT,
+        GWL_EXSTYLE, GetForegroundWindow, GetWindowLongPtrW, IsWindow, STYLESTRUCT,
+        SetForegroundWindow, SetWindowDisplayAffinity, SetWindowLongPtrW, WDA_EXCLUDEFROMCAPTURE,
+        WDA_NONE, WM_STYLECHANGING, WS_EX_APPWINDOW, WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW,
     };
 
     pub(super) fn overlay_style(style: u32) -> u32 {
@@ -318,13 +321,19 @@ mod platform {
     /// interactive, display-sized canvas looks opaque to browser occlusion
     /// tracking and video underneath can stop rendering.
     unsafe extern "system" fn preserve_overlay_style(
-        hwnd: HWND, message: u32, wparam: WPARAM, lparam: LPARAM,
-        _id: usize, _data: usize,
+        hwnd: HWND,
+        message: u32,
+        wparam: WPARAM,
+        lparam: LPARAM,
+        _id: usize,
+        _data: usize,
     ) -> LRESULT {
         if message == WM_STYLECHANGING && wparam.0 as i32 == GWL_EXSTYLE.0 {
             let styles = lparam.0 as *mut STYLESTRUCT;
             if !styles.is_null() {
-                unsafe { (*styles).styleNew = overlay_style((*styles).styleNew); }
+                unsafe {
+                    (*styles).styleNew = overlay_style((*styles).styleNew);
+                }
             }
         }
         unsafe { DefSubclassProc(hwnd, message, wparam, lparam) }
@@ -455,8 +464,10 @@ mod tests {
             let actual = super::platform::overlay_style(generated);
             assert_ne!(actual & WS_EX_TOOLWINDOW.0, 0);
             assert_eq!(actual & WS_EX_APPWINDOW.0, 0);
-            assert_eq!(actual & !(WS_EX_TOOLWINDOW.0 | WS_EX_APPWINDOW.0),
-                generated & !(WS_EX_TOOLWINDOW.0 | WS_EX_APPWINDOW.0));
+            assert_eq!(
+                actual & !(WS_EX_TOOLWINDOW.0 | WS_EX_APPWINDOW.0),
+                generated & !(WS_EX_TOOLWINDOW.0 | WS_EX_APPWINDOW.0)
+            );
         }
     }
 

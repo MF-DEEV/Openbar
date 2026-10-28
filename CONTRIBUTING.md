@@ -20,7 +20,7 @@ cd vorssaint-utils
 
 To install and launch the separate Developer app, use `./build.sh --dev --install`.
 It has its own preferences and permissions and does not replace the official app.
-A plain `./build.sh` builds the optimized variant used by CI; its health check is
+A plain `./build.sh` builds the optimized variant; its health check is
 `./build/Vorssaint --selftest`.
 
 ### Stable signing
@@ -31,8 +31,8 @@ Keep that identity across rebuilds: ad-hoc signatures change with the binary and
 can invalidate macOS permission grants. Check the build output for signing
 failures. For stale grants, see [troubleshooting](docs/TROUBLESHOOTING.md#resetting-permissions).
 
-Official releases use Developer ID signing and notarization through the protected
-release workflow. Local signing does not produce an official release.
+Official releases use Developer ID signing and notarization through upstream's
+protected release workflow. Local signing does not produce an official release.
 
 ## Scope and implementation
 
@@ -66,7 +66,7 @@ fix and preserve legitimate use, rather than pinning private implementation text
 
 The test executable compiles a selected set of sources, so passing tests does not
 prove the app builds. Build the app and run its selftest for runtime, UI or bundled
-resource changes. CI also checks the optimized build, selftest, tests and packaging.
+resource changes. CI runs the tests only; the build and selftest are yours to run.
 Builds should finish without warnings.
 
 For behavior involving windows, permissions or hardware, describe what you actually
@@ -92,9 +92,9 @@ Refs #456
 ```
 
 Avoid `Closes` or `Fixes`: those close the issue at merge, before users receive
-the fix. The fix-status workflow tracks the reference, notifies the reporter when
-a stable release carries the fix, and can close the issue after two weeks without
-a response. If the PR addresses only part of an issue, say exactly which part.
+the fix. Upstream's fix-status workflow tracks the reference, notifies the reporter
+when a stable release carries the fix, and can close the issue after two weeks
+without a response. If the PR addresses only part of an issue, say exactly which part.
 
 For agent-assisted work, see [contributing with an agent](docs/AI-CONTRIBUTIONS.md).
 Bug reports and feature requests use the [issue forms](https://github.com/vorssaint/vorssaint-utils/issues/new/choose).
@@ -102,13 +102,15 @@ Report vulnerabilities through [private security reporting](SECURITY.md).
 
 ## Releases (maintainers)
 
+This describes upstream's release process; this fork has no release workflow.
+
 Integrating into `main`, pushing a branch and opening a PR do not publish a release.
 Publication requires an explicit release decision, including beta or stable.
 
 Before sending a version tag, validate the final commit on `main`, confirm its
 verified signature, and match `Resources/Info.plist` and the release notes to the
 chosen version. Use a signed tag such as `vX.Y.Z-beta.N` or `vX.Y.Z`.
-Sending the tag starts [the release workflow](.github/workflows/release.yml).
+Sending the tag starts [the release workflow](https://github.com/vorssaint/vorssaint-utils/blob/main/.github/workflows/release.yml).
 
 The protected `release-signing` environment holds the signing and notarization
 credentials. The workflow builds, signs and notarizes the app and DMG, then

@@ -82,19 +82,43 @@ mod tests {
 
     #[test]
     fn bare_hex_leaves_the_other_formats_alone() {
-        assert_eq!(format(10, 20, 30, ColorFormat::Rgb, true), "rgb(10, 20, 30)");
-        assert_eq!(format(255, 0, 0, ColorFormat::Hsl, true), "hsl(0, 100%, 50%)");
+        assert_eq!(
+            format(10, 20, 30, ColorFormat::Rgb, true),
+            "rgb(10, 20, 30)"
+        );
+        assert_eq!(
+            format(255, 0, 0, ColorFormat::Hsl, true),
+            "hsl(0, 100%, 50%)"
+        );
     }
 
     #[test]
     fn hsl_matches_the_mac() {
-        assert_eq!(format(255, 255, 255, ColorFormat::Hsl, false), "hsl(0, 0%, 100%)");
-        assert_eq!(format(128, 128, 128, ColorFormat::Hsl, false), "hsl(0, 0%, 50%)");
-        assert_eq!(format(0, 255, 0, ColorFormat::Hsl, false), "hsl(120, 100%, 50%)");
-        assert_eq!(format(0, 0, 255, ColorFormat::Hsl, false), "hsl(240, 100%, 50%)");
+        assert_eq!(
+            format(255, 255, 255, ColorFormat::Hsl, false),
+            "hsl(0, 0%, 100%)"
+        );
+        assert_eq!(
+            format(128, 128, 128, ColorFormat::Hsl, false),
+            "hsl(0, 0%, 50%)"
+        );
+        assert_eq!(
+            format(0, 255, 0, ColorFormat::Hsl, false),
+            "hsl(120, 100%, 50%)"
+        );
+        assert_eq!(
+            format(0, 0, 255, ColorFormat::Hsl, false),
+            "hsl(240, 100%, 50%)"
+        );
         // Magenta-ish: red is the max and green < blue, so the hue wraps past 360.
-        assert_eq!(format(255, 0, 128, ColorFormat::Hsl, false), "hsl(330, 100%, 50%)");
-        assert_eq!(format(51, 102, 153, ColorFormat::Hsl, false), "hsl(210, 50%, 40%)");
+        assert_eq!(
+            format(255, 0, 128, ColorFormat::Hsl, false),
+            "hsl(330, 100%, 50%)"
+        );
+        assert_eq!(
+            format(51, 102, 153, ColorFormat::Hsl, false),
+            "hsl(210, 50%, 40%)"
+        );
     }
 
     #[test]

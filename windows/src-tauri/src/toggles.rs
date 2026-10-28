@@ -123,38 +123,41 @@ mod imp {
     use std::time::Duration;
     use windows::Win32::Devices::DeviceAndDriverInstallation::{
         CM_Get_Parent, CM_Request_Device_EjectW, CR_SUCCESS, DIGCF_DEVICEINTERFACE, DIGCF_PRESENT,
-        PNP_VETO_TYPE, PNP_VetoTypeUnknown, SP_DEVICE_INTERFACE_DATA, SP_DEVICE_INTERFACE_DETAIL_DATA_W,
-        SP_DEVINFO_DATA, SetupDiDestroyDeviceInfoList, SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW,
-        SetupDiGetDeviceInterfaceDetailW,
+        PNP_VETO_TYPE, PNP_VetoTypeUnknown, SP_DEVICE_INTERFACE_DATA,
+        SP_DEVICE_INTERFACE_DETAIL_DATA_W, SP_DEVINFO_DATA, SetupDiDestroyDeviceInfoList,
+        SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
     };
     use windows::Win32::Foundation::{CloseHandle, HANDLE, LPARAM, WPARAM};
     use windows::Win32::Storage::FileSystem::{
-        BusTypeSd, BusTypeUsb, CreateFileW, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_READ, FILE_SHARE_WRITE,
-        GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW, OPEN_EXISTING,
+        BusTypeSd, BusTypeUsb, CreateFileW, FILE_FLAGS_AND_ATTRIBUTES, FILE_SHARE_READ,
+        FILE_SHARE_WRITE, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW, OPEN_EXISTING,
     };
     use windows::Win32::System::Com::{CLSCTX_ALL, CoCreateInstance};
     use windows::Win32::System::IO::DeviceIoControl;
     use windows::Win32::System::Ioctl::{
         GUID_DEVINTERFACE_DISK, IOCTL_STORAGE_GET_DEVICE_NUMBER, IOCTL_STORAGE_QUERY_PROPERTY,
-        PropertyStandardQuery, STORAGE_DEVICE_DESCRIPTOR, STORAGE_DEVICE_NUMBER, STORAGE_PROPERTY_QUERY,
-        StorageDeviceProperty,
+        PropertyStandardQuery, STORAGE_DEVICE_DESCRIPTOR, STORAGE_DEVICE_NUMBER,
+        STORAGE_PROPERTY_QUERY, StorageDeviceProperty,
     };
     use windows::Win32::System::Registry::{
-        HKEY_CURRENT_USER, REG_DWORD, RRF_RT_REG_DWORD, RRF_RT_REG_SZ, RegGetValueW, RegSetKeyValueW,
+        HKEY_CURRENT_USER, REG_DWORD, RRF_RT_REG_DWORD, RRF_RT_REG_SZ, RegGetValueW,
+        RegSetKeyValueW,
     };
     use windows::Win32::System::Shutdown::LockWorkStation;
     use windows::Win32::System::Variant::{VARIANT, VT_I4};
     use windows::Win32::UI::Shell::{
-        IShellWindows, IWebBrowser2, SHELLSTATEA, SHEmptyRecycleBinW, SHERB_NOCONFIRMATION, SHERB_NOPROGRESSUI,
-        SHERB_NOSOUND, SHGetSetSettings, SHQUERYRBINFO, SHQueryRecycleBinW, SSF_SHOWALLOBJECTS, ShellWindows,
+        IShellWindows, IWebBrowser2, SHELLSTATEA, SHERB_NOCONFIRMATION, SHERB_NOPROGRESSUI,
+        SHERB_NOSOUND, SHEmptyRecycleBinW, SHGetSetSettings, SHQUERYRBINFO, SHQueryRecycleBinW,
+        SSF_SHOWALLOBJECTS, ShellWindows,
     };
     use windows::Win32::UI::WindowsAndMessaging::{
-        FindWindowExW, FindWindowW, GetDesktopWindow, HWND_BROADCAST, PostMessageW, SMTO_ABORTIFHUNG,
-        SendMessageTimeoutW, WM_COMMAND, WM_SETTINGCHANGE, WM_SYSCOMMAND,
+        FindWindowExW, FindWindowW, GetDesktopWindow, HWND_BROADCAST, PostMessageW,
+        SMTO_ABORTIFHUNG, SendMessageTimeoutW, WM_COMMAND, WM_SETTINGCHANGE, WM_SYSCOMMAND,
     };
     use windows::core::{HSTRING, Interface, PCWSTR, w};
 
-    const PERSONALIZE: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
+    const PERSONALIZE: PCWSTR =
+        w!("Software\\Microsoft\\Windows\\CurrentVersion\\Themes\\Personalize");
     const ADVANCED: PCWSTR = w!("Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced");
     const SC_MONITORPOWER: usize = 0xF170;
     const SC_SCREENSAVE: usize = 0xF140;
@@ -166,10 +169,16 @@ mod imp {
     pub fn state(excluded: &[String]) -> State {
         let _apartment = crate::com::Apartment::sta();
         State {
-            dark: read_dword(PERSONALIZE, w!("AppsUseLightTheme")).map(|light| light == 0).or(Some(false)),
+            dark: read_dword(PERSONALIZE, w!("AppsUseLightTheme"))
+                .map(|light| light == 0)
+                .or(Some(false)),
             hidden_files_shown: Some(hidden_files_shown()),
-            desktop_icons_shown: desktop_view().map(|_| read_dword(ADVANCED, w!("HideIcons")) != Some(1)),
-            ejectable: volumes().iter().filter(|v| offers_eject(v, excluded)).count(),
+            desktop_icons_shown: desktop_view()
+                .map(|_| read_dword(ADVANCED, w!("HideIcons")) != Some(1)),
+            ejectable: volumes()
+                .iter()
+                .filter(|v| offers_eject(v, excluded))
+                .count(),
             recycle_items: recycle_count(),
         }
     }
@@ -179,8 +188,12 @@ mod imp {
         match action {
             Action::DarkMode => toggle_dark_mode(),
             Action::EmptyTrash => empty_recycle_bin(recycle_count, || unsafe {
-                SHEmptyRecycleBinW(None, PCWSTR::null(), SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND)
-                    .map_err(|e| e.to_string())
+                SHEmptyRecycleBinW(
+                    None,
+                    PCWSTR::null(),
+                    SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND,
+                )
+                .map_err(|e| e.to_string())
             }),
             Action::EjectDisks => eject_all(excluded),
             Action::HiddenFiles => toggle_hidden_files(),
@@ -198,15 +211,24 @@ mod imp {
                         None,
                     )
                 };
-                if sent.0 == 0 { Err("the desktop didn't answer".into()) } else { Ok(()) }
+                if sent.0 == 0 {
+                    Err("the desktop didn't answer".into())
+                } else {
+                    Ok(())
+                }
             }
             Action::LockScreen => unsafe { LockWorkStation().map_err(|e| e.to_string()) },
             Action::DisplayOff => {
                 // The pointer's own movement from the click would wake it at once.
                 sleep(Duration::from_millis(500));
                 unsafe {
-                    PostMessageW(Some(HWND_BROADCAST), WM_SYSCOMMAND, WPARAM(SC_MONITORPOWER), LPARAM(2))
-                        .map_err(|e| e.to_string())
+                    PostMessageW(
+                        Some(HWND_BROADCAST),
+                        WM_SYSCOMMAND,
+                        WPARAM(SC_MONITORPOWER),
+                        LPARAM(2),
+                    )
+                    .map_err(|e| e.to_string())
                 }
             }
             Action::ScreenSaver => {
@@ -253,7 +275,14 @@ mod imp {
 
     fn write_dword(key: PCWSTR, name: PCWSTR, value: u32) -> Result<(), String> {
         unsafe {
-            RegSetKeyValueW(HKEY_CURRENT_USER, key, name, REG_DWORD.0, Some((&value as *const u32).cast()), 4)
+            RegSetKeyValueW(
+                HKEY_CURRENT_USER,
+                key,
+                name,
+                REG_DWORD.0,
+                Some((&value as *const u32).cast()),
+                4,
+            )
         }
         .ok()
         .map_err(|e| e.to_string())
@@ -283,7 +312,11 @@ mod imp {
 
     /// Apps and the shell both follow; the broadcast tells running apps now.
     fn toggle_dark_mode() -> Result<(), String> {
-        let light = if read_dword(PERSONALIZE, w!("AppsUseLightTheme")) == Some(0) { 1 } else { 0 };
+        let light = if read_dword(PERSONALIZE, w!("AppsUseLightTheme")) == Some(0) {
+            1
+        } else {
+            0
+        };
         write_dword(PERSONALIZE, w!("AppsUseLightTheme"), light)?;
         write_dword(PERSONALIZE, w!("SystemUsesLightTheme"), light)?;
         let area = HSTRING::from("ImmersiveColorSet");
@@ -326,7 +359,10 @@ mod imp {
 
     fn refresh_folder_windows() {
         unsafe {
-            let Ok(windows) = CoCreateInstance::<_, IShellWindows>(&ShellWindows, None, CLSCTX_ALL) else { return };
+            let Ok(windows) = CoCreateInstance::<_, IShellWindows>(&ShellWindows, None, CLSCTX_ALL)
+            else {
+                return;
+            };
             let count = windows.Count().unwrap_or(0);
             for i in 0..count {
                 let mut index = VARIANT::default();
@@ -344,12 +380,16 @@ mod imp {
     fn desktop_view() -> Option<windows::Win32::Foundation::HWND> {
         unsafe {
             let progman = FindWindowW(w!("Progman"), PCWSTR::null()).ok()?;
-            if let Ok(view) = FindWindowExW(Some(progman), None, w!("SHELLDLL_DefView"), PCWSTR::null()) {
+            if let Ok(view) =
+                FindWindowExW(Some(progman), None, w!("SHELLDLL_DefView"), PCWSTR::null())
+            {
                 return Some(view);
             }
             let mut worker = None;
             while let Ok(next) = FindWindowExW(None, worker, w!("WorkerW"), PCWSTR::null()) {
-                if let Ok(view) = FindWindowExW(Some(next), None, w!("SHELLDLL_DefView"), PCWSTR::null()) {
+                if let Ok(view) =
+                    FindWindowExW(Some(next), None, w!("SHELLDLL_DefView"), PCWSTR::null())
+                {
                     return Some(view);
                 }
                 worker = Some(next);
@@ -361,7 +401,10 @@ mod imp {
     // MARK: Recycle Bin
 
     fn recycle_count() -> Option<i64> {
-        let mut info = SHQUERYRBINFO { cbSize: size_of::<SHQUERYRBINFO>() as u32, ..Default::default() };
+        let mut info = SHQUERYRBINFO {
+            cbSize: size_of::<SHQUERYRBINFO>() as u32,
+            ..Default::default()
+        };
         unsafe { SHQueryRecycleBinW(PCWSTR::null(), &mut info) }.ok()?;
         Some(info.i64NumItems)
     }
@@ -369,7 +412,9 @@ mod imp {
     // MARK: Disks
 
     fn volumes() -> Vec<Volume> {
-        let system = std::env::var("SystemDrive").unwrap_or_else(|_| "C:".into()).to_uppercase();
+        let system = std::env::var("SystemDrive")
+            .unwrap_or_else(|_| "C:".into())
+            .to_uppercase();
         let mask = unsafe { GetLogicalDrives() };
         (0..26u8)
             .filter(|i| mask & (1 << i) != 0)
@@ -382,7 +427,8 @@ mod imp {
                 }
                 let mut label = [0u16; 261];
                 // An empty card slot says removable too, but has no volume to read.
-                unsafe { GetVolumeInformationW(&root, Some(&mut label), None, None, None, None) }.ok()?;
+                unsafe { GetVolumeInformationW(&root, Some(&mut label), None, None, None, None) }
+                    .ok()?;
                 let len = label.iter().position(|&c| c == 0).unwrap_or(0);
                 Some(Volume {
                     usb: kind == DRIVE_FIXED && external_bus(&drive),
@@ -412,7 +458,9 @@ mod imp {
     }
 
     fn external_bus(drive: &str) -> bool {
-        let Some(handle) = open_volume(drive) else { return false };
+        let Some(handle) = open_volume(drive) else {
+            return false;
+        };
         let query = STORAGE_PROPERTY_QUERY {
             PropertyId: StorageDeviceProperty,
             QueryType: PropertyStandardQuery,
@@ -438,7 +486,12 @@ mod imp {
         if !ok {
             return false;
         }
-        let descriptor = unsafe { descriptor.as_ptr().cast::<STORAGE_DEVICE_DESCRIPTOR>().read_unaligned() };
+        let descriptor = unsafe {
+            descriptor
+                .as_ptr()
+                .cast::<STORAGE_DEVICE_DESCRIPTOR>()
+                .read_unaligned()
+        };
         descriptor.BusType == BusTypeUsb || descriptor.BusType == BusTypeSd
     }
 
@@ -478,16 +531,31 @@ mod imp {
             .ok()?;
             let mut found = None;
             for index in 0.. {
-                let mut interface =
-                    SP_DEVICE_INTERFACE_DATA { cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32, ..Default::default() };
-                if SetupDiEnumDeviceInterfaces(set, None, &GUID_DEVINTERFACE_DISK, index, &mut interface).is_err() {
+                let mut interface = SP_DEVICE_INTERFACE_DATA {
+                    cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+                    ..Default::default()
+                };
+                if SetupDiEnumDeviceInterfaces(
+                    set,
+                    None,
+                    &GUID_DEVINTERFACE_DISK,
+                    index,
+                    &mut interface,
+                )
+                .is_err()
+                {
                     break;
                 }
                 // The detail is a size field then the path, in one u32-aligned buffer.
                 let mut buffer = [0u32; 512];
-                let detail = buffer.as_mut_ptr().cast::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
+                let detail = buffer
+                    .as_mut_ptr()
+                    .cast::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
                 (*detail).cbSize = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32;
-                let mut info = SP_DEVINFO_DATA { cbSize: size_of::<SP_DEVINFO_DATA>() as u32, ..Default::default() };
+                let mut info = SP_DEVINFO_DATA {
+                    cbSize: size_of::<SP_DEVINFO_DATA>() as u32,
+                    ..Default::default()
+                };
                 if SetupDiGetDeviceInterfaceDetailW(
                     set,
                     &interface,
@@ -501,9 +569,15 @@ mod imp {
                     continue;
                 }
                 let path = PCWSTR((*detail).DevicePath.as_ptr());
-                let Ok(disk) =
-                    CreateFileW(path, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, None, OPEN_EXISTING, FILE_FLAGS_AND_ATTRIBUTES(0), None)
-                else {
+                let Ok(disk) = CreateFileW(
+                    path,
+                    0,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    None,
+                    OPEN_EXISTING,
+                    FILE_FLAGS_AND_ATTRIBUTES(0),
+                    None,
+                ) else {
                     continue;
                 };
                 let number = device_number(disk);
@@ -532,7 +606,8 @@ mod imp {
         for _ in 0..3 {
             let mut veto = PNP_VETO_TYPE::default();
             let mut name = [0u16; 260];
-            let result = unsafe { CM_Request_Device_EjectW(device, Some(&mut veto), Some(&mut name), 0) };
+            let result =
+                unsafe { CM_Request_Device_EjectW(device, Some(&mut veto), Some(&mut name), 0) };
             if result == CR_SUCCESS && veto == PNP_VetoTypeUnknown {
                 return true;
             }
@@ -553,7 +628,11 @@ mod imp {
             }
         }
         failed += devices.into_iter().filter(|&device| !eject(device)).count();
-        if failed == 0 { Ok(()) } else { Err(format!("{failed} disk(s) could not be ejected")) }
+        if failed == 0 {
+            Ok(())
+        } else {
+            Err(format!("{failed} disk(s) could not be ejected"))
+        }
     }
 }
 
@@ -562,7 +641,13 @@ mod imp {
     use super::{Action, State};
 
     pub fn state(_excluded: &[String]) -> State {
-        State { dark: Some(true), hidden_files_shown: Some(false), desktop_icons_shown: Some(true), ejectable: 1, recycle_items: Some(3) }
+        State {
+            dark: Some(true),
+            hidden_files_shown: Some(false),
+            desktop_icons_shown: Some(true),
+            ejectable: 1,
+            recycle_items: Some(3),
+        }
     }
 
     pub fn run(_action: Action, _excluded: &[String]) -> Result<(), String> {
@@ -576,14 +661,23 @@ mod tests {
     use std::cell::Cell;
 
     fn volume(drive: &str, label: &str, removable: bool, usb: bool) -> Volume {
-        Volume { drive: drive.into(), label: label.into(), removable, usb, system: false }
+        Volume {
+            drive: drive.into(),
+            label: label.into(),
+            removable,
+            usb,
+            system: false,
+        }
     }
 
     #[test]
     fn removable_and_usb_volumes_are_offered() {
         assert!(offers_eject(&volume("E:", "STICK", true, false), &[]));
         assert!(offers_eject(&volume("F:", "Backup", false, true), &[]));
-        assert!(!offers_eject(&volume("D:", "Data", false, false), &[]), "an internal fixed drive stays");
+        assert!(
+            !offers_eject(&volume("D:", "Data", false, false), &[]),
+            "an internal fixed drive stays"
+        );
     }
 
     #[test]
@@ -597,7 +691,10 @@ mod tests {
     fn exclusions_match_label_or_drive_in_any_spelling() {
         let v = volume("F:", "Backup", false, true);
         for entry in ["backup", " Backup ", "F", "f:", "F:\\"] {
-            assert!(!offers_eject(&v, &[entry.to_string()]), "{entry} should exclude F:");
+            assert!(
+                !offers_eject(&v, &[entry.to_string()]),
+                "{entry} should exclude F:"
+            );
         }
         assert!(offers_eject(&v, &["G:".into(), "".into(), "Back".into()]));
     }
@@ -631,7 +728,10 @@ mod tests {
 
     #[test]
     fn a_real_failure_is_reported() {
-        assert_eq!(empty_recycle_bin(|| Some(2), || Err("denied".into())), Err("denied".into()));
+        assert_eq!(
+            empty_recycle_bin(|| Some(2), || Err("denied".into())),
+            Err("denied".into())
+        );
         // The count unknown: the call decides.
         assert_eq!(empty_recycle_bin(|| None, || Ok(())), Ok(()));
     }

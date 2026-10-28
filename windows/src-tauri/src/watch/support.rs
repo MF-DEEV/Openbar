@@ -61,13 +61,17 @@ pub enum Outcome {
 fn is_space(c: char) -> bool {
     matches!(
         c,
-        '\t' | ' ' | '\u{00A0}' | '\u{1680}' | '\u{2000}'..='\u{200A}' | '\u{202F}' | '\u{205F}' | '\u{3000}'
+        '\t' | ' ' | '\u{00A0}' | '\u{1680}' | '\u{2000}'
+            ..='\u{200A}' | '\u{202F}' | '\u{205F}' | '\u{3000}'
     )
 }
 
 /// Swift's `.newlines`.
 fn is_newline(c: char) -> bool {
-    matches!(c, '\n' | '\u{0B}' | '\u{0C}' | '\r' | '\u{85}' | '\u{2028}' | '\u{2029}')
+    matches!(
+        c,
+        '\n' | '\u{0B}' | '\u{0C}' | '\r' | '\u{85}' | '\u{2028}' | '\u{2029}'
+    )
 }
 
 fn without_spaces(text: &str) -> String {
@@ -118,7 +122,9 @@ pub fn lines(text: &str) -> Vec<String> {
 /// with its unit, and otherwise the first line cut short.
 pub fn headline(text: &str, groups_with_space: bool) -> String {
     let lines = lines(text);
-    let Some(first) = lines.first() else { return String::new() };
+    let Some(first) = lines.first() else {
+        return String::new();
+    };
     let joined = lines.join(" ");
     if let Some(percent) = first_match(percent_pattern(groups_with_space), text) {
         return without_spaces(&percent);
@@ -157,22 +163,35 @@ const SPACED_NUMBER: &str = r"[-+−]?\d{1,3}(?:[ \x{00A0}\x{202F}]\d{3})+(?:[.,
 
 static PERCENT: LazyLock<Regex> = LazyLock::new(|| percent_regex(false));
 static SPACED_PERCENT: LazyLock<Regex> = LazyLock::new(|| percent_regex(true));
-static CLOCK: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\b\d{1,2}:\d{2}(?::\d{2})?\b").unwrap());
-static AMOUNT: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"[-+]?\d[\d.,]*(?:\s?[A-Za-z]{1,3}\b)?").unwrap());
+static CLOCK: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"\b\d{1,2}:\d{2}(?::\d{2})?\b").unwrap());
+static AMOUNT: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"[-+]?\d[\d.,]*(?:\s?[A-Za-z]{1,3}\b)?").unwrap());
 static PLAIN_NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(NUMBER).unwrap());
-static ANY_NUMBER: LazyLock<Regex> = LazyLock::new(|| Regex::new(&format!("{SPACED_NUMBER}|{NUMBER}")).unwrap());
+static ANY_NUMBER: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!("{SPACED_NUMBER}|{NUMBER}")).unwrap());
 
 fn percent_regex(groups_with_space: bool) -> Regex {
-    let spaced = if groups_with_space { format!("{SPACED_NUMBER}|") } else { String::new() };
+    let spaced = if groups_with_space {
+        format!("{SPACED_NUMBER}|")
+    } else {
+        String::new()
+    };
     Regex::new(&format!(r"(?:{spaced}{NUMBER})[ \x{{00A0}}\x{{202F}}]?%")).unwrap()
 }
 
 fn percent_pattern(groups_with_space: bool) -> &'static Regex {
-    if groups_with_space { &SPACED_PERCENT } else { &PERCENT }
+    if groups_with_space {
+        &SPACED_PERCENT
+    } else {
+        &PERCENT
+    }
 }
 
 fn first_match(pattern: &Regex, text: &str) -> Option<String> {
-    pattern.find(text).map(|m| m.as_str().trim_matches(is_space).to_string())
+    pattern
+        .find(text)
+        .map(|m| m.as_str().trim_matches(is_space).to_string())
 }
 
 /// The number a "reaches" rule compares: a percentage first, otherwise
@@ -184,7 +203,11 @@ pub fn number(text: &str, decimal: &str, groups_with_space: bool) -> Option<f64>
     if let Some(percent) = first_match(percent_pattern(groups_with_space), text) {
         return parse(percent.strip_suffix('%').unwrap_or(&percent), decimal);
     }
-    let pattern: &Regex = if groups_with_space { &ANY_NUMBER } else { &PLAIN_NUMBER };
+    let pattern: &Regex = if groups_with_space {
+        &ANY_NUMBER
+    } else {
+        &PLAIN_NUMBER
+    };
     first_match(pattern, text).and_then(|raw| parse(&raw, decimal))
 }
 
@@ -252,9 +275,15 @@ pub fn fingerprint(rgba: &[u8], width: u32, height: u32) -> Option<Vec<u8>> {
     }
     let mut cells = Vec::with_capacity(SIDE * SIDE);
     for cy in 0..SIDE {
-        let (y0, y1) = (cy * h / SIDE, ((cy + 1) * h).div_ceil(SIDE).max(cy * h / SIDE + 1));
+        let (y0, y1) = (
+            cy * h / SIDE,
+            ((cy + 1) * h).div_ceil(SIDE).max(cy * h / SIDE + 1),
+        );
         for cx in 0..SIDE {
-            let (x0, x1) = (cx * w / SIDE, ((cx + 1) * w).div_ceil(SIDE).max(cx * w / SIDE + 1));
+            let (x0, x1) = (
+                cx * w / SIDE,
+                ((cx + 1) * w).div_ceil(SIDE).max(cx * w / SIDE + 1),
+            );
             let mut sum = 0u64;
             for y in y0..y1 {
                 for px in rgba[(y * w + x0) * 4..(y * w + x1) * 4].as_chunks::<4>().0 {
@@ -271,11 +300,17 @@ pub fn fingerprint(rgba: &[u8], width: u32, height: u32) -> Option<Vec<u8>> {
 /// Whether two fingerprints show the same picture, allowing a few cells
 /// to cross one grey level, as a blinking caret or a shadow does.
 pub fn same_fingerprint(lhs: Option<&[u8]>, rhs: Option<&[u8]>) -> bool {
-    let (Some(lhs), Some(rhs)) = (lhs, rhs) else { return false };
+    let (Some(lhs), Some(rhs)) = (lhs, rhs) else {
+        return false;
+    };
     if lhs.len() != rhs.len() {
         return false;
     }
-    let moved = lhs.iter().zip(rhs).filter(|(a, b)| a.abs_diff(**b) > 1).count();
+    let moved = lhs
+        .iter()
+        .zip(rhs)
+        .filter(|(a, b)| a.abs_diff(**b) > 1)
+        .count();
     let nudged = lhs.iter().zip(rhs).filter(|(a, b)| a != b).count();
     moved == 0 && nudged <= 3
 }
@@ -290,19 +325,27 @@ pub fn signature(text: &str, fingerprint: Option<&[u8]>) -> Option<String> {
         return Some(normalized);
     }
     fingerprint.map(|cells| {
-        IMAGE_PREFIX.to_string() + &cells.iter().map(u8::to_string).collect::<Vec<_>>().join(".")
+        IMAGE_PREFIX.to_string()
+            + &cells
+                .iter()
+                .map(u8::to_string)
+                .collect::<Vec<_>>()
+                .join(".")
     })
 }
 
 /// Whether two readings say the same: the same text, or pictures that
 /// differ no more than a blinking caret does.
 pub fn same_signature(lhs: Option<&str>, rhs: Option<&str>) -> bool {
-    let (Some(lhs), Some(rhs)) = (lhs, rhs) else { return false };
+    let (Some(lhs), Some(rhs)) = (lhs, rhs) else {
+        return false;
+    };
     if lhs == rhs {
         return true;
     }
     let cells = |s: &str| -> Option<Vec<u8>> {
-        s.strip_prefix(IMAGE_PREFIX).map(|rest| rest.split('.').filter_map(|c| c.parse().ok()).collect())
+        s.strip_prefix(IMAGE_PREFIX)
+            .map(|rest| rest.split('.').filter_map(|c| c.parse().ok()).collect())
     };
     match (cells(lhs), cells(rhs)) {
         (Some(a), Some(b)) => same_fingerprint(Some(&a), Some(&b)),
@@ -327,12 +370,22 @@ impl Area {
         let y0 = self.y.max(other.y);
         let x1 = (self.x + self.width).min(other.x + other.width);
         let y1 = (self.y + self.height).min(other.y + other.height);
-        (x1 > x0 && y1 > y0).then_some(Area { x: x0, y: y0, width: x1 - x0, height: y1 - y0 })
+        (x1 > x0 && y1 > y0).then_some(Area {
+            x: x0,
+            y: y0,
+            width: x1 - x0,
+            height: y1 - y0,
+        })
     }
 
     /// Pixels at `scale` (1.5 at 150 %) as points.
     pub fn in_points(&self, scale: f64) -> Area {
-        Area { x: self.x / scale, y: self.y / scale, width: self.width / scale, height: self.height / scale }
+        Area {
+            x: self.x / scale,
+            y: self.y / scale,
+            width: self.width / scale,
+            height: self.height / scale,
+        }
     }
 }
 
@@ -361,12 +414,27 @@ pub fn pixel_crop(crop: Area, window: (f64, f64), image: (u32, u32)) -> Option<P
     let y0 = (crop.y * scale_y).floor();
     let x1 = ((crop.x + crop.width) * scale_x).ceil();
     let y1 = ((crop.y + crop.height) * scale_y).ceil();
-    let r = Area { x: x0, y: y0, width: x1 - x0, height: y1 - y0 }
-        .intersection(&Area { x: 0.0, y: 0.0, width: image.0 as f64, height: image.1 as f64 })?;
+    let r = Area {
+        x: x0,
+        y: y0,
+        width: x1 - x0,
+        height: y1 - y0,
+    }
+    .intersection(&Area {
+        x: 0.0,
+        y: 0.0,
+        width: image.0 as f64,
+        height: image.1 as f64,
+    })?;
     if r.width < 4.0 || r.height < 4.0 {
         return None;
     }
-    Some(PixelRect { x: r.x as u32, y: r.y as u32, width: r.width as u32, height: r.height as u32 })
+    Some(PixelRect {
+        x: r.x as u32,
+        y: r.y as u32,
+        width: r.width as u32,
+        height: r.height as u32,
+    })
 }
 
 /// The area from the window's top-left corner, kept inside it, when the
@@ -382,7 +450,11 @@ pub fn window_crop(area: Area, window: Area) -> Option<Area> {
     if inside.width < MINIMUM_WINDOW_CROP || inside.height < MINIMUM_WINDOW_CROP {
         return None;
     }
-    Some(Area { x: inside.x - window.x, y: inside.y - window.y, ..inside })
+    Some(Area {
+        x: inside.x - window.x,
+        y: inside.y - window.y,
+        ..inside
+    })
 }
 
 /// How far a large picture shrinks before recognition; 1 for small ones.
@@ -422,7 +494,13 @@ impl Tracker {
     /// How long a reading must keep differing before it counts as a change.
     pub const CHANGE_CONFIRMATION: Duration = Duration::from_secs(3);
 
-    pub fn new(condition: Condition, text: &str, target: Option<f64>, decimal: &str, groups_with_space: bool) -> Self {
+    pub fn new(
+        condition: Condition,
+        text: &str,
+        target: Option<f64>,
+        decimal: &str,
+        groups_with_space: bool,
+    ) -> Self {
         Tracker {
             condition,
             text: text.to_string(),
@@ -455,7 +533,12 @@ impl Tracker {
 
     /// `signature` compares two readings; `reading` is the text as read,
     /// for finding words and numbers.
-    pub fn observe(&mut self, signature: Option<&str>, reading: &str, now: Instant) -> Option<Outcome> {
+    pub fn observe(
+        &mut self,
+        signature: Option<&str>,
+        reading: &str,
+        now: Instant,
+    ) -> Option<Outcome> {
         if !self.is_ready() {
             return None;
         }
@@ -492,11 +575,12 @@ impl Tracker {
                     return None;
                 }
                 let last = self.last_change?;
-                (self.saw_change && now.duration_since(last) >= Self::SETTLE_INTERVAL).then_some(Outcome::Settled)
+                (self.saw_change && now.duration_since(last) >= Self::SETTLE_INTERVAL)
+                    .then_some(Outcome::Settled)
             }
-            Condition::Contains => {
-                normalized(reading).contains(&normalized(&self.text)).then(|| Outcome::Shows(self.text.clone()))
-            }
+            Condition::Contains => normalized(reading)
+                .contains(&normalized(&self.text))
+                .then(|| Outcome::Shows(self.text.clone())),
             Condition::Reaches => {
                 let target = self.target?;
                 let value = number(reading, &self.decimal, self.groups_with_space)?;
@@ -531,19 +615,37 @@ mod tests {
 
     #[test]
     fn long_lines_give_way_to_a_clock_an_amount_or_a_cut() {
-        assert_eq!(headline("Estimated time remaining 12:05:30 left", false), "12:05:30");
-        assert_eq!(headline("The download has transferred 512 MB so far", false), "512 MB");
-        assert_eq!(headline("A sentence without any digits at all", false), "A sentence without an…");
-        assert_eq!(length(&headline("A sentence without any digits at all", false)), HEADLINE_LENGTH);
+        assert_eq!(
+            headline("Estimated time remaining 12:05:30 left", false),
+            "12:05:30"
+        );
+        assert_eq!(
+            headline("The download has transferred 512 MB so far", false),
+            "512 MB"
+        );
+        assert_eq!(
+            headline("A sentence without any digits at all", false),
+            "A sentence without an…"
+        );
+        assert_eq!(
+            length(&headline("A sentence without any digits at all", false)),
+            HEADLINE_LENGTH
+        );
         // Exactly 22 characters stays whole.
-        assert_eq!(headline("abcdefghijklmnopqrstuv", false), "abcdefghijklmnopqrstuv");
+        assert_eq!(
+            headline("abcdefghijklmnopqrstuv", false),
+            "abcdefghijklmnopqrstuv"
+        );
     }
 
     #[test]
     fn a_pinned_line_shows_cut_or_falls_back_when_gone() {
         let text = "Status\nThis line is far too long for the strip\nok";
         assert_eq!(headline_for_line(text, Some(2), false), "ok");
-        assert_eq!(headline_for_line(text, Some(1), false), "This line is far too …");
+        assert_eq!(
+            headline_for_line(text, Some(1), false),
+            "This line is far too …"
+        );
         assert_eq!(headline_for_line(text, Some(9), false), "Status");
         assert_eq!(headline_for_line(text, None, false), "Status");
     }
@@ -627,7 +729,10 @@ mod tests {
         assert!(!same_fingerprint(Some(&a), Some(&b)), "four nudged cells");
         let mut c = a.clone();
         c[0] = 7;
-        assert!(!same_fingerprint(Some(&a), Some(&c)), "one cell moved two levels");
+        assert!(
+            !same_fingerprint(Some(&a), Some(&c)),
+            "one cell moved two levels"
+        );
         assert!(!same_fingerprint(None, Some(&a)));
         assert!(!same_fingerprint(Some(&a), Some(&a[..10])));
     }
@@ -640,7 +745,10 @@ mod tests {
         assert!(image.starts_with("image:3.3."));
         let mut nudged = fp.clone();
         nudged[7] = 4;
-        assert!(same_signature(Some(&image), signature("", Some(&nudged)).as_deref()));
+        assert!(same_signature(
+            Some(&image),
+            signature("", Some(&nudged)).as_deref()
+        ));
         assert!(!same_signature(Some(&image), Some("done")));
         assert!(!same_signature(None, Some("done")));
         assert_eq!(signature("", None), None);
@@ -649,43 +757,148 @@ mod tests {
     #[test]
     fn crops_scale_from_points_to_the_picture() {
         // A 200 × 100 pt window captured at 150 %: 300 × 150 px.
-        let crop = Area { x: 10.0, y: 20.0, width: 50.0, height: 30.0 };
+        let crop = Area {
+            x: 10.0,
+            y: 20.0,
+            width: 50.0,
+            height: 30.0,
+        };
         assert_eq!(
             pixel_crop(crop, (200.0, 100.0), (300, 150)),
-            Some(PixelRect { x: 15, y: 30, width: 75, height: 45 })
+            Some(PixelRect {
+                x: 15,
+                y: 30,
+                width: 75,
+                height: 45
+            })
         );
         // Fractions round outward, then clamp to the picture.
-        let edge = Area { x: 190.3, y: 90.0, width: 20.0, height: 20.0 };
-        assert_eq!(pixel_crop(edge, (200.0, 100.0), (200, 100)), Some(PixelRect { x: 190, y: 90, width: 10, height: 10 }));
+        let edge = Area {
+            x: 190.3,
+            y: 90.0,
+            width: 20.0,
+            height: 20.0,
+        };
+        assert_eq!(
+            pixel_crop(edge, (200.0, 100.0), (200, 100)),
+            Some(PixelRect {
+                x: 190,
+                y: 90,
+                width: 10,
+                height: 10
+            })
+        );
         // Left the window, or too thin to read.
-        assert_eq!(pixel_crop(Area { x: 300.0, y: 0.0, width: 5.0, height: 5.0 }, (200.0, 100.0), (200, 100)), None);
-        assert_eq!(pixel_crop(Area { x: 0.0, y: 0.0, width: 3.0, height: 50.0 }, (200.0, 100.0), (200, 100)), None);
+        assert_eq!(
+            pixel_crop(
+                Area {
+                    x: 300.0,
+                    y: 0.0,
+                    width: 5.0,
+                    height: 5.0
+                },
+                (200.0, 100.0),
+                (200, 100)
+            ),
+            None
+        );
+        assert_eq!(
+            pixel_crop(
+                Area {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 3.0,
+                    height: 50.0
+                },
+                (200.0, 100.0),
+                (200, 100)
+            ),
+            None
+        );
         assert_eq!(pixel_crop(crop, (0.0, 100.0), (200, 100)), None);
     }
 
     #[test]
     fn a_window_crop_is_window_relative_and_converts_to_points() {
         // Physical pixels: window at (100, 50), 800 × 600; the area spills out on the left.
-        let window = Area { x: 100.0, y: 50.0, width: 800.0, height: 600.0 };
-        let area = Area { x: 80.0, y: 100.0, width: 200.0, height: 40.0 };
+        let window = Area {
+            x: 100.0,
+            y: 50.0,
+            width: 800.0,
+            height: 600.0,
+        };
+        let area = Area {
+            x: 80.0,
+            y: 100.0,
+            width: 200.0,
+            height: 40.0,
+        };
         let crop = window_crop(area, window).unwrap();
-        assert_eq!(crop, Area { x: 0.0, y: 50.0, width: 180.0, height: 40.0 });
+        assert_eq!(
+            crop,
+            Area {
+                x: 0.0,
+                y: 50.0,
+                width: 180.0,
+                height: 40.0
+            }
+        );
         // At 125 % those are points of 1.25 pixels, and read back on the
         // window's picture at that scale they are the same pixels again.
         let points = crop.in_points(1.25);
-        assert_eq!(points, Area { x: 0.0, y: 40.0, width: 144.0, height: 32.0 });
+        assert_eq!(
+            points,
+            Area {
+                x: 0.0,
+                y: 40.0,
+                width: 144.0,
+                height: 32.0
+            }
+        );
         assert_eq!(
             pixel_crop(points, (800.0 / 1.25, 600.0 / 1.25), (800, 600)),
-            Some(PixelRect { x: 0, y: 50, width: 180, height: 40 })
+            Some(PixelRect {
+                x: 0,
+                y: 50,
+                width: 180,
+                height: 40
+            })
         );
         // Moved to a 200 % display, the same points cover twice the pixels.
         assert_eq!(
             pixel_crop(points, (640.0, 480.0), (1280, 960)),
-            Some(PixelRect { x: 0, y: 80, width: 288, height: 64 })
+            Some(PixelRect {
+                x: 0,
+                y: 80,
+                width: 288,
+                height: 64
+            })
         );
         // Middle outside the window, or a sliver inside it.
-        assert_eq!(window_crop(Area { x: 0.0, y: 0.0, width: 50.0, height: 50.0 }, window), None);
-        assert_eq!(window_crop(Area { x: 96.0, y: 60.0, width: 10.0, height: 40.0 }, window), None);
+        assert_eq!(
+            window_crop(
+                Area {
+                    x: 0.0,
+                    y: 0.0,
+                    width: 50.0,
+                    height: 50.0
+                },
+                window
+            ),
+            None
+        );
+        assert_eq!(
+            window_crop(
+                Area {
+                    x: 96.0,
+                    y: 60.0,
+                    width: 10.0,
+                    height: 40.0
+                },
+                window
+            ),
+            None
+        );
     }
 
     #[test]
@@ -709,7 +922,10 @@ mod tests {
         assert_eq!(tracker.observe(Some("a"), "a", at(t0, 2.0)), None);
         assert_eq!(tracker.observe(Some("b"), "b", at(t0, 3.0)), None);
         assert_eq!(tracker.observe(Some("c"), "c", at(t0, 5.9)), None);
-        assert_eq!(tracker.observe(Some("c"), "c", at(t0, 6.0)), Some(Outcome::Changed));
+        assert_eq!(
+            tracker.observe(Some("c"), "c", at(t0, 6.0)),
+            Some(Outcome::Changed)
+        );
         // No signature only lets time pass.
         let mut quiet = Tracker::new(Condition::Changes, "", None, ".", false);
         assert_eq!(quiet.observe(None, "", t0), None);
@@ -724,7 +940,10 @@ mod tests {
         assert_eq!(tracker.observe(Some("a"), "a", at(t0, 40.0)), None);
         assert_eq!(tracker.observe(Some("b"), "b", at(t0, 41.0)), None);
         assert_eq!(tracker.observe(Some("b"), "b", at(t0, 70.9)), None);
-        assert_eq!(tracker.observe(None, "b", at(t0, 71.0)), Some(Outcome::Settled));
+        assert_eq!(
+            tracker.observe(None, "b", at(t0, 71.0)),
+            Some(Outcome::Settled)
+        );
     }
 
     #[test]
@@ -732,7 +951,10 @@ mod tests {
         let mut tracker = Tracker::new(Condition::Contains, "  done ", None, ".", false);
         let now = Instant::now();
         assert_eq!(tracker.observe(Some("x"), "Working…", now), None);
-        assert_eq!(tracker.observe(Some("x"), "Build DONÉ\nok", now), Some(Outcome::Shows("  done ".into())));
+        assert_eq!(
+            tracker.observe(Some("x"), "Build DONÉ\nok", now),
+            Some(Outcome::Shows("  done ".into()))
+        );
         let mut empty = Tracker::new(Condition::Contains, "  ", None, ".", false);
         assert!(!empty.is_ready());
         assert_eq!(empty.observe(Some("x"), "anything", now), None);
@@ -744,13 +966,22 @@ mod tests {
         let mut up = Tracker::new(Condition::Reaches, "", Some(100.0), ".", false);
         assert_eq!(up.observe(Some("x"), "Progress 40%", now), None);
         assert_eq!(up.observe(Some("x"), "Progress 99,5%", now), None);
-        assert_eq!(up.observe(Some("x"), "Progress 100%", now), Some(Outcome::Reached("100%".into())));
+        assert_eq!(
+            up.observe(Some("x"), "Progress 100%", now),
+            Some(Outcome::Reached("100%".into()))
+        );
         let mut down = Tracker::new(Condition::Reaches, "", Some(0.0), ".", false);
         assert_eq!(down.observe(Some("x"), "Left: 12", now), None);
-        assert_eq!(down.observe(Some("x"), "Left: 0", now), Some(Outcome::Reached("Left: 0".into())));
+        assert_eq!(
+            down.observe(Some("x"), "Left: 0", now),
+            Some(Outcome::Reached("Left: 0".into()))
+        );
         // Equal at the start counts at once.
         let mut equal = Tracker::new(Condition::Reaches, "", Some(5.0), ".", false);
-        assert_eq!(equal.observe(Some("x"), "5", now), Some(Outcome::Reached("5".into())));
+        assert_eq!(
+            equal.observe(Some("x"), "5", now),
+            Some(Outcome::Reached("5".into()))
+        );
         // Without a number nothing happens, and no target means not ready.
         assert_eq!(up.observe(Some("x"), "no digits", now), None);
         assert!(!Tracker::new(Condition::Reaches, "", None, ".", false).is_ready());
@@ -758,11 +989,17 @@ mod tests {
 
     #[test]
     fn outcomes_serialize_with_a_kind() {
-        assert_eq!(serde_json::to_value(Outcome::Changed).unwrap(), serde_json::json!({ "kind": "changed" }));
+        assert_eq!(
+            serde_json::to_value(Outcome::Changed).unwrap(),
+            serde_json::json!({ "kind": "changed" })
+        );
         assert_eq!(
             serde_json::to_value(Outcome::Shows("Done".into())).unwrap(),
             serde_json::json!({ "kind": "shows", "text": "Done" })
         );
-        assert_eq!(serde_json::from_str::<Condition>("\"reaches\"").unwrap(), Condition::Reaches);
+        assert_eq!(
+            serde_json::from_str::<Condition>("\"reaches\"").unwrap(),
+            Condition::Reaches
+        );
     }
 }

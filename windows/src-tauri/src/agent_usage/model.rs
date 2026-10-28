@@ -8,7 +8,9 @@ use serde::{Deserialize, Serialize};
 
 pub type Time = f64;
 
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
+#[derive(
+    Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum Provider {
     #[default]
@@ -19,7 +21,12 @@ pub enum Provider {
 }
 
 impl Provider {
-    pub const ALL: [Provider; 4] = [Provider::Claude, Provider::Codex, Provider::Opencode, Provider::Copilot];
+    pub const ALL: [Provider; 4] = [
+        Provider::Claude,
+        Provider::Codex,
+        Provider::Opencode,
+        Provider::Copilot,
+    ];
 
     pub fn key(self) -> &'static str {
         match self {
@@ -90,7 +97,13 @@ impl Tokens {
     }
     pub fn scaled(&self, by: f64) -> Tokens {
         let s = |v: i64| (v as f64 * by) as i64;
-        Tokens { input: s(self.input), cache_write: s(self.cache_write), cache_read: s(self.cache_read), output: s(self.output), reasoning: s(self.reasoning) }
+        Tokens {
+            input: s(self.input),
+            cache_write: s(self.cache_write),
+            cache_read: s(self.cache_read),
+            output: s(self.output),
+            reasoning: s(self.reasoning),
+        }
     }
 }
 
@@ -147,8 +160,23 @@ pub struct LimitWindow {
 }
 
 impl LimitWindow {
-    pub fn new(id: impl Into<String>, kind: WindowKind, minutes: Option<i64>, scope: Option<&str>, used: f64, resets_at: Option<Time>) -> LimitWindow {
-        LimitWindow { id: id.into(), kind, minutes, scope: scope.map(str::to_string), used_percent: used.clamp(0.0, 100.0), resets_at, estimated_resets_at: None }
+    pub fn new(
+        id: impl Into<String>,
+        kind: WindowKind,
+        minutes: Option<i64>,
+        scope: Option<&str>,
+        used: f64,
+        resets_at: Option<Time>,
+    ) -> LimitWindow {
+        LimitWindow {
+            id: id.into(),
+            kind,
+            minutes,
+            scope: scope.map(str::to_string),
+            used_percent: used.clamp(0.0, 100.0),
+            resets_at,
+            estimated_resets_at: None,
+        }
     }
 }
 
@@ -193,12 +221,30 @@ pub struct LiveSession {
 /// Something worth a moment in the closed island (§9).
 #[derive(Clone, Debug, PartialEq)]
 pub enum Event {
-    Finished { provider: Provider, duration: f64, cost: f64, tokens: i64, project: String },
-    LimitWarning { provider: Provider, window: LimitWindow },
-    LimitReset { provider: Provider, window: LimitWindow },
-    BudgetReached { spent: f64, budget: f64 },
+    Finished {
+        provider: Provider,
+        duration: f64,
+        cost: f64,
+        tokens: i64,
+        project: String,
+    },
+    LimitWarning {
+        provider: Provider,
+        window: LimitWindow,
+    },
+    LimitReset {
+        provider: Provider,
+        window: LimitWindow,
+    },
+    BudgetReached {
+        spent: f64,
+        budget: f64,
+    },
 }
 
 pub fn now() -> Time {
-    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs_f64()).unwrap_or(0.0)
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
 }

@@ -22,7 +22,9 @@ pub fn now_ms() -> f64 {
     #[cfg(windows)]
     {
         // 100 ns units since boot.
-        unsafe { windows::Win32::System::WindowsProgramming::QueryInterruptTime() as f64 / 10_000.0 }
+        unsafe {
+            windows::Win32::System::WindowsProgramming::QueryInterruptTime() as f64 / 10_000.0
+        }
     }
     #[cfg(not(windows))]
     {
@@ -52,15 +54,17 @@ pub fn timer_wake(app: AppHandle, delay_ms: Option<f64>) {
         return;
     };
     let target = now_ms() + delay.max(0.0);
-    std::thread::spawn(move || loop {
-        if GENERATION.load(Ordering::SeqCst) != generation {
-            return;
-        }
-        match next_sleep(target - now_ms()) {
-            Some(wait) => std::thread::sleep(wait),
-            None => {
-                let _ = app.emit_to(crate::island::LABEL, "timer://due", ());
+    std::thread::spawn(move || {
+        loop {
+            if GENERATION.load(Ordering::SeqCst) != generation {
                 return;
+            }
+            match next_sleep(target - now_ms()) {
+                Some(wait) => std::thread::sleep(wait),
+                None => {
+                    let _ = app.emit_to(crate::island::LABEL, "timer://due", ());
+                    return;
+                }
             }
         }
     });

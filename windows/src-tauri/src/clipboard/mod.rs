@@ -49,7 +49,8 @@ pub struct Config {
 impl Config {
     pub fn from_prefs(prefs: &Value) -> Self {
         let island = |key: &str| prefs.pointer(&format!("/island/{key}"));
-        let flag = |key: &str, default: bool| island(key).and_then(Value::as_bool).unwrap_or(default);
+        let flag =
+            |key: &str, default: bool| island(key).and_then(Value::as_bool).unwrap_or(default);
         let number = |key: &str| island(key).and_then(Value::as_i64).unwrap_or(-1);
         Config {
             enabled: flag("clipboardHistoryEnabled", false),
@@ -59,20 +60,32 @@ impl Config {
             filter_sensitive: flag("clipboardFilterSensitiveText", false),
             ignored: island("clipboardIgnoredApps")
                 .and_then(Value::as_array)
-                .map(|apps| apps.iter().filter_map(Value::as_str).map(exe_name).filter(|n| !n.is_empty()).collect())
+                .map(|apps| {
+                    apps.iter()
+                        .filter_map(Value::as_str)
+                        .map(exe_name)
+                        .filter(|n| !n.is_empty())
+                        .collect()
+                })
                 .unwrap_or_default(),
         }
     }
 
     /// Whether a copy made while any of `candidates` held the front is left out.
     pub fn ignores(&self, candidates: &[String]) -> bool {
-        candidates.iter().any(|exe| self.ignored.contains(&exe_name(exe)))
+        candidates
+            .iter()
+            .any(|exe| self.ignored.contains(&exe_name(exe)))
     }
 }
 
 /// "C:\Program Files\KeePass\KeePass.exe" and "KeePass.exe" both read "keepass.exe".
 fn exe_name(path: &str) -> String {
-    path.trim().rsplit(['\\', '/']).next().unwrap_or("").to_lowercase()
+    path.trim()
+        .rsplit(['\\', '/'])
+        .next()
+        .unwrap_or("")
+        .to_lowercase()
 }
 
 fn config<R: Runtime>(app: &AppHandle<R>) -> Config {
@@ -110,10 +123,20 @@ impl Store {
         // A history set aside on an earlier launch still names its pictures.
         let set_aside = |dir: &Path| {
             std::fs::read_dir(dir).is_ok_and(|mut files| {
-                files.any(|f| f.is_ok_and(|f| f.file_name().to_string_lossy().starts_with("history.json.broken")))
+                files.any(|f| {
+                    f.is_ok_and(|f| {
+                        f.file_name()
+                            .to_string_lossy()
+                            .starts_with("history.json.broken")
+                    })
+                })
             })
         };
-        let mut store = Store { keeps_images: set_aside(&dir), dir: Some(dir.clone()), ..Store::default() };
+        let mut store = Store {
+            keeps_images: set_aside(&dir),
+            dir: Some(dir.clone()),
+            ..Store::default()
+        };
         match std::fs::read(&file) {
             Ok(bytes) => match history::decode(&bytes) {
                 Some(entries) => store.history.entries = entries,
@@ -136,7 +159,9 @@ impl Store {
 
     /// Written to a temporary file, then moved over the old one.
     fn save(&self) {
-        let Some(dir) = self.dir.as_ref().filter(|_| !self.blocked) else { return };
+        let Some(dir) = self.dir.as_ref().filter(|_| !self.blocked) else {
+            return;
+        };
         if std::fs::create_dir_all(dir).is_err() {
             return;
         }
@@ -153,11 +178,16 @@ impl Store {
             return;
         }
         let Some(images) = self.images() else { return };
-        let Ok(files) = std::fs::read_dir(&images) else { return };
+        let Ok(files) = std::fs::read_dir(&images) else {
+            return;
+        };
         let used: std::collections::HashSet<&str> = self.history.image_files().collect();
         for file in files.flatten() {
             let name = file.file_name();
-            if name.to_str().is_some_and(|n| n.ends_with(".png") && !used.contains(n)) {
+            if name
+                .to_str()
+                .is_some_and(|n| n.ends_with(".png") && !used.contains(n))
+            {
                 let _ = std::fs::remove_file(file.path());
             }
         }
@@ -174,7 +204,12 @@ impl Store {
     fn snapshot(&self, captured: Option<String>) -> Snapshot {
         let images = self.images();
         Snapshot {
-            entries: self.history.entries.iter().map(|e| View::of(e, images.as_deref())).collect(),
+            entries: self
+                .history
+                .entries
+                .iter()
+                .map(|e| View::of(e, images.as_deref()))
+                .collect(),
             captured,
         }
     }
@@ -186,7 +221,9 @@ impl Store {
         Some(match entry.kind {
             Kind::Text => native::Payload::Text(entry.text.clone()),
             Kind::Files => native::Payload::Files(entry.file_paths.clone()),
-            Kind::Image => native::Payload::Image(std::fs::read(self.images()?.join(entry.image_file.as_ref()?)).ok()?),
+            Kind::Image => native::Payload::Image(
+                std::fs::read(self.images()?.join(entry.image_file.as_ref()?)).ok()?,
+            ),
         })
     }
 }
@@ -246,13 +283,17 @@ fn emit<R: Runtime>(app: &AppHandle<R>, snapshot: &Snapshot) {
 
 /// Runs `change` on the history; when it changed anything, trims, saves and tells the page.
 fn mutate<R: Runtime>(app: &AppHandle<R>, change: impl FnOnce(&mut History) -> bool) -> bool {
-    let Some(shared) = app.try_state::<Shared>() else { return false };
+    let Some(shared) = app.try_state::<Shared>() else {
+        return false;
+    };
     let config = config(app);
     let mut store = shared.lock().unwrap();
     if !change(&mut store.history) {
         return false;
     }
-    store.history.trim(config.limit, config.retention_days, now_ms());
+    store
+        .history
+        .trim(config.limit, config.retention_days, now_ms());
     store.save();
     store.clean_images();
     emit(app, &store.snapshot(None));
@@ -262,10 +303,15 @@ fn mutate<R: Runtime>(app: &AppHandle<R>, change: impl FnOnce(&mut History) -> b
 /// Applies the limit and retention now; saves and tells the page only when
 /// something was dropped.
 fn trim_now<R: Runtime>(app: &AppHandle<R>) {
-    let Some(shared) = app.try_state::<Shared>() else { return };
+    let Some(shared) = app.try_state::<Shared>() else {
+        return;
+    };
     let config = config(app);
     let mut store = shared.lock().unwrap();
-    if store.history.trim(config.limit, config.retention_days, now_ms()) {
+    if store
+        .history
+        .trim(config.limit, config.retention_days, now_ms())
+    {
         store.save();
         store.clean_images();
         emit(app, &store.snapshot(None));
@@ -277,7 +323,9 @@ pub fn start<R: Runtime>(app: AppHandle<R>, shared: Shared) {
     if let Ok(dir) = app.path().app_config_dir() {
         let mut store = Store::load(dir.join("clipboard"));
         let config = config(&app);
-        store.history.trim(config.limit, config.retention_days, now_ms());
+        store
+            .history
+            .trim(config.limit, config.retention_days, now_ms());
         store.clean_images();
         *shared.lock().unwrap() = store;
     }
@@ -302,7 +350,11 @@ pub fn start<R: Runtime>(app: AppHandle<R>, shared: Shared) {
 /// as one, the newest content, left out if any of them came from an
 /// ignored app.
 #[cfg(windows)]
-fn capture<R: Runtime>(app: AppHandle<R>, shared: Shared, rx: std::sync::mpsc::Receiver<native::Update>) {
+fn capture<R: Runtime>(
+    app: AppHandle<R>,
+    shared: Shared,
+    rx: std::sync::mpsc::Receiver<native::Update>,
+) {
     while let Ok(mut update) = rx.recv() {
         while let Ok(next) = rx.try_recv() {
             let mut candidates = std::mem::take(&mut update.candidates);
@@ -318,8 +370,13 @@ fn capture<R: Runtime>(app: AppHandle<R>, shared: Shared, rx: std::sync::mpsc::R
         std::thread::spawn(move || {
             let _ = tx.send(native::read(include));
         });
-        let Ok(Some(content)) = result.recv_timeout(READ_TIMEOUT) else { continue };
-        let source = Source { name: update.exe.as_deref().map(crate::shell::app_name), exe: update.exe };
+        let Ok(Some(content)) = result.recv_timeout(READ_TIMEOUT) else {
+            continue;
+        };
+        let source = Source {
+            name: update.exe.as_deref().map(crate::shell::app_name),
+            exe: update.exe,
+        };
         record(&app, &shared, &config, content, source);
     }
 }
@@ -330,21 +387,33 @@ fn admitted(config: &Config, content: Content) -> Option<Content> {
     match content {
         Content::Text(raw) => {
             let text = history::storable_text(&raw)?;
-            (!(config.filter_sensitive && sensitive::looks_sensitive(&text))).then_some(Content::Text(text))
+            (!(config.filter_sensitive && sensitive::looks_sensitive(&text)))
+                .then_some(Content::Text(text))
         }
         other => Some(other),
     }
 }
 
-fn record<R: Runtime>(app: &AppHandle<R>, shared: &Shared, config: &Config, content: Content, source: Source) {
-    let Some(content) = admitted(config, content) else { return };
-    let mut store = shared.lock().unwrap();
-    let images = store.images();
-    let Some(id) = store.history.promote(content, source, now_ms(), |png| Store::store_image(images.as_deref(), png))
-    else {
+fn record<R: Runtime>(
+    app: &AppHandle<R>,
+    shared: &Shared,
+    config: &Config,
+    content: Content,
+    source: Source,
+) {
+    let Some(content) = admitted(config, content) else {
         return;
     };
-    store.history.trim(config.limit, config.retention_days, now_ms());
+    let mut store = shared.lock().unwrap();
+    let images = store.images();
+    let Some(id) = store.history.promote(content, source, now_ms(), |png| {
+        Store::store_image(images.as_deref(), png)
+    }) else {
+        return;
+    };
+    store
+        .history
+        .trim(config.limit, config.retention_days, now_ms());
     store.save();
     store.clean_images();
     emit(app, &store.snapshot(Some(id)));
@@ -372,13 +441,19 @@ pub fn clipboard_snapshot(state: tauri::State<'_, Shared>) -> Snapshot {
 /// Copy: the entry back on the clipboard, and on top of the recent ones.
 #[tauri::command]
 pub async fn clipboard_copy<R: Runtime>(app: AppHandle<R>, id: String) -> bool {
-    tauri::async_runtime::spawn_blocking(move || put_back(&app, &id)).await.unwrap_or(false)
+    tauri::async_runtime::spawn_blocking(move || put_back(&app, &id))
+        .await
+        .unwrap_or(false)
 }
 
 #[cfg(windows)]
 fn put_back<R: Runtime>(app: &AppHandle<R>, id: &str) -> bool {
-    let Some(shared) = app.try_state::<Shared>() else { return false };
-    let Some(payload) = shared.lock().unwrap().payload(id) else { return false };
+    let Some(shared) = app.try_state::<Shared>() else {
+        return false;
+    };
+    let Some(payload) = shared.lock().unwrap().payload(id) else {
+        return false;
+    };
     native::write(&payload, true) && {
         mutate(app, |h| h.touch(id, now_ms()));
         true
@@ -443,15 +518,19 @@ pub fn clipboard_clear_recent<R: Runtime>(app: AppHandle<R>, confirmed: HashMap<
 /// copy with no app named, as on the Mac.
 #[tauri::command]
 pub async fn clipboard_copy_text(text: String) -> bool {
-    tauri::async_runtime::spawn_blocking(move || write_own_text(text)).await.unwrap_or(false)
+    tauri::async_runtime::spawn_blocking(move || write_own_text(text))
+        .await
+        .unwrap_or(false)
 }
 
 /// Copies a PNG Vorssaint made (a screenshot), as CF_DIB and "PNG".
 #[tauri::command]
 pub async fn clipboard_copy_image(data_url: String) -> bool {
-    tauri::async_runtime::spawn_blocking(move || formats::png_from_data_url(&data_url).is_some_and(write_own_png))
-        .await
-        .unwrap_or(false)
+    tauri::async_runtime::spawn_blocking(move || {
+        formats::png_from_data_url(&data_url).is_some_and(write_own_png)
+    })
+    .await
+    .unwrap_or(false)
 }
 
 #[cfg(windows)]
@@ -519,17 +598,28 @@ mod tests {
             "clipboardFilterSensitiveText": true,
             "clipboardIgnoredApps": ["KeePass.exe", r"C:\Apps\1Password.EXE", "", 3],
         }}));
-        assert_eq!((set.enabled, set.limit, set.retention_days), (true, 10000, 7));
+        assert_eq!(
+            (set.enabled, set.limit, set.retention_days),
+            (true, 10000, 7)
+        );
         assert!(!set.include_images_files && set.filter_sensitive);
         assert_eq!(set.ignored, ["keepass.exe", "1password.exe"]);
-        let odd = Config::from_prefs(&json!({"island": {"clipboardHistoryLimit": 7, "clipboardHistoryRetentionDays": "x"}}));
+        let odd = Config::from_prefs(
+            &json!({"island": {"clipboardHistoryLimit": 7, "clipboardHistoryRetentionDays": "x"}}),
+        );
         assert_eq!((odd.limit, odd.retention_days), (50, 0));
     }
 
     #[test]
     fn ignored_apps_match_by_exe_name_whatever_the_folder_or_case() {
-        let config = Config { ignored: vec!["keepass.exe".into()], ..Config::from_prefs(&json!({})) };
-        assert!(config.ignores(&[r"C:\Tools\notepad.exe".into(), r"D:\KeePass\KEEPASS.EXE".into()]));
+        let config = Config {
+            ignored: vec!["keepass.exe".into()],
+            ..Config::from_prefs(&json!({}))
+        };
+        assert!(config.ignores(&[
+            r"C:\Tools\notepad.exe".into(),
+            r"D:\KeePass\KEEPASS.EXE".into()
+        ]));
         assert!(!config.ignores(&[r"C:\Tools\notkeepass.exe".into()]));
         assert!(!config.ignores(&[]));
         assert_eq!(exe_name("  C:\\x\\App.EXE "), "app.exe");
@@ -539,7 +629,10 @@ mod tests {
     #[test]
     fn admitted_text_is_trimmed_and_the_sensitive_filter_applies_only_when_on() {
         let mut config = Config::from_prefs(&json!({}));
-        assert_eq!(admitted(&config, Content::Text("  hi \n".into())), Some(Content::Text("hi".into())));
+        assert_eq!(
+            admitted(&config, Content::Text("  hi \n".into())),
+            Some(Content::Text("hi".into()))
+        );
         assert_eq!(admitted(&config, Content::Text("   ".into())), None);
         let secret = Content::Text("password=hunter2".into());
         assert!(admitted(&config, secret.clone()).is_some());
@@ -551,31 +644,56 @@ mod tests {
 
     #[test]
     fn the_store_saves_atomically_reloads_and_cleans_unused_pictures() {
-        let dir = std::env::temp_dir().join(format!("vorssaint-clipboard-test-{}", history::new_id()));
-        let mut store = Store { dir: Some(dir.clone()), ..Store::default() };
+        let dir =
+            std::env::temp_dir().join(format!("vorssaint-clipboard-test-{}", history::new_id()));
+        let mut store = Store {
+            dir: Some(dir.clone()),
+            ..Store::default()
+        };
         let images = store.images();
         let png = vec![1, 2, 3];
-        let image = Content::Image { png: png.clone(), hash: "h".into(), width: 1, height: 1 };
-        store.history.promote(image, Source::default(), 1, |p| Store::store_image(images.as_deref(), p));
-        store.history.promote(Content::Text("hello".into()), Source::default(), 2, |_| None);
+        let image = Content::Image {
+            png: png.clone(),
+            hash: "h".into(),
+            width: 1,
+            height: 1,
+        };
+        store.history.promote(image, Source::default(), 1, |p| {
+            Store::store_image(images.as_deref(), p)
+        });
+        store
+            .history
+            .promote(Content::Text("hello".into()), Source::default(), 2, |_| {
+                None
+            });
         std::fs::write(images.as_ref().unwrap().join("orphan.png"), b"x").unwrap();
         store.save();
         store.clean_images();
         assert!(!dir.join("history.json.tmp").exists());
-        let names: Vec<_> = std::fs::read_dir(images.as_ref().unwrap()).unwrap().flatten().map(|f| f.file_name()).collect();
+        let names: Vec<_> = std::fs::read_dir(images.as_ref().unwrap())
+            .unwrap()
+            .flatten()
+            .map(|f| f.file_name())
+            .collect();
         assert_eq!(names.len(), 1);
         let loaded = Store::load(dir.clone());
         assert_eq!(loaded.history.entries, store.history.entries);
         let snapshot = loaded.snapshot(None);
         let view = &snapshot.entries[1];
-        assert_eq!(std::fs::read(view.image_path.as_ref().unwrap()).unwrap(), png);
+        assert_eq!(
+            std::fs::read(view.image_path.as_ref().unwrap()).unwrap(),
+            png
+        );
         // A damaged file is set aside, never overwritten, and its pictures stay.
         std::fs::write(dir.join("history.json"), b"{oops").unwrap();
         let damaged = Store::load(dir.clone());
         assert!(damaged.history.entries.is_empty());
         assert!(dir.join("history.json.broken").exists());
         damaged.clean_images();
-        assert_eq!(std::fs::read_dir(images.as_ref().unwrap()).unwrap().count(), 1);
+        assert_eq!(
+            std::fs::read_dir(images.as_ref().unwrap()).unwrap().count(),
+            1
+        );
         // No file yet is an empty history that saves normally.
         std::fs::remove_file(dir.join("history.json.broken")).unwrap();
         let fresh = Store::load(dir.clone());
@@ -587,11 +705,22 @@ mod tests {
     /// launches too, not only in the session that found it.
     #[test]
     fn pictures_of_a_set_aside_history_survive_the_next_launch() {
-        let dir = std::env::temp_dir().join(format!("vorssaint-clipboard-broken-{}", history::new_id()));
-        let mut store = Store { dir: Some(dir.clone()), ..Store::default() };
+        let dir =
+            std::env::temp_dir().join(format!("vorssaint-clipboard-broken-{}", history::new_id()));
+        let mut store = Store {
+            dir: Some(dir.clone()),
+            ..Store::default()
+        };
         let images = store.images();
-        let image = Content::Image { png: vec![1, 2, 3], hash: "h".into(), width: 1, height: 1 };
-        store.history.promote(image, Source::default(), 1, |p| Store::store_image(images.as_deref(), p));
+        let image = Content::Image {
+            png: vec![1, 2, 3],
+            hash: "h".into(),
+            width: 1,
+            height: 1,
+        };
+        store.history.promote(image, Source::default(), 1, |p| {
+            Store::store_image(images.as_deref(), p)
+        });
         store.save();
         // Launch 1: the file is damaged and set aside; pictures kept for this session.
         std::fs::write(dir.join("history.json"), b"{oops").unwrap();
@@ -604,7 +733,10 @@ mod tests {
         second.clean_images();
         let left = std::fs::read_dir(images.as_ref().unwrap()).unwrap().count();
         std::fs::remove_dir_all(&dir).unwrap();
-        assert_eq!(left, 1, "the picture named by history.json.broken was deleted on the next launch");
+        assert_eq!(
+            left, 1,
+            "the picture named by history.json.broken was deleted on the next launch"
+        );
     }
 
     #[test]

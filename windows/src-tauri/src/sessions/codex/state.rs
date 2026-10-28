@@ -181,19 +181,25 @@ impl Thread {
             ),
             _ => return false,
         };
-        let images: Vec<String> = item.get("content")
-            .and_then(Value::as_array).into_iter().flatten()
+        let images: Vec<String> = item
+            .get("content")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
             .filter_map(|c| match str_at(c, "type") {
                 Some("localImage") => str_at(c, "path"),
                 Some("image") => str_at(c, "url"),
                 _ => None,
             })
-            .take(16).map(str::to_owned).collect();
+            .take(16)
+            .map(str::to_owned)
+            .collect();
         if text.trim().is_empty() && images.is_empty() {
             return false;
         }
         let text = clip(&text, 16000);
-        let ends_turn = role == ChatRole::Assistant && str_at(item, "phase") == Some("final_answer");
+        let ends_turn =
+            role == ChatRole::Assistant && str_at(item, "phase") == Some("final_answer");
         if let Some((_, message)) = self.chat.iter_mut().find(|(key, _)| key == id) {
             if message.text == text && message.images == images && message.ends_turn == ends_turn {
                 return false;
@@ -203,14 +209,17 @@ impl Thread {
             message.ends_turn = ends_turn;
         } else {
             self.next_message += 1;
-            self.chat.push((id.to_string(), ChatMessage {
-                id: self.next_message,
-                role,
-                text,
-                images,
-                at,
-                ends_turn,
-            }));
+            self.chat.push((
+                id.to_string(),
+                ChatMessage {
+                    id: self.next_message,
+                    role,
+                    text,
+                    images,
+                    at,
+                    ends_turn,
+                },
+            ));
             if self.chat.len() > 100 {
                 self.chat.remove(0);
             }
@@ -363,7 +372,9 @@ impl State {
         if let Some(status) = thread.get("status") {
             entry.status = Some(Status::from_json(status));
         }
-        if self.previews && let Some(turns) = thread.get("turns").and_then(Value::as_array) {
+        if self.previews
+            && let Some(turns) = thread.get("turns").and_then(Value::as_array)
+        {
             // History can omit older items after compaction. Use shared items
             // as anchors so omitted messages keep their place instead of being
             // appended after the person's newest message. Keep UI ids stable.
@@ -372,18 +383,24 @@ impl State {
             let mut seen = HashSet::new();
             for turn in turns {
                 let at = time_at(turn, "startedAt").unwrap_or(entry.updated);
-                for item in turn.get("items").and_then(Value::as_array).into_iter().flatten() {
-                    if let Some(id) = str_at(item, "id") {
-                        if seen.insert(id.to_string()) {
-                            order.push(id.to_string());
-                        }
+                for item in turn
+                    .get("items")
+                    .and_then(Value::as_array)
+                    .into_iter()
+                    .flatten()
+                {
+                    if let Some(id) = str_at(item, "id")
+                        && seen.insert(id.to_string())
+                    {
+                        order.push(id.to_string());
                     }
                     entry.message(item, at);
                 }
             }
-            let mut merged: Vec<_> = order.iter().filter_map(|id|
-                entry.chat.iter().find(|(key, _)| key == id).cloned()
-            ).collect();
+            let mut merged: Vec<_> = order
+                .iter()
+                .filter_map(|id| entry.chat.iter().find(|(key, _)| key == id).cloned())
+                .collect();
             let has_shared = live.iter().any(|(key, _)| seen.contains(key));
             let mut after = None;
             for (index, message) in live.iter().enumerate() {
@@ -391,12 +408,17 @@ impl State {
                     after = Some(position + 1);
                     continue;
                 }
-                let before = live[index + 1..].iter().find_map(|(key, _)|
-                    merged.iter().position(|(id, _)| id == key)
-                );
-                let position = before.or(if has_shared { after } else { None }).unwrap_or_else(|| {
-                    merged.iter().position(|(_, m)| m.at > message.1.at).unwrap_or(merged.len())
-                });
+                let before = live[index + 1..]
+                    .iter()
+                    .find_map(|(key, _)| merged.iter().position(|(id, _)| id == key));
+                let position = before
+                    .or(if has_shared { after } else { None })
+                    .unwrap_or_else(|| {
+                        merged
+                            .iter()
+                            .position(|(_, m)| m.at > message.1.at)
+                            .unwrap_or(merged.len())
+                    });
                 merged.insert(position, message.clone());
                 after = Some(position + 1);
             }
@@ -952,7 +974,10 @@ fn session(
         } else {
             None
         },
-        last_text: thread.chat.iter().rev()
+        last_text: thread
+            .chat
+            .iter()
+            .rev()
             .find(|(_, m)| m.role == ChatRole::Assistant)
             .filter(|_| previews)
             .map(|(_, m)| m.text.clone()),
@@ -1055,7 +1080,8 @@ mod tests {
     fn conversation_history_and_live_items_merge_without_duplicates() {
         let mut state = state_with_thread();
         state.previews = true;
-        let answer = json!({"type": "agentMessage", "id": "a", "text": "Working", "phase": "commentary"});
+        let answer =
+            json!({"type": "agentMessage", "id": "a", "text": "Working", "phase": "commentary"});
         let event = json!({"threadId": "t1", "item": answer});
         assert!(state.notify("item/started", &event, 210.0).changed);
         assert!(!state.notify("item/completed", &event, 211.0).changed);
@@ -1068,7 +1094,10 @@ mod tests {
         state.notify("item/completed", &final_item, 220.0);
         let (sessions, _) = state.snapshot(221.0, ContentPolicy { previews: true });
         let s = &sessions[0];
-        assert_eq!(s.chat.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(), ["Hello", "Working", "Done"]);
+        assert_eq!(
+            s.chat.iter().map(|m| m.text.as_str()).collect::<Vec<_>>(),
+            ["Hello", "Working", "Done"]
+        );
         assert_eq!(s.chat[0].role, ChatRole::User);
         assert!(s.chat[2].ends_turn);
         assert_eq!(s.last_text.as_deref(), Some("Done"));
@@ -1084,18 +1113,33 @@ mod tests {
         let answer = json!({"type":"agentMessage", "id":"answer", "text":"Older answer", "phase":"final_answer"});
         let latest = json!({"type":"userMessage", "id":"latest", "content":[{"type":"text", "text":"Newest question"}]});
         for item in [&old, &answer] {
-            state.notify("item/completed", &json!({"threadId":"t1", "item":item}), 210.0);
+            state.notify(
+                "item/completed",
+                &json!({"threadId":"t1", "item":item}),
+                210.0,
+            );
         }
         let answer_id = state.threads["t1"].chat[1].1.id;
         let history = json!({"id":"t1", "turns":[{"startedAt":210, "items":[answer, latest]}]});
         state.upsert_thread(&history);
         state.upsert_thread(&history);
         let chat = &state.threads["t1"].chat;
-        assert_eq!(chat.iter().map(|(_, m)| m.text.as_str()).collect::<Vec<_>>(),
-            ["Older question", "Older answer", "Newest question"]);
+        assert_eq!(
+            chat.iter()
+                .map(|(_, m)| m.text.as_str())
+                .collect::<Vec<_>>(),
+            ["Older question", "Older answer", "Newest question"]
+        );
         assert_eq!(chat[1].1.id, answer_id);
-        state.notify("item/completed", &json!({"threadId":"t1", "item":old}), 240.0);
-        assert_eq!(state.threads["t1"].chat.last().unwrap().1.text, "Newest question");
+        state.notify(
+            "item/completed",
+            &json!({"threadId":"t1", "item":old}),
+            240.0,
+        );
+        assert_eq!(
+            state.threads["t1"].chat.last().unwrap().1.text,
+            "Newest question"
+        );
     }
 
     #[test]
@@ -1105,35 +1149,69 @@ mod tests {
         let anchor = json!({"type":"agentMessage", "id":"anchor", "text":"Anchor"});
         let old = json!({"type":"userMessage", "id":"old", "content":[{"type":"text", "text":"Older question"}]});
         for item in [&anchor, &old] {
-            state.notify("item/completed", &json!({"threadId":"t1", "item":item}), 210.0);
+            state.notify(
+                "item/completed",
+                &json!({"threadId":"t1", "item":item}),
+                210.0,
+            );
         }
         state.upsert_thread(&json!({"id":"t1", "turns":[{"startedAt":210, "items":[
             anchor, {"type":"userMessage", "id":"latest", "content":[{"type":"text", "text":"Newest question"}]}
         ]}]}));
-        assert_eq!(state.threads["t1"].chat.iter().map(|(_, m)| m.text.as_str()).collect::<Vec<_>>(),
-            ["Anchor", "Older question", "Newest question"]);
-        state.notify("item/completed", &json!({"threadId":"t1", "item":{
-            "type":"agentMessage", "id":"live", "text":"Live answer"
-        }}), 240.0);
-        state.upsert_thread(&json!({"id":"t1", "turns":[{"startedAt":210, "items":[anchor, old]}]}));
-        assert_eq!(state.threads["t1"].chat.iter().map(|(_, m)| m.text.as_str()).collect::<Vec<_>>(),
-            ["Anchor", "Older question", "Newest question", "Live answer"]);
+        assert_eq!(
+            state.threads["t1"]
+                .chat
+                .iter()
+                .map(|(_, m)| m.text.as_str())
+                .collect::<Vec<_>>(),
+            ["Anchor", "Older question", "Newest question"]
+        );
+        state.notify(
+            "item/completed",
+            &json!({"threadId":"t1", "item":{
+                "type":"agentMessage", "id":"live", "text":"Live answer"
+            }}),
+            240.0,
+        );
+        state
+            .upsert_thread(&json!({"id":"t1", "turns":[{"startedAt":210, "items":[anchor, old]}]}));
+        assert_eq!(
+            state.threads["t1"]
+                .chat
+                .iter()
+                .map(|(_, m)| m.text.as_str())
+                .collect::<Vec<_>>(),
+            ["Anchor", "Older question", "Newest question", "Live answer"]
+        );
     }
 
     #[test]
     fn history_without_shared_items_places_older_and_newer_live_messages_on_the_correct_sides() {
         let mut state = state_with_thread();
         state.previews = true;
-        for (id, text, at) in [("old", "Older question", 200.0), ("new", "Live question", 240.0)] {
-            state.notify("item/completed", &json!({"threadId":"t1", "item":{
-                "type":"userMessage", "id":id, "content":[{"type":"text", "text":text}]
-            }}), at);
+        for (id, text, at) in [
+            ("old", "Older question", 200.0),
+            ("new", "Live question", 240.0),
+        ] {
+            state.notify(
+                "item/completed",
+                &json!({"threadId":"t1", "item":{
+                    "type":"userMessage", "id":id, "content":[{"type":"text", "text":text}]
+                }}),
+                at,
+            );
         }
         state.upsert_thread(&json!({"id":"t1", "turns":[{"startedAt":220, "items":[
             {"type":"agentMessage", "id":"history", "text":"Historical answer"}
         ]}]}));
-        assert_eq!(state.threads["t1"].chat.iter().map(|(_, m)| m.text.as_str()).collect::<Vec<_>>(),
-            ["Older question", "Historical answer", "Live question"]);
+        assert_eq!(
+            state.threads["t1"]
+                .chat
+                .iter()
+                .map(|(_, m)| m.text.as_str())
+                .collect::<Vec<_>>(),
+            ["Older question", "Historical answer", "Live question"]
+        );
     }
 
     #[test]
@@ -1141,7 +1219,15 @@ mod tests {
         let mut state = state_with_thread();
         let item = json!({"type": "agentMessage", "id": "a", "text": "private"});
         state.upsert_thread(&json!({"id": "t1", "turns": [{"items": [item]}]}));
-        assert!(!state.notify("item/completed", &json!({"threadId": "t1", "item": item}), 210.0).changed);
+        assert!(
+            !state
+                .notify(
+                    "item/completed",
+                    &json!({"threadId": "t1", "item": item}),
+                    210.0
+                )
+                .changed
+        );
         assert!(state.threads["t1"].chat.is_empty());
     }
 

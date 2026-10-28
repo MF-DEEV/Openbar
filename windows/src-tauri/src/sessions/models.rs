@@ -633,7 +633,10 @@ pub enum TranscriptFact {
         text: String,
         at: Time,
     },
-    PromptImages { images: Vec<String>, at: Time },
+    PromptImages {
+        images: Vec<String>,
+        at: Time,
+    },
     Title(String),
     Branch(String),
     Model(String),

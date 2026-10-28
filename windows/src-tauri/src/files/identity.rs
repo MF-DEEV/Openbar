@@ -55,11 +55,11 @@ mod imp {
     use std::path::Path;
     use windows::Win32::Foundation::{CloseHandle, HANDLE};
     use windows::Win32::Storage::FileSystem::{
-        CreateFileW, ExtendedFileIdType, FILE_FLAG_BACKUP_SEMANTICS, FILE_ID_128, FILE_ID_DESCRIPTOR,
-        FILE_ID_DESCRIPTOR_0, FILE_ID_INFO, FILE_NAME_NORMALIZED, FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE,
-        FILE_SHARE_READ, FILE_SHARE_WRITE, FileIdInfo, GETFINALPATHNAMEBYHANDLE_FLAGS, GetFileInformationByHandleEx,
-        GetFinalPathNameByHandleW, MOVEFILE_WRITE_THROUGH, MoveFileExW, OPEN_EXISTING, OpenFileById,
-        VOLUME_NAME_DOS,
+        CreateFileW, ExtendedFileIdType, FILE_FLAG_BACKUP_SEMANTICS, FILE_ID_128,
+        FILE_ID_DESCRIPTOR, FILE_ID_DESCRIPTOR_0, FILE_ID_INFO, FILE_NAME_NORMALIZED,
+        FILE_READ_ATTRIBUTES, FILE_SHARE_DELETE, FILE_SHARE_READ, FILE_SHARE_WRITE, FileIdInfo,
+        GETFINALPATHNAMEBYHANDLE_FLAGS, GetFileInformationByHandleEx, GetFinalPathNameByHandleW,
+        MOVEFILE_WRITE_THROUGH, MoveFileExW, OPEN_EXISTING, OpenFileById, VOLUME_NAME_DOS,
     };
     use windows::core::HSTRING;
 
@@ -118,7 +118,9 @@ mod imp {
             dwSize: std::mem::size_of::<FILE_ID_DESCRIPTOR>() as u32,
             Type: ExtendedFileIdType,
             Anonymous: FILE_ID_DESCRIPTOR_0 {
-                ExtendedFileId: FILE_ID_128 { Identifier: id.file.to_le_bytes() },
+                ExtendedFileId: FILE_ID_128 {
+                    Identifier: id.file.to_le_bytes(),
+                },
             },
         };
         let found = unsafe {
@@ -134,7 +136,13 @@ mod imp {
             .map(Handle)?
         };
         let mut buffer = vec![0u16; 32768];
-        let len = unsafe { GetFinalPathNameByHandleW(found.0, &mut buffer, GETFINALPATHNAMEBYHANDLE_FLAGS(FILE_NAME_NORMALIZED.0 | VOLUME_NAME_DOS.0)) };
+        let len = unsafe {
+            GetFinalPathNameByHandleW(
+                found.0,
+                &mut buffer,
+                GETFINALPATHNAMEBYHANDLE_FLAGS(FILE_NAME_NORMALIZED.0 | VOLUME_NAME_DOS.0),
+            )
+        };
         if len == 0 || len as usize >= buffer.len() {
             return None;
         }
@@ -148,8 +156,12 @@ mod imp {
     pub fn rename_no_replace(from: &Path, to: &Path) -> io::Result<()> {
         // No MOVEFILE_REPLACE_EXISTING: an existing destination is an error.
         unsafe {
-            MoveFileExW(&HSTRING::from(from.as_os_str()), &HSTRING::from(to.as_os_str()), MOVEFILE_WRITE_THROUGH)
-                .map_err(|e| io::Error::from_raw_os_error(e.code().0 & 0xFFFF))
+            MoveFileExW(
+                &HSTRING::from(from.as_os_str()),
+                &HSTRING::from(to.as_os_str()),
+                MOVEFILE_WRITE_THROUGH,
+            )
+            .map_err(|e| io::Error::from_raw_os_error(e.code().0 & 0xFFFF))
         }
     }
 }
@@ -163,7 +175,10 @@ mod imp {
 
     pub fn identity(path: &Path) -> Option<Identity> {
         let meta = std::fs::metadata(path).ok()?;
-        Some(Identity { volume: meta.dev(), file: meta.ino() as u128 })
+        Some(Identity {
+            volume: meta.dev(),
+            file: meta.ino() as u128,
+        })
     }
 
     pub fn open_by_id(_old_path: &str, _id: Identity) -> Option<String> {
@@ -183,14 +198,18 @@ mod tests {
 
     #[test]
     fn identities_round_trip_through_text() {
-        let id = Identity { volume: 0xABCD_1234, file: 0x0123_4567_89ab_cdef_0011_2233_4455_6677 };
+        let id = Identity {
+            volume: 0xABCD_1234,
+            file: 0x0123_4567_89ab_cdef_0011_2233_4455_6677,
+        };
         assert_eq!(Identity::decode(&id.encode()), Some(id));
         assert_eq!(Identity::decode("nonsense"), None);
     }
 
     #[test]
     fn rename_never_replaces() {
-        let dir = std::env::temp_dir().join(format!("vors-ident-{}", crate::files::store::new_id()));
+        let dir =
+            std::env::temp_dir().join(format!("vors-ident-{}", crate::files::store::new_id()));
         std::fs::create_dir_all(&dir).unwrap();
         let (a, b) = (dir.join("a"), dir.join("b"));
         std::fs::write(&a, "new").unwrap();

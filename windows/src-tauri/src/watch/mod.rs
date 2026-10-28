@@ -46,7 +46,10 @@ enum Kind {
     /// `crop` in points from the window's top-left corner (its extended frame).
     Window { hwnd: isize, crop: Area },
     /// `crop` in pixels from the display's top-left corner; `monitor` in desktop pixels.
-    Display { monitor: crate::capture::Rect, crop: Area },
+    Display {
+        monitor: crate::capture::Rect,
+        crop: Area,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -163,11 +166,16 @@ struct Finished {
 // MARK: Preferences
 
 fn island_pref<R: Runtime>(app: &AppHandle<R>, key: &str) -> Option<Value> {
-    app.try_state::<crate::prefs::Prefs>()?.get().pointer(&format!("/island/{key}")).cloned()
+    app.try_state::<crate::prefs::Prefs>()?
+        .get()
+        .pointer(&format!("/island/{key}"))
+        .cloned()
 }
 
 fn flag<R: Runtime>(app: &AppHandle<R>, key: &str, default: bool) -> bool {
-    island_pref(app, key).and_then(|v| v.as_bool()).unwrap_or(default)
+    island_pref(app, key)
+        .and_then(|v| v.as_bool())
+        .unwrap_or(default)
 }
 
 /// The island is on and Watch is one of its sections (NotchWatchSupport.isEnabled).
@@ -175,12 +183,16 @@ fn enabled<R: Runtime>(app: &AppHandle<R>) -> bool {
     let hidden = island_pref(app, "hiddenModules")
         .and_then(|v| v.as_array().cloned())
         .is_some_and(|ids| ids.iter().any(|id| id.as_str() == Some("watch")));
-    flag(app, "enabled", true) && island_pref(app, "sections/watch").and_then(|v| v.as_bool()) != Some(false) && !hidden
+    flag(app, "enabled", true)
+        && island_pref(app, "sections/watch").and_then(|v| v.as_bool()) != Some(false)
+        && !hidden
 }
 
 fn condition<R: Runtime>(app: &AppHandle<R>, inner: &Inner) -> Condition {
     inner.condition.unwrap_or_else(|| {
-        island_pref(app, "watchCondition").and_then(|v| serde_json::from_value(v).ok()).unwrap_or_default()
+        island_pref(app, "watchCondition")
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default()
     })
 }
 
@@ -188,7 +200,9 @@ fn condition<R: Runtime>(app: &AppHandle<R>, inner: &Inner) -> Condition {
 /// the display keeps the island out of what it reads, whatever Settings ›
 /// Behavior › Show in screenshots says.
 pub fn apply_prefs<R: Runtime>(app: &AppHandle<R>) {
-    let Some(shared) = app.try_state::<Shared>() else { return };
+    let Some(shared) = app.try_state::<Shared>() else {
+        return;
+    };
     let watching = shared.inner.lock().unwrap().target.is_some();
     if watching && !enabled(app) {
         stop(app);
@@ -199,10 +213,16 @@ pub fn apply_prefs<R: Runtime>(app: &AppHandle<R>) {
 /// Beside the camera the island would read itself opening and closing as a
 /// change, so while a part of the display is read it stays out of captures.
 fn sync_island_capture<R: Runtime>(app: &AppHandle<R>) {
-    let Some(shared) = app.try_state::<Shared>() else { return };
+    let Some(shared) = app.try_state::<Shared>() else {
+        return;
+    };
     let reads_display = {
         let inner = shared.inner.lock().unwrap();
-        inner.is_active() && matches!(inner.target.as_ref().map(|t| &t.kind), Some(Kind::Display { .. }))
+        inner.is_active()
+            && matches!(
+                inner.target.as_ref().map(|t| &t.kind),
+                Some(Kind::Display { .. })
+            )
     };
     crate::island::show_in_captures(app, flag(app, "showInCaptures", true) && !reads_display);
 }
@@ -248,7 +268,9 @@ fn snapshot(inner: &Inner, condition: Condition) -> Snapshot {
 
 /// Sends the state when it differs from what the island last got.
 fn publish<R: Runtime>(app: &AppHandle<R>) {
-    let Some(shared) = app.try_state::<Shared>() else { return };
+    let Some(shared) = app.try_state::<Shared>() else {
+        return;
+    };
     let current = {
         let mut inner = shared.inner.lock().unwrap();
         let current = snapshot(&inner, condition(app, &inner));
@@ -265,11 +287,19 @@ fn publish<R: Runtime>(app: &AppHandle<R>) {
 // MARK: Watching
 
 fn now_ms() -> u64 {
-    SystemTime::now().duration_since(UNIX_EPOCH).map_or(0, |d| d.as_millis() as u64)
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64)
 }
 
 fn make_tracker<R: Runtime>(app: &AppHandle<R>, inner: &Inner) -> Tracker {
-    Tracker::new(condition(app, inner), &inner.match_text, inner.match_number, &inner.decimal, inner.groups_with_space)
+    Tracker::new(
+        condition(app, inner),
+        &inner.match_text,
+        inner.match_number,
+        &inner.decimal,
+        inner.groups_with_space,
+    )
 }
 
 fn begin<R: Runtime>(app: &AppHandle<R>, target: Target) {
@@ -298,7 +328,9 @@ fn begin<R: Runtime>(app: &AppHandle<R>, target: Target) {
     sync_island_capture(app);
     publish(app);
     let app = app.clone();
-    let _ = std::thread::Builder::new().name("watch".into()).spawn(move || run(&app, generation));
+    let _ = std::thread::Builder::new()
+        .name("watch".into())
+        .spawn(move || run(&app, generation));
 }
 
 /// Ends every reading and choice and forgets the area.
@@ -306,8 +338,13 @@ fn stop<R: Runtime>(app: &AppHandle<R>) {
     let shared = app.state::<Shared>();
     {
         let mut inner = shared.inner.lock().unwrap();
-        let keep = (inner.condition, std::mem::take(&mut inner.match_text), inner.match_number);
-        let (generation, choice, page_visible) = (inner.generation, inner.choice, inner.page_visible);
+        let keep = (
+            inner.condition,
+            std::mem::take(&mut inner.match_text),
+            inner.match_number,
+        );
+        let (generation, choice, page_visible) =
+            (inner.generation, inner.choice, inner.page_visible);
         *inner = Inner {
             condition: keep.0,
             match_text: keep.1,
@@ -334,8 +371,14 @@ fn finish<R: Runtime>(app: &AppHandle<R>, generation: u64, outcome: Outcome) {
         }
         inner.generation += 1;
         inner.phase = Phase::Finished(outcome.clone());
-        let Some(target) = inner.target.as_ref() else { return };
-        Finished { outcome, app_name: target.app_name.clone(), window_title: target.window_title.clone() }
+        let Some(target) = inner.target.as_ref() else {
+            return;
+        };
+        Finished {
+            outcome,
+            app_name: target.app_name.clone(),
+            window_title: target.window_title.clone(),
+        }
     };
     shared.wake.notify_all();
     sync_island_capture(app);
@@ -373,7 +416,11 @@ fn run<R: Runtime>(app: &AppHandle<R>, generation: u64) {
         if inner.generation != generation || !inner.is_active() {
             return;
         }
-        let interval = if inner.page_visible { support::VISIBLE_INTERVAL } else { support::BACKGROUND_INTERVAL };
+        let interval = if inner.page_visible {
+            support::VISIBLE_INTERVAL
+        } else {
+            support::BACKGROUND_INTERVAL
+        };
         let (mut inner, _) = shared
             .wake
             .wait_timeout_while(inner, interval, |i| i.generation == generation && !i.poke)
@@ -387,7 +434,9 @@ fn read<R: Runtime>(app: &AppHandle<R>, generation: u64, source: &mut Option<pla
     let kind = {
         let inner = shared.inner.lock().unwrap();
         match inner.target.as_ref() {
-            Some(target) if inner.generation == generation && inner.is_active() => target.kind.clone(),
+            Some(target) if inner.generation == generation && inner.is_active() => {
+                target.kind.clone()
+            }
             _ => return,
         }
     };
@@ -402,11 +451,20 @@ fn read<R: Runtime>(app: &AppHandle<R>, generation: u64, source: &mut Option<pla
                 set_hidden(app, generation, false);
                 return;
             }
-            (*crop, (window.bounds.width / window.scale, window.bounds.height / window.scale))
+            (
+                *crop,
+                (
+                    window.bounds.width / window.scale,
+                    window.bounds.height / window.scale,
+                ),
+            )
         }
         Kind::Display { monitor, crop } => (*crop, (monitor.width as f64, monitor.height as f64)),
     };
-    let frame = match source.get_or_insert_with(|| platform::Source::new(&kind)).grab(crop, space) {
+    let frame = match source
+        .get_or_insert_with(|| platform::Source::new(&kind))
+        .grab(crop, space)
+    {
         Grab::Frame(frame) => frame,
         Grab::Waiting => return,
         Grab::Missing => return set_hidden(app, generation, false),
@@ -422,12 +480,21 @@ fn read<R: Runtime>(app: &AppHandle<R>, generation: u64, source: &mut Option<pla
         inner.access_denied = false;
         let still = inner.signature.is_some()
             && support::same_fingerprint(picture.as_deref(), inner.fingerprint.as_deref())
-            && inner.read_at.is_some_and(|at| at.elapsed() < support::REREAD_INTERVAL);
+            && inner
+                .read_at
+                .is_some_and(|at| at.elapsed() < support::REREAD_INTERVAL);
         if still {
             // The area looks as it did: no need to read it again, but it
             // confirms a change and lets time settle it.
-            let Inner { tracker, signature, text, .. } = &mut *inner;
-            let outcome = tracker.as_mut().and_then(|t| t.observe(signature.as_deref(), text, Instant::now()));
+            let Inner {
+                tracker,
+                signature,
+                text,
+                ..
+            } = &mut *inner;
+            let outcome = tracker
+                .as_mut()
+                .and_then(|t| t.observe(signature.as_deref(), text, Instant::now()));
             drop(inner);
             match outcome {
                 Some(outcome) => finish(app, generation, outcome),
@@ -438,7 +505,9 @@ fn read<R: Runtime>(app: &AppHandle<R>, generation: u64, source: &mut Option<pla
     }
     publish(app);
     // A failed recognition says nothing about the area: read it again next time.
-    let Some(recognized) = recognize(&frame) else { return };
+    let Some(recognized) = recognize(&frame) else {
+        return;
+    };
     let preview = preview(&frame);
     let outcome = {
         let mut inner = shared.inner.lock().unwrap();
@@ -453,8 +522,15 @@ fn read<R: Runtime>(app: &AppHandle<R>, generation: u64, source: &mut Option<pla
         inner.headline = inner.headline_for(&recognized);
         inner.signature = support::signature(&recognized, inner.fingerprint.as_deref());
         inner.text = recognized;
-        let Inner { tracker, signature, text, .. } = &mut *inner;
-        tracker.as_mut().and_then(|t| t.observe(signature.as_deref(), text, Instant::now()))
+        let Inner {
+            tracker,
+            signature,
+            text,
+            ..
+        } = &mut *inner;
+        tracker
+            .as_mut()
+            .and_then(|t| t.observe(signature.as_deref(), text, Instant::now()))
     };
     match outcome {
         Some(outcome) => finish(app, generation, outcome),
@@ -487,7 +563,11 @@ fn preview(frame: &Frame) -> Option<String> {
     let image = image::RgbaImage::from_raw(frame.width, frame.height, frame.rgba.clone())?;
     let scale = (PREVIEW_SIDE as f64 / frame.width.max(frame.height) as f64).min(1.0);
     let (w, h) = crate::ocr::scaled_size(frame.width, frame.height, scale);
-    let small = if scale < 1.0 { image::imageops::thumbnail(&image, w, h) } else { image };
+    let small = if scale < 1.0 {
+        image::imageops::thumbnail(&image, w, h)
+    } else {
+        image
+    };
     crate::shell::encode_png(small.as_raw(), w, h).map(|png| crate::shell::png_data_url(&png))
 }
 
@@ -495,21 +575,35 @@ fn preview(frame: &Frame) -> Option<String> {
 /// points from that window's corner, or else that part of the display.
 fn resolve(selection: &crate::capture::Selection) -> Target {
     let r = selection.rect;
-    let area = Area { x: r.x as f64, y: r.y as f64, width: r.width as f64, height: r.height as f64 };
+    let area = Area {
+        x: r.x as f64,
+        y: r.y as f64,
+        width: r.width as f64,
+        height: r.height as f64,
+    };
     if selection.window != 0
         && let Some(window) = platform::window(selection.window)
         && let Some(crop) = support::window_crop(area, window.bounds)
     {
         let exe = crate::shell::process_path(window.pid);
         // A Store app's window belongs to its frame host, whose name says nothing.
-        let hosted = exe.as_deref().is_some_and(|e| e.to_ascii_lowercase().ends_with("\\applicationframehost.exe"));
+        let hosted = exe.as_deref().is_some_and(|e| {
+            e.to_ascii_lowercase()
+                .ends_with("\\applicationframehost.exe")
+        });
         let app_name = match exe.as_deref() {
             Some(exe) if !hosted => crate::shell::app_name(exe),
             _ => window.title.clone().unwrap_or_default(),
         };
-        let icon = exe.as_deref().filter(|_| !hosted).and_then(|e| crate::shell::icon(e, 32));
+        let icon = exe
+            .as_deref()
+            .filter(|_| !hosted)
+            .and_then(|e| crate::shell::icon(e, 32));
         return Target {
-            kind: Kind::Window { hwnd: selection.window, crop: crop.in_points(window.scale) },
+            kind: Kind::Window {
+                hwnd: selection.window,
+                crop: crop.in_points(window.scale),
+            },
             app_name,
             window_title: window.title,
             icon,
@@ -519,7 +613,12 @@ fn resolve(selection: &crate::capture::Selection) -> Target {
     Target {
         kind: Kind::Display {
             monitor: m,
-            crop: Area { x: (r.x - m.x) as f64, y: (r.y - m.y) as f64, width: r.width as f64, height: r.height as f64 },
+            crop: Area {
+                x: (r.x - m.x) as f64,
+                y: (r.y - m.y) as f64,
+                width: r.width as f64,
+                height: r.height as f64,
+            },
         },
         app_name: String::new(),
         window_title: None,
@@ -551,7 +650,9 @@ pub async fn watch_choose<R: Runtime>(app: AppHandle<R>) -> bool {
     };
     let selection = crate::capture::select_area(&app, crate::capture::Purpose::Watch).await;
     let target = match selection {
-        Some(selection) => tauri::async_runtime::spawn_blocking(move || resolve(&selection)).await.ok(),
+        Some(selection) => tauri::async_runtime::spawn_blocking(move || resolve(&selection))
+            .await
+            .ok(),
         None => None,
     };
     {
@@ -578,7 +679,9 @@ pub fn watch_stop<R: Runtime>(app: AppHandle<R>) {
 #[tauri::command]
 pub fn watch_again<R: Runtime>(app: AppHandle<R>) -> bool {
     let target = app.state::<Shared>().inner.lock().unwrap().target.clone();
-    let Some(target) = target.filter(|_| enabled(&app)) else { return false };
+    let Some(target) = target.filter(|_| enabled(&app)) else {
+        return false;
+    };
     if let Kind::Window { hwnd, .. } = target.kind
         && platform::window(hwnd).is_none()
     {
@@ -605,7 +708,10 @@ pub fn watch_set_rule<R: Runtime>(
         if let Some(condition) = condition {
             // Against the running tracker's rule: the page saves the new one
             // to the preferences first, so they already agree with it.
-            reset |= inner.tracker.as_ref().is_some_and(|t| t.condition() != condition);
+            reset |= inner
+                .tracker
+                .as_ref()
+                .is_some_and(|t| t.condition() != condition);
             inner.condition = Some(condition);
         }
         let current = self::condition(&app, &inner);
@@ -674,7 +780,9 @@ pub fn watch_page_visible<R: Runtime>(app: AppHandle<R>, visible: bool) {
 /// identity; false when it was not posted.
 #[tauri::command]
 pub async fn watch_notify(title: String, body: String) -> bool {
-    tauri::async_runtime::spawn_blocking(move || platform::toast(&title, &body)).await.unwrap_or(false)
+    tauri::async_runtime::spawn_blocking(move || platform::toast(&title, &body))
+        .await
+        .unwrap_or(false)
 }
 
 #[cfg(test)]
@@ -686,24 +794,50 @@ mod tests {
         // The stub knows no windows: every selection is a display region.
         let selection = crate::capture::Selection {
             purpose: crate::capture::Purpose::Watch,
-            rect: crate::capture::Rect { x: 1940, y: 30, width: 200, height: 40 },
-            monitor: crate::capture::Rect { x: 1920, y: 0, width: 2560, height: 1440 },
+            rect: crate::capture::Rect {
+                x: 1940,
+                y: 30,
+                width: 200,
+                height: 40,
+            },
+            monitor: crate::capture::Rect {
+                x: 1920,
+                y: 0,
+                width: 2560,
+                height: 1440,
+            },
             window: 0,
         };
         let target = resolve(&selection);
         assert_eq!(
             target.kind,
-            Kind::Display { monitor: selection.monitor, crop: Area { x: 20.0, y: 30.0, width: 200.0, height: 40.0 } }
+            Kind::Display {
+                monitor: selection.monitor,
+                crop: Area {
+                    x: 20.0,
+                    y: 30.0,
+                    width: 200.0,
+                    height: 40.0
+                }
+            }
         );
         assert_eq!(target.app_name, "");
     }
 
     #[test]
     fn previews_shrink_to_their_longest_side() {
-        let frame = Frame { width: 1280, height: 40, rgba: vec![200; 1280 * 40 * 4] };
+        let frame = Frame {
+            width: 1280,
+            height: 40,
+            rgba: vec![200; 1280 * 40 * 4],
+        };
         let url = preview(&frame).unwrap();
         assert!(url.starts_with("data:image/png;base64,"));
-        let small = Frame { width: 4, height: 4, rgba: vec![0; 64] };
+        let small = Frame {
+            width: 4,
+            height: 4,
+            rgba: vec![0; 64],
+        };
         assert!(preview(&small).is_some());
     }
 
@@ -716,7 +850,10 @@ mod tests {
         };
         let json = serde_json::to_value(snapshot(&inner, Condition::Changes)).unwrap();
         assert_eq!(json["phase"], "finished");
-        assert_eq!(json["outcome"], serde_json::json!({ "kind": "reached", "text": "100%" }));
+        assert_eq!(
+            json["outcome"],
+            serde_json::json!({ "kind": "reached", "text": "100%" })
+        );
         assert_eq!(json["lines"], serde_json::json!(["Build", "100%"]));
         assert_eq!(json["condition"], "changes");
         assert_eq!(json["canWatchAgain"], false);

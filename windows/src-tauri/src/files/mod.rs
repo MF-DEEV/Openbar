@@ -11,16 +11,16 @@
 //! (`shell`: Open, Open With, Show in File Explorer, Share).
 
 pub mod archive;
-mod identity;
-mod payload;
-mod shell;
-pub mod store;
 #[cfg(windows)]
 mod drag_out;
 #[cfg(windows)]
 mod drop_target;
+mod identity;
 #[cfg(windows)]
 mod ole;
+mod payload;
+mod shell;
+pub mod store;
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -98,7 +98,8 @@ impl Files {
                 Load::Items { items, complete } => {
                     // A file on a drive that isn't connected now comes back with its drive.
                     let exists = |p: &str| Path::new(p).exists() || !drive_present(p);
-                    let refind = |i: &Item| identity::refind(i.path.as_deref()?, i.file_id.as_deref()?);
+                    let refind =
+                        |i: &Item| identity::refind(i.path.as_deref()?, i.file_id.as_deref()?);
                     shelf.items = store::sanitized(items, &exists, &refind);
                     // Only a store read whole may be rewritten, or sweep files
                     // nothing points at: a newer build's entries keep theirs.
@@ -113,7 +114,13 @@ impl Files {
                 }
             }
         }
-        let files = Files { dir, state: Mutex::new(State { shelf, ..Default::default() }) };
+        let files = Files {
+            dir,
+            state: Mutex::new(State {
+                shelf,
+                ..Default::default()
+            }),
+        };
         if rewrite {
             files.save(&files.state.lock().unwrap().shelf);
         }
@@ -138,13 +145,18 @@ impl Files {
 
     fn snapshot(&self) -> Snapshot {
         let state = self.state.lock().unwrap();
-        Snapshot { items: state.shelf.items.clone(), zip: state.zip.clone() }
+        Snapshot {
+            items: state.shelf.items.clone(),
+            zip: state.zip.clone(),
+        }
     }
 }
 
 /// Removes payload folders under `store` that no item references.
 fn sweep(store: &Path, referenced: &[String]) {
-    let Ok(entries) = std::fs::read_dir(store) else { return };
+    let Ok(entries) = std::fs::read_dir(store) else {
+        return;
+    };
     for entry in entries.flatten() {
         let path = entry.path();
         if !referenced.iter().any(|r| Path::new(r).starts_with(&path)) {
@@ -193,7 +205,9 @@ fn change<R: Runtime, T>(app: &AppHandle<R>, f: impl FnOnce(&mut Shelf) -> (T, V
 /// Deletes the shelf's own payload files that left with their items, once
 /// nothing points at them any more.
 fn retire<R: Runtime>(app: &AppHandle<R>, removed: Vec<Item>) {
-    let Some(store) = app.state::<Files>().store_dir() else { return };
+    let Some(store) = app.state::<Files>().store_dir() else {
+        return;
+    };
     let owned: Vec<String> = store::paths(&removed)
         .into_iter()
         .filter(|p| store::is_owned(p, &store))
@@ -232,7 +246,9 @@ pub fn add<R: Runtime>(app: &AppHandle<R>, items: Vec<Item>) -> bool {
 /// the shelf may name the same file (one dragged out and back in): its
 /// folder stays.
 fn retire_now<R: Runtime>(app: &AppHandle<R>, items: &[Item]) {
-    let Some(store) = app.state::<Files>().store_dir() else { return };
+    let Some(store) = app.state::<Files>().store_dir() else {
+        return;
+    };
     let live = store::paths(&app.state::<Files>().state.lock().unwrap().shelf.items);
     for path in store::paths(items).iter().filter(|p| !live.contains(p)) {
         if let Some(folder) = store::owned_folder(path, &store) {
@@ -268,10 +284,16 @@ fn living_files<R: Runtime>(app: &AppHandle<R>, ids: &[String]) -> Vec<(String, 
     let mut living = Vec::new();
     let mut dead = Vec::new();
     for leaf in leaves.iter().filter(|l| l.kind == Kind::File) {
-        let Some(path) = leaf.path.clone() else { continue };
+        let Some(path) = leaf.path.clone() else {
+            continue;
+        };
         if Path::new(&path).exists() {
             living.push((leaf.id.clone(), path));
-        } else if let Some(found) = leaf.file_id.as_deref().and_then(|id| identity::refind(&path, id)) {
+        } else if let Some(found) = leaf
+            .file_id
+            .as_deref()
+            .and_then(|id| identity::refind(&path, id))
+        {
             change(app, |shelf| (shelf.heal(&leaf.id, &found), Vec::new()));
             living.push((leaf.id.clone(), found));
         } else {
@@ -293,7 +315,10 @@ fn living_files<R: Runtime>(app: &AppHandle<R>, ids: &[String]) -> Vec<(String, 
 }
 
 fn drive_present(path: &str) -> bool {
-    Path::new(path).ancestors().last().is_some_and(|root| root.exists())
+    Path::new(path)
+        .ancestors()
+        .last()
+        .is_some_and(|root| root.exists())
 }
 
 fn living_paths<R: Runtime>(app: &AppHandle<R>, ids: &[String]) -> Vec<String> {
@@ -390,7 +415,13 @@ pub async fn files_share<R: Runtime>(app: AppHandle<R>, ids: Vec<String>) -> boo
 /// pinned or the person keeps them (shelfRemoveAfterDrop).
 #[tauri::command]
 pub async fn files_drag_out<R: Runtime>(app: AppHandle<R>, ids: Vec<String>) -> bool {
-    let leaves = app.state::<Files>().state.lock().unwrap().shelf.leaves(&ids);
+    let leaves = app
+        .state::<Files>()
+        .state
+        .lock()
+        .unwrap()
+        .shelf
+        .leaves(&ids);
     // Dead files would make every destination refuse the whole drag.
     let living: HashMap<String, String> = living_files(&app, &ids).into_iter().collect();
     let mut dragged = Vec::new();
@@ -419,14 +450,23 @@ pub async fn files_drag_out<R: Runtime>(app: AppHandle<R>, ids: Vec<String>) -> 
         return false;
     }
     let remove_after = pref(&app, "shelfRemoveAfterDrop", true);
-    let protected = app.state::<Files>().state.lock().unwrap().shelf.protected_ids();
+    let protected = app
+        .state::<Files>()
+        .state
+        .lock()
+        .unwrap()
+        .shelf
+        .protected_ids();
     // A kept item must not be moved away from where the shelf remembers it.
     let allow_move = remove_after && !dragged.iter().any(|id| protected.contains(id));
     app.state::<Files>().state.lock().unwrap().dragging_out = true;
     let accepted = run_drag(&app, paths, texts, allow_move).await;
     app.state::<Files>().state.lock().unwrap().dragging_out = false;
     if accepted && remove_after {
-        let removable: HashSet<String> = dragged.into_iter().filter(|id| !protected.contains(id)).collect();
+        let removable: HashSet<String> = dragged
+            .into_iter()
+            .filter(|id| !protected.contains(id))
+            .collect();
         if !removable.is_empty() {
             change(&app, |shelf| ((), shelf.remove(&removable)));
         }
@@ -435,9 +475,18 @@ pub async fn files_drag_out<R: Runtime>(app: AppHandle<R>, ids: Vec<String>) -> 
 }
 
 #[cfg(windows)]
-async fn run_drag<R: Runtime>(app: &AppHandle<R>, paths: Vec<String>, texts: Vec<String>, allow_move: bool) -> bool {
-    let Some(window) = app.get_webview_window(crate::island::LABEL) else { return false };
-    let Ok(hwnd) = window.hwnd() else { return false };
+async fn run_drag<R: Runtime>(
+    app: &AppHandle<R>,
+    paths: Vec<String>,
+    texts: Vec<String>,
+    allow_move: bool,
+) -> bool {
+    let Some(window) = app.get_webview_window(crate::island::LABEL) else {
+        return false;
+    };
+    let Ok(hwnd) = window.hwnd() else {
+        return false;
+    };
     let hwnd = hwnd.0 as isize;
     let (tx, rx) = std::sync::mpsc::channel();
     let island = app.clone();
@@ -456,7 +505,12 @@ async fn run_drag<R: Runtime>(app: &AppHandle<R>, paths: Vec<String>, texts: Vec
 }
 
 #[cfg(not(windows))]
-async fn run_drag<R: Runtime>(_app: &AppHandle<R>, _paths: Vec<String>, _texts: Vec<String>, _allow_move: bool) -> bool {
+async fn run_drag<R: Runtime>(
+    _app: &AppHandle<R>,
+    _paths: Vec<String>,
+    _texts: Vec<String>,
+    _allow_move: bool,
+) -> bool {
     false
 }
 
@@ -469,24 +523,41 @@ pub async fn files_zip<R: Runtime>(app: AppHandle<R>, ids: Vec<String>, title: S
     if app.state::<Files>().state.lock().unwrap().zip.running {
         return false;
     }
-    let inputs: Vec<PathBuf> = living_paths(&app, &ids).into_iter().map(PathBuf::from).collect();
-    let Some(first) = inputs.first().cloned() else { return false };
+    let inputs: Vec<PathBuf> = living_paths(&app, &ids)
+        .into_iter()
+        .map(PathBuf::from)
+        .collect();
+    let Some(first) = inputs.first().cloned() else {
+        return false;
+    };
     let directory = inputs.len() > 1;
     let dialog = app.clone();
     let destination = tauri::async_runtime::spawn_blocking(move || {
         use tauri_plugin_dialog::DialogExt;
         let folder = first.parent().map(Path::to_path_buf).unwrap_or_default();
-        let mut builder = dialog.dialog().file().set_title(title).set_directory(&folder);
+        let mut builder = dialog
+            .dialog()
+            .file()
+            .set_title(title)
+            .set_directory(&folder);
         if let Some(window) = dialog.get_webview_window(crate::island::LABEL) {
             builder = builder.set_parent(&window);
         }
         let chosen = if directory {
             builder.blocking_pick_folder()
         } else {
-            let name = first.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+            let name = first
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_default();
             let suggested = archive::unique_zip_path(&folder, &name, &HashSet::new());
             builder
-                .set_file_name(suggested.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default())
+                .set_file_name(
+                    suggested
+                        .file_name()
+                        .map(|n| n.to_string_lossy().into_owned())
+                        .unwrap_or_default(),
+                )
                 .add_filter("ZIP", &["zip"])
                 .blocking_save_file()
         };
@@ -495,7 +566,9 @@ pub async fn files_zip<R: Runtime>(app: AppHandle<R>, ids: Vec<String>, title: S
     .await
     .ok()
     .flatten();
-    let Some(destination) = destination else { return false };
+    let Some(destination) = destination else {
+        return false;
+    };
     if !enabled(&app) {
         return false;
     }
@@ -506,7 +579,11 @@ pub async fn files_zip<R: Runtime>(app: AppHandle<R>, ids: Vec<String>, title: S
         if state.zip.running {
             return false;
         }
-        state.zip = ZipStatus { running: true, total: inputs.len(), ..Default::default() };
+        state.zip = ZipStatus {
+            running: true,
+            total: inputs.len(),
+            ..Default::default()
+        };
         state.cancel = Some(cancel.clone());
     }
     emit_zip(&app);
@@ -515,7 +592,13 @@ pub async fn files_zip<R: Runtime>(app: AppHandle<R>, ids: Vec<String>, title: S
     true
 }
 
-fn run_zip<R: Runtime>(app: &AppHandle<R>, inputs: Vec<PathBuf>, destination: PathBuf, directory: bool, cancel: &AtomicBool) {
+fn run_zip<R: Runtime>(
+    app: &AppHandle<R>,
+    inputs: Vec<PathBuf>,
+    destination: PathBuf,
+    directory: bool,
+    cancel: &AtomicBool,
+) {
     let mut failure = None;
     let mut cancelled = false;
     if archive::inside_inputs(&destination, &inputs) {
@@ -524,7 +607,10 @@ fn run_zip<R: Runtime>(app: &AppHandle<R>, inputs: Vec<PathBuf>, destination: Pa
         let mut reserved = HashSet::new();
         for input in &inputs {
             let output = if directory {
-                let name = input.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let name = input
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default();
                 let output = archive::unique_zip_path(&destination, &name, &reserved);
                 reserved.insert(output.clone());
                 output
@@ -567,7 +653,11 @@ fn run_zip<R: Runtime>(app: &AppHandle<R>, inputs: Vec<PathBuf>, destination: Pa
 }
 
 fn emit_zip<R: Runtime>(app: &AppHandle<R>) {
-    let _ = app.emit_to(crate::island::LABEL, ZIP_EVENT, app.state::<Files>().snapshot().zip);
+    let _ = app.emit_to(
+        crate::island::LABEL,
+        ZIP_EVENT,
+        app.state::<Files>().snapshot().zip,
+    );
 }
 
 #[tauri::command]

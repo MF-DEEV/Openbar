@@ -39,7 +39,8 @@ pub fn set_text(text: &str) -> Result<(), String> {
     {
         let mut wide: Vec<u16> = text.encode_utf16().collect();
         wide.push(0);
-        let bytes = unsafe { std::slice::from_raw_parts(wide.as_ptr().cast::<u8>(), wide.len() * 2) };
+        let bytes =
+            unsafe { std::slice::from_raw_parts(wide.as_ptr().cast::<u8>(), wide.len() * 2) };
         imp::put(&[(CF_UNICODETEXT, bytes)])
     }
     #[cfg(not(windows))]
@@ -53,7 +54,9 @@ pub fn set_image(rgba: &[u8], width: u32, height: u32, png: &[u8]) -> Result<(),
     #[cfg(windows)]
     {
         let dib = dib(rgba, width, height);
-        let png_format = unsafe { windows::Win32::System::DataExchange::RegisterClipboardFormatW(windows::core::w!("PNG")) };
+        let png_format = unsafe {
+            windows::Win32::System::DataExchange::RegisterClipboardFormatW(windows::core::w!("PNG"))
+        };
         imp::put(&[(CF_DIB, &dib), (png_format, png)])
     }
     #[cfg(not(windows))]
@@ -68,9 +71,13 @@ mod imp {
     use std::thread::sleep;
     use std::time::Duration;
     use windows::Win32::Foundation::{GlobalFree, HANDLE, HWND};
-    use windows::Win32::System::DataExchange::{CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData};
+    use windows::Win32::System::DataExchange::{
+        CloseClipboard, EmptyClipboard, OpenClipboard, SetClipboardData,
+    };
     use windows::Win32::System::Memory::{GMEM_MOVEABLE, GlobalAlloc, GlobalLock, GlobalUnlock};
-    use windows::Win32::UI::WindowsAndMessaging::{CreateWindowExW, DestroyWindow, HWND_MESSAGE, WINDOW_EX_STYLE, WINDOW_STYLE};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        CreateWindowExW, DestroyWindow, HWND_MESSAGE, WINDOW_EX_STYLE, WINDOW_STYLE,
+    };
     use windows::core::w;
 
     /// Replaces the clipboard with `formats`. A message-only window owns it:
@@ -114,7 +121,8 @@ mod imp {
         let result = (|| unsafe {
             EmptyClipboard().map_err(|e| e.to_string())?;
             for &(format, bytes) in formats {
-                let memory = GlobalAlloc(GMEM_MOVEABLE, bytes.len().max(1)).map_err(|e| e.to_string())?;
+                let memory =
+                    GlobalAlloc(GMEM_MOVEABLE, bytes.len().max(1)).map_err(|e| e.to_string())?;
                 let target = GlobalLock(memory).cast::<u8>();
                 if target.is_null() {
                     let _ = GlobalFree(Some(memory));
@@ -149,7 +157,11 @@ mod tests {
         assert_eq!(out.len(), 40 + 8);
         assert_eq!(u32::from_le_bytes(out[0..4].try_into().unwrap()), 40);
         assert_eq!(i32::from_le_bytes(out[8..12].try_into().unwrap()), 2);
-        assert_eq!(&out[40..44], &[255, 0, 0, 255], "the bottom row (blue) comes first, as BGRA");
+        assert_eq!(
+            &out[40..44],
+            &[255, 0, 0, 255],
+            "the bottom row (blue) comes first, as BGRA"
+        );
         assert_eq!(&out[44..48], &[0, 0, 255, 255]);
         let _ = CF_DIB;
     }

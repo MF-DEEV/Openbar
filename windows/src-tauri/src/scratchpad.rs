@@ -39,7 +39,12 @@ pub struct Document {
 
 /// Words joined by single spaces, at most 40 characters.
 pub fn sanitized_name(name: &str) -> String {
-    name.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(MAX_NAME).collect()
+    name.split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(MAX_NAME)
+        .collect()
 }
 
 impl Document {
@@ -52,12 +57,28 @@ impl Document {
                 continue;
             }
             let name = sanitized_name(&pad.name);
-            let name = if name.is_empty() { format!("Scratchpad {}", pads.len() + 1) } else { name };
-            let modified_at = if pad.text.is_empty() { None } else { pad.modified_at.filter(|t| t.is_finite()) };
-            pads.push(Pad { name, modified_at, ..pad });
+            let name = if name.is_empty() {
+                format!("Scratchpad {}", pads.len() + 1)
+            } else {
+                name
+            };
+            let modified_at = if pad.text.is_empty() {
+                None
+            } else {
+                pad.modified_at.filter(|t| t.is_finite())
+            };
+            pads.push(Pad {
+                name,
+                modified_at,
+                ..pad
+            });
         }
         let first = pads.first()?.id.clone();
-        let selected_id = if pads.iter().any(|p| p.id == self.selected_id) { self.selected_id } else { first };
+        let selected_id = if pads.iter().any(|p| p.id == self.selected_id) {
+            self.selected_id
+        } else {
+            first
+        };
         Some(Document { pads, selected_id })
     }
 }
@@ -70,18 +91,30 @@ pub struct Store {
 
 impl Store {
     pub fn new<R: Runtime>(app: &AppHandle<R>) -> Self {
-        let path = app.path().app_config_dir().ok().map(|d| d.join("scratchpad").join("Scratchpad.json"));
-        Store { path, blocked: Mutex::new(false) }
+        let path = app
+            .path()
+            .app_config_dir()
+            .ok()
+            .map(|d| d.join("scratchpad").join("Scratchpad.json"));
+        Store {
+            path,
+            blocked: Mutex::new(false),
+        }
     }
 
     #[cfg(test)]
     fn at(path: PathBuf) -> Self {
-        Store { path: Some(path), blocked: Mutex::new(false) }
+        Store {
+            path: Some(path),
+            blocked: Mutex::new(false),
+        }
     }
 
     /// Ok(None) for no file yet; Err for one that can't be read.
     pub fn load(&self) -> Result<Option<Document>, String> {
-        let Some(path) = &self.path else { return Ok(None) };
+        let Some(path) = &self.path else {
+            return Ok(None);
+        };
         let result = read(path);
         *self.blocked.lock().unwrap() = result.is_err();
         result
@@ -91,7 +124,9 @@ impl Store {
         if *self.blocked.lock().unwrap() {
             return Err("the scratchpad file couldn't be read, so it isn't overwritten".into());
         }
-        let Some(path) = &self.path else { return Ok(()) };
+        let Some(path) = &self.path else {
+            return Ok(());
+        };
         write(path, document).map_err(|e| e.to_string())
     }
 }
@@ -103,7 +138,8 @@ fn read(path: &Path) -> Result<Option<Document>, String> {
         Err(e) => return Err(e.to_string()),
     };
     let text = std::str::from_utf8(&bytes).map_err(|e| e.to_string())?;
-    let document: Document = serde_json::from_str(text.trim_start_matches('\u{feff}')).map_err(|e| e.to_string())?;
+    let document: Document =
+        serde_json::from_str(text.trim_start_matches('\u{feff}')).map_err(|e| e.to_string())?;
     Ok(document.sanitized())
 }
 
@@ -130,10 +166,18 @@ pub fn scratchpad_save(store: tauri::State<'_, Store>, document: Document) -> Re
 /// "Save as file": a save dialog over the island, then the text as UTF-8.
 /// Ok(None) when the person cancels.
 #[tauri::command]
-pub async fn scratchpad_export<R: Runtime>(app: AppHandle<R>, name: String, text: String) -> Result<Option<String>, String> {
-    let owner = app.get_webview_window(crate::island::LABEL).and_then(|w| platform::handle(&w));
+pub async fn scratchpad_export<R: Runtime>(
+    app: AppHandle<R>,
+    name: String,
+    text: String,
+) -> Result<Option<String>, String> {
+    let owner = app
+        .get_webview_window(crate::island::LABEL)
+        .and_then(|w| platform::handle(&w));
     tauri::async_runtime::spawn_blocking(move || {
-        let Some(path) = platform::save_dialog(owner, &name) else { return Ok(None) };
+        let Some(path) = platform::save_dialog(owner, &name) else {
+            return Ok(None);
+        };
         fs::write(&path, text.as_bytes()).map_err(|e| e.to_string())?;
         Ok(Some(path.to_string_lossy().into_owned()))
     })
@@ -147,7 +191,8 @@ mod platform {
     use tauri::{Runtime, WebviewWindow};
     use windows::Win32::Foundation::HWND;
     use windows::Win32::UI::Controls::Dialogs::{
-        GetSaveFileNameW, OFN_EXPLORER, OFN_NOCHANGEDIR, OFN_OVERWRITEPROMPT, OFN_PATHMUSTEXIST, OPENFILENAMEW,
+        GetSaveFileNameW, OFN_EXPLORER, OFN_NOCHANGEDIR, OFN_OVERWRITEPROMPT, OFN_PATHMUSTEXIST,
+        OPENFILENAMEW,
     };
     use windows::core::{PCWSTR, PWSTR, w};
 
@@ -199,11 +244,18 @@ mod tests {
     use super::*;
 
     fn pad(id: &str, name: &str, text: &str) -> Pad {
-        Pad { id: id.into(), name: name.into(), text: text.into(), modified_at: Some(1_700_000_000_000.0) }
+        Pad {
+            id: id.into(),
+            name: name.into(),
+            text: text.into(),
+            modified_at: Some(1_700_000_000_000.0),
+        }
     }
 
     fn temp(name: &str) -> PathBuf {
-        std::env::temp_dir().join(format!("vors-scratchpad-{}-{name}", std::process::id())).join("Scratchpad.json")
+        std::env::temp_dir()
+            .join(format!("vors-scratchpad-{}-{name}", std::process::id()))
+            .join("Scratchpad.json")
     }
 
     #[test]
@@ -212,15 +264,24 @@ mod tests {
         let store = Store::at(path.clone());
         assert_eq!(store.load(), Ok(None), "no file yet");
         let document = Document {
-            pads: vec![pad("a", "Scratchpad 1", "- [ ] milk\nñ ✓"), pad("b", "Ideas", "")],
+            pads: vec![
+                pad("a", "Scratchpad 1", "- [ ] milk\nñ ✓"),
+                pad("b", "Ideas", ""),
+            ],
             selected_id: "b".into(),
         };
         store.save(&document).unwrap();
         let back = store.load().unwrap().unwrap();
         assert_eq!(back.pads[0], document.pads[0]);
-        assert_eq!(back.pads[1].modified_at, None, "an empty pad has no edit date");
+        assert_eq!(
+            back.pads[1].modified_at, None,
+            "an empty pad has no edit date"
+        );
         assert_eq!(back.selected_id, "b");
-        assert!(!path.with_extension("json.tmp").exists(), "the temporary file is renamed away");
+        assert!(
+            !path.with_extension("json.tmp").exists(),
+            "the temporary file is renamed away"
+        );
         fs::remove_dir_all(path.parent().unwrap()).unwrap();
     }
 
@@ -231,23 +292,44 @@ mod tests {
         fs::write(&path, "{ not json").unwrap();
         let store = Store::at(path.clone());
         assert!(store.load().is_err());
-        assert!(store.save(&Document { pads: vec![pad("a", "A", "x")], selected_id: "a".into() }).is_err());
+        assert!(
+            store
+                .save(&Document {
+                    pads: vec![pad("a", "A", "x")],
+                    selected_id: "a".into()
+                })
+                .is_err()
+        );
         assert_eq!(fs::read_to_string(&path).unwrap(), "{ not json");
         fs::remove_dir_all(path.parent().unwrap()).unwrap();
     }
 
     #[test]
     fn loading_sanitizes_ids_names_count_and_selection() {
-        let mut pads: Vec<Pad> = (0..14).map(|i| pad(&format!("p{i}"), "  many   spaces  ", "")).collect();
+        let mut pads: Vec<Pad> = (0..14)
+            .map(|i| pad(&format!("p{i}"), "  many   spaces  ", ""))
+            .collect();
         pads.insert(1, pad("p0", "duplicate", "x"));
         pads[2].name = "n".repeat(60);
-        let document = Document { pads, selected_id: "gone".into() }.sanitized().unwrap();
+        let document = Document {
+            pads,
+            selected_id: "gone".into(),
+        }
+        .sanitized()
+        .unwrap();
         assert_eq!(document.pads.len(), MAX_PADS);
         assert_eq!(document.pads[0].name, "many spaces");
         assert_eq!(document.pads[1].id, "p1", "the duplicate id dropped");
         assert_eq!(document.pads[1].name.chars().count(), MAX_NAME);
         assert_eq!(document.selected_id, "p0");
-        assert_eq!(Document { pads: vec![], selected_id: String::new() }.sanitized(), None);
+        assert_eq!(
+            Document {
+                pads: vec![],
+                selected_id: String::new()
+            }
+            .sanitized(),
+            None
+        );
     }
 
     #[test]

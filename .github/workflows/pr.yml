@@ -1,0 +1,215 @@
+name: PR checks
+
+# The checks a pull request has to pass, kept under a quarter of an hour.
+# Each part runs only when the pull request touches it, and `CI ok` is the one
+# check for the main ruleset to require: it fails when any job failed or was
+# cancelled and passes when the rest succeeded or had nothing to check.
+# Pushes to main run everything, which also keeps a Rust cache that new pull
+# requests can start from.
+# This is the fork's only workflow: the release build and selftest are run by
+# hand (./build.sh && ./build/Vorssaint --selftest).
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  # Pinned so a new Rust release cannot bring new clippy lints into an
+  # unrelated pull request. Raise it on purpose, with the lints it brings.
+  RUST_TOOLCHAIN: "1.99.1"
+
+jobs:
+  changes:
+    name: Changed parts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      mac: ${{ github.event_name != 'pull_request' || steps.filter.outputs.mac == 'true' }}
+      windows: ${{ github.event_name != 'pull_request' || steps.filter.outputs.windows == 'true' }}
+      workflows: ${{ github.event_name != 'pull_request' || steps.filter.outputs.workflows == 'true' }}
+    steps:
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
+        if: github.event_name == 'pull_request'
+        id: filter
+        with:
+          filters: |
+            mac:
+              - 'Sources/**'
+              - 'Tests/**'
+              - 'Resources/**'
+              - 'Tools/**'
+              - 'build.sh'
+              - 'Package.swift'
+              - 'CHANGELOG.md'
+              - '.github/workflows/pr.yml'
+            windows:
+              - 'windows/**'
+              - 'Resources/agent-prices.json'
+              - 'Resources/Images/**'
+              - '.github/workflows/pr.yml'
+            workflows:
+              - '.github/**'
+
+  lint-workflows:
+    name: Workflow lint
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: actionlint
+        run: |
+          bash <(curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/914e7df21a07ef503a81201c76d2b11c789d3fca/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color
+
+  windows-web:
+    name: Windows UI (typecheck, format, vitest)
+    needs: changes
+    if: needs.changes.outputs.windows == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: windows
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Format
+        run: bun run format:check
+
+      - name: Tests
+        run: bun run test
+
+      - name: Build
+        run: bun run build
+
+  windows-clippy:
+    name: Windows Rust (fmt, clippy)
+    needs: changes
+    if: needs.changes.outputs.windows == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: windows
+        # bash fails a step on any command, not just the last one as pwsh does.
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal -c clippy,rustfmt
+          rustup default "$RUST_TOOLCHAIN"
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: windows/src-tauri
+
+      - name: rustfmt
+        working-directory: windows/src-tauri
+        run: cargo fmt --check
+
+      # Tauri's generate_context! reads the built frontend at compile time.
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Build frontend
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: clippy
+        working-directory: windows/src-tauri
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+  windows-test:
+    name: Windows Rust tests
+    needs: changes
+    if: needs.changes.outputs.windows == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: windows
+        # bash fails a step on any command, not just the last one as pwsh does.
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Rust toolchain
+        run: |
+          rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal
+          rustup default "$RUST_TOOLCHAIN"
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: windows/src-tauri
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+      - name: Build frontend
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - name: cargo test
+        working-directory: windows/src-tauri
+        run: cargo test --locked
+
+  mac-tests:
+    name: Mac unit tests
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
+    runs-on: macos-15
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
+      - name: Unit tests
+        run: ./build.sh --test
+
+  ci-ok:
+    name: CI ok
+    needs: [changes, lint-workflows, windows-web, windows-clippy, windows-test, mac-tests]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every job passed or had nothing to check
+        env:
+          RESULTS: ${{ toJSON(needs.*.result) }}
+        run: |
+          echo "$RESULTS"
+          if grep -Eq '"(failure|cancelled)"' <<<"$RESULTS"; then
+            echo "A required job failed or was cancelled" >&2
+            exit 1
+          fi

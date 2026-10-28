@@ -195,7 +195,11 @@ impl CodexClient {
             if policy.previews {
                 let ids: Vec<_> = shared.state.threads.keys().cloned().collect();
                 for id in ids {
-                    shared.call("thread/read", json!({"threadId": id, "includeTurns": true}), Waiting::Read);
+                    shared.call(
+                        "thread/read",
+                        json!({"threadId": id, "includeTurns": true}),
+                        Waiting::Read,
+                    );
                 }
             } else {
                 for thread in shared.state.threads.values_mut() {
@@ -284,9 +288,18 @@ impl Shared {
         };
         let active = thread.status.as_ref().is_some_and(|st| st.is_active());
         let mut input = Vec::new();
-        if !text.trim().is_empty() { input.push(json!({"type": "text", "text": text, "text_elements": []})); }
-        input.extend(images.iter().take(5).map(|path| json!({"type": "localImage", "path": path})));
-        if input.is_empty() { return false; }
+        if !text.trim().is_empty() {
+            input.push(json!({"type": "text", "text": text, "text_elements": []}));
+        }
+        input.extend(
+            images
+                .iter()
+                .take(5)
+                .map(|path| json!({"type": "localImage", "path": path})),
+        );
+        if input.is_empty() {
+            return false;
+        }
         if active {
             let id = uuid_v7();
             self.call(
@@ -570,18 +583,32 @@ mod tests {
     #[test]
     fn enabling_previews_loads_history_and_disabling_discards_it() {
         let (mut shared, rx) = joined();
-        shared.state.upsert_thread(&json!({"id": "t1", "cwd": "C:\\code", "status": {"type": "idle"}}));
-        let client = CodexClient { shared: Arc::new(Mutex::new(shared)) };
+        shared
+            .state
+            .upsert_thread(&json!({"id": "t1", "cwd": "C:\\code", "status": {"type": "idle"}}));
+        let client = CodexClient {
+            shared: Arc::new(Mutex::new(shared)),
+        };
         client.snapshot(1.0, ContentPolicy { previews: true });
         let reads = sent(&rx);
         assert_eq!(reads.len(), 1);
         assert_eq!(reads[0]["method"], "thread/read");
         assert_eq!(reads[0]["params"]["includeTurns"], true);
-        client.shared.lock().unwrap().state.upsert_thread(&json!({"id": "t1", "turns": [{"items": [
-            {"type": "agentMessage", "id": "a", "text": "Answer"}
-        ]}]}));
-        assert_eq!(client.snapshot(2.0, ContentPolicy { previews: true }).0[0].chat.len(), 1);
-        assert!(sent(&rx).is_empty(), "unchanged preference does not reload history");
+        client.shared.lock().unwrap().state.upsert_thread(
+            &json!({"id": "t1", "turns": [{"items": [
+                {"type": "agentMessage", "id": "a", "text": "Answer"}
+            ]}]}),
+        );
+        assert_eq!(
+            client.snapshot(2.0, ContentPolicy { previews: true }).0[0]
+                .chat
+                .len(),
+            1
+        );
+        assert!(
+            sent(&rx).is_empty(),
+            "unchanged preference does not reload history"
+        );
         client.snapshot(3.0, ContentPolicy { previews: false });
         let shared = client.shared.lock().unwrap();
         assert!(!shared.state.previews);
@@ -788,20 +815,31 @@ mod tests {
     #[test]
     fn replies_deliver_images_to_codex_for_idle_and_running_threads() {
         let (mut s, rx) = joined();
-        read_thread(&mut s, &rx, json!({"id": "t1", "cwd": "C:\\code", "status": {"type": "idle"}}));
+        read_thread(
+            &mut s,
+            &rx,
+            json!({"id": "t1", "cwd": "C:\\code", "status": {"type": "idle"}}),
+        );
         let paths = vec!["C:\\Temp\\photo.png".to_string()];
         assert!(s.reply("t1", "", &paths));
         let messages = sent(&rx);
         assert_eq!(messages[0]["method"], "turn/start");
-        assert_eq!(messages[0]["params"]["input"], json!([{"type": "localImage", "path": paths[0]}]));
-        s.state.upsert_thread(&json!({"id": "t1", "status": {"type": "active", "activeFlags": []}}));
+        assert_eq!(
+            messages[0]["params"]["input"],
+            json!([{"type": "localImage", "path": paths[0]}])
+        );
+        s.state
+            .upsert_thread(&json!({"id": "t1", "status": {"type": "active", "activeFlags": []}}));
         assert!(s.reply("t1", "Look at this", &paths));
         let messages = sent(&rx);
         assert_eq!(messages[0]["method"], "thread/queue/add");
-        assert_eq!(messages[0]["params"]["input"], json!([
-            {"type": "text", "text": "Look at this", "text_elements": []},
-            {"type": "localImage", "path": paths[0]}
-        ]));
+        assert_eq!(
+            messages[0]["params"]["input"],
+            json!([
+                {"type": "text", "text": "Look at this", "text_elements": []},
+                {"type": "localImage", "path": paths[0]}
+            ])
+        );
         assert!(!s.reply("t1", "", &[]));
     }
 

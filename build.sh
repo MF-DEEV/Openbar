@@ -98,7 +98,7 @@ legacy_identity_installed() {
 # actually relies on. When no identity is installed, create the stable local one
 # up front instead of falling through to ad-hoc — setup-signing.sh is free,
 # offline and idempotent. Gating on the install rather than the variant keeps
-# this off CI, where neither ci.yml nor release.yml passes --install.
+# this off CI, which never passes --install.
 if (( DEV || INSTALL )) && [[ -z "$(developer_id_identity)" ]] \
     && ! legacy_identity_installed; then
     echo "▸ No signing identity installed; creating the stable local one…"
@@ -701,8 +701,11 @@ mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
 cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
-# The Antigravity extension the Sessions page types replies through.
+# The Antigravity extension the Sessions page types replies through. A copy
+# also sits next to the bare binary, where `build/Vorssaint --selftest` looks.
 ditto Tools/AntigravityBridge "$STAGE/Contents/Resources/AntigravityBridge"
+rm -rf build/AntigravityBridge
+ditto Tools/AntigravityBridge build/AntigravityBridge
 cp Resources/com.vorssaint.utils.fan-control.plist \
     "$STAGE/Contents/Library/LaunchDaemons/$FAN_HELPER_ID.plist"
 cp Resources/Info.plist "$STAGE/Contents/Info.plist"
