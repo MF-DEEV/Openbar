@@ -64,9 +64,6 @@ export function SubagentAvatar({ session, agent }: { session: Session; agent: Su
   );
 }
 
-/** The symbol a session notice shows with buddies off. */
-export const NOTICE_SYMBOL = 14;
-
 const NOTICE_MOTION = { needsPermission: "permission", needsInput: "input", finished: "finished" } as const;
 const NOTICE_PHASE = {
   needsPermission: "waitingPermission",
@@ -94,8 +91,13 @@ export function SessionNoticeMark(props: {
   if (!buddies) {
     const phase = NOTICE_PHASE[event];
     const Icon = phaseIcon(phase, provider);
-    // Both waits wear the amber of the badge; a finished turn its green.
-    return <Icon size={NOTICE_SYMBOL} strokeWidth={2.5} style={{ color: phaseTint(phase), flex: "none" }} />;
+    // Both waits wear the amber of the badge; a finished turn its green. The
+    // slot keeps the Clawd's width, as the Mac's markWidth does.
+    return (
+      <span style={{ display: "inline-flex", justifyContent: "center", width: CLAWD_SIZES.notice.width, flex: "none" }}>
+        <Icon size={14} strokeWidth={2.5} style={{ color: phaseTint(phase) }} />
+      </span>
+    );
   }
   return (
     <Clawd

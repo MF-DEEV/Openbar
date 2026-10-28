@@ -13,9 +13,8 @@ import { type Notice, useIsland } from "../store";
 import { IconButton } from "./Controls";
 import { DrawnSize } from "../surface/DrawnSize";
 import { AudioIcons } from "../../microphone/Microphone";
-import { NOTICE_SYMBOL, SessionNoticeMark } from "../../sessions/SessionAvatar";
+import { SessionNoticeMark } from "../../sessions/SessionAvatar";
 import { CLAWD_SIZES } from "../../sessions/clawd/sprite";
-import { useSessions } from "../../sessions/store";
 
 export function Resting(props: { size: Size }) {
   const size = useContext(DrawnSize) ?? props.size;
@@ -119,7 +118,7 @@ export function noticeWidth(notice: Notice, geometry: Geometry): number {
     ctx.measureText(notice.title).width +
     (notice.image ? metrics.imageSize + 8 : 0) +
     (notice.icon ? 14 + 8 : 0) +
-    (notice.session ? (useSessions.getState().prefs.buddies ? CLAWD_SIZES.notice.width : NOTICE_SYMBOL) + 8 : 0) +
+    (notice.session ? CLAWD_SIZES.notice.width + 8 : 0) +
     (notice.audio ? (notice.audio.deafened ? 47 : 24) : 0);
   ctx.font = `500 ${Math.max(9, metrics.fontSize - 1)}px 'Inter Variable', Inter, sans-serif`;
   const detail = notice.detail ? ctx.measureText(notice.detail).width : 0;

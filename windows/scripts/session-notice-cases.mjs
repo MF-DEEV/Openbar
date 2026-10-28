@@ -38,16 +38,32 @@ export async function checkSessionNotice({ send, evaluate, base }) {
       clipped:title?title.scrollWidth>title.clientWidth:null,frame:r(document.querySelector('.island-frame'))};
   })()`);
   assert.equal(notice.kind, "sessions");
-  assert(notice.session?.id, "The notice must carry its session");
+  const about = await evaluate(`(()=>{const id=island.getState().notice.session.id;
+    const s=sessions.getState().snapshot.sessions.find(x=>x.id===id);
+    return {id,provider:s.provider,event:s.phase==='waitingInput'?'needsInput':'needsPermission'}})()`);
+  assert.deepEqual(notice.session, about, "The notice must carry its session and what happened");
   assert(notice.canvas, "The notice must show the session's Clawd");
   assert(notice.canvas.right <= notice.title.left, "The Clawd stands before the title");
-  assert.equal(notice.clipped, false, "The Clawd's slot must be measured into the notice's width");
   const screenshot = await send("Page.captureScreenshot", {
     format: "png",
     clip: { x: notice.frame.left - 20, y: 0, width: notice.frame.width + 40, height: 60, scale: 3 },
   });
   await mkdir(resolve("../build"), { recursive: true });
   await writeFile(resolve("../build/session-notice.png"), Buffer.from(screenshot.data, "base64"));
+
+  // The Clawd's slot is measured in: with a short detail the title side sets
+  // the width, and the title must still end before the camera.
+  const fit = await evaluate(`(async()=>{
+    const n=island.getState().notice;
+    island.getState().showNotice({...n,id:'fit',title:'a-rather-long-project-name',detail:'Done'});
+    for(let i=0;i<8;i++)await new Promise(requestAnimationFrame);
+    const view=document.querySelector('.n-notice');
+    const title=view.querySelector('.n-notice-title > span:last-child').getBoundingClientRect();
+    const frame=document.querySelector('.island-frame').getBoundingClientRect();
+    const gap=parseFloat(getComputedStyle(view).columnGap)||0;
+    return {right:title.right,limit:frame.left+frame.width/2-gap/2,clipped:view.querySelector('.n-notice-title > span:last-child').scrollWidth>title.width+0.5};
+  })()`);
+  assert(fit.right <= fit.limit + 0.5 && !fit.clipped, `The title must end before the camera: ${JSON.stringify(fit)}`);
 
   // The strip's own tap opens the first waiting session; the notice's opens its own.
   const first = await evaluate(

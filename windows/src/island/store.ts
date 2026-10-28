@@ -47,7 +47,7 @@ export interface Notice {
   tint?: string;
   /** The session a sessions notice is about: its Clawd stands in the symbol slot (NotchNotice.sessionID). */
   session?: { id: string; provider: Provider; event: SessionEvent["kind"] };
-  /** Runs after a tap opens `opens`: a session notice focuses its session. */
+  /** Runs once a tap has opened `opens`: a session notice focuses its session. */
   onOpen?: () => void;
 }
 
@@ -254,7 +254,8 @@ export const useIsland = create<IslandState>()((set, get) => ({
       const { opens, onOpen } = s.notice;
       s.dismissNotice();
       get().open(opens);
-      onOpen?.();
+      // Only once its section is really shown: a hidden one opens another.
+      if (get().expanded && get().selected === opens) onOpen?.();
       return;
     }
     const choices = compactActivities(s);

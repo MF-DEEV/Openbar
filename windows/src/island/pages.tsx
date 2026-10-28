@@ -23,7 +23,7 @@ import "../notifications/notifications.css";
 import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
 import { DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
 import { bridge, type AttentionContext } from "../shared/bridge";
-import { DeferredSessionAttention } from "../sessions/attention";
+import { DeferredSessionAttention, noticeLeavesWhenBusy } from "../sessions/attention";
 import { subscribeAutoAllow } from "../sessions/autoAllow";
 import { hidesAutoApproval, presentedSnapshot } from "../sessions/presentation";
 import { MicrophoneStrip, subscribeMicrophone } from "../microphone/Microphone";
@@ -169,7 +169,12 @@ function applyAttention(context: AttentionContext) {
   useIsland.setState({ autoPresentAllowed: context.canAutoPresent, attentionFullscreen: context.fullscreen });
   if (context.busy) {
     if (island.expanded && island.selected === "sessions") island.collapse();
-    if (island.notice?.kind === "sessions") island.dismissNotice();
+    const notice = island.notice;
+    if (
+      notice?.kind === "sessions" &&
+      noticeLeavesWhenBusy(notice.session?.id, useSessions.getState().snapshot.sessions)
+    )
+      island.dismissNotice();
   }
   // Re-read current pending requests on both transitions. Relying only on
   // queued events misses prompts that existed before the listener started.
