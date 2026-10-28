@@ -661,29 +661,30 @@ struct NotchClaudeAutoAllowBar: View {
         // A card that asks still shows its own controls; the bar stays above it.
         if session.provider == .codex, service.autoAllowed.contains(session.id),
            !session.phase.isWaiting || session.permission == nil || session.permission?.asksQuestions == true {
-            HStack(spacing: 10) {
-                HStack(spacing: 6) {
-                    Image(systemName: "checkmark.seal.fill").font(.system(size: 12, weight: .semibold))
-                    Text(text.alwaysOn).font(.system(size: 12.5, weight: .semibold)).lineLimit(1)
+            // A slim strip across the page, as tall as the Windows one.
+            HStack(spacing: 8) {
+                HStack(spacing: 5) {
+                    Image(systemName: "checkmark.seal.fill").font(.system(size: 10, weight: .semibold))
+                    Text(text.alwaysOn).font(.system(size: 10.5, weight: .semibold)).lineLimit(1)
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 0)
                 Button { service.setAutoAllow(session.id, false) } label: {
                     Text(text.cancelAlways)
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .padding(.horizontal, 14)
-                        .frame(height: 26)
+                        .font(.system(size: 10.5, weight: .semibold))
+                        .padding(.horizontal, 10)
+                        .frame(height: 22)
                         .background(.black.opacity(0.12), in: Capsule())
                         .contentShape(Capsule())
                 }
-                .buttonStyle(NotchButtonStyle(cornerRadius: 13))
+                .buttonStyle(NotchButtonStyle(cornerRadius: 11))
                 .help(text.cancelAlwaysHelp)
             }
             .foregroundStyle(Color(red: 0.04, green: 0.14, blue: 0.07))
-            .padding(.leading, 12)
-            .padding(.trailing, 7)
-            .frame(minHeight: 40)
-            .background(NotchClaudeDecisionButton.allowColor, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .padding(.leading, 9)
+            .padding(.trailing, 3)
+            .frame(maxWidth: .infinity, minHeight: 28)
+            .background(NotchClaudeDecisionButton.allowColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))
         }
     }
