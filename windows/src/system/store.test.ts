@@ -142,13 +142,16 @@ describe("the speed test", () => {
   it("keeps a state that came while the stored one was fetched", async () => {
     let answer: ((state: SpeedTestState) => void) | undefined;
     watched.speedStored = () => new Promise((resolve) => (answer = resolve));
-    const subscribing = subscribeSystem();
-    await vi.waitFor(() => expect(answer).toBeDefined());
-    const done = { ...idleSpeedTest, phase: "done" as const, downloadMbps: 300, uploadMbps: 40 };
-    watched.speedHandler!(done);
-    answer!({ ...idleSpeedTest, phase: "upload" });
-    await subscribing;
-    expect(useSystem.getState().speedTest).toEqual(done);
-    watched.speedStored = async () => undefined;
+    try {
+      const subscribing = subscribeSystem();
+      await vi.waitFor(() => expect(answer).toBeDefined());
+      const done = { ...idleSpeedTest, phase: "done" as const, downloadMbps: 300, uploadMbps: 40 };
+      watched.speedHandler!(done);
+      answer!({ ...idleSpeedTest, phase: "upload" });
+      await subscribing;
+      expect(useSystem.getState().speedTest).toEqual(done);
+    } finally {
+      watched.speedStored = async () => undefined;
+    }
   });
 });
