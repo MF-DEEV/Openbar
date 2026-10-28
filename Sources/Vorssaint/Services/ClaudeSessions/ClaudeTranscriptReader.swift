@@ -133,13 +133,17 @@ struct ClaudeTranscriptReader {
                 // A slash command typed in the terminal, like /recap or /cost,
                 // asks the model nothing by itself; one that does, like a
                 // skill, begins its turn with the reply or the registry.
-            } else if !texts.isEmpty {
+            } else if !texts.isEmpty || blocks.contains(where: { $0["type"] as? String == "image" }) {
+                // A pasted screenshot alone is a prompt too.
                 facts.append(.turnBegan(date))
                 // Task notifications and the summary a compaction leaves
                 // arrive as user lines but were never typed.
                 if policy.previews, (json["origin"] as? [String: Any])?["kind"] as? String != "task-notification",
-                   json["isCompactSummary"] as? Bool != true, let prompt = typed(texts) {
-                    facts.append(.prompt(prompt, at: date))
+                   json["isCompactSummary"] as? Bool != true {
+                    let images = ClaudeChatImage.claude(blocks)
+                    if let prompt = typed(texts) ?? (images.isEmpty ? nil : "") {
+                        facts.append(.prompt(prompt, at: date, images: images))
+                    }
                 }
             }
         case "attachment":
@@ -148,9 +152,11 @@ struct ClaudeTranscriptReader {
                   let attachment = json["attachment"] as? [String: Any],
                   attachment["type"] as? String == "queued_command" else { break }
             let prompt = attachment["prompt"]
+            let blocks = prompt as? [[String: Any]] ?? []
             let texts = (prompt as? String).map { [$0] }
-                ?? (prompt as? [[String: Any]] ?? []).compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
-            if let text = typed(texts) { facts.append(.prompt(text, at: date)) }
+                ?? blocks.compactMap { $0["type"] as? String == "text" ? $0["text"] as? String : nil }
+            let images = ClaudeChatImage.claude(blocks)
+            if let text = typed(texts) ?? (images.isEmpty ? nil : "") { facts.append(.prompt(text, at: date, images: images)) }
         case "ai-title":
             if policy.previews, let title = preview(json["aiTitle"] as? String) { facts.append(.title(title)) }
         default: break

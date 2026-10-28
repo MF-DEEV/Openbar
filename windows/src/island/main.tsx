@@ -8,6 +8,7 @@ import { inTauri } from "../shared/bridge";
 import { ClawdPreview } from "../sessions/clawd/ClawdPreview";
 import "./island.css";
 import "../shared/controls.css";
+import "../shared/ui/ui.css";
 
 const dev = inTauri ? null : new URLSearchParams(location.search);
 
@@ -22,6 +23,62 @@ if (!inTauri && new URLSearchParams(location.search).has("music")) {
   void Promise.all([import("../music/demo"), import("../music/store")]).then(([demo, store]) => {
     store.useMusic.getState().receive(demo.demoNowPlaying());
   });
+}
+
+// ?timer=running|paused|done|pomodoro|stopwatch starts a sample session.
+if (!inTauri && new URLSearchParams(location.search).has("timer")) {
+  void import("../timer/demo").then((demo) => demo.startDemo(new URLSearchParams(location.search).get("timer") ?? ""));
+}
+
+// ?system streams sample readings into the System section, one every 2 s.
+if (!inTauri && new URLSearchParams(location.search).has("system")) {
+  void Promise.all([import("../system/demo"), import("../system/store")]).then(([demo, store]) => {
+    let seq = 0;
+    for (; seq < 60; seq++) store.useSystem.getState().receive(demo.demoSnapshot(seq + 1));
+    setInterval(() => store.useSystem.getState().receive(demo.demoSnapshot(++seq)), 2000);
+  });
+}
+
+if (!inTauri && new URLSearchParams(location.search).has("calendar")) {
+  const access = new URLSearchParams(location.search).get("calendar") || "allowed";
+  void Promise.all([import("../calendar/demo"), import("../calendar/store"), import("../shared/prefs")]).then(
+    ([demo, store, prefs]) => {
+      store.receive(demo.demoCalendar(access as "allowed"));
+      void prefs.setPrefs({ island: { calendarCountdown: true } });
+    },
+  );
+}
+
+// ?controls fills Controls and the Mixer with sample audio.
+if (!inTauri && new URLSearchParams(location.search).has("controls")) {
+  void import("../controls/demo").then((demo) => demo.fillDemo());
+}
+
+if (!inTauri && new URLSearchParams(location.search).has("tools")) {
+  void import("../tools/demo").then((demo) => demo.startToolsDemo(new URLSearchParams(location.search).get("tools")));
+}
+
+if (!inTauri && new URLSearchParams(location.search).has("clipboard")) {
+  void Promise.all([import("../clipboard/demo"), import("../clipboard/store")]).then(([demo, store]) => {
+    store.useClipboard.getState().receive(demo.demoHistory());
+  });
+}
+
+if (!inTauri && new URLSearchParams(location.search).has("files")) {
+  void Promise.all([import("../files/demo"), import("../files/store")]).then(([demo, store]) => {
+    store.useFiles.getState().receive(demo.demoShelf());
+  });
+}
+
+if (!inTauri && new URLSearchParams(location.search).has("agents")) {
+  void Promise.all([import("../agents/demo"), import("../agents/store")]).then(([demo, store]) => {
+    store.useAgents.getState().receive(demo.demoSnapshot());
+  });
+}
+
+// ?watch=image|reading|hidden|denied|done|setup shows a sample watched area.
+if (!inTauri && new URLSearchParams(location.search).has("watch")) {
+  void import("../watch/demo").then((demo) => demo.startWatchDemo(new URLSearchParams(location.search).get("watch")));
 }
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

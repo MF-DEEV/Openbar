@@ -1394,6 +1394,9 @@ enum FeatureCatalogTests {
                "radial menu accessibility follows the saved profiles, not the pre-profile wheel")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterEnabled]).contains(.scrollInverter),
                "an enabled feature counts as using its permission")
+        suite.expect(activeSet(.accessibility, on: [DefaultsKey.notchEnabled, DefaultsKey.notchVoiceChat]).contains(.notch)
+                && !activeSet(.accessibility, on: [DefaultsKey.notchEnabled]).contains(.notch),
+               "the island's microphone status counts as using accessibility, which reads Discord")
         suite.expect(activeSet(.accessibility, on: [DefaultsKey.scrollInverterHorizontalEnabled])
                 .contains(.scrollInverter),
                "horizontal-only inversion counts as using accessibility")
@@ -1504,6 +1507,12 @@ enum FeatureCatalogTests {
                "WhatsApp Downloads folder access stays unused until that cleaner is turned on")
         suite.expect(activeSet(.filesAndFolders, on: [DefaultsKey.whatsAppDownloadsEnabled]) == [.cleaner],
                "the cleaner owns WhatsApp Downloads folder access")
+        suite.expect(activeSet(.filesAndFolders, on: [DefaultsKey.notchEnabled, DefaultsKey.notchDownloadsEnabled])
+                     == [.notchDownloads],
+               "island Downloads reads the Downloads folder without a chosen folder")
+        suite.expect(activeSet(.filesAndFolders, on: [DefaultsKey.notchEnabled, DefaultsKey.notchDownloadsEnabled],
+                               strings: [DefaultsKey.notchHiddenModules: "downloads"]) == [],
+               "hidden island Downloads reads no folder")
 
         suite.expect(activeSet(.fullDiskAccess) == [.cleaner, .uninstaller],
                "cleaner and uninstaller are on-demand full disk users")

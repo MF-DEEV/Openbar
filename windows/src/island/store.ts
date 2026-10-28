@@ -5,6 +5,7 @@
 // store holds what the island presents; `presentation` turns that into the
 // one thing drawn and its size, and the surface animates between them.
 
+import type { LucideIcon } from "lucide-react";
 import { create } from "zustand";
 import {
   activitySize,
@@ -40,6 +41,9 @@ export interface Notice {
   /** Downloads: 0..1 for known totals; null for an unknown size. */
   progress?: number | null;
   audio?: { muted: boolean; deafened: boolean; level: number };
+  /** A glyph in the symbol slot, and a colour for it and the title (the timer's orange). */
+  icon?: LucideIcon;
+  tint?: string;
 }
 
 /** Live activities in the Mac's priority order (NotchSupport.swift:1791-1799). */
@@ -98,6 +102,12 @@ export interface IslandState {
   /** Pages with a height of their own (music, timer, controls) report it here. */
   pageContent: Partial<Record<ModuleId, number>>;
   setPageContent(module: ModuleId, height: number | null): void;
+  /** A drag is over the closed island: it shows where to drop (notchDragReveal). */
+  dropHint: boolean;
+  setDropHint(on: boolean): void;
+  /** A dialog of the island's is up: a click outside must not close it (keepFileInteractionOpen). */
+  held: boolean;
+  setHeld(held: boolean): void;
 
   setScreen(screen: Size, devicePixelRatio: number): void;
   open(module?: ModuleId, opts?: { takeFocus?: boolean; sections?: boolean; byHover?: boolean }): void;
@@ -160,6 +170,8 @@ export const useIsland = create<IslandState>()((set, get) => ({
   activityPickerOpen: false,
   focusRequest: 0,
   pageContent: {},
+  dropHint: false,
+  held: false,
 
   setPageContent: (module, height) =>
     set((s) => {
@@ -171,6 +183,9 @@ export const useIsland = create<IslandState>()((set, get) => ({
     }),
 
   setScreen: (screen, devicePixelRatio) => set({ screen, devicePixelRatio }),
+
+  setDropHint: (dropHint) => set({ dropHint }),
+  setHeld: (held) => set({ held }),
 
   open(module, opts = {}) {
     const s = get();
@@ -194,6 +209,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
       openedByHover: s.expanded ? s.openedByHover : (opts.byHover ?? false),
       clickedSinceOpening: s.expanded ? s.clickedSinceOpening : false,
       hoverEmphasized: false,
+      dropHint: false,
       notice: null,
       noticeExpanded: false,
       sessionsEnlarged: selected === "sessions" ? s.sessionsEnlarged : false,
@@ -314,7 +330,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
     clearTimeout(hoverTimer);
     hoverTimer = setTimeout(() => {
       const now = get();
-      if (!now.inside || now.expanded) return;
+      if (!now.inside || now.expanded || now.dropHint) return;
       if (showsActivityPicker(now)) return;
       if (!now.notice && compactActivities(now).length > 1) {
         set({ hoverEmphasized: true });
@@ -400,7 +416,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
 
 // MARK: Presentation
 
-export type PresentationKind = "resting" | "activity" | "notice" | "peek" | "expanded" | "picker";
+export type PresentationKind = "resting" | "activity" | "notice" | "peek" | "dropHint" | "expanded" | "picker";
 
 /** Microphone status is an indicator, rather than a competing activity on the Mac. */
 export function compactActivities(s: Pick<IslandState, "activities" | "settings">): ActivityId[] {
@@ -480,6 +496,16 @@ export function presentation(s: IslandState, geometry: Geometry, measuredNotice?
       hasRow,
     };
   }
+  // A drag over the closed island wins over everything closed (NotchView.surface).
+  if (s.dropHint) {
+    const peek = peekSize(geometry);
+    return {
+      kind: "dropHint",
+      key: "dropHint",
+      size: { width: peek.width, height: geometry.safeContentTop + 66 },
+      hasRow: false,
+    };
+  }
   if (s.notice) {
     const rest = restingSize(geometry);
     const size = measuredNotice ?? { width: Math.max(rest.width, 260), height: rest.height };
@@ -533,7 +559,7 @@ export function transitionBetween(from: Presentation, to: Presentation): Content
   if (to.kind === "expanded") return from.kind === "expanded" ? "replace" : "reveal";
   if (from.kind === "expanded") return "dismiss";
   if (from.kind === "notice") return to.kind === "notice" ? "replace" : "depart";
-  if (to.kind === "notice" || to.kind === "peek") return "reveal";
-  if (from.kind === "peek") return "dismiss";
+  if (to.kind === "notice" || to.kind === "peek" || to.kind === "dropHint") return "reveal";
+  if (from.kind === "peek" || from.kind === "dropHint") return "dismiss";
   return "replace";
 }

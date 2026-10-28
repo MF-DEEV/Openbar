@@ -31,7 +31,7 @@
     "publisher": "Vorssaint",
     "copyright": "Copyright (C) 2026 Vorssaint. GPL-3.0-or-later.",
     "shortDescription": "Dynamic Island for Windows",
-    "longDescription": "A Dynamic Island at the top of your screen: music, notifications, and your Claude Code and Codex sessions.",
+    "longDescription": "A Dynamic Island at the top of your screen: music, notifications, your calendar, and your Claude Code and Codex sessions.",
     "category": "Utility",
     "windows": {
       "webviewInstallMode": {

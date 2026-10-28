@@ -1,6 +1,9 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Vorssaint
 
+# Superseded for installs: the installer registers the identity package itself
+# (tools/package-identity, docs/notifications.md); uninstalling does not remove
+# a package registered by this script.
 # Local developer repair only. Registers a signed sparse package for this user
 # and replaces their installed executable with an already-built release binary.
 # Requires explicit permission: creates a non-exportable code-signing key and

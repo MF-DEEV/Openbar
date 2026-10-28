@@ -1,0 +1,11 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "bundle": {
+    "resources": {
+      "../packaging/out/Vorssaint.msix": "identity/Vorssaint.msix",
+      "../packaging/out/Vorssaint.cer": "identity/Vorssaint.cer",
+      "../tools/package-identity/identity.ps1": "identity/identity.ps1",
+      "../packaging/icon.png": "icon.png"
+    }
+  }
+}

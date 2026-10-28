@@ -34,8 +34,8 @@ private extension Text {
         font(Font(CapsuleLayout.titleFont as CTFont)).lineLimit(1)
     }
 
-    func capsuleDetail() -> some View {
-        font(Font(CapsuleLayout.detailFont as CTFont)).foregroundStyle(.white.opacity(0.62)).lineLimit(1)
+    func capsuleDetail(tint: Color = .white.opacity(0.62)) -> some View {
+        font(Font(CapsuleLayout.detailFont as CTFont)).foregroundStyle(tint).lineLimit(1)
     }
 }
 
@@ -80,6 +80,7 @@ struct NotchCapsuleNoticeView: View {
         case .sessions: return notice.symbol == NotchClaudeSessionsSupport.symbol(.finished)
             ? ClaudeSessionPhase.finished.tint : ClaudeSessionPhase.waitingPermission.tint
         case .timer: return .orange
+        case .voiceChat: return NotchVoiceMarks.tint(notice.voice)
         default: return .white
         }
     }
@@ -134,7 +135,9 @@ struct NotchCapsuleNoticeView: View {
             Text(notice.title).capsuleTitle().layoutPriority(1)
                 .foregroundStyle(notice.event == .timer ? Color.orange : .white)
             if !notice.detail.isEmpty {
-                Text(notice.detail).capsuleDetail()
+                // A muted microphone's status is read in the red of its marks.
+                Text(notice.detail).capsuleDetail(tint: notice.voice?.muted == true ? NotchVoiceMarks.mutedTint
+                                                    : .white.opacity(0.62))
                     .truncationMode(notice.event == .accessory ? .middle : .tail)
                     .padding(.leading, CapsuleLayout.groupSpacing - CapsuleLayout.spacing)
             }
@@ -165,6 +168,9 @@ struct NotchCapsuleNoticeView: View {
         } else if notice.event == .track {
             NotchCapsuleTrackArtwork(side: min(CapsuleLayout.symbolWidth, CapsuleLayout.artworkSide(geometry)))
                 .frame(width: CapsuleLayout.symbolWidth)
+        } else if let voice = notice.voice {
+            NotchVoiceMarks(reading: voice, size: CapsuleLayout.symbolSize, spacing: CapsuleLayout.markSpacing,
+                            slot: CapsuleLayout.symbolWidth)
         } else {
             NotchCapsuleSymbol(name: notice.symbol, tint: tint)
         }
@@ -442,7 +448,7 @@ private struct NotchCapsuleCompanionMark: View {
                     NotchCapsuleCalendarStrip.clockMark(countdown, now: context.date)
                 }
             }
-        case .timer, .keepAwake, .watch, .sessions:
+        case .timer, .keepAwake, .watch, .sessions, .voiceChat:
             EmptyView()
         }
     }
@@ -728,6 +734,44 @@ struct NotchCapsuleKeepAwakeStrip: View {
         .accessibilityValue(NotchKeepAwakeStrip.status(end: end, language: l10n.language))
         .accessibilityHint(FeatureStrings.notch(l10n.language).open)
         .accessibilityIdentifier("notch.keepAwake")
+    }
+}
+
+/// A muted microphone: its marks, with the headphones when deafened, then
+/// the red dot that says it stays muted.
+struct NotchCapsuleVoiceStrip: View {
+    @ObservedObject var service: NotchService
+    let size: CGSize
+    /// Another display's capsule, when the island shows on every display.
+    var displayGeometry: NotchGeometry? = nil
+    @ObservedObject private var voice = DiscordVoiceService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        let reading = DiscordVoiceSupport.reading(voice.snapshot)
+        NotchStripHold(reading, shows: reading.active) { row($0) }
+    }
+
+    private func row(_ reading: VoiceChatReading) -> some View {
+        Button { service.openActivity(NotchCompactActivity.voiceChat.module) } label: {
+            NotchCapsuleRow(size: size, geometry: displayGeometry ?? service.geometry) {
+                HStack(spacing: CapsuleLayout.spacing) {
+                    NotchVoiceMarks(reading: reading, size: CapsuleLayout.symbolSize, spacing: CapsuleLayout.markSpacing,
+                                    slot: CapsuleLayout.symbolWidth)
+                        .capsuleCentred(DiscordVoiceSupport.mutedSymbol)
+                    Circle()
+                        .fill(NotchVoiceMarks.mutedTint)
+                        .frame(width: DiscordVoiceSupport.dotSide, height: DiscordVoiceSupport.dotSide)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(FeatureStrings.notchVoice(l10n.language).title)
+        .accessibilityValue(FeatureStrings.notchVoice(l10n.language).status(reading))
+        .accessibilityHint(FeatureStrings.notch(l10n.language).open)
+        .accessibilityIdentifier("notch.voiceChat")
     }
 }
 

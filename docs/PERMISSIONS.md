@@ -6,14 +6,14 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 | Permission | Optional | Powers |
 |---|---|---|
-| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and keyboard feedback |
+| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring, keyboard feedback and Discord microphone status |
 | Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
 | System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
 | Microphone | Yes | Your voice in a screen recording, only when you turn it on |
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
 | Calendars | Yes | Upcoming appointments in the notch |
 | Bluetooth | Yes | Accessory battery levels in Monitor, optional accessory alerts in the notch and Bluetooth on sleep |
-| Files and Folders | Yes | Monitoring downloads in a folder you choose |
+| Files and Folders | Yes | Monitoring downloads in your Downloads folder, your browsers' download folders and folders you add |
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan; agent colors from projects in protected folders |
 | Administrator (one time) | Yes | Password free closed lid toggling |
@@ -39,6 +39,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **Radial menu**, for wheel actions that press a key combo or a media key
   for you and for the optional side button trigger; opening apps, files and
   links with the keyboard shortcut alone needs nothing.
+- **Dynamic Island microphone status**, which reads Discord's Mute and Deafen controls and, while Discord is hidden, watches for the mute and deafen shortcuts you set in Discord without blocking them. Without the permission, Discord's state is not shown.
 - **Dynamic Island Sessions**, only if Accessibility is already allowed: Open brings the Antigravity window holding a session's folder to the front. It never asks for the permission; without it, Open brings Antigravity forward as a whole.
 
 **If you say no.** These features stay off. Vorssaint sees the moment you grant the permission and brings them to life with no relaunch.
@@ -107,7 +108,7 @@ The optional notch calendar asks for access when you press its permission button
 
 ## Files and Folders
 
-Download monitoring watches only the folder you choose in the system picker. Folder access is stored as a local bookmark and does not travel in a settings backup. If the folder becomes unavailable or access is revoked, the notch asks you to choose it again. It does not scan other folders or need Full Disk Access for this feature.
+Download monitoring watches your Downloads folder, the folders your browsers save to and any folder you add in Settings. Browser folders come from each Chromium profile's Preferences file and Firefox's prefs.js, which are read for that folder setting only; history, addresses and file contents are never read. macOS may ask once before the Downloads folder or a browser's folder on the Desktop, in Documents or on another volume is read. A folder you add in the system picker keeps its access as a local bookmark that does not travel in a settings backup; if it becomes unavailable or access is revoked, Settings marks it so you can add it again. Only the top level of each folder is read, and Full Disk Access is not needed for this feature.
 
 ## Notifications
 

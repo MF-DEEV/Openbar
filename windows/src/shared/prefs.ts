@@ -8,8 +8,17 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { MODULES, type ModuleId } from "../island/modules";
-import { DEFAULT_SETTINGS, type IslandSettings, type QuickButton } from "../island/settings";
+import {
+  CLIPBOARD_LIMITS,
+  CLIPBOARD_RETENTION_DAYS,
+  DEFAULT_SETTINGS,
+  type IslandSettings,
+  type QuickButton,
+} from "../island/settings";
 import { inTauri } from "./bridge";
+import { MONITOR_METRICS, type MonitorMetric } from "../system/types";
+import { CONTROL_ITEMS, type ControlItem } from "../controls/types";
+import { AGENT_CARDS, type AgentCard } from "../agents/types";
 
 /** The Sessions section's own preferences (spec 01-shell §7.2, sessions). */
 export interface SessionPrefs {
@@ -54,7 +63,23 @@ const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
   opening: ["click", "hoverPreview", "hoverExpand", "hiddenUntilHover"],
   // "all" is a Mac choice the Windows island doesn't have yet.
   display: ["primary", "cursor"],
+  timerMode: ["timer", "pomodoro", "stopwatch"],
+  networkSpeedUnit: ["bytes", "bits"],
+  colorPickerFormat: ["hex", "rgb", "hsl"],
+  scratchpadRetention: ["never", "day", "week", "month"],
+  clipboardCardSize: ["compact", "comfortable"],
+  agentsPeriod: ["today", "week", "month"],
+  agentsLimitDisplay: ["remaining", "used"],
+  agentsLimitFocus: ["mostUsed", "session", "weekly"],
+  agentsReadout: ["elapsed", "tokens", "cost", "limit"],
+  watchCondition: ["changes", "settles", "contains", "reaches"],
 };
+
+/** Lists of ids or names: strings only, each once. */
+function stringList(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return [...new Set(value.filter((v): v is string => typeof v === "string" && v.trim().length > 0))];
+}
 
 const KNOWN = new Set<string>(MODULES.map((m) => m.id));
 
@@ -62,6 +87,12 @@ const KNOWN = new Set<string>(MODULES.map((m) => m.id));
 function moduleList(value: unknown): ModuleId[] | undefined {
   if (!Array.isArray(value)) return undefined;
   return [...new Set(value.filter((id): id is ModuleId => typeof id === "string" && KNOWN.has(id)))];
+}
+
+/** Known AI page cards, each once. */
+function cardList(value: unknown): AgentCard[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  return [...new Set(value.filter((id): id is AgentCard => AGENT_CARDS.includes(id as AgentCard)))];
 }
 
 /** Takes from `stored` only what has the default's type (and a known value), so a hand-edited file can't break a window. */
@@ -95,15 +126,59 @@ function quickButtons(value: unknown): QuickButton[] | undefined {
   });
 }
 
+/** Known home-page items, each once. */
+function controlList(value: unknown): ControlItem[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const known = new Set<string>(CONTROL_ITEMS);
+  return [...new Set(value.filter((id): id is ControlItem => typeof id === "string" && known.has(id)))];
+}
+
+const strings = (value: unknown): string[] =>
+  Array.isArray(value) ? [...new Set(value.filter((v): v is string => typeof v === "string" && v.length > 0))] : [];
+
+/** The mixer's pinned apps and order; anything else reads as none. */
+function arrangement(value: unknown): IslandSettings["mixerAppArrangement"] {
+  if (!isObject(value)) return DEFAULT_SETTINGS.mixerAppArrangement;
+  return { order: strings(value.order), pinned: strings(value.pinned) };
+}
+
+function hiddenApps(value: unknown): Record<string, string> {
+  if (!isObject(value)) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter(([key, name]) => key.length > 0 && typeof name === "string"),
+  ) as Record<string, string>;
+}
+
 export function resolve(stored: StoredPrefs | null | undefined): Prefs {
   const island = checked(DEFAULT_SETTINGS, stored?.island);
   const raw = isObject(stored?.island) ? stored.island : {};
   const quickAccess = quickButtons(raw.quickAccess);
   const hiddenModules = moduleList(raw.hiddenModules);
   const moduleOrder = moduleList(raw.moduleOrder);
+  const controlOrder = controlList(raw.controlOrder);
+  const hiddenControls = controlList(raw.hiddenControls);
+  const agentsCardOrder = cardList(raw.agentsCardOrder);
+  const agentsHiddenCards = cardList(raw.agentsHiddenCards);
+  // Clamped as the Mac reads them (NotchAgentSupport.finishMinimum, limitThreshold, dailyBudget).
+  if (island.agentsFinishMinimum !== undefined)
+    island.agentsFinishMinimum = Math.min(3600, Math.max(0, island.agentsFinishMinimum));
+  if (island.agentsLimitThreshold !== undefined)
+    island.agentsLimitThreshold = Math.min(100, Math.max(1, island.agentsLimitThreshold));
+  if (island.agentsDailyBudget !== undefined) island.agentsDailyBudget = Math.max(0, island.agentsDailyBudget);
+  // At least one agent stays read, as the usage service treats none (agent_usage::settings).
+  const agents = ["agentsClaude", "agentsCodex", "agentsOpenCode", "agentsCopilot"] as const;
+  if (agents.every((key) => island[key] === false)) agents.forEach((key) => delete island[key]);
   if (island.homeModule !== undefined && island.homeModule !== "explore" && !KNOWN.has(island.homeModule)) {
     delete island.homeModule;
   }
+  // The Mac's choices only; any other number reads as the default.
+  if (island.clipboardHistoryLimit !== undefined && !CLIPBOARD_LIMITS.includes(island.clipboardHistoryLimit))
+    delete island.clipboardHistoryLimit;
+  if (
+    island.clipboardHistoryRetentionDays !== undefined &&
+    !CLIPBOARD_RETENTION_DAYS.includes(island.clipboardHistoryRetentionDays)
+  )
+    delete island.clipboardHistoryRetentionDays;
   return {
     island: {
       ...DEFAULT_SETTINGS,
@@ -111,11 +186,46 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
       ...(hiddenModules ? { hiddenModules } : {}),
       ...(moduleOrder ? { moduleOrder } : {}),
       ...(quickAccess ? { quickAccess } : {}),
+      ...(controlOrder ? { controlOrder } : {}),
+      ...(hiddenControls ? { hiddenControls } : {}),
+      mixerAppArrangement: arrangement(raw.mixerAppArrangement),
+      mixerHiddenApps: hiddenApps(raw.mixerHiddenApps),
+      ...(agentsCardOrder ? { agentsCardOrder } : {}),
+      ...(agentsHiddenCards ? { agentsHiddenCards } : {}),
       downloadFolders: Array.isArray(raw.downloadFolders)
         ? raw.downloadFolders.filter((v): v is string => typeof v === "string" && v.length > 0)
         : [],
+      ...Object.fromEntries(
+        (["toolsOrder", "toolsHidden", "togglesOrder", "togglesHidden", "ejectExcluded"] as const).map((key) => [
+          key,
+          stringList(raw[key]) ?? [],
+        ]),
+      ),
+      clipboardIgnoredApps: Array.isArray(raw.clipboardIgnoredApps)
+        ? raw.clipboardIgnoredApps.filter((v): v is string => typeof v === "string" && v.trim().length > 0)
+        : [],
       capsuleFit: { ...DEFAULT_SETTINGS.capsuleFit, ...checked(DEFAULT_SETTINGS.capsuleFit, raw.capsuleFit) },
+      calendarExcluded: Array.isArray(raw.calendarExcluded)
+        ? raw.calendarExcluded.filter((v): v is string => typeof v === "string")
+        : [],
+      calendarChosenCountdowns: isObject(raw.calendarChosenCountdowns)
+        ? Object.fromEntries(
+            Object.entries(raw.calendarChosenCountdowns).filter(
+              (entry): entry is [string, number] => typeof entry[1] === "number" && Number.isFinite(entry[1]),
+            ),
+          )
+        : {},
       sections: { ...DEFAULT_SETTINGS.sections, ...sectionSwitches(raw.sections) },
+      monitorInterval: [1, 2, 5].includes(raw.monitorInterval as number)
+        ? (raw.monitorInterval as number)
+        : DEFAULT_SETTINGS.monitorInterval,
+      hiddenSystemMetrics: Array.isArray(raw.hiddenSystemMetrics)
+        ? [
+            ...new Set(
+              raw.hiddenSystemMetrics.filter((m): m is MonitorMetric => MONITOR_METRICS.includes(m as MonitorMetric)),
+            ),
+          ]
+        : [],
     },
     sessions: { ...DEFAULT_SESSION_PREFS, ...checked(DEFAULT_SESSION_PREFS, stored?.sessions) },
   };

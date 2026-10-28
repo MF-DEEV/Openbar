@@ -25,6 +25,9 @@ struct NotchPartialDownload: Equatable {
     let modified: Date
     var contentURL: URL? = nil
     var source: NotchDownloadSource? = nil
+
+    /// The watched folder holding it, as that folder's path.
+    var folderPath: String { url.deletingLastPathComponent().standardizedFileURL.path }
 }
 
 /// The original partial itself, including Safari's wrapper directory. The
@@ -154,13 +157,23 @@ enum NotchDownloadSupport {
                 modified: payloadValues.contentModificationDate ?? .distantPast,
                 contentURL: contentURL, source: partialSource(at: url))
         }
-        // The main queue merges, sorts and compares this list on every
-        // progress tick, so a crowded folder hands it only its newest entries.
-        if files.count > maximumListedFiles {
-            files.sort { $0.date != $1.date ? $0.date > $1.date : $0.url.path < $1.url.path }
-            files.removeSubrange(maximumListedFiles...)
-        }
-        return readFailed ? nil : FolderSnapshot(partials: result, files: files)
+        return readFailed ? nil : FolderSnapshot(partials: result, files: newest(files))
+    }
+
+    /// Every watched folder's snapshot as one. A path belongs to one folder,
+    /// so nothing is merged away; the newest entries stay listed.
+    static func combined(_ snapshots: [FolderSnapshot]) -> FolderSnapshot {
+        var partials: [URL: NotchPartialDownload] = [:]
+        for snapshot in snapshots { partials.merge(snapshot.partials) { first, _ in first } }
+        return FolderSnapshot(partials: partials, files: newest(snapshots.flatMap(\.files)))
+    }
+
+    /// The main queue merges, sorts and compares this list on every
+    /// progress tick, so crowded folders hand it only their newest entries.
+    private static func newest(_ files: [NotchDownloadItem]) -> [NotchDownloadItem] {
+        guard files.count > maximumListedFiles else { return files }
+        return Array(files.sorted { $0.date != $1.date ? $0.date > $1.date : $0.url.path < $1.url.path }
+            .prefix(maximumListedFiles))
     }
 
     /// Published progress owns its destination until it finishes. Folder files

@@ -1,0 +1,99 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+const watched = vi.hoisted(() => ({ calls: [] as [boolean, string | null][] }));
+vi.mock("../shared/bridge", () => ({
+  bridge: {
+    system: {
+      watch: async (visible: boolean, detail: string | null) => {
+        watched.calls.push([visible, detail]);
+      },
+      snapshot: async () => undefined,
+      onSnapshot: async () => () => {},
+    },
+  },
+}));
+
+import { DEFAULT_SETTINGS } from "../island/settings";
+import { useIsland } from "../island/store";
+import { demoSnapshot } from "./demo";
+import "./register";
+import { emptyHistory, HISTORY_LENGTH, pushHistory, showNetworkReading, useSystem } from "./store";
+
+afterEach(() => {
+  useIsland.getState().collapse();
+  useIsland.setState({ settings: DEFAULT_SETTINGS });
+  useSystem.setState({ snapshot: null, history: emptyHistory(), detail: null });
+  watched.calls = [];
+});
+
+describe("system history", () => {
+  it("adds each reading once and keeps the last sixty", () => {
+    let history = emptyHistory();
+    for (let seq = 1; seq <= HISTORY_LENGTH + 5; seq++) history = pushHistory(history, demoSnapshot(seq));
+    expect(history.cpu).toHaveLength(HISTORY_LENGTH);
+    expect(history.cpu.at(-1)).toBe(demoSnapshot(HISTORY_LENGTH + 5).cpu);
+    expect(history.memory.at(-1)).toBeCloseTo(0.63, 1);
+    expect(history.battery.at(-1)).toBe(0.18);
+    expect(history.power.at(-1)).toBeGreaterThan(0);
+  });
+
+  it("skips a missing value instead of drawing a zero", () => {
+    const history = pushHistory(pushHistory(emptyHistory(), demoSnapshot(1)), { ...demoSnapshot(2), gpu: null });
+    expect(history.gpu).toHaveLength(1);
+    expect(history.cpu).toHaveLength(2);
+  });
+
+  it("doesn't record the stored reading fetched on opening twice", () => {
+    useSystem.getState().receive(demoSnapshot(7));
+    useSystem.getState().receive(demoSnapshot(7));
+    expect(useSystem.getState().history.cpu).toHaveLength(1);
+    useSystem.getState().receive({ ...demoSnapshot(0), seq: 0 });
+    expect(useSystem.getState().history.cpu).toHaveLength(1);
+  });
+});
+
+describe("sampling follows the page", () => {
+  it("runs only while the System page is open, with its detail", () => {
+    useIsland.getState().open("system");
+    expect(watched.calls.at(-1)).toEqual([true, null]);
+    useSystem.getState().openDetail("cpu");
+    expect(watched.calls.at(-1)).toEqual([true, "cpu"]);
+    useIsland.getState().toggleSections();
+    expect(watched.calls.at(-1)).toEqual([false, null]);
+    // Leaving the page closed the detail, as collapsing does on the Mac.
+    expect(useSystem.getState().detail).toBeNull();
+    useIsland.getState().toggleSections();
+    expect(watched.calls.at(-1)).toEqual([true, null]);
+    useIsland.getState().select("music");
+    expect(watched.calls.at(-1)).toEqual([false, null]);
+  });
+
+  it("stops when the island closes or the section is hidden", () => {
+    useIsland.getState().open("system");
+    useIsland.getState().collapse();
+    expect(watched.calls.at(-1)).toEqual([false, null]);
+    useIsland.setState({ settings: { ...DEFAULT_SETTINGS, hiddenModules: ["system"] } });
+    useIsland.getState().open("system");
+    expect(watched.calls.at(-1)).toEqual([false, null]);
+  });
+
+  it("sends a change once", () => {
+    useIsland.getState().open("system");
+    const count = watched.calls.length;
+    useIsland.getState().pointerEnter();
+    useIsland.getState().pointerExit();
+    expect(watched.calls.length).toBe(count);
+  });
+});
+
+describe("the Controls speed test tile", () => {
+  it("lands on System's network reading", () => {
+    useIsland.getState().open("controls");
+    showNetworkReading();
+    expect(useIsland.getState().selected).toBe("system");
+    expect(useSystem.getState().detail).toBe("network");
+  });
+});

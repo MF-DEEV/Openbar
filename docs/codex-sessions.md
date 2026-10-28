@@ -1,6 +1,6 @@
 # 07 — Codex CLI Sessions: data sources, approvals and replies
 
-Status: built on both platforms. Windows: `windows/src-tauri/src/sessions/codex/` (branch feat/windows). Mac: `Sources/Vorssaint/Services/ClaudeSessions/CodexSessionClient.swift` and `CodexSessionState.swift`. Where the builds differ from this research: cost is not priced yet (§10), replies are text only (no images), the island joins a thread only while it works or its page is open, and on the Mac Open finds the terminal UI by the thread's folder (the one `codex` process with a terminal there, else the only one running).
+Status: built on both platforms. Windows: `windows/src-tauri/src/sessions/codex/` (branch feat/windows). Mac: `Sources/Vorssaint/Services/ClaudeSessions/CodexSessionClient.swift` and `CodexSessionState.swift`. Where the builds differ from this research: cost is not priced yet (§10), the island joins a thread only while it works or its page is open, and on the Mac Open finds the terminal UI by the thread's folder (the one `codex` process with a terminal there, else the only one running).
 Audience: the developer adding OpenAI Codex CLI sessions to the Sessions section of the Windows island (Tauri 2 + Rust + React), next to the Claude Code sessions in `02-sessions.md`.
 Scope: the interactive `codex` TUI, run natively on Windows 11 in Windows Terminal, conhost or a VS Code-family terminal. WSL is out of scope. `codex exec`, Codex Cloud and the Codex desktop app are out of scope too; §6.4 says how to exclude them.
 
@@ -191,12 +191,14 @@ Counts here: `cli/codex-tui` and `cli/NULL` (older) for TUI threads, `exec/codex
 
 ### 3.3 Methods we use
 
+Conversation history is requested only with Show previews enabled. Enabling previews reloads known threads; disabling it clears cached conversation messages and ignores late message content. History and live `item/started` / `item/completed` messages are merged by item id, retaining only the latest 100 messages and shortening each after 16,000 characters. A read captures the message revision when sent: notifications received after that request take precedence over its history, while a later read can complete an earlier partial message. Token deltas remain disabled. The compact view uses the latest assistant text; the enlarged view uses the same conversation and marks `final_answer` messages as turn summaries.
+
 | Purpose | Method | Params → result | Ref |
 |---|---|---|---|
 | Loaded (live) thread ids | `thread/loaded/list` | `{cursor?, limit?}` → `{data:[threadId], nextCursor}` | `v2/thread.rs:1659-1677` |
-| Thread metadata + status | `thread/read` | `{threadId, includeTurns:false}` → `{thread: Thread}` | `v2/thread.rs:1705-1723` |
+| Thread metadata + status | `thread/read` | `{threadId, includeTurns:previews}` → `{thread: Thread}` | `v2/thread.rs:1705-1723` |
 | Recent threads (picker, history) | `thread/list` | `{cursor, limit, sortKey, sortDirection, sourceKinds, archived, cwd, searchTerm, …}`; omitted `sourceKinds` = interactive sources | `v2/thread.rs:1403-1480` |
-| Attach to a running thread | `thread/resume` | `{threadId, excludeTurns:true}`, **no overrides** | `request_processors/thread_processor.rs:4499-4700` |
+| Attach to a running thread | `thread/resume` | `{threadId, excludeTurns:!previews}`, **no overrides** | `request_processors/thread_processor.rs:4499-4700` |
 | Detach | `thread/unsubscribe` | `{threadId}` → `{status:"notLoaded"\|"notSubscribed"\|"unsubscribed"}` | |
 | Send a prompt (idle) | `turn/start` | `{threadId, input:[UserInput], clientUserMessageId?}` | `v2/turn.rs:170-215` |
 | Add to the running turn | `turn/steer` | `{threadId, input, expectedTurnId}` → `{turnId}` | `v2/turn.rs:311-340` |
@@ -380,7 +382,7 @@ The mapping matters only for **Open** (jump to window) and the **keystroke fallb
 Works for every TUI session in daemon mode (the default for non-elevated users). It needs no config change and no trust prompt. The TUI prompt stays usable in parallel, and the first answer wins (§3.6).
 
 Flow:
-1. On `thread/status/changed` → `active` (any flags), `thread/resume {threadId, excludeTurns:true}`. Pending requests are replayed.
+1. On `thread/status/changed` → `active` (any flags), `thread/resume {threadId, excludeTurns:!previews}`. Pending requests are replayed.
 2. On a request (§3.5), build a `Permission` (or a question form) with its JSON-RPC `id`, `threadId`, `turnId`, `itemId`, kind, detail and **the decisions actually offered**: `availableDecisions` when present, else the defaults below.
 3. Buttons → result:
 
