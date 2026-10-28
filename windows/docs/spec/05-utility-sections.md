@@ -689,7 +689,7 @@ Gating (`NMS:228-244`): no reaction within 2.5 s of the previous one, no repeat 
 
 ### 12.5 Windows needs
 Pure frontend: SVG plus WAAPI, with `requestAnimationFrame` only for path morphing if CSS `d` animation turns out unreliable. Inputs from the backend:
-* **Low Power Mode** → Windows **Energy Saver**: `PowerRegisterForEffectivePowerModeNotifications`, mapping only `EffectivePowerModeBatterySaver` (`BetterBattery` is the power slider, not Energy Saver), or `RegisterPowerSettingNotification(GUID_ENERGY_SAVER_STATUS)` on 24H2, or `GetSystemPowerStatus().SystemStatusFlag == 1`.
+* **Low Power Mode** → Windows **Energy Saver**: `PowerRegisterForEffectivePowerModeNotifications`, mapping only `EffectivePowerModeBatterySaver` (`BetterBattery` is the power slider, not Energy Saver), or `RegisterPowerSettingNotification(GUID_ENERGY_SAVER_STATUS)` on 24H2. `power_saver.rs` already follows Energy saver for the Clawds (`power://saver`, `power_saver_on`). Plugged in, Energy saver gives `EffectivePowerModeBetterBattery`, not `BatterySaver`, and leaves `SystemStatusFlag` at 0 (checked on 26H2).
 * **Reduce Motion** → Windows "Animation effects". Chromium reads `SPI_GETCLIENTAREAANIMATION` and updates on `WM_SETTINGCHANGE` (`ui/gfx/animation/animation_win.cc`), so WebView2's `prefers-reduced-motion` follows it.
 * **Lock/unlock** → `WTSRegisterSessionNotification` (`WTS_SESSION_UNLOCK`).
 * **Charger and battery** → `RegisterPowerSettingNotification`, called once per GUID: `GUID_ACDC_POWER_SOURCE` and `GUID_BATTERY_PERCENTAGE_REMAINING`.

@@ -256,7 +256,7 @@ pub fn run() {
             app.manage(prefs::Prefs::load(app.handle()));
             app.manage(scratchpad::Store::new(app.handle()));
             app.manage(files::Files::load(app.handle()));
-            // Read before the island exists, so its first power_saver_on has it.
+            // Followed before the island exists, so its first power_saver_on has it.
             power_saver::start(app.handle().clone());
             island::create(app.handle())?;
             files::install(app.handle());

@@ -74,7 +74,7 @@ function subscribe(listener: () => void) {
   };
 }
 
-/** Battery Saver halves the steps (Low Power Mode on the Mac); poses keep their timing. */
+/** Energy saver (Battery Saver) halves the steps, as Low Power Mode on the Mac; poses keep their timing. */
 export function setClawdLowPower(on: boolean) {
   if (lowPower === on) return;
   lowPower = on;
@@ -83,12 +83,14 @@ export function setClawdLowPower(on: boolean) {
   schedule();
 }
 
-// Every window follows it on its own. The event is heard before the first
-// reading is asked for, so a change in between isn't lost.
+// The window showing Clawds (the island) follows it. The event is heard
+// before the first reading is asked for, so a change in between isn't lost;
+// without either, the Clawds keep the full rate.
 void bridge.power
   .onSaver(setClawdLowPower)
   .then(() => bridge.power.saver())
-  .then((on) => on !== undefined && setClawdLowPower(on));
+  .then((on) => on !== undefined && setClawdLowPower(on))
+  .catch(() => {});
 
 // MARK: Images
 
