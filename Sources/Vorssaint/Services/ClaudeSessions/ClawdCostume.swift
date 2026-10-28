@@ -45,7 +45,6 @@ enum ClawdShell: String, CaseIterable, Identifiable {
     var rgb: (red: Int, green: Int, blue: Int) {
         switch self {
         // Claude Code's own `clawd_body`.
-        case .midnight: return (38, 40, 50)
         case .clay: return (215, 119, 87)
         case .coral: return (226, 86, 72)
         case .amber: return (230, 166, 58)
@@ -56,6 +55,7 @@ enum ClawdShell: String, CaseIterable, Identifiable {
         case .iris: return (116, 112, 226)
         case .orchid: return (178, 98, 214)
         case .rose: return (230, 112, 156)
+        case .midnight: return (38, 40, 50)
         }
     }
 

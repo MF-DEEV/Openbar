@@ -664,14 +664,16 @@ struct NotchClaudeAutoAllowBar: View {
             // A slim strip across the page, as tall as the Windows one.
             HStack(spacing: 8) {
                 HStack(spacing: 5) {
-                    Image(systemName: "checkmark.seal.fill").font(.system(size: 10, weight: .semibold))
-                    Text(text.alwaysOn).font(.system(size: 10.5, weight: .semibold)).lineLimit(1)
+                    Image(systemName: "checkmark.seal.fill").font(.system(size: 11, weight: .semibold))
+                    Text(text.alwaysOn).font(.system(size: 10, weight: .semibold)).lineLimit(1)
                 }
                 .accessibilityElement(children: .combine)
                 Spacer(minLength: 0)
                 Button { service.setAutoAllow(session.id, false) } label: {
                     Text(text.cancelAlways)
-                        .font(.system(size: 10.5, weight: .semibold))
+                        .font(.system(size: 11, weight: .semibold))
+                        .lineLimit(1)
+                        .fixedSize()
                         .padding(.horizontal, 10)
                         .frame(height: 22)
                         .background(.black.opacity(0.12), in: Capsule())
@@ -682,7 +684,7 @@ struct NotchClaudeAutoAllowBar: View {
             }
             .foregroundStyle(Color(red: 0.04, green: 0.14, blue: 0.07))
             .padding(.leading, 9)
-            .padding(.trailing, 3)
+            .padding(.trailing, 6)
             .frame(maxWidth: .infinity, minHeight: 28)
             .background(NotchClaudeDecisionButton.allowColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .transition(.opacity.combined(with: .scale(scale: 0.97, anchor: .top)))

@@ -114,7 +114,12 @@ enum ClawdCostumeTests {
         let costume = ClawdCostume(shell: .sky, hat: .topHat, eyewear: .shades, extra: .bowTie)
         suite.expect(costume.code == "v1:sky.topHat.shades.bowTie", "a costume keeps as a short versioned line: \(costume.code)")
         suite.expect(ClawdCostume(code: costume.code, fallback: .classic) == costume, "and reads back the same")
-        for costume in [ClawdCostume.classic] + (0..<50).map({ ClawdCostume.seeded("k\($0)") }) {
+        let classic = ClawdCostume.classic
+        // Every part on its own too, the superhero ones included.
+        let parts = ClawdHat.allCases.map { ClawdCostume(shell: classic.shell, hat: $0, eyewear: classic.eyewear, extra: classic.extra) }
+            + ClawdEyewear.allCases.map { ClawdCostume(shell: classic.shell, hat: classic.hat, eyewear: $0, extra: classic.extra) }
+            + ClawdExtra.allCases.map { ClawdCostume(shell: classic.shell, hat: classic.hat, eyewear: classic.eyewear, extra: $0) }
+        for costume in [classic] + (0..<50).map({ ClawdCostume.seeded("k\($0)") }) + parts {
             suite.expect(ClawdCostume(code: costume.code, fallback: .classic) == costume, "\(costume.code) round trips")
         }
         let fallback = ClawdCostume(shell: .rose, hat: .crown, eyewear: .monocle, extra: .coffee)
