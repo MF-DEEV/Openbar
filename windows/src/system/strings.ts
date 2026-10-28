@@ -29,6 +29,8 @@ export const S = {
   read: "Read",
   write: "Write",
   charge: "Charge",
+  batteryHealth: "Battery health",
+  cycles: "Cycles",
   system: "System",
   adapter: "Adapter",
   charging: "Charging",

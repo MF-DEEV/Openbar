@@ -706,7 +706,7 @@ Cards, in order (:27-87):
 | CPU | PDH `\Processor Information(_Total)\% Processor Utility` (matches Task Manager; `% Processor Time` reads lower on turbo CPUs), or `GetSystemTimes` deltas |
 | GPU | PDH `\GPU Engine(*)\Utilization Percentage`. Sum per engine type (3D, Copy, VideoDecode…) across processes, take the max type (Task Manager method) |
 | Memory | `GlobalMemoryStatusEx`: used = `ullTotalPhys − ullAvailPhys`. Note that the Mac "used" excludes cached memory; this is close |
-| Battery | `GetSystemPowerStatus`, or `Windows.Devices.Power.Battery.AggregateBattery.GetReport()` (charge %, charging status) |
+| Battery | `GetSystemPowerStatus`, or `Windows.Devices.Power.Battery.AggregateBattery.GetReport()` (charge %, charging status). Health and cycles: `IOCTL_BATTERY_QUERY_INFORMATION` (`FullChargedCapacity / DesignedCapacity`, `CycleCount`; 0 = no counter) |
 | Network | `GetIfTable2` byte-counter deltas, excluding loopback, tunnel and virtual adapters (`InterfaceAndOperStatusFlags.HardwareInterface`) |
 | Disk | `GetDiskFreeSpaceExW(%SystemDrive%\)` |
 | Power watts (flag) | Only battery `ChargeRateInMilliwatts` (negative = discharge) from the battery report. **No total system draw** on desktops or while on AC. No adapter wattage API. Hide the card when unavailable |
