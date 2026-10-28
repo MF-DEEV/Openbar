@@ -12,13 +12,18 @@
 
 #[cfg(windows)]
 mod engine;
+mod guard;
 mod mic;
 #[cfg(windows)]
 mod policy;
+mod priority;
+mod roller;
+mod switcher;
 mod tree;
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 #[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -26,6 +31,30 @@ pub struct Device {
     pub id: String,
     pub name: String,
     pub is_default: bool,
+    /// Worn (form factor or name), for the headphone guard.
+    #[serde(skip)]
+    pub headphones: bool,
+    /// Built in, plugged in or virtual, for where audio priority ranks it.
+    #[serde(skip)]
+    pub tier: Option<priority::Tier>,
+}
+
+/// One entry of a priority list, connected or remembered by its last name.
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Ranked {
+    pub id: String,
+    pub name: String,
+    pub available: bool,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Priority {
+    pub output_enabled: bool,
+    pub input_enabled: bool,
+    pub outputs: Vec<Ranked>,
+    pub inputs: Vec<Ranked>,
 }
 
 /// A level and mute; None while unknown (no device, or it refused to say).
@@ -64,6 +93,82 @@ pub struct State {
     pub can_switch: bool,
     pub mic_muted: bool,
     pub apps: Vec<App>,
+    pub priority: Priority,
+    /// The output switcher is on but Windows refused its shortcut.
+    pub switcher_refused: bool,
+    /// The last switcher press found no chosen output that is connected.
+    pub switch_failed: bool,
+    /// Finer volume steps are on but the volume keys couldn't be hooked.
+    pub roller_failed: bool,
+}
+
+/// The Mixer options the backend acts on itself (prefs `island.*`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Options {
+    pub lower_on_disconnect: bool,
+    pub lower_percent: u8,
+    pub roller: bool,
+    pub switcher: bool,
+    pub shortcut: String,
+    pub cycle: Vec<String>,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Options {
+            lower_on_disconnect: false,
+            lower_percent: guard::DEFAULT_PERCENT,
+            roller: false,
+            switcher: false,
+            shortcut: switcher::DEFAULT_SHORTCUT.into(),
+            cycle: Vec::new(),
+        }
+    }
+}
+
+impl Options {
+    fn from_prefs(value: &serde_json::Value) -> Self {
+        let island = |key: &str| value.pointer(&format!("/island/{key}"));
+        let flag = |key: &str| {
+            island(key)
+                .and_then(serde_json::Value::as_bool)
+                .unwrap_or(false)
+        };
+        let defaults = Options::default();
+        Options {
+            lower_on_disconnect: flag("mixerLowerVolumeOnHeadphonesDisconnect"),
+            lower_percent: island("mixerHeadphonesDisconnectVolumePercent")
+                .and_then(serde_json::Value::as_i64)
+                .map_or(defaults.lower_percent, guard::sanitized_percent),
+            roller: flag("preciseVolumeRollerEnabled"),
+            switcher: flag("soundOutputSwitcherEnabled"),
+            shortcut: island("soundOutputSwitcherShortcut")
+                .and_then(serde_json::Value::as_str)
+                .filter(|s| !s.trim().is_empty())
+                .map_or(defaults.shortcut, str::to_string),
+            cycle: island("soundOutputSwitcherDevices")
+                .and_then(serde_json::Value::as_array)
+                .map(|ids| {
+                    let ids: Vec<String> = ids
+                        .iter()
+                        .filter_map(|v| v.as_str().map(str::to_string))
+                        .collect();
+                    priority::sanitized_list(&ids)
+                })
+                .unwrap_or_default(),
+        }
+    }
+}
+
+static OPTIONS: Mutex<Option<Options>> = Mutex::new(None);
+static SWITCHER_REFUSED: AtomicBool = AtomicBool::new(false);
+static ROLLER_FAILED: AtomicBool = AtomicBool::new(false);
+/// The switcher shortcut held now, and whether a shortcut field is recording.
+static SWITCHER_KEY: Mutex<Option<tauri_plugin_global_shortcut::Shortcut>> = Mutex::new(None);
+static RECORDING: AtomicBool = AtomicBool::new(false);
+
+fn options() -> Options {
+    OPTIONS.lock().unwrap().clone().unwrap_or_default()
 }
 
 /// One session's reading before grouping.
@@ -142,7 +247,10 @@ fn publish(next: State) {
         }
     };
     if changed {
-        let _ = app.emit_to(crate::island::LABEL, "audio://state", &next);
+        // Settings shows the Mixer options too.
+        for label in [crate::island::LABEL, crate::settings::LABEL] {
+            let _ = app.emit_to(label, "audio://state", &next);
+        }
     }
 }
 
@@ -175,6 +283,117 @@ pub fn start(app: AppHandle, shared: Shared) {
     }
     #[cfg(windows)]
     engine::start();
+}
+
+/// The Mixer options from the preferences, at launch and on every change:
+/// the headphone guard reads them on the next device change, the volume
+/// keys are hooked or let go, and the switcher's shortcut is taken or freed.
+pub fn apply_prefs<R: Runtime>(app: &AppHandle<R>, value: &serde_json::Value) {
+    let next = Options::from_prefs(value);
+    let before = OPTIONS.lock().unwrap().replace(next.clone());
+    if before.as_ref().is_some_and(|b| *b == next) {
+        return;
+    }
+    if before.as_ref().is_none_or(|b| b.roller != next.roller) {
+        #[cfg(windows)]
+        ROLLER_FAILED.store(roller::set_enabled(next.roller).is_err(), Ordering::SeqCst);
+    }
+    if before
+        .as_ref()
+        .is_none_or(|b| b.switcher != next.switcher || b.shortcut != next.shortcut)
+    {
+        sync_switcher(app, &next);
+    }
+    #[cfg(windows)]
+    {
+        let cycle_changed = before.as_ref().is_some_and(|b| b.cycle != next.cycle);
+        engine::post(move |e| {
+            if cycle_changed {
+                e.clear_switch_failure();
+            }
+        });
+    }
+}
+
+/// Takes the switcher's shortcut while it is on and no field is recording.
+fn sync_switcher<R: Runtime>(app: &AppHandle<R>, options: &Options) {
+    use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut};
+    let shortcuts = app.global_shortcut();
+    let recording = RECORDING.load(Ordering::SeqCst);
+    let mut held = SWITCHER_KEY.lock().unwrap();
+    let wanted = (options.switcher && !recording)
+        .then(|| options.shortcut.parse::<Shortcut>().ok())
+        .flatten();
+    if held.is_some() && *held == wanted {
+        return;
+    }
+    if let Some(old) = held.take() {
+        let _ = shortcuts.unregister(old);
+    }
+    // The island's own toggle is never given away.
+    let refused = match wanted {
+        Some(key) if key == crate::toggle_shortcut() => true,
+        Some(key) => match shortcuts.register(key) {
+            Ok(()) => {
+                *held = Some(key);
+                false
+            }
+            Err(_) => true,
+        },
+        // On but unreadable; while a field records, nothing is refused.
+        None => options.switcher && !recording,
+    };
+    SWITCHER_REFUSED.store(refused, Ordering::SeqCst);
+}
+
+/// The global shortcut handler's question: was this the switcher's key?
+pub fn is_switcher_shortcut(shortcut: &tauri_plugin_global_shortcut::Shortcut) -> bool {
+    SWITCHER_KEY.lock().unwrap().as_ref() == Some(shortcut)
+}
+
+/// The switcher's shortcut was pressed: the next chosen output plays.
+pub fn switch_to_next_output() {
+    #[cfg(windows)]
+    engine::post(|e| e.switch_to_next(&options().cycle));
+}
+
+/// A finer volume key press (roller.rs), applied on the audio thread.
+#[cfg(windows)]
+pub(crate) fn roller_step(direction: roller::Direction) {
+    engine::post(move |e| e.step_output(direction));
+}
+
+/// Lets go of the switcher's shortcut while a shortcut field records, so the
+/// very combination it uses can be typed (SoundOutputSwitcher.suspendShortcut).
+#[tauri::command]
+pub fn audio_switcher_recording<R: Runtime>(app: AppHandle<R>, on: bool) {
+    RECORDING.store(on, Ordering::SeqCst);
+    sync_switcher(&app, &options());
+    #[cfg(windows)]
+    engine::post(|_| {});
+}
+
+/// Audio priority: turns a list's automatic switching on or off, or saves
+/// its new order (`output` picks the outputs' list, else the microphones').
+#[tauri::command]
+pub async fn audio_priority_set(
+    output: bool,
+    enabled: Option<bool>,
+    ids: Option<Vec<String>>,
+) -> Result<(), String> {
+    blocking(move || {
+        #[cfg(windows)]
+        return with_engine(move |e| {
+            e.set_priority(output, enabled, ids);
+            Ok(())
+        });
+        #[cfg(not(windows))]
+        {
+            let _ = (output, enabled, ids);
+            unavailable()
+        }
+    })
+    .await
 }
 
 #[cfg(windows)]

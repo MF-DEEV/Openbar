@@ -5,7 +5,7 @@
 
 use tauri::{AppHandle, Manager, Runtime, WebviewUrl, WebviewWindowBuilder};
 
-const LABEL: &str = "settings";
+pub const LABEL: &str = "settings";
 
 /// Opens (or brings forward) the settings window. On Windows a webview
 /// built on the thread that runs the event loop never loads (Tauri's
