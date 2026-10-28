@@ -412,7 +412,7 @@ Sessions notices have priority 2 and last **6 s** (`NotchSupport.swift:1627, 163
 ### 3.5 "Asleep" (doze) and acknowledgement
 
 - `acknowledge(id)` is called on: opening the page (`focus`), sending a reply successfully, deciding a permission, and Open (jump). It sets `acknowledged = now`, so `finished` turns into `idle` (`ClaudeSessionService.swift:198-202, 229-234, 256, 301, 432`).
-- **Doze** (UI only, `NotchClaudeSessionsSupport.swift:186-212`): phase `idle` and `now − max(lastActive ?? phaseSince, lookedAt) ≥ 5 min` → the Clawd sleeps and the row fades to 0.65 opacity (not while hovered or keyboard-focused, and not with increased contrast).
+- **Doze** (UI only, `NotchClaudeSessionsSupport.swift:186-212`): phase `idle` and `now − max(lastActive ?? phaseSince, lookedAt) ≥ 5 min` → the Clawd sleeps and the row fades to 0.65 opacity (not while hovered or keyboard-focused, not with increased contrast, and not with Clawds turned off).
 
 ### 3.6 Counts and ordering
 

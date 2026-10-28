@@ -1,9 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+/// <reference types="node" />
+
+import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, expect, it, vi } from "vitest";
 import { SessionsList } from "./SessionsList";
+import { DOZING_OPACITY } from "./clawd/sprite";
 import { demoSnapshot } from "./demo";
 import { useSessions } from "./store";
 import type { Session } from "./types";
@@ -53,6 +57,20 @@ it("keeps a row whole while its session works, was just looked at, or has no Cla
   expect(rows([{ ...quiet, phase: "finished" }])).not.toContain("is-dozing");
   expect(rows([{ ...quiet, lastActive: now - 60 }])).not.toContain("is-dozing");
   expect(rows([quiet], false)).not.toContain("is-dozing");
+  expect(rows([{ ...quiet, lookedAt: now - 10 }])).not.toContain("is-dozing");
   useSessions.setState({ lookedAt: { quiet: now - 10 } });
   expect(renderToStaticMarkup(<SessionsList />)).not.toContain("is-dozing");
+});
+
+it("starts fading at five idle minutes, and fades nothing with Clawds off", () => {
+  expect(rows([{ ...quiet, lastActive: now - 300 }])).toContain("is-dozing");
+  expect(rows([{ ...quiet, lastActive: now - 290 }])).not.toContain("is-dozing");
+  expect(rows([quiet], false)).not.toContain("opacity:0.65");
+});
+
+it("fades a sleeping row to DOZING_OPACITY in the stylesheet", () => {
+  const css = readFileSync(new URL("./sessions.css", import.meta.url), "utf8");
+  expect(css).toMatch(
+    new RegExp(`\\.s-row\\.is-dozing:not\\(:hover, :focus-visible\\)[^{]*\\{\\s*opacity: ${DOZING_OPACITY};`),
+  );
 });
