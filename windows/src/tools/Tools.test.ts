@@ -87,6 +87,17 @@ describe("edit mode", () => {
 });
 
 describe("capture notices", () => {
+  it("does not duplicate a screenshot preview with an island notice", () => {
+    const shot = {
+      kind: "screenshot" as const,
+      path: "C:\\Screenshots\\a.png",
+      folder: "C:\\Screenshots",
+      copied: true,
+      thumbnail: null,
+    };
+    expect(noticeFor({ ...shot, preview: true })).toBeNull();
+    expect(noticeFor({ ...shot, preview: false, previewError: "WebView failed" })?.detail).toContain("WebView failed");
+  });
   it("names screenshots the way Windows does", () => {
     expect(screenshotName(new Date(2026, 9, 7, 9, 3, 2))).toBe("Screenshot 2026-10-07 090302");
   });

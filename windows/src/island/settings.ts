@@ -129,6 +129,9 @@ export interface IslandSettings {
   /** The colour picker copies in this format (colorPickerFormat); bare hex drops the # (colorPickerBareHex). */
   colorPickerFormat: ColorPickerFormat;
   colorPickerBareHex: boolean;
+  /** Screenshot preview lifetime in seconds; zero keeps it open. */
+  screenshotPreviewDuration: number;
+  screenshotPreviewDismissOnBlur: boolean;
   /** Quick toggles: row order (panelToggleOrder) and the rows switched off (panelToggle*). */
   togglesOrder: string[];
   togglesHidden: string[];
@@ -277,6 +280,8 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   toolsHidden: [],
   colorPickerFormat: "hex",
   colorPickerBareHex: false,
+  screenshotPreviewDuration: 8,
+  screenshotPreviewDismissOnBlur: false,
   togglesOrder: [],
   togglesHidden: [],
   ejectExcluded: [],

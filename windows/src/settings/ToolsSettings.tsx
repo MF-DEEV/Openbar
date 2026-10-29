@@ -116,6 +116,27 @@ export function ToolsOptions() {
   return (
     <>
       <p className="st-note">{T.content.toolsGridCaption}</p>
+      <SubRow title="Screenshot preview duration" caption="Pauses while hovered. Never affects pinned screenshots.">
+        <Select<string>
+          label="Screenshot preview duration"
+          value={String(island.screenshotPreviewDuration)}
+          options={[0, 3, 5, 8, 15, 30, 60].map((seconds) => ({
+            value: String(seconds),
+            label: seconds === 0 ? "Until closed" : `${seconds} seconds`,
+          }))}
+          onChange={(value) => set("screenshotPreviewDuration", Number(value))}
+        />
+      </SubRow>
+      <SubRow
+        title="Dismiss screenshot preview on focus loss"
+        caption="After clicking the preview, switching to another app closes it. Pinned previews stay open."
+      >
+        <Toggle
+          label="Dismiss screenshot preview on focus loss"
+          checked={island.screenshotPreviewDismissOnBlur}
+          onChange={(on) => set("screenshotPreviewDismissOnBlur", on)}
+        />
+      </SubRow>
       <SubRow title={T.content.colorFormat} caption={T.content.colorFormatCaption}>
         <Select<ColorPickerFormat>
           label={T.content.colorFormat}

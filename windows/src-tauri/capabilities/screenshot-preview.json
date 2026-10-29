@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "screenshot-preview",
+  "description": "Screenshot preview focus events and native window movement",
+  "windows": ["screenshot-preview-*"],
+  "permissions": ["core:default", "core:window:allow-start-dragging"]
+}

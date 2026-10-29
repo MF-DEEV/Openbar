@@ -39,11 +39,17 @@ export function noticeFor(outcome: CaptureOutcome): Notice | null {
     case "cancelled":
       return null;
     case "screenshot": {
+      if (outcome.preview) return null;
       const folder = folderName(outcome.folder);
       const saved = outcome.path !== null;
       const detail =
         saved && outcome.copied ? S.savedAndCopied(folder) : saved ? S.savedTo(folder) : S.screenshotCopied;
-      return { ...base, title: S.screenshot, detail, image: outcome.thumbnail ?? undefined };
+      return {
+        ...base,
+        title: S.screenshot,
+        detail: outcome.previewError ? `${detail} · Preview unavailable: ${outcome.previewError}` : detail,
+        image: outcome.thumbnail ?? undefined,
+      };
     }
     case "text":
       return { ...base, title: S.textCopied, detail: outcome.text.split("\n")[0]!.slice(0, 60) };
