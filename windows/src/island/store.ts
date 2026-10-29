@@ -90,6 +90,10 @@ export interface IslandState {
   devicePixelRatio: number;
 
   expanded: boolean;
+  /** Temporary screenshot presentation; not a navigable section. */
+  capturePreview: string | null;
+  showCapturePreview(id: string): void;
+  dismissCapturePreview(id: string): void;
   openedByHover: boolean;
   clickedSinceOpening: boolean;
   pinned: boolean;
@@ -164,6 +168,14 @@ export const useIsland = create<IslandState>()((set, get) => ({
   devicePixelRatio: 1,
 
   expanded: false,
+  capturePreview: null,
+  showCapturePreview(id) {
+    get().open("tools", { takeFocus: false });
+    set({ capturePreview: id });
+  },
+  dismissCapturePreview(id) {
+    if (get().capturePreview === id) get().collapse();
+  },
   openedByHover: false,
   clickedSinceOpening: false,
   pinned: false,
@@ -213,6 +225,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
       opts.sections ?? (!module && !s.expanded && s.settings.returnHome && s.settings.homeModule === "explore");
     set({
       expanded: true,
+      capturePreview: null,
       activityPickerOpen: false,
       peeking: false,
       selected,
@@ -234,6 +247,8 @@ export const useIsland = create<IslandState>()((set, get) => ({
     const s = get();
     set({
       expanded: false,
+      capturePreview: null,
+      held: false,
       activityPickerOpen: false,
       peeking: false,
       pinned: false,
@@ -375,13 +390,20 @@ export const useIsland = create<IslandState>()((set, get) => ({
   },
 
   select(module) {
-    set({ selected: module, showingSections: false, sectionQuery: "", sessionsEnlarged: false });
+    set({
+      selected: module,
+      capturePreview: null,
+      held: false,
+      showingSections: false,
+      sectionQuery: "",
+      sessionsEnlarged: false,
+    });
   },
 
   toggleSections() {
     const s = get();
     if (!s.expanded) s.open(undefined, { sections: true });
-    else set({ showingSections: !s.showingSections, sectionQuery: "" });
+    else set({ capturePreview: null, held: false, showingSections: !s.showingSections, sectionQuery: "" });
   },
 
   setSectionQuery: (sectionQuery) => set({ sectionQuery }),
@@ -492,6 +514,21 @@ export function presentation(
   idleContent: IdleContent = "none",
 ): Presentation {
   if (s.expanded) {
+    if (s.capturePreview) {
+      return {
+        kind: "expanded",
+        key: `expanded:capture:${s.capturePreview}`,
+        size: {
+          width: expandedWidth(geometry),
+          height: expandedHeight(geometry, {
+            hasRow: true,
+            content: 264,
+            bottomBubbles: s.settings.quickAccess.some((b) => b.side === "bottom"),
+          }),
+        },
+        hasRow: true,
+      };
+    }
     const enlarged = s.selected === "sessions" && s.sessionsEnlarged && !s.showingSections;
     const info = moduleInfo(s.selected);
     const hasRow = s.showingSections || info.pageTop === "row";

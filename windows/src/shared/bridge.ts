@@ -18,6 +18,7 @@ import type { CalendarAccess, CalendarSnapshot } from "../calendar/types";
 import type { AudioState, BrightnessDisplay, KeepAwakeState } from "../audio/types";
 import type { CaptureOutcome, CapturePurpose, ToggleState } from "../tools/types";
 import type { CaptureSession, Pick } from "../capture/types";
+import type { RecentCapture } from "../captures/types";
 import type { ScratchpadDocument } from "../scratchpad/types";
 import type { ClipboardSnapshot, PasteResult } from "../clipboard/types";
 import type { DragPhase, FilesSnapshot, OpenWithApp, ZipStatus } from "../files/types";
@@ -319,6 +320,11 @@ export const bridge = {
     set: (id: string, value: number) => call("brightness_set", { id, value }),
   },
   capture: {
+    list: () => call<RecentCapture[]>("captures_list"),
+    open: (id: string) => call<void>("captures_open", { id }),
+    remove: (id: string) => call<void>("captures_remove", { id }),
+    clear: () => call<void>("captures_clear"),
+    onChanged: (fn: () => void) => (inTauri ? listen("captures://changed", fn) : Promise.resolve(() => {})),
     /** Collapse the island first: the frozen picture is taken right away. */
     run: (purpose: CapturePurpose, name: string) => call<CaptureOutcome>("capture_run", { purpose, name }),
     // The overlay window's side (capture.html).

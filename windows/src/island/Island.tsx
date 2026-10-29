@@ -31,6 +31,7 @@ import { DropHint } from "../files/DropHint";
 import { useBattery } from "./battery";
 import { visibleIdleContent } from "./idle";
 import { useMusic } from "../music/store";
+import { CapturePresentation } from "../screenshot-preview/CapturePresentation";
 
 function useWindowScreen() {
   const setScreen = useIsland((s) => s.setScreen);
@@ -53,7 +54,7 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
       const toggle = bridge.onToggle(() => useIsland.getState().toggle());
       const outside = bridge.onOutsideClick(() => {
         const s = useIsland.getState();
-        if (s.expanded && !s.pinned && !s.held) s.collapse();
+        if (s.expanded && !s.capturePreview && !s.pinned && !s.held) s.collapse();
         else if (s.activityPickerOpen) s.dismissActivityPicker();
       });
       return () => {
@@ -67,7 +68,13 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
     if (!el) return;
     const onDown = (e: MouseEvent) => {
       const s = useIsland.getState();
-      if (s.expanded && !s.pinned && !(e.target as Element).closest(".island-frame, .n-quick, .u-menu")) s.collapse();
+      if (
+        s.expanded &&
+        !s.capturePreview &&
+        !s.pinned &&
+        !(e.target as Element).closest(".island-frame, .n-quick, .u-menu")
+      )
+        s.collapse();
       else if (s.activityPickerOpen && !(e.target as Element).closest(".island-frame")) s.dismissActivityPicker();
     };
     el.addEventListener("mouseenter", pointerEnter);
@@ -204,7 +211,11 @@ export function Island() {
       content = <ActivityPicker geometry={geometry} size={shown.size} visible />;
       break;
     case "expanded":
-      content = <Expanded geometry={geometry} size={shown.size} hasRow={shown.hasRow} />;
+      content = state.capturePreview ? (
+        <CapturePresentation id={state.capturePreview} geometry={geometry} size={shown.size} />
+      ) : (
+        <Expanded geometry={geometry} size={shown.size} hasRow={shown.hasRow} />
+      );
       break;
     case "notice":
       content = <NoticeView notice={state.notice!} geometry={geometry} size={shown.size} />;

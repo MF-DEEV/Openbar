@@ -147,6 +147,8 @@ pub fn run() {
         .manage(audio::Shared::default())
         .manage(keep_awake::Shared::default())
         .manage(capture::Shared::default())
+        .manage(capture::history::Shared::default())
+        .manage(capture::preview::Shared::default())
         .manage(clipboard::Shared::default())
         .manage(agent_usage::State::default())
         .manage(watch::Shared::default())
@@ -221,11 +223,21 @@ pub fn run() {
             brightness::brightness_displays,
             brightness::brightness_set,
             capture::capture_run,
+            capture::history::captures_list,
+            capture::history::captures_open,
+            capture::history::captures_remove,
+            capture::history::captures_clear,
             capture::capture_session,
             capture::capture_pixels,
             capture::capture_ready,
             capture::capture_commit,
             capture::tools_copy_text,
+            capture::preview::preview_info,
+            capture::preview::preview_ready,
+            capture::preview::preview_action,
+            capture::preview::preview_pin,
+            capture::preview::preview_close,
+            capture::preview::preview_drag,
             toggles::toggles_state,
             toggles::toggles_run,
             scratchpad::scratchpad_load,
@@ -332,6 +344,7 @@ pub fn run() {
     app.run(|app, event| {
         if let RunEvent::Exit = event {
             system_monitor::stop(app.state::<system_monitor::Shared>().inner());
+            capture::preview::stop(app);
             fullscreen::stop(app);
             audio::stop();
         }

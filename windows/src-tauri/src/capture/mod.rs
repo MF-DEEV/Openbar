@@ -29,6 +29,8 @@
 
 pub mod clipboard;
 pub mod color;
+pub mod history;
+pub mod preview;
 pub mod snapshot;
 
 use std::path::{Path, PathBuf};
@@ -147,6 +149,9 @@ pub enum Outcome {
         folder: Option<String>,
         copied: bool,
         thumbnail: Option<String>,
+        preview: bool,
+        #[serde(rename = "previewError")]
+        preview_error: Option<String>,
     },
     Text {
         text: String,
@@ -446,7 +451,9 @@ fn run<R: Runtime>(app: &AppHandle<R>, purpose: Purpose, name: &str) -> Outcome 
         ..selection.rect
     };
     match purpose {
-        Purpose::Screenshot | Purpose::Watch => screenshot(&frame.crop(local), name),
+        Purpose::Screenshot | Purpose::Watch => {
+            screenshot(app, &frame.crop(local), name, selection.monitor)
+        }
         Purpose::Text => {
             let crop = frame.crop(local);
             match crate::ocr::recognize(&crop.rgba, crop.width, crop.height) {
@@ -481,7 +488,7 @@ fn run<R: Runtime>(app: &AppHandle<R>, purpose: Purpose, name: &str) -> Outcome 
 }
 
 /// Saves to the Screenshots folder and copies; either alone still counts.
-fn screenshot(crop: &Frame, name: &str) -> Outcome {
+fn screenshot<R: Runtime>(app: &AppHandle<R>, crop: &Frame, name: &str, monitor: Rect) -> Outcome {
     let Some(png) = crate::shell::encode_png(&crop.rgba, crop.width, crop.height) else {
         return Outcome::Failed {
             message: "the picture could not be encoded".into(),
@@ -495,9 +502,16 @@ fn screenshot(crop: &Frame, name: &str) -> Outcome {
         std::fs::write(&path, &png).ok()?;
         Some(path)
     });
-    if path.is_none() && !copied {
+    if let Err(error) = history::record(app, crop, &png) {
+        eprintln!("could not record recent capture: {error}");
+    }
+    let preview_result = preview::open(app, crop.clone(), png, path.clone(), copied, monitor);
+    if path.is_none()
+        && !copied
+        && let Err(message) = &preview_result
+    {
         return Outcome::Failed {
-            message: "the screenshot could not be saved or copied".into(),
+            message: format!("the screenshot could not be saved or copied; {message}"),
         };
     }
     Outcome::Screenshot {
@@ -505,6 +519,8 @@ fn screenshot(crop: &Frame, name: &str) -> Outcome {
         folder: folder.map(|p| p.to_string_lossy().into_owned()),
         copied,
         thumbnail: thumbnail(crop),
+        preview: preview_result.is_ok(),
+        preview_error: preview_result.err(),
     }
 }
 

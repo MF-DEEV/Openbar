@@ -188,6 +188,8 @@ function hiddenApps(value: unknown): Record<string, string> {
 export function resolve(stored: StoredPrefs | null | undefined): Prefs {
   const island = checked(DEFAULT_SETTINGS, stored?.island);
   const raw = isObject(stored?.island) ? stored.island : {};
+  if (island.screenshotPreviewDuration !== undefined)
+    island.screenshotPreviewDuration = Math.min(300, Math.max(0, Math.round(island.screenshotPreviewDuration)));
   const quickAccess = quickButtons(raw.quickAccess);
   const hiddenModules = moduleList(raw.hiddenModules);
   const moduleOrder = moduleList(raw.moduleOrder);

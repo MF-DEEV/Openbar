@@ -35,6 +35,7 @@ To remove it, use **Settings › Apps › Installed apps › Vorssaint › Unins
 
 ## What it does
 
+- **Recent Captures.** View screenshot thumbnails in the island, restore a screenshot to its preview, delete an entry or clear history. History survives restarts and keeps up to 30 screenshots within 256 MB. Removing history copies leaves your saved screenshots alone.
 - **A notch at the top of the screen.** A black island hangs from the top edge, like the camera housing on a MacBook, or floats as a capsule if you prefer. It grows into pages when you click it and steps aside for games and films in full screen.
 - **Now Playing.** Whatever plays in Spotify, a browser or Media Player shows beside the camera with its cover and moving bars. Open it to see the song, scrub, shuffle and control playback. Open **Lyrics** for synchronized lyrics, from LRCLIB once you allow it (**Find lyrics online** in **Content › Now Playing**) or an imported `.lrc` file; adjust timing or click a verse to seek. Media keys keep working as usual.
 - **Choose a live activity.** When music and sessions are active together, clicking the compact island shows **Sessions / Music**. Pick what its strip shows, then click the strip to open that page. Hover only enlarges the strip by 3%. The selection closes when the pointer leaves or you press Escape.
@@ -84,7 +85,7 @@ The closed island can also rest with **Battery**, **Music**, **AI Agents**, or *
 
 ## Not yet
 
-- Recent captures and the camera mirror show "Coming to Windows soon".
+- The camera mirror shows "Coming to Windows soon".
 - The mixer stops at 100% (Windows can't boost one app) and doesn't send apps to separate outputs. Keyboard backlight, screen recording and the Mac's media tools have no Windows version.
 - Notifications and Calendar need the signed identity package. Only installers built with it (see below) carry it; without it their pages say so.
 - There are no automatic updates. To update, run the newer installer over the old one; your settings stay.
