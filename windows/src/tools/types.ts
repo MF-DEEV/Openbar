@@ -74,7 +74,15 @@ export type CapturePurpose = "screenshot" | "text" | "color";
 /** What a capture tool did (capture/mod.rs Outcome). */
 export type CaptureOutcome =
   | { kind: "cancelled" }
-  | { kind: "screenshot"; path: string | null; folder: string | null; copied: boolean; thumbnail: string | null }
+  | {
+      kind: "screenshot";
+      path: string | null;
+      folder: string | null;
+      copied: boolean;
+      thumbnail: string | null;
+      preview?: boolean;
+      previewError?: string | null;
+    }
   | { kind: "text"; text: string }
   | { kind: "noText" }
   | { kind: "noLanguage" }

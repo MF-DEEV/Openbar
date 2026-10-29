@@ -5,6 +5,33 @@ const initial = useIsland.getState();
 beforeEach(() => useIsland.setState(initial, true));
 
 describe("presentation", () => {
+  it("presents screenshots inside the expanded island without taking focus", () => {
+    const focus = useIsland.getState().focusRequest;
+    useIsland.getState().showCapturePreview("shot-1");
+    const state = useIsland.getState();
+    expect(state.expanded).toBe(true);
+    expect(state.focusRequest).toBe(focus);
+    expect(presentation(state, geometryOf(state))).toMatchObject({
+      key: "expanded:capture:shot-1",
+      size: { width: 560, height: 328 },
+    });
+    state.showCapturePreview("shot-2");
+    state.dismissCapturePreview("shot-1");
+    expect(useIsland.getState().capturePreview).toBe("shot-2");
+    state.dismissCapturePreview("shot-2");
+    expect(useIsland.getState().expanded).toBe(false);
+    expect(useIsland.getState().capturePreview).toBeNull();
+  });
+
+  it("allows normal island navigation to dismiss the screenshot presentation", () => {
+    const state = useIsland.getState();
+    state.showCapturePreview("shot");
+    state.select("music");
+    expect(useIsland.getState()).toMatchObject({ capturePreview: null, expanded: true, selected: "music" });
+    state.showCapturePreview("shot");
+    state.toggleSections();
+    expect(useIsland.getState()).toMatchObject({ capturePreview: null, showingSections: true });
+  });
   it("rests at the notch size and opens a list at 560 × 328", () => {
     const s = useIsland.getState();
     expect(presentation(s, geometryOf(s)).size).toEqual({ width: 135, height: 24 });

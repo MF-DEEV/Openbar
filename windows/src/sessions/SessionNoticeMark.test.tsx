@@ -78,7 +78,7 @@ it("with buddies off shows the notice's symbol in its phase's tint", () => {
 });
 
 it("moves as the notice says and cheers only a finished turn", () => {
-  const sessions = demoSnapshot().sessions;
+  const sessions = useSessions.getState().snapshot.sessions;
   const finished = sessions.find((s) => s.phase === "finished")!;
   const waiting = sessions.find((s) => s.phase === "waitingPermission")!;
   for (const [id, event] of [

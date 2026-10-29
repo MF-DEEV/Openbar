@@ -65,12 +65,35 @@ pub fn reveal(paths: Vec<String>) {
     let _ = paths;
 }
 
+/// Undoable deletion for the screenshot preview's explicit Discard action.
+pub(crate) fn recycle(path: String) -> Result<(), String> {
+    #[cfg(windows)]
+    {
+        worker()
+            .run(move || imp::recycle(&path).map_err(|e| e.to_string()))
+            .ok_or_else(|| "The Windows file service stopped".to_string())?
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = path;
+        Err("Recycle Bin is only available on Windows".into())
+    }
+}
+
 /// Opens the Share sheet for the island. Answers whether it opened.
 pub async fn share<R: Runtime>(app: &AppHandle<R>, paths: Vec<String>) -> bool {
+    share_for_window(app, crate::island::LABEL, paths).await
+}
+
+pub(crate) async fn share_for_window<R: Runtime>(
+    app: &AppHandle<R>,
+    label: &str,
+    paths: Vec<String>,
+) -> bool {
     #[cfg(windows)]
     {
         use tauri::Manager;
-        let Some(window) = app.get_webview_window(crate::island::LABEL) else {
+        let Some(window) = app.get_webview_window(label) else {
             return false;
         };
         let Ok(hwnd) = window.hwnd() else {
@@ -93,13 +116,19 @@ pub async fn share<R: Runtime>(app: &AppHandle<R>, paths: Vec<String>) -> bool {
     }
     #[cfg(not(windows))]
     {
-        let _ = (app, paths);
+        let _ = (app, label, paths);
         false
     }
 }
 
 #[cfg(windows)]
 pub(super) use imp::data_object;
+
+/// Called on the window thread when a screenshot preview is destroyed.
+#[cfg(windows)]
+pub(crate) fn close_share(hwnd: isize) {
+    imp::close_share(Some(hwnd));
+}
 
 #[cfg(windows)]
 mod imp {
@@ -122,6 +151,37 @@ mod imp {
     };
     use windows::core::{HSTRING, Interface, PWSTR};
     use windows_collections::IIterable;
+
+    pub fn recycle(path: &str) -> windows::core::Result<()> {
+        use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance};
+        use windows::Win32::UI::Shell::{
+            FOF_NOCONFIRMATION, FOF_NOERRORUI, FOF_SILENT, FOF_WANTNUKEWARNING, FOFX_ADDUNDORECORD,
+            FOFX_EARLYFAILURE, FOFX_RECYCLEONDELETE, FileOperation, IFileOperation, IShellItem,
+            SHCreateItemFromParsingName,
+        };
+        unsafe {
+            let operation: IFileOperation =
+                CoCreateInstance(&FileOperation, None, CLSCTX_INPROC_SERVER)?;
+            operation.SetOperationFlags(
+                FOFX_RECYCLEONDELETE
+                    | FOFX_ADDUNDORECORD
+                    | FOFX_EARLYFAILURE
+                    | FOF_NOCONFIRMATION
+                    | FOF_NOERRORUI
+                    | FOF_SILENT
+                    | FOF_WANTNUKEWARNING,
+            )?;
+            let item: IShellItem = SHCreateItemFromParsingName(&HSTRING::from(path), None)?;
+            operation.DeleteItem(&item, None)?;
+            operation.PerformOperations()?;
+            if operation.GetAnyOperationsAborted()?.as_bool() {
+                return Err(windows::core::Error::from_hresult(
+                    windows::Win32::Foundation::E_ABORT,
+                ));
+            }
+            Ok(())
+        }
+    }
 
     /// Absolute shell item ids, freed when dropped.
     struct Pidls(Vec<*mut ITEMIDLIST>);
@@ -292,7 +352,20 @@ mod imp {
 
     thread_local! {
         /// The island's share registration; a new share replaces the last.
-        static SHARE: std::cell::RefCell<Option<(DataTransferManager, i64)>> = const { std::cell::RefCell::new(None) };
+        static SHARE: std::cell::RefCell<Option<(isize, DataTransferManager, i64)>> = const { std::cell::RefCell::new(None) };
+    }
+
+    pub fn close_share(hwnd: Option<isize>) {
+        SHARE.with(|slot| {
+            let mut slot = slot.borrow_mut();
+            if slot
+                .as_ref()
+                .is_some_and(|(owner, _, _)| hwnd.is_none_or(|hwnd| hwnd == *owner))
+                && let Some((_, manager, token)) = slot.take()
+            {
+                let _ = manager.RemoveDataRequested(token);
+            }
+        });
     }
 
     /// On the island's thread. The files are read when the sheet asks for them.
@@ -300,11 +373,7 @@ mod imp {
         let hwnd = HWND(hwnd as _);
         let interop = windows::core::factory::<DataTransferManager, IDataTransferManagerInterop>()?;
         let manager: DataTransferManager = unsafe { interop.GetForWindow(hwnd)? };
-        SHARE.with(|slot| {
-            if let Some((old, token)) = slot.borrow_mut().take() {
-                let _ = old.RemoveDataRequested(token);
-            }
-        });
+        close_share(None);
         // Titled like a pile: the first name, and how many more.
         let first = paths
             .first()
@@ -338,7 +407,11 @@ mod imp {
                 .collect();
             data.SetStorageItemsReadOnly(&IIterable::<IStorageItem>::from(items))
         }))?;
-        SHARE.with(|slot| *slot.borrow_mut() = Some((manager, token)));
-        unsafe { interop.ShowShareUIForWindow(hwnd) }
+        SHARE.with(|slot| *slot.borrow_mut() = Some((hwnd.0 as isize, manager, token)));
+        let result = unsafe { interop.ShowShareUIForWindow(hwnd) };
+        if result.is_err() {
+            close_share(Some(hwnd.0 as isize));
+        }
+        result
     }
 }

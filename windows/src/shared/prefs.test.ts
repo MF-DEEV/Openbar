@@ -6,6 +6,14 @@ import { DEFAULT_SETTINGS } from "../island/settings";
 import { DEFAULT_SESSION_PREFS, loadPrefs, mergePatch, onPrefs, resolve, setPrefs } from "./prefs";
 
 describe("preferences", () => {
+  it("bounds screenshot preview duration and preserves focus-loss behavior", () => {
+    expect(resolve({ island: { screenshotPreviewDuration: -1 } }).island.screenshotPreviewDuration).toBe(0);
+    expect(resolve({ island: { screenshotPreviewDuration: 900 } }).island.screenshotPreviewDuration).toBe(300);
+    expect(resolve({ island: { screenshotPreviewDuration: Number.NaN } }).island.screenshotPreviewDuration).toBe(8);
+    expect(resolve({ island: { screenshotPreviewDismissOnBlur: true } }).island.screenshotPreviewDismissOnBlur).toBe(
+      true,
+    );
+  });
   it("fill what was never set from the defaults, nested objects too", () => {
     const p = resolve({
       island: { silhouette: "capsule", capsuleFit: { width: 4 } as never, sections: { music: false } },

@@ -34,6 +34,7 @@ tungstenite = { version = "0.30", default-features = false, features = ["handsha
 base64 = "0.22"
 png = "0.18"
 image = { version = "0.25", default-features = false, features = ["png", "bmp"] }
+rqrr = { version = "0.10.1", default-features = false }
 sha2 = "0.10"
 tauri-plugin-dialog = "2"
 zip = { version = "8.6", default-features = false, features = ["deflate-flate2-zlib-rs", "time"] }
