@@ -15,6 +15,7 @@ import { checkAutoAllow } from "./auto-allow-cases.mjs";
 import { checkMusicLyrics } from "./music-lyrics-cases.mjs";
 import { checkSessionNotice } from "./session-notice-cases.mjs";
 import { checkScreenshotPreview } from "./screenshot-preview-cases.mjs";
+import { checkCaptures } from "./captures-cases.mjs";
 
 const browserPath = [
   process.env.ISLAND_TEST_BROWSER,
@@ -85,6 +86,8 @@ try {
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
   if (process.argv.includes("--music-lyrics")) {
     await checkMusicLyrics({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--captures")) {
+    await checkCaptures({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--screenshot-preview")) {
     await checkScreenshotPreview({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--session-notice")) {

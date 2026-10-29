@@ -146,6 +146,7 @@ pub fn run() {
         .manage(audio::Shared::default())
         .manage(keep_awake::Shared::default())
         .manage(capture::Shared::default())
+        .manage(capture::history::Shared::default())
         .manage(capture::preview::Shared::default())
         .manage(clipboard::Shared::default())
         .manage(agent_usage::State::default())
@@ -220,6 +221,10 @@ pub fn run() {
             brightness::brightness_displays,
             brightness::brightness_set,
             capture::capture_run,
+            capture::history::captures_list,
+            capture::history::captures_open,
+            capture::history::captures_remove,
+            capture::history::captures_clear,
             capture::capture_session,
             capture::capture_pixels,
             capture::capture_ready,
