@@ -152,7 +152,7 @@ pub async fn agents_codex_choose_folder<R: Runtime>(
         };
         match profiles::canonical(&folder.to_string_lossy()) {
             Some(canonical) => json!({
-                "name": profiles::name_for(&folder, &default_name),
+                "name": profiles::suggested_name(&canonical, profiles::usual_home().as_deref(), &default_name),
                 "directory": canonical,
             }),
             None => json!({"invalid": true}),
@@ -1460,6 +1460,17 @@ mod tests {
         assert_eq!(s.finish_minimum, Some(3600.0));
         assert!(!settings(&json!({"island": {"sections": {"agents": false}}})).enabled);
         assert!(!settings(&json!({"island": {"hiddenModules": ["agents"]}})).enabled);
+    }
+
+    #[test]
+    fn added_codex_homes_are_read_and_checked_only_while_their_cards_can_show() {
+        let home = json!([{"id": "11111111-2222-4333-8444-555555555555", "name": "Work", "directory": r"C:\w"}]);
+        let s = settings(&json!({"island": {"agentsCodexProfiles": home}}));
+        assert_eq!(s.codex_profiles.len(), 1);
+        assert!(s.checks_accounts());
+        assert!(!settings(&json!({"island": {"agentsCodex": false}})).checks_accounts());
+        assert!(!settings(&json!({"island": {"agentsHiddenCards": ["limits"]}})).checks_accounts());
+        assert!(!settings(&json!({"island": {"sections": {"agents": false}}})).checks_accounts());
     }
 
     #[test]

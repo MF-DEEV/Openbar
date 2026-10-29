@@ -173,14 +173,7 @@ pub fn discover(home: &Path, usual: Option<&Path>, default_name: &str) -> Vec<Pr
             if !paths.insert(path_key(&canonical.to_string_lossy())) {
                 return None;
             }
-            // Named after the folder a link leads to, and only the usual home is the default.
-            let name = if usual.as_ref().is_some_and(|u| same(u, &canonical)) {
-                default_name.to_string()
-            } else {
-                Some(name_for(&canonical, default_name))
-                    .filter(|n| n != default_name)
-                    .unwrap_or_else(|| "Codex".into())
-            };
+            let name = suggested_name(&canonical, usual.as_deref(), default_name);
             Some(Profile {
                 id: codex::uuid(),
                 name,
@@ -188,6 +181,23 @@ pub fn discover(home: &Path, usual: Option<&Path>, default_name: &str) -> Vec<Pr
             })
         })
         .collect()
+}
+
+/// Named after the folder a link leads to, and only the usual home is the default.
+pub fn suggested_name(canonical: &Path, usual: Option<&Path>, default_name: &str) -> String {
+    if usual.is_some_and(|u| same(u, canonical)) {
+        return default_name.to_string();
+    }
+    Some(name_for(canonical, default_name))
+        .filter(|n| n != default_name)
+        .unwrap_or_else(|| "Codex".into())
+}
+
+/// The usual home with its links resolved, as `canonical` spells it.
+pub fn usual_home() -> Option<PathBuf> {
+    super::files::codex_home()
+        .and_then(|u| std::fs::canonicalize(u).ok())
+        .and_then(plain)
 }
 
 fn folder_name(path: &Path) -> String {
@@ -1051,6 +1061,48 @@ mod tests {
         // Asked for, it runs at once.
         assert!(accounts.refresh(Some(B), true, REFRESH_INTERVAL));
         assert!(accounts.list.iter().all(|a| a.checking));
+    }
+
+    #[test]
+    fn a_forced_check_of_the_home_under_way_is_not_queued_twice() {
+        let mut accounts = Accounts::default();
+        accounts.synchronize(&[profile(A, "Work", r"C:\w")]);
+        accounts.refresh(None, true, 0.0);
+        let running = accounts.next(0.0).unwrap();
+        assert!(!accounts.refresh(Some(A), true, 0.0));
+        assert!(accounts.finish(&running, Ok(reading(0.0))));
+        assert!(accounts.next(1.0).is_none());
+    }
+
+    #[test]
+    fn a_home_given_another_folder_starts_over() {
+        let mut accounts = Accounts::default();
+        accounts.synchronize(&[profile(A, "Work", r"C:\w")]);
+        accounts.refresh(None, true, 0.0);
+        let running = accounts.next(0.0).unwrap();
+        accounts.synchronize(&[profile(A, "Work", r"C:\other")]);
+        assert!(running.cancelled.load(Ordering::Relaxed));
+        assert!(!accounts.finish(&running, Ok(reading(0.0))));
+        assert_eq!(accounts.list[0].attempted, None);
+        assert!(accounts.list[0].limits.is_none() && !accounts.list[0].checking);
+    }
+
+    #[test]
+    fn suggested_names_follow_the_folder_and_the_usual_home() {
+        let usual = Path::new("/h/.codex-main");
+        assert_eq!(suggested_name(usual, Some(usual), "Default"), "Default");
+        assert_eq!(
+            suggested_name(Path::new("/h/.codex"), Some(usual), "Default"),
+            "Codex"
+        );
+        assert_eq!(
+            suggested_name(Path::new("/h/.codex-work"), Some(usual), "Default"),
+            "Work"
+        );
+        assert_eq!(
+            suggested_name(Path::new("/h/.codex-default"), Some(usual), "Default"),
+            "Codex"
+        );
     }
 
     #[test]
