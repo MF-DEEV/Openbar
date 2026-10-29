@@ -13,9 +13,11 @@ const history = [1, 2, 3, 4].reduce((h, seq) => pushHistory(h, demoSnapshot(seq)
 
 describe("metric details", () => {
   it("distinguishes unavailable memory details from measured zero without changing RAM readings", () => {
-    expect(memoryDetailRows(snapshot).map((row) => row.value)).toEqual(Array(4).fill("Unavailable"));
+    expect(memoryDetailRows(snapshot).map((row) => row.value)).toEqual(Array(4).fill(S.measuring));
+    const unavailable = { ...snapshot, processesFor: "memory" as const };
+    expect(memoryDetailRows(unavailable).map((row) => row.value)).toEqual(Array(4).fill("Unavailable"));
     const measured = {
-      ...snapshot,
+      ...unavailable,
       memoryPressure: 0.91,
       memoryCompressed: 0,
       memoryCached: 2 * 1024 ** 3,

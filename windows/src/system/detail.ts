@@ -64,11 +64,13 @@ export interface Row {
 
 /** Memory-only native details; missing measurements must never look like zero. */
 export function memoryDetailRows(s: SystemSnapshot): (Row & { description: string })[] {
-  const measuredBytes = (value: number | null) => (value == null ? S.metricUnavailable : bytes(value));
+  // Until the first reading for the open detail arrives, nothing is known yet.
+  const missing = s.processesFor === "memory" ? S.metricUnavailable : S.measuring;
+  const measuredBytes = (value: number | null) => (value == null ? missing : bytes(value));
   return [
     {
       title: S.memoryPressure,
-      value: s.memoryPressure == null ? S.metricUnavailable : percent(s.memoryPressure),
+      value: s.memoryPressure == null ? missing : percent(s.memoryPressure),
       description: S.memoryPressureHelp,
     },
     { title: S.memoryCompressed, value: measuredBytes(s.memoryCompressed), description: S.memoryCompressedHelp },

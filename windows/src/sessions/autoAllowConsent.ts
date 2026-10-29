@@ -4,15 +4,21 @@
 import type { Session } from "./types";
 
 const KEY = "sessions.autoAllowTurns";
+/** A consent this old belongs to a turn that is long over. */
+const MAX_AGE = 24 * 60 * 60;
 interface Consent {
-  pid: number;
   cwd: string;
   turnStarted: number;
 }
 
-/** Restore only the exact task the user enabled, never a later turn or another process. */
-export function autoAllowConsent() {
-  let pending: Record<string, Consent> = {};
+// Codex sessions have no pid (one thread can move between terminals); the
+// thread id with Codex's own start of the turn names the task.
+const working = (session: Session) =>
+  session.provider === "codex" && session.phase !== "finished" && session.phase !== "idle";
+
+/** Restore only the exact task the user enabled, never a later turn or another thread. */
+export function autoAllowConsent(now = Date.now() / 1000) {
+  const pending: Record<string, Consent> = {};
   try {
     const saved: unknown = JSON.parse(globalThis.localStorage?.getItem(KEY) ?? "{}");
     if (saved && typeof saved === "object" && !Array.isArray(saved)) {
@@ -21,14 +27,12 @@ export function autoAllowConsent() {
         if (
           consent &&
           typeof consent === "object" &&
-          typeof consent.pid === "number" &&
-          Number.isInteger(consent.pid) &&
-          consent.pid > 0 &&
           typeof consent.cwd === "string" &&
           typeof consent.turnStarted === "number" &&
-          Number.isFinite(consent.turnStarted)
+          Number.isFinite(consent.turnStarted) &&
+          now - consent.turnStarted < MAX_AGE
         )
-          pending[id] = consent as Consent;
+          pending[id] = { cwd: consent.cwd, turnStarted: consent.turnStarted };
       }
     }
   } catch {
@@ -41,36 +45,33 @@ export function autoAllowConsent() {
       for (const session of sessions) {
         const saved = pending[session.id];
         if (!saved) continue;
-        // Discovery may initially publish an empty snapshot. Keep unseen grants
-        // pending, but never activate them until their full identity is known.
-        if (
-          session.provider === "codex" &&
-          session.phase !== "finished" &&
-          session.phase !== "idle" &&
-          session.pid === saved.pid &&
-          session.cwd === saved.cwd &&
-          session.turnStarted === saved.turnStarted
-        ) {
+        if (!working(session)) {
+          // The turn ended while the app was closed; its consent ended with it.
+          delete pending[session.id];
+        } else if (session.cwd === saved.cwd && session.turnStarted === saved.turnStarted) {
           restored[session.id] = true;
+          delete pending[session.id];
         }
-        delete pending[session.id];
+        // Otherwise the turn's exact start is not known yet (Codex reports it
+        // just after the thread is joined), or this is another turn. Keep the
+        // grant pending, but never activate it until it matches.
       }
       return restored;
     },
     save(sessions: Session[], enabled: Record<string, boolean>) {
       const saved = { ...pending };
       for (const session of sessions) {
+        // An undecided grant stays until restore settles it or a new choice replaces it.
+        if (pending[session.id] && !enabled[session.id]) continue;
+        delete pending[session.id];
         delete saved[session.id];
         if (
           enabled[session.id] &&
-          session.provider === "codex" &&
-          session.phase !== "finished" &&
-          session.phase !== "idle" &&
-          session.pid > 0 &&
+          working(session) &&
           session.turnStarted !== undefined &&
           Number.isFinite(session.turnStarted)
         ) {
-          saved[session.id] = { pid: session.pid, cwd: session.cwd, turnStarted: session.turnStarted };
+          saved[session.id] = { cwd: session.cwd, turnStarted: session.turnStarted };
         }
       }
       try {

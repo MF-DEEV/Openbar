@@ -1615,6 +1615,8 @@ mod imp {
             assert!(snapshot.memory_cached.is_some());
             assert!(snapshot.memory_swap_used.is_some());
             assert_eq!(snapshot.processes_for, Some(Detail::Memory));
+            assert_eq!(snapshot.process_status, ProcessStatus::Ready);
+            assert!(!snapshot.processes.is_empty());
             // A reading for another detail must not retain memory-only values.
             let next = sampler.sample(Some(Detail::Cpu), 1);
             assert_eq!(next.memory_pressure, None);
