@@ -82,6 +82,13 @@ pub fn speed_test_probe_main(path: &str) -> ! {
     speed_test::probe_main(path)
 }
 
+/// `Vorssaint.exe --network-helper`, `--install-network-helper` or
+/// `--remove-network-helper`: the per-app network list's elevated helper
+/// and the steps that approve and remove it. Returns for anything else.
+pub fn network_helper_main(arg: &str) {
+    system_monitor::network_helper_main(arg)
+}
+
 /// `Vorssaint.exe --remove-hooks`: the uninstaller takes Vorssaint's hooks out
 /// of Claude Code's settings, so Claude doesn't call a program that's gone.
 pub fn remove_hooks_main() -> ! {
@@ -188,6 +195,7 @@ pub fn run() {
             timer::timer_wake,
             system_monitor::system_monitor_watch,
             system_monitor::system_monitor_snapshot,
+            system_monitor::system_network_approve,
             speed_test::speed_test_state,
             speed_test::speed_test_start,
             calendar::calendar_snapshot,
@@ -317,6 +325,7 @@ pub fn run() {
 
     app.run(|app, event| {
         if let RunEvent::Exit = event {
+            system_monitor::stop(app.state::<system_monitor::Shared>().inner());
             fullscreen::stop(app);
             audio::stop();
         }

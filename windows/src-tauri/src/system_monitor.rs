@@ -23,7 +23,7 @@ use tauri::{AppHandle, Emitter, Manager};
 /// counters and byte deltas need two samples; this keeps the "…" brief.
 const WARM_UP: Duration = Duration::from_millis(400);
 
-/// A metric detail the page has open; CPU and memory add their top processes.
+/// A metric detail the page has open.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum Detail {
@@ -88,8 +88,25 @@ pub struct ProcessRow {
     pub name: String,
     /// The exe, for its icon; None when Windows won't say (protected processes).
     pub path: Option<String>,
-    /// CPU: percent of the whole machine, 0…100. Memory: private bytes.
+    /// CPU/GPU: percent, 0…100. Memory: private bytes. Network: bytes/sec.
     pub value: f64,
+    /// Network rows: separate receive/send rates; value is their sum for ranking.
+    pub net_down: Option<f64>,
+    pub net_up: Option<f64>,
+}
+
+/// Distinguish idle lists from unavailable measurements and rate warm-up.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ProcessStatus {
+    #[default]
+    Measuring,
+    Ready,
+    Unavailable,
+    PermissionDenied,
+    Incomplete,
+    /// Windows can allow it once, when the user approves (network_helper.rs).
+    NeedsApproval,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
@@ -115,8 +132,9 @@ pub struct Snapshot {
     pub disk_read: Option<f64>,
     pub disk_write: Option<f64>,
     pub devices: Option<Vec<Device>>,
-    /// The open detail's top processes (CPU or memory); empty otherwise.
+    /// The open detail's top processes; empty when idle or unavailable.
     pub processes: Vec<ProcessRow>,
+    pub process_status: ProcessStatus,
     /// The detail the rows were read for, so a reading still on its way
     /// when the page switched details isn't shown under the other one.
     pub processes_for: Option<Detail>,
@@ -127,6 +145,9 @@ pub struct Snapshot {
 struct Control {
     visible: bool,
     detail: Option<Detail>,
+    shutdown: bool,
+    /// Bumped once the network helper is approved, so the open detail starts it.
+    approvals: u64,
 }
 
 #[derive(Default)]
@@ -135,9 +156,23 @@ pub struct Monitor {
     wake: Condvar,
     /// None until the sampler has probed what this PC can read.
     last: Mutex<Option<Snapshot>>,
+    worker: Mutex<Option<std::thread::JoinHandle<()>>>,
+    /// Windows' prompt for the network helper is open.
+    approving: std::sync::atomic::AtomicBool,
 }
 
 pub type Shared = Arc<Monitor>;
+
+/// How the network detail's Allow ended.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Approval {
+    Approved,
+    /// Declined, or the helper couldn't be set up.
+    Declined,
+    /// Another Allow's prompt is still open; its answer counts.
+    Busy,
+}
 
 /// The page opens (`visible`) or closes, or opens a metric's detail.
 #[tauri::command]
@@ -146,15 +181,40 @@ pub fn system_monitor_watch(
     visible: bool,
     detail: Option<Detail>,
 ) {
+    let mut control = state.control.lock().unwrap();
+    if control.shutdown {
+        return;
+    }
     let next = Control {
         visible,
         detail: detail.filter(|_| visible),
+        shutdown: false,
+        approvals: control.approvals,
     };
-    let mut control = state.control.lock().unwrap();
     if *control != next {
         *control = next;
         state.wake.notify_all();
     }
+}
+
+/// The network detail's Allow button: Windows asks for an administrator's
+/// approval once (network_helper.rs).
+#[tauri::command]
+pub async fn system_network_approve(state: tauri::State<'_, Shared>) -> Result<Approval, ()> {
+    use std::sync::atomic::Ordering;
+    if state.approving.swap(true, Ordering::SeqCst) {
+        return Ok(Approval::Busy);
+    }
+    let approved = tauri::async_runtime::spawn_blocking(imp::approve_network)
+        .await
+        .unwrap_or(false);
+    state.approving.store(false, Ordering::SeqCst);
+    if !approved {
+        return Ok(Approval::Declined);
+    }
+    state.control.lock().unwrap().approvals += 1;
+    state.wake.notify_all();
+    Ok(Approval::Approved)
 }
 
 /// The latest reading, so a page opened again starts from it; None before
@@ -165,9 +225,20 @@ pub fn system_monitor_snapshot(state: tauri::State<'_, Shared>) -> Option<Snapsh
 }
 
 pub fn start(app: AppHandle, shared: Shared) {
-    let _ = std::thread::Builder::new()
+    let worker_shared = shared.clone();
+    *shared.worker.lock().unwrap() = std::thread::Builder::new()
         .name("system-monitor".into())
-        .spawn(move || run(app, shared));
+        .spawn(move || run(app, worker_shared))
+        .ok();
+}
+
+/// Stop owned ETW sessions before the application exits.
+pub fn stop(shared: &Monitor) {
+    shared.control.lock().unwrap().shutdown = true;
+    shared.wake.notify_all();
+    if let Some(worker) = shared.worker.lock().unwrap().take() {
+        let _ = worker.join();
+    }
 }
 
 fn run(app: AppHandle, shared: Shared) {
@@ -180,13 +251,17 @@ fn run(app: AppHandle, shared: Shared) {
     loop {
         let control = {
             let mut control = shared.control.lock().unwrap();
-            while !control.visible {
+            while !control.visible && !control.shutdown {
                 control = shared.wake.wait(control).unwrap();
+            }
+            if control.shutdown {
+                return;
             }
             control.clone()
         };
         sampler.prime(control.detail);
         if wait_unless_changed(&shared, &control, WARM_UP) {
+            sampler.pause();
             continue;
         }
         loop {
@@ -200,6 +275,7 @@ fn run(app: AppHandle, shared: Shared) {
                 break;
             }
         }
+        sampler.pause();
     }
 }
 
@@ -293,30 +369,42 @@ mod math {
     }
 
     /// Task Manager's GPU figure: each engine's utilization summed across the
-    /// processes using it, then the busiest engine type of any adapter. Instance
+    /// processes using it, then the busiest engine of any adapter. Instance
     /// names read "pid_1234_luid_0x0_0x1_phys_0_eng_0_engtype_3D".
     pub fn gpu_usage<'a>(instances: impl IntoIterator<Item = (&'a str, f64)>) -> Option<f64> {
         let mut engines: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
         let mut any = false;
         for (name, value) in instances {
-            any = true;
+            if !value.is_finite() {
+                continue;
+            }
             let Some(luid) = name.find("luid_") else {
                 continue;
             };
             let Some(engtype) = name.find("_engtype_") else {
                 continue;
             };
-            let Some(eng) = name[luid..].find("_eng_").map(|i| luid + i) else {
+            if engtype <= luid || !name[luid..engtype].contains("_eng_") {
                 continue;
-            };
-            // Adapter (luid + phys) and engine type; the engine index is summed in.
-            let key = format!("{}|{}", &name[luid..eng], &name[engtype + 9..]);
+            }
+            any = true;
+            // Keep the physical engine index: distinct engines can have the
+            // same type and run concurrently. Only matching engines are summed.
+            let key = name[luid..].to_string();
             *engines.entry(key).or_default() += value.max(0.0);
         }
         if !any {
             return None;
         }
         Some((engines.into_values().fold(0.0, f64::max) / 100.0).clamp(0.0, 1.0))
+    }
+
+    pub fn gpu_pid(instance: &str) -> Option<u32> {
+        let (pid, engine) = instance.strip_prefix("pid_")?.split_once("_luid_")?;
+        if !engine.contains("_eng_") || !engine.contains("_engtype_") {
+            return None;
+        }
+        pid.parse::<u32>().ok().filter(|pid| *pid != 0)
     }
 
     /// Physical adapters only: no NDIS filter copies (they repeat the counters),
@@ -466,10 +554,29 @@ mod math {
 #[cfg_attr(not(windows), allow(unused_imports))]
 use math::*;
 
+#[cfg(windows)]
+#[path = "network_process.rs"]
+mod network_process;
+
+#[cfg_attr(not(windows), allow(dead_code))]
+#[path = "network_helper.rs"]
+mod network_helper;
+
+/// `Vorssaint.exe --network-helper` and its install/remove steps; returns for
+/// any other argument.
+pub fn network_helper_main(arg: &str) {
+    #[cfg(windows)]
+    network_helper::command_main(arg);
+    #[cfg(not(windows))]
+    let _ = arg;
+}
+
 // MARK: Windows
 
 #[cfg(windows)]
 mod imp {
+    use super::network_helper::HelperClient;
+    use super::network_process::{Bytes, NetworkTrace};
     use super::*;
     use std::collections::HashMap;
     use windows::Win32::System::Performance::*;
@@ -558,8 +665,9 @@ mod imp {
             let valid = buffer
                 .iter()
                 .filter(|i| {
-                    i.FmtValue.CStatus == PDH_CSTATUS_VALID_DATA
-                        || i.FmtValue.CStatus == PDH_CSTATUS_NEW_DATA
+                    (i.FmtValue.CStatus == PDH_CSTATUS_VALID_DATA
+                        || i.FmtValue.CStatus == PDH_CSTATUS_NEW_DATA)
+                        && unsafe { i.FmtValue.Anonymous.doubleValue }.is_finite()
                 })
                 .map(|i| {
                     let name = unsafe { i.szName.to_string() }.unwrap_or_default();
@@ -603,6 +711,36 @@ mod imp {
         wear: Option<(Option<f64>, Option<u32>)>,
         tick: u64,
         processors: u32,
+        network_trace: Option<NetworkSource>,
+        network_status: ProcessStatus,
+    }
+
+    /// The island's own trace when Windows lets it start one (elevated, or
+    /// UAC off); otherwise the approved helper's.
+    enum NetworkSource {
+        Trace(NetworkTrace),
+        Helper(HelperClient),
+    }
+
+    impl NetworkSource {
+        fn start() -> Result<Self, ProcessStatus> {
+            match NetworkTrace::start() {
+                Ok(trace) => Ok(NetworkSource::Trace(trace)),
+                Err(ProcessStatus::PermissionDenied) => HelperClient::start().map(Self::Helper),
+                Err(status) => Err(status),
+            }
+        }
+
+        fn sample(&mut self) -> (ProcessStatus, HashMap<u32, Bytes>, f64) {
+            match self {
+                NetworkSource::Trace(trace) => trace.sample(),
+                NetworkSource::Helper(helper) => helper.sample(),
+            }
+        }
+    }
+
+    pub fn approve_network() -> bool {
+        super::network_helper::approve()
     }
 
     impl Sampler {
@@ -628,6 +766,8 @@ mod imp {
                 processors: std::thread::available_parallelism()
                     .map(|n| n.get() as u32)
                     .unwrap_or(1),
+                network_trace: None,
+                network_status: ProcessStatus::Measuring,
             }
         }
 
@@ -651,14 +791,27 @@ mod imp {
             self.times = system_times();
             self.net = network_counters().or(self.net.take());
             self.processes.clear();
-            if detail == Some(Detail::Cpu) {
+            if matches!(detail, Some(Detail::Cpu | Detail::Gpu)) {
                 self.processes = read_processes()
                     .into_iter()
                     .map(|p| (p.key, p.cpu_time))
                     .collect();
             }
+            if detail == Some(Detail::Network) {
+                match NetworkSource::start() {
+                    Ok(trace) => {
+                        self.network_trace = Some(trace);
+                        self.network_status = ProcessStatus::Measuring;
+                    }
+                    Err(status) => self.network_status = status,
+                }
+            }
             self.last = Instant::now();
             self.tick = 0;
+        }
+
+        pub fn pause(&mut self) {
+            self.network_trace = None;
         }
 
         pub fn sample(&mut self, detail: Option<Detail>, interval: u64) -> Snapshot {
@@ -674,11 +827,13 @@ mod imp {
                 .map(|v| (v / 100.0).clamp(0.0, 1.0))
                 .or_else(|| cpu_from_times(self.times?, times?));
             self.times = times;
+            let mut gpu_instances = None;
             if let Some(counter) = pdh.and_then(|p| p.gpu)
                 && let Some((list, count)) = Pdh::instances(counter)
             {
                 self.gpu_seen = Some(count > 0);
                 snapshot.gpu = gpu_usage(list.iter().map(|(n, v)| (n.as_str(), *v)));
+                gpu_instances = Some(list);
             }
             snapshot.disk_read = pdh
                 .and_then(|p| Pdh::value(p.disk_read))
@@ -723,12 +878,37 @@ mod imp {
             snapshot.devices = self.devices.clone();
             self.tick += 1;
 
+            snapshot.process_status = ProcessStatus::Ready;
             snapshot.processes = match detail {
                 Some(Detail::Cpu) => self.cpu_rows(elapsed, snapshot.cpu.map(|c| c * 100.0)),
                 Some(Detail::Memory) => self.memory_rows(),
+                Some(Detail::Gpu) => {
+                    snapshot.process_status = match &gpu_instances {
+                        Some(list) if !list.is_empty() => ProcessStatus::Ready,
+                        Some(_) if self.supported().gpu => ProcessStatus::Measuring,
+                        _ => ProcessStatus::Unavailable,
+                    };
+                    self.gpu_rows(gpu_instances.as_deref().unwrap_or_default())
+                }
+                Some(Detail::Network) => {
+                    let (status, rows) = self.network_rows();
+                    snapshot.process_status = status;
+                    rows
+                }
+                Some(Detail::Power) => {
+                    // E3/SRUM attributes estimated historical energy, not a live
+                    // per-process power measurement. Never label it as watts.
+                    snapshot.process_status = ProcessStatus::Unavailable;
+                    Vec::new()
+                }
                 _ => Vec::new(),
             };
-            snapshot.processes_for = detail.filter(|d| matches!(d, Detail::Cpu | Detail::Memory));
+            snapshot.processes_for = detail.filter(|d| {
+                matches!(
+                    d,
+                    Detail::Cpu | Detail::Memory | Detail::Gpu | Detail::Network | Detail::Power
+                )
+            });
             snapshot.uptime_seconds =
                 unsafe { windows::Win32::System::SystemInformation::GetTickCount64() } / 1000;
             snapshot.supported = self.supported();
@@ -783,6 +963,88 @@ mod imp {
             top_rows(rows, PROCESS_ROWS)
         }
 
+        fn gpu_rows(&mut self, instances: &[(String, f64)]) -> Vec<ProcessRow> {
+            self.gpu_rows_from(instances, read_processes())
+        }
+
+        fn gpu_rows_from(
+            &mut self,
+            instances: &[(String, f64)],
+            entries: Vec<ProcessEntry>,
+        ) -> Vec<ProcessRow> {
+            let live: HashMap<_, _> = entries
+                .iter()
+                .filter(|entry| self.processes.contains_key(&entry.key))
+                .map(|entry| (entry.key.pid, entry))
+                .collect();
+            struct AppGpu<'a> {
+                pid: u32,
+                engines: Vec<(&'a str, f64)>,
+            }
+            let mut by_image: HashMap<&str, AppGpu<'_>> = HashMap::new();
+            for (name, value) in instances {
+                let Some(pid) = gpu_pid(name) else {
+                    continue;
+                };
+                let Some(entry) = live.get(&pid) else {
+                    continue;
+                };
+                by_image
+                    .entry(&entry.image)
+                    .or_insert_with(|| AppGpu {
+                        pid,
+                        engines: Vec::new(),
+                    })
+                    .engines
+                    .push((name, *value));
+            }
+            self.processes = entries.iter().map(|p| (p.key, p.cpu_time)).collect();
+            let rows = by_image
+                .into_iter()
+                .filter_map(|(image, app)| {
+                    let percent = gpu_usage(app.engines)? * 100.0;
+                    (percent >= 0.05).then(|| self.row(image, app.pid, percent))
+                })
+                .collect();
+            top_rows(rows, PROCESS_ROWS)
+        }
+
+        fn network_rows(&mut self) -> (ProcessStatus, Vec<ProcessRow>) {
+            let Some(trace) = &mut self.network_trace else {
+                return (self.network_status, Vec::new());
+            };
+            let (status, mut bytes, elapsed) = trace.sample();
+            if status != ProcessStatus::Ready {
+                return (status, Vec::new());
+            }
+            let mut by_image: HashMap<String, (u32, u64, u64)> = HashMap::new();
+            for entry in read_processes() {
+                let Some(traffic) = bytes.remove(&entry.key.pid) else {
+                    continue;
+                };
+                // Events from a terminated process must not be assigned to a
+                // new process that happens to have the same PID.
+                if traffic.first < entry.key.created {
+                    continue;
+                }
+                let slot = by_image.entry(entry.image).or_insert((entry.key.pid, 0, 0));
+                slot.1 = slot.1.saturating_add(traffic.down);
+                slot.2 = slot.2.saturating_add(traffic.up);
+            }
+            let rows = by_image
+                .into_iter()
+                .map(|(image, (pid, down, up))| {
+                    let down = per_second(down, elapsed);
+                    let up = per_second(up, elapsed);
+                    let mut row = self.row(&image, pid, down + up);
+                    row.net_down = Some(down);
+                    row.net_up = Some(up);
+                    row
+                })
+                .collect();
+            (status, top_rows(rows, PROCESS_ROWS))
+        }
+
         /// A row named as Windows names the app ("Google Chrome"), cached per image.
         fn row(&mut self, image: &str, pid: u32, value: f64) -> ProcessRow {
             let (path, name) = self
@@ -803,7 +1065,13 @@ mod imp {
                     None => (None, image.trim_end_matches(".exe").to_string()),
                 })
                 .clone();
-            ProcessRow { name, path, value }
+            ProcessRow {
+                name,
+                path,
+                value,
+                net_down: None,
+                net_up: None,
+            }
         }
     }
 
@@ -1251,6 +1519,130 @@ mod imp {
         }
         out
     }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        #[ignore = "starts a real ETW system logger; run with tracing privileges"]
+        fn live_network_sampler_rows() {
+            let mut sampler = Sampler::new();
+            sampler.prime(Some(Detail::Network));
+            assert!(
+                sampler.network_trace.is_some(),
+                "ETW start: {:?}",
+                sampler.network_status
+            );
+            let image = read_processes()
+                .into_iter()
+                .find(|entry| entry.key.pid == std::process::id())
+                .unwrap()
+                .image;
+            sampler
+                .process_names
+                .insert(image, (None, "ETW verification".into()));
+            let receiver = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+            receiver
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let sender = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+            sender
+                .send_to(&[0; 4096], receiver.local_addr().unwrap())
+                .unwrap();
+            receiver.recv_from(&mut [0; 8192]).unwrap();
+            std::thread::sleep(Duration::from_secs(3));
+            let snapshot = sampler.sample(Some(Detail::Network), 1);
+            assert_eq!(snapshot.process_status, ProcessStatus::Ready);
+            assert_eq!(snapshot.processes_for, Some(Detail::Network));
+            let own = snapshot
+                .processes
+                .iter()
+                .find(|row| row.name == "ETW verification")
+                .expect("test process must reach the UI snapshot");
+            let down = own.net_down.unwrap();
+            let up = own.net_up.unwrap();
+            assert!(down > 0.0 && up > 0.0);
+            assert_eq!(own.value, down + up);
+            eprintln!(
+                "UI snapshot: {}, down {down:.1} B/s, up {up:.1} B/s",
+                own.name
+            );
+            sampler.pause();
+            assert!(sampler.network_trace.is_none());
+            sampler.prime(Some(Detail::Network));
+            assert!(
+                sampler.network_trace.is_some(),
+                "network detail must reopen its collector"
+            );
+            sampler.pause();
+            eprintln!("Network collector closed and reopened successfully");
+        }
+
+        #[test]
+        #[ignore = "samples the host's GPU counters and hardware"]
+        fn live_gpu_counters() {
+            let mut sampler = Sampler::new();
+            sampler.prime(Some(Detail::Gpu));
+            std::thread::sleep(Duration::from_secs(1));
+            let snapshot = sampler.sample(Some(Detail::Gpu), 1);
+            eprintln!(
+                "GPU: {:?}, process status: {:?}, rows: {}",
+                snapshot.gpu,
+                snapshot.process_status,
+                snapshot.processes.len()
+            );
+            if let Some(gpu) = snapshot.gpu {
+                assert!(gpu.is_finite() && (0.0..=1.0).contains(&gpu));
+                for row in snapshot.processes {
+                    assert!(row.value.is_finite() && (0.0..=100.0).contains(&row.value));
+                }
+            } else {
+                eprintln!("No valid host GPU reading; GPU hardware validation remains pending");
+            }
+            assert!(snapshot.memory_total.is_some());
+            sampler.pause();
+        }
+
+        #[test]
+        fn gpu_rows_group_apps_and_reject_terminated_or_recycled_pids() {
+            let mut sampler = Sampler::new();
+            let entry = |pid, created, image: &str| ProcessEntry {
+                key: ProcessKey { pid, created },
+                image: image.into(),
+                cpu_time: 0,
+                private_bytes: 0,
+            };
+            let previous = [
+                entry(1, 100, "browser.exe"),
+                entry(2, 100, "browser.exe"),
+                entry(3, 100, "old.exe"),
+                entry(4, 100, "exited.exe"),
+            ];
+            sampler.processes = previous.iter().map(|p| (p.key, 0)).collect();
+            sampler
+                .process_names
+                .insert("browser.exe".into(), (None, "Browser".into()));
+            let instances = [
+                ("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 20.0),
+                ("pid_2_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 30.0),
+                ("pid_1_luid_0x0_0xA_phys_0_eng_1_engtype_3D", 40.0),
+                ("pid_3_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 90.0),
+                ("pid_4_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 90.0),
+            ]
+            .map(|(name, value)| (name.into(), value));
+            let rows = sampler.gpu_rows_from(
+                &instances,
+                vec![
+                    entry(1, 100, "browser.exe"),
+                    entry(2, 100, "browser.exe"),
+                    entry(3, 200, "new.exe"),
+                ],
+            );
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].name, "Browser");
+            assert_eq!(rows[0].value, 50.0);
+        }
+    }
 }
 
 #[cfg(not(windows))]
@@ -1260,6 +1652,10 @@ mod imp {
     /// Off Windows there is nothing to read; the page shows "monitor unavailable".
     pub struct Sampler;
 
+    pub fn approve_network() -> bool {
+        false
+    }
+
     impl Sampler {
         pub fn new() -> Self {
             Sampler
@@ -1268,6 +1664,7 @@ mod imp {
             Supported::default()
         }
         pub fn prime(&mut self, _detail: Option<Detail>) {}
+        pub fn pause(&mut self) {}
         pub fn sample(&mut self, _detail: Option<Detail>, _interval: u64) -> Snapshot {
             Snapshot::default()
         }
@@ -1331,7 +1728,7 @@ mod tests {
     }
 
     #[test]
-    fn gpu_takes_the_busiest_engine_type_summed_across_processes() {
+    fn gpu_takes_the_busiest_engine_summed_across_processes() {
         let instances = [
             ("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 30.0),
             ("pid_2_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 25.0),
@@ -1345,11 +1742,41 @@ mod tests {
             ("pid_1_luid_0x0_0xB_phys_0_eng_0_engtype_3D", 60.0),
         ];
         assert_eq!(gpu_usage(two), Some(0.6));
+        // Independent engines of the same type are not summed either.
+        assert_eq!(
+            gpu_usage([
+                ("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 60.0),
+                ("pid_1_luid_0x0_0xA_phys_0_eng_1_engtype_3D", 70.0),
+            ]),
+            Some(0.7)
+        );
         assert_eq!(
             gpu_usage([("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 250.0)]),
             Some(1.0)
         );
         assert_eq!(gpu_usage(std::iter::empty()), None);
+        assert_eq!(gpu_usage([("invalid", 50.0)]), None);
+        assert_eq!(
+            gpu_usage([("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", f64::NAN)]),
+            None
+        );
+    }
+
+    #[test]
+    fn gpu_instance_pid_must_be_a_nonzero_process_id() {
+        assert_eq!(
+            gpu_pid("pid_42_luid_0x0_0xA_phys_0_eng_0_engtype_3D"),
+            Some(42)
+        );
+        for invalid in [
+            "pid_0_luid_a_eng_0_engtype_3D",
+            "pid_x_luid_a_eng_0_engtype_3D",
+            "pid_42",
+            "_Total",
+            "pid_4294967296_luid_a_eng_0_engtype_3D",
+        ] {
+            assert_eq!(gpu_pid(invalid), None);
+        }
     }
 
     #[test]
@@ -1485,6 +1912,8 @@ mod tests {
             name: name.into(),
             path: None,
             value,
+            net_down: None,
+            net_up: None,
         };
         let rows = top_rows(
             vec![row("b", 1.0), row("a", 5.0), row("c", 3.0), row("d", 3.0)],
@@ -1522,11 +1951,26 @@ mod tests {
     }
 
     #[test]
+    fn approval_names_match_the_page() {
+        assert_eq!(
+            serde_json::to_string(&ProcessStatus::NeedsApproval).unwrap(),
+            "\"needsApproval\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Approval::Approved).unwrap(),
+            "\"approved\""
+        );
+        assert_eq!(serde_json::to_string(&Approval::Busy).unwrap(), "\"busy\"");
+    }
+
+    #[test]
     fn watch_wakes_the_sampler_only_on_change() {
         let monitor = Monitor::default();
         let seen = Control {
             visible: true,
             detail: None,
+            shutdown: false,
+            approvals: 0,
         };
         *monitor.control.lock().unwrap() = seen.clone();
         assert!(!wait_unless_changed(
@@ -1535,6 +1979,10 @@ mod tests {
             Duration::from_millis(5)
         ));
         monitor.control.lock().unwrap().detail = Some(Detail::Cpu);
+        assert!(wait_unless_changed(&monitor, &seen, Duration::from_secs(5)));
+        // An approved network helper restarts the open detail's collector.
+        *monitor.control.lock().unwrap() = seen.clone();
+        monitor.control.lock().unwrap().approvals += 1;
         assert!(wait_unless_changed(&monitor, &seen, Duration::from_secs(5)));
     }
 }
