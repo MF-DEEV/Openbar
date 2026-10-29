@@ -15,10 +15,14 @@ use super::cli::{self, Conversation};
 use super::model::{LimitSource, Limits, Provider, Time};
 use super::parse::{ACCOUNT_KEYS, codex_windows, int, is_main_bucket, seconds};
 use serde_json::{Value, json};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
+pub const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
+/// Account metadata needs no plugins or marketplace updates.
+const SERVER_ARGS: [&str; 3] = ["-c", "features.plugins=false", "app-server"];
 const REDEEM_TIMEOUT: Duration = Duration::from_secs(30);
 /// A reading, or a failure only the person can fix, holds this long.
 pub const FRESHNESS: f64 = 5.0 * 60.0;
@@ -188,24 +192,28 @@ pub fn outcome(result: &Value) -> Option<Outcome> {
 struct Server {
     channel: Conversation,
     last_id: i64,
+    /// Set when the answer is no longer wanted: the server is ended at once.
+    cancelled: Option<Arc<AtomicBool>>,
 }
 
 impl Server {
     fn start(timeout: Duration) -> Result<Server, Failure> {
         let executable = executable().ok_or(Failure::Missing)?;
         let env = vec![("PATH".to_string(), cli::child_path(&executable))];
-        // Account metadata needs no plugins or marketplace updates.
-        let channel = Conversation::start(
-            &executable,
-            &["-c", "features.plugins=false", "app-server"],
-            &env,
-            &[],
-            timeout,
+        Server::open(
+            Conversation::start(&executable, &SERVER_ARGS, &env, &[], timeout),
+            None,
         )
-        .ok_or(Failure::Unreachable)?;
+    }
+
+    fn open(
+        channel: Option<Conversation>,
+        cancelled: Option<Arc<AtomicBool>>,
+    ) -> Result<Server, Failure> {
         let mut server = Server {
-            channel,
+            channel: channel.ok_or(Failure::Unreachable)?,
             last_id: 0,
+            cancelled,
         };
         server.ask("initialize", json!({"clientInfo": {"name": "vorssaint", "title": "Vorssaint", "version": env!("CARGO_PKG_VERSION")}, "capabilities": null}))?;
         if !server.channel.send(&json!({"method": "initialized"})) {
@@ -223,7 +231,11 @@ impl Server {
         {
             return Err(Failure::Unreachable);
         }
-        response(&mut || self.channel.next(), id)
+        let channel = &mut self.channel;
+        match &self.cancelled {
+            Some(cancelled) => response(&mut || channel.next_unless(cancelled), id),
+            None => response(&mut || channel.next(), id),
+        }
     }
 
     fn summary(&mut self, now: Time) -> Result<Summary, Failure> {
@@ -261,6 +273,26 @@ pub fn check(now: &dyn Fn() -> Time) -> Result<Summary, Failure> {
         return Err(failure);
     }
     server.summary(now())
+}
+
+/// The account behind one Codex home and its limits (CodexAccountUsageReader.read):
+/// `account/read` without refreshing the sign-in, then `account/rateLimits/read`.
+/// Codex runs with only `env`, so nothing the app was started with points it
+/// at another account.
+pub fn check_home(
+    env: impl FnOnce(&Path) -> Vec<(String, String)>,
+    cancelled: Arc<AtomicBool>,
+) -> Result<(Value, Value), Failure> {
+    let executable = executable().ok_or(Failure::Missing)?;
+    let channel =
+        Conversation::start_isolated(&executable, &SERVER_ARGS, &env(&executable), CHECK_TIMEOUT);
+    let mut server = Server::open(channel, Some(cancelled))?;
+    let account = server.ask("account/read", json!({"refreshToken": false}))?;
+    if let Some(failure) = sign_in_failure(&account) {
+        return Err(failure);
+    }
+    let limits = server.ask("account/rateLimits/read", json!({}))?;
+    Ok((account, limits))
 }
 
 /// Spends the reset that expires first, with `key` for idempotency.

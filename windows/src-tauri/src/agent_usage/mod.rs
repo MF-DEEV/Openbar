@@ -21,6 +21,7 @@ mod parse;
 #[cfg_attr(not(windows), allow(dead_code))]
 mod prices;
 mod pricing;
+mod profiles;
 mod store;
 mod summary;
 
@@ -59,6 +60,8 @@ struct Control {
     /// Some(force) when the Resets card asked for a check.
     resets: Option<bool>,
     redeem: Option<Sender<String>>,
+    /// Codex homes a card or Settings asked to check: one, or None for all.
+    accounts: Vec<Option<String>>,
 }
 
 pub type State = Arc<Shared>;
@@ -103,6 +106,60 @@ pub fn agents_page_visible(state: tauri::State<'_, State>, visible: bool) {
 #[tauri::command]
 pub fn agents_resets_refresh(state: tauri::State<'_, State>, force: bool) {
     poke(&state, |c| c.resets = Some(force || c.resets == Some(true)));
+}
+
+/// Checks an added Codex home now, or every one (a card's ⟳, Settings' Check limits).
+#[tauri::command]
+pub fn agents_codex_refresh(state: tauri::State<'_, State>, id: Option<String>) {
+    poke(&state, |c| c.accounts.push(id));
+}
+
+/// The usual Codex home and the `.codex-<name>` homes beside it that pass
+/// the checks, with new ids; Settings keeps those it does not have.
+#[tauri::command]
+pub async fn agents_codex_discover(default_name: String) -> Vec<profiles::Profile> {
+    tauri::async_runtime::spawn_blocking(move || {
+        files::home().map_or_else(Vec::new, |home| {
+            profiles::discover(&home, files::codex_home().as_deref(), &default_name)
+        })
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// A folder the person picks: its canonical path and suggested name, or
+/// `invalid` when it is not a private Codex home; null when they cancel.
+#[tauri::command]
+pub async fn agents_codex_choose_folder<R: Runtime>(
+    app: AppHandle<R>,
+    title: String,
+    default_name: String,
+) -> Value {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_dialog::DialogExt;
+        let mut builder = app.dialog().file().set_title(title);
+        if let Some(home) = files::home() {
+            builder = builder.set_directory(home);
+        }
+        if let Some(window) = app.get_webview_window(crate::settings::LABEL) {
+            builder = builder.set_parent(&window);
+        }
+        let Some(folder) = builder
+            .blocking_pick_folder()
+            .and_then(|p| p.into_path().ok())
+        else {
+            return Value::Null;
+        };
+        match profiles::canonical(&folder.to_string_lossy()) {
+            Some(canonical) => json!({
+                "name": profiles::name_for(&folder, &default_name),
+                "directory": canonical,
+            }),
+            None => json!({"invalid": true}),
+        }
+    })
+    .await
+    .unwrap_or(Value::Null)
 }
 
 /// Spends one banked Codex reset. Only the Resets card's confirmed button calls this.
@@ -186,6 +243,20 @@ pub fn probe_main(path: &str, limits: bool) -> ! {
             }
             Err(f) => json!(f.key()),
         };
+        // Every Codex home Settings would find, each asked as its card would be.
+        let homes = files::home().map_or_else(Vec::new, |home| {
+            profiles::discover(&home, files::codex_home().as_deref(), "Default")
+        });
+        out["codexHomes"] = homes
+            .iter()
+            .map(|p| {
+                let check = match profiles::read(p, Default::default(), &model::now) {
+                    Ok(r) => json!({"plan": r.plan, "windows": r.limits.windows.iter().map(summary::WindowOut::from).collect::<Vec<_>>()}),
+                    Err(f) => json!(f.key()),
+                };
+                json!({"name": p.name, "directory": p.directory, "check": check})
+            })
+            .collect();
     }
     let written = std::fs::write(path, serde_json::to_vec_pretty(&out).unwrap_or_default());
     std::process::exit(if written.is_ok() { 0 } else { 1 })
@@ -203,6 +274,16 @@ struct Settings {
     /// Something shows or alerts on plan limits (NotchAgentSupport.limitsInUse).
     limits_without_page: bool,
     limits_card: bool,
+    /// The Codex homes with cards of their own (notchAgentsCodexProfiles).
+    codex_profiles: Vec<profiles::Profile>,
+}
+
+impl Settings {
+    /// Added Codex homes are checked only while their cards can show, in the
+    /// Limits card's place (CodexProfileLimitsService.isEnabled).
+    fn checks_accounts(&self) -> bool {
+        self.enabled && self.providers.contains(&Provider::Codex) && self.limits_card
+    }
 }
 
 fn settings(prefs: &Value) -> Settings {
@@ -252,6 +333,7 @@ fn settings(prefs: &Value) -> Settings {
         price_updates: flag("agentsPriceUpdates", true),
         limits_without_page: limit_threshold.is_some() || live_limit,
         limits_card: !hidden_cards,
+        codex_profiles: profiles::decode(island("agentsCodexProfiles")),
     }
 }
 
@@ -266,6 +348,10 @@ enum Job {
         Sender<String>,
     ),
     Prices(Option<pricing::PriceList>),
+    Account(
+        profiles::Check,
+        Result<profiles::Reading, profiles::Failure>,
+    ),
 }
 
 #[derive(Default)]
@@ -306,6 +392,10 @@ struct Service {
     warned: HashMap<String, (Provider, LimitWindow)>,
     budget_day: Option<chrono::NaiveDate>,
     resets: Resets,
+    /// Added Codex homes and their checks, in memory only.
+    accounts: profiles::Accounts,
+    /// Whether the page showed at the last step, so leaving it is noticed.
+    page_was_visible: bool,
     price_due: Time,
     price_checking: bool,
     published: Option<Value>,
@@ -343,6 +433,8 @@ impl Service {
             warned: HashMap::new(),
             budget_day: None,
             resets: Resets::default(),
+            accounts: profiles::Accounts::default(),
+            page_was_visible: false,
             price_due: 0.0,
             price_checking: false,
             published: None,
@@ -374,6 +466,8 @@ impl Service {
                 self.stop(false);
             }
             self.answer_redeem("failed");
+            self.accounts.cancel();
+            self.state.control.lock().unwrap().accounts.clear();
             return;
         }
         if self.running.as_ref() != Some(&settings.providers) {
@@ -697,13 +791,19 @@ impl Service {
 
     /// Starts background checks that are due.
     fn schedule(&mut self, now: Time) {
-        let (page, resets_request, redeem) = {
+        let (page, resets_request, redeem, asked) = {
             let mut c = self.state.control.lock().unwrap();
-            (c.page_visible, c.resets.take(), c.redeem.take())
+            (
+                c.page_visible,
+                c.resets.take(),
+                c.redeem.take(),
+                std::mem::take(&mut c.accounts),
+            )
         };
         let Some(settings) = self.settings.clone() else {
             return;
         };
+        self.schedule_accounts(&settings, page, asked, now);
         // Claude's account check (§2.2).
         let in_use = settings.limits_without_page || (page && settings.limits_card);
         // Measured from the last attempt with the page as it is now, so opening
@@ -755,6 +855,39 @@ impl Service {
                 let _ = tx.send(Job::Prices(prices::download()));
             });
         }
+    }
+
+    /// Added Codex homes: those due while the page shows, and those asked for.
+    fn schedule_accounts(
+        &mut self,
+        settings: &Settings,
+        page: bool,
+        asked: Vec<Option<String>>,
+        now: Time,
+    ) {
+        let mut changed = self.accounts.synchronize(&settings.codex_profiles);
+        if !settings.checks_accounts() {
+            changed |= self.accounts.cancel();
+        } else {
+            if page {
+                changed |= self.accounts.refresh(None, false, now);
+            }
+            for id in asked {
+                changed |= self.accounts.refresh(id.as_deref(), true, now);
+            }
+        }
+        if self.page_was_visible && !page {
+            changed |= self.accounts.page_hidden();
+        }
+        self.page_was_visible = page;
+        if let Some(check) = self.accounts.next(now) {
+            let tx = self.jobs.0.clone();
+            std::thread::spawn(move || {
+                let result = profiles::read(&check.profile, check.cancelled.clone(), &model::now);
+                let _ = tx.send(Job::Account(check, result));
+            });
+        }
+        self.dirty |= changed;
     }
 
     /// Spends the reset that expires first; a retry within ten minutes of an
@@ -843,6 +976,9 @@ impl Service {
                     Some(summary) => self.accept_resets(summary),
                     None => poke(&self.state, |c| c.resets = Some(true)),
                 }
+            }
+            Job::Account(check, result) => {
+                self.accounts.finish(&check, result);
             }
             Job::Prices(list) => {
                 self.price_checking = false;
@@ -1143,6 +1279,19 @@ impl Service {
             failure: r.failure.map(codex::Failure::key),
             checked_at: r.summary.as_ref().map(|s| (s.checked_at * 1000.0).round()),
         };
+        s.codex_accounts = self
+            .accounts
+            .list
+            .iter()
+            .map(|a| summary::AccountOut {
+                id: a.profile.id.clone(),
+                name: a.profile.name.clone(),
+                limits: a.current_limits(now).as_ref().map(summary::LimitsOut::from),
+                plan: a.plan.clone(),
+                checking: a.checking,
+                failure: a.failure.map(profiles::Failure::key),
+            })
+            .collect();
         s.price_day = pricing::list().updated.clone();
         s
     }
