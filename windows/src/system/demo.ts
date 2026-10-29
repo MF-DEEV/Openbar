@@ -17,6 +17,11 @@ export function demoSnapshot(seq: number): SystemSnapshot {
     gpu: wave(0.32, 0.12, 1),
     memoryUsed: Math.round(memoryTotal * wave(0.63, 0.02, 2)),
     memoryTotal,
+    // Browser previews have no native source for memory details.
+    memoryPressure: null,
+    memoryCompressed: null,
+    memoryCached: null,
+    memorySwapUsed: null,
     battery: {
       percent: 18,
       charging: false,

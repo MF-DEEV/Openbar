@@ -706,6 +706,7 @@ Cards, in order (:27-87):
 | CPU | PDH `\Processor Information(_Total)\% Processor Utility` (matches Task Manager; `% Processor Time` reads lower on turbo CPUs), or `GetSystemTimes` deltas |
 | GPU | PDH `\GPU Engine(*)\Utilization Percentage`. Sum per engine type (3D, Copy, VideoDecode…) across processes, take the max type (Task Manager method) |
 | Memory | `GlobalMemoryStatusEx`: used = `ullTotalPhys − ullAvailPhys`. Note that the Mac "used" excludes cached memory; this is close |
+| Memory details | Pressure (approx.): `K32GetPerformanceInfo`, the higher of `1 − PhysicalAvailable / PhysicalTotal` and `CommitTotal / CommitLimit`. Cached: `SystemCache × PageSize`. Compressed: working set of the `MemCompression` process (parent PID 4) from `NtQuerySystemInformation(SystemProcessInformation)`. Page file: `K32EnumPageFilesW` `TotalInUse` summed. Missing readings show Unavailable; see `windows/docs/memory-details.md` |
 | Battery | `GetSystemPowerStatus`, or `Windows.Devices.Power.Battery.AggregateBattery.GetReport()` (charge %, charging status). Health and cycles: `IOCTL_BATTERY_QUERY_INFORMATION` (`FullChargedCapacity / DesignedCapacity`, `CycleCount`; 0 = no counter) |
 | Network | `GetIfTable2` byte-counter deltas, excluding loopback, tunnel and virtual adapters (`InterfaceAndOperStatusFlags.HardwareInterface`) |
 | Disk | `GetDiskFreeSpaceExW(%SystemDrive%\)` |

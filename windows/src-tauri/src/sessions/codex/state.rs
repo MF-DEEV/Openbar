@@ -427,6 +427,36 @@ impl State {
                 entry.chat.drain(..entry.chat.len() - 100);
             }
         }
+        if let Some(turns) = thread.get("turns").and_then(Value::as_array) {
+            self.running_turn(id, turns);
+        }
+    }
+
+    /// When the running turn started, as Codex keeps it. The island usually
+    /// joins a thread after its turn began, so `turn/started` never came and
+    /// the start is only when the island saw it work; a consent kept for the
+    /// turn across a restart needs the exact time. Reads a turn's status and
+    /// time, never its items. Whether it changed anything.
+    pub fn running_turn(&mut self, id: &str, turns: &[Value]) -> bool {
+        let Some(thread) = self.threads.get_mut(id) else {
+            return false;
+        };
+        if !thread.status.as_ref().is_some_and(Status::is_active) {
+            return false;
+        }
+        let Some(started) = turns
+            .iter()
+            .rev()
+            .find(|turn| str_at(turn, "status") == Some("inProgress"))
+            .and_then(|turn| time_at(turn, "startedAt"))
+        else {
+            return false;
+        };
+        if thread.turn_started == Some(started) {
+            return false;
+        }
+        thread.turn_started = Some(started);
+        true
     }
 
     /// A notification from the daemon: what it changed, and a thread worth
@@ -1280,6 +1310,40 @@ mod tests {
         assert_eq!(phase(&state.threads["t1"], 311.0), SessionPhase::Finished);
         state.acknowledge("t1", 312.0);
         assert_eq!(phase(&state.threads["t1"], 313.0), SessionPhase::Idle);
+    }
+
+    #[test]
+    fn a_turn_joined_midway_takes_codexs_start_not_when_it_was_seen() {
+        let mut state = state_with_thread();
+        let active = json!({"threadId": "t1", "status": {"type": "active", "activeFlags": []}});
+        state.notify("thread/status/changed", &active, 400.0);
+        assert_eq!(state.threads["t1"].turn_started, Some(400.0));
+        let turns = [
+            json!({"id": "a", "status": "completed", "startedAt": 100}),
+            json!({"id": "b", "status": "inProgress", "startedAt": 390}),
+        ];
+        assert!(state.running_turn("t1", &turns));
+        assert_eq!(state.threads["t1"].turn_started, Some(390.0));
+        assert!(
+            !state.running_turn("t1", &turns),
+            "the same start changes nothing"
+        );
+        // Only a running turn counts, and only while the thread works.
+        assert!(!state.running_turn("t1", &turns[..1]));
+        state.notify(
+            "thread/status/changed",
+            &json!({"threadId": "t1", "status": {"type": "idle"}}),
+            410.0,
+        );
+        assert!(!state.running_turn("t1", &[json!({"status": "inProgress", "startedAt": 405})]));
+        assert!(!state.running_turn("missing", &turns));
+        // A read with history after a restart gives it too (previews on).
+        let mut state = State {
+            previews: true,
+            ..Default::default()
+        };
+        state.upsert_thread(&json!({"id": "t2", "cwd": "C:\\code", "status": {"type": "active", "activeFlags": []}, "turns": turns}));
+        assert_eq!(state.threads["t2"].turn_started, Some(390.0));
     }
 
     #[test]

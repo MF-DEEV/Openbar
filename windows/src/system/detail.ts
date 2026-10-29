@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Vorssaint
 
 // What a metric's detail reads (MetricDetailView.swift): the summary's value
-// and line, its history graph and its rows. Temperatures, memory pressure
-// and adapter watts have no Windows source and are left out. The network
-// detail's speed test is its own card (SpeedTestCard.tsx).
+// and line, its history graph and its rows. Temperatures and adapter watts
+// have no Windows source and are left out. The network detail's speed test
+// is its own card (SpeedTestCard.tsx).
 
 import { powerReading } from "./cards";
 import {
@@ -60,6 +60,23 @@ export interface Row {
   value: string;
   /** A device row's glyph. */
   bluetooth?: boolean;
+}
+
+/** Memory-only native details; missing measurements must never look like zero. */
+export function memoryDetailRows(s: SystemSnapshot): (Row & { description: string })[] {
+  // Until the first reading for the open detail arrives, nothing is known yet.
+  const missing = s.processesFor === "memory" ? S.metricUnavailable : S.measuring;
+  const measuredBytes = (value: number | null) => (value == null ? missing : bytes(value));
+  return [
+    {
+      title: S.memoryPressure,
+      value: s.memoryPressure == null ? missing : percent(s.memoryPressure),
+      description: S.memoryPressureHelp,
+    },
+    { title: S.memoryCompressed, value: measuredBytes(s.memoryCompressed), description: S.memoryCompressedHelp },
+    { title: S.memoryCached, value: measuredBytes(s.memoryCached), description: S.memoryCachedHelp },
+    { title: S.memorySwapUsed, value: measuredBytes(s.memorySwapUsed), description: S.memorySwapUsedHelp },
+  ];
 }
 
 const usedFraction = (s: SystemSnapshot) =>

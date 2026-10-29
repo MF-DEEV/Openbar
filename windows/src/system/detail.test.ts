@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { resolve } from "../shared/prefs";
 import { demoSnapshot } from "./demo";
-import { detailRows, processEmptyText, processRowValue, processValue, summary } from "./detail";
+import { detailRows, memoryDetailRows, processEmptyText, processRowValue, processValue, summary } from "./detail";
 import { S } from "./strings";
 import { emptyHistory, pushHistory } from "./store";
 
@@ -12,6 +12,23 @@ const snapshot = demoSnapshot(4);
 const history = [1, 2, 3, 4].reduce((h, seq) => pushHistory(h, demoSnapshot(seq)), emptyHistory());
 
 describe("metric details", () => {
+  it("distinguishes unavailable memory details from measured zero without changing RAM readings", () => {
+    expect(memoryDetailRows(snapshot).map((row) => row.value)).toEqual(Array(4).fill(S.measuring));
+    const unavailable = { ...snapshot, processesFor: "memory" as const };
+    expect(memoryDetailRows(unavailable).map((row) => row.value)).toEqual(Array(4).fill("Unavailable"));
+    const measured = {
+      ...unavailable,
+      memoryPressure: 0.91,
+      memoryCompressed: 0,
+      memoryCached: 2 * 1024 ** 3,
+      memorySwapUsed: 0,
+    };
+    expect(memoryDetailRows(measured).map((row) => row.value)).toEqual(["91%", "0 B", "2.0 GB", "0 B"]);
+    expect(memoryDetailRows(measured)[0]!.title).toContain("approx.");
+    expect(detailRows("memory", measured, false)).toEqual(detailRows("memory", snapshot, false));
+    expect(summary("memory", measured, history, false)).toEqual(summary("memory", snapshot, history, false));
+  });
+
   it("summarizes each metric with its graph", () => {
     const cpu = summary("cpu", snapshot, history, false);
     expect(cpu.graph?.lines[0]!.values).toHaveLength(4);

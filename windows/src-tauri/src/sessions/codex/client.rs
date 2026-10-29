@@ -70,6 +70,8 @@ enum Waiting {
     LoadedList,
     Read,
     Resume,
+    /// The newest turn of a thread joined while it worked (`running_turn`).
+    Turns(String),
     Other,
 }
 
@@ -402,7 +404,7 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
         (None, Some(id)) => {
             let waiting = id.as_i64().and_then(|id| s.waiting.remove(&id));
             let result = message.get("result").cloned().unwrap_or(Value::Null);
-            match waiting {
+            match &waiting {
                 Some(Waiting::Initialize) => {
                     s.version = result
                         .get("userAgent")
@@ -441,6 +443,26 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
                         return false;
                     };
                     s.state.upsert_thread(thread);
+                    // Joined without its history (previews off): ask for the
+                    // newest turn alone, without items, for when it started.
+                    let no_turns = thread
+                        .get("turns")
+                        .and_then(Value::as_array)
+                        .is_none_or(Vec::is_empty);
+                    if matches!(waiting, Some(Waiting::Resume))
+                        && no_turns
+                        && let Some(id) = thread.get("id").and_then(Value::as_str)
+                        && s.state
+                            .threads
+                            .get(id)
+                            .is_some_and(|t| t.status.as_ref().is_some_and(|s| s.is_active()))
+                    {
+                        s.call(
+                            "thread/turns/list",
+                            json!({"threadId": id, "limit": 1, "sortDirection": "desc", "itemsView": "notLoaded"}),
+                            Waiting::Turns(id.to_string()),
+                        );
+                    }
                     // Read back unloaded, it left the list: a page no longer keeps it.
                     if let Some(id) = thread.get("id").and_then(Value::as_str)
                         && !s.state.threads.contains_key(id)
@@ -449,6 +471,10 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
                     }
                     s.follow();
                     true
+                }
+                Some(Waiting::Turns(id)) => {
+                    let turns = result.get("data").and_then(Value::as_array);
+                    s.state.running_turn(id, turns.map_or(&[], Vec::as_slice))
                 }
                 _ => false,
             }
@@ -734,6 +760,31 @@ mod tests {
         s.focused.insert("e1".into());
         s.follow();
         assert!(sent(&rx).is_empty());
+    }
+
+    #[test]
+    fn a_thread_joined_midway_asks_for_its_running_turns_start() {
+        let (mut s, rx) = joined();
+        let thread = json!({"id": "t1", "cwd": "C:\\code\\app", "status": {"type": "active", "activeFlags": []}});
+        let after = read_thread(&mut s, &rx, thread.clone());
+        assert_eq!(methods(&after), ["thread/resume"]);
+        // Previews off: the join has no history, so only the newest turn is asked for.
+        let mut resumed = thread.clone();
+        resumed["turns"] = json!([]);
+        respond(&mut s, &after, "thread/resume", json!({"thread": resumed}));
+        let asked = sent(&rx);
+        assert_eq!(methods(&asked), ["thread/turns/list"]);
+        assert_eq!(
+            asked[0]["params"],
+            json!({"threadId": "t1", "limit": 1, "sortDirection": "desc", "itemsView": "notLoaded"})
+        );
+        assert!(respond(
+            &mut s,
+            &asked,
+            "thread/turns/list",
+            json!({"data": [{"id": "u1", "status": "inProgress", "startedAt": 900, "items": []}]})
+        ));
+        assert_eq!(s.state.threads["t1"].turn_started, Some(900.0));
     }
 
     #[test]
