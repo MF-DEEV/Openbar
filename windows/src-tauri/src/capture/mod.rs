@@ -29,6 +29,7 @@
 
 pub mod clipboard;
 pub mod color;
+pub mod history;
 pub mod preview;
 pub mod snapshot;
 
@@ -501,6 +502,9 @@ fn screenshot<R: Runtime>(app: &AppHandle<R>, crop: &Frame, name: &str, monitor:
         std::fs::write(&path, &png).ok()?;
         Some(path)
     });
+    if let Err(error) = history::record(app, crop, &png) {
+        eprintln!("could not record recent capture: {error}");
+    }
     let preview_result = preview::open(app, crop.clone(), png, path.clone(), copied, monitor);
     if path.is_none()
         && !copied

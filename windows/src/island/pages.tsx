@@ -33,6 +33,7 @@ import "../calendar/register";
 import "../controls/register";
 import "../tools/register";
 import "../clipboard/register";
+import "../captures/register";
 import "../files/register";
 import "../agents/register";
 import "../watch/register";
