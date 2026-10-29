@@ -116,6 +116,13 @@ describe("SMTC lyric scheduling", () => {
 });
 
 describe("LRCLIB", () => {
+  it("rejects other recordings by the same words as macOS, and empty titles", () => {
+    for (const albumName of ["Song (The Remixes)", "Unplugged Concert", "Концерт"])
+      expect(catalogLyrics(record({ albumName }), song)).toBeNull();
+    expect(catalogLyrics(record({ albumName: "Album" }), song)).not.toBeNull();
+    expect(catalogLyrics(record({ trackName: "???" }), { ...song, title: "!!!" })).toBeNull();
+  });
+
   it("validates recording metadata and accepts cosmetic punctuation", () => {
     expect(catalogLyrics(record({ trackName: "Track!" }), song)?.lines).toHaveLength(1);
     expect(catalogLyrics(record({ artistName: "Someone else" }), song)).toBeNull();
@@ -181,7 +188,7 @@ describe("LRCLIB", () => {
 
 /** The panel open with online lookup allowed: the only time LRCLIB is asked. */
 function opened(store: ReturnType<typeof createLyricsStore>) {
-  store.setState({ expanded: true, online: true });
+  store.setState({ visible: true, online: true });
   return store;
 }
 
@@ -309,7 +316,7 @@ describe("asking LRCLIB only when allowed (macOS notchLyricsOnline)", () => {
     await store.getState().select(song);
     await store.getState().select(other);
     expect(load).not.toHaveBeenCalled();
-    store.getState().toggle();
+    store.getState().setVisible(true);
     await vi.waitFor(() => expect(store.getState().status).toBe("ready"));
     expect(load).toHaveBeenCalledTimes(1);
     expect(load.mock.calls[0]![0]).toMatchObject({ title: "Other" });
@@ -319,7 +326,7 @@ describe("asking LRCLIB only when allowed (macOS notchLyricsOnline)", () => {
     const load = vi.fn(async () => lyrics);
     const store = createLyricsStore(load, memoryStorage());
     await store.getState().select(song);
-    store.getState().toggle();
+    store.getState().setVisible(true);
     expect(store.getState().status).toBe("consent");
     expect(load).not.toHaveBeenCalled();
     store.getState().setOnline(true);
@@ -339,7 +346,7 @@ describe("asking LRCLIB only when allowed (macOS notchLyricsOnline)", () => {
     );
     void store.getState().select(song);
     expect(store.getState().status).toBe("loading");
-    store.getState().toggle();
+    store.getState().setVisible(false);
     expect(signal?.aborted).toBe(true);
     expect(store.getState().status).toBe("idle");
     request.resolve(lyrics);
@@ -349,8 +356,51 @@ describe("asking LRCLIB only when allowed (macOS notchLyricsOnline)", () => {
     const load = vi.fn(async () => lyrics);
     const restored = createLyricsStore(load, storage);
     await restored.getState().select(song);
-    restored.getState().toggle();
+    restored.getState().setVisible(true);
     expect(restored.getState().status).toBe("ready");
     expect(load).not.toHaveBeenCalled();
   });
+
+  it("turning lookup off while it runs offers it again", () => {
+    let signal: AbortSignal | undefined;
+    const store = opened(
+      createLyricsStore((_, s) => {
+        signal = s;
+        return new Promise(() => {});
+      }, memoryStorage()),
+    );
+    void store.getState().select(song);
+    store.getState().setOnline(false);
+    expect(signal?.aborted).toBe(true);
+    expect(store.getState().status).toBe("consent");
+  });
+
+  it("a file too large to save never blocks later saves", async () => {
+    const data = new Map<string, string>();
+    const store = opened(
+      createLyricsStore(async () => null, {
+        getItem: (key) => data.get(key) ?? null,
+        setItem: (key, value) => {
+          if (value.length > 2_000) throw new DOMException("full", "QuotaExceededError");
+          data.set(key, value);
+        },
+      }),
+    );
+    await store.getState().select(song);
+    const big = Array.from({ length: 200 }, (_, i) => `[00:${String(i % 60).padStart(2, "0")}.00]line ${i}`).join("\n");
+    expect(store.getState().importLrc(big, store.getState().key!)).toBe(true);
+    expect(store.getState().error).toMatch(/could not be saved/);
+    await store.getState().select(other);
+    store.getState().adjustOffset(0.5);
+    expect(store.getState().error).toBeNull();
+  });
+});
+
+it("follows Find lyrics online wherever the setting changes", async () => {
+  const { useIsland } = await import("../island/store");
+  const { useLyrics } = await import("./lyricsStore");
+  useIsland.setState((s) => ({ settings: { ...s.settings, lyricsOnline: true } }));
+  expect(useLyrics.getState().online).toBe(true);
+  useIsland.setState((s) => ({ settings: { ...s.settings, lyricsOnline: false } }));
+  expect(useLyrics.getState().online).toBe(false);
 });

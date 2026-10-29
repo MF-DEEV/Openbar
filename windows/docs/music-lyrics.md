@@ -3,8 +3,9 @@
 Open Music and select **Lyrics** to show the lyrics panel. As on macOS
 (`notchLyricsOnline`), LRCLIB is asked only after **Find lyrics online** is on
 (Content › Now Playing, or the button in the panel; off by default) and only
-while the panel is open, for the current SMTC song. Closing the panel or
-turning lookup off cancels a request in flight. A lookup uses title, artist,
+while the panel is on screen, for the current SMTC song. Closing the panel,
+leaving the Music page or collapsing the island, or turning lookup off,
+cancels a request in flight. A lookup uses title, artist,
 album and rounded duration when available. Missing title or artist skips the request.
 Lookup falls back to search, prefers timed lyrics, checks recording metadata
 and duration (within two seconds), and retains plain lyrics when available.
@@ -18,7 +19,7 @@ a duration show readable lyrics without a synchronized highlight.
 
 Scrolling with the mouse wheel, scrollbar, touch or keyboard pauses automatic
 following while highlighting continues. When the active verse leaves the view,
-the **Synchronizuj** button returns to it and resumes automatic following.
+the **Sync** button returns to it and resumes automatic following.
 Click a timed verse to seek to its timestamp plus the saved timing adjustment
 and resume following. Paused playback resumes after a successful seek. This
 action is available only when the player supports seeking.

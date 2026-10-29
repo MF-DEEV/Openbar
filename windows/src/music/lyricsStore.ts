@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import { create } from "zustand";
+import { useIsland } from "../island/store";
 import { fetchLyrics, parseLrc, songKey, type Lyrics, type Song } from "./lyrics";
 
 interface SavedSong {
@@ -19,9 +20,12 @@ interface LyricsState {
   status: "idle" | "consent" | "loading" | "ready" | "unavailable" | "failed";
   error: string | null;
   expanded: boolean;
+  /** The panel is on screen (LyricsPanel mounted), as macOS's visible: only then is LRCLIB asked. */
+  visible: boolean;
   /** Whether LRCLIB may be asked (Content › Now Playing); off until the person allows it. */
   online: boolean;
   toggle(): void;
+  setVisible(visible: boolean): void;
   setOnline(online: boolean): void;
   select(song: Song | null, retry?: boolean): Promise<void>;
   importLrc(source: string, expectedKey: string): boolean;
@@ -54,22 +58,25 @@ export function createLyricsStore(load = fetchLyrics, storage?: StorageAccess) {
   let controller: AbortController | undefined;
   let selected: Song | null = null;
   function persist(key: string, value: SavedSong): boolean {
-    delete saved[key];
-    saved[key] = value;
-    const entries = Object.entries(saved).slice(-100);
-    saved = Object.fromEntries(entries);
+    const before = saved;
+    const next = { ...saved };
+    delete next[key];
+    next[key] = value;
+    saved = Object.fromEntries(Object.entries(next).slice(-100));
     try {
       storage?.setItem(STORAGE_KEY, JSON.stringify(saved));
       return !!storage;
     } catch {
+      // Keep what is stored, so one file too large to save never blocks later saves.
+      saved = before;
       return false;
     }
   }
-  /** Asks LRCLIB only while the panel is open and online lookup is allowed. */
+  /** Asks LRCLIB only while the panel is on screen and online lookup is allowed. */
   async function lookup(retry = false) {
-    const { key, lyrics, status, expanded, online } = useStore.getState();
+    const { key, lyrics, status, visible, online } = useStore.getState();
     const song = selected;
-    if (!key || !song || !expanded || lyrics || (status === "loading" && !retry)) return;
+    if (!key || !song || !visible || lyrics || (status === "loading" && !retry)) return;
     if (!online) {
       useStore.setState({ status: "consent" });
       return;
@@ -103,13 +110,13 @@ export function createLyricsStore(load = fetchLyrics, storage?: StorageAccess) {
       clearTimeout(timeout);
     }
   }
-  /** Closing the panel or turning lookup off stops a request in flight. */
+  /** Hiding the panel or turning lookup off stops a request in flight. */
   function cancel() {
-    const { status } = useStore.getState();
+    const { status, visible, online, lyrics } = useStore.getState();
     if (status !== "loading" && status !== "consent") return;
     ++generation;
     controller?.abort();
-    useStore.setState({ status: "idle" });
+    useStore.setState({ status: visible && !online && !lyrics ? "consent" : "idle" });
   }
   const useStore = create<LyricsState>()((set, get) => ({
     key: null,
@@ -118,10 +125,13 @@ export function createLyricsStore(load = fetchLyrics, storage?: StorageAccess) {
     status: "idle",
     error: null,
     expanded: false,
+    visible: false,
     online: false,
-    toggle() {
-      set({ expanded: !get().expanded });
-      if (get().expanded) void lookup();
+    toggle: () => set({ expanded: !get().expanded }),
+    setVisible(visible) {
+      if (visible === get().visible) return;
+      set({ visible });
+      if (visible) void lookup();
       else cancel();
     },
     setOnline(online) {
@@ -181,3 +191,8 @@ function localStorageAccess(): StorageAccess | undefined {
   }
 }
 export const useLyrics = createLyricsStore(fetchLyrics, localStorageAccess());
+
+// Follows the setting wherever it changes (the Settings window included),
+// not only while the Music page is mounted.
+useLyrics.getState().setOnline(useIsland.getState().settings.lyricsOnline);
+useIsland.subscribe((state) => useLyrics.getState().setOnline(state.settings.lyricsOnline));

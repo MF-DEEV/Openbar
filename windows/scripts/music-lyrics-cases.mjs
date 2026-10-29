@@ -75,7 +75,7 @@ export async function checkMusicLyrics({ send, evaluate, base }) {
   await frames();
   assert(
     await evaluate(`!!document.querySelector('.m-lyrics-sync')`),
-    "Browsing far from the active verse should offer Synchronizuj",
+    "Browsing far from the active verse should offer Sync",
   );
   const browsedPosition = await evaluate(`document.querySelector('.m-lyrics-scroll').scrollTop`);
   await evaluate(`music.getState().receive({playback:{...reading,elapsed:24},sources:[]})`);
@@ -96,7 +96,7 @@ export async function checkMusicLyrics({ send, evaluate, base }) {
     const line=document.querySelector('.m-lyric.is-active').getBoundingClientRect();
     return line.top>=list.top && line.bottom<=list.bottom;
   })()`),
-    "Synchronizuj must return to the active verse",
+    "Sync must return to the active verse",
   );
   await evaluate(`music.getState().receive({playback:{...reading,elapsed:28},sources:[]})`);
   await frames();

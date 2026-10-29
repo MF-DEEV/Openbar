@@ -101,14 +101,37 @@ const key = (s: string) =>
 
 // Release names may differ, but a live/remix/acoustic album must not silently
 // supply a different recording just because its title and duration are close.
-const recordingKinds = (album: string) =>
-  [...new Set(album.toLowerCase().match(/\b(live|remix|acoustic|instrumental|karaoke)\b/g) ?? [])].sort().join(",");
+// The same words as macOS (NotchLyricsSupport.recordingKinds).
+const KINDS = [
+  "live",
+  "concert",
+  "концерт",
+  "концертная",
+  "remix",
+  "remixes",
+  "ремикс",
+  "acoustic",
+  "акустика",
+  "instrumental",
+  "karaoke",
+];
+const recordingKinds = (album: string) => {
+  const words = new Set(
+    album
+      .normalize("NFKD")
+      .replace(/\p{M}/gu, "")
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}]+/u),
+  );
+  return KINDS.filter((kind) => words.has(kind)).join(",");
+};
 
 export function catalogLyrics(value: unknown, song: Song): Lyrics | null {
   if (!value || typeof value !== "object") return null;
   const r = value as Record<string, unknown>;
   if (
     typeof r.trackName !== "string" ||
+    !key(song.title) ||
     key(r.trackName) !== key(song.title) ||
     typeof r.artistName !== "string" ||
     key(r.artistName) !== key(song.artist) ||

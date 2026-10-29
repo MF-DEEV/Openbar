@@ -9,7 +9,21 @@ import { useLyrics } from "./lyricsStore";
 import { useMusic } from "./store";
 import { position } from "./types";
 
-export function LyricsPanel() {
+/** The panel while it is on screen; lookups follow this, not the toggle alone. */
+export function LyricsSection() {
+  const key = useLyrics((s) => s.key);
+  useEffect(() => {
+    useLyrics.getState().setVisible(true);
+    return () => useLyrics.getState().setVisible(false);
+  }, []);
+  return (
+    <div id="music-lyrics">
+      <LyricsPanel key={key ?? ""} />
+    </div>
+  );
+}
+
+function LyricsPanel() {
   const lyrics = useLyrics((s) => s.lyrics);
   const status = useLyrics((s) => s.status);
   const offset = useLyrics((s) => s.offset);
@@ -276,7 +290,7 @@ const Verses = memo(function Verses({
           }}
         >
           <AudioLines size={16} aria-hidden="true" />
-          Synchronizuj
+          Sync
         </button>
       )}
     </div>

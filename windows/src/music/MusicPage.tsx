@@ -13,7 +13,7 @@ import { EqualizerBars } from "./EqualizerBars";
 import { ScrollingText } from "./ScrollingText";
 import { isPlaying, useMusic } from "./store";
 import { position, time, type Playback } from "./types";
-import { LyricsPanel } from "./LyricsPanel";
+import { LyricsSection } from "./LyricsPanel";
 import { useLyrics } from "./lyricsStore";
 
 export const MUSIC_WIDTH = 344;
@@ -47,8 +47,6 @@ export function MusicPage() {
   const failed = useMusic((s) => s.failed);
   const command = useMusic((s) => s.command);
   const lyricsExpanded = useLyrics((s) => s.expanded);
-  const lyricsOnline = useIsland((s) => s.settings.lyricsOnline);
-  useEffect(() => useLyrics.getState().setOnline(lyricsOnline), [lyricsOnline]);
 
   // Space toggles while the page has the keyboard.
   useEffect(() => {
@@ -165,11 +163,7 @@ export function MusicPage() {
           >
             Lyrics
           </button>
-          {lyricsExpanded && (
-            <div id="music-lyrics">
-              <LyricsPanel key={useLyrics.getState().key} />
-            </div>
-          )}
+          {lyricsExpanded && <LyricsSection />}
         </>
       )}
     </div>
