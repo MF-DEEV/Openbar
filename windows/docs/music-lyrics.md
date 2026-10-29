@@ -1,8 +1,11 @@
 # Windows Music lyrics
 
-Open Music and select **Lyrics** to show the lyrics panel. LRCLIB lookup runs
-automatically when the SMTC song changes and uses title, artist, album and
-rounded duration when available. Missing title or artist skips the request.
+Open Music and select **Lyrics** to show the lyrics panel. As on macOS
+(`notchLyricsOnline`), LRCLIB is asked only after **Find lyrics online** is on
+(Content › Now Playing, or the button in the panel; off by default) and only
+while the panel is open, for the current SMTC song. Closing the panel or
+turning lookup off cancels a request in flight. A lookup uses title, artist,
+album and rounded duration when available. Missing title or artist skips the request.
 Lookup falls back to search, prefers timed lyrics, checks recording metadata
 and duration (within two seconds), and retains plain lyrics when available.
 Instrumental, unavailable, loading and connection failure states share the

@@ -107,6 +107,13 @@ function Options({ id }: { id: ModuleId }) {
               onChange={(on) => set("showPlayingMusic", on)}
             />
           </SubRow>
+          <SubRow title={T.content.lyricsOnline} caption={T.content.lyricsOnlineCaption}>
+            <Toggle
+              label={T.content.lyricsOnline}
+              checked={island.lyricsOnline}
+              onChange={(on) => set("lyricsOnline", on)}
+            />
+          </SubRow>
         </>
       );
     case "notifications":

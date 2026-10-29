@@ -4,6 +4,7 @@
 import { AudioLines, FilePlus2, Minus, Plus } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import { activeIndex, MAX_LRC_BYTES, nextLyricDelay, songKey } from "./lyrics";
+import { setPrefs } from "../shared/prefs";
 import { useLyrics } from "./lyricsStore";
 import { useMusic } from "./store";
 import { position } from "./types";
@@ -23,17 +24,26 @@ export function LyricsPanel() {
         <LyricText />
       ) : (
         <div className="m-lyrics-empty" role="status">
-          {status === "loading"
-            ? "Finding lyrics…"
-            : status === "failed"
-              ? "Could not load lyrics. Check your connection."
-              : lyrics?.instrumental
-                ? "Instrumental"
-                : "Lyrics unavailable for this song."}
-          {status !== "loading" && !lyrics && (
-            <button type="button" onClick={() => void useLyrics.getState().select(song, true)}>
-              Retry
+          {status === "consent"
+            ? "Lyrics aren't looked up online. While lyrics are open, the song title, artist, album and duration go to lrclib.net. You can also import an .lrc file."
+            : status === "loading"
+              ? "Finding lyrics…"
+              : status === "failed"
+                ? "Could not load lyrics. Check your connection."
+                : lyrics?.instrumental
+                  ? "Instrumental"
+                  : "Lyrics unavailable for this song."}
+          {status === "consent" ? (
+            <button type="button" onClick={() => void setPrefs({ island: { lyricsOnline: true } })}>
+              Find lyrics online
             </button>
+          ) : (
+            status !== "loading" &&
+            !lyrics && (
+              <button type="button" onClick={() => void useLyrics.getState().select(song, true)}>
+                Retry
+              </button>
+            )
           )}
         </div>
       )}

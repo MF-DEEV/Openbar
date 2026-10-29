@@ -179,6 +179,12 @@ describe("LRCLIB", () => {
   });
 });
 
+/** The panel open with online lookup allowed: the only time LRCLIB is asked. */
+function opened(store: ReturnType<typeof createLyricsStore>) {
+  store.setState({ expanded: true, online: true });
+  return store;
+}
+
 describe("lyrics lifecycle and persistence", () => {
   it("rejects stale responses after switching songs, even A to B to A", async () => {
     const a = pending<typeof lyrics | null>(),
@@ -189,7 +195,7 @@ describe("lyrics lifecycle and persistence", () => {
       .mockReturnValueOnce(a.promise)
       .mockReturnValueOnce(b.promise)
       .mockReturnValueOnce(newest.promise);
-    const store = createLyricsStore(load, memoryStorage());
+    const store = opened(createLyricsStore(load, memoryStorage()));
     const first = store.getState().select(song),
       second = store.getState().select(other),
       third = store.getState().select(song);
@@ -204,7 +210,7 @@ describe("lyrics lifecycle and persistence", () => {
   });
   it("caches positive and negative results and clears when the session disappears", async () => {
     const load = vi.fn().mockResolvedValueOnce(lyrics).mockResolvedValueOnce(null);
-    const store = createLyricsStore(load, memoryStorage());
+    const store = opened(createLyricsStore(load, memoryStorage()));
     await store.getState().select(song);
     await store.getState().select(other);
     await store.getState().select(song);
@@ -218,7 +224,7 @@ describe("lyrics lifecycle and persistence", () => {
   it("imports without allowing pending API results to replace it and persists per song", async () => {
     const storage = memoryStorage(),
       request = pending<typeof lyrics | null>();
-    const store = createLyricsStore(() => request.promise, storage);
+    const store = opened(createLyricsStore(() => request.promise, storage));
     const loading = store.getState().select(song);
     expect(store.getState().importLrc("[00:02]Imported", songKey(song))).toBe(true);
     store.getState().adjustOffset(-0.5);
@@ -226,7 +232,7 @@ describe("lyrics lifecycle and persistence", () => {
     await loading;
     expect(store.getState().lyrics?.lines[0].text).toBe("Imported");
     const load = vi.fn().mockResolvedValue(null);
-    const restored = createLyricsStore(load, storage);
+    const restored = opened(createLyricsStore(load, storage));
     await restored.getState().select(song);
     expect(restored.getState().offset).toBe(-0.5);
     expect(restored.getState().lyrics?.lines[0].text).toBe("Imported");
@@ -236,12 +242,14 @@ describe("lyrics lifecycle and persistence", () => {
     expect(restored.getState().importLrc("[00:02]Wrong song", songKey(song))).toBe(false);
   });
   it("keeps current lyrics on invalid imports, bounds offsets, and reports storage failure", async () => {
-    const store = createLyricsStore(async () => lyrics, {
-      getItem: () => "invalid",
-      setItem: () => {
-        throw new Error("quota");
-      },
-    });
+    const store = opened(
+      createLyricsStore(async () => lyrics, {
+        getItem: () => "invalid",
+        setItem: () => {
+          throw new Error("quota");
+        },
+      }),
+    );
     await store.getState().select(song);
     expect(store.getState().importLrc("not timed", songKey(song))).toBe(false);
     expect(store.getState().lyrics).toEqual(lyrics);
@@ -256,15 +264,17 @@ describe("lyrics lifecycle and persistence", () => {
   it("handles failures, retry and request timeout without unhandled rejections", async () => {
     vi.useFakeTimers();
     const load = vi.fn().mockRejectedValueOnce(new Error("network")).mockResolvedValueOnce(lyrics);
-    const store = createLyricsStore(load, memoryStorage());
+    const store = opened(createLyricsStore(load, memoryStorage()));
     await store.getState().select(song);
     expect(store.getState().status).toBe("failed");
     await store.getState().select(song, true);
     expect(store.getState().status).toBe("ready");
-    const slow = createLyricsStore(
-      (_song, signal) =>
-        new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("timeout")))),
-      memoryStorage(),
+    const slow = opened(
+      createLyricsStore(
+        (_song, signal) =>
+          new Promise((_resolve, reject) => signal.addEventListener("abort", () => reject(new Error("timeout")))),
+        memoryStorage(),
+      ),
     );
     const loading = slow.getState().select(song);
     await vi.advanceTimersByTimeAsync(15000);
@@ -274,7 +284,7 @@ describe("lyrics lifecycle and persistence", () => {
   it("retains failed lookups briefly and expires misses so returning songs can refetch", async () => {
     vi.useFakeTimers();
     const load = vi.fn().mockRejectedValueOnce(new Error("offline")).mockResolvedValue(null);
-    const store = createLyricsStore(load, memoryStorage());
+    const store = opened(createLyricsStore(load, memoryStorage()));
     await store.getState().select(song);
     await store.getState().select(other);
     await store.getState().select(song);
@@ -288,5 +298,59 @@ describe("lyrics lifecycle and persistence", () => {
     await vi.advanceTimersByTimeAsync(60001);
     await store.getState().select(song);
     expect(load).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe("asking LRCLIB only when allowed (macOS notchLyricsOnline)", () => {
+  it("never asks while the panel is closed, and asks once it opens", async () => {
+    const load = vi.fn(async (_song: typeof song, _signal: AbortSignal) => lyrics);
+    const store = createLyricsStore(load, memoryStorage());
+    store.getState().setOnline(true);
+    await store.getState().select(song);
+    await store.getState().select(other);
+    expect(load).not.toHaveBeenCalled();
+    store.getState().toggle();
+    await vi.waitFor(() => expect(store.getState().status).toBe("ready"));
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(load.mock.calls[0]![0]).toMatchObject({ title: "Other" });
+  });
+
+  it("offers online lookup instead of asking until it is allowed", async () => {
+    const load = vi.fn(async () => lyrics);
+    const store = createLyricsStore(load, memoryStorage());
+    await store.getState().select(song);
+    store.getState().toggle();
+    expect(store.getState().status).toBe("consent");
+    expect(load).not.toHaveBeenCalled();
+    store.getState().setOnline(true);
+    await vi.waitFor(() => expect(store.getState().status).toBe("ready"));
+    expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("imported lyrics need no lookup, and closing the panel stops one in flight", async () => {
+    const request = pending<typeof lyrics | null>();
+    let signal: AbortSignal | undefined;
+    const storage = memoryStorage();
+    const store = opened(
+      createLyricsStore((_, s) => {
+        signal = s;
+        return request.promise;
+      }, storage),
+    );
+    void store.getState().select(song);
+    expect(store.getState().status).toBe("loading");
+    store.getState().toggle();
+    expect(signal?.aborted).toBe(true);
+    expect(store.getState().status).toBe("idle");
+    request.resolve(lyrics);
+    await Promise.resolve();
+    expect(store.getState().lyrics).toBeNull();
+    store.getState().importLrc("[00:01.00]Imported", store.getState().key!);
+    const load = vi.fn(async () => lyrics);
+    const restored = createLyricsStore(load, storage);
+    await restored.getState().select(song);
+    restored.getState().toggle();
+    expect(restored.getState().status).toBe("ready");
+    expect(load).not.toHaveBeenCalled();
   });
 });

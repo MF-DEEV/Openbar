@@ -88,6 +88,9 @@ export const T = {
     noOptions: "This section has no options.",
     showPlayingMusic: "Show music while playing",
     showPlayingMusicCaption: "The song takes the closed island, with its cover and moving bars.",
+    lyricsOnline: "Find lyrics online",
+    lyricsOnlineCaption:
+      "While lyrics are open, send the song title, artist, album and duration to lrclib.net. Imported lyrics stay on this PC.",
     hideTimerCountdown: "Hide timer countdown",
     hideTimerCountdownCaption: "A running timer stays off the closed island. A finished one still shows.",
     timerSound: "Play sound when time is up",

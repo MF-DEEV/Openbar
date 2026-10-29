@@ -15,10 +15,14 @@ interface LyricsState {
   key: string | null;
   lyrics: Lyrics | null;
   offset: number;
-  status: "idle" | "loading" | "ready" | "unavailable" | "failed";
+  /** consent: online lookup is off, so the panel offers it (macOS NotchLyricsService). */
+  status: "idle" | "consent" | "loading" | "ready" | "unavailable" | "failed";
   error: string | null;
   expanded: boolean;
+  /** Whether LRCLIB may be asked (Content › Now Playing); off until the person allows it. */
+  online: boolean;
   toggle(): void;
+  setOnline(online: boolean): void;
   select(song: Song | null, retry?: boolean): Promise<void>;
   importLrc(source: string, expectedKey: string): boolean;
   adjustOffset(amount: number): void;
@@ -61,19 +65,76 @@ export function createLyricsStore(load = fetchLyrics, storage?: StorageAccess) {
       return false;
     }
   }
-  return create<LyricsState>()((set, get) => ({
+  /** Asks LRCLIB only while the panel is open and online lookup is allowed. */
+  async function lookup(retry = false) {
+    const { key, lyrics, status, expanded, online } = useStore.getState();
+    const song = selected;
+    if (!key || !song || !expanded || lyrics || (status === "loading" && !retry)) return;
+    if (!online) {
+      useStore.setState({ status: "consent" });
+      return;
+    }
+    const set = useStore.setState;
+    const request = ++generation;
+    controller?.abort();
+    const hit = cache.get(key);
+    if (!retry && hit && hit.expires > Date.now()) {
+      set({ lyrics: hit.lyrics, status: hit.failed ? "failed" : hit.lyrics ? "ready" : "unavailable" });
+      return;
+    }
+    controller = new AbortController();
+    const current = controller;
+    const timeout = setTimeout(() => current.abort(), 15000);
+    set({ status: "loading" });
+    try {
+      const lyrics = await load(song, current.signal);
+      if (request !== generation) return;
+      cache.delete(key);
+      cache.set(key, { lyrics, expires: Date.now() + (lyrics ? 86400000 : 60000) });
+      if (cache.size > 50) cache.delete(cache.keys().next().value!);
+      set({ lyrics, status: lyrics ? "ready" : "unavailable" });
+    } catch {
+      if (request === generation) {
+        cache.set(key, { lyrics: null, failed: true, expires: Date.now() + 15000 });
+        if (cache.size > 50) cache.delete(cache.keys().next().value!);
+        set({ status: "failed" });
+      }
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+  /** Closing the panel or turning lookup off stops a request in flight. */
+  function cancel() {
+    const { status } = useStore.getState();
+    if (status !== "loading" && status !== "consent") return;
+    ++generation;
+    controller?.abort();
+    useStore.setState({ status: "idle" });
+  }
+  const useStore = create<LyricsState>()((set, get) => ({
     key: null,
     lyrics: null,
     offset: 0,
     status: "idle",
     error: null,
     expanded: false,
-    toggle: () => set({ expanded: !get().expanded }),
+    online: false,
+    toggle() {
+      set({ expanded: !get().expanded });
+      if (get().expanded) void lookup();
+      else cancel();
+    },
+    setOnline(online) {
+      if (online === get().online) return;
+      set({ online });
+      if (online) void lookup();
+      else cancel();
+    },
     async select(song, retry = false) {
       const key = song ? songKey(song) : null;
       if (key === get().key && !retry) return;
       selected = song ? { ...song } : null;
-      const request = ++generation;
+      ++generation;
       controller?.abort();
       set({ key, lyrics: null, offset: key ? (saved[key]?.offset ?? 0) : 0, status: "idle", error: null });
       if (!key || !song) return;
@@ -82,31 +143,7 @@ export function createLyricsStore(load = fetchLyrics, storage?: StorageAccess) {
         set({ lyrics: { lines: parseLrc(imported), plain: "", instrumental: false }, status: "ready" });
         return;
       }
-      const hit = cache.get(key);
-      if (!retry && hit && hit.expires > Date.now()) {
-        set({ lyrics: hit.lyrics, status: hit.failed ? "failed" : hit.lyrics ? "ready" : "unavailable" });
-        return;
-      }
-      controller = new AbortController();
-      const current = controller;
-      const timeout = setTimeout(() => current.abort(), 15000);
-      set({ status: "loading" });
-      try {
-        const lyrics = await load(song, current.signal);
-        if (request !== generation) return;
-        cache.delete(key);
-        cache.set(key, { lyrics, expires: Date.now() + (lyrics ? 86400000 : 60000) });
-        if (cache.size > 50) cache.delete(cache.keys().next().value!);
-        set({ lyrics, status: lyrics ? "ready" : "unavailable" });
-      } catch {
-        if (request === generation) {
-          cache.set(key, { lyrics: null, failed: true, expires: Date.now() + 15000 });
-          if (cache.size > 50) cache.delete(cache.keys().next().value!);
-          set({ status: "failed" });
-        }
-      } finally {
-        clearTimeout(timeout);
-      }
+      await lookup(retry);
     },
     importLrc(source, expectedKey) {
       if (get().key !== expectedKey || !selected) return false;
@@ -133,6 +170,7 @@ export function createLyricsStore(load = fetchLyrics, storage?: StorageAccess) {
       set({ offset: next, error: stored ? null : "Timing changed, but could not be saved on this device." });
     },
   }));
+  return useStore;
 }
 
 function localStorageAccess(): StorageAccess | undefined {
