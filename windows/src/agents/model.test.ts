@@ -25,7 +25,12 @@ import {
   limitsAreStale,
   CLAUDE_FRESHNESS,
   streak,
+  accountNotes,
+  ACCOUNT_STALENESS,
+  pageProviders,
+  showsCodexAccounts,
 } from "./model";
+import { A } from "./strings";
 import { emptySnapshot, emptyTotals } from "./store";
 import type { LimitWindow, Limits } from "./types";
 
@@ -70,6 +75,48 @@ describe("cards and rows (NotchAgentSupport)", () => {
     expect(list.map(rowHeight)).toEqual([96, 118]);
     expect(contentHeight(list)).toBe(96 + 118 + 10);
     expect(contentHeight([])).toBe(0);
+  });
+
+  it("gives each added Codex home a card in Codex's place, and the Resets card names its account", () => {
+    const list = tiles(["limits", "resets", "spend"], ["claude", "codex"], ["a", "b"]);
+    expect(list.map((t) => t.id)).toEqual([
+      "limits.claude",
+      "limits.codex.a",
+      "limits.codex.b",
+      "resets.codex",
+      "spend",
+    ]);
+    expect(list.filter((t) => t.account).map((t) => t.account)).toEqual(["a", "b"]);
+    expect(list.find((t) => t.card === "resets")?.namesDefaultAccount).toBe(true);
+    expect(tiles(["resets"], ["codex"])[0]?.namesDefaultAccount).toBe(false);
+    // Without Codex read, the homes have no cards at all.
+    expect(tiles(["limits", "resets"], ["claude"], ["a"]).map((t) => t.id)).toEqual(["limits.claude"]);
+  });
+
+  it("measures rows that hold an account card, or the Resets card beside them, 116 tall", () => {
+    const list = rows(tiles(["limits", "resets", "spend", "trend"], ["claude", "codex"], ["a"]), 496);
+    expect(ids(list)).toEqual([["limits.claude", "limits.codex.a"], ["resets.codex", "spend"], ["trend"]]);
+    expect(list.map(rowHeight)).toEqual([116, 116, 118]);
+    expect(rowHeight(rows(tiles(["spend", "live"], []), 496)[0]!)).toBe(96);
+  });
+
+  it("shows Codex for its added homes even before it left a log", () => {
+    const snapshot = emptySnapshot();
+    const enabled = { claude: true, codex: true, opencode: true, copilot: true };
+    expect(pageProviders(snapshot, enabled)).toEqual([]);
+    expect(pageProviders(snapshot, enabled, true)).toEqual(["codex"]);
+    expect(pageProviders(snapshot, { ...enabled, codex: false }, true)).toEqual([]);
+    expect(showsCodexAccounts(true, [])).toBe(true);
+    expect(showsCodexAccounts(true, ["limits"])).toBe(false);
+    expect(showsCodexAccounts(false, [])).toBe(false);
+  });
+
+  it("puts a failure in place of the windows or under them, never both", () => {
+    expect(accountNotes(false, true, "Failed", null)).toEqual({ placeholder: A.loading, caption: null });
+    expect(accountNotes(false, false, "Failed", null)).toEqual({ placeholder: "Failed", caption: null });
+    expect(accountNotes(false, false, null, null)).toEqual({ placeholder: A.accountRefreshHint, caption: null });
+    expect(accountNotes(true, false, "Failed", "Updated 1m")).toEqual({ placeholder: null, caption: "Failed" });
+    expect(accountNotes(true, true, null, "Updated 1m")).toEqual({ placeholder: null, caption: "Updated 1m" });
   });
 
   it("asks the island for the cards' height up to the budget, 140 when empty", () => {
@@ -216,5 +263,9 @@ describe("activity streak and limit freshness", () => {
     expect(limitsAreStale(limits, "claude", 1_000 + CLAUDE_FRESHNESS)).toBe(true);
     expect(limitsAreStale(limits, "codex", 1_000 + 10 * CLAUDE_FRESHNESS)).toBe(false);
     expect(limitsAreStale(undefined, "claude", 1e12)).toBe(false);
+    // An account card's reading after two missed checks.
+    expect(limitsAreStale(limits, "codex", 1_000 + ACCOUNT_STALENESS - 1, true)).toBe(false);
+    expect(limitsAreStale(limits, "codex", 1_000 + ACCOUNT_STALENESS, true)).toBe(true);
+    expect(limitsAreStale(null, "codex", 1e12, true)).toBe(false);
   });
 });

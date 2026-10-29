@@ -74,6 +74,28 @@ export const A = {
   resetsCheckFailed: "Couldn’t check resets",
   resetsHelp:
     "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.",
+  // Codex accounts (CodexAccountStrings.swift:33-51)
+  defaultAccount: "Default account",
+  accountRefreshHint: "Refresh to check this account’s limits.",
+  accountCheck: "Check limits",
+  accountFolderProblem: "Choose this account’s folder again in Settings.",
+  accountSignIn: "Sign in with ChatGPT in this Codex folder.",
+  accountUpdate: "Update Codex to check limits.",
+  accountFailed: "Could not check limits. Try again.",
+  codexAccountsTitle: "Codex accounts",
+  codexAccountsExplanation:
+    "Each CODEX_HOME folder you add gets its own limits card. While the AI Agents page is open, Codex checks each one about every five minutes with that folder’s own sign-in. No prompt is sent.",
+  accountName: "Account name",
+  removeAccount: "Remove this account’s card",
+  findAccounts: "Find local accounts",
+  addFolder: "Add folder…",
+  accountsFallback: "With no accounts added, Codex limits come from its local sessions.",
+  accountsResetsNote: "The Resets card still belongs to the default Codex account.",
+  chooseCodexFolder: "Choose a Codex folder",
+  invalidCodexFolder:
+    "Choose a separate CODEX_HOME folder with config.toml or auth.json in it. The folder must be yours and not writable by others, and auth.json must be private and not a link. Codex may refresh its own sign-in and caches there.",
+  /** The name the usual `.codex` home gets. */
+  defaultName: "Default",
   // Settings
   settingsDescription:
     "Reads the usage Claude Code, Codex, OpenCode and GitHub Copilot record on this PC and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your PC.",

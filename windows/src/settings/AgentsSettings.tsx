@@ -2,12 +2,12 @@
 // Copyright (C) 2026 Vorssaint
 
 // AI Agents options, inside its card on the Content tab
-// (NotchAgentsSettings.swift; spec 03 §11). The CODEX_HOME accounts editor
-// is not on Windows yet.
+// (NotchAgentsSettings.swift, CodexAccountsSettings.swift; spec 03 §3.5, §11).
 
 import { openUrl } from "@tauri-apps/plugin-opener";
-import { CircleAlert, CircleCheck, Info } from "lucide-react";
+import { CircleAlert, CircleCheck, CircleMinus, Info } from "lucide-react";
 import { useEffect, useState } from "react";
+import { middleTruncate } from "../agents/Cards";
 import { cost, duration, percent, PROVIDER_NAMES, PROVIDER_TINTS, relative, utcDay } from "../agents/format";
 import { CLAUDE_FRESHNESS, orderedCards } from "../agents/model";
 import { Mark } from "../agents/Parts";
@@ -17,6 +17,7 @@ import {
   type AgentReadout,
   type AgentSnapshot,
   type ClaudeFailure,
+  type CodexProfile,
   type LimitDisplay,
   type LimitFocus,
   PROVIDERS,
@@ -24,11 +25,12 @@ import {
 } from "../agents/types";
 import "../agents/agents-settings.css";
 import { bridge, inTauri } from "../shared/bridge";
+import { CODEX_PROFILE_NAME_MAXIMUM, CODEX_PROFILES_MAXIMUM, codexHomeKey } from "../shared/prefs";
 import { useReorder } from "../shared/ui/reorder";
 import type { IslandSettings } from "../island/settings";
 import { useSettings } from "./state";
 import { T } from "./strings";
-import { Segmented, Select, SubRow, Toggle } from "./ui";
+import { Button, Segmented, Select, SubRow, Toggle } from "./ui";
 
 const FINISH_MINIMUMS = [0, 30, 60, 120, 300];
 const LIMIT_THRESHOLDS = [50, 75, 80, 90, 95];
@@ -107,6 +109,7 @@ export function AgentsOptions() {
           </div>
         );
       })}
+      {island.agentsCodex ? <CodexAccounts snapshot={snapshot} /> : null}
 
       <CardsEditor />
       {island.agentsCodex && !island.agentsHiddenCards.includes("resets") ? (
@@ -218,6 +221,139 @@ export function AgentsOptions() {
 
       {island.agentsClaude ? <ClaudeLimitsStatus snapshot={snapshot} /> : null}
     </>
+  );
+}
+
+/** The Codex homes that get limits cards of their own on the AI page (CodexAccountsSettings.swift). */
+function CodexAccounts({ snapshot }: { snapshot: AgentSnapshot }) {
+  const island = useSettings((s) => s.prefs.island);
+  const patch = useSettings((s) => s.patch);
+  const profiles = island.agentsCodexProfiles;
+  const [invalidFolder, setInvalidFolder] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const full = profiles.length >= CODEX_PROFILES_MAXIMUM;
+  // Hiding the Limits card stops the checks, so Check limits greys out with it.
+  const checks =
+    island.enabled &&
+    island.sections.agents !== false &&
+    !island.hiddenModules.includes("agents") &&
+    !island.agentsHiddenCards.includes("limits");
+  const states = snapshot.codexAccounts;
+  const allChecking = profiles.every((p) => states.find((s) => s.id === p.id)?.checking);
+  const save = (list: CodexProfile[]) => {
+    setInvalidFolder(false);
+    void patch({ island: { agentsCodexProfiles: list } });
+  };
+  const has = (directory: string) => profiles.some((p) => codexHomeKey(p.directory) === codexHomeKey(directory));
+
+  const find = async () => {
+    setBusy(true);
+    try {
+      const found = (await bridge.agents.discoverCodexHomes(A.defaultName)) ?? [];
+      const added = found.filter(
+        (p, i) => !has(p.directory) && found.findIndex((q) => q.directory === p.directory) === i,
+      );
+      save([...profiles, ...added].slice(0, CODEX_PROFILES_MAXIMUM));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const add = async () => {
+    setBusy(true);
+    try {
+      const chosen = await bridge.agents.chooseCodexHome(A.chooseCodexFolder, A.defaultName);
+      if (!chosen) return;
+      if ("invalid" in chosen) {
+        setInvalidFolder(true);
+        return;
+      }
+      if (has(chosen.directory)) return;
+      save([...profiles, { id: crypto.randomUUID(), name: chosen.name, directory: chosen.directory }]);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="ag-st-accounts" role="group" aria-label={A.codexAccountsTitle}>
+      <div className="st-card-title">{A.codexAccountsTitle}</div>
+      <div className="st-card-caption">{A.codexAccountsExplanation}</div>
+      {profiles.length > 0 ? (
+        <ul className="ag-st-account-list">
+          {profiles.map((profile) => (
+            <AccountRow
+              key={profile.id}
+              profile={profile}
+              onRename={(name) => save(profiles.map((p) => (p.id === profile.id ? { ...p, name } : p)))}
+              onRemove={() => save(profiles.filter((p) => p.id !== profile.id))}
+            />
+          ))}
+        </ul>
+      ) : null}
+      <div className="ag-st-account-actions">
+        <Button onClick={() => void find()} disabled={full} busy={busy}>
+          {A.findAccounts}
+        </Button>
+        <Button onClick={() => void add()} disabled={full} busy={busy}>
+          {A.addFolder}
+        </Button>
+        {profiles.length > 0 ? (
+          <Button onClick={() => void bridge.agents.refreshCodexAccount(null)} disabled={!checks || allChecking}>
+            {A.accountCheck}
+          </Button>
+        ) : null}
+      </div>
+      {invalidFolder ? (
+        <div className="ag-st-status is-warn ag-st-account-error" role="alert">
+          <CircleAlert size={16} aria-hidden />
+          <div className="ag-st-status-text">
+            <span>{A.chooseCodexFolder}</span>
+            <span className="is-secondary">{A.invalidCodexFolder}</span>
+          </div>
+        </div>
+      ) : null}
+      <div className="st-card-caption">{profiles.length === 0 ? A.accountsFallback : A.accountsResetsNote}</div>
+    </div>
+  );
+}
+
+/** A name kept as typed while it is blank, so clearing it to type another never saves an empty one. */
+function AccountRow(props: { profile: CodexProfile; onRename(name: string): void; onRemove(): void }) {
+  const { profile } = props;
+  const [draft, setDraft] = useState(profile.name);
+  useEffect(() => setDraft(profile.name), [profile.name]);
+  return (
+    <li className="ag-st-account">
+      <div className="ag-st-account-text">
+        <input
+          className="ag-st-input"
+          type="text"
+          value={draft}
+          maxLength={CODEX_PROFILE_NAME_MAXIMUM}
+          placeholder={A.accountName}
+          aria-label={`Codex · ${A.accountName}: ${profile.name}`}
+          spellCheck={false}
+          onChange={(e) => {
+            const value = [...e.target.value].slice(0, CODEX_PROFILE_NAME_MAXIMUM).join("");
+            setDraft(value);
+            if (value.trim() !== "") props.onRename(value);
+          }}
+          onBlur={() => setDraft(profile.name)}
+        />
+        <span className="ag-st-account-path" title={profile.directory}>
+          {middleTruncate(profile.directory, 72)}
+        </span>
+      </div>
+      <button
+        type="button"
+        className="ag-st-account-remove"
+        aria-label={`${A.removeAccount}: ${profile.name}`}
+        title={A.removeAccount}
+        onClick={props.onRemove}
+      >
+        <CircleMinus size={16} aria-hidden />
+      </button>
+    </li>
   );
 }
 

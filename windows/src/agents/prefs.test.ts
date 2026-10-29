@@ -61,6 +61,32 @@ describe("AI Agents preferences", () => {
     expect(island.agentsHiddenCards).toEqual([]);
   });
 
+  it("keep Codex homes only when whole and unique, at most eight", () => {
+    const id = (n: number) => `0000000${n}-0000-4000-8000-000000000000`;
+    const { island } = resolve({
+      island: {
+        agentsCodexProfiles: [
+          { id: id(1), name: "Work", directory: "C:\\Users\\me\\.codex-work", extra: true },
+          { id: id(1), name: "Same id", directory: "C:\\Users\\me\\.codex-x" },
+          { id: id(2), name: "Same folder", directory: "c:/users/me/.codex-work/" },
+          { id: "nope", name: "Bad id", directory: "C:\\a" },
+          { id: id(3), name: "   ", directory: "C:\\b" },
+          { id: id(4), name: "x".repeat(41), directory: "C:\\c" },
+          { id: id(5), name: "Relative", directory: "codex" },
+          { id: id(6), name: "Share", directory: "\\\\server\\codex" },
+          "junk",
+        ],
+      } as never,
+    });
+    expect(island.agentsCodexProfiles).toEqual([
+      { id: id(1), name: "Work", directory: "C:\\Users\\me\\.codex-work" },
+      { id: id(6), name: "Share", directory: "\\\\server\\codex" },
+    ]);
+    expect(resolve({ island: { agentsCodexProfiles: "[]" } as never }).island.agentsCodexProfiles).toEqual([]);
+    const many = Array.from({ length: 10 }, (_, n) => ({ id: id(n), name: `N${n}`, directory: `C:\\h${n}` }));
+    expect(resolve({ island: { agentsCodexProfiles: many } }).island.agentsCodexProfiles).toHaveLength(8);
+  });
+
   it("clamp numbers as the Mac reads them", () => {
     const { island } = resolve({
       island: { agentsFinishMinimum: 99_999, agentsLimitThreshold: 0, agentsDailyBudget: -5 },

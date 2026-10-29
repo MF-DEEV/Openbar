@@ -13,6 +13,7 @@ import {
   Flame,
   Folder,
   Grid3x3,
+  LoaderCircle,
   RotateCw,
   Waves,
 } from "lucide-react";
@@ -28,6 +29,7 @@ import {
   percent,
   PROVIDER_NAMES,
   PROVIDER_TINTS,
+  LIMIT_ORANGE,
   limitTint,
   relative,
   shortDate,
@@ -35,6 +37,7 @@ import {
   tokenTotal,
 } from "./format";
 import {
+  accountNotes,
   CHART_HEIGHT,
   cardWindows,
   displayedReset,
@@ -57,6 +60,8 @@ import type {
   AgentPeriod,
   AgentSnapshot,
   Bucket,
+  CodexAccount,
+  CodexAccountFailure,
   LimitDisplay,
   LimitWindow,
   LiveSession,
@@ -68,8 +73,15 @@ import { useClock } from "./useClock";
 
 // MARK: Limits
 
-export function LimitsCard(props: { provider: Provider; snapshot: AgentSnapshot; now: number; display: LimitDisplay }) {
-  const { provider, snapshot, now, display } = props;
+export function LimitsCard(props: {
+  provider: Provider;
+  snapshot: AgentSnapshot;
+  now: number;
+  display: LimitDisplay;
+  account?: CodexAccount;
+}) {
+  const { provider, snapshot, now, display, account } = props;
+  if (account) return <AccountLimitsCard account={account} now={now} display={display} />;
   const limits = snapshot.limits[provider];
   const windows = cardWindows(limits, now);
   const stale = limitsAreStale(limits, provider, now);
@@ -95,6 +107,80 @@ export function LimitsCard(props: { provider: Provider; snapshot: AgentSnapshot;
           {windows.length === 1 && old ? <div className="ag-caption is-tertiary">{old}</div> : null}
         </>
       )}
+    </Card>
+  );
+}
+
+function accountFailureText(failure: CodexAccountFailure): string {
+  switch (failure) {
+    case "missing":
+      return A.resetsNeedCodex;
+    case "invalidProfile":
+      return A.accountFolderProblem;
+    case "needsSignIn":
+      return A.accountSignIn;
+    case "outdated":
+      return A.accountUpdate;
+    case "unavailable":
+    case "cancelled":
+      return A.accountFailed;
+  }
+}
+
+/**
+ * An added Codex home's card: only its own checks, never the reading the
+ * logs give the provider's other account, even when its check failed.
+ */
+function AccountLimitsCard(props: { account: CodexAccount; now: number; display: LimitDisplay }) {
+  const { account, now, display } = props;
+  const provider = "codex";
+  const tint = PROVIDER_TINTS[provider];
+  const limits = account.limits;
+  const windows = cardWindows(limits ?? undefined, now);
+  const stale = limitsAreStale(limits, provider, now, true);
+  const failure = account.failure ? accountFailureText(account.failure) : null;
+  const notes = accountNotes(
+    windows.length > 0,
+    account.checking,
+    failure,
+    limits ? A.updated(relative(limits.observedAt, now)) : null,
+  );
+  return (
+    <Card>
+      <CardHeader title={`${PROVIDER_NAMES[provider]} · ${account.name}`} provider={provider} tint={tint}>
+        {account.plan ? <Chip tint={tint}>{account.plan}</Chip> : null}
+        {/* A check waiting its turn shows as one under way. */}
+        {account.checking ? (
+          <LoaderCircle className="ag-spin ag-account-busy" size={11} aria-label={A.loading} />
+        ) : (
+          <button
+            type="button"
+            className="ag-account-refresh"
+            aria-label={`${A.accountCheck}: ${account.name}`}
+            title={A.accountCheck}
+            onClick={() => void bridge.agents.refreshCodexAccount(account.id)}
+          >
+            <RotateCw size={10} strokeWidth={2.25} aria-hidden />
+          </button>
+        )}
+      </CardHeader>
+      {notes.placeholder ? <div className="ag-note is-two-lines">{notes.placeholder}</div> : null}
+      {windows.length > 0 ? (
+        <div className="ag-meters" style={{ opacity: stale ? 0.6 : 1 }}>
+          {windows.map((w) => (
+            <LimitRow key={w.id} provider={provider} window={w} now={now} display={display} old={null} />
+          ))}
+        </div>
+      ) : null}
+      {/* What went wrong since the reading shown, or how old it is. */}
+      {notes.caption ? (
+        <div
+          className="ag-caption ag-account-caption"
+          style={account.failure || stale ? { color: LIMIT_ORANGE } : undefined}
+        >
+          {notes.caption}
+        </div>
+      ) : null}
     </Card>
   );
 }

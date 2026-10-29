@@ -135,6 +135,28 @@ export interface ResetsState {
   checkedAt: number | null;
 }
 
+/** A Codex home of its own, a `CODEX_HOME`, whose account gets a limits card (CodexAccountProfile). */
+export interface CodexProfile {
+  id: string;
+  name: string;
+  directory: string;
+}
+
+export type CodexAccountFailure =
+  "invalidProfile" | "missing" | "needsSignIn" | "outdated" | "unavailable" | "cancelled";
+
+/** An added Codex home's checks, kept apart from the reading the logs give (CodexProfileLimitsState). */
+export interface CodexAccount {
+  id: string;
+  name: string;
+  /** Only its own checks; windows that renewed since are left out. */
+  limits: Limits | null;
+  plan: string | null;
+  /** Waiting for its turn or being checked. */
+  checking: boolean;
+  failure: CodexAccountFailure | null;
+}
+
 export type RedeemOutcome = "reset" | "nothingToReset" | "alreadyRedeemed" | "noCredit" | "failed";
 
 export interface AgentSnapshot {
@@ -159,6 +181,8 @@ export interface AgentSnapshot {
   found: Record<Provider, boolean>;
   claude: ClaudeStatus;
   resets: ResetsState;
+  /** The Codex homes added in Settings, in their order. */
+  codexAccounts: CodexAccount[];
   /** The price list's `updated` day, "YYYY-MM-DD". */
   priceDay: string;
 }

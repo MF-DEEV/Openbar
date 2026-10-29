@@ -131,8 +131,125 @@
   color: var(--st-text-3);
 }
 
+/* Codex accounts: one row per CODEX_HOME, a name field above its folder. */
+.ag-st-accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px 12px 50px;
+  border-top: 1px solid var(--st-divider);
+}
+
+.ag-st-account-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ag-st-account {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.ag-st-account-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* A Fluent text box: the accent underline marks the one being typed in. */
+.ag-st-input {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 320px;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: 4px;
+  border: 1px solid var(--st-control-stroke);
+  border-bottom-color: var(--st-text-3);
+  background: var(--st-control);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 13px;
+  transition: background-color 120ms ease;
+}
+
+.ag-st-input:hover {
+  background: var(--st-control-hover);
+}
+
+.ag-st-input:focus {
+  outline: none;
+  background: var(--st-bg);
+  border-bottom: 2px solid var(--st-accent);
+  padding-bottom: 1px;
+}
+
+.ag-st-input::placeholder {
+  color: var(--st-text-3);
+}
+
+.ag-st-account-path {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--st-text-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A 16 px glyph in a 32 px button, as tall as the name field beside it. */
+.ag-st-account-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  flex: none;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--st-text-2);
+  cursor: pointer;
+  transition: background-color 120ms ease;
+}
+
+.ag-st-account-remove:hover {
+  background: var(--st-control-hover);
+  color: var(--st-text);
+}
+
+.ag-st-account-remove:active {
+  background: var(--st-control);
+}
+
+.ag-st-account-remove:focus-visible {
+  outline: 2px solid var(--st-focus);
+  outline-offset: 1px;
+}
+
+.ag-st-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.ag-st-account-error {
+  padding: 4px 0 0 26px;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .ag-st-tile {
+  .ag-st-tile,
+  .ag-st-input,
+  .ag-st-account-remove {
     transition: none;
   }
 }

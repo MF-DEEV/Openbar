@@ -18,7 +18,16 @@ const TINT = PROVIDER_TINTS.codex;
 /** What a use did stays on the card for a minute. */
 const OUTCOME_SHOWN = 60_000;
 
-export function ResetsCard({ resets, now }: { resets: ResetsState; now: number }) {
+export function ResetsCard({
+  resets,
+  now,
+  namesDefaultAccount = false,
+}: {
+  resets: ResetsState;
+  now: number;
+  /** Beside added Codex homes, the card says whose resets they are. */
+  namesDefaultAccount?: boolean;
+}) {
   const [confirming, setConfirming] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
   const [finished, setFinished] = useState<{ outcome: RedeemOutcome; at: number } | null>(null);
@@ -106,6 +115,7 @@ export function ResetsCard({ resets, now }: { resets: ResetsState; now: number }
           <LoaderCircle className="ag-spin" size={11} color="rgba(255,255,255,0.6)" aria-label={A.resetting} />
         ) : null}
       </CardHeader>
+      {namesDefaultAccount ? <div className="ag-caption ag-account-caption">Codex · {A.defaultAccount}</div> : null}
       {content}
     </Card>
   );
