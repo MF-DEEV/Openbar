@@ -65,6 +65,8 @@ export interface IslandSettings {
   language: string;
   /** Music takes the closed island while it plays (notchShowPlayingMusic). */
   showPlayingMusic: boolean;
+  /** Ask LRCLIB for lyrics while they are open (macOS notchLyricsOnline, off by default). */
+  lyricsOnline: boolean;
   /** A new song raises a notice (notchTrackChange). */
   trackChange: boolean;
   downloadProgress: boolean;
@@ -232,6 +234,7 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   sections: { agents: true, sessions: true },
   language: "auto",
   showPlayingMusic: true,
+  lyricsOnline: false,
   trackChange: true,
   downloadProgress: true,
   microphoneStatus: true,

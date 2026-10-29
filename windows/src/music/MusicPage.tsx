@@ -13,13 +13,15 @@ import { EqualizerBars } from "./EqualizerBars";
 import { ScrollingText } from "./ScrollingText";
 import { isPlaying, useMusic } from "./store";
 import { position, time, type Playback } from "./types";
+import { LyricsSection } from "./LyricsPanel";
+import { useLyrics } from "./lyricsStore";
 
 export const MUSIC_WIDTH = 344;
 const COVER = 68;
 
 /** head + 14 + (timeline 16 + 10 while it has one) + 46 + 8 (NotchLayout.player). */
-export function playerHeight(p: Playback | null): number {
-  return COVER + 14 + (p && p.duration > 0 ? 16 + 10 : 0) + 46 + 8;
+export function playerHeight(p: Playback | null, lyricsExpanded = false): number {
+  return COVER + 14 + (p && p.duration > 0 ? 16 + 10 : 0) + 46 + 8 + (p ? 38 + (lyricsExpanded ? 250 : 0) : 0);
 }
 
 export function Cover(props: { src?: string; size: number; radius: number; dimmed?: boolean }) {
@@ -44,11 +46,12 @@ export function MusicPage() {
   const tint = useMusic((s) => s.tint);
   const failed = useMusic((s) => s.failed);
   const command = useMusic((s) => s.command);
+  const lyricsExpanded = useLyrics((s) => s.expanded);
 
   // Space toggles while the page has the keyboard.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== " " || (e.target as Element)?.closest?.("input,textarea,button")) return;
+      if (e.key !== " " || (e.target as Element)?.closest?.("input,textarea,button,[data-lyrics-scroll]")) return;
       e.preventDefault();
       void command("toggle");
     };
@@ -149,6 +152,20 @@ export function MusicPage() {
           />
         </Slot>
       </div>
+      {playback && (
+        <>
+          <button
+            type="button"
+            className="m-lyrics-toggle"
+            aria-expanded={lyricsExpanded}
+            aria-controls="music-lyrics"
+            onClick={() => useLyrics.getState().toggle()}
+          >
+            Lyrics
+          </button>
+          {lyricsExpanded && <LyricsSection />}
+        </>
+      )}
     </div>
   );
 }
@@ -218,6 +235,10 @@ function Timeline({ playback, accent }: { playback: Playback; accent: string }) 
 /** Keeps the island's music page height in step with what the page shows. */
 export function useMusicHeight() {
   const playback = useMusic((s) => s.playback);
+  const expanded = useLyrics((s) => s.expanded);
   const setPageContent = useIsland((s) => s.setPageContent);
-  useEffect(() => setPageContent("music", playerHeight(playback)), [playback?.duration, !!playback, setPageContent]);
+  useEffect(
+    () => setPageContent("music", playerHeight(playback, expanded)),
+    [playback?.duration, !!playback, expanded, setPageContent],
+  );
 }

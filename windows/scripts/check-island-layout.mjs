@@ -12,6 +12,7 @@ import { checkSettingsSelect } from "./settings-select-cases.mjs";
 import { checkQuickAccessEditor } from "./quick-access-cases.mjs";
 import { checkActivityPicker } from "./activity-picker-cases.mjs";
 import { checkAutoAllow } from "./auto-allow-cases.mjs";
+import { checkMusicLyrics } from "./music-lyrics-cases.mjs";
 import { checkSessionNotice } from "./session-notice-cases.mjs";
 
 const browserPath = [
@@ -81,7 +82,9 @@ try {
     mobile: false,
   });
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
-  if (process.argv.includes("--session-notice")) {
+  if (process.argv.includes("--music-lyrics")) {
+    await checkMusicLyrics({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--session-notice")) {
     await checkSessionNotice({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--auto-allow")) {
     await checkAutoAllow({ send, evaluate, base: server.resolvedUrls.local[0] });
