@@ -18,7 +18,7 @@ import {
 import { inTauri } from "./bridge";
 import { MONITOR_METRICS, type MonitorMetric } from "../system/types";
 import { CONTROL_ITEMS, type ControlItem } from "../controls/types";
-import { AGENT_CARDS, type AgentCard } from "../agents/types";
+import { AGENT_CARDS, type AgentCard, type CodexProfile } from "../agents/types";
 
 /** The Sessions section's own preferences (spec 01-shell §7.2, sessions). */
 export interface SessionPrefs {
@@ -133,6 +133,41 @@ function controlList(value: unknown): ControlItem[] | undefined {
   return [...new Set(value.filter((id): id is ControlItem => typeof id === "string" && known.has(id)))];
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** At most eight homes (CodexAccountProfile.maximum). */
+export const CODEX_PROFILES_MAXIMUM = 8;
+export const CODEX_PROFILE_NAME_MAXIMUM = 40;
+/** One folder spelled with other slashes or case is the same folder. */
+export const codexHomeKey = (directory: string) => directory.replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
+
+/** White space by either JavaScript's or Rust's reckoning (agent_usage::profiles::is_blank). */
+export const isBlank = (name: string) => /^[\s\u0085]*$/.test(name);
+
+/** Saved Codex homes as the usage service reads them (agent_usage::profiles::decode). */
+function codexProfiles(value: unknown): CodexProfile[] {
+  if (!Array.isArray(value)) return [];
+  const ids = new Set<string>();
+  const paths = new Set<string>();
+  return value.slice(0, CODEX_PROFILES_MAXIMUM).filter((p): p is CodexProfile => {
+    if (!isObject(p) || typeof p.id !== "string" || typeof p.name !== "string" || typeof p.directory !== "string")
+      return false;
+    const id = p.id.toLowerCase();
+    const path = codexHomeKey(p.directory);
+    if (
+      !UUID.test(p.id) ||
+      isBlank(p.name) ||
+      [...p.name].length > CODEX_PROFILE_NAME_MAXIMUM ||
+      !/^[a-z]:[\\/]/i.test(p.directory) ||
+      ids.has(id) ||
+      paths.has(path)
+    )
+      return false;
+    ids.add(id);
+    paths.add(path);
+    return true;
+  });
+}
+
 const strings = (value: unknown): string[] =>
   Array.isArray(value) ? [...new Set(value.filter((v): v is string => typeof v === "string" && v.length > 0))] : [];
 
@@ -199,6 +234,11 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
       mixerHiddenApps: hiddenApps(raw.mixerHiddenApps),
       ...(agentsCardOrder ? { agentsCardOrder } : {}),
       ...(agentsHiddenCards ? { agentsHiddenCards } : {}),
+      agentsCodexProfiles: codexProfiles(raw.agentsCodexProfiles).map(({ id, name, directory }) => ({
+        id,
+        name,
+        directory,
+      })),
       downloadFolders: Array.isArray(raw.downloadFolders)
         ? raw.downloadFolders.filter((v): v is string => typeof v === "string" && v.length > 0)
         : [],

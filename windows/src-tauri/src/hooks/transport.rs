@@ -186,6 +186,9 @@ fn connect(name: interprocess::local_socket::Name<'_>) -> Option<Stream> {
 }
 
 #[cfg(windows)]
+pub use platform::current_user_sid;
+
+#[cfg(windows)]
 mod platform {
     use interprocess::local_socket::Stream;
     use interprocess::os::windows::security_descriptor::SecurityDescriptor;
@@ -205,7 +208,8 @@ mod platform {
         SecurityDescriptor::deserialize(&sddl)
     }
 
-    fn current_user_sid() -> io::Result<String> {
+    /// "S-1-5-21-…", the account this process runs as.
+    pub fn current_user_sid() -> io::Result<String> {
         unsafe {
             let mut token = HANDLE::default();
             OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token)

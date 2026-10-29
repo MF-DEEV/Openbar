@@ -77,7 +77,7 @@ function period(days: Bucket[], count: number): PeriodUsage {
   return usage;
 }
 
-export function demoSnapshot(now = Date.now()): AgentSnapshot {
+export function demoSnapshot(now = Date.now(), accounts = false): AgentSnapshot {
   const snapshot = emptySnapshot();
   const midnight = new Date(now);
   midnight.setHours(0, 0, 0, 0);
@@ -198,5 +198,52 @@ export function demoSnapshot(now = Date.now()): AgentSnapshot {
     checkedAt: now - 60_000,
   };
   snapshot.priceDay = "2026-10-09";
+  if (accounts) snapshot.codexAccounts = demoAccounts(now);
   return snapshot;
+}
+
+/** Added Codex homes: one read, one being checked, one signed out and one whose last check failed. */
+function demoAccounts(now: number): AgentSnapshot["codexAccounts"] {
+  const window = (id: string, kind: "session" | "weekly", minutes: number, used: number, resetsAt: number) => ({
+    id,
+    kind,
+    minutes,
+    scope: null,
+    usedPercent: used,
+    resetsAt,
+    estimatedResetsAt: null,
+  });
+  return [
+    {
+      id: "work",
+      name: "Work",
+      plan: "Pro",
+      checking: false,
+      failure: null,
+      limits: {
+        provider: "codex",
+        observedAt: now - 60_000,
+        source: "account",
+        windows: [
+          window("codex.300", "session", 300, 34, now + 2 * 3_600_000),
+          window("codex.10080", "weekly", 10080, 82, now + 3 * 86_400_000),
+        ],
+      },
+    },
+    { id: "personal", name: "Personal", plan: null, checking: true, failure: null, limits: null },
+    { id: "client", name: "Client", plan: null, checking: false, failure: "needsSignIn", limits: null },
+    {
+      id: "old",
+      name: "Old",
+      plan: "Plus",
+      checking: false,
+      failure: "unavailable",
+      limits: {
+        provider: "codex",
+        observedAt: now - 25 * 60_000,
+        source: "account",
+        windows: [window("codex.300", "session", 300, 12, now + 4 * 3_600_000)],
+      },
+    },
+  ];
 }

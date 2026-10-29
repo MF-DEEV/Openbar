@@ -116,6 +116,17 @@ pub struct LimitsOut {
     pub source: LimitSource,
 }
 
+impl From<&Limits> for LimitsOut {
+    fn from(l: &Limits) -> LimitsOut {
+        LimitsOut {
+            provider: l.provider,
+            windows: l.windows.iter().map(WindowOut::from).collect(),
+            observed_at: ms(l.observed_at),
+            source: l.source,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlanOut {
@@ -160,6 +171,21 @@ pub struct CreditOut {
     pub expires_at: Option<f64>,
 }
 
+/// An added Codex home's card: only its own checks, never the reading the
+/// logs give the provider's other account.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountOut {
+    pub id: String,
+    pub name: String,
+    /// Windows that renewed since the reading are left out.
+    pub limits: Option<LimitsOut>,
+    pub plan: Option<String>,
+    /// Waiting for its turn or being checked.
+    pub checking: bool,
+    pub failure: Option<&'static str>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ResetsOut {
@@ -196,6 +222,7 @@ pub struct Snapshot {
     pub found: BTreeMap<Provider, bool>,
     pub claude: ClaudeStatus,
     pub resets: ResetsOut,
+    pub codex_accounts: Vec<AccountOut>,
     pub price_day: String,
 }
 
@@ -252,15 +279,7 @@ pub fn snapshot(input: Inputs) -> Snapshot {
         ..Default::default()
     };
     for (p, l) in limits.iter().filter(|(p, _)| on(p)) {
-        s.limits.insert(
-            *p,
-            LimitsOut {
-                provider: *p,
-                windows: l.windows.iter().map(WindowOut::from).collect(),
-                observed_at: ms(l.observed_at),
-                source: l.source,
-            },
-        );
+        s.limits.insert(*p, LimitsOut::from(l));
     }
     for (p, plan) in plans.iter().filter(|(p, _)| on(p)) {
         s.plans.insert(

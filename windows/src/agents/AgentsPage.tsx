@@ -24,6 +24,7 @@ import {
   pageProviders,
   rowHeight,
   rows as pairRows,
+  showsCodexAccounts,
   shownCards,
   SPACING,
   type Tile,
@@ -51,8 +52,10 @@ function usePageTiles(): { providers: Provider[]; tiles: Tile[] } {
   const order = useIsland((s) => s.settings.agentsCardOrder);
   const hidden = useIsland((s) => s.settings.agentsHiddenCards);
   return useMemo(() => {
-    const providers = pageProviders(snapshot, enabled);
-    return { providers, tiles: tiles(shownCards(order, hidden), providers) };
+    // Added Codex homes have cards in the Limits card's place, so none while it is hidden.
+    const accounts = showsCodexAccounts(enabled.codex, hidden) ? snapshot.codexAccounts.map((a) => a.id) : [];
+    const providers = pageProviders(snapshot, enabled, accounts.length > 0);
+    return { providers, tiles: tiles(shownCards(order, hidden), providers, accounts) };
   }, [snapshot, enabled, order, hidden]);
 }
 
@@ -128,7 +131,15 @@ function TileView(props: {
   const usage = snapshot.periods[period];
   switch (tile.card) {
     case "limits":
-      return <LimitsCard provider={tile.provider!} snapshot={snapshot} now={now} display={props.display} />;
+      return (
+        <LimitsCard
+          provider={tile.provider!}
+          snapshot={snapshot}
+          now={now}
+          display={props.display}
+          account={tile.account ? snapshot.codexAccounts.find((a) => a.id === tile.account) : undefined}
+        />
+      );
     case "spend":
       return <SpendCard snapshot={snapshot} providers={providers} period={period} />;
     case "live":
@@ -142,7 +153,7 @@ function TileView(props: {
     case "activity":
       return <ActivityCard snapshot={snapshot} />;
     case "resets":
-      return <ResetsCard resets={snapshot.resets} now={now} />;
+      return <ResetsCard resets={snapshot.resets} now={now} namesDefaultAccount={tile.namesDefaultAccount} />;
   }
 }
 

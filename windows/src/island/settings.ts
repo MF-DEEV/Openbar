@@ -10,7 +10,7 @@ import type { LayoutPreset, Silhouette } from "./geometry";
 import type { ModuleId } from "./modules";
 import type { MonitorMetric, NetworkSpeedUnit } from "../system/types";
 import { DEFAULT_HIDDEN_CONTROLS, type ControlItem } from "../controls/types";
-import type { AgentCard, AgentPeriod, AgentReadout, LimitDisplay, LimitFocus } from "../agents/types";
+import type { AgentCard, AgentPeriod, AgentReadout, CodexProfile, LimitDisplay, LimitFocus } from "../agents/types";
 import type { WatchCondition } from "../watch/types";
 
 export type QuickSide = "left" | "right" | "bottom";
@@ -182,6 +182,8 @@ export interface IslandSettings {
   /** USD of API value a day; 0 is off. */
   agentsDailyBudget: number;
   agentsPriceUpdates: boolean;
+  /** Codex homes with limits cards of their own (notchAgentsCodexProfiles). */
+  agentsCodexProfiles: CodexProfile[];
   /** Watch (spec 04 §6.3): a chime when a watch ends (notchWatchSound). */
   watchSound: boolean;
   /** The rule a watch starts with (notchWatchCondition); typed text and numbers aren't kept. */
@@ -308,6 +310,7 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   agentsLimitThreshold: 80,
   agentsDailyBudget: 0,
   agentsPriceUpdates: true,
+  agentsCodexProfiles: [],
   watchSound: true,
   watchCondition: "changes",
 };

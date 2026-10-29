@@ -28,6 +28,10 @@ import {
 export const SPACING = 10;
 export const CARD_HEIGHT = 96;
 export const CHART_HEIGHT = 118;
+/** An account card also says when it was checked, and the Resets card beside account cards names its account. */
+export const ACCOUNT_CARD_HEIGHT = 116;
+/** An account card's reading, checked every five minutes, has missed two. */
+export const ACCOUNT_STALENESS = 10 * 60_000;
 /** Below this width every card takes a row of its own. */
 export const PAIR_WIDTH = 390;
 /** The page's height while it says it is empty (NotchLayout.emptyHeight). */
@@ -41,8 +45,12 @@ export const followsPeriod = (card: AgentCard) =>
 
 export interface Tile {
   card: AgentCard;
-  /** The account a limits card belongs to. */
+  /** The agent a limits card belongs to. */
   provider: Provider | null;
+  /** The added Codex home a limits card belongs to. */
+  account?: string;
+  /** The Resets card beside added Codex homes, which says whose resets they are. */
+  namesDefaultAccount?: boolean;
   id: string;
 }
 
@@ -55,12 +63,30 @@ export function shownCards(order: readonly AgentCard[], hidden: readonly AgentCa
   return orderedCards(order).filter((c) => !hidden.includes(c));
 }
 
-/** One limits card per agent that reports limits; Resets only while Codex is read. */
-export function tiles(cards: readonly AgentCard[], providers: readonly Provider[]): Tile[] {
+/**
+ * One limits card per agent that reports limits; Codex homes the person
+ * added take the place of Codex's one card. Resets only while Codex is read:
+ * banked resets belong to the default account, which the card names once
+ * others have cards.
+ */
+export function tiles(
+  cards: readonly AgentCard[],
+  providers: readonly Provider[],
+  accounts: readonly string[] = [],
+): Tile[] {
   return cards.flatMap((card): Tile[] => {
     if (card === "limits")
-      return providers.filter(reportsLimits).map((provider) => ({ card, provider, id: `limits.${provider}` }));
-    if (card === "resets") return providers.includes("codex") ? [{ card, provider: "codex", id: "resets.codex" }] : [];
+      return providers
+        .filter(reportsLimits)
+        .flatMap((provider): Tile[] =>
+          provider === "codex" && accounts.length > 0
+            ? accounts.map((account) => ({ card, provider, account, id: `limits.codex.${account}` }))
+            : [{ card, provider, id: `limits.${provider}` }],
+        );
+    if (card === "resets")
+      return providers.includes("codex")
+        ? [{ card, provider: "codex", namesDefaultAccount: accounts.length > 0, id: "resets.codex" }]
+        : [];
     return [{ card, provider: null, id: card }];
   });
 }
@@ -84,16 +110,41 @@ export function rows(list: readonly Tile[], width: number): Tile[][] {
   return out;
 }
 
-export const rowHeight = (row: readonly Tile[]) => (row.some((t) => fullWidth(t.card)) ? CHART_HEIGHT : CARD_HEIGHT);
+export function rowHeight(row: readonly Tile[]): number {
+  if (row.some((t) => fullWidth(t.card))) return CHART_HEIGHT;
+  return row.some((t) => t.account !== undefined || t.namesDefaultAccount) ? ACCOUNT_CARD_HEIGHT : CARD_HEIGHT;
+}
 
 export function contentHeight(list: readonly Tile[][]): number {
   if (list.length === 0) return 0;
   return list.reduce((sum, row) => sum + rowHeight(row), 0) + SPACING * (list.length - 1);
 }
 
-/** Agents switched on in Settings that left something on this PC: only they get cards. */
-export function pageProviders(snapshot: AgentSnapshot, enabled: Record<Provider, boolean>): Provider[] {
-  return PROVIDERS.filter((p) => enabled[p] && snapshot.seen.includes(p));
+/** Agents switched on in Settings that left something on this PC, or whose accounts were added: only they get cards. */
+export function pageProviders(
+  snapshot: AgentSnapshot,
+  enabled: Record<Provider, boolean>,
+  hasAccounts = false,
+): Provider[] {
+  return PROVIDERS.filter((p) => enabled[p] && (snapshot.seen.includes(p) || (p === "codex" && hasAccounts)));
+}
+
+/** Added Codex homes have cards only in the Limits card's place (NotchAgentSupport.showsCodexAccounts). */
+export const showsCodexAccounts = (codexOn: boolean, hidden: readonly AgentCard[]) =>
+  codexOn && !hidden.includes("limits");
+
+/**
+ * An account card's line in place of its windows while it has none, or
+ * under them: a failure takes one of the two, never both.
+ */
+export function accountNotes(
+  hasWindows: boolean,
+  checking: boolean,
+  failure: string | null,
+  updated: string | null,
+): { placeholder: string | null; caption: string | null } {
+  if (!hasWindows) return { placeholder: checking ? A.loading : (failure ?? A.accountRefreshHint), caption: null };
+  return { placeholder: null, caption: failure ?? updated };
 }
 
 // MARK: Limits
@@ -163,10 +214,21 @@ export function windowLabel(window: LimitWindow): string {
   return duration(window.minutes * 60, 1);
 }
 
-/** Claude's reading from the Claude app or Claude Code half an hour ago shows quieter. */
+/**
+ * A reading old enough to have missed use elsewhere shows quieter: an
+ * account card's after missed checks, and among the others only Claude's,
+ * which the Claude app or Claude Code took a while ago.
+ */
 export const CLAUDE_FRESHNESS = 30 * 60_000;
-export function limitsAreStale(limits: Limits | undefined, provider: Provider, now: number): boolean {
-  return !!limits && provider === "claude" && now - limits.observedAt >= CLAUDE_FRESHNESS;
+export function limitsAreStale(
+  limits: Limits | null | undefined,
+  provider: Provider,
+  now: number,
+  account = false,
+): boolean {
+  if (!limits) return false;
+  const age = now - limits.observedAt;
+  return account ? age >= ACCOUNT_STALENESS : provider === "claude" && age >= CLAUDE_FRESHNESS;
 }
 
 /** "20% left" or "80% used". */

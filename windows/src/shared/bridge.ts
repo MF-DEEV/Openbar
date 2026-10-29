@@ -21,7 +21,7 @@ import type { CaptureSession, Pick } from "../capture/types";
 import type { ScratchpadDocument } from "../scratchpad/types";
 import type { ClipboardSnapshot, PasteResult } from "../clipboard/types";
 import type { DragPhase, FilesSnapshot, OpenWithApp, ZipStatus } from "../files/types";
-import type { AgentEvent, AgentSnapshot, RedeemOutcome } from "../agents/types";
+import type { AgentEvent, AgentSnapshot, CodexProfile, RedeemOutcome } from "../agents/types";
 import type { WatchCondition, WatchFinished, WatchSnapshot } from "../watch/types";
 
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
@@ -228,6 +228,16 @@ export const bridge = {
     refreshResets: (force: boolean) => call("agents_resets_refresh", { force }),
     /** Spends one banked reset. Only ever behind the Resets card's confirmation. */
     redeemReset: () => call<RedeemOutcome>("agents_resets_redeem"),
+    /** Checks an added Codex home now, or every one. */
+    refreshCodexAccount: (id: string | null) => call("agents_codex_refresh", { id }),
+    /** The usual Codex home and the `.codex-<name>` homes beside it, with new ids. */
+    discoverCodexHomes: (defaultName: string) => call<CodexProfile[]>("agents_codex_discover", { defaultName }),
+    /** A folder the person picks; null when they cancel. */
+    chooseCodexHome: (title: string, defaultName: string) =>
+      call<{ name: string; directory: string } | { invalid: true } | null>("agents_codex_choose_folder", {
+        title,
+        defaultName,
+      }),
   },
   shell: {
     /** A PNG data URL: the file's icon, or its thumbnail when `thumbnail`. */

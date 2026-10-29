@@ -10,7 +10,8 @@ use serde_json::Value;
 use std::io::{BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, Command, Stdio};
-use std::sync::mpsc::{Receiver, channel};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc::{Receiver, RecvTimeoutError, channel};
 use std::time::{Duration, Instant};
 
 /// Output beyond this ends the conversation.
@@ -34,15 +35,33 @@ impl Conversation {
         timeout: Duration,
     ) -> Option<Conversation> {
         let mut command = Command::new(executable);
+        for key in remove {
+            command.env_remove(key);
+        }
+        command.envs(env.iter().map(|(k, v)| (k, v)));
+        Conversation::launch(command, args, timeout)
+    }
+
+    /// As `start`, with `env` as the child's whole environment: nothing the
+    /// app was started with reaches it.
+    pub fn start_isolated(
+        executable: &Path,
+        args: &[&str],
+        env: &[(String, String)],
+        timeout: Duration,
+    ) -> Option<Conversation> {
+        let mut command = Command::new(executable);
+        command.env_clear();
+        command.envs(env.iter().map(|(k, v)| (k, v)));
+        Conversation::launch(command, args, timeout)
+    }
+
+    fn launch(mut command: Command, args: &[&str], timeout: Duration) -> Option<Conversation> {
         command
             .args(args)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::null());
-        for key in remove {
-            command.env_remove(key);
-        }
-        command.envs(env.iter().map(|(k, v)| (k, v)));
         let root = std::env::var_os("SystemDrive")
             .map(|d| PathBuf::from(format!("{}\\", d.to_string_lossy())))
             .filter(|p| p.is_dir())
@@ -110,6 +129,24 @@ impl Conversation {
     pub fn next(&mut self) -> Option<Value> {
         let left = self.deadline.checked_duration_since(Instant::now())?;
         self.lines.recv_timeout(left).ok()
+    }
+
+    /// As `next`, giving up as soon as `cancelled` is set.
+    pub fn next_unless(&mut self, cancelled: &AtomicBool) -> Option<Value> {
+        loop {
+            if cancelled.load(Ordering::Relaxed) {
+                return None;
+            }
+            let left = self.deadline.checked_duration_since(Instant::now())?;
+            match self
+                .lines
+                .recv_timeout(left.min(Duration::from_millis(200)))
+            {
+                Ok(value) => return Some(value),
+                Err(RecvTimeoutError::Timeout) => {}
+                Err(RecvTimeoutError::Disconnected) => return None,
+            }
+        }
     }
 
     /// Closes stdin and waits up to `grace` for the CLI to exit, then kills it.
@@ -334,6 +371,34 @@ mod tests {
         let started = Instant::now();
         assert!(c.next().is_none());
         assert!(started.elapsed() < Duration::from_secs(2));
+        c.end(Duration::from_millis(100));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_isolated_conversation_gets_only_its_environment_and_can_be_cancelled() {
+        let script = "read line; printf '{\"secret\":\"%s\",\"mine\":\"%s\"}\\n' \"$OPENAI_API_KEY\" \"$MINE\"; sleep 5";
+        // SAFETY: tests that read OPENAI_API_KEY run in this process only.
+        unsafe { std::env::set_var("OPENAI_API_KEY", "leaked") };
+        let mut c = Conversation::start_isolated(
+            Path::new("/bin/sh"),
+            &["-c", script],
+            &[
+                ("MINE".into(), "kept".into()),
+                ("PATH".into(), "/bin:/usr/bin".into()),
+            ],
+            Duration::from_secs(10),
+        )
+        .unwrap();
+        assert!(c.send(&serde_json::json!({})));
+        let cancelled = AtomicBool::new(false);
+        let answer = c.next_unless(&cancelled).unwrap();
+        assert_eq!(answer["secret"], "");
+        assert_eq!(answer["mine"], "kept");
+        cancelled.store(true, Ordering::Relaxed);
+        let started = Instant::now();
+        assert!(c.next_unless(&cancelled).is_none());
+        assert!(started.elapsed() < Duration::from_millis(100));
         c.end(Duration::from_millis(100));
     }
 }
