@@ -140,6 +140,9 @@ export const CODEX_PROFILE_NAME_MAXIMUM = 40;
 /** One folder spelled with other slashes or case is the same folder. */
 export const codexHomeKey = (directory: string) => directory.replace(/\//g, "\\").replace(/\\+$/, "").toLowerCase();
 
+/** White space by either JavaScript's or Rust's reckoning (agent_usage::profiles::is_blank). */
+export const isBlank = (name: string) => /^[\s\u0085]*$/.test(name);
+
 /** Saved Codex homes as the usage service reads them (agent_usage::profiles::decode). */
 function codexProfiles(value: unknown): CodexProfile[] {
   if (!Array.isArray(value)) return [];
@@ -152,7 +155,7 @@ function codexProfiles(value: unknown): CodexProfile[] {
     const path = codexHomeKey(p.directory);
     if (
       !UUID.test(p.id) ||
-      p.name.trim() === "" ||
+      isBlank(p.name) ||
       [...p.name].length > CODEX_PROFILE_NAME_MAXIMUM ||
       !/^[a-z]:[\\/]/i.test(p.directory) ||
       ids.has(id) ||

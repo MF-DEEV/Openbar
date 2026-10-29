@@ -25,7 +25,7 @@ import {
 } from "../agents/types";
 import "../agents/agents-settings.css";
 import { bridge, inTauri } from "../shared/bridge";
-import { CODEX_PROFILE_NAME_MAXIMUM, CODEX_PROFILES_MAXIMUM, codexHomeKey } from "../shared/prefs";
+import { CODEX_PROFILE_NAME_MAXIMUM, CODEX_PROFILES_MAXIMUM, codexHomeKey, isBlank } from "../shared/prefs";
 import { useReorder } from "../shared/ui/reorder";
 import type { IslandSettings } from "../island/settings";
 import { useSettings } from "./state";
@@ -244,7 +244,9 @@ function CodexAccounts({ snapshot }: { snapshot: AgentSnapshot }) {
     setInvalidFolder(false);
     void patch({ island: { agentsCodexProfiles: list } });
   };
-  const has = (directory: string) => profiles.some((p) => codexHomeKey(p.directory) === codexHomeKey(directory));
+  // What is saved now: a rename or removal made while Find or the folder picker ran stays.
+  const latest = () => useSettings.getState().prefs.island.agentsCodexProfiles;
+  const has = (directory: string) => latest().some((p) => codexHomeKey(p.directory) === codexHomeKey(directory));
 
   const find = async () => {
     setBusy(true);
@@ -253,7 +255,7 @@ function CodexAccounts({ snapshot }: { snapshot: AgentSnapshot }) {
       const added = found.filter(
         (p, i) => !has(p.directory) && found.findIndex((q) => q.directory === p.directory) === i,
       );
-      save([...profiles, ...added].slice(0, CODEX_PROFILES_MAXIMUM));
+      save([...latest(), ...added].slice(0, CODEX_PROFILES_MAXIMUM));
     } finally {
       setBusy(false);
     }
@@ -268,7 +270,8 @@ function CodexAccounts({ snapshot }: { snapshot: AgentSnapshot }) {
         return;
       }
       if (has(chosen.directory)) return;
-      save([...profiles, { id: crypto.randomUUID(), name: chosen.name, directory: chosen.directory }]);
+      if (latest().length >= CODEX_PROFILES_MAXIMUM) return;
+      save([...latest(), { id: crypto.randomUUID(), name: chosen.name, directory: chosen.directory }]);
     } finally {
       setBusy(false);
     }
@@ -329,14 +332,13 @@ function AccountRow(props: { profile: CodexProfile; onRename(name: string): void
           className="ag-st-input"
           type="text"
           value={draft}
-          maxLength={CODEX_PROFILE_NAME_MAXIMUM}
           placeholder={A.accountName}
           aria-label={`Codex · ${A.accountName}: ${profile.name}`}
           spellCheck={false}
           onChange={(e) => {
             const value = [...e.target.value].slice(0, CODEX_PROFILE_NAME_MAXIMUM).join("");
             setDraft(value);
-            if (value.trim() !== "") props.onRename(value);
+            if (!isBlank(value)) props.onRename(value);
           }}
           onBlur={() => setDraft(profile.name)}
         />

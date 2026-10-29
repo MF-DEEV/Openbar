@@ -48,14 +48,27 @@ pub fn decode(value: Option<&Value>) -> Vec<Profile> {
         .take(MAXIMUM)
         .filter_map(|v| serde_json::from_value::<Profile>(v.clone()).ok())
         .filter(|p| {
-            is_uuid(&p.id)
-                && !p.name.trim().is_empty()
+            let (id, path) = (p.id.to_lowercase(), path_key(&p.directory));
+            // An entry left out takes neither its id nor its folder with it.
+            let whole = is_uuid(&p.id)
+                && !is_blank(&p.name)
                 && p.name.chars().count() <= MAXIMUM_NAME
                 && is_absolute(&p.directory)
-                && ids.insert(p.id.to_lowercase())
-                && paths.insert(path_key(&p.directory))
+                && !ids.contains(&id)
+                && !paths.contains(&path);
+            if whole {
+                ids.insert(id);
+                paths.insert(path);
+            }
+            whole
         })
         .collect()
+}
+
+/// White space by either Rust's or JavaScript's reckoning, so Settings and
+/// the service never disagree on a name (prefs.ts `isBlank`).
+fn is_blank(name: &str) -> bool {
+    name.chars().all(|c| c.is_whitespace() || c == '\u{feff}')
 }
 
 fn is_uuid(id: &str) -> bool {
@@ -857,6 +870,21 @@ mod tests {
             "nonsense"
         ]);
         let decoded = decode(Some(&value));
+        // A duplicate folder left out does not take its id with it.
+        let later = json!([
+            {"id": A, "name": "X", "directory": r"C:\x"},
+            {"id": B, "name": "Dup", "directory": "c:/x/"},
+            {"id": B, "name": "Y", "directory": r"C:\y"},
+            {"id": "77777777-7777-4777-8777-777777777777", "name": "\u{feff}", "directory": r"C:\z"},
+            {"id": "88888888-8888-4888-8888-888888888888", "name": "\u{85}", "directory": r"C:\w"}
+        ]);
+        assert_eq!(
+            decode(Some(&later))
+                .iter()
+                .map(|p| p.name.as_str())
+                .collect::<Vec<_>>(),
+            ["X", "Y"]
+        );
         assert_eq!(
             decoded.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
             ["Work", "Personal"]

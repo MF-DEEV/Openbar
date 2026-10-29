@@ -74,6 +74,8 @@ describe("AI Agents preferences", () => {
           { id: id(4), name: "x".repeat(41), directory: "C:\\c" },
           { id: id(5), name: "Relative", directory: "codex" },
           { id: id(6), name: "Share", directory: "\\\\server\\codex" },
+          { id: id(7), name: "\ufeff", directory: "C:\\d" },
+          { id: id(8), name: "\u0085", directory: "C:\\e" },
           "junk",
         ],
       } as never,
