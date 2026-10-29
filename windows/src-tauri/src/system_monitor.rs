@@ -9,7 +9,8 @@
 //!
 //! Sources: PDH for CPU (`% Processor Utility`, as Task Manager), GPU engines
 //! and disk activity, `GlobalMemoryStatusEx`, `GetSystemPowerStatus` and the
-//! battery state's charge rate, `GetIfTable2` on hardware interfaces,
+//! battery state's charge rate, the battery driver's capacities and cycle
+//! count (`IOCTL_BATTERY_QUERY_INFORMATION`), `GetIfTable2` on hardware interfaces,
 //! `GetDiskFreeSpaceExW` on the system drive, SetupAPI for USB devices and the
 //! Bluetooth API for connected classic devices. Fans have no Windows API.
 
@@ -22,7 +23,7 @@ use tauri::{AppHandle, Emitter, Manager};
 /// counters and byte deltas need two samples; this keeps the "…" brief.
 const WARM_UP: Duration = Duration::from_millis(400);
 
-/// A metric detail the page has open; CPU and memory add their top processes.
+/// A metric detail the page has open.
 #[derive(Clone, Copy, Debug, Deserialize, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
 pub enum Detail {
@@ -59,6 +60,10 @@ pub struct Battery {
     pub rate_watts: Option<f64>,
     /// Windows' estimate while on battery.
     pub seconds_left: Option<u32>,
+    /// Full charge over design capacity, at most 100 (PowerSampler.healthPercent).
+    pub health_percent: Option<f64>,
+    /// None when the battery doesn't count its cycles.
+    pub cycle_count: Option<u32>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
@@ -83,8 +88,25 @@ pub struct ProcessRow {
     pub name: String,
     /// The exe, for its icon; None when Windows won't say (protected processes).
     pub path: Option<String>,
-    /// CPU: percent of the whole machine, 0…100. Memory: private bytes.
+    /// CPU/GPU: percent, 0…100. Memory: private bytes. Network: bytes/sec.
     pub value: f64,
+    /// Network rows: separate receive/send rates; value is their sum for ranking.
+    pub net_down: Option<f64>,
+    pub net_up: Option<f64>,
+}
+
+/// Distinguish idle lists from unavailable measurements and rate warm-up.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum ProcessStatus {
+    #[default]
+    Measuring,
+    Ready,
+    Unavailable,
+    PermissionDenied,
+    Incomplete,
+    /// Windows can allow it once, when the user approves (network_helper.rs).
+    NeedsApproval,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
@@ -121,8 +143,9 @@ pub struct Snapshot {
     pub disk_read: Option<f64>,
     pub disk_write: Option<f64>,
     pub devices: Option<Vec<Device>>,
-    /// The open detail's top processes (CPU or memory); empty otherwise.
+    /// The open detail's top processes; empty when idle or unavailable.
     pub processes: Vec<ProcessRow>,
+    pub process_status: ProcessStatus,
     /// The detail the rows were read for, so a reading still on its way
     /// when the page switched details isn't shown under the other one.
     pub processes_for: Option<Detail>,
@@ -133,6 +156,9 @@ pub struct Snapshot {
 struct Control {
     visible: bool,
     detail: Option<Detail>,
+    shutdown: bool,
+    /// Bumped once the network helper is approved, so the open detail starts it.
+    approvals: u64,
 }
 
 #[derive(Default)]
@@ -141,9 +167,23 @@ pub struct Monitor {
     wake: Condvar,
     /// None until the sampler has probed what this PC can read.
     last: Mutex<Option<Snapshot>>,
+    worker: Mutex<Option<std::thread::JoinHandle<()>>>,
+    /// Windows' prompt for the network helper is open.
+    approving: std::sync::atomic::AtomicBool,
 }
 
 pub type Shared = Arc<Monitor>;
+
+/// How the network detail's Allow ended.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Approval {
+    Approved,
+    /// Declined, or the helper couldn't be set up.
+    Declined,
+    /// Another Allow's prompt is still open; its answer counts.
+    Busy,
+}
 
 /// The page opens (`visible`) or closes, or opens a metric's detail.
 #[tauri::command]
@@ -152,15 +192,40 @@ pub fn system_monitor_watch(
     visible: bool,
     detail: Option<Detail>,
 ) {
+    let mut control = state.control.lock().unwrap();
+    if control.shutdown {
+        return;
+    }
     let next = Control {
         visible,
         detail: detail.filter(|_| visible),
+        shutdown: false,
+        approvals: control.approvals,
     };
-    let mut control = state.control.lock().unwrap();
     if *control != next {
         *control = next;
         state.wake.notify_all();
     }
+}
+
+/// The network detail's Allow button: Windows asks for an administrator's
+/// approval once (network_helper.rs).
+#[tauri::command]
+pub async fn system_network_approve(state: tauri::State<'_, Shared>) -> Result<Approval, ()> {
+    use std::sync::atomic::Ordering;
+    if state.approving.swap(true, Ordering::SeqCst) {
+        return Ok(Approval::Busy);
+    }
+    let approved = tauri::async_runtime::spawn_blocking(imp::approve_network)
+        .await
+        .unwrap_or(false);
+    state.approving.store(false, Ordering::SeqCst);
+    if !approved {
+        return Ok(Approval::Declined);
+    }
+    state.control.lock().unwrap().approvals += 1;
+    state.wake.notify_all();
+    Ok(Approval::Approved)
 }
 
 /// The latest reading, so a page opened again starts from it; None before
@@ -171,9 +236,20 @@ pub fn system_monitor_snapshot(state: tauri::State<'_, Shared>) -> Option<Snapsh
 }
 
 pub fn start(app: AppHandle, shared: Shared) {
-    let _ = std::thread::Builder::new()
+    let worker_shared = shared.clone();
+    *shared.worker.lock().unwrap() = std::thread::Builder::new()
         .name("system-monitor".into())
-        .spawn(move || run(app, shared));
+        .spawn(move || run(app, worker_shared))
+        .ok();
+}
+
+/// Stop owned ETW sessions before the application exits.
+pub fn stop(shared: &Monitor) {
+    shared.control.lock().unwrap().shutdown = true;
+    shared.wake.notify_all();
+    if let Some(worker) = shared.worker.lock().unwrap().take() {
+        let _ = worker.join();
+    }
 }
 
 fn run(app: AppHandle, shared: Shared) {
@@ -186,13 +262,17 @@ fn run(app: AppHandle, shared: Shared) {
     loop {
         let control = {
             let mut control = shared.control.lock().unwrap();
-            while !control.visible {
+            while !control.visible && !control.shutdown {
                 control = shared.wake.wait(control).unwrap();
+            }
+            if control.shutdown {
+                return;
             }
             control.clone()
         };
         sampler.prime(control.detail);
         if wait_unless_changed(&shared, &control, WARM_UP) {
+            sampler.pause();
             continue;
         }
         loop {
@@ -206,6 +286,7 @@ fn run(app: AppHandle, shared: Shared) {
                 break;
             }
         }
+        sampler.pause();
     }
 }
 
@@ -299,30 +380,42 @@ mod math {
     }
 
     /// Task Manager's GPU figure: each engine's utilization summed across the
-    /// processes using it, then the busiest engine type of any adapter. Instance
+    /// processes using it, then the busiest engine of any adapter. Instance
     /// names read "pid_1234_luid_0x0_0x1_phys_0_eng_0_engtype_3D".
     pub fn gpu_usage<'a>(instances: impl IntoIterator<Item = (&'a str, f64)>) -> Option<f64> {
         let mut engines: std::collections::HashMap<String, f64> = std::collections::HashMap::new();
         let mut any = false;
         for (name, value) in instances {
-            any = true;
+            if !value.is_finite() {
+                continue;
+            }
             let Some(luid) = name.find("luid_") else {
                 continue;
             };
             let Some(engtype) = name.find("_engtype_") else {
                 continue;
             };
-            let Some(eng) = name[luid..].find("_eng_").map(|i| luid + i) else {
+            if engtype <= luid || !name[luid..engtype].contains("_eng_") {
                 continue;
-            };
-            // Adapter (luid + phys) and engine type; the engine index is summed in.
-            let key = format!("{}|{}", &name[luid..eng], &name[engtype + 9..]);
+            }
+            any = true;
+            // Keep the physical engine index: distinct engines can have the
+            // same type and run concurrently. Only matching engines are summed.
+            let key = name[luid..].to_string();
             *engines.entry(key).or_default() += value.max(0.0);
         }
         if !any {
             return None;
         }
         Some((engines.into_values().fold(0.0, f64::max) / 100.0).clamp(0.0, 1.0))
+    }
+
+    pub fn gpu_pid(instance: &str) -> Option<u32> {
+        let (pid, engine) = instance.strip_prefix("pid_")?.split_once("_luid_")?;
+        if !engine.contains("_eng_") || !engine.contains("_engtype_") {
+            return None;
+        }
+        pid.parse::<u32>().ok().filter(|pid| *pid != 0)
     }
 
     /// Physical adapters only: no NDIS filter copies (they repeat the counters),
@@ -367,7 +460,43 @@ mod math {
             plugged_in,
             rate_watts: None,
             seconds_left: (!plugged_in && seconds != u32::MAX).then_some(seconds),
+            health_percent: None,
+            cycle_count: None,
         })
+    }
+
+    /// One battery's `BATTERY_INFORMATION`, as far as its wear goes.
+    #[derive(Clone, Copy, Debug)]
+    pub struct BatteryPack {
+        /// `BATTERY_CAPACITY_RELATIVE`: the capacities aren't mWh.
+        pub relative: bool,
+        pub designed: u32,
+        pub full_charged: u32,
+        /// 0 when the battery doesn't count its cycles.
+        pub cycles: u32,
+    }
+
+    /// Health and cycle count across the PC's batteries: the packs' full
+    /// charge over their design capacity, at most 100 (PowerSampler), and the
+    /// most worn pack's cycles. Relative or unknown capacities give no health.
+    pub fn battery_wear(packs: &[BatteryPack]) -> (Option<f64>, Option<u32>) {
+        const UNKNOWN_CAPACITY: u32 = u32::MAX;
+        let measured = packs.iter().filter(|p| {
+            !p.relative
+                && p.designed > 0
+                && p.designed != UNKNOWN_CAPACITY
+                && p.full_charged > 0
+                && p.full_charged != UNKNOWN_CAPACITY
+        });
+        let (full, designed) = measured.fold((0u64, 0u64), |(full, designed), p| {
+            (
+                full + u64::from(p.full_charged),
+                designed + u64::from(p.designed),
+            )
+        });
+        let health = (designed > 0).then(|| (full as f64 / designed as f64 * 100.0).min(100.0));
+        let cycles = packs.iter().map(|p| p.cycles).filter(|&c| c > 0).max();
+        (health, cycles)
     }
 
     /// External USB devices only (USBDeviceSampler.parseDevice): no root hubs,
@@ -436,10 +565,29 @@ mod math {
 #[cfg_attr(not(windows), allow(unused_imports))]
 use math::*;
 
+#[cfg(windows)]
+#[path = "network_process.rs"]
+mod network_process;
+
+#[cfg_attr(not(windows), allow(dead_code))]
+#[path = "network_helper.rs"]
+mod network_helper;
+
+/// `Vorssaint.exe --network-helper` and its install/remove steps; returns for
+/// any other argument.
+pub fn network_helper_main(arg: &str) {
+    #[cfg(windows)]
+    network_helper::command_main(arg);
+    #[cfg(not(windows))]
+    let _ = arg;
+}
+
 // MARK: Windows
 
 #[cfg(windows)]
 mod imp {
+    use super::network_helper::HelperClient;
+    use super::network_process::{Bytes, NetworkTrace};
     use super::*;
     use std::collections::HashMap;
     use windows::Win32::System::Performance::*;
@@ -528,8 +676,9 @@ mod imp {
             let valid = buffer
                 .iter()
                 .filter(|i| {
-                    i.FmtValue.CStatus == PDH_CSTATUS_VALID_DATA
-                        || i.FmtValue.CStatus == PDH_CSTATUS_NEW_DATA
+                    (i.FmtValue.CStatus == PDH_CSTATUS_VALID_DATA
+                        || i.FmtValue.CStatus == PDH_CSTATUS_NEW_DATA)
+                        && unsafe { i.FmtValue.Anonymous.doubleValue }.is_finite()
                 })
                 .map(|i| {
                     let name = unsafe { i.szName.to_string() }.unwrap_or_default();
@@ -571,8 +720,40 @@ mod imp {
         processes: HashMap<ProcessKey, u64>,
         process_names: HashMap<String, (Option<String>, String)>,
         devices: Option<Vec<Device>>,
+        /// Health and cycles; they change over weeks, so read once a minute.
+        wear: Option<(Option<f64>, Option<u32>)>,
         tick: u64,
         processors: u32,
+        network_trace: Option<NetworkSource>,
+        network_status: ProcessStatus,
+    }
+
+    /// The island's own trace when Windows lets it start one (elevated, or
+    /// UAC off); otherwise the approved helper's.
+    enum NetworkSource {
+        Trace(NetworkTrace),
+        Helper(HelperClient),
+    }
+
+    impl NetworkSource {
+        fn start() -> Result<Self, ProcessStatus> {
+            match NetworkTrace::start() {
+                Ok(trace) => Ok(NetworkSource::Trace(trace)),
+                Err(ProcessStatus::PermissionDenied) => HelperClient::start().map(Self::Helper),
+                Err(status) => Err(status),
+            }
+        }
+
+        fn sample(&mut self) -> (ProcessStatus, HashMap<u32, Bytes>, f64) {
+            match self {
+                NetworkSource::Trace(trace) => trace.sample(),
+                NetworkSource::Helper(helper) => helper.sample(),
+            }
+        }
+    }
+
+    pub fn approve_network() -> bool {
+        super::network_helper::approve()
     }
 
     impl Sampler {
@@ -593,10 +774,13 @@ mod imp {
                 processes: HashMap::new(),
                 process_names: HashMap::new(),
                 devices: None,
+                wear: None,
                 tick: 0,
                 processors: std::thread::available_parallelism()
                     .map(|n| n.get() as u32)
                     .unwrap_or(1),
+                network_trace: None,
+                network_status: ProcessStatus::Measuring,
             }
         }
 
@@ -620,14 +804,27 @@ mod imp {
             self.times = system_times();
             self.net = network_counters().or(self.net.take());
             self.processes.clear();
-            if detail == Some(Detail::Cpu) {
+            if matches!(detail, Some(Detail::Cpu | Detail::Gpu)) {
                 self.processes = read_processes()
                     .into_iter()
                     .map(|p| (p.key, p.cpu_time))
                     .collect();
             }
+            if detail == Some(Detail::Network) {
+                match NetworkSource::start() {
+                    Ok(trace) => {
+                        self.network_trace = Some(trace);
+                        self.network_status = ProcessStatus::Measuring;
+                    }
+                    Err(status) => self.network_status = status,
+                }
+            }
             self.last = Instant::now();
             self.tick = 0;
+        }
+
+        pub fn pause(&mut self) {
+            self.network_trace = None;
         }
 
         pub fn sample(&mut self, detail: Option<Detail>, interval: u64) -> Snapshot {
@@ -643,11 +840,13 @@ mod imp {
                 .map(|v| (v / 100.0).clamp(0.0, 1.0))
                 .or_else(|| cpu_from_times(self.times?, times?));
             self.times = times;
+            let mut gpu_instances = None;
             if let Some(counter) = pdh.and_then(|p| p.gpu)
                 && let Some((list, count)) = Pdh::instances(counter)
             {
                 self.gpu_seen = Some(count > 0);
                 snapshot.gpu = gpu_usage(list.iter().map(|(n, v)| (n.as_str(), *v)));
+                gpu_instances = Some(list);
             }
             snapshot.disk_read = pdh
                 .and_then(|p| Pdh::value(p.disk_read))
@@ -677,6 +876,15 @@ mod imp {
             }
 
             snapshot.battery = battery();
+            if let Some(battery) = &mut snapshot.battery {
+                if self.wear.is_none() || self.tick.is_multiple_of(sample_stride(60, interval)) {
+                    self.wear = Some(battery_wear(&battery_packs()));
+                }
+                (battery.health_percent, battery.cycle_count) = self.wear.unwrap_or_default();
+            } else {
+                // A battery put in later is read at once, not after the minute.
+                self.wear = None;
+            }
             snapshot.disk = system_drive_space();
 
             // Device lists change rarely: every 2 s at most (MonitorSamplingPolicy, foreground).
@@ -686,6 +894,7 @@ mod imp {
             snapshot.devices = self.devices.clone();
             self.tick += 1;
 
+            snapshot.process_status = ProcessStatus::Ready;
             snapshot.processes = match detail {
                 Some(Detail::Cpu) => self.cpu_rows(elapsed, snapshot.cpu.map(|c| c * 100.0)),
                 Some(Detail::Memory) => {
@@ -699,9 +908,33 @@ mod imp {
                         .map(|p| p.working_set);
                     self.memory_rows(entries)
                 }
+                Some(Detail::Gpu) => {
+                    snapshot.process_status = match &gpu_instances {
+                        Some(list) if !list.is_empty() => ProcessStatus::Ready,
+                        Some(_) if self.supported().gpu => ProcessStatus::Measuring,
+                        _ => ProcessStatus::Unavailable,
+                    };
+                    self.gpu_rows(gpu_instances.as_deref().unwrap_or_default())
+                }
+                Some(Detail::Network) => {
+                    let (status, rows) = self.network_rows();
+                    snapshot.process_status = status;
+                    rows
+                }
+                Some(Detail::Power) => {
+                    // E3/SRUM attributes estimated historical energy, not a live
+                    // per-process power measurement. Never label it as watts.
+                    snapshot.process_status = ProcessStatus::Unavailable;
+                    Vec::new()
+                }
                 _ => Vec::new(),
             };
-            snapshot.processes_for = detail.filter(|d| matches!(d, Detail::Cpu | Detail::Memory));
+            snapshot.processes_for = detail.filter(|d| {
+                matches!(
+                    d,
+                    Detail::Cpu | Detail::Memory | Detail::Gpu | Detail::Network | Detail::Power
+                )
+            });
             snapshot.uptime_seconds =
                 unsafe { windows::Win32::System::SystemInformation::GetTickCount64() } / 1000;
             snapshot.supported = self.supported();
@@ -756,6 +989,88 @@ mod imp {
             top_rows(rows, PROCESS_ROWS)
         }
 
+        fn gpu_rows(&mut self, instances: &[(String, f64)]) -> Vec<ProcessRow> {
+            self.gpu_rows_from(instances, read_processes())
+        }
+
+        fn gpu_rows_from(
+            &mut self,
+            instances: &[(String, f64)],
+            entries: Vec<ProcessEntry>,
+        ) -> Vec<ProcessRow> {
+            let live: HashMap<_, _> = entries
+                .iter()
+                .filter(|entry| self.processes.contains_key(&entry.key))
+                .map(|entry| (entry.key.pid, entry))
+                .collect();
+            struct AppGpu<'a> {
+                pid: u32,
+                engines: Vec<(&'a str, f64)>,
+            }
+            let mut by_image: HashMap<&str, AppGpu<'_>> = HashMap::new();
+            for (name, value) in instances {
+                let Some(pid) = gpu_pid(name) else {
+                    continue;
+                };
+                let Some(entry) = live.get(&pid) else {
+                    continue;
+                };
+                by_image
+                    .entry(&entry.image)
+                    .or_insert_with(|| AppGpu {
+                        pid,
+                        engines: Vec::new(),
+                    })
+                    .engines
+                    .push((name, *value));
+            }
+            self.processes = entries.iter().map(|p| (p.key, p.cpu_time)).collect();
+            let rows = by_image
+                .into_iter()
+                .filter_map(|(image, app)| {
+                    let percent = gpu_usage(app.engines)? * 100.0;
+                    (percent >= 0.05).then(|| self.row(image, app.pid, percent))
+                })
+                .collect();
+            top_rows(rows, PROCESS_ROWS)
+        }
+
+        fn network_rows(&mut self) -> (ProcessStatus, Vec<ProcessRow>) {
+            let Some(trace) = &mut self.network_trace else {
+                return (self.network_status, Vec::new());
+            };
+            let (status, mut bytes, elapsed) = trace.sample();
+            if status != ProcessStatus::Ready {
+                return (status, Vec::new());
+            }
+            let mut by_image: HashMap<String, (u32, u64, u64)> = HashMap::new();
+            for entry in read_processes() {
+                let Some(traffic) = bytes.remove(&entry.key.pid) else {
+                    continue;
+                };
+                // Events from a terminated process must not be assigned to a
+                // new process that happens to have the same PID.
+                if traffic.first < entry.key.created {
+                    continue;
+                }
+                let slot = by_image.entry(entry.image).or_insert((entry.key.pid, 0, 0));
+                slot.1 = slot.1.saturating_add(traffic.down);
+                slot.2 = slot.2.saturating_add(traffic.up);
+            }
+            let rows = by_image
+                .into_iter()
+                .map(|(image, (pid, down, up))| {
+                    let down = per_second(down, elapsed);
+                    let up = per_second(up, elapsed);
+                    let mut row = self.row(&image, pid, down + up);
+                    row.net_down = Some(down);
+                    row.net_up = Some(up);
+                    row
+                })
+                .collect();
+            (status, top_rows(rows, PROCESS_ROWS))
+        }
+
         /// A row named as Windows names the app ("Google Chrome"), cached per image.
         fn row(&mut self, image: &str, pid: u32, value: f64) -> ProcessRow {
             let (path, name) = self
@@ -776,7 +1091,13 @@ mod imp {
                     None => (None, image.trim_end_matches(".exe").to_string()),
                 })
                 .clone();
-            ProcessRow { name, path, value }
+            ProcessRow {
+                name,
+                path,
+                value,
+                net_down: None,
+                net_up: None,
+            }
         }
     }
 
@@ -908,6 +1229,137 @@ mod imp {
             battery.rate_watts = battery_watts(state.Rate);
         }
         Some(battery)
+    }
+
+    /// Every battery's capacities and cycle count, as Microsoft's battery
+    /// enumeration sample reads them; no rights needed.
+    fn battery_packs() -> Vec<BatteryPack> {
+        use windows::Win32::Devices::DeviceAndDriverInstallation::{
+            DIGCF_DEVICEINTERFACE, DIGCF_PRESENT, GUID_DEVCLASS_BATTERY, SP_DEVICE_INTERFACE_DATA,
+            SP_DEVICE_INTERFACE_DETAIL_DATA_W, SetupDiDestroyDeviceInfoList,
+            SetupDiEnumDeviceInterfaces, SetupDiGetClassDevsW, SetupDiGetDeviceInterfaceDetailW,
+        };
+        use windows::Win32::Foundation::{CloseHandle, GENERIC_READ, GENERIC_WRITE};
+        use windows::Win32::Storage::FileSystem::{
+            CreateFileW, FILE_ATTRIBUTE_NORMAL, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
+        };
+        let mut packs = Vec::new();
+        unsafe {
+            let Ok(set) = SetupDiGetClassDevsW(
+                Some(&GUID_DEVCLASS_BATTERY),
+                PCWSTR::null(),
+                None,
+                DIGCF_PRESENT | DIGCF_DEVICEINTERFACE,
+            ) else {
+                return packs;
+            };
+            for index in 0..100 {
+                let mut interface = SP_DEVICE_INTERFACE_DATA {
+                    cbSize: size_of::<SP_DEVICE_INTERFACE_DATA>() as u32,
+                    ..Default::default()
+                };
+                if SetupDiEnumDeviceInterfaces(
+                    set,
+                    None,
+                    &GUID_DEVCLASS_BATTERY,
+                    index,
+                    &mut interface,
+                )
+                .is_err()
+                {
+                    break;
+                }
+                // The detail is a size field then the path, in one u32-aligned buffer.
+                let mut buffer = [0u32; 512];
+                let detail = buffer
+                    .as_mut_ptr()
+                    .cast::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>();
+                (*detail).cbSize = size_of::<SP_DEVICE_INTERFACE_DETAIL_DATA_W>() as u32;
+                if SetupDiGetDeviceInterfaceDetailW(
+                    set,
+                    &interface,
+                    Some(detail),
+                    (buffer.len() * 4) as u32,
+                    None,
+                    None,
+                )
+                .is_err()
+                {
+                    continue;
+                }
+                let Ok(handle) = CreateFileW(
+                    PCWSTR((*detail).DevicePath.as_ptr()),
+                    (GENERIC_READ | GENERIC_WRITE).0,
+                    FILE_SHARE_READ | FILE_SHARE_WRITE,
+                    None,
+                    OPEN_EXISTING,
+                    FILE_ATTRIBUTE_NORMAL,
+                    None,
+                ) else {
+                    continue;
+                };
+                if let Some(pack) = battery_pack(handle) {
+                    packs.push(pack);
+                }
+                let _ = CloseHandle(handle);
+            }
+            let _ = SetupDiDestroyDeviceInfoList(set);
+        }
+        packs
+    }
+
+    /// One battery's information; None for a slot without a battery.
+    fn battery_pack(handle: windows::Win32::Foundation::HANDLE) -> Option<BatteryPack> {
+        use windows::Win32::System::IO::DeviceIoControl;
+        use windows::Win32::System::Power::{
+            BATTERY_CAPACITY_RELATIVE, BATTERY_INFORMATION, BATTERY_QUERY_INFORMATION,
+            BATTERY_TAG_INVALID, BatteryInformation, IOCTL_BATTERY_QUERY_INFORMATION,
+            IOCTL_BATTERY_QUERY_TAG,
+        };
+        let wait = 0u32;
+        let mut tag = BATTERY_TAG_INVALID;
+        let mut returned = 0u32;
+        unsafe {
+            DeviceIoControl(
+                handle,
+                IOCTL_BATTERY_QUERY_TAG,
+                Some((&wait as *const u32).cast()),
+                size_of::<u32>() as u32,
+                Some((&mut tag as *mut u32).cast()),
+                size_of::<u32>() as u32,
+                Some(&mut returned),
+                None,
+            )
+            .ok()?;
+        }
+        if tag == BATTERY_TAG_INVALID {
+            return None;
+        }
+        let query = BATTERY_QUERY_INFORMATION {
+            BatteryTag: tag,
+            InformationLevel: BatteryInformation,
+            AtRate: 0,
+        };
+        let mut info = BATTERY_INFORMATION::default();
+        unsafe {
+            DeviceIoControl(
+                handle,
+                IOCTL_BATTERY_QUERY_INFORMATION,
+                Some((&query as *const BATTERY_QUERY_INFORMATION).cast()),
+                size_of::<BATTERY_QUERY_INFORMATION>() as u32,
+                Some((&mut info as *mut BATTERY_INFORMATION).cast()),
+                size_of::<BATTERY_INFORMATION>() as u32,
+                Some(&mut returned),
+                None,
+            )
+            .ok()?;
+        }
+        Some(BatteryPack {
+            relative: info.Capabilities & BATTERY_CAPACITY_RELATIVE != 0,
+            designed: info.DesignedCapacity,
+            full_charged: info.FullChargedCapacity,
+            cycles: info.CycleCount,
+        })
     }
 
     fn system_drive_space() -> Option<Disk> {
@@ -1170,6 +1622,128 @@ mod imp {
             assert_eq!(next.memory_cached, None);
             assert_eq!(next.memory_swap_used, None);
         }
+
+        #[test]
+        #[ignore = "starts a real ETW system logger; run with tracing privileges"]
+        fn live_network_sampler_rows() {
+            let mut sampler = Sampler::new();
+            sampler.prime(Some(Detail::Network));
+            assert!(
+                sampler.network_trace.is_some(),
+                "ETW start: {:?}",
+                sampler.network_status
+            );
+            let image = read_processes()
+                .into_iter()
+                .find(|entry| entry.key.pid == std::process::id())
+                .unwrap()
+                .image;
+            sampler
+                .process_names
+                .insert(image, (None, "ETW verification".into()));
+            let receiver = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+            receiver
+                .set_read_timeout(Some(Duration::from_secs(2)))
+                .unwrap();
+            let sender = std::net::UdpSocket::bind("127.0.0.1:0").unwrap();
+            sender
+                .send_to(&[0; 4096], receiver.local_addr().unwrap())
+                .unwrap();
+            receiver.recv_from(&mut [0; 8192]).unwrap();
+            std::thread::sleep(Duration::from_secs(3));
+            let snapshot = sampler.sample(Some(Detail::Network), 1);
+            assert_eq!(snapshot.process_status, ProcessStatus::Ready);
+            assert_eq!(snapshot.processes_for, Some(Detail::Network));
+            let own = snapshot
+                .processes
+                .iter()
+                .find(|row| row.name == "ETW verification")
+                .expect("test process must reach the UI snapshot");
+            let down = own.net_down.unwrap();
+            let up = own.net_up.unwrap();
+            assert!(down > 0.0 && up > 0.0);
+            assert_eq!(own.value, down + up);
+            eprintln!(
+                "UI snapshot: {}, down {down:.1} B/s, up {up:.1} B/s",
+                own.name
+            );
+            sampler.pause();
+            assert!(sampler.network_trace.is_none());
+            sampler.prime(Some(Detail::Network));
+            assert!(
+                sampler.network_trace.is_some(),
+                "network detail must reopen its collector"
+            );
+            sampler.pause();
+            eprintln!("Network collector closed and reopened successfully");
+        }
+
+        #[test]
+        #[ignore = "samples the host's GPU counters and hardware"]
+        fn live_gpu_counters() {
+            let mut sampler = Sampler::new();
+            sampler.prime(Some(Detail::Gpu));
+            std::thread::sleep(Duration::from_secs(1));
+            let snapshot = sampler.sample(Some(Detail::Gpu), 1);
+            eprintln!(
+                "GPU: {:?}, process status: {:?}, rows: {}",
+                snapshot.gpu,
+                snapshot.process_status,
+                snapshot.processes.len()
+            );
+            if let Some(gpu) = snapshot.gpu {
+                assert!(gpu.is_finite() && (0.0..=1.0).contains(&gpu));
+                for row in snapshot.processes {
+                    assert!(row.value.is_finite() && (0.0..=100.0).contains(&row.value));
+                }
+            } else {
+                eprintln!("No valid host GPU reading; GPU hardware validation remains pending");
+            }
+            assert!(snapshot.memory_total.is_some());
+            sampler.pause();
+        }
+
+        #[test]
+        fn gpu_rows_group_apps_and_reject_terminated_or_recycled_pids() {
+            let mut sampler = Sampler::new();
+            let entry = |pid, created, image: &str| ProcessEntry {
+                key: ProcessKey { pid, created },
+                image: image.into(),
+                cpu_time: 0,
+                private_bytes: 0,
+                working_set: 0,
+                parent_pid: 0,
+            };
+            let previous = [
+                entry(1, 100, "browser.exe"),
+                entry(2, 100, "browser.exe"),
+                entry(3, 100, "old.exe"),
+                entry(4, 100, "exited.exe"),
+            ];
+            sampler.processes = previous.iter().map(|p| (p.key, 0)).collect();
+            sampler
+                .process_names
+                .insert("browser.exe".into(), (None, "Browser".into()));
+            let instances = [
+                ("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 20.0),
+                ("pid_2_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 30.0),
+                ("pid_1_luid_0x0_0xA_phys_0_eng_1_engtype_3D", 40.0),
+                ("pid_3_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 90.0),
+                ("pid_4_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 90.0),
+            ]
+            .map(|(name, value)| (name.into(), value));
+            let rows = sampler.gpu_rows_from(
+                &instances,
+                vec![
+                    entry(1, 100, "browser.exe"),
+                    entry(2, 100, "browser.exe"),
+                    entry(3, 200, "new.exe"),
+                ],
+            );
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].name, "Browser");
+            assert_eq!(rows[0].value, 50.0);
+        }
     }
 }
 
@@ -1180,6 +1754,10 @@ mod imp {
     /// Off Windows there is nothing to read; the page shows "monitor unavailable".
     pub struct Sampler;
 
+    pub fn approve_network() -> bool {
+        false
+    }
+
     impl Sampler {
         pub fn new() -> Self {
             Sampler
@@ -1188,6 +1766,7 @@ mod imp {
             Supported::default()
         }
         pub fn prime(&mut self, _detail: Option<Detail>) {}
+        pub fn pause(&mut self) {}
         pub fn sample(&mut self, _detail: Option<Detail>, _interval: u64) -> Snapshot {
             Snapshot::default()
         }
@@ -1251,7 +1830,7 @@ mod tests {
     }
 
     #[test]
-    fn gpu_takes_the_busiest_engine_type_summed_across_processes() {
+    fn gpu_takes_the_busiest_engine_summed_across_processes() {
         let instances = [
             ("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 30.0),
             ("pid_2_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 25.0),
@@ -1265,11 +1844,41 @@ mod tests {
             ("pid_1_luid_0x0_0xB_phys_0_eng_0_engtype_3D", 60.0),
         ];
         assert_eq!(gpu_usage(two), Some(0.6));
+        // Independent engines of the same type are not summed either.
+        assert_eq!(
+            gpu_usage([
+                ("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 60.0),
+                ("pid_1_luid_0x0_0xA_phys_0_eng_1_engtype_3D", 70.0),
+            ]),
+            Some(0.7)
+        );
         assert_eq!(
             gpu_usage([("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", 250.0)]),
             Some(1.0)
         );
         assert_eq!(gpu_usage(std::iter::empty()), None);
+        assert_eq!(gpu_usage([("invalid", 50.0)]), None);
+        assert_eq!(
+            gpu_usage([("pid_1_luid_0x0_0xA_phys_0_eng_0_engtype_3D", f64::NAN)]),
+            None
+        );
+    }
+
+    #[test]
+    fn gpu_instance_pid_must_be_a_nonzero_process_id() {
+        assert_eq!(
+            gpu_pid("pid_42_luid_0x0_0xA_phys_0_eng_0_engtype_3D"),
+            Some(42)
+        );
+        for invalid in [
+            "pid_0_luid_a_eng_0_engtype_3D",
+            "pid_x_luid_a_eng_0_engtype_3D",
+            "pid_42",
+            "_Total",
+            "pid_4294967296_luid_a_eng_0_engtype_3D",
+        ] {
+            assert_eq!(gpu_pid(invalid), None);
+        }
     }
 
     #[test]
@@ -1334,6 +1943,41 @@ mod tests {
     }
 
     #[test]
+    fn battery_wear_reads_full_charge_over_design() {
+        let pack = |designed, full_charged, cycles| BatteryPack {
+            relative: false,
+            designed,
+            full_charged,
+            cycles,
+        };
+        assert_eq!(battery_wear(&[]), (None, None));
+        let (health, cycles) = battery_wear(&[pack(57_000, 51_300, 212)]);
+        assert!((health.unwrap() - 90.0).abs() < 1e-9);
+        assert_eq!(cycles, Some(212));
+        // A fresh battery can hold more than its design; health stops at 100.
+        assert_eq!(battery_wear(&[pack(50_000, 52_000, 3)]).0, Some(100.0));
+        // No cycle counter reads 0.
+        assert_eq!(battery_wear(&[pack(50_000, 40_000, 0)]).1, None);
+        // Unknown or relative capacities give no health, but cycles still count.
+        assert_eq!(battery_wear(&[pack(0, 40_000, 9)]), (None, Some(9)));
+        assert_eq!(battery_wear(&[pack(u32::MAX, 40_000, 0)]), (None, None));
+        assert_eq!(battery_wear(&[pack(50_000, u32::MAX, 0)]), (None, None));
+        let relative = BatteryPack {
+            relative: true,
+            ..pack(100, 80, 5)
+        };
+        assert_eq!(battery_wear(&[relative]), (None, Some(5)));
+        // Two packs: capacities add up; the most worn pack's cycles.
+        let (health, cycles) =
+            battery_wear(&[pack(40_000, 36_000, 120), pack(20_000, 12_000, 480)]);
+        assert!((health.unwrap() - 80.0).abs() < 1e-9);
+        assert_eq!(cycles, Some(480));
+        // A pack without readings doesn't drag the other down.
+        let (health, _) = battery_wear(&[pack(40_000, 36_000, 0), pack(0, 0, 0)]);
+        assert!((health.unwrap() - 90.0).abs() < 1e-9);
+    }
+
+    #[test]
     fn usb_counts_external_devices_only() {
         let none: [String; 0] = [];
         assert!(counts_usb_device(
@@ -1370,6 +2014,8 @@ mod tests {
             name: name.into(),
             path: None,
             value,
+            net_down: None,
+            net_up: None,
         };
         let rows = top_rows(
             vec![row("b", 1.0), row("a", 5.0), row("c", 3.0), row("d", 3.0)],
@@ -1397,9 +2043,33 @@ mod tests {
         assert_eq!(json["memoryCached"], 4096);
         assert_eq!(json.get("memorySwapUsed"), Some(&serde_json::Value::Null));
         assert!(json["battery"].is_null());
+        let battery = Snapshot {
+            battery: Some(Battery {
+                health_percent: Some(91.5),
+                cycle_count: Some(212),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let json = serde_json::to_value(&battery).unwrap();
+        assert_eq!(json["battery"]["healthPercent"], 91.5);
+        assert_eq!(json["battery"]["cycleCount"], 212);
         assert_eq!(json["supported"]["gpu"], false);
         let detail: Detail = serde_json::from_str("\"connectedDevices\"").unwrap();
         assert_eq!(detail, Detail::ConnectedDevices);
+    }
+
+    #[test]
+    fn approval_names_match_the_page() {
+        assert_eq!(
+            serde_json::to_string(&ProcessStatus::NeedsApproval).unwrap(),
+            "\"needsApproval\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Approval::Approved).unwrap(),
+            "\"approved\""
+        );
+        assert_eq!(serde_json::to_string(&Approval::Busy).unwrap(), "\"busy\"");
     }
 
     #[test]
@@ -1408,6 +2078,8 @@ mod tests {
         let seen = Control {
             visible: true,
             detail: None,
+            shutdown: false,
+            approvals: 0,
         };
         *monitor.control.lock().unwrap() = seen.clone();
         assert!(!wait_unless_changed(
@@ -1416,6 +2088,10 @@ mod tests {
             Duration::from_millis(5)
         ));
         monitor.control.lock().unwrap().detail = Some(Detail::Cpu);
+        assert!(wait_unless_changed(&monitor, &seen, Duration::from_secs(5)));
+        // An approved network helper restarts the open detail's collector.
+        *monitor.control.lock().unwrap() = seen.clone();
+        monitor.control.lock().unwrap().approvals += 1;
         assert!(wait_unless_changed(&monitor, &seen, Duration::from_secs(5)));
     }
 }

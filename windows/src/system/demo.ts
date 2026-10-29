@@ -5,7 +5,7 @@
 // a laptop on battery with a busy CPU, a nearly full disk and a minute of
 // history behind each graph.
 
-import type { SystemSnapshot } from "./types";
+import type { SpeedTestState, SystemSnapshot } from "./types";
 
 export function demoSnapshot(seq: number): SystemSnapshot {
   const wave = (base: number, swing: number, phase = 0) => base + swing * Math.sin(seq / 3 + phase);
@@ -22,7 +22,15 @@ export function demoSnapshot(seq: number): SystemSnapshot {
     memoryCompressed: null,
     memoryCached: null,
     memorySwapUsed: null,
-    battery: { percent: 18, charging: false, pluggedIn: false, rateWatts: -wave(11.4, 2), secondsLeft: 4_200 },
+    battery: {
+      percent: 18,
+      charging: false,
+      pluggedIn: false,
+      rateWatts: -wave(11.4, 2),
+      secondsLeft: 4_200,
+      healthPercent: 87.6,
+      cycleCount: 412,
+    },
     netDown: Math.max(0, wave(2_400_000, 1_800_000, 0.5)),
     netUp: Math.max(0, wave(180_000, 120_000, 2.5)),
     netTotalDown: 1_830_000_000 + seq * 2_000_000,
@@ -36,13 +44,28 @@ export function demoSnapshot(seq: number): SystemSnapshot {
       { name: "WH-1000XM5", bluetooth: true },
     ],
     processes: [
-      { name: "Google Chrome", path: null, value: 21.4 },
-      { name: "Visual Studio Code", path: null, value: 12.9 },
-      { name: "Microsoft Teams", path: null, value: 6.2 },
-      { name: "Desktop Window Manager", path: null, value: 3.1 },
-      { name: "Vorssaint", path: null, value: 0.8 },
+      { name: "Google Chrome", path: null, value: 21.4, netDown: null, netUp: null },
+      { name: "Visual Studio Code", path: null, value: 12.9, netDown: null, netUp: null },
+      { name: "Microsoft Teams", path: null, value: 6.2, netDown: null, netUp: null },
+      { name: "Desktop Window Manager", path: null, value: 3.1, netDown: null, netUp: null },
+      { name: "Vorssaint", path: null, value: 0.8, netDown: null, netUp: null },
     ],
+    processStatus: "ready",
     processesFor: "cpu",
     uptimeSeconds: 3 * 86_400 + 4 * 3_600 + 12 * 60,
   };
+}
+
+/** A speed test's states over about three seconds, as speed_test.rs sends them. */
+export function playSpeedTest(report: (state: SpeedTestState) => void, fail = false) {
+  const base: SpeedTestState = { phase: "latency", latencyMs: null, downloadMbps: null, uploadMbps: null, error: null };
+  const steps: SpeedTestState[] = [
+    base,
+    { ...base, phase: "download", latencyMs: 11.6 },
+    fail
+      ? { ...base, phase: "failed", latencyMs: 11.6, error: "HTTP 503" }
+      : { ...base, phase: "upload", latencyMs: 11.6, downloadMbps: 412.37 },
+    ...(fail ? [] : [{ ...base, phase: "done", latencyMs: 11.6, downloadMbps: 412.37, uploadMbps: 38.92 } as const]),
+  ];
+  steps.forEach((step, i) => setTimeout(() => report(step), i * 1000));
 }

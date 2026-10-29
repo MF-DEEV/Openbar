@@ -36,6 +36,10 @@ export interface BatteryReading {
   /** Watts into the battery: positive while charging, negative while it drains. */
   rateWatts: number | null;
   secondsLeft: number | null;
+  /** Full charge over design capacity, 0…100. */
+  healthPercent: number | null;
+  /** Null when the battery doesn't count its cycles. */
+  cycleCount: number | null;
 }
 
 export interface DiskReading {
@@ -53,9 +57,20 @@ export interface DeviceReading {
 export interface ProcessRow {
   name: string;
   path: string | null;
-  /** CPU: percent of the machine. Memory: private bytes. */
+  /** CPU/GPU: percent. Memory: private bytes. Network: total bytes/sec. */
   value: number;
+  netDown: number | null;
+  netUp: number | null;
 }
+
+export type ProcessStatus =
+  | "measuring"
+  | "ready"
+  | "unavailable"
+  | "permissionDenied"
+  | "incomplete"
+  /** Network only: an administrator can allow it once (Allow button). */
+  | "needsApproval";
 
 export interface SystemSnapshot {
   seq: number;
@@ -84,7 +99,19 @@ export interface SystemSnapshot {
   diskWrite: number | null;
   devices: DeviceReading[] | null;
   processes: ProcessRow[];
+  processStatus: ProcessStatus;
   /** The detail `processes` were read for. */
   processesFor: MetricKind | null;
   uptimeSeconds: number;
+}
+
+/** What speed_test.rs sends (SpeedTest.swift's published values). */
+export type SpeedTestPhase = "idle" | "latency" | "download" | "upload" | "done" | "failed";
+
+export interface SpeedTestState {
+  phase: SpeedTestPhase;
+  latencyMs: number | null;
+  downloadMbps: number | null;
+  uploadMbps: number | null;
+  error: string | null;
 }

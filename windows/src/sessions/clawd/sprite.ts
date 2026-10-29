@@ -286,7 +286,7 @@ export function motionForNotice(kind: "finished" | "input" | "permission"): Claw
   return kind === "finished" ? "content" : kind === "input" ? "ask" : "alert";
 }
 
-/** A sleeping row fades a little and stays readable (`dozingOpacity`). */
+/** A sleeping row fades a little and stays readable (`dozingOpacity`; also `.s-row.is-dozing` in sessions.css). */
 export const DOZING_OPACITY = 0.65;
 /** A finished subagent's Clawd is drawn at half opacity. */
 export const DONE_SUBAGENT_OPACITY = 0.5;

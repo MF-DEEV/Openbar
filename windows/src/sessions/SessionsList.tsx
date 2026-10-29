@@ -8,7 +8,7 @@ import { Check, ChevronRight, GalleryVerticalEnd, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { EmptyState } from "../island/views/Controls";
 import { SessionAvatar } from "./SessionAvatar";
-import { activityText, displayName, phaseClock, phaseTint, projectColor } from "./format";
+import { activityText, displayName, dozing, phaseClock, phaseTint, projectColor } from "./format";
 import { useNow } from "./useNow";
 import { S } from "./strings";
 import { settled, useSessions } from "./store";
@@ -73,6 +73,7 @@ export function SessionsList() {
 function Row({ session, now }: { session: Session; now: number }) {
   const custom = useSessions((s) => s.names[session.id]);
   const lookedAt = useSessions((s) => s.lookedAt[session.id]);
+  const buddies = useSessions((s) => s.prefs.buddies);
   const name = displayName(session, custom);
   const tint = phaseTint(session.phase, session.provider);
   const time = phaseClock(session, now);
@@ -80,12 +81,16 @@ function Row({ session, now }: { session: Session; now: number }) {
   const quick = session.permission?.fitsOnALine && session.permission.questions.length === 0;
   const color = projectColor(session.project);
   const waiting = isWaiting(session.phase);
+  // A session whose Clawd sleeps fades back a little; sessions.css brings it
+  // forward under the pointer or the keyboard, and keeps it whole with more
+  // contrast asked for.
+  const asleep = buddies && dozing(session, now, lookedAt);
 
   return (
     <div
       role="button"
       tabIndex={0}
-      className={`s-row${waiting ? " is-waiting" : ""}`}
+      className={`s-row${waiting ? " is-waiting" : ""}${asleep ? " is-dozing" : ""}`}
       aria-label={`${name}, ${session.project}, ${S[session.phase]}`}
       onClick={() => useSessions.getState().focus(session.id)}
       onKeyDown={(e) => e.key === "Enter" && useSessions.getState().focus(session.id)}

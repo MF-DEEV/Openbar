@@ -3,16 +3,18 @@
 
 // A metric's detail in the island (MetricDetailView.swift, notch
 // presentation): a back button where the Mac's band has it, the summary with
-// its history graph, the readings, and for CPU and memory the processes using
-// the most. Escape steps back to the cards.
+// its history graph, the readings, for the network the speed test, and the
+// supported process lists, with Task Manager a click away (the Mac's Activity
+// Monitor button). Escape steps back to the cards.
 
-import { Bluetooth, ChevronLeft, Usb } from "lucide-react";
+import { Bluetooth, ChevronLeft, LoaderCircle, ShieldCheck, SquareArrowOutUpRight, Usb } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePageLayer } from "../island/pageLayer";
 import { useIsland } from "../island/store";
 import { bridge } from "../shared/bridge";
-import { detailRows, memoryDetailRows, processValue, summary, TITLES } from "./detail";
+import { detailRows, memoryDetailRows, processEmptyText, processRowValue, summary, TITLES } from "./detail";
 import { Sparkline } from "./Sparkline";
+import { SpeedTestCard } from "./SpeedTestCard";
 import { useSystem } from "./store";
 import { GLYPHS } from "./glyphs";
 import { S } from "./strings";
@@ -44,7 +46,8 @@ export function MetricDetail({ kind, onMeasure }: { kind: MetricKind; onMeasure(
   const Glyph = GLYPHS[kind];
   const head = summary(kind, snapshot, history, inBits);
   const rows = detailRows(kind, snapshot, inBits);
-  const lists = kind === "cpu" || kind === "memory";
+  const lists = ["cpu", "memory", "gpu", "network", "power"].includes(kind);
+  const emptyText = processEmptyText(kind, snapshot);
   return (
     <div className="sy-detail">
       <div className="sy-detail-bar">
@@ -91,13 +94,34 @@ export function MetricDetail({ kind, onMeasure }: { kind: MetricKind; onMeasure(
               ))}
             </section>
           ) : null}
+          {kind === "network" ? <SpeedTestCard /> : null}
           {lists ? (
             <section className="sy-panel sy-rows">
-              <div className="sy-panel-title">{S.usage}</div>
-              {snapshot.processesFor !== kind || snapshot.processes.length === 0 ? (
-                <div className="sy-panel-empty">{S.measuring}</div>
+              <div className="sy-panel-head">
+                <div className="sy-panel-title">
+                  {kind === "network" ? S.networkApps : kind === "power" ? S.energyApps : S.usage}
+                </div>
+                <button
+                  type="button"
+                  className="sy-open-app"
+                  aria-label={S.openTaskManager}
+                  title={S.openTaskManager}
+                  onClick={() => void bridge.shell.openTaskManager()}
+                >
+                  <SquareArrowOutUpRight size={10} strokeWidth={2.2} aria-hidden />
+                </button>
+              </div>
+              {emptyText !== null ? (
+                <div className="sy-panel-empty">
+                  {emptyText}
+                  {snapshot.processesFor === kind && snapshot.processStatus === "needsApproval" ? (
+                    <NetworkApproval />
+                  ) : null}
+                </div>
               ) : (
-                snapshot.processes.map((row, i) => <Process key={`${i}-${row.name}`} kind={kind} row={row} />)
+                snapshot.processes.map((row, i) => (
+                  <Process key={`${i}-${row.name}`} kind={kind} row={row} inBits={inBits} />
+                ))
               )}
             </section>
           ) : null}
@@ -113,6 +137,7 @@ const icons = new Map<string, Promise<string | null>>();
 function useIcon(path: string | null): string | null {
   const [icon, setIcon] = useState<string | null>(null);
   useEffect(() => {
+    setIcon(null);
     if (!path) return;
     let live = true;
     const size = Math.round(16 * window.devicePixelRatio);
@@ -133,13 +158,48 @@ function useIcon(path: string | null): string | null {
   return icon;
 }
 
-function Process({ kind, row }: { kind: MetricKind; row: ProcessRow }) {
+/** Windows' prompt for the helper that reads per-app traffic (network_helper.rs). */
+function NetworkApproval() {
+  const [state, setState] = useState<"idle" | "asking" | "declined">("idle");
+  const allow = () => {
+    setState("asking");
+    bridge.system.approveNetwork().then(
+      (result) => {
+        // Approved (or another prompt still open): the next reading replaces
+        // this panel. Only in case it doesn't, the button comes back.
+        if (result === "approved" || result === "busy") setTimeout(() => setState("idle"), 5000);
+        else setState("declined");
+      },
+      () => setState("declined"),
+    );
+  };
+  return state === "asking" ? (
+    <span className="sy-speed-testing sy-approve" role="status">
+      <LoaderCircle className="sy-spin" size={13} aria-hidden />
+      {S.networkApproving}
+    </span>
+  ) : (
+    <>
+      <button type="button" className="sy-speed-button sy-approve" onClick={allow}>
+        <ShieldCheck size={12} strokeWidth={2.2} aria-hidden />
+        {S.networkApprove}
+      </button>
+      {state === "declined" ? (
+        <div className="sy-approve-note" role="status">
+          {S.networkDeclined}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function Process({ kind, row, inBits }: { kind: MetricKind; row: ProcessRow; inBits: boolean }) {
   const icon = useIcon(row.path);
   return (
     <div className="sy-row-line sy-process" title={row.name}>
       {icon ? <img src={icon} alt="" className="sy-process-icon" /> : <span className="sy-process-icon" />}
       <span className="sy-row-title">{row.name}</span>
-      <span className="sy-row-value">{processValue(kind, row.value)}</span>
+      <span className="sy-row-value">{processRowValue(kind, row, inBits)}</span>
     </div>
   );
 }

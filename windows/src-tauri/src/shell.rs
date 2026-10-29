@@ -4,7 +4,8 @@
 //! Names, icons and thumbnails from the Windows shell, as the island's pages
 //! show them: an app's display name (its FileDescription), an exe or file
 //! icon, or a file's thumbnail, encoded as a PNG data URL. All shell calls
-//! run on one STA thread; results are cached by path and size.
+//! run on one STA thread; results are cached by path and size. It also opens
+//! Task Manager, the Mac's "Open Activity Monitor".
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};
@@ -99,6 +100,26 @@ pub fn app_name(exe: &str) -> String {
     })
 }
 
+/// Version resources can overstate a string's length and include the next
+/// metadata field after its NUL terminator. Only the first string is a name.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn version_description(units: &[u16]) -> Option<String> {
+    let end = units
+        .iter()
+        .position(|&unit| unit == 0)
+        .unwrap_or(units.len());
+    let text = String::from_utf16(&units[..end]).ok()?;
+    let text = text.trim();
+    (!text.is_empty() && !text.chars().any(char::is_control)).then(|| text.to_string())
+}
+
+/// A returned version value must stay inside its owning resource buffer.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn version_bytes(data: &[u8], value: *const std::ffi::c_void, len: usize) -> Option<&[u8]> {
+    let offset = (value as usize).checked_sub(data.as_ptr() as usize)?;
+    data.get(offset..offset.checked_add(len)?)
+}
+
 /// The full path of a running process's exe.
 pub fn process_path(pid: u32) -> Option<String> {
     imp::process_path(pid)
@@ -125,6 +146,15 @@ pub async fn shell_icon(path: String, size: u32, thumbnail: bool) -> Option<Stri
     .flatten()
 }
 
+/// Task Manager, as the System detail's process list opens it; false when
+/// it couldn't be started.
+#[tauri::command]
+pub async fn shell_open_task_manager() -> bool {
+    tauri::async_runtime::spawn_blocking(|| worker().run(imp::open_task_manager).unwrap_or(false))
+        .await
+        .unwrap_or(false)
+}
+
 #[cfg(windows)]
 mod imp {
     use windows::Win32::Foundation::{CloseHandle, SIZE};
@@ -140,10 +170,31 @@ mod imp {
         QueryFullProcessImageNameW,
     };
     use windows::Win32::UI::Shell::{
-        IShellItemImageFactory, SHCreateItemFromParsingName, SHFILEINFOW, SHGFI_TYPENAME,
-        SHGetFileInfoW, SIIGBF_BIGGERSIZEOK, SIIGBF_ICONONLY, SIIGBF_RESIZETOFIT,
+        IShellItemImageFactory, SEE_MASK_DOENVSUBST, SEE_MASK_NOASYNC, SHCreateItemFromParsingName,
+        SHELLEXECUTEINFOW, SHFILEINFOW, SHGFI_TYPENAME, SHGetFileInfoW, SIIGBF_BIGGERSIZEOK,
+        SIIGBF_ICONONLY, SIIGBF_RESIZETOFIT, ShellExecuteExW,
     };
-    use windows::core::{HSTRING, PCWSTR, PWSTR};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        ASFW_ANY, AllowSetForegroundWindow, SW_SHOWNORMAL,
+    };
+    use windows::core::{HSTRING, PCWSTR, PWSTR, w};
+
+    /// By its System32 path: a bare name is looked for in the current
+    /// directory first. A running Task Manager comes to the front.
+    pub fn open_task_manager() -> bool {
+        unsafe {
+            let _ = AllowSetForegroundWindow(ASFW_ANY);
+        }
+        let mut info = SHELLEXECUTEINFOW {
+            cbSize: std::mem::size_of::<SHELLEXECUTEINFOW>() as u32,
+            // This worker has no message loop to finish the launch on.
+            fMask: SEE_MASK_NOASYNC | SEE_MASK_DOENVSUBST,
+            lpFile: w!(r"%SystemRoot%\System32\Taskmgr.exe"),
+            nShow: SW_SHOWNORMAL.0,
+            ..Default::default()
+        };
+        unsafe { ShellExecuteExW(&mut info) }.is_ok()
+    }
 
     pub fn image(path: &str, width: u32, height: u32, icon_only: bool) -> Option<Vec<u8>> {
         unsafe {
@@ -244,8 +295,10 @@ mod imp {
             .as_bool()
                 && len >= 4
             {
-                let pair = std::slice::from_raw_parts(ptr as *const u16, 2);
-                table = format!("{:04X}{:04X}", pair[0], pair[1]);
+                let pair = super::version_bytes(&data, ptr, 4)?;
+                let language = u16::from_le_bytes([pair[0], pair[1]]);
+                let code_page = u16::from_le_bytes([pair[2], pair[3]]);
+                table = format!("{language:04X}{code_page:04X}");
             }
             let key = HSTRING::from(format!("\\StringFileInfo\\{table}\\FileDescription"));
             if !VerQueryValueW(data.as_ptr() as *const _, &key, &mut ptr, &mut len).as_bool()
@@ -253,10 +306,14 @@ mod imp {
             {
                 return None;
             }
-            let text = std::slice::from_raw_parts(ptr as *const u16, len as usize);
-            let text = String::from_utf16_lossy(text);
-            let text = text.trim_end_matches('\0').trim();
-            (!text.is_empty()).then(|| text.to_string())
+            let bytes = super::version_bytes(&data, ptr, (len as usize).checked_mul(2)?)?;
+            let units: Vec<u16> = bytes
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u16::from_le_bytes([pair[0], pair[1]]))
+                .collect();
+            super::version_description(&units)
         }
     }
 
@@ -299,6 +356,9 @@ mod imp {
 
 #[cfg(not(windows))]
 mod imp {
+    pub fn open_task_manager() -> bool {
+        false
+    }
     pub fn image(_path: &str, _w: u32, _h: u32, _icon_only: bool) -> Option<Vec<u8>> {
         None
     }
@@ -316,6 +376,60 @@ mod imp {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn version_description_stops_before_neighboring_metadata() {
+        let units: Vec<u16> = "NVIDIA App\0\u{8}\u{1}FileVersion\0"
+            .encode_utf16()
+            .collect();
+        assert_eq!(version_description(&units).as_deref(), Some("NVIDIA App"));
+        let unicode: Vec<_> = "  Aplikacja Żółć 🦊  \0".encode_utf16().collect();
+        assert_eq!(
+            version_description(&unicode).as_deref(),
+            Some("Aplikacja Żółć 🦊")
+        );
+        assert_eq!(version_description(&[0, 65]), None);
+        assert_eq!(version_description(&[0xD800]), None);
+        assert_eq!(version_description(&[65, 8, 66]), None);
+    }
+
+    #[test]
+    fn version_values_cannot_read_past_the_resource() {
+        let data = [0u8; 16];
+        let start = data.as_ptr().cast();
+        assert_eq!(version_bytes(&data, start, 16), Some(data.as_slice()));
+        assert!(version_bytes(&data, start, 17).is_none());
+        assert!(version_bytes(&data, std::ptr::null(), 4).is_none());
+        assert!(version_bytes(&data, data[12..].as_ptr().cast(), 8).is_none());
+    }
+
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "checks version resources of NVIDIA software installed on this host"]
+    fn live_nvidia_display_names() {
+        let directory = std::path::Path::new(r"C:\Program Files\NVIDIA Corporation");
+        let mut checked = 0;
+        for relative in [
+            r"NVIDIA App\CEF\NVIDIA Overlay.exe",
+            r"NVIDIA App\NVIDIA app.exe",
+            r"NvContainer\nvcontainer.exe",
+        ] {
+            let path = directory.join(relative);
+            if !path.is_file() {
+                continue;
+            }
+            let name = app_name(path.to_str().unwrap());
+            eprintln!("{}: {name}", path.display());
+            assert!(!name.is_empty());
+            assert!(!name.chars().any(char::is_control));
+            assert!(!name.contains("FileVer"));
+            checked += 1;
+        }
+        assert!(
+            checked > 0,
+            "no NVIDIA executables found for host validation"
+        );
+    }
 
     #[test]
     fn premultiplied_pixels_are_straightened() {

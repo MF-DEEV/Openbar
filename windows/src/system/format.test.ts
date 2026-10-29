@@ -3,6 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import {
+  mbps,
   batteryTime,
   bitsPerSec,
   bitsPerSecCompact,
@@ -86,5 +87,15 @@ describe("system formats", () => {
     expect(graphCeiling(12, 1000)).toBe(20);
     expect(networkGraphCeiling(1_500_000, true)).toBe(2_500_000);
     expect(networkGraphCeiling(1_500_000, false)).toBe(2 * 1024 ** 2);
+  });
+});
+
+describe("speed test results", () => {
+  it("drops the decimal from 100 Mbps", () => {
+    expect(mbps(0)).toBe("0.0");
+    expect(mbps(9.94)).toBe("9.9");
+    expect(mbps(99.94)).toBe("99.9");
+    expect(mbps(100)).toBe("100");
+    expect(mbps(412.6)).toBe("413");
   });
 });

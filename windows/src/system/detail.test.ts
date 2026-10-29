@@ -4,7 +4,8 @@
 import { describe, expect, it } from "vitest";
 import { resolve } from "../shared/prefs";
 import { demoSnapshot } from "./demo";
-import { detailRows, memoryDetailRows, processValue, summary } from "./detail";
+import { detailRows, memoryDetailRows, processEmptyText, processRowValue, processValue, summary } from "./detail";
+import { S } from "./strings";
 import { emptyHistory, pushHistory } from "./store";
 
 const snapshot = demoSnapshot(4);
@@ -55,6 +56,16 @@ describe("metric details", () => {
     expect(power.map((r) => r.title)).toEqual(["System", "Adapter", "Battery", "Battery time remaining"]);
     expect(power.at(-1)!.value).toBe("1h 10m");
     expect(detailRows("battery", snapshot, false)[1]!.value).toMatch(/ W · On battery$/);
+    expect(detailRows("battery", snapshot, false).slice(2)).toEqual([
+      { title: "Battery health", value: "88%" },
+      { title: "Cycles", value: "412" },
+    ]);
+    const unread = { ...snapshot, battery: { ...snapshot.battery!, healthPercent: null, cycleCount: null } };
+    expect(
+      detailRows("battery", unread, false)
+        .slice(2)
+        .map((r) => r.value),
+    ).toEqual(["-", "-"]);
     expect(detailRows("connectedDevices", { ...snapshot, devices: [] }, false)).toEqual([
       { title: "No external devices connected", value: "" },
     ]);
@@ -66,6 +77,33 @@ describe("metric details", () => {
   it("formats process rows", () => {
     expect(processValue("cpu", 12.345)).toBe("12.3%");
     expect(processValue("memory", 1.5 * 1024 ** 3)).toBe("1.5 GB");
+    expect(processValue("gpu", 45.678)).toBe("45.7%");
+  });
+
+  it("separates stale responses, idle lists, warm-up and unavailable measurements", () => {
+    const network = { ...snapshot, processesFor: "network" as const };
+    expect(processEmptyText("gpu", network)).toBe(S.measuring);
+    expect(processEmptyText("network", { ...network, processStatus: "permissionDenied" })).toBe(
+      S.networkPermissionDenied,
+    );
+    expect(processEmptyText("network", { ...network, processStatus: "needsApproval" })).toBe(S.networkNeedsApproval);
+    expect(processEmptyText("network", { ...network, processStatus: "incomplete" })).toBe(S.networkIncomplete);
+    expect(processEmptyText("network", { ...network, processStatus: "measuring" })).toBe(S.measuring);
+    expect(processEmptyText("network", { ...network, processes: [] })).toBe(S.networkAppsIdle);
+    expect(processEmptyText("network", network)).toBeNull();
+    expect(processEmptyText("gpu", { ...snapshot, processesFor: "gpu", processStatus: "unavailable" })).toBe(
+      S.processesUnavailable,
+    );
+    expect(processEmptyText("power", { ...snapshot, processesFor: "power", processStatus: "unavailable" })).toBe(
+      S.energyUnavailable,
+    );
+  });
+
+  it("shows both network directions in the selected speed unit", () => {
+    const row = { name: "Browser", path: null, value: 1_500_000, netDown: 1_000_000, netUp: 500_000 };
+    expect(processRowValue("network", row, true)).toBe("↓8.0Mb ↑4.0Mb");
+    expect(processRowValue("network", row, false)).toBe("↓977K ↑488K");
+    expect(processRowValue("network", { ...row, netDown: null, netUp: 0 }, false)).toBe("↓- ↑0B");
   });
 });
 

@@ -2,7 +2,8 @@
 // Copyright (C) 2026 Vorssaint
 
 import { describe, expect, it, vi } from "vitest";
-import { DeferredSessionAttention } from "./attention";
+import { DeferredSessionAttention, noticeLeavesWhenBusy } from "./attention";
+import { demoSnapshot } from "./demo";
 import type { SessionEvent } from "./types";
 const event: SessionEvent = { kind: "needsPermission", id: "fixture", tool: "Shell" };
 describe("session attention", () => {
@@ -96,5 +97,21 @@ describe("session attention", () => {
     await attention.handle(event);
     await attention.resume();
     expect(present).not.toHaveBeenCalled();
+  });
+});
+
+describe("session notices when another app is in use", () => {
+  const sessions = demoSnapshot().sessions;
+  const waiting = sessions.find((s) => s.phase === "waitingPermission")!;
+  const finished = sessions.find((s) => s.phase === "finished")!;
+  it("removes a notice about a session that still waits", () => {
+    expect(noticeLeavesWhenBusy(waiting.id, sessions)).toBe(true);
+  });
+  it("keeps a finished turn's notice, and one whose session has gone", () => {
+    expect(noticeLeavesWhenBusy(finished.id, sessions)).toBe(false);
+    expect(noticeLeavesWhenBusy("gone", sessions)).toBe(false);
+  });
+  it("removes a notice that names no session", () => {
+    expect(noticeLeavesWhenBusy(undefined, sessions)).toBe(true);
   });
 });

@@ -101,3 +101,9 @@ export function arrange(a: Arrangement, visible: readonly string[], next: readon
   const order = unique([...a.order, ...visible]).map((v) => (moving.has(v) ? (next[i++] ?? v) : v));
   return { ...a, order };
 }
+
+/** The output switcher's cycle: chosen ids in the outputs' own order, chosen ones not connected after them. */
+export function cycleOrder(chosen: string[], outputs: { id: string }[]): string[] {
+  const listed = outputs.map((d) => d.id);
+  return [...listed.filter((id) => chosen.includes(id)), ...chosen.filter((id) => !listed.includes(id))];
+}

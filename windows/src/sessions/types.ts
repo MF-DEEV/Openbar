@@ -95,6 +95,8 @@ export interface Session {
   phaseSince: number;
   turnStarted?: number;
   lastActive?: number;
+  /** When its page was last opened (or a reply or decision sent), by the service. */
+  lookedAt?: number;
   waitingFor?: string;
   currentTool?: ToolUse;
   permission?: Permission;

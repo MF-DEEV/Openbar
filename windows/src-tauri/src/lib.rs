@@ -23,12 +23,14 @@ mod media_volume;
 mod microphone;
 mod notifications;
 mod ocr;
+mod power_saver;
 mod prefs;
 mod scratchpad;
 mod sessions;
 mod settings;
 mod shell;
 mod sound;
+mod speed_test;
 mod system_monitor;
 mod timer;
 mod toggles;
@@ -75,6 +77,18 @@ pub fn notifications_probe_main(path: &str) -> ! {
     notifications::probe_main(path)
 }
 
+/// `Vorssaint.exe --speed-test-probe <file>`: runs the network detail's speed test.
+pub fn speed_test_probe_main(path: &str) -> ! {
+    speed_test::probe_main(path)
+}
+
+/// `Vorssaint.exe --network-helper`, `--install-network-helper` or
+/// `--remove-network-helper`: the per-app network list's elevated helper
+/// and the steps that approve and remove it. Returns for anything else.
+pub fn network_helper_main(arg: &str) {
+    system_monitor::network_helper_main(arg)
+}
+
 /// `Vorssaint.exe --remove-hooks`: the uninstaller takes Vorssaint's hooks out
 /// of Claude Code's settings, so Claude doesn't call a program that's gone.
 pub fn remove_hooks_main() -> ! {
@@ -107,8 +121,16 @@ pub fn run() {
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if shortcut == &toggle_shortcut() && event.state() == ShortcutState::Pressed {
+                    if audio::roller_key(shortcut, event.state() == ShortcutState::Pressed) {
+                        return;
+                    }
+                    if event.state() != ShortcutState::Pressed {
+                        return;
+                    }
+                    if shortcut == &toggle_shortcut() {
                         let _ = app.emit_to(island::LABEL, "island://toggle", ());
+                    } else if audio::is_switcher_shortcut(shortcut) {
+                        audio::switch_to_next_output();
                     }
                 })
                 .build(),
@@ -119,6 +141,7 @@ pub fn run() {
         .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
         .manage(system_monitor::Shared::default())
+        .manage(speed_test::Shared::default())
         .manage(calendar::Shared::default())
         .manage(audio::Shared::default())
         .manage(keep_awake::Shared::default())
@@ -165,12 +188,16 @@ pub fn run() {
             sessions::attachments::sessions_attach_image,
             sessions::attachments::sessions_clipboard_images,
             shell::shell_icon,
+            shell::shell_open_task_manager,
             sound::sound_play,
             sound::sound_alarm,
             timer::timer_now_ms,
             timer::timer_wake,
             system_monitor::system_monitor_watch,
             system_monitor::system_monitor_snapshot,
+            system_monitor::system_network_approve,
+            speed_test::speed_test_state,
+            speed_test::speed_test_start,
             calendar::calendar_snapshot,
             calendar::calendar_show_range,
             calendar::calendar_request_access,
@@ -183,9 +210,12 @@ pub fn run() {
             audio::audio_set_app,
             audio::audio_watch_apps,
             audio::mic_mute_set,
+            audio::audio_priority_set,
+            audio::audio_switcher_recording,
             keep_awake::keep_awake_state,
             keep_awake::keep_awake_set,
             keep_awake::keep_awake_toggle,
+            power_saver::power_saver_on,
             brightness::brightness_displays,
             brightness::brightness_set,
             capture::capture_run,
@@ -243,6 +273,8 @@ pub fn run() {
             app.manage(prefs::Prefs::load(app.handle()));
             app.manage(scratchpad::Store::new(app.handle()));
             app.manage(files::Files::load(app.handle()));
+            // Followed before the island exists, so its first power_saver_on has it.
+            power_saver::start(app.handle().clone());
             island::create(app.handle())?;
             files::install(app.handle());
             fullscreen::watch(app.handle());
@@ -293,7 +325,9 @@ pub fn run() {
 
     app.run(|app, event| {
         if let RunEvent::Exit = event {
+            system_monitor::stop(app.state::<system_monitor::Shared>().inner());
             fullscreen::stop(app);
+            audio::stop();
         }
     });
 }

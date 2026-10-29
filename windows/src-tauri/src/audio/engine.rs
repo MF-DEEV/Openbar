@@ -33,23 +33,41 @@ use windows::Win32::System::Threading::{
 };
 use windows::core::{GUID, Interface, PCWSTR, PWSTR, Ref, implement};
 
+use super::guard::{self, Guard};
 use super::mic::MicMute;
 use super::policy::Policy;
+use super::priority::{self, Saved, Tracker};
+use super::roller::{self, Direction};
+use super::switcher;
 use super::tree::{Proc, root};
-use super::{App, Device, Level, Reading, State};
+use super::{App, Device, Level, Priority, Ranked, Reading, State};
 use crate::com::Worker;
 
 /// Marks the island's own level changes, so the endpoint callback can tell
 /// them from the volume keys and other apps (spec 05 §1.3).
 const OWN_CHANGE: GUID = GUID::from_u128(0x6f1c9b52_4a0e_4c39_9b5d_2c7a1e8d0f41);
+/// Level changes from the finer volume keys: not the island's own, so its
+/// volume notice shows them as it shows the keys' usual steps.
+const ROLLER_CHANGE: GUID = GUID::from_u128(0x2b7e5d1a_93c4_4f6e_8a21_5c0d9e3f7b64);
 const FRIENDLY_NAME: PROPERTYKEY = PROPERTYKEY {
     fmtid: GUID::from_u128(0xa45c254e_df1c_4efd_8020_67d146a850e0),
     pid: 14,
+};
+/// PKEY_Device_EnumeratorName: the bus ("HDAUDIO", "USB", "BTHENUM", "ROOT"…).
+const ENUMERATOR_NAME: PROPERTYKEY = PROPERTYKEY {
+    fmtid: GUID::from_u128(0xa45c254e_df1c_4efd_8020_67d146a850e0),
+    pid: 24,
+};
+/// PKEY_AudioEndpoint_FormFactor (EndpointFormFactor: 3 headphones, 5 headset…).
+const FORM_FACTOR: PROPERTYKEY = PROPERTYKEY {
+    fmtid: GUID::from_u128(0x1da5d803_d492_4edd_8c23_e0c0ffee7f0e),
+    pid: 0,
 };
 /// A peak this long ago still counts as playing, so the dot doesn't blink between notes.
 const PLAYING_HOLD: Duration = Duration::from_millis(1500);
 const SYSTEM_KEY: &str = "system";
 const MIC_FILE: &str = "mic-mute.json";
+const PRIORITY_FILE: &str = "audio-priority.json";
 
 fn worker() -> &'static Worker {
     static W: OnceLock<Worker> = OnceLock::new();
@@ -92,6 +110,38 @@ fn with<T>(job: impl FnOnce(&mut Engine) -> Result<T, String>) -> Result<T, Stri
         super::publish(engine.state());
         result
     })
+}
+
+/// Runs `job` on the audio thread only if the engine already exists, and
+/// waits; for quitting, which must not start one.
+pub fn with_existing(job: impl FnOnce(&mut Engine) + Send + 'static) {
+    let _ = worker().run(move || {
+        ENGINE.with(|cell| {
+            if let Some(engine) = cell.borrow_mut().as_mut() {
+                job(engine);
+            }
+        })
+    });
+}
+
+/// Runs `job` on the audio thread without waiting, then publishes.
+pub fn post(job: impl FnOnce(&mut Engine) + Send + 'static) {
+    worker().post(move || {
+        let _ = with(|e| {
+            job(e);
+            Ok(())
+        });
+    });
+}
+
+/// Runs `job` on the audio thread after `ms`, for the priority passes.
+fn after(ms: u64, job: impl FnOnce(&mut Engine) + Send + 'static) {
+    let _ = std::thread::Builder::new()
+        .name("vorssaint-audio-later".into())
+        .spawn(move || {
+            std::thread::sleep(Duration::from_millis(ms));
+            post(job);
+        });
 }
 
 /// Queues a reload from a callback thread.
@@ -269,6 +319,18 @@ pub struct Engine {
     sounding: HashMap<String, Instant>,
     mic: MicMute,
     watching: bool,
+    priority: Saved,
+    output_tracker: Tracker,
+    input_tracker: Tracker,
+    /// The newest scheduled pass of each kind; older ones find it moved on.
+    enforce_generation: u64,
+    placement_generation: u64,
+    guard: Guard,
+    switch_failed: bool,
+    /// Why the last automatic switch of each list failed (the Mac's
+    /// outputSwitchError and the microphone's lastError).
+    priority_error: Option<String>,
+    input_priority_error: Option<String>,
 }
 
 impl Drop for Engine {
@@ -303,6 +365,15 @@ impl Engine {
             sounding: HashMap::new(),
             mic: load_mic(),
             watching: false,
+            priority: load_priority(),
+            output_tracker: Tracker::default(),
+            input_tracker: Tracker::default(),
+            enforce_generation: 0,
+            placement_generation: 0,
+            guard: Guard::default(),
+            switch_failed: false,
+            priority_error: None,
+            input_priority_error: None,
         };
         // Restored while muted: the microphones present now were present
         // before, so one unmuted by hand meanwhile stays as it is.
@@ -314,6 +385,7 @@ impl Engine {
                 .collect();
         }
         engine.reload_devices();
+        super::switching_probed(engine.policy.is_some());
         Ok(engine)
     }
 
@@ -354,6 +426,8 @@ impl Engine {
         if !arrivals.is_empty() || !owed.is_empty() {
             save_mic(&self.mic);
         }
+        self.guard_headphones();
+        self.observe_priority();
         self.reload_sessions();
     }
 
@@ -372,9 +446,14 @@ impl Engine {
             .filter_map(|i| unsafe { collection.Item(i) }.ok())
             .filter_map(|device| {
                 let id = device_id(&device)?;
+                let name = friendly_name(&device).unwrap_or_else(|| id.clone());
+                let enumerator = string_property(&device, &ENUMERATOR_NAME).unwrap_or_default();
                 Some(Device {
-                    name: friendly_name(&device).unwrap_or_else(|| id.clone()),
+                    headphones: flow == eRender
+                        && guard::looks_like_headphones(&name, form_factor(&device)),
+                    tier: Some(priority::tier(&enumerator, &name)),
                     is_default: Some(&id) == default.as_ref(),
+                    name,
                     id,
                 })
             })
@@ -626,6 +705,362 @@ impl Engine {
             can_switch: self.policy.is_some(),
             mic_muted: self.mic.muted,
             apps,
+            priority: self.priority_view(),
+            switcher_refused: super::SWITCHER_REFUSED.load(Ordering::SeqCst),
+            switch_failed: self.switch_failed,
+            priority_error: self.priority_error.clone(),
+            input_priority_error: self.input_priority_error.clone(),
+            roller_failed: super::ROLLER_FAILED.load(Ordering::SeqCst),
+        }
+    }
+
+    // MARK: Headphone guard
+
+    /// Lowers the speakers Windows fell back to when headphones left, or
+    /// gives them their level back when headphones are the output again.
+    fn guard_headphones(&mut self) {
+        let options = super::options();
+        let outputs: Vec<guard::Output> = self
+            .outputs
+            .iter()
+            .map(|d| guard::Output {
+                id: &d.id,
+                headphones: d.headphones,
+            })
+            .collect();
+        let default = self
+            .outputs
+            .iter()
+            .find(|d| d.is_default)
+            .map(|d| d.id.clone());
+        let action = self.guard.observe(
+            &outputs,
+            default.as_deref(),
+            options.lower_on_disconnect,
+            options.lower_percent,
+        );
+        match action {
+            guard::Action::None => {}
+            guard::Action::Lower { id, volume, mute } => {
+                let Some(endpoint) = self.endpoint_volume(&id) else {
+                    return;
+                };
+                let previous = unsafe { endpoint.GetMasterVolumeLevelScalar() }.ok();
+                // Not the island's own context: its volume notice shows the lowered level.
+                if unsafe { endpoint.SetMasterVolumeLevelScalar(volume, &GUID::zeroed()) }.is_err()
+                {
+                    return;
+                }
+                // Only a mute the output didn't have is this guard's to undo.
+                let muted = mute
+                    && unsafe { endpoint.GetMute() }.is_ok_and(|m| !m.as_bool())
+                    && unsafe { endpoint.SetMute(true, &GUID::zeroed()) }.is_ok();
+                self.guard.lowered(&id, previous, volume, muted);
+            }
+            guard::Action::Restore(lowered) => self.restore(&lowered),
+        }
+    }
+
+    // MARK: Audio priority
+
+    fn current_id(devices: &[Device]) -> Option<String> {
+        devices.iter().find(|d| d.is_default).map(|d| d.id.clone())
+    }
+
+    fn tier_of(devices: &[Device], id: &str) -> priority::Tier {
+        devices
+            .iter()
+            .find(|d| d.id == id)
+            .and_then(|d| d.tier)
+            .unwrap_or(priority::Tier::Hardware)
+    }
+
+    /// A fresh inventory: newcomers wait for their place, a device that
+    /// came or went owes a pass, and the names of listed ones are kept.
+    fn observe_priority(&mut self) {
+        let outputs: Vec<String> = self.outputs.iter().map(|d| d.id.clone()).collect();
+        let inputs: Vec<String> = self.inputs.iter().map(|d| d.id.clone()).collect();
+        let changed_out = self
+            .output_tracker
+            .observe(&outputs.iter().cloned().collect());
+        let changed_in = self
+            .input_tracker
+            .observe(&inputs.iter().cloned().collect());
+        let before = self.priority.clone();
+        let (current_out, current_in) = (
+            Self::current_id(&self.outputs),
+            Self::current_id(&self.inputs),
+        );
+        let devices = self.outputs.clone();
+        let waiting_out = priority::merge(
+            &mut self.priority.outputs,
+            &mut self.output_tracker,
+            &outputs,
+            current_out.as_deref(),
+            |id| Self::tier_of(&devices, id),
+        );
+        let devices = self.inputs.clone();
+        let waiting_in = priority::merge(
+            &mut self.priority.inputs,
+            &mut self.input_tracker,
+            &inputs,
+            current_in.as_deref(),
+            |id| Self::tier_of(&devices, id),
+        );
+        self.remember_names();
+        if self.priority != before {
+            save_priority(&self.priority);
+        }
+        if waiting_out || waiting_in {
+            self.placement_generation += 1;
+            let generation = self.placement_generation;
+            after(priority::PLACEMENT_DELAY_MS, move |e| {
+                if e.placement_generation == generation {
+                    e.place_new_devices();
+                }
+            });
+        }
+        if changed_out || changed_in {
+            self.schedule_enforcement();
+        }
+    }
+
+    fn remember_names(&mut self) {
+        let listed: std::collections::HashSet<&String> = self
+            .priority
+            .outputs
+            .iter()
+            .chain(&self.priority.inputs)
+            .collect();
+        for d in self.outputs.iter().chain(&self.inputs) {
+            if listed.contains(&d.id) {
+                self.priority.names.insert(d.id.clone(), d.name.clone());
+            }
+        }
+        self.priority.names.retain(|id, _| listed.contains(id));
+    }
+
+    fn place_new_devices(&mut self) {
+        let before = self.priority.clone();
+        let outputs: Vec<String> = self.outputs.iter().map(|d| d.id.clone()).collect();
+        let inputs: Vec<String> = self.inputs.iter().map(|d| d.id.clone()).collect();
+        let (current_out, current_in) = (
+            Self::current_id(&self.outputs),
+            Self::current_id(&self.inputs),
+        );
+        let devices = self.outputs.clone();
+        priority::place(
+            &mut self.priority.outputs,
+            &mut self.output_tracker,
+            &outputs,
+            current_out.as_deref(),
+            |id| Self::tier_of(&devices, id),
+        );
+        let devices = self.inputs.clone();
+        priority::place(
+            &mut self.priority.inputs,
+            &mut self.input_tracker,
+            &inputs,
+            current_in.as_deref(),
+            |id| Self::tier_of(&devices, id),
+        );
+        self.remember_names();
+        if self.priority != before {
+            save_priority(&self.priority);
+        }
+    }
+
+    fn schedule_enforcement(&mut self) {
+        self.enforce_generation += 1;
+        let generation = self.enforce_generation;
+        after(priority::ENFORCE_DELAY_MS, move |e| {
+            if e.enforce_generation == generation {
+                e.enforce_priority();
+            }
+        });
+    }
+
+    /// The owed passes: the best connected device of a list that is on
+    /// becomes the default.
+    fn enforce_priority(&mut self) {
+        let mut switched = false;
+        for output in [true, false] {
+            let (tracker, devices, list, enabled) = if output {
+                (
+                    &mut self.output_tracker,
+                    &self.outputs,
+                    &self.priority.outputs,
+                    self.priority.output_enabled,
+                )
+            } else {
+                (
+                    &mut self.input_tracker,
+                    &self.inputs,
+                    &self.priority.inputs,
+                    self.priority.input_enabled,
+                )
+            };
+            if !tracker.settle() || !enabled {
+                continue;
+            }
+            let available = devices.iter().map(|d| d.id.clone()).collect();
+            let current = Self::current_id(devices);
+            let Some(target) = priority::target(list, tracker, &available, current.as_deref())
+            else {
+                continue;
+            };
+            // A failed switch says why, as the Mac's outputSwitchError does.
+            let result = self.policy.as_ref().map(|p| p.set_default(target));
+            let error = if output {
+                &mut self.priority_error
+            } else {
+                &mut self.input_priority_error
+            };
+            match result {
+                Some(Ok(())) => {
+                    switched = true;
+                    *error = None;
+                }
+                Some(Err(e)) => *error = Some(e),
+                None => {}
+            }
+        }
+        if switched {
+            self.reload_devices();
+        }
+    }
+
+    fn priority_view(&self) -> Priority {
+        let ranked = |list: &[String], devices: &[Device]| -> Vec<Ranked> {
+            list.iter()
+                .map(|id| {
+                    let device = devices.iter().find(|d| &d.id == id);
+                    Ranked {
+                        id: id.clone(),
+                        name: device
+                            .map(|d| d.name.clone())
+                            .or_else(|| self.priority.names.get(id).cloned())
+                            .unwrap_or_else(|| id.clone()),
+                        available: device.is_some(),
+                    }
+                })
+                .collect()
+        };
+        Priority {
+            output_enabled: self.priority.output_enabled,
+            input_enabled: self.priority.input_enabled,
+            outputs: ranked(&self.priority.outputs, &self.outputs),
+            inputs: ranked(&self.priority.inputs, &self.inputs),
+        }
+    }
+
+    /// A switch turned on, or a new order: a pass follows at once.
+    pub fn set_priority(&mut self, output: bool, enabled: Option<bool>, ids: Option<Vec<String>>) {
+        let (list, on, tracker) = if output {
+            (
+                &mut self.priority.outputs,
+                &mut self.priority.output_enabled,
+                &mut self.output_tracker,
+            )
+        } else {
+            (
+                &mut self.priority.inputs,
+                &mut self.priority.input_enabled,
+                &mut self.input_tracker,
+            )
+        };
+        let mut due = false;
+        if let Some(enabled) = enabled {
+            due |= enabled && !*on;
+            *on = enabled;
+            if !enabled {
+                if output {
+                    self.priority_error = None;
+                } else {
+                    self.input_priority_error = None;
+                }
+            }
+        }
+        if let Some(ids) = ids {
+            let ids = priority::sanitized_list(&ids);
+            if ids != *list {
+                *list = ids;
+                due |= *on;
+            }
+        }
+        tracker.due |= due;
+        self.remember_names();
+        save_priority(&self.priority);
+        if due {
+            self.schedule_enforcement();
+        }
+    }
+
+    // MARK: Output switcher
+
+    pub fn switch_to_next(&mut self, cycle: &[String]) {
+        let available = self.outputs.iter().map(|d| d.id.clone()).collect();
+        let current = Self::current_id(&self.outputs);
+        let ok = match switcher::next(current.as_deref(), cycle, &available) {
+            Some(next) => self
+                .policy
+                .as_ref()
+                .is_some_and(|p| p.set_default(next).is_ok()),
+            None => switcher::nothing_to_do_is_fine(cycle, &available),
+        };
+        self.switch_failed = !ok;
+        if ok {
+            self.priority_error = None;
+            self.reload_devices();
+        }
+    }
+
+    pub fn clear_switch_failure(&mut self) {
+        self.switch_failed = false;
+    }
+
+    /// The app is quitting: speakers the guard lowered get their level back
+    /// while it is still the one the guard set (AppVolumeMixer.stopAll).
+    pub fn restore_lowered(&mut self) {
+        let Some(lowered) = self.guard.lowered.take() else {
+            return;
+        };
+        self.restore(&lowered);
+    }
+
+    fn restore(&self, lowered: &guard::Lowered) {
+        let Some(endpoint) = self.endpoint_volume(&lowered.id) else {
+            return;
+        };
+        let current = unsafe { endpoint.GetMasterVolumeLevelScalar() }.ok();
+        if !guard::should_restore(lowered, current) {
+            return;
+        }
+        let _ = unsafe { endpoint.SetMasterVolumeLevelScalar(lowered.previous, &OWN_CHANGE) };
+        // A mute switched off since was someone's choice, and one the guard
+        // didn't set was never its to undo.
+        if lowered.muted_by_lowering && unsafe { endpoint.GetMute() }.is_ok_and(|m| m.as_bool()) {
+            let _ = unsafe { endpoint.SetMute(false, &OWN_CHANGE) };
+        }
+    }
+
+    // MARK: Finer volume keys
+
+    /// One 1% step of the default output; like the volume keys, it unmutes.
+    pub fn step_output(&mut self, direction: Direction) {
+        let Some(endpoint) = self.output.as_ref() else {
+            return;
+        };
+        unsafe {
+            let Ok(current) = endpoint.volume.GetMasterVolumeLevelScalar() else {
+                return;
+            };
+            let _ = endpoint
+                .volume
+                .SetMasterVolumeLevelScalar(roller::stepped(current, direction), &ROLLER_CHANGE);
+            if endpoint.volume.GetMute().is_ok_and(|m| m.as_bool()) {
+                let _ = endpoint.volume.SetMute(false, &ROLLER_CHANGE);
+            }
         }
     }
 
@@ -697,6 +1132,12 @@ impl Engine {
             .as_ref()
             .ok_or("Switching devices is unavailable")?;
         policy.set_default(id)?;
+        // A device picked by hand answers the last automatic failure.
+        if self.outputs.iter().any(|d| d.id == id) {
+            self.priority_error = None;
+        } else {
+            self.input_priority_error = None;
+        }
         self.reload_devices();
         Ok(())
     }
@@ -809,11 +1250,23 @@ fn device_id(device: &IMMDevice) -> Option<String> {
 }
 
 fn friendly_name(device: &IMMDevice) -> Option<String> {
+    string_property(device, &FRIENDLY_NAME)
+}
+
+fn string_property(device: &IMMDevice, key: &PROPERTYKEY) -> Option<String> {
     unsafe {
         let store = device.OpenPropertyStore(STGM_READ).ok()?;
-        let value = store.GetValue(&FRIENDLY_NAME).ok()?;
-        let name = value.to_string();
-        (!name.is_empty()).then_some(name)
+        let value = store.GetValue(key).ok()?;
+        let text = value.to_string();
+        (!text.is_empty()).then_some(text)
+    }
+}
+
+fn form_factor(device: &IMMDevice) -> Option<u32> {
+    unsafe {
+        let store = device.OpenPropertyStore(STGM_READ).ok()?;
+        let value = store.GetValue(&FORM_FACTOR).ok()?;
+        u32::try_from(&value).ok()
     }
 }
 
@@ -880,6 +1333,18 @@ fn stem(exe: &str) -> String {
         .to_string()
 }
 
+fn load_priority() -> Saved {
+    super::saved_file(PRIORITY_FILE)
+        .and_then(|path| std::fs::read(path).ok())
+        .and_then(|bytes| serde_json::from_slice::<serde_json::Value>(&bytes).ok())
+        .map(|value| Saved::from_value(&value))
+        .unwrap_or_default()
+}
+
+fn save_priority(saved: &Saved) {
+    write_file(PRIORITY_FILE, saved);
+}
+
 fn load_mic() -> MicMute {
     super::saved_file(MIC_FILE)
         .and_then(|path| std::fs::read(path).ok())
@@ -888,13 +1353,17 @@ fn load_mic() -> MicMute {
 }
 
 fn save_mic(mic: &MicMute) {
-    let Some(path) = super::saved_file(MIC_FILE) else {
+    write_file(MIC_FILE, mic);
+}
+
+fn write_file(name: &str, value: &impl serde::Serialize) {
+    let Some(path) = super::saved_file(name) else {
         return;
     };
     if let Some(dir) = path.parent() {
         let _ = std::fs::create_dir_all(dir);
     }
-    if let Ok(bytes) = serde_json::to_vec(mic) {
+    if let Ok(bytes) = serde_json::to_vec(value) {
         let temp = path.with_extension("json.tmp");
         if std::fs::write(&temp, bytes).is_ok() {
             let _ = std::fs::rename(&temp, &path);

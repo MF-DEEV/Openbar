@@ -2,9 +2,9 @@
 // Copyright (C) 2026 Vorssaint
 
 // What a metric's detail reads (MetricDetailView.swift): the summary's value
-// and line, its history graph and its rows. Temperatures,
-// battery health and cycles, adapter watts and the speed test have no
-// Windows source and are left out.
+// and line, its history graph and its rows. Temperatures and adapter watts
+// have no Windows source and are left out. The network detail's speed test
+// is its own card (SpeedTestCard.tsx).
 
 import { powerReading } from "./cards";
 import {
@@ -24,7 +24,7 @@ import {
 import type { Line } from "./Sparkline";
 import type { History } from "./store";
 import { S } from "./strings";
-import type { BatteryReading, MetricKind, SystemSnapshot } from "./types";
+import type { BatteryReading, MetricKind, ProcessRow, SystemSnapshot } from "./types";
 
 /** The panel's metric colors in dark appearance (PanelMetricColor). */
 export const COLORS = {
@@ -218,6 +218,11 @@ export function detailRows(kind: MetricKind, s: SystemSnapshot, inBits: boolean)
       return [
         { title: S.charge, value: measured(s.battery?.percent == null ? null : `${s.battery.percent}%`) },
         { title: S.battery, value: batteryFlow(s.battery) },
+        {
+          title: S.batteryHealth,
+          value: s.battery?.healthPercent == null ? "-" : `${Math.round(s.battery.healthPercent)}%`,
+        },
+        { title: S.cycles, value: s.battery?.cycleCount == null ? "-" : String(s.battery.cycleCount) },
       ];
     case "power": {
       const battery = s.battery;
@@ -247,4 +252,29 @@ export function detailRows(kind: MetricKind, s: SystemSnapshot, inBits: boolean)
 /** CPU rows read "12.3%", memory rows a size. */
 export function processValue(kind: MetricKind, value: number): string {
   return kind === "memory" ? bytes(value) : `${value.toFixed(1)}%`;
+}
+
+export function processRowValue(kind: MetricKind, row: ProcessRow, inBits: boolean): string {
+  if (kind !== "network") return processValue(kind, row.value);
+  const rate = (value: number | null) => (value === null ? "-" : networkRateCompact(value, inBits));
+  return `↓${rate(row.netDown)} ↑${rate(row.netUp)}`;
+}
+
+/** A stale response belongs to the previous detail, even if it had rows. */
+export function processEmptyText(kind: MetricKind, snapshot: SystemSnapshot): string | null {
+  if (snapshot.processesFor !== kind) return S.measuring;
+  switch (snapshot.processStatus) {
+    case "unavailable":
+      return kind === "power" ? S.energyUnavailable : S.processesUnavailable;
+    case "permissionDenied":
+      return S.networkPermissionDenied;
+    case "needsApproval":
+      return S.networkNeedsApproval;
+    case "incomplete":
+      return S.networkIncomplete;
+    case "measuring":
+      return S.measuring;
+    case "ready":
+      return snapshot.processes.length > 0 ? null : kind === "network" ? S.networkAppsIdle : S.processesIdle;
+  }
 }
