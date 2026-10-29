@@ -11,6 +11,9 @@ import "../shared/controls.css";
 import "../shared/ui/ui.css";
 
 const dev = inTauri ? null : new URLSearchParams(location.search);
+if (dev?.has("screenshot-preview")) {
+  void import("./store").then(({ useIsland }) => useIsland.getState().showCapturePreview("demo"));
+}
 
 // Designing in a plain browser: ?sessions fills the Sessions section with samples.
 if (!inTauri && new URLSearchParams(location.search).has("sessions")) {

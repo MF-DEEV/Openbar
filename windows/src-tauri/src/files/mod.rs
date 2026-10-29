@@ -12,14 +12,14 @@
 
 pub mod archive;
 #[cfg(windows)]
-mod drag_out;
+pub(crate) mod drag_out;
 #[cfg(windows)]
 mod drop_target;
 mod identity;
 #[cfg(windows)]
 mod ole;
 mod payload;
-mod shell;
+pub(crate) mod shell;
 pub mod store;
 
 use std::collections::{HashMap, HashSet};
@@ -88,6 +88,12 @@ pub struct Files {
 }
 
 impl Files {
+    /// Suppress our own drop target during a native screenshot/file drag.
+    #[cfg(windows)]
+    pub(crate) fn set_dragging_out(&self, on: bool) {
+        self.state.lock().unwrap().dragging_out = on;
+    }
+
     pub fn load<R: Runtime>(app: &AppHandle<R>) -> Self {
         let dir = app.path().app_config_dir().ok().map(|d| d.join("shelf"));
         let mut shelf = Shelf::default();
