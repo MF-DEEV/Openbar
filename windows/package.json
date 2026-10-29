@@ -15,6 +15,7 @@
     "test:quick-access": "node scripts/check-island-layout.mjs --quick-access",
     "test:activity-picker": "node scripts/check-island-layout.mjs --activity-picker",
     "test:session-notice": "node scripts/check-island-layout.mjs --session-notice",
+    "test:idle-content": "node scripts/check-island-layout.mjs --idle-content",
     "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tsconfig.node.json",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

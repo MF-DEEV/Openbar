@@ -10,6 +10,8 @@ import { displayName, duration } from "../sessions/format";
 import { S } from "../sessions/strings";
 import type { SessionEvent } from "../sessions/types";
 import { geometryOf, modulesOf, useIsland } from "./store";
+import { configuredIdleContent } from "./idle";
+import { subscribeBattery } from "./battery";
 import { activityViews } from "./views/Activity";
 import { pages } from "./views/Expanded";
 import { MusicPage, useMusicHeight } from "../music/MusicPage";
@@ -39,6 +41,7 @@ import "../watch/register";
 
 activityViews.microphone = MicrophoneStrip;
 void subscribeMicrophone();
+void subscribeBattery();
 
 // MARK: Preferences
 
@@ -95,7 +98,9 @@ useIsland.subscribe((s, prev) => {
   if (
     s.settings.sections !== prev.settings.sections ||
     s.settings.hiddenModules !== prev.settings.hiddenModules ||
-    s.settings.showPlayingMusic !== prev.settings.showPlayingMusic
+    s.settings.showPlayingMusic !== prev.settings.showPlayingMusic ||
+    s.settings.idleContent !== prev.settings.idleContent ||
+    s.settings.hiddenSystemMetrics !== prev.settings.hiddenSystemMetrics
   ) {
     syncSessionsActivity();
     syncMusicActivity();
@@ -191,7 +196,12 @@ subscribeSessions((event) => {
 function syncMusicActivity() {
   const { playback } = useMusic.getState();
   const island = useIsland.getState();
-  if (!playback?.isPlaying || !shown("music") || !island.settings.showPlayingMusic) {
+  if (
+    !playback?.isPlaying ||
+    !shown("music") ||
+    !island.settings.showPlayingMusic ||
+    configuredIdleContent(island.settings) === "none"
+  ) {
     island.setActivity("music", null);
     return;
   }

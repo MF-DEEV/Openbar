@@ -25,6 +25,7 @@ export interface QuickButton {
 }
 
 export type OpeningMode = "click" | "hoverPreview" | "hoverExpand" | "hiddenUntilHover";
+export type IdleContent = "none" | "battery" | "music" | "agents";
 export type DisplayChoice = "primary" | "cursor" | "all";
 export type HomeDestination = ModuleId | "explore";
 export type ColorPickerFormat = "hex" | "rgb" | "hsl";
@@ -65,6 +66,8 @@ export interface IslandSettings {
   language: string;
   /** Music takes the closed island while it plays (notchShowPlayingMusic). */
   showPlayingMusic: boolean;
+  /** What rests beside the camera (macOS notchIdleContent). */
+  idleContent: IdleContent;
   /** Ask LRCLIB for lyrics while they are open (macOS notchLyricsOnline, off by default). */
   lyricsOnline: boolean;
   /** A new song raises a notice (notchTrackChange). */
@@ -236,6 +239,7 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   sections: { agents: true, sessions: true },
   language: "auto",
   showPlayingMusic: true,
+  idleContent: "music",
   lyricsOnline: false,
   trackChange: true,
   downloadProgress: true,

@@ -69,6 +69,8 @@ Open the island's settings with the gear beside it, go to **Content › Sessions
 
 Nothing to install. While Codex runs, the island talks to the app server Codex starts for its terminal sessions, so approvals and replies go to Codex itself.
 
+The closed island can also rest with **Battery**, **Music**, **AI Agents**, or **Nothing**, selected in **Content → While inactive**. Music is the default and appears only while playing. Battery shows its charge and power state; AI Agents shows the allowance closest to running out, or today's API cost when no allowance is known. Working agents and waiting sessions keep their live status strips. Notices and live activities take priority; playing music can take over a battery or agents view while **Show playing music** is on. Selecting **Nothing** also disables that music takeover. Unavailable data leaves the island empty, and a hidden feature keeps its saved choice until enabled again. Battery updates follow Windows power events without starting the full System monitor.
+
 ## Private by default
 
 - Nothing the island reads leaves your PC. There is no telemetry, no analytics and no account.
@@ -135,6 +137,8 @@ This keeps a backup of the installed executable and preserves settings. It rejec
 Tests run with `bun run test` and, in `src-tauri` after `bun run build`, `cargo test`; the [checks on pull requests](../README.md#checks-on-pull-requests) list everything CI runs. The design notes behind the port are in [`docs/spec`](docs/spec).
 
 On Windows with Microsoft Edge installed, browser regressions are available as `npm run test:island-layout`, `npm run test:settings-select`, `npm run test:quick-access`, `npm run test:activity-picker` and `npm run test:session-notice`. They launch an isolated headless browser with sample sessions and media, and save screenshots under the repository's ignored `build/` directory. Set `ISLAND_TEST_BROWSER` to use another Chromium executable. The activity-picker check also samples animation frames to catch duplicated strips or a vertical jump while closing. The session-notice check taps a waiting session's notice and expects that session's page, not the list.
+
+The closed-island regression is `npm run test:idle-content`. It checks both shapes, battery and charging states, music playback, agent usage and live statuses, missing data, settings changes, hovering and clicking. Screenshots are saved under `build/idle-battery-*.png` at the repository root. It uses the same headless Edge harness and browser override as the other browser checks.
 
 ## License
 

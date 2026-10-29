@@ -1,10 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-// What the closed island shows: nothing at rest, a notice, or the hover
+// What the closed island shows: configured idle content, a notice, or the hover
 // preview row (NotchView.surface; spec 01-shell §2.2).
 
-import { ChevronDown, LayoutGrid, ArrowDownToLine } from "lucide-react";
+import {
+  Battery,
+  BatteryCharging,
+  BatteryFull,
+  BatteryLow,
+  BatteryMedium,
+  ChevronDown,
+  LayoutGrid,
+  ArrowDownToLine,
+} from "lucide-react";
 import { useContext } from "react";
 import { t } from "../../i18n";
 import { contentInsets, edgeInset, capsuleBody, capsuleRadius, type Geometry } from "../geometry";
@@ -15,17 +24,82 @@ import { DrawnSize } from "../surface/DrawnSize";
 import { AudioIcons } from "../../microphone/Microphone";
 import { SessionNoticeMark } from "../../sessions/SessionAvatar";
 import { CLAWD_SIZES } from "../../sessions/clawd/sprite";
+import type { IdleContent } from "../settings";
+import { useBattery } from "../battery";
+import { IdleAgents } from "./IdleAgents";
+import { useMusic } from "../../music/store";
+import { EqualizerBars } from "../../music/EqualizerBars";
 
-export function Resting(props: { size: Size }) {
+export function Resting(props: { size: Size; geometry: Geometry; idleContent: IdleContent }) {
   const size = useContext(DrawnSize) ?? props.size;
+  const { geometry, idleContent } = props;
+  const battery = useBattery((s) => s.battery);
+  const playback = useMusic((s) => s.playback);
+  const tint = useMusic((s) => s.tint) ?? "#fff";
+  const capsule = geometry.floatingGap !== null;
+  const hasWings = capsule || (size.width - geometry.cameraWidth) / 2 >= 44;
+  const side = Math.max(0, Math.min(22, geometry.stripHeight - 6));
+  const BatteryIcon =
+    battery?.charging || battery?.pluggedIn
+      ? BatteryCharging
+      : battery?.percent === null
+        ? Battery
+        : (battery?.percent ?? 0) <= 20
+          ? BatteryLow
+          : (battery?.percent ?? 100) < 85
+            ? BatteryMedium
+            : BatteryFull;
+  const inset = capsule ? 12 : Math.min(16, edgeInset(size, 12, 0, 4, geometry.input));
+  const readingWidth = capsule ? (size.width - 2 * inset - 5) / 2 : (size.width - geometry.cameraWidth) / 2 - inset;
+  const label =
+    idleContent === "battery" && battery
+      ? `${battery.percent == null ? "Battery" : `${battery.percent}%`}${battery.charging ? ", charging" : battery.pluggedIn ? ", plugged in" : ", on battery"}`
+      : idleContent === "agents"
+        ? "AI Agents"
+        : idleContent === "music" && playback
+          ? `${playback.title}, ${playback.artist}`
+          : undefined;
   return (
     <button
       type="button"
-      className="n-activation"
-      style={{ width: size.width, height: size.height }}
-      aria-label={t("island.open")}
+      className={`n-activation${idleContent !== "none" && hasWings ? " n-idle" : ""}${capsule ? " is-capsule" : ""}`}
+      style={{
+        width: size.width,
+        height: size.height,
+        columnGap: capsule ? 5 : geometry.cameraWidth,
+        paddingInline: inset,
+      }}
+      aria-label={[t("island.open"), label].filter(Boolean).join(": ")}
+      title={label}
       onClick={() => useIsland.getState().clickClosed()}
-    />
+    >
+      {idleContent !== "none" && hasWings ? (
+        <>
+          <span className="n-idle-wing is-leading">
+            {idleContent === "battery" && battery ? <BatteryIcon size={14} aria-hidden /> : null}
+            {idleContent === "agents" ? <IdleAgents leading width={readingWidth} /> : null}
+            {idleContent === "music" && playback?.artwork ? (
+              <img
+                key={playback.artwork}
+                src={playback.artwork}
+                alt=""
+                style={{ width: side, height: side, borderRadius: 5 }}
+                onError={(event) => {
+                  event.currentTarget.style.visibility = "hidden";
+                }}
+              />
+            ) : null}
+          </span>
+          <span className="n-idle-wing">
+            {idleContent === "battery" && battery?.percent != null ? `${battery.percent}%` : null}
+            {idleContent === "agents" ? <IdleAgents leading={false} width={readingWidth} /> : null}
+            {idleContent === "music" && playback?.isPlaying ? (
+              <EqualizerBars count={3} width={2} height={11} color={tint} moving />
+            ) : null}
+          </span>
+        </>
+      ) : null}
+    </button>
   );
 }
 

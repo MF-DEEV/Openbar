@@ -326,7 +326,7 @@ fn sanitized_interval(value: Option<u64>) -> u64 {
 // MARK: Pure arithmetic (shared by the Windows sampler and its tests)
 
 #[cfg_attr(not(windows), allow(dead_code))]
-mod math {
+pub(crate) mod math {
     use super::*;
 
     /// Rows in a metric detail's process list.

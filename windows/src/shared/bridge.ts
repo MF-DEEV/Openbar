@@ -13,7 +13,7 @@ import type { MusicCommand, NowPlaying } from "../music/types";
 import type { Access, Inbox, Item } from "../notifications/types";
 import type { DownloadSnapshot } from "../downloads/types";
 import type { MicrophoneSnapshot } from "../microphone/model";
-import type { MetricKind, SpeedTestState, SystemSnapshot } from "../system/types";
+import type { BatteryReading, MetricKind, SpeedTestState, SystemSnapshot } from "../system/types";
 import type { CalendarAccess, CalendarSnapshot } from "../calendar/types";
 import type { AudioState, BrightnessDisplay, KeepAwakeState } from "../audio/types";
 import type { CaptureOutcome, CapturePurpose, ToggleState } from "../tools/types";
@@ -302,6 +302,11 @@ export const bridge = {
     set: (minutes: number | null) => call<KeepAwakeState>("keep_awake_set", { minutes }),
   },
   power: {
+    battery: () => call<BatteryReading | null>("battery_status"),
+    onBattery(handler: (battery: BatteryReading | null) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<BatteryReading | null>("power://battery", (e) => handler(e.payload));
+    },
     /** Battery Saver (Energy saver), the Mac's Low Power Mode. */
     saver: () => call<boolean>("power_saver_on"),
     onSaver(handler: (on: boolean) => void): Promise<UnlistenFn> {
