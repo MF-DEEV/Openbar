@@ -28,6 +28,7 @@ export const S = {
   networkNeedsApproval: "Windows asks an administrator once before showing which apps use the network",
   networkApprove: "Allow",
   networkApproving: "Waiting for Windows…",
+  networkDeclined: "Windows didn't allow it. You can try again.",
   networkIncomplete: "Network events were lost. Measuring again…",
   energyUnavailable: "Per-app energy measurements unavailable on Windows",
   /** monitorOpenActivityMonitor, Task Manager being the PC's Activity Monitor. */

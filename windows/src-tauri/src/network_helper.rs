@@ -84,6 +84,10 @@ fn task_sddl(sid: &str) -> String {
     format!("D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FRFX;;;{sid})")
 }
 
+/// The copy's folder: administrators and SYSTEM may change it, users may
+/// only run what's in it. Protected, so a looser parent can't leak in.
+const FOLDER_SDDL: &str = "D:PAI(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;0x1200a9;;;BU)";
+
 /// The user may read and write the pipe (not create instances of it), at
 /// medium integrity, so the unelevated island can talk to the helper.
 fn pipe_sddl(sid: &str) -> String {
@@ -202,9 +206,9 @@ mod imp {
         SDDL_REVISION_1,
     };
     use windows::Win32::Security::{
-        GetTokenInformation, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES, TOKEN_ELEVATION,
-        TOKEN_ELEVATION_TYPE, TOKEN_QUERY, TOKEN_USER, TokenElevation, TokenElevationType,
-        TokenElevationTypeLimited, TokenUser,
+        DACL_SECURITY_INFORMATION, GetTokenInformation, PSECURITY_DESCRIPTOR, SECURITY_ATTRIBUTES,
+        SetFileSecurityW, TOKEN_ELEVATION, TOKEN_ELEVATION_TYPE, TOKEN_QUERY, TOKEN_USER,
+        TokenElevation, TokenElevationType, TokenElevationTypeLimited, TokenUser,
     };
     use windows::Win32::Storage::FileSystem::{
         CreateFileW, FILE_FLAG_FIRST_PIPE_INSTANCE, FILE_FLAG_OVERLAPPED, FILE_GENERIC_READ,
@@ -214,6 +218,10 @@ mod imp {
     use windows::Win32::System::Com::{
         CLSCTX_INPROC_SERVER, COINIT_MULTITHREADED, CoCreateInstance, CoInitializeEx,
         CoTaskMemFree, CoUninitialize,
+    };
+    use windows::Win32::System::Diagnostics::ToolHelp::{
+        CreateToolhelp32Snapshot, PROCESSENTRY32W, Process32FirstW, Process32NextW,
+        TH32CS_SNAPPROCESS,
     };
     use windows::Win32::System::IO::{CancelIoEx, GetOverlappedResult, OVERLAPPED};
     use windows::Win32::System::Pipes::{
@@ -226,7 +234,8 @@ mod imp {
         TASK_LOGON_INTERACTIVE_TOKEN, TaskScheduler,
     };
     use windows::Win32::System::Threading::{
-        CreateEventW, GetCurrentProcess, OpenProcessToken, ResetEvent, WaitForSingleObject,
+        CreateEventW, GetCurrentProcess, OpenProcess, OpenProcessToken, PROCESS_SYNCHRONIZE,
+        PROCESS_TERMINATE, ResetEvent, TerminateProcess, WaitForSingleObject,
     };
     use windows::Win32::System::Variant::VARIANT;
     use windows::Win32::UI::Shell::{FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, SHGetKnownFolderPath};
@@ -376,7 +385,10 @@ mod imp {
         std::process::Command::new(powershell)
             .args(["-NoProfile", "-NonInteractive", "-Command"])
             .arg(
-                "$p = Start-Process -FilePath $env:VORSSAINT_EXE -ArgumentList $env:VORSSAINT_ARG \
+                // Stop: a declined prompt fails the command (exit 1) instead
+                // of leaving $p null, which would exit 0.
+                "$ErrorActionPreference = 'Stop'; \
+                 $p = Start-Process -FilePath $env:VORSSAINT_EXE -ArgumentList $env:VORSSAINT_ARG \
                  -Verb RunAs -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode",
             )
             .env("VORSSAINT_EXE", exe)
@@ -401,9 +413,16 @@ mod imp {
         let sid = user_sid()?;
         let source = std::env::current_exe().ok()?;
         let target = helper_path()?;
-        std::fs::create_dir_all(target.parent()?).ok()?;
-        // A helper still running keeps its image locked, but Windows lets a
-        // running image be renamed out of the way.
+        let folder = target.parent()?;
+        std::fs::create_dir_all(folder).ok()?;
+        // Whoever made the folder, only administrators may change what the
+        // task runs; the copy inherits this.
+        protect(folder)?;
+        // An older copy still waiting for an island would answer the next
+        // one; nothing is connected to it, so it holds no trace.
+        end_waiting_helpers(&target);
+        // One that couldn't be ended keeps its image locked, but Windows lets
+        // a running image be renamed out of the way.
         let old = target.with_extension("old");
         let _ = std::fs::remove_file(&old);
         if target.exists() {
@@ -427,6 +446,71 @@ mod imp {
                 .ok()?;
         }
         Some(())
+    }
+
+    fn protect(folder: &std::path::Path) -> Option<()> {
+        let path = HSTRING::from(folder.as_os_str());
+        let sddl = HSTRING::from(FOLDER_SDDL);
+        unsafe {
+            let mut descriptor = PSECURITY_DESCRIPTOR::default();
+            ConvertStringSecurityDescriptorToSecurityDescriptorW(
+                PCWSTR(sddl.as_ptr()),
+                SDDL_REVISION_1,
+                &mut descriptor,
+                None,
+            )
+            .ok()?;
+            let set =
+                SetFileSecurityW(PCWSTR(path.as_ptr()), DACL_SECURITY_INFORMATION, descriptor);
+            let _ = LocalFree(Some(HLOCAL(descriptor.0)));
+            set.as_bool().then_some(())
+        }
+    }
+
+    fn end_waiting_helpers(target: &std::path::Path) {
+        let Some(name) = target.file_name().and_then(|n| n.to_str()) else {
+            return;
+        };
+        let target = target.to_string_lossy();
+        unsafe {
+            let Ok(snapshot) = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0) else {
+                return;
+            };
+            let snapshot = Handle(snapshot);
+            let mut entry = PROCESSENTRY32W {
+                dwSize: std::mem::size_of::<PROCESSENTRY32W>() as u32,
+                ..Default::default()
+            };
+            let mut more = Process32FirstW(snapshot.0, &mut entry).is_ok();
+            while more {
+                let len = entry.szExeFile.iter().position(|&c| c == 0).unwrap_or(0);
+                let pid = entry.th32ProcessID;
+                if String::from_utf16_lossy(&entry.szExeFile[..len]).eq_ignore_ascii_case(name)
+                    && crate::shell::process_path(pid)
+                        .is_some_and(|path| path.eq_ignore_ascii_case(&target))
+                    && let Ok(process) =
+                        OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, false, pid)
+                {
+                    let process = Handle(process);
+                    let _ = TerminateProcess(process.0, 1);
+                    let _ = WaitForSingleObject(process.0, 2_000);
+                }
+                more = Process32NextW(snapshot.0, &mut entry).is_ok();
+            }
+        }
+    }
+
+    /// Whether the approved copy is this exe. After an update it isn't, and
+    /// approving again copies the new one, so fixes reach the helper too.
+    fn copy_is_current() -> bool {
+        let (Ok(exe), Some(copy)) = (std::env::current_exe(), helper_path()) else {
+            return false;
+        };
+        let same_size = matches!(
+            (std::fs::metadata(&exe), std::fs::metadata(&copy)),
+            (Ok(a), Ok(b)) if a.len() == b.len()
+        );
+        same_size && matches!((std::fs::read(&exe), std::fs::read(&copy)), (Ok(a), Ok(b)) if a == b)
     }
 
     /// The uninstaller's step. Only an administrator can delete the task and
@@ -681,13 +765,14 @@ mod imp {
                 started: Instant::now(),
                 failed: None,
             };
-            if client.connect() {
+            // A copy from an older Vorssaint, or none: an uninstall that found
+            // it running deletes it at the next restart, even if it was
+            // approved again since. Approving copies this exe again.
+            let current = copy_is_current();
+            if current && client.connect() {
                 return Ok(client);
             }
-            // An uninstall that found the copy running deletes it at the next
-            // restart, even if it was approved again since; approving restores it.
-            let copied = helper_path().is_some_and(|path| path.exists());
-            let Some(task) = registered_task(&client.sid).filter(|_| copied) else {
+            let Some(task) = registered_task(&client.sid).filter(|_| current) else {
                 return Err(if can_approve() {
                     ProcessStatus::NeedsApproval
                 } else {
@@ -887,6 +972,15 @@ mod tests {
         let mut huge = head;
         huge[9..13].copy_from_slice(&(wire::MAX_ENTRIES as u32 + 1).to_le_bytes());
         assert_eq!(wire::read_head(&huge), None);
+        // The helper sends no more than the island accepts.
+        let many = vec![entries[0]; wire::MAX_ENTRIES + 5];
+        let bytes = wire::reply(ProcessStatus::Ready, 1.0, &many);
+        assert_eq!(
+            bytes.len(),
+            wire::REPLY_HEAD + wire::MAX_ENTRIES * wire::ENTRY_LEN
+        );
+        let head: [u8; wire::REPLY_HEAD] = bytes[..wire::REPLY_HEAD].try_into().unwrap();
+        assert_eq!(wire::read_head(&head).unwrap().2, wire::MAX_ENTRIES);
         let nan = wire::reply(ProcessStatus::Ready, f64::NAN, &[]);
         assert_eq!(wire::read_head(&nan[..].try_into().unwrap()), None);
     }
@@ -923,6 +1017,11 @@ mod tests {
             "D:P(A;;FA;;;SY)(A;;FA;;;BA)(A;;FRFX;;;S-1-5-21-1)"
         );
         assert!(pipe_sddl("S-1-5-21-1").contains("(A;;0x12008b;;;S-1-5-21-1)"));
+        assert!(pipe_sddl("S-1-5-21-1").ends_with("S:(ML;;NW;;;ME)"));
+        assert_eq!(xml_escape(r#"<a>"&"#), "&lt;a&gt;&quot;&amp;");
+        // Users may run the copy's folder, never write to it.
+        assert!(FOLDER_SDDL.starts_with("D:P"));
+        assert!(FOLDER_SDDL.contains("(A;OICI;0x1200a9;;;BU)"));
         assert_eq!(
             pipe_name("S-1-5-21-1"),
             r"\\.\pipe\vorssaint-network-S-1-5-21-1"

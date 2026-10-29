@@ -149,21 +149,36 @@ function useIcon(path: string | null): string | null {
 
 /** Windows' prompt for the helper that reads per-app traffic (network_helper.rs). */
 function NetworkApproval() {
-  const [asking, setAsking] = useState(false);
+  const [state, setState] = useState<"idle" | "asking" | "declined">("idle");
   const allow = () => {
-    setAsking(true);
-    void bridge.system.approveNetwork().finally(() => setAsking(false));
+    setState("asking");
+    bridge.system.approveNetwork().then(
+      (result) => {
+        // Approved (or another prompt still open): the next reading replaces
+        // this panel. Only in case it doesn't, the button comes back.
+        if (result === "approved" || result === "busy") setTimeout(() => setState("idle"), 5000);
+        else setState("declined");
+      },
+      () => setState("declined"),
+    );
   };
-  return asking ? (
+  return state === "asking" ? (
     <span className="sy-speed-testing sy-approve" role="status">
       <LoaderCircle className="sy-spin" size={13} aria-hidden />
       {S.networkApproving}
     </span>
   ) : (
-    <button type="button" className="sy-speed-button sy-approve" onClick={allow}>
-      <ShieldCheck size={12} strokeWidth={2.2} aria-hidden />
-      {S.networkApprove}
-    </button>
+    <>
+      <button type="button" className="sy-speed-button sy-approve" onClick={allow}>
+        <ShieldCheck size={12} strokeWidth={2.2} aria-hidden />
+        {S.networkApprove}
+      </button>
+      {state === "declined" ? (
+        <div className="sy-approve-note" role="status">
+          {S.networkDeclined}
+        </div>
+      ) : null}
+    </>
   );
 }
 

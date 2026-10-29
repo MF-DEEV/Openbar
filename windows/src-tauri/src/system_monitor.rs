@@ -157,9 +157,22 @@ pub struct Monitor {
     /// None until the sampler has probed what this PC can read.
     last: Mutex<Option<Snapshot>>,
     worker: Mutex<Option<std::thread::JoinHandle<()>>>,
+    /// Windows' prompt for the network helper is open.
+    approving: std::sync::atomic::AtomicBool,
 }
 
 pub type Shared = Arc<Monitor>;
+
+/// How the network detail's Allow ended.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Approval {
+    Approved,
+    /// Declined, or the helper couldn't be set up.
+    Declined,
+    /// Another Allow's prompt is still open; its answer counts.
+    Busy,
+}
 
 /// The page opens (`visible`) or closes, or opens a metric's detail.
 #[tauri::command]
@@ -185,17 +198,23 @@ pub fn system_monitor_watch(
 }
 
 /// The network detail's Allow button: Windows asks for an administrator's
-/// approval once (network_helper.rs). False when declined or unavailable.
+/// approval once (network_helper.rs).
 #[tauri::command]
-pub async fn system_network_approve(state: tauri::State<'_, Shared>) -> Result<bool, ()> {
+pub async fn system_network_approve(state: tauri::State<'_, Shared>) -> Result<Approval, ()> {
+    use std::sync::atomic::Ordering;
+    if state.approving.swap(true, Ordering::SeqCst) {
+        return Ok(Approval::Busy);
+    }
     let approved = tauri::async_runtime::spawn_blocking(imp::approve_network)
         .await
         .unwrap_or(false);
-    if approved {
-        state.control.lock().unwrap().approvals += 1;
-        state.wake.notify_all();
+    state.approving.store(false, Ordering::SeqCst);
+    if !approved {
+        return Ok(Approval::Declined);
     }
-    Ok(approved)
+    state.control.lock().unwrap().approvals += 1;
+    state.wake.notify_all();
+    Ok(Approval::Approved)
 }
 
 /// The latest reading, so a page opened again starts from it; None before
@@ -1929,6 +1948,19 @@ mod tests {
         assert_eq!(json["supported"]["gpu"], false);
         let detail: Detail = serde_json::from_str("\"connectedDevices\"").unwrap();
         assert_eq!(detail, Detail::ConnectedDevices);
+    }
+
+    #[test]
+    fn approval_names_match_the_page() {
+        assert_eq!(
+            serde_json::to_string(&ProcessStatus::NeedsApproval).unwrap(),
+            "\"needsApproval\""
+        );
+        assert_eq!(
+            serde_json::to_string(&Approval::Approved).unwrap(),
+            "\"approved\""
+        );
+        assert_eq!(serde_json::to_string(&Approval::Busy).unwrap(), "\"busy\"");
     }
 
     #[test]

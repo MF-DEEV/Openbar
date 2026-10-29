@@ -57,8 +57,9 @@ trace is denied, `network_helper.rs` takes over:
   task `Vorssaint Network Activity <user SID>`. It runs that copy with
   `--network-helper` as the same user with the highest privileges, on demand
   only. Administrators and SYSTEM own the task; the user may read and run it
-  but not change or delete it, and only administrators can replace the copy,
-  so the task can't be used to run anything else elevated.
+  but not change or delete it. Installing sets the copy's folder to
+  administrators-only (protected, so a looser parent or an existing folder
+  can't loosen it), so the task can't be used to run anything else elevated.
 - From then on, opening the network detail runs the task without a prompt.
   The helper creates `\\.\pipe\vorssaint-network-<user SID>` (local clients
   only, read and write for that user at medium integrity), starts its own trace
@@ -66,8 +67,10 @@ trace is denied, `network_helper.rs` takes over:
   bytes since the previous one and stops the trace when the island hangs up.
   After 30 seconds without an island it exits. The island checks that the
   pipe's server is the Program Files copy before reading from it.
-- The greeting carries a protocol number; a copy from an older Vorssaint asks
-  for approval again, which copies the current exe.
+- Before starting the helper the island compares the copy with its own exe.
+  After an update they differ, so the detail asks for approval again, which
+  ends any older copy still waiting for an island and copies the current exe.
+  The greeting also carries a protocol number, checked the same way.
 - The prompt is started through PowerShell. With the sparse package identity
   (docs/notifications.md) Windows refuses to elevate a child of Vorssaint
   and reports "cannot access the specified device, path, or file" only after
