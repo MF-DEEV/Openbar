@@ -144,12 +144,7 @@ export function MusicPage() {
           </button>
         </Slot>
         <Slot>
-          <VolumeControl
-            key={playback?.source ?? "none"}
-            source={playback?.source ?? ""}
-            name={playback?.sourceName ?? "Player"}
-            accent={accent}
-          />
+          <VolumeControl source={playback?.source ?? ""} name={playback?.sourceName ?? "Player"} accent={accent} />
         </Slot>
       </div>
       {playback && (

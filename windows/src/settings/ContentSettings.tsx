@@ -19,6 +19,7 @@ import { ControlsOptions, MixerOptions } from "./ControlsSettings";
 import { ScratchpadOptions, ToolsOptions } from "./ToolsSettings";
 import { ClipboardOptions } from "./ClipboardSettings";
 import { AgentsOptions } from "./AgentsSettings";
+import { MusicOptions } from "./MusicSettings";
 import { useSettings } from "./state";
 import { T } from "./strings";
 import { Expander, Group, Page, SubRow, Toggle } from "./ui";
@@ -100,6 +101,7 @@ function Options({ id }: { id: ModuleId }) {
     case "music":
       return (
         <>
+          <MusicOptions />
           <SubRow title={T.content.showPlayingMusic} caption={T.content.showPlayingMusicCaption}>
             <Toggle
               label={T.content.showPlayingMusic}

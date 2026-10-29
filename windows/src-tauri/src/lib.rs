@@ -162,6 +162,8 @@ pub fn run() {
             hooks::claude_hooks_install,
             hooks::claude_hooks_remove,
             media::music_now,
+            media::music_select_source,
+            media::music_players,
             microphone::microphone_snapshot,
             downloads::downloads_snapshot,
             media_volume::music_volume,
