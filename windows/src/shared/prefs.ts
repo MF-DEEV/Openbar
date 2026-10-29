@@ -154,7 +154,7 @@ function codexProfiles(value: unknown): CodexProfile[] {
       !UUID.test(p.id) ||
       p.name.trim() === "" ||
       [...p.name].length > CODEX_PROFILE_NAME_MAXIMUM ||
-      !/^([a-z]:[\\/]|\\\\)/i.test(p.directory) ||
+      !/^[a-z]:[\\/]/i.test(p.directory) ||
       ids.has(id) ||
       paths.has(path)
     )

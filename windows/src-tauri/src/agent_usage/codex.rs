@@ -20,7 +20,7 @@ use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
 use std::time::Duration;
 
-pub const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
+const CHECK_TIMEOUT: Duration = Duration::from_secs(20);
 /// Account metadata needs no plugins or marketplace updates.
 const SERVER_ARGS: [&str; 3] = ["-c", "features.plugins=false", "app-server"];
 const REDEEM_TIMEOUT: Duration = Duration::from_secs(30);

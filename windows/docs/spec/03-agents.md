@@ -382,10 +382,14 @@ Line types used (shapes observed on this Mac, Codex CLI 2026-09):
   * Placeholder when there are no windows: "Reading usage…" while checking; otherwise the failure text or "Refresh to check this account's limits."
   * Caption: the failure, or "Updated <relative>". Orange when failed or stale (≥ 10 min; `NAS:260,321-324`).
   * The Resets card then shows a "Codex · Default account" line, and its row height becomes 116 (`NAS:258,305-308`).
-* **Windows:**
-  * POSIX owner/mode checks become an ACL check. The directory owner SID must be the current user. There must be no write ACE for `Everyone`, `Users` or `Authenticated Users`. `auth.json` must not be a reparse point and must have link count 1 (`GetFileInformationByHandle.nNumberOfLinks`).
-  * Discovery: `%USERPROFILE%\.codex` and `%USERPROFILE%\.codex-*`.
-  * Env allow-list: add `USERPROFILE`, `APPDATA`, `LOCALAPPDATA`, `SystemRoot`, `TEMP`, `TMP`, `PATHEXT` and `ComSpec`. Node and Rust binaries fail without `SystemRoot`. **Needs verification.**
+* **Windows** (`windows/src-tauri/src/agent_usage/profiles.rs`, `windows/src/settings/AgentsSettings.tsx`):
+  * Persistence: `island.agentsCodexProfiles` in `settings.json`, an array of `{id, name, directory}` with the same limits (8 entries, names 1–40 characters, unique ids and folders compared case- and slash-insensitively). The directory must be a drive path (`C:\…`): network shares are dropped when the settings are read, and a mapped drive that resolves to a share fails the check.
+  * POSIX owner/mode checks become an ACL check (`GetNamedSecurityInfoW`). The folder's owner SID must be the current user, or Administrators (S-1-5-32-544), which an elevated window's token makes the owner of what it creates (a deviation from the Mac's `uid` check; administrators can change the folder anyway). Every allow ACE that applies to the folder and grants a write right must name the user, SYSTEM, Administrators or OWNER RIGHTS (an allow-list, so `Everyone`, `Users` and `Authenticated Users` are refused). `auth.json` must also refuse read rights to anyone else, must not be a reparse point and must have link count 1 (`GetFileInformationByHandle.nNumberOfLinks`). The drive root and `%USERPROFILE%` itself are refused.
+  * Discovery: the effective default home (`%CODEX_HOME%`, else `%USERPROFILE%\.codex`, named "Default"), then `%USERPROFILE%\.codex` and `%USERPROFILE%\.codex-*`; a junction to a home already found is skipped, and a home is named after the folder a link leads to. Only the effective default home is named "Default" (a `.codex` that is not it becomes "Codex").
+  * Env allow-list: the Mac list plus `USERPROFILE`, `USERNAME`, `USERDOMAIN`, `HOMEDRIVE`, `HOMEPATH`, `APPDATA`, `LOCALAPPDATA`, `SystemRoot`, `SystemDrive`, `windir`, `ComSpec`, `PATHEXT`, `TEMP`, `TMP`, `ProgramData`, `ProgramFiles`, `ProgramFiles(x86)`, `ProgramW6432`, `CommonProgramFiles`, `PROCESSOR_ARCHITECTURE`, `NUMBER_OF_PROCESSORS` and `OS`, matched case-insensitively, then `PATH` (the CLI search path), `CODEX_HOME` and `LANG`. Everything else (`OPENAI_API_KEY`, `CODEX_*`, …) is cleared.
+  * A check that is called off (home removed, section, Codex or the Limits card turned off) stops reading the app-server at once and ends it.
+  * Scheduling: the service's 2 s step re-queues due homes while the page shows, in place of the Mac's 30 s page timer.
+  * The invalid-folder alert is an inline warning under the buttons. `Vorssaint.exe --agents-probe <file> --limits` also lists every discovered home with its check (`codexHomes`).
 
 ---
 

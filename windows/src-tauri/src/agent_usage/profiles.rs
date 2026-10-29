@@ -66,14 +66,15 @@ fn is_uuid(id: &str) -> bool {
             .all(|g| g.chars().all(|c| c.is_ascii_hexdigit()))
 }
 
-/// `C:\…` or `\\server\…`; tests on other systems also take `/…`.
+/// `C:\…`: a network share is never a private home. Tests on other
+/// systems also take `/…`.
 fn is_absolute(path: &str) -> bool {
     let bytes = path.as_bytes();
     let drive = bytes.len() >= 3
         && bytes[0].is_ascii_alphabetic()
         && bytes[1] == b':'
         && matches!(bytes[2], b'\\' | b'/');
-    drive || path.starts_with("\\\\") || Path::new(path).is_absolute()
+    drive || (cfg!(not(windows)) && path.starts_with('/'))
 }
 
 /// One folder spelled with other slashes or case is the same folder.
@@ -159,10 +160,13 @@ pub fn discover(home: &Path, usual: Option<&Path>, default_name: &str) -> Vec<Pr
             if !paths.insert(path_key(&canonical.to_string_lossy())) {
                 return None;
             }
+            // Named after the folder a link leads to, and only the usual home is the default.
             let name = if usual.as_ref().is_some_and(|u| same(u, &canonical)) {
                 default_name.to_string()
             } else {
-                name_for(&folder, default_name)
+                Some(name_for(&canonical, default_name))
+                    .filter(|n| n != default_name)
+                    .unwrap_or_else(|| "Codex".into())
             };
             Some(Profile {
                 id: codex::uuid(),
@@ -350,7 +354,9 @@ pub fn read(
             environment(
                 &directory,
                 super::cli::child_path(executable),
-                std::env::vars(),
+                // A variable that is not Unicode is no reason to stop.
+                std::env::vars_os()
+                    .filter_map(|(k, v)| Some((k.into_string().ok()?, v.into_string().ok()?))),
             )
         },
         cancelled.clone(),
@@ -659,7 +665,9 @@ mod platform {
     const READ: u32 = 0x1 | 0x8 | 0x8000_0000;
     const INHERIT_ONLY: u8 = 0x08;
     /// SYSTEM, Administrators and OWNER RIGHTS, who stand where root does on the Mac.
-    const TRUSTED: [&str; 3] = ["S-1-5-18", "S-1-5-32-544", "S-1-3-4"];
+    const TRUSTED: [&str; 3] = ["S-1-5-18", ADMINISTRATORS, "S-1-3-4"];
+    /// An elevated window's token makes new files the Administrators group's.
+    const ADMINISTRATORS: &str = "S-1-5-32-544";
 
     fn sid_string(sid: PSID) -> Option<String> {
         unsafe {
@@ -671,7 +679,8 @@ mod platform {
         }
     }
 
-    /// Owned by this user, and no one else but the system and the
+    /// Owned by this user, or by the administrators when made from an
+    /// elevated window, and no one else but the system and the
     /// administrators may write it (or, for `Any`, read it).
     pub fn private(path: &Path, access: Access) -> bool {
         let Ok(user) = crate::hooks::transport::current_user_sid() else {
@@ -700,7 +709,7 @@ mod platform {
             }
             // No DACL at all lets everyone in.
             let allowed = !dacl.is_null()
-                && sid_string(owner).as_deref() == Some(user.as_str())
+                && sid_string(owner).is_some_and(|o| o == user || o == ADMINISTRATORS)
                 && only_trusted(dacl, rights, &user);
             let _ = LocalFree(Some(HLOCAL(descriptor.0)));
             allowed
@@ -844,6 +853,7 @@ mod tests {
             {"id": "33333333-3333-4333-8333-333333333333", "name": long, "directory": r"C:\z"},
             {"id": "44444444-4444-4444-8444-444444444444", "name": "Relative", "directory": r"codex"},
             {"id": "55555555-5555-4555-8555-555555555555", "name": "Personal", "directory": r"D:\codex"},
+            {"id": "66666666-6666-4666-8666-666666666666", "name": "Share", "directory": r"\\server\codex"},
             "nonsense"
         ]);
         let decoded = decode(Some(&value));
@@ -962,12 +972,20 @@ mod tests {
         set(&work, 0o700);
         assert_eq!(canonical("relative"), None);
 
+        // A link to a home already found is that home, named after its folder.
+        std::os::unix::fs::symlink(&work, home.join(".codex-alias")).unwrap();
         let found = discover(&home, Some(&usual), "Default");
         assert_eq!(
             found.iter().map(|p| p.name.as_str()).collect::<Vec<_>>(),
             ["Default", "Work"],
             "the usual home first, then the others; the empty one is left out"
         );
+        // With CODEX_HOME elsewhere, only that home is the default.
+        let names: Vec<String> = discover(&home, Some(&work), "Default")
+            .into_iter()
+            .map(|p| p.name)
+            .collect();
+        assert_eq!(names, ["Default", "Codex"]);
         assert!(found.iter().all(|p| is_uuid(&p.id)));
         assert_eq!(found[1].directory, work_canonical.to_string_lossy());
         std::fs::remove_dir_all(&root).unwrap();

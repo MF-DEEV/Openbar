@@ -201,7 +201,8 @@ pub fn start<R: Runtime>(app: AppHandle<R>, state: State) {
 /// `Vorssaint.exe --agents-probe <file> [--limits]`: reads every log once,
 /// as the island does at launch, and writes the snapshot with where the logs
 /// and CLIs were found. `--limits` also asks Claude Code and Codex for the
-/// account limits. It never spends a reset and never writes the archive.
+/// account limits, and lists every Codex home Settings would find with its
+/// own check (`codexHomes`). It never spends a reset and never writes the archive.
 pub fn probe_main(path: &str, limits: bool) -> ! {
     let prefs = json!({"island": {"agentsPriceUpdates": false}});
     let state: State = Arc::default();

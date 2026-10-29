@@ -135,7 +135,11 @@ function AccountLimitsCard(props: { account: CodexAccount; now: number; display:
   const { account, now, display } = props;
   const provider = "codex";
   const tint = PROVIDER_TINTS[provider];
-  const limits = account.limits;
+  // An expired window is unknown until the account is checked again, not a full allowance.
+  const limits = account.limits && {
+    ...account.limits,
+    windows: account.limits.windows.filter((w) => w.resetsAt === null || w.resetsAt > now),
+  };
   const windows = cardWindows(limits ?? undefined, now);
   const stale = limitsAreStale(limits, provider, now, true);
   const failure = account.failure ? accountFailureText(account.failure) : null;

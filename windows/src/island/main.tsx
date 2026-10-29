@@ -75,9 +75,11 @@ if (!inTauri && new URLSearchParams(location.search).has("files")) {
   });
 }
 
+// ?agents shows sample usage; ?agents=accounts adds cards for added Codex homes.
 if (!inTauri && new URLSearchParams(location.search).has("agents")) {
+  const accounts = new URLSearchParams(location.search).get("agents") === "accounts";
   void Promise.all([import("../agents/demo"), import("../agents/store")]).then(([demo, store]) => {
-    store.useAgents.getState().receive(demo.demoSnapshot());
+    store.useAgents.getState().receive(demo.demoSnapshot(Date.now(), accounts));
   });
 }
 

@@ -78,10 +78,8 @@ describe("AI Agents preferences", () => {
         ],
       } as never,
     });
-    expect(island.agentsCodexProfiles).toEqual([
-      { id: id(1), name: "Work", directory: "C:\\Users\\me\\.codex-work" },
-      { id: id(6), name: "Share", directory: "\\\\server\\codex" },
-    ]);
+    // A network share is never a private home.
+    expect(island.agentsCodexProfiles).toEqual([{ id: id(1), name: "Work", directory: "C:\\Users\\me\\.codex-work" }]);
     expect(resolve({ island: { agentsCodexProfiles: "[]" } as never }).island.agentsCodexProfiles).toEqual([]);
     const many = Array.from({ length: 10 }, (_, n) => ({ id: id(n), name: `N${n}`, directory: `C:\\h${n}` }));
     expect(resolve({ island: { agentsCodexProfiles: many } }).island.agentsCodexProfiles).toHaveLength(8);
