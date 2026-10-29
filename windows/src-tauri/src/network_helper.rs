@@ -234,8 +234,9 @@ mod imp {
         TASK_LOGON_INTERACTIVE_TOKEN, TaskScheduler,
     };
     use windows::Win32::System::Threading::{
-        CreateEventW, GetCurrentProcess, OpenProcess, OpenProcessToken, PROCESS_SYNCHRONIZE,
-        PROCESS_TERMINATE, ResetEvent, TerminateProcess, WaitForSingleObject,
+        CreateEventW, GetCurrentProcess, OpenProcess, OpenProcessToken,
+        PROCESS_QUERY_LIMITED_INFORMATION, PROCESS_SYNCHRONIZE, PROCESS_TERMINATE, ResetEvent,
+        TerminateProcess, WaitForSingleObject,
     };
     use windows::Win32::System::Variant::VARIANT;
     use windows::Win32::UI::Shell::{FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, SHGetKnownFolderPath};
@@ -294,9 +295,13 @@ mod imp {
 
     /// "S-1-5-21-…", the account this process runs as (elevated or not).
     fn user_sid() -> Option<String> {
+        process_sid(unsafe { GetCurrentProcess() })
+    }
+
+    fn process_sid(process: HANDLE) -> Option<String> {
         unsafe {
             let mut token = HANDLE::default();
-            OpenProcessToken(GetCurrentProcess(), TOKEN_QUERY, &mut token).ok()?;
+            OpenProcessToken(process, TOKEN_QUERY, &mut token).ok()?;
             let token = Handle(token);
             let mut len = 0;
             let _ = GetTokenInformation(token.0, TokenUser, None, 0, &mut len);
@@ -418,9 +423,10 @@ mod imp {
         // Whoever made the folder, only administrators may change what the
         // task runs; the copy inherits this.
         protect(folder)?;
-        // An older copy still waiting for an island would answer the next
-        // one; nothing is connected to it, so it holds no trace.
-        end_waiting_helpers(&target);
+        // An older copy of this account's still waiting for an island would
+        // answer the next one; its island never connects to a stale copy, so
+        // it holds no trace.
+        end_waiting_helpers(&target, &sid);
         // One that couldn't be ended keeps its image locked, but Windows lets
         // a running image be renamed out of the way.
         let old = target.with_extension("old");
@@ -467,7 +473,9 @@ mod imp {
         }
     }
 
-    fn end_waiting_helpers(target: &std::path::Path) {
+    /// Only this account's: another account's helper may be serving its
+    /// island, and ending it would leave its trace running until a restart.
+    fn end_waiting_helpers(target: &std::path::Path, sid: &str) {
         let Some(name) = target.file_name().and_then(|n| n.to_str()) else {
             return;
         };
@@ -488,12 +496,17 @@ mod imp {
                 if String::from_utf16_lossy(&entry.szExeFile[..len]).eq_ignore_ascii_case(name)
                     && crate::shell::process_path(pid)
                         .is_some_and(|path| path.eq_ignore_ascii_case(&target))
-                    && let Ok(process) =
-                        OpenProcess(PROCESS_TERMINATE | PROCESS_SYNCHRONIZE, false, pid)
+                    && let Ok(process) = OpenProcess(
+                        PROCESS_QUERY_LIMITED_INFORMATION | PROCESS_TERMINATE | PROCESS_SYNCHRONIZE,
+                        false,
+                        pid,
+                    )
                 {
                     let process = Handle(process);
-                    let _ = TerminateProcess(process.0, 1);
-                    let _ = WaitForSingleObject(process.0, 2_000);
+                    if process_sid(process.0).as_deref() == Some(sid) {
+                        let _ = TerminateProcess(process.0, 1);
+                        let _ = WaitForSingleObject(process.0, 2_000);
+                    }
                 }
                 more = Process32NextW(snapshot.0, &mut entry).is_ok();
             }
