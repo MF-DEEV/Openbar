@@ -29,6 +29,18 @@ import { useBattery } from "../battery";
 import { IdleAgents } from "./IdleAgents";
 import { useMusic } from "../../music/store";
 import { EqualizerBars } from "../../music/EqualizerBars";
+import {
+  mascotAtRest,
+  mascotEnabled,
+  mascotLook,
+  mascotShows,
+  reactsOn,
+  restingMood,
+  useMascot,
+} from "../../mascot/service";
+import { restingTrack, takesOnlyItsWing } from "../../mascot/motion";
+import { MascotFace, MascotTrackView } from "../../mascot/MascotView";
+import { NOTICE_SIZE } from "../../mascot/model";
 
 export function Resting(props: { size: Size; geometry: Geometry; idleContent: IdleContent }) {
   const size = useContext(DrawnSize) ?? props.size;
@@ -36,6 +48,15 @@ export function Resting(props: { size: Size; geometry: Geometry; idleContent: Id
   const battery = useBattery((s) => s.battery);
   const playback = useMusic((s) => s.playback);
   const tint = useMusic((s) => s.tint) ?? "#fff";
+  const mascot = useMascot();
+  const island = useIsland();
+  const showsMascot = mascotShows(island, geometry, mascot);
+  const rests = mascotAtRest(island, mascot);
+  const track = restingTrack(geometry, props.size.width, mascot.side);
+  // What it walks over steps aside; reacting beside a camera, it takes only its own wing.
+  const ownWing = mascot.visit !== null && takesOnlyItsWing(mascot.visit.kind) && track.hidden !== null;
+  const aside = (leading: boolean) =>
+    mascot.stepsAside && !rests && (!ownWing || leading === (mascot.side === "left")) ? 0 : 1;
   const capsule = geometry.floatingGap !== null;
   const hasWings = capsule || (size.width - geometry.cameraWidth) / 2 >= 44;
   const side = Math.max(0, Math.min(22, geometry.stripHeight - 6));
@@ -75,7 +96,7 @@ export function Resting(props: { size: Size; geometry: Geometry; idleContent: Id
     >
       {idleContent !== "none" && hasWings ? (
         <>
-          <span className="n-idle-wing is-leading">
+          <span className="n-idle-wing is-leading" style={{ opacity: aside(true) }}>
             {idleContent === "battery" && battery ? <BatteryIcon size={14} aria-hidden /> : null}
             {idleContent === "agents" ? <IdleAgents leading width={readingWidth} /> : null}
             {idleContent === "music" && playback?.artwork ? (
@@ -90,7 +111,7 @@ export function Resting(props: { size: Size; geometry: Geometry; idleContent: Id
               />
             ) : null}
           </span>
-          <span className="n-idle-wing">
+          <span className="n-idle-wing" style={{ opacity: aside(false) }}>
             {idleContent === "battery" && battery?.percent != null ? `${battery.percent}%` : null}
             {idleContent === "agents" ? <IdleAgents leading={false} width={readingWidth} /> : null}
             {idleContent === "music" && playback?.isPlaying ? (
@@ -98,6 +119,18 @@ export function Resting(props: { size: Size; geometry: Geometry; idleContent: Id
             ) : null}
           </span>
         </>
+      ) : null}
+      {showsMascot ? (
+        <span className="mr-track" style={{ left: (size.width - track.width) / 2 }}>
+          <MascotTrackView
+            look={mascotLook(island.settings)}
+            track={track}
+            rests={rests}
+            visit={mascot.visit}
+            mood={restingMood(mascot)}
+            reaction={mascot.reaction}
+          />
+        </span>
       ) : null}
     </button>
   );
@@ -121,6 +154,10 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
   const size = useContext(DrawnSize) ?? props.size;
   const camera = geometry.floatingGap === null ? geometry.cameraWidth : 0;
   const metrics = noticeMetrics(geometry, size);
+  const settings = useIsland((s) => s.settings);
+  const keepAwake = useMascot((s) => s.keepAwake);
+  // With the companion on, it stands in for the symbol and reacts, unless its reactions are off.
+  const mascot = mascotEnabled(settings) ? notice.mascot : undefined;
   return (
     <button
       type="button"
@@ -138,13 +175,22 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
       onClick={() => useIsland.getState().clickClosed()}
     >
       <span className="n-notice-title" style={{ color: notice.tint }}>
-        {notice.audio ? <AudioIcons muted={notice.audio.muted} deafened={notice.audio.deafened} /> : null}
-        {notice.kind === "downloads" ? <ArrowDownToLine size={14} aria-hidden="true" /> : null}
-        {notice.icon ? <notice.icon size={14} strokeWidth={2} aria-hidden="true" /> : null}
+        {mascot ? (
+          <MascotFace
+            key={notice.id}
+            look={mascotLook(settings)}
+            size={Math.min(NOTICE_SIZE, metrics.imageSize)}
+            mood={restingMood({ keepAwake })}
+            reaction={reactsOn(settings) ? mascot : undefined}
+          />
+        ) : null}
+        {notice.audio && !mascot ? <AudioIcons muted={notice.audio.muted} deafened={notice.audio.deafened} /> : null}
+        {notice.kind === "downloads" && !mascot ? <ArrowDownToLine size={14} aria-hidden="true" /> : null}
+        {notice.icon && !mascot ? <notice.icon size={14} strokeWidth={2} aria-hidden="true" /> : null}
         {notice.session ? (
           <SessionNoticeMark key={notice.session.id} session={notice.session} height={metrics.imageSize + 4} />
         ) : null}
-        {notice.image ? (
+        {notice.image && !mascot ? (
           <img
             key={notice.image}
             className="n-notice-image"
@@ -193,7 +239,8 @@ export function noticeWidth(notice: Notice, geometry: Geometry): number {
     (notice.image ? metrics.imageSize + 8 : 0) +
     (notice.icon ? 14 + 8 : 0) +
     (notice.session ? CLAWD_SIZES.notice.width + 8 : 0) +
-    (notice.audio ? (notice.audio.deafened ? 47 : 24) : 0);
+    (notice.audio ? (notice.audio.deafened ? 47 : 24) : 0) +
+    (notice.mascot && mascotEnabled(useIsland.getState().settings) ? NOTICE_SIZE + 8 : 0);
   ctx.font = `500 ${Math.max(9, metrics.fontSize - 1)}px 'Inter Variable', Inter, sans-serif`;
   const detail = notice.detail ? ctx.measureText(notice.detail).width : 0;
   const maxWing = (geometry.screen.width - 24 - geometry.cameraWidth) / 2;

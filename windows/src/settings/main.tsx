@@ -5,7 +5,7 @@
 // tabs (Layout, Content, Activity, Behavior) as pages beside General.
 
 import "@fontsource-variable/inter";
-import { Activity, LayoutTemplate, type LucideIcon, Settings2, SlidersHorizontal, Wand2 } from "lucide-react";
+import { Activity, LayoutTemplate, type LucideIcon, Settings2, SlidersHorizontal, Smile, Wand2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { ActivitySettings } from "./ActivitySettings";
@@ -13,12 +13,13 @@ import { BehaviorSettings } from "./BehaviorSettings";
 import { ContentSettings } from "./ContentSettings";
 import { GeneralSettings } from "./GeneralSettings";
 import { LayoutSettings } from "./LayoutSettings";
+import { MascotSettings } from "./MascotSettings";
 import { startSettings, useSettings } from "./state";
 import { T } from "./strings";
 import "./settings.css";
 import "../shared/controls.css";
 
-type PageId = "general" | "layout" | "content" | "activity" | "behavior";
+type PageId = "general" | "layout" | "content" | "activity" | "behavior" | "mascot";
 
 const PAGES: { id: PageId; icon: LucideIcon; label: string; Page: () => React.JSX.Element; island?: boolean }[] = [
   { id: "general", icon: Settings2, label: T.nav.general, Page: GeneralSettings },
@@ -26,6 +27,7 @@ const PAGES: { id: PageId; icon: LucideIcon; label: string; Page: () => React.JS
   { id: "content", icon: SlidersHorizontal, label: T.nav.content, Page: ContentSettings, island: true },
   { id: "activity", icon: Activity, label: T.nav.activity, Page: ActivitySettings, island: true },
   { id: "behavior", icon: Wand2, label: T.nav.behavior, Page: BehaviorSettings, island: true },
+  { id: "mascot", icon: Smile, label: T.nav.mascot, Page: MascotSettings, island: true },
 ];
 
 const PAGE_KEY = "vorssaint.settings.page";

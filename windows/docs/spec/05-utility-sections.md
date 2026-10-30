@@ -43,7 +43,7 @@ Path abbreviations used in `file:line` refs (all under `Sources/Vorssaint/`):
 
 ## 0. Summary and cross-cutting rules
 
-* **There is no camera housing on Windows.** Every page's top row ("band") takes the no-camera branch: `NotchBand.besideCamera == false` (`NSup:223-262`). The band's leading and trailing slots span the whole row. Every "beside the camera" variant below can be skipped. That includes the narrow menu label, the levels split one per side, the capture-controls two-column header and the mascot hiding behind the camera. Each variant is still noted, in case someone later adds a "notch" silhouette at the top edge. The mascot always runs on its **capsule** track (`hidden == nil`, §12).
+* **There is no camera housing on Windows.** Every page's top row ("band") takes the no-camera branch: `NotchBand.besideCamera == false` (`NSup:223-262`). The band's leading and trailing slots span the whole row. Every "beside the camera" variant below can be skipped. That includes the narrow menu label, the levels split one per side, the capture-controls two-column header and the mascot hiding behind the camera. Each variant is still noted, in case someone later adds a "notch" silhouette at the top edge. The mascot follows the chosen outline instead: the capsule's track (`hidden == nil`, §12) in a capsule, and the camera's track, with the notch's middle standing in for the camera, in the notch that Windows starts with.
 * **Shared visual atoms** (from `NComp`), reused by every section here:
   * `NotchButtonStyle` (`NComp:10-35`): under the pointer, a white 0.09 wash fills the shape. Pressed: opacity 0.8, scale 0.965. Hovered: scale 1.022 when `lifts`. Disabled: opacity 0.4. Press spring 0.28 s / damping 0.7, hover spring 0.32 s / 0.75. Reduce Motion disables the scaling.
   * `NotchIconButton` (`NComp:144-170`): 28×28, glyph 12 pt medium, white 0.55 (white when selected), selected background white 0.12, radius 9. The tooltip is the title.
@@ -688,10 +688,12 @@ Gating (`NMS:228-244`): no reaction within 2.5 s of the previous one, no repeat 
 * Reduce Motion: no walking. It fades in at its stand point, greets and fades out (opacity 0, 1, 1, 0 @ 0, .12, .88, 1), and blinks are discrete.
 
 ### 12.5 Windows needs
+Ported in `windows/src/mascot`, with its page in `settings/MascotSettings.tsx` and the keys named `mascot*` in the island's preferences. Left out: the Command Bar's face (Windows has no Command Bar), the step from rest into a notice (`mascotNoticeBridge*`, the notice's own mark still reacts), its eyes following a drag toward the drop hint (the drag events carry no position), and the haptic tick. Check it with `bun run test:mascot`.
+
 Pure frontend: SVG plus WAAPI, with `requestAnimationFrame` only for path morphing if CSS `d` animation turns out unreliable. Inputs from the backend:
 * **Low Power Mode** → Windows **Energy Saver**: `PowerRegisterForEffectivePowerModeNotifications`, mapping only `EffectivePowerModeBatterySaver` (`BetterBattery` is the power slider, not Energy Saver), or `RegisterPowerSettingNotification(GUID_ENERGY_SAVER_STATUS)` on 24H2. `power_saver.rs` already follows Energy saver for the Clawds (`power://saver`, `power_saver_on`). Plugged in, Energy saver gives `EffectivePowerModeBetterBattery`, not `BatterySaver`, and leaves `SystemStatusFlag` at 0 (checked on 26H2).
 * **Reduce Motion** → Windows "Animation effects". Chromium reads `SPI_GETCLIENTAREAANIMATION` and updates on `WM_SETTINGCHANGE` (`ui/gfx/animation/animation_win.cc`), so WebView2's `prefers-reduced-motion` follows it.
-* **Lock/unlock** → `WTSRegisterSessionNotification` (`WTS_SESSION_UNLOCK`).
+* **Lock/unlock** → `WTSRegisterSessionNotification` (`WTS_SESSION_UNLOCK`), in `session_lock.rs`, which sends `session://unlocked`.
 * **Charger and battery** → `RegisterPowerSettingNotification`, called once per GUID: `GUID_ACDC_POWER_SOURCE` and `GUID_BATTERY_PERCENTAGE_REMAINING`.
 * Pointer position over the island → webview pointer events.
 

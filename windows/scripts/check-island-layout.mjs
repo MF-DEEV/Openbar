@@ -19,6 +19,7 @@ import { checkScreenshotPreview } from "./screenshot-preview-cases.mjs";
 import { checkCaptures } from "./captures-cases.mjs";
 import { checkCamera } from "./camera-cases.mjs";
 import { checkMusicOpenPlayer } from "./music-open-player-cases.mjs";
+import { checkMascot } from "./mascot-cases.mjs";
 
 const browserPath = [
   process.env.ISLAND_TEST_BROWSER,
@@ -87,7 +88,9 @@ try {
     mobile: false,
   });
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
-  if (process.argv.includes("--camera")) {
+  if (process.argv.includes("--mascot")) {
+    await checkMascot({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--camera")) {
     await checkCamera({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--music-open-player")) {
     await checkMusicOpenPlayer({ send, evaluate, base: server.resolvedUrls.local[0] });

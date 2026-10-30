@@ -60,6 +60,7 @@ To remove it, use **Settings › Apps › Installed apps › Vorssaint › Unins
   - **Reply without switching apps.** Type in the island and it reaches the session.
   - **Open.** Brings the session's terminal window forward.
   - **A buddy for every session.** Clawd for Claude Code and a little terminal robot for Codex, each in a random outfit you can change.
+- **A companion.** Turn it on in **Settings › Companion**: a little friend, a coloured shape or a robot, who rests in the island, strolls through now and then, and reacts to timers, music, downloads, screenshots, the microphone, agents, your battery and unlocking your PC. Rest the pointer on it to pet it.
 - **Settings like Windows.** Size, shape, which sections show and in what order, how it opens, which display it uses, starting with Windows and more, in a window that follows your light or dark theme. In **Content**, use **+** beneath the preview to add shortcut circles, choose their actions, move them left, right or below the island, reorder or remove them. Each position fits three circles. **Restore defaults** returns the original five shortcuts. Preview circles and settings rows share animated, keyboard-accessible menus.
 
 ### Using it with Claude Code

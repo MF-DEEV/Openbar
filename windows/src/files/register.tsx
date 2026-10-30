@@ -9,6 +9,7 @@
 // Files. Dropping opens Files without taking the keyboard.
 
 import { modulesOf, useIsland } from "../island/store";
+import { reactMascot } from "../mascot/service";
 import { pages } from "../island/views/Expanded";
 import { bridge } from "../shared/bridge";
 import { FilesLeading, FilesPage, FilesTrailing } from "./FilesPage";
@@ -28,7 +29,11 @@ export function handleDrag(drag: DragPhase) {
   }
   if (drag.phase === "drop") {
     island.setDropHint(false);
-    if (drag.added && shown()) island.open("files", { takeFocus: false });
+    if (drag.added && shown()) {
+      island.open("files", { takeFocus: false });
+      // A little hop for the file it watched come in, once the island rests again.
+      reactMascot("celebrate", 30);
+    }
     return;
   }
   if (!shown()) return;

@@ -41,6 +41,7 @@ import "../files/register";
 import "../agents/register";
 import "../watch/register";
 import "../screenshot-preview/register";
+import { startMascot } from "../mascot/register";
 
 activityViews.microphone = MicrophoneStrip;
 void subscribeMicrophone();
@@ -55,7 +56,10 @@ function applyPrefs(p: Prefs) {
 
 /** A section the person hid in Settings › Content shows nothing anywhere: no page, strip or notice. */
 const shown = (id: "music" | "sessions") => modulesOf(useIsland.getState()).includes(id);
-void loadPrefs().then(applyPrefs);
+void loadPrefs().then((prefs) => {
+  applyPrefs(prefs);
+  startMascot();
+});
 void onPrefs(applyPrefs);
 
 pages.sessions = sessionsPage;

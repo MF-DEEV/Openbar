@@ -27,6 +27,7 @@ mod ocr;
 mod power_saver;
 mod prefs;
 mod scratchpad;
+mod session_lock;
 mod sessions;
 mod settings;
 mod shell;
@@ -292,6 +293,7 @@ pub fn run() {
             app.manage(files::Files::load(app.handle()));
             // Followed before the island exists, so its first power_saver_on has it.
             power_saver::start(app.handle().clone());
+            session_lock::start(app.handle().clone());
             battery::start(app.handle().clone());
             island::create(app.handle())?;
             files::install(app.handle());
