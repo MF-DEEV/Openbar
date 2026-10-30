@@ -303,7 +303,7 @@ export const T = {
     remove: "Remove hooks",
     bridge: "Editor extension",
     bridgeCaption:
-      "Replies and Open for sessions in an editor's terminal go through a small extension included with Vorssaint. It shows a terminal or types into it only when you ask. Reload editor windows that are already open.",
+      "Replies and Open for sessions in an editor's terminal go through a small extension included with Vorssaint. It shows a terminal or types into it only when you ask. If a window that's already open doesn't pick it up, reload it.",
     bridgeNoEditors: "No supported editor found",
     bridgeOn: "Installed",
     bridgeOff: "Not installed",
