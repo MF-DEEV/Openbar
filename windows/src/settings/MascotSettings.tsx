@@ -356,10 +356,12 @@ function StageCard({ look }: { look: MascotLook }) {
   );
 
   const measure = useCallback((element: HTMLDivElement | null) => {
-    if (!element) return;
+    if (!element) return undefined;
     const observer = new ResizeObserver(([entry]) => setWidth(entry!.contentRect.width));
     observer.observe(element);
     setWidth(element.clientWidth);
+    return () => observer.disconnect();
+    return () => observer.disconnect();
   }, []);
 
   const greet = () => {

@@ -234,13 +234,14 @@ export function noticeWidth(notice: Notice, geometry: Geometry): number {
   const ctx = measureContext();
   const metrics = noticeMetrics(geometry, { width: geometry.screen.width - 24, height: geometry.stripHeight });
   ctx.font = `500 ${metrics.fontSize}px 'Inter Variable', Inter, sans-serif`;
-  const title =
-    ctx.measureText(notice.title).width +
-    (notice.image ? metrics.imageSize + 8 : 0) +
-    (notice.icon ? 14 + 8 : 0) +
-    (notice.session ? CLAWD_SIZES.notice.width + 8 : 0) +
-    (notice.audio ? (notice.audio.deafened ? 47 : 24) : 0) +
-    (notice.mascot && mascotEnabled(useIsland.getState().settings) ? NOTICE_SIZE + 8 : 0);
+  // The companion takes the symbol slot, whatever mark the notice would show.
+  const marks =
+    notice.mascot && mascotEnabled(useIsland.getState().settings)
+      ? NOTICE_SIZE + 8
+      : (notice.image ? metrics.imageSize + 8 : 0) +
+        (notice.icon ? 14 + 8 : 0) +
+        (notice.audio ? (notice.audio.deafened ? 47 : 24) : 0);
+  const title = ctx.measureText(notice.title).width + marks + (notice.session ? CLAWD_SIZES.notice.width + 8 : 0);
   ctx.font = `500 ${Math.max(9, metrics.fontSize - 1)}px 'Inter Variable', Inter, sans-serif`;
   const detail = notice.detail ? ctx.measureText(notice.detail).width : 0;
   const maxWing = (geometry.screen.width - 24 - geometry.cameraWidth) / 2;
