@@ -10,7 +10,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { useState } from "react";
 import { t, type StringKey } from "../i18n";
 import { MODULES, type ModuleId, visibleModules } from "../island/modules";
-import { sectionEnabled } from "../island/settings";
+import { type IdleContent, sectionEnabled } from "../island/settings";
 import { QuickAccessSettings } from "./QuickAccessSettings";
 import { SessionsOptions } from "./SessionsSettings";
 import { SystemOptions } from "./SystemSettings";
@@ -22,7 +22,7 @@ import { AgentsOptions } from "./AgentsSettings";
 import { MusicOptions } from "./MusicSettings";
 import { useSettings } from "./state";
 import { T } from "./strings";
-import { Expander, Group, Page, SubRow, Toggle } from "./ui";
+import { Expander, Group, Page, Row, Select, SubRow, Toggle } from "./ui";
 
 /** Sections with their own switch on the Mac (notchTimerEnabled and so on). */
 const OWN_SWITCH: ModuleId[] = ["timer", "camera", "calendar", "notifications", "agents", "sessions", "watch"];
@@ -212,6 +212,21 @@ export function ContentSettings() {
   return (
     <Page title={T.nav.content} lead={T.content.lead}>
       <QuickAccessSettings />
+      <Group>
+        <Row title={T.content.idleContent} caption={T.content.idleContentCaption}>
+          <Select<IdleContent>
+            label={T.content.idleContent}
+            value={island.idleContent}
+            onChange={(value) => patch({ island: { idleContent: value } })}
+            options={[
+              { value: "none", label: T.content.idleNone },
+              { value: "battery", label: T.content.idleBattery },
+              { value: "music", label: T.content.idleMusic },
+              { value: "agents", label: T.content.idleAgents },
+            ]}
+          />
+        </Row>
+      </Group>
       <Group title={T.content.sections}>
         {order.map((id, index) => {
           const info = MODULES.find((m) => m.id === id)!;

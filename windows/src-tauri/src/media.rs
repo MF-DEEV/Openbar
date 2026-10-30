@@ -141,7 +141,12 @@ pub struct MediaState {
 pub type Shared = Arc<Mutex<MediaState>>;
 
 #[cfg(windows)]
-pub use imp::{command, open_player, probe, seek, set_shuffle, start};
+pub use imp::{command, probe, seek, set_shuffle, start};
+
+#[cfg(any(windows, test))]
+mod player;
+#[cfg(windows)]
+pub use player::open_player;
 
 #[cfg(not(windows))]
 pub fn probe() -> String {
@@ -516,16 +521,6 @@ mod imp {
         with_session(source, |s| s.TryChangeShuffleActiveAsync(on)?.join()).unwrap_or(false)
     }
 
-    /// Opens the player app by its AUMID, without starting playback.
-    pub fn open_player(aumid: &str) -> bool {
-        if aumid.is_empty() || aumid.contains(['"', '&', '|', '<', '>']) {
-            return false;
-        }
-        std::process::Command::new("explorer.exe")
-            .arg(format!("shell:AppsFolder\\{aumid}"))
-            .spawn()
-            .is_ok()
-    }
     #[cfg(test)]
     mod live_tests {
         use super::*;
@@ -712,11 +707,15 @@ pub async fn music_open_player(
         .find(|p| p.id == source)
         .and_then(|p| p.launch_path.clone());
     tauri::async_runtime::spawn_blocking(move || {
+        // Preserve the native focus/activation behavior for running players.
+        if open_player(&source) {
+            return true;
+        }
         if let Some(path) = path {
             // Only a path obtained from Windows' installed application catalog.
             return std::process::Command::new(path).spawn().is_ok();
         }
-        open_player(&source)
+        false
     })
     .await
     .map_err(|e| e.to_string())

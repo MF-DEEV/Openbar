@@ -8,6 +8,7 @@
 import { FastForward, Music, Pause, Play, Rewind, Shuffle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useIsland } from "../island/store";
+import { bridge } from "../shared/bridge";
 import { VolumeControl } from "./VolumeControl";
 import { EqualizerBars } from "./EqualizerBars";
 import { ScrollingText } from "./ScrollingText";
@@ -42,11 +43,35 @@ export function Cover(props: { src?: string; size: number; radius: number; dimme
 
 export function MusicPage() {
   const playback = useMusic((s) => s.playback);
+  const sources = useMusic((s) => s.sources);
   const playing = useMusic(isPlaying);
   const tint = useMusic((s) => s.tint);
   const failed = useMusic((s) => s.failed);
   const command = useMusic((s) => s.command);
   const lyricsExpanded = useLyrics((s) => s.expanded);
+  const [opening, setOpening] = useState(false);
+  const openingPlayer = useRef(false);
+  const [failedSource, setFailedSource] = useState<string | null>(null);
+  const idlePlayer = sources.find((source) => source.isPlaying && source.id) ?? sources.find((source) => source.id);
+  const playerSource = playback?.source || idlePlayer?.id;
+  const playerName = (playback?.source ? playback.sourceName : idlePlayer?.name) || "music player";
+  const openLabel = playerSource ? `Open ${playerName}` : "No music player available";
+  const openFailed = !!playerSource && failedSource === playerSource;
+
+  async function openPlayer() {
+    if (!playerSource || openingPlayer.current) return;
+    openingPlayer.current = true;
+    setOpening(true);
+    setFailedSource(null);
+    try {
+      if ((await bridge.music.openPlayer(playerSource)) === false) setFailedSource(playerSource);
+    } catch {
+      setFailedSource(playerSource);
+    } finally {
+      openingPlayer.current = false;
+      setOpening(false);
+    }
+  }
 
   // Space toggles while the page has the keyboard.
   useEffect(() => {
@@ -63,22 +88,35 @@ export function MusicPage() {
   return (
     <div className="m-page">
       <div className="m-head">
-        <div className="m-cover-button">
+        <button
+          type="button"
+          className="m-cover-button"
+          aria-label={openLabel}
+          title={openLabel}
+          disabled={!playerSource}
+          aria-disabled={opening || undefined}
+          aria-busy={opening}
+          onClick={() => void openPlayer()}
+        >
           <Cover src={playback?.artwork} size={COVER} radius={COVER * 0.19} dimmed={!!playback && !playing} />
-        </div>
+        </button>
         <div className="m-titles">
           <ScrollingText
             className="m-title"
             text={playback ? playback.title || playback.sourceName : "Nothing playing"}
           />
           <ScrollingText
-            className={`m-artist${failed ? " is-failed" : ""}`}
+            className={`m-artist${failed || openFailed ? " is-failed" : ""}`}
             text={
-              failed
-                ? "Could not change playback."
-                : playback
-                  ? playback.artist || playback.album || "Now playing"
-                  : "Your music and playback controls appear here."
+              openFailed
+                ? "Could not open the music player. Try again."
+                : failed
+                  ? "Could not change playback."
+                  : playback
+                    ? playback.artist || playback.album || "Now playing"
+                    : playerSource
+                      ? openLabel
+                      : "Your music and playback controls appear here."
             }
           />
         </div>

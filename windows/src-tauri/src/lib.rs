@@ -4,6 +4,7 @@
 mod agent_usage;
 mod audio;
 mod bar;
+mod battery;
 mod brightness;
 mod calendar;
 mod capture;
@@ -220,6 +221,7 @@ pub fn run() {
             keep_awake::keep_awake_set,
             keep_awake::keep_awake_toggle,
             power_saver::power_saver_on,
+            battery::battery_status,
             brightness::brightness_displays,
             brightness::brightness_set,
             capture::capture_run,
@@ -292,6 +294,7 @@ pub fn run() {
             app.manage(files::Files::load(app.handle()));
             // Followed before the island exists, so its first power_saver_on has it.
             power_saver::start(app.handle().clone());
+            battery::start(app.handle().clone());
             island::create(app.handle())?;
             files::install(app.handle());
             fullscreen::watch(app.handle());

@@ -61,6 +61,7 @@ const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
   silhouette: ["notch", "capsule"],
   layout: ["compact", "spacious", "custom"],
   opening: ["click", "hoverPreview", "hoverExpand", "hiddenUntilHover"],
+  idleContent: ["none", "battery", "music", "agents"],
   // "all" is a Mac choice the Windows island doesn't have yet.
   display: ["primary", "cursor"],
   timerMode: ["timer", "pomodoro", "stopwatch"],

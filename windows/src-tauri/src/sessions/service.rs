@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use tauri::{AppHandle, Emitter, Wry};
 
+use super::agent_colors::AgentColors;
 use super::codex::client::CodexClient;
 use super::codex::state::Answer as CodexAnswer;
 use super::engine::Engine;
@@ -134,6 +135,7 @@ impl Tail {
 
 struct Inner {
     engine: Engine,
+    agent_colors: AgentColors,
     tails: HashMap<PathBuf, Tail>,
     /// Where each session's transcript is, as the hooks said or a scan found.
     transcripts: HashMap<String, PathBuf>,
@@ -161,6 +163,7 @@ impl Service {
             app,
             inner: Mutex::new(Inner {
                 engine: Engine::new(ContentPolicy::default()),
+                agent_colors: AgentColors::default(),
                 tails: HashMap::new(),
                 transcripts: HashMap::new(),
                 hosts: HashMap::new(),
@@ -396,6 +399,11 @@ impl Service {
 
     fn publish(&self, inner: &mut Inner, t: Time) -> bool {
         let mut snapshot = inner.engine.snapshot(t);
+        if let Some(home) = hooks::installer::home_dir() {
+            for session in &mut snapshot.sessions {
+                inner.agent_colors.decorate(session, &home, t);
+            }
+        }
         if let Some(codex) = self.codex() {
             let (sessions, events) = codex.snapshot(t, inner.engine.policy());
             snapshot.sessions.extend(sessions);

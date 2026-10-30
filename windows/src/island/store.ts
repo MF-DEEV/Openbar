@@ -21,7 +21,14 @@ import {
 } from "./geometry";
 import type { Size } from "./motion";
 import { type ModuleId, moduleInfo, visibleModules } from "./modules";
-import { DEFAULT_SETTINGS, hoverExpands, type IslandSettings, opensOnHover, sectionEnabled } from "./settings";
+import {
+  DEFAULT_SETTINGS,
+  hoverExpands,
+  type IdleContent,
+  type IslandSettings,
+  opensOnHover,
+  sectionEnabled,
+} from "./settings";
 import type { Provider, SessionEvent } from "../sessions/types";
 
 export interface Notice {
@@ -500,7 +507,12 @@ export function geometryOf(s: Pick<IslandState, "settings" | "screen" | "deviceP
 }
 
 /** What the island draws, first match wins (NotchView.surface, spec §2.2). */
-export function presentation(s: IslandState, geometry: Geometry, measuredNotice?: Size): Presentation {
+export function presentation(
+  s: IslandState,
+  geometry: Geometry,
+  measuredNotice?: Size,
+  idleContent: IdleContent = "none",
+): Presentation {
   if (s.expanded) {
     if (s.capturePreview) {
       return {
@@ -574,7 +586,7 @@ export function presentation(s: IslandState, geometry: Geometry, measuredNotice?
       hasRow: false,
     };
   }
-  const rest = restingSize(geometry);
+  const rest = restingSize(geometry, idleContent !== "none");
   return {
     kind: "resting",
     key: "resting",
