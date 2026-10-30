@@ -226,9 +226,12 @@ export function restingSize(geometry: Geometry, showsIdleContent = false): Size 
     );
     return { width, height: strip };
   }
-  const wing = showsIdleContent && geometry.compactSideRoom >= MINIMUM_WING ? MINIMUM_WING : 0;
+  const wing = showsIdleContent ? restingWingWidth(geometry) : 0;
   return { width: Math.min(geometry.screen.width - 24, geometry.cameraWidth + 2 * wing), height: strip };
 }
+
+/** The wing beside the camera the closed island opens for what rests there; none when the display has no room. */
+export const restingWingWidth = (geometry: Geometry) => (geometry.compactSideRoom >= MINIMUM_WING ? MINIMUM_WING : 0);
 
 /** A subtle, proportional hover response; choices remain a click action. */
 export function hoverPulse(geometry: Geometry, closed: Size): Size {

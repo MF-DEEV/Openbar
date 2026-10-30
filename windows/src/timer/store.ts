@@ -9,6 +9,9 @@
 import { Hourglass } from "lucide-react";
 import { create } from "zustand";
 import { modulesOf, useIsland } from "../island/store";
+import { endMascotCountdown, reactMascot, watchMascotCountdown } from "../mascot/service";
+import { timerReaction } from "../mascot/model";
+import { COUNTDOWN_LEAD } from "../mascot/motion";
 import { bridge } from "../shared/bridge";
 import { clock } from "./clock";
 import { timerPref } from "./prefs";
@@ -78,13 +81,37 @@ function schedule() {
 function commit(session: model.TimerSession) {
   useTimer.setState({ session, now: clock.now() });
   schedule();
+  scheduleMascotCountdown();
+}
+
+let countdownTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** The companion comes out for a countdown's last seconds; paused, it goes back behind the camera. */
+function scheduleMascotCountdown() {
+  clearTimeout(countdownTimer);
+  const end = model.deadline(useTimer.getState().session);
+  if (end === null) {
+    endMascotCountdown(true);
+    return;
+  }
+  const remaining = end - clock.now();
+  if (remaining <= 1.5) return;
+  countdownTimer = setTimeout(
+    () => {
+      const at = model.deadline(useTimer.getState().session);
+      if (at !== null) watchMascotCountdown(at - clock.now());
+    },
+    Math.max(0, remaining - COUNTDOWN_LEAD) * 1000,
+  );
 }
 
 /** Completes a countdown whose deadline passed: the notice, and the chime when sound is on. */
 function finishIfDue(): boolean {
   const done = model.finishIfDue(useTimer.getState().session, clock.now());
   if (!done) return false;
+  endMascotCountdown(false);
   commit(done);
+  const reaction = timerReaction(done.phase);
   useIsland.getState().showNotice({
     id: `timer:${Date.now()}`,
     kind: "timer",
@@ -95,7 +122,9 @@ function finishIfDue(): boolean {
     opens: "timer",
     icon: Hourglass,
     tint: ORANGE,
+    mascot: reaction,
   });
+  reactMascot(reaction);
   if (useIsland.getState().settings.timerSoundEnabled) alarm(true);
   return true;
 }
@@ -122,6 +151,7 @@ export const timer = {
     if (!timerEnabled() || model.hasSession(session)) return;
     alarm(false);
     commit(model.start(session, mode, minutes, clock.now(), pomodoroConfig()));
+    reactMascot("ready");
   },
 
   pauseOrResume() {
@@ -138,11 +168,13 @@ export const timer = {
     if (!timerEnabled() || !model.canStartNext(session)) return;
     alarm(false);
     commit(model.startNext(session, clock.now()));
+    reactMascot("ready");
   },
 
   /** Cancel, or Done once completed: the chime stops with it. */
   cancel() {
     alarm(false);
+    endMascotCountdown(false);
     commit(model.IDLE);
   },
 

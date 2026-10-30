@@ -7,6 +7,7 @@
 // Mac's HUD does (ScreenshotService, ScreenTextService, ColorSamplerService).
 
 import { type Notice, useIsland } from "../island/store";
+import { reactMascot } from "../mascot/service";
 import { bridge } from "../shared/bridge";
 import { S } from "./strings";
 import type { CaptureOutcome, CapturePurpose } from "./types";
@@ -82,6 +83,7 @@ export async function runCapture(purpose: CapturePurpose) {
     }
     const notice = outcome ? noticeFor(outcome) : null;
     if (notice) useIsland.getState().showNotice(notice);
+    if (outcome?.kind === "screenshot") reactMascot("flash", 1);
   } finally {
     running = false;
   }

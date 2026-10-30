@@ -9,6 +9,7 @@ import type { Size } from "../motion";
 import { compactActivities, useIsland, visibleActivity, type ActivityId } from "../store";
 import { DrawnSize } from "../surface/DrawnSize";
 import { ActivityStrip } from "./Activity";
+import { MascotActivityVisit } from "../../mascot/MascotActivityVisit";
 
 /** Keep one strip mounted while the choices and the surrounding surface open or close. */
 export function ActivityPicker({ geometry, size, visible }: { geometry: Geometry; size: Size; visible: boolean }) {
@@ -59,7 +60,9 @@ export function ActivityPicker({ geometry, size, visible }: { geometry: Geometry
           >
             <div style={{ transform: `scale(${scaleX}, ${scaleY})`, transformOrigin: "50% 0" }}>
               <DrawnSize.Provider value={strip}>
-                <ActivityStrip id={selected} geometry={geometry} size={strip} />
+                <MascotActivityVisit geometry={geometry} strip={strip}>
+                  <ActivityStrip id={selected} geometry={geometry} size={strip} />
+                </MascotActivityVisit>
               </DrawnSize.Provider>
             </div>
           </motion.div>
