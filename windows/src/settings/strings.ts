@@ -57,6 +57,13 @@ export const T = {
     outlineCaption: "A thin light edge around the island, easier to see on dark wallpapers.",
   },
   content: {
+    idleContent: "While inactive",
+    idleContentCaption:
+      "Choose what appears on the closed island. Hidden sections wait until enabled again; live activities and notices take priority.",
+    idleNone: "Nothing",
+    idleBattery: "Battery",
+    idleMusic: "Music",
+    idleAgents: "AI Agents",
     downloadFolders: "Additional download folders",
     downloadFoldersCaption:
       "Downloads and browser download folders are monitored automatically. For other apps, add full folder paths, one per line. Changes save when you leave this field. File transfers in these folders are shown too; subfolders are not scanned.",

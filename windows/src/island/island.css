@@ -81,6 +81,34 @@ input:focus-visible {
   display: block;
 }
 
+.n-idle {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  box-sizing: border-box;
+  font-size: 9px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.n-idle-wing {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.n-idle-wing.is-leading {
+  justify-content: flex-end;
+}
+
+.n-idle.is-capsule {
+  display: flex;
+  justify-content: center;
+}
+
 .n-notice {
   display: flex;
   align-items: center;
