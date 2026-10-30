@@ -124,7 +124,12 @@ pub fn source_name(aumid: &str) -> String {
 pub type Shared = Arc<Mutex<Option<NowPlaying>>>;
 
 #[cfg(windows)]
-pub use imp::{command, open_player, probe, seek, set_shuffle, start};
+pub use imp::{command, probe, seek, set_shuffle, start};
+
+#[cfg(any(windows, test))]
+mod player;
+#[cfg(windows)]
+pub use player::open_player;
 
 #[cfg(not(windows))]
 pub fn probe() -> String {
@@ -416,17 +421,6 @@ mod imp {
     pub fn set_shuffle(on: bool) -> bool {
         with_session(|s| s.TryChangeShuffleActiveAsync(on)?.join()).unwrap_or(false)
     }
-
-    /// Opens the player app by its AUMID, without starting playback.
-    pub fn open_player(aumid: &str) -> bool {
-        if aumid.is_empty() || aumid.contains(['"', '&', '|', '<', '>']) {
-            return false;
-        }
-        std::process::Command::new("explorer.exe")
-            .arg(format!("shell:AppsFolder\\{aumid}"))
-            .spawn()
-            .is_ok()
-    }
 }
 
 #[cfg(not(windows))]
@@ -476,8 +470,10 @@ pub async fn music_shuffle(on: bool) -> bool {
 }
 
 #[tauri::command]
-pub fn music_open_player(source: String) -> bool {
-    open_player(&source)
+pub async fn music_open_player(source: String) -> bool {
+    tauri::async_runtime::spawn_blocking(move || open_player(&source))
+        .await
+        .unwrap_or(false)
 }
 
 #[cfg(test)]
