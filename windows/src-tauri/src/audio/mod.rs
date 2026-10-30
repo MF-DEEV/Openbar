@@ -553,6 +553,11 @@ async fn blocking<T: Send + 'static>(
         .map_err(|e| e.to_string())?
 }
 
+#[cfg(windows)]
+pub(crate) fn player_processes(source: String) -> Result<Vec<u32>, String> {
+    with_engine(move |e| Ok(e.player_processes(&source)))
+}
+
 /// A player's volume for the Music page (media_volume.rs): the loudest of
 /// the sessions whose own exe `matches`, set first when `level` is given.
 pub fn player_volume(

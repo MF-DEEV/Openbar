@@ -22,6 +22,7 @@ mod keep_awake;
 mod media;
 mod media_volume;
 mod microphone;
+mod music_levels;
 mod notifications;
 mod ocr;
 mod power_saver;
@@ -138,6 +139,7 @@ pub fn run() {
         )
         .manage(island::IslandState::default())
         .manage(media::Shared::default())
+        .manage(music_levels::Demand::default())
         .manage(microphone::Shared::default())
         .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
@@ -163,6 +165,7 @@ pub fn run() {
             hooks::claude_hooks_install,
             hooks::claude_hooks_remove,
             media::music_now,
+            music_levels::music_watch_levels,
             microphone::microphone_snapshot,
             downloads::downloads_snapshot,
             media_volume::music_volume,
@@ -306,6 +309,10 @@ pub fn run() {
             );
             app.manage(sessions::service::Service::start(app.handle().clone()));
             media::start(
+                app.handle().clone(),
+                app.state::<media::Shared>().inner().clone(),
+            );
+            music_levels::start(
                 app.handle().clone(),
                 app.state::<media::Shared>().inner().clone(),
             );
