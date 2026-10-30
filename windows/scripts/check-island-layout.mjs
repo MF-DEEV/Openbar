@@ -17,6 +17,7 @@ import { checkSessionNotice } from "./session-notice-cases.mjs";
 import { checkIdleContent } from "./idle-content-cases.mjs";
 import { checkScreenshotPreview } from "./screenshot-preview-cases.mjs";
 import { checkCaptures } from "./captures-cases.mjs";
+import { checkCamera } from "./camera-cases.mjs";
 import { checkMusicOpenPlayer } from "./music-open-player-cases.mjs";
 
 const browserPath = [
@@ -86,7 +87,9 @@ try {
     mobile: false,
   });
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
-  if (process.argv.includes("--music-open-player")) {
+  if (process.argv.includes("--camera")) {
+    await checkCamera({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--music-open-player")) {
     await checkMusicOpenPlayer({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--music-lyrics")) {
     await checkMusicLyrics({ send, evaluate, base: server.resolvedUrls.local[0] });

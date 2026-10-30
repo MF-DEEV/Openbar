@@ -32,6 +32,8 @@ export type ColorPickerFormat = "hex" | "rgb" | "hsl";
 export type ScratchpadRetention = "never" | "day" | "week" | "month";
 
 export interface IslandSettings {
+  /** Camera device chosen in the live preview; empty follows the system default. */
+  cameraDeviceId: string;
   enabled: boolean;
   silhouette: Silhouette;
   layout: LayoutPreset;
@@ -211,6 +213,7 @@ export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
 export const DEFAULT_SWITCHER_SHORTCUT = "Ctrl+Alt+Shift+KeyS";
 
 export const DEFAULT_SETTINGS: IslandSettings = {
+  cameraDeviceId: "",
   enabled: true,
   silhouette: "notch",
   layout: "spacious",
