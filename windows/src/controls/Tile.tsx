@@ -52,8 +52,10 @@ export function ActionTile(props: {
       title={props.title}
       onClick={props.onSelect}
     >
-      <span className="ct-tile-circle">
-        <Icon key={Icon.displayName} size={18} strokeWidth={2} aria-hidden="true" />
+      <span className="ct-tile-visual">
+        <span className="ct-tile-circle">
+          <Icon key={Icon.displayName} size={18} strokeWidth={2} aria-hidden="true" />
+        </span>
       </span>
       <span className="ct-tile-label">
         {props.reading ? (

@@ -39,6 +39,10 @@
   height: 18px;
   border-radius: 6px;
   color: #fff;
+  transition:
+    transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 0.18s ease,
+    opacity 0.18s ease;
 }
 
 .ct-level-glyph.is-button:hover:enabled {
@@ -146,7 +150,9 @@
 .ct-music-cover {
   flex: none;
   border-radius: 11px;
-  transition: transform 0.28s cubic-bezier(0.3, 1.3, 0.5, 1);
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 0.2s ease;
 }
 
 .ct-music-cover:hover {
@@ -211,7 +217,10 @@
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  transition: transform 0.28s cubic-bezier(0.3, 1.3, 0.5, 1);
+  transition:
+    transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1),
+    background-color 0.2s ease,
+    opacity 0.2s ease;
 }
 
 .ct-music-button:hover:enabled {
@@ -271,37 +280,65 @@
   height: var(--ct-tile-h);
   padding: 0 4px;
   border-radius: 14px;
-  transition:
-    transform 0.32s cubic-bezier(0.3, 1.3, 0.5, 1),
-    background-color 0.15s;
+  cursor: pointer;
 }
 
-.ct-tile:hover {
-  background: var(--n-wash);
-  transform: scale(1.022);
-}
-
-.ct-tile:active {
-  transform: scale(0.965);
-  opacity: 0.8;
-}
-
-.ct-tile-circle {
+.ct-tile-visual {
   display: grid;
   place-items: center;
   flex: none;
   width: 40px;
   height: 40px;
+  transform: translate3d(0, 0, 0) scale3d(1, 1, 1);
+  transform-origin: center;
+  will-change: transform;
+  transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ct-tile-circle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
   background: rgba(255, 255, 255, 0.075);
   color: rgba(255, 255, 255, 0.85);
   transition:
-    background-color 0.26s cubic-bezier(0.25, 0.1, 0.25, 1),
-    color 0.26s cubic-bezier(0.25, 0.1, 0.25, 1);
+    background-color 0.24s cubic-bezier(0.4, 0, 0.2, 1),
+    color 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.ct-tile:hover .ct-tile-visual,
+.ct-tile:focus-visible .ct-tile-visual {
+  transform: translate3d(0, 0, 0) scale3d(1.05, 1.05, 1);
+}
+
+.ct-tile:hover .ct-tile-circle,
+.ct-tile:focus-visible .ct-tile-circle {
+  background: rgba(255, 255, 255, 0.13);
+  color: #fff;
+}
+
+.ct-tile:active .ct-tile-visual {
+  transform: translate3d(0, 0, 0) scale3d(0.97, 0.97, 1);
 }
 
 .ct-tile-circle svg {
-  animation: ct-glyph-in 0.26s cubic-bezier(0.25, 0.1, 0.25, 1);
+  display: block;
+  flex: none;
+  width: 18px;
+  height: 18px;
+  animation: none;
+  transform: none;
+  pointer-events: none;
+}
+
+.ct-page button:enabled,
+.ct-band-levels button:enabled,
+.ct-page .u-slider:not([aria-disabled="true"]),
+.ct-band-levels .u-slider:not([aria-disabled="true"]) {
+  cursor: pointer;
 }
 
 .ct-tile.is-active[data-accent="selection"] .ct-tile-circle {
@@ -393,13 +430,18 @@
 
 @media (prefers-reduced-motion: reduce) {
   .ct-tile,
+  .ct-tile-visual,
   .ct-tile-circle,
+  .ct-level-glyph,
   .ct-music-cover,
   .ct-music-button {
     transition: none;
   }
   .ct-tile:hover,
   .ct-tile:active,
+  .ct-tile:hover .ct-tile-visual,
+  .ct-tile:focus-visible .ct-tile-visual,
+  .ct-tile:active .ct-tile-visual,
   .ct-music-cover:hover,
   .ct-music-cover:active,
   .ct-music-button:active:enabled,
@@ -409,5 +451,8 @@
   .ct-level-glyph svg,
   .ct-tile-circle svg {
     animation: none;
+  }
+  .ct-tile-visual {
+    will-change: auto;
   }
 }
