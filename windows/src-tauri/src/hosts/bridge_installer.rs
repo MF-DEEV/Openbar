@@ -200,9 +200,26 @@ fn find<'a>(editor: &'a Editor, places: &Places) -> Option<Found<'a>> {
         })
 }
 
-/// The versions in an extensions folder. An editor leaves a removed extension's
-/// folder until it restarts and lists it in `.obsolete`; those don't count.
-fn installed_versions(extensions: &Path) -> Vec<String> {
+/// The versions an editor lists as installed. `extensions.json` is its own
+/// record: a removed extension's folder can stay until it restarts.
+fn listed_versions(extensions: &Path) -> Option<Vec<String>> {
+    let bytes = std::fs::read(extensions.join("extensions.json")).ok()?;
+    let list: Value = serde_json::from_slice(&bytes).ok()?;
+    let versions = list
+        .as_array()?
+        .iter()
+        .filter(|entry| {
+            entry["identifier"]["id"]
+                .as_str()
+                .is_some_and(|id| id.eq_ignore_ascii_case(EXTENSION_ID))
+        })
+        .filter_map(|entry| entry["version"].as_str().map(str::to_owned))
+        .collect();
+    Some(versions)
+}
+
+/// Without that record, the folders, less those listed in `.obsolete`.
+fn folder_versions(extensions: &Path) -> Vec<String> {
     let obsolete: Value = std::fs::read(extensions.join(".obsolete"))
         .ok()
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
@@ -211,7 +228,7 @@ fn installed_versions(extensions: &Path) -> Vec<String> {
     let Ok(entries) = std::fs::read_dir(extensions) else {
         return Vec::new();
     };
-    let mut versions: Vec<String> = entries
+    entries
         .filter_map(Result::ok)
         .filter(|entry| entry.path().is_dir())
         .filter_map(|entry| entry.file_name().into_string().ok())
@@ -220,9 +237,11 @@ fn installed_versions(extensions: &Path) -> Vec<String> {
             let version = name.to_ascii_lowercase().strip_prefix(&prefix)?.to_owned();
             Some(version)
         })
-        .collect();
-    versions.sort();
-    versions
+        .collect()
+}
+
+fn installed_versions(extensions: &Path) -> Vec<String> {
+    listed_versions(extensions).unwrap_or_else(|| folder_versions(extensions))
 }
 
 /// The version this build carries, from the extension's own manifest.
@@ -710,6 +729,35 @@ mod tests {
         .unwrap();
         assert_eq!(state_of(&extensions, "1.1.0"), State::Missing);
         fs::write(extensions.join(".obsolete"), "not json").unwrap();
+        assert_eq!(state_of(&extensions, "1.1.0"), State::Current);
+    }
+
+    #[test]
+    fn the_editors_own_list_outranks_the_folders() {
+        let pc = Pc::new("listed");
+        let extensions = pc.base.join("home/.vscode/extensions");
+        // As VS Code leaves it: uninstalled, the folder still there, not in .obsolete.
+        pc.extension(".vscode", "vorssaint.vorssaint-terminal-bridge-1.1.0");
+        fs::write(extensions.join("extensions.json"), "[]").unwrap();
+        assert_eq!(state_of(&extensions, "1.1.0"), State::Missing);
+
+        fs::write(
+            extensions.join("extensions.json"),
+            r#"[{"identifier":{"id":"Vorssaint.Vorssaint-Terminal-Bridge"},"version":"1.0.3"},
+                {"identifier":{"id":"other.extension"},"version":"1.1.0"}]"#,
+        )
+        .unwrap();
+        assert_eq!(state_of(&extensions, "1.1.0"), State::Outdated);
+
+        fs::write(
+            extensions.join("extensions.json"),
+            r#"[{"identifier":{"id":"vorssaint.vorssaint-terminal-bridge"},"version":"1.1.0"}]"#,
+        )
+        .unwrap();
+        assert_eq!(state_of(&extensions, "1.1.0"), State::Current);
+
+        // A list it can't read says nothing, so the folders decide.
+        fs::write(extensions.join("extensions.json"), "{ broken").unwrap();
         assert_eq!(state_of(&extensions, "1.1.0"), State::Current);
     }
 
