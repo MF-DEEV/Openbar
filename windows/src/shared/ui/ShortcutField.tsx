@@ -12,11 +12,14 @@ import { acceleratorFrom, formatAccelerator, needsModifier } from "../shortcut";
 
 export function ShortcutField(props: {
   value: string;
-  onChange(accelerator: string): void;
+  onChange(accelerator: string): void | Promise<void>;
   label: string;
   recordingLabel: string;
   /** Told when recording starts and stops, so the shortcut's owner can let go of it meanwhile. */
-  onRecording?(on: boolean): void;
+  onRecording?(on: boolean): void | Promise<void>;
+  onError?(error: unknown): void;
+  /** Settings may show an explicit action beside the configured keys. */
+  actionLabel?: string;
   /** A key came without Ctrl, Alt or Win; recording goes on. */
   onInvalid?(): void;
   className?: string;
@@ -30,34 +33,69 @@ export function ShortcutField(props: {
 
   useEffect(() => {
     if (!recording) return;
-    latest.current.onRecording?.(true);
+    let live = true;
+    let ready = false;
+    let saving = false;
+    let candidate: { code: string; accelerator: string } | null = null;
+    const report = (error: unknown) => latest.current.onError?.(error);
+    Promise.resolve(latest.current.onRecording?.(true))
+      .then(() => {
+        ready = true;
+      })
+      .catch((error: unknown) => {
+        if (live) {
+          report(error);
+          setRecording(false);
+        }
+      });
     const key = (e: KeyboardEvent) => {
       e.preventDefault();
       e.stopImmediatePropagation();
+      if (saving) return;
       if (e.key === "Escape") {
         setRecording(false);
         return;
       }
-      const accelerator = acceleratorFrom(e);
-      if (!accelerator) {
-        if (needsModifier(e)) latest.current.onInvalid?.();
+      if (!ready || e.repeat || e.isComposing) return;
+      if (e.getModifierState("AltGraph")) {
+        latest.current.onInvalid?.();
         return;
       }
-      setRecording(false);
-      latest.current.onChange(accelerator);
+      const accelerator = acceleratorFrom(e);
+      if (!accelerator) {
+        if (needsModifier(e) || !/^(Control|Alt|Shift|Meta)(Left|Right)$/.test(e.code)) latest.current.onInvalid?.();
+        return;
+      }
+      candidate = { code: e.code, accelerator };
+    };
+    // Restore global registration only after the main key is released, so
+    // auto-repeat cannot toggle the island while accepting its own shortcut.
+    const released = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      if (!candidate || candidate.code !== e.code || saving) return;
+      saving = true;
+      Promise.resolve(latest.current.onChange(candidate.accelerator))
+        .catch(report)
+        .finally(() => {
+          if (live) setRecording(false);
+        });
     };
     const away = (e: PointerEvent) => {
       if (!button.current?.contains(e.target as Node)) setRecording(false);
     };
     const blur = () => setRecording(false);
     window.addEventListener("keydown", key, true);
+    window.addEventListener("keyup", released, true);
     window.addEventListener("pointerdown", away, true);
     window.addEventListener("blur", blur);
     return () => {
+      live = false;
       window.removeEventListener("keydown", key, true);
+      window.removeEventListener("keyup", released, true);
       window.removeEventListener("pointerdown", away, true);
       window.removeEventListener("blur", blur);
-      latest.current.onRecording?.(false);
+      Promise.resolve(latest.current.onRecording?.(false)).catch(report);
     };
   }, [recording]);
 
@@ -72,7 +110,7 @@ export function ShortcutField(props: {
       disabled={props.disabled}
       onClick={() => setRecording((r) => !r)}
     >
-      {recording ? props.recordingLabel : shown}
+      {recording ? props.recordingLabel : (props.actionLabel ?? shown)}
     </button>
   );
 }

@@ -17,6 +17,8 @@ use serde_json::{Map, Value};
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 
 pub const CHANGED: &str = "prefs://changed";
+// A registration and its persisted preferences form one transaction.
+static UPDATES: Mutex<()> = Mutex::new(());
 
 pub struct Prefs {
     path: Option<PathBuf>,
@@ -150,7 +152,9 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
             .and_then(Value::as_bool)
             .unwrap_or(default)
     };
-    shortcut(app, flag("/island/shortcutEnabled", true));
+    if before.is_none() {
+        crate::island_shortcut::start(app, value);
+    }
     crate::fullscreen::set_hides(flag("/island/hideInFullscreen", true));
     let notifications_hidden = value
         .pointer("/island/hiddenModules")
@@ -180,45 +184,42 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
     crate::watch::apply_prefs(app);
 }
 
-/// Registers Ctrl+Alt+Space or lets it go. Taken by another app, the island
-/// still opens by clicking it.
-fn shortcut<R: Runtime>(app: &AppHandle<R>, on: bool) {
-    use tauri_plugin_global_shortcut::GlobalShortcutExt;
-    let shortcuts = app.global_shortcut();
-    let key = crate::toggle_shortcut();
-    match (on, shortcuts.is_registered(key)) {
-        (true, false) => {
-            let _ = shortcuts.register(key);
-        }
-        (false, true) => {
-            let _ = shortcuts.unregister(key);
-        }
-        _ => {}
-    }
-}
-
-/// False when the shortcut is on but another app holds Ctrl+Alt+Space.
-#[tauri::command]
-pub fn shortcut_registered<R: Runtime>(app: AppHandle<R>) -> bool {
-    use tauri_plugin_global_shortcut::GlobalShortcutExt;
-    app.global_shortcut()
-        .is_registered(crate::toggle_shortcut())
-}
-
 #[tauri::command]
 pub fn prefs_get(prefs: tauri::State<'_, Prefs>) -> Value {
     prefs.get()
 }
 
 #[tauri::command]
-pub fn prefs_set<R: Runtime>(
-    app: AppHandle<R>,
-    prefs: tauri::State<'_, Prefs>,
-    patch: Value,
-) -> Result<Value, String> {
+pub async fn prefs_set<R: Runtime>(app: AppHandle<R>, patch: Value) -> Result<Value, String> {
+    // Registration waits for the native event loop. Never let a synchronous
+    // IPC command block that loop on the same transaction/registration lock.
+    tauri::async_runtime::spawn_blocking(move || save_patch(&app, patch))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn save_patch<R: Runtime>(app: &AppHandle<R>, patch: Value) -> Result<Value, String> {
+    let _update = UPDATES.lock().unwrap();
+    let prefs = app.state::<Prefs>();
     let before = prefs.get();
-    let next = prefs.set(&patch)?;
-    apply(&app, Some(&before), &next);
+    let mut candidate = before.clone();
+    merge(&mut candidate, &patch);
+    let shortcut_changed = [
+        "shortcut",
+        "shortcutEnabled",
+        "soundOutputSwitcherEnabled",
+        "soundOutputSwitcherShortcut",
+    ]
+    .iter()
+    .any(|key| {
+        before.pointer(&format!("/island/{key}")) != candidate.pointer(&format!("/island/{key}"))
+    });
+    let next = if shortcut_changed {
+        crate::island_shortcut::save(app, &candidate, || prefs.set(&patch))?
+    } else {
+        prefs.set(&patch)?
+    };
+    apply(app, Some(&before), &next);
     let _ = app.emit(CHANGED, &next);
     Ok(next)
 }

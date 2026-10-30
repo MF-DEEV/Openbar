@@ -367,7 +367,13 @@ fn sync_switcher<R: Runtime>(app: &AppHandle<R>) {
         let _ = shortcuts.unregister(old);
     }
     let refused = match wanted {
-        Some(key) if switcher::reserved(&key) || !switcher::has_modifier(&key) => true,
+        Some(key)
+            if crate::island_shortcut::reserved(app, &key)
+                || switcher::reserved(&key)
+                || !switcher::has_modifier(&key) =>
+        {
+            true
+        }
         Some(key) => match shortcuts.register(key) {
             Ok(()) => {
                 *held = Some(key);
@@ -382,13 +388,13 @@ fn sync_switcher<R: Runtime>(app: &AppHandle<R>) {
     SWITCHER_REFUSED.store(refused, Ordering::SeqCst);
 }
 
-/// The audio thread has probed IPolicyConfig. The shortcut is taken on the
-/// main thread: a registration waits for it, so the audio thread must not.
+/// The audio thread has probed IPolicyConfig. Registration may wait for the
+/// native event loop, so neither it nor the audio thread may wait on its lock.
 pub(crate) fn switching_probed(can_switch: bool) {
     CAN_SWITCH.store(can_switch, Ordering::SeqCst);
     if let Some((app, _)) = APP.get() {
         let handle = app.clone();
-        let _ = app.run_on_main_thread(move || {
+        tauri::async_runtime::spawn_blocking(move || {
             sync_switcher(&handle);
             #[cfg(windows)]
             engine::post(|_| {});
@@ -398,7 +404,11 @@ pub(crate) fn switching_probed(can_switch: bool) {
 
 /// A window that may be recording a shortcut closed: no recording outlives
 /// it, so the switcher takes its shortcut back.
-pub fn recording_window_closed<R: Runtime>(app: &AppHandle<R>) {
+pub fn recording_window_closed<R: Runtime>(app: &AppHandle<R>, owner: &str) {
+    if !crate::island_shortcut::recording_owner(app, owner) {
+        return;
+    }
+    let _ = crate::island_shortcut::recording(app, owner, false);
     if RECORDING.swap(false, Ordering::SeqCst) {
         sync_switcher(app);
         #[cfg(windows)]
@@ -507,11 +517,30 @@ fn roller_step(direction: roller::Direction) {
 /// Lets go of the switcher's shortcut while a shortcut field records, so the
 /// very combination it uses can be typed (SoundOutputSwitcher.suspendShortcut).
 #[tauri::command]
-pub fn audio_switcher_recording<R: Runtime>(app: AppHandle<R>, on: bool) {
+pub async fn audio_switcher_recording<R: Runtime>(
+    app: AppHandle<R>,
+    window: tauri::WebviewWindow<R>,
+    on: bool,
+) -> Result<(), String> {
+    let owner = window.label().to_string();
+    tauri::async_runtime::spawn_blocking(move || set_recording(&app, &owner, on))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn set_recording<R: Runtime>(app: &AppHandle<R>, owner: &str, on: bool) -> Result<(), String> {
+    if !on && !crate::island_shortcut::recording_owner(app, owner) {
+        return Ok(());
+    }
+    let result = crate::island_shortcut::recording(app, owner, on);
+    if on {
+        result.as_ref().map_err(Clone::clone)?;
+    }
     RECORDING.store(on, Ordering::SeqCst);
-    sync_switcher(&app);
+    sync_switcher(app);
     #[cfg(windows)]
     engine::post(|_| {});
+    result
 }
 
 /// Audio priority: turns a list's automatic switching on or off, or saves

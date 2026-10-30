@@ -25,6 +25,22 @@ beforeEach(() => {
 });
 
 describe("settings window state", () => {
+  it("shows a shortcut only after Windows accepts and persists it", async () => {
+    const saving = useSettings.getState().shortcut({ shortcut: "Ctrl+Shift+KeyX" });
+    expect(useSettings.getState().prefs.island.shortcut).toBe("Ctrl+Alt+Space");
+    expect(saves[0]!.patch).toEqual({ island: { shortcut: "Ctrl+Shift+KeyX" } });
+    saves[0]!.resolve(resolve({ island: { shortcut: "Ctrl+Shift+KeyX" } }));
+    await saving;
+    expect(useSettings.getState().prefs.island.shortcut).toBe("Ctrl+Shift+KeyX");
+  });
+
+  it("leaves the saved shortcut and toggle unchanged when registration fails", async () => {
+    const saving = useSettings.getState().shortcut({ shortcut: "Ctrl+Shift+KeyX", shortcutEnabled: false });
+    saves[0]!.reject("Shortcut already taken");
+    await expect(saving).rejects.toBe("Shortcut already taken");
+    expect(useSettings.getState().prefs.island.shortcut).toBe("Ctrl+Alt+Space");
+    expect(useSettings.getState().prefs.island.shortcutEnabled).toBe(true);
+  });
   it("shows a change at once, then takes the saved value", async () => {
     useSettings.getState().island("outline", true);
     expect(useSettings.getState().prefs.island.outline).toBe(true);

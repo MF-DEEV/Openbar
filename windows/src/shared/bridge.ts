@@ -395,7 +395,7 @@ export const bridge = {
     if (!inTauri) return Promise.resolve(() => {});
     return listen<string>("bar://foreground-app", (e) => handler(e.payload));
   },
-  /** The global shortcut (Ctrl+Alt+Space). */
+  /** The configured global island shortcut. */
   onToggle(handler: () => void): Promise<UnlistenFn> {
     if (!inTauri) return Promise.resolve(() => {});
     return listen("island://toggle", () => handler());

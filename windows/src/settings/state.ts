@@ -27,6 +27,8 @@ interface SettingsState {
   loaded: boolean;
   error: string | null;
   patch(patch: PrefsPatch): void;
+  /** Global shortcuts display only what Windows accepted and saved. */
+  shortcut(change: { shortcut?: string; shortcutEnabled?: boolean }): Promise<void>;
   island<K extends keyof IslandSettings>(key: K, value: IslandSettings[K]): void;
   sessions<K extends keyof SessionPrefs>(key: K, value: SessionPrefs[K]): void;
 }
@@ -47,6 +49,10 @@ export const useSettings = create<SettingsState>((set, get) => ({
   prefs: saved,
   loaded: false,
   error: null,
+  async shortcut(change) {
+    const prefs = await setPrefs({ island: change });
+    received(prefs);
+  },
   patch(patch) {
     const id = nextId++;
     pending.push({ id, patch });

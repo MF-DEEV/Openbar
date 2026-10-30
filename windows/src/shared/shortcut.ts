@@ -71,14 +71,14 @@ export function needsModifier(event: KeyLike): boolean {
 }
 
 /** Shortcuts the island already holds (audio/switcher.rs `reserved`): its toggle, and the Sessions approval keys. */
-const RESERVED: Record<string, "island" | "sessions"> = {
-  "Ctrl+Alt+Space": "island",
+const RESERVED: Record<string, "sessions"> = {
   "Ctrl+KeyY": "sessions",
   "Ctrl+KeyN": "sessions",
   "Ctrl+KeyT": "sessions",
 };
 
-export function reservedBy(accelerator: string): "island" | "sessions" | null {
+export function reservedBy(accelerator: string, islandShortcut = "Ctrl+Alt+Space"): "island" | "sessions" | null {
+  if (formatAccelerator(accelerator) === formatAccelerator(islandShortcut)) return "island";
   return RESERVED[accelerator] ?? null;
 }
 

@@ -11,7 +11,7 @@ import { bridge } from "../shared/bridge";
 import { reservedBy } from "../shared/shortcut";
 import { S } from "./strings";
 
-export function useSwitcherShortcut(save: (accelerator: string) => void) {
+export function useSwitcherShortcut(save: (accelerator: string) => void, islandShortcut: string) {
   const [recording, setRecording] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   return {
@@ -19,14 +19,15 @@ export function useSwitcherShortcut(save: (accelerator: string) => void) {
     /** The invalid or conflict message, shown in place of the recording caption. */
     problem,
     field: {
-      onRecording(on: boolean) {
+      async onRecording(on: boolean) {
         setRecording(on);
         if (on) setProblem(null);
-        void bridge.audio.switcherRecording(on);
+        await bridge.audio.switcherRecording(on);
       },
+      onError: (error: unknown) => setProblem(String(error)),
       onInvalid: () => setProblem(S.shortcutInvalid),
       onChange(accelerator: string) {
-        const who = reservedBy(accelerator);
+        const who = reservedBy(accelerator, islandShortcut);
         setProblem(who ? S.shortcutConflict(who) : null);
         if (!who) save(accelerator);
       },

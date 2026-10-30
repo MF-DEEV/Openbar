@@ -14,10 +14,9 @@ pub const DEFAULT_SHORTCUT: &str = "Ctrl+Alt+Shift+KeyS";
 /// approval takes while it shows (sessions/globalPermissionKeys.ts).
 pub fn reserved(shortcut: &tauri_plugin_global_shortcut::Shortcut) -> bool {
     use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
-    *shortcut == crate::toggle_shortcut()
-        || [Code::KeyY, Code::KeyN, Code::KeyT]
-            .into_iter()
-            .any(|key| *shortcut == Shortcut::new(Some(Modifiers::CONTROL), key))
+    [Code::KeyY, Code::KeyN, Code::KeyT]
+        .into_iter()
+        .any(|key| *shortcut == Shortcut::new(Some(Modifiers::CONTROL), key))
 }
 
 /// ShortcutRecorderButton's rule: Ctrl, Alt or Win with the key, so a hand-
@@ -66,7 +65,6 @@ mod tests {
     #[test]
     fn the_islands_own_keys_are_reserved_and_a_modifier_is_required() {
         let parse = |s: &str| s.parse::<tauri_plugin_global_shortcut::Shortcut>().unwrap();
-        assert!(reserved(&parse("Ctrl+Alt+Space")));
         assert!(reserved(&parse("Ctrl+KeyY")));
         assert!(reserved(&parse("Ctrl+KeyT")));
         assert!(reserved(&parse("Ctrl+KeyN")));
@@ -137,14 +135,6 @@ mod tests {
                 "{accelerator} does not parse"
             );
         }
-    }
-
-    /// The pages refuse "Ctrl+Alt+Space" as the island's own toggle.
-    #[test]
-    fn the_toggle_the_pages_refuse_is_the_islands_toggle() {
-        let parsed: tauri_plugin_global_shortcut::Shortcut = "Ctrl+Alt+Space".parse().unwrap();
-        assert_eq!(parsed, crate::toggle_shortcut());
-        assert_eq!(parsed.id(), crate::toggle_shortcut().id());
     }
 
     #[test]

@@ -213,7 +213,12 @@ export const T = {
     closingCaption: "Wait this long after the pointer leaves the island before closing it.",
     shortcut: "Global shortcut",
     shortcutCaption: "Opens and closes the island from any app.",
-    shortcutTaken: "Another app already uses Ctrl+Alt+Space, so the island can't take it.",
+    shortcutTaken:
+      "The configured shortcut is unavailable. Another app may be using it; record a different combination.",
+    shortcutChange: "Change shortcut",
+    shortcutPressKeys: "Press keys…",
+    shortcutRecording: "Press a key with Ctrl or Alt, then release it. Escape or a click elsewhere cancels.",
+    shortcutInvalid: "Use Ctrl or Alt with a supported key. Windows system shortcuts and AltGr are unavailable.",
     reopening: "When reopening",
     reopeningCaption: "Where the island opens the next time.",
     lastPage: "Last page",
