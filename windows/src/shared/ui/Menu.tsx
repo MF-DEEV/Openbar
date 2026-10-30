@@ -7,7 +7,7 @@
 // closes it before anything else.
 
 import { Check, ChevronRight, type LucideIcon } from "lucide-react";
-import { type ReactNode, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { usePageLayer } from "../../island/pageLayer";
 
@@ -64,29 +64,49 @@ function frameBounds(): DOMRect {
   return frame?.getBoundingClientRect() ?? new DOMRect(0, 0, window.innerWidth, window.innerHeight);
 }
 
-export function Menu(props: { anchor: MenuAnchor; entries: MenuEntry[]; onClose(): void; nested?: boolean }) {
+export function Menu(props: {
+  anchor: MenuAnchor;
+  entries: MenuEntry[];
+  onClose(): void;
+  nested?: boolean;
+  /** Island-wide context menus can extend beyond the compact island, within the native window. */
+  bounds?: "viewport";
+  className?: string;
+}) {
   const ref = useRef<HTMLDivElement>(null);
+  const id = useId();
   const [pos, setPos] = useState<{ left: number; top: number; maxHeight?: number } | null>(null);
   const [active, setActive] = useState(-1);
   const [sub, setSub] = useState<{ index: number; anchor: MenuAnchor } | null>(null);
   usePageLayer(!props.nested, props.onClose);
 
   useLayoutEffect(() => {
+    if (props.bounds !== "viewport") return;
+    const previous = document.activeElement;
+    ref.current?.focus({ preventScroll: true });
+    return () => {
+      if (previous instanceof HTMLElement && previous.isConnected) previous.focus({ preventScroll: true });
+    };
+  }, []);
+
+  useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const bounds = frameBounds();
+    const bounds =
+      props.bounds === "viewport" ? new DOMRect(0, 0, window.innerWidth, window.innerHeight) : frameBounds();
     const w = el.offsetWidth;
     const h = el.offsetHeight;
     // A long list (every minute of a break) scrolls inside the island, its checked entry in view.
-    const room = bounds.height - 16;
+    const room = Math.max(24, bounds.height - 16);
     const maxHeight = h > room ? room : undefined;
     let left = props.anchor.alignRight ? props.anchor.x - w : props.anchor.x;
     let top = props.anchor.y;
     if (top + Math.min(h, room) > bounds.bottom - 8) top = Math.max(bounds.top + 8, bounds.bottom - 8 - h);
     if (left + w > bounds.right - 8) left = bounds.right - 8 - w;
     left = Math.max(bounds.left + 8, left);
+    top = Math.max(bounds.top + 8, top);
     setPos({ left, top, maxHeight });
-  }, [props.anchor.x, props.anchor.y, props.anchor.alignRight]);
+  }, [props.anchor.x, props.anchor.y, props.anchor.alignRight, props.bounds]);
 
   // A scrolling menu opens on its checked entry and follows the keyboard.
   useLayoutEffect(() => {
@@ -103,6 +123,9 @@ export function Menu(props: { anchor: MenuAnchor; entries: MenuEntry[]; onClose(
   useEffect(() => {
     if (props.nested) return;
     const outside = (e: PointerEvent) => {
+      // The viewport backdrop closes on click, after mouse-up. Keeping capture
+      // through mouse-down prevents the native outside-click watcher seeing the same click.
+      if (props.bounds === "viewport") return;
       if (!(e.target as Element).closest?.(".u-menu")) props.onClose();
     };
     const key = (e: KeyboardEvent) => {
@@ -122,7 +145,7 @@ export function Menu(props: { anchor: MenuAnchor; entries: MenuEntry[]; onClose(
           if (selectable(i)) break;
         }
         setActive(i);
-      } else if (e.key === "Enter" && active >= 0) {
+      } else if ((e.key === "Enter" || e.key === " ") && active >= 0) {
         e.preventDefault();
         e.stopPropagation();
         const it = items[active];
@@ -146,7 +169,9 @@ export function Menu(props: { anchor: MenuAnchor; entries: MenuEntry[]; onClose(
     <div
       ref={ref}
       role="menu"
-      className="u-menu"
+      tabIndex={-1}
+      aria-activedescendant={active >= 0 ? `${id}-${active}` : undefined}
+      className={`u-menu${props.className ? ` ${props.className}` : ""}`}
       style={
         pos
           ? { left: pos.left, top: pos.top, maxHeight: pos.maxHeight, overflowY: pos.maxHeight ? "auto" : undefined }
@@ -166,11 +191,13 @@ export function Menu(props: { anchor: MenuAnchor; entries: MenuEntry[]; onClose(
         return (
           <button
             key={i}
+            id={`${id}-${i}`}
             type="button"
             role={entry.checked !== undefined ? "menuitemcheckbox" : "menuitem"}
             aria-checked={entry.checked}
             disabled={entry.disabled}
             className={`u-menu-item${entry.destructive ? " is-destructive" : ""}${active === i ? " is-active" : ""}`}
+            onFocus={() => setActive(i)}
             onPointerEnter={(e) => {
               setActive(i);
               if (entry.submenu) {
@@ -206,7 +233,24 @@ export function Menu(props: { anchor: MenuAnchor; entries: MenuEntry[]; onClose(
       ) : null}
     </div>
   );
-  return props.nested ? body : createPortal(body, document.body);
+  return props.nested
+    ? body
+    : createPortal(
+        <>
+          {props.bounds === "viewport" ? (
+            <div
+              className="u-menu-backdrop"
+              onClick={props.onClose}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                props.onClose();
+              }}
+            />
+          ) : null}
+          {body}
+        </>,
+        document.body,
+      );
 }
 
 /** A button that opens a dropdown menu below itself. */
