@@ -134,17 +134,33 @@ struct Found<'a> {
 fn install_root(cli: &Path, editor: &Editor) -> Option<PathBuf> {
     cli.ancestors()
         .skip(1)
-        .take(4)
+        .take(5)
         .find(|folder| editor.exes.iter().any(|exe| folder.join(exe).is_file()))
         .map(Path::to_path_buf)
 }
 
+/// product.json sits in the install folder, or since VS Code 1.144 in a folder
+/// named after the build inside it.
+fn product_files(root: &Path) -> Vec<PathBuf> {
+    let inside = std::fs::read_dir(root)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .map(|entry| entry.path());
+    std::iter::once(root.to_path_buf())
+        .chain(inside)
+        .map(|folder| folder.join("resources").join("app").join("product.json"))
+        .filter(|file| file.is_file())
+        .collect()
+}
+
 /// `~/<dataFolderName>/extensions`, which is how the editors themselves work it out.
 fn extensions_folder(home: &Path, root: &Path, editor: &Editor) -> PathBuf {
-    let named = std::fs::read(root.join("resources").join("app").join("product.json"))
-        .ok()
-        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
-        .and_then(|product| product["dataFolderName"].as_str().map(str::to_owned))
+    let named = product_files(root)
+        .iter()
+        .filter_map(|file| std::fs::read(file).ok())
+        .filter_map(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+        .find_map(|product| product["dataFolderName"].as_str().map(str::to_owned))
         // Only ever a folder directly under the home folder.
         .filter(|name| {
             let mut parts = Path::new(name).components();
@@ -605,6 +621,24 @@ mod tests {
             places.home.join(".antigravity-custom/extensions")
         );
         assert!(find(editor("windsurf"), &places).is_none());
+    }
+
+    #[test]
+    fn reads_the_data_folder_from_a_build_folder() {
+        let pc = Pc::new("build-folder");
+        let root = pc.editor("Windsurf", "Windsurf.exe", "bin/windsurf.cmd");
+        fs::create_dir_all(root.join("2c33b50b16/resources/app")).unwrap();
+        fs::write(
+            root.join("2c33b50b16/resources/app/product.json"),
+            r#"{"dataFolderName":".windsurf-next"}"#,
+        )
+        .unwrap();
+        let places = pc.places();
+        let found = find(editor("windsurf"), &places).unwrap();
+        assert_eq!(
+            found.extensions,
+            places.home.join(".windsurf-next/extensions")
+        );
     }
 
     #[test]
