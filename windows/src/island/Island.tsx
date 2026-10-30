@@ -28,6 +28,9 @@ import { ActivityPicker } from "./views/ActivityPicker";
 import { useSessions } from "../sessions/store";
 import { presentedSnapshot } from "../sessions/presentation";
 import { DropHint } from "../files/DropHint";
+import { useBattery } from "./battery";
+import { visibleIdleContent } from "./idle";
+import { useMusic } from "../music/store";
 import { CapturePresentation } from "../screenshot-preview/CapturePresentation";
 
 function useWindowScreen() {
@@ -171,7 +174,10 @@ export function Island() {
   const measured: Size | undefined = state.notice
     ? { width: noticeWidth(state.notice, geometry), height: geometry.stripHeight }
     : undefined;
-  const shown = presentation(state, geometry, measured);
+  const battery = useBattery((s) => s.battery);
+  const playing = useMusic((s) => s.playback?.isPlaying ?? false);
+  const idleContent = visibleIdleContent(state.settings, battery, playing);
+  const shown = presentation(state, geometry, measured, idleContent);
   const waiting = useSessions((s) => presentedSnapshot(s).counts.waiting);
   useEffect(() => {
     void bridge.attention.compactSessions(
@@ -224,7 +230,7 @@ export function Island() {
       content = <ActivityPicker geometry={geometry} size={shown.size} visible={false} />;
       break;
     default:
-      content = <Resting size={shown.size} />;
+      content = <Resting size={shown.size} geometry={geometry} idleContent={idleContent} />;
   }
 
   // Hidden until hover: the closed island stays where it is (the pointer

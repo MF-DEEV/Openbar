@@ -197,6 +197,25 @@ export function focusedLimit(limits: Limits | undefined, focus: LimitFocus, now:
   return binding(limits, now);
 }
 
+/** Most spent chosen window across accounts; binding windows if none reports that kind. */
+export function restingLimit(snapshot: AgentSnapshot, focus: LimitFocus, now: number) {
+  const limits = [
+    ...Object.values(snapshot.limits),
+    ...snapshot.codexAccounts.flatMap((account) => (account.limits ? [account.limits] : [])),
+  ];
+  const mostSpent = (chosen: boolean) =>
+    limits
+      .flatMap((limits) => {
+        const raw =
+          chosen && focus !== "mostUsed"
+            ? limits.windows.find((window) => window.kind === focus && window.scope === null)
+            : binding(limits, now);
+        return raw ? [{ provider: limits.provider, window: current(raw, now) }] : [];
+      })
+      .sort((a, b) => b.window.usedPercent - a.window.usedPercent || a.provider.localeCompare(b.provider))[0] ?? null;
+  return mostSpent(true) ?? mostSpent(false);
+}
+
 /** Two rows fit: the session and whichever longer window binds first. */
 export function cardWindows(limits: Limits | undefined, now: number): LimitWindow[] {
   const all = (limits?.windows ?? []).map((w) => current(w, now));
