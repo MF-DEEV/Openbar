@@ -10,6 +10,7 @@
 // The service and the UI that call these land separately.
 #![allow(dead_code)]
 
+pub mod agent_colors;
 pub mod attachments;
 pub mod codex;
 pub mod engine;
