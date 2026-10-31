@@ -1051,9 +1051,8 @@
   font-size: 10.5px;
 }
 
-/* A plan is prose read through before approving: the UI font, more room. */
+/* A plan is prose, read in the interface's font. */
 .s-detail.is-plan {
-  max-height: 220px;
   font-family: inherit;
   line-height: 1.45;
 }

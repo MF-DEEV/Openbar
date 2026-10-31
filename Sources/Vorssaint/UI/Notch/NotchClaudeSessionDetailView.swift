@@ -375,7 +375,7 @@ struct NotchClaudeSessionPermissionCard: View {
     /// A tool's request, read whole and allowed or denied.
     @ViewBuilder private var request: some View {
         if let detail = session.permission?.detail, !detail.isEmpty {
-            // A plan is prose read through before approving; it gets more room.
+            // A plan is prose, read in the interface's font.
             let plan = session.permission?.tool == ClaudeToolSummary.planTool
             // The whole request, every line of it, so nothing is allowed unread.
             ScrollView {
@@ -386,7 +386,7 @@ struct NotchClaudeSessionPermissionCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxHeight: plan ? 220 : 120)
+            .frame(maxHeight: 120)
             .padding(8)
             .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         }

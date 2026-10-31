@@ -88,7 +88,7 @@ function ToolRequest({ session }: { session: Session }) {
   const p = session.permission!;
   const ready = useSettled(p.requestId);
   const decide = useSessions((s) => s.decide);
-  // A plan is prose read through before approving; it gets more room.
+  // A plan is prose, read in the interface's font.
   const plan = p.tool === PLAN_TOOL;
   useEffect(() => {
     const unsubscribe = subscribeGlobalPermissionKeys(session.id, p.requestId);
