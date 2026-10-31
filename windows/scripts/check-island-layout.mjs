@@ -15,6 +15,7 @@ import { checkAutoAllow } from "./auto-allow-cases.mjs";
 import { checkMusicLyrics } from "./music-lyrics-cases.mjs";
 import { checkSessionNotice } from "./session-notice-cases.mjs";
 import { checkNotificationPreview } from "./notification-preview-cases.mjs";
+import { checkAllDisplays } from "./all-displays-cases.mjs";
 import { checkDownloads } from "./downloads-cases.mjs";
 import { checkIdleContent } from "./idle-content-cases.mjs";
 import { checkIslandShortcut } from "./island-shortcut-cases.mjs";
@@ -130,6 +131,8 @@ try {
     await checkSessionNotice({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--downloads")) {
     await checkDownloads({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--all-displays")) {
+    await checkAllDisplays({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--notification-preview")) {
     await checkNotificationPreview({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--auto-allow")) {

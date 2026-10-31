@@ -34,7 +34,9 @@ describe("stored preferences of the wrong shape", () => {
   });
 
   it("read unknown choices and wrong types as the default", () => {
-    const p = resolve(stored({ opening: "bogus", display: "all", silhouette: 3, hoverDelay: "fast", outline: "yes" }));
+    const p = resolve(
+      stored({ opening: "bogus", display: "elsewhere", silhouette: 3, hoverDelay: "fast", outline: "yes" }),
+    );
     expect(p.island.opening).toBe("click");
     expect(p.island.display).toBe("primary");
     expect(p.island.silhouette).toBe(DEFAULT_SETTINGS.silhouette);
@@ -54,5 +56,11 @@ describe("stored preferences of the wrong shape", () => {
     mergePatch(into, { island: { hiddenModules: null, outline: true } });
     expect(into).toEqual({ island: { outline: true } });
     expect(resolve(into as StoredPrefs).island.hiddenModules).toEqual([]);
+  });
+});
+
+describe("Show on", () => {
+  it("keeps All displays", () => {
+    expect(resolve({ island: { display: "all" } }).island.display).toBe("all");
   });
 });

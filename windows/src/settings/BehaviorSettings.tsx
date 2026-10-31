@@ -109,6 +109,7 @@ export function BehaviorSettings() {
             options={[
               { value: "primary", label: T.behavior.displayPrimary },
               { value: "cursor", label: T.behavior.displayCursor },
+              { value: "all", label: T.behavior.displayAll },
             ]}
           />
         </Row>
