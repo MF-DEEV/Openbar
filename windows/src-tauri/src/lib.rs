@@ -28,6 +28,7 @@ mod ocr;
 mod power_saver;
 mod prefs;
 mod scratchpad;
+mod session_lock;
 mod sessions;
 mod settings;
 mod shell;
@@ -101,6 +102,13 @@ pub fn remove_hooks_main() -> ! {
     })
 }
 
+/// `Vorssaint.exe --remove-ide-bridge`: the uninstaller takes the IDE bridge
+/// extension out of every editor that has it.
+pub fn remove_ide_bridge_main() -> ! {
+    hosts::bridge_installer::remove_everywhere();
+    std::process::exit(0)
+}
+
 /// `Vorssaint.exe --codex-probe`: prints what Codex's app-server tells the island.
 pub fn codex_probe_main() -> ! {
     sessions::codex::client::probe()
@@ -161,6 +169,8 @@ pub fn run() {
             fullscreen::attention_context,
             fullscreen::attention_compact_sessions,
             settings::open_settings,
+            hosts::bridge_installer::ide_bridge_status,
+            hosts::bridge_installer::ide_bridge_install,
             hooks::claude_hooks_status,
             hooks::claude_hooks_install,
             hooks::claude_hooks_remove,
@@ -295,6 +305,8 @@ pub fn run() {
             app.manage(files::Files::load(app.handle()));
             // Followed before the island exists, so its first power_saver_on has it.
             power_saver::start(app.handle().clone());
+            std::thread::spawn(hosts::bridge_installer::update_outdated);
+            session_lock::start(app.handle().clone());
             battery::start(app.handle().clone());
             island::create(app.handle())?;
             files::install(app.handle());

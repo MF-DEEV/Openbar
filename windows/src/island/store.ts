@@ -30,6 +30,7 @@ import {
   sectionEnabled,
 } from "./settings";
 import type { Provider, SessionEvent } from "../sessions/types";
+import type { MascotReaction } from "../mascot/model";
 
 export interface Notice {
   id: string;
@@ -56,6 +57,8 @@ export interface Notice {
   session?: { id: string; provider: Provider; event: SessionEvent["kind"] };
   /** Runs once a tap has opened `opens`: a session notice focuses its session. */
   onOpen?: () => void;
+  /** With the companion on, it stands in the symbol slot and plays this (NotchNotice.mascot). */
+  mascot?: MascotReaction;
 }
 
 /** Live activities in the Mac's priority order (NotchSupport.swift:1791-1799). */
@@ -512,6 +515,7 @@ export function presentation(
   geometry: Geometry,
   measuredNotice?: Size,
   idleContent: IdleContent = "none",
+  mascotShown = false,
 ): Presentation {
   if (s.expanded) {
     if (s.capturePreview) {
@@ -586,7 +590,7 @@ export function presentation(
       hasRow: false,
     };
   }
-  const rest = restingSize(geometry, idleContent !== "none");
+  const rest = restingSize(geometry, idleContent !== "none" || mascotShown);
   return {
     kind: "resting",
     key: "resting",

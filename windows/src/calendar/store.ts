@@ -94,6 +94,14 @@ export function currentCountdown(now = Date.now()): Countdown | null {
   return countdown(current, now, followOf(useIsland.getState().settings));
 }
 
+/** Whether the event counted down to began just now, as NotchMascotSupport.eventBegan: a PC that slept through the start, or an event moved or removed before it, is no news. */
+export function countdownStarted(before: Countdown | null, after: Countdown | null, now: number): boolean {
+  if (!before || before.ongoing) return false;
+  const since = (now - before.event.start) / 1000;
+  if (since < -2 || since >= 60) return false;
+  return !after || after.event.id !== before.event.id || after.ongoing;
+}
+
 export function receive(snapshot: CalendarSnapshot) {
   useCalendar.setState({ ...snapshot, received: true, loading: false });
   if (snapshot.access === "allowed") forgetEndedChoices(snapshot.current);

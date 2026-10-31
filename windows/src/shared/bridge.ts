@@ -6,7 +6,7 @@
 // island can be developed and screenshotted without the app around it.
 
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { register, unregister, type ShortcutEvent } from "@tauri-apps/plugin-global-shortcut";
 import type { Decision, ReplyAttachment, ReplyFailure, SessionEvent, Snapshot } from "../sessions/types";
 import type { MusicCommand, NowPlaying } from "../music/types";
@@ -318,6 +318,35 @@ export const bridge = {
     onSaver(handler: (on: boolean) => void): Promise<UnlistenFn> {
       if (!inTauri) return Promise.resolve(() => {});
       return listen<boolean>("power://saver", (e) => handler(e.payload));
+    },
+  },
+  session: {
+    /** The session was unlocked (WTS_SESSION_UNLOCK). */
+    onUnlock(handler: () => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen("session://unlocked", () => handler());
+    },
+  },
+  mascot: {
+    /** Settings asks the island's companion to say hello; answers whether it had room to. */
+    async greet(): Promise<boolean> {
+      if (!inTauri) return false;
+      const answered = new Promise<boolean>((resolve) => {
+        const off = listen<boolean>("mascot://greeted", (e) => {
+          void off.then((f) => f());
+          resolve(e.payload);
+        });
+        setTimeout(() => {
+          void off.then((f) => f());
+          resolve(false);
+        }, 400);
+        void off.then(() => emit("mascot://greet"));
+      });
+      return answered;
+    },
+    onGreet(handler: () => boolean): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen("mascot://greet", () => void emit("mascot://greeted", handler()));
     },
   },
   brightness: {

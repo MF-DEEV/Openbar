@@ -11,6 +11,7 @@ mod archive;
 mod claude;
 mod claude_app;
 mod cli;
+pub(crate) use cli::search_path;
 mod codex;
 mod files;
 mod model;
