@@ -104,7 +104,7 @@ final class ClaudeSessionService: ObservableObject {
     private var codexTerminals: [(pid: Int32, cwd: String)] = []
     /// Permission requests whose hook waits for the island's answer.
     private var pending: [String: (connection: ClaudeHookServer.Connection, session: String, suggestions: Any?,
-                                   question: [String: Any]?, since: Date)] = [:]
+                                   question: [String: Any]?, approved: [String: Any]?, since: Date)] = [:]
     /// Claude Code gives up on a hook after its timeout; the island lets go first.
     private static let permissionDeadline: TimeInterval = TimeInterval(ClaudeHookInstaller.permissionTimeout - 10)
 
@@ -294,7 +294,8 @@ final class ClaudeSessionService: ObservableObject {
             case .deny: break
             }
             pending[request] = nil
-            asked.connection.finish(ClaudeHookMessage.reply(decision, suggestions: asked.suggestions, input: asked.question))
+            asked.connection.finish(ClaudeHookMessage.reply(decision, suggestions: asked.suggestions, input: asked.question,
+                                                                   approved: asked.approved))
             engine.resolvePermission(requestID: request)
             engine.acknowledge(id, now: Date())
             publish(now: Date())
@@ -444,7 +445,8 @@ final class ClaudeSessionService: ObservableObject {
         }
         if let transcript = message.transcript, !transcript.isEmpty { transcripts[message.fact.sessionID] = transcript }
         if message.isPermissionRequest {
-            pending[request] = (connection, message.fact.sessionID, message.suggestions, message.questionInput, now)
+            pending[request] = (connection, message.fact.sessionID, message.suggestions, message.questionInput,
+                                message.approvalInput, now)
         } else {
             connection.finish()
         }

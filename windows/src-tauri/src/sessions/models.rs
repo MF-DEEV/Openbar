@@ -786,6 +786,8 @@ pub mod tool_summary {
     pub const LIMIT: usize = 80;
     pub const QUICK_DECISION_LIMIT: usize = 60;
     pub const DETAIL_LIMIT: usize = 8000;
+    /// The tool Claude Code calls to have its plan approved.
+    pub const PLAN_TOOL: &str = "ExitPlanMode";
 
     /// A one-line reading of a tool call, built only from the fields that say
     /// what it touches.
@@ -812,6 +814,10 @@ pub mod tool_summary {
             "WebSearch" => text("query"),
             "Task" | "Agent" => text("description"),
             "Skill" => text("skill"),
+            // The plan's first line, its title without the heading marks.
+            PLAN_TOOL => text("plan")
+                .map(|line| trim(line.trim_start_matches('#')).to_owned())
+                .filter(|title| !title.is_empty()),
             _ => text("description"),
         }
     }
@@ -836,6 +842,7 @@ pub mod tool_summary {
                 .or_else(|| string("notebook_path"))
                 .unwrap_or_else(|| arguments(input)),
             "WebFetch" => string("url").unwrap_or_else(|| arguments(input)),
+            PLAN_TOOL => string("plan").unwrap_or_else(|| arguments(input)),
             _ => arguments(input),
         };
         let trimmed = trim(&text);

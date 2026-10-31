@@ -24,6 +24,10 @@ struct NotchClaudeSessionStrings {
     let cancelAlways: String
     let cancelAlwaysHelp: String
     let deny: String
+    /// A plan Claude asks to have approved, and its two answers.
+    let plan: String
+    let approvePlan: String
+    let keepPlanning: String
     let answerInTerminal: String
     let question: String
     let questionCodex: String
@@ -190,6 +194,9 @@ extension NotchClaudeSessionStrings {
         cancelAlways: "Cancel",
         cancelAlwaysHelp: "Stop allowing this task’s requests by itself.",
         deny: "Deny",
+        plan: "Plan to approve",
+        approvePlan: "Approve",
+        keepPlanning: "Keep planning",
         answerInTerminal: "Answer this one in the terminal.",
         question: "Claude asks",
         questionCodex: "Codex asks",

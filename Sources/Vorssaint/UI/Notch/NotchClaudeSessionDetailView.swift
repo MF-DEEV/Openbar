@@ -368,16 +368,19 @@ struct NotchClaudeSessionPermissionCard: View {
         if session.permission?.asksQuestions == true { return text.question(for: session.provider) }
         // Codex waits on a request the island can't answer; the card's body says to answer it there.
         if session.waitingFor == CodexSessionState.answerInTerminal { return text.phase(session.phase) }
+        if session.permission?.tool == ClaudeToolSummary.planTool { return text.plan }
         return session.permission?.tool ?? session.currentTool?.name ?? session.waitingFor ?? text.phase(session.phase)
     }
 
     /// A tool's request, read whole and allowed or denied.
     @ViewBuilder private var request: some View {
         if let detail = session.permission?.detail, !detail.isEmpty {
+            // A plan is prose, read in the interface's font.
+            let plan = session.permission?.tool == ClaudeToolSummary.planTool
             // The whole request, every line of it, so nothing is allowed unread.
             ScrollView {
                 Text(detail)
-                    .font(.system(size: 11, design: .monospaced))
+                    .font(.system(size: 11, design: plan ? .default : .monospaced))
                     .foregroundStyle(.white.opacity(0.9))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -389,7 +392,8 @@ struct NotchClaudeSessionPermissionCard: View {
         }
         HStack(spacing: 6) {
             if let permission = session.permission {
-                NotchClaudeDecisionButton(title: text.deny, symbol: "xmark", role: .deny) {
+                let plan = permission.tool == ClaudeToolSummary.planTool
+                NotchClaudeDecisionButton(title: plan ? text.keepPlanning : text.deny, symbol: "xmark", role: .deny) {
                     service.decide(session.id, request: permission.requestID, .deny)
                 }
                 .disabled(settling)
@@ -404,7 +408,7 @@ struct NotchClaudeSessionPermissionCard: View {
                     }
                     .disabled(settling)
                 }
-                NotchClaudeDecisionButton(title: text.allow, symbol: "checkmark", role: .allow) {
+                NotchClaudeDecisionButton(title: plan ? text.approvePlan : text.allow, symbol: "checkmark", role: .allow) {
                     service.decide(session.id, request: permission.requestID, .allow)
                 }
                 .disabled(settling)

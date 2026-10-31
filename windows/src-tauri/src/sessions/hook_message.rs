@@ -26,7 +26,14 @@ pub struct HookMessage {
     pub suggestions: Option<Value>,
     /// The input of a question, handed back whole with the answers.
     pub question_input: Option<Map<String, Value>>,
+    /// The input of a tool Claude Code runs only when the allow hands its
+    /// input back, as the plan of ExitPlanMode.
+    pub approval_input: Option<Map<String, Value>>,
 }
+
+/// Tools whose allow counts only with their input in it: a bare allow
+/// leaves the terminal dialog open, and the island would have let go.
+pub const APPROVED_WITH_INPUT: &[&str] = &[tool_summary::PLAN_TOOL];
 
 impl HookMessage {
     pub fn is_permission_request(&self) -> bool {
@@ -57,6 +64,7 @@ impl HookMessage {
             .map(str::to_owned);
         let mut suggestions = None;
         let mut question_input = None;
+        let mut approval_input = None;
         // Subagent events name the subagent they are about; any other event
         // carrying an agent comes from inside that subagent.
         let mut from = agent.clone();
@@ -112,6 +120,9 @@ impl HookMessage {
                 };
                 if !questions.is_empty() {
                     question_input = Some(input.clone());
+                }
+                if APPROVED_WITH_INPUT.contains(&tool) {
+                    approval_input = Some(input.clone());
                 }
                 HookEvent::PermissionRequested(Permission {
                     request_id: request_id.to_owned(),
@@ -170,6 +181,7 @@ impl HookMessage {
             transcript: str_of(json.get("transcript_path")).map(str::to_owned),
             suggestions,
             question_input,
+            approval_input,
         })
     }
 }
@@ -186,17 +198,22 @@ pub enum Decision {
 pub const DENY_MESSAGE: &str = "Denied from the Dynamic Island.";
 pub const SKIP_MESSAGE: &str =
     "The user skipped the question from the Dynamic Island without answering.";
+pub const PLAN_DENY_MESSAGE: &str = "The user did not approve the plan from the Dynamic Island. Stay in plan mode and ask what to change.";
 
 /// What the hook prints for Claude Code, with sorted keys. Always adds the
 /// rules Claude Code offered, so it stops asking for the same thing. Answers
 /// go back in the question's own input, unchanged but for them. Empty when
 /// there is no question input to answer, which leaves the terminal to ask.
+///
+/// A tool that runs only with its input handed back, as a plan, gets it
+/// back unchanged with an allow.
 pub fn reply(
     decision: &Decision,
     suggestions: Option<&Value>,
     input: Option<&Map<String, Value>>,
+    approved: Option<&Map<String, Value>>,
 ) -> Vec<u8> {
-    let body = match decision {
+    let mut body = match decision {
         Decision::Allow => json!({"behavior": "allow"}),
         Decision::AllowAlways => {
             let mut body = Map::new();
@@ -207,7 +224,14 @@ pub fn reply(
             Value::Object(body)
         }
         Decision::Deny => {
-            json!({"behavior": "deny", "message": if input.is_none() { DENY_MESSAGE } else { SKIP_MESSAGE }})
+            let message = if input.is_some() {
+                SKIP_MESSAGE
+            } else if approved.is_some() {
+                PLAN_DENY_MESSAGE
+            } else {
+                DENY_MESSAGE
+            };
+            json!({"behavior": "deny", "message": message})
         }
         Decision::Answer(answers) => {
             let Some(input) = input else {
@@ -231,6 +255,11 @@ pub fn reply(
             json!({"behavior": "allow", "updatedInput": Value::Object(updated)})
         }
     };
+    if let (Decision::Allow | Decision::AllowAlways, Some(approved), Some(body)) =
+        (decision, approved, body.as_object_mut())
+    {
+        body.insert("updatedInput".into(), Value::Object(approved.clone()));
+    }
     let output =
         json!({"hookSpecificOutput": {"hookEventName": "PermissionRequest", "decision": body}});
     canonical_json(&output).into_bytes()
@@ -578,28 +607,28 @@ mod tests {
         };
         assert!(unnamed.tool == "Tool" && !unnamed.offers_always && unnamed.summary.is_none());
 
-        let allow = output(&reply(&Decision::Allow, None, None));
+        let allow = output(&reply(&Decision::Allow, None, None, None));
         assert!(
             allow["hookEventName"] == "PermissionRequest"
                 && allow["decision"]["behavior"] == "allow"
         );
-        let deny = output(&reply(&Decision::Deny, None, None));
+        let deny = output(&reply(&Decision::Deny, None, None, None));
         assert!(
             deny["decision"]["behavior"] == "deny" && deny["decision"]["message"] == DENY_MESSAGE
         );
         let offered = json!([{"type": "addRules"}]);
-        let always = output(&reply(&Decision::AllowAlways, Some(&offered), None));
+        let always = output(&reply(&Decision::AllowAlways, Some(&offered), None, None));
         assert_eq!(
             always["decision"]["updatedPermissions"][0]["type"], "addRules",
             "always hands back the rules offered"
         );
         assert!(
-            output(&reply(&Decision::AllowAlways, None, None))["decision"]
+            output(&reply(&Decision::AllowAlways, None, None, None))["decision"]
                 .get("updatedPermissions")
                 .is_none()
         );
         assert_eq!(
-            String::from_utf8(reply(&Decision::Allow, None, None)).unwrap(),
+            String::from_utf8(reply(&Decision::Allow, None, None, None)).unwrap(),
             r#"{"hookSpecificOutput":{"decision":{"behavior":"allow"},"hookEventName":"PermissionRequest"}}"#,
             "keys go out sorted"
         );
@@ -635,6 +664,68 @@ mod tests {
     }
 
     // ClaudeHookTests.swift questions.
+    // ClaudeHookTests.swift plans.
+    #[test]
+    fn plans() {
+        // As Claude Code 2.1.316 sends it: no suggestions, the plan and its file.
+        let message = decode(
+            &format!(
+                r##"{{{BASE},"permission_mode":"plan","hook_event_name":"PermissionRequest","tool_name":"ExitPlanMode","tool_input":{{"plan":"# Partnerstwa w wydarzeniach\n\n1. Dodać tabelę","planFilePath":"C:\\Users\\me\\.claude\\plans\\p.md"}}}}"##
+            ),
+            false,
+        )
+        .expect("a plan decodes");
+        let HookEvent::PermissionRequested(ask) = &message.fact.event else {
+            panic!("a plan decodes as a request")
+        };
+        assert!(
+            ask.tool == "ExitPlanMode" && !ask.offers_always && !ask.asks_questions(),
+            "a plan is a request allowed or denied, never for good"
+        );
+        assert_eq!(
+            ask.summary.as_deref(),
+            Some("Partnerstwa w wydarzeniach"),
+            "it reads as its title"
+        );
+        assert_eq!(
+            ask.detail, "# Partnerstwa w wydarzeniach\n\n1. Dodać tabelę",
+            "the card shows the plan itself, not its file"
+        );
+        let original = message.approval_input.clone().unwrap_or_default();
+        assert!(
+            original["plan"] == "# Partnerstwa w wydarzeniach\n\n1. Dodać tabelę"
+                && original["planFilePath"] == "C:\\Users\\me\\.claude\\plans\\p.md"
+                && message.question_input.is_none(),
+            "the plan's input is kept to hand back with the approval"
+        );
+
+        // Claude Code drops a bare allow for a plan and keeps the terminal
+        // dialog open; only an allow carrying the input approves it.
+        let approved = output(&reply(&Decision::Allow, None, None, Some(&original)));
+        assert!(
+            approved["decision"]["behavior"] == "allow"
+                && approved["decision"]["updatedInput"] == Value::Object(original.clone()),
+            "approving hands the plan back unchanged"
+        );
+        let kept = output(&reply(&Decision::Deny, None, None, Some(&original)));
+        assert!(
+            kept["decision"]["behavior"] == "deny"
+                && kept["decision"]["message"] == PLAN_DENY_MESSAGE
+                && kept["decision"].get("updatedInput").is_none(),
+            "keeping on planning tells Claude the plan was not approved"
+        );
+
+        let bash = decode(
+            &format!(r#"{{{BASE},"hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{{"command":"ls"}}}}"#),
+            false,
+        )
+        .expect("a request decodes");
+        assert!(
+            bash.approval_input.is_none(),
+            "other tools are allowed without their input"
+        );
+    }
+
     #[test]
     fn questions() {
         let message = question_message();
@@ -707,7 +798,12 @@ mod tests {
             ),
         ]
         .into();
-        let answered = output(&reply(&Decision::Answer(picked), None, Some(&original)));
+        let answered = output(&reply(
+            &Decision::Answer(picked),
+            None,
+            Some(&original),
+            None,
+        ));
         let decision = &answered["decision"];
         let updated = &decision["updatedInput"];
         assert!(
@@ -721,7 +817,7 @@ mod tests {
             canonical_json(&original["questions"]),
             "the questions go back exactly as Claude asked them"
         );
-        let skipped = output(&reply(&Decision::Deny, None, Some(&original)));
+        let skipped = output(&reply(&Decision::Deny, None, Some(&original), None));
         assert!(
             skipped["decision"]["behavior"] == "deny"
                 && skipped["decision"]["message"] == SKIP_MESSAGE,
@@ -729,7 +825,7 @@ mod tests {
         );
         let lone: BTreeMap<String, Vec<String>> = [("x".to_owned(), vec!["y".to_owned()])].into();
         assert!(
-            reply(&Decision::Answer(lone), None, None).is_empty(),
+            reply(&Decision::Answer(lone), None, None, None).is_empty(),
             "answers with no question to hand back leave the terminal to ask"
         );
 

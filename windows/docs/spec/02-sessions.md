@@ -327,6 +327,8 @@ Questions are parsed by `ClaudeQuestion.questions(in:)` (`ClaudeSessionModels.sw
 | Deny (tool) | `{"behavior":"deny","message":"Denied from the Dynamic Island."}` |
 | Skip (question) | `{"behavior":"deny","message":"The user skipped the question from the Dynamic Island without answering."}` |
 | Answer (AskUserQuestion) | `{"behavior":"allow","updatedInput":{ …original tool_input unchanged…, "answers":{"<question text>":"<label or own text>","<multi question>":["A","C"]}}}` |
+| Approve (ExitPlanMode) | `{"behavior":"allow","updatedInput":{ …original tool_input unchanged: plan, planFilePath… }}` — Claude Code 2.1.316 ignores a bare allow for a plan and keeps its terminal dialog open |
+| Keep planning (ExitPlanMode) | `{"behavior":"deny","message":"The user did not approve the plan from the Dynamic Island. Stay in plan mode and ask what to change."}` |
 
 Answer rules:
 - Answers are keyed by the **question text**. A single answer is a string; several are an array. If there is no original input to echo back, the reply is empty, which defers to the terminal.
