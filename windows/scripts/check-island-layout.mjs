@@ -21,6 +21,7 @@ import { checkMusicSources } from "./music-source-cases.mjs";
 import { checkCamera } from "./camera-cases.mjs";
 import { checkMusicEqualizer } from "./music-equalizer-cases.mjs";
 import { checkMusicOpenPlayer } from "./music-open-player-cases.mjs";
+import { checkIslandContextMenu } from "./island-context-menu-cases.mjs";
 import { checkMascot } from "./mascot-cases.mjs";
 
 const browserPath = [
@@ -90,7 +91,9 @@ try {
     mobile: false,
   });
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
-  if (process.argv.includes("--music-sources")) {
+  if (process.argv.includes("--context-menu")) {
+    await checkIslandContextMenu({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--music-sources")) {
     await checkMusicSources({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--music-equalizer")) {
     await checkMusicEqualizer({ send, evaluate, base: server.resolvedUrls.local[0] });

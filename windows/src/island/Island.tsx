@@ -32,6 +32,7 @@ import { useBattery } from "./battery";
 import { visibleIdleContent } from "./idle";
 import { useMusic } from "../music/store";
 import { CapturePresentation } from "../screenshot-preview/CapturePresentation";
+import { useIslandContextMenu } from "./contextMenu";
 import { mascotShows, useMascot } from "../mascot/service";
 
 function useWindowScreen() {
@@ -69,11 +70,12 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
     if (!el) return;
     const onDown = (e: MouseEvent) => {
       const s = useIsland.getState();
+      if (s.held) return;
       if (
         s.expanded &&
         !s.capturePreview &&
         !s.pinned &&
-        !(e.target as Element).closest(".island-frame, .n-quick, .u-menu")
+        !(e.target as Element).closest(".island-frame, .n-quick, .u-menu, .u-menu-backdrop")
       )
         s.collapse();
       else if (s.activityPickerOpen && !(e.target as Element).closest(".island-frame")) s.dismissActivityPicker();
@@ -94,6 +96,11 @@ function useKeyboard() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const s = useIsland.getState();
+      if (e.defaultPrevented) return;
+      if (e.key === "Escape" && !e.isComposing && closeTopLayer()) {
+        e.preventDefault();
+        return;
+      }
       if (!s.expanded) {
         if (e.key === "Escape" && !e.isComposing && showsActivityPicker(s)) {
           e.preventDefault();
@@ -103,7 +110,7 @@ function useKeyboard() {
       }
       if (e.key === "Escape" && !e.isComposing) {
         e.preventDefault();
-        if (!closeTopLayer()) s.stepBack();
+        s.stepBack();
         return;
       }
       if (e.ctrlKey && !e.altKey && e.key.toLowerCase() === "k") {
@@ -139,15 +146,15 @@ function useKeyboard() {
 }
 
 /** The window takes the keyboard while the island is open, and gives it back when it closes. */
-function useFocus() {
+function useFocus(menuOpen: boolean) {
   const expanded = useIsland((s) => s.expanded || s.activityPickerOpen);
   const focusRequest = useIsland((s) => s.focusRequest);
   const previousRequest = useRef(focusRequest);
   useEffect(() => {
-    const take = expanded && focusRequest !== previousRequest.current;
+    const take = menuOpen || (expanded && focusRequest !== previousRequest.current);
     previousRequest.current = focusRequest;
-    void bridge.setFocusable(expanded, take);
-  }, [expanded, focusRequest]);
+    void bridge.setFocusable(expanded || menuOpen, take);
+  }, [expanded, focusRequest, menuOpen]);
 }
 
 /** Turned off in Settings › General: nothing drawn, and nothing left to catch the pointer. */
@@ -163,7 +170,8 @@ function Disabled() {
 export function Island() {
   useWindowScreen();
   useKeyboard();
-  useFocus();
+  const contextMenu = useIslandContextMenu();
+  useFocus(contextMenu.isOpen);
   const frame = useRef<HTMLDivElement>(null);
   usePointer(frame);
 
@@ -239,13 +247,14 @@ export function Island() {
   // still finds it) but shows nothing, unless an activity or indicator may
   // show (Settings › Behavior › Show activity and indicators).
   const hidden =
+    !contextMenu.isOpen &&
     state.settings.opening === "hiddenUntilHover" &&
     !state.inside &&
     (shown.kind === "resting" ||
       ((shown.kind === "activity" || shown.kind === "notice") && !state.settings.hiddenShowsActivity));
 
   return (
-    <div className={`island-root${hidden ? " is-hidden" : ""}`} ref={frame}>
+    <div className={`island-root${hidden ? " is-hidden" : ""}`} ref={frame} onContextMenu={contextMenu.onContextMenu}>
       <IslandSurface geometry={geometry} target={shown.size}>
         <ContentStage
           contentKey={shown.kind === "activity" || shown.kind === "picker" ? "compact:activity" : shown.key}
@@ -257,6 +266,7 @@ export function Island() {
         </ContentStage>
       </IslandSurface>
       <QuickAccess geometry={geometry} size={shown.size} visible={shown.kind === "expanded"} delay={bubbleDelay} />
+      {contextMenu.menu}
     </div>
   );
 }
