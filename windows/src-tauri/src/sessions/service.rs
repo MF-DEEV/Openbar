@@ -603,15 +603,28 @@ impl Service {
     }
 
     fn open(&self, session: &str) -> bool {
-        let codex_name = {
+        let codex_target = {
             let inner = self.inner.lock().unwrap();
             inner
                 .sessions
                 .iter()
                 .find(|s| s.id == session && s.provider == models::Provider::Codex)
-                .map(|s| s.name.clone())
+                .map(|s| {
+                    (
+                        s.name.clone(),
+                        s.cwd.clone(),
+                        inner
+                            .sessions
+                            .iter()
+                            .filter(|other| {
+                                other.id != session && other.provider == models::Provider::Codex
+                            })
+                            .map(|other| other.cwd.clone())
+                            .collect::<Vec<_>>(),
+                    )
+                })
         };
-        if let Some(name) = codex_name {
+        if let Some((name, cwd, others)) = codex_target {
             // Codex's terminal titles carry the thread's own name; with
             // previews off the list shows the folder's instead, which can't
             // tell two terminals in one folder apart.
@@ -619,7 +632,7 @@ impl Service {
                 .codex()
                 .and_then(|c| c.thread_name(session))
                 .unwrap_or(name);
-            let ok = hosts::focus_codex(&name);
+            let ok = hosts::focus_codex(session, &cwd, &name, &others);
             if ok {
                 self.acknowledge(session);
             }
@@ -631,12 +644,18 @@ impl Service {
                 .sessions
                 .iter()
                 .find(|s| s.id == session)
-                .and_then(|s| inner.hosts.get(&s.pid).cloned().map(|l| (s.pid, l)))
+                .and_then(|s| {
+                    inner
+                        .hosts
+                        .get(&s.pid)
+                        .cloned()
+                        .map(|l| (s.pid, l, s.cwd.clone()))
+                })
         };
-        let Some((pid, located)) = target else {
+        let Some((pid, located, cwd)) = target else {
             return false;
         };
-        let ok = hosts::focus(pid as u32, &located);
+        let ok = hosts::focus(pid as u32, &located, &cwd);
         if ok {
             self.acknowledge(session);
         }
