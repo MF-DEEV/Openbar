@@ -4,7 +4,7 @@
 import { describe, expect, it } from "vitest";
 import { CLAUDE_TINT, CODEX_TINT, phaseTint } from "./format";
 import { SparkleFill } from "./glyphs";
-import { countItems } from "./SessionsStrip";
+import { countItems, marksWidth, STACK_OFFSET, stripAgents, stripWing } from "./SessionsStrip";
 
 describe("counts by agent", () => {
   it("splits working sessions into Claude and Codex, each in its own color", () => {
@@ -25,5 +25,35 @@ describe("counts by agent", () => {
     expect(phaseTint("generating", "codex")).toBe(CODEX_TINT);
     expect(phaseTint("runningTool", "claude")).toBe(CLAUDE_TINT);
     expect(phaseTint("finished", "codex")).toBe(phaseTint("finished", "claude"));
+  });
+});
+
+describe("stacked marks", () => {
+  const counts = (working: number, workingCodex: number, waiting = 0, finished = 0) => ({
+    working,
+    workingCodex,
+    waiting,
+    finished,
+  });
+
+  it("stacks both marks, Claude's in front, only while both agents work", () => {
+    expect(stripAgents(counts(3, 1))).toEqual(["claude", "codex"]);
+    expect(stripAgents(counts(1, 1))).toEqual(["codex"]);
+    expect(stripAgents(counts(2, 0))).toEqual(["claude"]);
+    expect(stripAgents(counts(0, 0, 1, 2))).toEqual([]);
+  });
+
+  it("never shows an agent with nothing at work for counts that make no sense", () => {
+    expect(stripAgents(counts(1, 4))).toEqual(["codex"]);
+    expect(stripAgents(counts(-1, -3))).toEqual([]);
+    expect(stripAgents(counts(2, -1))).toEqual(["claude"]);
+  });
+
+  it("makes room for the mark behind only while both marks show", () => {
+    const lone = marksWidth(counts(2, 0));
+    expect(marksWidth(counts(2, 1))).toBeGreaterThan(lone + STACK_OFFSET / 2);
+    expect(marksWidth(counts(2, 1, 1))).toBe(lone);
+    expect(marksWidth(counts(0, 0, 0, 1))).toBe(lone);
+    expect(stripWing(counts(2, 1), 24)).toBeGreaterThanOrEqual(stripWing(counts(2, 0), 24));
   });
 });

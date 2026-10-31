@@ -6,7 +6,7 @@
 import { useLocale } from "../i18n";
 
 import { sessionsPage } from "../sessions/SessionsPage";
-import { stripWing, readingWidth, stripTextSize, SessionsStrip } from "../sessions/SessionsStrip";
+import { marksWidth, stripWing, readingWidth, stripTextSize, SessionsStrip } from "../sessions/SessionsStrip";
 import { subscribeSessions, useSessions } from "../sessions/store";
 import { displayName, duration } from "../sessions/format";
 import { S } from "../sessions/strings";
@@ -95,7 +95,7 @@ function syncSessionsActivity() {
   const size = stripTextSize(geometry.stripHeight);
   island.setActivity("sessions", {
     wing: stripWing(counts, geometry.stripHeight),
-    capsuleContent: 14 + 6 + readingWidth(counts, size),
+    capsuleContent: marksWidth(counts) + 6 + readingWidth(counts, size),
     opens: "sessions",
     urgent: counts.waiting > 0,
   });

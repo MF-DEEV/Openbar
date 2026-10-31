@@ -42,13 +42,57 @@ export function readingWidth(counts: Counts, size: number): number {
   return list.length * (size * 0.9 + 2) + digits * size * 0.62 + (list.length - 1) * 6;
 }
 
+/** Whose marks show while sessions work, front first: the one agent at
+ * work, or both stacked with Claude's in front when Claude and Codex work at
+ * once (NotchClaudeSessionsSupport.stripAgents). Empty when none do. */
+export function stripAgents(counts: Counts): ("claude" | "codex")[] {
+  const working = Math.max(0, counts.working);
+  const codex = Math.min(Math.max(0, counts.workingCodex), working);
+  const agents: ("claude" | "codex")[] = [];
+  if (working > codex) agents.push("claude");
+  if (codex > 0) agents.push("codex");
+  return agents;
+}
+
+const SPARK = Math.round(MARK * MARK_SCALE.claude);
+const CLOUD = Math.round(MARK * MARK_SCALE.codex);
+/** The spark's disc of the strip's black, a ring past its rays. */
+const DISC = SPARK + 2;
+/** Where the cloud behind starts, from the spark's left: past the disc's
+ * middle, so about three quarters of it shows. */
+export const STACK_OFFSET = 17;
+
+/** Stacked while a session works for each agent and none waits; a waiting
+ * hand or a finished check takes the mark's place, as on the Mac. */
+const stacks = (counts: Counts) => counts.waiting <= 0 && stripAgents(counts).length > 1;
+
+/** How wide the marks draw: one mark, or the spark and the cloud past it. */
+export function marksWidth(counts: Counts): number {
+  return stacks(counts) ? STACK_OFFSET + CLOUD : MARK;
+}
+
 /** The wing each side needs, clamped to 44…80 like the agents' strip. */
 export function stripWing(counts: Counts, stripHeight: number): number {
   const size = stripTextSize(stripHeight);
   const box = { width: 300, height: stripHeight };
   const text = edgeInset(box, size * 0.72, 0) + readingWidth(counts, size);
-  const mark = edgeInset(box, 18, 9) + MARK;
+  const mark = edgeInset(box, 18, 9) + marksWidth(counts);
   return Math.min(80, Math.max(44, Math.ceil(Math.max(text, mark))));
+}
+
+/** Claude's spark on its disc with Codex's cloud showing past it; the cloud
+ * slides out from behind when Codex starts. */
+function StackedMarks() {
+  return (
+    <span className="s-strip-stack" style={{ width: STACK_OFFSET + CLOUD, height: DISC }} aria-hidden>
+      <span className="s-strip-behind" style={{ left: STACK_OFFSET, marginTop: -CLOUD / 2 }}>
+        <CodexMark size={CLOUD} working />
+      </span>
+      <span className="s-strip-front" style={{ width: DISC, height: DISC, marginTop: -DISC / 2, left: -1 }}>
+        <ClaudeMark size={SPARK} working />
+      </span>
+    </span>
+  );
 }
 
 export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Size }) {
@@ -68,8 +112,10 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
     if (opened && waiting) useSessions.getState().focus(waiting.id);
   };
 
-  // Claude's spark while any Claude session works, Codex's cloud when only Codex does.
+  // Claude's spark while any Claude session works, Codex's cloud when only
+  // Codex does; both stacked while both do.
   const working = counts.working > 0;
+  const stacked = stacks(counts);
   const Mark =
     counts.waiting > 0
       ? HandFill
@@ -90,12 +136,16 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
       onClick={open}
     >
       <span className="s-strip-wing" style={{ width: wing, paddingLeft: iconInset, justifyContent: "flex-start" }}>
-        <Mark
-          size={Math.round(MARK * markScale)}
-          strokeWidth={2.5}
-          style={markTint ? { color: markTint } : undefined}
-          working={working}
-        />
+        {stacked ? (
+          <StackedMarks />
+        ) : (
+          <Mark
+            size={Math.round(MARK * markScale)}
+            strokeWidth={2.5}
+            style={markTint ? { color: markTint } : undefined}
+            working={working}
+          />
+        )}
       </span>
       {capsule ? null : <span style={{ width: geometry.cameraWidth, flex: "none" }} />}
       <span
