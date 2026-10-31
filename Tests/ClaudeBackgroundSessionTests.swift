@@ -131,6 +131,8 @@ enum ClaudeBackgroundSessionTests {
         let lines = ClaudeTerminalScreen.text(Data(sample.utf8)).components(separatedBy: "\n")
         suite.expect(lines == [" X         Claude Code v2.1.316", "", "❯ Say hello", "", "· Bakend…"], "placed where the cursor put it: \(lines)")
         suite.expect(ClaudeTerminalScreen.text(Data()) == "", "nothing")
+        suite.expect(!ClaudeTerminalScreen.isReadable("⏺"), "a spinner alone isn't output to read")
+        suite.expect(ClaudeTerminalScreen.isReadable("Claude Code\n\n❯ hi\n⏺ hello"), "a screen is")
         suite.expect(ClaudeTerminalScreen.text(Data("\u{1B}]0;title\u{07}a\u{1B}[?25lb\u{1B}[".utf8)) == "ab", "titles, modes and a cut-off code leave no marks")
         suite.expect(ClaudeTerminalScreen.text(Data("old\r\u{1B}[Knew\n\u{1B}[2Jx".utf8)).hasSuffix("x"), "clearing clears")
         suite.expect(ClaudeTerminalScreen.text(Data("abc\u{1B}[1G\u{1B}[Kz".utf8)) == "z", "clearing a line")

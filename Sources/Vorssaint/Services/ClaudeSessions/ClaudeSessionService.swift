@@ -506,7 +506,11 @@ final class ClaudeSessionService: ObservableObject {
         guard let details = session.background else { return completion(nil) }
         commands.async {
             let output = ClaudeCLI.claude(["logs", details.job], configHome: details.configHome)
-            let screen = output.flatMap { $0.status == 0 ? ClaudeTerminalScreen.text($0.out) : nil }
+            var screen = output.flatMap { $0.status == 0 ? ClaudeTerminalScreen.text($0.out) : nil }
+            // Its last output may be nothing but a spinner; the screen itself still reads.
+            if !details.ended, !ClaudeTerminalScreen.isReadable(screen ?? "") {
+                screen = ClaudeBackgroundReply.screen(job: details.job, configHome: details.configHome) ?? screen
+            }
             DispatchQueue.main.async { completion(screen) }
         }
     }

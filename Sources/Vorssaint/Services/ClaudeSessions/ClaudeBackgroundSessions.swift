@@ -341,9 +341,18 @@ enum ClaudeCLI {
     }
 }
 
-/// Reads the screen `claude logs` prints: one repaint of a terminal, its text
-/// placed with cursor moves, which simply removing the codes would run together.
+/// Reads what `claude logs` prints: the last stretch of a terminal's stream,
+/// its text placed with cursor moves, which simply removing the codes would
+/// run together.
 enum ClaudeTerminalScreen {
+    /// Whether it says anything to read. A session that only animates a
+    /// spinner fills `claude logs` with that alone.
+    static func isReadable(_ text: String) -> Bool {
+        text.split(separator: "\n").filter { $0.contains { $0.isLetter } }.count >= minimumLines
+    }
+
+    static let minimumLines = 3
+
     static func text(_ data: Data) -> String {
         let scalars = Array(String(decoding: data, as: UTF8.self).unicodeScalars)
         var rows: [Int: [Int: Unicode.Scalar]] = [:]
@@ -458,11 +467,30 @@ enum ClaudeBackgroundReply {
     }
 
     static func send(_ text: String, images: [String], job: String, configHome: String?) -> ClaudeReplyFailure? {
+        let attached = attach(job: job, configHome: configHome) { terminal, isRunning in
+            for step in keystrokes(text, images: images) {
+                guard isRunning(), write(terminal, step.data) else { return false }
+                Thread.sleep(forTimeInterval: step.pause)
+            }
+            return true
+        }
+        return attached?.done == true ? nil : .unreachable
+    }
+
+    /// The session's whole screen, which it paints anew for whoever attaches.
+    static func screen(job: String, configHome: String?) -> String? {
+        attach(job: job, configHome: configHome) { _, _ in true }.map { ClaudeTerminalScreen.text($0.output) }
+    }
+
+    /// Attaches, once its screen has settled does `work`, and leaves. Nil when
+    /// it could not attach.
+    private static func attach(job: String, configHome: String?,
+                               work: (FileHandle, () -> Bool) -> Bool) -> (done: Bool, output: Data)? {
         let shell = ClaudeCLI.shell()
-        guard let executable = shell.executable else { return .unreachable }
+        guard let executable = shell.executable else { return nil }
         var master: Int32 = -1, slave: Int32 = -1
         var size = winsize(ws_row: 50, ws_col: 200, ws_xpixel: 0, ws_ypixel: 0)
-        guard openpty(&master, &slave, nil, nil, &size) == 0 else { return .unreachable }
+        guard openpty(&master, &slave, nil, nil, &size) == 0 else { return nil }
         let terminal = FileHandle(fileDescriptor: master, closeOnDealloc: true)
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
@@ -476,29 +504,28 @@ enum ClaudeBackgroundReply {
         process.standardError = child
         let ended = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in ended.signal() }
-        guard (try? process.run()) != nil else { return .unreachable }
+        guard (try? process.run()) != nil else { return nil }
         try? child.close()
 
         // Its output must be read for it to go on, and tells when it is ready.
         let activity = Activity()
         DispatchQueue.global(qos: .userInitiated).async {
             var buffer = [UInt8](repeating: 0, count: 1 << 15)
-            while read(master, &buffer, buffer.count) > 0 { activity.mark() }
+            while true {
+                let count = read(master, &buffer, buffer.count)
+                guard count > 0 else { break }
+                activity.add(buffer[0..<count])
+            }
         }
         guard activity.settled(after: 0.5, within: 6), process.isRunning else {
             if process.isRunning { process.terminate() }
-            return .unreachable
+            return nil
         }
-        for step in keystrokes(text, images: images) {
-            guard process.isRunning, write(terminal, step.data) else {
-                if process.isRunning { process.terminate() }
-                return .unreachable
-            }
-            Thread.sleep(forTimeInterval: step.pause)
-        }
+        let output = activity.output
+        let done = work(terminal) { process.isRunning }
         _ = write(terminal, Data([detach]))
         if ended.wait(timeout: .now() + 3) == .timedOut { process.terminate() }
-        return nil
+        return (done, output)
     }
 
     private static func write(_ terminal: FileHandle, _ data: Data) -> Bool {
@@ -508,11 +535,23 @@ enum ClaudeBackgroundReply {
     private final class Activity: @unchecked Sendable {
         private let lock = NSLock()
         private var last: Date?
-        func mark() {
+        private var data = Data()
+        /// More than any screen takes to paint.
+        private static let limit = 1 << 21
+
+        func add(_ bytes: ArraySlice<UInt8>) {
             lock.lock()
             last = Date()
+            if data.count < Self.limit { data.append(contentsOf: bytes) }
             lock.unlock()
         }
+
+        var output: Data {
+            lock.lock()
+            defer { lock.unlock() }
+            return data
+        }
+
         /// Waits for the first output and then a quiet moment; false if it
         /// never printed anything. A screen that keeps moving, as a working
         /// session's does, counts as ready when the time is up.

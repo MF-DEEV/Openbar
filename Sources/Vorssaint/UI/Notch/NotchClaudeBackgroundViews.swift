@@ -120,7 +120,7 @@ struct NotchClaudeBackgroundLogsView: View {
     @State private var logs: String?
     @State private var loaded = false
 
-    private let timer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
+    private let timer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
