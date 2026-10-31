@@ -38,10 +38,68 @@ pub const MAC_PID_DOMAINS: &[&str] = &["darwin"];
 /// its pids are not Windows pids, so leaving it out is right.
 pub const WINDOWS_PID_DOMAINS: &[&str] = &["win32"];
 
-/// The folders Claude Code keeps its state in, the same two the AI
-/// section reads logs from. `CLAUDE_CONFIG_DIR` is not honored, as on the Mac.
+/// The folders Claude Code keeps its state in: the two standard ones, the
+/// same the AI section reads logs from, then any `CLAUDE_CONFIG_DIR` moved it
+/// to, as on the Mac. The variable counts only for the person's own home (a
+/// test's home is not theirs); a `.claude…` folder beside `~/.claude` holding
+/// a session registry (`~/.claude-work`) counts for any, since a session
+/// started from a shell that set the variable leaves no trace in the app's
+/// own environment.
 pub fn homes(home: &Path) -> Vec<PathBuf> {
-    vec![home.join(".claude"), home.join(".config").join("claude")]
+    let own = crate::hooks::installer::home_dir().is_some_and(|own| own == home);
+    let named = own
+        .then(|| std::env::var_os(CONFIG_VARIABLE))
+        .flatten()
+        .filter(|value| !value.is_empty())
+        .map(PathBuf::from)
+        .filter(|path| path.is_absolute() && path.is_dir());
+    merge_homes(
+        vec![home.join(".claude"), home.join(".config").join("claude")],
+        named.into_iter().chain(sibling_homes(home)).collect(),
+    )
+}
+
+pub const CONFIG_VARIABLE: &str = "CLAUDE_CONFIG_DIR";
+
+/// `.claude…` folders in the home holding a session registry, by name.
+pub fn sibling_homes(home: &Path) -> Vec<PathBuf> {
+    let Ok(entries) = std::fs::read_dir(home) else {
+        return vec![];
+    };
+    let mut names: Vec<String> = entries
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .filter(|name| name.starts_with(".claude") && name != ".claude")
+        .collect();
+    names.sort();
+    names
+        .into_iter()
+        .map(|name| home.join(name))
+        .filter(|folder| folder.join("sessions").is_dir())
+        .collect()
+}
+
+/// The standard folders, then the extra ones none of them already is.
+pub fn merge_homes(standard: Vec<PathBuf>, extra: Vec<PathBuf>) -> Vec<PathBuf> {
+    let mut seen = BTreeSet::new();
+    standard
+        .into_iter()
+        .chain(extra)
+        .filter(|folder| seen.insert(canonical_home(folder)))
+        .collect()
+}
+
+/// A folder's identity: through links, without case or a trailing separator
+/// (Windows paths ignore case).
+fn canonical_home(folder: &Path) -> String {
+    let resolved = std::fs::canonicalize(folder).unwrap_or_else(|_| folder.to_path_buf());
+    let text = resolved.to_string_lossy().to_lowercase();
+    let trimmed = text.trim_end_matches(['/', '\\']);
+    if trimmed.is_empty() {
+        text
+    } else {
+        trimmed.to_string()
+    }
 }
 
 pub fn folders(home: &Path) -> Vec<PathBuf> {
@@ -425,6 +483,50 @@ mod tests {
         assert_eq!(pid_of_file("85842.json"), Some(85842));
         assert_eq!(pid_of_file("85842.abc.key"), None);
         assert_eq!(pid_of_file("x.json"), None);
+    }
+
+    #[test]
+    fn config_homes() {
+        let home = std::env::temp_dir().join(format!("vs-config-homes-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&home);
+        for folder in [
+            ".claude/sessions",
+            ".claude-2/sessions",
+            ".claude-old",
+            ".config/claude/sessions",
+        ] {
+            std::fs::create_dir_all(home.join(folder)).unwrap();
+        }
+        std::fs::write(home.join(".claude.json"), "{}").unwrap();
+        let names: Vec<String> = homes(&home)
+            .iter()
+            .map(|h| h.file_name().unwrap().to_string_lossy().into_owned())
+            .collect();
+        assert_eq!(
+            names,
+            [".claude", "claude", ".claude-2"],
+            "a .claude… folder holding a session registry is read after the standard two; \
+             one without a registry, and files, are not"
+        );
+        assert_eq!(
+            folders(&home).last(),
+            Some(&home.join(".claude-2").join("sessions")),
+            "a CLAUDE_CONFIG_DIR=~/.claude-2 session's records are read"
+        );
+        let merged = merge_homes(
+            vec![home.join(".claude")],
+            vec![
+                home.join(".claude/"),
+                home.join(".CLAUDE"),
+                home.join(".claude-2"),
+            ],
+        );
+        assert_eq!(
+            merged,
+            [home.join(".claude"), home.join(".claude-2")],
+            "a folder named twice is read once"
+        );
+        let _ = std::fs::remove_dir_all(&home);
     }
 
     // The Windows change: the accepted domain is a parameter.

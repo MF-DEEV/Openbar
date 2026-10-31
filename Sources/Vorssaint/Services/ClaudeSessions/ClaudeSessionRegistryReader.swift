@@ -9,10 +9,12 @@ import Foundation
 /// can come back for something else, so a record counts only while a
 /// process with that number started when the record says.
 enum ClaudeSessionRegistryReader {
-    /// The folders Claude Code keeps its state in, the same two the AI
-    /// section reads logs from.
+    /// The folders Claude Code keeps its state in: the two standard ones, the
+    /// same the AI section reads logs from, then any a `CLAUDE_CONFIG_DIR`
+    /// moved it to.
     static func homes(_ home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [URL] {
-        [".claude", ".config/claude"].map { home.appending(path: $0, directoryHint: .isDirectory) }
+        let standard = [".claude", ".config/claude"].map { home.appending(path: $0, directoryHint: .isDirectory) }
+        return ClaudeConfigHomes.merge(standard, ClaudeConfigHomes.extra(home: home))
     }
 
     static func folders(_ home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [URL] {
@@ -106,5 +108,101 @@ enum ClaudeSessionRegistryReader {
         let size = Int32(MemoryLayout<proc_bsdinfo>.size)
         guard pid > 0, proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size else { return nil }
         return Date(timeIntervalSince1970: TimeInterval(info.pbi_start_tvsec) + TimeInterval(info.pbi_start_tvusec) / 1_000_000)
+    }
+}
+
+/// Folders Claude Code keeps its state in besides the standard two: the one
+/// `CLAUDE_CONFIG_DIR` names, as for a second account. That variable lives in
+/// the shell that starts Claude, which the app never sees, so it is looked
+/// for in the app's own environment, in the environment of running Claude
+/// Code processes, and beside `~/.claude` (`~/.claude-work`, `~/.claude-2`).
+enum ClaudeConfigHomes {
+    static let variable = "CLAUDE_CONFIG_DIR"
+
+    /// How long a look at the running processes is reused.
+    static let lifetime: TimeInterval = 5
+
+    private static let lock = NSLock()
+    private static var cached: (home: String, at: Date, homes: [URL])?
+
+    /// The extra folders for `home`. The environments only count for the
+    /// person's own home: another one is a test's or a sandbox's.
+    static func extra(home: URL, now: Date = Date()) -> [URL] {
+        lock.lock()
+        if let cached, cached.home == home.path, now.timeIntervalSince(cached.at) < lifetime, now >= cached.at {
+            defer { lock.unlock() }
+            return cached.homes
+        }
+        lock.unlock()
+        let own = home.standardizedFileURL.path == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        let named = own ? [ProcessInfo.processInfo.environment[variable]].compactMap { $0 } + running() : []
+        let found = folders(named: named, home: home) + siblings(of: home)
+        lock.lock()
+        cached = (home.path, now, found)
+        lock.unlock()
+        return found
+    }
+
+    /// The folders the variable names that exist: absolute, or under `~/`
+    /// as when it was quoted in a shell profile.
+    static func folders(named values: [String], home: URL) -> [URL] {
+        values.compactMap { value in
+            let value = value.trimmingCharacters(in: .whitespaces)
+            let path: String
+            if value == "~" { path = home.path }
+            else if value.hasPrefix("~/") { path = home.path + "/" + value.dropFirst(2) }
+            else if value.hasPrefix("/") { path = value }
+            else { return nil }
+            return isFolder(path) ? URL(fileURLWithPath: path, isDirectory: true) : nil
+        }
+    }
+
+    /// `.claude…` folders in the home holding a session registry.
+    static func siblings(of home: URL) -> [URL] {
+        guard let names = try? FileManager.default.contentsOfDirectory(atPath: home.path) else { return [] }
+        return names.filter { $0.hasPrefix(".claude") && $0 != ".claude" }.sorted().compactMap { name in
+            let folder = home.appending(path: name, directoryHint: .isDirectory)
+            return isFolder(folder.appending(path: "sessions").path) ? folder : nil
+        }
+    }
+
+    /// The standard folders, then the extra ones none of them already is.
+    static func merge(_ standard: [URL], _ extra: [URL]) -> [URL] {
+        var seen = Set<String>()
+        return (standard + extra).filter { seen.insert(canonical($0)).inserted }
+    }
+
+    private static func canonical(_ url: URL) -> String {
+        let path = url.standardizedFileURL.resolvingSymlinksInPath().path
+        return path.count > 1 && path.hasSuffix("/") ? String(path.dropLast()) : path
+    }
+
+    private static func isFolder(_ path: String) -> Bool {
+        var directory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: path, isDirectory: &directory) && directory.boolValue
+    }
+
+    /// The variable as running Claude Code processes of this user have it.
+    /// Only processes whose program path names Claude are read.
+    static func running() -> [String] {
+        let count = proc_listallpids(nil, 0)
+        guard count > 0 else { return [] }
+        var pids = [Int32](repeating: 0, count: Int(count) + 32)
+        let filled = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<Int32>.size))
+        guard filled > 0 else { return [] }
+        let me = getuid()
+        var values: [String] = []
+        var path = [CChar](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        for pid in pids.prefix(Int(filled)) where pid > 0 {
+            var info = proc_bsdinfo()
+            let size = Int32(MemoryLayout<proc_bsdinfo>.size)
+            guard proc_pidinfo(pid, PROC_PIDTBSDINFO, 0, &info, size) == size, info.pbi_uid == me,
+                  proc_pidpath(pid, &path, UInt32(path.count)) > 0,
+                  String(cString: path).lowercased().contains("claude"),
+                  let value = ClaudeSessionHosts.environment(of: pid, keys: [variable])[variable],
+                  !value.isEmpty, !values.contains(value) else { continue }
+            values.append(value)
+        }
+        return values
     }
 }
