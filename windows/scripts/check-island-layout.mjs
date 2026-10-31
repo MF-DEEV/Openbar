@@ -3,7 +3,7 @@
 // Run on Windows with Microsoft Edge installed: node scripts/check-island-layout.mjs
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { mkdtemp, readFile, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join, dirname, basename } from "node:path";
@@ -24,6 +24,7 @@ import { checkMusicEqualizer } from "./music-equalizer-cases.mjs";
 import { checkMusicOpenPlayer } from "./music-open-player-cases.mjs";
 import { checkIslandContextMenu } from "./island-context-menu-cases.mjs";
 import { checkMascot } from "./mascot-cases.mjs";
+import { checkSessionRename } from "./session-rename-cases.mjs";
 
 const browserPath = [
   process.env.ISLAND_TEST_BROWSER,
@@ -32,7 +33,14 @@ const browserPath = [
 ].find((path) => path && existsSync(path));
 assert(browserPath, "Microsoft Edge not found; set ISLAND_TEST_BROWSER to a Chromium executable.");
 const profile = await mkdtemp(join(tmpdir(), "vorssaint-layout-"));
-const server = await createServer({ server: { host: "127.0.0.1", port: 0, strictPort: false } });
+const server = await createServer({
+  server: {
+    host: "127.0.0.1",
+    port: 0,
+    strictPort: false,
+    fs: { allow: [resolve("."), realpathSync("node_modules")] },
+  },
+});
 let browser, socket;
 try {
   await server.listen();
@@ -92,7 +100,9 @@ try {
     mobile: false,
   });
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
-  if (process.argv.includes("--island-shortcut")) {
+  if (process.argv.includes("--session-rename")) {
+    await checkSessionRename({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--island-shortcut")) {
     await checkIslandShortcut({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--context-menu")) {
     await checkIslandContextMenu({ send, evaluate, base: server.resolvedUrls.local[0] });
