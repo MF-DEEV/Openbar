@@ -1239,9 +1239,10 @@ enum NotchCapsuleLayout {
         return surface(content: cup + spacing + right, maximum: Maximum.activity, geometry: geometry)
     }
 
-    /// Working agents' marks and the reading the person chose.
-    static func agentSurface(reading: String, working: Int, geometry: NotchGeometry) -> CGSize {
-        let content = agentMarksWidth(working: working) + spacing
+    /// Working agents' marks and the reading the person chose; a stack of
+    /// marks adds the offset of the one behind.
+    static func agentSurface(reading: String, working: Int, geometry: NotchGeometry, stackOffset: CGFloat = 0) -> CGSize {
+        let content = agentMarksWidth(working: working) + stackOffset + spacing
             + width(NotchAgentSupport.readingShape(reading), font: readingFont)
         return surface(content: content, maximum: Maximum.activity, geometry: geometry)
     }

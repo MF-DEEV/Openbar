@@ -48,6 +48,22 @@ enum NotchSessionAgentTests {
                      && NotchClaudeSessionsSupport.stripAgent(ClaudeSessionCounts(working: 2)) == .claude
                      && NotchClaudeSessionsSupport.stripAgent(ClaudeSessionCounts(working: 2, workingCodex: 2)) == .codex,
                      "the strip shows Claude's mark while any Claude session works, Codex's when only Codex does")
+        suite.expect(NotchClaudeSessionsSupport.stripAgents(ClaudeSessionCounts(working: 3, workingCodex: 1)) == [.claude, .codex]
+                     && NotchClaudeSessionsSupport.stripAgents(ClaudeSessionCounts(working: 1, workingCodex: 1)) == [.codex]
+                     && NotchClaudeSessionsSupport.stripAgents(ClaudeSessionCounts(working: 2)) == [.claude]
+                     && NotchClaudeSessionsSupport.stripAgents(ClaudeSessionCounts(waiting: 1, finished: 2)).isEmpty,
+                     "both marks stack, Claude's in front, only while Claude and Codex both work")
+        suite.expect(NotchClaudeSessionsSupport.stripAgents(ClaudeSessionCounts(working: 1, workingCodex: 4)) == [.codex]
+                     && NotchClaudeSessionsSupport.stripAgents(ClaudeSessionCounts(working: -1, workingCodex: -3)).isEmpty
+                     && NotchClaudeSessionsSupport.stripAgents(ClaudeSessionCounts(working: 2, workingCodex: -1)) == [.claude],
+                     "counts that make no sense never show an agent with nothing at work")
+        let lone = NotchClaudeSessionsSupport.stripMarksWidth(ClaudeSessionCounts(working: 2), size: 14)
+        let stacked = NotchClaudeSessionsSupport.stripMarksWidth(ClaudeSessionCounts(working: 2, workingCodex: 1), size: 14)
+        suite.expect(stacked == lone + NotchClaudeSessionsSupport.stripStackOffset(size: 14)
+                     && NotchClaudeSessionsSupport.stripStackOffset(size: 14) > 0
+                     && NotchClaudeSessionsSupport.stripMarksWidth(ClaudeSessionCounts(working: 2, workingCodex: 1, waiting: 1), size: 14) == lone
+                     && NotchClaudeSessionsSupport.stripMarksWidth(ClaudeSessionCounts(finished: 1), size: 14) == lone,
+                     "the strip makes room for the mark behind only while both marks show")
 
         let joint = ClaudeSessionCounts(working: 3, finished: 1)
         let split = ClaudeSessionCounts(working: 3, workingCodex: 1, finished: 1)

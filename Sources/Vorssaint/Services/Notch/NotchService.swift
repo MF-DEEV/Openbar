@@ -835,15 +835,16 @@ final class NotchService: ObservableObject {
         return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
 
-    /// The phase's mark on one side, the counts on the other, each as wide
-    /// as the strip draws it.
+    /// The phase's mark on one side, two stacked while Claude and Codex both
+    /// work, the counts on the other, each as wide as the strip draws it.
     private func sessionStripWing(in geometry: NotchGeometry) -> CGFloat {
         let provisional = geometry.compactAgentGeometry(wing: NotchAgentSupport.stripWingRange.lowerBound)
         let size = NotchAgentSupport.stripTextSize(height: provisional.compactActivityContentHeight)
         let reading = NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionService.shared.counts, textSize: size)
             + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
         let mark: CGFloat = 14
-        let marks = mark * 1.45 + 1 + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
+        let marks = NotchClaudeSessionsSupport.stripMarksWidth(ClaudeSessionService.shared.counts, size: mark)
+            + provisional.compactActivityEdgeInset(boxHeight: mark + 4, radius: (mark + 4) / 2)
         return max(reading, marks) + NotchAgentSupport.stripCameraGap
     }
 
@@ -1108,7 +1109,12 @@ final class NotchService: ObservableObject {
                                           hasProgress: download?.fraction != nil, geometry: geometry, language: language)
         case .sessions:
             let counts = ClaudeSessionService.shared.counts
-            return layout.agentSurface(reading: NotchClaudeSessionsSupport.stripText(counts), working: 1, geometry: geometry)
+            // The capsule draws the marks at 13 points; two stacked take the
+            // offset of the one behind as well.
+            let stack = NotchClaudeSessionsSupport.stripMarksWidth(counts, size: 13)
+                - NotchClaudeSessionsSupport.stripMarksWidth(ClaudeSessionCounts(finished: 1), size: 13)
+            return layout.agentSurface(reading: NotchClaudeSessionsSupport.stripText(counts), working: 1, geometry: geometry,
+                                       stackOffset: stack)
         case .agents:
             let reading = NotchAgentSupport.stripReading(AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
                                                          display: NotchAgentSupport.limitDisplay(),
