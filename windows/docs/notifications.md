@@ -7,6 +7,12 @@ displayed, including in the expanded Notifications section, tooltips and accessi
 labels. The source application's
 native icon is preferred; Discord and Messenger have bundled fallback icons.
 
+Holding the pointer on a banner keeps it on screen, and after the hover delay it
+opens in place with the app, time and sender, Open, Dismiss and the inbox count.
+With opening set to click it only waits, and hidden until hover shows no banner to
+hold. Leaving closes the preview; the notification stays in the inbox. Clear All on
+the Notifications page asks first.
+
 Vorssaint needs a registered package identity, Notifications enabled in Settings →
 Content, and access allowed from the island's Notifications page. Desktop
 notifications must also be enabled in the source application. Browser-hosted

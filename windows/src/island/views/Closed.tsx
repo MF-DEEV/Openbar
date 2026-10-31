@@ -258,7 +258,7 @@ export function noticeWidth(notice: Notice, geometry: Geometry): number {
 }
 
 let canvas: HTMLCanvasElement | undefined;
-function measureContext(): CanvasRenderingContext2D {
+export function measureContext(): CanvasRenderingContext2D {
   canvas ??= document.createElement("canvas");
   return canvas.getContext("2d")!;
 }
