@@ -349,6 +349,10 @@ export const bridge = {
     /** Minutes starts a session (0 = until turned off); null ends it. */
     set: (minutes: number | null) => call<KeepAwakeState>("keep_awake_set", { minutes }),
   },
+  tray: {
+    batteryWarning: (level: "none" | "early" | "low", percent: number | null) =>
+      call<void>("tray_battery_warning", { level, percent }),
+  },
   power: {
     battery: () => call<BatteryReading | null>("battery_status"),
     onBattery(handler: (battery: BatteryReading | null) => void): Promise<UnlistenFn> {

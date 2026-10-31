@@ -36,6 +36,7 @@ import { CapturePresentation } from "../screenshot-preview/CapturePresentation";
 import { useIslandContextMenu } from "./contextMenu";
 import { mascotShows, useMascot } from "../mascot/service";
 import { MirrorSource } from "./MirrorSource";
+import { useGestures } from "./useGestures";
 
 function useWindowScreen() {
   const setScreen = useIsland((s) => s.setScreen);
@@ -181,6 +182,7 @@ function Disabled() {
 export function Island() {
   useWindowScreen();
   useKeyboard();
+  useGestures();
   const contextMenu = useIslandContextMenu();
   useFocus(contextMenu.isOpen);
   const frame = useRef<HTMLDivElement>(null);

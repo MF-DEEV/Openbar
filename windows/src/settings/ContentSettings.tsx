@@ -11,6 +11,7 @@ import { useState } from "react";
 import { t, type StringKey } from "../i18n";
 import { MODULES, type ModuleId, visibleModules } from "../island/modules";
 import { type IdleContent, sectionEnabled } from "../island/settings";
+import { LowBatteryControls } from "./LowBatteryControls";
 import { QuickAccessSettings } from "./QuickAccessSettings";
 import { SessionsOptions } from "./SessionsSettings";
 import { SystemOptions } from "./SystemSettings";
@@ -226,6 +227,7 @@ export function ContentSettings() {
             ]}
           />
         </Row>
+        {island.idleContent === "battery" ? <LowBatteryControls /> : null}
       </Group>
       <Group title={T.content.sections}>
         {order.map((id, index) => {

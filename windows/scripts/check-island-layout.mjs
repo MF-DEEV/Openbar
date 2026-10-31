@@ -19,6 +19,7 @@ import { checkAllDisplays } from "./all-displays-cases.mjs";
 import { checkDownloads } from "./downloads-cases.mjs";
 import { checkIdleContent } from "./idle-content-cases.mjs";
 import { checkCaptureControls } from "./capture-controls-cases.mjs";
+import { checkGestures } from "./gestures-cases.mjs";
 import { checkIslandShortcut } from "./island-shortcut-cases.mjs";
 import { checkScreenshotPreview } from "./screenshot-preview-cases.mjs";
 import { checkCaptures } from "./captures-cases.mjs";
@@ -125,6 +126,9 @@ try {
   } else if (process.argv.includes("--capture-controls")) {
     await checkCaptureControls({ send, evaluate, base: server.resolvedUrls.local[0] });
     console.log("Capture controls: keys, tiles, collapse, repeat, cancel and watch passed.");
+  } else if (process.argv.includes("--gestures")) {
+    await checkGestures({ send, evaluate, base: server.resolvedUrls.local[0] });
+    console.log("Gestures: open, close, skip, settings and blocked surfaces passed.");
   } else if (process.argv.includes("--idle-content")) {
     await checkIdleContent({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--captures")) {

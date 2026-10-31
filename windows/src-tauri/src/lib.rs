@@ -181,6 +181,7 @@ pub fn run() {
             recorder::recorder_stop,
             recorder::recorder_running,
             recorder::recorder_reveal,
+            tray::tray_battery_warning,
             island::island_set_hit_rects,
             island::island_set_capture,
             island::island_set_focusable,
