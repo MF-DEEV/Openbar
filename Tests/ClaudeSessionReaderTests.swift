@@ -7,6 +7,7 @@ import ImageIO
 enum ClaudeSessionReaderTests {
     static func run(_ suite: TestSuite) {
         suite.run("sessions registry") { registry(suite) }
+        suite.run("sessions config folders") { configHomes(suite) }
         suite.run("sessions transcript") { transcript(suite) }
         suite.run("sessions prompt images") { promptImages(suite) }
         suite.run("sessions hosts") { hosts(suite) }
@@ -73,6 +74,44 @@ enum ClaudeSessionReaderTests {
         suite.expect(ClaudeSessionRegistryReader.folders(home).map(\.path)
                      == ["/Users/me/.claude/sessions", "/Users/me/.config/claude/sessions"],
                      "both Claude Code homes are read")
+    }
+
+    // MARK: CLAUDE_CONFIG_DIR
+
+    static func configHomes(_ suite: TestSuite) {
+        let files = FileManager.default
+        let home = files.temporaryDirectory.appending(path: "vs-config-homes-\(UUID().uuidString)", directoryHint: .isDirectory)
+        defer { try? files.removeItem(at: home) }
+        for folder in [".claude/sessions", ".claude-2/sessions", ".claude-old", ".config/claude/sessions", "elsewhere/state"] {
+            try? files.createDirectory(at: home.appending(path: folder), withIntermediateDirectories: true)
+        }
+        try? data("{}").write(to: home.appending(path: ".claude.json"))
+        try? files.createSymbolicLink(at: home.appending(path: ".claude-link"), withDestinationURL: home.appending(path: ".claude"))
+        let started = Date(timeIntervalSince1970: 1_792_605_025)
+        try? data(#"{"pid":4242,"sessionId":"second-account","cwd":"/a","procStart":"Wed Oct 21 17:50:25 2026"}"#)
+            .write(to: home.appending(path: ".claude-2/sessions/4242.json"))
+
+        let homes = ClaudeSessionRegistryReader.homes(home).map(\.lastPathComponent)
+        suite.expect(homes == [".claude", "claude", ".claude-2"],
+                     "a .claude… folder beside ~/.claude holding a session registry is read after the standard two")
+        suite.expect(!homes.contains(".claude-old") && !homes.contains(".claude.json"),
+                     "folders without a registry and files are not")
+        suite.expect(!homes.contains(".claude-link"), "a link to a folder already read is not read twice")
+        let read = ClaudeSessionRegistryReader.read(ClaudeSessionRegistryReader.folders(home)) { $0 == 4242 ? started : nil }
+        suite.expect(read.map(\.sessionID) == ["second-account"],
+                     "a session started with CLAUDE_CONFIG_DIR=~/.claude-2 is listed")
+
+        let named = ClaudeConfigHomes.folders(named: [home.appending(path: "elsewhere/state").path, "~/elsewhere",
+                                                      " relative/claude", "/no/such/folder", ""], home: home)
+        suite.expect(named.map(\.path) == [home.appending(path: "elsewhere/state").path, home.path + "/elsewhere"],
+                     "the variable may name any folder, absolute or under ~/, that exists")
+        let merged = ClaudeConfigHomes.merge([home.appending(path: ".claude")],
+                                             [home.appending(path: ".claude-link"), home.appending(path: ".claude/"),
+                                              home.appending(path: ".claude-2")])
+        suite.expect(merged.map(\.lastPathComponent) == [".claude", ".claude-2"],
+                     "a folder named twice, or through a link, is read once")
+        suite.expect(ClaudeSessionRegistryReader.folders(URL(fileURLWithPath: "/Users/nobody-here")).count == 2,
+                     "a home with no extra folders reads the standard two")
     }
 
     // MARK: Prompt images
