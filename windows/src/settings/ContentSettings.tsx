@@ -6,9 +6,11 @@
 // its own options. The Mac's checkbox writes notchHiddenModules and, for the
 // sections that have one, their own notch*Enabled key; this does the same.
 
+import { useLocale, t, type StringKey } from "../i18n";
+
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useState } from "react";
-import { t, type StringKey } from "../i18n";
+
 import { MODULES, type ModuleId, visibleModules } from "../island/modules";
 import { type IdleContent, sectionEnabled } from "../island/settings";
 import { LowBatteryControls } from "./LowBatteryControls";
@@ -48,6 +50,7 @@ const ON_WINDOWS: ModuleId[] = [
 ];
 
 function DownloadOptions() {
+  useLocale();
   const folders = useSettings((s) => s.prefs.island.downloadFolders);
   const set = useSettings((s) => s.island);
   const [draft, setDraft] = useState<string | null>(null);
@@ -81,6 +84,7 @@ function DownloadOptions() {
 }
 
 function Options({ id }: { id: ModuleId }) {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   if (!ON_WINDOWS.includes(id)) return <p className="st-note">{T.content.comingSoon}</p>;
@@ -180,6 +184,7 @@ function Options({ id }: { id: ModuleId }) {
 }
 
 export function ContentSettings() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const patch = useSettings((s) => s.patch);
   // Every section in order, shown or not.

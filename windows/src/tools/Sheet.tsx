@@ -6,6 +6,8 @@
 // would open behind it. Covers the page, keeps the keyboard inside, and
 // Escape cancels before anything else closes.
 
+import { useLocale } from "../i18n";
+
 import { useEffect, useRef, useState } from "react";
 import { usePageLayer } from "../island/pageLayer";
 
@@ -20,6 +22,7 @@ export function Sheet(props: {
   onConfirm(value: string): void;
   onCancel(): void;
 }) {
+  useLocale();
   const [value, setValue] = useState(props.field?.value ?? "");
   const input = useRef<HTMLInputElement>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);

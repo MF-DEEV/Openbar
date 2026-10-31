@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
+
+import { useLocale, t } from "../../i18n";
+
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useContext, useId, useRef } from "react";
-import { t } from "../../i18n";
+
 import { activityPickerLayout, activitySize, type Geometry } from "../geometry";
 import { moduleInfo } from "../modules";
 import type { Size } from "../motion";
@@ -13,6 +16,7 @@ import { MascotActivityVisit } from "../../mascot/MascotActivityVisit";
 
 /** Keep one strip mounted while the choices and the surrounding surface open or close. */
 export function ActivityPicker({ geometry, size, visible }: { geometry: Geometry; size: Size; visible: boolean }) {
+  useLocale();
   const state = useIsland();
   const choices = compactActivities(state);
   const active = visibleActivity(state);

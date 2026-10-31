@@ -5,6 +5,8 @@
 // optional zero baseline, and the graph's ceiling named on a dashed rule
 // over the oldest samples (graphCeilingLabel).
 
+import { useLocale } from "../i18n";
+
 import { useId } from "react";
 
 export interface Line {
@@ -27,6 +29,7 @@ export function sparkPoints(values: number[], max: number, height: number): [num
 }
 
 export function Sparkline(props: { lines: Line[]; max: number; ceilingLabel: string; height?: number }) {
+  useLocale();
   const height = props.height ?? 38;
   const id = useId();
   const drawn = props.lines.filter((line) => line.values.length >= 2);

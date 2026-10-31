@@ -3,22 +3,54 @@
 
 // English copy for the screen selection (ScreenshotStrings.swift, enUS).
 
+import { t, tf } from "../i18n";
+
 export const S = {
-  hintDrag: "Drag to select an area",
+  get hintDrag() {
+    return t("screenshot.hintDrag");
+  },
   /** Watch's purpose, shown first (NotchWatchStrings.purpose). */
-  purposeWatch: "Choose what to watch",
-  hintFullScreen: "Enter captures the whole screen",
-  hintPick: "Click to copy the color",
-  hintNudge: "Arrow keys move one pixel",
-  hintCancel: "Esc cancels",
-  hintTools: "1, 3 and 4 switch tools",
-  hintRepeat: "R repeats the last area",
-  controlsTitle: "Screen capture",
-  toolScreenshot: "Screenshot",
-  toolText: "Screen Text",
-  toolColor: "Color Picker",
-  repeatRegion: "R repeats the last area",
-  collapse: "Collapse",
-  close: "Close",
-  size: (w: number, h: number) => `${w} × ${h}`,
+  get purposeWatch() {
+    return t("notchWatch.purpose");
+  },
+  get hintFullScreen() {
+    return t("windows.capture.hintFullScreen");
+  },
+  get hintPick() {
+    return t("windows.capture.hintPick");
+  },
+  get hintNudge() {
+    return t("windows.capture.hintNudge");
+  },
+  get hintCancel() {
+    return t("screenshot.hintCancel");
+  },
+  get hintTools() {
+    return t("windows.capture.hintTools");
+  },
+  get hintRepeat() {
+    return t("screenshot.hintRepeat");
+  },
+  get controlsTitle() {
+    return t("screenshot.screenCaptureTitle");
+  },
+  get toolScreenshot() {
+    return t("screenshot.editorTitle");
+  },
+  get toolText() {
+    return t("windows.capture.toolText");
+  },
+  get toolColor() {
+    return t("s.colorPickerName");
+  },
+  get repeatRegion() {
+    return t("screenshot.hintRepeat");
+  },
+  get collapse() {
+    return t("notch.collapse");
+  },
+  get close() {
+    return t("permissionGuide.closeHelp");
+  },
+  size: (w: number, h: number) => tf("windows.capture.size", w, h),
 } as const;

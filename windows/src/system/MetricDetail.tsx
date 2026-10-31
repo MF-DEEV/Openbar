@@ -7,6 +7,8 @@
 // supported process lists, with Task Manager a click away (the Mac's Activity
 // Monitor button). Escape steps back to the cards.
 
+import { useLocale } from "../i18n";
+
 import { Bluetooth, ChevronLeft, LoaderCircle, ShieldCheck, SquareArrowOutUpRight, Usb } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { usePageLayer } from "../island/pageLayer";
@@ -25,6 +27,7 @@ export const DETAIL_BAR = 36 + 8;
 
 /** `onMeasure` gets the readings' height, so a short detail keeps a short island (as the Mac's fan detail). */
 export function MetricDetail({ kind, onMeasure }: { kind: MetricKind; onMeasure(height: number): void }) {
+  useLocale();
   const snapshot = useSystem((s) => s.snapshot);
   const history = useSystem((s) => s.history);
   const close = useSystem((s) => s.closeDetail);
@@ -160,6 +163,7 @@ function useIcon(path: string | null): string | null {
 
 /** Windows' prompt for the helper that reads per-app traffic (network_helper.rs). */
 function NetworkApproval() {
+  useLocale();
   const [state, setState] = useState<"idle" | "asking" | "declined">("idle");
   const allow = () => {
     setState("asking");
@@ -194,6 +198,7 @@ function NetworkApproval() {
 }
 
 function Process({ kind, row, inBits }: { kind: MetricKind; row: ProcessRow; inBits: boolean }) {
+  useLocale();
   const icon = useIcon(row.path);
   return (
     <div className="sy-row-line sy-process" title={row.name}>

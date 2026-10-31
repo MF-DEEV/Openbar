@@ -4,12 +4,15 @@
 // Settings › Activity (NotchSettings.swift:540-639): the indicators the
 // closed island shows. Only those whose sections exist on Windows yet.
 
+import { useLocale, t } from "../i18n";
+
 import { Music, ArrowDownToLine, Mic, Timer, Coffee, Volume2, Sparkles } from "lucide-react";
 import { useSettings } from "./state";
 import { T } from "./strings";
 import { Group, Page, Row, Toggle } from "./ui";
 
 export function ActivitySettings() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const musicShown = !island.hiddenModules.includes("music") && island.sections.music !== false;
@@ -22,11 +25,11 @@ export function ActivitySettings() {
       <Group title={T.activity.indicators}>
         <Row
           icon={Mic}
-          title="Microphone Status"
-          caption="Red indicators when your microphone or Discord headphones are muted."
+          title={t("notchVoice.title")}
+          caption={t("windows.settings.redIndicatorsWhenYourMicrophoneOrDiscordHeadphones")}
         >
           <Toggle
-            label="Microphone Status"
+            label={t("notchVoice.title")}
             checked={island.microphoneStatus}
             onChange={(on) => set("microphoneStatus", on)}
           />

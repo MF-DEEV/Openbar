@@ -6,6 +6,8 @@
 // behind it is acrylic and reserved as an app bar, so maximized windows
 // start below it; the island hangs from its middle.
 
+import { dateTimeFormat, useLocale } from "../i18n";
+
 import { useEffect, useState } from "react";
 import { bridge } from "../shared/bridge";
 
@@ -26,12 +28,13 @@ function useClock() {
 }
 
 export function formatBarClock(date: Date, locale?: string): string {
-  const day = new Intl.DateTimeFormat(locale, { weekday: "short", day: "numeric", month: "short" }).format(date);
-  const time = new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(date);
+  const day = dateTimeFormat({ weekday: "short", day: "numeric", month: "short" }, locale).format(date);
+  const time = dateTimeFormat({ hour: "numeric", minute: "2-digit" }, locale).format(date);
   return `${day}  ${time}`.replace(/,/g, "");
 }
 
 export function Bar(props: { appName?: string }) {
+  useLocale();
   const now = useClock();
   const [app, setApp] = useState(props.appName ?? "");
   useEffect(() => {

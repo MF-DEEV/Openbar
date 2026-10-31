@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
+
+import { tf, t, useLocale } from "../i18n";
+
 import { Check, ChevronDown } from "lucide-react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { usePageLayer } from "../island/pageLayer";
@@ -37,6 +40,7 @@ export function usePlayerChoices(preferred = "") {
 }
 
 export function SourcePicker() {
+  useLocale();
   const { playback, sources, selectedSource, selecting, includeOtherPlayers, idlePlayer, sourceError } = useMusic();
   const [preferred, setPreferred] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -58,23 +62,23 @@ export function SourcePicker() {
       await setPrefs({ island: patch });
       setError(null);
     } catch {
-      setError("Could not save music preferences. Try again.");
+      setError(t("windows.music.couldNotSaveMusicPreferencesTryAgain"));
     }
   }
   const missing = selectedSource && !sources.some((s) => s.id === selectedSource && s.hasTrack !== false);
   const selected = sources.find((s) => s.id === selectedSource);
   const label = missing
-    ? `${selected?.name ?? selectedSource} unavailable · Automatic fallback`
+    ? tf("windows.music.valueUnavailableAutomaticFallback", selected?.name ?? selectedSource)
     : selectedSource
       ? (selected?.name ?? selectedSource)
-      : `Automatic${playback ? ` · ${playback.sourceName}` : ""}`;
+      : `${t("notchMusicExtras.automaticSource")}${playback ? ` · ${playback.sourceName}` : ""}`;
   return (
     <div className="m-player-options">
-      <div className="m-player-options-title">Music source</div>
+      <div className="m-player-options-title">{t("windows.music.musicSource")}</div>
       <div
         className="m-source-list"
         role="radiogroup"
-        aria-label="Music source"
+        aria-label={t("windows.music.musicSource")}
         onKeyDown={(event) => {
           if (selecting || !["ArrowDown", "ArrowUp"].includes(event.key)) return;
           event.preventDefault();
@@ -97,7 +101,7 @@ export function SourcePicker() {
           onClick={() => void useMusic.getState().selectSource(null)}
         >
           <span className="m-source-check">{selectedSource === null ? <Check size={12} /> : null}</span>
-          <span>Automatic</span>
+          <span>{t("notchMusicExtras.automaticSource")}</span>
         </button>
         {sources.map((source) => (
           <button
@@ -111,7 +115,7 @@ export function SourcePicker() {
           >
             <span className="m-source-check">{selectedSource === source.id ? <Check size={12} /> : null}</span>
             <span className="m-source-name">{source.name}</span>
-            {source.isPlaying ? <small>Playing</small> : null}
+            {source.isPlaying ? <small>{t("windows.music.playing")}</small> : null}
           </button>
         ))}
       </div>
@@ -121,20 +125,20 @@ export function SourcePicker() {
         </div>
       ) : null}
       <div className="m-preferred-player">
-        <span>Preferred player</span>
+        <span>{t("windows.music.preferredPlayer")}</span>
         <PreferredPlayerPicker
           value={preferred}
           onChange={(value) => void save({ preferredPlayer: value })}
           options={[
-            { value: "", label: "Automatic" },
+            { value: "", label: t("notchMusicExtras.automaticSource") },
             ...playerChoices(players, sources, preferred).map((player) => ({ value: player.id, label: player.name })),
           ]}
         />
       </div>
       <div className="m-other-players">
-        <span>Include other players</span>
+        <span>{t("windows.music.includeOtherPlayers")}</span>
         <Switch
-          label="Include other players"
+          label={t("windows.music.includeOtherPlayers")}
           on={includeOtherPlayers}
           onChange={(on) => void save({ includeOtherPlayers: on })}
         />
@@ -147,12 +151,12 @@ export function SourcePicker() {
             void bridge.music
               .openPlayer(idlePlayer.id)
               .then((ok) => {
-                if (ok === false) setError("Could not open the player.");
+                if (ok === false) setError(t("windows.music.couldNotOpenThePlayer"));
               })
-              .catch(() => setError("Could not open the player."));
+              .catch(() => setError(t("windows.music.couldNotOpenThePlayer")));
           }}
         >
-          {"Open " + idlePlayer.name}
+          {tf("notchMusicExtras.openNamedPlayer", idlePlayer.name)}
         </button>
       ) : null}
     </div>
@@ -170,6 +174,7 @@ function PreferredPlayerPicker({
   options: { value: string; label: string }[];
   onChange(value: string): void;
 }) {
+  useLocale();
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const [bounds, setBounds] = useState({ width: 180, maxHeight: 120 });
@@ -224,7 +229,7 @@ function PreferredPlayerPicker({
         ref={trigger}
         className="m-preferred-trigger"
         role="combobox"
-        aria-label="Preferred player"
+        aria-label={t("windows.music.preferredPlayer")}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
@@ -261,7 +266,13 @@ function PreferredPlayerPicker({
         <ChevronDown size={11} />
       </button>
       {open ? (
-        <div id={id} role="listbox" aria-label="Preferred player" className="m-preferred-menu" style={bounds}>
+        <div
+          id={id}
+          role="listbox"
+          aria-label={t("windows.music.preferredPlayer")}
+          className="m-preferred-menu"
+          style={bounds}
+        >
           {options.map((option, index) => (
             <button
               key={option.value}

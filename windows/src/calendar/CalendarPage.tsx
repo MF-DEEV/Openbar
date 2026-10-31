@@ -7,6 +7,8 @@
 // opens the month grid over both. The title and the arrows head the page
 // from the island's top row.
 
+import { dateTimeFormat, useLocale } from "../i18n";
+
 import {
   CalendarCheck,
   CalendarClock,
@@ -55,9 +57,9 @@ export const TODAY = "rgb(255, 92, 99)";
 const NAVIGATION_WIDTH = 28 * 3;
 const OPEN_WIDTH = 6 + 28;
 
-const weekdayLetter = (day: number) => new Intl.DateTimeFormat(undefined, { weekday: "narrow" }).format(day);
+const weekdayLetter = (day: number) => dateTimeFormat({ weekday: "narrow" }).format(day);
 const fullDate = (day: number) =>
-  new Intl.DateTimeFormat(undefined, { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(day);
+  dateTimeFormat({ weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(day);
 
 /** A month grid needs six rows beside an agenda; anything shorter shows the week as a strip. */
 export const isWide = (width: number, height: number) => height >= 300 && width >= 420;
@@ -66,6 +68,7 @@ export const isWide = (width: number, height: number) => height >= 300 && width 
 let asked = false;
 
 export function CalendarPage({ width, height }: PageProps) {
+  useLocale();
   const access = useCalendar((s) => s.access);
   const received = useCalendar((s) => s.received);
   const focus = useCalendar((s) => s.focus);
@@ -129,7 +132,7 @@ export function CalendarPage({ width, height }: PageProps) {
 
 // MARK: Top row
 
-const monthFormat = (style: "long" | "short") => new Intl.DateTimeFormat(undefined, { month: style, year: "numeric" });
+const monthFormat = (style: "long" | "short") => dateTimeFormat({ month: style, year: "numeric" });
 
 let measureCanvas: HTMLCanvasElement | undefined;
 function titleWidth(text: string) {
@@ -150,6 +153,7 @@ function rowOpensCalendar(rowWidth: number, focus: number) {
  * that grid it closes it.
  */
 export function MonthTitle() {
+  useLocale();
   const focus = useCalendar((s) => s.focus);
   const wide = useCalendar((s) => s.wide);
   const showingMonth = useCalendar((s) => s.showingMonth);
@@ -177,6 +181,7 @@ export function MonthTitle() {
 
 /** The arrows step by week over the strip and by month over a grid, around the way back to today. */
 export function Navigation() {
+  useLocale();
   const focus = useCalendar((s) => s.focus);
   const byWeek = useCalendar((s) => !s.wide && !s.showingMonth);
   const row = useCalendar((s) => s.width);
@@ -227,6 +232,7 @@ interface DayProps {
 }
 
 function Day(props: DayProps) {
+  useLocale();
   const events = useCalendar((s) => s.events);
   const isToday = sameDay(props.day, props.now);
   const dayEvents = eventsOn(events, props.day);
@@ -262,6 +268,7 @@ function Day(props: DayProps) {
 
 /** One week across the page; a second click on the chosen day returns to the coming week. */
 function WeekStrip({ focus, selectedDay, now }: { focus: number; selectedDay: number | null; now: number }) {
+  useLocale();
   const firstWeekday = useCalendar((s) => s.firstWeekday);
   return (
     <div className="cal-week" role="group" aria-label={monthFormat("long").format(focus)}>
@@ -287,6 +294,7 @@ function WeekStrip({ focus, selectedDay, now }: { focus: number; selectedDay: nu
 }
 
 function WeekdayHeader({ height, numbered }: { height: number; numbered: boolean }) {
+  useLocale();
   const firstWeekday = useCalendar((s) => s.firstWeekday);
   return (
     <>
@@ -301,6 +309,7 @@ function WeekdayHeader({ height, numbered }: { height: number; numbered: boolean
 }
 
 function WeekNumber({ day, height, circle }: { day: number; height: number; circle: number }) {
+  useLocale();
   const firstWeekday = useCalendar((s) => s.firstWeekday);
   const minimumDaysInFirstWeek = useCalendar((s) => s.minimumDaysInFirstWeek);
   const n = weekNumber(day, firstWeekday, minimumDaysInFirstWeek);
@@ -326,6 +335,7 @@ interface GridProps {
 }
 
 function Grid(props: GridProps) {
+  useLocale();
   const firstWeekday = useCalendar((s) => s.firstWeekday);
   const numbered = useIsland((s) => s.settings.calendarWeekNumbers);
   return (
@@ -339,6 +349,7 @@ function Grid(props: GridProps) {
 }
 
 function GridDay(props: GridProps & { day: number; numbered: boolean }) {
+  useLocale();
   return (
     <>
       {props.numbered ? <WeekNumber day={props.day} height={props.rowHeight} circle={props.circle} /> : null}
@@ -359,6 +370,7 @@ function GridDay(props: GridProps & { day: number; numbered: boolean }) {
 
 /** The month beside the agenda of a tall island. */
 function MonthView(props: { month: number; selectedDay: number | null; now: number }) {
+  useLocale();
   return (
     <Grid
       {...props}
@@ -375,6 +387,7 @@ function MonthView(props: { month: number; selectedDay: number | null; now: numb
 
 /** The month over a short island's strip, rows sized to what is left; a pick returns to the strip. */
 function MonthGrid(props: { month: number; selectedDay: number | null; now: number; height: number }) {
+  useLocale();
   const rowHeight = monthRowHeight(props.height);
   const circle = Math.min(24, rowHeight - 3);
   return (
@@ -396,10 +409,11 @@ function MonthGrid(props: { month: number; selectedDay: number | null; now: numb
 
 // MARK: Agenda
 
-const dayLabel = (day: number) => new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" }).format(day);
-const weekdayShort = (day: number) => new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(day);
+const dayLabel = (day: number) => dateTimeFormat({ day: "numeric", month: "short" }).format(day);
+const weekdayShort = (day: number) => dateTimeFormat({ weekday: "short" }).format(day);
 
 function AgendaHeader() {
+  useLocale();
   const selectedDay = useCalendar((s) => s.selectedDay);
   return (
     <div className="cal-agenda-header">
@@ -410,6 +424,7 @@ function AgendaHeader() {
 }
 
 function Spinner() {
+  useLocale();
   return (
     <div className="cal-loading" role="status" aria-label={C.loading}>
       <LoaderCircle size={16} className="cal-spinner" />
@@ -418,6 +433,7 @@ function Spinner() {
 }
 
 function Agenda({ now, width }: { now: number; width: number }) {
+  useLocale();
   const events = useCalendar((s) => s.events);
   const loading = useCalendar((s) => s.loading);
   const revealing = useCalendar((s) => s.revealing);
@@ -507,6 +523,7 @@ function Agenda({ now, width }: { now: number; width: number }) {
 }
 
 function DayLabel({ day, now }: { day: number; now: number }) {
+  useLocale();
   const today = sameDay(day, now);
   return (
     <div className="cal-day-label">
@@ -524,6 +541,7 @@ function EventCard(props: {
   chosen: boolean;
   onMenu?: (x: number, y: number) => void;
 }) {
+  useLocale();
   const { event, now } = props;
   const ongoing = !event.allDay && event.start <= now && event.end > now;
   const ended = event.end <= now;
@@ -562,6 +580,7 @@ function EventCard(props: {
 // MARK: Access
 
 function PermissionCard() {
+  useLocale();
   const access = useCalendar((s) => s.access);
   const requesting = useCalendar((s) => s.requesting);
   const failed = useCalendar((s) => s.requestFailed);

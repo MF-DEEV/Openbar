@@ -6,6 +6,8 @@
 // person's order, each showing what a click will do, and running or
 // failed while that lasts. State is read when the list opens, never polled.
 
+import { useLocale } from "../i18n";
+
 import {
   Eject,
   Eye,
@@ -84,6 +86,7 @@ function row(id: ToggleId, info: ToggleState | null, run: RunState | undefined, 
 }
 
 export function QuickToggles({ height }: { height: number }) {
+  useLocale();
   const settings = useIsland((s) => s.settings);
   const info = useTools((s) => s.toggleInfo);
   const runs = useTools((s) => s.toggleRuns);

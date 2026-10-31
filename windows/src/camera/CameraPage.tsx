@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { localizeMessage, t, useLocale } from "../i18n";
+
 import { ChevronDown, FlipHorizontal2, LoaderCircle, RefreshCw, VideoOff, Webcam } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useIsland } from "../island/store";
@@ -11,6 +13,7 @@ import { CameraPreview, emptyCamera } from "./preview";
 import "./camera.css";
 
 export function CameraPage() {
+  useLocale();
   const active = useIsland(
     (s) => s.expanded && s.selected === "camera" && !s.showingSections && !s.capturePreview && s.settings.enabled,
   );
@@ -64,21 +67,21 @@ export function CameraPage() {
   const selected = state.devices.find((d) => d.id === state.selected);
 
   return (
-    <section className="cam-page" aria-label="Camera preview">
+    <section className="cam-page" aria-label={t("cameraPreview.pageTitle")}>
       <div className="cam-view">
         <video
           ref={video}
           autoPlay
           muted
           playsInline
-          aria-label="Live camera preview"
+          aria-label={t("windows.camera.liveCameraPreview")}
           className={mirrored ? "is-mirrored" : undefined}
           style={{ visibility: live ? "visible" : "hidden" }}
         />
         {live ? (
           <span className="cam-live">
             <i />
-            Live
+            {t("windows.camera.live")}
           </span>
         ) : (
           <div className="cam-status" role="status">
@@ -87,10 +90,12 @@ export function CameraPage() {
             ) : (
               <VideoOff size={28} strokeWidth={1.5} />
             )}
-            <strong>{state.status === "loading" ? "Starting camera…" : "Camera preview"}</strong>
-            <p>{state.error || "Your camera preview appears here."}</p>
+            <strong>
+              {state.status === "loading" ? t("windows.camera.startingCamera") : t("cameraPreview.pageTitle")}
+            </strong>
+            <p>{localizeMessage(state.error) || t("windows.camera.yourCameraPreviewAppearsHere")}</p>
             {state.status === "error" ? (
-              <PillButton onClick={() => void preview.current?.start()}>Try again</PillButton>
+              <PillButton onClick={() => void preview.current?.start()}>{t("notchMusicExtras.retry")}</PillButton>
             ) : null}
           </div>
         )}
@@ -98,11 +103,11 @@ export function CameraPage() {
       <div className="cam-bar">
         <Webcam size={15} aria-hidden="true" />
         <MenuButton
-          label="Choose camera"
+          label={t("windows.camera.chooseCamera")}
           className="cam-picker"
           alignRight={false}
           entries={() => [
-            { label: "Default camera", checked: !preferred, onSelect: () => select("") },
+            { label: t("windows.camera.label"), checked: !preferred, onSelect: () => select("") },
             ...(state.devices.length ? [{ kind: "separator" as const }] : []),
             ...state.devices.map((device) => ({
               label: device.name,
@@ -111,26 +116,26 @@ export function CameraPage() {
             })),
           ]}
         >
-          <span>{selected?.name || "Choose camera"}</span>
+          <span>{selected?.name || t("windows.camera.chooseCamera")}</span>
           <ChevronDown size={13} />
         </MenuButton>
         <IconButton
           icon={RefreshCw}
-          label="Refresh cameras"
+          label={t("windows.camera.refreshCameras")}
           onClick={() => {
             void preview.current?.refresh();
           }}
         />
         <IconButton
           icon={FlipHorizontal2}
-          label="Mirror preview"
+          label={t("windows.camera.mirrorPreview")}
           selected={mirrored}
           onClick={() => setMirrored((value) => !value)}
         />
       </div>
       {saveError ? (
         <p className="cam-save-error" role="status">
-          Camera changed, but the preference could not be saved.
+          {t("windows.camera.cameraChangedButThePreferenceCouldNotBe")}
         </p>
       ) : null}
     </section>

@@ -5,6 +5,8 @@
 // that runs it, a spinner while it does, then download and upload in Mbps
 // with the latency under them, or that it failed.
 
+import { useLocale, t } from "../i18n";
+
 import { Gauge, LoaderCircle } from "lucide-react";
 import { COLORS } from "./detail";
 import { mbps } from "./format";
@@ -12,6 +14,7 @@ import { speedTestRunning, useSystem } from "./store";
 import { S } from "./strings";
 
 export function SpeedTestCard() {
+  useLocale();
   const speed = useSystem((s) => s.speedTest);
   const start = useSystem((s) => s.startSpeedTest);
   const running = speedTestRunning(speed);
@@ -31,7 +34,7 @@ export function SpeedTestCard() {
         )}
         {speed.downloadMbps !== null && speed.uploadMbps !== null ? (
           <span className="sy-speed-result">
-            ↓{mbps(speed.downloadMbps)} ↑{mbps(speed.uploadMbps)} Mbps
+            ↓{mbps(speed.downloadMbps)} ↑{mbps(speed.uploadMbps)} {t("windows.system.mbps")}
           </span>
         ) : null}
       </div>
@@ -41,7 +44,7 @@ export function SpeedTestCard() {
         </div>
       ) : speed.latencyMs !== null ? (
         <div className="sy-speed-note">
-          {S.speedTestLatency}: {Math.round(speed.latencyMs)} ms
+          {S.speedTestLatency}: {Math.round(speed.latencyMs)} {t("windows.system.ms")}
         </div>
       ) : null}
     </section>

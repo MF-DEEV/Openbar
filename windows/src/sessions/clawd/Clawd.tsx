@@ -9,6 +9,8 @@
 // steps every visible Clawd a dozen times a second and a canvas is touched
 // only when its pose changes, which keeps ten of them in the island cheap.
 
+import { useLocale } from "../../i18n";
+
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { bridge } from "../../shared/bridge";
 import { costumeCode, seed as seedOf, type Character, type ClawdCostume } from "./costume";
@@ -162,6 +164,7 @@ function Canvas(props: {
   className?: string;
   style?: CSSProperties;
 }) {
+  useLocale();
   const fit = layout({ width: props.width, height: props.height }, props.ratio);
   return (
     <div
@@ -221,6 +224,7 @@ export interface ClawdProps {
 
 /** A Clawd fitted to a box, moving unless Reduce Motion is on. Decoration only: aria-hidden. */
 export function Clawd(props: ClawdProps) {
+  useLocale();
   const { costume, motion = "rest", bubbles = true, width, height, character = "clawd" } = props;
   const reduce = useReducedMotion();
   const still = props.still ?? reduce;
@@ -291,6 +295,7 @@ export function ClawdPicture(props: {
   className?: string;
   style?: CSSProperties;
 }) {
+  useLocale();
   const ratio = useDevicePixelRatio();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pose = props.pose ?? basePose();

@@ -6,6 +6,8 @@
 // sessions are in each phase on the other. Clicking opens the Sessions page,
 // on the first waiting session when there is one.
 
+import { useLocale } from "../i18n";
+
 import { CheckCircleFill, ClaudeMark, CodexMark, HandFill, MARK_SCALE, SparkleFill } from "./glyphs";
 import { edgeInset, type Geometry } from "../island/geometry";
 import type { Size } from "../island/motion";
@@ -50,6 +52,7 @@ export function stripWing(counts: Counts, stripHeight: number): number {
 }
 
 export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Size }) {
+  useLocale();
   const counts = useSessions((s) => presentedSnapshot(s).counts);
   const textSize = stripTextSize(geometry.stripHeight);
   const capsule = geometry.floatingGap !== null;

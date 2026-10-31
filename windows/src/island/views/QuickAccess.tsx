@@ -5,10 +5,12 @@
 // spec 01-shell §1.7): 44 pt black circles 12 pt off the island's sides and
 // bottom, at most three a side, sliding out once the island has arrived.
 
+import { useLocale, t } from "../../i18n";
+
 import { Pin, PinOff, Settings, LayoutGrid, Undo2, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect } from "react";
-import { t } from "../../i18n";
+
 import { bridge } from "../../shared/bridge";
 import { type Geometry } from "../geometry";
 import { moduleInfo } from "../modules";
@@ -22,6 +24,7 @@ const DIAMETER = QUICK_LAYOUT.diameter;
 const REVEAL = { type: "spring", stiffness: 273.4, damping: 29.1, mass: 1 } as const;
 
 export function QuickAccess(props: { geometry: Geometry; size: Size; visible: boolean; delay: number }) {
+  useLocale();
   const settings = useIsland((s) => s.settings);
   const modules = modulesOf({ settings });
   const shown = settings.quickAccess.filter((b) => b.action.kind !== "module" || modules.includes(b.action.module));
@@ -72,6 +75,7 @@ export function QuickAccess(props: { geometry: Geometry; size: Size; visible: bo
 }
 
 function Bubble({ placed, visible, delay }: { placed: Placed; visible: boolean; delay: number }) {
+  useLocale();
   const reducedMotion = useReducedMotion();
   const showingSections = useIsland((s) => s.showingSections);
   const pinned = useIsland((s) => s.pinned);

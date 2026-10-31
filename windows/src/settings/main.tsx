@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../i18n";
+
+import { initializeLocalization } from "../i18n/start";
+
 // The settings window: Windows 11's Settings layout, with the Mac's island
 // tabs (Layout, Content, Activity, Behavior) as pages beside General.
 
@@ -22,12 +26,59 @@ import "../shared/controls.css";
 type PageId = "general" | "layout" | "content" | "activity" | "behavior" | "mascot";
 
 const PAGES: { id: PageId; icon: LucideIcon; label: string; Page: () => React.JSX.Element; island?: boolean }[] = [
-  { id: "general", icon: Settings2, label: T.nav.general, Page: GeneralSettings },
-  { id: "layout", icon: LayoutTemplate, label: T.nav.layout, Page: LayoutSettings, island: true },
-  { id: "content", icon: SlidersHorizontal, label: T.nav.content, Page: ContentSettings, island: true },
-  { id: "activity", icon: Activity, label: T.nav.activity, Page: ActivitySettings, island: true },
-  { id: "behavior", icon: Wand2, label: T.nav.behavior, Page: BehaviorSettings, island: true },
-  { id: "mascot", icon: Smile, label: T.nav.mascot, Page: MascotSettings, island: true },
+  {
+    id: "general",
+    icon: Settings2,
+    get label() {
+      return T.nav.general;
+    },
+    Page: GeneralSettings,
+  },
+  {
+    id: "layout",
+    icon: LayoutTemplate,
+    get label() {
+      return T.nav.layout;
+    },
+    Page: LayoutSettings,
+    island: true,
+  },
+  {
+    id: "content",
+    icon: SlidersHorizontal,
+    get label() {
+      return T.nav.content;
+    },
+    Page: ContentSettings,
+    island: true,
+  },
+  {
+    id: "activity",
+    icon: Activity,
+    get label() {
+      return T.nav.activity;
+    },
+    Page: ActivitySettings,
+    island: true,
+  },
+  {
+    id: "behavior",
+    icon: Wand2,
+    get label() {
+      return T.nav.behavior;
+    },
+    Page: BehaviorSettings,
+    island: true,
+  },
+  {
+    id: "mascot",
+    icon: Smile,
+    get label() {
+      return T.nav.mascot;
+    },
+    Page: MascotSettings,
+    island: true,
+  },
 ];
 
 const PAGE_KEY = "vorssaint.settings.page";
@@ -45,6 +96,7 @@ function initialPage(): PageId {
 }
 
 function App() {
+  useLocale();
   const [page, setPage] = useState<PageId>(initialPage);
   const error = useSettings((s) => s.error);
   useEffect(() => {
@@ -62,11 +114,11 @@ function App() {
 
   return (
     <div className="st-app">
-      <nav className="st-nav" aria-label="Settings">
+      <nav className="st-nav" aria-label={t("s.panelSettings")}>
         <div className="st-brand">
           <span className="st-brand-mark" aria-hidden />
           <span className="st-brand-text">
-            <div className="st-brand-name">Vorssaint</div>
+            <div className="st-brand-name">{t("s.keepAwakeActiveIconVorssaint")}</div>
             <div className="st-brand-sub">{T.brand}</div>
           </span>
         </div>
@@ -100,8 +152,10 @@ function App() {
 
 startSettings();
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-);
+void initializeLocalization().then(() => {
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+});

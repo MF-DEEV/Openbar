@@ -6,6 +6,8 @@
 // which calendars show, grouped by account. Unchecked calendars stay out of
 // the page and the countdown.
 
+import { useLocale } from "../i18n";
+
 import { useEffect, useState } from "react";
 import { groupedChoices } from "../calendar/model";
 import type { CalendarSnapshot } from "../calendar/types";
@@ -30,6 +32,7 @@ function useCalendarSnapshot() {
 }
 
 export function CalendarOptions() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const [snapshot, setSnapshot] = useCalendarSnapshot();

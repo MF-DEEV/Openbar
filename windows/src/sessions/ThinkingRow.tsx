@@ -7,6 +7,8 @@
 // a second. Reduced motion keeps a still ✻. A Codex session shows its own
 // mark and color instead of Claude's star.
 
+import { useLocale } from "../i18n";
+
 import { useEffect, useState } from "react";
 import { clock, providerTint, thinkingWord } from "./format";
 import { CodexMark } from "./glyphs";
@@ -45,6 +47,7 @@ function glow(tint: string, amount: number): string {
 }
 
 export function ThinkingRow({ session, size, now }: { session: Session; size: number; now: number }) {
+  useLocale();
   const still = reduced();
   const t = useTicker(24, !still);
   const word = thinkingWord(session.turnStarted ?? session.phaseSince);

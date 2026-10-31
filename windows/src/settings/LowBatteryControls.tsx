@@ -4,6 +4,8 @@
 // The resting charge can turn red once it runs low, and amber a little
 // earlier, at levels the person picks (NotchSettings.swift:lowBatteryControls).
 
+import { useLocale } from "../i18n";
+
 import { BatteryLow, BatteryMedium, PanelBottom } from "lucide-react";
 import { BATTERY_LEVEL_SCALE, earlyBatteryThreshold, lowBatteryThreshold } from "../island/lowBattery";
 import { useSettings } from "./state";
@@ -13,6 +15,7 @@ import { Row, Slider, Toggle } from "./ui";
 const percent = (value: number) => `${value}%`;
 
 export function LowBatteryControls() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const patch = useSettings((s) => s.patch);
   const S = T.content.lowBattery;

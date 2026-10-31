@@ -5,6 +5,8 @@
 // volume with its mute and output chooser, and brightness, or the row that
 // sets brightness up. Each is 28 tall; the slider shows the level it sets.
 
+import { useLocale } from "../i18n";
+
 import { ChevronDown, Sun, Volume2, VolumeX } from "lucide-react";
 import { useEffect } from "react";
 import { modulesOf, useIsland } from "../island/store";
@@ -17,6 +19,7 @@ import { S } from "./strings";
 
 /** The chevron alone: the slider beside it already shows the level (NotchLevelChooser). */
 function LevelChooser(props: { label: string; entries: () => MenuEntry[] }) {
+  useLocale();
   return (
     <MenuButton className="ct-chooser" label={props.label} entries={props.entries}>
       <ChevronDown size={11} strokeWidth={2.5} aria-hidden="true" />
@@ -38,6 +41,7 @@ export function outputEntries(): MenuEntry[] {
 }
 
 export function VolumeLevel() {
+  useLocale();
   const output = useAudio((s) => s.state.output);
   const outputs = useAudio((s) => s.state.outputs);
   const canSwitch = useAudio((s) => s.state.canSwitch);
@@ -76,12 +80,14 @@ export function VolumeLevel() {
 }
 
 export function BrightnessLevel() {
+  useLocale();
   const enabled = useIsland((s) => s.settings.brightnessControlEnabled);
   return enabled ? <BrightnessControls /> : <BrightnessSetup />;
 }
 
 /** A narrow level keeps the sun and the way to set brightness up; a wider one names it. */
 function BrightnessSetup() {
+  useLocale();
   return (
     <div className="ct-level ct-setup" title={S.brightness}>
       <span className="ct-level-glyph" aria-hidden="true">
@@ -103,6 +109,7 @@ function BrightnessSetup() {
 }
 
 function BrightnessControls() {
+  useLocale();
   const displays = useBrightness((s) => s.displays);
   const picked = useBrightness((s) => s.picked);
   const loaded = useBrightness((s) => s.loaded);

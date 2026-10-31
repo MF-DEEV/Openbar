@@ -5,12 +5,15 @@
 // features the Mac switches in its feature hub): how often the cards read,
 // the network unit, and which cards show.
 
+import { useLocale } from "../i18n";
+
 import { MONITOR_METRICS, type MonitorMetric, type NetworkSpeedUnit } from "../system/types";
 import { useSettings } from "./state";
 import { T } from "./strings";
 import { Segmented, SubRow, Toggle } from "./ui";
 
 export function SystemOptions() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const shown = (metric: MonitorMetric) => !island.hiddenSystemMetrics.includes(metric);

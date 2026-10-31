@@ -4,17 +4,43 @@
 // The Downloads section's words, as the Mac says them (NotchFilesStrings,
 // Localization.swift shelfActionOpen); Finder becomes File Explorer.
 
+import { t } from "../i18n";
+
 export const S = {
-  title: "Downloads",
-  waiting: "New downloads and file transfers appear here automatically.",
-  completed: "Download complete",
-  saved: "Saved",
-  stopped: "Stopped",
-  inProgress: "Downloading",
-  open: "Open",
-  showInExplorer: "Show in File Explorer",
-  addToFiles: "Add to Files",
-  addedToFiles: "Added to Files",
-  addFolder: "Add Folder…",
-  addFolderTitle: "Choose a folder where downloads arrive",
+  get title() {
+    return t("notchFiles.downloadsTitle");
+  },
+  get waiting() {
+    return t("windows.downloads.newDownloadsAndFileTransfersAppearHereAutomatically");
+  },
+  get completed() {
+    return t("notchFiles.completed");
+  },
+  get saved() {
+    return t("notchFiles.saved");
+  },
+  get stopped() {
+    return t("windows.downloads.stopped");
+  },
+  get inProgress() {
+    return t("notchFiles.inProgress");
+  },
+  get open() {
+    return t("s.diskOpenInFinder");
+  },
+  get showInExplorer() {
+    return t("windows.downloads.showInExplorer");
+  },
+  get addToFiles() {
+    return t("windows.downloads.addToFiles");
+  },
+  get addedToFiles() {
+    return t("windows.downloads.addedToFiles");
+  },
+  get addFolder() {
+    return t("notchFiles.addFolder");
+  },
+  get addFolderTitle() {
+    return t("windows.downloads.addFolderTitle");
+  },
 };

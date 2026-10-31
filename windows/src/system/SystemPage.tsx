@@ -6,6 +6,8 @@
 // line. A card opens its metric's detail. The grid scrolls only when it is
 // taller than the page.
 
+import { useLocale } from "../i18n";
+
 import { BatteryCharging, Gauge } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { contentBudget } from "../island/geometry";
@@ -23,13 +25,15 @@ import "./system.css";
 
 /** The cards for the current reading and the person's switches. */
 export function useCards(): Card[] {
+  const language = useLocale();
   const snapshot = useSystem((s) => s.snapshot);
   const hidden = useIsland((s) => s.settings.hiddenSystemMetrics);
   const inBits = useIsland((s) => s.settings.networkSpeedUnit === "bits");
-  return useMemo(() => systemCards(snapshot, { hidden, inBits }), [snapshot, hidden, inBits]);
+  return useMemo(() => systemCards(snapshot, { hidden, inBits }), [snapshot, hidden, inBits, language]);
 }
 
 export function SystemPage({ width }: PageProps) {
+  useLocale();
   const cards = useCards();
   const snapshot = useSystem((s) => s.snapshot);
   const detail = useSystem((s) => s.detail);
@@ -75,6 +79,7 @@ export function SystemPage({ width }: PageProps) {
 }
 
 function CardButton({ card }: { card: Card }) {
+  useLocale();
   const Glyph = card.kind === "battery" && card.charging ? BatteryCharging : GLYPHS[card.kind];
   const value = card.value ?? "…";
   const spoken = [card.value ?? "…", card.detail].filter(Boolean).join(", ");
@@ -104,6 +109,7 @@ function CardButton({ card }: { card: Card }) {
 
 /** The value shrinks to fit its card, down to three quarters (minimumScaleFactor 0.75). */
 function FitValue({ text }: { text: string }) {
+  useLocale();
   const box = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
     const el = box.current;
@@ -122,6 +128,7 @@ function FitValue({ text }: { text: string }) {
 
 /** A 5 pt capsule: white, or orange when the reading needs attention (NotchMeter). */
 export function Meter({ value, attention }: { value: number; attention: boolean }) {
+  useLocale();
   const fraction = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
   return (
     <span className={`sy-meter${attention ? " is-attention" : ""}`} aria-hidden>

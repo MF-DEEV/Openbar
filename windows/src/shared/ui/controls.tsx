@@ -4,6 +4,8 @@
 // Small shared atoms for section pages: the control surface card
 // (NotchControlSurface), a switch, and the editable percent (NotchMixerView).
 
+import { useLocale } from "../../i18n";
+
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
 /** White 6.5% card (12% when selected); radius per use. */
@@ -14,6 +16,7 @@ export function Surface(props: {
   className?: string;
   style?: CSSProperties;
 }) {
+  useLocale();
   return (
     <div
       className={`u-surface${props.selected ? " is-selected" : ""}${props.className ? " " + props.className : ""}`}
@@ -26,6 +29,7 @@ export function Surface(props: {
 
 /** The small on/off switch used inside island option cards. */
 export function Switch(props: { on: boolean; onChange(on: boolean): void; label: string; disabled?: boolean }) {
+  useLocale();
   return (
     <button
       type="button"
@@ -50,6 +54,7 @@ export function Checkbox(props: {
   className?: string;
   disabled?: boolean;
 }) {
+  useLocale();
   return (
     <label className={`u-check${props.className ? " " + props.className : ""}${props.disabled ? " is-disabled" : ""}`}>
       <input
@@ -86,6 +91,7 @@ export function EditablePercent(props: {
   disabled?: boolean;
   className?: string;
 }) {
+  useLocale();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState("");
   const input = useRef<HTMLInputElement>(null);

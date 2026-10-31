@@ -5,6 +5,8 @@
 // wardrobe), moving with its phase; a round phase badge with buddies off.
 // A sleeping session's row fades as a whole (SessionsList), not the face.
 
+import { useLocale } from "../i18n";
+
 import { PhaseBadge, phaseIcon } from "./Avatar";
 import { Clawd } from "./clawd/Clawd";
 import { resolvedCostume, subagentKey } from "./clawd/costume";
@@ -20,6 +22,7 @@ const SIZES = {
 };
 
 export function SessionAvatar(props: { session: Session; now: number; lookedAt?: number; size: keyof typeof SIZES }) {
+  useLocale();
   const { session } = props;
   const s = SIZES[props.size];
   const buddies = useSessions((st) => st.prefs.buddies);
@@ -48,6 +51,7 @@ export function SessionAvatar(props: { session: Session; now: number; lookedAt?:
 
 /** A subagent's own Clawd: its own lot, the shell from its definition's `color:`. */
 export function SubagentAvatar({ session, agent }: { session: Session; agent: Subagent }) {
+  useLocale();
   const key = subagentKey(session.id, agent.id);
   const kept = useSessions((st) => st.costumes[key]);
   const running = agent.finished === undefined;
@@ -80,6 +84,7 @@ export function SessionNoticeMark(props: {
   session: { id: string; provider: Provider; event: SessionEvent["kind"] };
   height: number;
 }) {
+  useLocale();
   const { id, event } = props.session;
   const buddies = useSessions((st) => st.prefs.buddies);
   const kept = useSessions((st) => st.costumes[id]);

@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
+
+import { useLocale, t } from "../i18n";
+
 import { create } from "zustand";
 import { HeadphoneOff, Mic, MicOff } from "lucide-react";
 import { bridge } from "../shared/bridge";
@@ -13,6 +16,7 @@ import "./microphone.css";
 const useMicrophone = create<MicrophoneSnapshot>(() => EMPTY_MICROPHONE);
 
 export function AudioIcons({ muted, deafened }: { muted: boolean; deafened: boolean }) {
+  useLocale();
   return (
     <span className={`mic-icons${muted || deafened ? " is-muted" : ""}`}>
       {deafened ? <HeadphoneOff size={16} aria-hidden="true" /> : null}
@@ -22,7 +26,7 @@ export function AudioIcons({ muted, deafened }: { muted: boolean; deafened: bool
 }
 
 function label(muted: boolean, deafened: boolean) {
-  return deafened ? "Headphones and microphone muted" : muted ? "Microphone muted" : "Microphone unmuted";
+  return deafened ? t("notchVoice.deafened") : muted ? t("s.micMutedHUD") : t("notchVoice.unmuted");
 }
 
 function syncActivity() {
@@ -58,7 +62,7 @@ export async function subscribeMicrophone() {
       island.showNotice({
         id: `microphone:${Date.now()}`,
         kind: "microphone",
-        title: "Discord / Microphone",
+        title: t("windows.microphone.title"),
         detail: label(next.muted, next.deafened),
         priority: 1,
         duration: 3,
@@ -82,6 +86,7 @@ useIsland.subscribe((state, previous) => {
 });
 
 export function MicrophoneStrip({ geometry, size }: ActivityViewProps) {
+  useLocale();
   const state = audioState(useMicrophone());
   const text = label(state.muted, state.deafened);
   const padding = geometry.floatingGap === null ? edgeInset(size, 16, 3, 5, geometry.input) : 14;

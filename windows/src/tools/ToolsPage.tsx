@@ -7,6 +7,8 @@
 // options card and the "Add back" tray; and Quick toggles hosted in place
 // of the grid with the way back in the top row.
 
+import { useLocale, t } from "../i18n";
+
 import {
   Camera,
   Check,
@@ -28,7 +30,6 @@ import {
   Zap,
 } from "lucide-react";
 import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
-import { t } from "../i18n";
 import { contentBudget } from "../island/geometry";
 import { usePageLayer } from "../island/pageLayer";
 import type { ColorPickerFormat } from "../island/settings";
@@ -106,6 +107,7 @@ function usePageHeight(count: number, width: number) {
 }
 
 export function ToolsPage({ width, height }: PageProps) {
+  useLocale();
   const settings = useIsland((s) => s.settings);
   const editing = useTools((s) => s.editing);
   const utility = useTools((s) => s.utility);
@@ -142,6 +144,7 @@ export function ToolsPage({ width, height }: PageProps) {
 
 /** The trailing side: the customize toggle, or nothing while a utility is open. */
 export function ToolsTrailing() {
+  useLocale();
   const editing = useTools((s) => s.editing);
   const utility = useTools((s) => s.utility);
   if (utility) return null;
@@ -157,6 +160,7 @@ export function ToolsTrailing() {
 
 /** With a utility open, the way back names it (NotchBandBackButton); else the island's own sections button. */
 export function ToolsLeading() {
+  useLocale();
   const utility = useTools((s) => s.utility);
   const hasExploreBubble = useIsland((s) => s.settings.quickAccess.some((b) => b.action.kind === "explore"));
   if (!utility) {
@@ -186,6 +190,7 @@ export function ToolsLeading() {
 // MARK: Rail
 
 function Rail({ tools, layout, width }: { tools: ToolId[]; layout: RailLayout; width: number }) {
+  useLocale();
   const selectedIndex = useTools((s) => s.selectedIndex);
   const keyboardIndex = useTools((s) => s.keyboardIndex);
   const scroller = useRef<HTMLDivElement>(null);
@@ -261,6 +266,7 @@ function Rail({ tools, layout, width }: { tools: ToolId[]; layout: RailLayout; w
 }
 
 function ToolCell(props: { id: ToolId; selected: boolean; titleInset: number; onHover(): void }) {
+  useLocale();
   const look = useToolLook(props.id);
   return (
     <button
@@ -282,6 +288,7 @@ function ToolCell(props: { id: ToolId; selected: boolean; titleInset: number; on
 }
 
 function ToolGlyph({ look, children }: { look: ReturnType<typeof useToolLook>; children?: ReactNode }) {
+  useLocale();
   const Icon = look.Icon;
   return (
     <span className={`tl-glyph ${look.tone}`}>
@@ -295,6 +302,7 @@ function ToolGlyph({ look, children }: { look: ReturnType<typeof useToolLook>; c
 // MARK: Edit mode
 
 function EditGrid({ visible }: { visible: ToolId[] }) {
+  useLocale();
   const [draft, setDraft] = useState<ToolId[] | null>(null);
   const ids = draft ?? visible;
   const reorder = useReorder<ToolId>({
@@ -322,6 +330,7 @@ function EditCell(props: {
   moving: boolean;
   itemProps: ReturnType<ReturnType<typeof useReorder>["itemProps"]>;
 }) {
+  useLocale();
   const look = useToolLook(props.id);
   const optionsItem = useTools((s) => s.optionsItem);
   const hasOptions = TOOLS_WITH_OPTIONS.includes(props.id);
@@ -361,6 +370,7 @@ function EditCell(props: {
 }
 
 function HiddenTray({ hidden }: { hidden: ToolId[] }) {
+  useLocale();
   const micMuted = useTools((s) => s.micMuted);
   return (
     <div className="tl-tray">
@@ -384,13 +394,29 @@ function HiddenTray({ hidden }: { hidden: ToolId[] }) {
 }
 
 const FORMATS: { value: ColorPickerFormat; label: string }[] = [
-  { value: "hex", label: "HEX" },
-  { value: "rgb", label: "RGB" },
-  { value: "hsl", label: "HSL" },
+  {
+    value: "hex",
+    get label() {
+      return t("windows.tools.label");
+    },
+  },
+  {
+    value: "rgb",
+    get label() {
+      return t("windows.tools.label88b599");
+    },
+  },
+  {
+    value: "hsl",
+    get label() {
+      return t("windows.tools.labelfc770a");
+    },
+  },
 ];
 
 /** The options card under the grid (QuickLauncherView.optionsCard): black, radius 12, 11 pt. */
 function OptionsCard({ id }: { id: ToolId }) {
+  useLocale();
   const look = useToolLook(id);
   const format = useIsland((s) => s.settings.colorPickerFormat);
   const bareHex = useIsland((s) => s.settings.colorPickerBareHex);

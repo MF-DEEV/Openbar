@@ -3,6 +3,8 @@
 
 // Every section page and live activity the Windows island has so far.
 
+import { useLocale } from "../i18n";
+
 import { sessionsPage } from "../sessions/SessionsPage";
 import { stripWing, readingWidth, stripTextSize, SessionsStrip } from "../sessions/SessionsStrip";
 import { subscribeSessions, useSessions } from "../sessions/store";
@@ -67,6 +69,7 @@ void onPrefs(applyPrefs);
 pages.sessions = sessionsPage;
 pages.music = {
   Page: function Music() {
+    useLocale();
     useMusicHeight();
     return <MusicPage />;
   },

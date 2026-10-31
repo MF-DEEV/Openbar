@@ -6,6 +6,8 @@
 // pointer. Drag it (left raises the value), click a tick to bring it to the
 // centre, scroll it, or use the arrow keys, Home and End.
 
+import { useLocale } from "../i18n";
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { durationText, rulerLabel, rulerMinute, rulerMoving, rulerOffset, RULER_SPACING } from "./model";
 
@@ -19,6 +21,7 @@ const SCROLL_IDLE_MS = 200;
 const ORANGE_RGB = "255, 159, 10";
 
 export function Ruler(props: { value: number; onChange(minutes: number): void; label: string; height: number }) {
+  useLocale();
   const { value, onChange, height } = props;
   const canvas = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);

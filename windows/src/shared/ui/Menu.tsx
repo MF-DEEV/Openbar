@@ -6,6 +6,8 @@
 // inside the island's frame so the window's hit region covers it, and Escape
 // closes it before anything else.
 
+import { useLocale } from "../../i18n";
+
 import { Check, ChevronRight, type LucideIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -73,6 +75,7 @@ export function Menu(props: {
   bounds?: "viewport";
   className?: string;
 }) {
+  useLocale();
   const ref = useRef<HTMLDivElement>(null);
   const id = useId();
   const [pos, setPos] = useState<{ left: number; top: number; maxHeight?: number } | null>(null);
@@ -262,6 +265,7 @@ export function MenuButton(props: {
   alignRight?: boolean;
   disabled?: boolean;
 }) {
+  useLocale();
   const menu = useMenu();
   return (
     <>

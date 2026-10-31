@@ -4,6 +4,8 @@
 // The calendar's rules, free of React and Tauri (NotchCalendarSupport.swift;
 // spec 04 §3.1-3.2). Times are epoch milliseconds; days are local midnights.
 
+import { dateTimeFormat } from "../i18n";
+
 import type { CalendarChoice, CalendarEvent } from "./types";
 
 const MINUTE = 60_000;
@@ -217,7 +219,7 @@ export function countdownText(target: number, now: number): string {
 }
 
 const clock = (t: number, locale?: string) =>
-  new Intl.DateTimeFormat(locale, { hour: "2-digit", minute: "2-digit" }).format(new Date(t));
+  dateTimeFormat({ hour: "2-digit", minute: "2-digit" }, locale).format(new Date(t));
 
 /** Beside the clock: `· 14:00` for a start, `→ 15:00` for an end (thin space). */
 export const timeText = (c: Countdown, locale?: string) =>
@@ -229,7 +231,7 @@ export function timeLine(event: CalendarEvent, day: number, allDay: string, loca
   if (sameDay(event.start, day) && sameDay(event.end - 1000, day)) {
     return `${clock(event.start, locale)} · ${clock(event.end, locale)}`;
   }
-  const dated = new Intl.DateTimeFormat(locale, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const dated = dateTimeFormat({ day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }, locale);
   return `${dated.format(new Date(event.start))} → ${dated.format(new Date(event.end))}`;
 }
 
@@ -247,7 +249,7 @@ export function tileStartText(start: number, now: number, locale?: string): stri
   const options: Intl.DateTimeFormatOptions = sameDay(start, now)
     ? { hour: "2-digit", minute: "2-digit" }
     : { weekday: "short", hour: "2-digit", minute: "2-digit" };
-  return new Intl.DateTimeFormat(locale, options).format(new Date(start));
+  return dateTimeFormat(options, locale).format(new Date(start));
 }
 
 // MARK: Chosen countdowns

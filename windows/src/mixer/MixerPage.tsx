@@ -8,6 +8,8 @@
 // volume stops at 100% and an app can't be sent to a device of its own, so
 // there is no boost range, no Output ▸ menu and no route badge.
 
+import { useLocale } from "../i18n";
+
 import {
   ArrowLeft,
   ArrowRight,
@@ -73,6 +75,7 @@ function deviceEntries(devices: { id: string; name: string; isDefault: boolean }
 
 /** One line naming the current output, or the switch error; a menu where switching works. */
 export function MixerLeading() {
+  useLocale();
   const outputs = useAudio((s) => s.state.outputs);
   const canSwitch = useAudio((s) => s.state.canSwitch);
   const error = useAudio((s) => (s.switchError?.input === false ? s.switchError.message : null));
@@ -97,6 +100,7 @@ export function MixerLeading() {
 }
 
 export function MixerTrailing() {
+  useLocale();
   const open = useMixerUi((s) => s.options);
   return (
     <IconButton
@@ -111,6 +115,7 @@ export function MixerTrailing() {
 // MARK: Page
 
 export function MixerPage({ width, height }: PageProps) {
+  useLocale();
   const options = useMixerUi((s) => s.options);
   const supported = useAudio((s) => s.state.supported);
   const received = useAudio((s) => s.received);
@@ -146,6 +151,7 @@ export function MixerPage({ width, height }: PageProps) {
 }
 
 function MuteButton(props: { muted: boolean; label: string; disabled?: boolean; onClick(): void; mic?: boolean }) {
+  useLocale();
   const Icon = props.mic ? (props.muted ? MicOff : Mic) : props.muted ? VolumeX : Volume2;
   return (
     <button
@@ -163,6 +169,7 @@ function MuteButton(props: { muted: boolean; label: string; disabled?: boolean; 
 
 /** The system output: its mute, level and percent, in the apps' column shape. */
 function MasterFader({ height }: { height: number }) {
+  useLocale();
   const output = useAudio((s) => s.state.output);
   const level = shownLevel(output);
   const muted = output.muted === true;
@@ -202,6 +209,7 @@ function MasterFader({ height }: { height: number }) {
 
 /** The microphone beside the output; Mic Mute here mutes every microphone. */
 function MicrophoneFader({ height }: { height: number }) {
+  useLocale();
   const input = useAudio((s) => s.state.input);
   const micMuted = useAudio((s) => s.state.micMuted);
   const level = input.volume ?? 0;
@@ -236,6 +244,7 @@ function MicrophoneFader({ height }: { height: number }) {
 }
 
 function AppRail({ height }: { height: number }) {
+  useLocale();
   const all = useAudio((s) => s.state.apps);
   const arrangement = useIsland((s) => s.settings.mixerAppArrangement);
   const hidden = useIsland((s) => s.settings.mixerHiddenApps);
@@ -287,6 +296,7 @@ function useAppIcon(path: string | null): string | null {
 }
 
 function AppColumn(props: { app: AudioApp; height: number; arrangement: Arrangement; visible: string[] }) {
+  useLocale();
   const { app, arrangement, visible } = props;
   const icon = useAppIcon(app.path);
   const menu = useMenu();
@@ -396,6 +406,7 @@ function AppColumn(props: { app: AudioApp; height: number; arrangement: Arrangem
  * so the switcher and priority show only where it answered.
  */
 function MixerOptions() {
+  useLocale();
   const state = useAudio((s) => s.state);
   const switchError = useAudio((s) => s.switchError);
   const hideInactive = useIsland((s) => s.settings.mixerHideInactiveApps);
@@ -489,6 +500,7 @@ function MixerOptions() {
 }
 
 function Row(props: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+  useLocale();
   return (
     <div className="mx-option-row">
       <span className="mx-option-icon" aria-hidden="true">
@@ -506,6 +518,7 @@ function DeviceMenu(props: {
   devices: { id: string; name: string; isDefault: boolean }[];
   canSwitch: boolean;
 }) {
+  useLocale();
   if (!props.canSwitch || props.devices.length === 0)
     return (
       <span className="mx-device-name is-static" title={props.current}>

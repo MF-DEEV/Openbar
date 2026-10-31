@@ -5,6 +5,8 @@
 // limits per agent, spending, the turns at work, the trend, models,
 // projects and thirteen weeks of activity.
 
+import { dateTimeFormat, useLocale } from "../i18n";
+
 import {
   ArrowUpRight,
   ChartColumn,
@@ -80,6 +82,7 @@ export function LimitsCard(props: {
   display: LimitDisplay;
   account?: CodexAccount;
 }) {
+  useLocale();
   const { provider, snapshot, now, display, account } = props;
   if (account) return <AccountLimitsCard account={account} now={now} display={display} />;
   const limits = snapshot.limits[provider];
@@ -132,6 +135,7 @@ function accountFailureText(failure: CodexAccountFailure): string {
  * logs give the provider's other account, even when its check failed.
  */
 function AccountLimitsCard(props: { account: CodexAccount; now: number; display: LimitDisplay }) {
+  useLocale();
   const { account, now, display } = props;
   const provider = "codex";
   const tint = PROVIDER_TINTS[provider];
@@ -196,6 +200,7 @@ function LimitRow(props: {
   display: LimitDisplay;
   old: string | null;
 }) {
+  useLocale();
   const { provider, window, now, display } = props;
   const used = usedFraction(window);
   const remaining = display === "remaining";
@@ -232,6 +237,7 @@ function LimitRow(props: {
 
 /** Without a reading: Claude's 5-hour block from this PC's use, OpenCode's day, or Codex's wait. */
 function Estimate({ provider, snapshot, now }: { provider: Provider; snapshot: AgentSnapshot; now: number }) {
+  useLocale();
   const tint = PROVIDER_TINTS[provider];
   const block = snapshot.claudeBlock;
   if (provider === "claude") {
@@ -311,6 +317,7 @@ function Estimate({ provider, snapshot, now }: { provider: Provider; snapshot: A
 // MARK: Spending
 
 export function SpendCard(props: { snapshot: AgentSnapshot; providers: Provider[]; period: AgentPeriod }) {
+  useLocale();
   const { snapshot, providers, period } = props;
   const usage = snapshot.periods[period];
   const priced = fullyPriced(usage);
@@ -353,6 +360,7 @@ export function SpendCard(props: { snapshot: AgentSnapshot; providers: Provider[
 
 /** Every agent keeps a 4 pt sliver; the rest shares what is left, with 2 pt gaps. */
 function SplitBar(props: { usage: Partial<Record<Provider, Totals>>; providers: Provider[]; byCost: boolean }) {
+  useLocale();
   const parts = props.providers.map((p) => ({ provider: p, value: weight(props.usage[p], props.byCost) }));
   const shown = parts.filter((p) => p.value > 0);
   const total = shown.reduce((sum, p) => sum + p.value, 0);
@@ -376,6 +384,7 @@ function SplitBar(props: { usage: Partial<Record<Provider, Totals>>; providers: 
 // MARK: Now
 
 export function LiveCard(props: { snapshot: AgentSnapshot; providers: Provider[]; now: number }) {
+  useLocale();
   const live = props.snapshot.live.filter((s) => props.providers.includes(s.provider));
   const first = live[0];
   return (
@@ -407,6 +416,7 @@ export function LiveCard(props: { snapshot: AgentSnapshot; providers: Provider[]
 
 /** Ticks every second for the elapsed clocks. */
 function LiveRows({ live }: { live: LiveSession[] }) {
+  useLocale();
   const now = useClock(1000);
   return (
     <div className="ag-rows">
@@ -450,6 +460,7 @@ export function middleTruncate(text: string, max = 28): string {
 // MARK: Trend
 
 export function TrendCard(props: { snapshot: AgentSnapshot; providers: Provider[]; period: AgentPeriod }) {
+  useLocale();
   const { snapshot, providers, period } = props;
   const [hovered, setHovered] = useState<number | null>(null);
   const buckets = period === "today" ? snapshot.hours : snapshot.days.slice(-(period === "week" ? 7 : 30));
@@ -457,8 +468,8 @@ export function TrendCard(props: { snapshot: AgentSnapshot; providers: Provider[
   const value = (t: Totals, inCost: boolean) => (inCost ? cost(t.cost) : A.tokens(tokens(tokenTotal(t.tokens))));
   const label = (ms: number, long: boolean) => {
     const date = new Date(ms);
-    if (period === "today") return date.toLocaleTimeString("en-US", { hour: "numeric" });
-    if (period === "week" && !long) return date.toLocaleDateString("en-US", { weekday: "narrow" });
+    if (period === "today") return dateTimeFormat({ hour: "numeric" }).format(date);
+    if (period === "week" && !long) return dateTimeFormat({ weekday: "narrow" }).format(date);
     return shortDate(ms);
   };
   const pointed = hovered !== null ? buckets.find((b) => b.start === hovered) : undefined;
@@ -500,6 +511,7 @@ function Bars(props: {
   hovered: number | null;
   onHover(start: number | null): void;
 }) {
+  useLocale();
   const values = props.buckets.map((b) => props.providers.map((p) => weight(b.byProvider[p], props.byCost)));
   const peak = Math.max(...values.map((v) => v.reduce((a, b) => a + b, 0)), Number.MIN_VALUE);
   const gap = props.buckets.length > 24 ? 2 : 4;
@@ -539,6 +551,7 @@ function Bars(props: {
 // MARK: Models and projects
 
 export function ShareCard(props: { title: string; kind: "models" | "projects"; shares: Share[]; byCost: boolean }) {
+  useLocale();
   const shown = props.shares.slice(0, 3);
   const peak = Math.max(...shown.map((s) => weight(s.totals, props.byCost)), Number.MIN_VALUE);
   return (
@@ -586,6 +599,7 @@ const MAP_HEIGHT = CHART_HEIGHT - 20 - 17 - 6;
 const CELL_GAP = 2.5;
 
 export function ActivityCard({ snapshot }: { snapshot: AgentSnapshot }) {
+  useLocale();
   const [hovered, setHovered] = useState<number | null>(null);
   const days = snapshot.days;
   const totals = days.map(total);
@@ -662,7 +676,7 @@ export function ActivityCard({ snapshot }: { snapshot: AgentSnapshot }) {
             <Figure
               label={
                 pointedIndex >= 0
-                  ? new Date(days[shownIndex]!.start).toLocaleDateString("en-US", { weekday: "long" })
+                  ? dateTimeFormat({ weekday: "long" }).format(new Date(days[shownIndex]!.start))
                   : A.busiestDay
               }
               value={`${shortDate(days[shownIndex]!.start)} · ${value(totals[shownIndex]!)}`}
@@ -675,6 +689,7 @@ export function ActivityCard({ snapshot }: { snapshot: AgentSnapshot }) {
 }
 
 function Figure({ label, value }: { label: string; value: string }) {
+  useLocale();
   return (
     <span className="ag-figure">
       <span className="ag-figure-label">{label}</span>

@@ -20,6 +20,7 @@ mod hosts;
 mod island;
 mod island_shortcut;
 mod keep_awake;
+mod locale;
 mod media;
 mod media_volume;
 mod microphone;
@@ -176,6 +177,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            locale::locale_settings,
             tray::tray_battery_warning,
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -326,6 +328,7 @@ pub fn run() {
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
             // Loaded before the island exists, so its first prefs_get finds them.
             app.manage(prefs::Prefs::load(app.handle()));
+            locale::start(app.handle().clone());
             app.manage(scratchpad::Store::new(app.handle()));
             app.manage(files::Files::load(app.handle()));
             // Followed before the island exists, so its first power_saver_on has it.

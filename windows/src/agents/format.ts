@@ -6,16 +6,16 @@
 // their prices in, and model names built from the id (AgentPricing.swift
 // :269-299).
 
-import type { Provider, Tokens } from "./types";
+import { formattingLocale, dateTimeFormat, tf } from "../i18n";
 
-const LOCALE = "en-US";
+import type { Provider, Tokens } from "./types";
 
 /** One decimal below ten, none above, always rounded down: "4.2", "48". */
 function scaled(value: number): string {
   const digits = value < 10 ? 1 : 0;
   const factor = digits === 1 ? 10 : 1;
   const rounded = Math.floor(value * factor) / factor;
-  return rounded.toLocaleString(LOCALE, { maximumFractionDigits: digits, minimumFractionDigits: 0 });
+  return rounded.toLocaleString(formattingLocale(), { maximumFractionDigits: digits, minimumFractionDigits: 0 });
 }
 
 /** "$4.56", "$123", "$12K". */
@@ -24,14 +24,17 @@ export function cost(value: number): string {
   const magnitude = Math.abs(value);
   if (magnitude >= 10_000) return `$${scaled(magnitude / 1000)}K`;
   const digits = magnitude >= 100 ? 0 : 2;
-  const text = magnitude.toLocaleString(LOCALE, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const text = magnitude.toLocaleString(formattingLocale(), {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
   return `${value < 0 ? "-" : ""}$${text}`;
 }
 
 /** "842", "4.2K", "48K", "1.2M", "3B": truncated, never rounded up. */
 export function tokens(value: number): string {
   const magnitude = Math.max(0, Number.isFinite(value) ? value : 0);
-  if (magnitude < 1000) return Math.floor(magnitude).toLocaleString(LOCALE);
+  if (magnitude < 1000) return Math.floor(magnitude).toLocaleString(formattingLocale());
   if (magnitude < 1_000_000) return `${scaled(magnitude / 1000)}K`;
   if (magnitude < 1_000_000_000) return `${scaled(magnitude / 1_000_000)}M`;
   return `${scaled(magnitude / 1_000_000_000)}B`;
@@ -53,17 +56,17 @@ export function duration(seconds: number, units: 1 | 2 = 2): string {
   if (total >= 86_400) {
     const d = Math.floor(total / 86_400);
     const h = Math.floor((total % 86_400) / 3600);
-    return units === 1 || h === 0 ? `${d}d` : `${d}d ${h}h`;
+    return units === 1 || h === 0 ? `${d}d` : tf("windows.agents.valueDValueH", d, h);
   }
   if (total >= 3600) {
     const h = Math.floor(total / 3600);
     const m = Math.floor((total % 3600) / 60);
-    return units === 1 ? `${h}h` : `${h}h ${pad(m)}m`;
+    return units === 1 ? `${h}h` : tf("windows.agents.valueHValueM", h, pad(m));
   }
   const m = Math.floor(total / 60);
   const s = total % 60;
   if (m === 0) return `${s}s`;
-  return units === 1 ? `${m}m` : `${m}m ${pad(s)}s`;
+  return units === 1 ? `${m}m` : tf("windows.agents.valueMValueS", m, pad(s));
 }
 
 /** A running stopwatch: "0:42", "12:05", "1:02:05". */
@@ -80,14 +83,9 @@ export function countdown(to: number, now: number): string {
   return duration(Math.max(60, seconds), seconds >= 3600 ? 2 : 1);
 }
 
-const relativeFormats = {
-  short: new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto", style: "short" }),
-  long: new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto", style: "long" }),
-};
-
 /** "5 min. ago", "yesterday", "in 2 hr.": the Mac's named relative date, abbreviated unless `long`. */
 export function relative(date: number, now: number, style: "short" | "long" = "short"): string {
-  const relativeFormat = relativeFormats[style];
+  const relativeFormat = new Intl.RelativeTimeFormat(formattingLocale(), { numeric: "auto", style });
   const seconds = (date - now) / 1000;
   const magnitude = Math.abs(seconds);
   if (magnitude < 60) return relativeFormat.format(0, "second");
@@ -101,14 +99,14 @@ export function relative(date: number, now: number, style: "short" | "long" = "s
 export function utcDay(day: string): string {
   const date = new Date(`${day}T00:00:00Z`);
   if (Number.isNaN(date.getTime())) return day;
-  return date.toLocaleDateString(LOCALE, { timeZone: "UTC", month: "short", day: "numeric", year: "numeric" });
+  return dateTimeFormat({ timeZone: "UTC", month: "short", day: "numeric", year: "numeric" }).format(date);
 }
 
 /** "Oct 9" */
-export const shortDate = (ms: number) => new Date(ms).toLocaleDateString(LOCALE, { month: "short", day: "numeric" });
+export const shortDate = (ms: number) => dateTimeFormat({ month: "short", day: "numeric" }).format(new Date(ms));
 /** "Oct 9, 2:30 PM" */
 export const dateTime = (ms: number) =>
-  new Date(ms).toLocaleString(LOCALE, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  dateTimeFormat({ month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(new Date(ms));
 
 // MARK: Tokens
 
@@ -201,6 +199,6 @@ export function modelName(model: string): string {
   }
   const first = parts[0];
   if (!first) return "GPT";
-  const head = /^[0-9]/.test(first) ? `GPT-${first}` : `GPT ${capitalized(first)}`;
+  const head = /^[0-9]/.test(first) ? `GPT-${first}` : tf("windows.agents.gPTValue", capitalized(first));
   return [head, ...parts.slice(1).map(capitalized)].join(" ");
 }

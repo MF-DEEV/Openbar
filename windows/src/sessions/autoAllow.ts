@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t } from "../i18n";
+
 import { SETTLE_DELAY, useSessions } from "./store";
 import type { Session } from "./types";
 import { hidesAutoApproval } from "./presentation";
@@ -56,7 +58,7 @@ export function subscribeAutoAllow(): () => void {
               .getState()
               .decide(current, "allow")
               .then((ok) => {
-                if (!ok) throw new Error("Approval was not accepted");
+                if (!ok) throw new Error(t("windows.sessions.approvalWasNotAccepted"));
               })
               .catch(() => {
                 if (!disposed) useSessions.setState((s) => ({ autoAllow: { ...s.autoAllow, [session.id]: false } }));

@@ -5,140 +5,335 @@
 // :191-288), with "this Mac" said as "this PC" and the menu bar as the
 // notification area.
 
+import { t, tf, getLanguage, pluralForm } from "../i18n";
+
 import type { AgentCard, AgentPeriod, AgentReadout, LimitFocus } from "./types";
 
 export const A = {
-  title: "AI Agents",
-  limitsCard: "Limits",
-  spendCard: "Spending",
-  liveCard: "Now",
-  trendCard: "Trend",
-  modelsCard: "Models",
-  projectsCard: "Projects",
-  activityCard: "Activity",
-  resetsCard: "Resets",
-  today: "Today",
-  week: "7 days",
-  month: "30 days",
-  period: "Period",
-  session: "Session",
-  weekly: "Week",
-  estimated: "Estimated from this PC",
-  claudeLimitsHint: "Set up plan limits…",
-  waitingForLimits: "Limits appear after the next reply",
-  noSession: "No session running",
-  apiValue: "API value",
-  tokens: (count: string) => `${count} tokens`,
-  cached: (share: string) => `${share} from cache`,
-  written: (count: string) => `${count} written`,
-  saved: (amount: string) => `${amount} saved by the cache`,
-  planMultiple: (multiple: string, plan: string) => `${multiple} the price of ${plan}`,
-  idle: "Idle",
-  noActivity: "Nothing in this period",
-  empty:
-    "No usage from Claude Code, Codex, OpenCode or GitHub Copilot yet. It appears here as soon as any of them works on this PC.",
-  loading: "Reading usage…",
-  noCards: "Choose what this page shows in Dynamic Island settings.",
-  unpriced: "Some models have no known price, so this is a minimum.",
-  streak: "Days in a row",
-  activeDays: "Active days",
-  busiestDay: "Busiest day",
-  weeks: (count: number) => `${count} ${count === 1 ? "week" : "weeks"}`,
-  finished: (agent: string) => `${agent} finished`,
-  limitRenewed: "Limit renewed",
-  budgetTitle: "Daily budget",
-  left: (share: string) => `${share} left`,
-  used: (share: string) => `${share} used`,
-  updated: (when: string) => `Updated ${when}`,
-  claudeCodeUpdated: (when: string) => `Claude Code · Updated ${when}`,
-  seconds: (n: number) => `${n} sec`,
-  minutes: (n: number) => `${n} min`,
-  readoutLimit: "Limit",
-  valueNote: "API value is what the same work would cost at API list prices. Plans charge a fixed price instead.",
+  get title() {
+    return t("notchAgents.title");
+  },
+  get limitsCard() {
+    return t("notchAgents.limitsCard");
+  },
+  get spendCard() {
+    return t("notchAgents.spendCard");
+  },
+  get liveCard() {
+    return t("notchAgents.liveCard");
+  },
+  get trendCard() {
+    return t("notchAgents.trendCard");
+  },
+  get modelsCard() {
+    return t("notchAgents.modelsCard");
+  },
+  get projectsCard() {
+    return t("notchAgents.projectsCard");
+  },
+  get activityCard() {
+    return t("notchAgents.activityCard");
+  },
+  get resetsCard() {
+    return t("notchAgents.resetsCard");
+  },
+  get today() {
+    return t("notchAgents.today");
+  },
+  get week() {
+    return t("notchAgents.week");
+  },
+  get month() {
+    return t("notchAgents.month");
+  },
+  get period() {
+    return t("windows.agents.period");
+  },
+  get session() {
+    return t("notchAgents.session");
+  },
+  get weekly() {
+    return t("notchAgents.weekly");
+  },
+  get estimated() {
+    return t("windows.agents.estimated");
+  },
+  get claudeLimitsHint() {
+    return t("notchAgents.claudeLimitsHint");
+  },
+  get waitingForLimits() {
+    return t("notchAgents.waitingForLimits");
+  },
+  get noSession() {
+    return t("notchAgents.noSession");
+  },
+  get apiValue() {
+    return t("notchAgents.apiValue");
+  },
+  tokens: (count: string) => tf("notchAgents.tokensFormat", count),
+  cached: (share: string) => tf("notchAgents.cachedFormat", share),
+  written: (count: string) => tf("notchAgents.writtenFormat", count),
+  saved: (amount: string) => tf("notchAgents.savedFormat", amount),
+  planMultiple: (multiple: string, plan: string) => tf("notchAgents.planMultipleFormat", multiple, plan),
+  get idle() {
+    return t("notchAgents.idle");
+  },
+  get noActivity() {
+    return t("notchAgents.noActivity");
+  },
+  get empty() {
+    return t("windows.agents.empty");
+  },
+  get loading() {
+    return t("notchAgents.loading");
+  },
+  get noCards() {
+    return t("notchAgents.noCards");
+  },
+  get unpriced() {
+    return t("notchAgents.unpriced");
+  },
+  get streak() {
+    return t("notchAgents.streak");
+  },
+  get activeDays() {
+    return t("notchAgents.activeDays");
+  },
+  get busiestDay() {
+    return t("notchAgents.busiestDay");
+  },
+  weeks: (count: number) => tf(`windows.units.week.${pluralForm(getLanguage(), count)}`, count),
+  finished: (agent: string) => tf("notchAgents.finishedFormat", agent),
+  get limitRenewed() {
+    return t("notchAgents.limitRenewed");
+  },
+  get budgetTitle() {
+    return t("notchAgents.budgetTitle");
+  },
+  left: (share: string) => tf("notchAgents.leftFormat", share),
+  used: (share: string) => tf("notchAgents.usedFormat", share),
+  updated: (when: string) => tf("notchAgents.updatedFormat", when),
+  claudeCodeUpdated: (when: string) => tf("windows.agents.claudeCodeUpdated", when),
+  seconds: (n: number) => tf("windows.agents.seconds", n),
+  minutes: (n: number) => tf("windows.agents.minutes", n),
+  get readoutLimit() {
+    return t("notchAgents.readoutLimit");
+  },
+  get valueNote() {
+    return t("notchAgents.valueNote");
+  },
   // Resets (Codex's banked resets)
-  useReset: "Use a reset",
-  resetConfirm: "Reset the session and weekly limits now?",
-  confirmReset: "Reset",
-  cancel: "Cancel",
-  retry: "Retry",
-  resetting: "Resetting…",
-  resetDone: "Limits reset",
-  resetNotNeeded: "Your usage doesn’t need a reset yet",
-  resetTaken: "That reset was already used",
-  resetFailed: "Couldn’t use the reset",
-  resetsNone: "No resets available",
-  resetsExpiry: (when: string) => `Next expires ${when}`,
-  resetsNeedCodex: "Needs the Codex app or CLI",
-  resetsSignIn: "Sign in to Codex with a plan to see resets",
-  resetsUpdate: "Update Codex to use resets here",
-  resetsCheckFailed: "Couldn’t check resets",
-  resetsHelp:
-    "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.",
+  get useReset() {
+    return t("notchAgents.useReset");
+  },
+  get resetConfirm() {
+    return t("notchAgents.resetConfirm");
+  },
+  get confirmReset() {
+    return t("notchAgents.confirmReset");
+  },
+  get cancel() {
+    return t("clipboard.cancel");
+  },
+  get retry() {
+    return t("windows.agents.retry");
+  },
+  get resetting() {
+    return t("notchAgents.resetting");
+  },
+  get resetDone() {
+    return t("notchAgents.resetDone");
+  },
+  get resetNotNeeded() {
+    return t("notchAgents.resetNotNeeded");
+  },
+  get resetTaken() {
+    return t("notchAgents.resetTaken");
+  },
+  get resetFailed() {
+    return t("notchAgents.resetFailed");
+  },
+  get resetsNone() {
+    return t("notchAgents.resetsNone");
+  },
+  resetsExpiry: (when: string) => tf("notchAgents.resetsExpiryFormat", when),
+  get resetsNeedCodex() {
+    return t("notchAgents.resetsNeedCodex");
+  },
+  get resetsSignIn() {
+    return t("notchAgents.resetsSignIn");
+  },
+  get resetsUpdate() {
+    return t("notchAgents.resetsUpdate");
+  },
+  get resetsCheckFailed() {
+    return t("notchAgents.resetsCheckFailed");
+  },
+  get resetsHelp() {
+    return t("notchAgents.resetsHelp");
+  },
   // Codex accounts (CodexAccountStrings.swift:33-51)
-  defaultAccount: "Default account",
-  accountRefreshHint: "Refresh to check this account’s limits.",
-  accountCheck: "Check limits",
-  accountFolderProblem: "Choose this account’s folder again in Settings.",
-  accountSignIn: "Sign in with ChatGPT in this Codex folder.",
-  accountUpdate: "Update Codex to check limits.",
-  accountFailed: "Could not check limits. Try again.",
-  codexAccountsTitle: "Codex accounts",
-  codexAccountsExplanation:
-    "Each CODEX_HOME folder you add gets its own limits card. While the AI Agents page is open, Codex checks each one about every five minutes with that folder’s own sign-in. No prompt is sent.",
-  accountName: "Account name",
-  removeAccount: "Remove this account’s card",
-  findAccounts: "Find local accounts",
-  addFolder: "Add folder…",
-  accountsFallback: "With no accounts added, Codex limits come from its local sessions.",
-  accountsResetsNote: "The Resets card still belongs to the default Codex account.",
-  chooseCodexFolder: "Choose a Codex folder",
-  invalidCodexFolder:
-    "Choose a separate CODEX_HOME folder with config.toml or auth.json in it. The folder must be yours and not writable by others, and auth.json must be private and not a link. Codex may refresh its own sign-in and caches there.",
+  get defaultAccount() {
+    return t("codexAccounts.defaultAccount");
+  },
+  get accountRefreshHint() {
+    return t("codexAccounts.refreshHint");
+  },
+  get accountCheck() {
+    return t("codexAccounts.check");
+  },
+  get accountFolderProblem() {
+    return t("codexAccounts.folderProblem");
+  },
+  get accountSignIn() {
+    return t("codexAccounts.signIn");
+  },
+  get accountUpdate() {
+    return t("codexAccounts.update");
+  },
+  get accountFailed() {
+    return t("codexAccounts.failed");
+  },
+  get codexAccountsTitle() {
+    return t("codexAccounts.title");
+  },
+  get codexAccountsExplanation() {
+    return t("codexAccounts.explanation");
+  },
+  get accountName() {
+    return t("codexAccounts.accountName");
+  },
+  get removeAccount() {
+    return t("codexAccounts.remove");
+  },
+  get findAccounts() {
+    return t("codexAccounts.find");
+  },
+  get addFolder() {
+    return t("codexAccounts.add");
+  },
+  get accountsFallback() {
+    return t("codexAccounts.fallback");
+  },
+  get accountsResetsNote() {
+    return t("codexAccounts.resetsNote");
+  },
+  get chooseCodexFolder() {
+    return t("codexAccounts.chooseFolder");
+  },
+  get invalidCodexFolder() {
+    return t("codexAccounts.invalidFolder");
+  },
   /** The name the usual `.codex` home gets. */
-  defaultName: "Default",
+  get defaultName() {
+    return t("codexAccounts.defaultName");
+  },
   // Settings
-  settingsDescription:
-    "Reads the usage Claude Code, Codex, OpenCode and GitHub Copilot record on this PC and the plan limits the Claude app saves. Prompts, replies and files are never kept, and your usage never leaves your PC.",
-  found: "Found on this PC",
-  notFound: "Not found on this PC",
-  cardsTitle: "Cards",
-  cardsHint: "Drag to reorder. Charts take the full width of the island.",
-  limitsAs: "Show limits as",
-  remaining: "Left",
-  usedChoice: "Used",
-  limitFocus: "Limit to show",
-  mostUsed: "Most used",
-  liveTitle: "While an agent works",
-  liveActivity: "Show it in the closed Dynamic Island",
-  readout: "Beside the camera",
-  readoutElapsed: "Time",
-  readoutTokens: "Tokens written",
-  alerts: "Alerts",
-  finishAlert: "When a task finishes",
-  finishAfter: "For tasks longer than",
-  anyLength: "Any length",
-  limitAlert: "Near a plan limit",
-  limitAt: "Warn at",
-  budget: "Daily API value budget",
-  off: "Off",
-  claudeLimitsTitle: "Claude plan limits",
-  claudeLimitsCurrent: (when: string) => `Read from the Claude app, updated ${when}`,
-  claudeLimitsStale: (when: string) => `The Claude app last checked them ${when}.`,
-  claudeLimitsTray:
-    "Claude checks your limits only while its icon is in the notification area. Turn the icon on in the Claude app settings, and your limits appear here within minutes.",
-  claudeLimitsNoApp:
-    "Plan limits come from Claude Code or from the Claude app, which is not on this PC. Until then, the 5-hour session is estimated from Claude Code activity.",
-  claudeLimitsPrivacy:
-    "Claude Code checks your account’s limits, including use on other machines, with its own sign-in, which Vorssaint never reads. No prompt is sent. When it cannot check, the percentages the Claude app saves on this PC are used.",
-  claudeCodeMissing: "Claude Code was not found on this PC.",
-  claudeCodeSignedOut: "Sign in to Claude Code so it can check your account’s limits.",
-  claudeCodeOutdated: "Update Claude Code so it can check your account’s limits.",
-  claudeCodeUnreachable: "Claude Code could not check your account’s limits. It tries again later.",
-  getClaude: "Get the Claude app",
-  priceUpdates: "Keep prices up to date",
-  priceUpdatesHint:
-    "Downloads the public price list from GitHub once a day, so new models get an API value without an app update. Nothing about your usage is sent.",
-  pricesFrom: (day: string) => `Price list of ${day}`,
+  get settingsDescription() {
+    return t("windows.agents.settingsDescription");
+  },
+  get found() {
+    return t("windows.agents.found");
+  },
+  get notFound() {
+    return t("windows.agents.notFound");
+  },
+  get cardsTitle() {
+    return t("notchAgents.cardsTitle");
+  },
+  get cardsHint() {
+    return t("notchAgents.cardsHint");
+  },
+  get limitsAs() {
+    return t("notchAgents.limitsAs");
+  },
+  get remaining() {
+    return t("notchAgents.remaining");
+  },
+  get usedChoice() {
+    return t("notchAgents.used");
+  },
+  get limitFocus() {
+    return t("notchAgents.limitFocus");
+  },
+  get mostUsed() {
+    return t("notchAgents.mostUsed");
+  },
+  get liveTitle() {
+    return t("notchAgents.liveTitle");
+  },
+  get liveActivity() {
+    return t("notchAgents.liveActivity");
+  },
+  get readout() {
+    return t("notchAgents.readout");
+  },
+  get readoutElapsed() {
+    return t("notchAgents.readoutElapsed");
+  },
+  get readoutTokens() {
+    return t("notchAgents.readoutTokens");
+  },
+  get alerts() {
+    return t("notchAgents.alerts");
+  },
+  get finishAlert() {
+    return t("notchAgents.finishAlert");
+  },
+  get finishAfter() {
+    return t("notchAgents.finishAfter");
+  },
+  get anyLength() {
+    return t("notchAgents.anyLength");
+  },
+  get limitAlert() {
+    return t("notchAgents.limitAlert");
+  },
+  get limitAt() {
+    return t("notchAgents.limitAt");
+  },
+  get budget() {
+    return t("notchAgents.budget");
+  },
+  get off() {
+    return t("notchAgents.off");
+  },
+  get claudeLimitsTitle() {
+    return t("notchAgents.claudeLimitsTitle");
+  },
+  claudeLimitsCurrent: (when: string) => tf("notchAgents.claudeLimitsCurrentFormat", when),
+  claudeLimitsStale: (when: string) => tf("notchAgents.claudeLimitsStaleFormat", when),
+  get claudeLimitsTray() {
+    return t("windows.agents.claudeLimitsTray");
+  },
+  get claudeLimitsNoApp() {
+    return t("windows.agents.claudeLimitsNoApp");
+  },
+  get claudeLimitsPrivacy() {
+    return t("windows.agents.claudeLimitsPrivacy");
+  },
+  get claudeCodeMissing() {
+    return t("windows.agents.claudeCodeMissing");
+  },
+  get claudeCodeSignedOut() {
+    return t("notchAgents.claudeCodeSignedOut");
+  },
+  get claudeCodeOutdated() {
+    return t("notchAgents.claudeCodeOutdated");
+  },
+  get claudeCodeUnreachable() {
+    return t("notchAgents.claudeCodeUnreachable");
+  },
+  get getClaude() {
+    return t("notchAgents.getClaude");
+  },
+  get priceUpdates() {
+    return t("notchAgents.priceUpdates");
+  },
+  get priceUpdatesHint() {
+    return t("notchAgents.priceUpdatesHint");
+  },
+  pricesFrom: (day: string) => tf("notchAgents.pricesFromFormat", day),
 };
 
 export const periodName = (period: AgentPeriod): string =>
@@ -158,7 +353,9 @@ export const cardName = (card: AgentCard): string =>
 
 /** "API value" capitalised as a choice (NotchAgentStrings.readout). */
 export const readoutName = (readout: AgentReadout): string =>
-  ({ elapsed: A.readoutElapsed, tokens: A.readoutTokens, cost: "API value", limit: A.readoutLimit })[readout];
+  ({ elapsed: A.readoutElapsed, tokens: A.readoutTokens, cost: t("notchAgents.apiValue"), limit: A.readoutLimit })[
+    readout
+  ];
 
 export const focusName = (focus: LimitFocus): string =>
   ({ mostUsed: A.mostUsed, session: A.session, weekly: A.weekly })[focus];

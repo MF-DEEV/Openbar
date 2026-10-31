@@ -5,6 +5,8 @@
 // the title beside it, the timeline, and five equal transport slots so play
 // stays centred. Idle, the buttons open the player.
 
+import { t, useLocale, tf } from "../i18n";
+
 import { FastForward, Music, Pause, Play, Rewind, Shuffle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useIsland } from "../island/store";
@@ -26,6 +28,7 @@ export function playerHeight(p: Playback | null, lyricsExpanded = false): number
 }
 
 export function Cover(props: { src?: string; size: number; radius: number; dimmed?: boolean }) {
+  useLocale();
   return (
     <span
       className="m-cover"
@@ -42,6 +45,7 @@ export function Cover(props: { src?: string; size: number; radius: number; dimme
 }
 
 export function MusicPage() {
+  useLocale();
   const playback = useMusic((s) => s.playback);
   const sources = useMusic((s) => s.sources);
   const playing = useMusic(isPlaying);
@@ -54,8 +58,10 @@ export function MusicPage() {
   const [failedSource, setFailedSource] = useState<string | null>(null);
   const idlePlayer = sources.find((source) => source.isPlaying && source.id) ?? sources.find((source) => source.id);
   const playerSource = playback?.source || idlePlayer?.id;
-  const playerName = (playback?.source ? playback.sourceName : idlePlayer?.name) || "music player";
-  const openLabel = playerSource ? `Open ${playerName}` : "No music player available";
+  const playerName = (playback?.source ? playback.sourceName : idlePlayer?.name) || t("windows.music.musicPlayer");
+  const openLabel = playerSource
+    ? tf("notchMusicExtras.openNamedPlayer", playerName)
+    : t("windows.music.noMusicPlayerAvailable");
   const openFailed = !!playerSource && failedSource === playerSource;
 
   async function openPlayer() {
@@ -103,20 +109,20 @@ export function MusicPage() {
         <div className="m-titles">
           <ScrollingText
             className="m-title"
-            text={playback ? playback.title || playback.sourceName : "Nothing playing"}
+            text={playback ? playback.title || playback.sourceName : t("radialMenu.mediaNothingPlaying")}
           />
           <ScrollingText
             className={`m-artist${failed || openFailed ? " is-failed" : ""}`}
             text={
               openFailed
-                ? "Could not open the music player. Try again."
+                ? t("windows.music.couldNotOpenTheMusicPlayerTryAgain")
                 : failed
-                  ? "Could not change playback."
+                  ? t("notchMusicExtras.playbackFailed")
                   : playback
-                    ? playback.artist || playback.album || "Now playing"
+                    ? playback.artist || playback.album || t("radialMenu.mediaNowPlaying")
                     : playerSource
                       ? openLabel
-                      : "Your music and playback controls appear here."
+                      : t("notch.musicHint")
             }
           />
         </div>
@@ -133,7 +139,7 @@ export function MusicPage() {
             <button
               type="button"
               className="m-button is-small"
-              aria-label="Shuffle"
+              aria-label={t("notchMusicExtras.shuffle")}
               aria-pressed={playback.shuffle}
               onClick={() => void useMusic.getState().shuffle(!playback.shuffle)}
               style={{ color: playback.shuffle ? "#30d158" : "rgba(255,255,255,0.55)" }}
@@ -146,7 +152,7 @@ export function MusicPage() {
           <button
             type="button"
             className="m-button"
-            aria-label="Previous"
+            aria-label={t("wallpaper.previousPage")}
             disabled={!!playback && !playback.canPrevious}
             style={{ visibility: playback && !playback.canPrevious ? "hidden" : undefined }}
             onClick={() => (playback ? void command("previous") : undefined)}
@@ -158,7 +164,7 @@ export function MusicPage() {
           <button
             type="button"
             className="m-button is-large"
-            aria-label={playing ? "Pause" : "Play"}
+            aria-label={playing ? t("s.actionPause") : t("s.actionPlay")}
             disabled={!playback?.canPlayPause}
             onClick={() => void command("toggle")}
           >
@@ -173,7 +179,7 @@ export function MusicPage() {
           <button
             type="button"
             className="m-button"
-            aria-label="Next"
+            aria-label={t("wallpaper.nextPage")}
             disabled={!!playback && !playback.canNext}
             style={{ visibility: playback && !playback.canNext ? "hidden" : undefined }}
             onClick={() => (playback ? void command("next") : undefined)}
@@ -194,7 +200,7 @@ export function MusicPage() {
             aria-controls="music-lyrics"
             onClick={() => useLyrics.getState().toggle()}
           >
-            Lyrics
+            {t("notchMusicExtras.lyrics")}
           </button>
           {lyricsExpanded && <LyricsSection />}
         </>
@@ -204,6 +210,7 @@ export function MusicPage() {
 }
 
 function Slot({ children }: { children?: React.ReactNode }) {
+  useLocale();
   return <div className="m-slot">{children}</div>;
 }
 
@@ -213,6 +220,7 @@ function Slot({ children }: { children?: React.ReactNode }) {
  * and the thumb holds until the player catches up (±2 s, 1 s at most).
  */
 function Timeline({ playback, accent }: { playback: Playback; accent: string }) {
+  useLocale();
   const [, tick] = useState(0);
   const [drag, setDrag] = useState<number | null>(null);
   const hold = useRef<{ value: number; until: number } | null>(null);
@@ -243,7 +251,7 @@ function Timeline({ playback, accent }: { playback: Playback; accent: string }) 
           max={playback.duration}
           step={0.5}
           value={shown}
-          aria-label="Position"
+          aria-label={t("notchEditor.position")}
           style={{ "--fill": `${fraction * 100}%`, "--accent": accent } as React.CSSProperties}
           onChange={(e) => setDrag(Number(e.target.value))}
           onPointerUp={() => {

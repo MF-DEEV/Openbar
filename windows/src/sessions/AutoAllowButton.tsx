@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
+
+import { useLocale, t } from "../i18n";
+
 import { BadgeCheck } from "lucide-react";
 import { useSessions } from "./store";
 import type { Session } from "./types";
@@ -13,23 +16,24 @@ export function AutoAllowButton({
   disabled?: boolean;
   activeOnly?: boolean;
 }) {
+  useLocale();
   const enabled = useSessions((s) => !!s.autoAllow[session.id]);
   if (session.provider !== "codex" || (activeOnly && !enabled)) return null;
   if (activeOnly) {
     return (
-      <div className="s-auto-allow-status" role="group" aria-label="Autoaccept active">
+      <div className="s-auto-allow-status" role="group" aria-label={t("windows.sessions.autoacceptActive")}>
         <span className="s-auto-allow-label">
           <BadgeCheck size={16} />
-          <span>Always: ON</span>
+          <span>{t("notchClaudeSessions.alwaysOn")}</span>
         </span>
         <button
           type="button"
           className="s-auto-allow-cancel"
-          aria-label="Cancel autoaccept"
-          title="Turn off autoaccept for this task."
+          aria-label={t("windows.sessions.cancelAutoaccept")}
+          title={t("windows.sessions.turnOffAutoacceptForThisTask")}
           onClick={() => useSessions.setState((s) => ({ autoAllow: { ...s.autoAllow, [session.id]: false } }))}
         >
-          Cancel
+          {t("clipboard.cancel")}
         </button>
       </div>
     );
@@ -41,11 +45,11 @@ export function AutoAllowButton({
       aria-pressed={enabled}
       aria-keyshortcuts="Control+t"
       disabled={disabled || session.phase === "finished" || session.phase === "idle"}
-      title="Ctrl+T — automatically allow requests for this Codex task. Resets when the task finishes. Click again to turn off."
+      title={t("windows.sessions.ctrlTAutomaticallyAllowRequestsForThisCodex")}
       onClick={() => useSessions.getState().toggleAutoAllow(session.id)}
     >
       <BadgeCheck size={12} />
-      {enabled ? "Always: ON" : "Always"}
+      {enabled ? t("notchClaudeSessions.alwaysOn") : t("notchClaudeSessions.alwaysAllow")}
     </button>
   );
 }

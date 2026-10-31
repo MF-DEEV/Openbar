@@ -6,9 +6,11 @@
 // session does, and a row for each part of its costume on the right. A
 // choice dresses it at once and it hops for it.
 
+import { useLocale, t } from "../../i18n";
+
 import { ChevronLeft, ChevronRight, Dices, Slash, Undo2 } from "lucide-react";
 import { useState, type KeyboardEvent, type ReactNode } from "react";
-import { t } from "../../i18n";
+
 import { Clawd, ClawdPicture } from "./Clawd";
 import {
   CLASSIC,
@@ -81,6 +83,7 @@ export function projectColor(project: string): string {
 }
 
 export function ProjectTag(props: { project: string }) {
+  useLocale();
   const tint = projectColor(props.project);
   return (
     <span
@@ -94,6 +97,7 @@ export function ProjectTag(props: { project: string }) {
 }
 
 export function Wardrobe(props: WardrobeProps) {
+  useLocale();
   const { sessionId, costume, onChange } = props;
   const character = props.character ?? "clawd";
   const text = props.strings ?? clawdStrings;

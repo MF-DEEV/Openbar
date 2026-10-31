@@ -5,6 +5,8 @@
 // time and sender with its actions. Message bodies are not collected on Windows
 // (docs/notifications.md), so the sender is all the text it has.
 
+import { useLocale, t, tf, dateTimeFormat } from "../i18n";
+
 import { AppWindow, Bell, Inbox, X } from "lucide-react";
 import { contentInsets, type Geometry, notificationPreviewSize } from "../island/geometry";
 import type { Size } from "../island/motion";
@@ -19,10 +21,11 @@ const SPACING = 8;
 const TITLE_LINE = 18;
 
 export function clock(time: number): string {
-  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(time * 1000));
+  return dateTimeFormat({ hour: "2-digit", minute: "2-digit" }).format(new Date(time * 1000));
 }
 
 export function NotificationIcon(props: { src?: string; fallback?: string }) {
+  useLocale();
   if (!props.src) return <Bell size={14} />;
   return (
     <img
@@ -55,6 +58,7 @@ export function previewSize(notification: NonNullable<Notice["notification"]>, g
 }
 
 export function NotificationPreview(props: { notice: Notice; geometry: Geometry; size: Size }) {
+  useLocale();
   const { notice, geometry, size } = props;
   const notification = notice.notification!;
   const count = useNotifications((s) => s.items.length);
@@ -89,7 +93,13 @@ export function NotificationPreview(props: { notice: Notice; geometry: Geometry;
           {notification.app}
         </span>
         <span className="nt-time">{clock(notification.time)}</span>
-        <button type="button" className="nt-mini" aria-label="Dismiss" title="Dismiss" onClick={dismiss}>
+        <button
+          type="button"
+          className="nt-mini"
+          aria-label={t("notchNotifications.dismiss")}
+          title={t("notchNotifications.dismiss")}
+          onClick={dismiss}
+        >
           <X size={12} />
         </button>
       </div>
@@ -101,14 +111,14 @@ export function NotificationPreview(props: { notice: Notice; geometry: Geometry;
       <div className="nt-preview-actions" style={{ height: ACTION_HEIGHT }}>
         <button type="button" className="n-pill-button is-prominent" onClick={() => void open()}>
           <AppWindow size={12} />
-          Open
+          {t("notchNotifications.open")}
         </button>
         {count > 1 ? (
           <button
             type="button"
             className="n-pill-button is-prominent"
-            aria-label={`Notifications: ${count}`}
-            title="Notifications"
+            aria-label={tf("windows.notifications.notificationsValue", count)}
+            title={t("notchNotifications.title")}
             onClick={() => useIsland.getState().open("notifications")}
           >
             <Inbox size={12} />

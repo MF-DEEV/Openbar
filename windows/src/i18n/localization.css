@@ -1,0 +1,31 @@
+/* Language tags also select the appropriate CJK glyph forms in WebView2. */
+:root {
+  --locale-font: "Segoe UI", sans-serif;
+}
+:root[lang="ja"] {
+  --locale-font: "Yu Gothic UI", "Meiryo UI", sans-serif;
+}
+:root[lang="ko"] {
+  --locale-font: "Malgun Gothic", sans-serif;
+}
+:root[lang="zh-Hans"] {
+  --locale-font: "Microsoft YaHei UI", sans-serif;
+}
+:root[lang="zh-TW"],
+:root[lang="zh-HK"] {
+  --locale-font: "Microsoft JhengHei UI", sans-serif;
+}
+:root:lang(ja),
+:root:lang(ko),
+:root:lang(zh) {
+  font-family: "Inter Variable", Inter, "Segoe UI Variable Text", var(--locale-font);
+}
+.st-language {
+  min-width: 190px;
+  max-width: 100%;
+}
+.st-nav-label,
+.st-row-title,
+.st-row-caption {
+  overflow-wrap: anywhere;
+}

@@ -5,6 +5,8 @@
 // closed island's strip (NotchKeepAwakeSupport.swift, NotchCapsuleViews.swift
 // 674-732; spec 04 §7): a yellow cup and the time left, or ∞.
 
+import { useLocale } from "../i18n";
+
 import { Coffee, Infinity as Endless } from "lucide-react";
 import { useEffect, useState } from "react";
 import { create } from "zustand";
@@ -88,6 +90,7 @@ function useTimeLeft(endsAt: number | null): string | null {
 }
 
 export function KeepAwakeStrip({ geometry, size }: ActivityViewProps) {
+  useLocale();
   const state = useKeepAwake((s) => s.state);
   const text = useTimeLeft(state.endsAt);
   const capsule = geometry.floatingGap !== null;

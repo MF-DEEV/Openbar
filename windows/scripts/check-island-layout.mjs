@@ -30,6 +30,7 @@ import { checkMusicOpenPlayer } from "./music-open-player-cases.mjs";
 import { checkIslandContextMenu } from "./island-context-menu-cases.mjs";
 import { checkMascot } from "./mascot-cases.mjs";
 import { checkSessionRename } from "./session-rename-cases.mjs";
+import { checkI18n } from "./i18n-cases.mjs";
 
 const browserPath = [
   process.env.ISLAND_TEST_BROWSER,
@@ -81,6 +82,7 @@ try {
   const pending = new Map();
   socket.onmessage = (event) => {
     const response = JSON.parse(event.data);
+    if (response.method === "Runtime.exceptionThrown") console.error(JSON.stringify(response.params));
     const waiting = pending.get(response.id);
     if (waiting) {
       pending.delete(response.id);
@@ -98,6 +100,7 @@ try {
     assert(!result.exceptionDetails, JSON.stringify(result.exceptionDetails));
     return result.result.value;
   };
+  await send("Runtime.enable");
   await send("Emulation.setDeviceMetricsOverride", {
     width: 1440,
     height: 1000,
@@ -105,7 +108,9 @@ try {
     mobile: false,
   });
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
-  if (process.argv.includes("--session-rename")) {
+  if (process.argv.includes("--i18n")) {
+    await checkI18n({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--session-rename")) {
     await checkSessionRename({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--island-shortcut")) {
     await checkIslandShortcut({ send, evaluate, base: server.resolvedUrls.local[0] });
