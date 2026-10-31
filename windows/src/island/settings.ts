@@ -55,6 +55,8 @@ export interface IslandSettings {
   shortcutEnabled: boolean;
   shortcut: string;
   gestures: boolean;
+  /** The capture tools' controls at the top of the selection (notchCaptureControls). */
+  captureControls: boolean;
   returnHome: boolean;
   homeModule: HomeDestination;
   opensActivity: boolean;
@@ -253,6 +255,7 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   shortcutEnabled: true,
   shortcut: "Ctrl+Alt+Space",
   gestures: true,
+  captureControls: true,
   returnHome: true,
   homeModule: "sessions",
   opensActivity: true,

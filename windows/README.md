@@ -71,6 +71,8 @@ Open the island's settings with the gear beside it, go to **Content › Sessions
 
 Nothing to install. While Codex runs, the island talks to the app server Codex starts for its terminal sessions, so approvals and replies go to Codex itself.
 
+While a capture tool waits for a selection, the top of the screen shows **Screen capture** controls: compact at first, open when you rest the pointer on them. Switch between Screenshot, Screen Text and Color Picker there or with keys **1**, **3** and **4**, and press **R** to take the last area again. **Content → Tools → Capture controls** hides them; the keys keep working.
+
 The closed island can also rest with **Battery**, **Music**, **AI Agents**, or **Nothing**, selected in **Content → While inactive**. Music is the default and appears only while playing. Battery shows its charge and power state; AI Agents shows the allowance closest to running out, or today's API cost when no allowance is known. Working agents and waiting sessions keep their live status strips. Notices and live activities take priority; playing music can take over a battery or agents view while **Show playing music** is on. Selecting **Nothing** also disables that music takeover. Unavailable data leaves the island empty, and a hidden feature keeps its saved choice until enabled again. Battery updates follow Windows power events without starting the full System monitor.
 
 ## Private by default

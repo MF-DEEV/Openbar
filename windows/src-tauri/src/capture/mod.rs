@@ -100,6 +100,7 @@ pub enum Pick {
 struct Session {
     id: u64,
     purpose: Purpose,
+    monitor: Rect,
     frame: Arc<Frame>,
     reply: Option<mpsc::Sender<Option<Pick>>>,
     /// The page drew the picture and the window is up.
@@ -112,6 +113,8 @@ pub struct Shared {
     next: Mutex<u64>,
     /// Held from the first look at the screen to the overlay closing.
     busy: std::sync::atomic::AtomicBool,
+    /// The last area taken and its display, for R; kept until the app quits.
+    last_area: Mutex<Option<(Rect, Rect)>>,
 }
 
 /// An overlay page that never draws (it failed to load) gives up after this.
@@ -136,6 +139,8 @@ pub struct SessionInfo {
     height: u32,
     color_format: ColorFormat,
     bare_hex: bool,
+    /// The last area taken on this display, if any.
+    last_area: Option<Rect>,
 }
 
 /// What a tool did, for the island's notice.
@@ -195,6 +200,7 @@ fn select<R: Runtime>(app: &AppHandle<R>, purpose: Purpose) -> Option<(Selection
     *shared.session.lock().unwrap() = Some(Session {
         id,
         purpose,
+        monitor,
         frame: frame.clone(),
         reply: Some(tx),
         shown: false,
@@ -217,7 +223,13 @@ fn select<R: Runtime>(app: &AppHandle<R>, purpose: Purpose) -> Option<(Selection
     // A closed overlay drops the sender, which ends the wait with nothing.
     let pick = rx.recv().ok().flatten();
     listen_escape(app, false);
-    *shared.session.lock().unwrap() = None;
+    // The controls may have switched tools while it waited.
+    let purpose = shared
+        .session
+        .lock()
+        .unwrap()
+        .take()
+        .map_or(purpose, |session| session.purpose);
     if let Some(window) = app.get_webview_window(LABEL) {
         let _ = window.destroy();
     }
@@ -238,6 +250,9 @@ fn select<R: Runtime>(app: &AppHandle<R>, purpose: Purpose) -> Option<(Selection
                 frame.width,
                 frame.height,
             )?;
+            if purpose != Purpose::Watch {
+                *shared.last_area.lock().unwrap() = Some((monitor, r));
+            }
             Rect {
                 x: monitor.x + r.x,
                 y: monitor.y + r.y,
@@ -370,6 +385,12 @@ pub fn capture_session<R: Runtime>(app: AppHandle<R>) -> Option<SessionInfo> {
         height: s.frame.height,
         color_format,
         bare_hex,
+        last_area: shared
+            .last_area
+            .lock()
+            .unwrap()
+            .filter(|(monitor, _)| *monitor == s.monitor)
+            .map(|(_, area)| area),
     })
 }
 
@@ -410,7 +431,12 @@ pub fn capture_ready<R: Runtime>(app: AppHandle<R>, id: u64) {
 
 /// The person's choice, or `None` to cancel.
 #[tauri::command]
-pub fn capture_commit(shared: tauri::State<'_, Shared>, id: u64, pick: Option<Pick>) {
+pub fn capture_commit(
+    shared: tauri::State<'_, Shared>,
+    id: u64,
+    pick: Option<Pick>,
+    purpose: Option<Purpose>,
+) {
     if let Some(session) = shared
         .session
         .lock()
@@ -419,7 +445,17 @@ pub fn capture_commit(shared: tauri::State<'_, Shared>, id: u64, pick: Option<Pi
         .filter(|s| s.id == id)
         && let Some(reply) = session.reply.take()
     {
+        session.purpose = purpose_after(session.purpose, purpose);
         let _ = reply.send(pick);
+    }
+}
+
+/// The tool a selection ends on. Watch chooses an area for its own use, so it
+/// neither switches nor can be switched to.
+fn purpose_after(began: Purpose, chosen: Option<Purpose>) -> Purpose {
+    match chosen {
+        Some(chosen) if began != Purpose::Watch && chosen != Purpose::Watch => chosen,
+        _ => began,
     }
 }
 
@@ -450,7 +486,7 @@ fn run<R: Runtime>(app: &AppHandle<R>, purpose: Purpose, name: &str) -> Outcome 
         y: selection.rect.y - selection.monitor.y,
         ..selection.rect
     };
-    match purpose {
+    match selection.purpose {
         Purpose::Screenshot | Purpose::Watch => {
             screenshot(app, &frame.crop(local), name, selection.monitor)
         }
@@ -754,6 +790,16 @@ mod platform {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_selection_ends_on_the_tool_chosen_except_for_watch() {
+        use Purpose::{Color, Screenshot, Text, Watch};
+        assert_eq!(purpose_after(Screenshot, None), Screenshot);
+        assert_eq!(purpose_after(Screenshot, Some(Color)), Color);
+        assert_eq!(purpose_after(Color, Some(Text)), Text);
+        assert_eq!(purpose_after(Watch, Some(Color)), Watch);
+        assert_eq!(purpose_after(Screenshot, Some(Watch)), Screenshot);
+    }
 
     #[test]
     fn areas_clamp_to_the_picture_and_empty_ones_drop() {

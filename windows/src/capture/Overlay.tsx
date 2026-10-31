@@ -8,10 +8,13 @@
 // Space takes the whole display, Escape and a right click cancel.
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { loadPrefs } from "../shared/prefs";
+import { CaptureControls } from "./CaptureControls";
+import { offersRepeat, switchesTools, toolForKey } from "./tools";
 import { bridge, inTauri } from "../shared/bridge";
 import { formatColor } from "./color";
 import { S } from "./strings";
-import type { CaptureSession, Pick } from "./types";
+import type { CaptureSession, CaptureTool, Pick } from "./types";
 
 interface Point {
   x: number;
@@ -48,13 +51,22 @@ function demoSession(): { session: CaptureSession; pixels: Uint8ClampedArray<Arr
       pixels[i + 3] = 255;
     }
   }
-  const purpose = new URLSearchParams(location.search).has("color") ? "color" : "screenshot";
-  return { session: { id: 0, purpose, width, height, colorFormat: "hex", bareHex: false }, pixels };
+  const query = new URLSearchParams(location.search);
+  const purpose = query.has("color") ? "color" : query.has("watch") ? "watch" : "screenshot";
+  const lastArea = query.has("last")
+    ? {
+        x: Math.round(width / 4),
+        y: Math.round(height / 4),
+        width: Math.round(width / 3),
+        height: Math.round(height / 3),
+      }
+    : null;
+  return { session: { id: 0, purpose, width, height, colorFormat: "hex", bareHex: false, lastArea }, pixels };
 }
 
-function commit(session: CaptureSession, pick: Pick | null) {
-  if (inTauri) void bridge.capture.commit(session.id, pick);
-  else console.info("capture", pick);
+function commit(session: CaptureSession, pick: Pick | null, tool?: CaptureTool) {
+  if (inTauri) void bridge.capture.commit(session.id, pick, tool);
+  else console.info("capture", JSON.stringify({ pick, tool }));
 }
 
 const normalized = (a: Point, b: Point): Area => ({
@@ -67,6 +79,13 @@ const normalized = (a: Point, b: Point): Area => ({
 export function Overlay() {
   const [session, setSession] = useState<CaptureSession | null>(null);
   const source = useRef<HTMLCanvasElement | null>(null);
+  const [tool, setTool] = useState<CaptureTool>("screenshot");
+  const [controls, setControls] = useState(true);
+  const [selecting, setSelecting] = useState(false);
+
+  useEffect(() => {
+    void loadPrefs().then((prefs) => setControls(prefs.island.captureControls));
+  }, []);
 
   useEffect(() => {
     void (async () => {
@@ -87,6 +106,7 @@ export function Overlay() {
         const data = new ImageData(loaded.pixels, loaded.session.width, loaded.session.height);
         canvas.getContext("2d", { willReadFrequently: true })!.putImageData(data, 0, 0);
         source.current = canvas;
+        if (loaded.session.purpose === "text" || loaded.session.purpose === "color") setTool(loaded.session.purpose);
         setSession(loaded.session);
       } catch {
         // A picture too big to draw: give the selection up rather than hang it.
@@ -96,10 +116,45 @@ export function Overlay() {
   }, []);
 
   if (!session || !source.current) return null;
-  return session.purpose === "color" ? (
-    <ColorPicker session={session} source={source.current} />
-  ) : (
-    <AreaPicker session={session} source={source.current} />
+  const canSwitch = switchesTools(session.purpose);
+  const repeat = canSwitch && offersRepeat(tool, session.lastArea);
+  const toolKeys = (e: KeyboardEvent) => {
+    if (!canSwitch || e.ctrlKey || e.altKey || e.metaKey) return false;
+    const next = toolForKey(e.key);
+    if (next) {
+      setTool(next);
+      return true;
+    }
+    if (repeat && e.key.toLowerCase() === "r" && session.lastArea) {
+      commit(session, { kind: "area", ...session.lastArea }, tool);
+      return true;
+    }
+    return false;
+  };
+  return (
+    <>
+      {tool === "color" ? (
+        <ColorPicker session={session} source={source.current} extraKeys={toolKeys} />
+      ) : (
+        <AreaPicker
+          session={session}
+          source={source.current}
+          tool={tool}
+          extraKeys={toolKeys}
+          onSelecting={setSelecting}
+          hints={canSwitch ? [S.hintTools, ...(repeat ? [S.hintRepeat] : [])] : []}
+        />
+      )}
+      {controls && canSwitch ? (
+        <CaptureControls
+          tool={tool}
+          onTool={setTool}
+          onCancel={() => commit(session, null)}
+          offersRepeat={repeat}
+          selecting={selecting}
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -144,14 +199,31 @@ function useCancelKeys(session: CaptureSession, onKey?: (e: KeyboardEvent) => bo
 
 // MARK: Area
 
-function AreaPicker({ session, source }: { session: CaptureSession; source: HTMLCanvasElement }) {
+function AreaPicker({
+  session,
+  source,
+  tool,
+  extraKeys,
+  onSelecting,
+  hints,
+}: {
+  session: CaptureSession;
+  source: HTMLCanvasElement;
+  tool: CaptureTool;
+  extraKeys: (e: KeyboardEvent) => boolean;
+  onSelecting: (on: boolean) => void;
+  hints: string[];
+}) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const [anchor, setAnchor] = useState<Point | null>(null);
   const [area, setArea] = useState<Area | null>(null);
   useReady(session);
   useCancelKeys(session, (e) => {
+    if (extraKeys(e)) return true;
     if (e.key !== "Enter" && e.key !== " ") return false;
-    commit(session, { kind: "area", x: 0, y: 0, width: session.width, height: session.height });
+    // A focused control keeps its own Enter and Space.
+    if (document.activeElement instanceof HTMLButtonElement) return false;
+    commit(session, { kind: "area", x: 0, y: 0, width: session.width, height: session.height }, tool);
     return true;
   });
 
@@ -187,6 +259,7 @@ function AreaPicker({ session, source }: { session: CaptureSession; source: HTML
         e.currentTarget.setPointerCapture(e.pointerId);
         const p = toPicture(session, e.clientX, e.clientY, true);
         setAnchor(p);
+        onSelecting(true);
         setArea({ ...p, width: 0, height: 0 });
       }}
       onPointerMove={(e) => {
@@ -196,7 +269,8 @@ function AreaPicker({ session, source }: { session: CaptureSession; source: HTML
         if (!anchor) return;
         const chosen = normalized(anchor, toPicture(session, e.clientX, e.clientY, true));
         setAnchor(null);
-        if (chosen.width >= MIN_AREA && chosen.height >= MIN_AREA) commit(session, { kind: "area", ...chosen });
+        onSelecting(false);
+        if (chosen.width >= MIN_AREA && chosen.height >= MIN_AREA) commit(session, { kind: "area", ...chosen }, tool);
         else setArea(null);
       }}
       onContextMenu={(e) => {
@@ -208,7 +282,7 @@ function AreaPicker({ session, source }: { session: CaptureSession; source: HTML
       {area ? null : (
         <div className="cp-hint" role="status">
           {session.purpose === "watch" ? `${S.purposeWatch} · ` : null}
-          {S.hintDrag} · {S.hintFullScreen} · {S.hintCancel}
+          {[S.hintDrag, S.hintFullScreen, ...hints, S.hintCancel].join(" · ")}
         </div>
       )}
       {label ? (
@@ -222,13 +296,22 @@ function AreaPicker({ session, source }: { session: CaptureSession; source: HTML
 
 // MARK: Colour
 
-function ColorPicker({ session, source }: { session: CaptureSession; source: HTMLCanvasElement }) {
+function ColorPicker({
+  session,
+  source,
+  extraKeys,
+}: {
+  session: CaptureSession;
+  source: HTMLCanvasElement;
+  extraKeys: (e: KeyboardEvent) => boolean;
+}) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const loupe = useRef<HTMLCanvasElement>(null);
   const [point, setPoint] = useState<Point | null>(null);
   const pixels = useRef(source.getContext("2d")!);
   useReady(session);
   useCancelKeys(session, (e) => {
+    if (extraKeys(e)) return true;
     const step = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
     if (step && point) {
       setPoint({
@@ -238,7 +321,8 @@ function ColorPicker({ session, source }: { session: CaptureSession; source: HTM
       return true;
     }
     if ((e.key === "Enter" || e.key === " ") && point) {
-      commit(session, { kind: "point", ...point });
+      if (document.activeElement instanceof HTMLButtonElement) return false;
+      commit(session, { kind: "point", ...point }, "color");
       return true;
     }
     return false;
@@ -295,7 +379,7 @@ function ColorPicker({ session, source }: { session: CaptureSession; source: HTM
       onPointerMove={(e) => setPoint(toPicture(session, e.clientX, e.clientY))}
       onPointerDown={(e) => {
         if (e.button !== 0) return;
-        commit(session, { kind: "point", ...toPicture(session, e.clientX, e.clientY) });
+        commit(session, { kind: "point", ...toPicture(session, e.clientX, e.clientY) }, "color");
       }}
       onContextMenu={(e) => {
         e.preventDefault();
