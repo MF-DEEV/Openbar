@@ -12,7 +12,6 @@ import {
   BatteryMedium,
   ChevronDown,
   LayoutGrid,
-  ArrowDownToLine,
 } from "lucide-react";
 import { useContext } from "react";
 import { t } from "../../i18n";
@@ -185,7 +184,6 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
           />
         ) : null}
         {notice.audio && !mascot ? <AudioIcons muted={notice.audio.muted} deafened={notice.audio.deafened} /> : null}
-        {notice.kind === "downloads" && !mascot ? <ArrowDownToLine size={14} aria-hidden="true" /> : null}
         {notice.icon && !mascot ? <notice.icon size={14} strokeWidth={2} aria-hidden="true" /> : null}
         {notice.session ? (
           <SessionNoticeMark key={notice.session.id} session={notice.session} height={metrics.imageSize + 4} />

@@ -9,9 +9,42 @@
   color: #fff;
   font-size: 12px;
 }
-.dl-page h2 {
-  margin: 0 0 12px;
-  font-size: 16px;
+.dl-band-menu {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  max-width: 240px;
+  height: 28px;
+  padding: 0 7px;
+  border-radius: 9px;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 12px;
+  font-weight: 500;
+  transition:
+    transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1),
+    background-color 0.15s;
+}
+.dl-band-menu > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dl-band-menu > svg {
+  flex: none;
+}
+.dl-band-menu:hover,
+.dl-band-menu[aria-expanded="true"] {
+  background: rgba(255, 255, 255, 0.1);
+}
+.dl-band-menu:active,
+.dl-open:is(button):active {
+  transform: scale(0.985);
+}
+.dl-band-menu:focus-visible,
+.dl-open:is(button):focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: -2px;
 }
 .dl-empty {
   color: #999;
@@ -20,9 +53,32 @@
 .dl-item {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 0;
+  gap: 10px;
+  padding: 8px 0;
   border-bottom: 1px solid #202020;
+}
+.dl-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+  padding: 6px;
+  border-radius: 14px;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  transition:
+    transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1),
+    background-color 0.15s;
+}
+.dl-open:is(button):hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.dl-actions {
+  display: flex;
+  flex: none;
+  gap: 2px;
 }
 .dl-file-icon {
   display: grid;
@@ -169,6 +225,14 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
+  .dl-band-menu,
+  .dl-open {
+    transition: none;
+  }
+  .dl-band-menu:active,
+  .dl-open:is(button):active {
+    transform: none;
+  }
   .n-download-progress.is-indeterminate > span,
   .dl-mini-progress.is-indeterminate > span {
     animation: none;
