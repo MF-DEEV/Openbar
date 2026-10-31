@@ -142,7 +142,7 @@ struct NotchClaudeSessionRow: View {
         HStack(spacing: 6) {
             Button(action: open) {
                 HStack(spacing: 10) {
-                    NotchClaudeSessionAvatar(session: session, now: now)
+                    NotchClaudeSessionAvatar(session: session, now: now, agentMark: true)
                     summary
                     if !quickDecision {
                         Image(systemName: "chevron.right")

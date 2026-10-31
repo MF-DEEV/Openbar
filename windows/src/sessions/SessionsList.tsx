@@ -95,11 +95,11 @@ function Row({ session, now }: { session: Session; now: number }) {
       role="button"
       tabIndex={0}
       className={`s-row${waiting ? " is-waiting" : ""}${asleep ? " is-dozing" : ""}`}
-      aria-label={`${name}, ${session.project}, ${S[session.phase]}`}
+      aria-label={`${name}, ${session.provider === "codex" ? "Codex" : "Claude Code"}, ${session.project}, ${S[session.phase]}`}
       onClick={() => useSessions.getState().focus(session.id)}
       onKeyDown={(e) => e.key === "Enter" && useSessions.getState().focus(session.id)}
     >
-      <SessionAvatar session={session} now={now} lookedAt={lookedAt} size="row" />
+      <SessionAvatar session={session} now={now} lookedAt={lookedAt} size="row" agentMark />
       <div className="s-row-text">
         <div className="s-row-line1">
           <span className="s-row-name">{name}</span>

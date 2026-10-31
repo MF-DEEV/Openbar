@@ -80,6 +80,10 @@ struct NotchClaudeSessionAvatar: View {
     var size = CGSize(width: 32, height: 30)
     /// The badge's size when Clawds are off.
     var badge: CGFloat = 26
+    /// The agent's mark pinned to the Clawd's foot, so a Codex robot and a
+    /// Claude crab in the same shell are still told apart. The list asks for
+    /// it; the session page already names its agent.
+    var agentMark = false
     @ObservedObject private var service = ClaudeSessionService.shared
     @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
 
@@ -90,9 +94,34 @@ struct NotchClaudeSessionAvatar: View {
                        motion: NotchClaudeSessionsSupport.motion(session, now: now),
                        seed: ClawdCostume.seed(session.id), since: session.phaseSince,
                        cheer: NotchClaudeSessionsSupport.cheer(session), size: size)
+                .overlay(alignment: .bottomTrailing) {
+                    if agentMark {
+                        NotchSessionAgentMarkBadge(provider: session.provider)
+                            .offset(x: 3, y: 2)
+                    }
+                }
         } else {
             NotchClaudeSessionBadge(phase: session.phase, provider: session.provider, size: badge)
         }
+    }
+}
+
+/// An agent's mark, still, on a black disc ringed in the row's own gray,
+/// the way an app's badge sits on a contact's picture. Shape as well as
+/// color, so it reads without telling orange from blue.
+struct NotchSessionAgentMarkBadge: View {
+    let provider: ClaudeSessionProvider
+    static let diameter: CGFloat = 15
+
+    var body: some View {
+        // Claude's tray mark carries its own margin, so it is asked for
+        // larger to look as big as Codex's cloud.
+        NotchSessionAgentGlyph(provider: provider, size: provider == .claude ? 9 : 7, working: false)
+            .frame(width: Self.diameter, height: Self.diameter)
+            .background(Circle().fill(.black))
+            .overlay(Circle().strokeBorder(Color(white: 0.065), lineWidth: 1.5).padding(-1.5))
+            .accessibilityHidden(true)
+            .allowsHitTesting(false)
     }
 }
 

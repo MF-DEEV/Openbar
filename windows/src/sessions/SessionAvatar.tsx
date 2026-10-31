@@ -8,6 +8,7 @@
 import { useLocale } from "../i18n";
 
 import { PhaseBadge, phaseIcon } from "./Avatar";
+import { ClaudeMark, CodexMark } from "./glyphs";
 import { Clawd } from "./clawd/Clawd";
 import { resolvedCostume, subagentKey } from "./clawd/costume";
 import { CLAWD_SIZES, motionForNotice, motionForPhase, motionForSubagent } from "./clawd/sprite";
@@ -21,7 +22,14 @@ const SIZES = {
   large: { ...CLAWD_SIZES.largeHeader, badge: 34 },
 };
 
-export function SessionAvatar(props: { session: Session; now: number; lookedAt?: number; size: keyof typeof SIZES }) {
+export function SessionAvatar(props: {
+  session: Session;
+  now: number;
+  lookedAt?: number;
+  size: keyof typeof SIZES;
+  /** The agent's mark pinned to the Clawd's foot; the list asks for it. */
+  agentMark?: boolean;
+}) {
   useLocale();
   const { session } = props;
   const s = SIZES[props.size];
@@ -45,6 +53,20 @@ export function SessionAvatar(props: { session: Session; now: number; lookedAt?:
         width={s.width}
         height={s.height}
       />
+      {props.agentMark ? <AgentMarkBadge provider={session.provider} /> : null}
+    </span>
+  );
+}
+
+/** An agent's mark, still, on a black disc ringed in the row's own gray, the
+ *  way an app's badge sits on a contact's picture: shape as well as color, so
+ *  a Codex robot and a Claude crab in one shell are still told apart. */
+export function AgentMarkBadge({ provider }: { provider: Provider }) {
+  const Mark = provider === "codex" ? CodexMark : ClaudeMark;
+  return (
+    <span className="s-agent-mark" data-provider={provider} aria-hidden>
+      {/* Both paths fill their square, so one size looks the same for both. */}
+      <Mark size={9} />
     </span>
   );
 }

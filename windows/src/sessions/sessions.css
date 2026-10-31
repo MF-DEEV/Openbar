@@ -51,9 +51,30 @@
 }
 
 .s-avatar {
+  position: relative;
   flex: none;
   display: grid;
   place-items: center;
+}
+
+/* The agent's mark on the Clawd's foot, ringed in the row's gray (the row's
+   white at 0.065, then 0.1 under the pointer, over the island's black). */
+.s-agent-mark {
+  position: absolute;
+  right: -3px;
+  bottom: -2px;
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #000;
+  box-shadow: 0 0 0 1.5px rgb(17, 17, 17);
+  pointer-events: none;
+}
+
+.s-row:hover .s-agent-mark {
+  box-shadow: 0 0 0 1.5px rgb(26, 26, 26);
 }
 
 .s-badge {

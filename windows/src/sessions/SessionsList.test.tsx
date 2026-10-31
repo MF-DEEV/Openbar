@@ -74,3 +74,18 @@ it("fades a sleeping row to DOZING_OPACITY in the stylesheet", () => {
     new RegExp(`\\.s-row\\.is-dozing:not\\(:hover, :focus-visible\\)[^{]*\\{\\s*opacity: ${DOZING_OPACITY};`),
   );
 });
+
+it("pins each row's Clawd with its agent's mark and names the agent", () => {
+  const html = rows([
+    { ...quiet, id: "c", provider: "claude", title: "Crab" },
+    { ...quiet, id: "x", provider: "codex", title: "Robot" },
+  ]);
+  expect(html).toContain('class="s-agent-mark" data-provider="claude"');
+  expect(html).toContain('class="s-agent-mark" data-provider="codex"');
+  expect(html).toMatch(/aria-label="Crab, Claude Code, /);
+  expect(html).toMatch(/aria-label="Robot, Codex, /);
+});
+
+it("leaves the mark off without Clawds, where the badge already shows the agent at work", () => {
+  expect(rows([{ ...quiet, provider: "codex" }], false)).not.toContain("s-agent-mark");
+});
