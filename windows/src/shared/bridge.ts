@@ -144,6 +144,13 @@ export const bridge = {
   },
   downloads: {
     snapshot: () => call<DownloadSnapshot>("downloads_snapshot"),
+    open: (id: string) => call<boolean>("downloads_open", { id }),
+    reveal: (id: string) => call<boolean>("downloads_reveal", { id }),
+    /** False when the file is gone or the shelf is off or full. */
+    addToShelf: (id: string) => call<boolean>("downloads_add_to_shelf", { id }),
+    openFolder: (folder: string) => call<boolean>("downloads_open_folder", { folder }),
+    /** A folder the person picks; null when they cancel. */
+    chooseFolder: (title: string) => call<string | null>("downloads_choose_folder", { title }),
     onSnapshot(handler: (snapshot: DownloadSnapshot) => void): Promise<UnlistenFn> {
       if (!inTauri) return Promise.resolve(() => {});
       return listen<DownloadSnapshot>("downloads://snapshot", (event) => handler(event.payload));

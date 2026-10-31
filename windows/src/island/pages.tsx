@@ -23,7 +23,7 @@ import { subscribeNotifications } from "../notifications/store";
 import { notificationNotice } from "../notifications/presentation";
 import "../notifications/notifications.css";
 import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
-import { DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
+import { DownloadsLeading, DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
 import { bridge, type AttentionContext } from "../shared/bridge";
 import { DeferredSessionAttention, noticeLeavesWhenBusy } from "../sessions/attention";
 import { subscribeAutoAllow } from "../sessions/autoAllow";
@@ -71,7 +71,7 @@ pages.music = {
 };
 activityViews.music = MusicStrip;
 pages.notifications = { Page: NotificationsPage, Trailing: NotificationsTrailing };
-pages.downloads = { Page: DownloadsPage };
+pages.downloads = { Page: DownloadsPage, Leading: DownloadsLeading };
 activityViews.downloads = DownloadStrip;
 void subscribeDownloads();
 activityViews.sessions = SessionsStrip;
