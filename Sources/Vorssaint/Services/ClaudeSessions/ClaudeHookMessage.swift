@@ -13,6 +13,13 @@ struct ClaudeHookMessage {
     let suggestions: Any?
     /// The input of a question, handed back whole with the answers.
     var questionInput: [String: Any]? = nil
+    /// The input of a tool Claude Code runs only when the allow hands its
+    /// input back, as the plan of ExitPlanMode.
+    var approvalInput: [String: Any]? = nil
+
+    /// Tools whose allow counts only with their input in it: a bare allow
+    /// leaves the terminal dialog open, and the island would have let go.
+    static let approvedWithInput: Set<String> = [ClaudeToolSummary.planTool]
 
     var isPermissionRequest: Bool {
         if case .permissionRequested = fact.event { return true }
@@ -31,6 +38,7 @@ struct ClaudeHookMessage {
         let agent = (json["agent_id"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         var suggestions: Any?
         var questionInput: [String: Any]?
+        var approvalInput: [String: Any]?
         let event: ClaudeHookFact.Event
         // Subagent events name the subagent they are about; any other event
         // carrying an agent comes from inside that subagent.
@@ -58,6 +66,7 @@ struct ClaudeHookMessage {
             // answers go back in the tool's input.
             let questions = tool == ClaudeQuestion.tool ? ClaudeQuestion.questions(in: input) ?? [] : []
             if !questions.isEmpty { questionInput = input }
+            if approvedWithInput.contains(tool) { approvalInput = input }
             event = .permissionRequested(ClaudePermission(
                 requestID: requestID, tool: tool.isEmpty ? "Tool" : tool,
                 summary: questions.first.map { ClaudeToolSummary.clip($0.question) }
@@ -81,7 +90,8 @@ struct ClaudeHookMessage {
         }
         return ClaudeHookMessage(
             fact: ClaudeHookFact(sessionID: session, date: now, event: event, agentID: from),
-            transcript: json["transcript_path"] as? String, suggestions: suggestions, questionInput: questionInput)
+            transcript: json["transcript_path"] as? String, suggestions: suggestions, questionInput: questionInput,
+            approvalInput: approvalInput)
     }
 
     private static func preview(_ text: String) -> String? {
@@ -99,18 +109,23 @@ struct ClaudeHookMessage {
 
     static let denyMessage = "Denied from the Dynamic Island."
     static let skipMessage = "The user skipped the question from the Dynamic Island without answering."
+    static let planDenyMessage = "The user did not approve the plan from the Dynamic Island. Stay in plan mode and ask what to change."
 
     /// What the hook prints for Claude Code. Always adds the rules Claude Code
     /// offered, so it stops asking for the same thing. Answers go back in the
-    /// question's own input, unchanged but for them.
-    static func reply(_ decision: Decision, suggestions: Any?, input: [String: Any]? = nil) -> Data {
+    /// question's own input, unchanged but for them. A tool that runs only
+    /// with its input handed back, as a plan, gets it back unchanged.
+    static func reply(_ decision: Decision, suggestions: Any?, input: [String: Any]? = nil,
+                      approved: [String: Any]? = nil) -> Data {
         var body: [String: Any]
         switch decision {
         case .allow: body = ["behavior": "allow"]
         case .allowAlways:
             body = ["behavior": "allow"]
             if let suggestions { body["updatedPermissions"] = suggestions }
-        case .deny: body = ["behavior": "deny", "message": input == nil ? denyMessage : skipMessage]
+        case .deny:
+            body = ["behavior": "deny",
+                    "message": input != nil ? skipMessage : approved != nil ? planDenyMessage : denyMessage]
         case .answer(let answers):
             guard var updated = input else { return Data() }
             // One answer goes as text; several, for a question that takes
@@ -118,6 +133,7 @@ struct ClaudeHookMessage {
             updated["answers"] = answers.mapValues { picked -> Any in picked.count == 1 ? picked[0] : picked }
             body = ["behavior": "allow", "updatedInput": updated]
         }
+        if decision == .allow || decision == .allowAlways, let approved { body["updatedInput"] = approved }
         let output: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": body]]
         return (try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys])) ?? Data()
     }

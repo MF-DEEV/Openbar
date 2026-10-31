@@ -382,6 +382,8 @@ struct ClaudeHookFact: Equatable {
 
 enum ClaudeToolSummary {
     static let limit = 80
+    /// The tool Claude Code calls to have its plan approved.
+    static let planTool = "ExitPlanMode"
 
     /// A one-line reading of a tool call, built only from the fields that say
     /// what it touches.
@@ -402,6 +404,9 @@ enum ClaudeToolSummary {
         case "WebSearch": return text("query")
         case "Task", "Agent": return text("description")
         case "Skill": return text("skill")
+        case planTool:
+            // The plan's first line, its title without the heading marks.
+            return text("plan").map { $0.drop { $0 == "#" }.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty ? nil : $0 }
         default: return text("description")
         }
     }
@@ -427,6 +432,7 @@ enum ClaudeToolSummary {
         case "Read", "Edit", "Write", "MultiEdit", "NotebookEdit":
             text = (input["file_path"] as? String) ?? (input["notebook_path"] as? String) ?? arguments(input)
         case "WebFetch": text = input["url"] as? String ?? arguments(input)
+        case planTool: text = input["plan"] as? String ?? arguments(input)
         default: text = arguments(input)
         }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

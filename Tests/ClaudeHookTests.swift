@@ -18,6 +18,39 @@ enum ClaudeHookTests {
         ClaudeHookMessage.decode(Data(json.utf8), requestID: "r1", now: now, policy: ClaudeContentPolicy(previews: previews))
     }
 
+    // MARK: Plans
+
+    static func plans(_ suite: TestSuite, base: String, json: (Data) -> [String: Any]) {
+        // As Claude Code 2.1.316 sends it: no suggestions, the plan and its file.
+        let message = decode(##"{\##(base),"permission_mode":"plan","hook_event_name":"PermissionRequest","tool_name":"ExitPlanMode","tool_input":{"plan":"# Partnerstwa w wydarzeniach\n\n1. Dodać tabelę","planFilePath":"/Users/me/.claude/plans/p.md"}}"##)
+        guard case .permissionRequested(let ask)? = message?.fact.event else { return suite.expect(false, "a plan decodes as a request") }
+        suite.expect(ask.tool == "ExitPlanMode" && !ask.offersAlways && !ask.asksQuestions,
+                     "a plan is a request allowed or denied, never for good")
+        suite.expect(ask.summary == "Partnerstwa w wydarzeniach" && ask.detail == "# Partnerstwa w wydarzeniach\n\n1. Dodać tabelę",
+                     "it reads as its title, and the card shows the plan itself, not its file")
+        let original = message?.approvalInput ?? [:]
+        suite.expect(original["plan"] as? String == "# Partnerstwa w wydarzeniach\n\n1. Dodać tabelę"
+                     && original["planFilePath"] as? String == "/Users/me/.claude/plans/p.md" && message?.questionInput == nil,
+                     "the plan's input is kept to hand back with the approval")
+
+        // Claude Code drops a bare allow for a plan and keeps the terminal
+        // dialog open; only an allow carrying the input approves it.
+        let approved = json(ClaudeHookMessage.reply(.allow, suggestions: nil, approved: original))["decision"] as? [String: Any] ?? [:]
+        let updated = approved["updatedInput"] as? [String: Any] ?? [:]
+        suite.expect(approved["behavior"] as? String == "allow" && updated["plan"] as? String == original["plan"] as? String
+                     && updated["planFilePath"] as? String == original["planFilePath"] as? String && updated.count == original.count,
+                     "approving hands the plan back unchanged")
+        let kept = json(ClaudeHookMessage.reply(.deny, suggestions: nil, approved: original))["decision"] as? [String: Any] ?? [:]
+        suite.expect(kept["behavior"] as? String == "deny" && kept["message"] as? String == ClaudeHookMessage.planDenyMessage
+                     && kept["updatedInput"] == nil,
+                     "keeping on planning tells Claude the plan was not approved")
+
+        let bash = decode(#"{\#(base),"hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"ls"}}"#)
+        suite.expect(bash?.approvalInput == nil, "other tools are allowed without their input")
+        let plain = json(ClaudeHookMessage.reply(.allow, suggestions: nil))["decision"] as? [String: Any] ?? [:]
+        suite.expect(plain["updatedInput"] == nil && plain["behavior"] as? String == "allow", "and their allow stays bare")
+    }
+
     // MARK: Questions
 
     static func questions(_ suite: TestSuite, base: String, json: (Data) -> [String: Any]) {
@@ -131,6 +164,7 @@ enum ClaudeHookTests {
                      "always hands back the rules Claude Code offered")
 
         questions(suite, base: base, json: json)
+        plans(suite, base: base, json: json)
 
         suite.expect(ClaudeHookMessage.isComplete(Data(#"{"a":{"b":1}}  "#.utf8)), "a whole object is complete")
         suite.expect(!ClaudeHookMessage.isComplete(Data(#"{"a":{"b":1}"#.utf8))
