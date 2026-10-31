@@ -70,6 +70,7 @@ struct Pending {
     session: String,
     suggestions: Option<Value>,
     question_input: Option<Map<String, Value>>,
+    approval_input: Option<Map<String, Value>>,
     since: Time,
 }
 
@@ -460,6 +461,7 @@ impl Service {
                     session,
                     suggestions: message.suggestions,
                     question_input: message.question_input,
+                    approval_input: message.approval_input,
                     since: now(),
                 },
             );
@@ -510,6 +512,7 @@ impl Service {
             &decision,
             pending.suggestions.as_ref(),
             pending.question_input.as_ref(),
+            pending.approval_input.as_ref(),
         );
         let sent = !body.is_empty() && pending.connection.reply(&body).is_ok();
         inner.engine.resolve_permission(request);

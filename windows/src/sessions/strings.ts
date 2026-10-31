@@ -47,6 +47,15 @@ export const S = {
   get deny() {
     return t("notchClaudeSessions.deny");
   },
+  get plan() {
+    return t("notchClaudeSessions.plan");
+  },
+  get approvePlan() {
+    return t("notchClaudeSessions.approvePlan");
+  },
+  get keepPlanning() {
+    return t("notchClaudeSessions.keepPlanning");
+  },
   get answerInTerminal() {
     return t("notchClaudeSessions.answerInTerminal");
   },

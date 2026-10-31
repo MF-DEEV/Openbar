@@ -20,6 +20,9 @@ import { handlePermissionKey } from "./permissionKeys";
 import { subscribeGlobalPermissionKeys } from "./globalPermissionKeys";
 import { AutoAllowButton } from "./AutoAllowButton";
 
+/** The tool Claude Code calls to have its plan approved (ClaudeToolSummary.planTool). */
+export const PLAN_TOOL = "ExitPlanMode";
+
 /** True once the current request has been on screen for SETTLE_DELAY. */
 function useSettled(requestId: string | undefined): boolean {
   const shownAt = useSessions((s) => (requestId ? s.shownAt[requestId] : undefined));
@@ -44,11 +47,13 @@ export function PermissionCard({ session, onOpen }: { session: Session; onOpen: 
     ? session.provider === "codex"
       ? S.codexQuestion
       : S.question
-    : // "terminal": Codex waits on a request the island can't answer (an MCP form); the card says so.
-      (p?.tool ??
-      session.currentTool?.name ??
-      (session.waitingFor === "terminal" ? undefined : session.waitingFor) ??
-      S[session.phase]);
+    : p?.tool === PLAN_TOOL
+      ? S.plan
+      : // "terminal": Codex waits on a request the island can't answer (an MCP form); the card says so.
+        (p?.tool ??
+        session.currentTool?.name ??
+        (session.waitingFor === "terminal" ? undefined : session.waitingFor) ??
+        S[session.phase]);
 
   return (
     <div
@@ -83,6 +88,8 @@ function ToolRequest({ session }: { session: Session }) {
   const p = session.permission!;
   const ready = useSettled(p.requestId);
   const decide = useSessions((s) => s.decide);
+  // A plan is prose read through before approving; it gets more room.
+  const plan = p.tool === PLAN_TOOL;
   useEffect(() => {
     const unsubscribe = subscribeGlobalPermissionKeys(session.id, p.requestId);
     const onKey = (event: KeyboardEvent) => handlePermissionKey(event, session.id, p.requestId);
@@ -94,7 +101,7 @@ function ToolRequest({ session }: { session: Session }) {
   }, [session.id, p.requestId]);
   return (
     <>
-      <pre className="s-detail">{p.detail}</pre>
+      <pre className={plan ? "s-detail is-plan" : "s-detail"}>{p.detail}</pre>
       <div className="s-card-buttons">
         <button
           type="button"
@@ -105,7 +112,7 @@ function ToolRequest({ session }: { session: Session }) {
           onClick={() => void decide(session, "deny")}
         >
           <X size={10} strokeWidth={3.5} />
-          {S.deny}
+          {plan ? S.keepPlanning : S.deny}
         </button>
         <span className="s-spacer" />
         {session.provider === "codex" ? (
@@ -132,7 +139,7 @@ function ToolRequest({ session }: { session: Session }) {
           onClick={() => void decide(session, "allow")}
         >
           <Check size={10} strokeWidth={3.5} />
-          {S.allow}
+          {plan ? S.approvePlan : S.allow}
         </button>
       </div>
       <div className="s-hint">{S.shortcutsHint}</div>

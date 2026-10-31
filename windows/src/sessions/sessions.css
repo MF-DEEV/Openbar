@@ -1051,6 +1051,13 @@
   font-size: 10.5px;
 }
 
+/* A plan is prose read through before approving: the UI font, more room. */
+.s-detail.is-plan {
+  max-height: 220px;
+  font-family: inherit;
+  line-height: 1.45;
+}
+
 .s-card-buttons {
   display: flex;
   align-items: center;
