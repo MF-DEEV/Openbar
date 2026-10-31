@@ -63,22 +63,24 @@ struct NotchClaudeSessionStrip: View {
     }
 }
 
-/// The most pressing phase: a waiting hand, the mark of the agent at work,
-/// or a finished check. Claude's mark shows while any Claude session works,
-/// Codex's when only Codex does; the counts beside it tell the two apart, so
-/// the mark shows only once.
+/// The most pressing phase: a waiting hand, the marks of the agents at
+/// work, or a finished check. While Claude and Codex both work their marks
+/// stack, Claude's in front on a disc of the strip's black and Codex's
+/// cloud showing past it; the counts beside them tell the two apart.
 struct NotchClaudeSessionStripMark: View {
     let counts: ClaudeSessionCounts
     let size: CGFloat
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
+        let agents = NotchClaudeSessionsSupport.stripAgents(counts)
         Group {
             if counts.waiting > 0 {
                 Image(systemName: NotchClaudeSessionsSupport.symbol(.waitingPermission))
                     .font(.system(size: size, weight: .semibold))
                     .foregroundStyle(ClaudeSessionPhase.waitingPermission.tint)
-            } else if let agent = NotchClaudeSessionsSupport.stripAgent(counts) {
-                NotchSessionAgentGlyph(provider: agent, size: size)
+            } else if let front = agents.first {
+                stack(front: front, behind: agents.dropFirst().first)
             } else {
                 Image(systemName: NotchClaudeSessionsSupport.symbol(.finished))
                     .font(.system(size: size, weight: .semibold))
@@ -86,6 +88,28 @@ struct NotchClaudeSessionStripMark: View {
             }
         }
         .accessibilityHidden(true)
+    }
+
+    private func stack(front: ClaudeSessionProvider, behind: ClaudeSessionProvider?) -> some View {
+        let offset = NotchClaudeSessionsSupport.stripStackOffset(size: size)
+        return ZStack(alignment: .leading) {
+            if let behind {
+                NotchSessionAgentGlyph(provider: behind, size: size)
+                    .offset(x: offset)
+                    .transition(.asymmetric(insertion: .offset(x: -offset).combined(with: .opacity),
+                                            removal: .opacity))
+            }
+            NotchSessionAgentGlyph(provider: front, size: size)
+                .background {
+                    if behind != nil {
+                        Circle().fill(.black)
+                            .frame(width: size * 1.1, height: size * 1.1)
+                            .transition(.opacity)
+                    }
+                }
+        }
+        .frame(width: NotchClaudeSessionsSupport.stripMarksWidth(counts, size: size), alignment: .leading)
+        .animation(reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.78), value: behind)
     }
 }
 

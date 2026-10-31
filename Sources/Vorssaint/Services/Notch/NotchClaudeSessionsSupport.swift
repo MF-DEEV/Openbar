@@ -134,11 +134,35 @@ enum NotchClaudeSessionsSupport {
             .filter { $0.count > 0 }
     }
 
-    /// Whose mark the strip shows while sessions work: Claude's while any
-    /// Claude session works, Codex's when only Codex does, nil when none do.
+    /// Whose marks the strip shows while sessions work, front first: the
+    /// one agent at work, or both stacked with Claude's in front when Claude
+    /// and Codex work at once. Empty when none do.
+    static func stripAgents(_ counts: ClaudeSessionCounts) -> [ClaudeSessionProvider] {
+        let working = max(0, counts.working)
+        let codex = min(max(0, counts.workingCodex), working)
+        var agents: [ClaudeSessionProvider] = []
+        if working > codex { agents.append(.claude) }
+        if codex > 0 { agents.append(.codex) }
+        return agents
+    }
+
+    /// The mark in front: Claude's while any Claude session works, Codex's
+    /// when only Codex does, nil when none do.
     static func stripAgent(_ counts: ClaudeSessionCounts) -> ClaudeSessionProvider? {
-        guard counts.working > 0 else { return nil }
-        return counts.working > counts.workingCodex ? .claude : .codex
+        stripAgents(counts).first
+    }
+
+    /// How far the mark behind sits from the one in front, for marks drawn
+    /// at `size`: enough that the cloud shows past the spark's disc.
+    static func stripStackOffset(size: CGFloat) -> CGFloat { (size * 0.57).rounded() }
+
+    /// How wide the strip draws the marks: one glyph's frame, and the
+    /// offset of the mark behind while two agents work. A waiting hand or a
+    /// finished check takes one frame, as a lone mark does.
+    static func stripMarksWidth(_ counts: ClaudeSessionCounts, size: CGFloat) -> CGFloat {
+        let frame = size * 1.45 + 1
+        guard counts.waiting <= 0, stripAgents(counts).count > 1 else { return frame }
+        return frame + stripStackOffset(size: size)
     }
 
     /// The counts as text, for measuring the strip.

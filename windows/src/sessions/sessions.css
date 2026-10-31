@@ -1432,6 +1432,40 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* Claude's and Codex's marks stacked while both work
+   (NotchClaudeSessionStripMark.stack): the spark in front on a disc of the
+   island's black, the cloud behind it sliding out when Codex starts. */
+.s-strip-stack {
+  position: relative;
+  flex: none;
+}
+.s-strip-stack > span {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.s-strip-front {
+  z-index: 1;
+  border-radius: 50%;
+  background: #000;
+}
+.s-strip-behind {
+  animation: s-stack-in 0.38s cubic-bezier(0.2, 1.2, 0.4, 1) both;
+}
+@keyframes s-stack-in {
+  from {
+    transform: translateX(-17px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .s-strip-behind {
+    animation: none;
+  }
+}
+
 /* The agent glyph grows and brightens and settles back while its session
    works (NotchAgentAnimationView: scale 0.84…1, opacity 0.7…1, 1.2 s a way). */
 .agent-mark {
