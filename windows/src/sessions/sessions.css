@@ -1182,6 +1182,12 @@
   font-size: 11.5px;
 }
 
+.s-rename-slot {
+  flex: none;
+  min-width: 0;
+  overflow: hidden;
+}
+
 .s-rename-editor {
   display: flex;
   align-items: center;
@@ -1192,6 +1198,9 @@
   border-radius: 12px;
   background: rgba(255, 255, 255, 0.06);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease;
 }
 
 .s-rename-editor:focus-within {
@@ -1233,6 +1242,12 @@
 .s-rename::placeholder {
   color: rgba(255, 255, 255, 0.65);
   opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-rename-editor {
+    transition: none;
+  }
 }
 
 /* Reply */
@@ -1304,7 +1319,9 @@
 }
 
 .s-reply-field:focus,
-.s-reply-field:focus-visible {
+.s-reply-field:focus-visible,
+.s-rename:focus,
+.s-rename:focus-visible {
   outline: none;
   box-shadow: none;
 }

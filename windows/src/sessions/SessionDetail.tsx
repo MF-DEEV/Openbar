@@ -18,6 +18,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { AnimatePresence, motion, useIsPresent, useReducedMotion } from "motion/react";
 import { PermissionCard } from "./PermissionCard";
 import { AutoAllowButton } from "./AutoAllowButton";
 import { SessionAvatar, SubagentAvatar } from "./SessionAvatar";
@@ -57,6 +58,7 @@ function storedNumber(key: string, fallback: number) {
 }
 
 export function SessionDetail({ session, enlarged = false }: { session: Session; enlarged?: boolean }) {
+  const reduceMotion = useReducedMotion();
   const [sidebarHidden, setSidebarHidden] = useState(() => storedNumber("sessions.sidebarHidden", 0) === 1);
   const [layoutHidden, setLayoutHidden] = useState(sidebarHidden);
   const [textSettling, setTextSettling] = useState(false);
@@ -166,7 +168,20 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
       className={`s-detail-page${enlarged ? " is-large" : ""}`}
       style={{ "--chat-size": `${textSize}px`, "--agent-tint": providerTint(session.provider) } as CSSProperties}
     >
-      {renaming ? <RenameField key={session.id} session={session} name={name} /> : null}
+      <AnimatePresence initial={false}>
+        {renaming ? (
+          <motion.div
+            key={session.id}
+            className="s-rename-slot"
+            initial={{ height: 0, opacity: 0, marginBottom: -8 }}
+            animate={{ height: "auto", opacity: 1, marginBottom: 0 }}
+            exit={{ height: 0, opacity: 0, marginBottom: -8 }}
+            transition={{ duration: reduceMotion ? 0 : 0.24, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <RenameField session={session} name={name} />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
       <div className={`s-scroll${enlarged ? " is-large" : ""}`}>
         <div className="s-header">
           <button
@@ -435,18 +450,29 @@ function Conversation({
 
 /** Takes its own space above the session; an empty name restores its original name. */
 function RenameField({ session, name }: { session: Session; name: string }) {
+  const isPresent = useIsPresent();
+  const finished = useRef(false);
+  const input = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!isPresent) return;
+    finished.current = false;
+    input.current?.focus();
+  }, [isPresent]);
   const [draft, setDraft] = useState(() => useSessions.getState().names[session.id] ?? "");
   const finish = (save: boolean) => {
+    if (finished.current) return;
+    finished.current = true;
     if (save) useSessions.getState().rename(session.id, draft);
     useSessions.setState({ renaming: false });
   };
   return (
-    <label className="s-rename-editor">
+    <label className="s-rename-editor" inert={!isPresent}>
       <Pencil size={14} aria-hidden="true" />
       <span className="s-rename-content">
         <span className="s-rename-label">{S.renamePlaceholder}</span>
         <input
           className="s-rename"
+          ref={input}
           autoFocus
           aria-label={S.renamePlaceholder}
           value={draft}
