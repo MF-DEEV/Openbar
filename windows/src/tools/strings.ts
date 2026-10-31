@@ -61,6 +61,24 @@ export const S = {
   get screenshot() {
     return t("screenshot.editorTitle");
   },
+  get screenRecorder() {
+    return t("recorder.pageTitle");
+  },
+  get recordingFile() {
+    return t("recorder.fileNamePrefix");
+  },
+  get recordingStop() {
+    return t("recorder.stopButton");
+  },
+  get recordingSaved() {
+    return t("windows.tools.recordingSaved");
+  },
+  get recordingNoSound() {
+    return t("windows.tools.recordingNoSound");
+  },
+  get recordingFailed() {
+    return t("recorder.recordFailed");
+  },
   get scratchpad() {
     return t("scratchpad.pageTitle");
   },

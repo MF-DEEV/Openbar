@@ -52,5 +52,14 @@ export const S = {
   get close() {
     return t("permissionGuide.closeHelp");
   },
+  get toolRecording() {
+    return t("recorder.pageTitle");
+  },
+  get systemAudio() {
+    return t("windows.capture.systemAudio");
+  },
+  get microphone() {
+    return t("recorder.microphoneTrackLabel");
+  },
   size: (w: number, h: number) => tf("windows.capture.size", w, h),
 } as const;

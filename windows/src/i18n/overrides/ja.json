@@ -573,7 +573,7 @@
   "windows.settings.label74957d": "%@ 秒",
   "windows.music.couldNotOpenThePlayer": "プレーヤーを開けませんでした。",
   "windows.capture.r": "R",
-  "windows.capture.hintTools": "1、3、および4でツールを切り替え",
+  "windows.capture.hintTools": "1〜4でツールを切り替え",
   "windows.capture.toolText": "画面テキスト",
   "windows.downloads.stopped": "停止しました",
   "windows.downloads.showInExplorer": "ファイルエクスプローラーで表示",
@@ -584,5 +584,8 @@
   "windows.notifications.clearAllNotifications": "すべての通知をクリアしますか？",
   "windows.settings.content.lowBattery.tray": "トレイアイコンにも表示",
   "windows.settings.content.captureControls": "キャプチャコントロール",
-  "windows.settings.content.captureControlsCaption": "選択中は画面上部でツールを切り替えます。キー 1、3、4、R はどちらでも機能します。"
+  "windows.settings.content.captureControlsCaption": "選択中は画面上部でツールを切り替えます。キー 1〜4 と R はどちらでも機能します。",
+  "windows.capture.systemAudio": "システムオーディオ",
+  "windows.tools.recordingSaved": "録画を保存しました",
+  "windows.tools.recordingNoSound": "一部の音声がありません"
 }

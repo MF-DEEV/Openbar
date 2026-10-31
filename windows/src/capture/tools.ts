@@ -2,12 +2,13 @@
 // Copyright (C) 2026 Vorssaint
 
 // The tools one selection can switch between (ScreenCaptureTool), each with
-// its number key. The number keeps its Mac meaning even where a tool is absent.
+// its number key.
 
 import type { CaptureTool } from "./types";
 
 export const TOOLS: readonly { id: CaptureTool; key: string }[] = [
   { id: "screenshot", key: "1" },
+  { id: "recording", key: "2" },
   { id: "text", key: "3" },
   { id: "color", key: "4" },
 ];

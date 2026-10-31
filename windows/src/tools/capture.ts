@@ -62,6 +62,8 @@ export function noticeFor(outcome: CaptureOutcome): Notice | null {
       return { ...base, title: S.noLanguage, detail: S.noLanguageDetail, duration: 5 };
     case "color":
       return { ...base, title: outcome.value, detail: S.colorCopied, image: swatch(outcome.hex) };
+    case "recording":
+      return null;
     case "failed":
       return { ...base, title: S.captureFailed };
   }
@@ -79,7 +81,11 @@ export async function runCapture(purpose: CapturePurpose) {
     }
     let outcome: CaptureOutcome | undefined;
     try {
-      outcome = await bridge.capture.run(purpose, screenshotName(new Date()));
+      const name = screenshotName(new Date());
+      outcome = await bridge.capture.run(
+        purpose,
+        purpose === "recording" ? name.replace(S.screenshot, S.recordingFile) : name,
+      );
     } catch (error) {
       outcome = { kind: "failed", message: String(error) };
     }

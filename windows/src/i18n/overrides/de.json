@@ -573,7 +573,7 @@
   "windows.settings.label74957d": "%@ Sekunden",
   "windows.music.couldNotOpenThePlayer": "Der Player konnte nicht geöffnet werden.",
   "windows.capture.r": "R",
-  "windows.capture.hintTools": "Werkzeuge 1, 3 und 4 wechseln",
+  "windows.capture.hintTools": "1 bis 4 wechseln das Werkzeug",
   "windows.capture.toolText": "Bildschirmtext",
   "windows.downloads.stopped": "Gestoppt",
   "windows.downloads.showInExplorer": "Im Datei-Explorer anzeigen",
@@ -584,5 +584,8 @@
   "windows.notifications.clearAllNotifications": "Alle Benachrichtigungen löschen?",
   "windows.settings.content.lowBattery.tray": "Auch im Tray-Symbol",
   "windows.settings.content.captureControls": "Aufnahme-Steuerung",
-  "windows.settings.content.captureControlsCaption": "Werkzeuge oben auf dem Bildschirm beim Auswählen wechseln. Die Tasten 1, 3, 4 und R funktionieren in beiden Richtungen."
+  "windows.settings.content.captureControlsCaption": "Werkzeuge oben auf dem Bildschirm beim Auswählen wechseln. Die Tasten 1 bis 4 und R funktionieren in beiden Richtungen.",
+  "windows.capture.systemAudio": "Systemaudio",
+  "windows.tools.recordingSaved": "Aufnahme gespeichert",
+  "windows.tools.recordingNoSound": "Ein Teil des Tons fehlt"
 }

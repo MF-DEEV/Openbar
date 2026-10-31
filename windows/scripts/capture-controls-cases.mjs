@@ -112,6 +112,22 @@ export async function checkCaptureControls({ send, evaluate, base }) {
   await wait();
   assert.deepEqual((await evaluate(`done`))[0].pick, null, "Close cancels");
 
+  // The recording tool's words follow the language. Prefs live in the page here, so set it in place.
+  await load("");
+  await key("2");
+  await move(100, 400);
+  await wait(50);
+  await move(middle, 10);
+  await wait(400);
+  await evaluate(`import('/src/shared/prefs.ts').then((prefs)=>prefs.setPrefs({island:{language:'de'}}))`);
+  await wait(500);
+  const german = await evaluate(`document.querySelector('.cc-audio')?.innerText ?? ''`);
+  assert(german.includes("Systemaudio"), `The switches are translated: ${german}`);
+  const toolName = await evaluate(`document.querySelector('.cc-tile.is-active').innerText`);
+  assert.notEqual(toolName, "Screen recording", "and so is the tool's name");
+  assert((await evaluate(`document.querySelector('.cp-hint').innerText`)).includes("1 bis 4"), "and the hint");
+  console.log(`German: ${toolName} / ${german.replace(/\n/g, " / ")}`);
+
   // Watch: no controls, no tools.
   await load("?watch&last");
   assert(await evaluate(`!document.querySelector('.cc-island')`), "Watch shows no controls");

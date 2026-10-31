@@ -7,16 +7,19 @@
 
 import { useLocale, t } from "../i18n";
 
-import { Camera, ChevronUp, type LucideIcon, Pipette, ScanText, X } from "lucide-react";
+import { Camera, ChevronUp, type LucideIcon, Pipette, ScanText, Video, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { S } from "./strings";
 import { TOOLS } from "./tools";
 import type { CaptureTool } from "./types";
 
-const ICONS: Record<CaptureTool, LucideIcon> = { screenshot: Camera, text: ScanText, color: Pipette };
+const ICONS: Record<CaptureTool, LucideIcon> = { screenshot: Camera, recording: Video, text: ScanText, color: Pipette };
 const TITLES: Record<CaptureTool, string> = {
   get screenshot() {
     return S.toolScreenshot;
+  },
+  get recording() {
+    return S.toolRecording;
   },
   get text() {
     return S.toolText;
@@ -35,6 +38,8 @@ export function CaptureControls(props: {
   offersRepeat: boolean;
   /** A drag is under way: stay small and out of its way. */
   selecting: boolean;
+  audio: { system: boolean; microphone: boolean };
+  onAudio: (audio: { system: boolean; microphone: boolean }) => void;
 }) {
   useLocale();
   const [open, setOpen] = useState(false);
@@ -67,7 +72,7 @@ export function CaptureControls(props: {
   const Icon = ICONS[props.tool];
   return (
     <div
-      className={`cc-island${shown ? " is-open" : ""}${props.selecting ? " is-passive" : ""}`}
+      className={`cc-island${shown ? " is-open" : ""}${props.selecting ? " is-passive" : ""}${props.tool === "recording" ? " has-audio" : ""}`}
       role="group"
       aria-label={S.controlsTitle}
       // Nothing here starts an area or picks a colour underneath.
@@ -145,6 +150,28 @@ export function CaptureControls(props: {
               );
             })}
           </div>
+          {props.tool === "recording" ? (
+            <div className="cc-audio">
+              <label>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={props.audio.system}
+                  onChange={(e) => props.onAudio({ ...props.audio, system: e.target.checked })}
+                />
+                {S.systemAudio}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={props.audio.microphone}
+                  onChange={(e) => props.onAudio({ ...props.audio, microphone: e.target.checked })}
+                />
+                {S.microphone}
+              </label>
+            </div>
+          ) : null}
         </div>
       ) : (
         <span className="cc-compact" aria-label={TITLES[props.tool]}>

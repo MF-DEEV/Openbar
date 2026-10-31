@@ -106,7 +106,7 @@ body,
 
 /* Below the open controls, so it never slides under them. */
 .cp-hint {
-  top: 160px;
+  top: 192px;
 }
 
 .cc-island {
@@ -128,9 +128,63 @@ body,
 }
 
 .cc-island.is-open {
-  width: 380px;
+  width: 480px;
   height: 148px;
   border-radius: 0 0 22px 22px;
+}
+
+.cc-island.is-open.has-audio {
+  height: 180px;
+}
+
+.cc-audio {
+  display: flex;
+  gap: 16px;
+  font-size: 12px;
+}
+
+.cc-audio label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.cc-audio input {
+  appearance: none;
+  position: relative;
+  width: 28px;
+  height: 16px;
+  margin: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.25);
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.cc-audio input::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #fff;
+  transition: transform 120ms ease;
+}
+
+.cc-audio input:checked {
+  background: #30d158;
+}
+
+.cc-audio input:checked::after {
+  transform: translateX(12px);
+}
+
+.cc-audio input:focus-visible {
+  outline: 2px solid #4da3ff;
+  outline-offset: 1px;
 }
 
 .cc-island.is-passive {
@@ -200,7 +254,7 @@ body,
 
 .cc-tools {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 6px;
 }
 
@@ -252,7 +306,9 @@ body,
   }
 
   .cc-island,
-  .cc-tile {
+  .cc-tile,
+  .cc-audio input,
+  .cc-audio input::after {
     transition: none;
   }
 }

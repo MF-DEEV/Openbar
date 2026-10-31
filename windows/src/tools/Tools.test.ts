@@ -36,6 +36,7 @@ describe("the tools grid", () => {
       "colorPicker",
       "clipboard",
       "screenshot",
+      "screenRecorder",
       "scratchpad",
     ]);
   });

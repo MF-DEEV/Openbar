@@ -573,7 +573,7 @@
   "windows.settings.label74957d": "%@ 秒",
   "windows.music.couldNotOpenThePlayer": "无法打开播放器。",
   "windows.capture.r": "R",
-  "windows.capture.hintTools": "1、3 和 4 切换工具",
+  "windows.capture.hintTools": "1 至 4 切换工具",
   "windows.capture.toolText": "屏幕文字",
   "windows.downloads.stopped": "已停止",
   "windows.downloads.showInExplorer": "在文件资源管理器中显示",
@@ -584,5 +584,8 @@
   "windows.notifications.clearAllNotifications": "清除所有通知？",
   "windows.settings.content.lowBattery.tray": "也在任务栏图标上显示",
   "windows.settings.content.captureControls": "捕获控制",
-  "windows.settings.content.captureControlsCaption": "在选择时在屏幕顶部切换工具。按键 1、3、4 和 R 都可以使用。"
+  "windows.settings.content.captureControlsCaption": "在选择时在屏幕顶部切换工具。按键 1 至 4 和 R 都可以使用。",
+  "windows.capture.systemAudio": "系统音频",
+  "windows.tools.recordingSaved": "录制内容已保存",
+  "windows.tools.recordingNoSound": "部分声音缺失"
 }

@@ -573,7 +573,7 @@
   "windows.settings.label74957d": "%@ segundos",
   "windows.music.couldNotOpenThePlayer": "Não foi possível abrir o player.",
   "windows.capture.r": "R",
-  "windows.capture.hintTools": "Ferramentas de troca 1, 3 e 4",
+  "windows.capture.hintTools": "1 a 4 trocam a ferramenta",
   "windows.capture.toolText": "Texto da tela",
   "windows.downloads.stopped": "Parado",
   "windows.downloads.showInExplorer": "Mostrar no Explorador de Arquivos",
@@ -584,5 +584,8 @@
   "windows.notifications.clearAllNotifications": "Limpar todas as notificações?",
   "windows.settings.content.lowBattery.tray": "Também no ícone da bandeja",
   "windows.settings.content.captureControls": "Controles de captura",
-  "windows.settings.content.captureControlsCaption": "Troque ferramentas no topo da tela enquanto seleciona. As teclas 1, 3, 4 e R funcionam de qualquer forma."
+  "windows.settings.content.captureControlsCaption": "Troque ferramentas no topo da tela enquanto seleciona. As teclas 1 a 4 e R funcionam de qualquer forma.",
+  "windows.capture.systemAudio": "Áudio do sistema",
+  "windows.tools.recordingSaved": "Gravação salva",
+  "windows.tools.recordingNoSound": "Parte do som está faltando"
 }

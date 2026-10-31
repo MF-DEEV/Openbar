@@ -17,6 +17,7 @@ import {
   MicOff,
   NotebookText,
   Timer,
+  Video,
   Volume2,
 } from "lucide-react";
 
@@ -81,6 +82,11 @@ const select = (module: ModuleId) => () => useIsland.getState().select(module);
  * listens for "vorssaint:screenshot" and waits for the island to settle
  * before it shoots (service.perform, spec 05 §0).
  */
+function recording() {
+  useIsland.getState().collapse();
+  window.dispatchEvent(new CustomEvent("vorssaint:recording"));
+}
+
 function screenshot() {
   useIsland.getState().collapse();
   window.dispatchEvent(new CustomEvent("vorssaint:screenshot"));
@@ -164,6 +170,14 @@ const PLAIN: Partial<Record<ControlItem, { icon: LucideIcon; title: () => string
       return S.screenshot;
     },
     onSelect: screenshot,
+  },
+  recording: {
+    icon: Video,
+    title: () => {
+      useLocale();
+      return S.recording;
+    },
+    onSelect: recording,
   },
   // The tile opens System's network reading, where the speed test is (NotchControlsView showMetric(.network)).
   speedTest: {

@@ -10,6 +10,7 @@ import { modulesOf, useIsland } from "../island/store";
 import { setPrefs } from "../shared/prefs";
 import { bridge } from "../shared/bridge";
 import { runCapture } from "./capture";
+import { toggleRecording } from "./recording";
 import { externals } from "./externals";
 import { mergedOrder, orderedIds, splitTools, toggleOrder, withHidden } from "./model";
 import { MAC_ONLY_TOOLS, type RunState, TOOL_IDS, type ToggleId, type ToggleState, type ToolId } from "./types";
@@ -93,6 +94,9 @@ export function runTool(id: ToolId) {
       return;
     case "screenshot":
       void runCapture("screenshot");
+      return;
+    case "screenRecorder":
+      toggleRecording();
       return;
     case "screenOCR":
       void runCapture("text");

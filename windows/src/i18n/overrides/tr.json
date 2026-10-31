@@ -573,7 +573,7 @@
   "windows.settings.label74957d": "%@ saniye",
   "windows.music.couldNotOpenThePlayer": "Çalar açılamadı.",
   "windows.capture.r": "R",
-  "windows.capture.hintTools": "1, 3 ve 4 araçları değiştir",
+  "windows.capture.hintTools": "1-4 araç değiştirir",
   "windows.capture.toolText": "Ekran Metni",
   "windows.downloads.stopped": "Durdu",
   "windows.downloads.showInExplorer": "Dosya Gezgini'nde Göster",
@@ -584,5 +584,8 @@
   "windows.notifications.clearAllNotifications": "Tüm bildirimler temizlensin mi?",
   "windows.settings.content.lowBattery.tray": "Ayrıca tepsi simgesinde",
   "windows.settings.content.captureControls": "Yakalama kontrolleri",
-  "windows.settings.content.captureControlsCaption": "Seçim yaparken ekranın üstündeki araçları değiştir. 1, 3, 4 ve R tuşları her iki şekilde de çalışır."
+  "windows.settings.content.captureControlsCaption": "Seçim yaparken ekranın üstündeki araçları değiştir. 1-4 ve R tuşları her iki şekilde de çalışır.",
+  "windows.capture.systemAudio": "Sistem sesi",
+  "windows.tools.recordingSaved": "Kayıt kaydedildi",
+  "windows.tools.recordingNoSound": "Sesin bir kısmı eksik"
 }

@@ -55,6 +55,9 @@ export const S = {
   get screenshot() {
     return t("screenshot.editorTitle");
   },
+  get recording() {
+    return t("recorder.pageTitle");
+  },
   get speedTest() {
     return t("s.monitorItemNetTest");
   },

@@ -573,7 +573,7 @@
   "windows.settings.label74957d": "%@ секунд",
   "windows.music.couldNotOpenThePlayer": "Не удалось открыть плеер.",
   "windows.capture.r": "R",
-  "windows.capture.hintTools": "Инструменты переключения 1, 3 и 4",
+  "windows.capture.hintTools": "1–4 переключают инструмент",
   "windows.capture.toolText": "Текст на экране",
   "windows.downloads.stopped": "Остановлено",
   "windows.downloads.showInExplorer": "Показать в проводнике",
@@ -584,5 +584,8 @@
   "windows.notifications.clearAllNotifications": "Очистить все уведомления?",
   "windows.settings.content.lowBattery.tray": "Также на значке на панели задач",
   "windows.settings.content.captureControls": "Элементы управления захватом",
-  "windows.settings.content.captureControlsCaption": "Переключение инструментов в верхней части экрана при выборе. Клавиши 1, 3, 4 и R работают в любом случае."
+  "windows.settings.content.captureControlsCaption": "Переключение инструментов в верхней части экрана при выборе. Клавиши 1–4 и R работают в любом случае.",
+  "windows.capture.systemAudio": "Системный звук",
+  "windows.tools.recordingSaved": "Запись сохранена",
+  "windows.tools.recordingNoSound": "Часть звука отсутствует"
 }

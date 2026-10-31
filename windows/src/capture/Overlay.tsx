@@ -10,7 +10,7 @@
 import { useLocale, t } from "../i18n";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { loadPrefs } from "../shared/prefs";
+import { loadPrefs, setPrefs } from "../shared/prefs";
 import { CaptureControls } from "./CaptureControls";
 import { offersRepeat, switchesTools, toolForKey } from "./tools";
 import { bridge, inTauri } from "../shared/bridge";
@@ -66,9 +66,13 @@ function demoSession(): { session: CaptureSession; pixels: Uint8ClampedArray<Arr
   return { session: { id: 0, purpose, width, height, colorFormat: "hex", bareHex: false, lastArea }, pixels };
 }
 
+/** The sound a recording takes; set by the controls, read when it commits. */
+let chosenAudio = { system: true, microphone: false };
+
 function commit(session: CaptureSession, pick: Pick | null, tool?: CaptureTool) {
-  if (inTauri) void bridge.capture.commit(session.id, pick, tool);
-  else console.info("capture", JSON.stringify({ pick, tool }));
+  const audio = tool === "recording" ? chosenAudio : undefined;
+  if (inTauri) void bridge.capture.commit(session.id, pick, tool, audio);
+  else console.info("capture", JSON.stringify({ pick, tool, audio }));
 }
 
 const normalized = (a: Point, b: Point): Area => ({
@@ -85,9 +89,14 @@ export function Overlay() {
   const [tool, setTool] = useState<CaptureTool>("screenshot");
   const [controls, setControls] = useState(true);
   const [selecting, setSelecting] = useState(false);
+  const [audio, setAudio] = useState(chosenAudio);
 
   useEffect(() => {
-    void loadPrefs().then((prefs) => setControls(prefs.island.captureControls));
+    void loadPrefs().then((prefs) => {
+      setControls(prefs.island.captureControls);
+      chosenAudio = { system: prefs.island.recorderSystemAudio, microphone: prefs.island.recorderMicrophone };
+      setAudio(chosenAudio);
+    });
   }, []);
 
   useEffect(() => {
@@ -109,7 +118,7 @@ export function Overlay() {
         const data = new ImageData(loaded.pixels, loaded.session.width, loaded.session.height);
         canvas.getContext("2d", { willReadFrequently: true })!.putImageData(data, 0, 0);
         source.current = canvas;
-        if (loaded.session.purpose === "text" || loaded.session.purpose === "color") setTool(loaded.session.purpose);
+        if (loaded.session.purpose !== "watch") setTool(loaded.session.purpose);
         setSession(loaded.session);
       } catch {
         // A picture too big to draw: give the selection up rather than hang it.
@@ -155,6 +164,12 @@ export function Overlay() {
           onCancel={() => commit(session, null)}
           offersRepeat={repeat}
           selecting={selecting}
+          audio={audio}
+          onAudio={(next) => {
+            chosenAudio = next;
+            setAudio(next);
+            void setPrefs({ island: { recorderSystemAudio: next.system, recorderMicrophone: next.microphone } });
+          }}
         />
       ) : null}
     </>

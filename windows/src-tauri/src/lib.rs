@@ -29,6 +29,7 @@ mod notifications;
 mod ocr;
 mod power_saver;
 mod prefs;
+mod recorder;
 mod scratchpad;
 mod session_lock;
 mod sessions;
@@ -142,6 +143,7 @@ pub fn run() {
                 })
                 .build(),
         )
+        .manage(recorder::Shared::default())
         .manage(island::IslandState::default())
         .manage(island_shortcut::Shared::default())
         .manage(media::Shared::default())
@@ -177,6 +179,9 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            recorder::recorder_stop,
+            recorder::recorder_running,
+            recorder::recorder_reveal,
             locale::locale_settings,
             tray::tray_battery_warning,
             island::island_set_hit_rects,

@@ -573,7 +573,7 @@
   "windows.settings.label74957d": "%@ sekúnd",
   "windows.music.couldNotOpenThePlayer": "Nepodarilo sa otvoriť prehrávač.",
   "windows.capture.r": "R",
-  "windows.capture.hintTools": "Nástroje prepína 1, 3 a 4",
+  "windows.capture.hintTools": "1 až 4 prepínajú nástroj",
   "windows.capture.toolText": "Text na obrazovke",
   "windows.downloads.stopped": "Zastavené",
   "windows.downloads.showInExplorer": "Zobraziť vo Prieskumníkovi súborov",
@@ -584,5 +584,8 @@
   "windows.notifications.clearAllNotifications": "Vymazať všetky upozornenia?",
   "windows.settings.content.lowBattery.tray": "Taktiež v ikone na paneli",
   "windows.settings.content.captureControls": "Ovládanie snímania",
-  "windows.settings.content.captureControlsCaption": "Prepínajte nástroje v hornej časti obrazovky počas výberu. Klávesy 1, 3, 4 a R fungujú oboma smermi."
+  "windows.settings.content.captureControlsCaption": "Prepínajte nástroje v hornej časti obrazovky počas výberu. Klávesy 1 až 4 a R fungujú oboma smermi.",
+  "windows.capture.systemAudio": "Zvuk systému",
+  "windows.tools.recordingSaved": "Nahrávka uložená",
+  "windows.tools.recordingNoSound": "Časť zvuku chýba"
 }
