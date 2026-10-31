@@ -52,6 +52,11 @@ describe("recorded shortcuts", () => {
 });
 
 describe("shortcuts the recorder refuses", () => {
+  it("reserves the configured island shortcut instead of the former default", () => {
+    expect(reservedBy("Ctrl+Shift+KeyX", "Ctrl+Shift+KeyX")).toBe("island");
+    expect(reservedBy("Ctrl+Alt+Space", "Ctrl+Shift+KeyX")).toBeNull();
+    expect(reservedBy("Ctrl+KeyY", "Ctrl+Shift+KeyX")).toBe("sessions");
+  });
   it("names the island's own keys, as audio/switcher.rs reserves them", () => {
     expect(reservedBy("Ctrl+Alt+Space")).toBe("island");
     expect(reservedBy("Ctrl+KeyY")).toBe("sessions");

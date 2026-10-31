@@ -18,6 +18,7 @@ mod fullscreen;
 mod hooks;
 mod hosts;
 mod island;
+mod island_shortcut;
 mod keep_awake;
 mod media;
 mod media_volume;
@@ -41,12 +42,7 @@ mod tray;
 mod watch;
 
 use tauri::{Emitter, Manager, RunEvent};
-use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut, ShortcutState};
-
-/// Ctrl+Alt+Space opens and closes the island from anywhere.
-pub(crate) fn toggle_shortcut() -> Shortcut {
-    Shortcut::new(Some(Modifiers::CONTROL | Modifiers::ALT), Code::Space)
-}
+use tauri_plugin_global_shortcut::ShortcutState;
 
 /// `Vorssaint.exe --hook`: Claude Code runs this for every hook event. It
 /// never starts the app, only hands the event to the running island.
@@ -137,7 +133,7 @@ pub fn run() {
                     if event.state() != ShortcutState::Pressed {
                         return;
                     }
-                    if shortcut == &toggle_shortcut() {
+                    if island_shortcut::matches(app, shortcut) {
                         let _ = app.emit_to(island::LABEL, "island://toggle", ());
                     } else if audio::is_switcher_shortcut(shortcut) {
                         audio::switch_to_next_output();
@@ -146,6 +142,7 @@ pub fn run() {
                 .build(),
         )
         .manage(island::IslandState::default())
+        .manage(island_shortcut::Shared::default())
         .manage(media::Shared::default())
         .manage(music_levels::Demand::default())
         .manage(microphone::Shared::default())
@@ -162,6 +159,22 @@ pub fn run() {
         .manage(clipboard::Shared::default())
         .manage(agent_usage::State::default())
         .manage(watch::Shared::default())
+        .on_window_event(|window, event| {
+            // A page can disappear without running React's cleanup. Do not
+            // wait on a registration lock from the native event-loop thread.
+            if matches!(
+                event,
+                tauri::WindowEvent::CloseRequested { .. }
+                    | tauri::WindowEvent::Destroyed
+                    | tauri::WindowEvent::Focused(false)
+            ) {
+                let app = window.app_handle().clone();
+                let owner = window.label().to_string();
+                tauri::async_runtime::spawn_blocking(move || {
+                    audio::recording_window_closed(&app, &owner)
+                });
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             island::island_set_hit_rects,
             island::island_set_capture,
@@ -199,7 +212,7 @@ pub fn run() {
             sessions::service::sessions_acknowledge,
             sessions::service::sessions_focus,
             sessions::service::sessions_codex_status,
-            prefs::shortcut_registered,
+            island_shortcut::shortcut_registered,
             sessions::service::sessions_reply,
             sessions::service::sessions_open,
             sessions::service::sessions_image,

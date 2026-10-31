@@ -104,7 +104,8 @@ export function OutputSwitcher() {
   const outputs = useAudio((s) => s.state.outputs);
   const refused = useAudio((s) => s.state.switcherRefused);
   const failed = useAudio((s) => s.state.switchFailed);
-  const row = useSwitcherShortcut((accelerator) => save({ soundOutputSwitcherShortcut: accelerator }));
+  const islandShortcut = useIsland((s) => s.settings.shortcut);
+  const row = useSwitcherShortcut((accelerator) => save({ soundOutputSwitcherShortcut: accelerator }), islandShortcut);
   const enable = (v: boolean) => {
     const current = outputs.find((d) => d.isDefault);
     // Turned on with nothing chosen: the output playing now starts the cycle.

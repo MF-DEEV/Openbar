@@ -215,7 +215,7 @@ function OutputSwitcherOptions() {
       "soundOutputSwitcherDevices",
       cycleOrder(v ? [...chosen.filter((c) => c !== id), id] : chosen.filter((c) => c !== id), outputs),
     );
-  const row = useSwitcherShortcut((accelerator) => set("soundOutputSwitcherShortcut", accelerator));
+  const row = useSwitcherShortcut((accelerator) => set("soundOutputSwitcherShortcut", accelerator), island.shortcut);
   const shortcut = island.soundOutputSwitcherShortcut;
   return (
     <>

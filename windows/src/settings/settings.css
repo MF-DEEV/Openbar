@@ -1121,6 +1121,13 @@ select {
   color: var(--st-text-3);
 }
 
+.st-island-shortcut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
 .st-caption-line {
   display: block;
 }
