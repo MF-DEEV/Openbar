@@ -80,6 +80,8 @@ struct Activity {
     /// Subagents reported done before anything else was known of them;
     /// the end applies once they are.
     ended_agents: HashMap<String, Time>,
+    /// When each subagent was last seen working, by its transcript.
+    agent_seen: HashMap<String, Time>,
     /// Commands and subagents left running in the background, by the call
     /// that started them.
     background: BTreeMap<String, Background>,
@@ -114,6 +116,7 @@ impl Activity {
             tools: Vec::new(),
             subagents: BTreeMap::new(),
             ended_agents: HashMap::new(),
+            agent_seen: HashMap::new(),
             background: BTreeMap::new(),
             tasks: None,
             usage: BTreeMap::new(),
@@ -145,6 +148,43 @@ impl Activity {
         running.sort_by(|a, b| a.started.total_cmp(&b.started));
         running
     }
+
+    /// Subagents still working, oldest first.
+    fn running_subagents(&self) -> Vec<&Subagent> {
+        let mut running: Vec<&Subagent> = self
+            .subagents
+            .values()
+            .filter(|agent| agent.finished.is_none())
+            .collect();
+        running.sort_by(|a, b| a.started.total_cmp(&b.started));
+        running
+    }
+
+    /// The session came to rest: the subagents last seen working before then
+    /// ended, and the background jobs they were; one seen working later works
+    /// again. Idle, with not even a command of its own running, every job
+    /// begun before then ended too.
+    fn rest(&mut self, date: Time, idle: bool) {
+        for (id, agent) in self.subagents.iter_mut() {
+            let seen = self.agent_seen.get(id).copied();
+            if agent.finished.is_none()
+                && seen.map_or(agent.started, |s| s.max(agent.started)) <= date
+            {
+                agent.finished = Some(date);
+            }
+        }
+        let subagents = &self.subagents;
+        for job in self.background.values_mut() {
+            let task_done = job
+                .task
+                .as_ref()
+                .and_then(|task| subagents.get(task))
+                .is_some_and(|agent| agent.finished.is_some());
+            if job.ended.is_none() && job.started <= date && (idle || task_done) {
+                job.ended = Some(date);
+            }
+        }
+    }
 }
 
 /// What one snapshot shows, and the changes worth a notice since the last.
@@ -159,7 +199,9 @@ pub struct Engine {
     policy: ContentPolicy,
     records: BTreeMap<String, SessionRecord>,
     activity: HashMap<String, Activity>,
-    phases: HashMap<String, (SessionPhase, Time)>,
+    /// Each session's phase, since when, and since when it has worked or
+    /// waited without a break.
+    phases: HashMap<String, (SessionPhase, Time, Time)>,
 }
 
 impl Default for Engine {
@@ -238,6 +280,17 @@ impl Engine {
                     end(changed, true, entry);
                 }
             }
+            // Claude Code reads busy while any subagent works, in the turn or
+            // in the background, so at rest none does, even one whose end
+            // was never read.
+            if matches!(
+                record.status,
+                Some(RegistryStatus::Idle | RegistryStatus::Shell)
+            ) && let Some(changed) = record.status_updated
+                && let Some(entry) = self.activity.get_mut(id)
+            {
+                entry.rest(changed, record.status == Some(RegistryStatus::Idle));
+            }
             // And it went to work before its prompt was read.
             if record.status == Some(RegistryStatus::Busy)
                 && let Some(changed) = record.status_updated
@@ -277,6 +330,16 @@ impl Engine {
             .or_insert_with(|| Activity::new(now));
         for fact in facts {
             apply_fact(fact, previews, entry);
+        }
+        // Subagents first read after the registry came to rest ended by then.
+        if let Some(record) = self.records.get(session_id)
+            && matches!(
+                record.status,
+                Some(RegistryStatus::Idle | RegistryStatus::Shell)
+            )
+            && let Some(changed) = record.status_updated
+        {
+            entry.rest(changed, record.status == Some(RegistryStatus::Idle));
         }
     }
 
@@ -353,11 +416,16 @@ impl Engine {
             let phase = phase(record, entry, now);
             let previous = self.phases.get(id).copied();
             let since = match previous {
-                Some((was, since)) if was == phase => since,
+                Some((was, since, _)) if was == phase => since,
                 _ => now,
             };
-            self.phases.insert(id.clone(), (phase, since));
-            if let Some((was, was_since)) = previous
+            let busy = |phase: SessionPhase| phase.is_active() || phase.is_waiting();
+            let worked = match previous {
+                Some((was, _, worked)) if busy(phase) && busy(was) => worked,
+                _ => since,
+            };
+            self.phases.insert(id.clone(), (phase, since, worked));
+            if let Some((was, was_since, was_worked)) = previous
                 && was != phase
             {
                 match phase {
@@ -377,10 +445,16 @@ impl Engine {
                         .push(SessionEvent::NeedsInput { id: id.clone() }),
                     // Only a turn that ended after the work was seen begin is
                     // news; going back to a result already shown, as after a
-                    // recap, is not.
+                    // recap, is not. A turn that ended while its work went on
+                    // in the background is told once that work ends.
                     SessionPhase::Finished
-                        if (was.is_active() || was.is_waiting())
-                            && entry.turn_ended.unwrap_or(DISTANT_PAST) >= was_since =>
+                        if busy(was)
+                            && entry.turn_ended.unwrap_or(DISTANT_PAST)
+                                >= if was == SessionPhase::Background {
+                                    was_worked
+                                } else {
+                                    was_since
+                                } =>
                     {
                         let duration = entry
                             .turn_started
@@ -453,7 +527,8 @@ fn phase(record: &SessionRecord, entry: &Activity, now: Time) -> SessionPhase {
     // it waits for runs; a dev server or an emulator left running is not
     // work, and when nothing was seen start, it counts as work. While a
     // subagent it sent to the background works, it says "busy" though
-    // the turn ended.
+    // the turn ended; a subagent's own subagents are sent off in its
+    // transcript, so the ones listed as working count too.
     let running = entry.running_background();
     if record.status == Some(RegistryStatus::Shell)
         && (running.is_empty() || running.iter().any(|job| !job.service))
@@ -461,7 +536,8 @@ fn phase(record: &SessionRecord, entry: &Activity, now: Time) -> SessionPhase {
         return SessionPhase::Background;
     }
     if record.status == Some(RegistryStatus::Busy)
-        && running.iter().any(|job| !job.service && job.task.is_some())
+        && (running.iter().any(|job| !job.service && job.task.is_some())
+            || !entry.running_subagents().is_empty())
     {
         return SessionPhase::Background;
     }
@@ -569,6 +645,12 @@ fn session(
                 .rev()
                 .find(|job| !job.service)
                 .and_then(|job| job.label.clone())
+                .or_else(|| {
+                    entry
+                        .running_subagents()
+                        .last()
+                        .and_then(|agent| agent.description.clone())
+                })
         } else {
             None
         },
@@ -645,6 +727,8 @@ fn apply_fact(fact: &TranscriptFact, previews: bool, entry: &mut Activity) {
             entry.usage.insert(key.clone(), merged);
         }
         TranscriptFact::SubagentActivity { id, at } => {
+            let seen = entry.agent_seen.entry(id.clone()).or_insert(*at);
+            *seen = seen.max(*at);
             let ended = entry.ended_agents.get(id).copied();
             match entry.subagents.get_mut(id) {
                 None => {
@@ -846,7 +930,7 @@ fn apply_hook(event: HookEvent, date: Time, previews: bool, entry: &mut Activity
     }
 }
 
-/// A subagent's own tools tell that it works, not what the session runs.
+/// A subagent's own tools tell that something works, not what the session runs.
 fn apply_subagent(event: HookEvent, agent: &str, date: Time, previews: bool, entry: &mut Activity) {
     match event {
         HookEvent::SubagentStopped { .. } => apply_hook(event, date, previews, entry),
@@ -863,10 +947,12 @@ fn apply_subagent(event: HookEvent, agent: &str, date: Time, previews: bool, ent
             );
         }
         _ => {
-            entry
-                .subagents
-                .entry(agent.to_owned())
-                .or_insert_with(|| Subagent::new(agent, Subagent::UNTYPED, date));
+            // Claude Code's own forks, like the one that saves memories, run
+            // tools under an agent id of their own but never start or stop as
+            // subagents and keep no transcript: only a subagent the start
+            // hook or a transcript told of is listed. A hook is dated when it
+            // arrived, not by Claude Code's clock, so it does not say when a
+            // subagent last worked.
             entry.last_fact = Some(entry.last_fact.map_or(date, |last| last.max(date)));
         }
     }
@@ -2569,6 +2655,359 @@ mod tests {
                 && !asks("permission_prompt")
                 && asks("agent_needs_input")
                 && asks("")
+        );
+    }
+
+    #[test]
+    fn subagents_at_rest() {
+        let activity = |id: &str, seconds: f64| TranscriptFact::SubagentActivity {
+            id: id.into(),
+            at: at(seconds),
+        };
+        let info = |id: &str, kind: &str, what: &str| TranscriptFact::SubagentInfo {
+            id: id.into(),
+            agent_type: kind.into(),
+            description: Some(what.into()),
+        };
+        let finished = |engine: &mut Engine, seconds: f64, id: &str| {
+            only(engine, seconds)
+                .unwrap()
+                .subagents
+                .iter()
+                .find(|agent| agent.id == id)
+                .and_then(|agent| agent.finished)
+        };
+
+        // Claude Code reads busy while any subagent works, so once it rests
+        // none does, though the end of one was never read.
+        let mut rested = Engine::default();
+        rested.ingest_records(vec![record(BUSY, 0.0)], at(0.0));
+        rested.ingest_facts(
+            "s1",
+            &[
+                began(1.0),
+                activity("a1", 2.0),
+                activity("a2", 3.0),
+                job("t1", false, None, 2.0),
+                task("t1", "a1"),
+                ended(10.0, true),
+            ],
+            at(10.0),
+        );
+        rested.ingest_records(vec![record(IDLE, 20.0)], at(20.0));
+        assert_eq!(finished(&mut rested, 21.0, "a1"), Some(at(20.0)));
+        assert_eq!(
+            finished(&mut rested, 21.0, "a2"),
+            Some(at(20.0)),
+            "an idle registry ends the subagents still listed as working"
+        );
+        rested.ingest_facts("s1", &[activity("a2", 30.0)], at(30.0));
+        assert_eq!(
+            finished(&mut rested, 31.0, "a2"),
+            None,
+            "one seen working after that works again"
+        );
+        rested.ingest_records(vec![record(IDLE, 20.0)], at(32.0));
+        assert_eq!(
+            finished(&mut rested, 33.0, "a2"),
+            None,
+            "and the registry that has not changed since does not end it again"
+        );
+
+        let mut shelled = Engine::default();
+        shelled.ingest_records(vec![record(BUSY, 0.0)], at(0.0));
+        shelled.ingest_facts("s1", &[began(1.0), activity("a1", 2.0)], at(2.0));
+        shelled.ingest_records(vec![record(SHELL, 20.0)], at(20.0));
+        assert!(
+            finished(&mut shelled, 21.0, "a1").is_some(),
+            "a registry that rests with only a command running ends them too"
+        );
+
+        let mut asking = Engine::default();
+        asking.ingest_records(vec![record(BUSY, 0.0)], at(0.0));
+        asking.ingest_facts("s1", &[began(1.0), activity("a1", 2.0)], at(2.0));
+        asking.ingest_records(vec![waiting("permission prompt", 20.0)], at(20.0));
+        assert_eq!(
+            finished(&mut asking, 21.0, "a1"),
+            None,
+            "a session waiting on the person can still have them work"
+        );
+
+        let mut launched = Engine::default();
+        launched.ingest_records(vec![record(IDLE, 0.0)], at(0.0));
+        launched.ingest_facts("s1", &[began(5.0), activity("a1", 6.0)], at(6.0));
+        launched.ingest_records(vec![record(IDLE, 0.0)], at(7.0));
+        assert_eq!(
+            finished(&mut launched, 8.0, "a1"),
+            None,
+            "a subagent that began after the registry last changed is not ended by it"
+        );
+
+        // A subagent's own subagents are sent off in its transcript, not the
+        // session's, yet keep the session busy all the same.
+        let mut nested = previewing();
+        nested.ingest_records(vec![record(BUSY, 0.0)], at(0.0));
+        nested.ingest_facts(
+            "s1",
+            &[
+                began(1.0),
+                activity("a1", 2.0),
+                info("a1", "Explore", "Map the app"),
+            ],
+            at(2.0),
+        );
+        nested.snapshot(at(3.0));
+        nested.ingest_facts("s1", &[ended(10.0, true)], at(10.0));
+        let state = nested.snapshot(at(11.0));
+        assert!(
+            state.sessions[0].phase == SessionPhase::Background && state.events.is_empty(),
+            "a turn that left a subagent working is not done, though no launch of it was read"
+        );
+        assert_eq!(
+            state.sessions[0].background_label.as_deref(),
+            Some("Map the app"),
+            "and says which one works"
+        );
+        nested.ingest_facts("s1", &[agent_ended("a1", 20.0)], at(20.0));
+        let done = nested.snapshot(at(21.0));
+        assert!(
+            done.sessions[0].phase == SessionPhase::Finished && finished_event(&done.events),
+            "once it ends, the turn is done, with a notice"
+        );
+
+        // A subagent's end read later than the session's, with the registry
+        // trailing both, still leaves the turn's end told.
+        let mut lag = Engine::default();
+        lag.ingest_records(vec![record(BUSY, 0.0)], at(0.0));
+        lag.ingest_facts("s1", &[began(1.0), activity("a1", 2.0)], at(2.0));
+        lag.snapshot(at(3.0));
+        lag.ingest_facts("s1", &[ended(8.0, true)], at(9.0));
+        assert_eq!(
+            lag.snapshot(at(9.0)).sessions[0].phase,
+            SessionPhase::Background,
+            "the subagent not yet seen end holds it"
+        );
+        lag.ingest_records(vec![record(IDLE, 9.0)], at(10.0));
+        let lag_done = lag.snapshot(at(10.0));
+        assert!(
+            lag_done.sessions[0].phase == SessionPhase::Finished
+                && finished_event(&lag_done.events),
+            "once the registry rests, the turn is done, with a notice"
+        );
+
+        // A service never names the work; a subagent does, after a job it waits for.
+        let mut beside = previewing();
+        beside.ingest_records(vec![record(BUSY, 0.0)], at(0.0));
+        beside.ingest_facts(
+            "s1",
+            &[
+                began(1.0),
+                job("t1", true, Some("Run own Metro"), 2.0),
+                task("t1", "b1"),
+                activity("a1", 3.0),
+                info("a1", "Explore", "Map the app"),
+                ended(10.0, true),
+            ],
+            at(10.0),
+        );
+        let state = only(&mut beside, 11.0).unwrap();
+        assert!(
+            state.phase == SessionPhase::Background
+                && state.background_label.as_deref() == Some("Map the app")
+                && state.services == 1,
+            "beside a service the working subagent names the work"
+        );
+        beside.ingest_facts(
+            "s1",
+            &[
+                job("t2", false, Some("Render the videos"), 12.0),
+                task("t2", "b2"),
+            ],
+            at(12.0),
+        );
+        assert_eq!(
+            only(&mut beside, 13.0).unwrap().background_label.as_deref(),
+            Some("Render the videos"),
+            "work it waits for is named before a subagent"
+        );
+
+        let mut unnamed = Engine::default();
+        unnamed.ingest_records(vec![record(BUSY, 0.0)], at(0.0));
+        unnamed.ingest_facts(
+            "s1",
+            &[
+                began(1.0),
+                activity("a1", 2.0),
+                info("a1", "Explore", "Map the app"),
+                ended(10.0, true),
+            ],
+            at(10.0),
+        );
+        let state = only(&mut unnamed, 11.0).unwrap();
+        assert!(
+            state.phase == SessionPhase::Background && state.background_label.is_none(),
+            "without previews it still waits, but names nothing"
+        );
+
+        // The rest ends the background job a subagent was, but leaves a
+        // service running while only a command of its own runs.
+        let mut shelved = previewing();
+        shelved.ingest_records(vec![record(BUSY, 0.0)], at(0.0));
+        shelved.ingest_facts(
+            "s1",
+            &[
+                began(1.0),
+                activity("a1", 2.0),
+                job("t1", false, Some("Map the app"), 2.0),
+                task("t1", "a1"),
+                job("t2", true, Some("Run own Metro"), 3.0),
+                task("t2", "b2"),
+                ended(10.0, true),
+            ],
+            at(10.0),
+        );
+        assert_eq!(
+            only(&mut shelved, 11.0)
+                .unwrap()
+                .background_label
+                .as_deref(),
+            Some("Map the app"),
+            "while the subagent's job runs it is named"
+        );
+        shelved.ingest_records(vec![record(SHELL, 20.0)], at(20.0));
+        let state = only(&mut shelved, 21.0).unwrap();
+        assert!(
+            state.phase == SessionPhase::Finished
+                && state.services == 1
+                && state.background_label.is_none(),
+            "once the registry rests, the subagent's job ends and only the service is left"
+        );
+
+        // Idle, not even a command of its own runs, so a job whose end was
+        // never read does not hold a later turn.
+        let mut lost = Engine::default();
+        lost.ingest_records(vec![record(BUSY, 0.0)], at(0.0));
+        lost.ingest_facts(
+            "s1",
+            &[
+                began(1.0),
+                job("t1", false, None, 2.0),
+                task("t1", "a1"),
+                ended(10.0, true),
+            ],
+            at(10.0),
+        );
+        lost.ingest_records(vec![record(IDLE, 20.0)], at(20.0));
+        lost.ingest_facts("s1", &[began(30.0), ended(40.0, true)], at(40.0));
+        lost.ingest_records(vec![record(BUSY, 30.0)], at(40.0));
+        assert_eq!(
+            only(&mut lost, 41.0).unwrap().phase,
+            SessionPhase::Finished,
+            "an idle registry ends every job begun before it"
+        );
+
+        // Subagents first read after the registry came to rest ended by then.
+        let mut late = Engine::default();
+        late.ingest_records(vec![record(IDLE, 20.0)], at(20.0));
+        late.ingest_facts(
+            "s1",
+            &[began(1.0), activity("a1", 2.0), ended(10.0, true)],
+            at(20.0),
+        );
+        assert_eq!(
+            finished(&mut late, 21.0, "a1"),
+            Some(at(20.0)),
+            "a subagent read after the rest is ended by it"
+        );
+    }
+
+    #[test]
+    fn forks_are_not_subagents() {
+        // Claude Code's own forks, like the one that saves memories, run
+        // tools under an agent id of their own, but never start or stop as
+        // subagents and keep no transcript.
+        let mut fork = Engine::default();
+        fork.ingest_records(vec![record(IDLE, 0.0)], at(0.0));
+        fork.ingest_hook(
+            hook_in(
+                HookEvent::ToolStarted(tool("f1", 2.0, "Read", None)),
+                2.0,
+                "s1",
+                Some("a9"),
+            ),
+            at(2.0),
+        );
+        fork.ingest_hook(
+            hook_in(
+                HookEvent::ToolFinished {
+                    id: "f1".into(),
+                    failed: false,
+                },
+                3.0,
+                "s1",
+                Some("a9"),
+            ),
+            at(3.0),
+        );
+        assert!(
+            only(&mut fork, 4.0).unwrap().subagents.is_empty(),
+            "a fork's tools list no subagent"
+        );
+        fork.ingest_facts(
+            "s1",
+            &[TranscriptFact::SubagentActivity {
+                id: "a9".into(),
+                at: at(5.0),
+            }],
+            at(5.0),
+        );
+        assert_eq!(
+            only(&mut fork, 6.0).unwrap().subagents[0].id,
+            "a9",
+            "one whose transcript turns up is listed"
+        );
+
+        // A hook is dated when it arrived, so a late one does not keep a
+        // subagent working past the registry's rest; its transcript does.
+        let mut settled = Engine::default();
+        settled.ingest_records(vec![record(BUSY, 0.0)], at(0.0));
+        settled.ingest_hook(
+            hook(
+                HookEvent::SubagentStarted {
+                    id: "a1".into(),
+                    agent_type: "Explore".into(),
+                },
+                1.0,
+            ),
+            at(1.0),
+        );
+        settled.ingest_hook(
+            hook_in(
+                HookEvent::ToolStarted(tool("g1", 7.0, "Grep", None)),
+                7.0,
+                "s1",
+                Some("a1"),
+            ),
+            at(7.0),
+        );
+        settled.ingest_records(vec![record(IDLE, 5.0)], at(8.0));
+        assert_eq!(
+            only(&mut settled, 9.0).unwrap().subagents[0].finished,
+            Some(at(5.0)),
+            "a hook that arrived late does not hold it"
+        );
+        settled.ingest_facts(
+            "s1",
+            &[TranscriptFact::SubagentActivity {
+                id: "a1".into(),
+                at: at(10.0),
+            }],
+            at(10.0),
+        );
+        assert_eq!(
+            only(&mut settled, 11.0).unwrap().subagents[0].finished,
+            None,
+            "its transcript working later does"
         );
     }
 }
