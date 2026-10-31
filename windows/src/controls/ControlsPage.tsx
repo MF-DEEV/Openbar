@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n";
-
 // The home page (NotchControlsView.swift:7-118; spec 05 §1.1): the levels
 // in the band when they all fit, else in a row of their own; the player's
 // card; and a rail of shortcut tiles that fills the rows the height allows,
 // then scrolls sideways. The page reports its own height.
+
+import { useLocale, t } from "../i18n";
 
 import { LayoutGrid, SlidersHorizontal } from "lucide-react";
 import { type CSSProperties, type ReactNode, useEffect, useMemo } from "react";

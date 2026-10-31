@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t } from "../i18n/index";
+import { t } from "../i18n";
 
 export const IMAGE_LIMIT = 5;
 export const IMAGE_BYTES = 20 * 1024 * 1024;

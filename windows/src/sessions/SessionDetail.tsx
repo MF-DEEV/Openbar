@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t, tf } from "../i18n/index";
-
 // One session's page (NotchClaudeSessionDetailView.swift; spec §4.4): who
 // it is and what it does, what it asks, its recent tools, subagents and
 // last reply, and a field that types a reply into its terminal.
+
+import { useLocale, t, tf } from "../i18n";
 
 import {
   ArrowUp,

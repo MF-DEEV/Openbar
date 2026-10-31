@@ -39,6 +39,9 @@ fi
 # the first logon installs viogpudo, virtio-gpu gives the full 1920x1080.
 gpu=(-device ramfb)
 [[ "${VM_GPU:-virtio}" == virtio ]] && gpu=(-device virtio-gpu-pci,xres="${VM_W:-1920}",yres="${VM_H:-1080}")
+# VM_DISPLAYS=2 adds a second monitor (viogpudo drives one output per device),
+# for "All displays" and display-change testing; screendump device=gpu2 shows it.
+[[ "${VM_DISPLAYS:-1}" == 2 ]] && gpu+=(-device virtio-gpu-pci,id=gpu2,xres=1600,yres=900)
 
 # A USB sound card, so players and media controls work. Its output goes
 # nowhere by default; VM_AUDIO=mac plays it through the Mac's speakers.

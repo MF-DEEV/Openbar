@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The AI page's small pieces (NotchAgentComponents.swift): an agent's mark,
 // the working pulse, chips, the meter with its pace tick, and the card's
 // chrome and header.
+
+import { useLocale } from "../i18n";
 
 import { Infinity as InfinityIcon, type LucideIcon, Terminal } from "lucide-react";
 import type { ReactNode } from "react";

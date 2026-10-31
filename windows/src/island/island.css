@@ -58,6 +58,16 @@ input:focus-visible {
   pointer-events: auto;
 }
 
+/* Rendered for the other displays' mirrors, never seen here. */
+.island-mirror-source {
+  position: fixed;
+  left: -30000px;
+  top: 0;
+  width: 100vw;
+  height: 200px;
+  pointer-events: none;
+}
+
 .island-backdrop {
   position: absolute;
   left: 0;

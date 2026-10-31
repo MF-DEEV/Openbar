@@ -2,6 +2,7 @@
 
 ## Created
 
+- `windows/docs/assets/windows-i18n-settings-ja.png`
 - `windows/docs/i18n.md`
 - `windows/scripts/i18n-cases.mjs`
 - `windows/scripts/i18n-check.mjs`
@@ -83,6 +84,7 @@
 - `windows/src/camera/CameraPage.tsx`
 - `windows/src/camera/preview.ts`
 - `windows/src/camera/register.tsx`
+- `windows/src/capture/CaptureControls.tsx`
 - `windows/src/capture/Overlay.tsx`
 - `windows/src/capture/main.tsx`
 - `windows/src/capture/strings.ts`
@@ -100,6 +102,7 @@
 - `windows/src/controls/keepAwake.tsx`
 - `windows/src/controls/strings.ts`
 - `windows/src/downloads/Downloads.tsx`
+- `windows/src/downloads/strings.ts`
 - `windows/src/files/DropHint.tsx`
 - `windows/src/files/FilesPage.tsx`
 - `windows/src/files/Tile.tsx`
@@ -107,6 +110,8 @@
 - `windows/src/i18n/index.ts`
 - `windows/src/island/DevDesktop.tsx`
 - `windows/src/island/Island.tsx`
+- `windows/src/island/MirrorSource.tsx`
+- `windows/src/island/contextMenu.tsx`
 - `windows/src/island/main.tsx`
 - `windows/src/island/pages.tsx`
 - `windows/src/island/quickAccessLayout.ts`
@@ -137,6 +142,7 @@
 - `windows/src/music/VolumeControl.tsx`
 - `windows/src/music/lyrics.ts`
 - `windows/src/music/lyricsStore.ts`
+- `windows/src/notifications/NotificationPreview.tsx`
 - `windows/src/notifications/NotificationsPage.tsx`
 - `windows/src/scratchpad/ScratchpadPage.tsx`
 - `windows/src/scratchpad/model.ts`
@@ -176,6 +182,7 @@
 - `windows/src/settings/GeneralSettings.tsx`
 - `windows/src/settings/IslandShortcut.tsx`
 - `windows/src/settings/LayoutSettings.tsx`
+- `windows/src/settings/LowBatteryControls.tsx`
 - `windows/src/settings/MascotSettings.tsx`
 - `windows/src/settings/MusicSettings.tsx`
 - `windows/src/settings/QuickAccessSettings.tsx`

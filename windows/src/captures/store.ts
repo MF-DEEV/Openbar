@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 
-import { t } from "../i18n/index";
+import { t } from "../i18n";
+
 import { create } from "zustand";
 import { bridge } from "../shared/bridge";
 import type { RecentCapture } from "./types";

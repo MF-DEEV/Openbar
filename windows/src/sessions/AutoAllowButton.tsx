@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n/index";
+import { useLocale, t } from "../i18n";
+
 import { BadgeCheck } from "lucide-react";
 import { useSessions } from "./store";
 import type { Session } from "./types";

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // A question asked inside the island (spec 05 §0, "confirmations above the
 // island"): the island is topmost, so a system dialog without it as parent
 // would open behind it. Covers the page, keeps the keyboard inside, and
 // Escape cancels before anything else closes.
+
+import { useLocale } from "../i18n";
 
 import { useEffect, useRef, useState } from "react";
 import { usePageLayer } from "../island/pageLayer";

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../../i18n/index";
-
 // Menus drawn by the page itself (the island window has no native menus that
 // stay above it): a button's dropdown, or a right-click menu. The menu stays
 // inside the island's frame so the window's hit region covers it, and Escape
 // closes it before anything else.
+
+import { useLocale } from "../../i18n";
 
 import { Check, ChevronRight, type LucideIcon } from "lucide-react";
 import { type ReactNode, useEffect, useId, useLayoutEffect, useRef, useState } from "react";

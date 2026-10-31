@@ -25,6 +25,13 @@ import type { DragPhase, FilesSnapshot, OpenWithApp, ZipStatus } from "../files/
 import type { AgentEvent, AgentSnapshot, CodexProfile, RedeemOutcome } from "../agents/types";
 import type { WatchCondition, WatchFinished, WatchSnapshot } from "../watch/types";
 
+export interface MirrorFrame {
+  html: string;
+  styles: string[];
+  css: string;
+  width: number;
+  hit: HitRect;
+}
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 export interface AttentionContext {
   canAutoPresent: boolean;
@@ -76,6 +83,23 @@ export const bridge = {
   },
   setHitRects: (rects: HitRect[]) => call("island_set_hit_rects", { rects }),
   setCapture: (capture: boolean) => call("island_set_capture", { capture }),
+  /** What the other displays' mirrors draw; null draws nothing. */
+  setMirrorFrame: (frame: MirrorFrame | null) => call("island_mirror_update", { frame }),
+  mirroring: () => call<boolean>("island_mirroring"),
+  onMirroring(handler: (on: boolean) => void): Promise<UnlistenFn> {
+    if (!inTauri) return Promise.resolve(() => {});
+    return listen<boolean>("island://mirroring", (e) => handler(e.payload));
+  },
+  /** A mirror on another display was clicked, and the island has moved there. */
+  onOpenHere(handler: () => void): Promise<UnlistenFn> {
+    if (!inTauri) return Promise.resolve(() => {});
+    return listen("island://open-here", () => handler());
+  },
+  /** A monitor, resolution or scale changed and the window was placed again. */
+  onDisplayChanged(handler: () => void): Promise<UnlistenFn> {
+    if (!inTauri) return Promise.resolve(() => {});
+    return listen("island://display-changed", () => handler());
+  },
   openSettings: () => call("open_settings"),
   /** Lets the window take the keyboard (and takes it now when `take`), or gives it back. */
   setFocusable: (focusable: boolean, take: boolean) => call("island_set_focusable", { focusable, take }),
@@ -144,6 +168,13 @@ export const bridge = {
   },
   downloads: {
     snapshot: () => call<DownloadSnapshot>("downloads_snapshot"),
+    open: (id: string) => call<boolean>("downloads_open", { id }),
+    reveal: (id: string) => call<boolean>("downloads_reveal", { id }),
+    /** False when the file is gone or the shelf is off or full. */
+    addToShelf: (id: string) => call<boolean>("downloads_add_to_shelf", { id }),
+    openFolder: (folder: string) => call<boolean>("downloads_open_folder", { folder }),
+    /** A folder the person picks; null when they cancel. */
+    chooseFolder: (title: string) => call<string | null>("downloads_choose_folder", { title }),
     onSnapshot(handler: (snapshot: DownloadSnapshot) => void): Promise<UnlistenFn> {
       if (!inTauri) return Promise.resolve(() => {});
       return listen<DownloadSnapshot>("downloads://snapshot", (event) => handler(event.payload));
@@ -309,6 +340,10 @@ export const bridge = {
     /** Minutes starts a session (0 = until turned off); null ends it. */
     set: (minutes: number | null) => call<KeepAwakeState>("keep_awake_set", { minutes }),
   },
+  tray: {
+    batteryWarning: (level: "none" | "early" | "low", percent: number | null) =>
+      call<void>("tray_battery_warning", { level, percent }),
+  },
   power: {
     battery: () => call<BatteryReading | null>("battery_status"),
     onBattery(handler: (battery: BatteryReading | null) => void): Promise<UnlistenFn> {
@@ -367,7 +402,8 @@ export const bridge = {
     session: () => call<CaptureSession | null>("capture_session"),
     pixels: (id: number) => call<ArrayBuffer>("capture_pixels", { id }),
     ready: (id: number) => call("capture_ready", { id }),
-    commit: (id: number, pick: Pick | null) => call("capture_commit", { id, pick }),
+    commit: (id: number, pick: Pick | null, purpose?: import("../capture/types").CaptureTool) =>
+      call("capture_commit", { id, pick, purpose: purpose ?? null }),
   },
   tools: {
     copyText: (text: string) => call("tools_copy_text", { text }),

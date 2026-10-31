@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { formattingLocale, useLocale } from "../i18n";
-
 // Clipboard options, inside its card on the Content tab: the history itself
 // and what it keeps (ClipboardSettings.swift, ClipboardIgnoredAppsList.swift),
 // then the island's entry size and notice (NotchSettings.swift:479-495).
+
+import { formattingLocale, useLocale } from "../i18n";
 
 import { useState } from "react";
 import { CLIPBOARD_LIMITS, CLIPBOARD_RETENTION_DAYS } from "../island/settings";

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf } from "../i18n/index";
-
 // The Watch section's English strings, as the Mac words them
 // (NotchWatchStrings.swift, enUS), in Windows' sentence case and with the
 // PC in place of the Mac.
+
+import { t, tf } from "../i18n";
 
 import type { WatchCondition, WatchOutcome } from "./types";
 

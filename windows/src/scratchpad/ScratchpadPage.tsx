@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The Scratchpad section (NotchScratchpadView.swift; spec 05 §11): the pad's
 // plain text fills the page on a control surface, or its formatted reading;
 // the top row holds the tabs, a new-pad button and the pad's actions.
 // Ctrl+T opens a pad, Ctrl+W closes one, Ctrl+Enter flips the reading.
+
+import { useLocale } from "../i18n";
 
 import { Check, ChevronDown, Copy, Eye, Pencil, Plus, TriangleAlert, X } from "lucide-react";
 import { type KeyboardEvent, type MouseEvent, useEffect, useRef, useState } from "react";

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { dateTimeFormat, useLocale } from "../i18n";
-
 // The menu bar imitation along the top of the display: the active app's name
 // on the left, the date and time on the right, like macOS's bar. The window
 // behind it is acrylic and reserved as an app bar, so maximized windows
 // start below it; the island hangs from its middle.
+
+import { dateTimeFormat, useLocale } from "../i18n";
 
 import { useEffect, useState } from "react";
 import { bridge } from "../shared/bridge";

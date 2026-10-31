@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n/index";
-
 // The network detail's speed test (MetricDetailView.speedTestCard): a button
 // that runs it, a spinner while it does, then download and upload in Mbps
 // with the latency under them, or that it failed.
+
+import { useLocale, t } from "../i18n";
 
 import { Gauge, LoaderCircle } from "lucide-react";
 import { COLORS } from "./detail";

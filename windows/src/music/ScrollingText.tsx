@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
+import { useLocale } from "../i18n";
 
 import { useLayoutEffect, useRef } from "react";
 

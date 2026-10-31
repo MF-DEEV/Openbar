@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // Settings › Content › Controls and Mixer (NotchSettings.swift:380-400,
 // 985-1006): the home page's levels and card, its shortcut tiles in order,
 // brightness and the Keep Awake duration; the mixer's options, with the
 // Mac's Output switcher and Audio priority cards (GeneralToolSettings.swift).
+
+import { useLocale } from "../i18n";
 
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { Fragment, useEffect } from "react";

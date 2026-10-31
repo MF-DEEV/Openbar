@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf } from "../i18n/index";
-
 // English copy for the Tools section, from the Mac (Localization.swift,
 // QuickToggleStrings.swift, ScreenshotStrings.swift), with Windows' own
 // names where the Mac names a Mac thing (Recycle Bin, not Trash).
+
+import { t, tf } from "../i18n";
 
 export const S = {
   get customize() {

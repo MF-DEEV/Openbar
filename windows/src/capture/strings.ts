@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf } from "../i18n/index";
-
 // English copy for the screen selection (ScreenshotStrings.swift, enUS).
+
+import { t, tf } from "../i18n";
 
 export const S = {
   get hintDrag() {
@@ -24,6 +24,33 @@ export const S = {
   },
   get hintCancel() {
     return t("screenshot.hintCancel");
+  },
+  get hintTools() {
+    return t("windows.capture.hintTools");
+  },
+  get hintRepeat() {
+    return t("screenshot.hintRepeat");
+  },
+  get controlsTitle() {
+    return t("screenshot.screenCaptureTitle");
+  },
+  get toolScreenshot() {
+    return t("screenshot.editorTitle");
+  },
+  get toolText() {
+    return t("windows.capture.toolText");
+  },
+  get toolColor() {
+    return t("s.colorPickerName");
+  },
+  get repeatRegion() {
+    return t("screenshot.hintRepeat");
+  },
+  get collapse() {
+    return t("notch.collapse");
+  },
+  get close() {
+    return t("permissionGuide.closeHelp");
   },
   size: (w: number, h: number) => tf("windows.capture.size", w, h),
 } as const;

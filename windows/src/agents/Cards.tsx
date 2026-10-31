@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { dateTimeFormat, useLocale } from "../i18n";
-
 // The AI page's cards (NotchAgentsView.swift:186-835; spec 03 §10.3):
 // limits per agent, spending, the turns at work, the trend, models,
 // projects and thirteen weeks of activity.
+
+import { dateTimeFormat, useLocale } from "../i18n";
 
 import {
   ArrowUpRight,

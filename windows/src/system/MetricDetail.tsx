@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // A metric's detail in the island (MetricDetailView.swift, notch
 // presentation): a back button where the Mac's band has it, the summary with
 // its history graph, the readings, for the network the speed test, and the
 // supported process lists, with Task Manager a click away (the Mac's Activity
 // Monitor button). Escape steps back to the cards.
+
+import { useLocale } from "../i18n";
 
 import { Bluetooth, ChevronLeft, LoaderCircle, ShieldCheck, SquareArrowOutUpRight, Usb } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";

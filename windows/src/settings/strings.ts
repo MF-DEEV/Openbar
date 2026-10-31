@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf } from "../i18n";
-
 // The settings window's words, in English for now. Where the Mac has the
 // same setting its wording is kept (NotchStrings, NotchEditorStrings,
 // NotchClaudeSessionStrings); the rest is Windows' own.
+
+import { t, tf } from "../i18n";
 
 export const T = {
   // NotchMascotStrings; "your Mac" reads "your PC".
@@ -526,6 +526,35 @@ export const T = {
     get notificationsCaption() {
       return t("windows.settings.content.notificationsCaption");
     },
+    lowBattery: {
+      get title() {
+        return t("NotchLowBatteryStrings.localized.title");
+      },
+      get caption() {
+        return t("NotchLowBatteryStrings.localized.caption");
+      },
+      get threshold() {
+        return t("NotchLowBatteryStrings.localized.threshold");
+      },
+      get early() {
+        return t("NotchLowBatteryStrings.localized.early");
+      },
+      get earlyCaption() {
+        return t("NotchLowBatteryStrings.localized.earlyCaption");
+      },
+      get earlyThreshold() {
+        return t("NotchLowBatteryStrings.localized.earlyThreshold");
+      },
+      get tray() {
+        return t("windows.settings.content.lowBattery.tray");
+      },
+    },
+    get captureControls() {
+      return t("windows.settings.content.captureControls");
+    },
+    get captureControlsCaption() {
+      return t("windows.settings.content.captureControlsCaption");
+    },
   },
   system: {
     get interval() {
@@ -792,6 +821,15 @@ export const T = {
     },
     get capturesCaption() {
       return t("windows.settings.behavior.capturesCaption");
+    },
+    get gestures() {
+      return t("notchGestures.title");
+    },
+    get gesturesCaption() {
+      return t("notchGestures.hint");
+    },
+    get displayAll() {
+      return t("notch.allDisplays");
     },
   },
   sessions: {

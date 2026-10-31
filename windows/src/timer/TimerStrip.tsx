@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The closed island while a timer runs (NotchTimerStrip.swift beside the
 // camera, NotchCapsuleTimerStrip in the capsule; spec 04 §4.3): the timer's
 // orange mark and its short reading, whose minutes roll while the seconds
 // change in place. Either side opens the Timer page.
+
+import { useLocale } from "../i18n";
 
 import { CircleCheck, CirclePause, Hourglass, type LucideIcon, Timer } from "lucide-react";
 import { edgeInset, type Geometry } from "../island/geometry";

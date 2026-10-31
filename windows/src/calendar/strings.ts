@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf, formatUnit } from "../i18n/index";
-
 // The Calendar section's strings (NotchCalendarStrings.swift, English), with
 // Mac-only wording swapped for Windows.
+
+import { t, tf, formatUnit } from "../i18n";
 
 export const C = {
   get title() {

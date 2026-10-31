@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n/index";
-
 // Settings › Activity (NotchSettings.swift:540-639): the indicators the
 // closed island shows. Only those whose sections exist on Windows yet.
+
+import { useLocale, t } from "../i18n";
 
 import { Music, ArrowDownToLine, Mic, Timer, Coffee, Volume2, Sparkles } from "lucide-react";
 import { useSettings } from "./state";

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../../i18n";
-
 // Where a session's Clawd is dressed (NotchClawdWardrobeView.swift; spec
 // 02-sessions §5.7): the Clawd itself on a stage at the left, doing what its
 // session does, and a row for each part of its costume on the right. A
 // choice dresses it at once and it hops for it.
+
+import { useLocale, t } from "../../i18n";
 
 import { ChevronLeft, ChevronRight, Dices, Slash, Undo2 } from "lucide-react";
 import { useState, type KeyboardEvent, type ReactNode } from "react";

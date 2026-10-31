@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The closed island while sessions run (NotchClaudeSessionStrip.swift; spec
 // §4.2): the most pressing phase on one side of the camera, how many
 // sessions are in each phase on the other. Clicking opens the Sessions page,
 // on the first waiting session when there is one.
+
+import { useLocale } from "../i18n";
 
 import { CheckCircleFill, ClaudeMark, CodexMark, HandFill, MARK_SCALE, SparkleFill } from "./glyphs";
 import { edgeInset, type Geometry } from "../island/geometry";

@@ -7678,5 +7678,305 @@
     "key": "notchAgents.off",
     "english": "Off",
     "source": "notchAgents.off"
+  },
+  {
+    "file": "src/capture/CaptureControls.tsx",
+    "key": "windows.capture.r",
+    "english": "R",
+    "source": null
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "notchWatch.purpose",
+    "english": "Choose what to watch",
+    "source": "notchWatch.purpose"
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "windows.capture.hintFullScreen",
+    "english": "Enter captures the whole screen",
+    "source": null
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "windows.capture.hintPick",
+    "english": "Click to copy the color",
+    "source": null
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "windows.capture.hintNudge",
+    "english": "Arrow keys move one pixel",
+    "source": null
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "screenshot.hintCancel",
+    "english": "Esc cancels",
+    "source": "screenshot.hintCancel"
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "windows.capture.hintTools",
+    "english": "1, 3 and 4 switch tools",
+    "source": null
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "screenshot.hintRepeat",
+    "english": "R repeats the last area",
+    "source": "screenshot.hintRepeat"
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "screenshot.screenCaptureTitle",
+    "english": "Screen capture",
+    "source": "screenshot.screenCaptureTitle"
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "screenshot.editorTitle",
+    "english": "Screenshot",
+    "source": "screenshot.editorTitle"
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "windows.capture.toolText",
+    "english": "Screen Text",
+    "source": null
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "s.colorPickerName",
+    "english": "Color Picker",
+    "source": "s.colorPickerName"
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "screenshot.hintRepeat",
+    "english": "R repeats the last area",
+    "source": "screenshot.hintRepeat"
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "notch.collapse",
+    "english": "Collapse",
+    "source": "notch.collapse"
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "permissionGuide.closeHelp",
+    "english": "Close",
+    "source": "permissionGuide.closeHelp"
+  },
+  {
+    "file": "src/capture/strings.ts",
+    "key": "windows.capture.size",
+    "english": "%@ × %@",
+    "source": null
+  },
+  {
+    "file": "src/downloads/Downloads.tsx",
+    "key": "windows.downloads.valueDownloadProgress",
+    "english": "%@: download progress",
+    "source": null
+  },
+  {
+    "file": "src/downloads/Downloads.tsx",
+    "key": "s.mediaMegabytesSuffix",
+    "english": "MB",
+    "source": "s.mediaMegabytesSuffix"
+  },
+  {
+    "file": "src/downloads/Downloads.tsx",
+    "key": "windows.downloads.theAppHasNotProvidedTheTotalFile",
+    "english": "The app has not provided the total file size",
+    "source": null
+  },
+  {
+    "file": "src/downloads/Downloads.tsx",
+    "key": "s.mediaMegabytesSuffix",
+    "english": "MB",
+    "source": "s.mediaMegabytesSuffix"
+  },
+  {
+    "file": "src/downloads/strings.ts",
+    "key": "notchFiles.downloadsTitle",
+    "english": "Downloads",
+    "source": "notchFiles.downloadsTitle"
+  },
+  {
+    "file": "src/downloads/strings.ts",
+    "key": "windows.downloads.newDownloadsAndFileTransfersAppearHereAutomatically",
+    "english": "New downloads and file transfers appear here automatically.",
+    "source": null
+  },
+  {
+    "file": "src/downloads/strings.ts",
+    "key": "notchFiles.completed",
+    "english": "Download complete",
+    "source": "notchFiles.completed"
+  },
+  {
+    "file": "src/downloads/strings.ts",
+    "key": "notchFiles.saved",
+    "english": "Saved",
+    "source": "notchFiles.saved"
+  },
+  {
+    "file": "src/downloads/strings.ts",
+    "key": "windows.downloads.stopped",
+    "english": "Stopped",
+    "source": null
+  },
+  {
+    "file": "src/downloads/strings.ts",
+    "key": "notchFiles.inProgress",
+    "english": "Downloading",
+    "source": "notchFiles.inProgress"
+  },
+  {
+    "file": "src/downloads/strings.ts",
+    "key": "s.diskOpenInFinder",
+    "english": "Open",
+    "source": "s.diskOpenInFinder"
+  },
+  {
+    "file": "src/downloads/strings.ts",
+    "key": "windows.downloads.showInExplorer",
+    "english": "Show in File Explorer",
+    "source": null
+  },
+  {
+    "file": "src/downloads/strings.ts",
+    "key": "windows.downloads.addToFiles",
+    "english": "Add to Files",
+    "source": null
+  },
+  {
+    "file": "src/downloads/strings.ts",
+    "key": "windows.downloads.addedToFiles",
+    "english": "Added to Files",
+    "source": null
+  },
+  {
+    "file": "src/downloads/strings.ts",
+    "key": "notchFiles.addFolder",
+    "english": "Add Folder…",
+    "source": "notchFiles.addFolder"
+  },
+  {
+    "file": "src/downloads/strings.ts",
+    "key": "windows.downloads.addFolderTitle",
+    "english": "Choose a folder where downloads arrive",
+    "source": null
+  },
+  {
+    "file": "src/notifications/NotificationPreview.tsx",
+    "key": "notchNotifications.dismiss",
+    "english": "Dismiss",
+    "source": "notchNotifications.dismiss"
+  },
+  {
+    "file": "src/notifications/NotificationPreview.tsx",
+    "key": "notchNotifications.dismiss",
+    "english": "Dismiss",
+    "source": "notchNotifications.dismiss"
+  },
+  {
+    "file": "src/notifications/NotificationPreview.tsx",
+    "key": "notchNotifications.open",
+    "english": "Open",
+    "source": "notchNotifications.open"
+  },
+  {
+    "file": "src/notifications/NotificationPreview.tsx",
+    "key": "windows.notifications.notificationsValue",
+    "english": "Notifications: %@",
+    "source": null
+  },
+  {
+    "file": "src/notifications/NotificationPreview.tsx",
+    "key": "notchNotifications.title",
+    "english": "Notifications",
+    "source": "notchNotifications.title"
+  },
+  {
+    "file": "src/notifications/NotificationsPage.tsx",
+    "key": "windows.notifications.clearAllNotifications",
+    "english": "Clear all notifications?",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "NotchLowBatteryStrings.localized.title",
+    "english": "Turn red when low",
+    "source": "NotchLowBatteryStrings.localized.title"
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "NotchLowBatteryStrings.localized.caption",
+    "english": "Shows the charge in red at or below this level while on battery.",
+    "source": "NotchLowBatteryStrings.localized.caption"
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "NotchLowBatteryStrings.localized.threshold",
+    "english": "Red level",
+    "source": "NotchLowBatteryStrings.localized.threshold"
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "NotchLowBatteryStrings.localized.early",
+    "english": "Turn amber first",
+    "source": "NotchLowBatteryStrings.localized.early"
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "NotchLowBatteryStrings.localized.earlyCaption",
+    "english": "Shows the charge in amber at or below a higher level, as an early warning.",
+    "source": "NotchLowBatteryStrings.localized.earlyCaption"
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "NotchLowBatteryStrings.localized.earlyThreshold",
+    "english": "Amber level",
+    "source": "NotchLowBatteryStrings.localized.earlyThreshold"
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.content.lowBattery.tray",
+    "english": "Also on the tray icon",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.content.captureControls",
+    "english": "Capture controls",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.content.captureControlsCaption",
+    "english": "Switch tools at the top of the screen while selecting. Keys 1, 3, 4 and R work either way.",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "notchGestures.title",
+    "english": "Dynamic Island Gestures",
+    "source": "notchGestures.title"
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "notchGestures.hint",
+    "english": "Scroll down to open. Scroll up over the top row to close. Swipe left or right over the music to change tracks. Lists keep their own scrolling.",
+    "source": "notchGestures.hint"
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "notch.allDisplays",
+    "english": "All displays",
+    "source": "notch.allDisplays"
   }
 ]

@@ -104,6 +104,142 @@ body,
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
 }
 
+/* Below the open controls, so it never slides under them. */
+.cp-hint {
+  top: 160px;
+}
+
+.cc-island {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 224px;
+  height: 32px;
+  border-radius: 0 0 14px 14px;
+  background: #000;
+  color: #fff;
+  cursor: default;
+  overflow: hidden;
+  transition:
+    width 180ms ease,
+    height 180ms ease,
+    border-radius 180ms ease;
+}
+
+.cc-island.is-open {
+  width: 380px;
+  height: 148px;
+  border-radius: 0 0 22px 22px;
+}
+
+.cc-island.is-passive {
+  pointer-events: none;
+}
+
+.cc-compact {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  padding-left: 14px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.cc-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 14px 14px;
+}
+
+.cc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 30px;
+}
+
+.cc-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cc-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.cc-key {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 26px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.cc-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  cursor: pointer;
+}
+
+.cc-icon:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.cc-tools {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.cc-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 72px;
+  border: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 120ms ease;
+}
+
+.cc-tile:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.cc-tile:active {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.cc-tile.is-active {
+  background: #fff;
+  color: #000;
+}
+
+.cc-icon:focus-visible,
+.cc-tile:focus-visible {
+  outline: 2px solid #4da3ff;
+  outline-offset: 1px;
+}
+
 @keyframes cp-in {
   from {
     opacity: 0;
@@ -113,5 +249,10 @@ body,
 @media (prefers-reduced-motion: reduce) {
   .cp-hint {
     animation: none;
+  }
+
+  .cc-island,
+  .cc-tile {
+    transition: none;
   }
 }

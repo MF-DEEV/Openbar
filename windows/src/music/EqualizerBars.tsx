@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, tf, t } from "../i18n/index";
+import { useLocale, tf, t } from "../i18n";
 
 import { useEffect, useRef } from "react";
 import { barHeights, subscribeAudioLevels } from "./audioLevels";

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // A session's face in the island: its Clawd, or with buddies off, a round
 // badge in the phase's tint (NotchClaudeSessionsView.swift).
+
+import { useLocale } from "../i18n";
 
 import { Hammer, Hourglass, MessageCircleQuestion, MoonStar, type LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";

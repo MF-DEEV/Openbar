@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The closed island while an area is watched (NotchWatchStrip beside the
 // camera, NotchCapsuleWatchStrip in the capsule; spec 04 §6.2): the eye,
 // breathing while the area is read and crossed out while its window is
 // hidden, and what the area reads in purple, or the area itself, 40 pt
 // wide, when it holds no text. Clicking opens Watch.
+
+import { useLocale } from "../i18n";
 
 import { Eye, EyeOff } from "lucide-react";
 import { useReducedMotion } from "motion/react";

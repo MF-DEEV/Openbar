@@ -2,7 +2,9 @@
 
 // Backend result strings are protocol values, never QR/user text. Resolve at
 // render time so an already open screenshot preview switches language too.
+
 import { t, tf, type StringKey } from "../i18n";
+
 import keys from "./message-keys.json";
 export type PreviewStatus = string | { key: StringKey };
 export function statusText(status: PreviewStatus): string {

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { tf } from "../i18n/index";
-
 // The timer's model (NotchTimerSupport.swift; spec 04 §4.1): a session is a
 // value, every change returns a new one, and nothing reads a clock of its
 // own. The anchor is a time on the timer's continuous clock: a countdown's
 // deadline, or the instant a stopwatch read zero. Refreshes never subtract
 // ticks, so sleep and busy frames cannot drift.
+
+import { tf } from "../i18n";
 
 export type TimerMode = "timer" | "pomodoro" | "stopwatch";
 export type TimerPhase = "timer" | "focus" | "shortBreak" | "longBreak" | "stopwatch";

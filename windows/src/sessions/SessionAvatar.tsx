@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // A session's face: its Clawd in the outfit drawn for it (or chosen in the
 // wardrobe), moving with its phase; a round phase badge with buddies off.
 // A sleeping session's row fades as a whole (SessionsList), not the face.
+
+import { useLocale } from "../i18n";
 
 import { PhaseBadge, phaseIcon } from "./Avatar";
 import { Clawd } from "./clawd/Clawd";

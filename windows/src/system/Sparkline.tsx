@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // A small history graph (Sparkline.swift): a filled area under the line, an
 // optional zero baseline, and the graph's ceiling named on a dashed rule
 // over the oldest samples (graphCeilingLabel).
+
+import { useLocale } from "../i18n";
 
 import { useId } from "react";
 

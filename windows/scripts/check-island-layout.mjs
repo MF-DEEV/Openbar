@@ -14,7 +14,12 @@ import { checkActivityPicker } from "./activity-picker-cases.mjs";
 import { checkAutoAllow } from "./auto-allow-cases.mjs";
 import { checkMusicLyrics } from "./music-lyrics-cases.mjs";
 import { checkSessionNotice } from "./session-notice-cases.mjs";
+import { checkNotificationPreview } from "./notification-preview-cases.mjs";
+import { checkAllDisplays } from "./all-displays-cases.mjs";
+import { checkDownloads } from "./downloads-cases.mjs";
 import { checkIdleContent } from "./idle-content-cases.mjs";
+import { checkCaptureControls } from "./capture-controls-cases.mjs";
+import { checkGestures } from "./gestures-cases.mjs";
 import { checkIslandShortcut } from "./island-shortcut-cases.mjs";
 import { checkScreenshotPreview } from "./screenshot-preview-cases.mjs";
 import { checkCaptures } from "./captures-cases.mjs";
@@ -123,6 +128,12 @@ try {
     await checkMusicOpenPlayer({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--music-lyrics")) {
     await checkMusicLyrics({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--capture-controls")) {
+    await checkCaptureControls({ send, evaluate, base: server.resolvedUrls.local[0] });
+    console.log("Capture controls: keys, tiles, collapse, repeat, cancel and watch passed.");
+  } else if (process.argv.includes("--gestures")) {
+    await checkGestures({ send, evaluate, base: server.resolvedUrls.local[0] });
+    console.log("Gestures: open, close, skip, settings and blocked surfaces passed.");
   } else if (process.argv.includes("--idle-content")) {
     await checkIdleContent({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--captures")) {
@@ -131,6 +142,12 @@ try {
     await checkScreenshotPreview({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--session-notice")) {
     await checkSessionNotice({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--downloads")) {
+    await checkDownloads({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--all-displays")) {
+    await checkAllDisplays({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--notification-preview")) {
+    await checkNotificationPreview({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--auto-allow")) {
     await checkAutoAllow({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--activity-picker")) {

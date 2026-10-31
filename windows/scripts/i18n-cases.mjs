@@ -45,7 +45,7 @@ export async function checkI18n({ send, evaluate, base }) {
     }
   }
   await send("Page.navigate", { url: `${base}island.html?sessions` });
-  await wait(`!!document.querySelector('.s-strip,.n-activation')`);
+  await wait(`!!document.querySelector('.island-frame')`);
   await evaluate(`(async()=>{
     window.island=(await import('/src/island/store.ts')).useIsland;
     window.sessions=(await import('/src/sessions/store.ts')).useSessions;

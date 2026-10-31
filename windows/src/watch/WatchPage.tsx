@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { dateTimeFormat, formattingLocale, useLocale, t } from "../i18n";
-
 // The Watch page (NotchWatchView.swift; spec 04 §6.2): before anything is
 // watched, what it does and the one step that starts it; then the live
 // area with its reading, the rule, and since when it's watched. What is
 // watched and its two actions sit in the island's top row.
+
+import { dateTimeFormat, formattingLocale, useLocale, t } from "../i18n";
 
 import {
   ChevronDown,

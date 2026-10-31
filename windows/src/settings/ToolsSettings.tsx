@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf, useLocale } from "../i18n";
-
 // The Tools and Scratchpad options on the Content tab: the colour picker's
 // format (QuickLauncherView options card), which Quick toggles show and in
 // what order (QuickTogglesList's edit mode), the disks "Eject all disks"
 // skips (diskEjectExcludedVolumes), and the pad's text size and retention.
+
+import { t, tf, useLocale } from "../i18n";
 
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useState } from "react";
@@ -139,6 +139,13 @@ export function ToolsOptions() {
   return (
     <>
       <p className="st-note">{T.content.toolsGridCaption}</p>
+      <SubRow title={T.content.captureControls} caption={T.content.captureControlsCaption}>
+        <Toggle
+          label={T.content.captureControls}
+          checked={island.captureControls}
+          onChange={(on) => set("captureControls", on)}
+        />
+      </SubRow>
       <SubRow
         title={t("windows.settings.screenshotPreviewDuration")}
         caption={t("windows.settings.pausesWhileHoveredNeverAffectsPinnedScreenshots")}

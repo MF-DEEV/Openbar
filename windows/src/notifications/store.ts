@@ -12,6 +12,8 @@ import type { Access, Inbox, Item } from "./types";
 interface NotificationsState {
   access: Access;
   items: Item[];
+  /** The Clear All question is up. */
+  confirmingClear: boolean;
   receive(inbox: Inbox): void;
   requestAccess(): Promise<void>;
   dismiss(id: number): Promise<void>;
@@ -21,8 +23,14 @@ interface NotificationsState {
 export const useNotifications = create<NotificationsState>()((set) => ({
   access: "unavailable",
   items: [],
+  confirmingClear: false,
   receive(inbox) {
-    set({ access: inbox.access, items: inbox.items });
+    set((s) => ({
+      access: inbox.access,
+      items: inbox.items,
+      // Locking the PC empties the inbox under the question.
+      confirmingClear: s.confirmingClear && inbox.items.length > 0,
+    }));
     const island = useIsland.getState();
     if (
       island.notice?.kind === "systemNotification" &&
@@ -37,9 +45,10 @@ export const useNotifications = create<NotificationsState>()((set) => ({
   },
   async dismiss(id) {
     const inbox = await bridge.notifications.dismiss(id);
-    if (inbox) set({ items: inbox.items });
+    if (inbox) set((s) => ({ items: inbox.items, confirmingClear: s.confirmingClear && inbox.items.length > 0 }));
   },
   async clear() {
+    set({ confirmingClear: false });
     const inbox = await bridge.notifications.clear();
     if (inbox) set({ items: inbox.items });
   },

@@ -571,5 +571,18 @@
   "notchClaudeSessions.background": "Na pozadí",
   "windows.settings.label": "Až do zatvorenia",
   "windows.settings.label74957d": "%@ sekúnd",
-  "windows.music.couldNotOpenThePlayer": "Nepodarilo sa otvoriť prehrávač."
+  "windows.music.couldNotOpenThePlayer": "Nepodarilo sa otvoriť prehrávač.",
+  "windows.capture.r": "R",
+  "windows.capture.hintTools": "Nástroje prepína 1, 3 a 4",
+  "windows.capture.toolText": "Text na obrazovke",
+  "windows.downloads.stopped": "Zastavené",
+  "windows.downloads.showInExplorer": "Zobraziť vo Prieskumníkovi súborov",
+  "windows.downloads.addToFiles": "Pridať do súborov",
+  "windows.downloads.addedToFiles": "Pridané do súborov",
+  "windows.downloads.addFolderTitle": "Vyberte priečinok, kam sa ukladajú stiahnuté súbory",
+  "windows.notifications.notificationsValue": "Upozornenia: %@",
+  "windows.notifications.clearAllNotifications": "Vymazať všetky upozornenia?",
+  "windows.settings.content.lowBattery.tray": "Taktiež v ikone na paneli",
+  "windows.settings.content.captureControls": "Ovládanie snímania",
+  "windows.settings.content.captureControlsCaption": "Prepínajte nástroje v hornej časti obrazovky počas výberu. Klávesy 1, 3, 4 a R fungujú oboma smermi."
 }

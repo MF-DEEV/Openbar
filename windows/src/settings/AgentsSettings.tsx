@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, tf } from "../i18n/index";
-
 // AI Agents options, inside its card on the Content tab
 // (NotchAgentsSettings.swift, CodexAccountsSettings.swift; spec 03 §3.5, §11).
+
+import { useLocale, tf } from "../i18n";
 
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { CircleAlert, CircleCheck, CircleMinus, Info } from "lucide-react";

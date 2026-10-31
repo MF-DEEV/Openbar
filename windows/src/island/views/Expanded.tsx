@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../../i18n";
-
 // The open island (NotchView.expanded; spec 01-shell §1.5): a 36 pt top row,
 // then the page, 28 pt in from each side and 16 pt from the bottom.
+
+import { useLocale, t } from "../../i18n";
 
 import { ChevronLeft, LayoutGrid, Pin, Search } from "lucide-react";
 import { type ComponentType, type ReactNode, useEffect, useRef, useState } from "react";

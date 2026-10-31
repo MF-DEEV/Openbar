@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // "✻ Pondering…" while a session works (NotchClaudeSessionLargeView.swift
 // :432-480; spec §4.11): a star stepping through · ✢ ✳ ✶ ✻ ✽ and back at 8
 // steps a second, and a three-letter shimmer crossing the word at 14 letters
 // a second. Reduced motion keeps a still ✻. A Codex session shows its own
 // mark and color instead of Claude's star.
+
+import { useLocale } from "../i18n";
 
 import { useEffect, useState } from "react";
 import { clock, providerTint, thinkingWord } from "./format";

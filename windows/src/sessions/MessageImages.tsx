@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t, tf } from "../i18n/index";
+import { useLocale, t, tf } from "../i18n";
 
 import { invoke } from "@tauri-apps/api/core";
 import { X } from "lucide-react";

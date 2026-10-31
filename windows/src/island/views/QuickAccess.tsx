@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../../i18n";
-
 // The floating buttons beside the open island (NotchQuickAccessView.swift;
 // spec 01-shell §1.7): 44 pt black circles 12 pt off the island's sides and
 // bottom, at most three a side, sliding out once the island has arrived.
+
+import { useLocale, t } from "../../i18n";
 
 import { Pin, PinOff, Settings, LayoutGrid, Undo2, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The Files page (NotchFilesView.swift; spec 05 §6.1). Tiles fill the
 // page's height in rows and continue sideways; an empty shelf shows a
 // dashed drop area. The top row holds the hint or "n selected" (or the ZIP's
 // progress) on the left, and Create ZIP, Share and the trash on the right.
 // How the last ZIP ended shows under the tiles.
+
+import { useLocale } from "../i18n";
 
 import { CircleCheck, FileArchive, Inbox, Share, Trash, Trash2, WandSparkles, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { tf } from "../i18n/index";
-
 // The monitor's number formats (MetricFormat.swift): byte sizes base 1024,
 // disk sizes and bit rates base 1000, one decimal under ten.
+
+import { tf } from "../i18n";
 
 /** A 0…1 fraction as a rounded percentage, e.g. "12%". */
 export function percent(fraction: number): string {

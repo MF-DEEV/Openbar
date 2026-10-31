@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf, getLanguage, pluralForm } from "../i18n/index";
-
 // The AI Agents section's words: the Mac's English (NotchAgentStrings.swift
 // :191-288), with "this Mac" said as "this PC" and the menu bar as the
 // notification area.
+
+import { t, tf, getLanguage, pluralForm } from "../i18n";
 
 import type { AgentCard, AgentPeriod, AgentReadout, LimitFocus } from "./types";
 

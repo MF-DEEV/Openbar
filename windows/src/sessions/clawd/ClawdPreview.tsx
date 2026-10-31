@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../../i18n/index";
-
 // Only when the island page is opened in a plain browser with ?clawd: a
 // sheet of Clawds in every motion and size, and a working wardrobe, for
 // designing and for comparing with the Mac.
+
+import { useLocale } from "../../i18n";
 
 import { useMemo, useState } from "react";
 import { Clawd } from "./Clawd";

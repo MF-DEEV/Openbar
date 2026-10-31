@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { dateTimeFormat } from "../i18n/index";
-
 // The calendar's rules, free of React and Tauri (NotchCalendarSupport.swift;
 // spec 04 §3.1-3.2). Times are epoch milliseconds; days are local midnights.
+
+import { dateTimeFormat } from "../i18n";
 
 import type { CalendarChoice, CalendarEvent } from "./types";
 

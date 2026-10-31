@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The closed island's countdown (NotchCapsuleCalendarStrip in
 // NotchCapsuleViews.swift:582-669, NotchCalendarStrip.swift; spec 04 §3.1):
 // the event's dot and title, then m:ss to its start (white) or its end
 // (mint), and the time it starts or ends, which gives way first.
+
+import { useLocale } from "../i18n";
 
 import { useEffect, useState } from "react";
 import { edgeInset, type Geometry, shoulder } from "../island/geometry";

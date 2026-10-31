@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { dateTimeFormat, useLocale } from "../i18n";
-
 // The Calendar page (NotchCalendarView.swift, NotchCalendarMonthView.swift;
 // spec 04 §3.1). Three layouts: a tall, wide page has the month beside the
 // agenda; a short one has the week as a strip above it, and its month title
 // opens the month grid over both. The title and the arrows head the page
 // from the island's top row.
+
+import { dateTimeFormat, useLocale } from "../i18n";
 
 import {
   CalendarCheck,

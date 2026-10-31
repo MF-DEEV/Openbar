@@ -339,6 +339,14 @@ export const Layout = {
   minimumWing: MINIMUM_WING,
 } as const;
 
+/** A banner opened under the pointer (NotchGeometry.notificationPreviewSize). */
+export function notificationPreviewSize(geometry: Geometry, contentHeight: number): Size {
+  const width = Math.min(Math.max(400, geometry.cameraWidth + 200), expandedWidth(geometry));
+  const height = geometry.safeContentTop + contentHeight;
+  const { bottom } = contentInsets(geometry, { width, height: height + BOTTOM_INSET });
+  return { width, height: Math.min(height + bottom, geometry.screen.height - 48) };
+}
+
 // MARK: Live activities
 
 /** Breathing room every compact strip keeps from its silhouette. */

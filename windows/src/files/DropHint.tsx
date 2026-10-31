@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The closed island while a drag is over it (NotchView.swift:106-128): a
 // dashed 16-radius box, 52 tall under the safe top, saying where to drop.
+
+import { useLocale } from "../i18n";
 
 import { Inbox } from "lucide-react";
 import { useContext } from "react";

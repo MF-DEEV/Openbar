@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The Sessions page: one row per running Claude Code session, the ones
 // waiting on the person first (NotchClaudeSessionsView.swift; spec §4.3).
+
+import { useLocale } from "../i18n";
 
 import { Check, ChevronRight, GalleryVerticalEnd, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";

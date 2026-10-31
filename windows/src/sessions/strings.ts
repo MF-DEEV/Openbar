@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf } from "../i18n";
-
 // The Sessions section's strings. On the Mac they are English in every
 // language (NotchClaudeSessionStrings.swift); Mac-only wording is swapped
 // for Windows here.
+
+import { t, tf } from "../i18n";
 
 export const S = {
   get title() {

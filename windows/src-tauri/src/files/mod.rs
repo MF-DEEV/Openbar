@@ -248,6 +248,13 @@ pub fn add<R: Runtime>(app: &AppHandle<R>, items: Vec<Item>) -> bool {
     added
 }
 
+/// Adds one file from elsewhere in the island (a finished download), found
+/// again when moved like a dropped one.
+pub fn add_file<R: Runtime>(app: &AppHandle<R>, path: &str) -> bool {
+    let id = identity::of(Path::new(path)).map(|i| i.encode());
+    add(app, vec![Item::file(path, id)])
+}
+
 /// Payloads written for a drop the shelf could not take. A tile already on
 /// the shelf may name the same file (one dragged out and back in): its
 /// folder stays.

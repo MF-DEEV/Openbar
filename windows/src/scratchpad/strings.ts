@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf } from "../i18n/index";
-
 // English copy for the Scratchpad section (ScratchpadStrings.swift, enUS).
+
+import { t, tf } from "../i18n";
 
 export const S = {
   get pageTitle() {

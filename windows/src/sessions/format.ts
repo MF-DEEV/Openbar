@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { tf } from "../i18n/index";
-
 // How sessions read in the island (NotchClaudeSessionsSupport.swift,
 // NotchAgentSupport.swift; spec 02-sessions §4).
+
+import { tf } from "../i18n";
 
 import { S } from "./strings";
 import { isWaiting, isWorking, type Phase, type Provider, type Session, type Tokens } from "./types";

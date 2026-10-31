@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t, LANGUAGES, applyLanguage, type LanguagePreference } from "../i18n/index";
-
 // The island on or off (the Mac's header switch) and starting with Windows.
+
+import { useLocale, t, LANGUAGES, applyLanguage, type LanguagePreference } from "../i18n";
 
 import { Power, RectangleHorizontal, Languages } from "lucide-react";
 import { useEffect, useState } from "react";

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The filled phase symbols the Mac draws with SF Symbols
 // (checkmark.circle.fill, hand.raised.fill), which outline icon sets lack.
+
+import { useLocale } from "../i18n";
 
 import { type CSSProperties, useId } from "react";
 import { CLAUDE_TINT } from "./format";

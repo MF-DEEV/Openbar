@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../../i18n/index";
-
 // What the closed island shows: configured idle content, a notice, or the hover
 // preview row (NotchView.surface; spec 01-shell §2.2).
+
+import { useLocale, t } from "../../i18n";
 
 import {
   Battery,
@@ -14,7 +14,6 @@ import {
   BatteryMedium,
   ChevronDown,
   LayoutGrid,
-  ArrowDownToLine,
 } from "lucide-react";
 import { useContext } from "react";
 import { contentInsets, edgeInset, capsuleBody, capsuleRadius, type Geometry } from "../geometry";
@@ -27,6 +26,7 @@ import { SessionNoticeMark } from "../../sessions/SessionAvatar";
 import { CLAWD_SIZES } from "../../sessions/clawd/sprite";
 import type { IdleContent } from "../settings";
 import { useBattery } from "../battery";
+import { BATTERY_WARNING_COLORS, batteryWarning } from "../lowBattery";
 import { IdleAgents } from "./IdleAgents";
 import { useMusic } from "../../music/store";
 import { EqualizerBars } from "../../music/EqualizerBars";
@@ -72,6 +72,7 @@ export function Resting(props: { size: Size; geometry: Geometry; idleContent: Id
           : (battery?.percent ?? 100) < 85
             ? BatteryMedium
             : BatteryFull;
+  const warningColor = BATTERY_WARNING_COLORS[batteryWarning(battery, island.settings)];
   const inset = capsule ? 12 : Math.min(16, edgeInset(size, 12, 0, 4, geometry.input));
   const readingWidth = capsule ? (size.width - 2 * inset - 5) / 2 : (size.width - geometry.cameraWidth) / 2 - inset;
   const label =
@@ -99,7 +100,7 @@ export function Resting(props: { size: Size; geometry: Geometry; idleContent: Id
       {idleContent !== "none" && hasWings ? (
         <>
           <span className="n-idle-wing is-leading" style={{ opacity: aside(true) }}>
-            {idleContent === "battery" && battery ? <BatteryIcon size={14} aria-hidden /> : null}
+            {idleContent === "battery" && battery ? <BatteryIcon size={14} color={warningColor} aria-hidden /> : null}
             {idleContent === "agents" ? <IdleAgents leading width={readingWidth} /> : null}
             {idleContent === "music" && playback?.artwork ? (
               <img
@@ -114,7 +115,9 @@ export function Resting(props: { size: Size; geometry: Geometry; idleContent: Id
             ) : null}
           </span>
           <span className="n-idle-wing" style={{ opacity: aside(false) }}>
-            {idleContent === "battery" && battery?.percent != null ? `${battery.percent}%` : null}
+            {idleContent === "battery" && battery?.percent != null ? (
+              <span style={{ color: warningColor }}>{battery.percent}%</span>
+            ) : null}
             {idleContent === "agents" ? <IdleAgents leading={false} width={readingWidth} /> : null}
             {idleContent === "music" && playback?.isPlaying ? (
               <EqualizerBars count={3} width={2} height={11} color={tint} moving />
@@ -188,7 +191,6 @@ export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Si
           />
         ) : null}
         {notice.audio && !mascot ? <AudioIcons muted={notice.audio.muted} deafened={notice.audio.deafened} /> : null}
-        {notice.kind === "downloads" && !mascot ? <ArrowDownToLine size={14} aria-hidden="true" /> : null}
         {notice.icon && !mascot ? <notice.icon size={14} strokeWidth={2} aria-hidden="true" /> : null}
         {notice.session ? (
           <SessionNoticeMark key={notice.session.id} session={notice.session} height={metrics.imageSize + 4} />
@@ -261,7 +263,7 @@ export function noticeWidth(notice: Notice, geometry: Geometry): number {
 }
 
 let canvas: HTMLCanvasElement | undefined;
-function measureContext(): CanvasRenderingContext2D {
+export function measureContext(): CanvasRenderingContext2D {
   canvas ??= document.createElement("canvas");
   return canvas.getContext("2d")!;
 }

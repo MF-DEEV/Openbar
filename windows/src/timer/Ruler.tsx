@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The minutes ruler (NotchTimerRuler.swift; spec 04 §4.2): a drawn slider
 // over 1…180 minutes, 14 pt a minute, the selected minute under a centre
 // pointer. Drag it (left raises the value), click a tick to bring it to the
 // centre, scroll it, or use the arrow keys, Home and End.
+
+import { useLocale } from "../i18n";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { durationText, rulerLabel, rulerMinute, rulerMoving, rulerOffset, RULER_SPACING } from "./model";

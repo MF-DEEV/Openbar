@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../../i18n/index";
-
 // A Clawd on screen (NotchClawdView.swift, NotchClawdBuddy.swift; spec
 // 02-sessions §5.4-5.6). Each one is a 24×22 canvas, one canvas pixel per
 // sprite pixel, scaled up by CSS to a whole number of device pixels with
@@ -10,6 +8,8 @@ import { useLocale } from "../../i18n/index";
 // scaling and a pose change is a 528-pixel putImageData. One shared clock
 // steps every visible Clawd a dozen times a second and a canvas is touched
 // only when its pose changes, which keeps ten of them in the island cheap.
+
+import { useLocale } from "../../i18n";
 
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { bridge } from "../../shared/bridge";

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import { useLocale, t } from "../../i18n";
+
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useContext, useId, useRef } from "react";
 

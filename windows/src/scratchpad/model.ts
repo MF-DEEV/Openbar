@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf } from "../i18n";
-
 // The scratchpad's document rules (ScratchpadDocument / ScratchpadSupport,
 // ScratchpadSupport.swift:57-160, 502-541), pure for the tests.
+
+import { t, tf } from "../i18n";
 
 import type { ScratchpadRetention } from "../island/settings";
 import type { Pad, ScratchpadDocument } from "./types";

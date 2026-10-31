@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n";
-
 // The home page's shortcut tiles (NotchActionTile and the tiles built on it,
 // NotchControlsView.swift:389-580; spec 05 §1.1-§1.2): a 40 pt circle over
 // a two-line label, 76 × 74. A live reading takes the first line.
+
+import { useLocale, t } from "../i18n";
 
 import {
   Calendar,

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { tf } from "../i18n/index";
-
 // The capture tools from the island's side: collapse, wait for the window
 // to settle (the island must not be in the frozen picture, NotchService
 // perform), run the selection, then say what happened in a notice, as the
 // Mac's HUD does (ScreenshotService, ScreenTextService, ColorSamplerService).
+
+import { tf } from "../i18n";
 
 import { type Notice, useIsland } from "../island/store";
 import { reactMascot } from "../mascot/service";

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The Timer page (NotchTimerView.swift; spec 04 §4.2), tinted orange. The
 // island's top row holds the modes and Start while setting up, the phase
 // and the way out once a session runs. Below, the ruler and its clock, or
 // the round button and the large clock.
+
+import { useLocale } from "../i18n";
 
 import { ChevronDown, Pause, Play, X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";

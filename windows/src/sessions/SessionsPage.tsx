@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The Sessions section in the island: the list, or one session's page, and
 // the island's top row for each (counts beside the list; back, rename,
 // enlarge and open on a session's page).
+
+import { useLocale } from "../i18n";
 
 import { Check, ChevronLeft, ExternalLink, Maximize2, Minimize2, Pencil } from "lucide-react";
 import { useEffect, useState } from "react";

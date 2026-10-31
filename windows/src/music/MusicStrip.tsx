@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n/index";
-
 // The closed island while music plays (NotchMusicStrip.swift; spec 04
 // §1.3): the cover in the left wing, seven bars in the right, which turn
 // into play/pause under the pointer. Anywhere else opens the Music page.
+
+import { useLocale, t } from "../i18n";
 
 import { Pause, Play } from "lucide-react";
 import { useState } from "react";

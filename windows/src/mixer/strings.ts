@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf } from "../i18n/index";
-
 // The mixer's words, in the Mac's English (Localization, MixerFeatureStrings).
+
+import { t, tf } from "../i18n";
 
 export const S = {
   get section() {

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t, type StringKey } from "../i18n";
-
 // Settings › Behavior (NotchSettings.swift:641-729): how the island opens,
 // where it reopens, the displays it uses and whether captures show it.
 
-import { Camera, Eye, Maximize, Monitor, MousePointerClick, Timer, TimerReset, Undo2 } from "lucide-react";
+import { useLocale, t, type StringKey } from "../i18n";
+
+import { Camera, Eye, Hand, Maximize, Monitor, MousePointerClick, Timer, TimerReset, Undo2 } from "lucide-react";
 
 import { visibleModules } from "../island/modules";
 import { type DisplayChoice, type HomeDestination, type OpeningMode, sectionEnabled } from "../island/settings";
@@ -89,6 +89,9 @@ export function BehaviorSettings() {
           </Row>
         ) : null}
         <IslandShortcut />
+        <Row icon={Hand} title={T.behavior.gestures} caption={T.behavior.gesturesCaption}>
+          <Toggle label={T.behavior.gestures} checked={island.gestures} onChange={(on) => set("gestures", on)} />
+        </Row>
         <Row icon={Undo2} title={T.behavior.reopening} caption={T.behavior.reopeningCaption}>
           <Select
             label={T.behavior.reopening}
@@ -112,6 +115,7 @@ export function BehaviorSettings() {
             options={[
               { value: "primary", label: T.behavior.displayPrimary },
               { value: "cursor", label: T.behavior.displayCursor },
+              { value: "all", label: T.behavior.displayAll },
             ]}
           />
         </Row>

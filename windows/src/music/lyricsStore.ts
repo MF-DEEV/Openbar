@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t } from "../i18n/index";
+import { t } from "../i18n";
 
 import { create } from "zustand";
 import { useIsland } from "../island/store";

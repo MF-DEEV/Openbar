@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf } from "../i18n/index";
-
 // The Clipboard section's words, in the Mac's English (ClipboardFeatureStrings
 // in FeatureStrings.swift, NotchClipboardSizeStrings); ⌘ becomes Ctrl.
+
+import { t, tf } from "../i18n";
 
 export const C = {
   get title() {

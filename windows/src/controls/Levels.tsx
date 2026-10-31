@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The home page's levels (NotchControlsView.swift:142-331; spec 05 §1.1):
 // volume with its mute and output chooser, and brightness, or the row that
 // sets brightness up. Each is 28 tall; the slider shows the level it sets.
+
+import { useLocale } from "../i18n";
 
 import { ChevronDown, Sun, Volume2, VolumeX } from "lucide-react";
 import { useEffect } from "react";

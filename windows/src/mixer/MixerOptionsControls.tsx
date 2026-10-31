@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, tf } from "../i18n/index";
-
 // The switches under the mixer's devices, as the Mac's island draws them
 // (MixerOptionsControls in MixerSection.swift, SoundOutputSwitcherControls,
 // AudioPriorityDisclosure in AudioPrioritySection.swift): lower the volume
 // when headphones disconnect, finer volume steps, the output switcher and
 // its shortcut, and the audio priority lists. The backend acts on all of
 // them (audio/guard.rs, roller.rs, switcher.rs, priority.rs).
+
+import { useLocale, tf } from "../i18n";
 
 import {
   AlertTriangle,

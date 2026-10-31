@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n/index";
-
 // What a waiting session asks, and the buttons that answer it
 // (NotchClaudeSessionDetailView.swift:317-579; spec §4.6, §4.7). The whole
 // command shows even with previews off: nobody should allow what they
 // cannot read. Every new request keeps its buttons off for 0.8 s so a click
 // meant for the previous one cannot answer it.
+
+import { useLocale, t } from "../i18n";
 
 import { ArrowUp, BadgeCheck, Check, CheckSquare, Circle, CircleDot, FastForward, Square, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";

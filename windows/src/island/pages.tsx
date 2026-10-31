@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // Every section page and live activity the Windows island has so far.
+
+import { useLocale } from "../i18n";
 
 import { sessionsPage } from "../sessions/SessionsPage";
 import { stripWing, readingWidth, stripTextSize, SessionsStrip } from "../sessions/SessionsStrip";
@@ -14,6 +14,7 @@ import type { SessionEvent } from "../sessions/types";
 import { geometryOf, modulesOf, useIsland } from "./store";
 import { configuredIdleContent } from "./idle";
 import { subscribeBattery } from "./battery";
+import { followTrayBattery } from "./trayBattery";
 import { activityViews } from "./views/Activity";
 import { pages } from "./views/Expanded";
 import { MusicPage, useMusicHeight } from "../music/MusicPage";
@@ -25,7 +26,7 @@ import { subscribeNotifications } from "../notifications/store";
 import { notificationNotice } from "../notifications/presentation";
 import "../notifications/notifications.css";
 import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
-import { DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
+import { DownloadsLeading, DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
 import { bridge, type AttentionContext } from "../shared/bridge";
 import { DeferredSessionAttention, noticeLeavesWhenBusy } from "../sessions/attention";
 import { subscribeAutoAllow } from "../sessions/autoAllow";
@@ -48,6 +49,7 @@ import { startMascot } from "../mascot/register";
 activityViews.microphone = MicrophoneStrip;
 void subscribeMicrophone();
 void subscribeBattery();
+followTrayBattery();
 
 // MARK: Preferences
 
@@ -74,7 +76,7 @@ pages.music = {
 };
 activityViews.music = MusicStrip;
 pages.notifications = { Page: NotificationsPage, Trailing: NotificationsTrailing };
-pages.downloads = { Page: DownloadsPage };
+pages.downloads = { Page: DownloadsPage, Leading: DownloadsLeading };
 activityViews.downloads = DownloadStrip;
 void subscribeDownloads();
 activityViews.sessions = SessionsStrip;

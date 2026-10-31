@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { dateTimeFormat, useLocale, t } from "../i18n";
-
 // One history entry on the Clipboard page (NotchClipboardView.swift:225-473,
 // 597-663): a comfortable card, a compact row, and the full card a compact
 // row opens over its neighbours.
+
+import { dateTimeFormat, useLocale, t } from "../i18n";
 
 import { AlignLeft, Check, Copy, File, Folder, Image as ImageIcon, Pin, Trash2 } from "lucide-react";
 import {

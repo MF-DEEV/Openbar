@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf } from "../i18n/index";
-
 // The Timer section's English strings, as the Mac words them
 // (NotchActivityStrings.swift, Localization.swift).
+
+import { t, tf } from "../i18n";
 
 import type { PomodoroOption, TimerMode, TimerPhase } from "./model";
 

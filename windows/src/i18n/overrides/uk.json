@@ -571,5 +571,18 @@
   "notchClaudeSessions.background": "У фоновому режимі",
   "windows.settings.label": "До закриття",
   "windows.settings.label74957d": "%@ секунд",
-  "windows.music.couldNotOpenThePlayer": "Неможливо відкрити плеєр."
+  "windows.music.couldNotOpenThePlayer": "Неможливо відкрити плеєр.",
+  "windows.capture.r": "R",
+  "windows.capture.hintTools": "Інструменти перемикання 1, 3 і 4",
+  "windows.capture.toolText": "Текст на екрані",
+  "windows.downloads.stopped": "Зупинено",
+  "windows.downloads.showInExplorer": "Показати в Провіднику файлів",
+  "windows.downloads.addToFiles": "Додати до файлів",
+  "windows.downloads.addedToFiles": "Додано до файлів",
+  "windows.downloads.addFolderTitle": "Виберіть папку для завантажень",
+  "windows.notifications.notificationsValue": "Сповіщення: %@",
+  "windows.notifications.clearAllNotifications": "Очистити всі сповіщення?",
+  "windows.settings.content.lowBattery.tray": "Також на значку в системному треї",
+  "windows.settings.content.captureControls": "Керування захопленням",
+  "windows.settings.content.captureControlsCaption": "Перемикайте інструменти у верхній частині екрана під час виділення. Клавіші 1, 3, 4 та R працюють в обох напрямках."
 }

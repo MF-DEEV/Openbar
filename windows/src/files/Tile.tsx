@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // One shelf tile (ShelfTileView, STV:320-700; spec 05 §6.1): 78 × 88,
 // radius 10, a 64 × 50 icon well with a thumbnail or the file's icon, and a
 // two-line 10 pt title cut in the middle. A pile shows two backplates, its
@@ -10,6 +8,8 @@ import { useLocale } from "../i18n/index";
 // double-click opens a pile, a drag of more than 4 pt takes the tiles out,
 // right-click opens the menu, and hovering shows the remove button and,
 // after a moment, a tooltip.
+
+import { useLocale } from "../i18n";
 
 import {
   Check,

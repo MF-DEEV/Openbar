@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../../i18n/index";
-
 // Draws the island's outline frame by frame from the resize timeline and
 // clips the content to it (NotchWindowHost.swift; spec 01-shell §3.1). The
 // expanded content sits at its destination size; compact content follows
 // the visible surface. Each frame also tells Rust which part of the
 // window takes the pointer.
+
+import { useLocale } from "../../i18n";
 
 import { type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
 import { useIsland, visibleActivity } from "../store";

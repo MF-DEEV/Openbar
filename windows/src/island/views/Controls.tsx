@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../../i18n/index";
-
 // The island's small shared controls (NotchComponents.swift; spec 01-shell §1.8).
+
+import { useLocale } from "../../i18n";
 
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";

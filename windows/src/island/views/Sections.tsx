@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../../i18n/index";
-
 // The sections gallery (NotchSectionsView.swift; spec 01-shell §5): tiles
 // 92 × 86 at least, 8 apart, radius 16, three rows in view, whole-row paging
 // with a dot column on the right.
+
+import { useLocale, t } from "../../i18n";
 
 import { Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";

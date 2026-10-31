@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { formattingLocale, dateTimeFormat, tf } from "../i18n";
-
 // Numbers the AI page reads (AgentFormat in NotchAgentSupport.swift:336-409;
 // spec 03 §10.6): costs in US dollars, the currency both providers list
 // their prices in, and model names built from the id (AgentPricing.swift
 // :269-299).
+
+import { formattingLocale, dateTimeFormat, tf } from "../i18n";
 
 import type { Provider, Tokens } from "./types";
 

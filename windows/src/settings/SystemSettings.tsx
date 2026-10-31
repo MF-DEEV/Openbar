@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // System options (MonitorSettings.swift readings card, and the monitor
 // features the Mac switches in its feature hub): how often the cards read,
 // the network unit, and which cards show.
+
+import { useLocale } from "../i18n";
 
 import { MONITOR_METRICS, type MonitorMetric, type NetworkSpeedUnit } from "../system/types";
 import { useSettings } from "./state";

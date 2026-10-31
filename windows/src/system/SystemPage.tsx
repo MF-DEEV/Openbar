@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The System page (NotchSystemView.swift; spec 04 §8): cards at least 128 ×
 // 72 in balanced rows, each a label, a rolling value and a meter or a second
 // line. A card opens its metric's detail. The grid scrolls only when it is
 // taller than the page.
+
+import { useLocale } from "../i18n";
 
 import { BatteryCharging, Gauge } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";

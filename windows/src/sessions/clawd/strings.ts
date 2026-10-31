@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t } from "../../i18n/index";
-
 // The wardrobe's English words, from NotchClaudeSessionStrings.swift. They
 // move to the generated `notchClaudeSessions` table once the locale pipeline
 // (spec 06-i18n) lands; until then the Wardrobe takes overrides by prop.
+
+import { t } from "../../i18n";
 
 import type { ClawdEyewear, ClawdExtra, ClawdHat, ClawdShell } from "./costume";
 

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, useLocale } from "../i18n";
-
 // The settings window's building blocks, after Windows 11's own Settings and
 // PowerToys: a section header, cards that pair a title and caption with one
 // control on the right, and cards that expand into their sub-options (one
 // level deep, never nested).
+
+import { t, useLocale } from "../i18n";
 
 import { ChevronDown, type LucideIcon } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";

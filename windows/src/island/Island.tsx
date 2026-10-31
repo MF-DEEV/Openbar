@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The island page: wires the store to the surface, the pointer and keyboard
 // to the store, and the window's focus to whether the island is open.
+
+import { useLocale } from "../i18n";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bridge, inTauri } from "../shared/bridge";
@@ -24,6 +24,7 @@ import {
 import { ContentStage } from "./surface/ContentStage";
 import { IslandSurface } from "./surface/IslandSurface";
 import { NoticeView, noticeWidth, Peek, Resting } from "./views/Closed";
+import { NotificationPreview, previewSize } from "../notifications/NotificationPreview";
 import { Expanded } from "./views/Expanded";
 import { QuickAccess } from "./views/QuickAccess";
 import { ActivityPicker } from "./views/ActivityPicker";
@@ -36,6 +37,8 @@ import { useMusic } from "../music/store";
 import { CapturePresentation } from "../screenshot-preview/CapturePresentation";
 import { useIslandContextMenu } from "./contextMenu";
 import { mascotShows, useMascot } from "../mascot/service";
+import { MirrorSource } from "./MirrorSource";
+import { useGestures } from "./useGestures";
 
 function useWindowScreen() {
   const setScreen = useIsland((s) => s.setScreen);
@@ -45,7 +48,11 @@ function useWindowScreen() {
       setScreen({ width: window.innerWidth, height: window.screen.height }, window.devicePixelRatio || 1);
     update();
     window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    const changed = bridge.onDisplayChanged(update);
+    return () => {
+      window.removeEventListener("resize", update);
+      void changed.then((f) => f());
+    };
   }, [setScreen]);
 }
 
@@ -56,6 +63,10 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
       // The Rust pointer watcher knows when the pointer crosses the island's shape.
       const unlisten = bridge.onPointer((e) => (e.inside ? pointerEnter() : pointerExit()));
       const toggle = bridge.onToggle(() => useIsland.getState().toggle());
+      const openHere = bridge.onOpenHere(() => {
+        const s = useIsland.getState();
+        if (!s.expanded) s.clickClosed();
+      });
       const outside = bridge.onOutsideClick(() => {
         const s = useIsland.getState();
         if (s.expanded && !s.capturePreview && !s.pinned && !s.held) s.collapse();
@@ -65,6 +76,7 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
         void unlisten.then((f) => f());
         void outside.then((f) => f());
         void toggle.then((f) => f());
+        void openHere.then((f) => f());
       };
     }
     // In a plain browser the frame's own events stand in.
@@ -174,6 +186,7 @@ export function Island() {
   useLocale();
   useWindowScreen();
   useKeyboard();
+  useGestures();
   const contextMenu = useIslandContextMenu();
   useFocus(contextMenu.isOpen);
   const frame = useRef<HTMLDivElement>(null);
@@ -185,7 +198,9 @@ export function Island() {
     [state.settings, state.screen.width, state.screen.height, state.devicePixelRatio],
   );
   const measured: Size | undefined = state.notice
-    ? { width: noticeWidth(state.notice, geometry), height: geometry.stripHeight }
+    ? state.noticeExpanded && state.notice.notification
+      ? previewSize(state.notice.notification, geometry)
+      : { width: noticeWidth(state.notice, geometry), height: geometry.stripHeight }
     : undefined;
   const battery = useBattery((s) => s.battery);
   const playing = useMusic((s) => s.playback?.isPlaying ?? false);
@@ -234,6 +249,9 @@ export function Island() {
     case "notice":
       content = <NoticeView notice={state.notice!} geometry={geometry} size={shown.size} />;
       break;
+    case "noticePreview":
+      content = <NotificationPreview notice={state.notice!} geometry={geometry} size={shown.size} />;
+      break;
     case "peek":
       content = <Peek geometry={geometry} size={shown.size} />;
       break;
@@ -271,6 +289,7 @@ export function Island() {
       </IslandSurface>
       <QuickAccess geometry={geometry} size={shown.size} visible={shown.kind === "expanded"} delay={bubbleDelay} />
       {contextMenu.menu}
+      {state.settings.display === "all" ? <MirrorSource geometry={geometry} idleContent={idleContent} /> : null}
     </div>
   );
 }

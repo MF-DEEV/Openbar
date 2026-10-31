@@ -571,5 +571,18 @@
   "notchClaudeSessions.background": "In background",
   "windows.settings.label": "Fino alla chiusura",
   "windows.settings.label74957d": "%@ secondi",
-  "windows.music.couldNotOpenThePlayer": "Impossibile aprire il lettore."
+  "windows.music.couldNotOpenThePlayer": "Impossibile aprire il lettore.",
+  "windows.capture.r": "R",
+  "windows.capture.hintTools": "Gli strumenti 1, 3 e 4 cambiano",
+  "windows.capture.toolText": "Testo sullo schermo",
+  "windows.downloads.stopped": "Fermato",
+  "windows.downloads.showInExplorer": "Mostra in Esplora file",
+  "windows.downloads.addToFiles": "Aggiungi ai file",
+  "windows.downloads.addedToFiles": "Aggiunto ai file",
+  "windows.downloads.addFolderTitle": "Scegli una cartella dove arrivano i download",
+  "windows.notifications.notificationsValue": "Notifiche: %@",
+  "windows.notifications.clearAllNotifications": "Cancellare tutte le notifiche?",
+  "windows.settings.content.lowBattery.tray": "Anche sull'icona della barra delle applicazioni",
+  "windows.settings.content.captureControls": "Controlli di cattura",
+  "windows.settings.content.captureControlsCaption": "Cambia strumenti in alto sullo schermo durante la selezione. I tasti 1, 3, 4 e R funzionano in entrambi i modi."
 }

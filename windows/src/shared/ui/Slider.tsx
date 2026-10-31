@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../../i18n/index";
-
 // NotchLevelSlider (horizontal, 24 tall with an 8 pt track) and the mixer's
 // vertical fader. Values are 0…max. While the person drags, outside updates
 // are ignored; otherwise they ease in (spec 05 §1.1).
+
+import { useLocale } from "../../i18n";
 
 import { type CSSProperties, useRef, useState } from "react";
 

@@ -1,18 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t, type StringKey } from "../i18n";
-
 // Settings › Content (NotchSettings.swift:317-538): every section in the
 // island's order, each a card with its switch and, inside, its position and
 // its own options. The Mac's checkbox writes notchHiddenModules and, for the
 // sections that have one, their own notch*Enabled key; this does the same.
+
+import { useLocale, t, type StringKey } from "../i18n";
 
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { useState } from "react";
 
 import { MODULES, type ModuleId, visibleModules } from "../island/modules";
 import { type IdleContent, sectionEnabled } from "../island/settings";
+import { LowBatteryControls } from "./LowBatteryControls";
 import { QuickAccessSettings } from "./QuickAccessSettings";
 import { SessionsOptions } from "./SessionsSettings";
 import { SystemOptions } from "./SystemSettings";
@@ -231,6 +232,7 @@ export function ContentSettings() {
             ]}
           />
         </Row>
+        {island.idleContent === "battery" ? <LowBatteryControls /> : null}
       </Group>
       <Group title={T.content.sections}>
         {order.map((id, index) => {

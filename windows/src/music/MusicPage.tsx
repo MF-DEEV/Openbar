@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, useLocale, tf } from "../i18n";
-
 // The Music page (NotchMusicView.swift; spec 04 §1.2): a 68 pt cover with
 // the title beside it, the timeline, and five equal transport slots so play
 // stays centred. Idle, the buttons open the player.
+
+import { t, useLocale, tf } from "../i18n";
 
 import { FastForward, Music, Pause, Play, Rewind, Shuffle } from "lucide-react";
 import { useEffect, useRef, useState } from "react";

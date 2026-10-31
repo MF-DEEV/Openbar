@@ -571,5 +571,18 @@
   "notchClaudeSessions.background": "En arrière-plan",
   "windows.settings.label": "Jusqu'à fermeture",
   "windows.settings.label74957d": "%@ secondes",
-  "windows.music.couldNotOpenThePlayer": "Impossible d'ouvrir le lecteur."
+  "windows.music.couldNotOpenThePlayer": "Impossible d'ouvrir le lecteur.",
+  "windows.capture.r": "R",
+  "windows.capture.hintTools": "1, 3 et 4 changer d'outils",
+  "windows.capture.toolText": "Texte à l'écran",
+  "windows.downloads.stopped": "Arrêté",
+  "windows.downloads.showInExplorer": "Afficher dans l'Explorateur de fichiers",
+  "windows.downloads.addToFiles": "Ajouter aux fichiers",
+  "windows.downloads.addedToFiles": "Ajouté aux fichiers",
+  "windows.downloads.addFolderTitle": "Choisir un dossier où les téléchargements arrivent",
+  "windows.notifications.notificationsValue": "Notifications : %@",
+  "windows.notifications.clearAllNotifications": "Effacer toutes les notifications ?",
+  "windows.settings.content.lowBattery.tray": "Aussi dans l'icône de la barre d'état",
+  "windows.settings.content.captureControls": "Contrôles de capture",
+  "windows.settings.content.captureControlsCaption": "Changer d'outils en haut de l'écran lors de la sélection. Les touches 1, 3, 4 et R fonctionnent dans les deux sens."
 }

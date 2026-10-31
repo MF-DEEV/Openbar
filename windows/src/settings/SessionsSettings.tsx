@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n/index";
-
 // Sessions options: Claude Code and Codex in the island. Claude Code needs Vorssaint's
 // hooks in its settings.json; Codex needs nothing, its app-server already
 // tells the island everything (spec 02-sessions, 07-codex-sessions).
+
+import { useLocale, t } from "../i18n";
 
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";

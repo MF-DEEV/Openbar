@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // Only when the island page is opened in a plain browser with ?desktop: a
 // stand-in Windows desktop and menu bar behind the island, for designing
 // and screenshots without the app around it.
+
+import { useLocale } from "../i18n";
 
 import { Bar } from "../bar/Bar";
 import "../bar/bar.css";

@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n/index";
-
 // The companion's own page (NotchMascotSettings.swift). It lives at the top in
 // a slice of the island, bigger than life, and acts out what it does on
 // request; below are how it looks and how it behaves. The Mac's Command Bar
 // card has nothing to point at here: Windows has no Command Bar yet.
+
+import { useLocale, t } from "../i18n";
 
 import {
   AlarmClock,

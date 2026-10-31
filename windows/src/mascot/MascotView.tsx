@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // Holds the companion in a view (NotchMascotHostView): it draws only through
 // its layers and never takes a click, since what it stands on decides what a
 // click does. `MascotFace` is the companion on its own, centred in its frame;
 // `MascotTrackView` is the companion in a closed strip, resting or strolling
 // through, and hidden behind the camera as it passes.
+
+import { useLocale } from "../i18n";
 
 import { type CSSProperties, useEffect, useLayoutEffect, useRef } from "react";
 import "./mascot.css";

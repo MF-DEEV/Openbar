@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n";
-
 // The AI page (NotchAgentsView.swift:6-155): the cards the person picked,
 // paired across the island, as tall as they are up to the preset's budget,
 // scrolling beyond it. The period the money cards cover sits in the top row.
+
+import { useLocale, t } from "../i18n";
 
 import { ChevronDown, LayoutGrid, LoaderCircle, Sparkles } from "lucide-react";
 import { useEffect, useMemo } from "react";

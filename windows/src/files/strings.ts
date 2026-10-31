@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t, tf, getLanguage, pluralForm, type StringKey } from "../i18n";
-
 // The Files section's words, as the Mac says them (Localization.swift
 // shelf*, NotchFilesStrings, NotchStrings.dropHint); Finder becomes File
 // Explorer.
+
+import { t, tf, getLanguage, pluralForm, type StringKey } from "../i18n";
 
 import type { ZipFailure } from "./types";
 

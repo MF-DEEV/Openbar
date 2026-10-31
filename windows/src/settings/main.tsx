@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../i18n";
+
 import { initializeLocalization } from "../i18n/start";
-import { useLocale, t } from "../i18n/index";
 
 // The settings window: Windows 11's Settings layout, with the Mac's island
 // tabs (Layout, Content, Activity, Behavior) as pages beside General.

@@ -158,6 +158,10 @@ impl Tracker {
         self.primed = true;
         self.entries
             .retain(|_, e| e.finished.is_none_or(|t| now.saturating_sub(t) < 300));
+        // A saved file moved or deleted since leaves the list, so the page
+        // never offers actions on something that is gone.
+        self.entries
+            .retain(|_, e| e.item.status != "completed" || e.sample.target.is_file());
         let mut entries: Vec<_> = self.entries.values().collect();
         entries.sort_by_key(|e| (e.finished.is_some(), std::cmp::Reverse(e.changed)));
         entries
@@ -335,6 +339,100 @@ fn scan(locations: &Locations) -> Vec<Sample> {
 #[tauri::command]
 pub fn downloads_snapshot(state: tauri::State<'_, Shared>) -> Snapshot {
     state.lock().unwrap().clone()
+}
+
+/// The page names a file by its row, so these commands only ever reach a
+/// download the list shows as saved, never a path the webview made up.
+fn saved_path(snapshot: &Snapshot, id: &str) -> Option<String> {
+    snapshot
+        .items
+        .iter()
+        .find(|item| item.id == id && item.status == "completed")
+        .map(|item| item.path.clone())
+}
+fn saved<R: Runtime>(app: &AppHandle<R>, id: &str) -> Option<String> {
+    let path = saved_path(&app.state::<Shared>().lock().unwrap(), id)?;
+    Path::new(&path).is_file().then_some(path)
+}
+
+#[tauri::command]
+pub async fn downloads_open<R: Runtime>(app: AppHandle<R>, id: String) -> bool {
+    let Some(path) = saved(&app, &id) else {
+        return false;
+    };
+    let _ =
+        tauri::async_runtime::spawn_blocking(move || crate::files::shell::open(vec![path])).await;
+    true
+}
+
+#[tauri::command]
+pub async fn downloads_reveal<R: Runtime>(app: AppHandle<R>, id: String) -> bool {
+    let Some(path) = saved(&app, &id) else {
+        return false;
+    };
+    let _ =
+        tauri::async_runtime::spawn_blocking(move || crate::files::shell::reveal(vec![path])).await;
+    true
+}
+
+/// False when the file is gone or the shelf is off or full.
+#[tauri::command]
+pub async fn downloads_add_to_shelf<R: Runtime>(app: AppHandle<R>, id: String) -> bool {
+    let Some(path) = saved(&app, &id) else {
+        return false;
+    };
+    tauri::async_runtime::spawn_blocking(move || crate::files::add_file(&app, &path))
+        .await
+        .unwrap_or(false)
+}
+
+/// Opens one of the watched folders in File Explorer.
+#[tauri::command]
+pub async fn downloads_open_folder<R: Runtime>(app: AppHandle<R>, folder: String) -> bool {
+    let watched = app
+        .state::<Shared>()
+        .lock()
+        .unwrap()
+        .folders
+        .contains(&folder);
+    if !watched || !Path::new(&folder).is_dir() {
+        return false;
+    }
+    let _ =
+        tauri::async_runtime::spawn_blocking(move || crate::files::shell::open(vec![folder])).await;
+    true
+}
+
+/// A folder the person picks to watch as well; None when they cancel.
+#[tauri::command]
+pub async fn downloads_choose_folder<R: Runtime>(
+    app: AppHandle<R>,
+    title: String,
+) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_dialog::DialogExt;
+        let first = app
+            .state::<Shared>()
+            .lock()
+            .unwrap()
+            .folders
+            .first()
+            .cloned();
+        let mut builder = app.dialog().file().set_title(title);
+        if let Some(first) = first {
+            builder = builder.set_directory(first);
+        }
+        if let Some(window) = app.get_webview_window(crate::island::LABEL) {
+            builder = builder.set_parent(&window);
+        }
+        builder
+            .blocking_pick_folder()
+            .and_then(|path| path.into_path().ok())
+            .map(|path| path.to_string_lossy().into_owned())
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 pub fn start<R: Runtime>(app: AppHandle<R>, state: Shared) {
@@ -535,6 +633,61 @@ mod browser {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn listed(id: &str, status: &str) -> Item {
+        Item {
+            id: id.into(),
+            name: "a.zip".into(),
+            path: format!("C:\\Downloads\\{id}"),
+            source: "Files".into(),
+            received: 1,
+            total: Some(1),
+            speed: 0,
+            status: status.into(),
+        }
+    }
+    #[test]
+    fn actions_reach_only_a_saved_row() {
+        let snapshot = Snapshot {
+            items: vec![
+                listed("saved", "completed"),
+                listed("running", "downloading"),
+                listed("stopped", "interrupted"),
+            ],
+            folders: vec![],
+        };
+        assert_eq!(
+            saved_path(&snapshot, "saved").as_deref(),
+            Some("C:\\Downloads\\saved")
+        );
+        assert_eq!(saved_path(&snapshot, "running"), None);
+        assert_eq!(saved_path(&snapshot, "stopped"), None);
+        assert_eq!(saved_path(&snapshot, "C:\\Windows\\notepad.exe"), None);
+    }
+    #[test]
+    fn a_saved_file_deleted_later_leaves_the_list() {
+        let root =
+            std::env::temp_dir().join(format!("vorssaint-download-gone-{}", std::process::id()));
+        std::fs::create_dir_all(&root).unwrap();
+        let file = root.join("a.zip");
+        std::fs::write(&file, b"done").unwrap();
+        let row = || Sample {
+            path: file.clone(),
+            target: file.clone(),
+            size: 4,
+            total: None,
+            source: "Files".into(),
+            partial: false,
+            modified: SystemTime::now(),
+        };
+        let mut tracker = Tracker::default();
+        tracker.update(vec![], 0);
+        assert_eq!(tracker.update(vec![row()], 1)[0].status, "downloading");
+        assert_eq!(tracker.update(vec![row()], 5)[0].status, "completed");
+        assert_eq!(tracker.update(vec![row()], 6)[0].status, "completed");
+        std::fs::remove_file(&file).unwrap();
+        assert!(tracker.update(vec![], 7).is_empty());
+        std::fs::remove_dir_all(&root).unwrap();
+    }
     fn file(path: &Path, size: u64) -> Sample {
         Sample {
             path: path.into(),

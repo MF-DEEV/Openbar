@@ -16,6 +16,7 @@ import {
   type Geometry,
   hoverPulse,
   makeGeometry,
+  notificationPreviewSize,
   peekSize,
   restingSize,
 } from "./geometry";
@@ -55,6 +56,8 @@ export interface Notice {
   tint?: string;
   /** The session a sessions notice is about: its Clawd stands in the symbol slot (NotchNotice.sessionID). */
   session?: { id: string; provider: Provider; event: SessionEvent["kind"] };
+  /** What a mirrored notification preview shows: the pointer holds the banner and opens it (NotchNotice.notification). */
+  notification?: { id: number; app: string; sender?: string; aumid: string; time: number };
   /** Runs once a tap has opened `opens`: a session notice focuses its session. */
   onOpen?: () => void;
   /** With the companion on, it stands in the symbol slot and plays this (NotchNotice.mascot). */
@@ -145,6 +148,8 @@ export interface IslandState {
   setPinned(pinned: boolean): void;
   showNotice(notice: Notice): void;
   dismissNotice(id?: string): void;
+  /** A preview's control acted: its notice goes, and the pointer left there must not open the island. */
+  settleNotice(id: string): void;
   setActivity(id: ActivityId, spec: ActivitySpec | null): void;
 }
 
@@ -156,6 +161,39 @@ function clearHoverTimers() {
   clearTimeout(hoverTimer);
   clearTimeout(exitTimer);
   hoverTimer = exitTimer = undefined;
+}
+
+function scheduleNoticeDismissal(notice: Notice) {
+  clearTimeout(noticeTimer);
+  noticeTimer = setTimeout(() => useIsland.getState().dismissNotice(notice.id), notice.duration * 1000);
+}
+
+/** A mirrored banner the pointer can hold: on screen and not hidden until hover (NotchService.holdsNotification). */
+function holdsNotification(s: IslandState): boolean {
+  return !!s.notice?.notification && !s.expanded && !s.dropHint && s.settings.opening !== "hiddenUntilHover";
+}
+
+/** The banner waits under the pointer, and a deliberate hover opens it in place (NotchService.holdNotification). */
+function holdNotification() {
+  const s = useIsland.getState();
+  clearTimeout(noticeTimer);
+  clearTimeout(hoverTimer);
+  noticeTimer = hoverTimer = undefined;
+  if (s.noticeExpanded || s.hoverSuppressed || s.attentionFullscreen || !opensOnHover(s.settings)) return;
+  const id = s.notice?.id;
+  hoverTimer = setTimeout(() => {
+    const now = useIsland.getState();
+    if (!now.inside || now.pinned || now.held || now.notice?.id !== id || !holdsNotification(now)) return;
+    useIsland.setState({ peeking: false, noticeExpanded: true });
+  }, s.settings.hoverDelay * 1000);
+}
+
+/** Leaving closes an opened preview; a banner only held gets its full time again (NotchService.releaseNotification). */
+function releaseNotification() {
+  const s = useIsland.getState();
+  if (!s.notice?.notification) return;
+  if (s.noticeExpanded) s.dismissNotice();
+  else if (noticeTimer === undefined) scheduleNoticeDismissal(s.notice);
 }
 
 export function modulesOf(state: Pick<IslandState, "settings">): ModuleId[] {
@@ -251,6 +289,10 @@ export const useIsland = create<IslandState>()((set, get) => ({
   collapse() {
     clearHoverTimers();
     const s = get();
+    if (s.noticeExpanded) {
+      clearTimeout(noticeTimer);
+      noticeTimer = undefined;
+    }
     set({
       expanded: false,
       capturePreview: null,
@@ -261,6 +303,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
       showingSections: false,
       sectionQuery: "",
       sessionsEnlarged: false,
+      notice: s.noticeExpanded ? null : s.notice,
       noticeExpanded: false,
       hoverEmphasized: false,
       hoverSuppressed: s.inside,
@@ -346,6 +389,10 @@ export const useIsland = create<IslandState>()((set, get) => ({
     if (s.inside) return;
     set({ inside: true });
     if (s.expanded || s.pinned || s.held) return;
+    if (holdsNotification(s)) {
+      holdNotification();
+      return;
+    }
     if (s.hoverSuppressed) return;
     if (s.attentionFullscreen) return;
     if (showsActivityPicker(get())) return;
@@ -384,18 +431,22 @@ export const useIsland = create<IslandState>()((set, get) => ({
     hoverTimer = undefined;
     if (s.held) {
       set({ inside: false });
+      // A menu keeps the island, not a banner the pointer left.
+      releaseNotification();
       return;
     }
     set({ inside: false, activityPickerOpen: false, hoverEmphasized: false, hoverSuppressed: false });
     const closesOnExit = s.peeking || (s.expanded && s.openedByHover && !s.clickedSinceOpening && !s.pinned);
-    if (!closesOnExit) return;
-    const delay = s.expanded ? s.settings.closeDelay : 0.12;
+    const holdsBanner = !!s.notice?.notification && (s.noticeExpanded || noticeTimer === undefined);
+    if (!closesOnExit && !holdsBanner) return;
+    const delay = s.expanded || s.noticeExpanded ? s.settings.closeDelay : 0.12;
     clearTimeout(exitTimer);
     exitTimer = setTimeout(() => {
       const now = get();
       if (now.inside) return;
+      releaseNotification();
       if (now.peeking) set({ peeking: false });
-      else now.collapse();
+      else if (closesOnExit) now.collapse();
     }, delay * 1000);
   },
 
@@ -432,9 +483,11 @@ export const useIsland = create<IslandState>()((set, get) => ({
     if (s.notice && incoming.priority < s.notice.priority) return;
     if (s.noticeExpanded && s.notice && incoming.kind !== s.notice.kind && incoming.priority <= s.notice.priority)
       return;
-    set({ notice: incoming });
-    clearTimeout(noticeTimer);
-    noticeTimer = setTimeout(() => get().dismissNotice(incoming.id), incoming.duration * 1000);
+    // A new message under the pointer stays open; anything else closes the preview.
+    set({ notice: incoming, noticeExpanded: s.noticeExpanded && s.inside && !!incoming.notification });
+    // A banner arriving under the pointer is held at once.
+    if (s.inside && !s.held && !s.pinned && holdsNotification(get())) holdNotification();
+    else scheduleNoticeDismissal(incoming);
   },
 
   setActivity(id, spec) {
@@ -456,13 +509,22 @@ export const useIsland = create<IslandState>()((set, get) => ({
     const s = get();
     if (!s.notice || (id && s.notice.id !== id)) return;
     clearTimeout(noticeTimer);
+    noticeTimer = undefined;
     set({ notice: null, noticeExpanded: false });
+  },
+
+  settleNotice(id) {
+    if (get().notice?.id !== id) return;
+    clearHoverTimers();
+    get().dismissNotice(id);
+    set((s) => ({ hoverSuppressed: s.inside }));
   },
 }));
 
 // MARK: Presentation
 
-export type PresentationKind = "resting" | "activity" | "notice" | "peek" | "dropHint" | "expanded" | "picker";
+export type PresentationKind =
+  "resting" | "activity" | "notice" | "noticePreview" | "peek" | "dropHint" | "expanded" | "picker";
 
 /** Microphone status is an indicator, rather than a competing activity on the Mac. */
 export function compactActivities(s: Pick<IslandState, "activities" | "settings">): ActivityId[] {
@@ -573,6 +635,14 @@ export function presentation(
       hasRow: false,
     };
   }
+  if (s.notice && s.noticeExpanded && s.notice.notification) {
+    return {
+      kind: "noticePreview",
+      key: `notice:preview:${s.notice.id}`,
+      size: measuredNotice ?? notificationPreviewSize(geometry, 64),
+      hasRow: false,
+    };
+  }
   if (s.notice) {
     const rest = restingSize(geometry);
     const size = measuredNotice ?? { width: Math.max(rest.width, 260), height: rest.height };
@@ -606,6 +676,27 @@ export function presentation(
   };
 }
 
+/**
+ * What another display's mirror shows: the closed island whatever this one is
+ * doing, with no notice, hover or menu (NotchMirrorView). Null when the closed
+ * island shows nothing there (hidden until hover).
+ */
+export function mirrorSurface(
+  s: IslandState,
+  geometry: Geometry,
+  idleContent: IdleContent,
+  mascotShown: boolean,
+): { activity: ActivityId | null; size: Size } | null {
+  const activity = visibleActivity(s);
+  const hiding = s.settings.opening === "hiddenUntilHover";
+  if (hiding && (!activity || !s.settings.hiddenShowsActivity)) return null;
+  if (activity) {
+    const spec = s.activities[activity]!;
+    return { activity, size: activitySize(geometry, spec.wing, spec.capsuleContent) };
+  }
+  return { activity: null, size: restingSize(geometry, idleContent !== "none" || mascotShown) };
+}
+
 /** Tiles 86 tall with 8 between rows, at most three rows in view (spec §5). */
 export function galleryColumns(width: number): number {
   const content = width - 56 - 12;
@@ -625,6 +716,8 @@ export function transitionBetween(from: Presentation, to: Presentation): Content
   if (from.key === to.key) return "none";
   if (to.kind === "expanded") return from.kind === "expanded" ? "replace" : "reveal";
   if (from.kind === "expanded") return "dismiss";
+  if (from.kind === "noticePreview") return to.kind === "noticePreview" || to.kind === "notice" ? "replace" : "dismiss";
+  if (to.kind === "noticePreview") return "reveal";
   if (from.kind === "notice") return to.kind === "notice" ? "replace" : "depart";
   if (to.kind === "notice" || to.kind === "peek" || to.kind === "dropHint") return "reveal";
   if (from.kind === "peek" || from.kind === "dropHint") return "dismiss";

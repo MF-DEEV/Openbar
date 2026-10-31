@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import { useLocale, t } from "../i18n";
+
 import { ArrowDown, ArrowUp, LayoutGrid, Pin, Plus, RotateCcw, Settings, Trash2 } from "lucide-react";
 import { capsulePath, makeGeometry, notchPath } from "../island/geometry";
 import { MODULES, visibleModules } from "../island/modules";

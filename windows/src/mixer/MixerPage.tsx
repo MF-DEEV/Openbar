@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The mixer as a desk (NotchMixerView.swift; spec 05 §2): the output and
 // microphone faders, then one fader per app running sideways, pinned ones
 // first. The band holds the output device and the options; the options
 // layer replaces the desk and Escape closes it first. Windows' per-app
 // volume stops at 100% and an app can't be sent to a device of its own, so
 // there is no boost range, no Output ▸ menu and no route badge.
+
+import { useLocale } from "../i18n";
 
 import {
   ArrowLeft,

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n/index";
-
 // The Tools section (QuickLauncherView.swift, island branch; spec 05 §7.1):
 // a rail of 76 × 72 tiles that fills the rows the page allows and then runs
 // sideways; an edit mode with a five-column grid, red minus badges, the
 // options card and the "Add back" tray; and Quick toggles hosted in place
 // of the grid with the way back in the top row.
+
+import { useLocale, t } from "../i18n";
 
 import {
   Camera,

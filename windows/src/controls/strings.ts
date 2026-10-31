@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { t } from "../i18n/index";
-
 // The home page's words, in the Mac's English (NotchStrings, Localization,
 // BrightnessStrings, RecentCaptureStrings, RadialMenuStrings).
+
+import { t } from "../i18n";
 
 export const S = {
   get empty() {

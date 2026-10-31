@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../i18n/index";
-
 // The player on the home page (NotchMusicControlsView, NotchMusicView.swift
 // :724-875; spec 04 §1.2): the cover, the title and artist, and the compact
 // transport at the end of their line, or under the title where the card is
 // narrow. The cover and the title open the Music page.
+
+import { useLocale } from "../i18n";
 
 import { FastForward, Pause, Play, Rewind } from "lucide-react";
 import { useIsland } from "../island/store";

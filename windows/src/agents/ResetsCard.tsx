@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n/index";
-
 // Codex's banked resets (NotchAgentsView.swift:842-1003; spec 03 §3.4): how
 // many the account holds, when the next expires, and a use that asks first.
 // Cancel takes the place of the button that asked, so a double click never
 // spends one, and a count that changes while asking asks again.
+
+import { useLocale, t } from "../i18n";
 
 import { CircleAlert, CircleCheck, Info, LoaderCircle, RotateCcw } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";

@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../../i18n/index";
-
 // The island's content and its transitions (NotchWindowHost.swift; spec
 // 01-shell §3.2). Expanded content is laid out at its final size; only its
 // opacity, blur and scale change here, never the black backdrop.
+
+import { useLocale } from "../../i18n";
 
 import { type ReactNode, useContext, useLayoutEffect, useRef, useState } from "react";
 import type { ContentTransition } from "../store";

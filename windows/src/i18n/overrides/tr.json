@@ -571,5 +571,18 @@
   "notchClaudeSessions.background": "Arka planda",
   "windows.settings.label": "Kapatılana kadar",
   "windows.settings.label74957d": "%@ saniye",
-  "windows.music.couldNotOpenThePlayer": "Çalar açılamadı."
+  "windows.music.couldNotOpenThePlayer": "Çalar açılamadı.",
+  "windows.capture.r": "R",
+  "windows.capture.hintTools": "1, 3 ve 4 araçları değiştir",
+  "windows.capture.toolText": "Ekran Metni",
+  "windows.downloads.stopped": "Durdu",
+  "windows.downloads.showInExplorer": "Dosya Gezgini'nde Göster",
+  "windows.downloads.addToFiles": "Dosyalara Ekle",
+  "windows.downloads.addedToFiles": "Dosyalara Eklendi",
+  "windows.downloads.addFolderTitle": "İndirmelerin ulaşacağı klasörü seç",
+  "windows.notifications.notificationsValue": "Bildirimler: %@",
+  "windows.notifications.clearAllNotifications": "Tüm bildirimler temizlensin mi?",
+  "windows.settings.content.lowBattery.tray": "Ayrıca tepsi simgesinde",
+  "windows.settings.content.captureControls": "Yakalama kontrolleri",
+  "windows.settings.content.captureControlsCaption": "Seçim yaparken ekranın üstündeki araçları değiştir. 1, 3, 4 ve R tuşları her iki şekilde de çalışır."
 }

@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale, t } from "../i18n";
-
 // The Clipboard page (NotchClipboardView.swift; spec 05 §3): the history as a
 // list of cards, a search field that shows on the first key typed, the
 // arrows, Enter and Ctrl+1–9, and in the top row the magnifier, the pinned
 // filter and Clear unpinned. Activating an entry pastes it into the app the
 // island came from; an elevated app gets it copied instead.
+
+import { useLocale, t } from "../i18n";
 
 import { ClipboardList, LayoutGrid, ListFilter, Pin, Search, Trash2 } from "lucide-react";
 import { type MouseEvent, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";

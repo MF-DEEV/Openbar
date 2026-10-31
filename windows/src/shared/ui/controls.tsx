@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { useLocale } from "../../i18n/index";
-
 // Small shared atoms for section pages: the control surface card
 // (NotchControlSurface), a switch, and the editable percent (NotchMixerView).
+
+import { useLocale } from "../../i18n";
 
 import { type CSSProperties, type ReactNode, useEffect, useRef, useState } from "react";
 
