@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+/** The tools the controls switch between; each is also a session's purpose. */
+export type CaptureTool = "screenshot" | "text" | "color";
+
 /** What the overlay draws (capture/mod.rs SessionInfo). */
 export interface CaptureSession {
   id: number;
@@ -10,6 +13,8 @@ export interface CaptureSession {
   height: number;
   colorFormat: "hex" | "rgb" | "hsl";
   bareHex: boolean;
+  /** The last area taken on this display. */
+  lastArea?: { x: number; y: number; width: number; height: number } | null;
 }
 
 /** The person's choice, in the frozen picture's pixels. */

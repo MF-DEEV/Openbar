@@ -116,6 +116,13 @@ export function ToolsOptions() {
   return (
     <>
       <p className="st-note">{T.content.toolsGridCaption}</p>
+      <SubRow title={T.content.captureControls} caption={T.content.captureControlsCaption}>
+        <Toggle
+          label={T.content.captureControls}
+          checked={island.captureControls}
+          onChange={(on) => set("captureControls", on)}
+        />
+      </SubRow>
       <SubRow title="Screenshot preview duration" caption="Pauses while hovered. Never affects pinned screenshots.">
         <Select<string>
           label="Screenshot preview duration"

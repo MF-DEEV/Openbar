@@ -23,6 +23,7 @@
     "test:notification-preview": "node scripts/check-island-layout.mjs --notification-preview",
     "test:idle-content": "node scripts/check-island-layout.mjs --idle-content",
     "test:mascot": "node scripts/check-island-layout.mjs --mascot",
+    "test:capture-controls": "node scripts/check-island-layout.mjs --capture-controls",
     "test:gestures": "node scripts/check-island-layout.mjs --gestures",
     "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tsconfig.node.json",
     "format": "prettier --write .",

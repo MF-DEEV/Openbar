@@ -402,7 +402,8 @@ export const bridge = {
     session: () => call<CaptureSession | null>("capture_session"),
     pixels: (id: number) => call<ArrayBuffer>("capture_pixels", { id }),
     ready: (id: number) => call("capture_ready", { id }),
-    commit: (id: number, pick: Pick | null) => call("capture_commit", { id, pick }),
+    commit: (id: number, pick: Pick | null, purpose?: import("../capture/types").CaptureTool) =>
+      call("capture_commit", { id, pick, purpose: purpose ?? null }),
   },
   tools: {
     copyText: (text: string) => call("tools_copy_text", { text }),
