@@ -313,7 +313,7 @@ export const T = {
     bridgeFailures: {
       notFound: "This editor is no longer on this PC.",
       packaging: "Couldn't package the extension.",
-      refused: "The editor didn't accept the extension. Open it once, then try again.",
+      refused: "The editor didn't accept the extension.",
       timedOut: "The editor took too long to answer. Try again.",
     } as Record<string, string>,
     codexCaption: "Nothing to install. The island talks to the app server Codex runs while it's open.",
