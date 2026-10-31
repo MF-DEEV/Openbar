@@ -351,7 +351,7 @@ impl Engine {
             .or_insert_with(|| Activity::new(now));
         entry.hooked = true;
         match &fact.agent_id {
-            Some(agent) => apply_subagent(fact.event, agent, fact.date, previews, entry),
+            Some(_) => apply_subagent(fact.event, fact.date, previews, entry),
             None => apply_hook(fact.event, fact.date, previews, entry),
         }
     }
@@ -931,7 +931,7 @@ fn apply_hook(event: HookEvent, date: Time, previews: bool, entry: &mut Activity
 }
 
 /// A subagent's own tools tell that something works, not what the session runs.
-fn apply_subagent(event: HookEvent, agent: &str, date: Time, previews: bool, entry: &mut Activity) {
+fn apply_subagent(event: HookEvent, date: Time, previews: bool, entry: &mut Activity) {
     match event {
         HookEvent::SubagentStopped { .. } => apply_hook(event, date, previews, entry),
         HookEvent::PermissionRequested(mut permission) => {
