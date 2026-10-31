@@ -51,6 +51,9 @@ fn main() {
     if std::env::args().nth(1).as_deref() == Some("--remove-hooks") {
         vorssaint_windows_lib::remove_hooks_main();
     }
+    if std::env::args().nth(1).as_deref() == Some("--remove-ide-bridge") {
+        vorssaint_windows_lib::remove_ide_bridge_main();
+    }
     if std::env::args().nth(1).as_deref() == Some("--codex-probe") {
         vorssaint_windows_lib::codex_probe_main();
     }

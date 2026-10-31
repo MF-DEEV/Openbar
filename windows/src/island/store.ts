@@ -30,6 +30,7 @@ import {
   sectionEnabled,
 } from "./settings";
 import type { Provider, SessionEvent } from "../sessions/types";
+import type { MascotReaction } from "../mascot/model";
 
 export interface Notice {
   id: string;
@@ -56,6 +57,8 @@ export interface Notice {
   session?: { id: string; provider: Provider; event: SessionEvent["kind"] };
   /** Runs once a tap has opened `opens`: a session notice focuses its session. */
   onOpen?: () => void;
+  /** With the companion on, it stands in the symbol slot and plays this (NotchNotice.mascot). */
+  mascot?: MascotReaction;
 }
 
 /** Live activities in the Mac's priority order (NotchSupport.swift:1791-1799). */
@@ -209,7 +212,10 @@ export const useIsland = create<IslandState>()((set, get) => ({
   setScreen: (screen, devicePixelRatio) => set({ screen, devicePixelRatio }),
 
   setDropHint: (dropHint) => set({ dropHint }),
-  setHeld: (held) => set({ held }),
+  setHeld: (held) => {
+    if (held) clearHoverTimers();
+    set({ held });
+  },
 
   open(module, opts = {}) {
     const s = get();
@@ -339,7 +345,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
     exitTimer = undefined;
     if (s.inside) return;
     set({ inside: true });
-    if (s.expanded || s.pinned) return;
+    if (s.expanded || s.pinned || s.held) return;
     if (s.hoverSuppressed) return;
     if (s.attentionFullscreen) return;
     if (showsActivityPicker(get())) return;
@@ -359,7 +365,7 @@ export const useIsland = create<IslandState>()((set, get) => ({
     clearTimeout(hoverTimer);
     hoverTimer = setTimeout(() => {
       const now = get();
-      if (!now.inside || now.expanded || now.dropHint) return;
+      if (!now.inside || now.expanded || now.dropHint || now.held) return;
       if (showsActivityPicker(now)) return;
       if (!now.notice && compactActivities(now).length > 1) {
         set({ hoverEmphasized: true });
@@ -376,6 +382,10 @@ export const useIsland = create<IslandState>()((set, get) => ({
     const s = get();
     clearTimeout(hoverTimer);
     hoverTimer = undefined;
+    if (s.held) {
+      set({ inside: false });
+      return;
+    }
     set({ inside: false, activityPickerOpen: false, hoverEmphasized: false, hoverSuppressed: false });
     const closesOnExit = s.peeking || (s.expanded && s.openedByHover && !s.clickedSinceOpening && !s.pinned);
     if (!closesOnExit) return;
@@ -512,6 +522,7 @@ export function presentation(
   geometry: Geometry,
   measuredNotice?: Size,
   idleContent: IdleContent = "none",
+  mascotShown = false,
 ): Presentation {
   if (s.expanded) {
     if (s.capturePreview) {
@@ -586,7 +597,7 @@ export function presentation(
       hasRow: false,
     };
   }
-  const rest = restingSize(geometry, idleContent !== "none");
+  const rest = restingSize(geometry, idleContent !== "none" || mascotShown);
   return {
     kind: "resting",
     key: "resting",

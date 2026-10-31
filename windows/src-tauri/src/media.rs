@@ -10,6 +10,8 @@
 
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
+mod apps;
+mod selection;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -42,6 +44,9 @@ pub struct Playback {
 #[derive(Clone, Debug, Default, PartialEq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NowPlaying {
+    pub idle_player: Option<Source>,
+    pub selected_source: Option<String>,
+    pub revision: u64,
     pub playback: Option<Playback>,
     /// Every player Windows lists, for the source menu.
     pub sources: Vec<Source>,
@@ -53,6 +58,11 @@ pub struct Source {
     pub id: String,
     pub name: String,
     pub is_playing: bool,
+    pub is_music_app: bool,
+    pub has_track: bool,
+    /// Trusted Apps-folder executable; never accepted from a frontend command.
+    #[serde(skip)]
+    pub launch_path: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -121,7 +131,14 @@ pub fn source_name(aumid: &str) -> String {
     }
 }
 
-pub type Shared = Arc<Mutex<Option<NowPlaying>>>;
+#[derive(Default)]
+pub struct MediaState {
+    pub(crate) now: Option<NowPlaying>,
+    selected: Option<String>,
+    revision: u64,
+    players: Vec<Source>,
+}
+pub type Shared = Arc<Mutex<MediaState>>;
 
 #[cfg(windows)]
 pub use imp::{command, probe, seek, set_shuffle, start};
@@ -142,7 +159,7 @@ mod imp {
     use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
     use base64::Engine;
-    use tauri::{AppHandle, Emitter, Runtime};
+    use tauri::{AppHandle, Emitter, Manager as _, Runtime};
     use windows::Media::Control::{
         GlobalSystemMediaTransportControlsSession as Session,
         GlobalSystemMediaTransportControlsSessionManager as Manager,
@@ -168,25 +185,12 @@ mod imp {
 
     /// The session the island follows: a playing music app, else any playing
     /// player, else the one Windows calls current.
-    fn chosen(manager: &Manager) -> Option<Session> {
-        let sessions: Vec<Session> = manager.GetSessions().ok()?.into_iter().collect();
-        let playing = |s: &Session| {
-            s.GetPlaybackInfo()
-                .ok()
-                .and_then(|i| i.PlaybackStatus().ok())
-                == Some(Status::Playing)
-        };
-        let aumid = |s: &Session| {
-            s.SourceAppUserModelId()
-                .map(|h| h.to_string())
-                .unwrap_or_default()
-        };
-        sessions
-            .iter()
-            .find(|s| playing(s) && is_music_app(&aumid(s)))
-            .or_else(|| sessions.iter().find(|s| playing(s)))
-            .cloned()
-            .or_else(|| manager.GetCurrentSession().ok())
+    fn include_other<R: Runtime>(app: &AppHandle<R>) -> bool {
+        app.state::<crate::prefs::Prefs>()
+            .get()
+            .pointer("/island/includeOtherPlayers")
+            .and_then(serde_json::Value::as_bool)
+            .unwrap_or(true)
     }
 
     fn artwork(session: &Session) -> Option<String> {
@@ -293,7 +297,8 @@ mod imp {
         let Ok(list) = manager.GetSessions() else {
             return Vec::new();
         };
-        list.into_iter()
+        let mut sources: Vec<Source> = list
+            .into_iter()
             .filter_map(|s| {
                 let id = s.SourceAppUserModelId().ok()?.to_string();
                 let is_playing = s
@@ -303,11 +308,28 @@ mod imp {
                     == Some(Status::Playing);
                 Some(Source {
                     name: source_name(&id),
+                    is_music_app: is_music_app(&id),
+                    has_track: s
+                        .TryGetMediaPropertiesAsync()
+                        .ok()
+                        .and_then(|p| p.join().ok())
+                        .is_some_and(|p| {
+                            !p.Title().unwrap_or_default().is_empty()
+                                || !p.Artist().unwrap_or_default().is_empty()
+                        }),
                     id,
                     is_playing,
+                    launch_path: None,
                 })
             })
-            .collect()
+            .collect();
+        sources.sort_by(|a, b| {
+            a.id.cmp(&b.id)
+                .then(b.has_track.cmp(&a.has_track))
+                .then(b.is_playing.cmp(&a.is_playing))
+        });
+        sources.dedup_by(|a, b| a.id == b.id);
+        sources
     }
 
     /// Reads on its own thread (SMTC wants an MTA) and emits `music://now-playing` on change.
@@ -320,19 +342,72 @@ mod imp {
                 }
                 let mut manager = None;
                 let mut last: Option<NowPlaying> = None;
+                let preferred = app
+                    .state::<crate::prefs::Prefs>()
+                    .get()
+                    .pointer("/island/preferredPlayer")
+                    .and_then(serde_json::Value::as_str)
+                    .unwrap_or("")
+                    .to_string();
+                let installed = super::apps::installed(&preferred);
+                shared.lock().unwrap().players = installed;
+                let mut last_music: Option<String> = None;
                 loop {
                     if manager.is_none() {
                         manager = self::manager();
                     }
                     let mut current = NowPlaying::default();
+                    let (manual, revision) = {
+                        let state = shared.lock().unwrap();
+                        (state.selected.clone(), state.revision)
+                    };
+                    current.selected_source = manual.clone();
+                    current.revision = revision;
                     if let Some(m) = &manager {
                         let previous = last.as_ref().and_then(|l| l.playback.as_ref());
-                        current.playback = chosen(m).and_then(|s| read(&s, previous));
                         current.sources = sources(m);
+                        let system = m
+                            .GetCurrentSession()
+                            .ok()
+                            .and_then(|s| s.SourceAppUserModelId().ok())
+                            .map(|s| s.to_string());
+                        let selected = super::selection::choose(
+                            &current.sources,
+                            previous.map(|p| p.source.as_str()),
+                            system.as_deref(),
+                            manual.as_deref(),
+                            include_other(&app),
+                        );
+                        if let Some(selected) = selected {
+                            current.playback =
+                                matching_session(m, &selected.id).and_then(|s| read(&s, previous));
+                        }
                     }
+                    if let Some(p) = current
+                        .playback
+                        .as_ref()
+                        .filter(|p| p.is_music_app && p.is_playing)
+                    {
+                        last_music = Some(p.source.clone());
+                    }
+                    let preferred = app
+                        .state::<crate::prefs::Prefs>()
+                        .get()
+                        .pointer("/island/preferredPlayer")
+                        .and_then(serde_json::Value::as_str)
+                        .unwrap_or("")
+                        .to_string();
+                    let mut players = current.sources.clone();
+                    players.extend(shared.lock().unwrap().players.clone());
+                    current.idle_player =
+                        super::apps::preferred(&preferred, last_music.as_deref(), &players);
                     // Position moves on its own; only a jump or a new reading counts as news.
                     if last.as_ref() != Some(&current) {
-                        *shared.lock().unwrap() = Some(current.clone());
+                        let mut state = shared.lock().unwrap();
+                        if state.revision != revision {
+                            continue;
+                        }
+                        state.now = Some(current.clone());
                         let _ = app.emit("music://now-playing", &current);
                         last = Some(current);
                     }
@@ -388,17 +463,41 @@ mod imp {
         out
     }
 
-    fn with_session<T>(f: impl FnOnce(&Session) -> windows::core::Result<T>) -> Option<T> {
+    fn matching_session(manager: &Manager, source: &str) -> Option<Session> {
+        let sessions: Vec<_> = manager
+            .GetSessions()
+            .ok()?
+            .into_iter()
+            .filter(|s| s.SourceAppUserModelId().ok().is_some_and(|id| id == source))
+            .collect();
+        // Browsers can expose multiple sessions under the same application ID.
+        // Prefer its playing session, for both the display and every command.
+        sessions
+            .iter()
+            .find(|s| {
+                s.GetPlaybackInfo()
+                    .ok()
+                    .and_then(|i| i.PlaybackStatus().ok())
+                    == Some(Status::Playing)
+            })
+            .or_else(|| sessions.first())
+            .cloned()
+    }
+
+    fn with_session<T>(
+        source: &str,
+        f: impl FnOnce(&Session) -> windows::core::Result<T>,
+    ) -> Option<T> {
         unsafe {
             let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
         }
         let manager = manager()?;
-        let session = chosen(&manager)?;
+        let session = matching_session(&manager, source)?;
         f(&session).ok()
     }
 
-    pub fn command(command: Command) -> bool {
-        with_session(|s| {
+    pub fn command(command: Command, source: &str) -> bool {
+        with_session(source, |s| {
             let op = match command {
                 Command::Toggle => s.TryTogglePlayPauseAsync()?,
                 Command::Next => s.TrySkipNextAsync()?,
@@ -409,8 +508,8 @@ mod imp {
         .unwrap_or(false)
     }
 
-    pub fn seek(seconds: f64) -> bool {
-        with_session(|s| {
+    pub fn seek(seconds: f64, source: &str) -> bool {
+        with_session(source, |s| {
             let start = s.GetTimelineProperties()?.StartTime()?.Duration;
             s.TryChangePlaybackPositionAsync(start + (seconds.max(0.0) * 1e7) as i64)?
                 .join()
@@ -418,23 +517,50 @@ mod imp {
         .unwrap_or(false)
     }
 
-    pub fn set_shuffle(on: bool) -> bool {
-        with_session(|s| s.TryChangeShuffleActiveAsync(on)?.join()).unwrap_or(false)
+    pub fn set_shuffle(on: bool, source: &str) -> bool {
+        with_session(source, |s| s.TryChangeShuffleActiveAsync(on)?.join()).unwrap_or(false)
+    }
+
+    #[cfg(test)]
+    mod live_tests {
+        use super::*;
+        #[test]
+        #[ignore = "reads media sessions on an interactive Windows desktop"]
+        fn selected_sources_resolve_to_their_real_control_sessions() {
+            let _apartment = crate::com::Apartment::mta().unwrap();
+            let manager = manager().unwrap();
+            let sources = sources(&manager);
+            let active: Vec<_> = sources.iter().filter(|s| s.has_track).collect();
+            assert!(!active.is_empty(), "No active media sessions to verify");
+            for source in active {
+                let chosen =
+                    super::super::selection::choose(&sources, None, None, Some(&source.id), false)
+                        .unwrap();
+                assert_eq!(chosen.id, source.id);
+                let actual =
+                    with_session(&source.id, |session| session.SourceAppUserModelId()).unwrap();
+                assert_eq!(actual, source.id);
+                let playback =
+                    read(&matching_session(&manager, &source.id).unwrap(), None).unwrap();
+                assert_eq!(playback.source, source.id);
+                println!("Verified display and command session: {}", source.id);
+            }
+        }
     }
 }
 
 #[cfg(not(windows))]
 pub fn start<R: tauri::Runtime>(_app: tauri::AppHandle<R>, _shared: Shared) {}
 #[cfg(not(windows))]
-pub fn command(_command: Command) -> bool {
+pub fn command(_command: Command, _source: &str) -> bool {
     false
 }
 #[cfg(not(windows))]
-pub fn seek(_seconds: f64) -> bool {
+pub fn seek(_seconds: f64, _source: &str) -> bool {
     false
 }
 #[cfg(not(windows))]
-pub fn set_shuffle(_on: bool) -> bool {
+pub fn set_shuffle(_on: bool, _source: &str) -> bool {
     false
 }
 #[cfg(not(windows))]
@@ -444,41 +570,180 @@ pub fn open_player(_aumid: &str) -> bool {
 
 #[tauri::command]
 pub fn music_now(state: tauri::State<'_, Shared>) -> Option<NowPlaying> {
-    state.lock().unwrap().clone()
+    state.lock().unwrap().now.clone()
+}
+
+#[tauri::command]
+pub async fn music_players<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, Shared>,
+) -> Result<Vec<Source>, String> {
+    use tauri::Manager;
+    let preferred = app
+        .state::<crate::prefs::Prefs>()
+        .get()
+        .pointer("/island/preferredPlayer")
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or("")
+        .to_string();
+    let state = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(windows)]
+        let installed = apps::installed(&preferred);
+        #[cfg(not(windows))]
+        let installed: Vec<Source> = vec![];
+        let mut state = state.lock().unwrap();
+        state.players = installed.clone();
+        let mut players = state
+            .now
+            .as_ref()
+            .map(|n| n.sources.clone())
+            .unwrap_or_default();
+        for player in installed {
+            if !players.iter().any(|s| s.id == player.id) {
+                players.push(player);
+            }
+        }
+        players.sort_by(|a, b| a.name.cmp(&b.name));
+        players
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn music_select_source<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    state: tauri::State<'_, Shared>,
+    source: Option<String>,
+) -> Result<(), String> {
+    use tauri::Emitter;
+    let mut state = state.lock().unwrap();
+    if source == state.selected {
+        return Ok(());
+    }
+    if let Some(id) = &source
+        && !state
+            .now
+            .as_ref()
+            .is_some_and(|n| n.sources.iter().any(|s| &s.id == id))
+    {
+        return Err("This player is no longer available".into());
+    }
+    state.selected = source.clone();
+    state.revision += 1;
+    let revision = state.revision;
+    if let Some(now) = state.now.as_mut() {
+        now.playback = None;
+        now.selected_source = source;
+        now.revision = revision;
+        let _ = app.emit("music://now-playing", now.clone());
+    }
+    Ok(())
+}
+
+fn command_source(state: &Shared, expected: Option<&str>) -> Option<String> {
+    let state = state.lock().unwrap();
+    let source = state.now.as_ref()?.playback.as_ref()?.source.as_str();
+    if expected.is_some_and(|expected| expected != source) {
+        return None;
+    }
+    Some(source.into())
 }
 
 /// Commands wait on the player, so they run off the main thread.
 #[tauri::command]
-pub async fn music_command(command: Command) -> bool {
-    tauri::async_runtime::spawn_blocking(move || self::command(command))
+pub async fn music_command(
+    command: Command,
+    source: Option<String>,
+    state: tauri::State<'_, Shared>,
+) -> Result<bool, String> {
+    let Some(source) = command_source(&state, source.as_deref()) else {
+        return Ok(false);
+    };
+    tauri::async_runtime::spawn_blocking(move || self::command(command, &source))
         .await
-        .unwrap_or(false)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn music_seek(seconds: f64) -> bool {
-    tauri::async_runtime::spawn_blocking(move || seek(seconds))
+pub async fn music_seek(
+    seconds: f64,
+    source: Option<String>,
+    state: tauri::State<'_, Shared>,
+) -> Result<bool, String> {
+    let Some(source) = command_source(&state, source.as_deref()) else {
+        return Ok(false);
+    };
+    tauri::async_runtime::spawn_blocking(move || seek(seconds, &source))
         .await
-        .unwrap_or(false)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn music_shuffle(on: bool) -> bool {
-    tauri::async_runtime::spawn_blocking(move || set_shuffle(on))
+pub async fn music_shuffle(
+    on: bool,
+    source: Option<String>,
+    state: tauri::State<'_, Shared>,
+) -> Result<bool, String> {
+    let Some(source) = command_source(&state, source.as_deref()) else {
+        return Ok(false);
+    };
+    tauri::async_runtime::spawn_blocking(move || set_shuffle(on, &source))
         .await
-        .unwrap_or(false)
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-pub async fn music_open_player(source: String) -> bool {
-    tauri::async_runtime::spawn_blocking(move || open_player(&source))
-        .await
-        .unwrap_or(false)
+pub async fn music_open_player(
+    source: String,
+    state: tauri::State<'_, Shared>,
+) -> Result<bool, String> {
+    let path = state
+        .lock()
+        .unwrap()
+        .players
+        .iter()
+        .find(|p| p.id == source)
+        .and_then(|p| p.launch_path.clone());
+    tauri::async_runtime::spawn_blocking(move || {
+        // Preserve the native focus/activation behavior for running players.
+        if open_player(&source) {
+            return true;
+        }
+        if let Some(path) = path {
+            // Only a path obtained from Windows' installed application catalog.
+            return std::process::Command::new(path).spawn().is_ok();
+        }
+        false
+    })
+    .await
+    .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn controls_cannot_borrow_a_different_players_context() {
+        let state = Shared::default();
+        state.lock().unwrap().now = Some(NowPlaying {
+            playback: Some(Playback {
+                source: "chosen".into(),
+                ..Default::default()
+            }),
+            ..Default::default()
+        });
+        assert_eq!(
+            command_source(&state, Some("chosen")).as_deref(),
+            Some("chosen")
+        );
+        assert!(command_source(&state, Some("previous")).is_none());
+        state.lock().unwrap().now.as_mut().unwrap().playback = None;
+        assert!(command_source(&state, Some("chosen")).is_none());
+        assert!(command_source(&state, None).is_none());
+    }
 
     #[test]
     fn players_get_readable_names() {

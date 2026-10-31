@@ -62,9 +62,39 @@
   display: flex;
   gap: 8px;
   height: 100%;
+  box-sizing: border-box;
+  padding-bottom: 12px;
   overflow-x: auto;
   overflow-y: hidden;
-  scrollbar-width: thin;
+  scrollbar-width: auto;
+}
+
+.mx-rail::-webkit-scrollbar {
+  height: 6px;
+}
+
+.mx-rail::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.mx-rail::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.mx-rail::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.mx-rail::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+}
+
+.mx-desk .u-slider:not([aria-disabled="true"]),
+.mx-desk button:enabled,
+.mx-band-menu {
+  cursor: pointer;
 }
 
 .mx-column-slot {

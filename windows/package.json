@@ -11,6 +11,7 @@
     "test": "vitest run",
     "test:island-layout": "node scripts/check-island-layout.mjs",
     "test:island-shortcut": "node scripts/check-island-layout.mjs --island-shortcut",
+    "test:context-menu": "node scripts/check-island-layout.mjs --context-menu",
     "test:captures": "node scripts/check-island-layout.mjs --captures",
     "test:music-lyrics": "node scripts/check-island-layout.mjs --music-lyrics",
     "test:settings-select": "node scripts/check-island-layout.mjs --settings",
@@ -18,6 +19,7 @@
     "test:activity-picker": "node scripts/check-island-layout.mjs --activity-picker",
     "test:session-notice": "node scripts/check-island-layout.mjs --session-notice",
     "test:idle-content": "node scripts/check-island-layout.mjs --idle-content",
+    "test:mascot": "node scripts/check-island-layout.mjs --mascot",
     "typecheck": "tsc --noEmit -p . && tsc --noEmit -p tsconfig.node.json",
     "format": "prettier --write .",
     "format:check": "prettier --check ."

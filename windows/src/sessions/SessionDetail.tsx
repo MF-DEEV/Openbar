@@ -12,6 +12,7 @@ import {
   CircleCheck,
   CircleDashed,
   CircleX,
+  Pencil,
   PanelRight,
   TriangleAlert,
   X,
@@ -165,6 +166,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
       className={`s-detail-page${enlarged ? " is-large" : ""}`}
       style={{ "--chat-size": `${textSize}px`, "--agent-tint": providerTint(session.provider) } as CSSProperties}
     >
+      {renaming ? <RenameField key={session.id} session={session} name={name} /> : null}
       <div className={`s-scroll${enlarged ? " is-large" : ""}`}>
         <div className="s-header">
           <button
@@ -328,8 +330,6 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
 
       {!enlarged && isWorking(session.phase) ? <ThinkingRow session={session} size={13} now={now} /> : null}
       <ReplyField session={session} enlarged={enlarged} />
-
-      {renaming ? <RenameField session={session} name={name} /> : null}
     </div>
   );
 }
@@ -433,7 +433,7 @@ function Conversation({
   );
 }
 
-/** Appears above the page; an empty name gives the session its own back. */
+/** Takes its own space above the session; an empty name restores its original name. */
 function RenameField({ session, name }: { session: Session; name: string }) {
   const [draft, setDraft] = useState(() => useSessions.getState().names[session.id] ?? "");
   const finish = (save: boolean) => {
@@ -441,22 +441,32 @@ function RenameField({ session, name }: { session: Session; name: string }) {
     useSessions.setState({ renaming: false });
   };
   return (
-    <input
-      className="s-rename"
-      autoFocus
-      value={draft}
-      maxLength={60}
-      placeholder={session.name || name || S.renamePlaceholder}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => finish(true)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") finish(true);
-        else if (e.key === "Escape") {
-          e.stopPropagation();
-          finish(false);
-        }
-      }}
-    />
+    <label className="s-rename-editor">
+      <Pencil size={14} aria-hidden="true" />
+      <span className="s-rename-content">
+        <span className="s-rename-label">{S.renamePlaceholder}</span>
+        <input
+          className="s-rename"
+          autoFocus
+          aria-label={S.renamePlaceholder}
+          value={draft}
+          maxLength={60}
+          placeholder={session.name || name || S.renamePlaceholder}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={() => finish(true)}
+          onKeyDown={(e) => {
+            if (e.nativeEvent.isComposing) return;
+            if (e.key === "Enter") {
+              e.preventDefault();
+              finish(true);
+            } else if (e.key === "Escape") {
+              e.stopPropagation();
+              finish(false);
+            }
+          }}
+        />
+      </span>
+    </label>
   );
 }
 

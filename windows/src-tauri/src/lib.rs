@@ -23,11 +23,13 @@ mod keep_awake;
 mod media;
 mod media_volume;
 mod microphone;
+mod music_levels;
 mod notifications;
 mod ocr;
 mod power_saver;
 mod prefs;
 mod scratchpad;
+mod session_lock;
 mod sessions;
 mod settings;
 mod shell;
@@ -96,6 +98,13 @@ pub fn remove_hooks_main() -> ! {
     })
 }
 
+/// `Vorssaint.exe --remove-ide-bridge`: the uninstaller takes the IDE bridge
+/// extension out of every editor that has it.
+pub fn remove_ide_bridge_main() -> ! {
+    hosts::bridge_installer::remove_everywhere();
+    std::process::exit(0)
+}
+
 /// `Vorssaint.exe --codex-probe`: prints what Codex's app-server tells the island.
 pub fn codex_probe_main() -> ! {
     sessions::codex::client::probe()
@@ -135,6 +144,7 @@ pub fn run() {
         .manage(island::IslandState::default())
         .manage(island_shortcut::Shared::default())
         .manage(media::Shared::default())
+        .manage(music_levels::Demand::default())
         .manage(microphone::Shared::default())
         .manage(downloads::Shared::default())
         .manage(notifications::Shared::default())
@@ -172,10 +182,15 @@ pub fn run() {
             fullscreen::attention_context,
             fullscreen::attention_compact_sessions,
             settings::open_settings,
+            hosts::bridge_installer::ide_bridge_status,
+            hosts::bridge_installer::ide_bridge_install,
             hooks::claude_hooks_status,
             hooks::claude_hooks_install,
             hooks::claude_hooks_remove,
             media::music_now,
+            media::music_select_source,
+            media::music_players,
+            music_levels::music_watch_levels,
             microphone::microphone_snapshot,
             downloads::downloads_snapshot,
             media_volume::music_volume,
@@ -305,6 +320,8 @@ pub fn run() {
             app.manage(files::Files::load(app.handle()));
             // Followed before the island exists, so its first power_saver_on has it.
             power_saver::start(app.handle().clone());
+            std::thread::spawn(hosts::bridge_installer::update_outdated);
+            session_lock::start(app.handle().clone());
             battery::start(app.handle().clone());
             island::create(app.handle())?;
             files::install(app.handle());
@@ -319,6 +336,10 @@ pub fn run() {
             );
             app.manage(sessions::service::Service::start(app.handle().clone()));
             media::start(
+                app.handle().clone(),
+                app.state::<media::Shared>().inner().clone(),
+            );
+            music_levels::start(
                 app.handle().clone(),
                 app.state::<media::Shared>().inner().clone(),
             );

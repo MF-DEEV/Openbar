@@ -10,6 +10,7 @@ import type { ReactElement } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
 import { geometryOf, modulesOf, useIsland } from "../island/store";
+import { reactMascot } from "../mascot/service";
 import { activityViews } from "../island/views/Activity";
 import { pages } from "../island/views/Expanded";
 import { AgentsLeading, AgentsPage } from "./AgentsPage";
@@ -123,7 +124,7 @@ export function agentNotice(event: AgentEvent, display: "remaining" | "used") {
   }
 }
 
-function present(event: AgentEvent) {
+export function present(event: AgentEvent) {
   if (!shown()) return;
   const island = useIsland.getState();
   const notice = agentNotice(event, island.settings.agentsLimitDisplay);
@@ -136,7 +137,11 @@ function present(event: AgentEvent) {
     duration: 5,
     opens: "agents",
     image: notice.image(),
+    // A warning keeps a symbol that says what happened.
+    mascot: event.kind === "limitReset" ? "celebrate" : undefined,
   });
+  // Something finished well, or a limit came back.
+  if (event.kind === "limitReset" || event.kind === "finished") reactMascot("celebrate");
 }
 
 void subscribeAgents(present);

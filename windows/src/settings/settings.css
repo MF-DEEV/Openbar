@@ -1131,3 +1131,347 @@ select {
 .st-caption-line {
   display: block;
 }
+
+/* The companion's page: a slice of the island, and choices drawn as what they give. */
+
+.st-mascot-stage-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--st-stroke);
+  border-radius: var(--st-radius);
+  background: var(--st-card);
+}
+
+.st-mascot-stage {
+  position: relative;
+  height: 104px;
+  overflow: hidden;
+  border: 1px solid var(--st-stroke);
+  border-radius: 8px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--st-accent) 28%, transparent),
+    color-mix(in srgb, var(--st-accent) 7%, transparent)
+  );
+  cursor: pointer;
+}
+
+.st-mascot-stage[aria-disabled="true"] {
+  cursor: default;
+}
+
+.st-mascot-stage:focus-visible {
+  outline: 2px solid var(--st-focus);
+  outline-offset: 2px;
+}
+
+.st-mascot-bar {
+  position: absolute;
+  inset: 0 0 auto;
+  background: var(--st-control-hover);
+}
+
+.st-mascot-island,
+.st-mascot-track {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.st-mascot-track {
+  display: block;
+}
+
+.st-mascot-caption {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: calc(100% - 24px);
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--st-menu-bg);
+  box-shadow: var(--st-menu-shadow);
+  color: var(--st-text);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  animation: st-mascot-caption-in 0.25s var(--st-ease);
+}
+
+@keyframes st-mascot-caption-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 4px);
+  }
+}
+
+.st-mascot-zs {
+  position: absolute;
+  color: #fff;
+  font-weight: 800;
+  pointer-events: none;
+}
+
+.st-mascot-zs i {
+  position: absolute;
+  font-style: normal;
+  opacity: 0;
+  animation: st-mascot-z 2.7s linear infinite;
+}
+
+.st-mascot-zs i:nth-child(2) {
+  animation-delay: -0.9s;
+}
+
+.st-mascot-zs i:nth-child(3) {
+  animation-delay: -1.8s;
+}
+
+@keyframes st-mascot-z {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.5);
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--mr-toward) * 2.1em), -1.5em) scale(1.1);
+  }
+}
+
+.st-mascot-moments-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.st-mascot-moments-head .st-group-title {
+  margin: 0;
+}
+
+.st-mascot-hi {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.st-mascot-moments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.st-mascot-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: var(--st-control);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 0.12s ease-out,
+    border-color 0.15s ease-out,
+    opacity 0.2s ease-out;
+}
+
+.st-mascot-chip:hover:not(:disabled) {
+  background: var(--st-control-hover);
+}
+
+.st-mascot-chip:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.st-mascot-chip[aria-pressed="true"] {
+  border-color: var(--st-accent);
+  color: var(--st-accent);
+}
+
+.st-mascot-chip:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.st-mascot-tip {
+  margin: 0;
+  color: var(--st-text-3);
+  font-size: 12px;
+}
+
+.st-mascot-tip.is-asleep {
+  opacity: 0.45;
+}
+
+.st-mascot-card {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.st-mascot-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.st-mascot-value {
+  margin-left: auto;
+  color: var(--st-text-3);
+  font-size: 13px;
+}
+
+.st-mascot-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.st-mascot-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 84px;
+  padding: 10px 8px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--st-control);
+  color: var(--st-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease-out,
+    border-color 0.15s ease-out;
+}
+
+.st-mascot-tile:hover {
+  background: var(--st-control-hover);
+}
+
+.st-mascot-tile[aria-checked="true"] {
+  border-color: var(--st-accent);
+  color: var(--st-accent);
+}
+
+.st-mascot-sample {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 42px;
+  border-radius: 21px;
+  background: #000;
+}
+
+.st-mascot-side {
+  display: flex;
+  align-items: center;
+  width: 92px;
+  height: 20px;
+  padding-inline: 8px;
+  border-radius: 0 0 8px 8px;
+  background: #000;
+}
+
+.st-mascot-side.is-right {
+  justify-content: flex-end;
+}
+
+.st-mascot-shapes,
+.st-mascot-swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.st-mascot-shape {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 62px;
+  height: 44px;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  background: #000;
+  cursor: pointer;
+  transition: border-color 0.15s ease-out;
+}
+
+.st-mascot-swatch {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 50%;
+  background: none;
+  cursor: pointer;
+  transition: border-color 0.15s ease-out;
+}
+
+.st-mascot-swatch span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 0.5px rgba(127, 127, 127, 0.35);
+}
+
+.st-mascot-shape[aria-checked="true"],
+.st-mascot-swatch[aria-checked="true"] {
+  border-color: var(--st-accent);
+}
+
+.st-mascot-shape:focus-visible,
+.st-mascot-swatch:focus-visible,
+.st-mascot-tile:focus-visible,
+.st-mascot-chip:focus-visible {
+  outline: 2px solid var(--st-focus);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-mascot-zs i {
+    animation: none;
+    opacity: 0.6;
+    transform: translate(calc(var(--mr-toward) * 0.8em), -0.5em) scale(0.8);
+  }
+
+  .st-mascot-zs i:nth-child(3) {
+    display: none;
+  }
+
+  .st-mascot-zs i:nth-child(2) {
+    transform: translate(calc(var(--mr-toward) * 1.5em), -1em);
+  }
+
+  .st-mascot-caption,
+  .st-mascot-chip,
+  .st-mascot-tile,
+  .st-mascot-shape,
+  .st-mascot-swatch {
+    animation: none;
+    transition: none;
+  }
+}
