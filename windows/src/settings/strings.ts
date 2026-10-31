@@ -261,6 +261,9 @@ export const T = {
   behavior: {
     opening: "Opening",
     openingCaption: "How the island opens from the top of the screen.",
+    gestures: "Dynamic Island Gestures",
+    gesturesCaption:
+      "Scroll down to open. Scroll up over the top row to close. Swipe left or right over the music to change tracks. Lists keep their own scrolling.",
     click: "Click to open",
     hoverPreview: "Preview on hover",
     hoverExpand: "Expand on hover",
