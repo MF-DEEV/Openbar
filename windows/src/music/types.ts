@@ -29,9 +29,14 @@ export interface Source {
   id: string;
   name: string;
   isPlaying: boolean;
+  isMusicApp?: boolean;
+  hasTrack?: boolean;
 }
 
 export interface NowPlaying {
+  selectedSource?: string | null;
+  revision?: number;
+  idlePlayer?: Source | null;
   playback?: Playback | null;
   sources: Source[];
 }

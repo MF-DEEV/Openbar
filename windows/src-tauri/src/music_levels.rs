@@ -77,7 +77,7 @@ pub fn start<R: tauri::Runtime>(app: tauri::AppHandle<R>, media: crate::media::S
                 let change = {
                     let state = media.lock().unwrap();
                     let desired = if app.state::<Demand>().active() {
-                        playing_source(&state)
+                        playing_source(&state.now)
                     } else {
                         None
                     };

@@ -17,6 +17,7 @@ import { checkSessionNotice } from "./session-notice-cases.mjs";
 import { checkIdleContent } from "./idle-content-cases.mjs";
 import { checkScreenshotPreview } from "./screenshot-preview-cases.mjs";
 import { checkCaptures } from "./captures-cases.mjs";
+import { checkMusicSources } from "./music-source-cases.mjs";
 import { checkCamera } from "./camera-cases.mjs";
 import { checkMusicEqualizer } from "./music-equalizer-cases.mjs";
 import { checkMusicOpenPlayer } from "./music-open-player-cases.mjs";
@@ -89,7 +90,9 @@ try {
     mobile: false,
   });
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
-  if (process.argv.includes("--music-equalizer")) {
+  if (process.argv.includes("--music-sources")) {
+    await checkMusicSources({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--music-equalizer")) {
     await checkMusicEqualizer({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--mascot")) {
     await checkMascot({ send, evaluate, base: server.resolvedUrls.local[0] });

@@ -194,6 +194,11 @@ function hiddenApps(value: unknown): Record<string, string> {
 export function resolve(stored: StoredPrefs | null | undefined): Prefs {
   const island = checked(DEFAULT_SETTINGS, stored?.island);
   const raw = isObject(stored?.island) ? stored.island : {};
+  if (
+    island.preferredPlayer !== undefined &&
+    (island.preferredPlayer.length > 256 || /[\x00-\x1f]/.test(island.preferredPlayer))
+  )
+    delete island.preferredPlayer;
   if (island.screenshotPreviewDuration !== undefined)
     island.screenshotPreviewDuration = Math.min(300, Math.max(0, Math.round(island.screenshotPreviewDuration)));
   const quickAccess = quickButtons(raw.quickAccess);

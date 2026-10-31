@@ -109,6 +109,8 @@ export const bridge = {
     open: (sessionId: string) => call<boolean>("sessions_open", { sessionId }),
   },
   music: {
+    selectSource: (source: string | null) => call<void>("music_select_source", { source }),
+    players: () => call<import("../music/types").Source[]>("music_players"),
     watchLevels: (on: boolean) => call<void>("music_watch_levels", { on }),
     onLevels(handler: (frame: import("../music/audioLevels").AudioLevels) => void): Promise<UnlistenFn> {
       if (!inTauri) return Promise.resolve(() => {});
@@ -119,9 +121,9 @@ export const bridge = {
       if (!inTauri) return Promise.resolve(() => {});
       return listen<NowPlaying>("music://now-playing", (e) => handler(e.payload));
     },
-    command: (command: MusicCommand) => call<boolean>("music_command", { command }),
-    seek: (seconds: number) => call<boolean>("music_seek", { seconds }),
-    shuffle: (on: boolean) => call<boolean>("music_shuffle", { on }),
+    command: (command: MusicCommand, source?: string) => call<boolean>("music_command", { command, source }),
+    seek: (seconds: number, source?: string) => call<boolean>("music_seek", { seconds, source }),
+    shuffle: (on: boolean, source?: string) => call<boolean>("music_shuffle", { on, source }),
     volume: (source: string, level?: number) => call<number>("music_volume", { source, level: level ?? null }),
     openPlayer: (source: string) => call<boolean>("music_open_player", { source }),
   },
