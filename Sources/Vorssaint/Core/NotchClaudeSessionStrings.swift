@@ -107,6 +107,34 @@ struct NotchClaudeSessionStrings {
     let bridgePackageFailed: String
     let bridgeRefused: String
     let openFailed: String
+    /// A whole session running with no terminal, and what can be done with it.
+    let backgroundMark: String
+    let backgroundHelp: String
+    let backgroundStopped: String
+    let backgroundFailed: String
+    let backgroundNeedsReply: String
+    let logs: String
+    let logsTitle: String
+    let logsEmpty: String
+    let logsGone: String
+    let stopSession: String
+    let stopConfirm: String
+    let removeSession: String
+    let removeConfirm: String
+    let keepSession: String
+    let replyEnded: String
+    let commandFailed: String
+    /// The page that starts a session.
+    let newSession: String
+    let chooseFolder: String
+    let browseFolder: String
+    let noRecentFolders: String
+    let firstPrompt: String
+    let runInBackground: String
+    let runInTerminal: String
+    let backgroundOffHelp: String
+    let startSession: String
+    let folderNotTrusted: String
     let background: String
     let buddies: String
     let buddiesHint: String
@@ -275,6 +303,32 @@ extension NotchClaudeSessionStrings {
         bridgePackageFailed: "Couldn’t package the extension",
         bridgeRefused: "Antigravity refused the extension",
         openFailed: "Couldn’t find that window",
+        backgroundMark: "Background",
+        backgroundHelp: "Runs in the background, with no terminal. Open attaches one.",
+        backgroundStopped: "Stopped",
+        backgroundFailed: "Failed",
+        backgroundNeedsReply: "Needs a reply",
+        logs: "Logs",
+        logsTitle: "Recent output",
+        logsEmpty: "Nothing printed yet",
+        logsGone: "A stopped session keeps no output. Open it to bring it back.",
+        stopSession: "Stop",
+        stopConfirm: "Stop this session? Its conversation is kept, and Open brings it back.",
+        removeSession: "Remove",
+        removeConfirm: "Remove this session for good? Claude Code deletes it, and its worktree when that’s safe.",
+        keepSession: "Keep",
+        replyEnded: "Open this session to continue it",
+        commandFailed: "Claude Code couldn’t do that",
+        newSession: "New session",
+        chooseFolder: "Folder",
+        browseFolder: "Browse…",
+        noRecentFolders: "No recent projects yet",
+        firstPrompt: "First prompt (optional)",
+        runInBackground: "Background",
+        runInTerminal: "Terminal",
+        backgroundOffHelp: "Agent View is off in Claude Code, so sessions can only start in a terminal.",
+        startSession: "Start",
+        folderNotTrusted: "Claude Code doesn’t trust this folder yet. Start it in a terminal once and say yes.",
         background: "In background",
         buddies: "A buddy for every session",
         buddiesHint: "Each session and subagent gets its own buddy, dressed at random: Clawd for Claude Code, a little robot for Codex. Click one on its session’s page to change the outfit.",

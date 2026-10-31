@@ -16,6 +16,8 @@ struct NotchClaudeSessionDetailView: View {
     @State private var renaming = false
     @State private var newName = ""
     @FocusState private var nameFocused: Bool
+    /// The recent output of a background session, in place of its work.
+    @State private var showingLogs = false
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
     /// Working subagents come first, then the latest done.
@@ -24,7 +26,12 @@ struct NotchClaudeSessionDetailView: View {
     var body: some View {
         VStack(spacing: 8) {
             if renaming { nameField }
-            if notch.sessionsEnlarged {
+            if session.background != nil {
+                NotchClaudeBackgroundBar(session: session, text: text, showingLogs: $showingLogs)
+            }
+            if showingLogs, session.background != nil {
+                NotchClaudeBackgroundLogsView(session: session, text: text)
+            } else if notch.sessionsEnlarged {
                 NotchClaudeSessionLargeView(session: session, text: text, open: open)
             } else {
                 VStack(spacing: 8) {
@@ -85,7 +92,7 @@ struct NotchClaudeSessionDetailView: View {
                 .padding(.top, 12)
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Text(text.phase(session.phase))
+                    Text(NotchClaudeSessionFormat.phaseName(session, text: text))
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundStyle(session.tint)
                     if let clock = NotchClaudeSessionFormat.clock(session, now: now) {
@@ -714,6 +721,7 @@ struct NotchClaudeSessionReplyField: View {
     private var unavailable: String? {
         if session.phase.isWaiting { return text.replyWhileWaiting }
         if session.waitingFor != nil { return text.replyWhileDialog }
+        if session.background?.ended == true { return text.replyEnded }
         // Codex takes replies through its server, wherever its terminal is.
         if session.provider != .codex, !session.host.acceptsReplies { return text.replyUnavailable }
         return nil

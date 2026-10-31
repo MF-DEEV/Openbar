@@ -49,6 +49,10 @@ struct ClaudeSessionRecord: Equatable {
     /// Where `name` came from: "user" for /rename, "auto" for one Claude
     /// Code made from the conversation; otherwise it follows the folder.
     var nameSource: String?
+    /// The job a background session goes by; nil for one in a terminal.
+    var job: String? = nil
+    /// The config folder its record was found in.
+    var configHome: String? = nil
 
     static let permissionPrompt = "permission prompt"
     /// Any dialog in the terminal, including one the person opened, like
@@ -81,11 +85,13 @@ enum ClaudeSessionHost: Equatable {
     case antigravity(port: Int?)
     /// Any other app, by bundle identifier.
     case app(String)
+    /// No terminal at all: a background session, known by its job.
+    case background(job: String)
     case unknown
 
     var acceptsReplies: Bool {
         switch self {
-        case .terminal, .antigravity: return true
+        case .terminal, .antigravity, .background: return true
         case .app, .unknown: return false
         }
     }
@@ -247,6 +253,9 @@ struct ClaudeSession: Equatable, Identifiable {
     /// Services it left running, like a dev server, which never end alone.
     var services = 0
     var provider: ClaudeSessionProvider = .claude
+    /// Set for a whole session running in the background, with no terminal.
+    /// (`phase == .background` is something else: work a turn left running.)
+    var background: ClaudeBackgroundDetails? = nil
 }
 
 /// Tells a background command that is meant to keep running, like a dev

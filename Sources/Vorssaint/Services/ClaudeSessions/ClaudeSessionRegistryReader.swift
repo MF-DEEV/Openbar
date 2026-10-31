@@ -45,7 +45,9 @@ enum ClaudeSessionRegistryReader {
                     continue
                 }
                 guard records[record.pid] == nil, isCurrent(record, started: processStart(record.pid)) else { continue }
-                records[record.pid] = record
+                var found = record
+                found.configHome = folder.deletingLastPathComponent().standardizedFileURL.path
+                records[record.pid] = found
             }
         }
         unreadable.subtract(records.keys)
@@ -70,6 +72,10 @@ enum ClaudeSessionRegistryReader {
             started: (json["procStart"] as? String).flatMap(procStart) ?? milliseconds(json["startedAt"]),
             version: json["version"] as? String ?? "")
         record.nameSource = json["nameSource"] as? String
+        if ClaudeBackgroundJobs.isBackground(kind: json["kind"] as? String) {
+            // The job's short id starts the session's id, should a record not name it.
+            record.job = (json["jobId"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? String(session.prefix(8))
+        }
         return record
     }
 

@@ -329,7 +329,8 @@ final class ClaudeSessionEngine {
             hooked: entry.hooked, chat: previews ? entry.chat : [],
             backgroundLabel: previews
                 ? entry.runningBackground.last { !$0.service }?.label ?? entry.runningSubagents.last?.description : nil,
-            services: record.status == .shell || phase == .background ? entry.runningBackground.filter(\.service).count : 0)
+            services: record.status == .shell || phase == .background ? entry.runningBackground.filter(\.service).count : 0,
+            background: record.job.map { ClaudeBackgroundDetails(job: $0, configHome: record.configHome) })
     }
 
     // MARK: Rules

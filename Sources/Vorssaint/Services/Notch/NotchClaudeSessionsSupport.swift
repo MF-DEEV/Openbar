@@ -199,7 +199,9 @@ enum NotchClaudeSessionsSupport {
     static func canReply(_ session: ClaudeSession) -> Bool {
         // Keys typed while any dialog is open would go to the dialog. Codex
         // takes replies through its server, wherever its terminal is.
+        // A background session whose process has ended takes none until Open brings it back.
         (session.provider == .codex || session.host.acceptsReplies) && !session.phase.isWaiting && session.waitingFor == nil
+            && session.background?.ended != true
     }
 
     static let replyLimit = 4000
@@ -224,6 +226,8 @@ enum NotchClaudeSessionsSupport {
     static func name(_ session: ClaudeSession, custom: String?) -> String {
         if let custom = custom?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty { return custom }
         if session.nameSource == "user", !session.name.isEmpty { return session.name }
+        // A background session goes by the name Agent View lists it under.
+        if session.background != nil, session.nameSource != nil, !session.name.isEmpty { return session.name }
         if let title = session.title, !title.isEmpty { return title }
         return session.name.isEmpty ? session.project : session.name
     }
@@ -322,6 +326,36 @@ enum NotchClaudeSessionsSupport {
     /// What Escape closes on the Sessions page: the wardrobe, then a
     /// session's page, and with neither open, the island itself.
     enum PageLayer: Equatable { case wardrobe, session }
+
+    /// Whether a background session can be stopped, which only a running one
+    /// can, and removed, which only one no longer at work should be.
+    static func canStop(_ session: ClaudeSession) -> Bool {
+        guard let details = session.background else { return false }
+        return !details.ended
+    }
+
+    static func canRemove(_ session: ClaudeSession) -> Bool {
+        guard let details = session.background else { return false }
+        if details.ended { return true }
+        return !session.phase.isActive && !session.phase.isWaiting
+            && (details.state == .done || details.state == .failed || details.state == .stopped)
+    }
+
+    /// A background session's state in words where the phase doesn't say it;
+    /// nil where it does. Agent View's `blocked` on a quiet session means it
+    /// waits for a reply, with no dialog open.
+    static func backgroundPhase(_ session: ClaudeSession, text: NotchClaudeSessionStrings) -> String? {
+        guard let details = session.background else { return nil }
+        if details.ended {
+            switch details.state {
+            case .failed?: return text.backgroundFailed
+            case .done?: return text.finished
+            default: return text.backgroundStopped
+            }
+        }
+        if details.state == .blocked, !session.phase.isWaiting, !session.phase.isActive { return text.backgroundNeedsReply }
+        return nil
+    }
 
     static func pageLayer(focused: String?, dressing: String?) -> PageLayer? {
         if dressing != nil, dressing == focused { return .wardrobe }

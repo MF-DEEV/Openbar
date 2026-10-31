@@ -28,7 +28,10 @@ struct NotchClaudeSessionsView: View {
 
     var body: some View {
         Group {
-            if let dressing {
+            if service.composingSession, !preview {
+                NotchClaudeNewSessionView(text: text)
+                    .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
+            } else if let dressing {
                 NotchClawdWardrobeView(session: dressing, size: size)
                     .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
             } else if let focused {
@@ -36,16 +39,22 @@ struct NotchClaudeSessionsView: View {
                     .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
             } else if service.sessions.isEmpty {
                 NotchEmptyView(symbol: NotchModule.sessions.symbol, message: text.emptyTitle + "\n" + text.emptyDetail)
+                    .notchBand(trailing: { newSessionButton })
             } else {
                 list.transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
             }
         }
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: focused?.id)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: dressing?.id)
+        .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: service.composingSession)
         .frame(width: size.width, height: size.height, alignment: .top)
         .environment(\.locale, l10n.language.formattingLocale())
-        .onChange(of: [focused?.id, dressing?.id], initial: true) { _, _ in
+        .onChange(of: [focused?.id, dressing?.id, service.composingSession ? "new" : nil], initial: true) { _, _ in
             guard !preview else { return }
+            if service.composingSession {
+                NotchService.shared.setPageLayer(.sessions, close: { service.composingSession = false })
+                return
+            }
             // Escape steps back from the wardrobe to the page, and from the
             // page to the list, before it closes the island.
             let close: (() -> Void)?
@@ -67,6 +76,7 @@ struct NotchClaudeSessionsView: View {
             // The island opens on the list again; a notice or the strip
             // choose a session after the page appears.
             service.focus(nil)
+            service.composingSession = false
         }
     }
 
@@ -87,7 +97,28 @@ struct NotchClaudeSessionsView: View {
             }
             .scrollIndicators(.automatic)
         }
-        .notchBand(leading: { NotchClaudeSessionCounts(counts: service.counts, total: service.sessions.count) })
+        .notchBand(leading: { NotchClaudeSessionCounts(counts: service.counts, total: service.sessions.count) },
+                   trailing: { newSessionButton })
+    }
+
+    /// Starts a session from here, where Claude Code is there to start one.
+    @ViewBuilder private var newSessionButton: some View {
+        if service.canStartSessions, !preview {
+            Button {
+                service.composingSession = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "plus").font(.system(size: 11, weight: .semibold))
+                    Text(text.newSession).font(.system(size: 12, weight: .medium)).lineLimit(1)
+                }
+                .foregroundStyle(.white.opacity(0.9))
+                .padding(.horizontal, 9)
+                .frame(height: 28)
+                .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            }
+            .buttonStyle(NotchButtonStyle(cornerRadius: 9))
+            .help(text.newSession)
+        }
     }
 }
 
@@ -196,6 +227,7 @@ struct NotchClaudeSessionRow: View {
                     .foregroundStyle(.white.opacity(0.95))
                     .lineLimit(1)
                     .truncationMode(.tail)
+                if session.background != nil { NotchClaudeBackgroundMark(text: text) }
                 Spacer(minLength: 4)
                 if let clock = NotchClaudeSessionFormat.clock(session, now: now) {
                     Text(clock)
@@ -371,11 +403,16 @@ enum NotchClaudeSessionFormat {
         }
     }
 
+    /// The phase in words, or what Agent View says of a background session.
+    static func phaseName(_ session: ClaudeSession, text: NotchClaudeSessionStrings) -> String {
+        NotchClaudeSessionsSupport.backgroundPhase(session, text: text) ?? text.phase(session.phase)
+    }
+
     /// What the row's second line says: what the session does now. The
     /// title is left out where the session
     /// is already called by it.
     static func activity(_ session: ClaudeSession, text: NotchClaudeSessionStrings, title showsTitle: Bool = true) -> String {
-        var parts = [text.phase(session.phase)]
+        var parts = [phaseName(session, text: text)]
         switch session.phase {
         case .waitingPermission:
             if let tool = session.permission?.tool ?? session.currentTool?.name { parts.append(tool) }

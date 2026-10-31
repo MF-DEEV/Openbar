@@ -51,6 +51,12 @@ final class ClaudeSessionService: ObservableObject {
     @Published private(set) var bridgeOutdated = false
     /// Whether the island hears Codex, for its row in Settings.
     @Published private(set) var codexStatus: CodexStatus?
+    /// Claude Code is installed, so the island can start sessions in a terminal.
+    @Published private(set) var canStartSessions = false
+    /// Its Agent View is on, so it can run them in the background too.
+    @Published private(set) var backgroundAvailable = false
+    /// The page that starts a new session is open.
+    @Published var composingSession = false
 
     enum CodexStatus: Equatable {
         case connected
@@ -102,6 +108,17 @@ final class ClaudeSessionService: ObservableObject {
     /// Codex's terminal UIs by working folder, refreshed each tick, so Open
     /// and the host of a Codex session find its terminal.
     private var codexTerminals: [(pid: Int32, cwd: String)] = []
+    /// What Agent View last listed, by config folder's order. Queue.
+    private var backgroundJobs: [ClaudeBackgroundJob] = []
+    private var backgroundEndings: [String: Date] = [:]
+    private var backgroundBranches: [String: String] = [:]
+    private var listingJobs = false
+    private var jobsListed: Date?
+    /// `claude` runs take a moment and must not hold up the reading.
+    private let commands = DispatchQueue(label: "com.vorssaint.claude-commands", qos: .utility)
+    /// How often Agent View is asked: more often while it has sessions.
+    private static let jobsEvery: TimeInterval = 10
+    private static let jobsEveryQuietly: TimeInterval = 60
     /// Permission requests whose hook waits for the island's answer.
     private var pending: [String: (connection: ClaudeHookServer.Connection, session: String, suggestions: Any?,
                                    question: [String: Any]?, approved: [String: Any]?, since: Date)] = [:]
@@ -168,7 +185,12 @@ final class ClaudeSessionService: ObservableObject {
         sessions = []
         counts = ClaudeSessionCounts()
         autoAllowed = []
+        composingSession = false
         queue.async { [self] in
+            backgroundJobs = []
+            backgroundEndings = [:]
+            backgroundBranches = [:]
+            jobsListed = nil
             timer?.cancel()
             timer = nil
             interval = 0
@@ -378,6 +400,152 @@ final class ClaudeSessionService: ObservableObject {
         }
     }
 
+    // MARK: Background sessions
+
+    /// Asks Agent View for its sessions, when it is time to or `force`d after
+    /// an action. On the queue.
+    private func listBackgroundJobs(now: Date, force: Bool = false) {
+        guard !listingJobs else { return }
+        if !force, let listed = jobsListed,
+           now.timeIntervalSince(listed) < (backgroundJobs.isEmpty ? Self.jobsEveryQuietly : Self.jobsEvery) { return }
+        listingJobs = true
+        jobsListed = now
+        let homes = ClaudeSessionRegistryReader.homes(home)
+        let home = home
+        commands.async { [weak self] in
+            let shell = ClaudeCLI.shell()
+            var jobs: [ClaudeBackgroundJob] = []
+            var listed = false
+            let turnedOff = ClaudeBackgroundJobs.isOn(shell.environment[ClaudeCLI.disableVariable])
+                || homes.contains { folder in
+                    FileManager.default.contents(atPath: folder.appending(path: "settings.json").path)
+                        .map(ClaudeBackgroundJobs.settingsDisable) ?? false
+                }
+            if !turnedOff {
+                for folder in homes where FileManager.default.fileExists(atPath: folder.appending(path: "sessions").path) {
+                    let path = folder.standardizedFileURL.path
+                    guard let output = ClaudeCLI.claude(["agents", "--json", "--all"], configHome: path, in: home.path),
+                          output.status == 0, let found = ClaudeBackgroundJobs.decode(output.out, configHome: path) else { continue }
+                    listed = true
+                    jobs += found
+                }
+            }
+            self?.queue.async { [weak self] in
+                guard let self else { return }
+                self.listingJobs = false
+                guard self.timer != nil else { return }
+                self.apply(jobs, available: listed)
+                let canStart = shell.executable != nil
+                DispatchQueue.main.async {
+                    if self.canStartSessions != canStart { self.canStartSessions = canStart }
+                    if self.backgroundAvailable != listed { self.backgroundAvailable = listed }
+                }
+            }
+        }
+    }
+
+    private func apply(_ jobs: [ClaudeBackgroundJob], available: Bool) {
+        let now = Date()
+        let alive = Set(backgroundJobs.filter { !$0.ended }.map(\.id))
+        backgroundEndings = ClaudeBackgroundJobs.endings(jobs, known: backgroundEndings, alive: alive, now: now)
+        backgroundJobs = jobs
+        publish(now: now)
+    }
+
+    /// The sessions with what Agent View adds: each one's state, and rows for
+    /// those whose process has ended.
+    private func withBackground(_ sessions: [ClaudeSession], now: Date) -> [ClaudeSession] {
+        guard !backgroundJobs.isEmpty || sessions.contains(where: { $0.background != nil }) else { return sessions }
+        var listed = sessions
+        for index in listed.indices where listed[index].background != nil {
+            let id = listed[index].id
+            guard let job = backgroundJobs.first(where: { $0.sessionID == id }) else { continue }
+            listed[index].background?.state = job.state
+            if let branch = listed[index].branch { backgroundBranches[id] = branch }
+        }
+        let live = Set(listed.map(\.id))
+        let ended = ClaudeBackgroundJobs.kept(backgroundJobs.filter { !live.contains($0.sessionID) },
+                                              endings: backgroundEndings, now: now)
+        return listed + ended.map {
+            ClaudeBackgroundJobs.session($0, ended: backgroundEndings[$0.id] ?? now, branch: backgroundBranches[$0.sessionID])
+        }
+    }
+
+    /// What a `claude` command answered, as the failure to show; nil when it worked.
+    private func failure(of output: ClaudeCLI.Output?) -> String? {
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
+        guard let output else { return text.commandFailed }
+        if output.status == 0 { return nil }
+        return output.error.isEmpty ? text.commandFailed : output.error
+    }
+
+    /// Runs one of `claude stop`, `claude rm`. Calls back on the main thread
+    /// with what went wrong.
+    private func backgroundCommand(_ verb: String, _ session: ClaudeSession, completion: @escaping (String?) -> Void) {
+        guard let details = session.background else { return completion(nil) }
+        commands.async { [self] in
+            let problem = failure(of: ClaudeCLI.claude([verb, details.job], configHome: details.configHome))
+            queue.async { [self] in listBackgroundJobs(now: Date(), force: true) }
+            DispatchQueue.main.async { completion(problem) }
+        }
+    }
+
+    /// Stops a background session. Its conversation is kept.
+    func stopBackground(_ session: ClaudeSession, completion: @escaping (String?) -> Void) {
+        backgroundCommand("stop", session, completion: completion)
+    }
+
+    /// Deletes a background session for good.
+    func removeBackground(_ session: ClaudeSession, completion: @escaping (String?) -> Void) {
+        backgroundCommand("rm", session, completion: completion)
+    }
+
+    /// Its recent output, read off the screen `claude logs` prints. With a
+    /// nil text, there is none to read: a stopped session keeps no screen.
+    func backgroundLogs(_ session: ClaudeSession, completion: @escaping (String?) -> Void) {
+        guard let details = session.background else { return completion(nil) }
+        commands.async {
+            let output = ClaudeCLI.claude(["logs", details.job], configHome: details.configHome)
+            let screen = output.flatMap { $0.status == 0 ? ClaudeTerminalScreen.text($0.out) : nil }
+            DispatchQueue.main.async { completion(screen) }
+        }
+    }
+
+    /// Folders to start a session in, the latest worked in first.
+    func recentFolders(completion: @escaping ([ClaudeRecentFolder]) -> Void) {
+        let homes = ClaudeSessionRegistryReader.homes(home)
+        commands.async {
+            let folders = ClaudeRecentFolders.read(homes: homes)
+            DispatchQueue.main.async { completion(folders) }
+        }
+    }
+
+    /// Starts Claude Code in a folder, in the background or in the person's
+    /// terminal. Calls back on the main thread with what went wrong.
+    func startSession(in folder: String, configHome: String?, prompt: String, background: Bool,
+                      completion: @escaping (String?) -> Void) {
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let arguments = ClaudeCLI.startArguments(prompt: trimmed, background: background)
+        let terminal = ClaudeTerminalLauncher.preferred(from: sessions)
+        commands.async { [self] in
+            var problem: String?
+            if background {
+                let output = ClaudeCLI.claude(arguments, configHome: configHome, in: folder, timeout: 30)
+                problem = failure(of: output)
+                // Claude Code asks only in a terminal whether a folder can be trusted.
+                if let error = output?.error, output?.status != 0, error.contains("not trusted") { problem = text.folderNotTrusted }
+            } else if let executable = ClaudeCLI.shell().executable {
+                let line = ClaudeCLI.line(executable: executable, arguments: arguments, configHome: configHome, folder: folder)
+                if !ClaudeTerminalLauncher.open(line, terminal: terminal) { problem = text.commandFailed }
+            } else {
+                problem = text.commandFailed
+            }
+            queue.async { [self] in listBackgroundJobs(now: Date(), force: true) }
+            DispatchQueue.main.async { completion(problem) }
+        }
+    }
+
     func checkCodex() {
         queue.async { [self] in
             let status: CodexStatus
@@ -516,8 +684,11 @@ final class ClaudeSessionService: ObservableObject {
     func openHost(_ session: ClaudeSession, completion: @escaping (Bool) -> Void = { _ in }) {
         acknowledge(session.id)
         let homes = ClaudeSessionRegistryReader.homes(home)
+        let terminal = ClaudeTerminalLauncher.preferred(from: sessions)
         actions.async {
-            let found = ClaudeHostFocus.focus(session, homes: homes)
+            let found = session.background != nil
+                ? ClaudeHostFocus.attach(session, terminal: terminal)
+                : ClaudeHostFocus.focus(session, homes: homes)
             DispatchQueue.main.async { completion(found) }
         }
     }
@@ -554,10 +725,16 @@ final class ClaudeSessionService: ObservableObject {
         hosts = hosts.filter { alive.contains($0.key) || codexPids.contains($0.key) }
         for index in records.indices {
             let pid = records[index].pid
+            // A background session has no terminal to find.
+            if let job = records[index].job {
+                records[index].host = .background(job: job)
+                continue
+            }
             if hosts[pid] == nil { hosts[pid] = ClaudeSessionHosts.host(of: pid) }
             records[index].host = hosts[pid] ?? .unknown
         }
         engine.ingest(records: records, now: now)
+        listBackgroundJobs(now: now)
         ticks += 1
         let sideFiles = ticks % Self.sideFilesEvery == 1
         let ids = Set(records.map(\.sessionID))
@@ -654,7 +831,7 @@ final class ClaudeSessionService: ObservableObject {
         let codexSessions = fromCodex.sessions.map { session in
             placed(session, others: fromCodex.sessions.filter { $0.id != session.id }.map(\.cwd))
         }
-        let sorted = NotchClaudeSessionsSupport.sorted(claude + codexSessions)
+        let sorted = NotchClaudeSessionsSupport.sorted(withBackground(claude, now: now) + codexSessions)
         let shown = autoAllowing(sorted, now: now)
         let allowed = autoAllow.sessions
         let hidden = Set(sorted.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed, now: now) }
@@ -773,9 +950,21 @@ enum ClaudeHostFocus {
             return activated || raised
         case .app(let bundle):
             return activate(bundle, window: nil)
+        case .background:
+            // The service's openHost attaches these; Open has no window to raise.
+            return false
         case .unknown:
             return false
         }
+    }
+
+    /// Opens the person's terminal with `claude attach` running in it, which
+    /// also brings back a session that has stopped.
+    static func attach(_ session: ClaudeSession, terminal: String?) -> Bool {
+        guard let details = session.background, let executable = ClaudeCLI.shell().executable else { return false }
+        let line = ClaudeCLI.line(executable: executable, arguments: ["attach", details.job],
+                                  configHome: details.configHome, folder: nil)
+        return ClaudeTerminalLauncher.open(line, terminal: terminal)
     }
 
     private static func openInAntigravity(_ folder: String) -> Bool {
@@ -838,6 +1027,8 @@ enum ClaudeTerminalReply {
             if paths.isEmpty { return ClaudeTerminalBridge.send(text, shell: shell, folder: bridge) ? nil : .unreachable }
             return ClaudeTerminalBridge.send(text, images: paths, named: named.isEmpty ? paths : named.map(\.path),
                                              shell: shell, folder: bridge)
+        case .background(let job):
+            return ClaudeBackgroundReply.send(text, images: paths, job: job, configHome: session.background?.configHome)
         case .app, .unknown:
             return .unreachable
         }
