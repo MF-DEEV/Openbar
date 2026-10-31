@@ -7978,5 +7978,130 @@
     "key": "notch.allDisplays",
     "english": "All displays",
     "source": "notch.allDisplays"
+  },
+  {
+    "key": "windows.sessions.backgroundMark",
+    "english": "Background",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.backgroundHelp",
+    "english": "Runs in the background, with no terminal. Open attaches one.",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.backgroundStopped",
+    "english": "Stopped",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.backgroundFailed",
+    "english": "Failed",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.backgroundNeedsReply",
+    "english": "Needs a reply",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.logs",
+    "english": "Logs",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.logsTitle",
+    "english": "Recent output",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.logsEmpty",
+    "english": "Nothing printed yet",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.logsGone",
+    "english": "A stopped session keeps no output. Open it to bring it back.",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.stopSession",
+    "english": "Stop",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.stopConfirm",
+    "english": "Stop this session? Its conversation is kept, and Open brings it back.",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.removeSession",
+    "english": "Remove",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.removeConfirm",
+    "english": "Remove this session for good? Claude Code deletes it, and its worktree when that’s safe.",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.keepSession",
+    "english": "Keep",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.replyEnded",
+    "english": "Open this session to continue it",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.commandFailed",
+    "english": "Claude Code couldn’t do that",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.newSession",
+    "english": "New session",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.browseFolder",
+    "english": "Browse…",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.noRecentFolders",
+    "english": "No recent projects yet",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.firstPrompt",
+    "english": "First prompt (optional)",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.runInBackground",
+    "english": "Background",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.runInTerminal",
+    "english": "Terminal",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.backgroundOffHelp",
+    "english": "Agent View is off in Claude Code, so sessions can only start in a terminal.",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.startSession",
+    "english": "Start",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.folderNotTrusted",
+    "english": "Claude Code doesn’t trust this folder yet. Start it in a terminal once and say yes.",
+    "source": null
   }
 ]

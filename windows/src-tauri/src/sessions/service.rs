@@ -20,6 +20,7 @@ use serde_json::{Map, Value};
 use tauri::{AppHandle, Emitter, Wry};
 
 use super::agent_colors::AgentColors;
+use super::background;
 use super::codex::client::CodexClient;
 use super::codex::state::Answer as CodexAnswer;
 use super::engine::Engine;
@@ -47,6 +48,10 @@ const PID_DOMAINS: &[&str] = registry::WINDOWS_PID_DOMAINS;
 #[cfg(not(windows))]
 const PID_DOMAINS: &[&str] = registry::MAC_PID_DOMAINS;
 
+/// How often Agent View is asked: more often while it has sessions.
+const JOBS_EVERY: Time = 10.0;
+const JOBS_EVERY_QUIETLY: Time = 60.0;
+
 pub fn now() -> Time {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -61,6 +66,10 @@ struct Published<'a> {
     sessions: &'a [Session],
     counts: SessionCounts,
     previews: bool,
+    /// Claude Code is installed, so the island can start sessions in a terminal.
+    can_start: bool,
+    /// Its Agent View is on, so it can run them in the background too.
+    background_available: bool,
     hooks_installed: bool,
 }
 
@@ -148,6 +157,14 @@ struct Inner {
     sessions: Vec<Session>,
     ticks: u64,
     hooks_installed: bool,
+    /// What Agent View last listed, and when each ended job ended.
+    background_jobs: Vec<background::Job>,
+    background_endings: HashMap<String, Time>,
+    background_branches: HashMap<String, String>,
+    listing_jobs: bool,
+    jobs_listed: Option<Time>,
+    can_start: bool,
+    background_available: bool,
 }
 
 pub struct Service {
@@ -175,6 +192,13 @@ impl Service {
                 sessions: Vec::new(),
                 ticks: 0,
                 hooks_installed: false,
+                background_jobs: Vec::new(),
+                background_endings: HashMap::new(),
+                background_branches: HashMap::new(),
+                listing_jobs: false,
+                jobs_listed: None,
+                can_start: false,
+                background_available: false,
             }),
             codex: Mutex::new(None),
             wake: Mutex::new(None),
@@ -208,6 +232,7 @@ impl Service {
                         }
                         Err(_) => {
                             let busy = ticker.tick();
+                            Service::list_background_jobs(&ticker, false);
                             next = std::time::Instant::now()
                                 + if busy { ACTIVE_TICK } else { QUIET_TICK };
                         }
@@ -239,6 +264,12 @@ impl Service {
         let live: HashSet<i32> = records.iter().map(|r| r.pid).collect();
         inner.hosts.retain(|pid, _| live.contains(pid));
         for record in &mut records {
+            // A background session has no terminal to find.
+            if record.job.is_some() {
+                record.host = HostKind::Background;
+                record.accepts_replies = true;
+                continue;
+            }
             let located = inner
                 .hosts
                 .entry(record.pid)
@@ -410,7 +441,7 @@ impl Service {
             snapshot.sessions.extend(sessions);
             snapshot.events.extend(events);
         }
-        let sessions = models::sorted(snapshot.sessions);
+        let sessions = models::sorted(self.with_background(inner, snapshot.sessions, t));
         let counts = SessionCounts::of(&sessions);
         let busy = sessions
             .iter()
@@ -419,6 +450,8 @@ impl Service {
             sessions: &sessions,
             counts,
             previews: inner.engine.policy().previews,
+            can_start: inner.can_start,
+            background_available: inner.background_available,
             hooks_installed: inner.hooks_installed,
         };
         let _ = self.app.emit("sessions://snapshot", &published);
@@ -427,6 +460,133 @@ impl Service {
         }
         inner.sessions = sessions;
         busy
+    }
+
+    // MARK: Background sessions
+
+    /// Asks Agent View for its sessions, when it is time to or `force`d after
+    /// an action. `claude` takes a moment, so it runs off the ticker's thread.
+    fn list_background_jobs(service: &Arc<Self>, force: bool) {
+        let homes = {
+            let mut inner = service.inner.lock().unwrap();
+            let t = now();
+            let every = if inner.background_jobs.is_empty() {
+                JOBS_EVERY_QUIETLY
+            } else {
+                JOBS_EVERY
+            };
+            if inner.listing_jobs
+                || (!force && inner.jobs_listed.is_some_and(|listed| t - listed < every))
+            {
+                return;
+            }
+            inner.listing_jobs = true;
+            inner.jobs_listed = Some(t);
+            hooks::installer::home_dir()
+                .map(|home| registry::homes(&home))
+                .unwrap_or_default()
+        };
+        let service = service.clone();
+        thread::spawn(move || {
+            let can_start = background::executable().is_some();
+            let turned_off =
+                background::is_on(std::env::var(background::DISABLE_VARIABLE).ok().as_deref())
+                    || homes.iter().any(|home| {
+                        std::fs::read(home.join("settings.json"))
+                            .is_ok_and(|data| background::settings_disable(&data))
+                    });
+            let mut jobs = Vec::new();
+            let mut listed = false;
+            if !turned_off {
+                let arguments = ["agents", "--json", "--all"].map(str::to_owned);
+                for home in homes.iter().filter(|home| home.join("sessions").is_dir()) {
+                    let path = home.to_string_lossy().into_owned();
+                    let Some(output) =
+                        background::claude(&arguments, Some(&path), None, Duration::from_secs(15))
+                    else {
+                        continue;
+                    };
+                    if !output.ok {
+                        continue;
+                    }
+                    if let Some(found) = background::decode(&output.out, Some(&path)) {
+                        listed = true;
+                        jobs.extend(found);
+                    }
+                }
+            }
+            let mut inner = service.inner.lock().unwrap();
+            let t = now();
+            let alive: Vec<String> = inner
+                .background_jobs
+                .iter()
+                .filter(|job| !job.ended())
+                .map(|job| job.id.clone())
+                .collect();
+            let endings = background::endings(&jobs, &inner.background_endings, &alive, t);
+            inner.background_endings = endings;
+            inner.background_jobs = jobs;
+            inner.listing_jobs = false;
+            inner.can_start = can_start;
+            inner.background_available = listed;
+            service.publish(&mut inner, t);
+        });
+    }
+
+    /// The sessions with what Agent View adds: each one's state, and rows for
+    /// those whose process has ended.
+    fn with_background(
+        &self,
+        inner: &mut Inner,
+        mut sessions: Vec<Session>,
+        t: Time,
+    ) -> Vec<Session> {
+        for session in &mut sessions {
+            let id = session.id.clone();
+            let Some(details) = session.background.as_mut() else {
+                continue;
+            };
+            if let Some(job) = inner
+                .background_jobs
+                .iter()
+                .find(|job| job.session_id == id)
+            {
+                details.state = job.state;
+                details.config_home = job.config_home.clone();
+            }
+            if let Some(branch) = &session.branch {
+                inner.background_branches.insert(id, branch.clone());
+            }
+        }
+        let listed: HashSet<&str> = sessions.iter().map(|s| s.id.as_str()).collect();
+        let others: Vec<background::Job> = inner
+            .background_jobs
+            .iter()
+            .filter(|job| !listed.contains(job.session_id.as_str()))
+            .cloned()
+            .collect();
+        let ended: Vec<Session> = background::kept(&others, &inner.background_endings, t)
+            .into_iter()
+            .map(|job| {
+                let at = inner.background_endings.get(&job.id).copied().unwrap_or(t);
+                background::ended_session(
+                    job,
+                    at,
+                    inner.background_branches.get(&job.session_id).cloned(),
+                )
+            })
+            .collect();
+        sessions.extend(ended);
+        sessions
+    }
+
+    fn background_of(&self, session: &str) -> Option<background::BackgroundDetails> {
+        let inner = self.inner.lock().unwrap();
+        inner
+            .sessions
+            .iter()
+            .find(|s| s.id == session)
+            .and_then(|s| s.background.clone())
     }
 
     // MARK: Hooks
@@ -561,6 +721,7 @@ impl Service {
             let inner = self.inner.lock().unwrap();
             return Some(codex_refusal(&inner.sessions, session));
         }
+        let job = self.background_of(session);
         let (pid, located) = {
             let inner = self.inner.lock().unwrap();
             let Some(current) = inner.sessions.iter().find(|s| s.id == session) else {
@@ -580,9 +741,10 @@ impl Service {
             if asking {
                 return Some("waiting");
             }
-            let Some(located) = inner.hosts.get(&current.pid).cloned() else {
+            let located = inner.hosts.get(&current.pid).cloned();
+            if job.is_none() && located.is_none() {
                 return Some("unreachable");
-            };
+            }
             (current.pid, located)
         };
         if let Some(home) = hooks::installer::home_dir() {
@@ -596,6 +758,17 @@ impl Service {
                 _ => {}
             }
         }
+        if let Some(details) = job {
+            // Through `claude attach`, which counts as the person's own typing.
+            if background::reply(text, images, &details.job, details.config_home.as_deref()) {
+                self.acknowledge(session);
+                return None;
+            }
+            return Some("unreachable");
+        }
+        let Some(located) = located else {
+            return Some("unreachable");
+        };
         match hosts::deliver(pid as u32, &located, text, images) {
             Ok(()) => {
                 self.acknowledge(session);
@@ -606,6 +779,15 @@ impl Service {
     }
 
     fn open(&self, session: &str) -> bool {
+        if let Some(details) = self.background_of(session) {
+            // Attaching also brings back a session that has stopped.
+            let arguments = ["attach".to_owned(), details.job];
+            let ok = background::in_terminal(&arguments, details.config_home.as_deref(), None);
+            if ok {
+                self.acknowledge(session);
+            }
+            return ok;
+        }
         let codex_target = {
             let inner = self.inner.lock().unwrap();
             inner
@@ -846,6 +1028,147 @@ pub fn sessions_codex_status(service: tauri::State<'_, Shared>) -> CodexStatus {
     } else {
         CodexStatus::NotFound
     }
+}
+
+/// What a `claude` command answered, as the failure to show; None when it worked.
+fn command_failure(output: Option<background::Output>) -> Option<String> {
+    match output {
+        Some(output) if output.ok => None,
+        Some(output) if !output.error.is_empty() => Some(output.error),
+        _ => Some("unavailable".to_owned()),
+    }
+}
+
+/// `claude stop` or `claude rm` on a background session. What went wrong, if anything.
+fn run_on_job(service: &Shared, session: &str, verb: &str) -> Option<String> {
+    let Some(details) = service.background_of(session) else {
+        return Some("unavailable".to_owned());
+    };
+    let arguments = [verb.to_owned(), details.job];
+    let output = background::claude(
+        &arguments,
+        details.config_home.as_deref(),
+        None,
+        Duration::from_secs(15),
+    );
+    Service::list_background_jobs(service, true);
+    command_failure(output)
+}
+
+#[tauri::command]
+pub async fn sessions_background_stop(
+    service: tauri::State<'_, Shared>,
+    session_id: String,
+) -> Result<Option<String>, ()> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || run_on_job(&service, &session_id, "stop"))
+        .await
+        .map_err(|_| ())
+}
+
+#[tauri::command]
+pub async fn sessions_background_remove(
+    service: tauri::State<'_, Shared>,
+    session_id: String,
+) -> Result<Option<String>, ()> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || run_on_job(&service, &session_id, "rm"))
+        .await
+        .map_err(|_| ())
+}
+
+/// Its recent output, read off what `claude logs` prints. None when there is
+/// none to read: a stopped session keeps no screen.
+#[tauri::command]
+pub async fn sessions_background_logs(
+    service: tauri::State<'_, Shared>,
+    session_id: String,
+) -> Result<Option<String>, ()> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let details = service.background_of(&session_id)?;
+        let arguments = ["logs".to_owned(), details.job.clone()];
+        let home = details.config_home.as_deref();
+        let mut text = background::claude(&arguments, home, None, Duration::from_secs(15))
+            .filter(|output| output.ok)
+            .map(|output| background::screen_text(&output.out));
+        // Its last output may be nothing but a spinner; the screen itself still reads.
+        if !details.ended && !text.as_deref().is_some_and(background::is_readable) {
+            text = background::screen(&details.job, home).or(text);
+        }
+        text
+    })
+    .await
+    .map_err(|_| ())
+}
+
+#[tauri::command]
+pub async fn sessions_recent_folders() -> Result<Vec<background::RecentFolder>, ()> {
+    tauri::async_runtime::spawn_blocking(|| {
+        let Some(home) = hooks::installer::home_dir() else {
+            return Vec::new();
+        };
+        background::recent_folders(&registry::homes(&home), &home)
+    })
+    .await
+    .map_err(|_| ())
+}
+
+#[tauri::command]
+pub async fn sessions_pick_folder(app: AppHandle<Wry>) -> Result<Option<String>, ()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri::Manager;
+        use tauri_plugin_dialog::DialogExt;
+        let mut builder = app.dialog().file();
+        if let Some(window) = app.get_webview_window(crate::island::LABEL) {
+            builder = builder.set_parent(&window);
+        }
+        builder
+            .blocking_pick_folder()
+            .and_then(|path| path.into_path().ok())
+            .map(|path| path.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|_| ())
+}
+
+/// Starts Claude Code in a folder, in the background or in the person's
+/// terminal. "notTrusted", "unavailable" or Claude Code's own words when it
+/// didn't start.
+#[tauri::command]
+pub async fn sessions_start(
+    service: tauri::State<'_, Shared>,
+    folder: String,
+    config_home: Option<String>,
+    prompt: String,
+    background: bool,
+) -> Result<Option<String>, ()> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let arguments = self::background::start_arguments(&prompt, background);
+        let home = config_home.as_deref();
+        let failure = if background {
+            let output =
+                self::background::claude(&arguments, home, Some(&folder), Duration::from_secs(30));
+            // Claude Code asks only in a terminal whether a folder can be trusted.
+            let untrusted = output
+                .as_ref()
+                .is_some_and(|o| !o.ok && o.error.contains("not trusted"));
+            if untrusted {
+                Some("notTrusted".to_owned())
+            } else {
+                command_failure(output)
+            }
+        } else if self::background::in_terminal(&arguments, home, Some(&folder)) {
+            None
+        } else {
+            Some("unavailable".to_owned())
+        };
+        Service::list_background_jobs(&service, true);
+        failure
+    })
+    .await
+    .map_err(|_| ())
 }
 
 /// Typing can take a second or two (images wait for Claude Code), so it runs off the main thread.

@@ -28,6 +28,8 @@ interface SessionsState {
   names: Record<string, string>;
   lookedAt: Record<string, number>;
   renaming: boolean;
+  /** The page that starts a new session is open. */
+  composing: boolean;
   /** The wardrobe is open on the focused session's page. */
   wardrobe: boolean;
   /** Explicit opt-in for the current Codex turn; cleared when it ends. */
@@ -89,6 +91,7 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   names: loadNames(),
   lookedAt: {},
   renaming: false,
+  composing: false,
   wardrobe: false,
   autoAllow: {},
   toggleAutoAllow(id) {

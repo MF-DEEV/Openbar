@@ -1648,3 +1648,233 @@
     transition: none;
   }
 }
+
+/* Whole sessions in the background, and starting a new one. */
+
+.s-background-mark {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 9.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.s-background-bar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.s-background-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+}
+
+.s-background-gap {
+  flex: 1;
+}
+
+.s-background-ask {
+  flex: 1;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+}
+
+.s-background-off {
+  flex: 1;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10.5px;
+}
+
+.s-background-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: background 120ms ease;
+}
+
+.s-background-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.s-background-button:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.s-background-button.is-selected {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.s-background-button.is-destructive {
+  color: #ff8c80;
+}
+
+.s-background-problem {
+  color: #ff8c80;
+  font-size: 10.5px;
+}
+
+.s-background-logs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.s-background-screen {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  user-select: text;
+}
+
+.s-background-screen pre {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.s-background-screen p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+
+.s-new-session {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  height: 100%;
+  min-height: 0;
+}
+
+.s-new-folders {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.s-new-none {
+  padding: 6px 9px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11.5px;
+}
+
+.s-new-folder {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.s-new-folder:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.s-new-folder.is-selected {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.s-new-check {
+  color: #d97857;
+}
+
+.s-new-name {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s-new-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.35);
+  direction: rtl;
+  font-size: 10px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s-new-prompt {
+  flex: none;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 12px;
+}
+
+.s-new-prompt:focus-visible {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+.s-new-start {
+  flex: none;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: rgba(217, 120, 87, 0.85);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  transition: background 120ms ease;
+}
+
+.s-new-start:hover:not(:disabled) {
+  background: #d97857;
+}
+
+.s-new-start:disabled {
+  opacity: 0.4;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-background-button,
+  .s-new-folder,
+  .s-new-start {
+    transition: none;
+  }
+}
