@@ -75,6 +75,12 @@ export interface IslandSettings {
   includeOtherPlayers: boolean;
   /** What rests beside the camera (macOS notchIdleContent). */
   idleContent: IdleContent;
+  lowBatteryTint: boolean;
+  lowBatteryThreshold: number;
+  lowBatteryEarly: boolean;
+  lowBatteryEarlyThreshold: number;
+  /** Also on the tray icon, the Mac's menu bar reading. */
+  lowBatteryTray: boolean;
   /** Ask LRCLIB for lyrics while they are open (macOS notchLyricsOnline, off by default). */
   lyricsOnline: boolean;
   /** A new song raises a notice (notchTrackChange). */
@@ -268,6 +274,11 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   preferredPlayer: "",
   includeOtherPlayers: true,
   idleContent: "music",
+  lowBatteryTint: false,
+  lowBatteryThreshold: 10,
+  lowBatteryEarly: false,
+  lowBatteryEarlyThreshold: 20,
+  lowBatteryTray: true,
   lyricsOnline: false,
   trackChange: true,
   downloadProgress: true,

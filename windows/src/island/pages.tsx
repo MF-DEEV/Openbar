@@ -12,6 +12,7 @@ import type { SessionEvent } from "../sessions/types";
 import { geometryOf, modulesOf, useIsland } from "./store";
 import { configuredIdleContent } from "./idle";
 import { subscribeBattery } from "./battery";
+import { followTrayBattery } from "./trayBattery";
 import { activityViews } from "./views/Activity";
 import { pages } from "./views/Expanded";
 import { MusicPage, useMusicHeight } from "../music/MusicPage";
@@ -46,6 +47,7 @@ import { startMascot } from "../mascot/register";
 activityViews.microphone = MicrophoneStrip;
 void subscribeMicrophone();
 void subscribeBattery();
+followTrayBattery();
 
 // MARK: Preferences
 
