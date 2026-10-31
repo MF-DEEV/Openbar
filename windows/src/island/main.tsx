@@ -1,3 +1,4 @@
+import { initializeLocalization } from "../i18n/start";
 import "@fontsource-variable/inter";
 import React from "react";
 import ReactDOM from "react-dom/client";
@@ -101,15 +102,17 @@ if (!inTauri && new URLSearchParams(location.search).has("mascot")) {
   );
 }
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    {dev?.has("clawd") ? (
-      <ClawdPreview />
-    ) : (
-      <>
-        {dev?.has("desktop") ? <DevDesktop /> : null}
-        <Island />
-      </>
-    )}
-  </React.StrictMode>,
-);
+void initializeLocalization().then(() => {
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      {dev?.has("clawd") ? (
+        <ClawdPreview />
+      ) : (
+        <>
+          {dev?.has("desktop") ? <DevDesktop /> : null}
+          <Island />
+        </>
+      )}
+    </React.StrictMode>,
+  );
+});

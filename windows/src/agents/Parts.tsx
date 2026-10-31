@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The AI page's small pieces (NotchAgentComponents.swift): an agent's mark,
 // the working pulse, chips, the meter with its pace tick, and the card's
 // chrome and header.
@@ -16,6 +18,7 @@ const SYMBOLS: Record<"opencode" | "copilot", LucideIcon> = { opencode: Terminal
 
 /** An agent's mark at the size of the symbol it stands in for (NotchAgentMark). */
 export function Mark({ provider, size, tint }: { provider: Provider; size: number; tint?: string }) {
+  useLocale();
   if (provider === "claude")
     return <ClaudeMark size={Math.round(size * MARK_SCALE.claude)} style={tint ? { color: tint } : undefined} />;
   if (provider === "codex") return <CodexMark size={Math.round(size * MARK_SCALE.codex)} />;
@@ -25,6 +28,7 @@ export function Mark({ provider, size, tint }: { provider: Provider; size: numbe
 
 /** The mark breathing while the agent works, in a frame wide enough for the widest mark (NotchAgentGlyph). */
 export function Glyph({ provider, size, working = true }: { provider: Provider; size: number; working?: boolean }) {
+  useLocale();
   const frame = size * 1.45 + 1;
   return (
     <span className={`ag-glyph${working ? " is-working" : ""}`} style={{ width: frame, height: frame }} aria-hidden>
@@ -35,6 +39,7 @@ export function Glyph({ provider, size, working = true }: { provider: Provider; 
 
 /** A calm pulse that says an agent is working; still under reduced motion. */
 export function Pulse({ tint, size = 5 }: { tint: string; size?: number }) {
+  useLocale();
   return (
     <span className="ag-pulse" style={{ width: size * 2, height: size * 2, color: tint }} aria-hidden>
       <span style={{ width: size, height: size }} />
@@ -45,6 +50,7 @@ export function Pulse({ tint, size = 5 }: { tint: string; size?: number }) {
 
 /** 9 pt semibold, tint 90 % on a tint 14 % capsule. */
 export function Chip({ children, tint = "#ffffff", title }: { children: ReactNode; tint?: string; title?: string }) {
+  useLocale();
   return (
     <span className="ag-chip" style={{ color: tint, ["--ag-tint" as string]: tint }} title={title}>
       {children}
@@ -54,6 +60,7 @@ export function Chip({ children, tint = "#ffffff", title }: { children: ReactNod
 
 /** A capsule meter with a tick where spending would be if spread evenly across the window. */
 export function Meter(props: { value: number; pace?: number | null; tint: string; dimmed?: boolean; height?: number }) {
+  useLocale();
   const height = props.height ?? 4;
   const fraction = Number.isFinite(props.value) ? Math.min(1, Math.max(0, props.value)) : 0;
   const pace = props.pace;
@@ -78,6 +85,7 @@ export function Meter(props: { value: number; pace?: number | null; tint: string
 
 /** Padding 12 × 10 on the island's control surface, radius 18. */
 export function Card(props: { children: ReactNode; title?: string; className?: string }) {
+  useLocale();
   return (
     <div className={`ag-card u-surface${props.className ? ` ${props.className}` : ""}`} title={props.title}>
       {props.children}
@@ -93,6 +101,7 @@ export function CardHeader(props: {
   tint?: string;
   children?: ReactNode;
 }) {
+  useLocale();
   const Icon = props.icon;
   return (
     <div className="ag-header">

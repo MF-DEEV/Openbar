@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The minutes ruler (NotchTimerRuler.swift; spec 04 §4.2): a drawn slider
 // over 1…180 minutes, 14 pt a minute, the selected minute under a centre
 // pointer. Drag it (left raises the value), click a tick to bring it to the
@@ -19,6 +21,7 @@ const SCROLL_IDLE_MS = 200;
 const ORANGE_RGB = "255, 159, 10";
 
 export function Ruler(props: { value: number; onChange(minutes: number): void; label: string; height: number }) {
+  useLocale();
   const { value, onChange, height } = props;
   const canvas = useRef<HTMLCanvasElement>(null);
   const [width, setWidth] = useState(0);

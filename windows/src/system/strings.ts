@@ -1,80 +1,207 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t, tf } from "../i18n/index";
+
 // The System section's strings: the Mac's English (Localization.swift,
 // ConnectedDevicesStrings.swift, BatteryTimeStrings.swift), with "Mac" read
 // as "PC".
 
 export const S = {
-  cpu: "CPU",
-  gpu: "GPU",
-  memory: "Memory",
-  memoryDetails: "Memory details",
-  memoryPressure: "Memory pressure (approx.)",
-  memoryCompressed: "Compressed memory",
-  memoryCached: "Cached memory",
-  memorySwapUsed: "Page file usage",
-  metricUnavailable: "Unavailable",
-  memoryPressureHelp:
-    "Windows approximation: the higher of physical RAM usage and commit-limit usage. This is not the macOS memory pressure measurement.",
-  memoryCompressedHelp:
-    "Resident RAM occupied by the Windows MemCompression store; not the original size of the pages before compression. Unavailable when Windows does not expose the store process.",
-  memoryCachedHelp:
-    "Windows system cache: standby list plus system working set. This differs from macOS Cached Files and Task Manager's Cached value.",
-  memorySwapUsedHelp:
-    "Current usage summed across Windows page files. This is not committed memory or the amount written to disk over time.",
-  battery: "Battery",
-  network: "Network",
+  get cpu() {
+    return t("s.monitorShowCPU");
+  },
+  get gpu() {
+    return t("s.monitorShowGPU");
+  },
+  get memory() {
+    return t("s.monitorShowMemory");
+  },
+  get memoryDetails() {
+    return t("windows.system.memoryDetails");
+  },
+  get memoryPressure() {
+    return t("windows.system.memoryPressure");
+  },
+  get memoryCompressed() {
+    return t("windows.system.memoryCompressed");
+  },
+  get memoryCached() {
+    return t("windows.system.memoryCached");
+  },
+  get memorySwapUsed() {
+    return t("windows.system.memorySwapUsed");
+  },
+  get metricUnavailable() {
+    return t("notchShape.unavailable");
+  },
+  get memoryPressureHelp() {
+    return t("windows.system.memoryPressureHelp");
+  },
+  get memoryCompressedHelp() {
+    return t("windows.system.memoryCompressedHelp");
+  },
+  get memoryCachedHelp() {
+    return t("windows.system.memoryCachedHelp");
+  },
+  get memorySwapUsedHelp() {
+    return t("windows.system.memorySwapUsedHelp");
+  },
+  get battery() {
+    return t("commandBar.answerBatteryLabel");
+  },
+  get network() {
+    return t("s.monitorShowNetwork");
+  },
   /** The disk card (diskAvailable, capitalized). */
-  available: "Available",
-  disks: "Disks",
-  power: "Power",
-  connectedDevices: "Connected Devices",
-  unavailable: "Sensors unavailable on this PC",
-  back: "Back",
-  usage: "Hardware usage",
-  networkApps: "Network activity by app",
-  energyApps: "Energy usage by app",
-  processesIdle: "No active processes",
-  networkAppsIdle: "No apps using the network",
-  processesUnavailable: "Process metrics unavailable on this PC",
-  networkPermissionDenied: "Showing which apps use the network needs an administrator account",
-  networkNeedsApproval: "Windows asks an administrator once before showing which apps use the network",
-  networkApprove: "Allow",
-  networkApproving: "Waiting for Windows…",
-  networkDeclined: "Windows didn't allow it. You can try again.",
-  networkIncomplete: "Network events were lost. Measuring again…",
-  energyUnavailable: "Per-app energy measurements unavailable on Windows",
+  get available() {
+    return t("s.diskAvailable");
+  },
+  get disks() {
+    return t("s.diskSection");
+  },
+  get power() {
+    return t("s.monitorShowPowerLabel");
+  },
+  get connectedDevices() {
+    return t("connectedDevices.title");
+  },
+  get unavailable() {
+    return t("windows.system.unavailable");
+  },
+  get back() {
+    return t("radialMenu.backButton");
+  },
+  get usage() {
+    return t("s.usageSection");
+  },
+  get networkApps() {
+    return t("windows.system.networkApps");
+  },
+  get energyApps() {
+    return t("windows.system.energyApps");
+  },
+  get processesIdle() {
+    return t("windows.system.processesIdle");
+  },
+  get networkAppsIdle() {
+    return t("windows.system.networkAppsIdle");
+  },
+  get processesUnavailable() {
+    return t("windows.system.processesUnavailable");
+  },
+  get networkPermissionDenied() {
+    return t("windows.system.networkPermissionDenied");
+  },
+  get networkNeedsApproval() {
+    return t("windows.system.networkNeedsApproval");
+  },
+  get networkApprove() {
+    return t("notchClaudeSessions.allow");
+  },
+  get networkApproving() {
+    return t("windows.system.networkApproving");
+  },
+  get networkDeclined() {
+    return t("windows.system.networkDeclined");
+  },
+  get networkIncomplete() {
+    return t("windows.system.networkIncomplete");
+  },
+  get energyUnavailable() {
+    return t("windows.system.energyUnavailable");
+  },
   /** monitorOpenActivityMonitor, Task Manager being the PC's Activity Monitor. */
-  openTaskManager: "Open Task Manager",
-  upFor: "Up for",
-  measuring: "Measuring…",
-  download: "Download",
-  upload: "Upload",
-  thisSession: "This session",
-  used: "used",
-  availableRow: "available",
-  read: "Read",
-  write: "Write",
-  charge: "Charge",
-  batteryHealth: "Battery health",
-  cycles: "Cycles",
-  speedTestRun: "Speed test",
-  speedTestAgain: "Test again",
-  speedTestLatency: "Latency",
-  speedTestTesting: "Testing…",
-  speedTestFailed: "Test failed",
-  system: "System",
-  adapter: "Adapter",
-  charging: "Charging",
-  onBattery: "On battery",
-  pluggedIn: "Plugged in",
-  powerUnavailable: "Power metrics unavailable on this PC",
-  batteryTime: "Battery time remaining",
-  calculating: "Calculating…",
-  noDisks: "No mounted disks found.",
-  noDevices: "No external devices connected",
-  unnamedUsb: "USB Device",
-  unnamedBluetooth: "Bluetooth Device",
-  devicesConnected: (count: number) => (count === 1 ? "1 device connected" : `${count} devices connected`),
+  get openTaskManager() {
+    return t("windows.system.openTaskManager");
+  },
+  get upFor() {
+    return t("s.systemUptime");
+  },
+  get measuring() {
+    return t("s.breakdownMeasuring");
+  },
+  get download() {
+    return t("s.networkDownload");
+  },
+  get upload() {
+    return t("s.networkUpload");
+  },
+  get thisSession() {
+    return t("s.networkThisSession");
+  },
+  get used() {
+    return t("s.diskUsed");
+  },
+  get availableRow() {
+    return t("s.diskAvailable");
+  },
+  get read() {
+    return t("s.diskRead");
+  },
+  get write() {
+    return t("s.diskWrite");
+  },
+  get charge() {
+    return t("s.batteryCharge");
+  },
+  get batteryHealth() {
+    return t("s.powerHealth");
+  },
+  get cycles() {
+    return t("s.powerCycles");
+  },
+  get speedTestRun() {
+    return t("s.monitorItemNetTest");
+  },
+  get speedTestAgain() {
+    return t("s.speedTestAgain");
+  },
+  get speedTestLatency() {
+    return t("s.speedTestLatency");
+  },
+  get speedTestTesting() {
+    return t("s.speedTestTesting");
+  },
+  get speedTestFailed() {
+    return t("s.speedTestFailed");
+  },
+  get system() {
+    return t("appearance.system");
+  },
+  get adapter() {
+    return t("s.powerAdapter");
+  },
+  get charging() {
+    return t("notch.charging");
+  },
+  get onBattery() {
+    return t("notch.onBattery");
+  },
+  get pluggedIn() {
+    return t("s.powerPluggedIn");
+  },
+  get powerUnavailable() {
+    return t("windows.system.powerUnavailable");
+  },
+  get batteryTime() {
+    return t("batteryTime.title");
+  },
+  get calculating() {
+    return t("batteryTime.calculating");
+  },
+  get noDisks() {
+    return t("s.diskNoDisks");
+  },
+  get noDevices() {
+    return t("connectedDevices.noDevices");
+  },
+  get unnamedUsb() {
+    return t("connectedDevices.unnamedDevice");
+  },
+  get unnamedBluetooth() {
+    return t("windows.system.unnamedBluetooth");
+  },
+  devicesConnected: (count: number) =>
+    count === 1 ? t("connectedDevices.oneConnected") : tf("connectedDevices.devicesConnectedFormat", count),
 } as const;

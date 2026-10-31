@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The closed island's countdown (NotchCapsuleCalendarStrip in
 // NotchCapsuleViews.swift:582-669, NotchCalendarStrip.swift; spec 04 §3.1):
 // the event's dot and title, then m:ss to its start (white) or its end
@@ -81,6 +83,7 @@ function useSecond(): number {
 
 /** Only the minutes roll; the seconds change in place (everySecond: false). */
 function Clock({ text, ongoing }: { text: string; ongoing: boolean }) {
+  useLocale();
   const colon = text.lastIndexOf(":");
   return (
     <span className={`cal-strip-clock${ongoing ? " is-ongoing" : ""}`}>
@@ -91,6 +94,7 @@ function Clock({ text, ongoing }: { text: string; ongoing: boolean }) {
 }
 
 export function CalendarStrip({ geometry, size }: ActivityViewProps) {
+  useLocale();
   // An event ending clears the countdown before the strip has left.
   const shown = useCalendar((s) => s.countdown ?? s.lastCountdown);
   const now = useSecond();

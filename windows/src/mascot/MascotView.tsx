@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // Holds the companion in a view (NotchMascotHostView): it draws only through
 // its layers and never takes a click, since what it stands on decides what a
 // click does. `MascotFace` is the companion on its own, centred in its frame;
@@ -63,6 +65,7 @@ export function MascotFace(props: {
   cueId?: number;
   style?: CSSProperties;
 }) {
+  useLocale();
   const { look, size, mood = "idle", idles = false, reaction, cue, cueId = 0 } = props;
   const { host, rig } = useRig();
   const lowPower = useMascotLowPower();
@@ -105,6 +108,7 @@ export function MascotTrackView(props: {
   /** Switched off, the Settings preview shows it asleep: eyes shut, no blinking, no eyes for the pointer. */
   awake?: boolean;
 }) {
+  useLocale();
   const { look, track, rests, visit, mood = "idle", reaction = null, awake = true } = props;
   const { host, rig } = useRig();
   const lowPower = useMascotLowPower();

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../i18n";
+
 // The Clipboard page (NotchClipboardView.swift; spec 05 §3): the history as a
 // list of cards, a search field that shows on the first key typed, the
 // arrows, Enter and Ctrl+1–9, and in the top row the magnifier, the pinned
@@ -9,7 +11,7 @@
 
 import { ClipboardList, LayoutGrid, ListFilter, Pin, Search, Trash2 } from "lucide-react";
 import { type MouseEvent, useEffect, useLayoutEffect, useMemo, useReducer, useRef, useState } from "react";
-import { t } from "../i18n";
+
 import { usePageLayer } from "../island/pageLayer";
 import { useIsland } from "../island/store";
 import type { PageProps } from "../island/views/Expanded";
@@ -49,6 +51,7 @@ function canMove(all: ClipboardEntry[], entry: ClipboardEntry, up: boolean): boo
 }
 
 export function ClipboardPage({ width }: PageProps) {
+  useLocale();
   const all = useClipboard((s) => s.entries);
   const pinnedOnly = useClipboard((s) => s.pinnedOnly);
   const searchOpen = useClipboard((s) => s.searchOpen);
@@ -376,6 +379,7 @@ export function ClipboardPage({ width }: PageProps) {
 
 /** "Clear unpinned (n)?" inside the island: the island is topmost, a dialog would open behind it. */
 function ClearSheet(props: { count: number; onClosed(): void }) {
+  useLocale();
   const answer = (clear: boolean) => {
     useClipboard.getState().answerClearRecent(clear);
     props.onClosed();
@@ -407,6 +411,7 @@ function ClearSheet(props: { count: number; onClosed(): void }) {
 
 /** The top row's leading side: the sections button where the island has no Explore circle, and the magnifier. */
 export function ClipboardLeading() {
+  useLocale();
   const searchOpen = useClipboard((s) => s.searchOpen);
   const hasExploreBubble = useIsland((s) => s.settings.quickAccess.some((b) => b.action.kind === "explore"));
   return (
@@ -427,6 +432,7 @@ export function ClipboardLeading() {
 
 /** The pinned filter and Clear unpinned. The history window isn't on Windows, so its button isn't either. */
 export function ClipboardTrailing() {
+  useLocale();
   const pinnedOnly = useClipboard((s) => s.pinnedOnly);
   const hasRecent = useClipboard((s) => s.entries.some((e) => !e.pinned));
   return (

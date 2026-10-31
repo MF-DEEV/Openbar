@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The Sessions page: one row per running Claude Code session, the ones
 // waiting on the person first (NotchClaudeSessionsView.swift; spec §4.3).
 
@@ -45,6 +47,7 @@ export function orderSessions(sessions: Session[]): Session[] {
 const REORDER = { type: "spring", stiffness: 322.3, damping: 30.5 } as const;
 
 export function SessionsList() {
+  useLocale();
   const sessions = useSessions((s) => presentedSnapshot(s).sessions);
   const now = useNow();
   if (sessions.length === 0) {
@@ -71,6 +74,7 @@ export function SessionsList() {
 }
 
 function Row({ session, now }: { session: Session; now: number }) {
+  useLocale();
   const custom = useSessions((s) => s.names[session.id]);
   const lookedAt = useSessions((s) => s.lookedAt[session.id]);
   const buddies = useSessions((s) => s.prefs.buddies);
@@ -121,6 +125,7 @@ function Row({ session, now }: { session: Session; now: number }) {
 }
 
 function QuickDecision({ session }: { session: Session }) {
+  useLocale();
   const ready = useSessions((s) => settled(s, session));
   const decide = useSessions((s) => s.decide);
   return (

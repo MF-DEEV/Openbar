@@ -1,76 +1,194 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t, tf } from "../i18n/index";
+
 // English copy for the Tools section, from the Mac (Localization.swift,
 // QuickToggleStrings.swift, ScreenshotStrings.swift), with Windows' own
 // names where the Mac names a Mac thing (Recycle Bin, not Trash).
 
 export const S = {
-  customize: "Customize tools",
-  done: "Done",
-  editHint: "Use the tune button to choose, hide and drag the tools around.",
-  addSection: "Add back",
-  empty: "All tools are hidden. Use the tune button to add them back.",
-  hideItem: "Hide from panel",
-  showItem: (title: string) => `Add ${title}`,
-  options: "Options",
-  close: "Close",
-  back: "Back",
+  get customize() {
+    return t("notch.customizeTools");
+  },
+  get done() {
+    return t("screenshot.done");
+  },
+  get editHint() {
+    return t("s.launcherEditHint");
+  },
+  get addSection() {
+    return t("s.launcherAddSection");
+  },
+  get empty() {
+    return t("s.launcherEmptyState");
+  },
+  get hideItem() {
+    return t("s.panelHideItem");
+  },
+  showItem: (title: string) => tf("windows.tools.showItem", title),
+  get options() {
+    return t("s.keepAwakeOptions");
+  },
+  get close() {
+    return t("s.menuClose");
+  },
+  get back() {
+    return t("s.actionBack");
+  },
 
-  keepAwake: "Keep awake",
-  toggles: "Quick toggles",
-  micMute: "Mute microphone",
-  micUnmute: "Unmute microphone",
-  screenOCR: "Copy text from screen",
-  colorPicker: "Color picker",
-  clipboard: "Clipboard",
-  screenshot: "Screenshot",
-  scratchpad: "Scratchpad",
+  get keepAwake() {
+    return t("s.keepAwakeTitle");
+  },
+  get toggles() {
+    return t("quickToggles.pageTitle");
+  },
+  get micMute() {
+    return t("s.micMuteName");
+  },
+  get micUnmute() {
+    return t("s.micUnmuteName");
+  },
+  get screenOCR() {
+    return t("s.ocrName");
+  },
+  get colorPicker() {
+    return t("s.colorPickerName");
+  },
+  get clipboard() {
+    return t("clipboard.title");
+  },
+  get screenshot() {
+    return t("screenshot.editorTitle");
+  },
+  get scratchpad() {
+    return t("scratchpad.pageTitle");
+  },
 
-  colorFormat: "Copied format",
-  bareHex: "Copy without the # prefix",
+  get colorFormat() {
+    return t("s.colorPickerFormatLabel");
+  },
+  get bareHex() {
+    return t("s.colorPickerBareHexToggle");
+  },
 
   // Notices
-  screenshotCopied: "Screenshot copied",
-  savedTo: (folder: string) => `Saved to ${folder}`,
-  savedAndCopied: (folder: string) => `Saved to ${folder} and copied`,
-  captureFailed: "The screen could not be captured",
-  textCopied: "Text copied",
-  noText: "No text found",
-  noLanguage: "No text recognition language",
-  noLanguageDetail: "Add a language with OCR in Settings › Time & language",
-  colorCopied: "Color copied",
+  get screenshotCopied() {
+    return t("screenshot.copiedHUD");
+  },
+  savedTo: (folder: string) => tf("screenshot.savedHUDFormat", folder),
+  savedAndCopied: (folder: string) => tf("screenshot.savedAndCopiedHUDFormat", folder),
+  get captureFailed() {
+    return t("screenshot.captureFailed");
+  },
+  get textCopied() {
+    return t("s.ocrCopied");
+  },
+  get noText() {
+    return t("s.ocrNoText");
+  },
+  get noLanguage() {
+    return t("windows.tools.noLanguage");
+  },
+  get noLanguageDetail() {
+    return t("windows.tools.noLanguageDetail");
+  },
+  get colorCopied() {
+    return t("windows.tools.colorCopied");
+  },
 
   // Quick toggles
-  darkMode: "Dark mode",
-  hiddenFiles: "Hidden files",
-  desktopIcons: "Desktop icons",
-  darkModeToDark: "Switch to dark mode",
-  darkModeToLight: "Switch to light mode",
-  darkModeCaption: "Changes the appearance of the whole system.",
-  micMuteCaption: "Cuts the microphone with a click, across every app.",
-  emptyTrashTitle: "Empty the Recycle Bin",
-  emptyTrashCaption: "Removes everything from the Recycle Bin.",
-  emptyTrashConfirmTitle: "Empty the Recycle Bin?",
-  emptyTrashConfirmMessage: "All items in the Recycle Bin will be removed. This cannot be undone.",
-  emptyTrashConfirmButton: "Empty the Recycle Bin",
-  cancel: "Cancel",
-  ejectTitle: "Eject all disks",
-  ejectCaption: "Safely ejects every external disk.",
-  ejecting: "Ejecting…",
-  ejectFailed: "Could not eject",
-  noExternalDisk: "No external disk ready to eject.",
-  hiddenFilesShow: "Show hidden files",
-  hiddenFilesHide: "Hide hidden files",
-  desktopIconsShow: "Show desktop icons",
-  desktopIconsHide: "Hide desktop icons",
-  explorerCaption: "Open File Explorer windows refresh to apply it.",
-  desktopCaption: "The desktop updates right away.",
-  lockScreenTitle: "Lock the screen",
-  lockScreenCaption: "Asks for your PIN or password to come back.",
-  displayOffTitle: "Turn off the display",
-  displayOffCaption: "The PC keeps running with the display off.",
-  screenSaverTitle: "Start the screen saver",
-  screenSaverCaption: "Starts right away, on every display.",
-  actionFailed: "Could not complete.",
+  get darkMode() {
+    return t("windows.tools.darkMode");
+  },
+  get hiddenFiles() {
+    return t("windows.tools.hiddenFiles");
+  },
+  get desktopIcons() {
+    return t("windows.tools.desktopIcons");
+  },
+  get darkModeToDark() {
+    return t("quickToggles.darkModeToDark");
+  },
+  get darkModeToLight() {
+    return t("quickToggles.darkModeToLight");
+  },
+  get darkModeCaption() {
+    return t("quickToggles.darkModeCaption");
+  },
+  get micMuteCaption() {
+    return t("windows.tools.micMuteCaption");
+  },
+  get emptyTrashTitle() {
+    return t("windows.tools.emptyTrashTitle");
+  },
+  get emptyTrashCaption() {
+    return t("windows.tools.emptyTrashCaption");
+  },
+  get emptyTrashConfirmTitle() {
+    return t("windows.tools.emptyTrashConfirmTitle");
+  },
+  get emptyTrashConfirmMessage() {
+    return t("windows.tools.emptyTrashConfirmMessage");
+  },
+  get emptyTrashConfirmButton() {
+    return t("windows.tools.emptyTrashConfirmButton");
+  },
+  get cancel() {
+    return t("screenshot.cancel");
+  },
+  get ejectTitle() {
+    return t("quickToggles.ejectTitle");
+  },
+  get ejectCaption() {
+    return t("quickToggles.ejectCaption");
+  },
+  get ejecting() {
+    return t("s.diskEjecting");
+  },
+  get ejectFailed() {
+    return t("s.diskEjectFailed");
+  },
+  get noExternalDisk() {
+    return t("s.diskNoExternal");
+  },
+  get hiddenFilesShow() {
+    return t("quickToggles.hiddenFilesShow");
+  },
+  get hiddenFilesHide() {
+    return t("quickToggles.hiddenFilesHide");
+  },
+  get desktopIconsShow() {
+    return t("quickToggles.desktopIconsShow");
+  },
+  get desktopIconsHide() {
+    return t("quickToggles.desktopIconsHide");
+  },
+  get explorerCaption() {
+    return t("windows.tools.explorerCaption");
+  },
+  get desktopCaption() {
+    return t("windows.tools.desktopCaption");
+  },
+  get lockScreenTitle() {
+    return t("quickToggles.lockScreenTitle");
+  },
+  get lockScreenCaption() {
+    return t("windows.tools.lockScreenCaption");
+  },
+  get displayOffTitle() {
+    return t("quickToggles.displayOffTitle");
+  },
+  get displayOffCaption() {
+    return t("windows.tools.displayOffCaption");
+  },
+  get screenSaverTitle() {
+    return t("quickToggles.screenSaverTitle");
+  },
+  get screenSaverCaption() {
+    return t("quickToggles.screenSaverCaption");
+  },
+  get actionFailed() {
+    return t("quickToggles.actionFailed");
+  },
 } as const;

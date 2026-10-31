@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, tf, t } from "../i18n/index";
+
 import { create } from "zustand";
 import {
   ArrowDownToLine,
@@ -67,6 +69,7 @@ useIsland.subscribe((s, previous) => {
 });
 
 export function DownloadStrip({ geometry, size }: ActivityViewProps) {
+  useLocale();
   const items = useDownloads((s) => s.items);
   const running = active(items);
   const first = running[0];
@@ -77,7 +80,7 @@ export function DownloadStrip({ geometry, size }: ActivityViewProps) {
       className="dl-strip"
       style={{ width: size.width, height: size.height, paddingInline: padding }}
       onClick={() => useIsland.getState().activateActivity("downloads")}
-      aria-label={first ? `Downloads: ${first.name}` : "Downloads"}
+      aria-label={first ? tf("windows.downloads.downloadsValue", first.name) : t("notchFiles.downloadsTitle")}
       title={first?.name}
     >
       <span>
@@ -88,7 +91,7 @@ export function DownloadStrip({ geometry, size }: ActivityViewProps) {
       <span
         className={`dl-mini-progress${pct === null ? " is-indeterminate" : ""}`}
         role="progressbar"
-        aria-label="Download progress"
+        aria-label={t("windows.downloads.downloadProgress")}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct ?? undefined}
@@ -99,12 +102,13 @@ export function DownloadStrip({ geometry, size }: ActivityViewProps) {
   );
 }
 export function DownloadsPage() {
+  useLocale();
   const { items } = useDownloads();
   return (
     <div className="dl-page">
-      <h2>Downloads</h2>
+      <h2>{t("notchFiles.downloadsTitle")}</h2>
       {items.length === 0 ? (
-        <p className="dl-empty">New downloads and file transfers appear here automatically.</p>
+        <p className="dl-empty">{t("windows.downloads.newDownloadsAndFileTransfersAppearHereAutomatically")}</p>
       ) : null}
       {items.map((item) => {
         const Icon = fileIcon(item.name);
@@ -119,22 +123,28 @@ export function DownloadsPage() {
               <span>
                 {item.source} ·{" "}
                 {item.status === "completed"
-                  ? "Saved"
+                  ? t("notchFiles.saved")
                   : item.status === "interrupted"
                     ? "Stopped"
                     : item.speed
                       ? `${bytes(item.speed)}/s`
-                      : "Downloading"}
+                      : t("notchFiles.inProgress")}
               </span>
               {item.status === "downloading" ? (
-                <progress max={100} value={pct ?? undefined} aria-label={`${item.name}: download progress`} />
+                <progress
+                  max={100}
+                  value={pct ?? undefined}
+                  aria-label={tf("windows.downloads.valueDownloadProgress", item.name)}
+                />
               ) : null}
             </div>
             <div className="dl-size">
               <HardDrive size={18} aria-hidden="true" />
-              <strong>{(item.received / (1024 * 1024)).toFixed(1)} MB</strong>
-              <span title={item.total === null ? "The app has not provided the total file size" : undefined}>
-                / {item.total === null ? "?" : (item.total / (1024 * 1024)).toFixed(1)} MB
+              <strong>
+                {(item.received / (1024 * 1024)).toFixed(1)} {t("s.mediaMegabytesSuffix")}
+              </strong>
+              <span title={item.total === null ? t("windows.downloads.theAppHasNotProvidedTheTotalFile") : undefined}>
+                / {item.total === null ? "?" : (item.total / (1024 * 1024)).toFixed(1)} {t("s.mediaMegabytesSuffix")}
               </span>
               {item.status === "downloading" && pct !== null ? <span>{pct}%</span> : null}
             </div>

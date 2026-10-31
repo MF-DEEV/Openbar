@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../i18n/index";
+
 // The selection surface over one display (spec 05 §4.2, §15.2): the frozen
 // picture taken before this window appeared, dimmed, with the dragged area
 // lit and its size beside it; or, picking a colour, the picture as it is
@@ -65,6 +67,7 @@ const normalized = (a: Point, b: Point): Area => ({
 });
 
 export function Overlay() {
+  useLocale();
   const [session, setSession] = useState<CaptureSession | null>(null);
   const source = useRef<HTMLCanvasElement | null>(null);
 
@@ -80,7 +83,7 @@ export function Overlay() {
         } else {
           loaded = demoSession();
         }
-        if (!loaded) throw new Error("no capture");
+        if (!loaded) throw new Error(t("windows.capture.noCapture"));
         const canvas = document.createElement("canvas");
         canvas.width = loaded.session.width;
         canvas.height = loaded.session.height;
@@ -145,6 +148,7 @@ function useCancelKeys(session: CaptureSession, onKey?: (e: KeyboardEvent) => bo
 // MARK: Area
 
 function AreaPicker({ session, source }: { session: CaptureSession; source: HTMLCanvasElement }) {
+  useLocale();
   const canvas = useRef<HTMLCanvasElement>(null);
   const [anchor, setAnchor] = useState<Point | null>(null);
   const [area, setArea] = useState<Area | null>(null);
@@ -223,6 +227,7 @@ function AreaPicker({ session, source }: { session: CaptureSession; source: HTML
 // MARK: Colour
 
 function ColorPicker({ session, source }: { session: CaptureSession; source: HTMLCanvasElement }) {
+  useLocale();
   const canvas = useRef<HTMLCanvasElement>(null);
   const loupe = useRef<HTMLCanvasElement>(null);
   const [point, setPoint] = useState<Point | null>(null);

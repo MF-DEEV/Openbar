@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t, useLocale } from "../i18n";
+
 // The settings window's building blocks, after Windows 11's own Settings and
 // PowerToys: a section header, cards that pair a title and caption with one
 // control on the right, and cards that expand into their sub-options (one
@@ -13,6 +15,7 @@ export { Select } from "./Select";
 export type { Option } from "./Select";
 
 export function Page(props: { title: string; lead?: string; children: ReactNode }) {
+  useLocale();
   return (
     <section className="st-page" aria-labelledby="st-page-title">
       <h1 id="st-page-title" className="st-page-title">
@@ -25,6 +28,7 @@ export function Page(props: { title: string; lead?: string; children: ReactNode 
 }
 
 export function Group(props: { title?: string; children: ReactNode }) {
+  useLocale();
   return (
     <div className="st-group">
       {props.title ? <h2 className="st-group-title">{props.title}</h2> : null}
@@ -45,6 +49,7 @@ interface RowProps {
 
 /** One setting: icon, title and caption on the left, its control on the right. */
 export function Row({ icon: Icon, title, caption, children, disabled, id }: RowProps) {
+  useLocale();
   const auto = useId();
   const labelId = id ?? auto;
   return (
@@ -70,6 +75,7 @@ export function Expander(props: {
   defaultOpen?: boolean;
   children: ReactNode;
 }) {
+  useLocale();
   const [open, setOpen] = useState(props.defaultOpen ?? false);
   const bodyId = useId();
   const Icon = props.icon;
@@ -110,6 +116,7 @@ export function Expander(props: {
 
 /** A row inside an expander: no card of its own. */
 export function SubRow(props: { title: string; caption?: ReactNode; children?: ReactNode; disabled?: boolean }) {
+  useLocale();
   const id = useId();
   return (
     <div className={`st-subrow${props.disabled ? " is-disabled" : ""}`} role="group" aria-labelledby={id}>
@@ -133,10 +140,11 @@ export function Toggle(props: {
   onText?: string;
   offText?: string;
 }) {
+  useLocale();
   return (
     <label className={`st-toggle${props.disabled ? " is-disabled" : ""}`}>
       <span className="st-toggle-state" aria-hidden>
-        {props.checked ? (props.onText ?? "On") : (props.offText ?? "Off")}
+        {props.checked ? (props.onText ?? t("commandBar.stateOn")) : (props.offText ?? t("notchAgents.off"))}
       </span>
       <input
         type="checkbox"
@@ -161,6 +169,7 @@ export function Segmented<T extends string>(props: {
   label: string;
   disabled?: boolean;
 }) {
+  useLocale();
   return (
     <div className="st-segmented" role="radiogroup" aria-label={props.label}>
       {props.options.map((o) => (
@@ -190,6 +199,7 @@ export function Slider(props: {
   format?: (v: number) => string;
   disabled?: boolean;
 }) {
+  useLocale();
   const fraction = (props.value - props.min) / (props.max - props.min);
   return (
     <span className="st-slider">
@@ -219,6 +229,7 @@ export function Button(props: {
   disabled?: boolean;
   busy?: boolean;
 }) {
+  useLocale();
   return (
     <button
       type="button"
@@ -234,6 +245,7 @@ export function Button(props: {
 
 /** A short status word with a colored dot; the word carries the meaning. */
 export function Status(props: { tone: "ok" | "warn" | "off"; children: ReactNode }) {
+  useLocale();
   return (
     <span className={`st-status is-${props.tone}`}>
       <span className="st-status-dot" aria-hidden />

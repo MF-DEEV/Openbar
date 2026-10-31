@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, tf } from "../i18n/index";
+
 // AI Agents options, inside its card on the Content tab
 // (NotchAgentsSettings.swift, CodexAccountsSettings.swift; spec 03 §3.5, §11).
 
@@ -74,6 +76,7 @@ function useNow(): number {
 const shortDuration = (seconds: number) => (seconds < 60 ? A.seconds(seconds) : A.minutes(seconds / 60));
 
 export function AgentsOptions() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const snapshot = useSnapshot();
@@ -226,6 +229,7 @@ export function AgentsOptions() {
 
 /** The Codex homes that get limits cards of their own on the AI page (CodexAccountsSettings.swift). */
 function CodexAccounts({ snapshot }: { snapshot: AgentSnapshot }) {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const patch = useSettings((s) => s.patch);
   const profiles = island.agentsCodexProfiles;
@@ -322,6 +326,7 @@ function CodexAccounts({ snapshot }: { snapshot: AgentSnapshot }) {
 
 /** A name kept as typed while it is blank, so clearing it to type another never saves an empty one. */
 function AccountRow(props: { profile: CodexProfile; onRename(name: string): void; onRemove(): void }) {
+  useLocale();
   const { profile } = props;
   const [draft, setDraft] = useState(profile.name);
   useEffect(() => setDraft(profile.name), [profile.name]);
@@ -333,7 +338,7 @@ function AccountRow(props: { profile: CodexProfile; onRename(name: string): void
           type="text"
           value={draft}
           placeholder={A.accountName}
-          aria-label={`Codex · ${A.accountName}: ${profile.name}`}
+          aria-label={tf("windows.settings.codexValueValue", A.accountName, profile.name)}
           spellCheck={false}
           onChange={(e) => {
             const value = [...e.target.value].slice(0, CODEX_PROFILE_NAME_MAXIMUM).join("");
@@ -366,6 +371,7 @@ function choices(list: number[], value: number): number[] {
 
 /** Cards to include, dragged into order; charts take the island's full width. */
 function CardsEditor() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const patch = useSettings((s) => s.patch);
   const order = orderedCards(island.agentsCardOrder);
@@ -445,6 +451,7 @@ function claudeFailureText(failure: ClaudeFailure): string {
 
 /** Where Claude's plan limits stand (NotchAgentsSettings.claudeLimitsStatus). */
 function ClaudeLimitsStatus({ snapshot }: { snapshot: AgentSnapshot }) {
+  useLocale();
   const now = useNow();
   const { accountAt, appAt, appInstalled, failure } = snapshot.claude;
   const fresh = (at: number | null) => at !== null && now - at < CLAUDE_FRESHNESS;

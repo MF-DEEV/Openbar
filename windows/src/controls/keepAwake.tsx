@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // Keep Awake: the home page's tile and, for those who turn it on, the
 // closed island's strip (NotchKeepAwakeSupport.swift, NotchCapsuleViews.swift
 // 674-732; spec 04 §7): a yellow cup and the time left, or ∞.
@@ -88,6 +90,7 @@ function useTimeLeft(endsAt: number | null): string | null {
 }
 
 export function KeepAwakeStrip({ geometry, size }: ActivityViewProps) {
+  useLocale();
   const state = useKeepAwake((s) => s.state);
   const text = useTimeLeft(state.endsAt);
   const capsule = geometry.floatingGap !== null;

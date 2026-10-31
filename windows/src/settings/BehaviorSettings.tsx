@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t, type StringKey } from "../i18n";
+
 // Settings › Behavior (NotchSettings.swift:641-729): how the island opens,
 // where it reopens, the displays it uses and whether captures show it.
 
 import { Camera, Eye, Maximize, Monitor, MousePointerClick, Timer, TimerReset, Undo2 } from "lucide-react";
-import { t, type StringKey } from "../i18n";
+
 import { visibleModules } from "../island/modules";
 import { type DisplayChoice, type HomeDestination, type OpeningMode, sectionEnabled } from "../island/settings";
 import { useSettings } from "./state";
@@ -16,6 +18,7 @@ import { Group, Page, Row, Segmented, Select, Slider, Toggle } from "./ui";
 const seconds = (v: number) => `${v.toFixed(2)} s`;
 
 export function BehaviorSettings() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const patch = useSettings((s) => s.patch);

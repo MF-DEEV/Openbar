@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../../i18n/index";
+
 // What the closed island shows: configured idle content, a notice, or the hover
 // preview row (NotchView.surface; spec 01-shell §2.2).
 
@@ -15,7 +17,6 @@ import {
   ArrowDownToLine,
 } from "lucide-react";
 import { useContext } from "react";
-import { t } from "../../i18n";
 import { contentInsets, edgeInset, capsuleBody, capsuleRadius, type Geometry } from "../geometry";
 import type { Size } from "../motion";
 import { type Notice, useIsland } from "../store";
@@ -43,6 +44,7 @@ import { MascotFace, MascotTrackView } from "../../mascot/MascotView";
 import { NOTICE_SIZE } from "../../mascot/model";
 
 export function Resting(props: { size: Size; geometry: Geometry; idleContent: IdleContent }) {
+  useLocale();
   const size = useContext(DrawnSize) ?? props.size;
   const { geometry, idleContent } = props;
   const battery = useBattery((s) => s.battery);
@@ -74,9 +76,9 @@ export function Resting(props: { size: Size; geometry: Geometry; idleContent: Id
   const readingWidth = capsule ? (size.width - 2 * inset - 5) / 2 : (size.width - geometry.cameraWidth) / 2 - inset;
   const label =
     idleContent === "battery" && battery
-      ? `${battery.percent == null ? "Battery" : `${battery.percent}%`}${battery.charging ? ", charging" : battery.pluggedIn ? ", plugged in" : ", on battery"}`
+      ? `${battery.percent == null ? t("s.batteryLabel") : `${battery.percent}%`}${battery.charging ? t("windows.island.charging") : battery.pluggedIn ? t("windows.island.pluggedIn") : t("windows.island.onBattery")}`
       : idleContent === "agents"
-        ? "AI Agents"
+        ? t("notchAgents.title")
         : idleContent === "music" && playback
           ? `${playback.title}, ${playback.artist}`
           : undefined;
@@ -150,6 +152,7 @@ function noticeMetrics(geometry: Geometry, size: Size) {
 
 /** One line of text either side of the camera: title left, detail right. */
 export function NoticeView(props: { notice: Notice; geometry: Geometry; size: Size }) {
+  useLocale();
   const { notice, geometry } = props;
   const size = useContext(DrawnSize) ?? props.size;
   const camera = geometry.floatingGap === null ? geometry.cameraWidth : 0;
@@ -265,6 +268,7 @@ function measureContext(): CanvasRenderingContext2D {
 
 /** The hover preview: where opening leads, and a chevron to open. */
 export function Peek(props: { geometry: Geometry; size: Size }) {
+  useLocale();
   const size = useContext(DrawnSize) ?? props.size;
   const selected = useIsland((s) => s.selected);
   return (

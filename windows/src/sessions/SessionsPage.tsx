@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The Sessions section in the island: the list, or one session's page, and
 // the island's top row for each (counts beside the list; back, rename,
 // enlarge and open on a session's page).
@@ -24,6 +26,7 @@ function useFocusedSession() {
 }
 
 function Page() {
+  useLocale();
   const enlarged = useIsland((s) => s.sessionsEnlarged);
   const session = useFocusedSession();
   const focused = useSessions((s) => s.focused);
@@ -36,6 +39,7 @@ function Page() {
 
 /** Counts with 9 pt symbols and 11 pt numbers, or the total when nothing is going on. */
 function Counts() {
+  useLocale();
   const counts = useSessions((s) => presentedSnapshot(s).counts);
   const total = useSessions((s) => s.snapshot.sessions.length);
   const items = countItems(counts);
@@ -53,6 +57,7 @@ function Counts() {
 }
 
 function Leading() {
+  useLocale();
   const session = useFocusedSession();
   const custom = useSessions((s) => (session ? s.names[session.id] : undefined));
   if (!session) return <Counts />;
@@ -65,6 +70,7 @@ function Leading() {
 }
 
 function Trailing() {
+  useLocale();
   const session = useFocusedSession();
   const enlarged = useIsland((s) => s.sessionsEnlarged);
   const failedUntil = useSessions((s) => s.openFailedUntil);

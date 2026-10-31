@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t, tf, useLocale } from "../i18n";
+
 // The Tools and Scratchpad options on the Content tab: the colour picker's
 // format (QuickLauncherView options card), which Quick toggles show and in
 // what order (QuickTogglesList's edit mode), the disks "Eject all disks"
@@ -19,18 +21,37 @@ import { T } from "./strings";
 import { Select, SubRow, Toggle } from "./ui";
 
 const TOGGLE_TITLES: Record<ToggleId, string> = {
-  darkMode: ToolStrings.darkMode,
-  micMute: ToolStrings.micMute,
-  emptyTrash: ToolStrings.emptyTrashTitle,
-  ejectDisks: ToolStrings.ejectTitle,
-  hiddenFiles: ToolStrings.hiddenFiles,
-  desktopIcons: ToolStrings.desktopIcons,
-  lockScreen: ToolStrings.lockScreenTitle,
-  displayOff: ToolStrings.displayOffTitle,
-  screenSaver: ToolStrings.screenSaverTitle,
+  get darkMode() {
+    return ToolStrings.darkMode;
+  },
+  get micMute() {
+    return ToolStrings.micMute;
+  },
+  get emptyTrash() {
+    return ToolStrings.emptyTrashTitle;
+  },
+  get ejectDisks() {
+    return ToolStrings.ejectTitle;
+  },
+  get hiddenFiles() {
+    return ToolStrings.hiddenFiles;
+  },
+  get desktopIcons() {
+    return ToolStrings.desktopIcons;
+  },
+  get lockScreen() {
+    return ToolStrings.lockScreenTitle;
+  },
+  get displayOff() {
+    return ToolStrings.displayOffTitle;
+  },
+  get screenSaver() {
+    return ToolStrings.screenSaverTitle;
+  },
 };
 
 function ToggleRows() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const patch = useSettings((s) => s.patch);
   const order = toggleOrder(island).filter((id) => id !== "micMute" || !!externals().mic);
@@ -82,6 +103,7 @@ function ToggleRows() {
 }
 
 function EjectExclusions() {
+  useLocale();
   const excluded = useSettings((s) => s.prefs.island.ejectExcluded);
   const set = useSettings((s) => s.island);
   const [draft, setDraft] = useState<string | null>(null);
@@ -93,7 +115,7 @@ function EjectExclusions() {
         id="eject-excluded"
         rows={2}
         spellCheck={false}
-        placeholder={"Backup\nE:"}
+        placeholder={t("windows.settings.backupE")}
         value={draft ?? excluded.join("\n")}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={() => {
@@ -111,28 +133,32 @@ function EjectExclusions() {
 }
 
 export function ToolsOptions() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   return (
     <>
       <p className="st-note">{T.content.toolsGridCaption}</p>
-      <SubRow title="Screenshot preview duration" caption="Pauses while hovered. Never affects pinned screenshots.">
+      <SubRow
+        title={t("windows.settings.screenshotPreviewDuration")}
+        caption={t("windows.settings.pausesWhileHoveredNeverAffectsPinnedScreenshots")}
+      >
         <Select<string>
-          label="Screenshot preview duration"
+          label={t("windows.settings.screenshotPreviewDuration")}
           value={String(island.screenshotPreviewDuration)}
           options={[0, 3, 5, 8, 15, 30, 60].map((seconds) => ({
             value: String(seconds),
-            label: seconds === 0 ? "Until closed" : `${seconds} seconds`,
+            label: seconds === 0 ? t("windows.settings.label") : tf("windows.settings.label74957d", seconds),
           }))}
           onChange={(value) => set("screenshotPreviewDuration", Number(value))}
         />
       </SubRow>
       <SubRow
-        title="Dismiss screenshot preview on focus loss"
-        caption="After clicking the preview, switching to another app closes it. Pinned previews stay open."
+        title={t("windows.settings.dismissScreenshotPreviewOnFocusLoss")}
+        caption={t("windows.settings.afterClickingThePreviewSwitchingToAnotherApp")}
       >
         <Toggle
-          label="Dismiss screenshot preview on focus loss"
+          label={t("windows.settings.dismissScreenshotPreviewOnFocusLoss")}
           checked={island.screenshotPreviewDismissOnBlur}
           onChange={(on) => set("screenshotPreviewDismissOnBlur", on)}
         />
@@ -166,6 +192,7 @@ export function ToolsOptions() {
 }
 
 export function ScratchpadOptions() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const sizes: { value: string; label: string }[] = [];

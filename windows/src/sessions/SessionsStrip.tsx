@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The closed island while sessions run (NotchClaudeSessionStrip.swift; spec
 // §4.2): the most pressing phase on one side of the camera, how many
 // sessions are in each phase on the other. Clicking opens the Sessions page,
@@ -50,6 +52,7 @@ export function stripWing(counts: Counts, stripHeight: number): number {
 }
 
 export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Size }) {
+  useLocale();
   const counts = useSessions((s) => presentedSnapshot(s).counts);
   const textSize = stripTextSize(geometry.stripHeight);
   const capsule = geometry.floatingGap !== null;

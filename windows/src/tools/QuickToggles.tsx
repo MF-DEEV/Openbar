@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // Quick toggles hosted in the Tools page (QuickTogglesList,
 // QuickTogglesSection.swift; spec 05 §7.3): one row per action in the
 // person's order, each showing what a click will do, and running or
@@ -84,6 +86,7 @@ function row(id: ToggleId, info: ToggleState | null, run: RunState | undefined, 
 }
 
 export function QuickToggles({ height }: { height: number }) {
+  useLocale();
   const settings = useIsland((s) => s.settings);
   const info = useTools((s) => s.toggleInfo);
   const runs = useTools((s) => s.toggleRuns);

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../../i18n/index";
+
 // A shortcut that records the next combination when clicked
 // (ShortcutRecorderButton.swift): it reads "Press keys" until a key with
 // Ctrl, Alt or Win comes, and Escape or a click elsewhere keeps the old one.
@@ -25,6 +27,7 @@ export function ShortcutField(props: {
   className?: string;
   disabled?: boolean;
 }) {
+  useLocale();
   const [recording, setRecording] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const latest = useRef(props);

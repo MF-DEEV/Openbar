@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../../i18n/index";
+
 // Only when the island page is opened in a plain browser with ?clawd: a
 // sheet of Clawds in every motion and size, and a working wardrobe, for
 // designing and for comparing with the Mac.
@@ -29,6 +31,7 @@ const SESSIONS: { id: string; name: string; project: string; phase: SessionPhase
 const store = localCostumeStore();
 
 export function ClawdPreview() {
+  useLocale();
   const [kept, setKept] = useState(() => store.all());
   const [dressing, setDressing] = useState(SESSIONS[0].id);
   // Back-dated a little so the sheet shows a mix of moments, not one.

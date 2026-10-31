@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { tf } from "../i18n/index";
+
 // The capture tools from the island's side: collapse, wait for the window
 // to settle (the island must not be in the frozen picture, NotchService
 // perform), run the selection, then say what happened in a notice, as the
@@ -48,7 +50,7 @@ export function noticeFor(outcome: CaptureOutcome): Notice | null {
       return {
         ...base,
         title: S.screenshot,
-        detail: outcome.previewError ? `${detail} · Preview unavailable: ${outcome.previewError}` : detail,
+        detail: outcome.previewError ? tf("windows.tools.detail", detail, outcome.previewError) : detail,
         image: outcome.thumbnail ?? undefined,
       };
     }

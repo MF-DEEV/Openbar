@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The Files page (NotchFilesView.swift; spec 05 §6.1). Tiles fill the
 // page's height in rows and continue sideways; an empty shelf shows a
 // dashed drop area. The top row holds the hint or "n selected" (or the ZIP's
@@ -22,6 +24,7 @@ import { TILE, Tile } from "./Tile";
 import "./files.css";
 
 export function FilesPage() {
+  useLocale();
   const items = useFiles((s) => s.items);
   const selection = useFiles((s) => s.selection.ids);
   // Escape lets go of the selection before it closes the island.
@@ -45,6 +48,7 @@ export function FilesPage() {
 
 /** Rows fill the height; columns run on sideways and scroll (ShelfTileLayout sideways). */
 function Rail() {
+  useLocale();
   const items = useFiles((s) => s.items);
   const expanded = useFiles((s) => s.expanded);
   const arrivals = useFiles((s) => s.arrivals);
@@ -94,6 +98,7 @@ function Rail() {
 
 /** How the last ZIP ended (NotchFilesView.archiveStatus). */
 function ArchiveStatus() {
+  useLocale();
   const zip = useFiles((s) => s.zip);
   if (zip.running) return null;
   if (zip.failure && zip.failure.kind !== "cancelled") {
@@ -118,6 +123,7 @@ function ArchiveStatus() {
 
 /** The band's left: the ZIP's progress, else guidance or how many are selected. */
 export function FilesLeading() {
+  useLocale();
   const zip = useFiles((s) => s.zip);
   const count = useFiles((s) => s.selection.ids.size);
   const empty = useFiles((s) => s.items.length === 0);
@@ -143,6 +149,7 @@ export function FilesLeading() {
 
 /** The band's right: Create ZIP, Share, then the trash (NotchFilesView.shelfActions). */
 export function FilesTrailing() {
+  useLocale();
   const items = useFiles((s) => s.items);
   const selection = useFiles((s) => s.selection.ids);
   const running = useFiles((s) => s.zip.running);
@@ -189,6 +196,7 @@ export function FilesTrailing() {
 
 /** The wand's popover: Create ZIP and what it does (270 wide, 14 in). */
 function ZipPopover(props: { anchor: HTMLElement; onClose(): void; onZip(): void }) {
+  useLocale();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   usePageLayer(true, props.onClose);

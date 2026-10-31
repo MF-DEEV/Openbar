@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The companion over an activity's closed strip, which steps aside while it
 // visits or comes out to react (NotchMascotActivityVisit).
 
@@ -13,6 +15,7 @@ import { activityTrack, endsOutOfSight, takesOnlyItsWing, watchesTimer } from ".
 import { mascotLook, restingMood, useMascot } from "./service";
 
 export function MascotActivityVisit(props: { geometry: Geometry; strip: Size; children: ReactNode }) {
+  useLocale();
   const { geometry, strip } = props;
   const mascot = useMascot();
   const settings = useIsland((s) => s.settings);

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, tf } from "../i18n/index";
+
 // The switches under the mixer's devices, as the Mac's island draws them
 // (MixerOptionsControls in MixerSection.swift, SoundOutputSwitcherControls,
 // AudioPriorityDisclosure in AudioPrioritySection.swift): lower the volume
@@ -41,6 +43,7 @@ type Island = ReturnType<typeof useIsland.getState>["settings"];
 const save = (patch: Partial<Island>) => void setPrefs({ island: patch });
 
 function Message(props: { icon: ReactNode; children: ReactNode }) {
+  useLocale();
   return (
     <p className="mx-option-message">
       <span aria-hidden="true">{props.icon}</span>
@@ -50,10 +53,12 @@ function Message(props: { icon: ReactNode; children: ReactNode }) {
 }
 
 function Caption({ children }: { children: ReactNode }) {
+  useLocale();
   return <p className="mx-option-caption">{children}</p>;
 }
 
 export function HeadphoneGuard() {
+  useLocale();
   const on = useIsland((s) => s.settings.mixerLowerVolumeOnHeadphonesDisconnect);
   const level = useIsland((s) => s.settings.mixerHeadphonesDisconnectVolumePercent);
   const set = (v: number) => save({ mixerHeadphonesDisconnectVolumePercent: Math.min(100, Math.max(0, v)) });
@@ -86,6 +91,7 @@ export function HeadphoneGuard() {
 }
 
 export function PreciseRoller() {
+  useLocale();
   const on = useIsland((s) => s.settings.preciseVolumeRollerEnabled);
   const failed = useAudio((s) => s.state.rollerFailed);
   return (
@@ -98,6 +104,7 @@ export function PreciseRoller() {
 }
 
 export function OutputSwitcher() {
+  useLocale();
   const on = useIsland((s) => s.settings.soundOutputSwitcherEnabled);
   const shortcut = useIsland((s) => s.settings.soundOutputSwitcherShortcut);
   const chosen = useIsland((s) => s.settings.soundOutputSwitcherDevices);
@@ -182,6 +189,7 @@ function usePendingOrder(server: string[]) {
 }
 
 function PriorityList(props: { output: boolean; devices: RankedDevice[]; currentId: string | undefined }) {
+  useLocale();
   const serverIds = props.devices.map((d) => d.id);
   const [ids, setLocal] = usePendingOrder(serverIds);
   const send = (next: string[]) => {
@@ -217,7 +225,7 @@ function PriorityList(props: { output: boolean; devices: RankedDevice[]; current
             className={`mx-priority-row${current ? " is-current" : ""}${reorder.moving === id ? " is-moving" : ""}`}
             tabIndex={0}
             aria-label={`${index + 1}. ${name}${current ? `, ${S.priorityCurrent}` : ""}${device?.available === false ? `, ${S.priorityUnavailable}` : ""}`}
-            title={`${S.priorityMoveUp} / ${S.priorityMoveDown}: Alt+↑ / Alt+↓`}
+            title={tf("windows.mixer.valueValueAltAlt", S.priorityMoveUp, S.priorityMoveDown)}
             onKeyDown={(e) => {
               if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return;
               e.preventDefault();
@@ -244,6 +252,7 @@ function PriorityList(props: { output: boolean; devices: RankedDevice[]; current
 }
 
 function PrioritySubsection(props: { output: boolean }) {
+  useLocale();
   const priority = useAudio((s) => s.state.priority);
   const devices = useAudio((s) => (props.output ? s.state.outputs : s.state.inputs));
   const enabled = props.output ? priority.outputEnabled : priority.inputEnabled;
@@ -270,6 +279,7 @@ function PrioritySubsection(props: { output: boolean }) {
 }
 
 export function AudioPriority(props: { initiallyExpanded?: boolean; showsHeader?: boolean }) {
+  useLocale();
   const [expanded, setExpanded] = useState(props.initiallyExpanded ?? false);
   const header = props.showsHeader ?? true;
   return (

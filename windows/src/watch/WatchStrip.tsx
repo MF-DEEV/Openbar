@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The closed island while an area is watched (NotchWatchStrip beside the
 // camera, NotchCapsuleWatchStrip in the capsule; spec 04 §6.2): the eye,
 // breathing while the area is read and crossed out while its window is
@@ -73,6 +75,7 @@ export function breath(seconds: number): { scale: number; opacity: number } {
 
 /** The watching eye: breathing at ≤ 30 fps while visible, still under reduced motion, crossed out while hidden. */
 export function WatchEye({ size, hidden }: { size: number; hidden: boolean }) {
+  useLocale();
   const ref = useRef<HTMLSpanElement>(null);
   const reduced = useReducedMotion() ?? false;
   useEffect(() => {
@@ -110,10 +113,12 @@ export function WatchEye({ size, hidden }: { size: number; hidden: boolean }) {
 }
 
 function Thumbnail({ src, height }: { src: string; height: number }) {
+  useLocale();
   return <img className="wt-thumbnail" src={src} alt="" style={{ width: THUMBNAIL_WIDTH, height }} />;
 }
 
 export function WatchStrip({ geometry, size }: ActivityViewProps) {
+  useLocale();
   const s = useWatch((state) => state.snapshot);
   const hidden = s.phase === "hidden";
   const label = s.headline ? `${S.title}: ${s.headline}` : S.title;

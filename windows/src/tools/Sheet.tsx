@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // A question asked inside the island (spec 05 §0, "confirmations above the
 // island"): the island is topmost, so a system dialog without it as parent
 // would open behind it. Covers the page, keeps the keyboard inside, and
@@ -20,6 +22,7 @@ export function Sheet(props: {
   onConfirm(value: string): void;
   onCancel(): void;
 }) {
+  useLocale();
   const [value, setValue] = useState(props.field?.value ?? "");
   const input = useRef<HTMLInputElement>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);

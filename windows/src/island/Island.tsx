@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The island page: wires the store to the surface, the pointer and keyboard
 // to the store, and the window's focus to whether the island is open.
 
@@ -159,6 +161,7 @@ function useFocus(menuOpen: boolean) {
 
 /** Turned off in Settings › General: nothing drawn, and nothing left to catch the pointer. */
 function Disabled() {
+  useLocale();
   useEffect(() => {
     useIsland.getState().collapse();
     void bridge.setHitRects([]);
@@ -168,6 +171,7 @@ function Disabled() {
 }
 
 export function Island() {
+  useLocale();
   useWindowScreen();
   useKeyboard();
   const contextMenu = useIslandContextMenu();

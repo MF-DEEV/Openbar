@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { dateTimeFormat, formattingLocale, useLocale, t } from "../i18n";
+
 // The Watch page (NotchWatchView.swift; spec 04 §6.2): before anything is
 // watched, what it does and the one step that starts it; then the live
 // area with its reading, the rule, and since when it's watched. What is
@@ -23,7 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
-import { t } from "../i18n";
+
 import { useIsland } from "../island/store";
 import { IconButton, PillButton } from "../island/views/Controls";
 import type { PageProps } from "../island/views/Expanded";
@@ -44,13 +46,13 @@ export const CONDITION_ICONS: Record<WatchCondition, LucideIcon> = {
 const STACKED_SETUP_HEIGHT = 176;
 
 /** "14:05", in the person's own time format. */
-export const clockTime = (ms: number) => new Date(ms).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+export const clockTime = (ms: number) => dateTimeFormat({ hour: "2-digit", minute: "2-digit" }).format(new Date(ms));
 
 /** A typed target as the field shows it again: without grouping (NotchWatchSupport.formatted). */
 export const formatTarget = (value: number | null) =>
   value === null
     ? ""
-    : new Intl.NumberFormat(undefined, { maximumFractionDigits: 2, useGrouping: false }).format(value);
+    : new Intl.NumberFormat(formattingLocale(), { maximumFractionDigits: 2, useGrouping: false }).format(value);
 
 /** "App · window title", or the app alone when the title says the same. */
 export function watchedTitle(s: WatchSnapshot): string {
@@ -61,6 +63,7 @@ export function watchedTitle(s: WatchSnapshot): string {
 }
 
 export function WatchPage({ height }: PageProps) {
+  useLocale();
   const s = useWatch((state) => state.snapshot);
   if (!s.target) return <Setup stacked={height >= STACKED_SETUP_HEIGHT} />;
   return (
@@ -74,6 +77,7 @@ export function WatchPage({ height }: PageProps) {
 
 /** The app's icon and name, then its window's title (the band's left). */
 export function WatchLeading() {
+  useLocale();
   const s = useWatch((state) => state.snapshot);
   const hasExploreBubble = useIsland((state) => state.settings.quickAccess.some((b) => b.action.kind === "explore"));
   const target = s.target;
@@ -107,6 +111,7 @@ export function WatchLeading() {
 
 /** Choose again and Stop (the band's right). */
 export function WatchTrailing() {
+  useLocale();
   const watching = useWatch((state) => state.snapshot.target !== null);
   if (!watching) return null;
   return (
@@ -118,6 +123,7 @@ export function WatchTrailing() {
 }
 
 function Setup({ stacked }: { stacked: boolean }) {
+  useLocale();
   return (
     <div className={`wt-setup${stacked ? " is-stacked" : ""}`}>
       <div className="n-empty-glyph" aria-hidden>
@@ -135,6 +141,7 @@ function Setup({ stacked }: { stacked: boolean }) {
 
 /** The live area with its reading below it, and what happened once the watch ended. */
 function AreaCard({ s }: { s: WatchSnapshot }) {
+  useLocale();
   const hidden = s.phase === "hidden";
   const full = s.text.replace(/\n/g, " ");
   return (
@@ -167,6 +174,7 @@ function AreaCard({ s }: { s: WatchSnapshot }) {
 
 /** The picture fit inside its box, as large as fits, keeping its corners round. */
 function FittedImage({ src, dimmed }: { src: string; dimmed: boolean }) {
+  useLocale();
   const box = useRef<HTMLDivElement>(null);
   const [natural, setNatural] = useState<{ w: number; h: number } | null>(null);
   const [room, setRoom] = useState<{ w: number; h: number } | null>(null);
@@ -195,6 +203,7 @@ function FittedImage({ src, dimmed }: { src: string; dimmed: boolean }) {
 
 /** What the island shows, picked automatically or line by line when the automatic pick lands on the wrong words. */
 function HeadlineMenu({ s }: { s: WatchSnapshot }) {
+  useLocale();
   const menu = useMenu();
   const entries: MenuEntry[] = [
     { kind: "header", label: S.inIsland },
@@ -230,6 +239,7 @@ function HeadlineMenu({ s }: { s: WatchSnapshot }) {
  * the rule can still change, for the next Watch again.
  */
 function RuleRow({ s }: { s: WatchSnapshot }) {
+  useLocale();
   const menu = useMenu();
   const [draftText, setDraftText] = useState(s.matchText);
   const [draftNumber, setDraftNumber] = useState(() => formatTarget(s.matchNumber));
@@ -283,6 +293,7 @@ function RuleRow({ s }: { s: WatchSnapshot }) {
 }
 
 function Footer({ s }: { s: WatchSnapshot }) {
+  useLocale();
   if (s.phase === "finished") {
     return (
       <div className="wt-footer">

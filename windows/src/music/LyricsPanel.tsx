@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t, useLocale, tf } from "../i18n";
+
 import { AudioLines, FilePlus2, Minus, Plus } from "lucide-react";
 import { memo, useEffect, useRef, useState } from "react";
 import { activeIndex, MAX_LRC_BYTES, nextLyricDelay, songKey } from "./lyrics";
@@ -11,6 +13,7 @@ import { position } from "./types";
 
 /** The panel while it is on screen; lookups follow this, not the toggle alone. */
 export function LyricsSection() {
+  useLocale();
   const key = useLyrics((s) => s.key);
   useEffect(() => {
     useLyrics.getState().setVisible(true);
@@ -24,6 +27,7 @@ export function LyricsSection() {
 }
 
 function LyricsPanel() {
+  useLocale();
   const lyrics = useLyrics((s) => s.lyrics);
   const status = useLyrics((s) => s.status);
   const offset = useLyrics((s) => s.offset);
@@ -33,29 +37,29 @@ function LyricsPanel() {
   const [fileError, setFileError] = useState<string | null>(null);
   const song = useMusic((s) => s.playback);
   return (
-    <section className="m-lyrics" aria-label="Song lyrics">
+    <section className="m-lyrics" aria-label={t("windows.music.songLyrics")}>
       {lyrics && !lyrics.instrumental ? (
         <LyricText />
       ) : (
         <div className="m-lyrics-empty" role="status">
           {status === "consent"
-            ? "Lyrics aren't looked up online. While lyrics are open, the song title, artist, album and duration go to lrclib.net. You can also import an .lrc file."
+            ? t("windows.music.lyricsArenTLookedUpOnlineWhileLyrics")
             : status === "loading"
-              ? "Finding lyrics…"
+              ? t("windows.music.findingLyrics")
               : status === "failed"
-                ? "Could not load lyrics. Check your connection."
+                ? t("windows.music.couldNotLoadLyricsCheckYourConnection")
                 : lyrics?.instrumental
-                  ? "Instrumental"
-                  : "Lyrics unavailable for this song."}
+                  ? t("notchMusicExtras.instrumental")
+                  : t("windows.music.lyricsUnavailableForThisSong")}
           {status === "consent" ? (
             <button type="button" onClick={() => void setPrefs({ island: { lyricsOnline: true } })}>
-              Find lyrics online
+              {t("notchMusicExtras.online")}
             </button>
           ) : (
             status !== "loading" &&
             !lyrics && (
               <button type="button" onClick={() => void useLyrics.getState().select(song, true)}>
-                Retry
+                {t("windows.music.retry")}
               </button>
             )
           )}
@@ -64,8 +68,8 @@ function LyricsPanel() {
       <div className="m-lyrics-tools">
         <button
           type="button"
-          aria-label="Import .lrc lyrics"
-          title="Import .lrc lyrics"
+          aria-label={t("windows.music.importLrcLyrics")}
+          title={t("windows.music.importLrcLyrics")}
           onClick={() => {
             importKey.current = useLyrics.getState().key;
             input.current?.click();
@@ -75,11 +79,11 @@ function LyricsPanel() {
         </button>
         {lyrics?.lines.length ? (
           <>
-            <span>Timing</span>
+            <span>{t("notchMusicExtras.offset")}</span>
             <span className="m-lyrics-spacer" />
             <button
               type="button"
-              aria-label="Lyrics earlier by 0.5 seconds"
+              aria-label={t("windows.music.lyricsEarlierBy05Seconds")}
               disabled={offset <= -10}
               onClick={() => useLyrics.getState().adjustOffset(-0.5)}
             >
@@ -88,16 +92,20 @@ function LyricsPanel() {
             <button
               type="button"
               className="m-lyrics-offset"
-              title="Reset timing"
-              aria-label={`Timing ${offset > 0 ? "+" : ""}${offset.toFixed(2)} seconds. Reset timing`}
+              title={t("windows.music.resetTiming")}
+              aria-label={tf(
+                "windows.music.timingValueValueSecondsResetTiming",
+                offset > 0 ? "+" : "",
+                offset.toFixed(2),
+              )}
               onClick={() => useLyrics.getState().adjustOffset(-offset)}
             >
               {offset >= 0 ? "+" : ""}
-              {offset.toFixed(2)} s
+              {offset.toFixed(2)} {t("windows.music.s")}
             </button>
             <button
               type="button"
-              aria-label="Lyrics later by 0.5 seconds"
+              aria-label={t("windows.music.lyricsLaterBy05Seconds")}
               disabled={offset >= 10}
               onClick={() => useLyrics.getState().adjustOffset(0.5)}
             >
@@ -105,7 +113,7 @@ function LyricsPanel() {
             </button>
           </>
         ) : (
-          <span>Import .lrc lyrics</span>
+          <span>{t("windows.music.importLrcLyrics")}</span>
         )}
         <input
           ref={input}
@@ -119,13 +127,13 @@ function LyricsPanel() {
             if (!file || !expected) return;
             setFileError(null);
             if (!file.name.toLowerCase().endsWith(".lrc") || file.size > MAX_LRC_BYTES) {
-              setFileError("Choose an .lrc file up to 128 KB.");
+              setFileError(t("windows.music.chooseAnLrcFileUpTo128KB"));
               return;
             }
             try {
               useLyrics.getState().importLrc(await file.text(), expected);
             } catch {
-              if (useLyrics.getState().key === expected) setFileError("Could not read this file.");
+              if (useLyrics.getState().key === expected) setFileError(t("windows.music.couldNotReadThisFile"));
             }
           }}
         />
@@ -140,6 +148,7 @@ function LyricsPanel() {
 }
 
 function LyricText() {
+  useLocale();
   const playback = useMusic((s) => s.playback);
   const lyrics = useLyrics((s) => s.lyrics)!;
   const offset = useLyrics((s) => s.offset);
@@ -173,6 +182,7 @@ const Verses = memo(function Verses({
   active: number;
   timed: boolean;
 }) {
+  useLocale();
   const scroll = useRef<HTMLDivElement>(null);
   const following = useRef(true);
   const [showSync, setShowSync] = useState(false);
@@ -245,7 +255,7 @@ const Verses = memo(function Verses({
         className="m-lyrics-scroll"
         ref={scroll}
         tabIndex={0}
-        aria-label="Lyrics"
+        aria-label={t("notchMusicExtras.lyrics")}
         data-lyrics-scroll
         onWheel={browse}
         onPointerDown={browse}
@@ -255,16 +265,16 @@ const Verses = memo(function Verses({
           if (["ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End", " "].includes(event.key)) browse();
         }}
       >
-        {!timed && <p className="m-lyrics-hint">This player does not provide a playback timeline.</p>}
+        {!timed && <p className="m-lyrics-hint">{t("windows.music.thisPlayerDoesNotProvideAPlaybackTimeline")}</p>}
         {lyrics.lines.length ? (
           <>
-            {timed && active < 0 && <p className="m-lyrics-hint">Waiting for lyrics…</p>}
+            {timed && active < 0 && <p className="m-lyrics-hint">{t("windows.music.waitingForLyrics")}</p>}
             {lyrics.lines.map((line, index) => (
               <button
                 type="button"
                 key={line.time}
                 disabled={!timed || !canSeek}
-                title={timed && canSeek ? "Play from this line" : undefined}
+                title={timed && canSeek ? t("windows.music.playFromThisLine") : undefined}
                 onClick={() => void playVerse(index).catch(() => useMusic.setState({ failed: true }))}
                 data-line={index}
                 aria-current={index === active ? "true" : undefined}
@@ -290,7 +300,7 @@ const Verses = memo(function Verses({
           }}
         >
           <AudioLines size={16} aria-hidden="true" />
-          Sync
+          {t("windows.music.sync")}
         </button>
       )}
     </div>

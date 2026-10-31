@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t } from "../i18n/index";
+
 export const IMAGE_LIMIT = 5;
 export const IMAGE_BYTES = 20 * 1024 * 1024;
 
@@ -28,12 +30,14 @@ export function isImagePasteShortcut(
 }
 
 export function imageDataUrl(file: File): Promise<string> {
-  if (file.size > IMAGE_BYTES) return Promise.reject(new Error("Image must be smaller than 20 MB"));
+  if (file.size > IMAGE_BYTES) return Promise.reject(new Error(t("windows.sessions.imageMustBeSmallerThan20MB")));
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () =>
-      typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Cannot read image"));
-    reader.onerror = () => reject(new Error("Cannot read image"));
+      typeof reader.result === "string"
+        ? resolve(reader.result)
+        : reject(new Error(t("windows.sessions.cannotReadImage")));
+    reader.onerror = () => reject(new Error(t("windows.sessions.cannotReadImage")));
     reader.readAsDataURL(file);
   });
 }

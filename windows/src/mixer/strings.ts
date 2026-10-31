@@ -1,81 +1,201 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t, tf } from "../i18n/index";
+
 // The mixer's words, in the Mac's English (Localization, MixerFeatureStrings).
 
 export const S = {
-  section: "Volume mixer",
-  empty: "Apps that use audio show up here",
+  get section() {
+    return t("s.mixerSection");
+  },
+  get empty() {
+    return t("s.mixerEmpty");
+  },
   /** Windows' own: the audio service didn't answer. */
-  unavailable: "Windows audio isn't responding",
-  output: "Output",
-  outputUnavailable: "Output unavailable",
-  noOutputs: "No outputs found",
-  couldNotSwitch: (error: string) => `Could not switch: ${error}`,
-  chooseOutput: "Choose output",
-  microphone: "Microphone",
-  chooseMicrophone: "Choose microphone",
-  noMicrophones: "No microphones found",
-  micMute: "Mute microphone",
-  micUnmute: "Unmute microphone",
-  mute: "Mute",
-  unmute: "Unmute",
-  reset: "Reset to 100%",
-  options: "Options",
-  close: "Close",
-  hideInactive: "Hide inactive apps",
-  visibleApps: "Apps in the list",
-  allShown: "All",
-  hidden: (n: number) => `Hidden: ${n}`,
-  hideFromList: "Hide from the list",
-  pinFirst: "Pin to Front",
-  unpin: "Unpin",
-  moveLeft: "Move Left",
-  moveRight: "Move Right",
-  actions: "Actions",
+  get unavailable() {
+    return t("windows.mixer.unavailable");
+  },
+  get output() {
+    return t("s.mixerSystemOutputTitle");
+  },
+  get outputUnavailable() {
+    return t("s.mixerOutputUnavailable");
+  },
+  get noOutputs() {
+    return t("s.mixerSystemOutputNoDevices");
+  },
+  couldNotSwitch: (error: string) => tf("s.mixerInputErrorFormat", error),
+  get chooseOutput() {
+    return t("s.mixerOutputTooltip");
+  },
+  get microphone() {
+    return t("s.mixerInputTitle");
+  },
+  get chooseMicrophone() {
+    return t("s.mixerInputTooltip");
+  },
+  get noMicrophones() {
+    return t("s.mixerInputNoDevices");
+  },
+  get micMute() {
+    return t("s.micMuteName");
+  },
+  get micUnmute() {
+    return t("s.micUnmuteName");
+  },
+  get mute() {
+    return t("s.actionMute");
+  },
+  get unmute() {
+    return t("s.actionUnmute");
+  },
+  get reset() {
+    return t("s.mixerResetTooltip");
+  },
+  get options() {
+    return t("s.keepAwakeOptions");
+  },
+  get close() {
+    return t("permissionGuide.closeHelp");
+  },
+  get hideInactive() {
+    return t("mixer.hideInactiveApps");
+  },
+  get visibleApps() {
+    return t("s.mixerVisibleApps");
+  },
+  get allShown() {
+    return t("s.mixerAllShown");
+  },
+  hidden: (n: number) => tf("windows.mixer.hidden", n),
+  get hideFromList() {
+    return t("s.mixerHideFromList");
+  },
+  get pinFirst() {
+    return t("mixer.pinFirst");
+  },
+  get unpin() {
+    return t("mixer.unpin");
+  },
+  get moveLeft() {
+    return t("mixer.moveLeft");
+  },
+  get moveRight() {
+    return t("mixer.moveRight");
+  },
+  get actions() {
+    return t("mixer.actions");
+  },
   /** The Mac's Command-drag, on Windows' Ctrl. */
-  arrange: "Hold Ctrl and drag to reorder",
-  systemSounds: "System sounds",
+  get arrange() {
+    return t("windows.mixer.arrange");
+  },
+  get systemSounds() {
+    return t("s.mixerSoundEffectsOutputTitle");
+  },
   // MixerOptionsControls, SoundOutputSwitcherControls, AudioPriorityDisclosure.
-  lowerOnHeadphonesDisconnect: "Lower volume when headphones disconnect",
-  lowerOnHeadphonesDisconnectCaption: "Adjusts output when wired or Bluetooth headphones disconnect.",
-  headphonesDisconnectVolume: "Volume after disconnect",
-  lower: "Lower",
-  raise: "Raise",
-  preciseRoller: "Use finer volume steps",
-  preciseRollerCaption: "Turns volume wheels and keys into smaller system volume steps.",
+  get lowerOnHeadphonesDisconnect() {
+    return t("s.mixerLowerOnHeadphonesDisconnect");
+  },
+  get lowerOnHeadphonesDisconnectCaption() {
+    return t("s.mixerLowerOnHeadphonesDisconnectCaption");
+  },
+  get headphonesDisconnectVolume() {
+    return t("s.mixerHeadphonesDisconnectVolume");
+  },
+  get lower() {
+    return t("windows.mixer.lower");
+  },
+  get raise() {
+    return t("windows.mixer.raise");
+  },
+  get preciseRoller() {
+    return t("s.preciseVolumeRollerEnable");
+  },
+  get preciseRollerCaption() {
+    return t("s.preciseVolumeRollerCaption");
+  },
   /** preciseVolumeRollerTapFailed. */
-  preciseRollerFailed: "Could not listen for volume keys.",
-  switcher: "Switch outputs with shortcut",
-  switcherCaption: "Choose outputs and use the shortcut to move to the next available one.",
-  switcherTitle: "Output switcher",
-  switcherDevices: "Outputs in cycle",
-  switcherNoAvailable: "Select at least one available output.",
+  get preciseRollerFailed() {
+    return t("s.preciseVolumeRollerTapFailed");
+  },
+  get switcher() {
+    return t("s.soundOutputSwitcherEnable");
+  },
+  get switcherCaption() {
+    return t("s.soundOutputSwitcherCaption");
+  },
+  get switcherTitle() {
+    return t("s.soundOutputSwitcherTitle");
+  },
+  get switcherDevices() {
+    return t("s.soundOutputSwitcherDevices");
+  },
+  get switcherNoAvailable() {
+    return t("s.soundOutputSwitcherNoAvailableSelection");
+  },
   /** shelfHotkeyLabel. */
-  shortcut: "Shortcut",
+  get shortcut() {
+    return t("commandBar.appShortcutLabel");
+  },
   /** shortcutPressKeys, on the field while it records. */
-  shortcutPressKeys: "Press keys",
+  get shortcutPressKeys() {
+    return t("s.shortcutPressKeys");
+  },
   /** ShortcutRecordingCaption: shortcutRecording and shortcutEscapeHint. */
-  shortcutRecordingCaption: "Press the new shortcut. Escape cancels.",
-  shortcutReset: "Reset",
+  get shortcutRecordingCaption() {
+    return t("windows.mixer.shortcutRecordingCaption");
+  },
+  get shortcutReset() {
+    return t("notchAgents.confirmReset");
+  },
   /** shortcutInvalid, with Windows' modifier names. */
-  shortcutInvalid: "Use at least Ctrl, Alt or Win with a key.",
+  get shortcutInvalid() {
+    return t("windows.mixer.shortcutInvalid");
+  },
   /** shortcutUnavailable, with Windows in place of macOS. */
-  shortcutUnavailable: "Windows rejected this shortcut. Choose another one.",
+  get shortcutUnavailable() {
+    return t("windows.mixer.shortcutUnavailable");
+  },
   /** shortcutConflictFormat, naming what already holds the keys. */
   shortcutConflict: (who: "island" | "sessions") =>
-    `This shortcut is already used by ${who === "island" ? "Show or hide the island" : "Sessions approvals"}.`,
-  priority: "Audio priority",
-  priorityCaption:
-    "Devices are selected in priority order. When a higher-priority device connects, it becomes active. When the active one disconnects, the next available takes over.",
-  priorityOutputs: "Output priority",
-  priorityInputs: "Microphone priority",
-  priorityOutputEnable: "Automatically switch to the highest-priority output",
-  priorityInputEnable: "Automatically switch to the highest-priority microphone",
-  priorityMoveUp: "Move up",
-  priorityMoveDown: "Move down",
-  priorityUnavailable: "Unavailable",
-  priorityCurrent: "Current",
+    tf(
+      "s.shortcutConflictFormat",
+      who === "island" ? t("windows.mixer.shortcutConflict") : t("windows.mixer.shortcutConflicta2974a"),
+    ),
+  get priority() {
+    return t("s.audioPrioritySection");
+  },
+  get priorityCaption() {
+    return t("s.audioPriorityCaption");
+  },
+  get priorityOutputs() {
+    return t("s.audioPriorityOutputList");
+  },
+  get priorityInputs() {
+    return t("s.audioPriorityInputList");
+  },
+  get priorityOutputEnable() {
+    return t("s.audioPriorityOutputEnable");
+  },
+  get priorityInputEnable() {
+    return t("s.audioPriorityInputEnable");
+  },
+  get priorityMoveUp() {
+    return t("mixer.moveUp");
+  },
+  get priorityMoveDown() {
+    return t("mixer.moveDown");
+  },
+  get priorityUnavailable() {
+    return t("notchShape.unavailable");
+  },
+  get priorityCurrent() {
+    return t("s.mixerOutputCurrent");
+  },
   /** mixerOutputCurrent, the "(current)" after a device's name. */
-  current: "current",
+  get current() {
+    return t("s.mixerOutputCurrent");
+  },
 } as const;

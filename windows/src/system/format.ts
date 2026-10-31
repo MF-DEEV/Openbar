@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { tf } from "../i18n/index";
+
 // The monitor's number formats (MetricFormat.swift): byte sizes base 1024,
 // disk sizes and bit rates base 1000, one decimal under ten.
 
@@ -46,14 +48,14 @@ export function diskBytes(n: number): string {
     index++;
   }
   const unit = BYTE_UNITS[index]!;
-  if (unit === "B") return `${value.toFixed(0)} B`;
+  if (unit === "B") return tf("windows.system.valueB", value.toFixed(0));
   return `${value < 10 ? value.toFixed(1) : value.toFixed(0)} ${unit}`;
 }
 
 /** A throughput, e.g. "1.2 MB/s". */
 export function bytesPerSec(n: number): string {
   const { value, unit } = scale(n);
-  return `${number(value, unit)} ${unit}/s`;
+  return tf("windows.system.valueValueS", number(value, unit), unit);
 }
 
 /** A compact throughput, e.g. "1.2M", "320K", "0B". */
@@ -115,7 +117,9 @@ export const networkRateCompact = (n: number, inBits: boolean) =>
 
 /** Power, e.g. "8.5 W" / "23 W". */
 export function watts(value: number): string {
-  return Math.abs(value) < 10 ? `${value.toFixed(1)} W` : `${value.toFixed(0)} W`;
+  return Math.abs(value) < 10
+    ? tf("windows.system.valueW", value.toFixed(1))
+    : tf("windows.system.valueW", value.toFixed(0));
 }
 
 /** Compact power, e.g. "9W". */
@@ -129,8 +133,8 @@ export function uptime(seconds: number): string {
   const days = Math.floor(total / 86_400);
   const hours = Math.floor((total % 86_400) / 3_600);
   const minutes = Math.floor((total % 3_600) / 60);
-  if (days > 0) return `${days}d ${hours}h`;
-  if (hours > 0) return `${hours}h ${minutes}min`;
+  if (days > 0) return tf("windows.system.valueDValueH", days, hours);
+  if (hours > 0) return tf("windows.system.valueHValueMin", hours, minutes);
   return `${minutes}min`;
 }
 
@@ -138,7 +142,7 @@ export function uptime(seconds: number): string {
 export function batteryTime(seconds: number | null): string | null {
   if (seconds === null || !Number.isFinite(seconds) || seconds <= 0) return null;
   const minutes = Math.max(1, Math.floor(seconds / 60));
-  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+  return tf("windows.system.valueHValueM", Math.floor(minutes / 60), minutes % 60);
 }
 
 /** A graph's top: the peak rounded up to 1, 2 or 5 of a unit, so its label reads round. */

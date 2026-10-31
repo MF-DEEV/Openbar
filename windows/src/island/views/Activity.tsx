@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../../i18n/index";
+
 // The closed island's live activity strip: each section registers the view
 // that draws its strip (see pages.ts).
 
@@ -18,6 +20,7 @@ export interface ActivityViewProps {
 export const activityViews: Partial<Record<ActivityId, ComponentType<ActivityViewProps>>> = {};
 
 export function ActivityStrip({ id, geometry, size }: { id: ActivityId } & ActivityViewProps) {
+  useLocale();
   const drawn = useContext(DrawnSize) ?? size;
   const View = activityViews[id];
   return View ? <View geometry={geometry} size={drawn} /> : null;

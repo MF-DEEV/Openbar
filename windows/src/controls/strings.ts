@@ -1,35 +1,91 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t } from "../i18n/index";
+
 // The home page's words, in the Mac's English (NotchStrings, Localization,
 // BrightnessStrings, RecentCaptureStrings, RadialMenuStrings).
 
 export const S = {
-  empty: "Choose what appears in Dynamic Island settings.",
-  volume: "Volume",
-  brightness: "Brightness",
-  settings: "Settings…",
-  output: "Output",
-  outputUnavailable: "Output unavailable",
-  mute: "Mute",
-  unmute: "Unmute",
-  noDisplays: "No display found.",
-  keepAwake: "Keep awake",
-  keepAwakeEndsIn: "Ends in",
-  keepAwakeUntilOff: "Active until you turn it off",
-  micMute: "Mute microphone",
-  micUnmute: "Unmute microphone",
-  mixer: "Volume mixer",
-  screenshot: "Screenshot",
-  speedTest: "Speed test",
-  scratchpad: "Scratchpad",
-  nothingPlaying: "Nothing playing",
-  nowPlaying: "Now Playing",
-  musicHint: "Your music and playback controls appear here.",
-  playbackFailed: "Could not change playback.",
-  play: "Play",
-  pause: "Pause",
-  previous: "Previous",
-  next: "Next",
-  muted: "Muted",
+  get empty() {
+    return t("notch.empty");
+  },
+  get volume() {
+    return t("notch.volume");
+  },
+  get brightness() {
+    return t("notch.brightness");
+  },
+  get settings() {
+    return t("s.menuSettings");
+  },
+  get output() {
+    return t("s.mediaOutput");
+  },
+  get outputUnavailable() {
+    return t("s.mixerOutputUnavailable");
+  },
+  get mute() {
+    return t("s.actionMute");
+  },
+  get unmute() {
+    return t("s.actionUnmute");
+  },
+  get noDisplays() {
+    return t("brightness.noDisplays");
+  },
+  get keepAwake() {
+    return t("s.keepAwakeTitle");
+  },
+  get keepAwakeEndsIn() {
+    return t("s.keepAwakeEndsIn");
+  },
+  get keepAwakeUntilOff() {
+    return t("s.keepAwakeUntilDisabled");
+  },
+  get micMute() {
+    return t("s.micMuteName");
+  },
+  get micUnmute() {
+    return t("s.micUnmuteName");
+  },
+  get mixer() {
+    return t("s.mixerSection");
+  },
+  get screenshot() {
+    return t("screenshot.editorTitle");
+  },
+  get speedTest() {
+    return t("s.monitorItemNetTest");
+  },
+  get scratchpad() {
+    return t("scratchpad.pageTitle");
+  },
+  get nothingPlaying() {
+    return t("radialMenu.mediaNothingPlaying");
+  },
+  get nowPlaying() {
+    return t("radialMenu.mediaNowPlaying");
+  },
+  get musicHint() {
+    return t("notch.musicHint");
+  },
+  get playbackFailed() {
+    return t("notchMusicExtras.playbackFailed");
+  },
+  get play() {
+    return t("s.actionPlay");
+  },
+  get pause() {
+    return t("s.actionPause");
+  },
+  get previous() {
+    return t("wallpaper.previousPage");
+  },
+  get next() {
+    return t("wallpaper.nextPage");
+  },
+  get muted() {
+    return t("windows.controls.muted");
+  },
 } as const;

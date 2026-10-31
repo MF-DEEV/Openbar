@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../i18n/index";
+
 // Codex's banked resets (NotchAgentsView.swift:842-1003; spec 03 §3.4): how
 // many the account holds, when the next expires, and a use that asks first.
 // Cancel takes the place of the button that asked, so a double click never
@@ -28,6 +30,7 @@ export function ResetsCard({
   /** Beside added Codex homes, the card says whose resets they are. */
   namesDefaultAccount?: boolean;
 }) {
+  useLocale();
   const [confirming, setConfirming] = useState(false);
   const [redeeming, setRedeeming] = useState(false);
   const [finished, setFinished] = useState<{ outcome: RedeemOutcome; at: number } | null>(null);
@@ -115,7 +118,12 @@ export function ResetsCard({
           <LoaderCircle className="ag-spin" size={11} color="rgba(255,255,255,0.6)" aria-label={A.resetting} />
         ) : null}
       </CardHeader>
-      {namesDefaultAccount ? <div className="ag-caption ag-account-caption">Codex · {A.defaultAccount}</div> : null}
+      {namesDefaultAccount ? (
+        <div className="ag-caption ag-account-caption">
+          {t("windows.agents.codex")}
+          {A.defaultAccount}
+        </div>
+      ) : null}
       {content}
     </Card>
   );
@@ -135,6 +143,7 @@ function failureText(failure: CodexFailure): string {
 }
 
 function Outcome({ outcome }: { outcome: RedeemOutcome }) {
+  useLocale();
   switch (outcome) {
     case "reset":
       return <Line icon={<CircleCheck size={11} color="#30D158" aria-hidden />} text={A.resetDone} plain />;
@@ -153,6 +162,7 @@ function Outcome({ outcome }: { outcome: RedeemOutcome }) {
 
 /** A line of the card's text; with a symbol it reads brighter. */
 function Line(props: { text: string; icon?: ReactNode; plain?: boolean }) {
+  useLocale();
   return (
     <div className={`ag-resets-line${props.plain ? " is-bright" : ""}`}>
       {props.icon}
@@ -163,6 +173,7 @@ function Line(props: { text: string; icon?: ReactNode; plain?: boolean }) {
 
 /** A message above the card's buttons, which keep to its bottom edge. */
 function Action(props: { message: string; emphasized?: boolean; tint?: string; children: ReactNode }) {
+  useLocale();
   return (
     <div className="ag-resets-action">
       {props.message ? (
@@ -181,6 +192,7 @@ function Action(props: { message: string; emphasized?: boolean; tint?: string; c
 
 /** 20 tall, padding 9, Codex's tint at 20 % when prominent, white 10 % otherwise. */
 function Pill(props: { children: ReactNode; prominent?: boolean; icon?: boolean; onClick(): void }) {
+  useLocale();
   const prominent = props.prominent ?? true;
   const label = typeof props.children === "string" ? props.children : undefined;
   return (

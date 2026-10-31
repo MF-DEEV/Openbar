@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+import { setRegionalSettings } from "../i18n";
+beforeEach(() => setRegionalSettings({ preferred: ["en-US"], region: "US", hourCycle: "h12", firstWeekday: 0 }));
 import { pageHeight } from "./AgentsPage";
 import {
   binding,

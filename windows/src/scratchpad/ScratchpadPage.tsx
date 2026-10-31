@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The Scratchpad section (NotchScratchpadView.swift; spec 05 §11): the pad's
 // plain text fills the page on a control surface, or its formatted reading;
 // the top row holds the tabs, a new-pad button and the pad's actions.
@@ -106,6 +108,7 @@ function padMenu(pad: Pad, count: number): MenuEntry[] {
 // MARK: Page
 
 export function ScratchpadPage({ height }: PageProps) {
+  useLocale();
   const doc = useScratchpad((s) => s.doc);
   const loadFailed = useScratchpad((s) => s.loadFailed);
   const saveFailed = useScratchpad((s) => s.saveFailed);
@@ -232,6 +235,7 @@ export function ScratchpadPage({ height }: PageProps) {
 
 /** The formatted reading; its task boxes edit the text they were drawn from. */
 function Preview({ text }: { text: string }) {
+  useLocale();
   const toggle = (offset: number) => {
     const { doc } = useScratchpad.getState();
     if (doc) update(withSelectedText(doc, toggleTaskAt(text, offset), Date.now()));
@@ -271,6 +275,7 @@ function Preview({ text }: { text: string }) {
 // MARK: Top row
 
 export function ScratchpadLeading() {
+  useLocale();
   const doc = useScratchpad((s) => s.doc);
   const loadFailed = useScratchpad((s) => s.loadFailed);
   const menu = useMenu();
@@ -364,6 +369,7 @@ export function ScratchpadLeading() {
 }
 
 export function ScratchpadTrailing() {
+  useLocale();
   const doc = useScratchpad((s) => s.doc);
   const previewing = useScratchpad((s) => s.previewing);
   const loadFailed = useScratchpad((s) => s.loadFailed);

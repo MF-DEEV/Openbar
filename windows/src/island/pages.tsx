@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // Every section page and live activity the Windows island has so far.
 
 import { sessionsPage } from "../sessions/SessionsPage";
@@ -65,6 +67,7 @@ void onPrefs(applyPrefs);
 pages.sessions = sessionsPage;
 pages.music = {
   Page: function Music() {
+    useLocale();
     useMusicHeight();
     return <MusicPage />;
   },

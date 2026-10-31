@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The closed island while an agent works (NotchAgentStrip.swift; spec 03
 // §10.4): the marks of the agents at work on one side of the camera, the
 // reading the person chose on the other. Clicking opens the AI page.
@@ -65,6 +67,7 @@ export function currentReading(snapshot: AgentSnapshot, now: number): string {
 }
 
 export function AgentsStrip({ geometry, size }: { geometry: Geometry; size: Size }) {
+  useLocale();
   const snapshot = useAgents((s) => s.snapshot);
   const readout = useIsland((s) => s.settings.agentsReadout);
   useIsland((s) => s.settings.agentsLimitDisplay);

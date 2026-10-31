@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { dateTimeFormat } from "../i18n/index";
+
 import type { ChatMessage } from "./types";
 
 /** Matches NotchClaudeSessionsSupport.answers(in:): only ended turns have summaries. */
@@ -20,5 +22,5 @@ export function answerMarks(chat: ChatMessage[]) {
 }
 
 export function messageTime(at: number) {
-  return new Date(at * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return dateTimeFormat({ hour: "2-digit", minute: "2-digit" }).format(new Date(at * 1000));
 }

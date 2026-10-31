@@ -1,6 +1,7 @@
-﻿// SPDX-License-Identifier: GPL-3.0-or-later
+// SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t, tf } from "../i18n/index";
 import { SlidersHorizontal } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
@@ -10,6 +11,7 @@ import { usePageLayer } from "../island/pageLayer";
 import { SourcePicker } from "./SourcePicker";
 
 export function VolumeControl({ source, name, accent }: { source: string; name: string; accent: string }) {
+  useLocale();
   const [open, setOpen] = useState(false);
   const reduceMotion = useReducedMotion();
   const [level, setLevel] = useState<number | null>(null);
@@ -134,8 +136,8 @@ export function VolumeControl({ source, name, accent }: { source: string; name: 
       <button
         type="button"
         className={`m-button is-small${open ? " is-selected" : ""}`}
-        aria-label="Music options"
-        title="Music options"
+        aria-label={t("windows.music.musicOptions")}
+        title={t("windows.music.musicOptions")}
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
       >
@@ -148,7 +150,7 @@ export function VolumeControl({ source, name, accent }: { source: string; name: 
               ref={panel}
               className="m-volume-popover"
               role="group"
-              aria-label="Music options"
+              aria-label={t("windows.music.musicOptions")}
               style={position ? { ...position, overflowY: "auto" } : { visibility: "hidden" }}
               initial={{ opacity: 0, y: reduceMotion ? 0 : 6, scale: reduceMotion ? 1 : 0.97 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -156,8 +158,8 @@ export function VolumeControl({ source, name, accent }: { source: string; name: 
               transition={{ duration: reduceMotion ? 0 : 0.18, ease: [0.2, 0.8, 0.2, 1] }}
             >
               <div className="m-volume-label">
-                <span>Volume</span>
-                <span>{!source || failed ? "Unavailable" : level === null ? "..." : level + "%"}</span>
+                <span>{t("notch.volume")}</span>
+                <span>{!source || failed ? t("notchShape.unavailable") : level === null ? "..." : level + "%"}</span>
               </div>
               <input
                 type="range"
@@ -167,7 +169,7 @@ export function VolumeControl({ source, name, accent }: { source: string; name: 
                 step={1}
                 value={level ?? 0}
                 disabled={level === null || failed}
-                aria-label={`${name} volume`}
+                aria-label={tf("windows.music.valueVolume", name)}
                 aria-valuetext={`${level ?? 0}%`}
                 style={{ "--fill": (level ?? 0) + "%", "--accent": accent } as CSSProperties}
                 onPointerDown={() => {

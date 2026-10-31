@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../../i18n/index";
+
 // Draws the island's outline frame by frame from the resize timeline and
 // clips the content to it (NotchWindowHost.swift; spec 01-shell §3.1). The
 // expanded content sits at its destination size; compact content follows
@@ -40,6 +42,7 @@ export function IslandSurface(props: {
   onDrawn?: (size: Size, settled: boolean) => void;
   children: ReactNode;
 }) {
+  useLocale();
   const { geometry, target, children } = props;
   const outline = useIsland((s) => s.settings.outline);
   // The outline turns system orange while the timer has the closed island (NotchService.swift:2837-2838).

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../i18n/index";
+
 // The companion's own page (NotchMascotSettings.swift). It lives at the top in
 // a slice of the island, bigger than life, and acts out what it does on
 // request; below are how it looks and how it behaves. The Mac's Command Bar
@@ -90,6 +92,7 @@ const STAGE_HEIGHT = 104;
 const HIDE_AWAY: VisitKind = { type: "linger", reaction: "yawn" };
 
 export function MascotSettings() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const look: MascotLook = { style: island.mascotStyle, shape: island.mascotShape, palette: island.mascotPalette };
@@ -230,6 +233,7 @@ export function MascotSettings() {
 }
 
 function Tile(props: { title: string; selected: boolean; onSelect: () => void; children: ReactNode }) {
+  useLocale();
   return (
     <button
       type="button"
@@ -252,6 +256,7 @@ function Tile(props: { title: string; selected: boolean; onSelect: () => void; c
  * it acts out a visit or a moment on request. Switched off, it sleeps.
  */
 function StageCard({ look }: { look: MascotLook }) {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const awake = island.mascotEnabled;
   const { mascotVisits: visits, mascotReactions: reactions, mascotHidesWhenIdle: hides, mascotSide: side } = island;
@@ -476,6 +481,7 @@ function Stage(props: {
   width: number;
   moment: MascotMoment | null;
 }) {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const model = stageModel(island, props.side);
   // As large as leaves the bar room on both sides, at most twice its size.
@@ -528,6 +534,7 @@ function scaledOutline(model: ReturnType<typeof stageModel>, scale: number) {
 
 /** Asleep, little z's drift up from its head and fade. With reduced motion two of them stay still. */
 function SleepZs({ track }: { track: MascotTrack }) {
+  useLocale();
   return (
     <span
       className="st-mascot-zs"
@@ -539,9 +546,9 @@ function SleepZs({ track }: { track: MascotTrack }) {
       }}
       aria-hidden
     >
-      <i>z</i>
-      <i>z</i>
-      <i>z</i>
+      <i>{t("windows.settings.z")}</i>
+      <i>{t("windows.settings.z")}</i>
+      <i>{t("windows.settings.z")}</i>
     </span>
   );
 }

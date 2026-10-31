@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // Settings › Layout (NotchSettings.swift:225-301): size, shape, capsule fit
 // and outline. Every Windows display is one without a notch, so the shape
 // and fit always apply; the notched-Mac cards have no place here.
@@ -22,6 +24,7 @@ import { Button, Expander, Group, Page, Row, Segmented, Slider, SubRow, Toggle }
 const signed = (v: number) => (v > 0 ? `+${v}` : `${v}`);
 
 export function LayoutSettings() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const custom = island.layout === "custom";

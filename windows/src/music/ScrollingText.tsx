@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 import { useLayoutEffect, useRef } from "react";
 
 /** Read overflowing metadata in full without moving the surrounding controls. */
 export function ScrollingText({ text, className }: { text: string; className: string }) {
+  useLocale();
   const viewport = useRef<HTMLDivElement>(null);
   const label = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {

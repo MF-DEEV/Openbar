@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // "✻ Pondering…" while a session works (NotchClaudeSessionLargeView.swift
 // :432-480; spec §4.11): a star stepping through · ✢ ✳ ✶ ✻ ✽ and back at 8
 // steps a second, and a three-letter shimmer crossing the word at 14 letters
@@ -45,6 +47,7 @@ function glow(tint: string, amount: number): string {
 }
 
 export function ThinkingRow({ session, size, now }: { session: Session; size: number; now: number }) {
+  useLocale();
   const still = reduced();
   const t = useTicker(24, !still);
   const word = thinkingWord(session.turnStarted ?? session.phaseSince);

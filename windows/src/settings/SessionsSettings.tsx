@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../i18n/index";
+
 // Sessions options: Claude Code and Codex in the island. Claude Code needs Vorssaint's
 // hooks in its settings.json; Codex needs nothing, its app-server already
 // tells the island everything (spec 02-sessions, 07-codex-sessions).
@@ -60,6 +62,7 @@ interface EditorStatus {
 
 /** The IDE bridge in each editor found on this PC. */
 function EditorExtensions() {
+  useLocale();
   const [editors, setEditors] = useState<EditorStatus[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [failure, setFailure] = useState<{ id: string; reason: string } | null>(null);
@@ -139,6 +142,7 @@ function useCodexStatus(): CodexStatus | null {
 }
 
 export function SessionsOptions() {
+  useLocale();
   const prefs = useSettings((s) => s.prefs.sessions);
   const set = useSettings((s) => s.sessions);
   const hooks = useHooks();
@@ -158,7 +162,7 @@ export function SessionsOptions() {
     <>
       <p className="st-note">{T.sessions.lead}</p>
       <SubRow
-        title="Claude Code"
+        title={t("windows.settings.claudeCode")}
         caption={
           <>
             {hooks.status?.installed ? T.sessions.claudeOnCaption : T.sessions.claudeOffCaption}
@@ -179,7 +183,7 @@ export function SessionsOptions() {
         )}
       </SubRow>
       <EditorExtensions />
-      <SubRow title="Codex" caption={T.sessions.codexCaption}>
+      <SubRow title={t("windows.settings.codex")} caption={T.sessions.codexCaption}>
         {codex === "connected" ? (
           <Status tone="ok">{T.sessions.codexConnected}</Status>
         ) : codex === "notRunning" ? (

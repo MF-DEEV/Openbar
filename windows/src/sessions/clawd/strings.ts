@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t } from "../../i18n/index";
+
 // The wardrobe's English words, from NotchClaudeSessionStrings.swift. They
 // move to the generated `notchClaudeSessions` table once the locale pipeline
 // (spec 06-i18n) lands; until then the Wardrobe takes overrides by prop.
@@ -8,90 +10,244 @@
 import type { ClawdEyewear, ClawdExtra, ClawdHat, ClawdShell } from "./costume";
 
 export const clawdStrings = {
-  wardrobe: "Wardrobe",
-  dressUp: "Change outfit",
-  dressUpFormat: "Change %@’s outfit",
-  surpriseMe: "Surprise me",
-  ownOutfit: "Back to the original outfit",
-  goToSession: "Go to it",
-  shellTitle: "Shell",
-  hatTitle: "Hat",
-  eyewearTitle: "Eyewear & masks",
-  extrasTitle: "Extras",
-  nothing: "None",
+  get wardrobe() {
+    return t("notchClaudeSessions.wardrobe");
+  },
+  get dressUp() {
+    return t("notchClaudeSessions.dressUp");
+  },
+  get dressUpFormat() {
+    return t("notchClaudeSessions.dressUpFormat");
+  },
+  get surpriseMe() {
+    return t("notchClaudeSessions.surpriseMe");
+  },
+  get ownOutfit() {
+    return t("notchClaudeSessions.ownOutfit");
+  },
+  get goToSession() {
+    return t("notchClaudeSessions.goToSession");
+  },
+  get shellTitle() {
+    return t("notchClaudeSessions.shellTitle");
+  },
+  get hatTitle() {
+    return t("notchClaudeSessions.hatTitle");
+  },
+  get eyewearTitle() {
+    return t("notchClaudeSessions.eyewearTitle");
+  },
+  get extrasTitle() {
+    return t("notchClaudeSessions.extrasTitle");
+  },
+  get nothing() {
+    return t("recorder.pointerSmoothingOff");
+  },
   shells: {
-    clay: "Clay",
-    coral: "Coral",
-    amber: "Amber",
-    moss: "Moss",
-    mint: "Mint",
-    teal: "Teal",
-    sky: "Sky",
-    iris: "Iris",
-    orchid: "Orchid",
-    rose: "Rose",
-    midnight: "Midnight",
+    get clay() {
+      return t("notchClaudeSessions.shells.clay");
+    },
+    get coral() {
+      return t("notchClaudeSessions.shells.coral");
+    },
+    get amber() {
+      return t("notchClaudeSessions.shells.amber");
+    },
+    get moss() {
+      return t("notchClaudeSessions.shells.moss");
+    },
+    get mint() {
+      return t("notchMascot.mint");
+    },
+    get teal() {
+      return t("notchClaudeSessions.shells.teal");
+    },
+    get sky() {
+      return t("notchMascot.sky");
+    },
+    get iris() {
+      return t("notchClaudeSessions.shells.iris");
+    },
+    get orchid() {
+      return t("notchClaudeSessions.shells.orchid");
+    },
+    get rose() {
+      return t("notchMascot.rose");
+    },
+    get midnight() {
+      return t("notchClaudeSessions.shells.midnight");
+    },
   } as Record<ClawdShell, string>,
   hats: {
-    beanie: "Beanie",
-    cap: "Cap",
-    beret: "Beret",
-    topHat: "Top hat",
-    crown: "Crown",
-    party: "Party hat",
-    propeller: "Propeller cap",
-    chef: "Chef’s hat",
-    doomHood: "Doctor Doom hood",
-    thorHelmet: "Thor helmet",
-    lokiHorns: "Loki horns",
-    wonderTiara: "Wonder Woman tiara",
+    get beanie() {
+      return t("notchClaudeSessions.hats.beanie");
+    },
+    get cap() {
+      return t("notchClaudeSessions.hats.cap");
+    },
+    get beret() {
+      return t("notchClaudeSessions.hats.beret");
+    },
+    get topHat() {
+      return t("notchClaudeSessions.hats.topHat");
+    },
+    get crown() {
+      return t("notchClaudeSessions.hats.crown");
+    },
+    get party() {
+      return t("notchClaudeSessions.hats.party");
+    },
+    get propeller() {
+      return t("notchClaudeSessions.hats.propeller");
+    },
+    get chef() {
+      return t("notchClaudeSessions.hats.chef");
+    },
+    get doomHood() {
+      return t("notchClaudeSessions.hats.doomHood");
+    },
+    get thorHelmet() {
+      return t("notchClaudeSessions.hats.thorHelmet");
+    },
+    get lokiHorns() {
+      return t("notchClaudeSessions.hats.lokiHorns");
+    },
+    get wonderTiara() {
+      return t("notchClaudeSessions.hats.wonderTiara");
+    },
   } as Record<Exclude<ClawdHat, "none">, string>,
   eyewears: {
-    glasses: "Glasses",
-    shades: "Sunglasses",
-    round: "Round glasses",
-    monocle: "Monocle",
-    anaglyph: "3D glasses",
-    batmanMask: "Batman mask",
-    ironManMask: "Iron Man mask",
-    spiderManMask: "Spider-Man mask",
-    doomMask: "Doctor Doom mask",
-    wolverineMask: "Wolverine mask",
-    flashMask: "Flash mask",
-    captainMask: "Captain America mask",
-    deadpoolMask: "Deadpool mask",
-    venomMask: "Venom mask",
-    blackPantherMask: "Black Panther mask",
-    daredevilMask: "Daredevil mask",
-    starLordMask: "Star-Lord mask",
-    greenLanternMask: "Green Lantern mask",
-    robinMask: "Robin mask",
+    get glasses() {
+      return t("notchClaudeSessions.eyewears.glasses");
+    },
+    get shades() {
+      return t("notchClaudeSessions.eyewears.shades");
+    },
+    get round() {
+      return t("notchClaudeSessions.eyewears.round");
+    },
+    get monocle() {
+      return t("notchClaudeSessions.eyewears.monocle");
+    },
+    get anaglyph() {
+      return t("notchClaudeSessions.eyewears.anaglyph");
+    },
+    get batmanMask() {
+      return t("notchClaudeSessions.eyewears.batmanMask");
+    },
+    get ironManMask() {
+      return t("notchClaudeSessions.eyewears.ironManMask");
+    },
+    get spiderManMask() {
+      return t("notchClaudeSessions.eyewears.spiderManMask");
+    },
+    get doomMask() {
+      return t("notchClaudeSessions.eyewears.doomMask");
+    },
+    get wolverineMask() {
+      return t("notchClaudeSessions.eyewears.wolverineMask");
+    },
+    get flashMask() {
+      return t("notchClaudeSessions.eyewears.flashMask");
+    },
+    get captainMask() {
+      return t("notchClaudeSessions.eyewears.captainMask");
+    },
+    get deadpoolMask() {
+      return t("notchClaudeSessions.eyewears.deadpoolMask");
+    },
+    get venomMask() {
+      return t("notchClaudeSessions.eyewears.venomMask");
+    },
+    get blackPantherMask() {
+      return t("notchClaudeSessions.eyewears.blackPantherMask");
+    },
+    get daredevilMask() {
+      return t("notchClaudeSessions.eyewears.daredevilMask");
+    },
+    get starLordMask() {
+      return t("notchClaudeSessions.eyewears.starLordMask");
+    },
+    get greenLanternMask() {
+      return t("notchClaudeSessions.eyewears.greenLanternMask");
+    },
+    get robinMask() {
+      return t("notchClaudeSessions.eyewears.robinMask");
+    },
   } as Record<Exclude<ClawdEyewear, "none">, string>,
   extras: {
-    bow: "Bow",
-    scarf: "Scarf",
-    bowTie: "Bow tie",
-    flower: "Flower",
-    headphones: "Headphones",
-    coffee: "Coffee",
-    doomCape: "Doctor Doom cape",
-    strangeCape: "Doctor Strange cloak",
-    thorCape: "Thor cape",
-    supermanCape: "Superman cape",
-    batmanCape: "Batman cape",
-    captainShield: "Captain America shield",
-    mjolnir: "Thor / Mjolnir",
-    aquamanTrident: "Aquaman trident",
-    lanternRing: "Green Lantern ring",
-    wolverineClaws: "Wolverine claws",
-    batarang: "Batman batarang",
-    hawkeyeBow: "Hawkeye bow",
-    strangeSpell: "Doctor Strange spell",
-    webShooter: "Spider-Man web",
-    ironReactor: "Iron Man arc reactor",
-    supermanEmblem: "Superman emblem",
-    flashEmblem: "Flash lightning",
-    lanternEmblem: "Green Lantern emblem",
+    get bow() {
+      return t("notchClaudeSessions.extras.bow");
+    },
+    get scarf() {
+      return t("notchClaudeSessions.extras.scarf");
+    },
+    get bowTie() {
+      return t("notchClaudeSessions.extras.bowTie");
+    },
+    get flower() {
+      return t("notchClaudeSessions.extras.flower");
+    },
+    get headphones() {
+      return t("notchClaudeSessions.extras.headphones");
+    },
+    get coffee() {
+      return t("s.keepAwakeActiveIconCoffee");
+    },
+    get doomCape() {
+      return t("notchClaudeSessions.extras.doomCape");
+    },
+    get strangeCape() {
+      return t("notchClaudeSessions.extras.strangeCape");
+    },
+    get thorCape() {
+      return t("notchClaudeSessions.extras.thorCape");
+    },
+    get supermanCape() {
+      return t("notchClaudeSessions.extras.supermanCape");
+    },
+    get batmanCape() {
+      return t("notchClaudeSessions.extras.batmanCape");
+    },
+    get captainShield() {
+      return t("notchClaudeSessions.extras.captainShield");
+    },
+    get mjolnir() {
+      return t("notchClaudeSessions.extras.mjolnir");
+    },
+    get aquamanTrident() {
+      return t("notchClaudeSessions.extras.aquamanTrident");
+    },
+    get lanternRing() {
+      return t("notchClaudeSessions.extras.lanternRing");
+    },
+    get wolverineClaws() {
+      return t("notchClaudeSessions.extras.wolverineClaws");
+    },
+    get batarang() {
+      return t("notchClaudeSessions.extras.batarang");
+    },
+    get hawkeyeBow() {
+      return t("notchClaudeSessions.extras.hawkeyeBow");
+    },
+    get strangeSpell() {
+      return t("notchClaudeSessions.extras.strangeSpell");
+    },
+    get webShooter() {
+      return t("notchClaudeSessions.extras.webShooter");
+    },
+    get ironReactor() {
+      return t("notchClaudeSessions.extras.ironReactor");
+    },
+    get supermanEmblem() {
+      return t("notchClaudeSessions.extras.supermanEmblem");
+    },
+    get flashEmblem() {
+      return t("notchClaudeSessions.extras.flashEmblem");
+    },
+    get lanternEmblem() {
+      return t("notchClaudeSessions.extras.lanternEmblem");
+    },
   } as Record<Exclude<ClawdExtra, "none">, string>,
 };
 

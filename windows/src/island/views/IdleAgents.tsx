@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../../i18n/index";
+
 import { cost, limitTint, percent } from "../../agents/format";
 import { readingWidth } from "../../agents/AgentsStrip";
 import { restingLimit, usedFraction } from "../../agents/model";
@@ -13,6 +15,7 @@ import { useIsland } from "../store";
 /** NotchAgentRestingWing: allowance or today's cost. Work and waiting
  * sessions retain their existing higher-priority status strips. */
 export function IdleAgents({ leading, width }: { leading: boolean; width: number }) {
+  useLocale();
   const snapshot = useAgents((s) => s.snapshot);
   const focus = useIsland((s) => s.settings.agentsLimitFocus);
   const display = useIsland((s) => s.settings.agentsLimitDisplay);

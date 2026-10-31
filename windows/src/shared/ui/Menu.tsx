@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../../i18n/index";
+
 // Menus drawn by the page itself (the island window has no native menus that
 // stay above it): a button's dropdown, or a right-click menu. The menu stays
 // inside the island's frame so the window's hit region covers it, and Escape
@@ -73,6 +75,7 @@ export function Menu(props: {
   bounds?: "viewport";
   className?: string;
 }) {
+  useLocale();
   const ref = useRef<HTMLDivElement>(null);
   const id = useId();
   const [pos, setPos] = useState<{ left: number; top: number; maxHeight?: number } | null>(null);
@@ -262,6 +265,7 @@ export function MenuButton(props: {
   alignRight?: boolean;
   disabled?: boolean;
 }) {
+  useLocale();
   const menu = useMenu();
   return (
     <>

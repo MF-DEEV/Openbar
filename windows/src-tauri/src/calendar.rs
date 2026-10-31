@@ -588,6 +588,9 @@ mod imp {
             && lparam.0 != 0
             && unsafe { PCWSTR(lparam.0 as *const u16).to_string() }.is_ok_and(|s| s == "intl");
         let resumed = msg == WM_POWERBROADCAST && wparam.0 as u32 == PBT_APMRESUMEAUTOMATIC;
+        if intl {
+            crate::locale::changed();
+        }
         if (msg == WM_TIMECHANGE || intl || resumed)
             && let Some(tx) = CLOCK.get()
         {

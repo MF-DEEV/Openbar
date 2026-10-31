@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { dateTimeFormat, useLocale } from "../i18n";
+
 // The menu bar imitation along the top of the display: the active app's name
 // on the left, the date and time on the right, like macOS's bar. The window
 // behind it is acrylic and reserved as an app bar, so maximized windows
@@ -26,12 +28,13 @@ function useClock() {
 }
 
 export function formatBarClock(date: Date, locale?: string): string {
-  const day = new Intl.DateTimeFormat(locale, { weekday: "short", day: "numeric", month: "short" }).format(date);
-  const time = new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit" }).format(date);
+  const day = dateTimeFormat({ weekday: "short", day: "numeric", month: "short" }, locale).format(date);
+  const time = dateTimeFormat({ hour: "numeric", minute: "2-digit" }, locale).format(date);
   return `${day}  ${time}`.replace(/,/g, "");
 }
 
 export function Bar(props: { appName?: string }) {
+  useLocale();
   const now = useClock();
   const [app, setApp] = useState(props.appName ?? "");
   useEffect(() => {

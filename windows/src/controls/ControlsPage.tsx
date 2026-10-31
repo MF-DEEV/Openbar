@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../i18n";
+
 // The home page (NotchControlsView.swift:7-118; spec 05 §1.1): the levels
 // in the band when they all fit, else in a row of their own; the player's
 // card; and a rail of shortcut tiles that fills the rows the height allows,
@@ -9,7 +11,7 @@
 import { LayoutGrid, SlidersHorizontal } from "lucide-react";
 import { type CSSProperties, type ReactNode, useEffect, useMemo } from "react";
 import { create } from "zustand";
-import { t } from "../i18n";
+
 import { contentBudget } from "../island/geometry";
 import type { ModuleId } from "../island/modules";
 import { geometryOf, modulesOf, useIsland } from "../island/store";
@@ -45,6 +47,7 @@ const useBand = create<{ levels: ControlItem[]; owner: number }>(() => ({ levels
 let nextOwner = 0;
 
 function Level({ item }: { item: ControlItem }) {
+  useLocale();
   return item === "volume" ? <VolumeLevel /> : <BrightnessLevel />;
 }
 
@@ -62,6 +65,7 @@ export function useControls(): ControlItem[] {
 }
 
 export function ControlsLeading() {
+  useLocale();
   const levels = useBand((s) => s.levels);
   const sections = useSectionsButton();
   return (
@@ -85,6 +89,7 @@ export function ControlsLeading() {
 }
 
 export function ControlsPage({ width }: PageProps) {
+  useLocale();
   const items = useControls();
   const sections = useSectionsButton();
   const budget = useIsland((s) => contentBudget(geometryOf(s), true));
@@ -146,6 +151,7 @@ export function ControlsPage({ width }: PageProps) {
  * that doesn't fills its columns and scrolls sideways.
  */
 function Rail(props: { rows: number; rowGap: number; width: number; children: ReactNode[] }) {
+  useLocale();
   const count = props.children.length;
   const columns = railColumns(count, props.rows);
   const gap = railGap(columns, SHORTCUT_WIDTH, SHORTCUT_SPACING, SHORTCUT_LEAST_SPACING, props.width);

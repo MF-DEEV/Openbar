@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
+
 import { type Geometry, shoulder, notchMetrics } from "./geometry";
 import type { Size } from "./motion";
 import type { QuickButton, QuickSide } from "./settings";

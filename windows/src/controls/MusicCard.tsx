@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The player on the home page (NotchMusicControlsView, NotchMusicView.swift
 // :724-875; spec 04 §1.2): the cover, the title and artist, and the compact
 // transport at the end of their line, or under the title where the card is
@@ -13,6 +15,7 @@ import { isPlaying, useMusic } from "../music/store";
 import { S } from "./strings";
 
 export function MusicCard({ height }: { height: number }) {
+  useLocale();
   const playback = useMusic((s) => s.playback);
   const playing = useMusic(isPlaying);
   const failed = useMusic((s) => s.failed);

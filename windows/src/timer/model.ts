@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { tf } from "../i18n/index";
+
 // The timer's model (NotchTimerSupport.swift; spec 04 §4.1): a session is a
 // value, every change returns a new one, and nothing reads a clock of its
 // own. The anchor is a time on the timer's continuous clock: a countdown's
@@ -211,7 +213,7 @@ export function durationText(remaining: number): string {
   const seconds = Number.isFinite(remaining) ? Math.ceil(Math.min(TIMER_LIMIT, Math.max(0, remaining))) : 0;
   if (seconds >= 3600) {
     const minutes = Math.floor(seconds / 60) % 60;
-    return `${Math.floor(seconds / 3600)}h${minutes ? ` ${minutes}m` : ""}`;
+    return `${Math.floor(seconds / 3600)}h${minutes ? tf("windows.timer.valueM", minutes) : ""}`;
   }
   return seconds >= 60 ? `${Math.floor(seconds / 60)}m` : `${seconds}s`;
 }

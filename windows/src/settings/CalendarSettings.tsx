@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The Calendar section's options (NotchSettings.swift:442-454 and
 // NotchCalendarSelection.swift): access, the countdowns, week numbers and
 // which calendars show, grouped by account. Unchecked calendars stay out of
@@ -30,6 +32,7 @@ function useCalendarSnapshot() {
 }
 
 export function CalendarOptions() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const [snapshot, setSnapshot] = useCalendarSnapshot();

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../i18n/index";
+
 // The closed island while music plays (NotchMusicStrip.swift; spec 04
 // §1.3): the cover in the left wing, seven bars in the right, which turn
 // into play/pause under the pointer. Anywhere else opens the Music page.
@@ -26,6 +28,7 @@ export const barHeight = (stripHeight: number) => Math.min(16, Math.max(6, strip
 export const MUSIC_WING = 56;
 
 export function MusicStrip({ geometry, size }: { geometry: Geometry; size: Size }) {
+  useLocale();
   const playback = useMusic((s) => s.playback);
   const playing = useMusic(isPlaying);
   const tint = useMusic((s) => s.tint) ?? "#fff";
@@ -43,7 +46,7 @@ export function MusicStrip({ geometry, size }: { geometry: Geometry; size: Size 
       tabIndex={0}
       className="m-strip"
       style={{ width: size.width, height: size.height }}
-      aria-label={playback ? `${playback.title}, ${playback.artist}` : "Music"}
+      aria-label={playback ? `${playback.title}, ${playback.artist}` : t("notch.music")}
       onClick={() => useIsland.getState().activateActivity("music")}
     >
       <span className="m-strip-wing" style={{ width: wing, paddingLeft: coverInset }}>

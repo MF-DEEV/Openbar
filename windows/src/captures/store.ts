@@ -1,4 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
+
+import { t } from "../i18n/index";
 import { create } from "zustand";
 import { bridge } from "../shared/bridge";
 import type { RecentCapture } from "./types";
@@ -37,10 +39,7 @@ export const useCaptures = create<State>((set, get) => ({
       else if (id) await bridge.capture[action](id);
     } catch {
       set({
-        error:
-          action === "open"
-            ? "Could not open this capture. It may be missing or have no associated application."
-            : "Could not remove all selected captures. Try again.",
+        error: action === "open" ? t("windows.captures.perform.error") : t("windows.captures.perform.error521f2e"),
       });
     } finally {
       await get().refresh();

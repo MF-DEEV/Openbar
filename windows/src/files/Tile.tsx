@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // One shelf tile (ShelfTileView, STV:320-700; spec 05 §6.1): 78 × 88,
 // radius 10, a 64 × 50 icon well with a thumbnail or the file's icon, and a
 // two-line 10 pt title cut in the middle. A pile shows two backplates, its
@@ -85,12 +87,14 @@ export function middleTruncated(title: string, room = 72 * 2 - 12, fit = fits): 
 }
 
 function TileGlyph({ item }: { item: ShelfItem }) {
+  useLocale();
   const shown = face(item);
   const Icon = shown.kind === "text" ? FileText : shown.kind === "link" ? Link : File;
   return <Icon size={26} strokeWidth={1.5} aria-hidden="true" />;
 }
 
 export function Tile({ item }: { item: ShelfItem }) {
+  useLocale();
   const selected = useFiles((s) => s.selection.ids.has(item.id));
   const expanded = useFiles((s) => s.expanded.has(item.id));
   const image = useTileImage(item);
@@ -278,6 +282,7 @@ function useTooltip(item: ShelfItem) {
 }
 
 function Tooltip(props: { text: string; anchor: HTMLElement | null }) {
+  useLocale();
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
   useLayoutEffect(() => {

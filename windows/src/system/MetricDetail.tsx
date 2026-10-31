@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // A metric's detail in the island (MetricDetailView.swift, notch
 // presentation): a back button where the Mac's band has it, the summary with
 // its history graph, the readings, for the network the speed test, and the
@@ -25,6 +27,7 @@ export const DETAIL_BAR = 36 + 8;
 
 /** `onMeasure` gets the readings' height, so a short detail keeps a short island (as the Mac's fan detail). */
 export function MetricDetail({ kind, onMeasure }: { kind: MetricKind; onMeasure(height: number): void }) {
+  useLocale();
   const snapshot = useSystem((s) => s.snapshot);
   const history = useSystem((s) => s.history);
   const close = useSystem((s) => s.closeDetail);
@@ -160,6 +163,7 @@ function useIcon(path: string | null): string | null {
 
 /** Windows' prompt for the helper that reads per-app traffic (network_helper.rs). */
 function NetworkApproval() {
+  useLocale();
   const [state, setState] = useState<"idle" | "asking" | "declined">("idle");
   const allow = () => {
     setState("asking");
@@ -194,6 +198,7 @@ function NetworkApproval() {
 }
 
 function Process({ kind, row, inBits }: { kind: MetricKind; row: ProcessRow; inBits: boolean }) {
+  useLocale();
   const icon = useIcon(row.path);
   return (
     <div className="sy-row-line sy-process" title={row.name}>

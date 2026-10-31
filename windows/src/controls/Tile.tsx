@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../i18n";
+
 // The home page's shortcut tiles (NotchActionTile and the tiles built on it,
 // NotchControlsView.swift:389-580; spec 05 §1.1-§1.2): a 40 pt circle over
 // a two-line label, 76 × 74. A live reading takes the first line.
@@ -17,7 +19,7 @@ import {
   Timer,
   Volume2,
 } from "lucide-react";
-import { t } from "../i18n";
+
 import type { ModuleId } from "../island/modules";
 import { useIsland } from "../island/store";
 import { RollingDigits } from "../shared/ui/RollingDigits";
@@ -40,6 +42,7 @@ export function ActionTile(props: {
   accent?: TileAccent;
   onSelect(): void;
 }) {
+  useLocale();
   const Icon = props.icon;
   const under = props.compactTitle && props.title.length > READING_TITLE_CHARS ? props.compactTitle : props.title;
   return (
@@ -84,6 +87,7 @@ function screenshot() {
 }
 
 function KeepAwakeTile() {
+  useLocale();
   const active = useKeepAwake((s) => s.state.active);
   return (
     <ActionTile
@@ -97,6 +101,7 @@ function KeepAwakeTile() {
 }
 
 function MicrophoneTile() {
+  useLocale();
   const muted = useAudio((s) => s.state.micMuted);
   return (
     <ActionTile
@@ -111,6 +116,7 @@ function MicrophoneTile() {
 
 /** A tile another section gives a reading; its hook runs on every render. */
 function ReadingTile(props: { hook: () => TileReading | null; icon: LucideIcon; title: string; onSelect(): void }) {
+  useLocale();
   const r = props.hook();
   return (
     <ActionTile
@@ -127,20 +133,59 @@ function ReadingTile(props: { hook: () => TileReading | null; icon: LucideIcon; 
 
 /** The plain tiles: glyph, title and what a click does. */
 const PLAIN: Partial<Record<ControlItem, { icon: LucideIcon; title: () => string; onSelect(): void }>> = {
-  mixer: { icon: Volume2, title: () => S.mixer, onSelect: select("mixer") },
-  timer: { icon: Timer, title: () => t("module.timer"), onSelect: select("timer") },
-  calendar: { icon: Calendar, title: () => t("module.calendar"), onSelect: select("calendar") },
-  screenshot: { icon: Camera, title: () => S.screenshot, onSelect: screenshot },
+  mixer: {
+    icon: Volume2,
+    title: () => {
+      useLocale();
+      return S.mixer;
+    },
+    onSelect: select("mixer"),
+  },
+  timer: {
+    icon: Timer,
+    title: () => {
+      useLocale();
+      return t("module.timer");
+    },
+    onSelect: select("timer"),
+  },
+  calendar: {
+    icon: Calendar,
+    title: () => {
+      useLocale();
+      return t("module.calendar");
+    },
+    onSelect: select("calendar"),
+  },
+  screenshot: {
+    icon: Camera,
+    title: () => {
+      useLocale();
+      return S.screenshot;
+    },
+    onSelect: screenshot,
+  },
   // The tile opens System's network reading, where the speed test is (NotchControlsView showMetric(.network)).
   speedTest: {
     icon: Gauge,
-    title: () => S.speedTest,
+    title: () => {
+      useLocale();
+      return S.speedTest;
+    },
     onSelect: showNetworkReading,
   },
-  scratchpad: { icon: NotebookText, title: () => S.scratchpad, onSelect: select("scratchpad") },
+  scratchpad: {
+    icon: NotebookText,
+    title: () => {
+      useLocale();
+      return S.scratchpad;
+    },
+    onSelect: select("scratchpad"),
+  },
 };
 
 export function ShortcutTile({ item }: { item: ControlItem }) {
+  useLocale();
   const registered = useTileRegistry((s) => s.hooks[item]);
   if (item === "keepAwake") return <KeepAwakeTile />;
   if (item === "microphone") return <MicrophoneTile />;

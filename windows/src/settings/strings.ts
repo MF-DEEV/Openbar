@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t, tf } from "../i18n";
+
 // The settings window's words, in English for now. Where the Mac has the
 // same setting its wording is kept (NotchStrings, NotchEditorStrings,
 // NotchClaudeSessionStrings); the rest is Windows' own.
@@ -8,419 +10,1104 @@
 export const T = {
   // NotchMascotStrings; "your Mac" reads "your PC".
   mascot: {
-    title: "Companion",
-    hint: "A little friend who lives in the Dynamic Island. It rests there when nothing else is showing, and comes out over music and activities to say hello and react to what happens.",
-    switchCaption:
-      "A little friend in the Dynamic Island who says hello now and then and reacts to what happens on your PC.",
-    livesInIsland: "The companion lives in the Dynamic Island.",
-    turnOnIsland: "Turn on",
-    appearance: "Appearance",
-    behavior: "Behavior",
-    style: "Style",
-    styles: { minimal: "Minimal", robot: "Robot" },
-    shape: "Shape",
-    shapes: { ball: "Ball", egg: "Egg", squircle: "Rounded square", pill: "Pill" },
-    color: "Color",
-    palettes: {
-      pearl: "Pearl",
-      lemon: "Lemon",
-      peach: "Peach",
-      rose: "Rose",
-      lilac: "Lilac",
-      sky: "Sky",
-      mint: "Mint",
+    get title() {
+      return t("notchMascot.title");
     },
-    side: "Side of the notch",
-    sides: { left: "Left", right: "Right" },
-    visits: "Appear now and then",
-    visitsHint: "Every few minutes it passes through the island with a short animation.",
-    frequency: "How often",
-    frequencies: { rare: "Rarely", normal: "Sometimes", frequent: "Often" },
-    reactions: "React to what happens",
-    reactionsHint:
-      "It comes out to react to music, timers, downloads, screenshots, the microphone, Keep awake and more.",
-    hidesWhenIdle: "Hide when idle",
-    hidesWhenIdleHint:
-      "After half a minute with nothing going on, it hops into the island and the island goes back to its usual size. Visits and reactions still bring it out.",
-    preview: "Companion preview",
-    previewHint: "Click to see it react.",
-    petTip: "Rest the pointer on it to pet it. Left alone, it dozes off until you come back.",
-    sayHi: "Say Hi",
-    sayHiHint: "Plays a visit in the Dynamic Island now.",
-    momentsTitle: "See how it reacts",
+    get hint() {
+      return t("notchMascot.hint");
+    },
+    get switchCaption() {
+      return t("windows.settings.mascot.switchCaption");
+    },
+    get livesInIsland() {
+      return t("notchMascot.livesInIsland");
+    },
+    get turnOnIsland() {
+      return t("windows.settings.mascot.turnOnIsland");
+    },
+    get appearance() {
+      return t("notchMascot.appearance");
+    },
+    get behavior() {
+      return t("notchEditor.behavior");
+    },
+    get style() {
+      return t("notchMascot.style");
+    },
+    styles: {
+      get minimal() {
+        return t("notchMascot.minimal");
+      },
+      get robot() {
+        return t("notchMascot.robot");
+      },
+    },
+    get shape() {
+      return t("notchMascot.shape");
+    },
+    shapes: {
+      get ball() {
+        return t("notchMascot.ball");
+      },
+      get egg() {
+        return t("notchMascot.egg");
+      },
+      get squircle() {
+        return t("notchMascot.squircle");
+      },
+      get pill() {
+        return t("notchMascot.pill");
+      },
+    },
+    get color() {
+      return t("notchMascot.color");
+    },
+    palettes: {
+      get pearl() {
+        return t("notchMascot.pearl");
+      },
+      get lemon() {
+        return t("notchMascot.lemon");
+      },
+      get peach() {
+        return t("notchMascot.peach");
+      },
+      get rose() {
+        return t("notchMascot.rose");
+      },
+      get lilac() {
+        return t("notchMascot.lilac");
+      },
+      get sky() {
+        return t("notchMascot.sky");
+      },
+      get mint() {
+        return t("notchMascot.mint");
+      },
+    },
+    get side() {
+      return t("windows.settings.mascot.side");
+    },
+    sides: {
+      get left() {
+        return t("notch.quickAccessLeft");
+      },
+      get right() {
+        return t("notch.quickAccessRight");
+      },
+    },
+    get visits() {
+      return t("notchMascot.visits");
+    },
+    get visitsHint() {
+      return t("notchMascot.visitsHint");
+    },
+    get frequency() {
+      return t("notchMascot.frequency");
+    },
+    frequencies: {
+      get rare() {
+        return t("notchMascot.rare");
+      },
+      get normal() {
+        return t("notchMascot.normal");
+      },
+      get frequent() {
+        return t("notchMascot.frequent");
+      },
+    },
+    get reactions() {
+      return t("notchMascot.reactions");
+    },
+    get reactionsHint() {
+      return t("notchMascot.reactionsHint");
+    },
+    get hidesWhenIdle() {
+      return t("notchMascot.hidesWhenIdle");
+    },
+    get hidesWhenIdleHint() {
+      return t("notchMascot.hidesWhenIdleHint");
+    },
+    get preview() {
+      return t("notchMascot.preview");
+    },
+    get previewHint() {
+      return t("notchMascot.previewHint");
+    },
+    get petTip() {
+      return t("notchMascot.petTip");
+    },
+    get sayHi() {
+      return t("notchMascot.sayHi");
+    },
+    get sayHiHint() {
+      return t("notchMascot.sayHiHint");
+    },
+    get momentsTitle() {
+      return t("notchMascot.momentsTitle");
+    },
     moments: {
-      visit: "A visit",
-      timerStarted: "Timer started",
-      timeIsUp: "Time is up",
-      music: "Now Playing",
-      agents: "AI Agents",
-      eventStarts: "Ongoing",
-      downloadFinished: "Download completed",
-      downloadFailed: "Download failed",
-      screenshot: "Screenshot",
-      micMuted: "Microphone muted",
-      keepAwake: "Keep awake",
-      charging: "Charging",
-      lowBattery: "Low battery",
-      unlocked: "PC unlocked",
+      get visit() {
+        return t("notchMascot.visitMoment");
+      },
+      get timerStarted() {
+        return t("notchMascot.timerStarted");
+      },
+      get timeIsUp() {
+        return t("notchActivities.finished");
+      },
+      get music() {
+        return t("radialMenu.mediaNowPlaying");
+      },
+      get agents() {
+        return t("notchAgents.title");
+      },
+      get eventStarts() {
+        return t("windows.settings.mascot.moments.eventStarts");
+      },
+      get downloadFinished() {
+        return t("windows.settings.mascot.moments.downloadFinished");
+      },
+      get downloadFailed() {
+        return t("notchMascot.downloadFailed");
+      },
+      get screenshot() {
+        return t("screenshot.editorTitle");
+      },
+      get micMuted() {
+        return t("notchVoice.muted");
+      },
+      get keepAwake() {
+        return t("s.keepAwakeTitle");
+      },
+      get charging() {
+        return t("notch.charging");
+      },
+      get lowBattery() {
+        return t("notch.lowBattery");
+      },
+      get unlocked() {
+        return t("windows.settings.mascot.moments.unlocked");
+      },
     },
   },
   nav: {
-    general: "General",
-    layout: "Layout",
-    content: "Content",
-    activity: "Activity",
-    behavior: "Behavior",
-    mascot: "Companion",
-    island: "Dynamic Island",
+    get general() {
+      return t("s.tabGeneral");
+    },
+    get layout() {
+      return t("notchEditor.layout");
+    },
+    get content() {
+      return t("notchEditor.content");
+    },
+    get activity() {
+      return t("notchEditor.activity");
+    },
+    get behavior() {
+      return t("notchEditor.behavior");
+    },
+    get mascot() {
+      return t("notchMascot.title");
+    },
+    get island() {
+      return t("notch.title");
+    },
   },
-  brand: "Dynamic Island for Windows",
+  get brand() {
+    return t("windows.settings.brand");
+  },
   general: {
-    island: "Dynamic Island",
-    islandCaption:
-      "Your music, sessions and everyday tools, together at the top of your screen. Turn it off to hide the island.",
-    login: "Start with Windows",
-    loginCaption: "Opens Vorssaint in the background when you sign in.",
+    get island() {
+      return t("notch.title");
+    },
+    get islandCaption() {
+      return t("windows.settings.general.islandCaption");
+    },
+    get login() {
+      return t("windows.settings.general.login");
+    },
+    get loginCaption() {
+      return t("windows.settings.general.loginCaption");
+    },
   },
   layout: {
-    size: "Expanded panel size",
-    compact: "Compact",
-    spacious: "Spacious",
-    custom: "Custom",
-    sizeCaption: "Width and maximum content height when you open the island.",
-    width: "Width",
-    maxHeight: "Maximum height",
-    customCaption: "Controls stay compact. Longer lists use up to this height.",
-    notchFit: "Notch fit",
-    notchFitCaption:
-      "Resize the closed notch and shape its left and right extensions. Changes apply immediately with any size preset.",
-    corners: "Corner rounding",
-    cornersCaption: "Rounder or sharper corners in both closed and expanded views. 100% is the default.",
-    notchPreview: "Notch shape preview with highlighted side extensions",
-    notchPreviewCaption: "The highlighted curves are the side extensions. Adjust both together below.",
-    shoulderWidth: "Side extension length",
-    shoulderWidthCaption: "Extend the curved shoulders to the left and right. 100% is the default.",
-    shoulderHeight: "Side extension thickness",
-    shoulderHeightCaption: "Make both curved shoulders thicker or thinner vertically. 100% is the default.",
-    resetShape: "Restore default shape",
-    shape: "Shape",
-    shapeCaption: "A notch hangs from the top edge. A capsule floats just below it.",
-    notch: "Notch",
-    capsule: "Capsule",
-    capsulePreview: "Capsule shape preview",
-    capsulePreviewCaption: "Preview of width, height, corner rounding and distance below the screen edge.",
-    capsuleFit: "Capsule fit",
-    capsuleFitCaption: "Resizes the capsule and lowers it from the top of the screen.",
-    height: "Height",
-    fromTop: "Distance from top",
-    outline: "Show outline",
-    outlineCaption: "A thin light edge around the island, easier to see on dark wallpapers.",
+    get size() {
+      return t("windows.settings.layout.size");
+    },
+    get compact() {
+      return t("notch.compact");
+    },
+    get spacious() {
+      return t("notch.spacious");
+    },
+    get custom() {
+      return t("notch.custom");
+    },
+    get sizeCaption() {
+      return t("windows.settings.layout.sizeCaption");
+    },
+    get width() {
+      return t("notch.width");
+    },
+    get maxHeight() {
+      return t("notch.maximumHeight");
+    },
+    get customCaption() {
+      return t("notch.sizeHint");
+    },
+    get notchFit() {
+      return t("notch.cameraFit");
+    },
+    get notchFitCaption() {
+      return t("windows.settings.layout.notchFitCaption");
+    },
+    get corners() {
+      return t("notchShape.corners");
+    },
+    get cornersCaption() {
+      return t("windows.settings.layout.cornersCaption");
+    },
+    get notchPreview() {
+      return t("windows.settings.layout.notchPreview");
+    },
+    get notchPreviewCaption() {
+      return t("windows.settings.layout.notchPreviewCaption");
+    },
+    get shoulderWidth() {
+      return t("windows.settings.layout.shoulderWidth");
+    },
+    get shoulderWidthCaption() {
+      return t("windows.settings.layout.shoulderWidthCaption");
+    },
+    get shoulderHeight() {
+      return t("windows.settings.layout.shoulderHeight");
+    },
+    get shoulderHeightCaption() {
+      return t("windows.settings.layout.shoulderHeightCaption");
+    },
+    get resetShape() {
+      return t("windows.settings.layout.resetShape");
+    },
+    get shape() {
+      return t("notchMascot.shape");
+    },
+    get shapeCaption() {
+      return t("windows.settings.layout.shapeCaption");
+    },
+    get notch() {
+      return t("notch.notchShape");
+    },
+    get capsule() {
+      return t("notch.capsuleShape");
+    },
+    get capsulePreview() {
+      return t("windows.settings.layout.capsulePreview");
+    },
+    get capsulePreviewCaption() {
+      return t("windows.settings.layout.capsulePreviewCaption");
+    },
+    get capsuleFit() {
+      return t("notch.capsuleFit");
+    },
+    get capsuleFitCaption() {
+      return t("windows.settings.layout.capsuleFitCaption");
+    },
+    get height() {
+      return t("notch.height");
+    },
+    get fromTop() {
+      return t("notch.fromTop");
+    },
+    get outline() {
+      return t("notch.showOutline");
+    },
+    get outlineCaption() {
+      return t("windows.settings.layout.outlineCaption");
+    },
   },
   content: {
-    idleContent: "While inactive",
-    idleContentCaption:
-      "Choose what appears on the closed island. Hidden sections wait until enabled again; live activities and notices take priority.",
-    idleNone: "Nothing",
-    idleBattery: "Battery",
-    idleMusic: "Music",
-    idleAgents: "AI Agents",
-    downloadFolders: "Additional download folders",
-    downloadFoldersCaption:
-      "Downloads and browser download folders are monitored automatically. For other apps, add full folder paths, one per line. Changes save when you leave this field. File transfers in these folders are shown too; subfolders are not scanned.",
-    quickAccess: "Quick access buttons",
-    quickPreview: "Island preview",
-    quickPreviewCaption: "Click a circle to change its action. Use + to add another shortcut.",
-    quickCapacity: "Up to three circles on each side and three below the island. Changes apply immediately.",
-    addShortcut: "Add shortcut",
-    removeShortcut: "Remove shortcut",
-    defaultShortcuts: "Default shortcuts",
-    defaultShortcutsCaption: "Restore the original five circles, their actions and positions.",
-    restoreDefaults: "Restore defaults",
-    shortcutAction: "Action",
-    shortcutSide: "Position",
-    sideLeft: "Left",
-    sideRight: "Right",
-    sideBottom: "Bottom",
-    leftShortcut: "Left shortcut",
-    rightShortcut: "Right shortcut",
-    shortcutCaption: "Choose what the lower side circle opens. Changes apply immediately.",
-    lead: "Choose which sections the island shows and in what order. Each section keeps its own options.",
-    sections: "Sections",
-    show: "Show in the island",
-    moveUp: "Move up",
-    moveDown: "Move down",
-    position: "Position",
-    positionCaption: (n: number, of: number) => `${n} of ${of} in the island`,
-    comingSoon: "This section is coming to Windows. Its options arrive with it.",
-    noOptions: "This section has no options.",
-    showPlayingMusic: "Show music while playing",
-    showPlayingMusicCaption: "The song takes the closed island, with its cover and moving bars.",
-    lyricsOnline: "Find lyrics online",
-    lyricsOnlineCaption:
-      "While lyrics are open, send the song title, artist, album and duration to lrclib.net. Imported lyrics stay on this PC.",
-    hideTimerCountdown: "Hide timer countdown",
-    hideTimerCountdownCaption: "A running timer stays off the closed island. A finished one still shows.",
-    timerSound: "Play sound when time is up",
-    timerSoundCaption: "A chime every 2 seconds, for up to 5 minutes, until you dismiss the timer.",
-    watchSound: "Play a sound",
-    watchSoundCaption: "A chime when what you watch changes, finishes or shows what you are waiting for.",
-    colorFormat: "Color picker format",
-    colorFormatCaption: "How a picked color is copied.",
-    bareHex: "Copy hex without the # prefix",
-    quickToggles: "Quick toggles",
-    quickTogglesCaption: "Choose the actions the Quick toggles tool lists, and their order.",
-    ejectExcluded: "Disks to leave alone",
-    ejectExcludedCaption:
-      "“Eject all disks” skips these. Add a disk’s name or its drive letter, one per line. Changes save when you leave this field.",
-    toolsGridCaption: "Hide and arrange the tools from the island: open Tools and use the tune button.",
-    textSize: "Text size",
-    textSizeCaption: "The size the whole pad draws at.",
-    retention: "Clear on its own",
-    retentionCaption: "The pad empties itself once the text goes that long without edits.",
-    retentionNever: "Never",
-    retentionDay: "After a day unused",
-    retentionWeek: "After a week unused",
-    retentionMonth: "After a month unused",
-    dragReveal: "Show a drop target while dragging",
-    dragRevealCaption: "A drag over the closed island shows where to drop. Off, it opens Files right away.",
-    shelfCloseAfterDrop: "Close after dropping into another app",
-    shelfCloseAfterDropCaption:
-      "Closes the island when the destination accepts the items. Pinning the island keeps it open.",
-    shelfRemoveAfterDrop: "Remove items after dropping",
-    shelfRemoveAfterDropCaption:
-      "Items accepted by another app leave the shelf. Turn this off to keep a copy there. Pinned items always stay.",
-    notificationsCaption:
-      "Discord, Messenger and other desktop notifications show only the app icon, app name and sender. Message text is not collected or displayed. Discord’s Do Not Disturb and muted chats follow its desktop notification settings.",
+    get idleContent() {
+      return t("notch.idleContent");
+    },
+    get idleContentCaption() {
+      return t("windows.settings.content.idleContentCaption");
+    },
+    get idleNone() {
+      return t("notch.idleNone");
+    },
+    get idleBattery() {
+      return t("notch.battery");
+    },
+    get idleMusic() {
+      return t("notch.music");
+    },
+    get idleAgents() {
+      return t("notchAgents.title");
+    },
+    get downloadFolders() {
+      return t("windows.settings.content.downloadFolders");
+    },
+    get downloadFoldersCaption() {
+      return t("windows.settings.content.downloadFoldersCaption");
+    },
+    get quickAccess() {
+      return t("windows.settings.content.quickAccess");
+    },
+    get quickPreview() {
+      return t("windows.settings.content.quickPreview");
+    },
+    get quickPreviewCaption() {
+      return t("windows.settings.content.quickPreviewCaption");
+    },
+    get quickCapacity() {
+      return t("windows.settings.content.quickCapacity");
+    },
+    get addShortcut() {
+      return t("commandBar.linkAddButton");
+    },
+    get removeShortcut() {
+      return t("s.shortcutClear");
+    },
+    get defaultShortcuts() {
+      return t("windows.settings.content.defaultShortcuts");
+    },
+    get defaultShortcutsCaption() {
+      return t("windows.settings.content.defaultShortcutsCaption");
+    },
+    get restoreDefaults() {
+      return t("windows.settings.content.restoreDefaults");
+    },
+    get shortcutAction() {
+      return t("radialMenu.actionLabel");
+    },
+    get shortcutSide() {
+      return t("notchEditor.position");
+    },
+    get sideLeft() {
+      return t("notch.quickAccessLeft");
+    },
+    get sideRight() {
+      return t("notch.quickAccessRight");
+    },
+    get sideBottom() {
+      return t("notchEditor.bottom");
+    },
+    get leftShortcut() {
+      return t("windows.settings.content.leftShortcut");
+    },
+    get rightShortcut() {
+      return t("windows.settings.content.rightShortcut");
+    },
+    get shortcutCaption() {
+      return t("windows.settings.content.shortcutCaption");
+    },
+    get lead() {
+      return t("windows.settings.content.lead");
+    },
+    get sections() {
+      return t("notchEditor.sections");
+    },
+    get show() {
+      return t("notchWatch.inIsland");
+    },
+    get moveUp() {
+      return t("s.audioPriorityMoveUp");
+    },
+    get moveDown() {
+      return t("s.audioPriorityMoveDown");
+    },
+    get position() {
+      return t("notchEditor.position");
+    },
+    positionCaption: (n: number, of: number) => tf("windows.settings.content.positionCaption", n, of),
+    get comingSoon() {
+      return t("windows.settings.content.comingSoon");
+    },
+    get noOptions() {
+      return t("notchEditor.noOptions");
+    },
+    get showPlayingMusic() {
+      return t("notch.playingMusic");
+    },
+    get showPlayingMusicCaption() {
+      return t("windows.settings.content.showPlayingMusicCaption");
+    },
+    get lyricsOnline() {
+      return t("notchMusicExtras.online");
+    },
+    get lyricsOnlineCaption() {
+      return t("windows.settings.content.lyricsOnlineCaption");
+    },
+    get hideTimerCountdown() {
+      return t("notchActivities.hideTimerCountdown");
+    },
+    get hideTimerCountdownCaption() {
+      return t("windows.settings.content.hideTimerCountdownCaption");
+    },
+    get timerSound() {
+      return t("notchActivities.soundEnabled");
+    },
+    get timerSoundCaption() {
+      return t("windows.settings.content.timerSoundCaption");
+    },
+    get watchSound() {
+      return t("notchWatch.sound");
+    },
+    get watchSoundCaption() {
+      return t("windows.settings.content.watchSoundCaption");
+    },
+    get colorFormat() {
+      return t("windows.settings.content.colorFormat");
+    },
+    get colorFormatCaption() {
+      return t("windows.settings.content.colorFormatCaption");
+    },
+    get bareHex() {
+      return t("windows.settings.content.bareHex");
+    },
+    get quickToggles() {
+      return t("quickToggles.pageTitle");
+    },
+    get quickTogglesCaption() {
+      return t("windows.settings.content.quickTogglesCaption");
+    },
+    get ejectExcluded() {
+      return t("windows.settings.content.ejectExcluded");
+    },
+    get ejectExcludedCaption() {
+      return t("windows.settings.content.ejectExcludedCaption");
+    },
+    get toolsGridCaption() {
+      return t("windows.settings.content.toolsGridCaption");
+    },
+    get textSize() {
+      return t("scratchpad.textSize");
+    },
+    get textSizeCaption() {
+      return t("windows.settings.content.textSizeCaption");
+    },
+    get retention() {
+      return t("scratchpad.retentionTitle");
+    },
+    get retentionCaption() {
+      return t("scratchpad.retentionCaption");
+    },
+    get retentionNever() {
+      return t("s.batteryNever");
+    },
+    get retentionDay() {
+      return t("scratchpad.retentionDay");
+    },
+    get retentionWeek() {
+      return t("scratchpad.retentionWeek");
+    },
+    get retentionMonth() {
+      return t("scratchpad.retentionMonth");
+    },
+    get dragReveal() {
+      return t("notch.dragReveal");
+    },
+    get dragRevealCaption() {
+      return t("windows.settings.content.dragRevealCaption");
+    },
+    get shelfCloseAfterDrop() {
+      return t("s.shelfCloseAfterDrop");
+    },
+    get shelfCloseAfterDropCaption() {
+      return t("windows.settings.content.shelfCloseAfterDropCaption");
+    },
+    get shelfRemoveAfterDrop() {
+      return t("s.shelfRemoveAfterDrop");
+    },
+    get shelfRemoveAfterDropCaption() {
+      return t("s.shelfRemoveAfterDropCaption");
+    },
+    get notificationsCaption() {
+      return t("windows.settings.content.notificationsCaption");
+    },
   },
   system: {
-    interval: "Update every",
-    intervalCaption:
-      "How often the cards read while the System section is open. Nothing is measured while it's closed.",
-    interval1: "1 second",
-    interval2: "2 seconds",
-    interval5: "5 seconds",
-    speedUnit: "Network speed unit",
+    get interval() {
+      return t("s.monitorIntervalLabel");
+    },
+    get intervalCaption() {
+      return t("windows.settings.system.intervalCaption");
+    },
+    get interval1() {
+      return t("s.monitorInterval1");
+    },
+    get interval2() {
+      return t("s.monitorInterval2");
+    },
+    get interval5() {
+      return t("s.monitorInterval5");
+    },
+    get speedUnit() {
+      return t("monitorLayout.networkSpeedUnit");
+    },
     metrics: {
-      cpu: "CPU",
-      gpu: "GPU",
-      memory: "Memory",
-      network: "Network",
-      disk: "Disk",
-      power: "Power",
-      connectedDevices: "Connected Devices",
+      get cpu() {
+        return t("s.cpuLabel");
+      },
+      get gpu() {
+        return t("s.gpuLabel");
+      },
+      get memory() {
+        return t("s.memorySection");
+      },
+      get network() {
+        return t("s.monitorShowNetwork");
+      },
+      get disk() {
+        return t("windows.settings.system.metrics.disk");
+      },
+      get power() {
+        return t("s.monitorShowPowerLabel");
+      },
+      get connectedDevices() {
+        return t("connectedDevices.title");
+      },
     },
     captions: {
-      cpu: "Processor usage",
-      gpu: "Graphics usage",
-      memory: "Memory use",
-      network: "Network speed and usage",
-      disk: "Disk space and activity",
-      power: "Battery, power and charging",
-      connectedDevices: "Count connected USB and Bluetooth devices",
+      get cpu() {
+        return t("windows.settings.system.captions.cpu");
+      },
+      get gpu() {
+        return t("windows.settings.system.captions.gpu");
+      },
+      get memory() {
+        return t("windows.settings.system.captions.memory");
+      },
+      get network() {
+        return t("hub.descMonitorNetwork");
+      },
+      get disk() {
+        return t("hub.descMonitorDisk");
+      },
+      get power() {
+        return t("hub.descMonitorPower");
+      },
+      get connectedDevices() {
+        return t("windows.settings.system.captions.connectedDevices");
+      },
     },
   },
   summaries: {
-    controls: "Playback, volume, brightness and your shortcuts.",
-    mixer: "The volume of each app, and where sound plays.",
-    music: "The song playing now, with its controls.",
-    clipboard: "What you copied recently, ready to paste again.",
-    captures: "Your latest screenshots and recordings.",
-    files: "A shelf for the files you drop on the island.",
-    system: "CPU, memory, disk, network and battery at a glance.",
-    tools: "Tools and utilities, one click away.",
-    calendar: "Today's events and the month ahead.",
-    notifications: "Your notifications, kept in the island.",
-    timer: "Timer, Pomodoro and stopwatch.",
-    camera: "A mirror to check yourself before a call.",
-    downloads: "Downloads in progress and just finished.",
-    scratchpad: "Quick notes that save by themselves.",
-    agents: "Plan limits, tokens and API value of Claude, Codex, OpenCode and GitHub Copilot.",
-    sessions: "Running Claude Code and Codex sessions, and what each one needs from you.",
-    watch: "Any part of a window, read live, with an alert when it changes.",
+    get controls() {
+      return t("notchEditor.controlsSummary");
+    },
+    get mixer() {
+      return t("notchEditor.mixerSummary");
+    },
+    get music() {
+      return t("notchEditor.musicSummary");
+    },
+    get clipboard() {
+      return t("notchEditor.clipboardSummary");
+    },
+    get captures() {
+      return t("notchEditor.capturesSummary");
+    },
+    get files() {
+      return t("notchEditor.filesSummary");
+    },
+    get system() {
+      return t("notchEditor.systemSummary");
+    },
+    get tools() {
+      return t("notchEditor.toolsSummary");
+    },
+    get calendar() {
+      return t("notchEditor.calendarSummary");
+    },
+    get notifications() {
+      return t("windows.settings.summaries.notifications");
+    },
+    get timer() {
+      return t("notchEditor.timerSummary");
+    },
+    get camera() {
+      return t("notchEditor.cameraSummary");
+    },
+    get downloads() {
+      return t("notchEditor.downloadsSummary");
+    },
+    get scratchpad() {
+      return t("notchEditor.scratchpadSummary");
+    },
+    get agents() {
+      return t("windows.settings.summaries.agents");
+    },
+    get sessions() {
+      return t("notchClaudeSessions.summary");
+    },
+    get watch() {
+      return t("notchEditor.watchSummary");
+    },
   },
   activity: {
-    downloadProgress: "Download progress",
-    downloadProgressCaption:
-      "Show a small download indicator across apps. Click it to see file names, progress and downloaded MB. Details never open automatically.",
-    indicators: "Indicators",
-    indicatorsLead: "Short notices the closed island shows when something changes.",
-    timerCountdown: "Timer countdown",
-    timerCountdownCaption: "The time left beside the camera while a timer runs. A finished timer always shows.",
-    trackChange: "New track",
-    trackChangeCaption: "The cover, title and artist for a moment when the song changes.",
-    more: "The clipboard’s “Copied” notice is in Content › Clipboard.",
-    keepAwake: "Show “Keep awake” in the closed island",
-    keepAwakeCaption:
-      "A running session shows in the closed island with the time it has left, or ∞ when it has no end.",
-    volume: "Volume",
-    volumeCaption: "The new level for a moment when it changes with the volume keys or from another app.",
-    agents: "AI agent at work",
-    agentsCaption:
-      "While Claude Code, Codex, OpenCode or GitHub Copilot works, its mark and the reading you chose beside the camera.",
+    get downloadProgress() {
+      return t("windows.settings.activity.downloadProgress");
+    },
+    get downloadProgressCaption() {
+      return t("windows.settings.activity.downloadProgressCaption");
+    },
+    get indicators() {
+      return t("notchEditor.feedback");
+    },
+    get indicatorsLead() {
+      return t("windows.settings.activity.indicatorsLead");
+    },
+    get timerCountdown() {
+      return t("windows.settings.activity.timerCountdown");
+    },
+    get timerCountdownCaption() {
+      return t("windows.settings.activity.timerCountdownCaption");
+    },
+    get trackChange() {
+      return t("notch.newTrack");
+    },
+    get trackChangeCaption() {
+      return t("windows.settings.activity.trackChangeCaption");
+    },
+    get more() {
+      return t("windows.settings.activity.more");
+    },
+    get keepAwake() {
+      return t("notchActivities.keepAwakeActivity");
+    },
+    get keepAwakeCaption() {
+      return t("windows.settings.activity.keepAwakeCaption");
+    },
+    get volume() {
+      return t("notch.volume");
+    },
+    get volumeCaption() {
+      return t("windows.settings.activity.volumeCaption");
+    },
+    get agents() {
+      return t("windows.settings.activity.agents");
+    },
+    get agentsCaption() {
+      return t("windows.settings.activity.agentsCaption");
+    },
   },
   behavior: {
-    opening: "Opening",
-    openingCaption: "How the island opens from the top of the screen.",
-    click: "Click to open",
-    hoverPreview: "Preview on hover",
-    hoverExpand: "Expand on hover",
-    hiddenUntilHover: "Hidden until hover",
-    showActivity: "Show activity and indicators",
-    showActivityCaption: "Comes into view while an activity runs or an indicator shows, then hides again.",
-    activation: "Activation time",
-    activationCaption: "Keep the pointer over the island for this long to open it.",
-    closing: "Closing time",
-    closingCaption: "Wait this long after the pointer leaves the island before closing it.",
-    shortcut: "Global shortcut",
-    shortcutCaption: "Opens and closes the island from any app.",
-    shortcutTaken:
-      "The configured shortcut is unavailable. Another app may be using it; record a different combination.",
-    shortcutChange: "Change shortcut",
-    shortcutPressKeys: "Press keys…",
-    shortcutRecording: "Press a key with Ctrl or Alt, then release it. Escape or a click elsewhere cancels.",
-    shortcutInvalid: "Use Ctrl or Alt with a supported key. Windows system shortcuts and AltGr are unavailable.",
-    reopening: "When reopening",
-    reopeningCaption: "Where the island opens the next time.",
-    lastPage: "Last page",
-    explore: "Explore",
-    display: "Display",
-    hideFullscreen: "Hide in full screen",
-    hideFullscreenCaption: "Hides while an app fills the whole screen, like a game or a film, and comes back after.",
-    where: "Show on",
-    whereCaption: "With several displays, which one has the island.",
-    displayPrimary: "Main display",
-    displayCursor: "Follow pointer",
-    privacy: "Privacy",
-    captures: "Show in screenshots and videos",
-    capturesCaption: "Off leaves the island out of screenshots, recordings and screen sharing.",
+    get opening() {
+      return t("notchEditor.opening");
+    },
+    get openingCaption() {
+      return t("windows.settings.behavior.openingCaption");
+    },
+    get click() {
+      return t("notchEditor.clickOpen");
+    },
+    get hoverPreview() {
+      return t("notchEditor.hoverPreview");
+    },
+    get hoverExpand() {
+      return t("notchEditor.hoverExpand");
+    },
+    get hiddenUntilHover() {
+      return t("notchEditor.hiddenUntilHover");
+    },
+    get showActivity() {
+      return t("notchEditor.hiddenShowsActivity");
+    },
+    get showActivityCaption() {
+      return t("notchEditor.hiddenShowsActivityHint");
+    },
+    get activation() {
+      return t("notchEditor.activationTime");
+    },
+    get activationCaption() {
+      return t("notchEditor.activationTimeHint");
+    },
+    get closing() {
+      return t("notchEditor.closeTime");
+    },
+    get closingCaption() {
+      return t("notchEditor.closeTimeHint");
+    },
+    get shortcut() {
+      return t("s.globalHotkeySection");
+    },
+    get shortcutCaption() {
+      return t("windows.settings.behavior.shortcutCaption");
+    },
+    get shortcutTaken() {
+      return t("windows.settings.behavior.shortcutTaken");
+    },
+    get shortcutChange() {
+      return t("windows.settings.behavior.shortcutChange");
+    },
+    get shortcutPressKeys() {
+      return t("windows.settings.behavior.shortcutPressKeys");
+    },
+    get shortcutRecording() {
+      return t("windows.settings.behavior.shortcutRecording");
+    },
+    get shortcutInvalid() {
+      return t("windows.settings.behavior.shortcutInvalid");
+    },
+    get reopening() {
+      return t("notchEditor.reopening");
+    },
+    get reopeningCaption() {
+      return t("windows.settings.behavior.reopeningCaption");
+    },
+    get lastPage() {
+      return t("notchEditor.lastPage");
+    },
+    get explore() {
+      return t("notch.sectionsTitle");
+    },
+    get display() {
+      return t("notch.display");
+    },
+    get hideFullscreen() {
+      return t("windows.settings.behavior.hideFullscreen");
+    },
+    get hideFullscreenCaption() {
+      return t("windows.settings.behavior.hideFullscreenCaption");
+    },
+    get where() {
+      return t("s.switcherScreenPlacementLabel");
+    },
+    get whereCaption() {
+      return t("windows.settings.behavior.whereCaption");
+    },
+    get displayPrimary() {
+      return t("notch.mainDisplay");
+    },
+    get displayCursor() {
+      return t("notch.followPointer");
+    },
+    get privacy() {
+      return t("notchEditor.privacy");
+    },
+    get captures() {
+      return t("notch.showInCaptures");
+    },
+    get capturesCaption() {
+      return t("windows.settings.behavior.capturesCaption");
+    },
   },
   sessions: {
-    lead: "Reads the state Claude Code and Codex keep for each running session on this PC. Prompts and replies stay unread unless you turn on previews, and nothing leaves your PC.",
-    claudeOnCaption: "Vorssaint hears every session through hooks in ~/.claude/settings.json.",
-    claudeOffCaption:
-      "Install the hooks so the island sees Claude Code sessions and can answer their prompts. A backup of settings.json is made first.",
-    hooksOn: "Installed",
-    hooksOff: "Not installed",
-    hooksStale: "Needs an update",
-    hooksProblem: "Can't read settings",
-    install: "Install hooks",
-    update: "Update hooks",
-    remove: "Remove hooks",
-    bridge: "Editor extension",
-    bridgeCaption:
-      "Replies and Open for sessions in an editor's terminal go through a small extension included with Vorssaint. It shows a terminal or types into it only when you ask. If a window that's already open doesn't pick it up, reload it.",
-    bridgeNoEditors: "No supported editor found",
-    bridgeOn: "Installed",
-    bridgeOff: "Not installed",
-    bridgeStale: "Needs an update",
-    bridgeInstall: "Install",
-    bridgeUpdate: "Update",
+    get lead() {
+      return t("windows.settings.sessions.lead");
+    },
+    get claudeOnCaption() {
+      return t("windows.settings.sessions.claudeOnCaption");
+    },
+    get claudeOffCaption() {
+      return t("windows.settings.sessions.claudeOffCaption");
+    },
+    get hooksOn() {
+      return t("s.homebrewInstalled");
+    },
+    get hooksOff() {
+      return t("s.homebrewNotInstalledBadge");
+    },
+    get hooksStale() {
+      return t("windows.settings.sessions.hooksStale");
+    },
+    get hooksProblem() {
+      return t("windows.settings.sessions.hooksProblem");
+    },
+    get install() {
+      return t("notchClaudeSessions.installHooks");
+    },
+    get update() {
+      return t("windows.settings.sessions.update");
+    },
+    get remove() {
+      return t("notchClaudeSessions.removeHooks");
+    },
+    get bridge() {
+      return t("windows.settings.sessions.bridge");
+    },
+    get bridgeCaption() {
+      return t("windows.settings.sessions.bridgeCaption");
+    },
+    get bridgeNoEditors() {
+      return t("windows.settings.sessions.bridgeNoEditors");
+    },
+    get bridgeOn() {
+      return t("s.homebrewInstalled");
+    },
+    get bridgeOff() {
+      return t("s.homebrewNotInstalledBadge");
+    },
+    get bridgeStale() {
+      return t("windows.settings.sessions.bridgeStale");
+    },
+    get bridgeInstall() {
+      return t("s.homebrewInstall");
+    },
+    get bridgeUpdate() {
+      return t("s.homebrewUpgrade");
+    },
     bridgeFailures: {
-      notFound: "This editor is no longer on this PC.",
-      packaging: "Couldn't package the extension.",
-      refused: "The editor didn't accept the extension.",
-      timedOut: "The editor took too long to answer. Try again.",
+      get notFound() {
+        return t("windows.settings.sessions.bridgeFailures.notFound");
+      },
+      get packaging() {
+        return t("windows.settings.sessions.bridgeFailures.packaging");
+      },
+      get refused() {
+        return t("windows.settings.sessions.bridgeFailures.refused");
+      },
+      get timedOut() {
+        return t("windows.settings.sessions.bridgeFailures.timedOut");
+      },
     } as Record<string, string>,
-    codexCaption: "Nothing to install. The island talks to the app server Codex runs while it's open.",
-    codexConnected: "Connected",
-    codexNotRunning: "Starts with Codex",
-    codexNotFound: "Not found on this PC",
-    previews: "Show previews",
-    previewsCaption:
-      "Shows titles, commands, file names and the conversation. They stay in memory and are cleared when you turn this off.",
-    autoExpand: "Open the island when a session needs you",
-    autoExpandCaption: "It won't replace a page you already have open.",
-    live: "Show sessions beside the camera",
-    liveCaption: "The agent at work, and how many sessions are working, waiting or done.",
-    buddies: "A buddy for every session",
-    buddiesCaption:
-      "Clawd for Claude Code, a little robot for Codex, each dressed at random. Click one on its session's page to change the outfit.",
+    get codexCaption() {
+      return t("windows.settings.sessions.codexCaption");
+    },
+    get codexConnected() {
+      return t("notchActivities.connected");
+    },
+    get codexNotRunning() {
+      return t("notchClaudeSessions.codexNotRunning");
+    },
+    get codexNotFound() {
+      return t("windows.settings.sessions.codexNotFound");
+    },
+    get previews() {
+      return t("notchClaudeSessions.contentPreview");
+    },
+    get previewsCaption() {
+      return t("notchClaudeSessions.contentPreviewHint");
+    },
+    get autoExpand() {
+      return t("notchClaudeSessions.autoExpand");
+    },
+    get autoExpandCaption() {
+      return t("notchClaudeSessions.autoExpandHint");
+    },
+    get live() {
+      return t("notchClaudeSessions.liveActivity");
+    },
+    get liveCaption() {
+      return t("windows.settings.sessions.liveCaption");
+    },
+    get buddies() {
+      return t("notchClaudeSessions.buddies");
+    },
+    get buddiesCaption() {
+      return t("windows.settings.sessions.buddiesCaption");
+    },
   },
   calendar: {
-    permission: "Read your calendars to show upcoming appointments. Events stay on this PC.",
-    access: "Calendar access",
-    granted: "Allowed",
-    notAsked: "Not allowed yet",
-    denied: "Denied in Windows Settings",
-    unavailable: "Unavailable in this build",
-    unavailableCaption:
-      "Reading calendars needs the Vorssaint package the installer registers. Reinstall Vorssaint to add it.",
-    allow: "Allow Calendar Access",
-    settings: "Open Windows Settings",
-    countdown: "Event countdown",
-    countdownHint:
-      "Show every timed event in the closed island during the hour before it starts. To count down to only some, turn this off and right-click them on the island’s Calendar page. Titles may appear in screen captures.",
-    timeLeft: "Time left in current event",
-    timeLeftHint:
-      "Show a timed event in progress in the closed island during the hour before it ends. Its title may appear in screen captures.",
-    weekNumbers: "Week numbers",
-    calendars: "Calendars shown",
-    noCalendars:
-      "No calendars found. Windows shares the calendars of its Calendar app and classic Outlook; the new Outlook keeps its own.",
+    get permission() {
+      return t("windows.settings.calendar.permission");
+    },
+    get access() {
+      return t("windows.settings.calendar.access");
+    },
+    get granted() {
+      return t("windows.settings.calendar.granted");
+    },
+    get notAsked() {
+      return t("windows.settings.calendar.notAsked");
+    },
+    get denied() {
+      return t("windows.settings.calendar.denied");
+    },
+    get unavailable() {
+      return t("windows.settings.calendar.unavailable");
+    },
+    get unavailableCaption() {
+      return t("windows.settings.calendar.unavailableCaption");
+    },
+    get allow() {
+      return t("notchCalendar.allow");
+    },
+    get settings() {
+      return t("windows.settings.calendar.settings");
+    },
+    get countdown() {
+      return t("notchCalendar.countdown");
+    },
+    get countdownHint() {
+      return t("notchCalendar.countdownHint");
+    },
+    get timeLeft() {
+      return t("notchCalendar.timeLeft");
+    },
+    get timeLeftHint() {
+      return t("notchCalendar.timeLeftHint");
+    },
+    get weekNumbers() {
+      return t("notchCalendar.weekNumbers");
+    },
+    get calendars() {
+      return t("notchCalendar.calendars");
+    },
+    get noCalendars() {
+      return t("windows.settings.calendar.noCalendars");
+    },
   },
   controls: {
-    music: "Now Playing",
-    volume: "Volume",
-    brightness: "Brightness",
-    keepAwake: "Keep awake",
-    microphone: "Mute microphone",
-    mixer: "Volume mixer",
-    timer: "Timer",
-    calendar: "Calendar",
-    screenshot: "Screenshot",
-    speedTest: "Speed test",
-    scratchpad: "Scratchpad",
-    levelsCaption: "The levels sit in the island's top row when they fit, else in a row below it.",
-    shortcuts: "Controls and shortcuts",
-    shortcutsCaption: "Turn tiles on or off and move them. The island shows them in this order.",
-    brightnessSliders: "Brightness slider",
-    brightnessSlidersCaption:
-      "Sets the brightness of this PC's screen, and of external displays that accept DDC/CI. Off shows a shortcut to this setting instead.",
-    keepAwakeFor: "Keep awake for",
-    keepAwakeForCaption:
-      "How long the Keep awake tile keeps the PC and display from idling to sleep. Closing the lid or pressing the power button still sleeps it.",
-    untilOff: "Until turned off",
-    minutes: (n: number) => (n < 60 ? `${n} minutes` : n === 60 ? "1 hour" : `${n / 60} hours`),
-    hideInactive: "Hide inactive apps",
-    hideInactiveCaption: "Lists only apps that play, are muted or are set off 100%.",
-    hiddenApps: "Hidden apps",
+    get music() {
+      return t("radialMenu.mediaNowPlaying");
+    },
+    get volume() {
+      return t("notch.volume");
+    },
+    get brightness() {
+      return t("notch.brightness");
+    },
+    get keepAwake() {
+      return t("s.keepAwakeTitle");
+    },
+    get microphone() {
+      return t("s.micMuteName");
+    },
+    get mixer() {
+      return t("s.mixerSection");
+    },
+    get timer() {
+      return t("notchActivities.timer");
+    },
+    get calendar() {
+      return t("notchCalendar.title");
+    },
+    get screenshot() {
+      return t("screenshot.editorTitle");
+    },
+    get speedTest() {
+      return t("s.monitorItemNetTest");
+    },
+    get scratchpad() {
+      return t("scratchpad.pageTitle");
+    },
+    get levelsCaption() {
+      return t("windows.settings.controls.levelsCaption");
+    },
+    get shortcuts() {
+      return t("notch.controlShortcuts");
+    },
+    get shortcutsCaption() {
+      return t("windows.settings.controls.shortcutsCaption");
+    },
+    get brightnessSliders() {
+      return t("windows.settings.controls.brightnessSliders");
+    },
+    get brightnessSlidersCaption() {
+      return t("windows.settings.controls.brightnessSlidersCaption");
+    },
+    get keepAwakeFor() {
+      return t("windows.settings.controls.keepAwakeFor");
+    },
+    get keepAwakeForCaption() {
+      return t("windows.settings.controls.keepAwakeForCaption");
+    },
+    get untilOff() {
+      return t("windows.settings.controls.untilOff");
+    },
+    minutes: (n: number) =>
+      n < 60
+        ? tf("WhatsAppOrganizerStrings.localized.minutesFormat", n)
+        : n === 60
+          ? t("s.hour1")
+          : tf("windows.settings.controls.minutes", n / 60),
+    get hideInactive() {
+      return t("mixer.hideInactiveApps");
+    },
+    get hideInactiveCaption() {
+      return t("windows.settings.controls.hideInactiveCaption");
+    },
+    get hiddenApps() {
+      return t("windows.settings.controls.hiddenApps");
+    },
     hiddenAppsCaption: (n: number) =>
-      n === 0 ? "Every app that plays shows in the mixer." : `${n} hidden from the mixer.`,
-    showAll: "Show all",
-    mixerCaption:
-      "Per-app volume goes up to 100%. Choosing an output or microphone makes it the Windows default for every app.",
+      n === 0
+        ? t("windows.settings.controls.hiddenAppsCaption")
+        : tf("windows.settings.controls.hiddenAppsCaption249e0b", n),
+    get showAll() {
+      return t("s.menuShowAll");
+    },
+    get mixerCaption() {
+      return t("windows.settings.controls.mixerCaption");
+    },
   },
   clipboard: {
     // ClipboardFeatureStrings, ClipboardRetentionStrings, ClipboardIgnoredAppsStrings,
     // NotchClipboardSizeStrings and NotchStrings on the Mac.
-    enable: "Save clipboard history",
-    enableCaption: "Stores copied text so you can reuse it later. Everything stays local and can be cleared anytime.",
-    includeImagesFiles: "Also save copied images and files",
-    includeImagesFilesCaption:
-      "Images join the history and files are remembered as links to their location. Pin and paste them like any text item.",
-    skipSensitive: "Skip text that looks sensitive",
-    skipSensitiveCaption:
-      "May skip ordinary text that resembles passwords or tokens. Content marked as confidential by its source app is always excluded.",
-    limit: "Limit",
-    limitUnlimited: "Unlimited",
-    retention: "Keep items for",
-    retentionCaption: "Older items are removed even below the limit. Pinned items are always kept.",
-    forever: "Forever",
-    days: (n: number) => (n === 1 ? "1 day" : `${n} days`),
-    ignoredApps: "Apps to skip",
-    ignoredAppsCaption:
-      "Nothing you copy in these apps is saved to the history. Enter each app's program name, one per line. Changes save when you leave this field.",
-    entrySize: "Entry size",
-    entrySizeCaption: "Compact entries show one or two lines and open up when the pointer rests on them.",
-    compact: "Compact",
-    comfortable: "Comfortable",
-    notice: "Notify when something is copied",
-    noticeCaption: "Copied content stays private until you open the clipboard.",
+    get enable() {
+      return t("clipboard.enable");
+    },
+    get enableCaption() {
+      return t("clipboard.caption");
+    },
+    get includeImagesFiles() {
+      return t("clipboard.includeImagesFiles");
+    },
+    get includeImagesFilesCaption() {
+      return t("clipboard.includeImagesFilesCaption");
+    },
+    get skipSensitive() {
+      return t("clipboard.skipSensitive");
+    },
+    get skipSensitiveCaption() {
+      return t("clipboard.skipSensitiveCaption");
+    },
+    get limit() {
+      return t("notchAgents.readoutLimit");
+    },
+    get limitUnlimited() {
+      return t("clipboard.limitUnlimited");
+    },
+    get retention() {
+      return t("clipboardRetention.title");
+    },
+    get retentionCaption() {
+      return t("clipboardRetention.caption");
+    },
+    get forever() {
+      return t("clipboardRetention.forever");
+    },
+    days: (n: number) => (n === 1 ? t("clipboardRetention.oneDay") : tf("clipboardRetention.daysFormat", n)),
+    get ignoredApps() {
+      return t("clipboardIgnoredApps.listTitle");
+    },
+    get ignoredAppsCaption() {
+      return t("windows.settings.clipboard.ignoredAppsCaption");
+    },
+    get entrySize() {
+      return t("notchClipboardSize.entrySize");
+    },
+    get entrySizeCaption() {
+      return t("notchClipboardSize.hint");
+    },
+    get compact() {
+      return t("notch.compact");
+    },
+    get comfortable() {
+      return t("notchClipboardSize.comfortable");
+    },
+    get notice() {
+      return t("notch.clipboardActivity");
+    },
+    get noticeCaption() {
+      return t("windows.settings.clipboard.noticeCaption");
+    },
   },
   agents: {
-    cardsKeys: "Alt+arrow keys move the focused card.",
-    cardShown: "shown",
-    cardHidden: "hidden",
+    get cardsKeys() {
+      return t("windows.settings.agents.cardsKeys");
+    },
+    get cardShown() {
+      return t("windows.settings.agents.cardShown");
+    },
+    get cardHidden() {
+      return t("s.mixerHiddenCountLabel");
+    },
   },
-  saveFailed: "Couldn't save this change.",
+  get saveFailed() {
+    return t("windows.settings.saveFailed");
+  },
 } as const;

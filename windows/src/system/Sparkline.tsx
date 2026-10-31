@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // A small history graph (Sparkline.swift): a filled area under the line, an
 // optional zero baseline, and the graph's ceiling named on a dashed rule
 // over the oldest samples (graphCeilingLabel).
@@ -27,6 +29,7 @@ export function sparkPoints(values: number[], max: number, height: number): [num
 }
 
 export function Sparkline(props: { lines: Line[]; max: number; ceilingLabel: string; height?: number }) {
+  useLocale();
   const height = props.height ?? 38;
   const id = useId();
   const drawn = props.lines.filter((line) => line.values.length >= 2);

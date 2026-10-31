@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../i18n";
+
 // The AI page (NotchAgentsView.swift:6-155): the cards the person picked,
 // paired across the island, as tall as they are up to the preset's budget,
 // scrolling beyond it. The period the money cards cover sits in the top row.
 
 import { ChevronDown, LayoutGrid, LoaderCircle, Sparkles } from "lucide-react";
 import { useEffect, useMemo } from "react";
-import { t } from "../i18n";
+
 import { contentBudget } from "../island/geometry";
 import { geometryOf, useIsland } from "../island/store";
 import { EmptyState, IconButton } from "../island/views/Controls";
@@ -67,6 +69,7 @@ export function pageHeight(loaded: boolean, providers: number, rowsHeight: numbe
 }
 
 export function AgentsPage({ width, height }: PageProps) {
+  useLocale();
   const snapshot = useAgents((s) => s.snapshot);
   const { providers, tiles: list } = usePageTiles();
   const period = useIsland((s) => s.settings.agentsPeriod);
@@ -126,6 +129,7 @@ function TileView(props: {
   display: "remaining" | "used";
   now: number;
 }) {
+  useLocale();
   const snapshot = useAgents((s) => s.snapshot);
   const { tile, providers, period, now } = props;
   const usage = snapshot.periods[period];
@@ -162,6 +166,7 @@ function TileView(props: {
  * stands in for it, then the period menu while a card follows the period.
  */
 export function AgentsLeading() {
+  useLocale();
   const loaded = useAgents((s) => s.snapshot.loaded);
   const { tiles: list } = usePageTiles();
   const period = useIsland((s) => s.settings.agentsPeriod);

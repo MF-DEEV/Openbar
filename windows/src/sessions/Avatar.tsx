@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // A session's face in the island: its Clawd, or with buddies off, a round
 // badge in the phase's tint (NotchClaudeSessionsView.swift).
 
@@ -27,6 +29,7 @@ export function phaseIcon(phase: Phase, provider: Provider): LucideIcon | Compon
 }
 
 export function PhaseBadge({ phase, provider, size }: { phase: Phase; provider: Provider; size: number }) {
+  useLocale();
   const Icon = phaseIcon(phase, provider);
   const tint = phaseTint(phase, provider);
   const scale = phase === "generating" ? MARK_SCALE[provider] : 1;

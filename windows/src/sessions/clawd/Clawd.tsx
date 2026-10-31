@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../../i18n/index";
+
 // A Clawd on screen (NotchClawdView.swift, NotchClawdBuddy.swift; spec
 // 02-sessions §5.4-5.6). Each one is a 24×22 canvas, one canvas pixel per
 // sprite pixel, scaled up by CSS to a whole number of device pixels with
@@ -162,6 +164,7 @@ function Canvas(props: {
   className?: string;
   style?: CSSProperties;
 }) {
+  useLocale();
   const fit = layout({ width: props.width, height: props.height }, props.ratio);
   return (
     <div
@@ -221,6 +224,7 @@ export interface ClawdProps {
 
 /** A Clawd fitted to a box, moving unless Reduce Motion is on. Decoration only: aria-hidden. */
 export function Clawd(props: ClawdProps) {
+  useLocale();
   const { costume, motion = "rest", bubbles = true, width, height, character = "clawd" } = props;
   const reduce = useReducedMotion();
   const still = props.still ?? reduce;
@@ -291,6 +295,7 @@ export function ClawdPicture(props: {
   className?: string;
   style?: CSSProperties;
 }) {
+  useLocale();
   const ratio = useDevicePixelRatio();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const pose = props.pose ?? basePose();

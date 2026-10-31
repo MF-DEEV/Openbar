@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { tf } from "../i18n/index";
+
 // How sessions read in the island (NotchClaudeSessionsSupport.swift,
 // NotchAgentSupport.swift; spec 02-sessions §4).
 
@@ -28,7 +30,7 @@ export function phaseTint(phase: Phase, provider: Provider = "claude"): string {
     case "runningTool":
       return providerTint(provider);
     case "background":
-      return `color-mix(in srgb, ${providerTint(provider)} 75%, transparent)`;
+      return tf("windows.sessions.colorMixInSrgbValue75Transparent", providerTint(provider));
     case "waitingPermission":
     case "waitingInput":
       return WAITING_TINT;
@@ -82,8 +84,8 @@ export function duration(seconds: number): string {
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const r = s % 60;
-  if (h > 0) return `${h}h ${m}m`;
-  if (m > 0) return `${m}m ${r}s`;
+  if (h > 0) return tf("windows.sessions.valueHValueM", h, m);
+  if (m > 0) return tf("windows.sessions.valueMValueS", m, r);
   return `${r}s`;
 }
 

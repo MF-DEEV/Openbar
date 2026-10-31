@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { formattingLocale, useLocale } from "../i18n";
+
 // Clipboard options, inside its card on the Content tab: the history itself
 // and what it keeps (ClipboardSettings.swift, ClipboardIgnoredAppsList.swift),
 // then the island's entry size and notice (NotchSettings.swift:479-495).
@@ -14,6 +16,7 @@ import { Segmented, Select, SubRow, Toggle } from "./ui";
 const S = T.clipboard;
 
 export function ClipboardOptions() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const [draft, setDraft] = useState<string | null>(null);
@@ -50,7 +53,7 @@ export function ClipboardOptions() {
           disabled={off}
           options={CLIPBOARD_LIMITS.map((n) => ({
             value: String(n),
-            label: n === 0 ? S.limitUnlimited : n.toLocaleString(),
+            label: n === 0 ? S.limitUnlimited : n.toLocaleString(formattingLocale()),
           }))}
           onChange={(v) => set("clipboardHistoryLimit", Number(v))}
         />

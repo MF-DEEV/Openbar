@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../../i18n/index";
+
 // NotchRollingDigits: each digit rolls to its new value (up when the number
 // grows, down when it shrinks); other characters swap in place. Reduced
 // motion swaps every character instantly.
@@ -8,6 +10,7 @@
 import { useRef } from "react";
 
 export function RollingDigits(props: { text: string; className?: string; label?: string }) {
+  useLocale();
   const previous = useRef(props.text);
   const direction = useRef<1 | -1>(1);
   if (previous.current !== props.text) {

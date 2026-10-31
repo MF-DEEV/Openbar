@@ -327,6 +327,7 @@ class Parser:
         # walk the body
         depth = 0
         pending: list[str] = []
+        arrays = {}
         while self.i < len(self.t):
             tok = self.peek()
             if tok.kind == "punct" and tok.text == "{":
@@ -347,6 +348,35 @@ class Parser:
                     while self.is_(0, "."):
                         pending.append(self.peek(1).text); self.i += 2
                         if self.is_(0, ","): self.i += 1
+                continue
+            # A newer table assigns a literal array per language, then returns
+            # a struct made only of indexed elements. Evaluate this restricted
+            # shape structurally; never execute arbitrary Swift expressions.
+            if pending and tok.kind == "ident" and self.is_(1, "=") and self.is_(2, "["):
+                variable = tok.text
+                end = self.i + 3
+                while end < len(self.t) and self.t[end].text != "]": end += 1
+                elements = self.t[self.i + 3:end]
+                if all(t.kind == "string" and not t.interp if k % 2 == 0 else t.text == ","
+                       for k, t in enumerate(elements)):
+                    for lang in pending:
+                        arrays[lang] = (variable, [t.text for t in elements if t.kind == "string"])
+                    pending = []
+                    self.i = end + 1
+                    continue
+            if tok.kind == "ident" and tok.text == "return" and arrays and self.is_(1, ret) and self.is_(2, "("):
+                self.i += 2
+                args = self.read_args()
+                for lang, (variable, words) in arrays.items():
+                    values, unresolved = {}, {}
+                    for label, expr in args:
+                        if len(expr) == 4 and expr[0].text == variable and expr[1].text == "[" and expr[3].text == "]" \
+                                and expr[2].text.isdigit() and int(expr[2].text) < len(words):
+                            values[label] = words[int(expr[2].text)]
+                        else:
+                            values[label] = literal_value(expr)
+                            if values[label] is None: unresolved[label] = "indexed-array expression not understood"
+                    acc.cases[lang] = ("inline", Table(ret, values, unresolved, self.file, tok.line))
                 continue
             if tok.kind == "ident" and tok.text == "return" and pending:
                 self.i += 1

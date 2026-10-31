@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // The filled phase symbols the Mac draws with SF Symbols
 // (checkmark.circle.fill, hand.raised.fill), which outline icon sets lack.
 
@@ -19,6 +21,7 @@ export interface GlyphProps {
 
 /** A filled circle in the current color with a dark tick cut into it. */
 export function CheckCircleFill({ size = 14, style, className }: GlyphProps) {
+  useLocale();
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={style} className={className} aria-hidden>
       <circle cx="12" cy="12" r="11" fill="currentColor" />
@@ -36,6 +39,7 @@ export function CheckCircleFill({ size = 14, style, className }: GlyphProps) {
 
 /** A raised open hand, filled. */
 export function HandFill({ size = 14, style, className }: GlyphProps) {
+  useLocale();
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={style} className={className} aria-hidden>
       <g fill="currentColor">
@@ -51,6 +55,7 @@ export function HandFill({ size = 14, style, className }: GlyphProps) {
 
 /** The four-pointed sparkle, filled: a session at work beside its count. */
 export function SparkleFill({ size = 14, style, className }: GlyphProps) {
+  useLocale();
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" style={style} className={className} aria-hidden>
       <path
@@ -73,6 +78,7 @@ export type MarkProps = GlyphProps;
 
 /** Claude's spark, in its orange unless the parent says otherwise. */
 export function ClaudeMark({ size = 14, style, className, working }: MarkProps) {
+  useLocale();
   return (
     <svg
       width={size}
@@ -89,6 +95,7 @@ export function ClaudeMark({ size = 14, style, className, working }: MarkProps) 
 
 /** Codex's cloud with its prompt cut out, in the app icon's violet-to-blue. */
 export function CodexMark({ size = 14, style, className, working }: MarkProps) {
+  useLocale();
   const id = useId();
   return (
     <svg
@@ -117,5 +124,6 @@ export const MARK_SCALE = { claude: 1.45, codex: 1.2 } as const;
 
 /** The mark of whoever runs a session. */
 export function ProviderMark({ provider, ...props }: MarkProps & { provider: Provider }) {
+  useLocale();
   return provider === "codex" ? <CodexMark {...props} /> : <ClaudeMark {...props} />;
 }

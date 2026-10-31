@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t, tf } from "../i18n/index";
+
 // The Watch section's English strings, as the Mac words them
 // (NotchWatchStrings.swift, enUS), in Windows' sentence case and with the
 // PC in place of the Mac.
@@ -8,35 +10,78 @@
 import type { WatchCondition, WatchOutcome } from "./types";
 
 export const S = {
-  title: "Watch",
-  description:
-    "Turn any part of any window into a live activity in the island, with an alert when it changes, finishes or shows what you are waiting for.",
-  setupHint:
-    "Choose any part of a window, like a progress bar, a build status or a score. The island reads it for you and tells you when it changes.",
-  choose: "Choose area…",
-  chooseAgain: "Choose another area",
-  stop: "Stop watching",
-  watchAgain: "Watch again",
-  permissionHint:
-    "Windows didn't let Vorssaint read this area. Watch reads it on this PC only; nothing leaves your PC.",
-  tellMe: "Tell me",
-  changes: "When it changes",
-  settles: "When it stops changing",
-  contains: "When it shows",
-  reaches: "When the number reaches",
-  settlesHint: "After it changes, it must stay still for 30 seconds.",
-  textPlaceholder: "Text, like Done",
-  numberPlaceholder: "Number, like 100",
-  noText: "No text",
-  inIsland: "Show in the island",
-  automatic: "Automatic",
-  hidden: "The window is hidden. Watching continues when it returns.",
-  changedNotice: "It changed",
-  settledNotice: "It stopped changing",
-  shows: (text: string) => `It shows ${text}`,
-  reached: (text: string) => `It reached ${text}`,
-  closedNotice: "The window closed",
-  since: (time: string) => `Watching since ${time}`,
+  get title() {
+    return t("notchWatch.title");
+  },
+  get description() {
+    return t("windows.watch.description");
+  },
+  get setupHint() {
+    return t("notchWatch.setupHint");
+  },
+  get choose() {
+    return t("windows.watch.choose");
+  },
+  get chooseAgain() {
+    return t("notchWatch.chooseAgain");
+  },
+  get stop() {
+    return t("notchWatch.stop");
+  },
+  get watchAgain() {
+    return t("notchWatch.watchAgain");
+  },
+  get permissionHint() {
+    return t("windows.watch.permissionHint");
+  },
+  get tellMe() {
+    return t("notchWatch.tellMe");
+  },
+  get changes() {
+    return t("notchWatch.changes");
+  },
+  get settles() {
+    return t("notchWatch.settles");
+  },
+  get contains() {
+    return t("notchWatch.contains");
+  },
+  get reaches() {
+    return t("notchWatch.reaches");
+  },
+  get settlesHint() {
+    return t("notchWatch.settlesHint");
+  },
+  get textPlaceholder() {
+    return t("notchWatch.textPlaceholder");
+  },
+  get numberPlaceholder() {
+    return t("notchWatch.numberPlaceholder");
+  },
+  get noText() {
+    return t("notchWatch.noText");
+  },
+  get inIsland() {
+    return t("notchWatch.inIsland");
+  },
+  get automatic() {
+    return t("notchWatch.automatic");
+  },
+  get hidden() {
+    return t("notchWatch.hidden");
+  },
+  get changedNotice() {
+    return t("notchWatch.changedNotice");
+  },
+  get settledNotice() {
+    return t("notchWatch.settledNotice");
+  },
+  shows: (text: string) => tf("notchWatch.showsFormat", text),
+  reached: (text: string) => tf("notchWatch.reachedFormat", text),
+  get closedNotice() {
+    return t("notchWatch.closedNotice");
+  },
+  since: (time: string) => tf("notchWatch.sinceFormat", time),
 } as const;
 
 export function conditionTitle(condition: WatchCondition): string {

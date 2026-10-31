@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n/index";
+
 // System options (MonitorSettings.swift readings card, and the monitor
 // features the Mac switches in its feature hub): how often the cards read,
 // the network unit, and which cards show.
@@ -11,6 +13,7 @@ import { T } from "./strings";
 import { Segmented, SubRow, Toggle } from "./ui";
 
 export function SystemOptions() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const shown = (metric: MonitorMetric) => !island.hiddenSystemMetrics.includes(metric);

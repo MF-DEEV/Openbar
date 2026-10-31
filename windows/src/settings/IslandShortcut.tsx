@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../i18n/index";
+
 import { invoke } from "@tauri-apps/api/core";
 import { Keyboard } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -12,6 +14,7 @@ import { T } from "./strings";
 import { Row, Toggle } from "./ui";
 
 export function IslandShortcut() {
+  useLocale();
   const { shortcut, shortcutEnabled } = useSettings((s) => s.prefs.island);
   const save = useSettings((s) => s.shortcut);
   const [recording, setRecording] = useState(false);
@@ -61,7 +64,7 @@ export function IslandShortcut() {
       }
     >
       <div className="st-island-shortcut">
-        <span className="st-keys" aria-label="Configured shortcut">
+        <span className="st-keys" aria-label={t("windows.settings.configuredShortcut")}>
           {formatAccelerator(shortcut)
             .split("+")
             .map((key, i) => (

@@ -1,23 +1,41 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
+
+import { useLocale, t } from "../i18n";
 import { ArrowDown, ArrowUp, LayoutGrid, Pin, Plus, RotateCcw, Settings, Trash2 } from "lucide-react";
 import { capsulePath, makeGeometry, notchPath } from "../island/geometry";
 import { MODULES, visibleModules } from "../island/modules";
 import { freeQuickSide, placeButtons, QUICK_LAYOUT, QUICK_SIDES } from "../island/quickAccessLayout";
 import { sectionEnabled, type QuickAction, type QuickButton, type QuickSide } from "../island/settings";
-import { t } from "../i18n";
+
 import { useSettings } from "./state";
 import { T } from "./strings";
 import { Button, Group, Row, Select, type Option } from "./ui";
 
 const keyOf = (action: QuickAction) => (action.kind === "module" ? `module:${action.module}` : action.kind);
 const SIDES: Option<QuickSide>[] = [
-  { value: "left", label: T.content.sideLeft },
-  { value: "right", label: T.content.sideRight },
-  { value: "bottom", label: T.content.sideBottom },
+  {
+    value: "left",
+    get label() {
+      return T.content.sideLeft;
+    },
+  },
+  {
+    value: "right",
+    get label() {
+      return T.content.sideRight;
+    },
+  },
+  {
+    value: "bottom",
+    get label() {
+      return T.content.sideBottom;
+    },
+  },
 ];
 
 export function QuickAccessSettings() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const patch = useSettings((s) => s.patch);
   const buttons = island.quickAccess;

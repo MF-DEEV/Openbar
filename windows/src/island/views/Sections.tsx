@@ -1,13 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t } from "../../i18n/index";
+
 // The sections gallery (NotchSectionsView.swift; spec 01-shell §5): tiles
 // 92 × 86 at least, 8 apart, radius 16, three rows in view, whole-row paging
 // with a dot column on the right.
 
 import { Check } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { t } from "../../i18n";
 import { moduleInfo, type ModuleId } from "../modules";
 import { galleryColumns, modulesOf, useIsland } from "../store";
 
@@ -15,15 +16,16 @@ const ROW = 86;
 const GAP = 8;
 
 export function SectionsGallery(props: { width: number; height: number }) {
+  const language = useLocale();
   const settings = useIsland((s) => s.settings);
   const selected = useIsland((s) => s.selected);
   const query = useIsland((s) => s.sectionQuery);
   const select = useIsland((s) => s.select);
   const modules = useMemo(() => modulesOf({ settings }), [settings]);
   const shown = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return q ? modules.filter((id) => t(`module.${id}`).toLowerCase().includes(q)) : modules;
-  }, [modules, query]);
+    const q = query.trim().toLocaleLowerCase(language);
+    return q ? modules.filter((id) => t(`module.${id}`).toLocaleLowerCase(language).includes(q)) : modules;
+  }, [modules, query, language]);
   const columns = galleryColumns(props.width);
   const visibleRows = Math.max(1, Math.min(3, Math.floor((props.height + GAP) / (ROW + GAP))));
   const rows = Math.ceil(shown.length / columns);
@@ -105,6 +107,7 @@ export function SectionsGallery(props: { width: number; height: number }) {
 }
 
 function Tile(props: { id: ModuleId; current: boolean; highlighted: boolean; onSelect: (id: ModuleId) => void }) {
+  useLocale();
   const info = moduleInfo(props.id);
   const Icon = info.icon;
   return (
@@ -116,7 +119,10 @@ function Tile(props: { id: ModuleId; current: boolean; highlighted: boolean; onS
       {props.current ? <Check className="n-tile-check" size={10} strokeWidth={3} /> : null}
       <Icon size={22} strokeWidth={1.75} style={{ color: info.tint ?? "rgba(255,255,255,0.85)" }} />
       <span className="n-tile-title">{t(`module.${props.id}`)}</span>
-      <span className="n-tile-shortcut">Ctrl+Alt+{info.shortcutKey.toUpperCase()}</span>
+      <span className="n-tile-shortcut">
+        {t("windows.island.ctrlAlt")}
+        {info.shortcutKey.toUpperCase()}
+      </span>
     </button>
   );
 }
