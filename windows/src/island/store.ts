@@ -676,6 +676,27 @@ export function presentation(
   };
 }
 
+/**
+ * What another display's mirror shows: the closed island whatever this one is
+ * doing, with no notice, hover or menu (NotchMirrorView). Null when the closed
+ * island shows nothing there (hidden until hover).
+ */
+export function mirrorSurface(
+  s: IslandState,
+  geometry: Geometry,
+  idleContent: IdleContent,
+  mascotShown: boolean,
+): { activity: ActivityId | null; size: Size } | null {
+  const activity = visibleActivity(s);
+  const hiding = s.settings.opening === "hiddenUntilHover";
+  if (hiding && (!activity || !s.settings.hiddenShowsActivity)) return null;
+  if (activity) {
+    const spec = s.activities[activity]!;
+    return { activity, size: activitySize(geometry, spec.wing, spec.capsuleContent) };
+  }
+  return { activity: null, size: restingSize(geometry, idleContent !== "none" || mascotShown) };
+}
+
 /** Tiles 86 tall with 8 between rows, at most three rows in view (spec §5). */
 export function galleryColumns(width: number): number {
   const content = width - 56 - 12;

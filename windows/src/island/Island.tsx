@@ -35,6 +35,7 @@ import { useMusic } from "../music/store";
 import { CapturePresentation } from "../screenshot-preview/CapturePresentation";
 import { useIslandContextMenu } from "./contextMenu";
 import { mascotShows, useMascot } from "../mascot/service";
+import { MirrorSource } from "./MirrorSource";
 
 function useWindowScreen() {
   const setScreen = useIsland((s) => s.setScreen);
@@ -44,7 +45,11 @@ function useWindowScreen() {
       setScreen({ width: window.innerWidth, height: window.screen.height }, window.devicePixelRatio || 1);
     update();
     window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
+    const changed = bridge.onDisplayChanged(update);
+    return () => {
+      window.removeEventListener("resize", update);
+      void changed.then((f) => f());
+    };
   }, [setScreen]);
 }
 
@@ -55,6 +60,10 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
       // The Rust pointer watcher knows when the pointer crosses the island's shape.
       const unlisten = bridge.onPointer((e) => (e.inside ? pointerEnter() : pointerExit()));
       const toggle = bridge.onToggle(() => useIsland.getState().toggle());
+      const openHere = bridge.onOpenHere(() => {
+        const s = useIsland.getState();
+        if (!s.expanded) s.clickClosed();
+      });
       const outside = bridge.onOutsideClick(() => {
         const s = useIsland.getState();
         if (s.expanded && !s.capturePreview && !s.pinned && !s.held) s.collapse();
@@ -64,6 +73,7 @@ function usePointer(frame: React.RefObject<HTMLDivElement | null>) {
         void unlisten.then((f) => f());
         void outside.then((f) => f());
         void toggle.then((f) => f());
+        void openHere.then((f) => f());
       };
     }
     // In a plain browser the frame's own events stand in.
@@ -273,6 +283,7 @@ export function Island() {
       </IslandSurface>
       <QuickAccess geometry={geometry} size={shown.size} visible={shown.kind === "expanded"} delay={bubbleDelay} />
       {contextMenu.menu}
+      {state.settings.display === "all" ? <MirrorSource geometry={geometry} idleContent={idleContent} /> : null}
     </div>
   );
 }

@@ -14,6 +14,7 @@ export default defineConfig(() => ({
     rollupOptions: {
       input: {
         island: resolve(import.meta.dirname, "island.html"),
+        mirror: resolve(import.meta.dirname, "mirror.html"),
         settings: resolve(import.meta.dirname, "settings.html"),
         bar: resolve(import.meta.dirname, "bar.html"),
         capture: resolve(import.meta.dirname, "capture.html"),

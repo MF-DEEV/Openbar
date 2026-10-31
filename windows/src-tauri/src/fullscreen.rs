@@ -18,6 +18,20 @@ pub struct AttentionContext {
     pub busy: bool,
 }
 
+/// Whether a mirror on `window`'s display should step aside for a fullscreen
+/// app there, under Settings › Behavior › Hide in fullscreen.
+pub fn hides_on<R: Runtime>(window: &tauri::WebviewWindow<R>) -> bool {
+    #[cfg(windows)]
+    {
+        imp::hides() && imp::context(window).fullscreen
+    }
+    #[cfg(not(windows))]
+    {
+        let _ = window;
+        false
+    }
+}
+
 fn desktop_or_own(class: &str, own: bool) -> bool {
     own || matches!(
         class,
@@ -214,6 +228,10 @@ mod imp {
                 std::thread::sleep(Duration::from_millis(250));
             }
         });
+    }
+
+    pub fn hides() -> bool {
+        HIDES.load(Ordering::Relaxed)
     }
 
     pub fn set_compact(on: bool) {

@@ -29,7 +29,7 @@ This is a port of the Dynamic Island from the unofficial [Vorssaint](https://git
 2. Run it. The installer isn't signed yet, so Windows may say **Windows protected your PC**. Choose **More info**, then **Run anyway**.
 3. Go through the setup. It installs for your account only, needs no administrator password, and starts the island when it's done.
 
-You need Windows 11. The island sits at the top center of your main display. Click it to open, or press **Ctrl+Alt+Space** from any app.
+You need Windows 11. The island sits at the top center of your main display. Click it to open, or press **Ctrl+Alt+Space** from any app. With several displays, **Settings › Behavior › Show on** keeps it on the main display, moves it to the display the pointer is on, or shows it on all of them. It follows monitors being plugged in or removed and changes of resolution or scale.
 
 To remove it, use **Settings › Apps › Installed apps › Vorssaint › Uninstall**. That also takes out its Start with Windows entry and the hooks it added to Claude Code. If you allowed the per-app network list, Windows asks for an administrator once more to remove its helper.
 

@@ -1,5 +1,14 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { galleryHeight, geometryOf, presentation, transitionBetween, useIsland, visibleActivity } from "./store";
+import { activitySize, restingSize } from "./geometry";
+import {
+  galleryHeight,
+  geometryOf,
+  mirrorSurface,
+  presentation,
+  transitionBetween,
+  useIsland,
+  visibleActivity,
+} from "./store";
 
 const initial = useIsland.getState();
 beforeEach(() => useIsland.setState(initial, true));
@@ -182,5 +191,31 @@ describe("content transitions (spec §3.2)", () => {
     expect(transitionBetween(p("notice", "n:a"), p("resting", "r"))).toBe("depart");
     expect(transitionBetween(p("resting", "r"), p("notice", "n:a"))).toBe("reveal");
     expect(transitionBetween(p("resting", "r"), p("resting", "r"))).toBe("none");
+  });
+});
+
+describe("the closed island on another display", () => {
+  const geometry = () => geometryOf(useIsland.getState());
+  const closed = () => mirrorSurface(useIsland.getState(), geometry(), "none", false);
+  it("draws the resting island or the activity, whatever this display shows", () => {
+    useIsland.setState({ expanded: true, activities: {}, pickedActivity: null });
+    expect(closed()).toEqual({ activity: null, size: restingSize(geometry()) });
+    useIsland.setState({ activities: { downloads: { wing: 36, capsuleContent: 68, opens: "downloads" } } });
+    expect(closed()).toEqual({ activity: "downloads", size: activitySize(geometry(), 36, 68) });
+    useIsland.setState({ expanded: false, activities: {} });
+  });
+  it("shows nothing where the closed island is hidden until hover", () => {
+    const settings = useIsland.getState().settings;
+    const spec = { wing: 36, capsuleContent: 68, opens: "downloads" as const };
+    useIsland.setState({
+      settings: { ...settings, opening: "hiddenUntilHover", hiddenShowsActivity: true },
+      activities: {},
+    });
+    expect(closed()).toBeNull();
+    useIsland.setState({ activities: { downloads: spec } });
+    expect(closed()?.activity).toBe("downloads");
+    useIsland.setState({ settings: { ...settings, opening: "hiddenUntilHover", hiddenShowsActivity: false } });
+    expect(closed()).toBeNull();
+    useIsland.setState({ settings, activities: {} });
   });
 });
