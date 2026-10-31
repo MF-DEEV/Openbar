@@ -22,6 +22,7 @@ import {
 import { ContentStage } from "./surface/ContentStage";
 import { IslandSurface } from "./surface/IslandSurface";
 import { NoticeView, noticeWidth, Peek, Resting } from "./views/Closed";
+import { NotificationPreview, previewSize } from "../notifications/NotificationPreview";
 import { Expanded } from "./views/Expanded";
 import { QuickAccess } from "./views/QuickAccess";
 import { ActivityPicker } from "./views/ActivityPicker";
@@ -181,7 +182,9 @@ export function Island() {
     [state.settings, state.screen.width, state.screen.height, state.devicePixelRatio],
   );
   const measured: Size | undefined = state.notice
-    ? { width: noticeWidth(state.notice, geometry), height: geometry.stripHeight }
+    ? state.noticeExpanded && state.notice.notification
+      ? previewSize(state.notice.notification, geometry)
+      : { width: noticeWidth(state.notice, geometry), height: geometry.stripHeight }
     : undefined;
   const battery = useBattery((s) => s.battery);
   const playing = useMusic((s) => s.playback?.isPlaying ?? false);
@@ -229,6 +232,9 @@ export function Island() {
       break;
     case "notice":
       content = <NoticeView notice={state.notice!} geometry={geometry} size={shown.size} />;
+      break;
+    case "noticePreview":
+      content = <NotificationPreview notice={state.notice!} geometry={geometry} size={shown.size} />;
       break;
     case "peek":
       content = <Peek geometry={geometry} size={shown.size} />;

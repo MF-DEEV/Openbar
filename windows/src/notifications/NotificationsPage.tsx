@@ -3,12 +3,16 @@
 
 // The Notifications page (NotchNotificationsView.swift; spec 04 §2.1): a
 // rail of 240 pt cards, newest first, each with its app, time and sender,
-// Open and Dismiss; an empty state; and the access row while
-// Windows has not let the island listen.
+// Open and Dismiss; an empty state; the access row while Windows has not let
+// the island listen; and the question before Clear All empties the inbox.
 
 import { AppWindow, Bell, Trash2, X } from "lucide-react";
+import { useEffect } from "react";
+import { useIsland } from "../island/store";
 import { EmptyState } from "../island/views/Controls";
 import { bridge } from "../shared/bridge";
+import { Sheet } from "../tools/Sheet";
+import { clock, NotificationIcon } from "./NotificationPreview";
 import { useNotifications } from "./store";
 import type { Item } from "./types";
 import { notificationPresentation } from "./presentation";
@@ -16,13 +20,11 @@ import { notificationPresentation } from "./presentation";
 const PRIVACY =
   "Notifications show the app icon, app name and sender only. Message text is not collected or displayed. Discord’s Do Not Disturb and muted conversations follow its desktop notification settings. Notification details are cleared when you lock this PC or turn this off.";
 
-function clock(time: number): string {
-  return new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" }).format(new Date(time * 1000));
-}
-
 export function NotificationsPage() {
   const access = useNotifications((s) => s.access);
   const items = useNotifications((s) => s.items);
+  const confirmingClear = useNotifications((s) => s.confirmingClear);
+  useEffect(() => () => useNotifications.setState({ confirmingClear: false }), []);
 
   if (access !== "allowed") {
     return (
@@ -60,11 +62,37 @@ export function NotificationsPage() {
     return <EmptyState icon={Bell} title="New notifications will appear here" detail={PRIVACY} />;
   }
   return (
-    <div className="nt-rail">
-      {items.map((item) => (
-        <Card key={item.id} item={item} />
-      ))}
-    </div>
+    <>
+      <div className="nt-rail">
+        {items.map((item) => (
+          <Card key={item.id} item={item} />
+        ))}
+      </div>
+      {confirmingClear ? <ClearConfirmation /> : null}
+    </>
+  );
+}
+
+/** Clearing empties the inbox for good, so it asks first (confirmClearAboveIsland). */
+function ClearConfirmation() {
+  useEffect(() => {
+    useIsland.getState().setHeld(true);
+    return () => {
+      const island = useIsland.getState();
+      island.setHeld(false);
+      // A pointer that left during the question still closes a hover opening.
+      if (!island.inside) island.pointerExit();
+    };
+  }, []);
+  return (
+    <Sheet
+      title="Clear all notifications?"
+      confirm="Clear All"
+      cancel="Cancel"
+      destructive
+      onConfirm={() => void useNotifications.getState().clear()}
+      onCancel={() => useNotifications.setState({ confirmingClear: false })}
+    />
   );
 }
 
@@ -73,22 +101,7 @@ function Card({ item }: { item: Item }) {
   return (
     <div className="nt-card">
       <div className="nt-card-head">
-        {display.icon ? (
-          <img
-            key={display.icon}
-            src={display.icon}
-            alt=""
-            className="nt-icon"
-            onError={(event) => {
-              const image = event.currentTarget;
-              if (display.fallbackIcon && image.getAttribute("src") !== display.fallbackIcon) {
-                image.src = display.fallbackIcon;
-              } else image.style.visibility = "hidden";
-            }}
-          />
-        ) : (
-          <Bell size={14} />
-        )}
+        <NotificationIcon src={display.icon} fallback={display.fallbackIcon} />
         <span className="nt-app" title={display.app}>
           {display.app}
         </span>
@@ -124,7 +137,11 @@ export function NotificationsTrailing() {
   const count = useNotifications((s) => s.items.length);
   if (count === 0) return null;
   return (
-    <button type="button" className="n-pill-button s-open" onClick={() => void useNotifications.getState().clear()}>
+    <button
+      type="button"
+      className="n-pill-button s-open"
+      onClick={() => useNotifications.setState({ confirmingClear: true })}
+    >
       <Trash2 size={11} />
       Clear All
     </button>
