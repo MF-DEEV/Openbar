@@ -26,6 +26,7 @@ import {
   StickyNote,
   X,
   Zap,
+  Video,
 } from "lucide-react";
 import { type KeyboardEvent as ReactKeyboardEvent, type ReactNode, useEffect, useRef, useState } from "react";
 import { t } from "../i18n";
@@ -51,12 +52,13 @@ import {
 } from "./model";
 import { QuickToggles } from "./QuickToggles";
 import { S } from "./strings";
+import { useRecording } from "./recording";
 import { reorderTools, resetTools, runTool, setToolHidden, toolLists, useTools } from "./store";
 import { TOOLS_WITH_OPTIONS, type ToolId } from "./types";
 
 // MARK: Item metadata (QuickLauncherView title/icon/isActive)
 
-function title(id: ToolId, micMuted: boolean): string {
+function title(id: ToolId, micMuted: boolean, recording: boolean): string {
   switch (id) {
     case "micMute":
       return micMuted ? S.micUnmute : S.micMute;
@@ -68,6 +70,8 @@ function title(id: ToolId, micMuted: boolean): string {
     case "screenshot":
     case "scratchpad":
       return S[id];
+    case "screenRecorder":
+      return recording ? S.recordingStop : S.screenRecorder;
     default:
       return id;
   }
@@ -80,16 +84,19 @@ const ICONS: Partial<Record<ToolId, LucideIcon>> = {
   colorPicker: Pipette,
   clipboard: Clipboard,
   screenshot: Camera,
+  screenRecorder: Video,
   scratchpad: StickyNote,
 };
 
 function useToolLook(id: ToolId) {
   const keepAwake = useTools((s) => s.keepAwake);
   const micMuted = useTools((s) => s.micMuted);
-  const active = (id === "keepAwake" && keepAwake) || (id === "micMute" && micMuted);
+  const recording = useRecording((s) => s.startedAt !== null);
+  const active =
+    (id === "keepAwake" && keepAwake) || (id === "micMute" && micMuted) || (id === "screenRecorder" && recording);
   const Icon = id === "micMute" ? (micMuted ? MicOff : Mic) : (ICONS[id] ?? Settings);
   const tone = id === "micMute" && micMuted ? "is-muted" : active ? "is-active" : "";
-  return { Icon, active, tone, title: title(id, micMuted), filled: id === "keepAwake" && keepAwake };
+  return { Icon, active, tone, title: title(id, micMuted, recording), filled: id === "keepAwake" && keepAwake };
 }
 
 // MARK: Page
@@ -371,11 +378,11 @@ function HiddenTray({ hidden }: { hidden: ToolId[] }) {
             key={id}
             type="button"
             className="tl-chip"
-            aria-label={S.showItem(title(id, micMuted))}
+            aria-label={S.showItem(title(id, micMuted, false))}
             onClick={() => setToolHidden(id, false)}
           >
             <CirclePlus size={11} strokeWidth={2.25} aria-hidden />
-            {title(id, micMuted)}
+            {title(id, micMuted, false)}
           </button>
         ))}
       </div>

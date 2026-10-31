@@ -7,6 +7,7 @@ import { offersRepeat, switchesTools, toolForKey } from "./tools";
 describe("capture tools", () => {
   it("keeps the Mac's number keys", () => {
     expect(toolForKey("1")).toBe("screenshot");
+    expect(toolForKey("2")).toBe("recording");
     expect(toolForKey("3")).toBe("text");
     expect(toolForKey("4")).toBe("color");
     expect(toolForKey("5")).toBeNull();

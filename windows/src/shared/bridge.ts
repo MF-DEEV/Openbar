@@ -60,6 +60,15 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
   return invoke<T>(command, args);
 }
 
+/** How a recording finished (recorder/mod.rs Ended). */
+export interface RecordingEnded {
+  path: string | null;
+  folder: string | null;
+  seconds: number;
+  missingSound: boolean;
+  error: string | null;
+}
+
 export const bridge = {
   microphone: {
     snapshot: () => call<MicrophoneSnapshot>("microphone_snapshot"),
@@ -398,8 +407,20 @@ export const bridge = {
     session: () => call<CaptureSession | null>("capture_session"),
     pixels: (id: number) => call<ArrayBuffer>("capture_pixels", { id }),
     ready: (id: number) => call("capture_ready", { id }),
-    commit: (id: number, pick: Pick | null, purpose?: import("../capture/types").CaptureTool) =>
-      call("capture_commit", { id, pick, purpose: purpose ?? null }),
+    commit: (
+      id: number,
+      pick: Pick | null,
+      purpose?: import("../capture/types").CaptureTool,
+      audio?: { system: boolean; microphone: boolean },
+    ) => call("capture_commit", { id, pick, purpose: purpose ?? null, audio: audio ?? null }),
+    recorder: {
+      stop: () => call<void>("recorder_stop"),
+      running: () => call<boolean>("recorder_running"),
+      reveal: (path: string) => call<void>("recorder_reveal", { path }),
+      onStarted: (fn: () => void) => (inTauri ? listen("recorder://started", fn) : Promise.resolve(() => {})),
+      onEnded: (fn: (ended: RecordingEnded) => void) =>
+        inTauri ? listen<RecordingEnded>("recorder://ended", (e) => fn(e.payload)) : Promise.resolve(() => {}),
+    },
   },
   tools: {
     copyText: (text: string) => call("tools_copy_text", { text }),

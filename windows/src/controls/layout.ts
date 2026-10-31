@@ -27,7 +27,7 @@ export const EMPTY_HEIGHT = 140;
  * Not on Windows: no generic API for a keyboard light, and recording, the
  * app panel and the command bar aren't ported (spec 05 §1.3).
  */
-const UNSUPPORTED: ControlItem[] = ["keyboardLight", "recording", "panel", "commandBar"];
+const UNSUPPORTED: ControlItem[] = ["keyboardLight", "panel", "commandBar"];
 
 /** The section a tile needs to be shown (NotchControlItem.isAvailable). */
 const NEEDS: Partial<Record<ControlItem, ModuleId>> = {

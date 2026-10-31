@@ -165,8 +165,7 @@ export const T = {
     watchSound: "Play a sound",
     watchSoundCaption: "A chime when what you watch changes, finishes or shows what you are waiting for.",
     captureControls: "Capture controls",
-    captureControlsCaption:
-      "Switch tools at the top of the screen while selecting. Keys 1, 3, 4 and R work either way.",
+    captureControlsCaption: "Switch tools at the top of the screen while selecting. Keys 1 to 4 and R work either way.",
     colorFormat: "Color picker format",
     colorFormatCaption: "How a picked color is copied.",
     bareHex: "Copy hex without the # prefix",

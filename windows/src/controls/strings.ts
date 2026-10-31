@@ -21,6 +21,7 @@ export const S = {
   micUnmute: "Unmute microphone",
   mixer: "Volume mixer",
   screenshot: "Screenshot",
+  recording: "Screen recording",
   speedTest: "Speed test",
   scratchpad: "Scratchpad",
   nothingPlaying: "Nothing playing",

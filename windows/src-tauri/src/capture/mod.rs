@@ -69,6 +69,7 @@ pub enum Purpose {
     Screenshot,
     Text,
     Color,
+    Recording,
     Watch,
 }
 
@@ -115,6 +116,8 @@ pub struct Shared {
     busy: std::sync::atomic::AtomicBool,
     /// The last area taken and its display, for R; kept until the app quits.
     last_area: Mutex<Option<(Rect, Rect)>>,
+    /// What the controls chose for a recording.
+    audio: Mutex<crate::recorder::AudioChoice>,
 }
 
 /// An overlay page that never draws (it failed to load) gives up after this.
@@ -167,6 +170,8 @@ pub enum Outcome {
         value: String,
         hex: String,
     },
+    /// Recording now; `recorder://ended` tells how it finished.
+    Recording,
     Failed {
         message: String,
     },
@@ -436,7 +441,11 @@ pub fn capture_commit(
     id: u64,
     pick: Option<Pick>,
     purpose: Option<Purpose>,
+    audio: Option<crate::recorder::AudioChoice>,
 ) {
+    if let Some(audio) = audio {
+        *shared.audio.lock().unwrap() = audio;
+    }
     if let Some(session) = shared
         .session
         .lock()
@@ -487,6 +496,13 @@ fn run<R: Runtime>(app: &AppHandle<R>, purpose: Purpose, name: &str) -> Outcome 
         ..selection.rect
     };
     match selection.purpose {
+        Purpose::Recording => {
+            let audio = *app.state::<Shared>().audio.lock().unwrap();
+            match crate::recorder::start(app, selection.monitor, local, audio, name) {
+                Ok(()) => Outcome::Recording,
+                Err(message) => Outcome::Failed { message },
+            }
+        }
         Purpose::Screenshot | Purpose::Watch => {
             screenshot(app, &frame.crop(local), name, selection.monitor)
         }

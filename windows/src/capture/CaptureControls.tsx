@@ -5,14 +5,19 @@
 // of the display, clear of what is being captured, open while the pointer rests
 // on them. Drawn in the selection window, since that window covers the island.
 
-import { Camera, ChevronUp, type LucideIcon, Pipette, ScanText, X } from "lucide-react";
+import { Camera, ChevronUp, type LucideIcon, Pipette, ScanText, Video, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { S } from "./strings";
 import { TOOLS } from "./tools";
 import type { CaptureTool } from "./types";
 
-const ICONS: Record<CaptureTool, LucideIcon> = { screenshot: Camera, text: ScanText, color: Pipette };
-const TITLES: Record<CaptureTool, string> = { screenshot: S.toolScreenshot, text: S.toolText, color: S.toolColor };
+const ICONS: Record<CaptureTool, LucideIcon> = { screenshot: Camera, recording: Video, text: ScanText, color: Pipette };
+const TITLES: Record<CaptureTool, string> = {
+  screenshot: S.toolScreenshot,
+  recording: S.toolRecording,
+  text: S.toolText,
+  color: S.toolColor,
+};
 /** How long the open controls wait after the pointer leaves (scheduleCaptureControlsCollapse). */
 const COLLAPSE_AFTER_MS = 3000;
 
@@ -23,6 +28,8 @@ export function CaptureControls(props: {
   offersRepeat: boolean;
   /** A drag is under way: stay small and out of its way. */
   selecting: boolean;
+  audio: { system: boolean; microphone: boolean };
+  onAudio: (audio: { system: boolean; microphone: boolean }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const inside = useRef(false);
@@ -54,7 +61,7 @@ export function CaptureControls(props: {
   const Icon = ICONS[props.tool];
   return (
     <div
-      className={`cc-island${shown ? " is-open" : ""}${props.selecting ? " is-passive" : ""}`}
+      className={`cc-island${shown ? " is-open" : ""}${props.selecting ? " is-passive" : ""}${props.tool === "recording" ? " has-audio" : ""}`}
       role="group"
       aria-label={S.controlsTitle}
       // Nothing here starts an area or picks a colour underneath.
@@ -132,6 +139,28 @@ export function CaptureControls(props: {
               );
             })}
           </div>
+          {props.tool === "recording" ? (
+            <div className="cc-audio">
+              <label>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={props.audio.system}
+                  onChange={(e) => props.onAudio({ ...props.audio, system: e.target.checked })}
+                />
+                {S.systemAudio}
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={props.audio.microphone}
+                  onChange={(e) => props.onAudio({ ...props.audio, microphone: e.target.checked })}
+                />
+                {S.microphone}
+              </label>
+            </div>
+          ) : null}
         </div>
       ) : (
         <span className="cc-compact" aria-label={TITLES[props.tool]}>
