@@ -109,6 +109,11 @@ export const bridge = {
     open: (sessionId: string) => call<boolean>("sessions_open", { sessionId }),
   },
   music: {
+    watchLevels: (on: boolean) => call<void>("music_watch_levels", { on }),
+    onLevels(handler: (frame: import("../music/audioLevels").AudioLevels) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<import("../music/audioLevels").AudioLevels>("music://levels", (e) => handler(e.payload));
+    },
     now: () => call<NowPlaying | null>("music_now"),
     onNowPlaying(handler: (n: NowPlaying) => void): Promise<UnlistenFn> {
       if (!inTauri) return Promise.resolve(() => {});
