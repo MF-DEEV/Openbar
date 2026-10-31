@@ -11,6 +11,7 @@
 use serde::Serialize;
 
 pub mod bridge;
+pub mod bridge_installer;
 #[cfg(windows)]
 pub mod console;
 pub mod process;
