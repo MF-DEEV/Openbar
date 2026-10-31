@@ -348,6 +348,33 @@ mod tests {
     use serde_json::json;
 
     #[test]
+    fn music_preferences_survive_reloading_the_settings_service() {
+        let path = std::env::temp_dir().join(format!(
+            "vors-music-settings-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let prefs = Prefs::at(Some(path.clone()));
+        prefs
+            .set(&json!({"island":{"preferredPlayer":"custom-player","includeOtherPlayers":false}}))
+            .unwrap();
+        drop(prefs);
+        let restarted = Prefs::at(Some(path.clone()));
+        assert_eq!(
+            restarted.get().pointer("/island/preferredPlayer"),
+            Some(&json!("custom-player"))
+        );
+        assert_eq!(
+            restarted.get().pointer("/island/includeOtherPlayers"),
+            Some(&json!(false))
+        );
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn patches_merge_objects_and_replace_the_rest() {
         let mut v = json!({"island": {"display": "primary", "hiddenModules": ["camera"]}, "sessions": {"previews": true}});
         merge(

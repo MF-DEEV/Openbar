@@ -19,6 +19,7 @@ import { inTauri } from "./bridge";
 import { MONITOR_METRICS, type MonitorMetric } from "../system/types";
 import { CONTROL_ITEMS, type ControlItem } from "../controls/types";
 import { AGENT_CARDS, type AgentCard, type CodexProfile } from "../agents/types";
+import { MASCOT_FREQUENCIES, MASCOT_PALETTES, MASCOT_SHAPES, MASCOT_SIDES, MASCOT_STYLES } from "../mascot/model";
 
 /** The Sessions section's own preferences (spec 01-shell §7.2, sessions). */
 export interface SessionPrefs {
@@ -74,6 +75,11 @@ const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
   agentsLimitFocus: ["mostUsed", "session", "weekly"],
   agentsReadout: ["elapsed", "tokens", "cost", "limit"],
   watchCondition: ["changes", "settles", "contains", "reaches"],
+  mascotStyle: MASCOT_STYLES,
+  mascotShape: MASCOT_SHAPES,
+  mascotPalette: MASCOT_PALETTES,
+  mascotSide: MASCOT_SIDES,
+  mascotVisitFrequency: MASCOT_FREQUENCIES,
 };
 
 /** Lists of ids or names: strings only, each once. */
@@ -188,6 +194,11 @@ function hiddenApps(value: unknown): Record<string, string> {
 export function resolve(stored: StoredPrefs | null | undefined): Prefs {
   const island = checked(DEFAULT_SETTINGS, stored?.island);
   const raw = isObject(stored?.island) ? stored.island : {};
+  if (
+    island.preferredPlayer !== undefined &&
+    (island.preferredPlayer.length > 256 || /[\x00-\x1f]/.test(island.preferredPlayer))
+  )
+    delete island.preferredPlayer;
   if (island.screenshotPreviewDuration !== undefined)
     island.screenshotPreviewDuration = Math.min(300, Math.max(0, Math.round(island.screenshotPreviewDuration)));
   const quickAccess = quickButtons(raw.quickAccess);

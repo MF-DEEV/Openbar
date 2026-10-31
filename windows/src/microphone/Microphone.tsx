@@ -4,6 +4,7 @@ import { create } from "zustand";
 import { HeadphoneOff, Mic, MicOff } from "lucide-react";
 import { bridge } from "../shared/bridge";
 import { useIsland } from "../island/store";
+import { reactMascot } from "../mascot/service";
 import { edgeInset } from "../island/geometry";
 import type { ActivityViewProps } from "../island/views/Activity";
 import { audioState, EMPTY_MICROPHONE, type MicrophoneSnapshot } from "./model";
@@ -62,7 +63,9 @@ export async function subscribeMicrophone() {
         priority: 1,
         duration: 3,
         audio: next,
+        mascot: next.muted ? "hush" : "perk",
       });
+      reactMascot(next.muted ? "hush" : "perk");
     }
   };
   await bridge.microphone.onSnapshot((snapshot) => {

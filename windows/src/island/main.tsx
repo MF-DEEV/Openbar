@@ -91,6 +91,16 @@ if (!inTauri && new URLSearchParams(location.search).has("watch")) {
   void import("../watch/demo").then((demo) => demo.startWatchDemo(new URLSearchParams(location.search).get("watch")));
 }
 
+// ?mascot switches the companion on, out of the island; ?mascot=robot in its other style.
+if (!inTauri && new URLSearchParams(location.search).has("mascot")) {
+  const style = new URLSearchParams(location.search).get("mascot") === "robot" ? "robot" : "minimal";
+  void import("../shared/prefs").then((prefs) =>
+    prefs.setPrefs({
+      island: { mascotEnabled: true, mascotHidesWhenIdle: false, mascotStyle: style, idleContent: "none" },
+    }),
+  );
+}
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     {dev?.has("clawd") ? (

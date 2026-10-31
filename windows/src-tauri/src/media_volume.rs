@@ -5,7 +5,7 @@
 //! session readers.
 
 /// Match SMTC's application identity to its WASAPI process, including packaged players.
-fn matches_player(source: &str, executable: &str) -> bool {
+pub(crate) fn matches_player(source: &str, executable: &str) -> bool {
     let source = source.to_ascii_lowercase();
     let executable = executable.to_ascii_lowercase();
     let known = [

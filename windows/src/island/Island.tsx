@@ -33,6 +33,7 @@ import { visibleIdleContent } from "./idle";
 import { useMusic } from "../music/store";
 import { CapturePresentation } from "../screenshot-preview/CapturePresentation";
 import { useIslandContextMenu } from "./contextMenu";
+import { mascotShows, useMascot } from "../mascot/service";
 
 function useWindowScreen() {
   const setScreen = useIsland((s) => s.setScreen);
@@ -185,7 +186,8 @@ export function Island() {
   const battery = useBattery((s) => s.battery);
   const playing = useMusic((s) => s.playback?.isPlaying ?? false);
   const idleContent = visibleIdleContent(state.settings, battery, playing);
-  const shown = presentation(state, geometry, measured, idleContent);
+  const mascot = useMascot();
+  const shown = presentation(state, geometry, measured, idleContent, mascotShows(state, geometry, mascot));
   const waiting = useSessions((s) => presentedSnapshot(s).counts.waiting);
   useEffect(() => {
     void bridge.attention.compactSessions(

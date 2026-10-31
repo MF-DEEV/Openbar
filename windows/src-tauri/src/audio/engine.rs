@@ -1202,6 +1202,40 @@ impl Engine {
         Ok(target)
     }
 
+    /// Selected player's nonoverlapping process trees from the existing session list.
+    pub fn player_processes(&mut self, source: &str) -> Vec<u32> {
+        self.reload_sessions();
+        let mut pids: Vec<_> = self
+            .sessions
+            .iter()
+            .filter(|s| crate::media_volume::matches_player(source, &s.exe_stem))
+            .filter_map(|s| unsafe { s.control.GetProcessId() }.ok())
+            .filter(|pid| *pid != 0)
+            .collect();
+        pids.sort_unstable();
+        pids.dedup();
+        // Include each tree once when both a parent and child own sessions.
+        let snapshot = process_snapshot();
+        let all = pids.clone();
+        pids.retain(|pid| {
+            let mut parent = *pid;
+            for _ in 0..64 {
+                let Some((next, _)) = snapshot.get(&parent) else {
+                    break;
+                };
+                if *next == 0 || *next == parent {
+                    break;
+                }
+                if all.contains(next) {
+                    return false;
+                }
+                parent = *next;
+            }
+            true
+        });
+        pids
+    }
+
     /// The Music page's player volume, through the same session list.
     pub fn player_volume(
         &mut self,

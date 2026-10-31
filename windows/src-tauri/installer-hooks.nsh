@@ -4,9 +4,9 @@
 ; Hooks into Tauri's NSIS installer. Uninstalling closes the island and
 ; takes out what the app added for this user: its Start with Windows entry,
 ; its hooks in Claude Code's settings (with a backup, as Settings does),
-; so Claude never calls a program that's gone, and the network helper an
-; administrator may have allowed (docs/process-metrics.md). An update keeps
-; them all.
+; so Claude never calls a program that's gone, the IDE bridge extension in
+; its editors, and the network helper an administrator may have allowed
+; (docs/process-metrics.md). An update keeps them all.
 ;
 ; An installer built with tauri.identity.conf.json also carries the signed
 ; sparse package that gives Vorssaint.exe its identity (notifications,
@@ -50,6 +50,7 @@
   nsExec::Exec 'taskkill /IM "Vorssaint.exe" /F'
   ${If} $UpdateMode <> 1
     nsExec::Exec '"$INSTDIR\Vorssaint.exe" --remove-hooks'
+    nsExec::Exec '"$INSTDIR\Vorssaint.exe" --remove-ide-bridge'
     ; The per-app network helper, if it was approved: removing it takes an
     ; administrator again, so Windows asks only on PCs that have it.
     nsExec::Exec '"$INSTDIR\Vorssaint.exe" --remove-network-helper'

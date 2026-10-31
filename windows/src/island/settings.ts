@@ -12,6 +12,7 @@ import type { MonitorMetric, NetworkSpeedUnit } from "../system/types";
 import { DEFAULT_HIDDEN_CONTROLS, type ControlItem } from "../controls/types";
 import type { AgentCard, AgentPeriod, AgentReadout, CodexProfile, LimitDisplay, LimitFocus } from "../agents/types";
 import type { WatchCondition } from "../watch/types";
+import type { MascotFrequency, MascotPalette, MascotShape, MascotSide, MascotStyle } from "../mascot/model";
 
 export type QuickSide = "left" | "right" | "bottom";
 export type QuickAction =
@@ -68,6 +69,10 @@ export interface IslandSettings {
   language: string;
   /** Music takes the closed island while it plays (notchShowPlayingMusic). */
   showPlayingMusic: boolean;
+  /** Idle player to open; empty chooses the last music app, then an installed player. */
+  preferredPlayer: string;
+  /** Automatic selection may follow browsers and other non-music media sessions. */
+  includeOtherPlayers: boolean;
   /** What rests beside the camera (macOS notchIdleContent). */
   idleContent: IdleContent;
   /** Ask LRCLIB for lyrics while they are open (macOS notchLyricsOnline, off by default). */
@@ -196,6 +201,21 @@ export interface IslandSettings {
   watchSound: boolean;
   /** The rule a watch starts with (notchWatchCondition); typed text and numbers aren't kept. */
   watchCondition: WatchCondition;
+  // The companion (spec 05 §12.1; the Mac's notchMascot* keys).
+  mascotEnabled: boolean;
+  /** Passes through the island now and then. */
+  mascotVisits: boolean;
+  /** Comes out to react to what the island sees. */
+  mascotReactions: boolean;
+  mascotStyle: MascotStyle;
+  /** The minimal style's body. */
+  mascotShape: MascotShape;
+  mascotPalette: MascotPalette;
+  /** Beside the notch; a capsule holds it in the middle. */
+  mascotSide: MascotSide;
+  mascotVisitFrequency: MascotFrequency;
+  /** Hops into the island after a quiet while. */
+  mascotHidesWhenIdle: boolean;
 }
 
 export const CLIPBOARD_LIMITS = [20, 50, 100, 250, 500, 1000, 10000, 0];
@@ -245,6 +265,8 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   sections: { agents: true, sessions: true },
   language: "auto",
   showPlayingMusic: true,
+  preferredPlayer: "",
+  includeOtherPlayers: true,
   idleContent: "music",
   lyricsOnline: false,
   trackChange: true,
@@ -325,6 +347,15 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   agentsCodexProfiles: [],
   watchSound: true,
   watchCondition: "changes",
+  mascotEnabled: false,
+  mascotVisits: true,
+  mascotReactions: true,
+  mascotStyle: "minimal",
+  mascotShape: "ball",
+  mascotPalette: "pearl",
+  mascotSide: "left",
+  mascotVisitFrequency: "normal",
+  mascotHidesWhenIdle: true,
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */

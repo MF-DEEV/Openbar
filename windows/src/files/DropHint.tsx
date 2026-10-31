@@ -10,10 +10,14 @@ import { contentInsets, type Geometry } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { DrawnSize } from "../island/surface/DrawnSize";
 import { S } from "./strings";
+import { MascotFace } from "../mascot/MascotView";
+import { mascotEnabled, mascotLook } from "../mascot/service";
+import { useIsland } from "../island/store";
 import "./files.css";
 
 export function DropHint(props: { geometry: Geometry; size: Size }) {
   const size = useContext(DrawnSize) ?? props.size;
+  const settings = useIsland((s) => s.settings);
   return (
     <div
       className="fl-drop-hint"
@@ -26,7 +30,12 @@ export function DropHint(props: { geometry: Geometry; size: Size }) {
       }}
     >
       <div className="fl-drop-box">
-        <Inbox size={15} strokeWidth={2} aria-hidden="true" />
+        {/* The companion stands by the hint and waits for the file (NotchView.swift:108). */}
+        {mascotEnabled(settings) ? (
+          <MascotFace look={mascotLook(settings)} size={20} />
+        ) : (
+          <Inbox size={15} strokeWidth={2} aria-hidden="true" />
+        )}
         <span>{S.dropHint}</span>
       </div>
     </div>

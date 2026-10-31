@@ -52,6 +52,76 @@ function useHooks() {
   return { status, busy, error, install: () => run("claude_hooks_install"), remove: () => run("claude_hooks_remove") };
 }
 
+interface EditorStatus {
+  id: string;
+  name: string;
+  state: "missing" | "outdated" | "current";
+}
+
+/** The IDE bridge in each editor found on this PC. */
+function EditorExtensions() {
+  const [editors, setEditors] = useState<EditorStatus[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [failure, setFailure] = useState<{ id: string; reason: string } | null>(null);
+  const refresh = useCallback(async () => {
+    setEditors(inTauri ? await invoke<EditorStatus[]>("ide_bridge_status") : []);
+  }, []);
+  useEffect(() => {
+    void refresh();
+    // The person may add an editor or remove the extension while the window is open.
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [refresh]);
+  const install = async (id: string) => {
+    setBusy(id);
+    setFailure(null);
+    try {
+      await invoke("ide_bridge_install", { id });
+    } catch (e) {
+      setFailure({ id, reason: String(e) });
+    }
+    try {
+      await refresh();
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <>
+      <SubRow title={T.sessions.bridge} caption={T.sessions.bridgeCaption}>
+        {editors?.length === 0 ? <Status tone="off">{T.sessions.bridgeNoEditors}</Status> : null}
+      </SubRow>
+      {editors?.map((editor) => (
+        <SubRow
+          key={editor.id}
+          title={editor.name}
+          caption={
+            failure?.id === editor.id ? (
+              <div className="st-error">{T.sessions.bridgeFailures[failure.reason] ?? failure.reason}</div>
+            ) : undefined
+          }
+        >
+          {editor.state === "current" ? (
+            <Status tone="ok">{T.sessions.bridgeOn}</Status>
+          ) : (
+            <>
+              {editor.state === "outdated" ? (
+                <Status tone="warn">{T.sessions.bridgeStale}</Status>
+              ) : (
+                <Status tone="off">{T.sessions.bridgeOff}</Status>
+              )}
+              <Button accent onClick={() => void install(editor.id)} busy={busy === editor.id} disabled={busy !== null}>
+                {editor.state === "outdated" ? T.sessions.bridgeUpdate : T.sessions.bridgeInstall}
+              </Button>
+            </>
+          )}
+        </SubRow>
+      ))}
+    </>
+  );
+}
+
 /** The Sessions section's options, inside its card on the Content tab. */
 type CodexStatus = "connected" | "notRunning" | "notFound";
 
@@ -108,6 +178,7 @@ export function SessionsOptions() {
           </Button>
         )}
       </SubRow>
+      <EditorExtensions />
       <SubRow title="Codex" caption={T.sessions.codexCaption}>
         {codex === "connected" ? (
           <Status tone="ok">{T.sessions.codexConnected}</Status>
