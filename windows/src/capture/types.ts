@@ -2,12 +2,12 @@
 // Copyright (C) 2026 Vorssaint
 
 /** The tools the controls switch between; each is also a session's purpose. */
-export type CaptureTool = "screenshot" | "text" | "color";
+export type CaptureTool = "screenshot" | "recording" | "text" | "color";
 
 /** What the overlay draws (capture/mod.rs SessionInfo). */
 export interface CaptureSession {
   id: number;
-  purpose: "screenshot" | "text" | "color" | "watch";
+  purpose: "screenshot" | "recording" | "text" | "color" | "watch";
   /** The frozen picture, in the display's physical pixels. */
   width: number;
   height: number;

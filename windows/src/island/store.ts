@@ -66,6 +66,7 @@ export interface Notice {
 
 /** Live activities in the Mac's priority order (NotchSupport.swift:1791-1799). */
 export const ACTIVITY_ORDER = [
+  "recording",
   "timer",
   "watch",
   "microphone",

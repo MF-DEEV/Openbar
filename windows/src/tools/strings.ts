@@ -25,6 +25,12 @@ export const S = {
   colorPicker: "Color picker",
   clipboard: "Clipboard",
   screenshot: "Screenshot",
+  screenRecorder: "Screen recording",
+  recordingFile: "Screen Recording",
+  recordingStop: "Stop recording",
+  recordingSaved: "Recording saved",
+  recordingNoSound: "Some sound is missing",
+  recordingFailed: "Recording failed",
   scratchpad: "Scratchpad",
 
   colorFormat: "Copied format",

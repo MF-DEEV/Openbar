@@ -44,8 +44,7 @@ describe("home page items", () => {
 
   it("never shows what Windows lacks, even when not hidden", () => {
     const items = controlsOf([], [], ALL);
-    for (const item of ["keyboardLight", "recording", "panel", "commandBar"] as const)
-      expect(items).not.toContain(item);
+    for (const item of ["keyboardLight", "panel", "commandBar"] as const) expect(items).not.toContain(item);
     expect(items).toContain("speedTest");
     expect(items).toContain("screenshot");
   });
@@ -65,6 +64,7 @@ describe("home page items", () => {
       "keepAwake",
       "microphone",
       "screenshot",
+      "recording",
     ]);
     expect(editableShortcuts(["scratchpad"], ALL)).toEqual([
       "scratchpad",
@@ -74,6 +74,7 @@ describe("home page items", () => {
       "calendar",
       "microphone",
       "screenshot",
+      "recording",
       "speedTest",
     ]);
   });

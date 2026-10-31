@@ -156,6 +156,26 @@ input:focus-visible {
   font-variant-numeric: tabular-nums;
 }
 
+.n-recording-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff453a;
+  animation: n-recording-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes n-recording-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .n-recording-dot {
+    animation: none;
+  }
+}
+
 .n-idle-wing {
   display: flex;
   align-items: center;

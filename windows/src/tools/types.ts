@@ -35,7 +35,6 @@ export const MAC_ONLY_TOOLS: readonly ToolId[] = [
   "media",
   "urlCleaner",
   "uninstaller",
-  "screenRecorder",
   "cameraPreview",
 ];
 
@@ -69,7 +68,7 @@ export interface ToggleState {
 /** A row's short-lived state (QuickTogglesService.RunState). */
 export type RunState = "running" | "failed";
 
-export type CapturePurpose = "screenshot" | "text" | "color";
+export type CapturePurpose = "screenshot" | "recording" | "text" | "color";
 
 /** What a capture tool did (capture/mod.rs Outcome). */
 export type CaptureOutcome =
@@ -87,4 +86,5 @@ export type CaptureOutcome =
   | { kind: "noText" }
   | { kind: "noLanguage" }
   | { kind: "color"; value: string; hex: string }
+  | { kind: "recording" }
   | { kind: "failed"; message: string };
