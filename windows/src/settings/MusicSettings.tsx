@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
+
+import { t, useLocale } from "../i18n";
+
 import { useEffect, useState } from "react";
 import { bridge } from "../shared/bridge";
 import { playerChoices, usePlayerChoices } from "../music/SourcePicker";
@@ -8,6 +11,7 @@ import { useSettings } from "./state";
 import { Select, SubRow, Toggle } from "./ui";
 
 export function MusicOptions() {
+  useLocale();
   const preferred = useSettings((s) => s.prefs.island.preferredPlayer);
   const includeOther = useSettings((s) => s.prefs.island.includeOtherPlayers);
   const set = useSettings((s) => s.island);
@@ -35,31 +39,31 @@ export function MusicOptions() {
   return (
     <>
       <SubRow
-        title="Preferred player"
-        caption="The app to open when nothing is playing. Automatic uses the last music app, then an installed player."
+        title={t("windows.settings.preferredPlayer")}
+        caption={t("windows.settings.theAppToOpenWhenNothingIsPlaying")}
       >
         <Select
-          label="Preferred music player"
+          label={t("windows.settings.preferredMusicPlayer")}
           value={preferred}
           onChange={(value) => set("preferredPlayer", value)}
           options={[
-            { value: "", label: "Automatic" },
+            { value: "", label: t("notch.automatic") },
             ...playerChoices(players, sources, preferred).map((p) => ({ value: p.id, label: p.name })),
           ]}
         />
       </SubRow>
       <SubRow
-        title="Include other players"
-        caption="Automatic may follow browsers and other media apps. A manual source choice always takes priority."
+        title={t("windows.settings.includeOtherPlayers")}
+        caption={t("windows.settings.automaticMayFollowBrowsersAndOtherMediaApps")}
       >
         <Toggle
-          label="Include other players"
+          label={t("windows.settings.includeOtherPlayers")}
           checked={includeOther}
           onChange={(on) => set("includeOtherPlayers", on)}
         />
       </SubRow>
       {unavailable ? (
-        <p className="st-note">Installed players could not be loaded. Active media sessions are still available.</p>
+        <p className="st-note">{t("windows.settings.installedPlayersCouldNotBeLoadedActiveMedia")}</p>
       ) : null}
     </>
   );

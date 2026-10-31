@@ -117,7 +117,10 @@ fn floating_window<R: Runtime>(
         label,
         WebviewUrl::App("screenshot-preview.html".into()),
     )
-    .title("Screenshot — Vorssaint")
+    .title(format!(
+        "{} — Vorssaint",
+        crate::locale::text(app, "screenshot")
+    ))
     .decorations(false)
     .transparent(true)
     .resizable(false)
@@ -476,9 +479,9 @@ pub async fn preview_action<R: Runtime>(
                 .dialog()
                 .file()
                 .set_parent(&window)
-                .set_title("Save Screenshot")
+                .set_title(crate::locale::text(window.app_handle(), "saveScreenshot"))
                 .set_file_name("Screenshot.png")
-                .add_filter("PNG image", &["png"])
+                .add_filter("PNG", &["png"])
                 .blocking_save_file();
             let Some(destination) = destination else {
                 return Ok("Save cancelled".into());

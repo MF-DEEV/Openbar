@@ -23,7 +23,10 @@ fn show<R: Runtime>(app: &AppHandle<R>) {
         return;
     }
     let _ = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("settings.html".into()))
-        .title("Vorssaint Settings")
+        .title(format!(
+            "Vorssaint — {}",
+            crate::locale::text(app, "settings").trim_end_matches('…')
+        ))
         .inner_size(860.0, 620.0)
         .min_inner_size(720.0, 480.0)
         .center()

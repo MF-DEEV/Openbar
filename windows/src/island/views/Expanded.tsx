@@ -4,9 +4,11 @@
 // The open island (NotchView.expanded; spec 01-shell §1.5): a 36 pt top row,
 // then the page, 28 pt in from each side and 16 pt from the bottom.
 
+import { useLocale, t } from "../../i18n";
+
 import { ChevronLeft, LayoutGrid, Pin, Search } from "lucide-react";
 import { type ComponentType, type ReactNode, useEffect, useRef, useState } from "react";
-import { t } from "../../i18n";
+
 import { type Geometry, headerMetrics, contentInsets, expandedWidth, fitContent } from "../geometry";
 import { type ModuleId, moduleInfo } from "../modules";
 import type { Size } from "../motion";
@@ -31,6 +33,7 @@ export interface PageDefinition {
 export const pages: Partial<Record<ModuleId, PageDefinition>> = {};
 
 export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolean }) {
+  useLocale();
   const { geometry, size, hasRow } = props;
   // Each layer keeps the page it opened with: its content key names that
   // page, and while it fades out it must not draw a second copy of the
@@ -139,11 +142,13 @@ export function Expanded(props: { geometry: Geometry; size: Size; hasRow: boolea
 }
 
 function PlaceholderPage({ module }: { module: ModuleId }) {
+  useLocale();
   return <EmptyState icon={moduleInfo(module).icon} title={t(`module.${module}`)} detail={t("island.comingSoon")} />;
 }
 
 /** A magnifier that unfolds into a field on hover or typing (ease-out 150 ms, up to 150 pt). */
 function SectionSearch() {
+  useLocale();
   const query = useIsland((s) => s.sectionQuery);
   const setQuery = useIsland((s) => s.setSectionQuery);
   const [open, setOpen] = useState(false);

@@ -6,6 +6,8 @@
 // transport at the end of their line, or under the title where the card is
 // narrow. The cover and the title open the Music page.
 
+import { useLocale } from "../i18n";
+
 import { FastForward, Pause, Play, Rewind } from "lucide-react";
 import { useIsland } from "../island/store";
 import { Cover } from "../music/MusicPage";
@@ -13,6 +15,7 @@ import { isPlaying, useMusic } from "../music/store";
 import { S } from "./strings";
 
 export function MusicCard({ height }: { height: number }) {
+  useLocale();
   const playback = useMusic((s) => s.playback);
   const playing = useMusic(isPlaying);
   const failed = useMusic((s) => s.failed);

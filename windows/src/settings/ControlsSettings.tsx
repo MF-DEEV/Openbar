@@ -6,6 +6,8 @@
 // brightness and the Keep Awake duration; the mixer's options, with the
 // Mac's Output switcher and Audio priority cards (GeneralToolSettings.swift).
 
+import { useLocale } from "../i18n";
+
 import { ArrowDown, ArrowUp } from "lucide-react";
 import { Fragment, useEffect } from "react";
 import { latest, subscribeAudio, useAudio } from "../audio/store";
@@ -42,6 +44,7 @@ const TITLES: Partial<Record<ControlItem, string>> = {
 };
 
 export function ControlsOptions() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const hidden = island.hiddenControls;
@@ -119,6 +122,7 @@ export function ControlsOptions() {
 }
 
 export function MixerOptions() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const patch = useSettings((s) => s.patch);
@@ -196,6 +200,7 @@ function useAudioState() {
 
 /** SoundOutputSwitcherControls, as Settings › Output switcher draws it on the Mac. */
 function OutputSwitcherOptions() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const patch = useSettings((s) => s.patch);
@@ -276,6 +281,7 @@ function lines(all: (string | false | null | undefined)[]) {
 
 /** AudioPriorityDisclosure as Settings › Audio priority draws it: both lists, open. */
 function AudioPriorityOptions() {
+  useLocale();
   const priority = useAudio((s) => s.state.priority);
   const outputError = useAudio((s) => s.state.priorityError);
   const inputError = useAudio((s) => s.state.inputPriorityError);

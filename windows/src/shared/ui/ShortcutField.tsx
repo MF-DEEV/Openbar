@@ -6,6 +6,8 @@
 // Ctrl, Alt or Win comes, and Escape or a click elsewhere keeps the old one.
 // A key without them is refused through `onInvalid`.
 
+import { useLocale } from "../../i18n";
+
 import { useEffect, useRef, useState } from "react";
 import { usePageLayer } from "../../island/pageLayer";
 import { acceleratorFrom, formatAccelerator, needsModifier } from "../shortcut";
@@ -25,6 +27,7 @@ export function ShortcutField(props: {
   className?: string;
   disabled?: boolean;
 }) {
+  useLocale();
   const [recording, setRecording] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const latest = useRef(props);

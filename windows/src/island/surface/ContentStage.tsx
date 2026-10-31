@@ -5,6 +5,8 @@
 // 01-shell §3.2). Expanded content is laid out at its final size; only its
 // opacity, blur and scale change here, never the black backdrop.
 
+import { useLocale } from "../../i18n";
+
 import { type ReactNode, useContext, useLayoutEffect, useRef, useState } from "react";
 import type { ContentTransition } from "../store";
 import { DrawnSize } from "./DrawnSize";
@@ -92,6 +94,7 @@ export function ContentStage(props: {
   height: number;
   children: ReactNode;
 }) {
+  useLocale();
   const { contentKey, transition, width, height, children } = props;
   const drawn = useContext(DrawnSize);
   const nextId = useRef(1);

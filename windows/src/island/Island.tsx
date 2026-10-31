@@ -4,6 +4,8 @@
 // The island page: wires the store to the surface, the pointer and keyboard
 // to the store, and the window's focus to whether the island is open.
 
+import { useLocale } from "../i18n";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bridge, inTauri } from "../shared/bridge";
 import { arrivalTime, type Size } from "./motion";
@@ -171,6 +173,7 @@ function useFocus(menuOpen: boolean) {
 
 /** Turned off in Settings › General: nothing drawn, and nothing left to catch the pointer. */
 function Disabled() {
+  useLocale();
   useEffect(() => {
     useIsland.getState().collapse();
     void bridge.setHitRects([]);
@@ -180,6 +183,7 @@ function Disabled() {
 }
 
 export function Island() {
+  useLocale();
   useWindowScreen();
   useKeyboard();
   useGestures();

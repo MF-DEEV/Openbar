@@ -1,0 +1,38 @@
+{
+  "files": 89,
+  "structs": 82,
+  "accessors": 81,
+  "fields": 3477,
+  "values": 51755,
+  "unresolved": 0,
+  "format_specifiers": {
+    "%@": 1980,
+    "%d": 1193,
+    "%1$d": 81,
+    "%2$d": 66,
+    "%1$@": 45,
+    "%%": 45,
+    "%2$@": 45,
+    "%3$d": 35,
+    "%.2f": 15,
+    "%s": 30
+  },
+  "excluded": "whatsAppDownloads builder table (not used by the island)",
+  "languages": [
+    "en-US",
+    "pt-BR",
+    "tr",
+    "ru",
+    "es",
+    "sk",
+    "de",
+    "fr",
+    "it",
+    "ja",
+    "ko",
+    "uk",
+    "zh-Hans",
+    "zh-TW",
+    "zh-HK"
+  ]
+}

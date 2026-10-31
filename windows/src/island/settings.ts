@@ -7,6 +7,7 @@
 // Sessions and Agents sections start on.
 
 import type { LayoutPreset, Silhouette } from "./geometry";
+import type { LanguagePreference } from "../i18n/languages";
 import type { ModuleId } from "./modules";
 import type { MonitorMetric, NetworkSpeedUnit } from "../system/types";
 import { DEFAULT_HIDDEN_CONTROLS, type ControlItem } from "../controls/types";
@@ -70,7 +71,7 @@ export interface IslandSettings {
   quickAccess: QuickButton[];
   /** Per-section switches the Mac keeps as notch*Enabled. */
   sections: Partial<Record<ModuleId, boolean>>;
-  language: string;
+  language: LanguagePreference;
   /** Music takes the closed island while it plays (notchShowPlayingMusic). */
   showPlayingMusic: boolean;
   /** Idle player to open; empty chooses the last music app, then an installed player. */

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t } from "../i18n";
+
 import { ChevronUp, LayoutGrid, Pin, PinOff, Settings } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
-import { t } from "../i18n";
+
 import { bridge } from "../shared/bridge";
 import { Menu, type MenuAnchor, type MenuEntry } from "../shared/ui/Menu";
 import { modulesOf, useIsland } from "./store";

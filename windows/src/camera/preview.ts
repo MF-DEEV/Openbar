@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { tf, t } from "../i18n";
+
 export interface CameraDevice {
   id: string;
   name: string;
@@ -24,15 +26,15 @@ export function cameraError(error: unknown): string {
   switch (name) {
     case "NotAllowedError":
     case "SecurityError":
-      return "Camera access was denied. Allow camera access for desktop apps in Windows Settings → Privacy & security → Camera, then try again.";
+      return t("windows.camera.cameraAccessWasDeniedAllowCameraAccessFor");
     case "NotFoundError":
     case "OverconstrainedError":
-      return "This camera is unavailable. Connect a camera or choose another one.";
+      return t("windows.camera.thisCameraIsUnavailableConnectACameraOr");
     case "NotReadableError":
     case "AbortError":
-      return "The camera could not start. It may be in use by another app. Close that app or choose another camera.";
+      return t("windows.camera.theCameraCouldNotStartItMayBe");
     default:
-      return "The camera could not start. Check its connection and try again.";
+      return t("windows.camera.theCameraCouldNotStartCheckItsConnection");
   }
 }
 
@@ -141,7 +143,7 @@ export class CameraPreview {
           .filter((device) => device.kind === "videoinput" && device.deviceId)
           .map((device, index) => ({
             id: device.deviceId,
-            name: device.label || `Camera ${index + 1}`,
+            name: device.label || tf("windows.camera.refresh.devices.name", index + 1),
           })),
       });
     } catch {

@@ -5,6 +5,8 @@
 // vertical fader. Values are 0…max. While the person drags, outside updates
 // are ignored; otherwise they ease in (spec 05 §1.1).
 
+import { useLocale } from "../../i18n";
+
 import { type CSSProperties, useRef, useState } from "react";
 
 export interface SliderProps {
@@ -29,6 +31,7 @@ export interface SliderProps {
 }
 
 export function Slider(props: SliderProps) {
+  useLocale();
   const max = props.max ?? 1;
   const [dragging, setDragging] = useState(false);
   const track = useRef<HTMLDivElement>(null);

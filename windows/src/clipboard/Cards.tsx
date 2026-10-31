@@ -5,6 +5,8 @@
 // 597-663): a comfortable card, a compact row, and the full card a compact
 // row opens over its neighbours.
 
+import { dateTimeFormat, useLocale, t } from "../i18n";
+
 import { AlignLeft, Check, Copy, File, Folder, Image as ImageIcon, Pin, Trash2 } from "lucide-react";
 import {
   type CSSProperties,
@@ -96,6 +98,7 @@ export function CardButton(props: {
   disabled?: boolean;
   selected?: boolean;
 }) {
+  useLocale();
   return (
     <button
       type="button"
@@ -114,12 +117,14 @@ export function CardButton(props: {
 }
 
 function KindGlyph({ entry }: { entry: ClipboardEntry }) {
+  useLocale();
   const Icon = entry.kind === "image" ? ImageIcon : entry.kind === "files" ? File : AlignLeft;
   return <Icon className="cb-glyph" size={10} strokeWidth={2} aria-hidden="true" />;
 }
 
 /** The app the entry came from, or the kind of entry when that is unknown. */
 function SourceBadge({ entry }: { entry: ClipboardEntry }) {
+  useLocale();
   const icon = useShellImage(entry.sourceExe, ICON, false);
   if (entry.sourceExe && icon) {
     const name = entry.sourceName ?? fileName(entry.sourceExe);
@@ -130,6 +135,7 @@ function SourceBadge({ entry }: { entry: ClipboardEntry }) {
 
 /** The files' own icon or the kind's glyph, one 14 pt column so the rows' text lines up. */
 function LeadingIcon({ entry }: { entry: ClipboardEntry }) {
+  useLocale();
   const icon = useShellImage(entry.kind === "files" ? (entry.filePaths[0] ?? null) : null, ICON, false);
   return (
     <span className="cb-leading" aria-hidden="true">
@@ -139,6 +145,7 @@ function LeadingIcon({ entry }: { entry: ClipboardEntry }) {
 }
 
 function Highlighted({ text, tokens }: { text: string; tokens: string[] }) {
+  useLocale();
   return (
     <>
       {highlight(text, tokens).map((segment, i) =>
@@ -150,6 +157,7 @@ function Highlighted({ text, tokens }: { text: string; tokens: string[] }) {
 
 /** A picture rounded at its own edges, in the room it may take. */
 function Thumbnail(props: { path: string; label: string; compact: boolean }) {
+  useLocale();
   const url = useShellImage(props.path, THUMBNAIL, true);
   const [failed, setFailed] = useState(false);
   if (url === null || failed) return <span className="cb-text">{props.label}</span>;
@@ -162,6 +170,7 @@ function Thumbnail(props: { path: string; label: string; compact: boolean }) {
 
 /** A long file name keeps its start and its extension, cut in the middle. */
 function MiddleName({ name, tokens }: { name: string; tokens: string[] }) {
+  useLocale();
   const chars = Array.from(name);
   const tail = chars.slice(-Math.min(10, Math.floor(chars.length / 2))).join("");
   const head = chars.slice(0, chars.length - Array.from(tail).length).join("");
@@ -180,6 +189,7 @@ function MiddleName({ name, tokens }: { name: string; tokens: string[] }) {
 const MAX_OPEN_LINES = 8;
 
 function Preview(props: { entry: ClipboardEntry; compact: boolean; open?: boolean; tokens: string[] }) {
+  useLocale();
   const { entry, compact, open, tokens } = props;
   if (entry.kind === "image") {
     const label = `${C.imageEntryLabel} · ${dimensions(entry)}`;
@@ -226,15 +236,17 @@ function Preview(props: { entry: ClipboardEntry; compact: boolean; open?: boolea
   );
 }
 
-const dateFormat = new Intl.DateTimeFormat(undefined, {
-  month: "short",
-  day: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit" });
+const dateFormat = () =>
+  dateTimeFormat({
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+const timeFormat = () => dateTimeFormat({ hour: "2-digit", minute: "2-digit" });
 
 function Buttons(props: CardProps) {
+  useLocale();
   const { entry, copied, actions } = props;
   return (
     <>
@@ -252,6 +264,7 @@ function Buttons(props: CardProps) {
 }
 
 function Badge({ place }: { place: number }) {
+  useLocale();
   return (
     <span className="cb-badge" aria-hidden="true">
       {C.shortcut(place + 1)}
@@ -261,6 +274,7 @@ function Badge({ place }: { place: number }) {
 
 /** The whole entry, its actions in the bottom row. */
 function FullContent(props: CardProps & { open?: boolean }) {
+  useLocale();
   const { entry, place, keyFocus, actions } = props;
   return (
     <div className="cb-full">
@@ -275,7 +289,7 @@ function FullContent(props: CardProps & { open?: boolean }) {
       </button>
       <div className="cb-actions">
         <SourceBadge entry={entry} />
-        <span className="cb-date">{dateFormat.format(entry.copiedAt)}</span>
+        <span className="cb-date">{dateFormat().format(entry.copiedAt)}</span>
         <span className="cb-spacer" />
         {place < 9 && keyFocus ? <Badge place={place} /> : null}
         <Buttons {...props} />
@@ -285,10 +299,11 @@ function FullContent(props: CardProps & { open?: boolean }) {
 }
 
 function surfaceClass(props: CardProps, extra = "") {
-  return `cb-card${props.entry.pinned ? " is-pinned" : ""}${props.highlighted ? " is-highlighted" : ""}${extra}`;
+  return `cb-card${props.entry.pinned ? t("windows.clipboard.isPinned") : ""}${props.highlighted ? t("windows.clipboard.isHighlighted") : ""}${extra}`;
 }
 
 export function ComfortableCard(props: CardProps) {
+  useLocale();
   return (
     <div className={surfaceClass(props)} onContextMenu={(e) => props.actions.menu(props.entry, e)}>
       <FullContent {...props} />
@@ -298,6 +313,7 @@ export function ComfortableCard(props: CardProps) {
 
 /** One or two lines, with the buttons only for the entry in use. */
 export function CompactCard(props: CardProps & { covered: boolean }) {
+  useLocale();
   const { entry, place, keyFocus, actions } = props;
   const active = props.hovered || props.highlighted;
   return (
@@ -324,7 +340,7 @@ export function CompactCard(props: CardProps & { covered: boolean }) {
         <span className="cb-compact-meta">
           {entry.pinned ? <Pin size={9} fill="currentColor" aria-hidden="true" /> : null}
           {place < 9 && keyFocus ? <Badge place={place} /> : null}
-          <span>{timeFormat.format(entry.copiedAt)}</span>
+          <span>{timeFormat().format(entry.copiedAt)}</span>
         </span>
       )}
     </div>
@@ -350,6 +366,7 @@ export function openHeight(entry: ClipboardEntry, width: number): number | null 
 export function OpenCard(
   props: CardProps & { list: HTMLDivElement | null; row: HTMLDivElement | null; width: number },
 ) {
+  useLocale();
   const { list, row } = props;
   const card = useRef<HTMLDivElement>(null);
   const [offset, setOffset] = useState(0);

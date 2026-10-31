@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n";
+
 import { Check, ChevronDown, type LucideIcon } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import {
@@ -41,6 +43,7 @@ export function Select<T extends string>({
   className?: string;
   style?: CSSProperties;
 }) {
+  const language = useLocale();
   const id = useId();
   const trigger = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -163,13 +166,13 @@ export function Select<T extends string>({
     if (event.key.length !== 1 || event.ctrlKey || event.altKey || event.metaKey) return;
     event.preventDefault();
     const previous = search.current;
-    const text = (Date.now() - previous.at < 700 ? previous.text : "") + event.key.toLocaleLowerCase();
+    const text = (Date.now() - previous.at < 700 ? previous.text : "") + event.key.toLocaleLowerCase(language);
     search.current = { text, at: Date.now() };
     const prefix = [...text].every((letter) => letter === text[0]) ? text[0]! : text;
     const start = open ? active : selected;
     for (let step = 1; step <= options.length; step++) {
       const index = (start + step) % options.length;
-      if (options[index]!.label.toLocaleLowerCase().startsWith(prefix)) {
+      if (options[index]!.label.toLocaleLowerCase(language).startsWith(prefix)) {
         if (!open) {
           setActive(index);
           setOpen(true);

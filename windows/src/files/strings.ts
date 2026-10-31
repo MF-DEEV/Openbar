@@ -5,56 +5,105 @@
 // shelf*, NotchFilesStrings, NotchStrings.dropHint); Finder becomes File
 // Explorer.
 
+import { t, tf, getLanguage, pluralForm, type StringKey } from "../i18n";
+
 import type { ZipFailure } from "./types";
 
 /** "%d image" / "%d images": English needs only one and many. */
-const counted = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+const counted = (n: number, kind: "Image" | "File" | "Note" | "Link") => {
+  const form = pluralForm(getLanguage(), n);
+  const suffix = form === "one" ? "Singular" : form === "few" ? "Few" : "Plural";
+  return tf(`s.shelfTooltip${kind}${suffix}` as StringKey, n);
+};
 
 export const S = {
-  dropHint: "Drop files here",
-  hint: "Click to select. Drag out to use or right-click for more actions.",
-  selected: (n: number) => `${n} selected`,
-  clearAll: "Clear all",
-  cancel: "Cancel",
-  removeSelected: "Remove selected",
-  remove: "Remove",
-  share: "Share",
-  archive: "Create ZIP",
-  archiveHint: "Each selected item is saved as a separate ZIP. Originals stay unchanged.",
-  progress: (done: number, total: number) => `${done}/${total}`,
-  saved: "Saved",
-  showInExplorer: "Show in File Explorer",
-  cancelled: "Cancelled.",
-  pin: "Pin",
-  unpin: "Unpin",
-  pinned: "Pinned",
-  open: "Open",
-  openWith: "Open With",
-  expand: "Show the pile's items",
-  collapse: "Hide the pile's items",
-  fileMissing: "The file no longer exists",
+  get dropHint() {
+    return t("notch.dropHint");
+  },
+  get hint() {
+    return t("s.shelfHint");
+  },
+  selected: (n: number) => tf("s.shelfSelectedFormat", n),
+  get clearAll() {
+    return t("s.shelfClearAll");
+  },
+  get cancel() {
+    return t("clipboard.cancel");
+  },
+  get removeSelected() {
+    return t("s.shelfRemoveSelected");
+  },
+  get remove() {
+    return t("appUpdates.removeRule");
+  },
+  get share() {
+    return t("s.shelfActionShare");
+  },
+  get archive() {
+    return t("notchFiles.archive");
+  },
+  get archiveHint() {
+    return t("notchFiles.archiveHint");
+  },
+  progress: (done: number, total: number) => tf("windows.files.progress", done, total),
+  get saved() {
+    return t("notchFiles.saved");
+  },
+  get showInExplorer() {
+    return t("windows.files.showInExplorer");
+  },
+  get cancelled() {
+    return t("s.mediaCancelled");
+  },
+  get pin() {
+    return t("s.shelfActionPin");
+  },
+  get unpin() {
+    return t("s.shelfActionUnpin");
+  },
+  get pinned() {
+    return t("clipboard.pinned");
+  },
+  get open() {
+    return t("s.shelfActionOpen");
+  },
+  get openWith() {
+    return t("s.shelfActionOpenWith");
+  },
+  get expand() {
+    return t("windows.files.expand");
+  },
+  get collapse() {
+    return t("windows.files.collapse");
+  },
+  get fileMissing() {
+    return t("s.shelfFileMissing");
+  },
   failure(failure: ZipFailure): string {
     switch (failure.kind) {
       case "inside":
-        return "A ZIP can't be saved inside an item it contains. Choose another place.";
+        return t("windows.files.failure");
       case "exists":
-        return `“${failure.name}” already exists. Choose another name.`;
+        return tf("windows.files.failuref3128c", failure.name);
       case "io":
-        return `Couldn't create the ZIP: “${failure.name}”. ${failure.detail}`;
+        return tf("windows.files.failure82d8c5", failure.name, failure.detail);
       case "cancelled":
-        return "Cancelled.";
+        return t("s.mediaCancelled");
     }
   },
   /** A pile's tooltip: "5 items: 2 images, 3 files" (ShelfTooltipSupport.text(forPile:)). */
   pile(counts: { images: number; files: number; notes: number; links: number }): string {
     const total = counts.images + counts.files + counts.notes + counts.links;
     const parts = [
-      counts.images ? counted(counts.images, "image", "images") : "",
-      counts.files ? counted(counts.files, "file", "files") : "",
-      counts.notes ? counted(counts.notes, "note", "notes") : "",
-      counts.links ? counted(counts.links, "link", "links") : "",
+      counts.images ? counted(counts.images, "Image") : "",
+      counts.files ? counted(counts.files, "File") : "",
+      counts.notes ? counted(counts.notes, "Note") : "",
+      counts.links ? counted(counts.links, "Link") : "",
     ].filter(Boolean);
-    const items = `${total} items`;
-    return parts.length ? `${items}: ${parts.join(", ")}` : items;
+    const items = tf(
+      pluralForm(getLanguage(), total) === "few" ? "s.shelfTooltipItemsFew" : "s.shelfTooltipItemsFormat",
+      total,
+    );
+    return parts.length ? tf("windows.files.pile201b2f", items, parts.join(", ")) : items;
   },
 };

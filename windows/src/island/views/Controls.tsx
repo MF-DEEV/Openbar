@@ -3,6 +3,8 @@
 
 // The island's small shared controls (NotchComponents.swift; spec 01-shell §1.8).
 
+import { useLocale } from "../../i18n";
+
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -14,6 +16,7 @@ export function IconButton(props: {
   disabled?: boolean;
   onClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }) {
+  useLocale();
   const Icon = props.icon;
   return (
     <button
@@ -32,6 +35,7 @@ export function IconButton(props: {
 
 /** Height 28 capsule with a 14% wash when prominent. */
 export function PillButton(props: { children: ReactNode; prominent?: boolean; onClick?: () => void; label?: string }) {
+  useLocale();
   return (
     <button
       type="button"
@@ -46,6 +50,7 @@ export function PillButton(props: { children: ReactNode; prominent?: boolean; on
 
 /** The empty-state glyph: 56 × 56, radius 18, 5% wash, 26 pt light icon at 65%. */
 export function EmptyState(props: { icon: LucideIcon; title: string; detail?: string }) {
+  useLocale();
   const Icon = props.icon;
   return (
     <div className="n-empty">

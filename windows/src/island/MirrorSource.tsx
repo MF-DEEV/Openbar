@@ -6,6 +6,8 @@
 // mirrors on the other displays (NotchService.syncMirrors, spec 01-shell §6.1).
 // Nothing is rendered or sent while there is no other display.
 
+import { useLocale } from "../i18n";
+
 import { useEffect, useId, useRef, useState } from "react";
 import { bridge, type MirrorFrame } from "../shared/bridge";
 import { type Geometry, hitShape, islandPath } from "./geometry";
@@ -51,6 +53,7 @@ function pageStyles(): { styles: string[]; css: string } {
 }
 
 export function MirrorSource({ geometry, idleContent }: { geometry: Geometry; idleContent: IdleContent }) {
+  useLocale();
   const [mirroring, setMirroring] = useState(false);
   useEffect(() => {
     let stale = false;
@@ -67,6 +70,7 @@ export function MirrorSource({ geometry, idleContent }: { geometry: Geometry; id
 }
 
 function Source({ geometry, idleContent }: { geometry: Geometry; idleContent: IdleContent }) {
+  useLocale();
   const state = useIsland();
   const mascot = useMascot();
   const surface = mirrorSurface(state, geometry, idleContent, mascotShows(state, geometry, mascot));

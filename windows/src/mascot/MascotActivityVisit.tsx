@@ -4,6 +4,8 @@
 // The companion over an activity's closed strip, which steps aside while it
 // visits or comes out to react (NotchMascotActivityVisit).
 
+import { useLocale } from "../i18n";
+
 import type { ReactNode } from "react";
 import type { Geometry } from "../island/geometry";
 import type { Size } from "../island/motion";
@@ -13,6 +15,7 @@ import { activityTrack, endsOutOfSight, takesOnlyItsWing, watchesTimer } from ".
 import { mascotLook, restingMood, useMascot } from "./service";
 
 export function MascotActivityVisit(props: { geometry: Geometry; strip: Size; children: ReactNode }) {
+  useLocale();
   const { geometry, strip } = props;
   const mascot = useMascot();
   const settings = useIsland((s) => s.settings);

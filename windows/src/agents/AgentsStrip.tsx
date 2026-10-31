@@ -5,6 +5,8 @@
 // §10.4): the marks of the agents at work on one side of the camera, the
 // reading the person chose on the other. Clicking opens the AI page.
 
+import { useLocale } from "../i18n";
+
 import { edgeInset, type Geometry } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { useIsland } from "../island/store";
@@ -65,6 +67,7 @@ export function currentReading(snapshot: AgentSnapshot, now: number): string {
 }
 
 export function AgentsStrip({ geometry, size }: { geometry: Geometry; size: Size }) {
+  useLocale();
   const snapshot = useAgents((s) => s.snapshot);
   const readout = useIsland((s) => s.settings.agentsReadout);
   useIsland((s) => s.settings.agentsLimitDisplay);

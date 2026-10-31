@@ -5,6 +5,8 @@
 // and outline. Every Windows display is one without a notch, so the shape
 // and fit always apply; the notched-Mac cards have no place here.
 
+import { useLocale } from "../i18n";
+
 import { Maximize2, Shapes, Square, SquareDashed } from "lucide-react";
 import {
   makeGeometry,
@@ -22,6 +24,7 @@ import { Button, Expander, Group, Page, Row, Segmented, Slider, SubRow, Toggle }
 const signed = (v: number) => (v > 0 ? `+${v}` : `${v}`);
 
 export function LayoutSettings() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const custom = island.layout === "custom";

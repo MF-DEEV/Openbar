@@ -4,6 +4,8 @@
 // The closed island while a drag is over it (NotchView.swift:106-128): a
 // dashed 16-radius box, 52 tall under the safe top, saying where to drop.
 
+import { useLocale } from "../i18n";
+
 import { Inbox } from "lucide-react";
 import { useContext } from "react";
 import { contentInsets, type Geometry } from "../island/geometry";
@@ -16,6 +18,7 @@ import { useIsland } from "../island/store";
 import "./files.css";
 
 export function DropHint(props: { geometry: Geometry; size: Size }) {
+  useLocale();
   const size = useContext(DrawnSize) ?? props.size;
   const settings = useIsland((s) => s.settings);
   return (

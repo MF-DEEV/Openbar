@@ -1,0 +1,92 @@
+{
+  "en-US": {
+    "settings": "Settings…",
+    "quit": "Quit Vorssaint",
+    "saveScreenshot": "Save As…",
+    "screenshot": "Screenshot"
+  },
+  "pt-BR": {
+    "settings": "Ajustes…",
+    "quit": "Sair do Vorssaint",
+    "saveScreenshot": "Salvar Como…",
+    "screenshot": "Captura de tela"
+  },
+  "tr": {
+    "settings": "Ayarlar…",
+    "quit": "Vorssaint’ten Çık",
+    "saveScreenshot": "Farklı Kaydet…",
+    "screenshot": "Ekran görüntüsü"
+  },
+  "ru": {
+    "settings": "Настройки…",
+    "quit": "Выйти из Vorssaint",
+    "saveScreenshot": "Сохранить как…",
+    "screenshot": "Снимок экрана"
+  },
+  "es": {
+    "settings": "Ajustes…",
+    "quit": "Salir de Vorssaint",
+    "saveScreenshot": "Guardar como…",
+    "screenshot": "Captura de pantalla"
+  },
+  "sk": {
+    "settings": "Nastavenia…",
+    "quit": "Ukončiť Vorssaint",
+    "saveScreenshot": "Uložiť ako…",
+    "screenshot": "Snímka obrazovky"
+  },
+  "de": {
+    "settings": "Einstellungen…",
+    "quit": "Vorssaint beenden",
+    "saveScreenshot": "Sichern unter…",
+    "screenshot": "Bildschirmfoto"
+  },
+  "fr": {
+    "settings": "Réglages…",
+    "quit": "Quitter Vorssaint",
+    "saveScreenshot": "Enregistrer sous…",
+    "screenshot": "Capture d’écran"
+  },
+  "it": {
+    "settings": "Impostazioni…",
+    "quit": "Esci da Vorssaint",
+    "saveScreenshot": "Salva come…",
+    "screenshot": "Istantanea schermo"
+  },
+  "ja": {
+    "settings": "設定…",
+    "quit": "Vorssaint を終了",
+    "saveScreenshot": "別名で保存…",
+    "screenshot": "スクリーンショット"
+  },
+  "ko": {
+    "settings": "설정…",
+    "quit": "Vorssaint 종료",
+    "saveScreenshot": "다른 이름으로 저장…",
+    "screenshot": "스크린샷"
+  },
+  "uk": {
+    "settings": "Налаштування…",
+    "quit": "Вийти з Vorssaint",
+    "saveScreenshot": "Зберегти як…",
+    "screenshot": "Знімок екрана"
+  },
+  "zh-Hans": {
+    "settings": "设置…",
+    "quit": "退出 Vorssaint",
+    "saveScreenshot": "存储为…",
+    "screenshot": "截屏"
+  },
+  "zh-TW": {
+    "settings": "設定…",
+    "quit": "結束 Vorssaint",
+    "saveScreenshot": "另存為…",
+    "screenshot": "截圖"
+  },
+  "zh-HK": {
+    "settings": "設定…",
+    "quit": "結束 Vorssaint",
+    "saveScreenshot": "另存為…",
+    "screenshot": "截圖"
+  }
+}

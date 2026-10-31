@@ -38,14 +38,30 @@ export const COLORS = {
 } as const;
 
 export const TITLES: Record<MetricKind, string> = {
-  cpu: S.cpu,
-  gpu: S.gpu,
-  memory: S.memory,
-  battery: S.battery,
-  network: S.network,
-  disk: S.disks,
-  power: S.power,
-  connectedDevices: S.connectedDevices,
+  get cpu() {
+    return S.cpu;
+  },
+  get gpu() {
+    return S.gpu;
+  },
+  get memory() {
+    return S.memory;
+  },
+  get battery() {
+    return S.battery;
+  },
+  get network() {
+    return S.network;
+  },
+  get disk() {
+    return S.disks;
+  },
+  get power() {
+    return S.power;
+  },
+  get connectedDevices() {
+    return S.connectedDevices;
+  },
 };
 
 export interface Summary {

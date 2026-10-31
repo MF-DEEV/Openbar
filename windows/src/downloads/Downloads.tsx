@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, tf, t } from "../i18n";
+
 import { forwardRef, useEffect, useState } from "react";
 import { create } from "zustand";
 import {
@@ -22,7 +24,7 @@ import {
   type LucideIcon,
   type LucideProps,
 } from "lucide-react";
-import { t } from "../i18n";
+
 import { edgeInset } from "../island/geometry";
 import { bridge } from "../shared/bridge";
 import { setPrefs } from "../shared/prefs";
@@ -64,6 +66,7 @@ const DownloadedGlyph = forwardRef<SVGSVGElement, LucideProps>(function Download
   { size = 14, strokeWidth: _strokeWidth, ...props },
   ref,
 ) {
+  useLocale();
   return (
     <svg ref={ref} width={size} height={size} viewBox="0 0 24 24" {...props}>
       <circle cx="12" cy="12" r="11" fill="currentColor" />
@@ -124,6 +127,7 @@ useIsland.subscribe((s, previous) => {
 });
 
 export function DownloadStrip({ geometry, size }: ActivityViewProps) {
+  useLocale();
   const items = useDownloads((s) => s.items);
   const running = active(items);
   const first = running[0];
@@ -134,7 +138,7 @@ export function DownloadStrip({ geometry, size }: ActivityViewProps) {
       className="dl-strip"
       style={{ width: size.width, height: size.height, paddingInline: padding }}
       onClick={() => useIsland.getState().activateActivity("downloads")}
-      aria-label={first ? `Downloads: ${first.name}` : "Downloads"}
+      aria-label={first ? tf("windows.downloads.downloadsValue", first.name) : t("notchFiles.downloadsTitle")}
       title={first?.name}
     >
       <span>
@@ -145,7 +149,7 @@ export function DownloadStrip({ geometry, size }: ActivityViewProps) {
       <span
         className={`dl-mini-progress${pct === null ? " is-indeterminate" : ""}`}
         role="progressbar"
-        aria-label="Download progress"
+        aria-label={t("windows.downloads.downloadProgress")}
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct ?? undefined}
@@ -156,6 +160,7 @@ export function DownloadStrip({ geometry, size }: ActivityViewProps) {
   );
 }
 export function DownloadsPage() {
+  useLocale();
   const items = useDownloads((s) => s.items);
   return (
     <div className="dl-page">
@@ -202,6 +207,7 @@ export async function addFolder(): Promise<void> {
  * opens in File Explorer; Settings removes them (NotchDownloadsView.folderMenu).
  */
 export function DownloadsLeading() {
+  useLocale();
   const folders = useDownloads((s) => s.folders);
   const hasExplore = useIsland((s) => s.settings.quickAccess.some((b) => b.action.kind === "explore"));
   const names = folderNames(folders);
@@ -234,6 +240,7 @@ export function DownloadsLeading() {
 }
 
 function DownloadRow({ item }: { item: DownloadItem }) {
+  useLocale();
   const completed = item.status === "completed";
   const hasShelf = useIsland((s) => modulesOf(s).includes("files"));
   const [added, setAdded] = useState(false);
@@ -259,7 +266,11 @@ function DownloadRow({ item }: { item: DownloadItem }) {
                 : S.inProgress}
         </span>
         {item.status === "downloading" ? (
-          <progress max={100} value={pct ?? undefined} aria-label={`${item.name}: download progress`} />
+          <progress
+            max={100}
+            value={pct ?? undefined}
+            aria-label={tf("windows.downloads.valueDownloadProgress", item.name)}
+          />
         ) : null}
       </span>
     </>
@@ -302,9 +313,11 @@ function DownloadRow({ item }: { item: DownloadItem }) {
       ) : null}
       <div className="dl-size">
         <HardDrive size={18} aria-hidden="true" />
-        <strong>{(item.received / (1024 * 1024)).toFixed(1)} MB</strong>
-        <span title={item.total === null ? "The app has not provided the total file size" : undefined}>
-          / {item.total === null ? "?" : (item.total / (1024 * 1024)).toFixed(1)} MB
+        <strong>
+          {(item.received / (1024 * 1024)).toFixed(1)} {t("s.mediaMegabytesSuffix")}
+        </strong>
+        <span title={item.total === null ? t("windows.downloads.theAppHasNotProvidedTheTotalFile") : undefined}>
+          / {item.total === null ? "?" : (item.total / (1024 * 1024)).toFixed(1)} {t("s.mediaMegabytesSuffix")}
         </span>
         {item.status === "downloading" && pct !== null ? <span>{pct}%</span> : null}
       </div>

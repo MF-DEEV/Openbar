@@ -18,6 +18,7 @@ import {
 import { inTauri } from "./bridge";
 import { MONITOR_METRICS, type MonitorMetric } from "../system/types";
 import { CONTROL_ITEMS, type ControlItem } from "../controls/types";
+import { LANGUAGES } from "../i18n/languages";
 import { AGENT_CARDS, type AgentCard, type CodexProfile } from "../agents/types";
 import { MASCOT_FREQUENCIES, MASCOT_PALETTES, MASCOT_SHAPES, MASCOT_SIDES, MASCOT_STYLES } from "../mascot/model";
 
@@ -59,6 +60,7 @@ export type PrefsPatch = {
 
 /** Values settings.json may hold for the enumerated keys; anything else reads as the default. */
 const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
+  language: ["auto", ...LANGUAGES.map((language) => language.value)],
   silhouette: ["notch", "capsule"],
   layout: ["compact", "spacious", "custom"],
   opening: ["click", "hoverPreview", "hoverExpand", "hiddenUntilHover"],

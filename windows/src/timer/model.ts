@@ -7,6 +7,8 @@
 // deadline, or the instant a stopwatch read zero. Refreshes never subtract
 // ticks, so sleep and busy frames cannot drift.
 
+import { tf } from "../i18n";
+
 export type TimerMode = "timer" | "pomodoro" | "stopwatch";
 export type TimerPhase = "timer" | "focus" | "shortBreak" | "longBreak" | "stopwatch";
 export const TIMER_MODES: readonly TimerMode[] = ["timer", "pomodoro", "stopwatch"];
@@ -211,7 +213,7 @@ export function durationText(remaining: number): string {
   const seconds = Number.isFinite(remaining) ? Math.ceil(Math.min(TIMER_LIMIT, Math.max(0, remaining))) : 0;
   if (seconds >= 3600) {
     const minutes = Math.floor(seconds / 60) % 60;
-    return `${Math.floor(seconds / 3600)}h${minutes ? ` ${minutes}m` : ""}`;
+    return `${Math.floor(seconds / 3600)}h${minutes ? tf("windows.timer.valueM", minutes) : ""}`;
   }
   return seconds >= 60 ? `${Math.floor(seconds / 60)}m` : `${seconds}s`;
 }

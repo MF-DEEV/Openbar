@@ -7,6 +7,8 @@
 // the visible surface. Each frame also tells Rust which part of the
 // window takes the pointer.
 
+import { useLocale } from "../../i18n";
+
 import { type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
 import { useIsland, visibleActivity } from "../store";
 import { bridge, type HitRect } from "../../shared/bridge";
@@ -40,6 +42,7 @@ export function IslandSurface(props: {
   onDrawn?: (size: Size, settled: boolean) => void;
   children: ReactNode;
 }) {
+  useLocale();
   const { geometry, target, children } = props;
   const outline = useIsland((s) => s.settings.outline);
   // The outline turns system orange while the timer has the closed island (NotchService.swift:2837-2838).

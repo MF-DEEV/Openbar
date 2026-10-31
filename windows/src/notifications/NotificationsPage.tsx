@@ -6,6 +6,8 @@
 // Open and Dismiss; an empty state; the access row while Windows has not let
 // the island listen; and the question before Clear All empties the inbox.
 
+import { useLocale, t } from "../i18n";
+
 import { AppWindow, Bell, Trash2, X } from "lucide-react";
 import { useEffect } from "react";
 import { useIsland } from "../island/store";
@@ -17,10 +19,10 @@ import { useNotifications } from "./store";
 import type { Item } from "./types";
 import { notificationPresentation } from "./presentation";
 
-const PRIVACY =
-  "Notifications show the app icon, app name and sender only. Message text is not collected or displayed. Discord’s Do Not Disturb and muted conversations follow its desktop notification settings. Notification details are cleared when you lock this PC or turn this off.";
+const PRIVACY = () => t("windows.notifications.notificationsShowTheAppIconAppNameAnd");
 
 export function NotificationsPage() {
+  useLocale();
   const access = useNotifications((s) => s.access);
   const items = useNotifications((s) => s.items);
   const confirmingClear = useNotifications((s) => s.confirmingClear);
@@ -35,15 +37,15 @@ export function NotificationsPage() {
         <div className="nt-access-text">
           <div className="n-empty-title">
             {access === "unavailable"
-              ? "Notification access is unavailable in this build"
-              : "Let the island read new notifications"}
+              ? t("windows.notifications.notificationAccessIsUnavailableInThisBuild")
+              : t("windows.notifications.letTheIslandReadNewNotifications")}
           </div>
           <div className="n-empty-detail">
             {access === "unavailable"
-              ? "Reading notifications needs the Vorssaint package the installer registers. Reinstall Vorssaint to add it, then open Notifications again."
+              ? t("windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller")
               : access === "denied"
-                ? "Windows says no. Allow it in Settings › Privacy & security › Notifications."
-                : "Windows asks you once. " + PRIVACY}
+                ? t("windows.notifications.windowsSaysNoAllowItInSettingsPrivacy")
+                : t("windows.notifications.windowsAsksYouOnce") + PRIVACY()}
           </div>
         </div>
         {access === "notAsked" ? (
@@ -52,14 +54,14 @@ export function NotificationsPage() {
             className="n-pill-button is-prominent"
             onClick={() => void useNotifications.getState().requestAccess()}
           >
-            Allow
+            {t("notchClaudeSessions.allow")}
           </button>
         ) : null}
       </div>
     );
   }
   if (items.length === 0) {
-    return <EmptyState icon={Bell} title="New notifications will appear here" detail={PRIVACY} />;
+    return <EmptyState icon={Bell} title={t("notchNotifications.empty")} detail={PRIVACY()} />;
   }
   return (
     <>
@@ -75,6 +77,7 @@ export function NotificationsPage() {
 
 /** Clearing empties the inbox for good, so it asks first (confirmClearAboveIsland). */
 function ClearConfirmation() {
+  useLocale();
   useEffect(() => {
     useIsland.getState().setHeld(true);
     return () => {
@@ -86,7 +89,7 @@ function ClearConfirmation() {
   }, []);
   return (
     <Sheet
-      title="Clear all notifications?"
+      title={t("windows.notifications.clearAllNotifications")}
       confirm="Clear All"
       cancel="Cancel"
       destructive
@@ -97,6 +100,7 @@ function ClearConfirmation() {
 }
 
 function Card({ item }: { item: Item }) {
+  useLocale();
   const display = notificationPresentation(item);
   return (
     <div className="nt-card">
@@ -109,8 +113,8 @@ function Card({ item }: { item: Item }) {
         <button
           type="button"
           className="nt-mini"
-          aria-label="Open"
-          title="Open"
+          aria-label={t("notchNotifications.open")}
+          title={t("notchNotifications.open")}
           onClick={() => void bridge.notifications.open(item.aumid)}
         >
           <AppWindow size={12} />
@@ -118,8 +122,8 @@ function Card({ item }: { item: Item }) {
         <button
           type="button"
           className="nt-mini"
-          aria-label="Dismiss"
-          title="Dismiss"
+          aria-label={t("notchNotifications.dismiss")}
+          title={t("notchNotifications.dismiss")}
           onClick={() => void useNotifications.getState().dismiss(item.id)}
         >
           <X size={12} />
@@ -134,6 +138,7 @@ function Card({ item }: { item: Item }) {
 
 /** "Clear All" on the right of the top row while the inbox holds anything. */
 export function NotificationsTrailing() {
+  useLocale();
   const count = useNotifications((s) => s.items.length);
   if (count === 0) return null;
   return (
@@ -143,7 +148,7 @@ export function NotificationsTrailing() {
       onClick={() => useNotifications.setState({ confirmingClear: true })}
     >
       <Trash2 size={11} />
-      Clear All
+      {t("notchNotifications.clearAll")}
     </button>
   );
 }

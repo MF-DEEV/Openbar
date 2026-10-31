@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, t, tf } from "../i18n";
+
 import { invoke } from "@tauri-apps/api/core";
 import { X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
@@ -9,6 +11,7 @@ import { bridge } from "../shared/bridge";
 import { useIsland } from "../island/store";
 
 export function ImagePreview({ image, label, onClose }: { image: string; label: string; onClose(): void }) {
+  useLocale();
   const dialog = useRef<HTMLDialogElement>(null);
   const closeButton = useRef<HTMLButtonElement>(null);
   const [closing, setClosing] = useState(false);
@@ -68,7 +71,7 @@ export function ImagePreview({ image, label, onClose }: { image: string; label: 
         ref={closeButton}
         type="button"
         className="s-image-preview-close"
-        aria-label="Close image preview"
+        aria-label={t("windows.sessions.closeImagePreview")}
         onClick={requestClose}
       >
         <X size={18} />
@@ -93,6 +96,7 @@ export function ImagePreview({ image, label, onClose }: { image: string; label: 
 }
 
 function Thumbnail({ sessionId, source, index }: { sessionId: string; source: string; index: number }) {
+  useLocale();
   const [image, setImage] = useState<string>();
   const [failed, setFailed] = useState(false);
   const [preview, setPreview] = useState(false);
@@ -119,8 +123,8 @@ function Thumbnail({ sessionId, source, index }: { sessionId: string; source: st
         type="button"
         className="s-image-thumbnail"
         disabled={!image}
-        aria-label={`Open image ${index + 1}`}
-        title={`Open image ${index + 1}`}
+        aria-label={tf("windows.sessions.openImageValue", index + 1)}
+        title={tf("windows.sessions.openImageValue", index + 1)}
         onClick={(event) => {
           event.stopPropagation();
           setPreview(true);
@@ -129,19 +133,23 @@ function Thumbnail({ sessionId, source, index }: { sessionId: string; source: st
         {image ? (
           <img
             src={image}
-            alt={`Attachment ${index + 1}`}
+            alt={tf("windows.sessions.attachmentValue", index + 1)}
             onError={() => {
               setImage(undefined);
               setFailed(true);
             }}
           />
         ) : (
-          <span>{failed ? "Image unavailable" : "Loading image…"}</span>
+          <span>{failed ? t("notchClaudeSessions.imageUnavailable") : t("windows.sessions.loadingImage")}</span>
         )}
       </button>
       {preview && image
         ? createPortal(
-            <ImagePreview image={image} label={`Image ${index + 1}`} onClose={closePreview} />,
+            <ImagePreview
+              image={image}
+              label={tf("notchClaudeSessions.imageFormat", index + 1)}
+              onClose={closePreview}
+            />,
             document.body,
           )
         : null}
@@ -158,6 +166,7 @@ export function MessageImages({
   images?: string[];
   sessionId: string;
 }) {
+  useLocale();
   // Preserve labels when an attachment is missing instead of silently removing content.
   const clean = text
     .replace(/\[Image\s*#(\d+)\]/gi, (label, number: string) => (images[Number(number) - 1] ? "" : label))

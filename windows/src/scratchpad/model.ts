@@ -4,6 +4,8 @@
 // The scratchpad's document rules (ScratchpadDocument / ScratchpadSupport,
 // ScratchpadSupport.swift:57-160, 502-541), pure for the tests.
 
+import { t, tf } from "../i18n";
+
 import type { ScratchpadRetention } from "../island/settings";
 import type { Pad, ScratchpadDocument } from "./types";
 
@@ -19,7 +21,7 @@ export const sanitizedName = (name: string) =>
 
 /** "Scratchpad 1", or the first free number after it. */
 export function nextPadName(base: string, existing: readonly string[]): string {
-  const safe = sanitizedName(base) || "Scratchpad";
+  const safe = sanitizedName(base) || t("scratchpad.pageTitle");
   const used = new Set(existing);
   if (!used.has(safe) && !used.has(`${safe} 1`)) return `${safe} 1`;
   for (let n = 2; n <= MAX_PADS; n++) if (!used.has(`${safe} ${n}`)) return `${safe} ${n}`;
@@ -99,7 +101,7 @@ export function applyRetention(
 export function exportFileName(title: string, date: Date): string {
   const two = (n: number) => String(n).padStart(2, "0");
   const day = `${date.getFullYear()}-${two(date.getMonth() + 1)}-${two(date.getDate())}`;
-  return `${sanitizedName(title).replace(/[\\/:*?"<>|]/g, "-")} ${day}.txt`;
+  return tf("windows.scratchpad.valueValueTxt", sanitizedName(title).replace(/[\\/:*?"<>|]/g, "-"), day);
 }
 
 export const sanitizedTextSize = (size: number) =>

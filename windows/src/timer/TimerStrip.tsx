@@ -6,6 +6,8 @@
 // orange mark and its short reading, whose minutes roll while the seconds
 // change in place. Either side opens the Timer page.
 
+import { useLocale } from "../i18n";
+
 import { CircleCheck, CirclePause, Hourglass, type LucideIcon, Timer } from "lucide-react";
 import { edgeInset, type Geometry } from "../island/geometry";
 import type { Size } from "../island/motion";
@@ -51,6 +53,7 @@ export function capsuleContent(reading: string): number {
 }
 
 export function TimerStrip({ geometry, size }: { geometry: Geometry; size: Size }) {
+  useLocale();
   const session = useTimer((s) => s.session);
   const now = useTimer((s) => s.now);
   const reading = model.compactText(session, now);
@@ -107,6 +110,7 @@ export function TimerStrip({ geometry, size }: { geometry: Geometry; size: Size 
 
 /** Only the part before the last colon rolls; the seconds change in place to save energy. */
 function Reading({ text, size, weight }: { text: string; size: number; weight: number }) {
+  useLocale();
   const [head, tail] = model.rollingSplit(text);
   return (
     <span className="tm-strip-reading" style={{ fontSize: size, fontWeight: weight }} aria-hidden>

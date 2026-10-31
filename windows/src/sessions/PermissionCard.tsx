@@ -7,6 +7,8 @@
 // cannot read. Every new request keeps its buttons off for 0.8 s so a click
 // meant for the previous one cannot answer it.
 
+import { useLocale, t } from "../i18n";
+
 import { ArrowUp, BadgeCheck, Check, CheckSquare, Circle, CircleDot, FastForward, Square, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { phaseIcon } from "./Avatar";
@@ -33,6 +35,7 @@ function useSettled(requestId: string | undefined): boolean {
 }
 
 export function PermissionCard({ session, onOpen }: { session: Session; onOpen: () => void }) {
+  useLocale();
   const p = session.permission;
   const tint = phaseTint(session.phase, session.provider);
   const Icon = phaseIcon(session.phase, session.provider);
@@ -76,6 +79,7 @@ export function PermissionCard({ session, onOpen }: { session: Session; onOpen: 
 }
 
 function ToolRequest({ session }: { session: Session }) {
+  useLocale();
   const p = session.permission!;
   const ready = useSettled(p.requestId);
   const decide = useSessions((s) => s.decide);
@@ -96,7 +100,7 @@ function ToolRequest({ session }: { session: Session }) {
           type="button"
           className="s-button is-deny"
           aria-keyshortcuts="Control+n"
-          title="Ctrl+N"
+          title={t("windows.sessions.ctrlN")}
           disabled={!ready}
           onClick={() => void decide(session, "deny")}
         >
@@ -111,7 +115,7 @@ function ToolRequest({ session }: { session: Session }) {
             type="button"
             className="s-button is-secondary"
             aria-keyshortcuts="Control+t"
-            title="Ctrl+T"
+            title={t("windows.sessions.ctrlT")}
             disabled={!ready}
             onClick={() => void decide(session, "always")}
           >
@@ -123,7 +127,7 @@ function ToolRequest({ session }: { session: Session }) {
           type="button"
           className="s-button is-allow"
           aria-keyshortcuts="Control+y"
-          title="Ctrl+Y"
+          title={t("windows.sessions.ctrlY")}
           disabled={!ready}
           onClick={() => void decide(session, "allow")}
         >
@@ -152,6 +156,7 @@ export function buildAnswers(questions: Question[], picks: Picks, own: Record<nu
 }
 
 function QuestionForm({ session }: { session: Session }) {
+  useLocale();
   const p = session.permission!;
   const questions = p.questions;
   const ready = useSettled(p.requestId);

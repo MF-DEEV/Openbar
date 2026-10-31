@@ -7,6 +7,8 @@
 // with a loupe of magnified pixels and the value a click copies. Enter or
 // Space takes the whole display, Escape and a right click cancel.
 
+import { useLocale, t } from "../i18n";
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { loadPrefs, setPrefs } from "../shared/prefs";
 import { CaptureControls } from "./CaptureControls";
@@ -81,6 +83,7 @@ const normalized = (a: Point, b: Point): Area => ({
 });
 
 export function Overlay() {
+  useLocale();
   const [session, setSession] = useState<CaptureSession | null>(null);
   const source = useRef<HTMLCanvasElement | null>(null);
   const [tool, setTool] = useState<CaptureTool>("screenshot");
@@ -108,7 +111,7 @@ export function Overlay() {
         } else {
           loaded = demoSession();
         }
-        if (!loaded) throw new Error("no capture");
+        if (!loaded) throw new Error(t("windows.capture.noCapture"));
         const canvas = document.createElement("canvas");
         canvas.width = loaded.session.width;
         canvas.height = loaded.session.height;
@@ -229,6 +232,7 @@ function AreaPicker({
   onSelecting: (on: boolean) => void;
   hints: string[];
 }) {
+  useLocale();
   const canvas = useRef<HTMLCanvasElement>(null);
   const [anchor, setAnchor] = useState<Point | null>(null);
   const [area, setArea] = useState<Area | null>(null);
@@ -320,6 +324,7 @@ function ColorPicker({
   source: HTMLCanvasElement;
   extraKeys: (e: KeyboardEvent) => boolean;
 }) {
+  useLocale();
   const canvas = useRef<HTMLCanvasElement>(null);
   const loupe = useRef<HTMLCanvasElement>(null);
   const [point, setPoint] = useState<Point | null>(null);

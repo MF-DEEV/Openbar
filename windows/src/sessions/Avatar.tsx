@@ -4,6 +4,8 @@
 // A session's face in the island: its Clawd, or with buddies off, a round
 // badge in the phase's tint (NotchClaudeSessionsView.swift).
 
+import { useLocale } from "../i18n";
+
 import { Hammer, Hourglass, MessageCircleQuestion, MoonStar, type LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";
 import { phaseTint } from "./format";
@@ -27,6 +29,7 @@ export function phaseIcon(phase: Phase, provider: Provider): LucideIcon | Compon
 }
 
 export function PhaseBadge({ phase, provider, size }: { phase: Phase; provider: Provider; size: number }) {
+  useLocale();
   const Icon = phaseIcon(phase, provider);
   const tint = phaseTint(phase, provider);
   const scale = phase === "generating" ? MARK_SCALE[provider] : 1;

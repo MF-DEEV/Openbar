@@ -6,6 +6,8 @@
 // perform), run the selection, then say what happened in a notice, as the
 // Mac's HUD does (ScreenshotService, ScreenTextService, ColorSamplerService).
 
+import { tf } from "../i18n";
+
 import { type Notice, useIsland } from "../island/store";
 import { reactMascot } from "../mascot/service";
 import { bridge } from "../shared/bridge";
@@ -48,7 +50,7 @@ export function noticeFor(outcome: CaptureOutcome): Notice | null {
       return {
         ...base,
         title: S.screenshot,
-        detail: outcome.previewError ? `${detail} · Preview unavailable: ${outcome.previewError}` : detail,
+        detail: outcome.previewError ? tf("windows.tools.detail", detail, outcome.previewError) : detail,
         image: outcome.thumbnail ?? undefined,
       };
     }

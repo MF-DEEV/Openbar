@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t } from "../i18n";
+
 import { create } from "zustand";
 import { useIsland } from "../island/store";
 import { fetchLyrics, parseLrc, songKey, type Lyrics, type Song } from "./lyrics";
@@ -168,7 +170,7 @@ export function createLyricsStore(load = fetchLyrics, storage?: StorageAccess) {
       set({
         lyrics: { lines, plain: "", instrumental: false },
         status: "ready",
-        error: stored ? null : "Lyrics loaded, but could not be saved on this device.",
+        error: stored ? null : t("windows.music.importLrc.error"),
       });
       return true;
     },
@@ -177,7 +179,7 @@ export function createLyricsStore(load = fetchLyrics, storage?: StorageAccess) {
       if (!key || !Number.isFinite(amount)) return;
       const next = Math.min(10, Math.max(-10, Math.round((offset + amount) * 4) / 4));
       const stored = persist(key, { ...saved[key], offset: next });
-      set({ offset: next, error: stored ? null : "Timing changed, but could not be saved on this device." });
+      set({ offset: next, error: stored ? null : t("windows.music.adjustOffset.error") });
     },
   }));
   return useStore;

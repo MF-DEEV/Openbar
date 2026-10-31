@@ -5,10 +5,13 @@
 // stand-in Windows desktop and menu bar behind the island, for designing
 // and screenshots without the app around it.
 
+import { useLocale } from "../i18n";
+
 import { Bar } from "../bar/Bar";
 import "../bar/bar.css";
 
 export function DevDesktop() {
+  useLocale();
   return (
     <div className="dev-desktop">
       <div className="dev-bar">

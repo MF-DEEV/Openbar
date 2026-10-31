@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale } from "../i18n";
+
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { inTauri } from "../shared/bridge";
 
 export function RichText({ text }: { text: string }) {
+  useLocale();
   return (
     <div className="s-rich-text">
       <Markdown

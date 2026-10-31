@@ -5,6 +5,8 @@
 // of the display, clear of what is being captured, open while the pointer rests
 // on them. Drawn in the selection window, since that window covers the island.
 
+import { useLocale, t } from "../i18n";
+
 import { Camera, ChevronUp, type LucideIcon, Pipette, ScanText, Video, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { S } from "./strings";
@@ -13,10 +15,18 @@ import type { CaptureTool } from "./types";
 
 const ICONS: Record<CaptureTool, LucideIcon> = { screenshot: Camera, recording: Video, text: ScanText, color: Pipette };
 const TITLES: Record<CaptureTool, string> = {
-  screenshot: S.toolScreenshot,
-  recording: S.toolRecording,
-  text: S.toolText,
-  color: S.toolColor,
+  get screenshot() {
+    return S.toolScreenshot;
+  },
+  get recording() {
+    return S.toolRecording;
+  },
+  get text() {
+    return S.toolText;
+  },
+  get color() {
+    return S.toolColor;
+  },
 };
 /** How long the open controls wait after the pointer leaves (scheduleCaptureControlsCollapse). */
 const COLLAPSE_AFTER_MS = 3000;
@@ -31,6 +41,7 @@ export function CaptureControls(props: {
   audio: { system: boolean; microphone: boolean };
   onAudio: (audio: { system: boolean; microphone: boolean }) => void;
 }) {
+  useLocale();
   const [open, setOpen] = useState(false);
   const inside = useRef(false);
   const focused = useRef(false);
@@ -96,7 +107,7 @@ export function CaptureControls(props: {
             <span className="cc-actions">
               {props.offersRepeat ? (
                 <span className="cc-key" title={S.repeatRegion}>
-                  R
+                  {t("windows.capture.r")}
                 </span>
               ) : null}
               <button

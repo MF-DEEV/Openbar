@@ -220,6 +220,10 @@ fn save_patch<R: Runtime>(app: &AppHandle<R>, patch: Value) -> Result<Value, Str
         prefs.set(&patch)?
     };
     apply(app, Some(&before), &next);
+    if before.pointer("/island/language") != next.pointer("/island/language") {
+        let _ = crate::tray::refresh(app);
+        crate::locale::refresh_titles(app);
+    }
     let _ = app.emit(CHANGED, &next);
     Ok(next)
 }

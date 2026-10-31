@@ -5,6 +5,8 @@
 // it is and what it does, what it asks, its recent tools, subagents and
 // last reply, and a field that types a reply into its terminal.
 
+import { useLocale, t, tf } from "../i18n";
+
 import {
   ArrowUp,
   ChevronDown,
@@ -58,6 +60,7 @@ function storedNumber(key: string, fallback: number) {
 }
 
 export function SessionDetail({ session, enlarged = false }: { session: Session; enlarged?: boolean }) {
+  useLocale();
   const reduceMotion = useReducedMotion();
   const [sidebarHidden, setSidebarHidden] = useState(() => storedNumber("sessions.sidebarHidden", 0) === 1);
   const [layoutHidden, setLayoutHidden] = useState(sidebarHidden);
@@ -188,8 +191,8 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
             type="button"
             className="s-dress"
             disabled={!buddies}
-            aria-label="Change outfit"
-            title="Change outfit"
+            aria-label={t("notchClaudeSessions.dressUp")}
+            title={t("notchClaudeSessions.dressUp")}
             onClick={() => useSessions.setState({ wardrobe: true })}
           >
             <SessionAvatar session={session} now={now} lookedAt={lookedAt} size="page" />
@@ -225,7 +228,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
                 disabled={textSize <= 12}
                 onClick={() => resize(-1)}
               >
-                <span className="s-small-a">A</span>
+                <span className="s-small-a">{t("windows.sessions.a")}</span>
               </button>
               <button
                 type="button"
@@ -235,7 +238,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
                 disabled={textSize >= 24}
                 onClick={() => resize(1)}
               >
-                A
+                {t("windows.sessions.a")}
               </button>
               <button
                 type="button"
@@ -360,6 +363,7 @@ function Conversation({
   enlarged?: boolean;
   layoutKey?: string;
 }) {
+  useLocale();
   const marks = answerMarks(session.chat);
   const now = useNow();
   const [enabling, setEnabling] = useState(false);
@@ -450,6 +454,7 @@ function Conversation({
 
 /** Takes its own space above the session; an empty name restores its original name. */
 function RenameField({ session, name }: { session: Session; name: string }) {
+  useLocale();
   const isPresent = useIsPresent();
   const finished = useRef(false);
   const input = useRef<HTMLInputElement>(null);
@@ -497,6 +502,7 @@ function RenameField({ session, name }: { session: Session; name: string }) {
 }
 
 function Recent({ session, enlarged = false }: { session: Session; enlarged?: boolean }) {
+  useLocale();
   const [all, setAll] = useState(false);
   const strip = useRef<HTMLDivElement>(null);
   const newest = session.timeline.at(-1)?.id;
@@ -567,6 +573,7 @@ function Recent({ session, enlarged = false }: { session: Session; enlarged?: bo
 }
 
 function Subagents({ session, now, enlarged = false }: { session: Session; now: number; enlarged?: boolean }) {
+  useLocale();
   const [expanded, setExpanded] = useState(false);
   const running = session.subagents.filter((a) => a.finished === undefined).sort((a, b) => a.started - b.started);
   const done = session.subagents
@@ -609,6 +616,7 @@ function unavailable(session: Session): string | null {
 }
 
 function ReplyField({ session, enlarged = false }: { session: Session; enlarged?: boolean }) {
+  useLocale();
   const draft = useSessions((s) => s.drafts[session.id] ?? "");
   const images = useSessions((s) => s.attachments[session.id]);
   const [failure, setFailure] = useState<ReplyFailure | null>(null);
@@ -623,7 +631,7 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
     if (reason || sending || pastingNow.current) return;
     const room = IMAGE_LIMIT - (useSessions.getState().attachments[session.id]?.length ?? 0);
     if (room <= 0) {
-      setPasteFailure("Up to 5 images per message");
+      setPasteFailure(t("windows.sessions.upTo5ImagesPerMessage"));
       return;
     }
     pastingNow.current = true;
@@ -634,13 +642,13 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
         ? await Promise.all(
             files.slice(0, room).map(async (file) => {
               const image = await bridge.sessions.attachImage(await imageDataUrl(file));
-              if (!image) throw new Error("Cannot attach image");
+              if (!image) throw new Error(t("windows.sessions.cannotAttachImage"));
               return image;
             }),
           )
         : ((await bridge.sessions.clipboardImages()) ?? []).slice(0, room);
       if (!attached.length) {
-        setPasteFailure("No image on clipboard");
+        setPasteFailure(t("windows.sessions.noImageOnClipboard"));
         return;
       }
       useSessions.getState().addAttachments(session.id, attached);
@@ -696,10 +704,10 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
       }}
     >
       {images?.length ? (
-        <div className="s-reply-images" aria-label="Attached images">
+        <div className="s-reply-images" aria-label={t("windows.sessions.attachedImages")}>
           {images.map((image, index) => (
             <div className="s-reply-image" key={image.path}>
-              <img src={image.preview} alt={`Attachment ${index + 1}`} />
+              <img src={image.preview} alt={tf("windows.sessions.attachmentValue", index + 1)} />
               <button
                 type="button"
                 disabled={sending}
@@ -768,7 +776,7 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
       {enlarged ? <div className="s-composer-hint">{S.sendShortcut}</div> : null}
       {pasting ? (
         <div className="s-composer-hint" role="status">
-          Adding image…
+          {t("windows.sessions.addingImage")}
         </div>
       ) : null}
       {pasteFailure ? (

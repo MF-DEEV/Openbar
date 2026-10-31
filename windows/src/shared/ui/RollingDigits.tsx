@@ -5,9 +5,12 @@
 // grows, down when it shrinks); other characters swap in place. Reduced
 // motion swaps every character instantly.
 
+import { useLocale } from "../../i18n";
+
 import { useRef } from "react";
 
 export function RollingDigits(props: { text: string; className?: string; label?: string }) {
+  useLocale();
   const previous = useRef(props.text);
   const direction = useRef<1 | -1>(1);
   if (previous.current !== props.text) {

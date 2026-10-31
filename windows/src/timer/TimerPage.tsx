@@ -6,6 +6,8 @@
 // and the way out once a session runs. Below, the ruler and its clock, or
 // the round button and the large clock.
 
+import { useLocale } from "../i18n";
+
 import { ChevronDown, Pause, Play, X } from "lucide-react";
 import { useLayoutEffect, useRef, useState } from "react";
 import { useIsland } from "../island/store";
@@ -37,6 +39,7 @@ const LABEL_FONT = `500 ${PICKER.label}px 'Inter Variable', Inter, sans-serif`;
 const CLOCK_FONT = (size: number) => `200 ${size}px 'Inter Variable', Inter, sans-serif`;
 
 function Page({ width, height }: PageProps) {
+  useLocale();
   const session = useTimer((s) => s.session);
   return model.hasSession(session) ? <Active width={width} /> : <Setup width={width} height={height} />;
 }
@@ -49,6 +52,7 @@ const RULED: Partial<Record<model.TimerMode, "timerMinutes" | "pomodoroFocusMinu
 };
 
 function Setup({ width, height }: { width: number; height: number }) {
+  useLocale();
   const mode = useTimerPref("timerMode");
   const key = RULED[mode];
   const minutes = useTimerPref(key ?? "timerMinutes");
@@ -87,6 +91,7 @@ const READOUTS: { option: model.PomodoroOption; pref: TimerPref; duration: boole
 
 /** The breaks and sessions as readouts: the name small and dim, the value in orange, every allowed value in a menu. */
 function Readouts() {
+  useLocale();
   return (
     <div
       className="tm-readouts"
@@ -102,6 +107,7 @@ function Readouts() {
 }
 
 function Readout({ option, pref, duration }: (typeof READOUTS)[number]) {
+  useLocale();
   const current = model.clampOption(option, useTimerPref(pref) as number);
   const title = optionTitle(option);
   const display = (n: number) => (duration ? model.durationText(n * 60) : String(n));
@@ -126,6 +132,7 @@ function Readout({ option, pref, duration }: (typeof READOUTS)[number]) {
 // MARK: Running
 
 function Active({ width }: { width: number }) {
+  useLocale();
   const session = useTimer((s) => s.session);
   const now = useTimer((s) => s.now);
   const text = model.clockTextFor(session, now);
@@ -150,6 +157,7 @@ function Active({ width }: { width: number }) {
 }
 
 function RoundButton(props: { icon: typeof Play; label: string; onClick(): void }) {
+  useLocale();
   const Icon = props.icon;
   return (
     <button type="button" className="tm-round" aria-label={props.label} title={props.label} onClick={props.onClick}>
@@ -160,6 +168,7 @@ function RoundButton(props: { icon: typeof Play; label: string; onClick(): void 
 
 /** A thin orange clock that narrows to half its size before it would overflow. */
 function Clock(props: { text: string; size: number; room: number; rolling?: boolean; label?: string }) {
+  useLocale();
   const natural = textWidth(model.readingShape(props.text), CLOCK_FONT(props.size));
   const size = natural > props.room ? Math.max(props.size * 0.5, (props.size * props.room) / natural) : props.size;
   const style = { fontSize: size };
@@ -180,11 +189,13 @@ function Clock(props: { text: string; size: number; room: number; rolling?: bool
 
 /** The modes while setting up; the phase and the cycle's place once running. */
 function Leading() {
+  useLocale();
   const session = useTimer((s) => s.session);
   return model.hasSession(session) ? <PhaseReading session={session} /> : <ModePicker />;
 }
 
 function PhaseReading({ session }: { session: model.TimerSession }) {
+  useLocale();
   const title = sessionTitle(session);
   const progress =
     session.mode === "pomodoro" ? T.sessionProgress(model.sessionNumber(session), session.config.totalSessions) : null;
@@ -202,6 +213,7 @@ function PhaseReading({ session }: { session: model.TimerSession }) {
  * its size, or showing the mode's glyph when even that doesn't fit.
  */
 function ModePicker() {
+  useLocale();
   const mode = useTimerPref("timerMode");
   const slot = useRef<HTMLDivElement>(null);
   const [room, setRoom] = useState(Infinity);
@@ -223,6 +235,7 @@ function ModePicker() {
 }
 
 function ModeWords({ mode }: { mode: model.TimerMode }) {
+  useLocale();
   const row = useRef<HTMLDivElement>(null);
   const [line, setLine] = useState<{ left: number; width: number } | null>(null);
   useLayoutEffect(() => {
@@ -252,6 +265,7 @@ function ModeWords({ mode }: { mode: model.TimerMode }) {
 }
 
 function ModeMenu({ mode, room, widest }: { mode: model.TimerMode; room: number; widest: number }) {
+  useLocale();
   const chrome = PICKER.menuSpacing + PICKER.chevron + 2 * PICKER.padding;
   const named = widest * PICKER.minimumScale * 1.05 + chrome <= room;
   const current = modeTitle(mode);
@@ -282,6 +296,7 @@ function ModeMenu({ mode, room, widest }: { mode: model.TimerMode; room: number;
 
 /** Start while setting up; ✕ (Cancel, or Done once finished) while a session exists. */
 function Trailing() {
+  useLocale();
   const session = useTimer((s) => s.session);
   const mode = useTimerPref("timerMode");
   if (model.hasSession(session)) {

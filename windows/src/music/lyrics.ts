@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { t } from "../i18n";
+
 import type { Playback } from "./types";
 import { position } from "./types";
 
@@ -165,7 +167,7 @@ async function request(path: string, query: URLSearchParams, signal: AbortSignal
   if (response.status === 404) return null;
   if (!response.ok) throw new LyricsHttpError(response.status);
   const reader = response.body?.getReader();
-  if (!reader) throw new Error("Empty LRCLIB response");
+  if (!reader) throw new Error(t("windows.music.emptyLRCLIBResponse"));
   const chunks: Uint8Array[] = [];
   let size = 0;
   try {
@@ -173,7 +175,7 @@ async function request(path: string, query: URLSearchParams, signal: AbortSignal
       const { done, value } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > 1024 * 1024) throw new Error("LRCLIB response too large");
+      if (size > 1024 * 1024) throw new Error(t("windows.music.lRCLIBResponseTooLarge"));
       chunks.push(value);
     }
   } finally {

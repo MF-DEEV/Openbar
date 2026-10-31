@@ -5,6 +5,8 @@
 // and what it keeps (ClipboardSettings.swift, ClipboardIgnoredAppsList.swift),
 // then the island's entry size and notice (NotchSettings.swift:479-495).
 
+import { formattingLocale, useLocale } from "../i18n";
+
 import { useState } from "react";
 import { CLIPBOARD_LIMITS, CLIPBOARD_RETENTION_DAYS } from "../island/settings";
 import { useSettings } from "./state";
@@ -14,6 +16,7 @@ import { Segmented, Select, SubRow, Toggle } from "./ui";
 const S = T.clipboard;
 
 export function ClipboardOptions() {
+  useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
   const [draft, setDraft] = useState<string | null>(null);
@@ -50,7 +53,7 @@ export function ClipboardOptions() {
           disabled={off}
           options={CLIPBOARD_LIMITS.map((n) => ({
             value: String(n),
-            label: n === 0 ? S.limitUnlimited : n.toLocaleString(),
+            label: n === 0 ? S.limitUnlimited : n.toLocaleString(formattingLocale()),
           }))}
           onChange={(v) => set("clipboardHistoryLimit", Number(v))}
         />

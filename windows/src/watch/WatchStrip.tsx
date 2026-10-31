@@ -7,6 +7,8 @@
 // hidden, and what the area reads in purple, or the area itself, 40 pt
 // wide, when it holds no text. Clicking opens Watch.
 
+import { useLocale } from "../i18n";
+
 import { Eye, EyeOff } from "lucide-react";
 import { useReducedMotion } from "motion/react";
 import { useEffect, useRef } from "react";
@@ -73,6 +75,7 @@ export function breath(seconds: number): { scale: number; opacity: number } {
 
 /** The watching eye: breathing at ≤ 30 fps while visible, still under reduced motion, crossed out while hidden. */
 export function WatchEye({ size, hidden }: { size: number; hidden: boolean }) {
+  useLocale();
   const ref = useRef<HTMLSpanElement>(null);
   const reduced = useReducedMotion() ?? false;
   useEffect(() => {
@@ -110,10 +113,12 @@ export function WatchEye({ size, hidden }: { size: number; hidden: boolean }) {
 }
 
 function Thumbnail({ src, height }: { src: string; height: number }) {
+  useLocale();
   return <img className="wt-thumbnail" src={src} alt="" style={{ width: THUMBNAIL_WIDTH, height }} />;
 }
 
 export function WatchStrip({ geometry, size }: ActivityViewProps) {
+  useLocale();
   const s = useWatch((state) => state.snapshot);
   const hidden = s.phase === "hidden";
   const label = s.headline ? `${S.title}: ${s.headline}` : S.title;

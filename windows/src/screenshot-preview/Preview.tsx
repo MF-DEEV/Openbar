@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
+
+import { useLocale, t } from "../i18n";
+
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { Copy, Grip, Move, Pin, QrCode, Save, Share2, TextSelect, Trash2, X } from "lucide-react";
@@ -8,6 +11,7 @@ import { inTauri } from "../shared/bridge";
 import { usePageLayer } from "../island/pageLayer";
 import { useIsland } from "../island/store";
 import { PreviewCountdown } from "./countdown";
+import { statusText, type PreviewStatus } from "./messages";
 import "./preview.css";
 
 export interface Info {
@@ -30,17 +34,19 @@ export function Preview({
   initialInfo?: Info;
   onClosed?(): void;
 }) {
+  useLocale();
   const native = inTauri ? getCurrentWindow() : null;
   const request = <T,>(command: string, args: Record<string, unknown> = {}): Promise<T> => {
     if (inTauri) return invoke<T>(command, { id, ...args });
     if (command === "preview_ready" || command === "preview_close") return Promise.resolve(undefined as T);
-    return Promise.reject("This action is available in the Windows app.");
+    return Promise.reject(t("windows.screenshot-preview.thisActionIsAvailableInTheWindowsApp"));
   };
   const [info, setInfo] = useState<Info | null>(initialInfo ?? null);
   const [pinned, setPinned] = useState(initialInfo?.pinned ?? false);
   const [hovered, setHovered] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("");
+  const [status, setStatus] = useState<PreviewStatus>("");
+  const displayedStatus = statusText(status);
   const [error, setError] = useState(false);
   const [qr, setQr] = useState<string | null>(null);
   const [ready, setReady] = useState(false);
@@ -143,7 +149,13 @@ export function Preview({
     setBusy(true);
     countdown.current?.update(true, state.current.pinned);
     setError(false);
-    setStatus(name === "qr" ? "Looking for QR codes…" : name === "text" ? "Reading text…" : "");
+    setStatus(
+      name === "qr"
+        ? { key: "windows.screenshot-preview.lookingForQRCodes" }
+        : name === "text"
+          ? { key: "windows.screenshot-preview.readingText" }
+          : "",
+    );
     try {
       if (name === "share") {
         state.current.pinned = true;
@@ -156,7 +168,7 @@ export function Preview({
       }
       if (name === "qr") {
         setQr(result);
-        setStatus("QR code detected");
+        setStatus({ key: "windows.preview.qRCodeDetected" });
       } else setStatus(result);
     } catch (e) {
       report(e);
@@ -180,7 +192,11 @@ export function Preview({
     try {
       const accepted = await request<boolean>("preview_drag");
       setError(false);
-      setStatus(accepted ? "Screenshot dropped" : "Drag cancelled or destination did not accept the image");
+      setStatus(
+        accepted
+          ? { key: "windows.screenshot-preview.screenshotDropped" }
+          : { key: "windows.screenshot-preview.dragCancelledOrDestinationDidNotAcceptThe" },
+      );
     } catch (e) {
       report(e);
     } finally {
@@ -221,18 +237,18 @@ export function Preview({
         <header>
           <button
             className="move"
-            title="Move preview"
-            aria-label="Move preview"
+            title={t("windows.screenshot-preview.movePreview")}
+            aria-label={t("windows.screenshot-preview.movePreview")}
             onPointerDown={(e) => {
               if (e.button === 0 && !busy) void native?.startDragging().catch(report);
             }}
           >
             <Move size={14} />
-            <span>{pinned ? "Pinned screenshot" : "Screenshot"}</span>
+            <span>{pinned ? t("windows.screenshot-preview.pinnedScreenshot") : t("screenshot.editorTitle")}</span>
           </button>
           <button
-            title="Close preview (keeps saved files)"
-            aria-label="Close preview"
+            title={t("windows.screenshot-preview.closePreviewKeepsSavedFiles")}
+            aria-label={t("s.dockPreviewClosePanel")}
             disabled={busy}
             onClick={() => void close()}
           >
@@ -252,7 +268,7 @@ export function Preview({
           >
             <img
               src={info.image}
-              alt="Captured screenshot. Drag to another application."
+              alt={t("windows.screenshot-preview.capturedScreenshotDragToAnotherApplication")}
               draggable={false}
               onLoad={() => {
                 request("preview_ready")
@@ -263,58 +279,58 @@ export function Preview({
           </div>
         </div>
       )}
-      <nav className="shot-toolbar" aria-label="Screenshot actions">
+      <nav className="shot-toolbar" aria-label={t("windows.screenshot-preview.screenshotActions")}>
         <button
-          title="Discard screenshot (move automatic save to Recycle Bin)"
-          aria-label="Discard screenshot"
+          title={t("windows.screenshot-preview.discardScreenshotMoveAutomaticSaveToRecycleBin")}
+          aria-label={t("windows.screenshot-preview.discardScreenshot")}
           disabled={busy}
           onClick={() => void action("discard")}
         >
           <Trash2 size={17} />
         </button>
         <button
-          title="Detect QR codes"
-          aria-label="Detect QR codes"
+          title={t("windows.screenshot-preview.detectQRCodes")}
+          aria-label={t("windows.screenshot-preview.detectQRCodes")}
           disabled={busy || !ready}
           onClick={() => void action("qr")}
         >
           <QrCode size={17} />
         </button>
         <button
-          title="Copy text (OCR)"
-          aria-label="Copy text"
+          title={t("windows.screenshot-preview.copyTextOCR")}
+          aria-label={t("s.mediaCopyText")}
           disabled={busy || !ready}
           onClick={() => void action("text")}
         >
           <TextSelect size={17} />
         </button>
         <button
-          title="Save as… (Ctrl+S)"
-          aria-label="Save as"
+          title={t("windows.screenshot-preview.saveAsCtrlS")}
+          aria-label={t("windows.screenshot-preview.saveAs")}
           disabled={busy || !ready}
           onClick={() => void action("save")}
         >
           <Save size={17} />
         </button>
         <button
-          title="Copy image (Ctrl+C)"
-          aria-label="Copy image"
+          title={t("windows.screenshot-preview.copyImageCtrlC")}
+          aria-label={t("windows.screenshot-preview.copyImage")}
           disabled={busy || !ready}
           onClick={() => void action("copy")}
         >
           <Copy size={17} />
         </button>
         <button
-          title="Windows Share (pins preview)"
-          aria-label="Share"
+          title={t("windows.screenshot-preview.windowsSharePinsPreview")}
+          aria-label={t("s.shelfActionShare")}
           disabled={busy || !ready}
           onClick={() => void action("share")}
         >
           <Share2 size={17} />
         </button>
         <button
-          title={!embedded && pinned ? "Unpin" : "Pin on screen"}
-          aria-label={!embedded && pinned ? "Unpin" : "Pin on screen"}
+          title={!embedded && pinned ? t("s.shelfActionUnpin") : t("windows.screenshot-preview.pinOnScreen")}
+          aria-label={!embedded && pinned ? t("s.shelfActionUnpin") : t("windows.screenshot-preview.pinOnScreen")}
           aria-pressed={!embedded && pinned}
           disabled={busy}
           onClick={() => void togglePin()}
@@ -322,8 +338,8 @@ export function Preview({
           <Pin size={17} />
         </button>
         <button
-          title="Drag screenshot into another application"
-          aria-label="Drag screenshot"
+          title={t("windows.screenshot-preview.dragScreenshotIntoAnotherApplication")}
+          aria-label={t("windows.screenshot-preview.dragScreenshot")}
           disabled={busy || !ready}
           onPointerDown={pointerDown}
           onPointerMove={(e) => void pointerMove(e)}
@@ -335,8 +351,8 @@ export function Preview({
         </button>
         {embedded && (
           <button
-            title="Close preview (keeps saved files)"
-            aria-label="Close preview"
+            title={t("windows.screenshot-preview.closePreviewKeepsSavedFiles")}
+            aria-label={t("s.dockPreviewClosePanel")}
             disabled={busy}
             onClick={() => void close()}
           >
@@ -347,33 +363,33 @@ export function Preview({
       <p
         className={`shot-status${error ? " error" : ""}${embedded && !status ? " is-quiet" : ""}`}
         role="status"
-        title={status || info?.saved || undefined}
+        title={displayedStatus || info?.saved || undefined}
       >
-        {status ||
+        {displayedStatus ||
           (info
-            ? `${info.saved ? "Saved" : "Automatic save failed"} · ${info.copied ? "Copied" : "Clipboard copy failed"}`
-            : "Loading screenshot…")}
+            ? `${info.saved ? t("notchFiles.saved") : t("windows.screenshot-preview.automaticSaveFailed")} · ${info.copied ? t("scratchpad.copied") : t("windows.screenshot-preview.clipboardCopyFailed")}`
+            : t("windows.screenshot-preview.loadingScreenshot"))}
       </p>
       {qr !== null && (
-        <section className="shot-qr-result" aria-label="QR code contents">
+        <section className="shot-qr-result" aria-label={t("windows.screenshot-preview.qRCodeContents")}>
           <header>
-            <strong>QR code contents</strong>
-            <button aria-label="Close QR result" onClick={() => setQr(null)}>
+            <strong>{t("windows.screenshot-preview.qRCodeContents")}</strong>
+            <button aria-label={t("windows.screenshot-preview.closeQRResult")} onClick={() => setQr(null)}>
               <X size={16} />
             </button>
           </header>
-          <textarea readOnly value={qr} aria-label="Detected QR contents" />
+          <textarea readOnly value={qr} aria-label={t("windows.screenshot-preview.detectedQRContents")} />
           <button
             onClick={() => {
               invoke("tools_copy_text", { text: qr })
                 .then(() => {
                   setError(false);
-                  setStatus("QR contents copied");
+                  setStatus({ key: "windows.preview.qRContentsCopied" });
                 })
                 .catch(report);
             }}
           >
-            Copy contents
+            {t("windows.screenshot-preview.copyContents")}
           </button>
         </section>
       )}

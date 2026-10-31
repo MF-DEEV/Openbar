@@ -1,11 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import { useLocale, tf, t } from "../i18n";
+
 import { useEffect, useRef } from "react";
 import { barHeights, subscribeAudioLevels } from "./audioLevels";
 import { useMusic } from "./store";
 
 export function EqualizerBars(props: { count: number; width: number; height: number; color: string; moving: boolean }) {
+  useLocale();
   const { count, width, height, color, moving } = props;
   const source = useMusic((state) => state.playback?.source);
   const refs = useRef<(HTMLSpanElement | null)[]>([]);
@@ -19,7 +22,7 @@ export function EqualizerBars(props: { count: number; width: number; height: num
         const el = refs.current[i];
         if (el) {
           const rising = h > (parseFloat(el.style.height) || width);
-          el.style.transition = media?.matches ? "none" : `height ${rising ? 30 : 80}ms ease-out`;
+          el.style.transition = media?.matches ? "none" : tf("windows.music.heightValueMsEaseOut", rising ? 30 : 80);
           el.style.height = `${h}px`;
         }
       });
@@ -38,7 +41,7 @@ export function EqualizerBars(props: { count: number; width: number; height: num
         const mode = matches ? frame.mode : "inactive";
         if (container.current) {
           container.current.dataset.audioCapture = mode;
-          container.current.title = mode === "system" ? "System audio (player isolation unavailable)" : "";
+          container.current.title = mode === "system" ? t("windows.music.systemAudioPlayerIsolationUnavailable") : "";
         }
         apply(matches && (mode === "process" || mode === "system") ? frame.levels : []);
       });
