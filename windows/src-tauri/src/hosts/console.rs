@@ -119,6 +119,80 @@ fn helper(pid: u32, action: Action) -> windows::core::Result<String> {
     }
 }
 
+/// Electron utility processes own no windows. Search the complete verified
+/// ancestor chain, then prefer the window naming the deepest session folder.
+pub fn raise_host_window(pids: &[u32], cwd: &str) -> bool {
+    let windows = host_windows(pids);
+    #[cfg(test)]
+    eprintln!("Host windows: {windows:?}");
+    if windows.len() == 1 {
+        return raise(windows[0].0);
+    }
+    let hints: Vec<_> = std::path::Path::new(cwd)
+        .ancestors()
+        .filter_map(|p| p.file_name())
+        .map(|p| p.to_string_lossy().to_lowercase())
+        .collect();
+    for hint in hints {
+        let matches: Vec<_> = windows
+            .iter()
+            .filter(|(_, title)| title.contains(&hint))
+            .collect();
+        if matches.len() == 1 {
+            return raise(matches[0].0);
+        }
+        if matches.len() > 1 {
+            return false;
+        }
+    }
+    false
+}
+
+/// Title fallback is confined to candidate hosts, never an arbitrary browser
+/// or the island's own session title. Ambiguous titles are left alone.
+pub fn raise_session_window(pids: &[u32], title: &str) -> bool {
+    if title.trim().is_empty() {
+        return false;
+    }
+    let title = title.to_lowercase();
+    let windows = host_windows(pids);
+    let matches: Vec<_> = windows.iter().filter(|(_, t)| t.contains(&title)).collect();
+    matches.len() == 1 && raise(matches[0].0)
+}
+
+fn host_windows(pids: &[u32]) -> Vec<(isize, String)> {
+    use windows::Win32::UI::WindowsAndMessaging::GetWindowTextW;
+    struct Search<'a> {
+        pids: &'a [u32],
+        windows: Vec<(isize, String)>,
+    }
+    unsafe extern "system" fn visit(hwnd: HWND, lparam: LPARAM) -> BOOL {
+        let search = unsafe { &mut *(lparam.0 as *mut Search<'_>) };
+        let mut owner = 0;
+        unsafe { GetWindowThreadProcessId(hwnd, Some(&mut owner)) };
+        if search.pids.contains(&owner)
+            && unsafe { IsWindowVisible(hwnd) }.as_bool()
+            && unsafe { GetWindow(hwnd, GW_OWNER) }.map_or(true, |o| o.0.is_null())
+        {
+            let mut buf = [0u16; 1024];
+            let count = unsafe { GetWindowTextW(hwnd, &mut buf) } as usize;
+            search.windows.push((
+                hwnd.0 as isize,
+                String::from_utf16_lossy(&buf[..count]).to_lowercase(),
+            ));
+        }
+        BOOL(1)
+    }
+    let mut search = Search {
+        pids,
+        windows: Vec::new(),
+    };
+    unsafe {
+        let _ = EnumWindows(Some(visit), LPARAM(&mut search as *mut Search<'_> as isize));
+    }
+    search.windows
+}
+
 unsafe fn type_reply(text: &str, images: &[String]) -> windows::core::Result<()> {
     let input = unsafe {
         CreateFileW(
@@ -195,15 +269,55 @@ fn key_unit(virtual_key: u16, unit: u16) -> [INPUT_RECORD; 2] {
 
 /// Restores and raises a window; allowed while the island handles the person's click.
 pub fn raise(handle: isize) -> bool {
+    use windows::Win32::System::Threading::{AttachThreadInput, GetCurrentThreadId};
+    use windows::Win32::UI::WindowsAndMessaging::{
+        BringWindowToTop, GetForegroundWindow, MSG, PM_NOREMOVE, PeekMessageW,
+    };
     let hwnd = HWND(handle as _);
     if hwnd.0.is_null() {
         return false;
     }
     unsafe {
+        if !IsWindowVisible(hwnd).as_bool() {
+            return false;
+        }
         if IsIconic(hwnd).as_bool() {
             let _ = ShowWindow(hwnd, SW_RESTORE);
         }
-        SetForegroundWindow(hwnd).as_bool()
+        if GetForegroundWindow() == hwnd {
+            return true;
+        }
+        if SetForegroundWindow(hwnd).as_bool() || GetForegroundWindow() == hwnd {
+            return true;
+        }
+        // Open runs on a worker thread. Temporarily join the foreground
+        // input queue so Windows can transfer focus after the user's click.
+        let current = GetCurrentThreadId();
+        let mut message = MSG::default();
+        let _ = PeekMessageW(&mut message, None, 0, 0, PM_NOREMOVE);
+        let foreground = GetWindowThreadProcessId(GetForegroundWindow(), None);
+        let target = GetWindowThreadProcessId(hwnd, None);
+        let attached = current != foreground
+            && foreground != 0
+            && AttachThreadInput(current, foreground, true).as_bool();
+        let target_attached = current != target
+            && target != foreground
+            && target != 0
+            && AttachThreadInput(current, target, true).as_bool();
+        let _ = BringWindowToTop(hwnd);
+        let activated = SetForegroundWindow(hwnd).as_bool();
+        #[cfg(test)]
+        eprintln!(
+            "Activate: current={current}, foreground={foreground}, target={target}, attached={attached}/{target_attached}, activated={activated}, foreground_window={:?}",
+            GetForegroundWindow()
+        );
+        if target_attached {
+            let _ = AttachThreadInput(current, target, false);
+        }
+        if attached {
+            let _ = AttachThreadInput(current, foreground, false);
+        }
+        activated || GetForegroundWindow() == hwnd
     }
 }
 
@@ -234,38 +348,56 @@ pub fn raise_process_window(pid: u32) -> bool {
     raise(search.found.0 as isize)
 }
 
-/// Raises the first visible top-level window whose title contains `text`
-/// (Windows Terminal titles its window after the active tab).
-pub fn raise_window_titled(text: &str) -> bool {
-    use windows::Win32::UI::WindowsAndMessaging::GetWindowTextW;
-    struct Search {
-        text: Vec<u16>,
-        found: HWND,
-    }
-    unsafe extern "system" fn visit(hwnd: HWND, lparam: LPARAM) -> BOOL {
-        let search = unsafe { &mut *(lparam.0 as *mut Search) };
-        if !unsafe { IsWindowVisible(hwnd) }.as_bool() {
-            return BOOL(1);
-        }
-        let mut buf = [0u16; 512];
-        let len = unsafe { GetWindowTextW(hwnd, &mut buf) } as usize;
-        let title = &buf[..len];
-        if !search.text.is_empty()
-            && title
-                .windows(search.text.len())
-                .any(|w| w == search.text.as_slice())
-        {
-            search.found = hwnd;
-            return BOOL(0);
-        }
-        BOOL(1)
-    }
-    let mut search = Search {
-        text: text.encode_utf16().collect(),
-        found: HWND::default(),
+/// Windows Terminal's hidden console HWND cannot select a background tab.
+/// Select the uniquely named tab through its native accessibility provider.
+pub fn select_terminal_tab(pids: &[u32], title: &str) -> bool {
+    use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance};
+    use windows::Win32::UI::Accessibility::{
+        CUIAutomation8, IUIAutomation, IUIAutomationSelectionItemPattern, TreeScope_Descendants,
+        UIA_ControlTypePropertyId, UIA_SelectionItemPatternId, UIA_TabItemControlTypeId,
     };
-    unsafe {
-        let _ = EnumWindows(Some(visit), LPARAM(&mut search as *mut Search as isize));
+    let title = title.trim().to_lowercase();
+    if title.is_empty() {
+        return false;
     }
-    raise(search.found.0 as isize)
+    let Ok(_apartment) = crate::com::Apartment::mta() else {
+        return false;
+    };
+    let result = (|| -> windows::core::Result<bool> {
+        unsafe {
+            let automation: IUIAutomation =
+                CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER)?;
+            let condition = automation.CreatePropertyCondition(
+                UIA_ControlTypePropertyId,
+                &UIA_TabItemControlTypeId.0.into(),
+            )?;
+            let mut found = Vec::new();
+            for (handle, _) in host_windows(pids) {
+                let hwnd = HWND(handle as _);
+                let root = automation.ElementFromHandle(hwnd)?;
+                let tabs = root.FindAll(TreeScope_Descendants, &condition)?;
+                for index in 0..tabs.Length()? {
+                    let tab = tabs.GetElement(index)?;
+                    if tab
+                        .CurrentName()?
+                        .to_string()
+                        .to_lowercase()
+                        .contains(&title)
+                    {
+                        found.push((handle, tab));
+                    }
+                }
+            }
+            if found.len() != 1 {
+                return Ok(false);
+            }
+            let (handle, tab) = &found[0];
+            let pattern = tab.GetCurrentPatternAs::<IUIAutomationSelectionItemPattern>(
+                UIA_SelectionItemPatternId,
+            )?;
+            pattern.Select()?;
+            Ok(raise(*handle))
+        }
+    })();
+    result.unwrap_or(false)
 }

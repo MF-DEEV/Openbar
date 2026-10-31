@@ -10,6 +10,117 @@ pub struct Entry {
     pub name: String,
 }
 
+/// Only the process parameters needed to identify an interactive session.
+/// Never read or retain its environment, which can contain credentials.
+#[derive(Clone, Debug)]
+pub struct Metadata {
+    pub cwd: String,
+    pub command_line: String,
+}
+
+#[cfg(windows)]
+pub fn metadata(pid: u32) -> Option<Metadata> {
+    use windows::Wdk::System::Threading::{NtQueryInformationProcess, ProcessBasicInformation};
+    use windows::Win32::Foundation::{CloseHandle, HANDLE, UNICODE_STRING};
+    use windows::Win32::System::Diagnostics::Debug::ReadProcessMemory;
+    use windows::Win32::System::Threading::{
+        GetCurrentProcess, IsWow64Process, OpenProcess, PEB, PROCESS_BASIC_INFORMATION,
+        PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
+    };
+
+    // The documented RTL_USER_PROCESS_PARAMETERS hides CurrentDirectory in
+    // reserved fields. This native prefix includes it with C pointer alignment.
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    struct Parameters {
+        header: [u32; 4],
+        console: usize,
+        console_flags: u32,
+        stdin: usize,
+        stdout: usize,
+        stderr: usize,
+        cwd: UNICODE_STRING,
+        cwd_handle: usize,
+        dll_path: UNICODE_STRING,
+        image: UNICODE_STRING,
+        command_line: UNICODE_STRING,
+    }
+    fn read<T: Copy>(handle: HANDLE, address: *const core::ffi::c_void) -> Option<T> {
+        if address.is_null() {
+            return None;
+        }
+        let mut value = std::mem::MaybeUninit::<T>::uninit();
+        let mut count = 0;
+        unsafe {
+            ReadProcessMemory(
+                handle,
+                address,
+                value.as_mut_ptr().cast(),
+                size_of::<T>(),
+                Some(&mut count),
+            )
+            .ok()?;
+            (count == size_of::<T>()).then(|| value.assume_init())
+        }
+    }
+    fn text(handle: HANDLE, value: UNICODE_STRING) -> Option<String> {
+        let bytes = value.Length as usize;
+        if bytes == 0 {
+            return Some(String::new());
+        }
+        if bytes > 64 * 1024 || bytes % 2 != 0 || value.Buffer.0.is_null() {
+            return None;
+        }
+        let mut units = vec![0u16; bytes / 2];
+        let mut count = 0;
+        unsafe {
+            ReadProcessMemory(
+                handle,
+                value.Buffer.0.cast(),
+                units.as_mut_ptr().cast(),
+                bytes,
+                Some(&mut count),
+            )
+            .ok()?;
+        }
+        (count == bytes).then(|| String::from_utf16_lossy(&units))
+    }
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid).ok()?;
+        let result = (|| {
+            let (mut ours, mut theirs) = (Default::default(), Default::default());
+            IsWow64Process(GetCurrentProcess(), &mut ours).ok()?;
+            IsWow64Process(handle, &mut theirs).ok()?;
+            if ours != theirs {
+                return None;
+            }
+            let mut info = PROCESS_BASIC_INFORMATION::default();
+            NtQueryInformationProcess(
+                handle,
+                ProcessBasicInformation,
+                (&mut info as *mut PROCESS_BASIC_INFORMATION).cast(),
+                size_of::<PROCESS_BASIC_INFORMATION>() as u32,
+                std::ptr::null_mut(),
+            )
+            .ok()
+            .ok()?;
+            let peb: PEB = read(handle, info.PebBaseAddress.cast())?;
+            let params: Parameters = read(handle, peb.ProcessParameters.cast())?;
+            Some(Metadata {
+                cwd: text(handle, params.cwd)?,
+                command_line: text(handle, params.command_line)?,
+            })
+        })();
+        let _ = CloseHandle(handle);
+        result
+    }
+}
+
+#[cfg(not(windows))]
+pub fn metadata(_pid: u32) -> Option<Metadata> {
+    None
+}
+
 /// `pid` first, then its parent, up to 32 levels.
 #[cfg(windows)]
 pub fn ancestors(pid: u32) -> Option<Vec<Entry>> {
