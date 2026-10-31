@@ -580,7 +580,7 @@ UI: Settings › Dynamic Island, tabs **Layout · Content · Activity · Behavio
 | Feedback toggles `notchVolume`, `notchBrightness`, `notchKeyboardLight`, `notchMicrophone`, `notchInputSource`, `notchBattery`, `notchClipboard`, `notchCapture`, `notchTrackChange`, `notchAccessoriesEnabled` | Bool | all true | which notices route (`NotchSupport.swift:2022-2051`) | `:1459`, `:1473`, `:1540-1549` |
 | Section enables `notchTimerEnabled`, `notchCameraEnabled`, `notchCalendarEnabled`, `notchNotificationsEnabled`, `notchDownloadsEnabled`, `notchWatchEnabled`, `notchAgentsEnabled`, `notchSessionsEnabled` | Bool | true ×6, agents false, sessions false | section + its events | `:1460-1514` |
 | Destinations `notchAppPanel`, `notchQuickPanel`, `notchClipboardWindow`, `notchShelf`, `notchDragReveal`, `notchCaptureControls`, `notchScratchpad`, `notchHidesMenuBarIcon` | Bool | false, true, true, true, true, true, true, false | route other app surfaces into the island | `:1449-1456`, `:1546` |
-| Low battery `notchLowBatteryTint`, `…Threshold`, `…Early`, `…EarlyThreshold`, `…MenuBar` | Bool/Int | false, 10, false, 20, true | resting battery colour | `:1527-1531` |
+| Low battery `notchLowBatteryTint`, `…Threshold`, `…Early`, `…EarlyThreshold`, `…MenuBar` | Bool/Int | false, 10, false, 20, true | resting battery colour; on Windows `lowBattery*` in `island/lowBattery.ts`, and `…MenuBar` becomes `lowBatteryTray`, a dot on the tray icon | `:1527-1531` |
 | `notchLockScreen`, `notchLockSounds` | Bool | false, false | lock-screen overlay (other spec) | `:1552-1553` |
 | `notchMascot*`, `notchCommandBar*` | various | mascot off | companion / command bar (other specs) | `:1554-1564` |
 

@@ -4,7 +4,7 @@
 // Settings › Behavior (NotchSettings.swift:641-729): how the island opens,
 // where it reopens, the displays it uses and whether captures show it.
 
-import { Camera, Eye, Maximize, Monitor, MousePointerClick, Timer, TimerReset, Undo2 } from "lucide-react";
+import { Camera, Eye, Hand, Maximize, Monitor, MousePointerClick, Timer, TimerReset, Undo2 } from "lucide-react";
 import { t, type StringKey } from "../i18n";
 import { visibleModules } from "../island/modules";
 import { type DisplayChoice, type HomeDestination, type OpeningMode, sectionEnabled } from "../island/settings";
@@ -86,6 +86,9 @@ export function BehaviorSettings() {
           </Row>
         ) : null}
         <IslandShortcut />
+        <Row icon={Hand} title={T.behavior.gestures} caption={T.behavior.gesturesCaption}>
+          <Toggle label={T.behavior.gestures} checked={island.gestures} onChange={(on) => set("gestures", on)} />
+        </Row>
         <Row icon={Undo2} title={T.behavior.reopening} caption={T.behavior.reopeningCaption}>
           <Select
             label={T.behavior.reopening}
