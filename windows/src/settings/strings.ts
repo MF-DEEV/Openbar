@@ -124,6 +124,15 @@ export const T = {
     idleBattery: "Battery",
     idleMusic: "Music",
     idleAgents: "AI Agents",
+    lowBattery: {
+      title: "Turn red when low",
+      caption: "Shows the charge in red at or below this level while on battery.",
+      threshold: "Red level",
+      early: "Turn amber first",
+      earlyCaption: "Shows the charge in amber at or below a higher level, as an early warning.",
+      earlyThreshold: "Amber level",
+      tray: "Also on the tray icon",
+    },
     downloadFolders: "Additional download folders",
     downloadFoldersCaption:
       "Downloads and browser download folders are monitored automatically. For other apps, add full folder paths, one per line. Changes save when you leave this field. File transfers in these folders are shown too; subfolders are not scanned.",

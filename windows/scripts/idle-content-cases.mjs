@@ -79,6 +79,29 @@ export async function checkIdleContent({ send, evaluate, base }) {
   assert.equal(result.text, "12%");
   assert(result.label.includes("on battery"));
   assert(await evaluate(`!!document.querySelector('.n-idle-wing .lucide-battery-low')`));
+  const reading_color = () =>
+    evaluate(`(()=>{const w=[...document.querySelectorAll('.n-idle-wing')];
+      return {icon:getComputedStyle(w[0].querySelector('svg')).color+'|'+w[0].querySelector('svg').getAttribute('stroke'),
+              text:getComputedStyle(w[1].querySelector('span')??w[1]).color}})()`);
+  const WHITE_BEFORE = await reading_color();
+  await evaluate(`prefs.setPrefs({island:{lowBatteryTint:true}})`);
+  await settle();
+  assert.equal((await reading_color()).text, WHITE_BEFORE.text, "12% stays plain above the red level");
+  await evaluate(`battery.setState(s=>({battery:{...s.battery,percent:9}}))`);
+  await settle();
+  let warned = await reading_color();
+  assert.equal(warned.text, "rgb(255, 69, 58)", "At the red level the charge turns red");
+  assert(warned.icon.endsWith("#ff453a"), "and so does its icon");
+  await evaluate(`battery.setState(s=>({battery:{...s.battery,pluggedIn:true}}))`);
+  await settle();
+  assert.equal((await reading_color()).text, WHITE_BEFORE.text, "Plugged in, no warning shows");
+  await evaluate(`battery.setState(s=>({battery:{...s.battery,pluggedIn:false,percent:18}}))`);
+  await evaluate(`prefs.setPrefs({island:{lowBatteryEarly:true}})`);
+  await settle();
+  assert.equal((await reading_color()).text, "rgb(255, 159, 10)", "The early level turns amber first");
+  await evaluate(`prefs.setPrefs({island:{lowBatteryTint:false,lowBatteryEarly:false}})`);
+  await evaluate(`battery.setState(s=>({battery:{...s.battery,percent:12}}))`);
+  await settle();
   await evaluate(`battery.setState(s=>({battery:{...s.battery,percent:null}}))`);
   await settle();
   assert.equal((await reading()).text, "", "An unknown charge must not appear as 0%");

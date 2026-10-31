@@ -304,7 +304,7 @@ Server: `ClaudeHookServer.swift`.
 | SubagentStop | `agent_id` required | `subagentStopped` |
 | anything else | — | `.other` |
 
-Any event other than SubagentStart/Stop that carries `agent_id` comes **from inside that subagent**. Its tool events only mark the subagent as active; they never change the session's current tool. Its PermissionRequest still waits on the person but gets `toolID = ""` (it is not matched to a main-agent tool) (`ClaudeSessionEngine.swift:421-437`).
+Any event other than SubagentStart/Stop that carries `agent_id` comes **from inside that subagent**. Its tool events never list a subagent (Claude Code's own forks run tools under an agent id but never start or stop as subagents) and never change the session's current tool. Its PermissionRequest still waits on the person but gets `toolID = ""` (it is not matched to a main-agent tool) (`ClaudeSessionEngine.swift:421-437`).
 
 Questions are parsed by `ClaudeQuestion.questions(in:)` (`ClaudeSessionModels.swift:156-171`): `questions[]` with `question` (non-blank, required), `header`, `options[]` (`label` required, `description`, `preview`; empty strings → nil), `multiSelect`. If **any** item fails to parse, the whole request counts as unreadable.
 
@@ -387,7 +387,8 @@ Core transitions:
 3. `working` = if a fact is newer than `statusUpdated` (or the status is unknown) then `turnOpen`, else `status == busy`. If working → `runningTool` when the turn is open and a tool is open, else `generating`.
 4. Background:
    - status `shell` and (no running background jobs known, or any non-service job running) → `background`.
-   - status `busy` (but not working per rule 3) and a non-service job **with a task id** is running (a background subagent) → `background`.
+   - status `busy` (but not working per rule 3) and a non-service job **with a task id** is running (a background subagent), or a listed subagent is still working → `background`.
+   - status `idle` or `shell` ends the subagents last seen working before that change, and the jobs they were; `idle` also ends every job begun before it.
 5. `turnEnded` exists, `completed`, `now − turnEnded < 10 min`, and `acknowledged < turnEnded` → `finished`.
 6. Otherwise → `idle`.
 

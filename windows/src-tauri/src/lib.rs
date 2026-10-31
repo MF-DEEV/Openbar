@@ -176,6 +176,7 @@ pub fn run() {
             }
         })
         .invoke_handler(tauri::generate_handler![
+            tray::tray_battery_warning,
             island::island_set_hit_rects,
             island::island_set_capture,
             island::island_set_focusable,
