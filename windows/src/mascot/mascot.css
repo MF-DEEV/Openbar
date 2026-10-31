@@ -1,0 +1,84 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 Vorssaint */
+
+/* The companion's layers. None of them takes the pointer: what it stands on
+   decides what a click does. */
+
+.mr-track {
+  position: absolute;
+  top: 0;
+  display: block;
+  pointer-events: none;
+}
+
+.mr-stage,
+.mr-face {
+  position: relative;
+  display: block;
+  flex: none;
+  pointer-events: none;
+}
+
+.mr-root,
+.mr-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform-origin: 50% 50%;
+}
+
+.mr-body,
+.mr-eye svg {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  overflow: visible;
+}
+
+.mr-eye {
+  position: absolute;
+  transform-origin: 50% 50%;
+}
+
+.mr-activity {
+  position: relative;
+}
+
+.mr-activity-content {
+  transition: opacity 0.2s ease-in-out;
+}
+
+/* The black of the closed island, over the wing it stands in. */
+.mr-wing-cover {
+  position: absolute;
+  top: 0;
+  background: #000;
+  pointer-events: none;
+  animation: mr-cover-in 0.2s ease-in-out;
+}
+
+@keyframes mr-cover-in {
+  from {
+    opacity: 0;
+  }
+}
+
+.n-activation {
+  position: relative;
+}
+
+.n-idle-wing {
+  transition: opacity 0.2s ease-in-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mr-activity-content,
+  .n-idle-wing {
+    transition: none;
+  }
+
+  .mr-wing-cover {
+    animation: none;
+  }
+}

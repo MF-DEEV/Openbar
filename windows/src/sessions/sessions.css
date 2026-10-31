@@ -1182,18 +1182,57 @@
   font-size: 11.5px;
 }
 
+.s-rename-editor {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.s-rename-editor:focus-within {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+}
+
+.s-rename-editor > svg {
+  flex: none;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.s-rename-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.s-rename-label {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  font-weight: 500;
+}
+
 .s-rename {
-  position: absolute;
-  top: -6px;
-  left: 0;
-  right: 0;
-  height: 34px;
-  padding: 0 12px;
-  border-radius: 10px;
-  background: #1a1a1a;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
   font-size: 13px;
   font-weight: 600;
+  line-height: 18px;
+  caret-color: #fff;
+}
+
+.s-rename::placeholder {
+  color: rgba(255, 255, 255, 0.65);
+  opacity: 1;
 }
 
 /* Reply */

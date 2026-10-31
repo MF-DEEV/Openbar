@@ -27,7 +27,7 @@ pub enum BridgeError {
     Missing,
 }
 
-fn folder() -> Option<PathBuf> {
+pub(super) fn folder() -> Option<PathBuf> {
     let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from)?;
     Some(base.join("Vorssaint").join("terminals"))
 }
@@ -98,10 +98,4 @@ pub fn focus(shell_pids: &[u32]) -> Result<(), BridgeError> {
         json!({ "command": "focus", "shellPids": shell_pids }),
         Duration::from_secs(4),
     )
-}
-
-/// Whether any IDE window runs the bridge, for the settings row.
-#[allow(dead_code)]
-pub fn installed_anywhere() -> bool {
-    !registrations().is_empty()
 }

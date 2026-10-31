@@ -9,10 +9,12 @@
 import { Eye } from "lucide-react";
 import { create } from "zustand";
 import { modulesOf, useIsland } from "../island/store";
+import { reactMascot } from "../mascot/service";
+import type { MascotReaction } from "../mascot/model";
 import { bridge } from "../shared/bridge";
 import { setPrefs } from "../shared/prefs";
 import { outcomeTitle, S } from "./strings";
-import { IDLE, type WatchCondition, type WatchFinished, type WatchSnapshot } from "./types";
+import { IDLE, type WatchCondition, type WatchFinished, type WatchOutcome, type WatchSnapshot } from "./types";
 
 /** The island's collapse spring, with room for the window to repaint (tools/capture.ts). */
 const SETTLE_MS = 350;
@@ -21,6 +23,11 @@ export const useWatch = create<{ snapshot: WatchSnapshot; receive(snapshot: Watc
   snapshot: IDLE,
   receive: (snapshot) => set({ snapshot }),
 }));
+
+/** Perks up at a change, glad at what it waited for, puzzled by a window that closed (NotchWatchOutcome.mascotReaction). */
+export function watchReaction(outcome: WatchOutcome): MascotReaction {
+  return outcome.kind === "changed" ? "perk" : outcome.kind === "closed" ? "confused" : "celebrate";
+}
 
 /** The island is on and Watch is one of its sections. */
 export function watchEnabled(): boolean {
@@ -90,6 +97,7 @@ export function presentFinished(event: WatchFinished) {
   if (island.expanded && island.selected === "watch") return;
   const title = outcomeTitle(event.outcome);
   const id = `watch:${Date.now()}`;
+  const reaction = watchReaction(event.outcome);
   const hidden = island.attentionFullscreen && island.settings.hideInFullscreen;
   if (!hidden) {
     island.showNotice({
@@ -101,8 +109,10 @@ export function presentFinished(event: WatchFinished) {
       duration: 6,
       opens: "watch",
       icon: Eye,
+      mascot: reaction,
     });
   }
+  reactMascot(reaction);
   if (hidden || useIsland.getState().notice?.id !== id) {
     void bridge.watch.notify(title, event.windowTitle ?? (event.appName || S.title));
   }

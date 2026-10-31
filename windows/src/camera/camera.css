@@ -1,0 +1,132 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+.cam-page {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cam-view {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  background: #09090b;
+}
+.cam-view video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  scale: 1.2;
+}
+.cam-view video.is-mirrored {
+  transform: scaleX(-1);
+}
+.cam-live {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 500;
+}
+.cam-live i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #30d158;
+}
+.cam-status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  overflow: auto;
+}
+.cam-status strong {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 13px;
+}
+.cam-status p {
+  margin: 0;
+  max-width: 360px;
+  line-height: 1.45;
+}
+.cam-spinner {
+  animation: cam-spin 1s linear infinite;
+}
+@keyframes cam-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cam-spinner {
+    animation: none;
+  }
+}
+.cam-bar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  flex: none;
+  min-width: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #101012;
+  color: rgba(255, 255, 255, 0.6);
+}
+.cam-picker {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+}
+.cam-picker span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cam-picker:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.cam-picker:focus-visible {
+  outline: 2px solid #8e8e93;
+  outline-offset: 1px;
+}
+.cam-picker svg,
+.cam-bar > svg {
+  flex: none;
+}
+.cam-save-error {
+  margin: 0;
+  font-size: 10px;
+  color: #ffb4a9;
+}

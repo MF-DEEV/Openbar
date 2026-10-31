@@ -133,7 +133,7 @@ pub fn source_name(aumid: &str) -> String {
 
 #[derive(Default)]
 pub struct MediaState {
-    now: Option<NowPlaying>,
+    pub(crate) now: Option<NowPlaying>,
     selected: Option<String>,
     revision: u64,
     players: Vec<Source>,

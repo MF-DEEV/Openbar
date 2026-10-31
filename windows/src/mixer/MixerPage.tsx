@@ -46,6 +46,8 @@ const MASTER_WIDTH = 72;
 const COLUMN_WIDTH = 96;
 /** NotchLayout.mixerMinimumHeight. */
 const MINIMUM_HEIGHT = 104;
+/** A 6 px scrollbar with 12 px of space below the volume controls. */
+const SCROLLBAR_SPACE = 18;
 
 /** Both the output and app columns reserve the same header, gaps and footer. */
 export const trackHeight = (height: number) => Math.min(160, Math.max(32, height - 32 - 28 - 6 * 2));
@@ -124,7 +126,7 @@ export function MixerPage({ width, height }: PageProps) {
     };
   }, []);
 
-  const faderHeight = Math.max(MINIMUM_HEIGHT, height);
+  const faderHeight = Math.max(MINIMUM_HEIGHT, height - SCROLLBAR_SPACE);
   const leading = hasMic ? MASTER_WIDTH * 2 + 10 : MASTER_WIDTH;
   if (options) return <MixerOptions />;
   return (

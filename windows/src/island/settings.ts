@@ -12,6 +12,7 @@ import type { MonitorMetric, NetworkSpeedUnit } from "../system/types";
 import { DEFAULT_HIDDEN_CONTROLS, type ControlItem } from "../controls/types";
 import type { AgentCard, AgentPeriod, AgentReadout, CodexProfile, LimitDisplay, LimitFocus } from "../agents/types";
 import type { WatchCondition } from "../watch/types";
+import type { MascotFrequency, MascotPalette, MascotShape, MascotSide, MascotStyle } from "../mascot/model";
 
 export type QuickSide = "left" | "right" | "bottom";
 export type QuickAction =
@@ -32,6 +33,8 @@ export type ColorPickerFormat = "hex" | "rgb" | "hsl";
 export type ScratchpadRetention = "never" | "day" | "week" | "month";
 
 export interface IslandSettings {
+  /** Camera device chosen in the live preview; empty follows the system default. */
+  cameraDeviceId: string;
   enabled: boolean;
   silhouette: Silhouette;
   layout: LayoutPreset;
@@ -198,6 +201,21 @@ export interface IslandSettings {
   watchSound: boolean;
   /** The rule a watch starts with (notchWatchCondition); typed text and numbers aren't kept. */
   watchCondition: WatchCondition;
+  // The companion (spec 05 §12.1; the Mac's notchMascot* keys).
+  mascotEnabled: boolean;
+  /** Passes through the island now and then. */
+  mascotVisits: boolean;
+  /** Comes out to react to what the island sees. */
+  mascotReactions: boolean;
+  mascotStyle: MascotStyle;
+  /** The minimal style's body. */
+  mascotShape: MascotShape;
+  mascotPalette: MascotPalette;
+  /** Beside the notch; a capsule holds it in the middle. */
+  mascotSide: MascotSide;
+  mascotVisitFrequency: MascotFrequency;
+  /** Hops into the island after a quiet while. */
+  mascotHidesWhenIdle: boolean;
 }
 
 export const CLIPBOARD_LIMITS = [20, 50, 100, 250, 500, 1000, 10000, 0];
@@ -215,6 +233,7 @@ export const DEFAULT_QUICK_ACCESS: QuickButton[] = [
 export const DEFAULT_SWITCHER_SHORTCUT = "Ctrl+Alt+Shift+KeyS";
 
 export const DEFAULT_SETTINGS: IslandSettings = {
+  cameraDeviceId: "",
   enabled: true,
   silhouette: "notch",
   layout: "spacious",
@@ -328,6 +347,15 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   agentsCodexProfiles: [],
   watchSound: true,
   watchCondition: "changes",
+  mascotEnabled: false,
+  mascotVisits: true,
+  mascotReactions: true,
+  mascotStyle: "minimal",
+  mascotShape: "ball",
+  mascotPalette: "pearl",
+  mascotSide: "left",
+  mascotVisitFrequency: "normal",
+  mascotHidesWhenIdle: true,
 };
 
 /** Sections the Mac switches off by default; every other section starts on. */
