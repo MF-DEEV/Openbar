@@ -224,6 +224,9 @@ pub struct Snapshot {
     pub resets: ResetsOut,
     pub codex_accounts: Vec<AccountOut>,
     pub price_day: String,
+    /// The email of the account each agent is signed in to, whose plan the
+    /// limits are.
+    pub accounts: BTreeMap<Provider, String>,
 }
 
 /// Local midnight of the day holding `t`.

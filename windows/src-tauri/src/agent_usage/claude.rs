@@ -56,6 +56,8 @@ pub struct Profile {
     pub rate_limit_tier: Option<String>,
     pub signed_in: bool,
     pub usage_fetched: Option<Time>,
+    /// Whose plan the limits are.
+    pub email: Option<String>,
 }
 
 /// The account fields of `.claude.json`; nothing else in it is kept.
@@ -82,6 +84,7 @@ pub fn profile(bytes: &[u8]) -> Profile {
         rate_limit_tier: field("organizationRateLimitTier").or_else(|| field("userRateLimitTier")),
         signed_in: account.is_some(),
         usage_fetched: fetched,
+        email: field("emailAddress"),
     }
 }
 

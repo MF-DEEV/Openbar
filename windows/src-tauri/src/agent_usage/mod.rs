@@ -266,6 +266,24 @@ pub fn probe_main(path: &str, limits: bool) -> ! {
     std::process::exit(if written.is_ok() { 0 } else { 1 })
 }
 
+/// The `email` claim of the identity token Codex saves after a ChatGPT
+/// sign-in; nil for an API key or anything unreadable. Tokens are never kept.
+pub fn codex_email(bytes: &[u8]) -> Option<String> {
+    use base64::Engine;
+    let json: Value = serde_json::from_slice(bytes).ok()?;
+    let token = json.pointer("/tokens/id_token")?.as_str()?;
+    let payload = token.split('.').nth(1)?;
+    let decoded = base64::engine::general_purpose::URL_SAFE_NO_PAD
+        .decode(payload.trim_end_matches('='))
+        .ok()?;
+    let claims: Value = serde_json::from_slice(&decoded).ok()?;
+    claims
+        .get("email")?
+        .as_str()
+        .filter(|e| !e.is_empty())
+        .map(str::to_string)
+}
+
 /// The section's switches as the island reads them.
 #[derive(Clone, Debug, PartialEq)]
 struct Settings {
@@ -411,6 +429,10 @@ struct Service {
     claude_plan: Option<Plan>,
     claude_org: Option<String>,
     claude_profile_modified: Option<SystemTime>,
+    /// Whose plans the limits are; nothing else of those files is kept.
+    claude_email: Option<String>,
+    codex_email: Option<String>,
+    codex_auth_modified: Option<SystemTime>,
     claude_account: Option<Limits>,
     claude_failure: Option<claude::Failure>,
     claude_streak: u32,
@@ -453,6 +475,9 @@ impl Service {
             claude_plan: None,
             claude_org: None,
             claude_profile_modified: None,
+            claude_email: None,
+            codex_email: None,
+            codex_auth_modified: None,
             claude_account: None,
             claude_failure: None,
             claude_streak: 0,
@@ -603,6 +628,7 @@ impl Service {
         let registry = files::registry(&self.roots);
         self.store.close_ended_turns(&registry, true);
         self.read_claude_plan();
+        self.read_codex_account();
         self.read_claude_app(now);
         // History never replays as notices.
         self.store.reports_transitions = true;
@@ -802,6 +828,7 @@ impl Service {
         self.store.close_ended_turns(&registry, false);
         self.store.drop_records_before(now - HORIZON);
         self.read_claude_plan();
+        self.read_codex_account();
         self.read_claude_app(now);
         self.report_renewals(now);
         self.check_limits();
@@ -1069,6 +1096,7 @@ impl Service {
         }
         self.claude_profile_modified = modified;
         let profile = claude::read_profile();
+        self.claude_email = profile.email.clone();
         if !profile.signed_in {
             self.claude_plan = None;
             self.claude_org = None;
@@ -1087,6 +1115,33 @@ impl Service {
             &pricing::list(),
         );
         self.dirty = true;
+    }
+
+    /// The email of the account Codex signed in to, from the identity token
+    /// it saves in `auth.json`; only that claim is decoded and kept, and the
+    /// file is read again only when it changes.
+    fn read_codex_account(&mut self) {
+        if !self.on(Provider::Codex) {
+            self.codex_email = None;
+            self.codex_auth_modified = None;
+            return;
+        }
+        let path = files::codex_home().map(|h| h.join("auth.json"));
+        let modified = path
+            .as_ref()
+            .and_then(|p| std::fs::metadata(p).ok())
+            .and_then(|m| m.modified().ok());
+        if modified == self.codex_auth_modified && modified.is_some() {
+            return;
+        }
+        self.codex_auth_modified = modified;
+        let email = path
+            .and_then(|p| std::fs::read(p).ok())
+            .and_then(|b| codex_email(&b));
+        if email != self.codex_email {
+            self.codex_email = email;
+            self.dirty = true;
+        }
     }
 
     /// The Claude app's readings, placed at `now`; the account reading wins
@@ -1341,6 +1396,16 @@ impl Service {
             })
             .collect();
         s.price_day = pricing::list().updated.clone();
+        if self.on(Provider::Claude)
+            && let Some(email) = &self.claude_email
+        {
+            s.accounts.insert(Provider::Claude, email.clone());
+        }
+        if self.on(Provider::Codex)
+            && let Some(email) = &self.codex_email
+        {
+            s.accounts.insert(Provider::Codex, email.clone());
+        }
         s
     }
 
@@ -1675,5 +1740,28 @@ mod tests {
             "only limit alerts are told"
         );
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn the_codex_account_is_named_by_its_id_token_email_only() {
+        use base64::Engine;
+        let claims = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(br#"{"email":"me@example.com","sub":"x"}"#);
+        let auth = format!(
+            r#"{{"auth_mode":"chatgpt","tokens":{{"id_token":"h.{claims}.s","access_token":"secret"}}}}"#
+        );
+        assert_eq!(
+            codex_email(auth.as_bytes()).as_deref(),
+            Some("me@example.com")
+        );
+        assert_eq!(
+            codex_email(br#"{"OPENAI_API_KEY":"sk-x","tokens":null}"#),
+            None
+        );
+        assert_eq!(codex_email(br#"{"tokens":{"id_token":"nonsense"}}"#), None);
+        let profile = claude::profile(
+            br#"{"oauthAccount":{"organizationUuid":"o","emailAddress":"c@example.com"}}"#,
+        );
+        assert_eq!(profile.email.as_deref(), Some("c@example.com"));
     }
 }

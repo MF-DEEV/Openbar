@@ -22,11 +22,11 @@ struct NotchSessionLimitsRow: View {
         TimelineView(.periodic(from: .now, by: 30)) { context in
             let groups = shows ? NotchSessionLimitsSupport.groups(usage.snapshot, now: context.date) : []
             if !groups.isEmpty {
+                // One line while every agent fits with its account, else a line each.
                 ViewThatFits(in: .horizontal) {
                     row(groups, now: context.date, resets: true)
-                    row(groups, now: context.date, resets: false)
-                    row(groups.map { NotchSessionLimitsSupport.Group(provider: $0.provider, windows: Array($0.windows.prefix(1))) },
-                        now: context.date, resets: false)
+                    stack(groups, now: context.date, resets: true)
+                    stack(groups, now: context.date, resets: false)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
@@ -50,15 +50,42 @@ struct NotchSessionLimitsRow: View {
         .fixedSize()
     }
 
-    private func chip(_ group: NotchSessionLimitsSupport.Group, now: Date, resets: Bool) -> some View {
+    private func stack(_ groups: [NotchSessionLimitsSupport.Group], now: Date, resets: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(groups) { group in
+                chip(group, now: now, resets: resets, fills: true)
+            }
+        }
+    }
+
+    /// The account the limits are of: its email and plan, as the agent's
+    /// own files on this Mac say. Nil while neither is known.
+    private func account(_ provider: AgentProvider) -> String? {
+        let parts = [usage.snapshot.accounts[provider], usage.snapshot.plans[provider]?.name].compactMap { $0 }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
+    }
+
+    private func chip(_ group: NotchSessionLimitsSupport.Group, now: Date, resets: Bool, fills: Bool = false) -> some View {
         let stale = NotchAgentSupport.limitsAreStale(usage.snapshot.limits[group.provider], provider: group.provider,
                                                      account: false, now: now)
         return HStack(spacing: 8) {
             NotchSessionAgentGlyph(provider: group.provider == .codex ? .codex : .claude, size: 9, working: false)
+            if let account = account(group.provider) {
+                Text(account)
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.6))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .layoutPriority(-1)
+                    .help(account)
+            }
+            if fills { Spacer(minLength: 0) }
             ForEach(group.windows) { window in
                 meter(window, provider: group.provider, now: now, resets: resets)
+                    .fixedSize()
             }
         }
+        .frame(maxWidth: fills ? .infinity : nil, alignment: .leading)
         .padding(.leading, 5)
         .padding(.trailing, 9)
         .frame(height: Self.height)
@@ -103,7 +130,7 @@ struct NotchSessionLimitsRow: View {
     }
 
     private func help(_ window: AgentLimitWindow, provider: AgentProvider, label: String, reset: Date?) -> String {
-        var parts = ["\(provider.displayName) · \(label)", agentText.usedShare(AgentFormat.percent(window.usedFraction, locale: locale)),
+        var parts = [([provider.displayName] + [account(provider)].compactMap { $0 }).joined(separator: " · ") + " · \(label)", agentText.usedShare(AgentFormat.percent(window.usedFraction, locale: locale)),
                      agentText.left(AgentFormat.percent(window.remainingFraction, locale: locale))]
         if let reset {
             parts.append(text.resets(reset.formatted(Date.FormatStyle(date: .abbreviated, time: .shortened).locale(locale))))

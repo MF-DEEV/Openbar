@@ -101,6 +101,11 @@ final class AgentUsageService: ObservableObject {
     /// The last snapshot handed over, to tell when time alone changes it.
     private var published = AgentUsageSnapshot()
     private var claudePlan: AgentPlan?
+    /// Whose plans the limits are: the email of each agent's signed-in
+    /// account, as its own files on this Mac say. Nothing else is kept.
+    private var claudeEmail: String?
+    private var codexEmail: String?
+    private var codexAuthModified: Date?
     /// The organization Claude Code signs in to, when its profile says.
     private var claudeOrganization: String?
     private var claudeProfileModified: Date?
@@ -231,6 +236,9 @@ final class AgentUsageService: ObservableObject {
             budgetDay = nil
             claudePlan = nil
             claudeOrganization = nil
+            claudeEmail = nil
+            codexEmail = nil
+            codexAuthModified = nil
             claudeProfileModified = nil
             claudeAppModified = nil
             claudeAppSamples = []
@@ -260,7 +268,7 @@ final class AgentUsageService: ObservableObject {
         refreshClaudeLimits(pageShows: true)
         queue.async { [self] in
             guard readerSession >= 0 else { return }
-            readClaudePlan()
+            readAccounts()
             readClaudeApp(now: Date())
             checkLimits()
             publish()
@@ -312,7 +320,7 @@ final class AgentUsageService: ObservableObject {
             store.closeIdleTurns(now: now, after: NotchAgentSupport.idleTurn)
             closeEndedTurns(roots, atLaunch: true)
             // The account Claude Code uses picks the Claude app's readings.
-            readClaudePlan()
+            readAccounts()
             readClaudeApp(now: now)
             store.reportsTransitions = true
             previousLimits = store.limits
@@ -595,7 +603,7 @@ final class AgentUsageService: ObservableObject {
                 }
                 lastRootCheck = now
             }
-            readClaudePlan()
+            readAccounts()
             readClaudeApp(now: now)
             checkLimits()
             reportRenewals(now: now)
@@ -634,8 +642,13 @@ final class AgentUsageService: ObservableObject {
         var next = store.snapshot(plans: plans, providers: enabled, now: Date())
         // For Sessions alone, nothing but the limits: no turn at work, spend
         // or history reaches the island while the AI section is off.
+        var accounts: [AgentProvider: String] = [:]
+        if enabled.contains(.claude), let claudeEmail { accounts[.claude] = claudeEmail }
+        if enabled.contains(.codex), let codexEmail { accounts[.codex] = codexEmail }
+        next.accounts = accounts
         if publishesLimitsOnly {
-            next = AgentUsageSnapshot(loaded: next.loaded, now: next.now, limits: next.limits)
+            next = AgentUsageSnapshot(loaded: next.loaded, now: next.now, limits: next.limits, plans: next.plans,
+                                      accounts: next.accounts)
         }
         published = next
         checkBudget(next)
@@ -718,6 +731,24 @@ final class AgentUsageService: ObservableObject {
 
     /// The plan comes from the account profile Claude Code caches; nothing
     /// else in that file is kept.
+    /// Runs on `queue`.
+    private func readAccounts() {
+        readClaudePlan()
+        readCodexAccount()
+    }
+
+    /// The email of the account Codex signed in to, from the identity token
+    /// it saves in `auth.json`; only that claim is decoded and kept, and the
+    /// file is read again only when it changes. Runs on `queue`.
+    private func readCodexAccount() {
+        guard enabled.contains(.codex) else { codexEmail = nil; codexAuthModified = nil; return }
+        let url = AgentAccountIdentity.codexAuthURL(home: home)
+        let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+        guard modified != codexAuthModified else { return }
+        codexAuthModified = modified
+        codexEmail = modified == nil ? nil : (try? Data(contentsOf: url)).flatMap(AgentAccountIdentity.codexEmail)
+    }
+
     private func readClaudePlan() {
         guard enabled.contains(.claude) else { return }
         let url = home.appending(path: ".claude.json")
@@ -729,10 +760,12 @@ final class AgentUsageService: ObservableObject {
               let account = json["oauthAccount"] as? [String: Any] else {
             claudePlan = nil
             claudeOrganization = nil
+            claudeEmail = nil
             claudeAccountLimits = nil
             store.clearLimits(.claude)
             return
         }
+        claudeEmail = (account["emailAddress"] as? String).flatMap { $0.isEmpty ? nil : $0 }
         let organization = account["organizationUuid"] as? String
         if organization != claudeOrganization {
             claudeAccountLimits = nil

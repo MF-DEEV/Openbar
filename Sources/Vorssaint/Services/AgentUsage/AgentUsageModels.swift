@@ -159,3 +159,24 @@ enum AgentUsageEvent: Equatable {
     case limitReset(provider: AgentProvider, window: AgentLimitWindow)
     case budgetReached(spent: Double, budget: Double)
 }
+
+/// Whose account an agent's limits belong to, read from what the agent saves
+/// on this Mac. Only the email is decoded; tokens are never kept.
+enum AgentAccountIdentity {
+    static func codexAuthURL(home: URL) -> URL { home.appending(path: ".codex/auth.json") }
+
+    /// The `email` claim of the identity token Codex saves after a ChatGPT
+    /// sign-in; nil for an API key or anything unreadable.
+    static func codexEmail(_ data: Data) -> String? {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let token = (json["tokens"] as? [String: Any])?["id_token"] as? String else { return nil }
+        let parts = token.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count >= 2 else { return nil }
+        var payload = parts[1].replacingOccurrences(of: "-", with: "+").replacingOccurrences(of: "_", with: "/")
+        payload += String(repeating: "=", count: (4 - payload.count % 4) % 4)
+        guard let decoded = Data(base64Encoded: payload),
+              let claims = (try? JSONSerialization.jsonObject(with: decoded)) as? [String: Any],
+              let email = claims["email"] as? String, !email.isEmpty else { return nil }
+        return email
+    }
+}

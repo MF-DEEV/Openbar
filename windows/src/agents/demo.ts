@@ -117,6 +117,7 @@ export function demoSnapshot(now = Date.now(), accounts = false): AgentSnapshot 
   snapshot.periods = { today: period(days, 1), week: period(days, 7), month: period(days, 30) };
   snapshot.seen = ["claude", "codex"];
   snapshot.found = { claude: true, codex: true, opencode: false, copilot: false };
+  snapshot.accounts = { claude: "ada@example.com", codex: "ada@studio.example" };
   snapshot.plans = {
     claude: { name: "Max 20×", monthlyPrice: 200 },
     codex: { name: "Plus", monthlyPrice: 20 },
