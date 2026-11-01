@@ -99,11 +99,7 @@ function Trailing() {
   if (composing) return null;
   if (!session) {
     return canStart ? (
-      <button
-        type="button"
-        className="n-pill-button s-open"
-        onClick={() => useSessions.setState({ composing: true })}
-      >
+      <button type="button" className="n-pill-button s-open" onClick={() => useSessions.setState({ composing: true })}>
         <Plus size={11} />
         {S.newSession}
       </button>

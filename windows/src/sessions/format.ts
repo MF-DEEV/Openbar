@@ -57,7 +57,8 @@ export function backgroundPhase(session: Session): string | null {
     if (details.state === "failed") return S.backgroundFailed;
     return details.state === "done" ? S.finished : S.backgroundStopped;
   }
-  if (details.state === "blocked" && !isWaiting(session.phase) && !isActive(session.phase)) return S.backgroundNeedsReply;
+  if (details.state === "blocked" && !isWaiting(session.phase) && !isActive(session.phase))
+    return S.backgroundNeedsReply;
   return null;
 }
 
