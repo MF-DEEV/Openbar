@@ -83,6 +83,8 @@ final class NotchDownloadService: ObservableObject {
     /// The pending chooser was begun from the island's Downloads page.
     private var chooserInNotch = false
     private let queue = DispatchQueue(label: "com.vorssaint.notch.downloads", qos: .utility)
+    /// Chromium's own counts for its running downloads. Confined to queue.
+    private let browserDownloads = NotchChromiumDownloads.Reader()
     /// Browsers change their folder without telling anyone; look again this often.
     private static let discoveryInterval: TimeInterval = 30
 
@@ -455,7 +457,15 @@ final class NotchDownloadService: ObservableObject {
                 else { lost.insert(folder.path) }
             }
             let stillThere = lost.filter { NotchDownloadFolders.identity(of: URL(fileURLWithPath: $0)) != nil }
-            let current = NotchDownloadSupport.combined(snapshots)
+            var current = NotchDownloadSupport.combined(snapshots)
+            // Only a partial can use a browser's counts, so its store is read
+            // only while one is being written.
+            if !current.partials.isEmpty, let reader = self?.browserDownloads {
+                current = NotchDownloadSupport.FolderSnapshot(
+                    partials: NotchChromiumDownloads.annotate(current.partials, previous: previous,
+                                                              downloads: reader.read()),
+                    files: current.files)
+            }
             // A folder that could not be read says nothing about its partials.
             let judged = previous.values.filter { !lost.contains($0.folderPath) }
             let completed = judged.compactMap { old -> NotchDownloadItem? in
@@ -539,12 +549,23 @@ final class NotchDownloadService: ObservableObject {
         var active = progressItems.values.flatMap { $0 }
         var seen = Set<String>()
         active = active.filter { seen.insert($0.id).inserted }
+        // A native publication for a partial the browser has a record of
+        // takes the record's real name, and its total when it has none.
+        let recorded = Dictionary(partials.values.filter { $0.browser != nil }
+            .map { ($0.url.standardizedFileURL, $0) }) { first, _ in first }
+        if !recorded.isEmpty {
+            active = active.map { NotchChromiumDownloads.merged($0, with: recorded[$0.url.standardizedFileURL]) }
+        }
         let represented = Set(active.map { $0.url.standardizedFileURL })
         for partial in partials.values where !represented.contains(partial.url.standardizedFileURL)
             && !represented.contains(partial.expectedURL.standardizedFileURL) {
+            // A Chromium partial with no native progress publication counts
+            // by the browser's own record; any other stays indeterminate.
+            let counted = NotchChromiumDownloads.progress(of: partial)
             active.append(NotchDownloadItem(id: partial.url.path, url: partial.url,
-                name: partial.expectedURL.lastPathComponent, receivedBytes: partial.bytes,
-                fraction: nil, completed: false, active: Date().timeIntervalSince(partial.modified) < 120,
+                name: partial.expectedURL.lastPathComponent, receivedBytes: counted.bytes,
+                fraction: counted.fraction, completed: false,
+                active: partial.browser?.download.paused != true && Date().timeIntervalSince(partial.modified) < 120,
                 date: partial.modified))
         }
         let updated = NotchDownloadSupport.mergedItems(active: active, files: folderItems, finished: finished)

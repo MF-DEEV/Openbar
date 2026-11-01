@@ -15,6 +15,7 @@ All notable changes to this project are documented here. The format follows
 - Dynamic Island's Now Playing page has a larger cover, song title and playback buttons. A song title or artist too long for its row slides along it so you can read it all, and stays still with Reduce Motion on. Shuffle turns green while it is on.
 
 ### Fixed
+- Chrome, Edge, Brave, Arc and other Chromium downloads in Dynamic Island's Downloads page show a percentage and the real file name while they download, instead of an endless bar and a name like "Unconfirmed 123456". When they finish you get the completion notice, not a failed download.
 - Wallpaper's Add image and Add folder open the file picker in front on the first click instead of behind other windows.
 - Scrolling Monitor settings with Bars as the usage display no longer freezes the app, and the menu bar preview now stays at the top of the page.
 - Volume mixer sliders no longer jump back to the previous volume for a moment after you change them.

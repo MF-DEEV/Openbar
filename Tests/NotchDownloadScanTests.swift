@@ -11,6 +11,8 @@ enum NotchDownloadScanTests {
         var folder: URL?
         var generation = UUID()
         var progressObserver: NotchDownloadProgressObserver?
+        /// No browser store unless a test gives it a home with one.
+        var browserDownloads = NotchChromiumDownloads.Reader(home: URL(fileURLWithPath: "/var/empty"))
         var partials: [URL: NotchPartialDownload] = [:]
         var folderItems: [NotchDownloadItem] = []
         var fileSources: [URL: DispatchSourceFileSystemObject] = [:]

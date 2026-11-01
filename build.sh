@@ -260,6 +260,7 @@ if (( TEST )); then
         Sources/Vorssaint/UI/Settings/NotchSettingsTabRow.swift
         Sources/Vorssaint/Core/NotchActivityStrings.swift
         Sources/Vorssaint/Core/NotchVoiceStrings.swift
+        Sources/Vorssaint/Services/LevelDB.swift
         Sources/Vorssaint/Services/Discord/DiscordStorage.swift
         Sources/Vorssaint/Services/Discord/DiscordKeybinds.swift
         Sources/Vorssaint/Services/Discord/DiscordVoiceSupport.swift
@@ -283,6 +284,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchDownloadSupport.swift
         Sources/Vorssaint/Services/Notch/NotchDownloadProgressObserver.swift
         Sources/Vorssaint/Services/Notch/NotchDownloadFolders.swift
+        Sources/Vorssaint/Services/Notch/NotchChromiumDownloads.swift
         Sources/Vorssaint/Core/NotchCalendarStrings.swift
         Sources/Vorssaint/Core/NotchNotificationStrings.swift
         Sources/Vorssaint/Core/NotchGestureStrings.swift
