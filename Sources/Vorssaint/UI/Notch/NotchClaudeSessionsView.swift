@@ -103,7 +103,7 @@ struct NotchClaudeSessionsView: View {
 
     /// Starts a session from here, where Claude Code is there to start one.
     @ViewBuilder private var newSessionButton: some View {
-        if service.canStartSessions, !preview {
+        if service.canStartSessions || service.canStartCodex, !preview {
             Button {
                 service.composingSession = true
             } label: {

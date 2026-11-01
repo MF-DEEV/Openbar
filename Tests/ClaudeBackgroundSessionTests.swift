@@ -15,6 +15,7 @@ enum ClaudeBackgroundSessionTests {
         suite.run("command lines") { lines(suite) }
         suite.run("recent folders") { folders(suite) }
         suite.run("hidden attach keystrokes") { keys(suite) }
+        suite.run("new session agents and models") { models(suite) }
     }
 
     private static func json(_ text: String) -> Data { Data(text.utf8) }
@@ -209,5 +210,55 @@ enum ClaudeBackgroundSessionTests {
         suite.expect(both[1].pause == ClaudeTerminalScripts.imageSettle(2), "with time to read them")
         let only = ClaudeBackgroundReply.keystrokes("", images: ["/a.png"])
         suite.expect(only.count == 2, "an image alone")
+    }
+
+    static func models(_ suite: TestSuite) {
+        // Claude Code
+        suite.expect(ClaudeCLI.startArguments(prompt: "-x", background: true, model: "opus") == ["--bg", "--model", "opus", "--", "-x"],
+                     "the model goes before the prompt")
+        suite.expect(ClaudeCLI.startArguments(prompt: nil, background: false, model: "") == [], "an empty model is the default")
+        let claude = NewSessionModels.claude(defaultName: "Default", current: "opus[1m]")
+        suite.expect(claude.map(\.id) == [nil, "fable", "opus", "sonnet", "haiku"], "the default, then the aliases")
+        suite.expect(claude.first?.detail == "Opus", "the default names the model the settings pick")
+        suite.expect(NewSessionModels.claude(defaultName: "Default").first?.detail == nil, "no setting, no name")
+        suite.expect(NewSessionModels.claudeName("claude-fable-5-1") == "claude-fable-5-1", "a full name stays")
+        suite.expect(NewSessionModels.claudeSetting(json(#"{"model":"sonnet","env":{}}"#)) == "sonnet", "settings name a model")
+        suite.expect(NewSessionModels.claudeSetting(json(#"{"model":""}"#)) == nil, "an empty one is none")
+        suite.expect(NewSessionModels.claudeSetting(json("not json")) == nil, "a broken file is none")
+
+        // Codex's catalog, shaped as 0.164 writes models_cache.json
+        let cache = json(#"{"fetched_at":"x","models":[{"slug":"gpt-b","display_name":"GPT B","visibility":"list","priority":2},{"slug":"hidden","display_name":"Hidden","visibility":"hide","priority":0},{"slug":"gpt-a","display_name":"GPT A","visibility":"list","priority":1},{"slug":"gpt-c","display_name":"","priority":2},{"slug":"gpt-a","display_name":"Again","visibility":"list","priority":9},{"display_name":"No slug","visibility":"list","priority":0}]}"#)
+        let catalog = NewSessionModels.codexCatalog(cache)
+        suite.expect(catalog.map(\.key) == ["gpt-a", "gpt-b", "gpt-c"], "listed ones in Codex's order, once each, hidden left out")
+        suite.expect(catalog.last?.name == "gpt-c", "no display name shows the slug")
+        suite.expect(NewSessionModels.codexCatalog(nil).isEmpty && NewSessionModels.codexCatalog(json("[]")).isEmpty, "no catalog, no models")
+        let codex = NewSessionModels.codex(cache: cache, config: "model = \"gpt-b\"\n", defaultName: "Default")
+        suite.expect(codex.first?.id == nil && codex.first?.detail == "GPT B", "the default names the configured model")
+        suite.expect(NewSessionModels.codex(cache: cache, config: nil, defaultName: "Default").first?.detail == "GPT A",
+                     "with nothing configured, Codex's first")
+        suite.expect(NewSessionModels.codex(cache: nil, config: "model = 'gpt-z'", defaultName: "Default").map(\.detail) == ["gpt-z"],
+                     "only the default when there is no catalog")
+
+        // config.toml
+        suite.expect(NewSessionModels.codexSetting("model = \"gpt-6.1-sol\"\nmodel_reasoning_effort = \"medium\"") == "gpt-6.1-sol", "the top-level model")
+        suite.expect(NewSessionModels.codexSetting("model_reasoning_effort = \"high\"\n  model=\"m\" # mine") == "m", "spaces and a comment")
+        suite.expect(NewSessionModels.codexSetting("[profiles.fast]\nmodel = \"p\"") == nil, "a profile's model isn't the default")
+        suite.expect(NewSessionModels.codexSetting("model = gpt") == nil, "not a TOML string")
+        suite.expect(NewSessionModels.codexSetting("model = \"\"") == nil, "an empty one")
+        suite.expect(NewSessionModels.codexSetting("") == nil, "an empty file")
+
+        // Codex's command line and thread
+        let home = URL(fileURLWithPath: "/Users/me")
+        suite.expect(CodexCLI.startArguments(prompt: "-x", model: "gpt-a") == ["-m", "gpt-a", "--", "-x"], "Codex's model and a dashed prompt")
+        suite.expect(CodexCLI.startArguments(prompt: "", model: nil) == [], "Codex with nothing")
+        suite.expect(CodexCLI.line(executable: "/b/codex", arguments: ["--", "a 'b'"], folder: "/t/my dir")
+                     == #"cd '/t/my dir' && '/b/codex' '--' 'a '\''b'\'''"#, "nothing in a Codex prompt runs")
+        suite.expect(CodexCLI.locate(path: "/x:/y", home: home) { $0 == "/y/codex" } == "/y/codex", "codex on the PATH")
+        suite.expect(CodexCLI.locate(path: nil, home: home) { $0 == "/opt/homebrew/bin/codex" } == "/opt/homebrew/bin/codex", "or Homebrew's")
+        suite.expect(CodexCLI.locate(path: "/x", home: home) { _ in false } == nil, "or none")
+        let params = CodexSessionClient.threadStart(cwd: "/t", model: "gpt-a")
+        suite.expect(params["cwd"] as? String == "/t" && params["model"] as? String == "gpt-a" && params.count == 2,
+                     "a thread gets its folder and model, nothing that overrides the person's settings")
+        suite.expect(CodexSessionClient.threadStart(cwd: "/t", model: nil).count == 1, "the default model sends none")
     }
 }

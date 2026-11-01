@@ -50,6 +50,8 @@ final class CodexSessionClient {
         case initialize, loadedList, other
         case read(Int)
         case resume(Int)
+        /// A thread the island asked for, and the first prompt for it.
+        case started(input: [[String: Any]], done: (String?) -> Void)
     }
 
     private let home: URL?
@@ -193,6 +195,25 @@ final class CodexSessionClient {
         }
     }
 
+    /// Starts a thread in a folder with no terminal, and its first turn.
+    /// `done` gets nil once Codex has the thread, or Codex's error; it runs on
+    /// the client's thread. False when not connected or there is no prompt.
+    func startThread(cwd: String, model: String?, prompt: String, done: @escaping (String?) -> Void) -> Bool {
+        lock.withLock {
+            guard isConnected, let input = Self.input(text: prompt, images: []) else { return false }
+            call("thread/start", Self.threadStart(cwd: cwd, model: model), .started(input: input, done: done))
+            return true
+        }
+    }
+
+    /// No approval or sandbox overrides: the thread runs as the person's
+    /// `config.toml` says, as one started in a terminal would.
+    static func threadStart(cwd: String, model: String?) -> [String: Any] {
+        var params: [String: Any] = ["cwd": cwd]
+        if let model, !model.isEmpty { params["model"] = model }
+        return params
+    }
+
     /// What a reply gives Codex: its text, unless there is none, then each
     /// image as the file Codex reads it from. Nil when there is neither.
     static func input(text: String, images: [URL]) -> [[String: Any]]? {
@@ -279,6 +300,16 @@ final class CodexSessionClient {
             case (nil, let id?):
                 guard case .number(let number) = id, let kind = waiting.removeValue(forKey: number) else { return false }
                 let result = message["result"] as? [String: Any] ?? [:]
+                if case .started(let input, let done) = kind {
+                    guard let thread = (result["thread"] as? [String: Any])?["id"] as? String else {
+                        let error = (message["error"] as? [String: Any])?["message"] as? String
+                        done(error ?? "")
+                        return false
+                    }
+                    call("turn/start", ["threadId": thread, "input": input], .other)
+                    done(nil)
+                    return false
+                }
                 switch kind {
                 case .initialize:
                     daemonVersion = result["userAgent"] as? String
@@ -301,7 +332,7 @@ final class CodexSessionClient {
                     if let id = thread["id"] as? String, state.threads[id] == nil { focused.remove(id) }
                     follow()
                     return true
-                case .other:
+                case .other, .started:
                     return false
                 }
             default:
@@ -318,13 +349,20 @@ final class CodexSessionClient {
         while !isStopped {
             if let home, FileManager.default.fileExists(atPath: Self.socketPath(home: home).path) {
                 try? session(path: Self.socketPath(home: home), changed: changed)
-                lock.withLock {
+                let unanswered = lock.withLock { () -> [(String?) -> Void] in
+                    let starts = waiting.values.compactMap { kind -> ((String?) -> Void)? in
+                        if case .started(_, let done) = kind { return done }
+                        return nil
+                    }
                     isConnected = false
                     outbox = nil
                     waiting.removeAll()
                     focused.removeAll()
                     state.reset()
+                    return starts
                 }
+                // A start the daemon never answered failed.
+                for done in unanswered { done("") }
                 changed()
             }
             if isStopped { break }

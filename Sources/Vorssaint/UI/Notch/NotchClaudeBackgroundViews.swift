@@ -161,8 +161,8 @@ struct NotchClaudeBackgroundLogsView: View {
     }
 }
 
-/// Starts a session: which folder, optionally what to say first, and whether
-/// it runs in the background or in a terminal.
+/// Starts a session: which folder, which agent and model, optionally what to
+/// say first, and whether it runs in the background or in a terminal.
 struct NotchClaudeNewSessionView: View {
     let text: NotchClaudeSessionStrings
     @ObservedObject private var service = ClaudeSessionService.shared
@@ -172,9 +172,46 @@ struct NotchClaudeNewSessionView: View {
     @State private var inBackground = true
     @State private var starting = false
     @State private var problem: String?
+    @State private var claudeModels: [NewSessionModel] = []
+    @State private var codexModels: [NewSessionModel] = []
+    @AppStorage(DefaultsKey.notchNewSessionAgent) private var agentChoice = ClaudeSessionProvider.claude.rawValue
+    @AppStorage(DefaultsKey.notchNewSessionClaudeModel) private var claudeModel = ""
+    @AppStorage(DefaultsKey.notchNewSessionCodexModel) private var codexModel = ""
     @FocusState private var promptFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Namespace private var agentPill
 
-    private var background: Bool { inBackground && service.backgroundAvailable }
+    /// The agents this Mac can start: Claude Code, Codex, or both.
+    private var agents: [ClaudeSessionProvider] {
+        (service.canStartSessions ? [.claude] : []) + (service.canStartCodex ? [.codex] : [])
+    }
+
+    private var agent: ClaudeSessionProvider {
+        let picked = ClaudeSessionProvider(rawValue: agentChoice) ?? .claude
+        return agents.contains(picked) ? picked : (agents.first ?? .claude)
+    }
+
+    /// Codex runs threads in its own background server, so it needs no Agent View.
+    private var canRunInBackground: Bool { agent == .codex || service.backgroundAvailable }
+    private var background: Bool { inBackground && canRunInBackground }
+
+    private var models: [NewSessionModel] { agent == .codex ? codexModels : claudeModels }
+    private var modelKey: Binding<String> { agent == .codex ? $codexModel : $claudeModel }
+    private var model: NewSessionModel? {
+        models.first { $0.key == modelKey.wrappedValue } ?? models.first
+    }
+
+    /// In the background a Codex thread starts with its first turn.
+    private var needsPrompt: Bool {
+        agent == .codex && background && prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var canStart: Bool { chosen != nil && !starting && !needsPrompt }
+
+    /// Springs for things that move, a quick fade when motion is reduced.
+    private var motion: Animation {
+        reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.32, dampingFraction: 0.82)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -185,17 +222,30 @@ struct NotchClaudeNewSessionView: View {
                 .focused($promptFocused)
                 .padding(.horizontal, 10)
                 .frame(height: 30)
-                .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .background(.white.opacity(promptFocused ? 0.11 : 0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 9, style: .continuous)
+                        .strokeBorder(agent.tint.opacity(promptFocused ? 0.55 : 0), lineWidth: 1)
+                )
+                .animation(.easeOut(duration: 0.18), value: promptFocused)
+                .animation(.easeOut(duration: 0.25), value: agent)
                 .accessibilityLabel(text.firstPrompt)
-            if let problem {
-                Text(problem)
+            if let message = problem ?? (needsPrompt ? text.codexNeedsPrompt : nil) {
+                Text(message)
                     .font(.system(size: 10.5))
-                    .foregroundStyle(Color(red: 1.0, green: 0.55, blue: 0.5))
+                    .foregroundStyle(problem == nil ? Color.white.opacity(0.6) : Color(red: 1.0, green: 0.55, blue: 0.5))
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                    .id(message)
+                    .transition(.opacity.combined(with: .offset(y: -3)))
             }
             HStack(spacing: 6) {
-                if service.backgroundAvailable {
+                if agents.count > 1 { agentPicker }
+                Spacer(minLength: 4)
+                if !models.isEmpty { modelMenu }
+            }
+            HStack(spacing: 6) {
+                if canRunInBackground {
                     mode(text.runInBackground, selected: inBackground) { inBackground = true }
                     mode(text.runInTerminal, selected: !inBackground) { inBackground = false }
                 } else {
@@ -209,6 +259,9 @@ struct NotchClaudeNewSessionView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .animation(motion, value: agent)
+        .animation(motion, value: needsPrompt)
+        .animation(motion, value: problem)
         .notchBand(leading: {
             NotchBandBackButton(title: text.newSession) { service.composingSession = false }
         })
@@ -216,8 +269,115 @@ struct NotchClaudeNewSessionView: View {
             service.recentFolders { found in
                 folders = found
                 if chosen == nil { chosen = found.first }
+                loadModels()
             }
         }
+        .onChange(of: chosen?.configHome) { _, _ in loadModels() }
+    }
+
+    private func loadModels() {
+        service.newSessionModels(configHome: chosen?.configHome) { claude, codex in
+            claudeModels = claude
+            codexModels = codex
+        }
+    }
+
+    /// Claude or Codex, the pill sliding to the one picked.
+    private var agentPicker: some View {
+        HStack(spacing: 2) {
+            ForEach(agents, id: \.self) { provider in
+                let selected = provider == agent
+                Button {
+                    guard provider != agent else { return }
+                    problem = nil
+                    withAnimation(motion) { agentChoice = provider.rawValue }
+                } label: {
+                    HStack(spacing: 5) {
+                        NotchSessionAgentGlyph(provider: provider, size: provider == .claude ? 11 : 10, working: false)
+                            .frame(width: 13, height: 13)
+                            .saturation(selected ? 1 : 0)
+                            .opacity(selected ? 1 : 0.55)
+                            .scaleEffect(selected && !reduceMotion ? 1.06 : 1)
+                        Text(provider == .claude ? "Claude" : "Codex")
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundStyle(.white.opacity(selected ? 1 : 0.6))
+                    }
+                    .padding(.horizontal, 9)
+                    .frame(height: 26)
+                    .background {
+                        if selected {
+                            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                .fill(provider.tint.opacity(0.22))
+                                .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                                    .strokeBorder(provider.tint.opacity(0.45), lineWidth: 1))
+                                .matchedGeometryEffect(id: "pill", in: agentPill)
+                        }
+                    }
+                    .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 7, highlights: !selected))
+                .accessibilityLabel(provider == .claude ? "Claude Code" : "Codex")
+                .accessibilityAddTraits(selected ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(text.agentPicker)
+    }
+
+    /// The model, picked from a menu: Codex lists more than fit as chips.
+    private var modelMenu: some View {
+        Menu {
+            Picker(text.modelPicker, selection: modelKey) {
+                ForEach(models) { option in
+                    if let detail = option.detail {
+                        Text("\(option.name) · \(detail)").tag(option.key)
+                    } else {
+                        Text(option.name).tag(option.key)
+                    }
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "cpu")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.5))
+                ZStack(alignment: .leading) {
+                    Text(modelLabel)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                        .id("\(agent.rawValue)-\(modelLabel)")
+                        .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 5)),
+                                                removal: .opacity.combined(with: .offset(y: -5))))
+                }
+                .clipped()
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+            .padding(.horizontal, 9)
+            .frame(height: 28)
+            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .menuStyle(.button)
+        .buttonStyle(NotchButtonStyle(cornerRadius: 8))
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .animation(motion, value: modelLabel)
+        .help(text.modelPicker)
+        .accessibilityLabel("\(text.modelPicker): \(modelLabel)")
+    }
+
+    /// The model's name; for the default, which model that is, when known.
+    private var modelLabel: String {
+        guard let model else { return text.defaultModel }
+        if model.id == nil, let detail = model.detail { return detail }
+        return model.name
     }
 
     private var folderList: some View {
@@ -235,7 +395,7 @@ struct NotchClaudeNewSessionView: View {
                         HStack(spacing: 7) {
                             Image(systemName: chosen == folder ? "checkmark.circle.fill" : "folder")
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundStyle(chosen == folder ? ClaudeSessionProvider.claude.tint : .white.opacity(0.5))
+                                .foregroundStyle(chosen == folder ? agent.tint : .white.opacity(0.5))
                                 .frame(width: 14)
                             Text(folder.name)
                                 .font(.system(size: 12, weight: .medium))
@@ -275,7 +435,7 @@ struct NotchClaudeNewSessionView: View {
     }
 
     private func mode(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+        Button { withAnimation(motion) { action() } } label: {
             Text(title)
                 .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(.white.opacity(selected ? 1 : 0.6))
@@ -290,24 +450,38 @@ struct NotchClaudeNewSessionView: View {
 
     private var startButton: some View {
         Button(action: start) {
-            Text(text.startSession)
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.white)
-                .padding(.horizontal, 14)
-                .frame(height: 28)
-                .background(ClaudeSessionProvider.claude.tint.opacity(chosen == nil ? 0.3 : 0.85),
-                            in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            ZStack {
+                Text(text.startSession)
+                    .font(.system(size: 12, weight: .semibold))
+                    .opacity(starting ? 0 : 1)
+                if starting {
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.7)
+                        .tint(.white)
+                        .transition(.opacity.combined(with: .scale(scale: 0.6)))
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .frame(height: 28)
+            .background(agent.tint.opacity(canStart || starting ? 0.85 : 0.3),
+                        in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .animation(motion, value: starting)
+            .animation(.easeOut(duration: 0.25), value: canStart)
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 8))
-        .disabled(chosen == nil || starting)
+        .disabled(!canStart)
     }
 
     private func start() {
-        guard let chosen else { return }
+        guard let chosen, canStart else { return }
         starting = true
         problem = nil
-        service.startSession(in: chosen.path, configHome: chosen.configHome, prompt: prompt, background: background) { failure in
+        let picked = model?.id
+        service.startSession(in: chosen.path, configHome: chosen.configHome, prompt: prompt, background: background,
+                             provider: agent, model: picked) { failure in
             starting = false
             problem = failure
             if failure == nil { service.composingSession = false }

@@ -267,7 +267,7 @@ enum ClaudeCLI {
 
     /// Waits for the command, and takes what it printed up to a moment after
     /// it ends: a service it left running may hold the pipes open.
-    private static func run(_ path: String, _ arguments: [String], environment: [String: String],
+    static func run(_ path: String, _ arguments: [String], environment: [String: String],
                             folder: String? = nil, timeout: TimeInterval) -> Output? {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: path)
@@ -334,8 +334,9 @@ enum ClaudeCLI {
 
     /// The arguments that start a session; `--` keeps a prompt that begins
     /// with a dash from reading as an option.
-    static func startArguments(prompt: String?, background: Bool) -> [String] {
+    static func startArguments(prompt: String?, background: Bool, model: String? = nil) -> [String] {
         var arguments = background ? ["--bg"] : []
+        if let model, !model.isEmpty { arguments += ["--model", model] }
         if let prompt, !prompt.isEmpty { arguments += ["--", prompt] }
         return arguments
     }
@@ -625,5 +626,143 @@ enum ClaudeTerminalLauncher {
         process.waitUntilExit()
         if process.terminationStatus != 0 { try? FileManager.default.removeItem(at: file) }
         return process.terminationStatus == 0
+    }
+}
+
+/// A model a new session can start with. `id` nil keeps the agent's own
+/// default, the one its settings name.
+struct NewSessionModel: Equatable, Identifiable {
+    let id: String?
+    let name: String
+    /// What the agent's default is, when it can be told.
+    var detail: String?
+
+    var key: String { id ?? "" }
+}
+
+/// The models offered for each agent on the New session page.
+enum NewSessionModels {
+    /// Claude Code's aliases for its latest models (`claude --help`), so
+    /// the list doesn't age with each release.
+    static let claudeAliases: [(id: String, name: String)] = [
+        ("fable", "Fable"), ("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku"),
+    ]
+
+    static func claude(defaultName: String, current: String? = nil) -> [NewSessionModel] {
+        [NewSessionModel(id: nil, name: defaultName, detail: current.map(claudeName))]
+            + claudeAliases.map { NewSessionModel(id: $0.id, name: $0.name) }
+    }
+
+    /// An alias or full model name as a person reads it: `opus[1m]` as Opus.
+    static func claudeName(_ model: String) -> String {
+        let base = model.split(separator: "[").first.map(String.init) ?? model
+        if let alias = claudeAliases.first(where: { $0.id == base.lowercased() }) { return alias.name }
+        return base
+    }
+
+    /// The `model` Claude Code's settings name, if any.
+    static func claudeSetting(_ data: Data) -> String? {
+        guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let model = object["model"] as? String, !model.isEmpty else { return nil }
+        return model
+    }
+
+    /// Codex's models from the catalog it keeps in `models_cache.json`,
+    /// the listed ones in its own order, after the default from `config.toml`.
+    static func codex(cache: Data?, config: String?, defaultName: String) -> [NewSessionModel] {
+        let listed = codexCatalog(cache)
+        let configured = config.flatMap(codexSetting)
+        let detail = configured.map { id in listed.first { $0.id == id }?.name ?? id } ?? listed.first?.name
+        return [NewSessionModel(id: nil, name: defaultName, detail: detail)] + listed
+    }
+
+    static func codexCatalog(_ data: Data?) -> [NewSessionModel] {
+        guard let data, let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let models = object["models"] as? [[String: Any]] else { return [] }
+        let shown = models.compactMap { model -> (priority: Int, model: NewSessionModel)? in
+            guard let id = (model["slug"] ?? model["id"]) as? String, !id.isEmpty,
+                  (model["visibility"] as? String ?? "list") == "list" else { return nil }
+            let name = (model["display_name"] ?? model["displayName"]) as? String
+            return ((model["priority"] as? Int) ?? Int.max, NewSessionModel(id: id, name: name?.isEmpty == false ? name! : id))
+        }
+        var seen = Set<String>()
+        return shown.enumerated()
+            .sorted { ($0.element.priority, $0.offset) < ($1.element.priority, $1.offset) }
+            .map(\.element.model)
+            .filter { seen.insert($0.key).inserted }
+    }
+
+    /// The top-level `model = "…"` of a `config.toml`; one inside a table is
+    /// a profile's or a provider's, not the default.
+    static func codexSetting(_ toml: String) -> String? {
+        for raw in toml.split(whereSeparator: \.isNewline) {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("[") { return nil }
+            guard line.hasPrefix("model"), let equals = line.firstIndex(of: "=") else { continue }
+            guard line[..<equals].trimmingCharacters(in: .whitespaces) == "model" else { continue }
+            var value = line[line.index(after: equals)...].trimmingCharacters(in: .whitespaces)
+            if let hash = value.range(of: " #") { value = String(value[..<hash.lowerBound]).trimmingCharacters(in: .whitespaces) }
+            guard value.count >= 2, let quote = value.first, quote == "\"" || quote == "'", value.last == quote else { return nil }
+            let inner = String(value.dropFirst().dropLast())
+            return inner.isEmpty ? nil : inner
+        }
+        return nil
+    }
+
+    static func readCodex(home: URL?, defaultName: String) -> [NewSessionModel] {
+        let cache = home.flatMap { try? Data(contentsOf: $0.appending(path: "models_cache.json")) }
+        let config = home.flatMap { try? String(contentsOf: $0.appending(path: "config.toml"), encoding: .utf8) }
+        return codex(cache: cache, config: config, defaultName: defaultName)
+    }
+
+    static func readClaude(configHome: String?, defaultName: String,
+                           home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [NewSessionModel] {
+        let folder = configHome.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? home.appending(path: ".claude")
+        let setting = (try? Data(contentsOf: folder.appending(path: "settings.json"))).flatMap(claudeSetting)
+        return claude(defaultName: defaultName, current: setting)
+    }
+}
+
+/// Codex's command line, found and run with the login shell's environment
+/// as `claude` is.
+enum CodexCLI {
+    /// `codex` on the person's `PATH`, then where its installers put it.
+    static func locate(path: String?, home: URL, isExecutable: (String) -> Bool = FileManager.default.isExecutableFile(atPath:)) -> String? {
+        let onPath = (path ?? "").split(separator: ":").map { "\($0)/codex" }
+        let usual = [".local/bin/codex", ".npm-global/bin/codex", ".bun/bin/codex", ".volta/bin/codex"]
+            .map { home.appending(path: $0).path }
+            + ["/opt/homebrew/bin/codex", "/usr/local/bin/codex", "/Applications/Codex.app/Contents/Resources/codex"]
+        return (onPath + usual).first(where: isExecutable)
+    }
+
+    static func executable(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> String? {
+        locate(path: ClaudeCLI.shell(home: home).environment["PATH"], home: home)
+    }
+
+    /// The arguments that start Codex's terminal UI.
+    static func startArguments(prompt: String?, model: String?) -> [String] {
+        var arguments: [String] = []
+        if let model, !model.isEmpty { arguments += ["-m", model] }
+        if let prompt, !prompt.isEmpty { arguments += ["--", prompt] }
+        return arguments
+    }
+
+    /// Starts Codex's shared app-server, which runs threads with no terminal.
+    static let daemonStart = ["app-server", "daemon", "start"]
+
+    static func run(_ arguments: [String], timeout: TimeInterval = 30) -> ClaudeCLI.Output? {
+        let shell = ClaudeCLI.shell()
+        guard let executable = locate(path: shell.environment["PATH"], home: FileManager.default.homeDirectoryForCurrentUser)
+        else { return nil }
+        return ClaudeCLI.run(executable, arguments, environment: shell.environment, timeout: timeout)
+    }
+
+    /// The line a terminal runs for `codex` in a folder.
+    static func line(executable: String, arguments: [String], folder: String?) -> String {
+        var parts: [String] = []
+        if let folder { parts.append("cd \(ClaudeCLI.quoted(folder)) &&") }
+        parts.append(ClaudeCLI.quoted(executable))
+        parts.append(contentsOf: arguments.map(ClaudeCLI.quoted))
+        return parts.joined(separator: " ")
     }
 }

@@ -56,6 +56,8 @@ final class ClaudeSessionService: ObservableObject {
     @Published private(set) var canStartSessions = false
     /// Its Agent View is on, so it can run them in the background too.
     @Published private(set) var backgroundAvailable = false
+    /// Codex is installed, so New session can start it too.
+    @Published private(set) var canStartCodex = false
     /// The page that starts a new session is open.
     @Published var composingSession = false
 
@@ -437,8 +439,10 @@ final class ClaudeSessionService: ObservableObject {
                 guard self.timer != nil else { return }
                 self.apply(jobs, available: listed)
                 let canStart = shell.executable != nil
+                let canCodex = CodexCLI.locate(path: shell.environment["PATH"], home: home) != nil
                 DispatchQueue.main.async {
                     if self.canStartSessions != canStart { self.canStartSessions = canStart }
+                    if self.canStartCodex != canCodex { self.canStartCodex = canCodex }
                     if self.backgroundAvailable != listed { self.backgroundAvailable = listed }
                 }
             }
@@ -525,14 +529,44 @@ final class ClaudeSessionService: ObservableObject {
         }
     }
 
-    /// Starts Claude Code in a folder, in the background or in the person's
-    /// terminal. Calls back on the main thread with what went wrong.
+    /// The models each agent can start with, for the New session page.
+    func newSessionModels(configHome: String?, completion: @escaping (_ claude: [NewSessionModel], _ codex: [NewSessionModel]) -> Void) {
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
+        commands.async {
+            let claude = NewSessionModels.readClaude(configHome: configHome, defaultName: text.defaultModel)
+            let codex = NewSessionModels.readCodex(home: CodexSessionClient.home(), defaultName: text.defaultModel)
+            DispatchQueue.main.async { completion(claude, codex) }
+        }
+    }
+
+    /// Starts Claude Code or Codex in a folder, in the background or in the
+    /// person's terminal, with a model or the agent's default. Calls back on
+    /// the main thread with what went wrong.
     func startSession(in folder: String, configHome: String?, prompt: String, background: Bool,
+                      provider: ClaudeSessionProvider = .claude, model: String? = nil,
                       completion: @escaping (String?) -> Void) {
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
-        let arguments = ClaudeCLI.startArguments(prompt: trimmed, background: background)
         let terminal = ClaudeTerminalLauncher.preferred(from: sessions)
+        if provider == .codex {
+            commands.async { [self] in
+                if background {
+                    startCodexThread(in: folder, prompt: trimmed, model: model, text: text, completion: completion)
+                    return
+                }
+                var problem: String?
+                if let executable = CodexCLI.executable() {
+                    let line = CodexCLI.line(executable: executable,
+                                             arguments: CodexCLI.startArguments(prompt: trimmed, model: model), folder: folder)
+                    if !ClaudeTerminalLauncher.open(line, terminal: terminal) { problem = text.codexFailed }
+                } else {
+                    problem = text.codexFailed
+                }
+                DispatchQueue.main.async { completion(problem) }
+            }
+            return
+        }
+        let arguments = ClaudeCLI.startArguments(prompt: trimmed, background: background, model: model)
         commands.async { [self] in
             var problem: String?
             if background {
@@ -549,6 +583,25 @@ final class ClaudeSessionService: ObservableObject {
             queue.async { [self] in listBackgroundJobs(now: Date(), force: true) }
             DispatchQueue.main.async { completion(problem) }
         }
+    }
+
+    /// A Codex thread with no terminal, run by Codex's shared app-server,
+    /// which is started first when it isn't running. On `commands`.
+    private func startCodexThread(in folder: String, prompt: String, model: String?, text: NotchClaudeSessionStrings,
+                                  completion: @escaping (String?) -> Void) {
+        let finish: (String?) -> Void = { problem in DispatchQueue.main.async { completion(problem) } }
+        guard !prompt.isEmpty else { finish(text.codexNeedsPrompt); return }
+        guard let client = queue.sync(execute: { codex }) else { finish(text.codexFailed); return }
+        if !client.connected {
+            guard let output = CodexCLI.run(CodexCLI.daemonStart), output.status == 0 else { finish(text.codexNotStarted); return }
+            // The client looks for the daemon's socket every few seconds.
+            let deadline = Date().addingTimeInterval(CodexSessionClient.retry * 3)
+            while !client.connected, Date() < deadline { Thread.sleep(forTimeInterval: 0.2) }
+        }
+        let asked = client.startThread(cwd: folder, model: model, prompt: prompt) { error in
+            finish(error.map { $0.isEmpty ? text.codexFailed : $0 })
+        }
+        if !asked { finish(text.codexNotStarted) }
     }
 
     func checkCodex() {

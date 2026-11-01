@@ -135,6 +135,12 @@ struct NotchClaudeSessionStrings {
     let backgroundOffHelp: String
     let startSession: String
     let folderNotTrusted: String
+    let agentPicker: String
+    let modelPicker: String
+    let defaultModel: String
+    let codexNeedsPrompt: String
+    let codexNotStarted: String
+    let codexFailed: String
     let background: String
     let buddies: String
     let buddiesHint: String
@@ -329,6 +335,12 @@ extension NotchClaudeSessionStrings {
         backgroundOffHelp: "Agent View is off in Claude Code, so sessions can only start in a terminal.",
         startSession: "Start",
         folderNotTrusted: "Claude Code doesn’t trust this folder yet. Start it in a terminal once and say yes.",
+        agentPicker: "Agent",
+        modelPicker: "Model",
+        defaultModel: "Default",
+        codexNeedsPrompt: "In the background, Codex needs a first prompt.",
+        codexNotStarted: "Codex’s background server didn’t start. Try Terminal.",
+        codexFailed: "Codex couldn’t start the session",
         background: "In background",
         buddies: "A buddy for every session",
         buddiesHint: "Each session and subagent gets its own buddy, dressed at random: Clawd for Claude Code, a little robot for Codex. Click one on its session’s page to change the outfit.",
