@@ -15,6 +15,7 @@ pub mod bridge_installer;
 #[cfg(windows)]
 pub mod console;
 pub mod process;
+pub mod wezterm;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
@@ -27,8 +28,15 @@ pub enum Host {
         ide_pid: u32,
     },
     Conhost,
-    /// Some other app owns the session (no replies, Open only raises it).
-    #[allow(dead_code)]
+    /// A pane of WezTerm, by the id and socket WezTerm put in the pane's
+    /// environment.
+    Wezterm {
+        gui_pid: u32,
+        pane: u32,
+        socket: String,
+    },
+    /// Some other terminal owns the session (no replies, Open only raises
+    /// it), named so the island can say which.
     App {
         name: String,
     },
@@ -39,9 +47,64 @@ impl Host {
     pub fn accepts_replies(&self) -> bool {
         matches!(
             self,
-            Host::WindowsTerminal { .. } | Host::Vscode { .. } | Host::Conhost
+            Host::WindowsTerminal { .. }
+                | Host::Vscode { .. }
+                | Host::Conhost
+                | Host::Wezterm { .. }
         )
     }
+
+    /// The app as the person knows it, for "Open in …" and the notice
+    /// that replies can't reach it.
+    pub fn display_name(&self) -> Option<String> {
+        match self {
+            Host::WindowsTerminal { .. } => Some("Windows Terminal".into()),
+            Host::Vscode { ide, .. } => Some(
+                match ide.as_str() {
+                    "vscode" => "Visual Studio Code",
+                    "cursor" => "Cursor",
+                    "antigravity" => "Antigravity",
+                    "windsurf" => "Windsurf",
+                    other => other,
+                }
+                .into(),
+            ),
+            Host::Wezterm { .. } => Some("WezTerm".into()),
+            Host::App { name } => Some(name.clone()),
+            Host::Conhost | Host::Unknown => None,
+        }
+    }
+}
+
+/// Terminals the island can only bring forward, by their program's name.
+/// WezTerm is here too: without the variables of its pane it is one of them.
+const TERMINALS: [(&str, &str); 9] = [
+    ("wezterm-gui.exe", "WezTerm"),
+    ("mintty.exe", "Git Bash"),
+    ("alacritty.exe", "Alacritty"),
+    ("warp.exe", "Warp"),
+    ("tabby.exe", "Tabby"),
+    ("hyper.exe", "Hyper"),
+    ("conemu64.exe", "ConEmu"),
+    ("conemu.exe", "ConEmu"),
+    ("rio.exe", "Rio"),
+];
+
+/// A WezTerm pane, when the session's own environment names one; WezTerm
+/// sets both variables in every pane it starts.
+pub fn wezterm_host(
+    gui_pid: u32,
+    environment: &std::collections::HashMap<String, String>,
+) -> Option<Host> {
+    let pane = environment.get(wezterm::PANE)?.trim().parse().ok()?;
+    let socket = environment
+        .get(wezterm::SOCKET)
+        .filter(|s| !s.trim().is_empty())?;
+    Some(Host::Wezterm {
+        gui_pid,
+        pane,
+        socket: socket.clone(),
+    })
 }
 
 /// The host and the claude process's ancestors (nearest first), which the
@@ -92,6 +155,14 @@ pub fn classify(chain: &[process::Entry]) -> Located {
                 ancestors,
             };
         }
+        if let Some((_, terminal)) = TERMINALS.iter().find(|(exe, _)| *exe == name) {
+            return Located {
+                host: Host::App {
+                    name: (*terminal).into(),
+                },
+                ancestors,
+            };
+        }
         if name == "explorer.exe" || name == "services.exe" || name == "svchost.exe" {
             break;
         }
@@ -108,7 +179,23 @@ pub fn classify(chain: &[process::Entry]) -> Located {
 /// Finds the host of claude process `pid` (None when it is gone).
 pub fn locate(pid: u32) -> Option<Located> {
     let chain = process::ancestors(pid)?;
-    Some(classify(&chain))
+    let mut located = classify(&chain);
+    // WezTerm is reached by the pane the session's environment names.
+    if located.host
+        == (Host::App {
+            name: "WezTerm".into(),
+        })
+        && let Some(gui) = chain
+            .iter()
+            .find(|e| e.name.eq_ignore_ascii_case("wezterm-gui.exe"))
+        && let Some(host) = wezterm_host(
+            gui.pid,
+            &process::environment_values(pid, &[wezterm::PANE, wezterm::SOCKET]),
+        )
+    {
+        located.host = host;
+    }
+    Some(located)
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -128,6 +215,12 @@ pub fn deliver(
             bridge::send(&located.ancestors, text, images).map_err(|_| DeliveryError::Unreachable)
         }
         Host::WindowsTerminal { .. } | Host::Conhost => console_type(pid, text, images),
+        Host::Wezterm {
+            gui_pid,
+            pane,
+            socket,
+        } => wezterm::send(*gui_pid, *pane, socket, text, images)
+            .map_err(|_| DeliveryError::Unreachable),
         _ => Err(DeliveryError::Unreachable),
     }
 }
@@ -144,7 +237,17 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
         Host::WindowsTerminal { .. } | Host::Conhost => {
             console_focus(pid) || platform_raise_host(&located.ancestors, cwd)
         }
-        _ => false,
+        Host::Wezterm {
+            gui_pid,
+            pane,
+            socket,
+        } => {
+            let _ = wezterm::focus(*gui_pid, *pane, socket);
+            platform_raise_host(&located.ancestors, cwd)
+        }
+        // A terminal the island can't type into still comes forward.
+        Host::App { .. } => platform_raise_host(&located.ancestors, cwd),
+        Host::Unknown => false,
     }
 }
 
@@ -566,6 +669,78 @@ mod tests {
                 ide_pid: 102
             }
         );
+    }
+
+    #[test]
+    fn other_terminals_are_named_and_only_raised() {
+        let l = classify(&chain(&[
+            "claude.exe",
+            "bash.exe",
+            "mintty.exe",
+            "explorer.exe",
+        ]));
+        assert_eq!(
+            l.host,
+            Host::App {
+                name: "Git Bash".into()
+            }
+        );
+        assert!(!l.host.accepts_replies());
+        assert_eq!(l.host.display_name().as_deref(), Some("Git Bash"));
+        let l = classify(&chain(&["claude.exe", "pwsh.exe", "Alacritty.exe"]));
+        assert_eq!(
+            l.host,
+            Host::App {
+                name: "Alacritty".into()
+            }
+        );
+        // Git Bash inside Windows Terminal is Windows Terminal's.
+        let l = classify(&chain(&[
+            "claude.exe",
+            "bash.exe",
+            "OpenConsole.exe",
+            "WindowsTerminal.exe",
+        ]));
+        assert!(matches!(l.host, Host::WindowsTerminal { .. }));
+    }
+
+    #[test]
+    fn a_wezterm_pane_comes_from_the_session_environment() {
+        let l = classify(&chain(&["claude.exe", "pwsh.exe", "wezterm-gui.exe"]));
+        assert_eq!(
+            l.host,
+            Host::App {
+                name: "WezTerm".into()
+            }
+        );
+        let mut environment = std::collections::HashMap::new();
+        assert_eq!(wezterm_host(102, &environment), None);
+        environment.insert(wezterm::PANE.to_owned(), "4".to_owned());
+        assert_eq!(
+            wezterm_host(102, &environment),
+            None,
+            "a pane needs the socket of its WezTerm"
+        );
+        environment.insert(
+            wezterm::SOCKET.to_owned(),
+            r"C:\Users\me\.local\share\wezterm\gui-sock-9".to_owned(),
+        );
+        let host = wezterm_host(102, &environment).unwrap();
+        assert!(host.accepts_replies());
+        assert_eq!(host.display_name().as_deref(), Some("WezTerm"));
+        environment.insert(wezterm::PANE.to_owned(), "x".to_owned());
+        assert_eq!(wezterm_host(102, &environment), None);
+    }
+
+    #[test]
+    fn only_the_wanted_variables_are_read_from_an_environment_block() {
+        let block: Vec<u16> = "=C:=C:\\work\0Path=C:\\bin\0wezterm_pane=12\0SECRET=x\0WEZTERM_UNIX_SOCKET=s=t\0\0ignored=1\0"
+            .encode_utf16()
+            .collect();
+        let found = process::pick_environment(&block, &[wezterm::PANE, wezterm::SOCKET]);
+        assert_eq!(found.len(), 2);
+        assert_eq!(found.get(wezterm::PANE).map(String::as_str), Some("12"));
+        assert_eq!(found.get(wezterm::SOCKET).map(String::as_str), Some("s=t"));
     }
 
     #[test]

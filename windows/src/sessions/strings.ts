@@ -161,6 +161,9 @@ export const S = {
   get replyUnavailable() {
     return t("windows.sessions.replyUnavailable");
   },
+  /** Replies can't reach the app showing the session, named. */
+  replyUnavailableIn: (name: string) => tf("notchClaudeSessions.replyUnavailableFormat", name),
+  openIn: (name: string) => tf("notchClaudeSessions.openInFormat", name),
   get replyWhileWaiting() {
     return t("notchClaudeSessions.replyWhileWaiting");
   },

@@ -300,7 +300,7 @@
   "notchClaudeSessions.send": "Gönder",
   "notchClaudeSessions.replyPlaceholder": "Claude’a cevap ver…",
   "notchClaudeSessions.replyPlaceholderCodex": "Codex’a cevap ver…",
-  "windows.sessions.replyUnavailable": "Cevaplar Windows Terminal ve VS Code içinde çalışır",
+  "windows.sessions.replyUnavailable": "Yanıtlar bu oturuma henüz ulaşamıyor",
   "notchClaudeSessions.replyWhileWaiting": "Önce isteğe cevap ver",
   "notchClaudeSessions.replyWhileDialog": "Önce terminalde diyaloğu kapat",
   "notchClaudeSessions.tasksFormat": "%2$d görevden %1$d",

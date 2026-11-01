@@ -158,6 +158,8 @@ pub enum HostKind {
     WindowsTerminal,
     Vscode,
     Conhost,
+    /// A WezTerm pane, reached through WezTerm's command line.
+    Wezterm,
     App,
     /// No terminal at all: a whole session running in the background.
     Background,
@@ -183,6 +185,9 @@ pub struct SessionRecord {
     pub host: HostKind,
     /// Whether a reply can be typed into that host; the service decides.
     pub accepts_replies: bool,
+    /// The app holding the session as the person knows it ("WezTerm",
+    /// "Git Bash"), when the service found one.
+    pub host_name: Option<String>,
     /// Where `name` came from: "user" for /rename, "auto" for one Claude
     /// Code made from the conversation; otherwise it follows the folder.
     pub name_source: Option<String>,
@@ -552,6 +557,8 @@ pub struct Session {
     pub model_name: Option<String>,
     pub host: HostKind,
     pub accepts_replies: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub host_name: Option<String>,
     pub phase: SessionPhase,
     pub phase_since: Time,
     /// When the turn under way, or the last one, began.
@@ -1274,6 +1281,7 @@ mod tests {
             model_name: None,
             host: HostKind::WindowsTerminal,
             accepts_replies: true,
+            host_name: None,
             phase,
             phase_since: since,
             turn_started: Some(since),

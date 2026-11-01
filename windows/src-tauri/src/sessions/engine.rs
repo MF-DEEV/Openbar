@@ -615,6 +615,7 @@ fn session(
         model_name: None,
         host: record.host,
         accepts_replies: record.accepts_replies,
+        host_name: record.host_name.clone(),
         phase,
         phase_since: since,
         turn_started: entry.turn_started,
@@ -1130,6 +1131,7 @@ mod tests {
             version: "2.1.306".into(),
             host: HostKind::WindowsTerminal,
             accepts_replies: true,
+            host_name: None,
             name_source: None,
             job: None,
         }

@@ -300,7 +300,7 @@
   "notchClaudeSessions.send": "送信",
   "notchClaudeSessions.replyPlaceholder": "Claude に返信…",
   "notchClaudeSessions.replyPlaceholderCodex": "Codex に返信…",
-  "windows.sessions.replyUnavailable": "返信は Windows Terminal と VS Code で機能します",
+  "windows.sessions.replyUnavailable": "このセッションにはまだ返信できません",
   "notchClaudeSessions.replyWhileWaiting": "まずプロンプトに答えてください",
   "notchClaudeSessions.replyWhileDialog": "まずターミナルでダイアログを閉じてください",
   "notchClaudeSessions.tasksFormat": "%2$d 件中 %1$d 件のタスク",

@@ -626,7 +626,7 @@ function unavailable(session: Session): string | null {
   if (isWaiting(session.phase)) return S.replyWhileWaiting;
   if (session.waitingFor) return S.replyWhileDialog;
   if (session.background?.ended) return S.replyEnded;
-  if (!session.acceptsReplies) return S.replyUnavailable;
+  if (!session.acceptsReplies) return session.hostName ? S.replyUnavailableIn(session.hostName) : S.replyUnavailable;
   return null;
 }
 

@@ -16,7 +16,7 @@ export interface LimitStop {
   kind?: "session" | "weekly" | "other";
 }
 
-export type HostKind = "windowsTerminal" | "vscode" | "conhost" | "app" | "background" | "unknown";
+export type HostKind = "windowsTerminal" | "vscode" | "conhost" | "wezterm" | "app" | "background" | "unknown";
 
 export interface ToolUse {
   id: string;
@@ -99,6 +99,8 @@ export interface Session {
   modelName?: string;
   host: HostKind;
   acceptsReplies: boolean;
+  /** The app holding the session as the person knows it, like "WezTerm" or "Git Bash". */
+  hostName?: string;
   phase: Phase;
   phaseSince: number;
   turnStarted?: number;

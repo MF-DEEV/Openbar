@@ -11,7 +11,8 @@ pub struct Entry {
 }
 
 /// Only the process parameters needed to identify an interactive session.
-/// Never read or retain its environment, which can contain credentials.
+/// Its environment can contain credentials: only `environment_values` reads
+/// it, for the few names a host is told by, and keeps nothing else.
 #[derive(Clone, Debug)]
 pub struct Metadata {
     pub cwd: String,
@@ -118,6 +119,161 @@ pub fn metadata(pid: u32) -> Option<Metadata> {
 
 #[cfg(not(windows))]
 pub fn metadata(_pid: u32) -> Option<Metadata> {
+    None
+}
+
+/// The few variables named in `names` from the environment a process of
+/// this user started with, and nothing else: the rest of an environment can
+/// hold credentials, so it is never kept. Names match without case, as
+/// Windows matches them.
+#[cfg(windows)]
+pub fn environment_values(pid: u32, names: &[&str]) -> std::collections::HashMap<String, String> {
+    use windows::Wdk::System::Threading::{NtQueryInformationProcess, ProcessBasicInformation};
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::System::Diagnostics::Debug::ReadProcessMemory;
+    use windows::Win32::System::Threading::{
+        GetCurrentProcess, IsWow64Process, OpenProcess, PEB, PROCESS_BASIC_INFORMATION,
+        PROCESS_QUERY_INFORMATION, PROCESS_VM_READ,
+    };
+    // RTL_USER_PROCESS_PARAMETERS on 64-bit Windows: the environment block
+    // after the command line, and its size in bytes much further on.
+    const ENVIRONMENT: usize = 0x80;
+    const ENVIRONMENT_SIZE: usize = 0x3F0;
+    const LARGEST: usize = 1 << 20;
+    fn read_bytes(handle: HANDLE, address: usize, buffer: &mut [u8]) -> Option<()> {
+        if address == 0 {
+            return None;
+        }
+        let mut count = 0;
+        unsafe {
+            ReadProcessMemory(
+                handle,
+                address as *const core::ffi::c_void,
+                buffer.as_mut_ptr().cast(),
+                buffer.len(),
+                Some(&mut count),
+            )
+            .ok()?;
+        }
+        (count == buffer.len()).then_some(())
+    }
+    fn read_usize(handle: HANDLE, address: usize) -> Option<usize> {
+        let mut bytes = [0u8; size_of::<usize>()];
+        read_bytes(handle, address, &mut bytes)?;
+        Some(usize::from_ne_bytes(bytes))
+    }
+    if size_of::<usize>() != 8 {
+        return Default::default();
+    }
+    unsafe {
+        let Ok(handle) = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, false, pid)
+        else {
+            return Default::default();
+        };
+        let result = (|| {
+            let (mut ours, mut theirs) = (Default::default(), Default::default());
+            IsWow64Process(GetCurrentProcess(), &mut ours).ok()?;
+            IsWow64Process(handle, &mut theirs).ok()?;
+            if ours != theirs {
+                return None;
+            }
+            let mut info = PROCESS_BASIC_INFORMATION::default();
+            NtQueryInformationProcess(
+                handle,
+                ProcessBasicInformation,
+                (&mut info as *mut PROCESS_BASIC_INFORMATION).cast(),
+                size_of::<PROCESS_BASIC_INFORMATION>() as u32,
+                std::ptr::null_mut(),
+            )
+            .ok()
+            .ok()?;
+            let mut peb = [0u8; size_of::<PEB>()];
+            read_bytes(handle, info.PebBaseAddress as usize, &mut peb)?;
+            let peb: PEB = std::ptr::read_unaligned(peb.as_ptr().cast());
+            let params = peb.ProcessParameters as usize;
+            let block = read_usize(handle, params + ENVIRONMENT)?;
+            let size = read_usize(handle, params + ENVIRONMENT_SIZE)?;
+            if size == 0 || size > LARGEST || size % 2 != 0 {
+                return None;
+            }
+            let mut bytes = vec![0u8; size];
+            read_bytes(handle, block, &mut bytes)?;
+            let units: Vec<u16> = bytes
+                .chunks_exact(2)
+                .map(|pair| u16::from_ne_bytes([pair[0], pair[1]]))
+                .collect();
+            Some(pick_environment(&units, names))
+        })();
+        let _ = CloseHandle(handle);
+        result.unwrap_or_default()
+    }
+}
+
+#[cfg(not(windows))]
+pub fn environment_values(_pid: u32, _names: &[&str]) -> std::collections::HashMap<String, String> {
+    Default::default()
+}
+
+/// The wanted entries of an environment block: "NAME=value" strings ending
+/// in NUL, the block in an empty one. Entries starting with "=" are the
+/// per-drive folders cmd keeps, never a name.
+pub fn pick_environment(
+    block: &[u16],
+    names: &[&str],
+) -> std::collections::HashMap<String, String> {
+    let mut found = std::collections::HashMap::new();
+    for entry in block.split(|&unit| unit == 0) {
+        if entry.is_empty() {
+            break;
+        }
+        let Some(equals) = entry
+            .iter()
+            .skip(1)
+            .position(|&unit| unit == u16::from(b'='))
+        else {
+            continue;
+        };
+        let name = String::from_utf16_lossy(&entry[..equals + 1]);
+        if let Some(wanted) = names
+            .iter()
+            .find(|wanted| wanted.eq_ignore_ascii_case(&name))
+        {
+            found.insert(
+                (*wanted).to_owned(),
+                String::from_utf16_lossy(&entry[equals + 2..]),
+            );
+        }
+    }
+    found
+}
+
+/// The full path of a running process's program.
+#[cfg(windows)]
+pub fn image_path(pid: u32) -> Option<std::path::PathBuf> {
+    use windows::Win32::Foundation::CloseHandle;
+    use windows::Win32::System::Threading::{
+        OpenProcess, PROCESS_NAME_WIN32, PROCESS_QUERY_LIMITED_INFORMATION,
+        QueryFullProcessImageNameW,
+    };
+    use windows::core::PWSTR;
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, false, pid).ok()?;
+        let mut buffer = vec![0u16; 32 * 1024];
+        let mut size = buffer.len() as u32;
+        let ok = QueryFullProcessImageNameW(
+            handle,
+            PROCESS_NAME_WIN32,
+            PWSTR(buffer.as_mut_ptr()),
+            &mut size,
+        )
+        .is_ok();
+        let _ = CloseHandle(handle);
+        ok.then(|| String::from_utf16_lossy(&buffer[..size as usize]).into())
+    }
+}
+
+#[cfg(not(windows))]
+pub fn image_path(_pid: u32) -> Option<std::path::PathBuf> {
     None
 }
 
