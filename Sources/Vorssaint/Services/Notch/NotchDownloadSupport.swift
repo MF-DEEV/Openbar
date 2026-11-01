@@ -25,6 +25,8 @@ struct NotchPartialDownload: Equatable {
     let modified: Date
     var contentURL: URL? = nil
     var source: NotchDownloadSource? = nil
+    /// A Chromium browser's own record of it, when its store has one.
+    var browser: Browser? = nil
 
     /// The watched folder holding it, as that folder's path.
     var folderPath: String { url.deletingLastPathComponent().standardizedFileURL.path }

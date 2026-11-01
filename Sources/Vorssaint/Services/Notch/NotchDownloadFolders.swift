@@ -35,7 +35,8 @@ struct NotchDownloadFolder: Identifiable, Equatable {
 }
 
 /// Where downloads land on this Mac. Only folder paths are read from browser
-/// settings; never history, URLs or file contents.
+/// settings; never history, URLs or file contents. Running Chromium
+/// downloads' byte counts come from `NotchChromiumDownloads`.
 enum NotchDownloadFolders {
     /// Chromium browsers by their folder in Application Support. Each keeps
     /// its profiles as subfolders, or (like Opera) is a profile itself.
@@ -198,7 +199,7 @@ enum NotchDownloadFolders {
         return found
     }
 
-    private static func profiles(in root: URL, including base: URL?) -> [URL] {
+    static func profiles(in root: URL, including base: URL?) -> [URL] {
         let children = (try? FileManager.default.contentsOfDirectory(at: root,
             includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey],
             options: [.skipsHiddenFiles, .skipsSubdirectoryDescendants])) ?? []
