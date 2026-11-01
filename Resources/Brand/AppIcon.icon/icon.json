@@ -1,96 +1,33 @@
 {
-  "fill-specializations" : [
-    {
-      "value" : "system-light"
-    },
-    {
-      "appearance" : "dark",
-      "value" : "automatic"
-    }
-  ],
+  "fill" : {
+    "solid" : "srgb:0.00000,0.00000,0.00000,1.00000"
+  },
   "groups" : [
     {
-      "blur-material" : 0.5,
-      "hidden" : false,
       "layers" : [
         {
-          "fill-specializations" : [
-            {
-              "appearance" : "dark",
-              "value" : "system-light"
-            },
-            {
-              "appearance" : "tinted",
-              "value" : "system-light"
-            }
-          ],
-          "hidden" : false,
-          "image-name" : "vorssaint-brandmark.svg",
-          "name" : "BrandMark-D7-SVG",
+          "glass" : false,
+          "image-name" : "vorssaint-mark.svg",
+          "name" : "Mark",
           "position" : {
-            "scale" : 1.25,
+            "scale" : 1,
             "translation-in-points" : [
-              2.2516667286254233e-05,
-              3.9609225268577575e-06
+              0,
+              0
             ]
           }
         }
       ],
-      "name" : "Assets",
-      "refractivity-specializations" : [
-        {
-          "appearance" : "tinted",
-          "value" : {
-            "depth" : 0,
-            "enabled" : false,
-            "strength" : 0.5
-          }
-        }
-      ],
-      "shadow-specializations" : [
-        {
-          "value" : {
-            "kind" : "neutral",
-            "opacity" : 1.5
-          }
-        },
-        {
-          "appearance" : "dark",
-          "value" : {
-            "kind" : "neutral",
-            "opacity" : 2
-          }
-        },
-        {
-          "appearance" : "tinted",
-          "value" : {
-            "kind" : "neutral",
-            "opacity" : 1.5
-          }
-        }
-      ],
-      "translucency-specializations" : [
-        {
-          "value" : {
-            "enabled" : false,
-            "value" : 0.3
-          }
-        },
-        {
-          "appearance" : "dark",
-          "value" : {
-            "enabled" : true,
-            "value" : 0.3
-          }
-        },
-        {
-          "appearance" : "tinted",
-          "value" : {
-            "enabled" : true,
-            "value" : 0.3
-          }
-        }
-      ]
+      "name" : "Mark",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "specular" : true,
+      "translucency" : {
+        "enabled" : false,
+        "value" : 0.5
+      }
     }
   ],
   "supported-platforms" : {
