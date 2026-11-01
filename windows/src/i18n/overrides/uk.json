@@ -619,5 +619,9 @@
   "windows.sessions.defaultModel": "Типова",
   "windows.sessions.backgroundNeedsPrompt": "У фоні сесії потрібен перший запит.",
   "windows.sessions.codexNotStarted": "Фоновий сервер Codex не запустився. Спробуйте в терміналі.",
-  "windows.sessions.codexFailed": "Codex не зміг запустити сесію"
+  "windows.sessions.codexFailed": "Codex не зміг запустити сесію",
+  "notchClaudeSessions.limited": "Ліміт вичерпано",
+  "notchClaudeSessions.resumesFormat": "продовжить %@",
+  "notchClaudeSessions.limitsSetting": "Показувати ліміти тарифу",
+  "windows.settings.sessions.limitsCaption": "Показує ліміт Claude чи Codex на смужці, коли він близько, і каже, коли продовжиться сеанс, зупинений лімітом. Якщо AI Agents вимкнено, острів і далі читає ліміти для цього."
 }

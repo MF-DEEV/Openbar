@@ -25,6 +25,7 @@ enum AgentUsageEventDeliveryTests {
         var session = 1
         var readerSession = 1
         var providers: [AgentProvider] = [.claude, .codex, .copilot]
+        var limitsOnly = false
         let events = Events()
     }
 
@@ -71,6 +72,15 @@ enum AgentUsageEventDeliveryTests {
         drain()
         suite.expect(host.events.values.isEmpty, "stopping without restarting still drops queued events")
         host.running = true
+
+        // Read for Sessions alone, only the limits speak.
+        host.limitsOnly = true
+        for event in events { host.report(event) }
+        drain()
+        suite.expect(host.events.values == [events[1], events[2]],
+                     "reading for Sessions alone delivers only limit warnings and renewals")
+        host.events.values.removeAll()
+        host.limitsOnly = false
 
         host.providers = [.codex]
         host.report(finished)

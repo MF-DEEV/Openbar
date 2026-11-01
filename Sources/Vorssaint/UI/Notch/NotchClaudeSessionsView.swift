@@ -192,7 +192,7 @@ struct NotchClaudeSessionRow: View {
             .buttonStyle(NotchButtonStyle(cornerRadius: 14, lifts: false))
             .focused($focused)
             .accessibilityLabel("\(name), \(text.agent(session.provider)), \(session.project), \(text.phase(session.phase))")
-            .accessibilityValue(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name))
+            .accessibilityValue(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name, now: now))
             if quickDecision, let permission = session.permission {
                 // A request short enough to read whole on the line beside is
                 // answered from the list too; a longer one opens its page.
@@ -210,7 +210,8 @@ struct NotchClaudeSessionRow: View {
         .modifier(NotchControlSurface(cornerRadius: 14))
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(session.tint.opacity(session.phase.isWaiting ? 0.55 : 0), lineWidth: 1)
+                .strokeBorder(session.tint.opacity(session.phase.isWaiting ? 0.55 : session.phase == .limited ? 0.4 : 0),
+                              lineWidth: 1)
                 .allowsHitTesting(false)
         }
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -241,8 +242,8 @@ struct NotchClaudeSessionRow: View {
                 // project are found together at a glance.
                 NotchClaudeProjectTag(project: session.project)
                     .layoutPriority(2)
-                Text(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name))
-                    .foregroundStyle(session.phase.isWaiting ? session.tint : .secondary)
+                Text(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name, now: now))
+                    .foregroundStyle(session.phase.isWaiting || session.phase == .limited ? session.tint : .secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .layoutPriority(1)
@@ -335,6 +336,8 @@ extension ClaudeSessionPhase {
         case .generating, .runningTool: return provider.tint
         case .background: return provider.tint.opacity(0.75)
         case .waitingPermission, .waitingInput: return Color(red: 1.0, green: 0.78, blue: 0.28)
+        // Coral, apart from waiting's amber: the work stopped and waits on the plan.
+        case .limited: return Color(red: 1.0, green: 0.46, blue: 0.42)
         case .finished: return Color(red: 0.36, green: 0.84, blue: 0.52)
         case .idle: return .white.opacity(0.45)
         }
@@ -342,14 +345,6 @@ extension ClaudeSessionPhase {
 }
 
 extension ClaudeSessionProvider {
-    /// The agent behind a session, as the AI section knows it.
-    var agent: AgentProvider {
-        switch self {
-        case .claude: return .claude
-        case .codex: return .codex
-        }
-    }
-
     /// Claude's orange or Codex's periwinkle, the same as on the AI page.
     var tint: Color { agent.tint }
 }
@@ -382,17 +377,25 @@ enum NotchClaudeSessionFormat {
             return AgentFormat.clock(now.timeIntervalSince(session.turnStarted ?? session.phaseSince))
         case .waitingPermission, .waitingInput, .background:
             return AgentFormat.clock(now.timeIntervalSince(session.phaseSince))
-        case .finished, .idle:
+        case .limited, .finished, .idle:
             return nil
         }
     }
 
-    /// The counts, read aloud, the ones at work with whose they are.
-    static func counts(_ counts: ClaudeSessionCounts, text: NotchClaudeSessionStrings) -> String {
-        NotchClaudeSessionsSupport.stripReading(counts).map { item in
+    /// The counts, read aloud, the ones at work with whose they are, and the
+    /// limit the strip shows.
+    static func counts(_ counts: ClaudeSessionCounts, text: NotchClaudeSessionStrings,
+                       limit: (provider: AgentProvider, window: AgentLimitWindow, share: String)? = nil) -> String {
+        let items = NotchClaudeSessionsSupport.stripReading(counts).map { item in
             let reading = "\(item.count) \(text.phase(item.phase))"
             return item.provider.map { "\(reading) (\(text.agent($0)))" } ?? reading
-        }.joined(separator: ", ")
+        }
+        let agentText = FeatureStrings.notchAgents(L10n.shared.language)
+        let reading = limit.map { limit in
+            "\(limit.provider.displayName): " + (NotchAgentSupport.limitDisplay() == .used
+                ? agentText.usedShare(limit.share) : agentText.left(limit.share))
+        }
+        return (items + [reading].compactMap { $0 }).joined(separator: ", ")
     }
 
     /// Why a reply did not go.
@@ -411,9 +414,17 @@ enum NotchClaudeSessionFormat {
     /// What the row's second line says: what the session does now. The
     /// title is left out where the session
     /// is already called by it.
-    static func activity(_ session: ClaudeSession, text: NotchClaudeSessionStrings, title showsTitle: Bool = true) -> String {
+    static func activity(_ session: ClaudeSession, text: NotchClaudeSessionStrings, title showsTitle: Bool = true,
+                         now: Date = Date()) -> String {
         var parts = [phaseName(session, text: text)]
         switch session.phase {
+        case .limited:
+            // When it goes on: as the agent said, or as the limits reading has it.
+            if let resets = NotchSessionLimitsSupport.reset(of: session, snapshot: AgentUsageService.shared.snapshot, now: now) {
+                parts.append(text.resumes(NotchSessionLimitsSupport.resetText(
+                    resets, now: now, locale: L10n.shared.language.formattingLocale())))
+            }
+            if showsTitle, let title = session.title { parts.append(title) }
         case .waitingPermission:
             if let tool = session.permission?.tool ?? session.currentTool?.name { parts.append(tool) }
             if let permission = session.permission {

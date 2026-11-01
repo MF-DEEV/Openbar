@@ -17,16 +17,19 @@ import { S } from "./strings";
 import { settled, useSessions } from "./store";
 import { isWaiting, type Session } from "./types";
 import { presentedSnapshot } from "./presentation";
+import { useAgents } from "../agents/store";
+import { limitReset, resetText } from "./limits";
 
-/** waitingPermission 0 · waitingInput 1 · working 2 · background 3 · finished 4 · idle 5 (§3.6). */
+/** waitingPermission 0 · waitingInput 1 · working 2 · limited 3 · background 4 · finished 5 · idle 6 (§3.6). */
 const RANK: Record<Session["phase"], number> = {
   waitingPermission: 0,
   waitingInput: 1,
   generating: 2,
   runningTool: 2,
-  background: 3,
-  finished: 4,
-  idle: 5,
+  limited: 3,
+  background: 4,
+  finished: 5,
+  idle: 6,
 };
 
 export function orderSessions(sessions: Session[]): Session[] {
@@ -37,7 +40,7 @@ export function orderSessions(sessions: Session[]): Session[] {
     let d = 0;
     if (ra <= 1) d = a.phaseSince - b.phaseSince;
     else if (ra === 2) d = (a.turnStarted ?? a.phaseSince) - (b.turnStarted ?? b.phaseSince);
-    else if (ra <= 4) d = b.phaseSince - a.phaseSince;
+    else if (ra <= 5) d = b.phaseSince - a.phaseSince;
     else d = (b.lastActive ?? 0) - (a.lastActive ?? 0);
     if (d !== 0) return d;
     return a.project.localeCompare(b.project) || a.pid - b.pid;
@@ -82,7 +85,12 @@ function Row({ session, now }: { session: Session; now: number }) {
   const name = displayName(session, custom);
   const tint = phaseTint(session.phase, session.provider);
   const time = phaseClock(session, now);
-  const activity = activityText(session, name);
+  // When a session the plan's limit stopped goes on: as the agent said, or as the limits reading has it.
+  const agents = useAgents((s) => s.snapshot);
+  const locale = useLocale();
+  const resumes = session.phase === "limited" ? limitReset(session, agents, now) : null;
+  const activity = activityText(session, name, resumes ? resetText(resumes, now, locale) : null);
+  const limited = session.phase === "limited";
   const quick = session.permission?.fitsOnALine && session.permission.questions.length === 0;
   const color = projectColor(session.project);
   const waiting = isWaiting(session.phase);
@@ -95,7 +103,7 @@ function Row({ session, now }: { session: Session; now: number }) {
     <div
       role="button"
       tabIndex={0}
-      className={`s-row${waiting ? " is-waiting" : ""}${asleep ? " is-dozing" : ""}`}
+      className={`s-row${waiting ? " is-waiting" : ""}${limited ? " is-limited" : ""}${asleep ? " is-dozing" : ""}`}
       aria-label={`${name}, ${session.provider === "codex" ? S.codex : S.claudeCode}, ${session.project}, ${sessionPhaseLabel(session)}`}
       onClick={() => useSessions.getState().focus(session.id)}
       onKeyDown={(e) => e.key === "Enter" && useSessions.getState().focus(session.id)}
@@ -115,7 +123,7 @@ function Row({ session, now }: { session: Session; now: number }) {
           <span className="s-tag" style={{ color, background: `color-mix(in srgb, ${color} 16%, transparent)` }}>
             {session.project}
           </span>
-          <span className="s-activity" style={waiting ? { color: tint } : undefined}>
+          <span className="s-activity" style={waiting || limited ? { color: tint } : undefined}>
             {activity}
           </span>
           {session.branch ? <span className="s-branch">⎇ {session.branch}</span> : null}

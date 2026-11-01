@@ -112,6 +112,8 @@ export const A = {
   },
   left: (share: string) => tf("notchAgents.leftFormat", share),
   used: (share: string) => tf("notchAgents.usedFormat", share),
+  /** After a limit warning: how many of that agent's sessions run. */
+  sessionsRunning: (count: number) => tf("notchAgents.sessionsRunningFormat", count),
   updated: (when: string) => tf("notchAgents.updatedFormat", when),
   claudeCodeUpdated: (when: string) => tf("windows.agents.claudeCodeUpdated", when),
   seconds: (n: number) => tf("windows.agents.seconds", n),

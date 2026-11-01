@@ -840,7 +840,9 @@ final class NotchService: ObservableObject {
     private func sessionStripWing(in geometry: NotchGeometry) -> CGFloat {
         let provisional = geometry.compactAgentGeometry(wing: NotchAgentSupport.stripWingRange.lowerBound)
         let size = NotchAgentSupport.stripTextSize(height: provisional.compactActivityContentHeight)
-        let reading = NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionService.shared.counts, textSize: size)
+        let reading = NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionService.shared.counts,
+                                                                   limit: NotchSessionLimitsSupport.currentStripLimit()?.share,
+                                                                   textSize: size)
             + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
         let mark: CGFloat = 14
         let marks = NotchClaudeSessionsSupport.stripMarksWidth(ClaudeSessionService.shared.counts, size: mark)
@@ -1113,7 +1115,9 @@ final class NotchService: ObservableObject {
             // offset of the one behind as well.
             let stack = NotchClaudeSessionsSupport.stripMarksWidth(counts, size: 13)
                 - NotchClaudeSessionsSupport.stripMarksWidth(ClaudeSessionCounts(finished: 1), size: 13)
-            return layout.agentSurface(reading: NotchClaudeSessionsSupport.stripText(counts), working: 1, geometry: geometry,
+            return layout.agentSurface(reading: NotchClaudeSessionsSupport.stripText(
+                                        counts, limit: NotchSessionLimitsSupport.currentStripLimit()?.share),
+                                       working: 1, geometry: geometry,
                                        stackOffset: stack)
         case .agents:
             let reading = NotchAgentSupport.stripReading(AgentUsageService.shared.snapshot, readout: NotchAgentSupport.readout(),
@@ -1203,7 +1207,7 @@ final class NotchService: ObservableObject {
         if !NotchFileToolsService.shared.offersMediaDrop { endFileDrop() }
         // Paused while the island is away, the section still stops at once
         // when it is turned off.
-        if !NotchAgentSupport.isEnabled() { AgentUsageService.shared.stop() }
+        if !NotchSessionLimitsSupport.usageWanted() { AgentUsageService.shared.stop() }
         // Sessions keep being followed while the island is away, so a
         // permission prompt still finds it when it comes back.
         ClaudeSessionService.shared.syncWithPreferences()
@@ -4283,7 +4287,8 @@ final class NotchService: ObservableObject {
             sessionDenyKey.unregister()
             sessionAlwaysKey.unregister()
         }
-        if NotchSupport.routes(.agents) {
+        // With the AI section off, Sessions still tells its limit warnings.
+        if NotchSupport.routes(.agents) || (NotchSupport.routes(.sessions) && NotchSessionLimitsSupport.readsAlone()) {
             AgentUsageService.shared.events.receive(on: DispatchQueue.main)
                 .sink { [weak self] in self?.showAgentEvent($0) }
                 .store(in: &subscriptions)
@@ -4328,6 +4333,8 @@ final class NotchService: ObservableObject {
 
     private func showAgentEvent(_ event: AgentUsageEvent) {
         let text = FeatureStrings.notchAgents(L10n.shared.language)
+        // Read for Sessions alone, the limits speak through its notices.
+        let limitEvent: NotchEvent = AgentUsageService.shared.limitsOnly ? .sessions : .agents
         let locale = L10n.shared.language.formattingLocale()
         let remaining = NotchAgentSupport.limitDisplay() == .remaining
         func window(_ window: AgentLimitWindow) -> String {
@@ -4348,12 +4355,16 @@ final class NotchService: ObservableObject {
             reactMascot(.celebrate)
         case .limitWarning(let provider, let limit):
             let share = AgentFormat.percent(remaining ? limit.remainingFraction : limit.usedFraction)
-            show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
-                             detail: remaining ? text.left(share) : text.usedShare(share),
-                             symbol: "exclamationmark.triangle.fill", agent: provider))
+            var detail = remaining ? text.left(share) : text.usedShare(share)
+            // The work under way is what the person weighs against what is left.
+            let running = NotchClaudeSessionsSupport.isEnabled()
+                ? NotchSessionLimitsSupport.running(ClaudeSessionService.shared.sessions, provider: provider) : 0
+            if running > 0 { detail += " · " + text.sessionsRunning(running) }
+            show(NotchNotice(event: limitEvent, title: "\(provider.displayName) · \(window(limit))",
+                             detail: detail, symbol: "exclamationmark.triangle.fill", agent: provider))
         case .limitReset(let provider, let limit):
             // Work can go on: the companion is glad of it.
-            show(NotchNotice(event: .agents, title: "\(provider.displayName) · \(window(limit))",
+            show(NotchNotice(event: limitEvent, title: "\(provider.displayName) · \(window(limit))",
                              detail: text.limitRenewed, symbol: "arrow.clockwise", agent: provider, mascot: .celebrate))
             reactMascot(.celebrate)
         case .budgetReached(let spent, _):

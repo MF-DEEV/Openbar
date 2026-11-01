@@ -16,9 +16,9 @@
 use std::collections::{BTreeMap, HashMap};
 
 use super::models::{
-    ChatMessage, ChatRole, ContentPolicy, DISTANT_PAST, HookEvent, HookFact, Permission, Provider,
-    RegistryStatus, Session, SessionEvent, SessionPhase, SessionRecord, Subagent, TaskProgress,
-    Time, Tokens, ToolUse, TranscriptFact, project_name,
+    ChatMessage, ChatRole, ContentPolicy, DISTANT_PAST, HookEvent, HookFact, LimitStop, Permission,
+    Provider, RegistryStatus, Session, SessionEvent, SessionPhase, SessionRecord, Subagent,
+    TaskProgress, Time, Tokens, ToolUse, TranscriptFact, project_name,
 };
 
 /// How long an unread finished turn stays marked before it reads as idle.
@@ -100,6 +100,8 @@ struct Activity {
     /// When Claude Code last asked the person for something by a notice.
     asked: Option<Time>,
     acknowledged: Option<Time>,
+    /// The last turn the plan's usage limit stopped.
+    limit: Option<LimitStop>,
     first_seen: Time,
 }
 
@@ -130,6 +132,7 @@ impl Activity {
             hooked: false,
             asked: None,
             acknowledged: None,
+            limit: None,
             first_seen,
         }
     }
@@ -522,6 +525,11 @@ fn phase(record: &SessionRecord, entry: &Activity, now: Time) -> SessionPhase {
             SessionPhase::Generating
         };
     }
+    // Stopped by the plan's limit, with no turn begun since: until the
+    // limit resets, when Claude Code may go on by itself.
+    if limit_stop(entry, now).is_some() {
+        return SessionPhase::Limited;
+    }
     // Claude Code says "shell" for a session at rest with a command of its
     // own still running in the background. The work is not done while one
     // it waits for runs; a dev server or an emulator left running is not
@@ -549,6 +557,13 @@ fn phase(record: &SessionRecord, entry: &Activity, now: Time) -> SessionPhase {
         return SessionPhase::Finished;
     }
     SessionPhase::Idle
+}
+
+/// The limit that stopped the session's last turn, while it holds.
+fn limit_stop(entry: &Activity, now: Time) -> Option<LimitStop> {
+    let limit = entry.limit?;
+    (!entry.turn_open && limit.at >= entry.turn_started.unwrap_or(DISTANT_PAST) && limit.holds(now))
+        .then_some(limit)
 }
 
 fn session(
@@ -670,6 +685,11 @@ fn session(
                 ended: false,
                 config_home: None,
             }),
+        limit_stop: if phase == SessionPhase::Limited {
+            entry.limit
+        } else {
+            None
+        },
     }
 }
 
@@ -827,6 +847,13 @@ fn apply_fact(fact: &TranscriptFact, previews: bool, entry: &mut Activity) {
                 tasks.current = None;
             }
             entry.tasks = (tasks.total > 0).then_some(tasks);
+        }
+        TranscriptFact::LimitReached(stop) => {
+            // A stop read late never replaces a newer one.
+            if entry.limit.is_none_or(|known| known.at <= stop.at) {
+                entry.limit = Some(*stop);
+            }
+            touch(stop.at, entry);
         }
     }
 }
@@ -3018,6 +3045,93 @@ mod tests {
             only(&mut settled, 11.0).unwrap().subagents[0].finished,
             None,
             "its transcript working later does"
+        );
+    }
+
+    // SessionLimitsTests.swift: a turn the plan's limit stopped.
+    fn stop(seconds: f64, resets: Option<f64>) -> TranscriptFact {
+        TranscriptFact::LimitReached(LimitStop {
+            at: at(seconds),
+            resets_at: resets.map(at),
+            kind: Some(crate::sessions::models::LimitKind::Session),
+        })
+    }
+
+    #[test]
+    fn a_turn_the_limit_stopped_reads_as_limited_until_it_resets() {
+        let mut engine = Engine::new(ContentPolicy::default());
+        engine.ingest_records(vec![record(BUSY, 0.0)], at(0.0));
+        engine.ingest_facts(
+            "s1",
+            &[began(1.0), stop(5.0, Some(3600.0)), ended(5.0, false)],
+            at(5.0),
+        );
+        assert_eq!(
+            phase_of(&mut engine, 6.0),
+            Some(SessionPhase::Limited),
+            "before the registry settles"
+        );
+        engine.ingest_records(vec![record(IDLE, 5.2)], at(6.0));
+        let session = only(&mut engine, 10.0).unwrap();
+        assert_eq!(session.phase, SessionPhase::Limited);
+        assert_eq!(
+            session.limit_stop.and_then(|s| s.resets_at),
+            Some(at(3600.0))
+        );
+        let counts = crate::sessions::models::SessionCounts::of(&[session]);
+        assert_eq!((counts.limited, counts.finished), (1, 0));
+        assert!(!counts.is_empty());
+        assert_eq!(
+            phase_of(&mut engine, 3601.0),
+            Some(SessionPhase::Idle),
+            "the reset passed"
+        );
+    }
+
+    #[test]
+    fn a_new_turn_lifts_the_limit_and_a_blip_does_not() {
+        let mut resumed = Engine::new(ContentPolicy::default());
+        resumed.ingest_records(vec![record(IDLE, 5.0)], at(5.0));
+        resumed.ingest_facts(
+            "s1",
+            &[began(1.0), stop(5.0, Some(3600.0)), ended(5.0, false)],
+            at(5.0),
+        );
+        resumed.ingest_records(vec![record(BUSY, 30.0)], at(30.0));
+        assert_eq!(phase_of(&mut resumed, 31.0), Some(SessionPhase::Generating));
+        resumed.ingest_facts("s1", &[began(30.0), ended(40.0, true)], at(40.0));
+        resumed.ingest_records(vec![record(IDLE, 40.0)], at(40.0));
+        let after = only(&mut resumed, 41.0).unwrap();
+        assert_eq!(after.phase, SessionPhase::Finished);
+        assert!(after.limit_stop.is_none());
+
+        let mut blip = Engine::new(ContentPolicy::default());
+        blip.ingest_records(vec![record(IDLE, 5.0)], at(5.0));
+        blip.ingest_facts(
+            "s1",
+            &[began(1.0), stop(5.0, Some(3600.0)), ended(5.0, false)],
+            at(5.0),
+        );
+        blip.ingest_records(vec![record(BUSY, 20.0)], at(20.0));
+        blip.ingest_records(vec![record(IDLE, 22.0)], at(22.0));
+        assert_eq!(
+            phase_of(&mut blip, 23.0),
+            Some(SessionPhase::Limited),
+            "a recap-like blip keeps it"
+        );
+
+        let mut unknown = Engine::new(ContentPolicy::default());
+        unknown.ingest_records(vec![record(IDLE, 5.0)], at(5.0));
+        unknown.ingest_facts(
+            "s1",
+            &[began(1.0), stop(5.0, None), ended(5.0, false)],
+            at(5.0),
+        );
+        assert_eq!(phase_of(&mut unknown, 60.0), Some(SessionPhase::Limited));
+        assert_eq!(
+            phase_of(&mut unknown, 5.0 + LimitStop::UNKNOWN_RESET_HOLD + 1.0),
+            Some(SessionPhase::Idle),
+            "no reset known: a session window at most"
         );
     }
 }

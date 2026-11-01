@@ -619,5 +619,9 @@
   "windows.sessions.defaultModel": "기본값",
   "windows.sessions.backgroundNeedsPrompt": "백그라운드에서는 세션에 첫 프롬프트가 필요합니다.",
   "windows.sessions.codexNotStarted": "Codex 백그라운드 서버가 시작되지 않았습니다. 터미널에서 시도해 보세요.",
-  "windows.sessions.codexFailed": "Codex가 세션을 시작하지 못했습니다"
+  "windows.sessions.codexFailed": "Codex가 세션을 시작하지 못했습니다",
+  "notchClaudeSessions.limited": "한도 도달",
+  "notchClaudeSessions.resumesFormat": "%@ 재개",
+  "notchClaudeSessions.limitsSetting": "요금제 한도 표시",
+  "windows.settings.sessions.limitsCaption": "Claude나 Codex 한도가 가까워지면 스트립에 표시하고, 한도로 멈춘 세션이 언제 다시 시작되는지 알려 줍니다. AI Agents가 꺼져 있어도 이를 위해 아일랜드가 한도를 계속 읽습니다."
 }

@@ -8,38 +8,48 @@
 
 import { useLocale } from "../i18n";
 
-import { CheckCircleFill, ClaudeMark, CodexMark, HandFill, MARK_SCALE, SparkleFill } from "./glyphs";
+import { CheckCircleFill, ClaudeMark, CodexMark, GaugeFill, HandFill, MARK_SCALE, SparkleFill } from "./glyphs";
 import { edgeInset, type Geometry } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { useIsland } from "../island/store";
-import { CLAUDE_TINT, CODEX_TINT, FINISHED_TINT, WAITING_TINT } from "./format";
+import { useAgents } from "../agents/store";
+import { limitTint } from "../agents/format";
+import { CLAUDE_TINT, CODEX_TINT, FINISHED_TINT, LIMITED_TINT, WAITING_TINT } from "./format";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { presentedSnapshot } from "./presentation";
+import { currentStripLimit, type StripLimit } from "./stripLimit";
 import type { Counts } from "./types";
 
 /** min(15, strip − 7): 15 pt in the Windows bar's 24 pt strip. */
 export const stripTextSize = (stripHeight: number) => Math.min(15, stripHeight - 7);
 const MARK = 14;
 
-/** Waiting, then each agent at work, then finished. The mark of who works
- * shows once, beside the camera; the counts use the phase's sparkle in each
- * agent's color, as the Mac's counts use the phase symbol. */
+/** Waiting, then each agent at work, then the ones a plan limit stopped,
+ * then finished. The mark of who works shows once, beside the camera; the
+ * counts use the phase's sparkle in each agent's color, as the Mac's counts
+ * use the phase symbol, and a coral gauge for the stopped ones. */
 export function countItems(counts: Counts) {
   return [
     { n: counts.waiting, Icon: HandFill, tint: WAITING_TINT },
     { n: counts.working - counts.workingCodex, Icon: SparkleFill, tint: CLAUDE_TINT },
     { n: counts.workingCodex, Icon: SparkleFill, tint: CODEX_TINT },
+    { n: counts.limited ?? 0, Icon: GaugeFill, tint: LIMITED_TINT },
     { n: counts.finished, Icon: SparkleFill, tint: FINISHED_TINT },
   ].filter((i) => i.n > 0);
 }
 
-/** How wide the counts draw (NotchClaudeSessionsSupport.stripReadingWidth). */
-export function readingWidth(counts: Counts, size: number): number {
+/** The ring beside the limit's share on the strip. */
+export const limitRing = (size: number) => Math.round(size * 0.75);
+
+/** How wide the counts draw (NotchClaudeSessionsSupport.stripReadingWidth),
+ * and the limit's ring and share after them. */
+export function readingWidth(counts: Counts, size: number, limit?: string | null): number {
   const list = countItems(counts);
-  if (list.length === 0) return 0;
   const digits = list.reduce((sum, i) => sum + String(i.n).length, 0);
-  return list.length * (size * 0.9 + 2) + digits * size * 0.62 + (list.length - 1) * 6;
+  let width = list.length * (size * 0.9 + 2) + digits * size * 0.62 + Math.max(0, list.length - 1) * 6;
+  if (limit) width += (list.length ? 6 : 0) + limitRing(size) + 2 + limit.length * size * 0.62;
+  return width;
 }
 
 /** Whose marks show while sessions work, front first: the one agent at
@@ -72,10 +82,10 @@ export function marksWidth(counts: Counts): number {
 }
 
 /** The wing each side needs, clamped to 44…80 like the agents' strip. */
-export function stripWing(counts: Counts, stripHeight: number): number {
+export function stripWing(counts: Counts, stripHeight: number, limit?: string | null): number {
   const size = stripTextSize(stripHeight);
   const box = { width: 300, height: stripHeight };
-  const text = edgeInset(box, size * 0.72, 0) + readingWidth(counts, size);
+  const text = edgeInset(box, size * 0.72, 0) + readingWidth(counts, size, limit);
   const mark = edgeInset(box, 18, 9) + marksWidth(counts);
   return Math.min(80, Math.max(44, Math.ceil(Math.max(text, mark))));
 }
@@ -98,6 +108,11 @@ function StackedMarks() {
 export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Size }) {
   useLocale();
   const counts = useSessions((s) => presentedSnapshot(s).counts);
+  // Read again when the limits, the settings or the sessions change.
+  useAgents((s) => s.snapshot);
+  useIsland((s) => s.settings);
+  useSessions((s) => s.snapshot);
+  const limit = currentStripLimit();
   const textSize = stripTextSize(geometry.stripHeight);
   const capsule = geometry.floatingGap !== null;
   const iconInset = capsule ? 0 : edgeInset(size, 18, 9, 5, geometry.input);
@@ -116,15 +131,19 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
   // Codex does; both stacked while both do.
   const working = counts.working > 0;
   const stacked = stacks(counts);
+  // Nothing works and the plan stopped something: that comes before a result.
+  const limited = !working && counts.waiting <= 0 && (counts.limited ?? 0) > 0;
   const Mark =
     counts.waiting > 0
       ? HandFill
-      : !working
-        ? CheckCircleFill
-        : counts.workingCodex === counts.working
-          ? CodexMark
-          : ClaudeMark;
-  const markTint = counts.waiting > 0 ? WAITING_TINT : working ? undefined : FINISHED_TINT;
+      : limited
+        ? GaugeFill
+        : !working
+          ? CheckCircleFill
+          : counts.workingCodex === counts.working
+            ? CodexMark
+            : ClaudeMark;
+  const markTint = counts.waiting > 0 ? WAITING_TINT : working ? undefined : limited ? LIMITED_TINT : FINISHED_TINT;
   const markScale = counts.waiting > 0 || !working ? 1 : MARK_SCALE[Mark === CodexMark ? "codex" : "claude"];
 
   return (
@@ -158,7 +177,45 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
             {n}
           </span>
         ))}
+        {limit ? <StripLimitReading limit={limit} textSize={textSize} /> : null}
       </span>
     </button>
+  );
+}
+
+/** The limit past the warning threshold, after the counts: a ring and its
+ * share in the window's warning color. */
+function StripLimitReading({ limit, textSize }: { limit: StripLimit; textSize: number }) {
+  useLocale();
+  const display = useIsland((s) => s.settings.agentsLimitDisplay);
+  const used = Math.min(1, Math.max(0, limit.window.usedPercent / 100));
+  const tint = limitTint(limit.provider, used);
+  return (
+    <span className="s-strip-count s-strip-limit" style={{ color: tint }}>
+      <LimitRing value={display === "used" ? used : 1 - used} size={limitRing(textSize)} />
+      <span style={{ fontSize: textSize * 0.85 }}>{limit.share}</span>
+    </span>
+  );
+}
+
+/** A small ring filled by `value`, 0…1, in the current color. */
+export function LimitRing({ value, size }: { value: number; size: number }) {
+  const fraction = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" aria-hidden>
+      <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.2" />
+      <circle
+        cx="7"
+        cy="7"
+        r="5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        pathLength="1"
+        strokeDasharray={`${fraction} 1`}
+        transform="rotate(-90 7 7)"
+      />
+    </svg>
   );
 }

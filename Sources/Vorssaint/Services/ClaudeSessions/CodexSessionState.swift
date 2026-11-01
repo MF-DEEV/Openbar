@@ -97,6 +97,8 @@ final class CodexSessionState {
         var turnStarted: Date?
         /// The last turn's end and whether it completed.
         var turnEnded: (at: Date, completed: Bool)?
+        /// The last turn the plan's usage limit stopped.
+        var limit: ClaudeLimitStop?
         var acknowledged: Date?
         var pending: [Pending] = []
         var phase: (phase: ClaudeSessionPhase, since: Date)?
@@ -273,6 +275,12 @@ final class CodexSessionState {
         entry.parent = Self.string(thread, "parentThreadId") ?? entry.parent
         if let ephemeral = Self.bool(thread["ephemeral"]) { entry.ephemeral = ephemeral }
         if let status = thread["status"] { entry.status = Status(json: status) }
+        // A thread read after its last turn hit the limit is still stopped by it.
+        if let last = (thread["turns"] as? [[String: Any]])?.last,
+           let at = Self.time(last, "completedAt"), let stop = Self.limitStop(last, at: at),
+           (entry.limit?.at ?? .distantPast) <= at {
+            entry.limit = stop
+        }
         if previews, historyOrder >= entry.historyOrder, let turns = thread["turns"] as? [[String: Any]] {
             entry.historyOrder = historyOrder
             for index in entry.chat.indices where entry.chat[index].revision <= historyRevision {
@@ -352,6 +360,7 @@ final class CodexSessionState {
             let completed = status == "completed" || status == "failed"
             let at = Self.time(turn, "completedAt") ?? now
             thread.turnEnded = (at, completed)
+            if let stop = Self.limitStop(turn, at: at) { thread.limit = stop }
             // A turn that ends takes its questions with it.
             thread.pending.removeAll()
             for index in thread.tools.indices where thread.tools[index].finished == nil {
@@ -471,12 +480,30 @@ final class CodexSessionState {
         case .active(_, waitingOnInput: true)?: return .waitingInput
         case .active?: return thread.tools.contains { $0.finished == nil } ? .runningTool : .generating
         default:
+            if limitStop(thread, now: now) != nil { return .limited }
             if let ended = thread.turnEnded, ended.completed, now.timeIntervalSince(ended.at) < finishedFor,
                (thread.acknowledged ?? .distantPast) < ended.at {
                 return .finished
             }
             return .idle
         }
+    }
+
+    /// A turn Codex ended on the plan's usage limit (`usageLimitExceeded`).
+    /// Codex names no reset here; the limits reading has it.
+    static func limitStop(_ turn: [String: Any], at: Date) -> ClaudeLimitStop? {
+        guard string(turn, "status") == "failed",
+              let error = turn["error"] as? [String: Any], string(error, "codexErrorInfo") == "usageLimitExceeded"
+        else { return nil }
+        return ClaudeLimitStop(at: at)
+    }
+
+    /// The limit that stopped the thread's last turn, while no turn began
+    /// since and it holds.
+    static func limitStop(_ thread: Thread, now: Date) -> ClaudeLimitStop? {
+        guard let limit = thread.limit, !(thread.status?.isActive ?? false),
+              limit.at >= (thread.turnStarted ?? .distantPast), limit.holds(at: now) else { return nil }
+        return limit
     }
 
     private static func event(_ thread: Thread, previous: ClaudeSessionPhase, previousSince: Date,
@@ -523,6 +550,7 @@ final class CodexSessionState {
             title: previews ? thread.preview : nil,
             lastText: previews ? thread.chat.last(where: { $0.value.role == .assistant })?.value.text : nil,
             hooked: true, provider: .codex)
+        if phase == .limited { session.limitStop = thread.limit }
         if previews { session.chat = thread.chat.map(\.value) }
         return session
     }

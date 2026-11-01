@@ -32,6 +32,10 @@ export const S = {
   get background() {
     return t("notchClaudeSessions.background");
   },
+  get limited() {
+    return t("notchClaudeSessions.limited");
+  },
+  resumes: (when: string) => tf("notchClaudeSessions.resumesFormat", when),
   get finished() {
     return t("feedback.done");
   },

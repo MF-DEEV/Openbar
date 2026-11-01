@@ -101,6 +101,18 @@ export function demoSnapshot(): Snapshot {
       title: "Retry failed webhooks",
     }),
     base({
+      id: "d5",
+      provider: "codex",
+      project: "data-pipeline",
+      phase: "limited",
+      branch: "main",
+      host: "unknown",
+      title: "Backfill the events table",
+      phaseSince: t - 600,
+      // The plan's limit stopped it; Codex names no reset, the limits reading has it.
+      limitStop: { at: t - 600 },
+    }),
+    base({
       id: "d4",
       project: "ios-client",
       phase: "finished",
@@ -112,7 +124,7 @@ export function demoSnapshot(): Snapshot {
   ];
   return {
     sessions,
-    counts: { waiting: 2, working: 2, workingCodex: 1, finished: 1 },
+    counts: { waiting: 2, working: 2, workingCodex: 1, limited: 1, finished: 1 },
     previews: true,
     hooksInstalled: true,
   };

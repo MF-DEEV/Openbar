@@ -799,6 +799,7 @@ struct NotchCapsuleClaudeSessionStrip: View {
     let size: CGSize
     var displayGeometry: NotchGeometry? = nil
     @ObservedObject private var sessions = ClaudeSessionService.shared
+    @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var l10n = L10n.shared
 
     var body: some View {
@@ -809,9 +810,14 @@ struct NotchCapsuleClaudeSessionStrip: View {
                     NotchClaudeSessionStripCounts(counts: counts, size: 13)
                 }
             }
+            // A limit's share coming or going widens the capsule.
+            .onChange(of: NotchSessionLimitsSupport.currentStripLimit()?.share) { _, _ in
+                DispatchQueue.main.async { service.refreshPresentation() }
+            }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(FeatureStrings.notchClaudeSessions(l10n.language).title)
-            .accessibilityValue(NotchClaudeSessionFormat.counts(counts, text: FeatureStrings.notchClaudeSessions(l10n.language)))
+            .accessibilityValue(NotchClaudeSessionFormat.counts(counts, text: FeatureStrings.notchClaudeSessions(l10n.language),
+                                                                limit: NotchSessionLimitsSupport.currentStripLimit()))
         }
     }
 }

@@ -11,6 +11,7 @@ struct NotchClaudeSessionsSettingsControls: View {
     @AppStorage(DefaultsKey.notchSessionsAutoExpand) private var autoExpand = true
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
     @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
+    @AppStorage(DefaultsKey.notchSessionsLimits) private var limits = true
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
 
@@ -23,6 +24,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             switchRow("waveform.path.ecg", text.liveActivity, isOn: $liveActivity)
             switchRow("rectangle.expand.vertical", text.autoExpand, caption: text.autoExpandHint, isOn: $autoExpand)
             switchRow("text.bubble", text.contentPreview, caption: text.contentPreviewHint, isOn: $previews)
+            switchRow("gauge.with.dots.needle.50percent", text.limitsSetting, caption: text.limitsSettingHint, isOn: $limits)
             buddiesRow
             Divider()
             hooks

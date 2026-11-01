@@ -31,6 +31,29 @@
   box-shadow: inset 0 0 0 1px rgba(255, 199, 71, 0.55);
 }
 
+/* Stopped by the plan's limit: a quieter coral ring than waiting's amber. */
+.s-row.is-limited {
+  box-shadow: inset 0 0 0 1px rgba(255, 117, 107, 0.4);
+}
+
+.s-strip-limit {
+  gap: 2px;
+  animation: s-limits-pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+@keyframes s-limits-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-strip-limit {
+    animation: none;
+  }
+}
+
 /* A sleeping session's row fades its face and words, not its surface or
    its quick answers, to `DOZING_OPACITY`, and comes back under the pointer
    or the keyboard. With more contrast asked for, nothing fades. */

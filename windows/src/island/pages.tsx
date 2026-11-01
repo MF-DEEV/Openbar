@@ -8,6 +8,8 @@ import { useLocale } from "../i18n";
 import { sessionsPage } from "../sessions/SessionsPage";
 import { marksWidth, stripWing, readingWidth, stripTextSize, SessionsStrip } from "../sessions/SessionsStrip";
 import { subscribeSessions, useSessions } from "../sessions/store";
+import { currentStripLimit } from "../sessions/stripLimit";
+import { useAgents } from "../agents/store";
 import { displayName, duration } from "../sessions/format";
 import { S } from "../sessions/strings";
 import type { SessionEvent } from "../sessions/types";
@@ -82,27 +84,43 @@ void subscribeDownloads();
 activityViews.sessions = SessionsStrip;
 subscribeAutoAllow();
 
-/** Sessions show beside the camera while any is working, waiting or done. */
+/** The share the strip was last measured with. */
+let lastLimitShare: string | null = null;
+
+/** Sessions show beside the camera while any is working, waiting, stopped by a limit or done. */
 function syncSessionsActivity() {
   const { counts } = presentedSnapshot(useSessions.getState());
   const island = useIsland.getState();
-  const empty = counts.working + counts.waiting + counts.finished === 0;
+  const empty = counts.working + counts.waiting + (counts.limited ?? 0) + counts.finished === 0;
   if (empty || !shown("sessions") || !useSessions.getState().prefs.live) {
+    lastLimitShare = null;
     island.setActivity("sessions", null);
     return;
   }
   const geometry = geometryOf(island);
   const size = stripTextSize(geometry.stripHeight);
+  // A limit past the warning threshold widens the counts' wing.
+  const limit = currentStripLimit()?.share ?? null;
+  lastLimitShare = limit;
   island.setActivity("sessions", {
-    wing: stripWing(counts, geometry.stripHeight),
-    capsuleContent: marksWidth(counts) + 6 + readingWidth(counts, size),
+    wing: stripWing(counts, geometry.stripHeight, limit),
+    capsuleContent: marksWidth(counts) + 6 + readingWidth(counts, size, limit),
     opens: "sessions",
     urgent: counts.waiting > 0,
   });
 }
 
+// The limits reading or its settings moving the strip's share remeasures it.
+useAgents.subscribe((s, prev) => {
+  if (s.snapshot !== prev.snapshot && (currentStripLimit()?.share ?? null) !== lastLimitShare) syncSessionsActivity();
+});
+
 useSessions.subscribe((s, prev) => {
-  if (presentedSnapshot(s).counts !== presentedSnapshot(prev).counts || s.prefs.live !== prev.prefs.live)
+  if (
+    presentedSnapshot(s).counts !== presentedSnapshot(prev).counts ||
+    s.prefs.live !== prev.prefs.live ||
+    s.prefs.limits !== prev.prefs.limits
+  )
     syncSessionsActivity();
   if (s.snapshot !== prev.snapshot || s.autoAllow !== prev.autoAllow) syncPendingSessions();
 });
@@ -112,7 +130,11 @@ useIsland.subscribe((s, prev) => {
     s.settings.hiddenModules !== prev.settings.hiddenModules ||
     s.settings.showPlayingMusic !== prev.settings.showPlayingMusic ||
     s.settings.idleContent !== prev.settings.idleContent ||
-    s.settings.hiddenSystemMetrics !== prev.settings.hiddenSystemMetrics
+    s.settings.hiddenSystemMetrics !== prev.settings.hiddenSystemMetrics ||
+    s.settings.agentsLimitFocus !== prev.settings.agentsLimitFocus ||
+    s.settings.agentsLimitDisplay !== prev.settings.agentsLimitDisplay ||
+    s.settings.agentsLimitAlert !== prev.settings.agentsLimitAlert ||
+    s.settings.agentsLimitThreshold !== prev.settings.agentsLimitThreshold
   ) {
     syncSessionsActivity();
     syncMusicActivity();

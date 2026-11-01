@@ -934,6 +934,12 @@ export const T = {
     get buddies() {
       return t("notchClaudeSessions.buddies");
     },
+    get limits() {
+      return t("notchClaudeSessions.limitsSetting");
+    },
+    get limitsCaption() {
+      return t("windows.settings.sessions.limitsCaption");
+    },
     get buddiesCaption() {
       return t("windows.settings.sessions.buddiesCaption");
     },

@@ -269,7 +269,14 @@ pub fn probe_main(path: &str, limits: bool) -> ! {
 /// The section's switches as the island reads them.
 #[derive(Clone, Debug, PartialEq)]
 struct Settings {
+    /// The reader runs: for the AI section, or for Sessions' plan limits.
     enabled: bool,
+    /// The AI section itself is on.
+    section: bool,
+    /// Read only for Sessions' plan limits, with the AI section off: only
+    /// Claude and Codex are read, only limits are published, and only their
+    /// alerts are told (NotchSessionLimitsSupport.readsAlone).
+    limits_only: bool,
     providers: Vec<Provider>,
     finish_minimum: Option<f64>,
     limit_threshold: Option<f64>,
@@ -286,7 +293,7 @@ impl Settings {
     /// Added Codex homes are checked only while their cards can show, in the
     /// Limits card's place (CodexProfileLimitsService.isEnabled).
     fn checks_accounts(&self) -> bool {
-        self.enabled && self.providers.contains(&Provider::Codex) && self.limits_card
+        self.section && self.providers.contains(&Provider::Codex) && self.limits_card
     }
 }
 
@@ -302,12 +309,27 @@ fn settings(prefs: &Value) -> Settings {
     let hidden_modules = island("hiddenModules")
         .and_then(Value::as_array)
         .is_some_and(|v| v.iter().any(|m| m == "agents"));
-    let enabled = flag("enabled", true)
+    let island_on = flag("enabled", true);
+    let section = island_on
         && prefs
             .pointer("/island/sections/agents")
             .and_then(Value::as_bool)
             .unwrap_or(true)
         && !hidden_modules;
+    // Sessions shows the plan limits beside its sessions unless turned off.
+    let sessions_limits = island_on
+        && prefs
+            .pointer("/island/sections/sessions")
+            .and_then(Value::as_bool)
+            .unwrap_or(true)
+        && !island("hiddenModules")
+            .and_then(Value::as_array)
+            .is_some_and(|v| v.iter().any(|m| m == "sessions"))
+        && prefs
+            .pointer("/sessions/limits")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+    let limits_only = !section && sessions_limits;
     let mut providers: Vec<Provider> = Provider::ALL
         .into_iter()
         .filter(|p| {
@@ -320,6 +342,9 @@ fn settings(prefs: &Value) -> Settings {
     if providers.is_empty() {
         providers = Provider::ALL.to_vec();
     }
+    if limits_only {
+        providers = vec![Provider::Claude, Provider::Codex];
+    }
     let limit_threshold = flag("agentsLimitAlert", true)
         .then(|| number("agentsLimitThreshold", 80.0).clamp(1.0, 100.0));
     let live_limit = flag("agentsLiveActivity", true)
@@ -328,14 +353,16 @@ fn settings(prefs: &Value) -> Settings {
         .and_then(Value::as_array)
         .is_some_and(|v| v.iter().any(|c| c == "limits"));
     Settings {
-        enabled,
+        enabled: section || sessions_limits,
+        section,
+        limits_only,
         providers,
         finish_minimum: flag("agentsFinishAlert", true)
             .then(|| number("agentsFinishMinimum", 60.0).clamp(0.0, 3600.0)),
         limit_threshold,
         daily_budget: Some(number("agentsDailyBudget", 0.0)).filter(|b| *b > 0.0),
         price_updates: flag("agentsPriceUpdates", true),
-        limits_without_page: limit_threshold.is_some() || live_limit,
+        limits_without_page: limit_threshold.is_some() || live_limit || sessions_limits,
         limits_card: !hidden_cards,
         codex_profiles: profiles::decode(island("agentsCodexProfiles")),
     }
@@ -1191,6 +1218,12 @@ impl Service {
         let Some(settings) = &self.settings else {
             return;
         };
+        // Read for Sessions alone, only the limits speak.
+        if settings.limits_only
+            && matches!(event, Event::Finished { .. } | Event::BudgetReached { .. })
+        {
+            return;
+        }
         let payload = match event {
             Event::Finished {
                 provider,
@@ -1241,10 +1274,21 @@ impl Service {
         {
             plans.insert(Provider::Codex, plan);
         }
+        // For Sessions alone, nothing but the limits: no turn at work, spend
+        // or history reaches the island while the AI section is off.
+        let limits_only = self.settings.as_ref().is_some_and(|s| s.limits_only);
         let mut s = summary::snapshot(summary::Inputs {
-            records: &self.store.records,
+            records: if limits_only {
+                &[]
+            } else {
+                &self.store.records
+            },
             limits: &self.store.limits,
-            live: self.store.live(),
+            live: if limits_only {
+                Vec::new()
+            } else {
+                self.store.live()
+            },
             plans: &plans,
             providers: self.providers(),
             now,
@@ -1461,8 +1505,33 @@ mod tests {
         assert!(s.limits_without_page, "the strip shows a limit");
         assert_eq!(s.daily_budget, Some(25.0));
         assert_eq!(s.finish_minimum, Some(3600.0));
-        assert!(!settings(&json!({"island": {"sections": {"agents": false}}})).enabled);
-        assert!(!settings(&json!({"island": {"hiddenModules": ["agents"]}})).enabled);
+        assert!(!settings(&json!({"island": {"sections": {"agents": false}}})).section);
+        assert!(!settings(&json!({"island": {"hiddenModules": ["agents"]}})).section);
+    }
+
+    #[test]
+    fn sessions_keep_reading_the_limits_with_the_ai_section_off() {
+        let alone = settings(
+            &json!({"island": {"sections": {"agents": false}, "agentsLimitAlert": false}}),
+        );
+        assert!(alone.enabled && !alone.section && alone.limits_only);
+        assert_eq!(alone.providers, vec![Provider::Claude, Provider::Codex]);
+        assert!(alone.limits_without_page, "Sessions shows them");
+        assert!(
+            !alone.checks_accounts(),
+            "added Codex homes stay with the AI page"
+        );
+        let off = settings(
+            &json!({"island": {"sections": {"agents": false}}, "sessions": {"limits": false}}),
+        );
+        assert!(!off.enabled, "with Sessions' limits off too, nothing reads");
+        let hidden = settings(
+            &json!({"island": {"sections": {"agents": false}, "hiddenModules": ["sessions"]}}),
+        );
+        assert!(!hidden.enabled, "nor with Sessions hidden");
+        let both = settings(&json!({}));
+        assert!(both.enabled && both.section && !both.limits_only);
+        assert_eq!(both.providers.len(), 4);
     }
 
     #[test]
@@ -1537,6 +1606,74 @@ mod tests {
         assert!(last["live"].as_array().unwrap().is_empty());
         assert_eq!(last["periods"]["today"]["projects"][0]["name"], "site");
         assert!(last["periods"]["today"]["total"]["cost"].as_f64().unwrap() > 0.0);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn read_for_sessions_alone_only_limits_leave() {
+        let dir =
+            std::env::temp_dir().join(format!("vorssaint-limits-only-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let projects = dir.join("projects").join("C--work-site");
+        std::fs::create_dir_all(&projects).unwrap();
+        let now = model::now();
+        let iso = |t: Time| {
+            chrono::DateTime::from_timestamp_millis((t * 1000.0) as i64)
+                .unwrap()
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+        };
+        std::fs::write(
+            projects.join("sess-1.jsonl"),
+            format!(
+                "{{\"type\":\"user\",\"sessionId\":\"sess-1\",\"cwd\":\"C:\\\\work\\\\site\",\"timestamp\":\"{}\",\"message\":{{\"content\":\"go\"}}}}\n{{\"type\":\"assistant\",\"sessionId\":\"sess-1\",\"timestamp\":\"{}\",\"requestId\":\"r\",\"message\":{{\"id\":\"m\",\"model\":\"claude-opus-5-5\",\"stop_reason\":\"end_turn\",\"usage\":{{\"input_tokens\":100,\"output_tokens\":2000}}}}}}\n",
+                iso(now - 120.0),
+                iso(now - 100.0)
+            ),
+        )
+        .unwrap();
+        let mut h = harness(
+            json!({"island": {"sections": {"agents": false}, "agentsPriceUpdates": false, "agentsFinishMinimum": 0}}),
+        );
+        h.service.settings = Some(settings(&(h.service.prefs)()));
+        h.service.begin(
+            vec![Root {
+                provider: Provider::Claude,
+                path: dir.join("projects"),
+            }],
+            now,
+        );
+        let snapshot = h.service.state.snapshot.lock().unwrap().clone();
+        assert_eq!(snapshot["loaded"], true);
+        assert!(
+            snapshot["live"].as_array().unwrap().is_empty(),
+            "no turn at work leaves"
+        );
+        assert_eq!(
+            snapshot["periods"]["today"]["total"]["cost"]
+                .as_f64()
+                .unwrap_or(0.0),
+            0.0,
+            "nor any spend"
+        );
+        h.service.report(Event::Finished {
+            provider: Provider::Claude,
+            duration: 120.0,
+            cost: 1.0,
+            tokens: 10,
+            project: "site".into(),
+        });
+        h.service.report(Event::BudgetReached {
+            spent: 9.0,
+            budget: 1.0,
+        });
+        assert!(
+            !h.events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(n, _)| n == "agents://event"),
+            "only limit alerts are told"
+        );
         std::fs::remove_dir_all(dir).unwrap();
     }
 }

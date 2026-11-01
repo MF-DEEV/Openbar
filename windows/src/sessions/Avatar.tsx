@@ -9,7 +9,7 @@ import { useLocale } from "../i18n";
 import { Hammer, Hourglass, MessageCircleQuestion, MoonStar, type LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";
 import { phaseTint } from "./format";
-import { CheckCircleFill, ClaudeMark, CodexMark, type GlyphProps, HandFill, MARK_SCALE } from "./glyphs";
+import { CheckCircleFill, ClaudeMark, CodexMark, GaugeFill, type GlyphProps, HandFill, MARK_SCALE } from "./glyphs";
 import type { Phase, Provider } from "./types";
 
 const PHASE_ICON: Record<Phase, LucideIcon | ComponentType<GlyphProps>> = {
@@ -18,6 +18,7 @@ const PHASE_ICON: Record<Phase, LucideIcon | ComponentType<GlyphProps>> = {
   runningTool: Hammer,
   generating: ClaudeMark,
   background: Hourglass,
+  limited: GaugeFill,
   finished: CheckCircleFill,
   idle: MoonStar,
 };

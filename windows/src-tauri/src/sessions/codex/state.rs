@@ -11,8 +11,8 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde_json::{Value, json};
 
 use crate::sessions::models::{
-    ChatMessage, ChatRole, ContentPolicy, HostKind, Permission, Provider, Question, QuestionOption,
-    Session, SessionEvent, SessionPhase, Time, Tokens, ToolUse, project_name,
+    ChatMessage, ChatRole, ContentPolicy, HostKind, LimitStop, Permission, Provider, Question,
+    QuestionOption, Session, SessionEvent, SessionPhase, Time, Tokens, ToolUse, project_name,
 };
 
 /// How long an unread finished turn stays marked, as for Claude.
@@ -140,6 +140,8 @@ pub struct Thread {
     pub turn_started: Option<Time>,
     /// The last turn's end and whether it completed.
     pub turn_ended: Option<(Time, bool)>,
+    /// The last turn the plan's usage limit stopped.
+    pub limit: Option<LimitStop>,
     pub acknowledged: Time,
     pub pending: Vec<Pending>,
     pub phase: Option<(SessionPhase, Time)>,
@@ -372,6 +374,17 @@ impl State {
         if let Some(status) = thread.get("status") {
             entry.status = Some(Status::from_json(status));
         }
+        // A thread read after its last turn hit the limit is still stopped by it.
+        if let Some(last) = thread
+            .get("turns")
+            .and_then(Value::as_array)
+            .and_then(|turns| turns.last())
+            && let Some(at) = time_at(last, "completedAt")
+            && let Some(stop) = turn_limit_stop(last, at)
+            && entry.limit.is_none_or(|known| known.at <= at)
+        {
+            entry.limit = Some(stop);
+        }
         if self.previews
             && let Some(turns) = thread.get("turns").and_then(Value::as_array)
         {
@@ -533,6 +546,9 @@ impl State {
                     matches!(str_at(turn, "status"), Some("completed") | Some("failed"));
                 let at = time_at(turn, "completedAt").unwrap_or(now);
                 thread.turn_ended = Some((at, completed));
+                if let Some(stop) = turn_limit_stop(turn, at) {
+                    thread.limit = Some(stop);
+                }
                 // A turn that ends takes its questions with it.
                 thread.pending.clear();
                 for tool in thread.tools.iter_mut().filter(|t| t.finished.is_none()) {
@@ -754,6 +770,7 @@ pub fn phase_with(thread: &Thread, pending: &[Pending], now: Time) -> SessionPha
                 SessionPhase::Generating
             }
         }
+        _ if thread_limit_stop(thread, now).is_some() => SessionPhase::Limited,
         _ => match thread.turn_ended {
             Some((at, true)) if now - at < FINISHED_FOR && thread.acknowledged < at => {
                 SessionPhase::Finished
@@ -761,6 +778,31 @@ pub fn phase_with(thread: &Thread, pending: &[Pending], now: Time) -> SessionPha
             _ => SessionPhase::Idle,
         },
     }
+}
+
+/// A turn Codex ended on the plan's usage limit (`usageLimitExceeded`).
+/// Codex names no reset here; the limits reading has it.
+pub fn turn_limit_stop(turn: &Value, at: Time) -> Option<LimitStop> {
+    (str_at(turn, "status") == Some("failed")
+        && turn
+            .get("error")
+            .and_then(|error| str_at(error, "codexErrorInfo"))
+            == Some("usageLimitExceeded"))
+    .then_some(LimitStop {
+        at,
+        resets_at: None,
+        kind: None,
+    })
+}
+
+/// The limit that stopped the thread's last turn, while no turn began since
+/// and it holds.
+pub fn thread_limit_stop(thread: &Thread, now: Time) -> Option<LimitStop> {
+    let limit = thread.limit?;
+    (!thread.status.as_ref().is_some_and(Status::is_active)
+        && limit.at >= thread.turn_started.unwrap_or(f64::MIN)
+        && limit.holds(now))
+    .then_some(limit)
 }
 
 fn event(
@@ -1020,6 +1062,11 @@ fn session(
         background_label: None,
         services: 0,
         background: None,
+        limit_stop: if phase == SessionPhase::Limited {
+            thread.limit
+        } else {
+            None
+        },
     }
 }
 
@@ -1824,5 +1871,57 @@ mod tests {
         assert!(!state.threads["t1"].described);
         state.upsert_thread(&json!({"id": "t1", "cwd": "C:\\a"}));
         assert!(state.threads["t1"].described);
+    }
+
+    // SessionLimitsTests.swift: Codex's usageLimitExceeded.
+    #[test]
+    fn a_turn_failed_on_the_usage_limit_is_limited_until_a_new_turn() {
+        let mut state = state_with_thread();
+        let active = json!({"threadId": "t1", "status": {"type": "active", "activeFlags": []}});
+        let idle = json!({"threadId": "t1", "status": {"type": "idle"}});
+        let failed = json!({"threadId": "t1", "turn": {"id": "turn1", "items": [], "status": "failed", "completedAt": 320,
+            "error": {"message": "You’ve hit your usage limit.", "codexErrorInfo": "usageLimitExceeded"}}});
+        state.notify("thread/status/changed", &active, 300.0);
+        state.notify("turn/completed", &failed, 320.0);
+        state.notify("thread/status/changed", &idle, 320.0);
+        assert_eq!(phase(&state.threads["t1"], 321.0), SessionPhase::Limited);
+        let session = state
+            .snapshot(321.0, ContentPolicy::default())
+            .0
+            .into_iter()
+            .next()
+            .unwrap();
+        assert_eq!(session.phase, SessionPhase::Limited);
+        assert_eq!(
+            session.limit_stop.map(|s| (s.at, s.resets_at)),
+            Some((320.0, None))
+        );
+        state.notify("thread/status/changed", &active, 400.0);
+        assert_eq!(phase(&state.threads["t1"], 401.0), SessionPhase::Generating);
+
+        let mut other = state_with_thread();
+        other.notify("thread/status/changed", &active, 300.0);
+        other.notify(
+            "turn/completed",
+            &json!({"threadId": "t1", "turn": {"id": "turn1", "items": [], "status": "failed", "completedAt": 320,
+                "error": {"message": "boom", "codexErrorInfo": "serverOverloaded"}}}),
+            320.0,
+        );
+        other.notify("thread/status/changed", &idle, 320.0);
+        assert_ne!(phase(&other.threads["t1"], 321.0), SessionPhase::Limited);
+
+        let mut read = State::default();
+        read.upsert_thread(
+            &json!({"id": "t1", "cwd": "C:\\a", "status": {"type": "idle"}, "turns": [
+                {"id": "turn0", "items": [], "status": "completed", "completedAt": 305},
+                {"id": "turn1", "items": [], "status": "failed", "completedAt": 320,
+                 "error": {"message": "limit", "codexErrorInfo": "usageLimitExceeded"}}
+            ]}),
+        );
+        assert_eq!(
+            phase(&read.threads["t1"], 330.0),
+            SessionPhase::Limited,
+            "read after the stop"
+        );
     }
 }

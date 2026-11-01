@@ -619,5 +619,9 @@
   "windows.sessions.defaultModel": "Default",
   "windows.sessions.backgroundNeedsPrompt": "In the background, a session needs a first prompt.",
   "windows.sessions.codexNotStarted": "Codex’s background server didn’t start. Try Terminal.",
-  "windows.sessions.codexFailed": "Codex couldn’t start the session"
+  "windows.sessions.codexFailed": "Codex couldn’t start the session",
+  "notchClaudeSessions.limited": "Limit reached",
+  "notchClaudeSessions.resumesFormat": "resumes %@",
+  "notchClaudeSessions.limitsSetting": "Show plan limits",
+  "windows.settings.sessions.limitsCaption": "Puts a Claude or Codex limit on the strip once it gets close, and says when a session stopped at its limit goes on. With AI Agents off, the island keeps reading the limits for this."
 }

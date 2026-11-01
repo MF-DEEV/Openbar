@@ -44,7 +44,7 @@ enum NotchClaudeSessionsSupport {
             case .generating, .runningTool:
                 let a = lhs.turnStarted ?? lhs.phaseSince, b = rhs.turnStarted ?? rhs.phaseSince
                 if a != b { return a < b }
-            case .background, .finished:
+            case .limited, .background, .finished:
                 if lhs.phaseSince != rhs.phaseSince { return lhs.phaseSince > rhs.phaseSince }
             case .idle:
                 // The one that last worked comes first, so a session just
@@ -63,9 +63,10 @@ enum NotchClaudeSessionsSupport {
         case .waitingPermission: return 0
         case .waitingInput: return 1
         case .runningTool, .generating: return 2
-        case .background: return 3
-        case .finished: return 4
-        case .idle: return 5
+        case .limited: return 3
+        case .background: return 4
+        case .finished: return 5
+        case .idle: return 6
         }
     }
 
@@ -130,6 +131,7 @@ enum NotchClaudeSessionsSupport {
         return [StripItem(phase: .waitingPermission, count: counts.waiting),
                 StripItem(phase: .generating, count: max(0, counts.working) - codex, provider: .claude),
                 StripItem(phase: .generating, count: codex, provider: .codex),
+                StripItem(phase: .limited, count: counts.limited),
                 StripItem(phase: .finished, count: counts.finished)]
             .filter { $0.count > 0 }
     }
@@ -165,20 +167,30 @@ enum NotchClaudeSessionsSupport {
         return frame + stripStackOffset(size: size)
     }
 
-    /// The counts as text, for measuring the strip.
-    static func stripText(_ counts: ClaudeSessionCounts) -> String {
-        stripReading(counts).map { "• \($0.count)" }.joined(separator: "  ")
+    /// The counts as text, for measuring the strip, with the limit's share
+    /// when the strip shows one.
+    static func stripText(_ counts: ClaudeSessionCounts, limit: String? = nil) -> String {
+        (stripReading(counts).map { "• \($0.count)" } + [limit.map { "◔ \($0)" }].compactMap { $0 })
+            .joined(separator: "  ")
     }
 
     /// How wide the strip draws the counts: a mark, its number, and room
-    /// between them.
-    static func stripReadingWidth(_ counts: ClaudeSessionCounts, textSize: CGFloat) -> CGFloat {
+    /// between them; and the limit's ring and share after them.
+    static func stripReadingWidth(_ counts: ClaudeSessionCounts, limit: String? = nil, textSize: CGFloat) -> CGFloat {
         let items = stripReading(counts)
-        guard !items.isEmpty else { return 0 }
         let digits = items.map { String($0.count).count }.reduce(0, +)
-        return CGFloat(items.count) * (textSize * 0.9 + 2) + CGFloat(digits) * textSize * 0.62
-            + CGFloat(items.count - 1) * 6
+        var width = CGFloat(items.count) * (textSize * 0.9 + 2) + CGFloat(digits) * textSize * 0.62
+            + CGFloat(max(0, items.count - 1)) * 6
+        if let limit {
+            // The ring, then the share in the counts' size, a little smaller.
+            width += (items.isEmpty ? 0 : 6) + stripLimitRing(textSize: textSize) + 2
+                + CGFloat(limit.count) * textSize * 0.62
+        }
+        return width
     }
+
+    /// The ring beside the limit's share on the strip.
+    static func stripLimitRing(textSize: CGFloat) -> CGFloat { (textSize * 0.75).rounded() }
 
     static func symbol(_ phase: ClaudeSessionPhase) -> String {
         switch phase {
@@ -187,6 +199,7 @@ enum NotchClaudeSessionsSupport {
         case .runningTool: return "hammer.fill"
         case .generating: return "sparkle"
         case .background: return "hourglass"
+        case .limited: return "gauge.with.dots.needle.100percent"
         case .finished: return "checkmark.circle.fill"
         case .idle: return "moon.zzz.fill"
         }
@@ -278,6 +291,8 @@ enum NotchClaudeSessionsSupport {
         case .background: return .slow
         case .waitingPermission: return .alert
         case .waitingInput: return .ask
+        // Out of allowance, it sleeps until the limit resets.
+        case .limited: return .doze
         case .finished: return .content
         case .idle: return dozes(session, now: now) ? .doze : .rest
         }
