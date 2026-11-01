@@ -52,9 +52,8 @@ function windowName(window: LimitWindow): string {
   return window.kind === "weekly" ? A.weekly : A.session;
 }
 
-/** How much fits: every agent on one line with its account, then a line
- * each, then a line each without the reset countdowns. */
-type Fit = "line" | "stacked" | "shares";
+/** How much detail fits: reset countdowns, then shares only, then one window each. */
+type Fit = "full" | "shares" | "first";
 
 export function LimitsRow() {
   useLocale();
@@ -62,63 +61,40 @@ export function LimitsRow() {
   const snapshot = useAgents((s) => s.snapshot);
   const now = useClock(30_000);
   const groups = shows ? limitGroups(snapshot, now) : [];
-  const [fit, setFit] = useState<Fit>("line");
+  const [fit, setFit] = useState<Fit>("full");
   const row = useRef<HTMLDivElement>(null);
-  const key = groups.map((g) => `${g.provider}:${g.windows.length}:${snapshot.accounts?.[g.provider] ?? ""}`).join(",");
+  const key = groups.map((g) => `${g.provider}:${g.windows.length}`).join(",");
   // Steps down until the row fits the page, the way ViewThatFits does on the Mac.
-  useLayoutEffect(() => setFit("line"), [key]);
+  useLayoutEffect(() => setFit("full"), [key]);
   useLayoutEffect(() => {
     const el = row.current;
-    if (!el) return;
-    const over = [el, ...el.querySelectorAll<HTMLElement>(".s-limits-chip")].some(
-      (n) => n.scrollWidth > n.clientWidth + 1,
-    );
-    if (!over) return;
-    if (fit === "line") setFit("stacked");
-    else if (fit === "stacked") setFit("shares");
+    if (!el || el.scrollWidth <= el.clientWidth + 1) return;
+    if (fit === "full") setFit("shares");
+    else if (fit === "shares") setFit("first");
   });
   if (groups.length === 0) return null;
   return (
-    <div className={`s-limits${fit === "line" ? "" : " is-stacked"}`} ref={row} role="group" aria-label={S.limitsTitle}>
+    <div className="s-limits" ref={row} role="group" aria-label={S.limitsTitle}>
       {groups.map((group) => (
-        <Chip
-          key={group.provider}
-          group={group}
-          now={now}
-          fit={fit}
-          stale={staleOf(group, snapshot, now)}
-          account={accountOf(group.provider, snapshot)}
-        />
+        <Chip key={group.provider} group={group} now={now} fit={fit} stale={staleOf(group, snapshot, now)} />
       ))}
     </div>
   );
-}
-
-/** The account the limits are of: its email and plan, as the agent's own
- * files on this computer say; null while neither is known. */
-function accountOf(provider: "claude" | "codex", snapshot: ReturnType<typeof useAgents.getState>["snapshot"]) {
-  const parts = [snapshot.accounts?.[provider], snapshot.plans[provider]?.name].filter(Boolean);
-  return parts.length ? parts.join(" · ") : null;
 }
 
 function staleOf(group: LimitGroup, snapshot: ReturnType<typeof useAgents.getState>["snapshot"], now: number) {
   return limitsAreStale(snapshot.limits[group.provider], group.provider, now);
 }
 
-function Chip(props: { group: LimitGroup; now: number; fit: Fit; stale: boolean; account: string | null }) {
+function Chip({ group, now, fit, stale }: { group: LimitGroup; now: number; fit: Fit; stale: boolean }) {
   useLocale();
-  const { group, now, fit, stale, account } = props;
   const Mark = group.provider === "codex" ? CodexMark : ClaudeMark;
+  const windows = fit === "first" ? group.windows.slice(0, 1) : group.windows;
   return (
     <span className={`s-limits-chip${stale ? " is-stale" : ""}`}>
       <Mark size={10} />
-      {account ? (
-        <span className="s-limits-account" title={account}>
-          {account}
-        </span>
-      ) : null}
-      {group.windows.map((window) => (
-        <Window key={window.id} provider={group.provider} window={window} now={now} resets={fit !== "shares"} />
+      {windows.map((window) => (
+        <Window key={window.id} provider={group.provider} window={window} now={now} resets={fit === "full"} />
       ))}
     </span>
   );

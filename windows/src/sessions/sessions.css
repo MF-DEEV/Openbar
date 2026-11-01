@@ -72,35 +72,6 @@
   transition: opacity 0.2s;
 }
 
-.s-limits.is-stacked {
-  flex-direction: column;
-  gap: 4px;
-}
-
-.s-limits.is-stacked .s-limits-chip {
-  flex: none;
-  max-width: none;
-}
-
-/* The account's email and plan: whose limits these are. Gives way first. */
-.s-limits-account {
-  min-width: 0;
-  flex: 0 1 auto;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 9.5px;
-  font-weight: 500;
-  color: rgba(255, 255, 255, 0.6);
-}
-
-.s-limits.is-stacked .s-limits-account {
-  flex: 1 1 auto;
-}
-
-.s-limits-window {
-  flex: none;
-}
-
 .s-limits-chip.is-stale {
   opacity: 0.6;
 }

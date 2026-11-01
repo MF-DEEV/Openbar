@@ -36,7 +36,6 @@ export function emptySnapshot(): AgentSnapshot {
     resets: { checking: false, count: null, credits: [], failure: null, checkedAt: null },
     codexAccounts: [],
     priceDay: "",
-    accounts: {},
   };
 }
 

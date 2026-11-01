@@ -185,8 +185,6 @@ export interface AgentSnapshot {
   codexAccounts: CodexAccount[];
   /** The price list's `updated` day, "YYYY-MM-DD". */
   priceDay: string;
-  /** The email of the account each agent is signed in to, whose plan the limits are. */
-  accounts?: Partial<Record<Provider, string>>;
 }
 
 export type AgentEvent =

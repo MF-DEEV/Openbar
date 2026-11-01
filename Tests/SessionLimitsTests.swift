@@ -259,15 +259,5 @@ enum SessionLimitsTests {
         let far = NotchSessionLimitsSupport.resetText(noon.addingTimeInterval(86_400 * 9), now: noon, locale: english, calendar: calendar)
         suite.expect(far.contains("Nov") || far.contains("Oct"), "past it, the date: \(far)")
         suite.expect(NotchClaudeSessionsSupport.motion(stopped, now: at(1)) == .doze, "a stopped session's Clawd sleeps it off")
-
-        // Whose limits they are: the email in Codex's identity token, nothing else.
-        let claims = Data(#"{"email":"me@example.com","sub":"x"}"#.utf8).base64EncodedString()
-            .replacingOccurrences(of: "+", with: "-").replacingOccurrences(of: "/", with: "_").replacingOccurrences(of: "=", with: "")
-        let auth = Data(#"{"auth_mode":"chatgpt","tokens":{"id_token":"h.\#(claims).s","access_token":"secret"}}"#.utf8)
-        suite.expect(AgentAccountIdentity.codexEmail(auth) == "me@example.com", "the account's email comes from the id token")
-        suite.expect(AgentAccountIdentity.codexEmail(Data(#"{"OPENAI_API_KEY":"sk-x","tokens":null}"#.utf8)) == nil,
-                     "an API key has no account email")
-        suite.expect(AgentAccountIdentity.codexEmail(Data(#"{"tokens":{"id_token":"nonsense"}}"#.utf8)) == nil,
-                     "an unreadable token gives nothing")
     }
 }
