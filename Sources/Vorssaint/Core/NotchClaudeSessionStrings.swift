@@ -67,6 +67,10 @@ struct NotchClaudeSessionStrings {
     let replyPlaceholder: String
     let replyPlaceholderCodex: String
     let replyUnavailable: String
+    /// Replies can't reach the app showing this session, named.
+    let replyUnavailableFormat: String
+    let replyKittyRemote: String
+    let openInFormat: String
     let replyWhileWaiting: String
     let replyWhileDialog: String
     let tasksFormat: String
@@ -109,9 +113,10 @@ struct NotchClaudeSessionStrings {
     let settingsBusy: String
     let settingsNoBackup: String
     let bridgeMissing: String
-    let antigravityMissing: String
+    let editorMissingFormat: String
     let bridgePackageFailed: String
-    let bridgeRefused: String
+    let bridgeRefusedFormat: String
+    let bridgeNoEditors: String
     let openFailed: String
     /// A whole session running with no terminal, and what can be done with it.
     let backgroundMark: String
@@ -198,6 +203,17 @@ struct NotchClaudeSessionStrings {
     func leftRunning(_ count: Int) -> String { String(format: leftRunningFormat, count) }
     func finishedAfter(_ duration: String) -> String { String(format: finishedAfterFormat, duration) }
     func hooksFailed(_ reason: String) -> String { String(format: hooksFailedFormat, reason) }
+    func editorMissing(_ name: String) -> String { String(format: editorMissingFormat, name) }
+    func bridgeRefused(_ name: String) -> String { String(format: bridgeRefusedFormat, name) }
+    func openIn(_ name: String) -> String { String(format: openInFormat, name) }
+
+    /// What the reply field says when replies can't reach the session's
+    /// terminal, naming that terminal when the island knows it.
+    func replyUnavailable(for host: ClaudeSessionHost) -> String {
+        if case .kitty = host { return replyKittyRemote }
+        guard let bundle = host.bundle else { return replyUnavailable }
+        return String(format: replyUnavailableFormat, ClaudeTerminalApps.name(of: bundle))
+    }
     func dressUp(_ name: String) -> String { String(format: dressUpFormat, name) }
     func image(_ number: Int) -> String { String(format: imageFormat, number) }
 
@@ -223,7 +239,7 @@ extension NotchClaudeSessionStrings {
         summary: "Running Claude Code and Codex sessions, and what each one needs from you.",
         settingsDescription: "Reads the state Claude Code and Codex keep for each running session on this Mac. Prompts and replies stay unread unless you turn on previews, and nothing leaves your Mac.",
         emptyTitle: "No sessions running",
-        emptyDetail: "Start Claude Code or Codex in Terminal or Antigravity and it shows up here.",
+        emptyDetail: "Start Claude Code or Codex in a terminal or an editor and it shows up here.",
         generating: "Working",
         runningTool: "Running",
         waitingPermission: "Needs permission",
@@ -277,7 +293,10 @@ extension NotchClaudeSessionStrings {
         send: "Send",
         replyPlaceholder: "Reply to Claude…",
         replyPlaceholderCodex: "Reply to Codex…",
-        replyUnavailable: "Replies work in Terminal and Antigravity",
+        replyUnavailable: "Replies can’t reach this session yet",
+        replyUnavailableFormat: "Replies aren’t available in %@ yet",
+        replyKittyRemote: "Turn on remote control in kitty.conf to reply",
+        openInFormat: "Open in %@",
         replyWhileWaiting: "Answer the prompt first",
         replyWhileDialog: "Close the dialog in the terminal first",
         tasksFormat: "%1$d of %2$d tasks",
@@ -307,8 +326,8 @@ extension NotchClaudeSessionStrings {
         shortcutsHintAlways: "⌘Y allows, ⌘T picks Always and ⌘N denies, even while another app is in front.",
         sendFailed: "Couldn’t reach that terminal",
         sendWhileWaiting: "It’s waiting on a prompt now. Answer it first.",
-        bridgeTitle: "Antigravity extension",
-        bridgeHint: "Replies to sessions in Antigravity go through a small extension included with this app. It shows a terminal or types into it only when you ask.",
+        bridgeTitle: "Editor extension",
+        bridgeHint: "Replies to sessions in the terminal of VS Code, Cursor, Windsurf or Antigravity go through a small extension included with this app. It shows a terminal or types into it only when you ask.",
         codexHint: "Nothing to install. The island talks to the app server Codex runs while it’s open, so approvals and replies go to Codex itself, not through the terminal.",
         codexConnected: "Connected",
         codexNotRunning: "Starts with Codex",
@@ -319,9 +338,10 @@ extension NotchClaudeSessionStrings {
         settingsBusy: "Claude Code kept changing settings.json",
         settingsNoBackup: "Couldn’t keep a copy of settings.json, so it was left alone",
         bridgeMissing: "The extension is missing from the app",
-        antigravityMissing: "Antigravity isn’t installed",
+        editorMissingFormat: "%@ isn’t installed",
         bridgePackageFailed: "Couldn’t package the extension",
-        bridgeRefused: "Antigravity refused the extension",
+        bridgeRefusedFormat: "%@ refused the extension",
+        bridgeNoEditors: "No VS Code, Cursor, Windsurf or Antigravity on this Mac",
         openFailed: "Couldn’t find that window",
         backgroundMark: "Background",
         backgroundHelp: "Runs in the background, with no terminal. Open attaches one.",

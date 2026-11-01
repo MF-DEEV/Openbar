@@ -166,7 +166,7 @@ enum ClaudeBackgroundSessionTests {
         var inTerminal = NotchSessionAgentTests.session("b", .idle, provider: .claude)
         inTerminal.lastActive = Date(timeIntervalSinceReferenceDate: 1)
         var inIDE = inTerminal
-        inIDE.host = .antigravity(port: nil)
+        inIDE.host = .ide(bundle: ClaudeSessionHosts.antigravity, port: nil)
         inIDE.lastActive = Date(timeIntervalSinceReferenceDate: 20)
         suite.expect(ClaudeTerminalLauncher.preferred(from: [inTerminal, inGhostty, inIDE]) == "com.mitchellh.ghostty", "the terminal used last, an IDE being none")
         suite.expect(ClaudeTerminalLauncher.preferred(from: [inIDE]) == nil, "none: Terminal")
