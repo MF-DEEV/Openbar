@@ -600,7 +600,10 @@ enum ClaudeTerminalLauncher {
 
     static func open(_ line: String, terminal: String?) -> Bool {
         if let terminal, terminal != ClaudeSessionHosts.terminal, openScript(line, bundle: terminal) { return true }
-        guard AppleScriptRunner.consentToAutomate(bundleID: ClaudeSessionHosts.terminal) else { return false }
+        // Without leave to script Terminal, it still runs a `.command` file it opens.
+        guard AppleScriptRunner.consentToAutomate(bundleID: ClaudeSessionHosts.terminal) else {
+            return openScript(line, bundle: ClaudeSessionHosts.terminal)
+        }
         let script = """
         tell application "Terminal"
             do script \(AppleScriptRunner.literal(line))
