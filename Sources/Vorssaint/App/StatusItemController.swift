@@ -883,14 +883,15 @@ final class StatusItemController {
 /// light and dark menu bars. Active states can use real colors for attention.
 /// A system symbol named in the menu bar settings can take the mark's place.
 enum BlackHoleGlyph {
-    /// Logical size of the glyph in the menu bar, in points. Wide because the
-    /// mark is ~1.97:1 and sized from its height. Tools/MakeIcon.swift writes
-    /// the bundled PNGs at this size; `--selftest` checks the two still agree.
+    /// Logical size of the glyph in the menu bar, in points. Wide enough for
+    /// the widest Keep Awake symbol; the helmet mark sits centered in it.
+    /// Tools/MakeIcon.swift writes the bundled PNGs at this size; `--selftest`
+    /// checks the two still agree.
     static let pointSize = NSSize(width: 26, height: 20)
 
-    /// Requested ink height for the active states' system symbols. A compact
-    /// symbol has to stand taller than the wide mark to read as the same size,
-    /// matching the menu bar's other compact icons at ~15 pt. Antialiasing
+    /// Requested ink height for the active states' system symbols, the same
+    /// height Tools/MakeIcon.swift gives the helmet mark, matching the menu
+    /// bar's other compact icons at ~15 pt. Antialiasing
     /// costs about a point of what is asked for here.
     private static let symbolHeight: CGFloat = 16
 

@@ -238,9 +238,16 @@ func appDelegate() -> AppDelegate? {
 
 /// The official mark (Resources/Brand/logo.png, trimmed at build time),
 /// tintable for light or dark surfaces.
+///
+/// `width` sizes a slot of `width × width / slotAspect`, the footprint the
+/// earlier wide mark filled, so layouts built around it keep their spacing.
+/// The helmet fits that slot by its height; pass `height` for a taller slot.
 struct BrandMark: View {
     var width: CGFloat
+    var height: CGFloat? = nil
     var tint: Color = .white
+
+    static let slotAspect: CGFloat = 1.97
 
     private static let mark: NSImage? = {
         guard let url = Bundle.main.url(forResource: "BrandMark", withExtension: "png") else { return nil }
@@ -256,7 +263,7 @@ struct BrandMark: View {
                 .resizable()
                 .aspectRatio(contentMode: .fit)
                 .foregroundStyle(tint)
-                .frame(width: width)
+                .frame(width: width, height: height ?? width / Self.slotAspect)
         } else {
             Image(systemName: "circle.fill")
                 .resizable()
@@ -287,16 +294,19 @@ struct DiscordMark: View {
     }
 }
 
-/// Squircle badge with the mark on the space gradient — the app's face in the
-/// About tab and onboarding.
+/// Squircle badge with the white helmet on black, as in the app icon — the
+/// app's face in the About tab and onboarding.
 struct BrandBadge: View {
     var size: CGFloat
 
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
-                .fill(Theme.spaceGradient)
-            BrandMark(width: size * 0.8)
+                .fill(Color.black)
+            RoundedRectangle(cornerRadius: size * 0.26, style: .continuous)
+                .strokeBorder(Color.white.opacity(0.14), lineWidth: max(0.5, size / 128))
+            // The icon's proportions: the helmet stands at ~70% of the badge.
+            BrandMark(width: size * 0.7, height: size * 0.7)
         }
         .frame(width: size, height: size)
     }
