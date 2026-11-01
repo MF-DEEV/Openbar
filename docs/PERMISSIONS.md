@@ -17,7 +17,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Notifications | Yes | Keep awake, battery, Monitor and update alerts |
 | Full Disk Access | Yes | A deeper uninstaller scan; agent colors from projects in protected folders |
 | Administrator (one time) | Yes | Password free closed lid toggling |
-| Automation | Yes | Finder actions, Homebrew Terminal handoff, replies to Claude Code sessions in Terminal and supported music playback controls |
+| Automation | Yes | Finder actions, Homebrew Terminal handoff, replies to Claude Code sessions in Terminal, iTerm2 and Ghostty, and supported music playback controls |
 | App Management | Yes | App installs, updates and removal |
 
 ## Accessibility
@@ -40,7 +40,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
   for you and for the optional side button trigger; opening apps, files and
   links with the keyboard shortcut alone needs nothing.
 - **Dynamic Island microphone status**, which reads Discord's Mute and Deafen controls and, while Discord is hidden, watches for the mute and deafen shortcuts you set in Discord without blocking them. Without the permission, Discord's state is not shown.
-- **Dynamic Island Sessions**, only if Accessibility is already allowed: Open brings the Antigravity window holding a session's folder to the front. It never asks for the permission; without it, Open brings Antigravity forward as a whole. It also opens a new Terminal window with `claude attach` for a background session, or to start a session in a terminal.
+- **Dynamic Island Sessions**, only if Accessibility is already allowed: Open brings the editor window (Antigravity, VS Code, Cursor, Windsurf) holding a session's folder to the front, and the WezTerm window showing a session's pane. It never asks for the permission; without it, Open brings Antigravity forward as a whole. It also opens a new Terminal window with `claude attach` for a background session, or to start a session in a terminal.
 
 **If you say no.** These features stay off. Vorssaint sees the moment you grant the permission and brings them to life with no relaunch.
 
@@ -156,10 +156,10 @@ Download monitoring watches your Downloads folder, the folders your browsers sav
 - **Uninstaller**, which moves leftover files to the Trash.
 - **Empty the Trash** in Quick toggles, which asks Finder to empty it. The other quick toggles, dark mode included, need no permission.
 - **Homebrew manager**, which can open Terminal with the exact Homebrew install or setup command when the app should not collect a password itself.
-- **Dynamic Island Sessions**, which finds the Terminal tab a Claude Code session runs in by its device, brings it forward when you press Open, and types the reply you send from the island into it. Nothing is typed while that session waits on a permission or a question. Sessions in Antigravity go through the extension the page installs instead, which needs no permission. Answering permission prompts and Claude's questions from the island goes through Claude Code hooks, which are written to `~/.claude/settings.json` when you press Install Hooks and need no permission either. Codex sessions take approvals, answers and replies through Codex's own app server and need no permission; Open on one finds its Terminal tab the same way.
+- **Dynamic Island Sessions**, which finds the Terminal tab a Claude Code session runs in by its device, brings it forward when you press Open, and types the reply you send from the island into it. Nothing is typed while that session waits on a permission or a question. iTerm2 and Ghostty (1.4 or later) are reached the same way: the island asks each app for the session whose device is the session's own, and macOS asks once per app whether Vorssaint may control it. Sessions in the terminal of Antigravity, VS Code, Cursor or Windsurf go through the extension the page installs into that editor instead, which needs no permission. Sessions in tmux, WezTerm and kitty go through those programs' own command lines and need no permission either: the island checks that the tmux pane, WezTerm pane or kitty window still runs the session before it selects or types anything. kitty takes keys from outside only with remote control turned on in kitty.conf (`allow_remote_control` and `listen_on`). Warp, Alacritty and other terminals can only be brought forward, and the reply field says so. Answering permission prompts and Claude's questions from the island goes through Claude Code hooks, which are written to `~/.claude/settings.json` when you press Install Hooks and need no permission either. Codex sessions take approvals, answers and replies through Codex's own app server and need no permission; Open on one finds its Terminal tab the same way.
 - **Dynamic Island playback**, when a music app requires Automation to control its own playback while another app is active. Only playback commands declared by the selected app are used; an explicit button requests permission before a new action can be sent. The shuffle button on the music page reads and switches only the shuffle setting the app declares, and reads whether shuffle is available for what is playing when the app declares that too. Until the app is allowed, its first press only asks for this permission, even for an app whose playback controls work without it.
 
-**If you say no.** Those Finder or Terminal handoff steps will not go through, and replies to sessions in Terminal stay unsent; you can still answer in the session's own tab. Music stays visible, and you can open its player to control it there. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
+**If you say no.** Those Finder or Terminal handoff steps will not go through, and replies to sessions in Terminal, iTerm2 or Ghostty stay unsent; you can still answer in the session's own tab. Music stays visible, and you can open its player to control it there. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
 
 **Optional.** Yes.
 

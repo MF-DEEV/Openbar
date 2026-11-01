@@ -627,6 +627,31 @@ mod tests {
         );
     }
 
+    #[test]
+    #[cfg(windows)]
+    #[ignore = "Types into the live session process selected with VORSSAINT_TEST_REPLY_PID"]
+    fn live_session_reply_reaches_its_host() {
+        let pid: u32 = std::env::var("VORSSAINT_TEST_REPLY_PID")
+            .expect("set the target pid")
+            .parse()
+            .unwrap();
+        let text = std::env::var("VORSSAINT_TEST_REPLY_TEXT")
+            .unwrap_or_else(|_| "hello\nsecond line".into());
+        let located = locate(pid).expect("session ancestors");
+        eprintln!(
+            "Host: {:?}; name: {:?}; replies: {}",
+            located.host,
+            located.host.display_name(),
+            located.host.accepts_replies()
+        );
+        if std::env::var("VORSSAINT_TEST_OPEN").is_ok() {
+            eprintln!("Open: {}", focus(pid, &located, ""));
+        }
+        let delivered = deliver(pid, &located, &text, &[]);
+        eprintln!("Delivered: {delivered:?}");
+        assert_eq!(delivered.is_ok(), located.host.accepts_replies());
+    }
+
     fn chain(names: &[&str]) -> Vec<Entry> {
         names
             .iter()
