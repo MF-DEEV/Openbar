@@ -619,5 +619,11 @@
   "windows.sessions.defaultModel": "デフォルト",
   "windows.sessions.backgroundNeedsPrompt": "バックグラウンドでは、セッションに最初のプロンプトが必要です。",
   "windows.sessions.codexNotStarted": "Codex のバックグラウンドサーバーが起動しませんでした。ターミナルで試してください。",
-  "windows.sessions.codexFailed": "Codex はセッションを開始できませんでした"
+  "windows.sessions.codexFailed": "Codex はセッションを開始できませんでした",
+  "notchClaudeSessions.limited": "上限に到達",
+  "notchClaudeSessions.resumesFormat": "%@に再開",
+  "notchClaudeSessions.limitsTitle": "プランの上限",
+  "notchClaudeSessions.resetsFormat": "%@にリセット",
+  "notchClaudeSessions.limitsSetting": "プランの上限を表示",
+  "windows.settings.sessions.limitsCaption": "Claude と Codex のプラン上限の使用量を、セッションの横に、上限が近づくとストリップにも表示します。AI Agents がオフでも、このためにアイランドは上限を読み続けます。"
 }

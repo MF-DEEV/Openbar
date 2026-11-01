@@ -204,6 +204,9 @@ export function SessionsOptions() {
       <SubRow title={T.sessions.buddies} caption={T.sessions.buddiesCaption}>
         <Toggle label={T.sessions.buddies} checked={prefs.buddies} onChange={(on) => set("buddies", on)} />
       </SubRow>
+      <SubRow title={T.sessions.limits} caption={T.sessions.limitsCaption}>
+        <Toggle label={T.sessions.limits} checked={prefs.limits} onChange={(on) => set("limits", on)} />
+      </SubRow>
     </>
   );
 }

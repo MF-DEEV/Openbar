@@ -254,7 +254,7 @@ function breath(time: number, period: number): number {
 // MARK: Motion per phase (NotchClaudeSessionsSupport.swift:189-234)
 
 export type SessionPhase =
-  "generating" | "runningTool" | "background" | "waitingPermission" | "waitingInput" | "finished" | "idle";
+  "generating" | "runningTool" | "background" | "waitingPermission" | "waitingInput" | "limited" | "finished" | "idle";
 
 /** What a session's Clawd does in each phase; an idle session asleep dozes. */
 export function motionForPhase(phase: SessionPhase, dozing = false): ClawdMotion {
@@ -269,6 +269,9 @@ export function motionForPhase(phase: SessionPhase, dozing = false): ClawdMotion
       return "alert";
     case "waitingInput":
       return "ask";
+    // Out of allowance, it sleeps until the limit resets.
+    case "limited":
+      return "doze";
     case "finished":
       return "content";
     case "idle":

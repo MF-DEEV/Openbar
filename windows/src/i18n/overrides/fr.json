@@ -619,5 +619,11 @@
   "windows.sessions.defaultModel": "Par défaut",
   "windows.sessions.backgroundNeedsPrompt": "En arrière-plan, une session a besoin d’un premier prompt.",
   "windows.sessions.codexNotStarted": "Le serveur d’arrière-plan de Codex n’a pas démarré. Essayez dans le terminal.",
-  "windows.sessions.codexFailed": "Codex n’a pas pu démarrer la session"
+  "windows.sessions.codexFailed": "Codex n’a pas pu démarrer la session",
+  "notchClaudeSessions.limited": "Limite atteinte",
+  "notchClaudeSessions.resumesFormat": "reprend %@",
+  "notchClaudeSessions.limitsTitle": "Limites du forfait",
+  "notchClaudeSessions.resetsFormat": "renouvelée %@",
+  "notchClaudeSessions.limitsSetting": "Afficher les limites du forfait",
+  "windows.settings.sessions.limitsCaption": "Affiche la part utilisée des limites des forfaits Claude et Codex, à côté des sessions et sur la bande quand une limite approche. Avec AI Agents désactivé, l’île continue de lire les limites pour cela."
 }

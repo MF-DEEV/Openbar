@@ -6,7 +6,15 @@
 // are on; a permission's detail and questions are always present.
 
 export type Phase =
-  "generating" | "runningTool" | "waitingPermission" | "waitingInput" | "background" | "finished" | "idle";
+  "generating" | "runningTool" | "waitingPermission" | "waitingInput" | "background" | "limited" | "finished" | "idle";
+
+/** A turn the plan's usage limit stopped, as the agent recorded it (seconds). */
+export interface LimitStop {
+  at: number;
+  /** When the limit lifts, when the agent said; otherwise the limits reading tells. */
+  resetsAt?: number;
+  kind?: "session" | "weekly" | "other";
+}
 
 export type HostKind = "windowsTerminal" | "vscode" | "conhost" | "app" | "background" | "unknown";
 
@@ -113,6 +121,8 @@ export interface Session {
   services: number;
   /** Set for a whole session running in the background, with no terminal. */
   background?: BackgroundDetails;
+  /** Why the session stopped, while `phase` is "limited". */
+  limitStop?: LimitStop;
 }
 
 export type BackgroundState = "working" | "blocked" | "done" | "failed" | "stopped";
@@ -138,6 +148,8 @@ export interface Counts {
   /** Of `working`, the Codex ones. */
   workingCodex: number;
   waiting: number;
+  /** Stopped by the plan's usage limit; absent from an older service. */
+  limited?: number;
   finished: number;
 }
 

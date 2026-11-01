@@ -216,6 +216,7 @@ pub fn ended_session(job: &Job, ended: Time, branch: Option<String>) -> Session 
             ended: true,
             config_home: job.config_home.clone(),
         }),
+        limit_stop: None,
     }
 }
 

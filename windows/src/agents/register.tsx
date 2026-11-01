@@ -19,6 +19,9 @@ import { cost, duration, PROVIDER_NAMES, PROVIDER_TINTS } from "./format";
 import { advancesWithClock, limitShare, readingShape, windowLabel, workingProviders } from "./model";
 import { Mark } from "./Parts";
 import { subscribeAgents, useAgents } from "./store";
+import { useSessions } from "../sessions/store";
+import { runningSessions } from "../sessions/limits";
+import { sessionLimitsOn } from "../sessions/stripLimit";
 import { A } from "./strings";
 import type { AgentEvent, Provider } from "./types";
 import "./agents.css";
@@ -95,7 +98,9 @@ function picture(element: ReactElement): string | undefined {
 
 const markPicture = (provider: Provider) => picture(<Mark provider={provider} size={16} />);
 
-export function agentNotice(event: AgentEvent, display: "remaining" | "used") {
+/** `running`: the warned agent's sessions at work or waiting, which the
+ * person weighs against what is left. */
+export function agentNotice(event: AgentEvent, display: "remaining" | "used", running = 0) {
   switch (event.kind) {
     case "finished":
       return {
@@ -106,7 +111,9 @@ export function agentNotice(event: AgentEvent, display: "remaining" | "used") {
     case "limitWarning":
       return {
         title: `${PROVIDER_NAMES[event.provider]} · ${windowLabel(event.window)}`,
-        detail: limitShare(event.window, display),
+        detail: [limitShare(event.window, display), running > 0 ? A.sessionsRunning(running) : ""]
+          .filter(Boolean)
+          .join(" · "),
         image: () => picture(<TriangleAlert size={18} color={PROVIDER_TINTS[event.provider]} strokeWidth={2.25} />),
       };
     case "limitReset":
@@ -125,17 +132,26 @@ export function agentNotice(event: AgentEvent, display: "remaining" | "used") {
 }
 
 export function present(event: AgentEvent) {
-  if (!shown()) return;
+  // With the AI section off, agent_usage reads for Sessions alone and only
+  // its limit alerts arrive; they speak through Sessions.
+  const limits = event.kind === "limitWarning" || event.kind === "limitReset";
+  const throughSessions = !shown() && limits && sessionLimitsOn();
+  if (!shown() && !throughSessions) return;
   const island = useIsland.getState();
-  const notice = agentNotice(event, island.settings.agentsLimitDisplay);
+  const sessionsOn = island.settings.enabled && modulesOf(island).includes("sessions");
+  const running =
+    event.kind === "limitWarning" && sessionsOn
+      ? runningSessions(useSessions.getState().snapshot.sessions, event.provider)
+      : 0;
+  const notice = agentNotice(event, island.settings.agentsLimitDisplay, running);
   island.showNotice({
     id: `agents:${event.kind}:${Date.now()}`,
-    kind: "agents",
+    kind: throughSessions ? "sessions" : "agents",
     title: notice.title,
     detail: notice.detail,
     priority: 1,
     duration: 5,
-    opens: "agents",
+    opens: throughSessions ? "sessions" : "agents",
     image: notice.image(),
     // A warning keeps a symbol that says what happened.
     mascot: event.kind === "limitReset" ? "celebrate" : undefined,

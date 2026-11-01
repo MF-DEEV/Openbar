@@ -11,12 +11,51 @@
 use serde_json::{Map, Value};
 
 use super::models::{
-    ContentPolicy, TaskProgress, Time, Tokens, ToolUse, TranscriptFact, background_kind,
-    char_count, days_from_civil, dicts, is_true, last_path_component, preview, str_of,
-    tool_summary, trim,
+    ContentPolicy, LimitKind, LimitStop, TaskProgress, Time, Tokens, ToolUse, TranscriptFact,
+    background_kind, char_count, days_from_civil, dicts, is_true, last_path_component, preview,
+    str_of, tool_summary, trim,
 };
 
 pub const PREVIEW_LIMIT: usize = 280;
+
+/// The plan's usage limit, as Claude Code records the error that stopped a
+/// turn on it: an API error message whose `apiError` is
+/// `usage_limit_reached`, or a rate limit the plan rejected, with the window
+/// and its reset in `rate_limit_info` (or `quotaLimits`). A passing rate
+/// limit, which Claude Code retries, is not one.
+pub fn limit_stop(json: &Map<String, Value>, at: Time) -> Option<LimitStop> {
+    if !is_true(json.get("isApiErrorMessage")) {
+        return None;
+    }
+    let quota = json.get("quotaLimits").and_then(Value::as_object);
+    let info = json
+        .get("apiErrorParams")
+        .and_then(|params| params.get("rate_limit_info"))
+        .and_then(Value::as_object)
+        .or(quota);
+    let window = info.and_then(|info| str_of(info.get("rateLimitType")));
+    let reached = str_of(json.get("apiError")) == Some("usage_limit_reached")
+        || (str_of(json.get("error")) == Some("rate_limit")
+            && info.and_then(|info| str_of(info.get("status"))) == Some("rejected")
+            && window.is_some());
+    if !reached {
+        return None;
+    }
+    let resets = info
+        .and_then(|info| info.get("resetsAt"))
+        .and_then(Value::as_f64)
+        .or_else(|| {
+            quota
+                .and_then(|quota| quota.get("resetsAt"))
+                .and_then(Value::as_f64)
+        })
+        .filter(|resets| resets.is_finite() && *resets > 0.0);
+    Some(LimitStop {
+        at,
+        resets_at: resets,
+        kind: LimitKind::of_claude(window),
+    })
+}
 /// A reply is kept whole enough to read in the session's window.
 pub const REPLY_LIMIT: usize = 6000;
 
@@ -199,6 +238,9 @@ impl TranscriptReader {
                         }
                         _ => {}
                     }
+                }
+                if let Some(limit) = limit_stop(&json, date) {
+                    facts.push(TranscriptFact::LimitReached(limit));
                 }
                 let stop = str_of(message.get("stop_reason"));
                 if let Some(stop) = stop.filter(|s| TURN_ENDS.contains(s)) {
@@ -1267,5 +1309,68 @@ mod tests {
                 .iter()
                 .any(|f| matches!(f, TranscriptFact::PromptImages { .. }))
         );
+    }
+
+    // SessionLimitsTests.swift: the record Claude Code 2.1.316 wrote, trimmed.
+    const SESSION_LIMIT: &str = r#"{"type":"assistant","timestamp":"2026-10-20T14:55:45.284Z","message":{"model":"<synthetic>","role":"assistant","stop_reason":"stop_sequence","content":[{"type":"text","text":"You've hit your session limit · resets 5pm (Europe/Warsaw)"}]},"apiError":"usage_limit_reached","apiErrorParams":{"rate_limit_info":{"status":"rejected","resetsAt":1792508400,"rateLimitType":"five_hour"}},"quotaLimits":{"status":"rejected","resetsAt":1792508400,"rateLimitType":"five_hour"},"error":"rate_limit","isApiErrorMessage":true,"sessionId":"s1"}"#;
+    const WEEKLY_LIMIT: &str = r#"{"type":"assistant","timestamp":"2026-10-20T15:00:00.000Z","message":{"model":"<synthetic>","role":"assistant","stop_reason":"stop_sequence","content":[{"type":"text","text":"You've hit your weekly limit"}]},"error":"rate_limit","isApiErrorMessage":true,"quotaLimits":{"status":"rejected","resetsAt":1792900000,"rateLimitType":"seven_day"},"sessionId":"s1"}"#;
+    const RATE_LIMITED: &str = r#"{"type":"assistant","timestamp":"2026-10-20T15:01:00.000Z","message":{"model":"<synthetic>","role":"assistant","stop_reason":"stop_sequence","content":[{"type":"text","text":"API Error: Rate limit reached"}]},"error":"rate_limit","isApiErrorMessage":true,"sessionId":"s1"}"#;
+    const TALK: &str = r#"{"type":"assistant","timestamp":"2026-10-20T15:02:00.000Z","message":{"model":"claude-opus-5-5","role":"assistant","stop_reason":"end_turn","content":[{"type":"text","text":"usage_limit_reached is what it writes"}]},"apiError":"usage_limit_reached","sessionId":"s1"}"#;
+
+    fn stops(facts: &[TranscriptFact]) -> Vec<LimitStop> {
+        facts
+            .iter()
+            .filter_map(|fact| match fact {
+                TranscriptFact::LimitReached(stop) => Some(*stop),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_plan_limit_record_stops_its_turn() {
+        let facts = parse(&[SESSION_LIMIT], false);
+        let stop = stops(&facts)[0];
+        assert_eq!(stop.at, parse_iso("2026-10-20T14:55:45.284Z").unwrap());
+        assert_eq!(stop.resets_at, Some(1_792_508_400.0));
+        assert_eq!(stop.kind, Some(LimitKind::Session));
+        let reached = facts
+            .iter()
+            .position(|f| matches!(f, TranscriptFact::LimitReached(_)));
+        let ended = facts.iter().position(|f| {
+            matches!(
+                f,
+                TranscriptFact::TurnEnded {
+                    completed: false,
+                    ..
+                }
+            )
+        });
+        assert!(
+            reached.unwrap() < ended.unwrap(),
+            "the limit comes before the failed end"
+        );
+        let weekly = stops(&parse(&[WEEKLY_LIMIT], false))[0];
+        assert_eq!(
+            (weekly.kind, weekly.resets_at),
+            (Some(LimitKind::Weekly), Some(1_792_900_000.0))
+        );
+        assert!(
+            stops(&parse(&[RATE_LIMITED], false)).is_empty(),
+            "a passing rate limit is no stop"
+        );
+        assert!(
+            stops(&parse(&[TALK], false)).is_empty(),
+            "a reply that is no API error is no stop"
+        );
+        assert_eq!(
+            LimitKind::of_claude(Some("seven_day_opus")),
+            Some(LimitKind::Weekly)
+        );
+        assert_eq!(
+            LimitKind::of_claude(Some("overage")),
+            Some(LimitKind::Other)
+        );
+        assert_eq!(LimitKind::of_claude(None), None);
     }
 }

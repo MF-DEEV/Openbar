@@ -42,6 +42,9 @@ pub enum SessionPhase {
     /// The turn ended but a command it started, like a render, or a subagent
     /// it sent off still runs in the background; Claude Code hears when it ends.
     Background,
+    /// The plan's usage limit stopped the turn; it goes on, by itself or
+    /// with a prompt, once the limit resets.
+    Limited,
     /// The turn ended and the person has not looked at it yet.
     Finished,
     Idle,
@@ -67,10 +70,58 @@ impl SessionPhase {
             Self::WaitingPermission => 0,
             Self::WaitingInput => 1,
             Self::RunningTool | Self::Generating => 2,
-            Self::Background => 3,
-            Self::Finished => 4,
-            Self::Idle => 5,
+            Self::Limited => 3,
+            Self::Background => 4,
+            Self::Finished => 5,
+            Self::Idle => 6,
         }
+    }
+}
+
+/// The plan window that ran out, when the agent says which.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum LimitKind {
+    Session,
+    Weekly,
+    Other,
+}
+
+impl LimitKind {
+    /// The window Claude Code names in `rateLimitType`.
+    pub fn of_claude(raw: Option<&str>) -> Option<Self> {
+        let raw = raw?;
+        Some(if raw == "five_hour" {
+            Self::Session
+        } else if raw.starts_with("seven_day") {
+            Self::Weekly
+        } else {
+            Self::Other
+        })
+    }
+}
+
+/// A turn the plan's usage limit stopped, as the agent recorded it.
+#[derive(Clone, Copy, Debug, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LimitStop {
+    /// When the agent hit the limit.
+    pub at: Time,
+    /// When the limit lifts, when the agent said; otherwise the limits
+    /// reading tells.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub resets_at: Option<Time>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub kind: Option<LimitKind>,
+}
+
+impl LimitStop {
+    /// How long a stop with no known reset stays shown: a session window.
+    pub const UNKNOWN_RESET_HOLD: Time = 5.0 * 3600.0;
+
+    /// Whether the stop still holds at `now`: until the limit resets.
+    pub fn holds(&self, now: Time) -> bool {
+        now < self.resets_at.unwrap_or(self.at + Self::UNKNOWN_RESET_HOLD)
     }
 }
 
@@ -542,6 +593,9 @@ pub struct Session {
     /// Set for a whole session running in the background, with no terminal.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub background: Option<super::background::BackgroundDetails>,
+    /// Why the session stopped, while `phase` is `Limited`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit_stop: Option<LimitStop>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -551,6 +605,8 @@ pub struct SessionCounts {
     /// Of `working`, the Codex ones: each agent shows its own mark and color.
     pub working_codex: i64,
     pub waiting: i64,
+    /// Stopped by the plan's usage limit.
+    pub limited: i64,
     pub finished: i64,
 }
 
@@ -567,6 +623,9 @@ impl SessionCounts {
             if session.phase.is_waiting() {
                 counts.waiting += 1;
             }
+            if session.phase == SessionPhase::Limited {
+                counts.limited += 1;
+            }
             if session.phase == SessionPhase::Finished {
                 counts.finished += 1;
             }
@@ -575,7 +634,7 @@ impl SessionCounts {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.working + self.waiting + self.finished == 0
+        self.working + self.waiting + self.limited + self.finished == 0
     }
 }
 
@@ -681,6 +740,8 @@ pub enum TranscriptFact {
         description: Option<String>,
     },
     Tasks(TaskProgress),
+    /// The plan's usage limit stopped the turn.
+    LimitReached(LimitStop),
 }
 
 /// One hook event Claude Code sent while the session ran.
@@ -912,7 +973,7 @@ pub fn compare_sessions(lhs: &Session, rhs: &Session) -> Ordering {
             lhs.turn_started.unwrap_or(lhs.phase_since),
             rhs.turn_started.unwrap_or(rhs.phase_since),
         ),
-        SessionPhase::Background | SessionPhase::Finished => {
+        SessionPhase::Limited | SessionPhase::Background | SessionPhase::Finished => {
             time_order(rhs.phase_since, lhs.phase_since)
         }
         // The one that last worked comes first, so a session just looked at
@@ -1233,6 +1294,7 @@ mod tests {
             background_label: None,
             services: 0,
             background: None,
+            limit_stop: None,
         }
     }
 
@@ -1609,6 +1671,7 @@ mod tests {
                 working: 3,
                 working_codex: 1,
                 waiting: 2,
+                limited: 0,
                 finished: 1
             }
         );

@@ -619,5 +619,11 @@
   "windows.sessions.defaultModel": "預設",
   "windows.sessions.backgroundNeedsPrompt": "在背景執行時，工作階段需要第一個提示。",
   "windows.sessions.codexNotStarted": "Codex 的背景伺服器未能啟動。請改用終端機。",
-  "windows.sessions.codexFailed": "Codex 無法啟動工作階段"
+  "windows.sessions.codexFailed": "Codex 無法啟動工作階段",
+  "notchClaudeSessions.limited": "已達額度上限",
+  "notchClaudeSessions.resumesFormat": "%@ 恢復",
+  "notchClaudeSessions.limitsTitle": "方案額度",
+  "notchClaudeSessions.resetsFormat": "%@ 重設",
+  "notchClaudeSessions.limitsSetting": "顯示方案額度",
+  "windows.settings.sessions.limitsCaption": "在工作階段旁顯示 Claude 和 Codex 方案額度的用量，額度將盡時也顯示在條帶上。關閉 AI Agents 時，動態島仍會為此讀取額度。"
 }

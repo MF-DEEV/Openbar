@@ -619,5 +619,11 @@
   "windows.sessions.defaultModel": "Predvolený",
   "windows.sessions.backgroundNeedsPrompt": "Na pozadí potrebuje relácia prvý prompt.",
   "windows.sessions.codexNotStarted": "Server Codexu na pozadí sa nespustil. Skús Terminál.",
-  "windows.sessions.codexFailed": "Codex nedokázal spustiť reláciu"
+  "windows.sessions.codexFailed": "Codex nedokázal spustiť reláciu",
+  "notchClaudeSessions.limited": "Limit vyčerpaný",
+  "notchClaudeSessions.resumesFormat": "pokračuje %@",
+  "notchClaudeSessions.limitsTitle": "Limity plánu",
+  "notchClaudeSessions.resetsFormat": "obnoví sa %@",
+  "notchClaudeSessions.limitsSetting": "Zobraziť limity plánu",
+  "windows.settings.sessions.limitsCaption": "Ukazuje, koľko z limitov plánov Claude a Codex je minuté, vedľa relácií a na páse, keď sa limit blíži. Keď je AI Agents vypnuté, ostrov kvôli tomu limity číta ďalej."
 }

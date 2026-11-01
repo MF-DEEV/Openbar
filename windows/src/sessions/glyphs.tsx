@@ -66,6 +66,25 @@ export function SparkleFill({ size = 14, style, className }: GlyphProps) {
   );
 }
 
+/** A gauge with its needle at the end, filled (gauge.with.dots.needle.100percent):
+ * a session the plan's limit stopped. */
+export function GaugeFill({ size = 14, style, className }: GlyphProps) {
+  useLocale();
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" style={style} className={className} aria-hidden>
+      <circle cx="12" cy="12" r="11" fill="currentColor" />
+      <g fill="#000">
+        <circle cx="6.1" cy="14.8" r="1.15" />
+        <circle cx="6.6" cy="9.4" r="1.15" />
+        <circle cx="9.9" cy="6.3" r="1.15" />
+        <circle cx="14.3" cy="6.3" r="1.15" />
+      </g>
+      <path d="M12 13.6l6.4-1.9" stroke="#000" strokeWidth="2.4" strokeLinecap="round" />
+      <circle cx="12" cy="13.6" r="2.1" fill="#000" />
+    </svg>
+  );
+}
+
 // The makers' marks, as the Mac takes them from the installed apps. Paths
 // from @lobehub/icons-static-svg (MIT); the marks belong to Anthropic and
 // OpenAI and only name whose session it is.

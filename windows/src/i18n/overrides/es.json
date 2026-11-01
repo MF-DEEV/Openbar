@@ -619,5 +619,11 @@
   "windows.sessions.defaultModel": "Predeterminado",
   "windows.sessions.backgroundNeedsPrompt": "En segundo plano, una sesión necesita un primer prompt.",
   "windows.sessions.codexNotStarted": "El servidor en segundo plano de Codex no se inició. Prueba con Terminal.",
-  "windows.sessions.codexFailed": "Codex no pudo iniciar la sesión"
+  "windows.sessions.codexFailed": "Codex no pudo iniciar la sesión",
+  "notchClaudeSessions.limited": "Límite alcanzado",
+  "notchClaudeSessions.resumesFormat": "se reanuda %@",
+  "notchClaudeSessions.limitsTitle": "Límites del plan",
+  "notchClaudeSessions.resetsFormat": "se renueva %@",
+  "notchClaudeSessions.limitsSetting": "Mostrar límites del plan",
+  "windows.settings.sessions.limitsCaption": "Muestra cuánto se ha usado de los límites de los planes de Claude y Codex, junto a las sesiones y en la franja cuando un límite se acerca. Con AI Agents desactivado, la isla sigue leyendo los límites para esto."
 }

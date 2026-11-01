@@ -14,6 +14,8 @@ export const CLAUDE_TINT = "#D97857";
 export const CODEX_TINT = "#7D99FF";
 export const WAITING_TINT = "#FFC747";
 export const FINISHED_TINT = "#5CD685";
+/** Coral, apart from waiting's amber: the work stopped and waits on the plan. */
+export const LIMITED_TINT = "#FF756B";
 export const IDLE_TINT = "rgba(255,255,255,0.45)";
 export const LINK = "#6BA8FF";
 
@@ -34,6 +36,8 @@ export function phaseTint(phase: Phase, provider: Provider = "claude"): string {
     case "waitingPermission":
     case "waitingInput":
       return WAITING_TINT;
+    case "limited":
+      return LIMITED_TINT;
     case "finished":
       return FINISHED_TINT;
     case "idle":
@@ -157,11 +161,16 @@ export function cost(value: number): string {
   return `$${value.toFixed(2)}`;
 }
 
-/** What a row says after its phase (NotchClaudeSessionsView.activityText). */
-export function activityText(session: Session, name: string): string {
+/** What a row says after its phase (NotchClaudeSessionsView.activityText).
+ * `resumes` is when a session the plan's limit stopped goes on, as words. */
+export function activityText(session: Session, name: string, resumes?: string | null): string {
   const parts: (string | undefined)[] = [sessionPhaseLabel(session)];
   const p = session.permission;
   switch (session.phase) {
+    case "limited":
+      parts.push(resumes ? S.resumes(resumes) : undefined);
+      parts.push(session.title !== name ? session.title : undefined);
+      break;
     case "waitingPermission":
       parts.push(p?.tool ?? session.currentTool?.name, p ? (p.fitsOnALine ? p.detail : p.summary) : undefined);
       break;

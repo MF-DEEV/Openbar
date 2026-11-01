@@ -619,5 +619,11 @@
   "windows.sessions.defaultModel": "Varsayılan",
   "windows.sessions.backgroundNeedsPrompt": "Arka planda bir oturumun ilk bir isteme ihtiyacı var.",
   "windows.sessions.codexNotStarted": "Codex'in arka plan sunucusu başlamadı. Terminal'i deneyin.",
-  "windows.sessions.codexFailed": "Codex oturumu başlatamadı"
+  "windows.sessions.codexFailed": "Codex oturumu başlatamadı",
+  "notchClaudeSessions.limited": "Sınıra ulaşıldı",
+  "notchClaudeSessions.resumesFormat": "%@ devam eder",
+  "notchClaudeSessions.limitsTitle": "Plan sınırları",
+  "notchClaudeSessions.resetsFormat": "%@ sıfırlanır",
+  "notchClaudeSessions.limitsSetting": "Plan sınırlarını göster",
+  "windows.settings.sessions.limitsCaption": "Claude ve Codex plan sınırlarının ne kadarının kullanıldığını oturumların yanında, bir sınır yaklaştığında da şeritte gösterir. AI Agents kapalıyken ada bunun için sınırları okumaya devam eder."
 }

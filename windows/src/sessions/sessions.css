@@ -31,6 +31,114 @@
   box-shadow: inset 0 0 0 1px rgba(255, 199, 71, 0.55);
 }
 
+/* Stopped by the plan's limit: a quieter coral ring than waiting's amber. */
+.s-row.is-limited {
+  box-shadow: inset 0 0 0 1px rgba(255, 117, 107, 0.4);
+}
+
+/* The plan limits above the list (NotchSessionLimitsRow): one capsule per
+   agent, 24 pt, quiet until a window nears its end. */
+.s-page-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  min-height: 0;
+}
+
+.s-page-list > .s-list {
+  flex: 1;
+  min-height: 0;
+}
+
+.s-limits {
+  flex: none;
+  display: flex;
+  gap: 6px;
+  overflow: hidden;
+  animation: s-limits-in 0.32s cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+}
+
+.s-limits-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding: 0 9px 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+  transition: opacity 0.2s;
+}
+
+.s-limits-chip.is-stale {
+  opacity: 0.6;
+}
+
+.s-limits-window {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.s-limits-name {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.s-limits-meter {
+  display: inline-flex;
+  width: 24px;
+}
+
+.s-limits-share {
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.85);
+  transition: color 0.3s;
+}
+
+.s-limits-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.s-strip-limit {
+  gap: 2px;
+  animation: s-limits-pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+@keyframes s-limits-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes s-limits-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-limits,
+  .s-strip-limit {
+    animation: none;
+  }
+  .s-limits-share,
+  .s-limits-chip {
+    transition: none;
+  }
+}
+
 /* A sleeping session's row fades its face and words, not its surface or
    its quick answers, to `DOZING_OPACITY`, and comes back under the pointer
    or the keyboard. With more contrast asked for, nothing fades. */

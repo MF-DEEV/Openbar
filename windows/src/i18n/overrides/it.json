@@ -619,5 +619,11 @@
   "windows.sessions.defaultModel": "Predefinito",
   "windows.sessions.backgroundNeedsPrompt": "In background, una sessione ha bisogno di un primo prompt.",
   "windows.sessions.codexNotStarted": "Il server in background di Codex non è partito. Prova nel terminale.",
-  "windows.sessions.codexFailed": "Codex non è riuscito ad avviare la sessione"
+  "windows.sessions.codexFailed": "Codex non è riuscito ad avviare la sessione",
+  "notchClaudeSessions.limited": "Limite raggiunto",
+  "notchClaudeSessions.resumesFormat": "riprende %@",
+  "notchClaudeSessions.limitsTitle": "Limiti del piano",
+  "notchClaudeSessions.resetsFormat": "si rinnova %@",
+  "notchClaudeSessions.limitsSetting": "Mostra i limiti del piano",
+  "windows.settings.sessions.limitsCaption": "Mostra quanto dei limiti dei piani Claude e Codex è stato usato, accanto alle sessioni e sulla striscia quando un limite si avvicina. Con AI Agents disattivato, l’isola continua a leggere i limiti per questo."
 }

@@ -32,6 +32,9 @@ export interface SessionPrefs {
   live: boolean;
   /** Each session's pixel buddy; off shows a round phase badge. */
   buddies: boolean;
+  /** Plan limits beside the sessions; agent_usage keeps reading them for
+   * this with the AI section off. */
+  limits: boolean;
 }
 
 export const DEFAULT_SESSION_PREFS: SessionPrefs = {
@@ -39,6 +42,7 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   autoExpand: true,
   live: true,
   buddies: true,
+  limits: true,
 };
 
 /** What is stored: only what differs from the defaults. */
