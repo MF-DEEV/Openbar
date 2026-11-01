@@ -130,6 +130,7 @@ struct NotchClaudeSessionStrings {
     let browseFolder: String
     let noRecentFolders: String
     let firstPrompt: String
+    let firstPromptRequired: String
     let runInBackground: String
     let runInTerminal: String
     let backgroundOffHelp: String
@@ -138,7 +139,7 @@ struct NotchClaudeSessionStrings {
     let agentPicker: String
     let modelPicker: String
     let defaultModel: String
-    let codexNeedsPrompt: String
+    let backgroundNeedsPrompt: String
     let codexNotStarted: String
     let codexFailed: String
     let background: String
@@ -330,6 +331,7 @@ extension NotchClaudeSessionStrings {
         browseFolder: "Browse…",
         noRecentFolders: "No recent projects yet",
         firstPrompt: "First prompt (optional)",
+        firstPromptRequired: "First prompt",
         runInBackground: "Background",
         runInTerminal: "Terminal",
         backgroundOffHelp: "Agent View is off in Claude Code, so sessions can only start in a terminal.",
@@ -338,7 +340,7 @@ extension NotchClaudeSessionStrings {
         agentPicker: "Agent",
         modelPicker: "Model",
         defaultModel: "Default",
-        codexNeedsPrompt: "In the background, Codex needs a first prompt.",
+        backgroundNeedsPrompt: "In the background, a session needs a first prompt.",
         codexNotStarted: "Codex’s background server didn’t start. Try Terminal.",
         codexFailed: "Codex couldn’t start the session",
         background: "In background",

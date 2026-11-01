@@ -608,6 +608,7 @@
   "windows.sessions.browseFolder": "Gözat…",
   "windows.sessions.noRecentFolders": "Henüz yakın proje yok",
   "windows.sessions.firstPrompt": "İlk komut (isteğe bağlı)",
+  "windows.sessions.firstPromptRequired": "İlk istem",
   "windows.sessions.runInBackground": "Arka plan",
   "windows.sessions.runInTerminal": "Terminal",
   "windows.sessions.backgroundOffHelp": "Claude Code'da Agent View kapalı, bu yüzden oturumlar yalnızca terminalde başlatılabilir.",
@@ -616,7 +617,7 @@
   "windows.sessions.agentPicker": "Ajan",
   "windows.sessions.modelPicker": "Model",
   "windows.sessions.defaultModel": "Varsayılan",
-  "windows.sessions.codexNeedsPrompt": "Arka planda Codex'in ilk bir isteme ihtiyacı var.",
+  "windows.sessions.backgroundNeedsPrompt": "Arka planda bir oturumun ilk bir isteme ihtiyacı var.",
   "windows.sessions.codexNotStarted": "Codex'in arka plan sunucusu başlamadı. Terminal'i deneyin.",
   "windows.sessions.codexFailed": "Codex oturumu başlatamadı"
 }

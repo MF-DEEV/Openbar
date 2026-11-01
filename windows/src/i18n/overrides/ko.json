@@ -608,6 +608,7 @@
   "windows.sessions.browseFolder": "찾아보기…",
   "windows.sessions.noRecentFolders": "최근 프로젝트가 아직 없습니다",
   "windows.sessions.firstPrompt": "첫 프롬프트(선택)",
+  "windows.sessions.firstPromptRequired": "첫 프롬프트",
   "windows.sessions.runInBackground": "백그라운드",
   "windows.sessions.runInTerminal": "터미널",
   "windows.sessions.backgroundOffHelp": "Claude Code의 Agent View가 꺼져 있어 세션은 터미널에서만 시작할 수 있습니다.",
@@ -616,7 +617,7 @@
   "windows.sessions.agentPicker": "에이전트",
   "windows.sessions.modelPicker": "모델",
   "windows.sessions.defaultModel": "기본값",
-  "windows.sessions.codexNeedsPrompt": "백그라운드에서는 Codex에 첫 프롬프트가 필요합니다.",
+  "windows.sessions.backgroundNeedsPrompt": "백그라운드에서는 세션에 첫 프롬프트가 필요합니다.",
   "windows.sessions.codexNotStarted": "Codex 백그라운드 서버가 시작되지 않았습니다. 터미널에서 시도해 보세요.",
   "windows.sessions.codexFailed": "Codex가 세션을 시작하지 못했습니다"
 }

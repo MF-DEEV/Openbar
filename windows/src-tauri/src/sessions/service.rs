@@ -1193,6 +1193,10 @@ pub async fn sessions_start(
         if agent.as_deref() == Some("codex") {
             return start_codex(&service, &folder, &prompt, background, model);
         }
+        // A background session has nobody to type to it.
+        if background && prompt.trim().is_empty() {
+            return Some("needsPrompt".to_owned());
+        }
         let arguments = self::background::start_arguments(&prompt, background, model);
         let home = config_home.as_deref();
         let failure = if background {

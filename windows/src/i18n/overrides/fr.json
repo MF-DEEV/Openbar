@@ -608,6 +608,7 @@
   "windows.sessions.browseFolder": "Parcourir…",
   "windows.sessions.noRecentFolders": "Aucun projet récent",
   "windows.sessions.firstPrompt": "Premier prompt (facultatif)",
+  "windows.sessions.firstPromptRequired": "Premier prompt",
   "windows.sessions.runInBackground": "Arrière-plan",
   "windows.sessions.runInTerminal": "Terminal",
   "windows.sessions.backgroundOffHelp": "Agent View est désactivé dans Claude Code : les sessions ne démarrent que dans un terminal.",
@@ -616,7 +617,7 @@
   "windows.sessions.agentPicker": "Agent",
   "windows.sessions.modelPicker": "Modèle",
   "windows.sessions.defaultModel": "Par défaut",
-  "windows.sessions.codexNeedsPrompt": "En arrière-plan, Codex a besoin d’un premier prompt.",
+  "windows.sessions.backgroundNeedsPrompt": "En arrière-plan, une session a besoin d’un premier prompt.",
   "windows.sessions.codexNotStarted": "Le serveur d’arrière-plan de Codex n’a pas démarré. Essayez dans le terminal.",
   "windows.sessions.codexFailed": "Codex n’a pas pu démarrer la session"
 }

@@ -608,6 +608,7 @@
   "windows.sessions.browseFolder": "Prehľadávať…",
   "windows.sessions.noRecentFolders": "Zatiaľ žiadne nedávne projekty",
   "windows.sessions.firstPrompt": "Prvá požiadavka (voliteľné)",
+  "windows.sessions.firstPromptRequired": "Prvý prompt",
   "windows.sessions.runInBackground": "Na pozadí",
   "windows.sessions.runInTerminal": "Terminál",
   "windows.sessions.backgroundOffHelp": "Agent View je v Claude Code vypnutý, relácie sa dajú spustiť len v termináli.",
@@ -616,7 +617,7 @@
   "windows.sessions.agentPicker": "Agent",
   "windows.sessions.modelPicker": "Model",
   "windows.sessions.defaultModel": "Predvolený",
-  "windows.sessions.codexNeedsPrompt": "Na pozadí potrebuje Codex prvý prompt.",
+  "windows.sessions.backgroundNeedsPrompt": "Na pozadí potrebuje relácia prvý prompt.",
   "windows.sessions.codexNotStarted": "Server Codexu na pozadí sa nespustil. Skús Terminál.",
   "windows.sessions.codexFailed": "Codex nedokázal spustiť reláciu"
 }

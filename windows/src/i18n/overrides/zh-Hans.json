@@ -608,6 +608,7 @@
   "windows.sessions.browseFolder": "浏览…",
   "windows.sessions.noRecentFolders": "暂无最近项目",
   "windows.sessions.firstPrompt": "第一条提示（可选）",
+  "windows.sessions.firstPromptRequired": "第一条提示",
   "windows.sessions.runInBackground": "后台",
   "windows.sessions.runInTerminal": "终端",
   "windows.sessions.backgroundOffHelp": "Claude Code 已关闭 Agent View，会话只能在终端中启动。",
@@ -616,7 +617,7 @@
   "windows.sessions.agentPicker": "代理",
   "windows.sessions.modelPicker": "模型",
   "windows.sessions.defaultModel": "默认",
-  "windows.sessions.codexNeedsPrompt": "在后台运行时，Codex 需要第一条提示。",
+  "windows.sessions.backgroundNeedsPrompt": "在后台运行时，会话需要第一条提示。",
   "windows.sessions.codexNotStarted": "Codex 的后台服务器没有启动。请改用终端。",
   "windows.sessions.codexFailed": "Codex 无法启动会话"
 }

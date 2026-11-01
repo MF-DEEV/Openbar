@@ -259,6 +259,9 @@ export const S = {
   get firstPrompt() {
     return t("windows.sessions.firstPrompt");
   },
+  get firstPromptRequired() {
+    return t("windows.sessions.firstPromptRequired");
+  },
   get runInBackground() {
     return t("windows.sessions.runInBackground");
   },
@@ -283,8 +286,8 @@ export const S = {
   get defaultModel() {
     return t("windows.sessions.defaultModel");
   },
-  get codexNeedsPrompt() {
-    return t("windows.sessions.codexNeedsPrompt");
+  get backgroundNeedsPrompt() {
+    return t("windows.sessions.backgroundNeedsPrompt");
   },
   get codexNotStarted() {
     return t("windows.sessions.codexNotStarted");

@@ -201,10 +201,12 @@ struct NotchClaudeNewSessionView: View {
         models.first { $0.key == modelKey.wrappedValue } ?? models.first
     }
 
-    /// In the background a Codex thread starts with its first turn.
+    /// A session in the background has nobody to type to it, so it starts with a prompt.
     private var needsPrompt: Bool {
-        agent == .codex && background && prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        background && prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
+
+    private var promptPlaceholder: String { background ? text.firstPromptRequired : text.firstPrompt }
 
     private var canStart: Bool { chosen != nil && !starting && !needsPrompt }
 
@@ -216,7 +218,7 @@ struct NotchClaudeNewSessionView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             folderList
-            TextField(text.firstPrompt, text: $prompt)
+            TextField(promptPlaceholder, text: $prompt)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
                 .focused($promptFocused)
@@ -229,8 +231,8 @@ struct NotchClaudeNewSessionView: View {
                 )
                 .animation(.easeOut(duration: 0.18), value: promptFocused)
                 .animation(.easeOut(duration: 0.25), value: agent)
-                .accessibilityLabel(text.firstPrompt)
-            if let message = problem ?? (needsPrompt ? text.codexNeedsPrompt : nil) {
+                .accessibilityLabel(promptPlaceholder)
+            if let message = problem ?? (needsPrompt ? text.backgroundNeedsPrompt : nil) {
                 Text(message)
                     .font(.system(size: 10.5))
                     .foregroundStyle(problem == nil ? Color.white.opacity(0.6) : Color(red: 1.0, green: 0.55, blue: 0.5))

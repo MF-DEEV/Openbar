@@ -566,6 +566,8 @@ final class ClaudeSessionService: ObservableObject {
             }
             return
         }
+        // A background session has nobody to type to it.
+        if background, trimmed.isEmpty { completion(text.backgroundNeedsPrompt); return }
         let arguments = ClaudeCLI.startArguments(prompt: trimmed, background: background, model: model)
         commands.async { [self] in
             var problem: String?
@@ -590,7 +592,7 @@ final class ClaudeSessionService: ObservableObject {
     private func startCodexThread(in folder: String, prompt: String, model: String?, text: NotchClaudeSessionStrings,
                                   completion: @escaping (String?) -> Void) {
         let finish: (String?) -> Void = { problem in DispatchQueue.main.async { completion(problem) } }
-        guard !prompt.isEmpty else { finish(text.codexNeedsPrompt); return }
+        guard !prompt.isEmpty else { finish(text.backgroundNeedsPrompt); return }
         guard let client = queue.sync(execute: { codex }) else { finish(text.codexFailed); return }
         if !client.connected {
             guard let output = CodexCLI.run(CodexCLI.daemonStart), output.status == 0 else { finish(text.codexNotStarted); return }

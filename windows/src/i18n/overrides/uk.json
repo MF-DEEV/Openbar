@@ -608,6 +608,7 @@
   "windows.sessions.browseFolder": "Огляд…",
   "windows.sessions.noRecentFolders": "Поки немає недавніх проєктів",
   "windows.sessions.firstPrompt": "Перший запит (необов’язково)",
+  "windows.sessions.firstPromptRequired": "Перший запит",
   "windows.sessions.runInBackground": "У фоні",
   "windows.sessions.runInTerminal": "У терміналі",
   "windows.sessions.backgroundOffHelp": "Agent View вимкнено в Claude Code, тому сеанси можна запускати лише в терміналі.",
@@ -616,7 +617,7 @@
   "windows.sessions.agentPicker": "Агент",
   "windows.sessions.modelPicker": "Модель",
   "windows.sessions.defaultModel": "Типова",
-  "windows.sessions.codexNeedsPrompt": "У фоні Codex потрібен перший запит.",
+  "windows.sessions.backgroundNeedsPrompt": "У фоні сесії потрібен перший запит.",
   "windows.sessions.codexNotStarted": "Фоновий сервер Codex не запустився. Спробуйте в терміналі.",
   "windows.sessions.codexFailed": "Codex не зміг запустити сесію"
 }

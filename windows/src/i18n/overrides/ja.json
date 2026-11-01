@@ -608,6 +608,7 @@
   "windows.sessions.browseFolder": "参照…",
   "windows.sessions.noRecentFolders": "最近のプロジェクトはまだありません",
   "windows.sessions.firstPrompt": "最初のプロンプト（任意）",
+  "windows.sessions.firstPromptRequired": "最初のプロンプト",
   "windows.sessions.runInBackground": "バックグラウンド",
   "windows.sessions.runInTerminal": "ターミナル",
   "windows.sessions.backgroundOffHelp": "Claude Code の Agent View がオフのため、セッションはターミナルでのみ開始できます。",
@@ -616,7 +617,7 @@
   "windows.sessions.agentPicker": "エージェント",
   "windows.sessions.modelPicker": "モデル",
   "windows.sessions.defaultModel": "デフォルト",
-  "windows.sessions.codexNeedsPrompt": "バックグラウンドでは、Codex に最初のプロンプトが必要です。",
+  "windows.sessions.backgroundNeedsPrompt": "バックグラウンドでは、セッションに最初のプロンプトが必要です。",
   "windows.sessions.codexNotStarted": "Codex のバックグラウンドサーバーが起動しませんでした。ターミナルで試してください。",
   "windows.sessions.codexFailed": "Codex はセッションを開始できませんでした"
 }

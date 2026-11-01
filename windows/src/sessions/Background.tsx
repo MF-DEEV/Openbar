@@ -361,9 +361,11 @@ export function NewSession() {
   const list = agent === "codex" ? models.codex : models.claude;
   const key = agent === "codex" ? codexModel : claudeModel;
   const model = list.find((m) => modelKey(m) === key) ?? list[0];
-  const needsPrompt = agent === "codex" && background && prompt.trim() === "";
+  // A session in the background has nobody to type to it, so it starts with a prompt.
+  const needsPrompt = background && prompt.trim() === "";
+  const promptPlaceholder = background ? S.firstPromptRequired : S.firstPrompt;
   const canStart = chosen !== null && !starting && !needsPrompt;
-  const message = problem ?? (needsPrompt ? S.codexNeedsPrompt : null);
+  const message = problem ?? (needsPrompt ? S.backgroundNeedsPrompt : null);
 
   useEffect(() => {
     void bridge.sessions.recentFolders().then((found) => {
@@ -474,8 +476,8 @@ export function NewSession() {
       <input
         className="s-new-prompt"
         value={prompt}
-        placeholder={S.firstPrompt}
-        aria-label={S.firstPrompt}
+        placeholder={promptPlaceholder}
+        aria-label={promptPlaceholder}
         onChange={(event) => setPrompt(event.target.value)}
         onKeyDown={(event) => event.key === "Enter" && void start()}
       />

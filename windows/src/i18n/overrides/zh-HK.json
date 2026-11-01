@@ -608,6 +608,7 @@
   "windows.sessions.browseFolder": "瀏覽…",
   "windows.sessions.noRecentFolders": "尚無最近專案",
   "windows.sessions.firstPrompt": "第一則提示（可選）",
+  "windows.sessions.firstPromptRequired": "第一個提示",
   "windows.sessions.runInBackground": "背景",
   "windows.sessions.runInTerminal": "終端機",
   "windows.sessions.backgroundOffHelp": "Claude Code 已關閉 Agent View，工作階段只能在終端機中啟動。",
@@ -616,7 +617,7 @@
   "windows.sessions.agentPicker": "代理",
   "windows.sessions.modelPicker": "模型",
   "windows.sessions.defaultModel": "預設",
-  "windows.sessions.codexNeedsPrompt": "在背景執行時，Codex 需要第一個提示。",
+  "windows.sessions.backgroundNeedsPrompt": "在背景執行時，工作階段需要第一個提示。",
   "windows.sessions.codexNotStarted": "Codex 的背景伺服器未能啟動。請改用終端機。",
   "windows.sessions.codexFailed": "Codex 無法啟動工作階段"
 }
