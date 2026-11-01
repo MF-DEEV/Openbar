@@ -209,7 +209,7 @@ struct NotchClaudeSessionDetailView: View {
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 9))
         .disabled(session.host == .unknown)
-        .help(text.open)
+        .help(session.host.displayName.map(text.openIn) ?? text.open)
     }
 
     // MARK: Work
@@ -723,7 +723,7 @@ struct NotchClaudeSessionReplyField: View {
         if session.waitingFor != nil { return text.replyWhileDialog }
         if session.background?.ended == true { return text.replyEnded }
         // Codex takes replies through its server, wherever its terminal is.
-        if session.provider != .codex, !session.host.acceptsReplies { return text.replyUnavailable }
+        if session.provider != .codex, !session.host.acceptsReplies { return text.replyUnavailable(for: session.host) }
         return nil
     }
 

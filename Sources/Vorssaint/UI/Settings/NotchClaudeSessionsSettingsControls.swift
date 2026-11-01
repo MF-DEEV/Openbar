@@ -90,31 +90,42 @@ struct NotchClaudeSessionsSettingsControls: View {
         }
     }
 
+    /// One row per editor built on VS Code on this Mac, each with its own
+    /// install button, since each keeps its own extensions.
     private var bridge: some View {
         VStack(alignment: .leading, spacing: 6) {
             SettingsRow(symbol: "terminal", title: text.bridgeTitle,
-                        caption: service.bridgeInstalled.map { $0 ? text.hooksInstalled : text.hooksMissing }) {
-                if let installed = service.bridgeInstalled {
-                    if !installed || service.bridgeOutdated {
-                        Button(installed ? text.updateBridge : text.installBridge) { service.installBridge() }
-                            .controlSize(.small)
-                            .fixedSize()
+                        caption: service.bridges?.isEmpty == true ? text.bridgeNoEditors : nil) {
+                if service.bridges == nil { ProgressView().controlSize(.small) }
+            }
+            ForEach(service.bridges ?? []) { bridge in
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 8) {
+                        Text(bridge.ide.name)
+                            .font(.callout)
+                        Text(bridge.installed ? text.hooksInstalled : text.hooksMissing)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer(minLength: 8)
+                        if !bridge.installed || bridge.outdated {
+                            Button(bridge.installed ? text.updateBridge : text.installBridge) { service.installBridge(bridge.ide) }
+                                .controlSize(.small)
+                                .fixedSize()
+                        }
                     }
-                } else {
-                    ProgressView().controlSize(.small)
+                    if let failure = service.bridgeFailures[bridge.ide.bundle] {
+                        Label(failure, systemImage: "exclamationmark.triangle.fill")
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                    }
                 }
+                .padding(.leading, settingsRowTextInset)
             }
             Text(text.bridgeHint)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.leading, settingsRowTextInset)
-            if let failure = service.bridgeFailure {
-                Label(failure, systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .padding(.leading, settingsRowTextInset)
-            }
         }
     }
 

@@ -45,11 +45,11 @@ final class ClaudeSessionService: ObservableObject {
     /// Whether Claude Code's settings hold this app's hooks; nil until checked.
     @Published private(set) var hooksInstalled: Bool?
     @Published private(set) var hookFailure: String?
-    /// Whether Antigravity has the extension replies are typed through.
-    @Published private(set) var bridgeInstalled: Bool?
-    @Published private(set) var bridgeFailure: String?
-    /// The app carries a newer extension than the one installed.
-    @Published private(set) var bridgeOutdated = false
+    /// The editors on this Mac and whether each has the extension replies
+    /// are typed through; nil until checked.
+    @Published private(set) var bridges: [ClaudeBridgeStatus]?
+    /// Why the last install into an editor failed, by its bundle identifier.
+    @Published private(set) var bridgeFailures: [String: String] = [:]
     /// Whether the island hears Codex, for its row in Settings.
     @Published private(set) var codexStatus: CodexStatus?
     /// Claude Code is installed, so the island can start sessions in a terminal.
@@ -172,8 +172,9 @@ final class ClaudeSessionService: ObservableObject {
             ClaudeImageAttachments.sweep()
             // An extension the person once added is kept current by the app,
             // so a newer one never waits on a click in Settings.
-            if ClaudeBridgeInstaller.isInstalled(home: home), ClaudeBridgeInstaller.isOutdated(home: home) {
-                _ = ClaudeBridgeInstaller.install(home: home)
+            for ide in ClaudeBridgeInstaller.editors()
+            where ClaudeBridgeInstaller.isInstalled(ide, home: home) && ClaudeBridgeInstaller.isOutdated(ide, home: home) {
+                _ = ClaudeBridgeInstaller.install(ide, home: home)
             }
         }
         checkHooks()
@@ -619,29 +620,29 @@ final class ClaudeSessionService: ObservableObject {
     func checkBridge() {
         let home = home
         actions.async {
-            let installed = ClaudeBridgeInstaller.isInstalled(home: home)
-            let outdated = installed && ClaudeBridgeInstaller.isOutdated(home: home)
-            DispatchQueue.main.async {
-                self.bridgeInstalled = installed
-                self.bridgeOutdated = outdated
+            let bridges = ClaudeBridgeInstaller.editors().map { ide in
+                let installed = ClaudeBridgeInstaller.isInstalled(ide, home: home)
+                return ClaudeBridgeStatus(ide: ide, installed: installed,
+                                          outdated: installed && ClaudeBridgeInstaller.isOutdated(ide, home: home))
             }
+            DispatchQueue.main.async { self.bridges = bridges }
         }
     }
 
-    func installBridge() {
+    func installBridge(_ ide: ClaudeIDE) {
         let home = home
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
         actions.async {
-            let failure: String? = switch ClaudeBridgeInstaller.install(home: home) {
+            let failure: String? = switch ClaudeBridgeInstaller.install(ide, home: home) {
             case nil: nil
             case .missing?: text.bridgeMissing
-            case .noAntigravity?: text.antigravityMissing
+            case .noEditor?: text.editorMissing(ide.name)
             case .packaging?: text.bridgePackageFailed
-            case .refused?: text.bridgeRefused
+            case .refused?: text.bridgeRefused(ide.name)
             case .other(let reason)?: reason
             }
             DispatchQueue.main.async {
-                self.bridgeFailure = failure
+                self.bridgeFailures[ide.bundle] = failure
                 self.checkBridge()
             }
         }
@@ -971,40 +972,81 @@ final class ClaudeSessionService: ObservableObject {
 
 extension ClaudeSessionHosts {
     static func host(of pid: Int32) -> ClaudeSessionHost {
-        let environment = self.environment(of: pid)
+        var environment = self.environment(of: pid)
+        let device = tty(of: pid)
         let bundle = environment["__CFBundleIdentifier"]
-            ?? ResponsibleProcess.regularAppOwner(of: pid)?.bundleIdentifier
-        return classify(bundle: bundle, tty: tty(of: pid), port: environment["CLAUDE_CODE_SSE_PORT"].flatMap(Int.init))
+        // Only asked for when the environment leaves the app open.
+        let owner = bundle == nil || environment["TERM_PROGRAM"] == "vscode"
+            ? ResponsibleProcess.regularAppOwner(of: pid)?.bundleIdentifier : nil
+        let port = environment["CLAUDE_CODE_SSE_PORT"].flatMap(Int.init)
+        var host = classify(bundle: bundle, tty: device, port: port, environment: environment, owner: owner)
+        // tmux names its pane in the environment of everything started in
+        // it, an editor opened from it too: the pane has to be the session's.
+        if case .tmux(var target) = host {
+            guard ClaudeTmux.holds(target, tty: device) else {
+                environment["TMUX"] = nil
+                environment["TMUX_PANE"] = nil
+                return classify(bundle: bundle, tty: device, port: port, environment: environment, owner: owner)
+            }
+            // The terminal showing it, for its name; Open looks again.
+            if let client = ClaudeTmux.client(of: target), let outer = Self.host(of: client.pid).bundle {
+                target.outer = outer
+                host = .tmux(target)
+            }
+        }
+        return host
     }
 }
 
-/// Brings a session's terminal forward: its own tab in Terminal, the window
-/// holding its folder in Antigravity, or just the app elsewhere.
+/// Brings a session's terminal forward: its own tab, pane or window in a
+/// terminal that can be asked for one, the window holding its folder in an
+/// editor, or just the app elsewhere.
 enum ClaudeHostFocus {
     static func focus(_ session: ClaudeSession, homes: [URL]) -> Bool {
-        switch session.host {
+        focus(session.host, pid: session.pid, cwd: session.cwd, homes: homes)
+    }
+
+    /// `depth` stops a tmux shown in a tmux shown in … from going on forever.
+    static func focus(_ host: ClaudeSessionHost, pid: Int32, cwd: String, homes: [URL], depth: Int = 0) -> Bool {
+        switch host {
         case .terminal(let tty):
-            guard AppleScriptRunner.consentToAutomate(bundleID: ClaudeSessionHosts.terminal) else {
-                return activate(ClaudeSessionHosts.terminal, window: nil)
+            return script(ClaudeSessionHosts.terminal, ClaudeTerminalScripts.focus(tty: tty))
+        case .iterm(let tty):
+            return script(ClaudeTerminalApps.iterm, ClaudeTTYTerminalScripts.itermFocus(tty: tty))
+        case .ghostty(let tty):
+            return script(ClaudeTerminalApps.ghostty, ClaudeTTYTerminalScripts.ghosttyFocus(tty: tty))
+        case .tmux(let target):
+            // tmux selects the pane; the terminal showing it comes forward
+            // the way a session in that terminal would.
+            guard let client = ClaudeTmux.focus(target, tty: ClaudeSessionHosts.tty(of: pid)) else { return false }
+            guard depth < 3 else { return true }
+            _ = focus(ClaudeSessionHosts.host(of: client.pid), pid: client.pid, cwd: cwd, homes: homes, depth: depth + 1)
+            return true
+        case .wezterm(let pane, let socket):
+            guard let found = ClaudeWezTerm.focus(pane: pane, socket: socket, tty: ClaudeSessionHosts.tty(of: pid)) else {
+                return activate(ClaudeTerminalApps.wezterm, window: nil)
             }
-            let result = AppleScriptRunner.run(ClaudeTerminalScripts.focus(tty: tty))
-            return result.ok && result.output == "found" ? true : activate(ClaudeSessionHosts.terminal, window: nil)
-        case .antigravity(let port):
+            return activate(ClaudeTerminalApps.wezterm, window: found.windowTitle)
+        case .kitty(let window, let socket):
+            // Without remote control kitty can only come forward as a whole.
+            if let socket { _ = ClaudeKitty.focus(window: window, pid: pid, socket: socket) }
+            return activate(ClaudeTerminalApps.kitty, window: nil)
+        case .ide(let bundle, let port):
+            let ide = ClaudeIDE.find(bundle) ?? ClaudeIDE(bundle: bundle, name: bundle)
             let folders = port.map { ClaudeIDELock.folders(port: $0, homes: homes) } ?? []
-            // Antigravity brings forward the window that already has the
+            // The editor brings forward the window that already has the
             // session's folder open when asked to open that folder, with no
             // permission needed. Only a folder that is open is asked for, so
             // no new window ever opens.
-            let folder = ClaudeIDELock.openFolder(cwd: session.cwd, folders: folders)
+            let folder = ClaudeIDELock.openFolder(cwd: cwd, folders: folders)
             // The app comes forward first: asked from its command line while
-            // another app is in front, Antigravity only reorders its own
+            // another app is in front, the editor only reorders its own
             // windows and stays behind. A window is looked up by its title
             // only when the command line has no folder to ask for.
-            let activated = activate(ClaudeSessionHosts.antigravity,
-                                     window: folder == nil ? ClaudeIDELock.windowHint(cwd: session.cwd, folders: folders) : nil)
-            let raised = folder.map(openInAntigravity) ?? false
+            let activated = activate(bundle, window: folder == nil ? ClaudeIDELock.windowHint(cwd: cwd, folders: folders) : nil)
+            let raised = folder.map { open($0, in: ide) } ?? false
             // The extension then shows the session's own terminal in it.
-            if let shell = ClaudeTerminalBridge.shell(of: session.pid) {
+            if let shell = ClaudeTerminalBridge.shell(of: pid) {
                 _ = ClaudeTerminalBridge.focus(shell: shell, folder: ClaudeTerminalBridge.folder())
             }
             return activated || raised
@@ -1018,6 +1060,14 @@ enum ClaudeHostFocus {
         }
     }
 
+    /// Runs a script that finds the session's own tab; without Automation,
+    /// or when the tab is gone, the app still comes forward.
+    private static func script(_ bundle: String, _ source: String) -> Bool {
+        guard AppleScriptRunner.consentToAutomate(bundleID: bundle) else { return activate(bundle, window: nil) }
+        let result = AppleScriptRunner.run(source)
+        return result.ok && result.output == "found" ? true : activate(bundle, window: nil)
+    }
+
     /// Opens the person's terminal with `claude attach` running in it, which
     /// also brings back a session that has stopped.
     static func attach(_ session: ClaudeSession, terminal: String?) -> Bool {
@@ -1027,12 +1077,10 @@ enum ClaudeHostFocus {
         return ClaudeTerminalLauncher.open(line, terminal: terminal)
     }
 
-    private static func openInAntigravity(_ folder: String) -> Bool {
-        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: ClaudeSessionHosts.antigravity) else {
-            return false
-        }
+    private static func open(_ folder: String, in ide: ClaudeIDE) -> Bool {
+        guard let cli = ide.places(home: FileManager.default.homeDirectoryForCurrentUser)?.cli else { return false }
         let process = Process()
-        process.executableURL = app.appending(path: ClaudeBridgeInstaller.cli)
+        process.executableURL = cli
         process.arguments = [folder]
         process.standardOutput = FileHandle.nullDevice
         process.standardError = FileHandle.nullDevice
@@ -1075,39 +1123,67 @@ enum ClaudeTerminalReply {
 
     static func send(_ text: String, images: [URL] = [], named: [URL] = [], to session: ClaudeSession, bridge: URL) -> Failure? {
         let paths = images.map(\.path)
+        let steps = ClaudeTyping.steps(text, images: paths)
         switch session.host {
         case .terminal(let tty):
-            guard AppleScriptRunner.consentToAutomate(bundleID: ClaudeSessionHosts.terminal) else { return .unreachable }
             let script = paths.isEmpty ? ClaudeTerminalScripts.type(text, tty: tty)
                 : ClaudeTerminalScripts.type(text, images: paths, tty: tty)
-            let result = AppleScriptRunner.run(script)
-            return result.ok && result.output == "sent" ? nil : .unreachable
-        case .antigravity:
+            return run(script, in: ClaudeSessionHosts.terminal)
+        case .iterm(let tty):
+            return run(ClaudeTTYTerminalScripts.itermType(steps, tty: tty), in: ClaudeTerminalApps.iterm)
+        case .ghostty(let tty):
+            return run(ClaudeTTYTerminalScripts.ghosttyType(steps, tty: tty), in: ClaudeTerminalApps.ghostty)
+        case .tmux(let target):
+            return ClaudeTmux.send(steps, to: target, tty: ClaudeSessionHosts.tty(of: session.pid))
+        case .wezterm(let pane, let socket):
+            return ClaudeWezTerm.send(steps, pane: pane, socket: socket, tty: ClaudeSessionHosts.tty(of: session.pid))
+        case .kitty(let window, let socket?):
+            return ClaudeKitty.send(steps, window: window, pid: session.pid, socket: socket)
+        case .ide:
             guard let shell = ClaudeTerminalBridge.shell(of: session.pid) else { return .unreachable }
             if paths.isEmpty { return ClaudeTerminalBridge.send(text, shell: shell, folder: bridge) ? nil : .unreachable }
             return ClaudeTerminalBridge.send(text, images: paths, named: named.isEmpty ? paths : named.map(\.path),
                                              shell: shell, folder: bridge)
         case .background(let job):
             return ClaudeBackgroundReply.send(text, images: paths, job: job, configHome: session.background?.configHome)
-        case .app, .unknown:
+        case .kitty, .app, .unknown:
             return .unreachable
         }
     }
+
+    /// Runs a script that types into the session's own tab, with the app's
+    /// Automation consent; it answers "sent" only when it found the tab.
+    private static func run(_ script: String, in bundle: String) -> Failure? {
+        guard AppleScriptRunner.consentToAutomate(bundleID: bundle) else { return .unreachable }
+        let result = AppleScriptRunner.run(script)
+        return result.ok && result.output == "sent" ? nil : .unreachable
+    }
 }
 
-/// Puts the bridge extension that ships inside the app into Antigravity,
-/// through Antigravity's own command line.
+/// An editor on this Mac and the state of the extension in it.
+struct ClaudeBridgeStatus: Equatable, Identifiable {
+    let ide: ClaudeIDE
+    let installed: Bool
+    let outdated: Bool
+    var id: String { ide.bundle }
+}
+
+/// Puts the bridge extension that ships inside the app into an editor built
+/// on VS Code (Antigravity, VS Code, Cursor, Windsurf), through the editor's
+/// own command line. The same extension serves them all.
 enum ClaudeBridgeInstaller {
     static let identifier = "vorssaint.vorssaint-terminal-bridge"
-    static let cli = "Contents/Resources/app/bin/antigravity-ide"
 
-    static func installedVersions(home: URL) -> [String] {
-        let folder = home.appending(path: ".antigravity-ide/extensions").path
+    static func installedVersions(_ ide: ClaudeIDE, home: URL) -> [String] {
+        guard let folder = ide.places(home: home)?.extensions.path else { return [] }
         let names = (try? FileManager.default.contentsOfDirectory(atPath: folder)) ?? []
         return names.filter { $0.hasPrefix(identifier + "-") }.map { String($0.dropFirst(identifier.count + 1)) }
     }
 
-    static func isInstalled(home: URL) -> Bool { !installedVersions(home: home).isEmpty }
+    static func isInstalled(_ ide: ClaudeIDE, home: URL) -> Bool { !installedVersions(ide, home: home).isEmpty }
+
+    /// The editors on this Mac, the ones the island can reach.
+    static func editors() -> [ClaudeIDE] { ClaudeIDE.all.filter { $0.app != nil } }
 
     /// The version the app carries, from the extension's own manifest.
     static var bundledVersion: String? {
@@ -1118,28 +1194,28 @@ enum ClaudeBridgeInstaller {
         return json["version"] as? String
     }
 
-    static func isOutdated(home: URL) -> Bool {
+    static func isOutdated(_ ide: ClaudeIDE, home: URL) -> Bool {
         guard let bundled = bundledVersion else { return false }
-        return !installedVersions(home: home).contains { $0 == bundled || $0.hasPrefix(bundled + "-") }
+        return !installedVersions(ide, home: home).contains { $0 == bundled || $0.hasPrefix(bundled + "-") }
     }
 
+    /// Takes the extension out of every editor that has it.
     static func uninstall(home: URL) {
-        guard isInstalled(home: home),
-              let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: ClaudeSessionHosts.antigravity) else { return }
-        _ = try? run(app.appending(path: cli).path, ["--uninstall-extension", identifier], in: home)
+        for ide in editors() where isInstalled(ide, home: home) {
+            guard let cli = ide.places(home: home)?.cli else { continue }
+            _ = try? run(cli.path, ["--uninstall-extension", identifier], in: home)
+        }
     }
 
     enum Failure: Equatable {
-        case missing, noAntigravity, packaging, refused
+        case missing, noEditor, packaging, refused
         case other(String)
     }
 
     /// Installs the extension, or the newer one the app carries. Nil when it worked.
-    static func install(home: URL) -> Failure? {
+    static func install(_ ide: ClaudeIDE, home: URL) -> Failure? {
         guard let source = Bundle.main.url(forResource: "AntigravityBridge", withExtension: nil) else { return .missing }
-        guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: ClaudeSessionHosts.antigravity) else {
-            return .noAntigravity
-        }
+        guard let cli = ide.places(home: home)?.cli else { return .noEditor }
         let work = FileManager.default.temporaryDirectory.appending(path: "vorssaint-bridge-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: work) }
         let package = work.appending(path: "vorssaint-terminal-bridge.vsix")
@@ -1147,7 +1223,7 @@ enum ClaudeBridgeInstaller {
             try FileManager.default.createDirectory(at: work, withIntermediateDirectories: true)
             let zip = try run("/usr/bin/zip", ["-q", "-r", "-X", package.path, "."], in: source)
             guard zip == 0 else { return .packaging }
-            let installed = try run(app.appending(path: cli).path, ["--install-extension", package.path, "--force"], in: work)
+            let installed = try run(cli.path, ["--install-extension", package.path, "--force"], in: work)
             return installed == 0 ? nil : .refused
         } catch {
             return .other(error.localizedDescription)

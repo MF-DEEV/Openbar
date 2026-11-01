@@ -130,6 +130,7 @@ function Trailing() {
         type="button"
         className="n-pill-button is-prominent s-open"
         disabled={session.host === "unknown"}
+        title={session.hostName ? S.openIn(session.hostName) : S.open}
         onClick={() => void useSessions.getState().openWindow(session)}
       >
         <ExternalLink size={11} />

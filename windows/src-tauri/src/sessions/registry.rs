@@ -148,6 +148,7 @@ pub fn record(data: &[u8], accepted_domains: &[&str]) -> Option<SessionRecord> {
         version: str_of(json.get("version")).unwrap_or("").to_owned(),
         host: Default::default(),
         accepts_replies: false,
+        host_name: None,
         name_source: str_of(json.get("nameSource")).map(str::to_owned),
         job: super::background::job_of_record(json, session),
     })

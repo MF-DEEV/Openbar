@@ -300,7 +300,7 @@
   "notchClaudeSessions.send": "Odoslať",
   "notchClaudeSessions.replyPlaceholder": "Odpovedať Claudeovi…",
   "notchClaudeSessions.replyPlaceholderCodex": "Odpovedať Codex…",
-  "windows.sessions.replyUnavailable": "Odpovede fungujú v Windows Terminal a VS Code",
+  "windows.sessions.replyUnavailable": "Odpovede sa k tejto relácii zatiaľ nedostanú",
   "notchClaudeSessions.replyWhileWaiting": "Najprv odpovedzte na vyzvanie",
   "notchClaudeSessions.replyWhileDialog": "Najprv zatvorte dialóg v termináli",
   "notchClaudeSessions.tasksFormat": "%1$d z %2$d úloh",

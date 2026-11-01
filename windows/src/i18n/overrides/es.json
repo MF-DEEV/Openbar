@@ -300,7 +300,7 @@
   "notchClaudeSessions.send": "Enviar",
   "notchClaudeSessions.replyPlaceholder": "Responder a Claude…",
   "notchClaudeSessions.replyPlaceholderCodex": "Responder a Codex…",
-  "windows.sessions.replyUnavailable": "Las respuestas funcionan en Windows Terminal y VS Code",
+  "windows.sessions.replyUnavailable": "Las respuestas aún no llegan a esta sesión",
   "notchClaudeSessions.replyWhileWaiting": "Responde al aviso primero",
   "notchClaudeSessions.replyWhileDialog": "Cierra el diálogo en la terminal primero",
   "notchClaudeSessions.tasksFormat": "%1$d de %2$d tareas",

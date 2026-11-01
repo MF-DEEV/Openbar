@@ -3998,7 +3998,7 @@
   {
     "file": "src/sessions/strings.ts",
     "key": "windows.sessions.replyUnavailable",
-    "english": "Replies work in Windows Terminal and VS Code",
+    "english": "Replies can’t reach this session yet",
     "source": null
   },
   {

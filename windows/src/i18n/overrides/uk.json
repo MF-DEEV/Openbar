@@ -300,7 +300,7 @@
   "notchClaudeSessions.send": "Надіслати",
   "notchClaudeSessions.replyPlaceholder": "Відповісти Claude…",
   "notchClaudeSessions.replyPlaceholderCodex": "Відповісти Codex…",
-  "windows.sessions.replyUnavailable": "Відповіді працюють у Windows Terminal і VS Code",
+  "windows.sessions.replyUnavailable": "Відповіді поки не доходять до цієї сесії",
   "notchClaudeSessions.replyWhileWaiting": "Спочатку дайте відповідь на підказку",
   "notchClaudeSessions.replyWhileDialog": "Спочатку закрийте діалог у терміналі",
   "notchClaudeSessions.tasksFormat": "%1$d з %2$d завдань",

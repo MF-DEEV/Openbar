@@ -1019,6 +1019,7 @@ fn session(
         host: HostKind::App,
         // Replies go through Codex's own server, whatever terminal shows the session.
         accepts_replies: true,
+        host_name: None,
         phase,
         phase_since: since,
         turn_started: thread.turn_started,

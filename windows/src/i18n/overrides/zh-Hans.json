@@ -300,7 +300,7 @@
   "notchClaudeSessions.send": "发送",
   "notchClaudeSessions.replyPlaceholder": "回复 Claude…",
   "notchClaudeSessions.replyPlaceholderCodex": "回复 Codex…",
-  "windows.sessions.replyUnavailable": "回复在 Windows Terminal 和 VS Code 中有效",
+  "windows.sessions.replyUnavailable": "暂时无法回复此会话",
   "notchClaudeSessions.replyWhileWaiting": "先回答提示",
   "notchClaudeSessions.replyWhileDialog": "先在终端关闭对话框",
   "notchClaudeSessions.tasksFormat": "%1$d / %2$d 个任务",

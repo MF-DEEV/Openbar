@@ -348,13 +348,137 @@ enum ClaudeSessionReaderTests {
 
     // MARK: Hosts
 
+    /// Issue #121: every terminal is told apart by what the session's own
+    /// environment says, and reached by its device, pane or window.
+    static func terminalHosts(_ suite: TestSuite) {
+        let tmux = ["TERM_PROGRAM": "tmux", "TMUX": "/private/tmp/tmux-501/default,51484,0", "TMUX_PANE": "%1",
+                    "__CFBundleIdentifier": "com.apple.Terminal"]
+        let pane = ClaudeTmuxPane(tmux: tmux["TMUX"]!, pane: "%1")
+        suite.expect(pane?.socket == "/private/tmp/tmux-501/default" && pane?.server == 51484 && pane?.pane == "%1",
+                     "tmux names its socket, server and pane")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.apple.Terminal", tty: "/dev/ttys029", port: nil, environment: tmux)
+                     == .tmux(pane!), "a session in tmux in Terminal is a tmux pane, not a Terminal tab it never has")
+        suite.expect(ClaudeTmuxPane(tmux: "relative,1,0", pane: "%1") == nil && ClaudeTmuxPane(tmux: "/s,x,0", pane: "%1") == nil
+                     && ClaudeTmuxPane(tmux: "/s,4,0", pane: "1") == nil && ClaudeTmuxPane(tmux: "/s,4,0", pane: "%1;x") == nil
+                     && ClaudeTmuxPane(tmux: "/s,1,0", pane: "%1") == nil, "a malformed tmux variable names no pane")
+        var editorFromTmux = tmux
+        editorFromTmux["TERM_PROGRAM"] = "vscode"
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.apple.Terminal", tty: "/dev/ttys030", port: 4000,
+                                                 environment: editorFromTmux, owner: "com.microsoft.VSCode")
+                     == .ide(bundle: "com.microsoft.VSCode", port: 4000),
+                     "an editor opened from tmux keeps tmux's variables, and its terminal is still the editor's")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.google.antigravity-ide", tty: "/dev/ttys030", port: nil,
+                                                 environment: ["TERM_PROGRAM": "vscode"], owner: "com.microsoft.VSCode")
+                     == .ide(bundle: "com.microsoft.VSCode", port: nil),
+                     "VS Code opened from Antigravity's terminal is VS Code, as macOS holds it responsible")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.todesktop.230313mzl4w4u92", tty: "/dev/ttys030", port: nil,
+                                                 environment: ["TERM_PROGRAM": "vscode"])
+                     == .ide(bundle: "com.todesktop.230313mzl4w4u92", port: nil), "Cursor's terminal goes through the bridge")
+        suite.expect(ClaudeSessionHosts.classify(bundle: nil, tty: "/dev/ttys030", port: nil,
+                                                 environment: ["TERM_PROGRAM": "vscode"], owner: "com.example.unknown-editor")
+                     == .app("com.example.unknown-editor"), "an editor the island doesn't know is only opened")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.googlecode.iterm2", tty: "/dev/ttys011", port: nil)
+                     == .iterm(tty: "/dev/ttys011"), "a session in iTerm2 is found by its device")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.apple.Terminal", tty: "/dev/ttys011", port: nil,
+                                                 environment: ["TERM_PROGRAM": "iTerm.app"])
+                     == .iterm(tty: "/dev/ttys011"), "iTerm2 started from Terminal says so itself")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.mitchellh.ghostty", tty: "/dev/ttys012", port: nil)
+                     == .ghostty(tty: "/dev/ttys012"), "a session in Ghostty is found by its device")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.github.wez.wezterm", tty: "/dev/ttys013", port: nil,
+                                                 environment: ["TERM_PROGRAM": "WezTerm", "WEZTERM_PANE": "7",
+                                                               "WEZTERM_UNIX_SOCKET": "/tmp/wez/gui-sock-1"])
+                     == .wezterm(pane: 7, socket: "/tmp/wez/gui-sock-1"), "a session in WezTerm keeps its pane and socket")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.github.wez.wezterm", tty: "/dev/ttys013", port: nil)
+                     == .app("com.github.wez.wezterm"), "WezTerm without a pane id is only opened")
+        let kitty = ClaudeSessionHosts.classify(bundle: "net.kovidgoyal.kitty", tty: "/dev/ttys014", port: nil,
+                                                environment: ["KITTY_WINDOW_ID": "3"])
+        let remote = ClaudeSessionHosts.classify(bundle: "net.kovidgoyal.kitty", tty: "/dev/ttys014", port: nil,
+                                                 environment: ["KITTY_WINDOW_ID": "3", "KITTY_LISTEN_ON": "unix:/tmp/kitty-9"])
+        suite.expect(kitty == .kitty(window: 3, socket: nil) && !kitty.acceptsReplies
+                     && remote == .kitty(window: 3, socket: "unix:/tmp/kitty-9") && remote.acceptsReplies,
+                     "kitty takes replies only with remote control on")
+        // Seen live: kitty started from Antigravity's terminal keeps TERM_PROGRAM=vscode.
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.google.antigravity-ide", tty: "/dev/ttys033", port: 20133,
+                                                 environment: ["TERM_PROGRAM": "vscode", "TERM": "xterm-kitty", "KITTY_WINDOW_ID": "1",
+                                                               "KITTY_LISTEN_ON": "unix:/tmp/vs-kitty-63317"])
+                     == .kitty(window: 1, socket: "unix:/tmp/vs-kitty-63317"), "kitty is kitty even with an editor's TERM_PROGRAM")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.microsoft.VSCode", tty: "/dev/ttys033", port: nil,
+                                                 environment: ["TERM_PROGRAM": "vscode", "TERM": "alacritty"])
+                     == .app("org.alacritty")
+                     && ClaudeSessionHosts.classify(bundle: "com.apple.Terminal", tty: "/dev/ttys033", port: nil,
+                                                    environment: ["TERM_PROGRAM": "Apple_Terminal", "TERM": "xterm-ghostty"])
+                     == .ghostty(tty: "/dev/ttys033"), "Alacritty and Ghostty are told by their TERM too")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.microsoft.VSCode", tty: "/dev/ttys033", port: nil,
+                                                 environment: ["TERM_PROGRAM": "vscode", "TERM": "xterm-256color", "KITTY_WINDOW_ID": "1"])
+                     == .ide(bundle: "com.microsoft.VSCode", port: nil), "an editor opened from kitty is still the editor")
+        let warp = ClaudeSessionHosts.classify(bundle: "dev.warp.Warp-Stable", tty: "/dev/ttys015", port: nil,
+                                               environment: ["TERM_PROGRAM": "WarpTerminal"])
+        suite.expect(warp == .app("dev.warp.Warp-Stable") && !warp.acceptsReplies && warp.bundle == "dev.warp.Warp-Stable",
+                     "Warp can only be raised, and the island knows which app it is")
+        let text = NotchClaudeSessionStrings.enUS
+        suite.expect(text.replyUnavailable(for: .app("dev.warp.Warp-Stable")) == "Replies aren’t available in Warp yet"
+                     && text.replyUnavailable(for: .kitty(window: 3, socket: nil)) == text.replyKittyRemote
+                     && text.replyUnavailable(for: .unknown) == text.replyUnavailable,
+                     "a terminal replies can't reach is named")
+        var named = pane!
+        named.outer = "com.mitchellh.ghostty"
+        suite.expect(ClaudeSessionHost.tmux(named).displayName == "tmux in Ghostty"
+                     && ClaudeSessionHost.tmux(pane!).displayName == "tmux"
+                     && ClaudeSessionHost.iterm(tty: "/dev/ttys1").displayName != nil, "the host is named as the person knows it")
+
+        let clients = "/dev/ttys001\t100\t$1\t50\n/dev/ttys002\t200\t$0\t40\n/dev/ttys003\t300\t$0\t90\nbad line\n"
+        suite.expect(ClaudeTmux.client(from: clients, session: "$0") == ClaudeTmuxClient(tty: "/dev/ttys003", pid: 300, elsewhere: false),
+                     "the terminal on the pane's session used last shows it")
+        suite.expect(ClaudeTmux.client(from: clients, session: "$5") == ClaudeTmuxClient(tty: "/dev/ttys003", pid: 300, elsewhere: true)
+                     && ClaudeTmux.client(from: "", session: "$0") == nil,
+                     "with none on that session the last one switches to it; with none at all nothing does")
+
+        let wez = Data(#"[{"window_id":0,"tab_id":1,"pane_id":7,"tty_name":"/dev/ttys013","window_title":"claude"},{"window_id":0,"tab_id":2,"pane_id":8}]"#.utf8)
+        suite.expect(ClaudeWezTerm.panes(from: wez) == [
+            ClaudeWezTerm.Pane(pane: 7, window: 0, tab: 1, tty: "/dev/ttys013", windowTitle: "claude"),
+            ClaudeWezTerm.Pane(pane: 8, window: 0, tab: 2, tty: nil, windowTitle: nil),
+        ] && ClaudeWezTerm.panes(from: Data("nope".utf8)).isEmpty, "WezTerm's pane list is read with each pane's device")
+        let kittyList = Data(#"[{"tabs":[{"windows":[{"id":3,"pid":500,"foreground_processes":[{"pid":501},{"pid":502}]},{"id":4,"pid":600}]}]}]"#.utf8)
+        suite.expect(ClaudeKitty.pids(in: kittyList, window: 3) == [500, 501, 502] && ClaudeKitty.pids(in: kittyList, window: 9).isEmpty,
+                     "a kitty window runs the session when it lists its process")
+
+        suite.expect(ClaudeTyping.steps("hi\nthere") == [.paste("hi\nthere"), .wait(0.08), .enter],
+                     "a reply is one paste and a return")
+        let withImages = ClaudeTyping.steps("look", images: ["/a.png", "/b.png"])
+        suite.expect(withImages == [.paste("/a.png"), .wait(0.06), .paste("/b.png"), .wait(0.06),
+                                    .wait(ClaudeTerminalScripts.imageSettle(2)), .paste("look"), .wait(0.08), .enter]
+                     && ClaudeTyping.steps("", images: ["/a.png"]).filter { $0 == .paste("") }.isEmpty,
+                     "images go first, each a paste of its path, and the text waits for them")
+        let iterm = ClaudeTTYTerminalScripts.itermType(ClaudeTyping.steps("say \"hi\""), tty: "/dev/ttys011")
+        suite.expect(iterm.contains(#"{"/dev/ttys011", "ttys011"}"#) && iterm.contains(#"\"hi\""#)
+                     && iterm.contains("newline no") && iterm.contains("character id 13"),
+                     "iTerm2 is typed into by device, with the reply quoted and the return its own")
+        let ghostty = ClaudeTTYTerminalScripts.ghosttyFocus(tty: "ttys012")
+        suite.expect(ghostty.contains(#"{"/dev/ttys012", "ttys012"}"#) && ghostty.contains("focus theTerminal"),
+                     "Ghostty is found by device too")
+
+        let folder = FileManager.default.temporaryDirectory.appending(path: "vs-ide-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let app = folder.appending(path: "Cursor.app")
+        let resources = app.appending(path: "Contents/Resources/app")
+        try? FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        try? Data(#"{"applicationName":"cursor","dataFolderName":".cursor"}"#.utf8).write(to: resources.appending(path: "product.json"))
+        let home = folder.appending(path: "home")
+        let places = ClaudeIDE.places(app: app, home: home)
+        suite.expect(places?.cli == resources.appending(path: "bin/cursor") && places?.extensions == home.appending(path: ".cursor/extensions"),
+                     "an editor's command line and extensions folder come from its product.json")
+        try? Data(#"{"applicationName":"../x","dataFolderName":".cursor"}"#.utf8).write(to: resources.appending(path: "product.json"))
+        suite.expect(ClaudeIDE.places(app: app, home: home) == nil, "a product.json naming a way out of the folder is not followed")
+    }
+
     static func hosts(_ suite: TestSuite) {
         suite.expect(ClaudeSessionHosts.classify(bundle: "com.apple.Terminal", tty: "/dev/ttys004", port: nil)
                      == .terminal(tty: "/dev/ttys004"), "a session in Terminal is reached by its device")
         suite.expect(ClaudeSessionHosts.classify(bundle: "com.apple.Terminal", tty: nil, port: nil) == .app("com.apple.Terminal"),
                      "without a device only the app can be brought forward")
         suite.expect(ClaudeSessionHosts.classify(bundle: "com.google.antigravity-ide", tty: "/dev/ttys009", port: 53142)
-                     == .antigravity(port: 53142), "a session in Antigravity keeps its IDE port")
+                     == .ide(bundle: "com.google.antigravity-ide", port: 53142), "a session in Antigravity keeps its IDE port")
+        terminalHosts(suite)
         suite.expect(ClaudeSessionHosts.classify(bundle: "com.mitchellh.ghostty", tty: nil, port: nil) == .app("com.mitchellh.ghostty")
                      && ClaudeSessionHosts.classify(bundle: nil, tty: nil, port: nil) == .unknown, "other apps are only opened")
 

@@ -586,8 +586,10 @@ enum ClaudeTerminalLauncher {
             .compactMap { session -> String? in
                 switch session.host {
                 case .terminal: return ClaudeSessionHosts.terminal
-                case .app(let bundle) where others.contains(bundle): return bundle
-                default: return nil
+                case .ide, .background, .unknown: return nil
+                // A tmux's own terminal is not known without asking tmux; its pane names it when it could.
+                case .tmux(let target): return target.outer.flatMap { others.contains($0) || $0 == ClaudeSessionHosts.terminal ? $0 : nil }
+                default: return session.host.bundle.flatMap { others.contains($0) ? $0 : nil }
                 }
             }
         return terminals.first

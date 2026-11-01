@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Language="en-US" Id="vorssaint-terminal-bridge" Version="1.1.0" Publisher="vorssaint"/>
+    <Identity Language="en-US" Id="vorssaint-terminal-bridge" Version="1.1.1" Publisher="vorssaint"/>
     <DisplayName>Vorssaint Terminal Bridge</DisplayName>
     <Description xml:space="preserve">Lets the Vorssaint Dynamic Island bring a Claude Code terminal forward and type a reply into it.</Description>
     <Categories>Other</Categories>

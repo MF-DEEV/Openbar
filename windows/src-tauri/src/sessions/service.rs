@@ -286,6 +286,7 @@ impl Service {
                 .clone();
             record.host = host_kind(&located.host);
             record.accepts_replies = located.host.accepts_replies();
+            record.host_name = located.host.display_name();
         }
         inner.last_records = records.iter().map(|r| (r.pid, r.clone())).collect();
         inner.engine.ingest_records(records, t);
@@ -860,6 +861,7 @@ fn host_kind(host: &hosts::Host) -> HostKind {
         hosts::Host::WindowsTerminal { .. } => HostKind::WindowsTerminal,
         hosts::Host::Vscode { .. } => HostKind::Vscode,
         hosts::Host::Conhost => HostKind::Conhost,
+        hosts::Host::Wezterm { .. } => HostKind::Wezterm,
         hosts::Host::App { .. } => HostKind::App,
         hosts::Host::Unknown => HostKind::Unknown,
     }

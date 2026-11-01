@@ -299,7 +299,7 @@
   "notchClaudeSessions.send": "Send",
   "notchClaudeSessions.replyPlaceholder": "Reply to Claude…",
   "notchClaudeSessions.replyPlaceholderCodex": "Reply to Codex…",
-  "windows.sessions.replyUnavailable": "Replies work in Windows Terminal and VS Code",
+  "windows.sessions.replyUnavailable": "Replies can’t reach this session yet",
   "notchClaudeSessions.replyWhileWaiting": "Answer the prompt first",
   "notchClaudeSessions.replyWhileDialog": "Close the dialog in the terminal first",
   "notchClaudeSessions.tasksFormat": "%1$d of %2$d tasks",

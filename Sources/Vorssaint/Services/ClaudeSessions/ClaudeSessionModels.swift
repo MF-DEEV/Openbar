@@ -116,13 +116,26 @@ extension ClaudeSessionProvider {
 }
 
 /// The app showing a session's terminal, which Open brings forward and a
-/// reply is typed into.
+/// reply is typed into. Every terminal is reached by the device, pane or
+/// window the session runs in, never by the window in front.
 enum ClaudeSessionHost: Equatable {
     /// A tab of Terminal, found by its device.
     case terminal(tty: String)
-    /// The integrated terminal of Antigravity, with the port of the IDE
-    /// connection when the session has one.
-    case antigravity(port: Int?)
+    /// A session of iTerm2, found by its device.
+    case iterm(tty: String)
+    /// A terminal of Ghostty 1.4 or later, found by its device.
+    case ghostty(tty: String)
+    /// A tmux pane, in whatever terminal shows that tmux.
+    case tmux(ClaudeTmuxPane)
+    /// A pane of WezTerm, by the id WezTerm gives it, and the socket of the
+    /// WezTerm that runs it when the pane names one.
+    case wezterm(pane: Int, socket: String?)
+    /// A window of kitty, and the remote control socket when kitty has one.
+    case kitty(window: Int, socket: String?)
+    /// The integrated terminal of an editor built on VS Code (Antigravity,
+    /// VS Code, Cursor, Windsurf), with the port of the IDE connection when
+    /// the session has one.
+    case ide(bundle: String, port: Int?)
     /// Any other app, by bundle identifier.
     case app(String)
     /// No terminal at all: a background session, known by its job.
@@ -131,8 +144,23 @@ enum ClaudeSessionHost: Equatable {
 
     var acceptsReplies: Bool {
         switch self {
-        case .terminal, .antigravity, .background: return true
+        case .terminal, .iterm, .ghostty, .tmux, .wezterm, .ide, .background: return true
+        // kitty only takes keys from outside with remote control on.
+        case .kitty(_, let socket): return socket != nil
         case .app, .unknown: return false
+        }
+    }
+
+    /// The app that shows it, when one does.
+    var bundle: String? {
+        switch self {
+        case .terminal: return ClaudeSessionHosts.terminal
+        case .iterm: return ClaudeTerminalApps.iterm
+        case .ghostty: return ClaudeTerminalApps.ghostty
+        case .wezterm: return ClaudeTerminalApps.wezterm
+        case .kitty: return ClaudeTerminalApps.kitty
+        case .ide(let bundle, _), .app(let bundle): return bundle
+        case .tmux, .background, .unknown: return nil
         }
     }
 }

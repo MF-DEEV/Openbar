@@ -11,10 +11,44 @@ enum ClaudeSessionHosts {
     static let terminal = "com.apple.Terminal"
     static let antigravity = "com.google.antigravity-ide"
 
-    static func classify(bundle: String?, tty: String?, port: Int?) -> ClaudeSessionHost {
-        switch bundle {
+    /// Where a session runs, from the keys of its environment that tell
+    /// (`hostKeys`), its device and the app macOS holds responsible for it.
+    /// A multiplexer comes first, as the innermost terminal; then the
+    /// terminal's own `TERM_PROGRAM`; then the bundle identifier it inherited.
+    static func classify(bundle: String?, tty: String?, port: Int?, environment: [String: String] = [:],
+                         owner: String? = nil) -> ClaudeSessionHost {
+        let program = environment["TERM_PROGRAM"]
+        if program == nil || program == "tmux", let tmux = environment["TMUX"], let pane = environment["TMUX_PANE"],
+           let target = ClaudeTmuxPane(tmux: tmux, pane: pane) {
+            return .tmux(target)
+        }
+        // kitty and Alacritty leave a TERM_PROGRAM they inherited alone, so
+        // one started from an editor's terminal still says "vscode"; the
+        // TERM every terminal sets for itself tells them apart.
+        let term = environment["TERM"]
+        if term == "xterm-kitty" || program == "kitty", let window = environment["KITTY_WINDOW_ID"].flatMap(Int.init) {
+            return .kitty(window: window, socket: environment["KITTY_LISTEN_ON"].flatMap { $0.isEmpty ? nil : $0 })
+        }
+        if term == "alacritty" { return .app(ClaudeTerminalApps.alacritty) }
+        if term == "xterm-ghostty" { return tty.map { .ghostty(tty: $0) } ?? .app(ClaudeTerminalApps.ghostty) }
+        if program == "vscode" {
+            // An editor started from a terminal, or from another editor's
+            // terminal, inherits that one's identifier; the app responsible
+            // for the process knows better.
+            if let ide = ClaudeIDE.find(owner) ?? ClaudeIDE.find(bundle) { return .ide(bundle: ide.bundle, port: port) }
+            return (bundle ?? owner).map { .app($0) } ?? .unknown
+        }
+        if program == nil, let window = environment["KITTY_WINDOW_ID"].flatMap(Int.init) {
+            return .kitty(window: window, socket: environment["KITTY_LISTEN_ON"].flatMap { $0.isEmpty ? nil : $0 })
+        }
+        switch ClaudeTerminalApps.bundle(program: program) ?? bundle ?? owner {
         case terminal?: return tty.map { .terminal(tty: $0) } ?? .app(terminal)
-        case antigravity?: return .antigravity(port: port)
+        case ClaudeTerminalApps.iterm?: return tty.map { .iterm(tty: $0) } ?? .app(ClaudeTerminalApps.iterm)
+        case ClaudeTerminalApps.ghostty?: return tty.map { .ghostty(tty: $0) } ?? .app(ClaudeTerminalApps.ghostty)
+        case ClaudeTerminalApps.wezterm?:
+            guard let pane = environment["WEZTERM_PANE"].flatMap(Int.init) else { return .app(ClaudeTerminalApps.wezterm) }
+            return .wezterm(pane: pane, socket: environment["WEZTERM_UNIX_SOCKET"].flatMap { $0.isEmpty ? nil : $0 })
+        case let bundle? where ClaudeIDE.find(bundle) != nil: return .ide(bundle: bundle, port: port)
         case let bundle?: return .app(bundle)
         case nil: return .unknown
         }
@@ -77,7 +111,10 @@ enum ClaudeSessionHosts {
 
     /// The keys of a session's environment that tell where it runs. Nothing
     /// else in it is kept.
-    static let hostKeys: Set<String> = ["__CFBundleIdentifier", "CLAUDE_CODE_SSE_PORT"]
+    static let hostKeys: Set<String> = [
+        "__CFBundleIdentifier", "CLAUDE_CODE_SSE_PORT", "TERM", "TERM_PROGRAM", "TMUX", "TMUX_PANE",
+        "WEZTERM_PANE", "WEZTERM_UNIX_SOCKET", "KITTY_WINDOW_ID", "KITTY_LISTEN_ON",
+    ]
 
     /// The given variables of the environment a process of this user started with.
     static func environment(of pid: Int32, keys: Set<String> = hostKeys) -> [String: String] {

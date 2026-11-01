@@ -300,7 +300,7 @@
   "notchClaudeSessions.send": "전송",
   "notchClaudeSessions.replyPlaceholder": "Claude에게 답장…",
   "notchClaudeSessions.replyPlaceholderCodex": "Codex에게 답장…",
-  "windows.sessions.replyUnavailable": "답장은 Windows Terminal와 VS Code에서 작동",
+  "windows.sessions.replyUnavailable": "아직 이 세션에는 답장할 수 없습니다",
   "notchClaudeSessions.replyWhileWaiting": "먼저 프롬프트에 답장",
   "notchClaudeSessions.replyWhileDialog": "먼저 터미널에서 대화 닫기",
   "notchClaudeSessions.tasksFormat": "%2$d 작업 중 %1$d",

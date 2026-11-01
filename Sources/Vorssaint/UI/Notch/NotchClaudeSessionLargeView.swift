@@ -528,7 +528,7 @@ struct NotchClaudeSessionComposer: View {
         if session.phase.isWaiting { return text.replyWhileWaiting }
         if session.waitingFor != nil { return text.replyWhileDialog }
         // Codex takes replies through its server, wherever its terminal is.
-        if session.provider != .codex, !session.host.acceptsReplies { return text.replyUnavailable }
+        if session.provider != .codex, !session.host.acceptsReplies { return text.replyUnavailable(for: session.host) }
         return nil
     }
 
