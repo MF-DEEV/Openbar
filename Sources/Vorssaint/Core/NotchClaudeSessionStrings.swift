@@ -15,6 +15,14 @@ struct NotchClaudeSessionStrings {
     let waitingInput: String
     let finished: String
     let idle: String
+    /// A session the plan's usage limit stopped, and when it goes on.
+    let limited: String
+    let resumesFormat: String
+    /// The plan limits beside the sessions, and their setting.
+    let limitsTitle: String
+    let resetsFormat: String
+    let limitsSetting: String
+    let limitsSettingHint: String
     let allow: String
     let alwaysAllow: String
     /// Always while it allows every request of a Codex turn.
@@ -168,10 +176,14 @@ struct NotchClaudeSessionStrings {
         case .waitingPermission: return waitingPermission
         case .waitingInput: return waitingInput
         case .background: return background
+        case .limited: return limited
         case .finished: return finished
         case .idle: return idle
         }
     }
+
+    func resumes(_ when: String) -> String { String(format: resumesFormat, when) }
+    func resets(_ when: String) -> String { String(format: resetsFormat, when) }
 
     /// What names the agent of a session, where Claude would otherwise be named.
     func question(for provider: ClaudeSessionProvider) -> String { provider == .codex ? questionCodex : question }
@@ -221,6 +233,12 @@ extension NotchClaudeSessionStrings {
         waitingInput: "Needs you",
         finished: "Done",
         idle: "Idle",
+        limited: "Limit reached",
+        resumesFormat: "resumes %@",
+        limitsTitle: "Plan limits",
+        resetsFormat: "resets %@",
+        limitsSetting: "Show plan limits",
+        limitsSettingHint: "Shows how much of the Claude and Codex plan limits is used, beside the sessions and on the strip once a limit gets close. With the AI section off, the island keeps reading the limits for this.",
         allow: "Allow",
         alwaysAllow: "Always",
         alwaysOn: "Always: ON",

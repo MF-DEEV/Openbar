@@ -908,6 +908,9 @@ enum DefaultsKey {
     static let notchSessionsNames = "notchSessionsNames"
     /// Each session and subagent shows a Clawd in a costume of its own.
     static let notchSessionsBuddies = "notchSessionsBuddies"
+    /// The plan limits show beside the sessions, read by the AI section's
+    /// reader, which then runs for them even with that section off.
+    static let notchSessionsLimits = "notchSessionsLimits"
     /// The agent and models New session last started with.
     static let notchNewSessionAgent = "notchNewSessionAgent"
     static let notchNewSessionClaudeModel = "notchNewSessionClaudeModel"
@@ -1523,6 +1526,7 @@ enum Defaults {
         DefaultsKey.notchSessionsLargeTextSize: 15.0,
         DefaultsKey.notchSessionsSidebarHidden: false,
         DefaultsKey.notchSessionsBuddies: true,
+        DefaultsKey.notchSessionsLimits: true,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchBrowserCovers: false,

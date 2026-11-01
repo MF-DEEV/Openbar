@@ -17,6 +17,9 @@ enum ClaudeSessionPhase: String, Equatable {
     /// The turn ended but a command it started, like a render, or a subagent
     /// it sent off still runs in the background; Claude Code hears when it ends.
     case background
+    /// The plan's usage limit stopped the turn; it goes on, by itself or
+    /// with a prompt, once the limit resets.
+    case limited
     /// The turn ended and the person has not looked at it yet.
     case finished
     case idle
@@ -25,6 +28,33 @@ enum ClaudeSessionPhase: String, Equatable {
     /// Work goes on, in the turn or behind it.
     var isActive: Bool { isWorking || self == .background }
     var isWaiting: Bool { self == .waitingPermission || self == .waitingInput }
+}
+
+/// A turn the plan's usage limit stopped, as the agent recorded it.
+struct ClaudeLimitStop: Equatable {
+    /// When the agent hit the limit.
+    let at: Date
+    /// When the limit lifts, when the agent said; otherwise the limits
+    /// reading tells.
+    var resetsAt: Date?
+    /// The window that ran out, when the agent said which.
+    var kind: AgentLimitWindow.Kind?
+
+    /// How long a stop with no known reset stays shown: a session window.
+    static let unknownResetHold: TimeInterval = 5 * 3600
+
+    /// Whether the stop still holds at `now`: until the limit resets.
+    func holds(at now: Date) -> Bool {
+        now < (resetsAt ?? at.addingTimeInterval(Self.unknownResetHold))
+    }
+
+    /// The window kind Claude Code names in `rateLimitType`.
+    static func kind(claude type: String?) -> AgentLimitWindow.Kind? {
+        guard let type else { return nil }
+        if type == "five_hour" { return .session }
+        if type.hasPrefix("seven_day") { return .weekly }
+        return .other
+    }
 }
 
 /// The state a session writes to `~/.claude/sessions/<pid>.json`.
@@ -73,6 +103,16 @@ enum ClaudeReplyFailure: Error, Equatable {
 enum ClaudeSessionProvider: String, Equatable {
     case claude
     case codex
+}
+
+extension ClaudeSessionProvider {
+    /// The agent behind a session, as the AI section knows it.
+    var agent: AgentProvider {
+        switch self {
+        case .claude: return .claude
+        case .codex: return .codex
+        }
+    }
 }
 
 /// The app showing a session's terminal, which Open brings forward and a
@@ -256,6 +296,8 @@ struct ClaudeSession: Equatable, Identifiable {
     /// Set for a whole session running in the background, with no terminal.
     /// (`phase == .background` is something else: work a turn left running.)
     var background: ClaudeBackgroundDetails? = nil
+    /// Why the session stopped, while `phase == .limited`.
+    var limitStop: ClaudeLimitStop? = nil
 }
 
 /// Tells a background command that is meant to keep running, like a dev
@@ -298,14 +340,17 @@ struct ClaudeSessionCounts: Equatable {
     /// Of `working`, the Codex ones: each agent shows its own mark and color.
     var workingCodex = 0
     var waiting = 0
+    /// Stopped by the plan's usage limit.
+    var limited = 0
     var finished = 0
 
-    var isEmpty: Bool { working + waiting + finished == 0 }
+    var isEmpty: Bool { working + waiting + limited + finished == 0 }
 
-    init(working: Int = 0, workingCodex: Int = 0, waiting: Int = 0, finished: Int = 0) {
+    init(working: Int = 0, workingCodex: Int = 0, waiting: Int = 0, limited: Int = 0, finished: Int = 0) {
         self.working = working
         self.workingCodex = workingCodex
         self.waiting = waiting
+        self.limited = limited
         self.finished = finished
     }
 
@@ -316,6 +361,7 @@ struct ClaudeSessionCounts: Equatable {
                 if session.provider == .codex { workingCodex += 1 }
             }
             if session.phase.isWaiting { waiting += 1 }
+            if session.phase == .limited { limited += 1 }
             if session.phase == .finished { finished += 1 }
         }
     }
@@ -362,6 +408,8 @@ enum ClaudeTranscriptFact: Equatable {
     case backgroundTask(toolID: String, task: String)
     case subagentInfo(id: String, type: String, description: String?)
     case tasks(ClaudeTaskProgress)
+    /// The plan's usage limit stopped the turn.
+    case limitReached(ClaudeLimitStop)
 }
 
 /// One hook event Claude Code sent while the session ran.

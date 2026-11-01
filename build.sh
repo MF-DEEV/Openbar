@@ -291,6 +291,7 @@ if (( TEST )); then
         Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift
         Sources/Vorssaint/Core/NotchClaudeSessionStrings.swift
         Sources/Vorssaint/Services/Notch/NotchClaudeSessionsSupport.swift
+        Sources/Vorssaint/Services/Notch/NotchSessionLimitsSupport.swift
         Sources/Vorssaint/Services/Notch/NotchSessionAttention.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionModels.swift
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeSessionEngine.swift

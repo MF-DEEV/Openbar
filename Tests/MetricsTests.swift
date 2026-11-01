@@ -123,6 +123,7 @@ struct MetricsTests {
             ("agents", { NotchAgentTests.run(suite) }),
             ("sessions", {
                 ClaudeSessionEngineTests.run(suite)
+                SessionLimitsTests.run(suite)
                 ClaudeSessionReaderTests.run(suite)
                 ClaudeHookTests.run(suite)
                 ClawdCostumeTests.run(suite)

@@ -78,11 +78,15 @@ final class AgentUsageService: ObservableObject {
     private var online = true
     /// The AI page is on the island, which asks Claude Code more often.
     private var pageVisible = false
+    /// Reading only for the Sessions section's plan limits, with the AI
+    /// section off: only limits are handed over, and only their alerts.
+    private(set) var limitsOnly = false
 
     // Confined to `queue`.
     private var readerSession = -1
     private var readerCancellation: Cancellation?
     private var enabled: Set<AgentProvider> = []
+    private var publishesLimitsOnly = false
     private var store = AgentUsageStore()
     private var cursors: [String: AgentLogCursor] = [:]
     private var watcher: AgentLogWatcher?
@@ -119,8 +123,19 @@ final class AgentUsageService: ObservableObject {
 
     func syncWithPreferences() {
         CodexProfileLimitsService.shared.synchronize()
-        guard NotchAgentSupport.isEnabled() else { stop(); return }
-        let wanted = NotchAgentSupport.providers()
+        // With the AI section off, Sessions may still show the plan limits:
+        // then only the agents it follows are read, and only limits leave.
+        let full = NotchAgentSupport.isEnabled()
+        guard full || NotchSessionLimitsSupport.isEnabled() else { stop(); return }
+        let wanted = full ? NotchAgentSupport.providers() : NotchSessionLimitsSupport.providers
+        if limitsOnly != !full {
+            limitsOnly = !full
+            let only = limitsOnly
+            queue.async { [self] in
+                publishesLimitsOnly = only
+                schedulePublish()
+            }
+        }
         // An agent turned off is no longer read at all, and one turned on is
         // read from its start: both take a fresh reading, which would not
         // resume progress saved for the old set, so it goes at once. Codex
@@ -180,7 +195,7 @@ final class AgentUsageService: ObservableObject {
         // A first read still going stops at its next chunk, so the wait
         // below is short.
         if running { cancellation.cancel() }
-        settleArchive(keeping: keeps && NotchAgentSupport.isEnabled())
+        settleArchive(keeping: keeps && NotchSessionLimitsSupport.usageWanted())
         guard running else { return }
         running = false
         cancelClaudeLimits()
@@ -616,7 +631,12 @@ final class AgentUsageService: ObservableObject {
         var plans: [AgentProvider: AgentPlan] = [:]
         if let claudePlan { plans[.claude] = claudePlan }
         if let codex = AgentPlans.codex(planType: store.codexPlan) { plans[.codex] = codex }
-        let next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        var next = store.snapshot(plans: plans, providers: enabled, now: Date())
+        // For Sessions alone, nothing but the limits: no turn at work, spend
+        // or history reaches the island while the AI section is off.
+        if publishesLimitsOnly {
+            next = AgentUsageSnapshot(loaded: next.loaded, now: next.now, limits: next.limits)
+        }
         published = next
         checkBudget(next)
         let checked = enabled.contains(.claude) ? claudeAppSamples.last(where: {
@@ -641,12 +661,12 @@ final class AgentUsageService: ObservableObject {
             guard let self, self.running, self.session == session else { return }
             switch event {
             case .finished(let provider, let duration, _, _, _):
-                guard self.providers.contains(provider), let minimum = NotchAgentSupport.finishMinimum(),
+                guard !self.limitsOnly, self.providers.contains(provider), let minimum = NotchAgentSupport.finishMinimum(),
                       duration >= minimum else { return }
             case .limitWarning(let provider, _), .limitReset(let provider, _):
                 guard self.providers.contains(provider), NotchAgentSupport.limitThreshold() != nil else { return }
             case .budgetReached:
-                guard NotchAgentSupport.dailyBudget() != nil else { return }
+                guard !self.limitsOnly, NotchAgentSupport.dailyBudget() != nil else { return }
             }
             self.events.send(event)
         }

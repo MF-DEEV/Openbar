@@ -27,6 +27,25 @@ struct ClaudeTranscriptReader {
     }
 
     static let previewLimit = 280
+
+    /// The plan's usage limit, as Claude Code records the error that stopped
+    /// a turn on it: an API error message whose `apiError` is
+    /// `usage_limit_reached`, or a rate limit the plan rejected, with the
+    /// window and its reset in `rate_limit_info` (or `quotaLimits`). A
+    /// passing rate limit, which Claude Code retries, is not one.
+    static func limitStop(_ json: [String: Any], at date: Date) -> ClaudeLimitStop? {
+        guard json["isApiErrorMessage"] as? Bool == true else { return nil }
+        let params = json["apiErrorParams"] as? [String: Any]
+        let info = params?["rate_limit_info"] as? [String: Any] ?? json["quotaLimits"] as? [String: Any]
+        let reached = json["apiError"] as? String == "usage_limit_reached"
+            || (json["error"] as? String == "rate_limit" && info?["status"] as? String == "rejected"
+                && info?["rateLimitType"] is String)
+        guard reached else { return nil }
+        let resets = (info?["resetsAt"] as? NSNumber)?.doubleValue
+            ?? ((json["quotaLimits"] as? [String: Any])?["resetsAt"] as? NSNumber)?.doubleValue
+        return ClaudeLimitStop(at: date, resetsAt: resets.flatMap { $0 > 0 && $0.isFinite ? Date(timeIntervalSince1970: $0) : nil },
+                               kind: ClaudeLimitStop.kind(claude: info?["rateLimitType"] as? String))
+    }
     /// A reply is kept whole enough to read in the session's window.
     static let replyLimit = 6000
 
@@ -85,6 +104,7 @@ struct ClaudeTranscriptReader {
                 default: break
                 }
             }
+            if let stop = Self.limitStop(json, at: date) { facts.append(.limitReached(stop)) }
             switch message["stop_reason"] as? String {
             case "end_turn", "stop_sequence", "max_tokens", "refusal":
                 let failed = json["isApiErrorMessage"] as? Bool == true || model.hasPrefix("<")

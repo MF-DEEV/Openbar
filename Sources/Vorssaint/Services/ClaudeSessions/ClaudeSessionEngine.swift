@@ -56,6 +56,8 @@ final class ClaudeSessionEngine {
         /// When Claude Code last asked the person for something by a notice.
         var asked: Date?
         var acknowledged: Date?
+        /// The last turn the plan's usage limit stopped.
+        var limit: ClaudeLimitStop?
         var firstSeen: Date
 
         init(firstSeen: Date) { self.firstSeen = firstSeen }
@@ -273,6 +275,9 @@ final class ClaudeSessionEngine {
             working = record.status == .busy
         }
         if working { return entry.turnOpen && entry.openTool != nil ? .runningTool : .generating }
+        // Stopped by the plan's limit, with no turn begun since: until the
+        // limit resets, when Claude Code may go on by itself.
+        if limitStop(entry, now: now) != nil { return .limited }
         // Claude Code says "shell" for a session at rest with a command of its
         // own still running in the background. The work is not done while one
         // it waits for runs; a dev server or an emulator left running is not
@@ -291,6 +296,13 @@ final class ClaudeSessionEngine {
             return .finished
         }
         return .idle
+    }
+
+    /// The limit that stopped the session's last turn, while it holds.
+    static func limitStop(_ entry: Activity, now: Date) -> ClaudeLimitStop? {
+        guard let limit = entry.limit, !entry.turnOpen, limit.at >= (entry.turnStarted ?? .distantPast),
+              limit.holds(at: now) else { return nil }
+        return limit
     }
 
     private func session(id: String, record: ClaudeSessionRecord, entry: Activity,
@@ -330,7 +342,8 @@ final class ClaudeSessionEngine {
             backgroundLabel: previews
                 ? entry.runningBackground.last { !$0.service }?.label ?? entry.runningSubagents.last?.description : nil,
             services: record.status == .shell || phase == .background ? entry.runningBackground.filter(\.service).count : 0,
-            background: record.job.map { ClaudeBackgroundDetails(job: $0, configHome: record.configHome) })
+            background: record.job.map { ClaudeBackgroundDetails(job: $0, configHome: record.configHome) },
+            limitStop: phase == .limited ? entry.limit : nil)
     }
 
     // MARK: Rules
@@ -388,6 +401,10 @@ final class ClaudeSessionEngine {
         case .tasks(var tasks):
             if !policy.previews { tasks.current = nil }
             entry.tasks = tasks.total > 0 ? tasks : nil
+        case .limitReached(let stop):
+            // A stop read late never replaces a newer one.
+            if (entry.limit?.at ?? .distantPast) <= stop.at { entry.limit = stop }
+            touch(stop.at, in: &entry)
         }
     }
 
