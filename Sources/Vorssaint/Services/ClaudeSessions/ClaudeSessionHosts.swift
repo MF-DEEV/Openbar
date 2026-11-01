@@ -32,9 +32,10 @@ enum ClaudeSessionHosts {
         if term == "alacritty" { return .app(ClaudeTerminalApps.alacritty) }
         if term == "xterm-ghostty" { return tty.map { .ghostty(tty: $0) } ?? .app(ClaudeTerminalApps.ghostty) }
         if program == "vscode" {
-            // An editor started from a terminal inherits that terminal's
-            // identifier; the app responsible for the process knows better.
-            if let ide = ClaudeIDE.find(bundle) ?? ClaudeIDE.find(owner) { return .ide(bundle: ide.bundle, port: port) }
+            // An editor started from a terminal, or from another editor's
+            // terminal, inherits that one's identifier; the app responsible
+            // for the process knows better.
+            if let ide = ClaudeIDE.find(owner) ?? ClaudeIDE.find(bundle) { return .ide(bundle: ide.bundle, port: port) }
             return (bundle ?? owner).map { .app($0) } ?? .unknown
         }
         if program == nil, let window = environment["KITTY_WINDOW_ID"].flatMap(Int.init) {

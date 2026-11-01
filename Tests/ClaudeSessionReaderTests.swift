@@ -367,6 +367,10 @@ enum ClaudeSessionReaderTests {
                                                  environment: editorFromTmux, owner: "com.microsoft.VSCode")
                      == .ide(bundle: "com.microsoft.VSCode", port: 4000),
                      "an editor opened from tmux keeps tmux's variables, and its terminal is still the editor's")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.google.antigravity-ide", tty: "/dev/ttys030", port: nil,
+                                                 environment: ["TERM_PROGRAM": "vscode"], owner: "com.microsoft.VSCode")
+                     == .ide(bundle: "com.microsoft.VSCode", port: nil),
+                     "VS Code opened from Antigravity's terminal is VS Code, as macOS holds it responsible")
         suite.expect(ClaudeSessionHosts.classify(bundle: "com.todesktop.230313mzl4w4u92", tty: "/dev/ttys030", port: nil,
                                                  environment: ["TERM_PROGRAM": "vscode"])
                      == .ide(bundle: "com.todesktop.230313mzl4w4u92", port: nil), "Cursor's terminal goes through the bridge")
