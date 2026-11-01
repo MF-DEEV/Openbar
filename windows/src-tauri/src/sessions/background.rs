@@ -510,7 +510,12 @@ pub const DETACH: u8 = 0x1a;
 /// needs: images are pasted as their paths, which Claude Code takes a moment to
 /// read, then the text; the return alone at the end sends it.
 pub fn keystrokes(text: &str, images: &[String]) -> Vec<(Vec<u8>, u64)> {
-    let paste = |value: &str| format!("\u{1b}[200~{value}\u{1b}[201~").into_bytes();
+    // A terminal pastes line breaks as returns; a line feed reaches a Windows
+    // console's input as a space.
+    let paste = |value: &str| {
+        let value = value.replace("\r\n", "\r").replace('\n', "\r");
+        format!("\u{1b}[200~{value}\u{1b}[201~").into_bytes()
+    };
     let mut steps: Vec<(Vec<u8>, u64)> = images.iter().map(|i| (paste(i), 200)).collect();
     if let Some(last) = steps.last_mut() {
         last.1 = 1200 + 300 * images.len() as u64;
@@ -1116,7 +1121,7 @@ mod tests {
         };
         assert_eq!(
             text(keystrokes("one\ntwo", &[])),
-            ["\u{1b}[200~one\ntwo\u{1b}[201~", "\r"]
+            ["\u{1b}[200~one\rtwo\u{1b}[201~", "\r"]
         );
         let both = keystrokes("look", &["a.png".to_owned(), "b.png".to_owned()]);
         assert_eq!(both[1].1, 1800, "time to read the images");

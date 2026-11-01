@@ -37,7 +37,9 @@ import {
   phaseTint,
   projectColor,
   providerTint,
-  totalTokens, sessionPhaseLabel } from "./format";
+  totalTokens,
+  sessionPhaseLabel,
+} from "./format";
 import { answerMarks, messageTime } from "./conversation";
 import { RichText } from "./RichText";
 import { MessageImages } from "./MessageImages";
@@ -65,7 +67,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
   const [sidebarHidden, setSidebarHidden] = useState(() => storedNumber("sessions.sidebarHidden", 0) === 1);
   const [layoutHidden, setLayoutHidden] = useState(sidebarHidden);
   const [textSettling, setTextSettling] = useState(false);
-  const [showingLogs, setShowingLogs] = useState(false);
+  const showingLogs = useSessions((s) => s.logsFor === session.id);
   const sidebarFrame = useRef(0);
   useEffect(() => () => cancelAnimationFrame(sidebarFrame.current), []);
   const [textSize, setTextSize] = useState(() =>
@@ -186,7 +188,13 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
           </motion.div>
         ) : null}
       </AnimatePresence>
-      {session.background ? <BackgroundBar session={session} showingLogs={showingLogs} onLogs={setShowingLogs} /> : null}
+      {session.background ? (
+        <BackgroundBar
+          session={session}
+          showingLogs={showingLogs}
+          onLogs={(on) => useSessions.setState({ logsFor: on ? session.id : null })}
+        />
+      ) : null}
       {showingLogs && session.background ? <BackgroundLogs session={session} /> : null}
       <div
         className={`s-scroll${enlarged ? " is-large" : ""}`}

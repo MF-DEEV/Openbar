@@ -30,6 +30,8 @@ interface SessionsState {
   renaming: boolean;
   /** The page that starts a new session is open. */
   composing: boolean;
+  /** The background session whose output shows in place of its work. Kept here: enlarging the page remounts it. */
+  logsFor: string | null;
   /** The wardrobe is open on the focused session's page. */
   wardrobe: boolean;
   /** Explicit opt-in for the current Codex turn; cleared when it ends. */
@@ -92,6 +94,7 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   lookedAt: {},
   renaming: false,
   composing: false,
+  logsFor: null,
   wardrobe: false,
   autoAllow: {},
   toggleAutoAllow(id) {
@@ -149,6 +152,7 @@ export const useSessions = create<SessionsState>()((set, get) => ({
     set((s) => ({
       focused: id,
       renaming: false,
+      logsFor: null,
       wardrobe: false,
       lookedAt: id ? { ...s.lookedAt, [id]: now() } : s.lookedAt,
     }));

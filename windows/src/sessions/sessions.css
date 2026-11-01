@@ -1878,3 +1878,8 @@
     transition: none;
   }
 }
+
+/* The tag keeps its width on a page with no details beside it yet. */
+.s-header-text {
+  flex: 1;
+}
