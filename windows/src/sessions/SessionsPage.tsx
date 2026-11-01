@@ -88,7 +88,7 @@ function Trailing() {
   const failedUntil = useSessions((s) => s.openFailedUntil);
   const renaming = useSessions((s) => s.renaming);
   const composing = useSessions((s) => s.composing);
-  const canStart = useSessions((s) => s.snapshot.canStart === true);
+  const canStart = useSessions((s) => s.snapshot.canStart === true || s.snapshot.canStartCodex === true);
   const [, tick] = useState(0);
   useEffect(() => {
     const wait = failedUntil * 1000 - Date.now();

@@ -612,5 +612,11 @@
   "windows.sessions.runInTerminal": "终端",
   "windows.sessions.backgroundOffHelp": "Claude Code 已关闭 Agent View，会话只能在终端中启动。",
   "windows.sessions.startSession": "开始",
-  "windows.sessions.folderNotTrusted": "Claude Code 尚未信任此文件夹。请在终端中启动一次并确认。"
+  "windows.sessions.folderNotTrusted": "Claude Code 尚未信任此文件夹。请在终端中启动一次并确认。",
+  "windows.sessions.agentPicker": "代理",
+  "windows.sessions.modelPicker": "模型",
+  "windows.sessions.defaultModel": "默认",
+  "windows.sessions.codexNeedsPrompt": "在后台运行时，Codex 需要第一条提示。",
+  "windows.sessions.codexNotStarted": "Codex 的后台服务器没有启动。请改用终端。",
+  "windows.sessions.codexFailed": "Codex 无法启动会话"
 }

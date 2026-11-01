@@ -96,7 +96,7 @@ function Row({ session, now }: { session: Session; now: number }) {
       role="button"
       tabIndex={0}
       className={`s-row${waiting ? " is-waiting" : ""}${asleep ? " is-dozing" : ""}`}
-      aria-label={`${name}, ${session.provider === "codex" ? "Codex" : "Claude Code"}, ${session.project}, ${sessionPhaseLabel(session)}`}
+      aria-label={`${name}, ${session.provider === "codex" ? S.codex : S.claudeCode}, ${session.project}, ${sessionPhaseLabel(session)}`}
       onClick={() => useSessions.getState().focus(session.id)}
       onKeyDown={(e) => e.key === "Enter" && useSessions.getState().focus(session.id)}
     >

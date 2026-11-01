@@ -612,5 +612,11 @@
   "windows.sessions.runInTerminal": "ターミナル",
   "windows.sessions.backgroundOffHelp": "Claude Code の Agent View がオフのため、セッションはターミナルでのみ開始できます。",
   "windows.sessions.startSession": "開始",
-  "windows.sessions.folderNotTrusted": "Claude Code はまだこのフォルダを信頼していません。一度ターミナルで開始して許可してください。"
+  "windows.sessions.folderNotTrusted": "Claude Code はまだこのフォルダを信頼していません。一度ターミナルで開始して許可してください。",
+  "windows.sessions.agentPicker": "エージェント",
+  "windows.sessions.modelPicker": "モデル",
+  "windows.sessions.defaultModel": "デフォルト",
+  "windows.sessions.codexNeedsPrompt": "バックグラウンドでは、Codex に最初のプロンプトが必要です。",
+  "windows.sessions.codexNotStarted": "Codex のバックグラウンドサーバーが起動しませんでした。ターミナルで試してください。",
+  "windows.sessions.codexFailed": "Codex はセッションを開始できませんでした"
 }

@@ -8103,5 +8103,35 @@
     "key": "windows.sessions.folderNotTrusted",
     "english": "Claude Code doesn’t trust this folder yet. Start it in a terminal once and say yes.",
     "source": null
+  },
+  {
+    "key": "windows.sessions.agentPicker",
+    "english": "Agent",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.modelPicker",
+    "english": "Model",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.defaultModel",
+    "english": "Default",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.codexNeedsPrompt",
+    "english": "In the background, Codex needs a first prompt.",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.codexNotStarted",
+    "english": "Codex’s background server didn’t start. Try Terminal.",
+    "source": null
+  },
+  {
+    "key": "windows.sessions.codexFailed",
+    "english": "Codex couldn’t start the session",
+    "source": null
   }
 ]

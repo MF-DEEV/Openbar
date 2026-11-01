@@ -612,5 +612,11 @@
   "windows.sessions.runInTerminal": "Terminal",
   "windows.sessions.backgroundOffHelp": "Claude Code'da Agent View kapalı, bu yüzden oturumlar yalnızca terminalde başlatılabilir.",
   "windows.sessions.startSession": "Başlat",
-  "windows.sessions.folderNotTrusted": "Claude Code henüz bu klasöre güvenmiyor. Bir kez terminalde başlatıp onaylayın."
+  "windows.sessions.folderNotTrusted": "Claude Code henüz bu klasöre güvenmiyor. Bir kez terminalde başlatıp onaylayın.",
+  "windows.sessions.agentPicker": "Ajan",
+  "windows.sessions.modelPicker": "Model",
+  "windows.sessions.defaultModel": "Varsayılan",
+  "windows.sessions.codexNeedsPrompt": "Arka planda Codex'in ilk bir isteme ihtiyacı var.",
+  "windows.sessions.codexNotStarted": "Codex'in arka plan sunucusu başlamadı. Terminal'i deneyin.",
+  "windows.sessions.codexFailed": "Codex oturumu başlatamadı"
 }

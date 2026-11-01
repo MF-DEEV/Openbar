@@ -612,5 +612,11 @@
   "windows.sessions.runInTerminal": "У терміналі",
   "windows.sessions.backgroundOffHelp": "Agent View вимкнено в Claude Code, тому сеанси можна запускати лише в терміналі.",
   "windows.sessions.startSession": "Запустити",
-  "windows.sessions.folderNotTrusted": "Claude Code ще не довіряє цій папці. Запустіть її один раз у терміналі та підтвердьте."
+  "windows.sessions.folderNotTrusted": "Claude Code ще не довіряє цій папці. Запустіть її один раз у терміналі та підтвердьте.",
+  "windows.sessions.agentPicker": "Агент",
+  "windows.sessions.modelPicker": "Модель",
+  "windows.sessions.defaultModel": "Типова",
+  "windows.sessions.codexNeedsPrompt": "У фоні Codex потрібен перший запит.",
+  "windows.sessions.codexNotStarted": "Фоновий сервер Codex не запустився. Спробуйте в терміналі.",
+  "windows.sessions.codexFailed": "Codex не зміг запустити сесію"
 }

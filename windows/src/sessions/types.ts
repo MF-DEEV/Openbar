@@ -149,6 +149,8 @@ export interface Snapshot {
   canStart?: boolean;
   /** Its Agent View is on, so it can run them in the background too. */
   backgroundAvailable?: boolean;
+  /** Codex is installed, so New session can start it too. */
+  canStartCodex?: boolean;
   hooksInstalled: boolean;
 }
 
@@ -169,3 +171,16 @@ export interface ReplyAttachment {
 export const isWorking = (p: Phase) => p === "generating" || p === "runningTool";
 export const isActive = (p: Phase) => isWorking(p) || p === "background";
 export const isWaiting = (p: Phase) => p === "waitingPermission" || p === "waitingInput";
+
+/** A model a new session can start with; `id` null keeps the agent's own
+ * default, which `detail` names when it can be told. */
+export interface NewSessionModel {
+  id: string | null;
+  name: string;
+  detail: string | null;
+}
+
+export interface NewSessionModels {
+  claude: NewSessionModel[];
+  codex: NewSessionModel[];
+}

@@ -612,5 +612,11 @@
   "windows.sessions.runInTerminal": "В терминале",
   "windows.sessions.backgroundOffHelp": "Agent View отключён в Claude Code, поэтому сессии можно запускать только в терминале.",
   "windows.sessions.startSession": "Запустить",
-  "windows.sessions.folderNotTrusted": "Claude Code пока не доверяет этой папке. Запустите её один раз в терминале и подтвердите."
+  "windows.sessions.folderNotTrusted": "Claude Code пока не доверяет этой папке. Запустите её один раз в терминале и подтвердите.",
+  "windows.sessions.agentPicker": "Агент",
+  "windows.sessions.modelPicker": "Модель",
+  "windows.sessions.defaultModel": "По умолчанию",
+  "windows.sessions.codexNeedsPrompt": "В фоне Codex нужен первый запрос.",
+  "windows.sessions.codexNotStarted": "Фоновый сервер Codex не запустился. Попробуйте в терминале.",
+  "windows.sessions.codexFailed": "Codex не смог запустить сессию"
 }

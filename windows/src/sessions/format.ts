@@ -79,6 +79,8 @@ export function canRemoveBackground(session: Session): boolean {
 export function problemText(failure: string | null | undefined): string | null {
   if (failure === null) return null;
   if (failure === undefined || failure === "unavailable") return S.commandFailed;
+  if (failure === "needsPrompt") return S.codexNeedsPrompt;
+  if (failure === "codexNotStarted") return S.codexNotStarted;
   return failure === "notTrusted" ? S.folderNotTrusted : failure;
 }
 

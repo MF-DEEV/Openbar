@@ -238,6 +238,7 @@ pub fn run() {
             sessions::service::sessions_recent_folders,
             sessions::service::sessions_pick_folder,
             sessions::service::sessions_start,
+            sessions::service::sessions_new_models,
             sessions::service::sessions_image,
             sessions::attachments::sessions_attach_image,
             sessions::attachments::sessions_clipboard_images,

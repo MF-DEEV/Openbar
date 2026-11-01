@@ -245,10 +245,14 @@ pub fn settings_disable(data: &[u8]) -> bool {
 
 /// The arguments that start a session; `--` keeps a prompt that begins with a
 /// dash from reading as an option.
-pub fn start_arguments(prompt: &str, background: bool) -> Vec<String> {
+pub fn start_arguments(prompt: &str, background: bool, model: Option<&str>) -> Vec<String> {
     let mut arguments = Vec::new();
     if background {
         arguments.push("--bg".to_owned());
+    }
+    if let Some(model) = model.filter(|m| !m.is_empty()) {
+        arguments.push("--model".to_owned());
+        arguments.push(model.to_owned());
     }
     let prompt = prompt.trim();
     if !prompt.is_empty() {
@@ -653,13 +657,46 @@ mod platform {
         timeout: Duration,
     ) -> Option<Output> {
         let executable = executable()?;
-        let mut child = command(&executable, arguments, config_home, folder)
+        let child = command(&executable, arguments, config_home, folder)
             .creation_flags(CREATE_NO_WINDOW)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
             .ok()?;
+        collect(child, timeout)
+    }
+
+    /// `codex` with these arguments and no window, in the app's environment.
+    pub fn codex(arguments: &[String], timeout: Duration) -> Option<Output> {
+        let executable = crate::agent_usage::codex_executable()?;
+        let child = Command::new(executable)
+            .args(arguments)
+            .creation_flags(CREATE_NO_WINDOW)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .ok()?;
+        collect(child, timeout)
+    }
+
+    /// Codex's terminal UI in a console of its own, in a folder.
+    pub fn codex_in_terminal(arguments: &[String], folder: Option<&str>) -> bool {
+        let Some(executable) = crate::agent_usage::codex_executable() else {
+            return false;
+        };
+        let mut command = Command::new(executable);
+        command.args(arguments).creation_flags(CREATE_NEW_CONSOLE);
+        if let Some(folder) = folder {
+            command.current_dir(folder);
+        }
+        command.spawn().is_ok()
+    }
+
+    /// Waits for a command and takes what it printed. None when it doesn't
+    /// finish in time.
+    fn collect(mut child: std::process::Child, timeout: Duration) -> Option<Output> {
         let read = |mut pipe: Box<dyn std::io::Read + Send>| {
             let (sender, receiver) = std::sync::mpsc::channel();
             std::thread::spawn(move || {
@@ -926,6 +963,12 @@ mod platform {
     pub fn in_terminal(_: &[String], _: Option<&str>, _: Option<&str>) -> bool {
         false
     }
+    pub fn codex(_: &[String], _: Duration) -> Option<Output> {
+        None
+    }
+    pub fn codex_in_terminal(_: &[String], _: Option<&str>) -> bool {
+        false
+    }
     pub fn reply(_: &str, _: &[String], _: &str, _: Option<&str>) -> bool {
         false
     }
@@ -934,7 +977,187 @@ mod platform {
     }
 }
 
-pub use platform::{claude, executable, in_terminal, reply, screen};
+pub use platform::{claude, codex, codex_in_terminal, executable, in_terminal, reply, screen};
+
+/// A model a new session can start with. `id` None keeps the agent's own
+/// default; `detail` names that default when it can be told.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct NewSessionModel {
+    pub id: Option<String>,
+    pub name: String,
+    pub detail: Option<String>,
+}
+
+impl NewSessionModel {
+    fn named(id: &str, name: &str) -> NewSessionModel {
+        NewSessionModel {
+            id: Some(id.to_owned()),
+            name: name.to_owned(),
+            detail: None,
+        }
+    }
+}
+
+/// Claude Code's aliases for its latest models (`claude --help`), so the
+/// list doesn't age with each release.
+pub const CLAUDE_ALIASES: [(&str, &str); 4] = [
+    ("fable", "Fable"),
+    ("opus", "Opus"),
+    ("sonnet", "Sonnet"),
+    ("haiku", "Haiku"),
+];
+
+/// The default (named by `current`, the settings' model), then the aliases.
+/// The island words the default itself.
+pub fn claude_models(current: Option<&str>) -> Vec<NewSessionModel> {
+    let mut models = vec![NewSessionModel {
+        id: None,
+        name: String::new(),
+        detail: current.map(claude_name),
+    }];
+    models.extend(
+        CLAUDE_ALIASES
+            .iter()
+            .map(|(id, name)| NewSessionModel::named(id, name)),
+    );
+    models
+}
+
+/// An alias or full model name as a person reads it: `opus[1m]` as Opus.
+pub fn claude_name(model: &str) -> String {
+    let base = model.split('[').next().unwrap_or(model);
+    CLAUDE_ALIASES
+        .iter()
+        .find(|(id, _)| id.eq_ignore_ascii_case(base))
+        .map(|(_, name)| (*name).to_owned())
+        .unwrap_or_else(|| base.to_owned())
+}
+
+/// The `model` Claude Code's settings name, if any.
+pub fn claude_setting(data: &[u8]) -> Option<String> {
+    let value: Value = serde_json::from_slice(data).ok()?;
+    value
+        .get("model")?
+        .as_str()
+        .filter(|m| !m.is_empty())
+        .map(str::to_owned)
+}
+
+/// Codex's listed models from its `models_cache.json`, in its own order, once each.
+pub fn codex_catalog(data: Option<&[u8]>) -> Vec<NewSessionModel> {
+    let Some(value) = data.and_then(|d| serde_json::from_slice::<Value>(d).ok()) else {
+        return Vec::new();
+    };
+    let Some(models) = value.get("models").and_then(Value::as_array) else {
+        return Vec::new();
+    };
+    let mut shown: Vec<(i64, usize, NewSessionModel)> = models
+        .iter()
+        .enumerate()
+        .filter_map(|(index, model)| {
+            let id = model
+                .get("slug")
+                .or_else(|| model.get("id"))
+                .and_then(Value::as_str)?;
+            let visibility = model
+                .get("visibility")
+                .and_then(Value::as_str)
+                .unwrap_or("list");
+            if id.is_empty() || visibility != "list" {
+                return None;
+            }
+            let name = model
+                .get("display_name")
+                .or_else(|| model.get("displayName"))
+                .and_then(Value::as_str)
+                .filter(|n| !n.is_empty())
+                .unwrap_or(id);
+            let priority = model
+                .get("priority")
+                .and_then(Value::as_i64)
+                .unwrap_or(i64::MAX);
+            Some((priority, index, NewSessionModel::named(id, name)))
+        })
+        .collect();
+    shown.sort_by_key(|(priority, index, _)| (*priority, *index));
+    let mut seen = std::collections::HashSet::new();
+    shown
+        .into_iter()
+        .map(|(_, _, model)| model)
+        .filter(|model| seen.insert(model.id.clone()))
+        .collect()
+}
+
+/// The top-level `model = "…"` of a `config.toml`; one inside a table is a
+/// profile's or a provider's, not the default.
+pub fn codex_setting(toml: &str) -> Option<String> {
+    for raw in toml.lines() {
+        let line = raw.trim();
+        if line.starts_with('[') {
+            return None;
+        }
+        let Some((key, value)) = line.split_once('=') else {
+            continue;
+        };
+        if key.trim() != "model" {
+            continue;
+        }
+        let mut value = value.trim();
+        if let Some(hash) = value.find(" #") {
+            value = value[..hash].trim();
+        }
+        let quoted = value.len() >= 2
+            && ((value.starts_with('"') && value.ends_with('"'))
+                || (value.starts_with('\'') && value.ends_with('\'')));
+        if !quoted {
+            return None;
+        }
+        let inner = &value[1..value.len() - 1];
+        return (!inner.is_empty()).then(|| inner.to_owned());
+    }
+    None
+}
+
+/// The default (named by `config.toml`, else Codex's first), then the catalog.
+pub fn codex_models(cache: Option<&[u8]>, config: Option<&str>) -> Vec<NewSessionModel> {
+    let listed = codex_catalog(cache);
+    let detail = match config.and_then(codex_setting) {
+        Some(id) => Some(
+            listed
+                .iter()
+                .find(|m| m.id.as_deref() == Some(id.as_str()))
+                .map(|m| m.name.clone())
+                .unwrap_or(id),
+        ),
+        None => listed.first().map(|m| m.name.clone()),
+    };
+    let mut models = vec![NewSessionModel {
+        id: None,
+        name: String::new(),
+        detail,
+    }];
+    models.extend(listed);
+    models
+}
+
+/// The arguments that start Codex's terminal UI.
+pub fn codex_start_arguments(prompt: &str, model: Option<&str>) -> Vec<String> {
+    let mut arguments = Vec::new();
+    if let Some(model) = model.filter(|m| !m.is_empty()) {
+        arguments.push("-m".to_owned());
+        arguments.push(model.to_owned());
+    }
+    let prompt = prompt.trim();
+    if !prompt.is_empty() {
+        arguments.push("--".to_owned());
+        arguments.push(prompt.to_owned());
+    }
+    arguments
+}
+
+/// Starts Codex's shared app-server, which runs threads with no terminal.
+pub const CODEX_DAEMON_START: [&str; 3] = ["app-server", "daemon", "start"];
 
 #[cfg(test)]
 mod tests {
@@ -1082,9 +1305,13 @@ mod tests {
 
     #[test]
     fn command_lines() {
-        assert_eq!(start_arguments("-x", true), ["--bg", "--", "-x"]);
-        assert_eq!(start_arguments("  ", true), ["--bg"]);
-        assert!(start_arguments("", false).is_empty());
+        assert_eq!(start_arguments("-x", true, None), ["--bg", "--", "-x"]);
+        assert_eq!(start_arguments("  ", true, None), ["--bg"]);
+        assert!(start_arguments("", false, Some("")).is_empty());
+        assert_eq!(
+            start_arguments("-x", true, Some("opus")),
+            ["--bg", "--model", "opus", "--", "-x"]
+        );
         assert!(
             is_job_id("a5b5e11e")
                 && !is_job_id("a b")
@@ -1180,5 +1407,69 @@ mod tests {
             .collect();
         assert_eq!(ordered(many).len(), FOLDERS_AT_MOST);
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn new_session_models() {
+        let claude = claude_models(Some("opus[1m]"));
+        let ids: Vec<Option<&str>> = claude.iter().map(|m| m.id.as_deref()).collect();
+        assert_eq!(
+            ids,
+            [
+                None,
+                Some("fable"),
+                Some("opus"),
+                Some("sonnet"),
+                Some("haiku")
+            ]
+        );
+        assert_eq!(claude[0].detail.as_deref(), Some("Opus"));
+        assert_eq!(claude_models(None)[0].detail, None);
+        assert_eq!(claude_name("claude-fable-5-1"), "claude-fable-5-1");
+        assert_eq!(
+            claude_setting(br#"{"model":"sonnet","env":{}}"#).as_deref(),
+            Some("sonnet")
+        );
+        assert_eq!(claude_setting(br#"{"model":""}"#), None);
+        assert_eq!(claude_setting(b"not json"), None);
+
+        let cache = br#"{"fetched_at":"x","models":[{"slug":"gpt-b","display_name":"GPT B","visibility":"list","priority":2},{"slug":"hidden","display_name":"Hidden","visibility":"hide","priority":0},{"slug":"gpt-a","display_name":"GPT A","visibility":"list","priority":1},{"slug":"gpt-c","display_name":"","priority":2},{"slug":"gpt-a","display_name":"Again","visibility":"list","priority":9},{"display_name":"No slug","visibility":"list","priority":0}]}"#;
+        let catalog = codex_catalog(Some(cache));
+        let ids: Vec<&str> = catalog.iter().filter_map(|m| m.id.as_deref()).collect();
+        assert_eq!(ids, ["gpt-a", "gpt-b", "gpt-c"]);
+        assert_eq!(catalog[2].name, "gpt-c");
+        assert!(codex_catalog(None).is_empty() && codex_catalog(Some(b"[]")).is_empty());
+        let codex = codex_models(Some(cache), Some("model = \"gpt-b\"\n"));
+        assert_eq!(
+            (codex[0].id.as_deref(), codex[0].detail.as_deref()),
+            (None, Some("GPT B"))
+        );
+        assert_eq!(
+            codex_models(Some(cache), None)[0].detail.as_deref(),
+            Some("GPT A")
+        );
+        let alone = codex_models(None, Some("model = 'gpt-z'"));
+        assert_eq!(alone.len(), 1);
+        assert_eq!(alone[0].detail.as_deref(), Some("gpt-z"));
+
+        assert_eq!(
+            codex_setting("model = \"gpt-6.1-sol\"\nmodel_reasoning_effort = \"medium\"")
+                .as_deref(),
+            Some("gpt-6.1-sol")
+        );
+        assert_eq!(
+            codex_setting("model_reasoning_effort = \"high\"\n  model=\"m\" # mine").as_deref(),
+            Some("m")
+        );
+        assert_eq!(codex_setting("[profiles.fast]\nmodel = \"p\""), None);
+        assert_eq!(codex_setting("model = gpt"), None);
+        assert_eq!(codex_setting("model = \"\""), None);
+        assert_eq!(codex_setting(""), None);
+
+        assert_eq!(
+            codex_start_arguments("-x", Some("gpt-a")),
+            ["-m", "gpt-a", "--", "-x"]
+        );
+        assert!(codex_start_arguments(" ", None).is_empty());
     }
 }

@@ -612,5 +612,11 @@
   "windows.sessions.runInTerminal": "Terminale",
   "windows.sessions.backgroundOffHelp": "Agent View è disattivato in Claude Code, quindi le sessioni partono solo in un terminale.",
   "windows.sessions.startSession": "Avvia",
-  "windows.sessions.folderNotTrusted": "Claude Code non si fida ancora di questa cartella. Avviala una volta in un terminale e conferma."
+  "windows.sessions.folderNotTrusted": "Claude Code non si fida ancora di questa cartella. Avviala una volta in un terminale e conferma.",
+  "windows.sessions.agentPicker": "Agente",
+  "windows.sessions.modelPicker": "Modello",
+  "windows.sessions.defaultModel": "Predefinito",
+  "windows.sessions.codexNeedsPrompt": "In background, Codex ha bisogno di un primo prompt.",
+  "windows.sessions.codexNotStarted": "Il server in background di Codex non è partito. Prova nel terminale.",
+  "windows.sessions.codexFailed": "Codex non è riuscito ad avviare la sessione"
 }

@@ -148,8 +148,24 @@ export const bridge = {
     recentFolders: () => call<RecentFolder[]>("sessions_recent_folders"),
     pickFolder: () => call<string | null>("sessions_pick_folder"),
     /** What went wrong, or null. */
-    start: (folder: string, configHome: string | undefined, prompt: string, background: boolean) =>
-      call<string | null>("sessions_start", { folder, configHome: configHome ?? null, prompt, background }),
+    start: (
+      folder: string,
+      configHome: string | undefined,
+      prompt: string,
+      background: boolean,
+      agent: import("../sessions/types").Provider = "claude",
+      model: string | null = null,
+    ) =>
+      call<string | null>("sessions_start", {
+        folder,
+        configHome: configHome ?? null,
+        prompt,
+        background,
+        agent,
+        model,
+      }),
+    newModels: (configHome: string | undefined) =>
+      call<import("../sessions/types").NewSessionModels>("sessions_new_models", { configHome: configHome ?? null }),
   },
   music: {
     selectSource: (source: string | null) => call<void>("music_select_source", { source }),

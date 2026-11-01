@@ -274,6 +274,31 @@ export const S = {
   get folderNotTrusted() {
     return t("windows.sessions.folderNotTrusted");
   },
+  get agentPicker() {
+    return t("windows.sessions.agentPicker");
+  },
+  get modelPicker() {
+    return t("windows.sessions.modelPicker");
+  },
+  get defaultModel() {
+    return t("windows.sessions.defaultModel");
+  },
+  get codexNeedsPrompt() {
+    return t("windows.sessions.codexNeedsPrompt");
+  },
+  get codexNotStarted() {
+    return t("windows.sessions.codexNotStarted");
+  },
+  get codexFailed() {
+    return t("windows.sessions.codexFailed");
+  },
+  /** The agents' names, as Settings words them. */
+  get claudeCode() {
+    return t("windows.settings.claudeCode");
+  },
+  get codex() {
+    return t("windows.settings.codex");
+  },
   get openFailed() {
     return t("notchClaudeSessions.openFailed");
   },

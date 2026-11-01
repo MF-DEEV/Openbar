@@ -70,6 +70,8 @@ struct Published<'a> {
     can_start: bool,
     /// Its Agent View is on, so it can run them in the background too.
     background_available: bool,
+    /// Codex is installed, so New session can start it too.
+    can_start_codex: bool,
     hooks_installed: bool,
 }
 
@@ -164,6 +166,7 @@ struct Inner {
     listing_jobs: bool,
     jobs_listed: Option<Time>,
     can_start: bool,
+    can_start_codex: bool,
     background_available: bool,
 }
 
@@ -198,6 +201,7 @@ impl Service {
                 listing_jobs: false,
                 jobs_listed: None,
                 can_start: false,
+                can_start_codex: false,
                 background_available: false,
             }),
             codex: Mutex::new(None),
@@ -452,6 +456,7 @@ impl Service {
             previews: inner.engine.policy().previews,
             can_start: inner.can_start,
             background_available: inner.background_available,
+            can_start_codex: inner.can_start_codex,
             hooks_installed: inner.hooks_installed,
         };
         let _ = self.app.emit("sessions://snapshot", &published);
@@ -489,6 +494,7 @@ impl Service {
         let service = service.clone();
         thread::spawn(move || {
             let can_start = background::executable().is_some();
+            let can_start_codex = crate::agent_usage::codex_executable().is_some();
             let turned_off =
                 background::is_on(std::env::var(background::DISABLE_VARIABLE).ok().as_deref())
                     || homes.iter().any(|home| {
@@ -528,6 +534,7 @@ impl Service {
             inner.background_jobs = jobs;
             inner.listing_jobs = false;
             inner.can_start = can_start;
+            inner.can_start_codex = can_start_codex;
             inner.background_available = listed;
             service.publish(&mut inner, t);
         });
@@ -1132,20 +1139,61 @@ pub async fn sessions_pick_folder(app: AppHandle<Wry>) -> Result<Option<String>,
     .map_err(|_| ())
 }
 
-/// Starts Claude Code in a folder, in the background or in the person's
-/// terminal. "notTrusted", "unavailable" or Claude Code's own words when it
-/// didn't start.
+/// The models each agent can start with, for the New session page: the
+/// default first (the island words it), then each model.
+#[derive(Serialize)]
+pub struct NewSessionModels {
+    claude: Vec<background::NewSessionModel>,
+    codex: Vec<background::NewSessionModel>,
+}
+
 #[tauri::command]
+pub async fn sessions_new_models(config_home: Option<String>) -> Result<NewSessionModels, ()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let claude_folder = config_home
+            .map(std::path::PathBuf::from)
+            .or_else(|| hooks::installer::home_dir().map(|h| h.join(".claude")));
+        let setting = claude_folder
+            .and_then(|f| std::fs::read(f.join("settings.json")).ok())
+            .and_then(|data| background::claude_setting(&data));
+        let codex_home = crate::sessions::codex::client::codex_home();
+        let cache = codex_home
+            .as_ref()
+            .and_then(|h| std::fs::read(h.join("models_cache.json")).ok());
+        let config = codex_home
+            .as_ref()
+            .and_then(|h| std::fs::read_to_string(h.join("config.toml")).ok());
+        NewSessionModels {
+            claude: background::claude_models(setting.as_deref()),
+            codex: background::codex_models(cache.as_deref(), config.as_deref()),
+        }
+    })
+    .await
+    .map_err(|_| ())
+}
+
+/// Starts Claude Code or Codex in a folder, in the background or in the
+/// person's terminal, with a model or the agent's default. "notTrusted",
+/// "needsPrompt", "codexNotStarted", "unavailable" or the agent's own words
+/// when it didn't start.
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
 pub async fn sessions_start(
     service: tauri::State<'_, Shared>,
     folder: String,
     config_home: Option<String>,
     prompt: String,
     background: bool,
+    agent: Option<String>,
+    model: Option<String>,
 ) -> Result<Option<String>, ()> {
     let service = service.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let arguments = self::background::start_arguments(&prompt, background);
+        let model = model.as_deref().filter(|m| !m.is_empty());
+        if agent.as_deref() == Some("codex") {
+            return start_codex(&service, &folder, &prompt, background, model);
+        }
+        let arguments = self::background::start_arguments(&prompt, background, model);
         let home = config_home.as_deref();
         let failure = if background {
             let output =
@@ -1169,6 +1217,46 @@ pub async fn sessions_start(
     })
     .await
     .map_err(|_| ())
+}
+
+/// Codex in a console, or as a thread its shared app-server runs with no
+/// terminal, started first when it isn't running.
+fn start_codex(
+    service: &Shared,
+    folder: &str,
+    prompt: &str,
+    background: bool,
+    model: Option<&str>,
+) -> Option<String> {
+    if !background {
+        let arguments = self::background::codex_start_arguments(prompt, model);
+        return (!self::background::codex_in_terminal(&arguments, Some(folder)))
+            .then(|| "unavailable".to_owned());
+    }
+    if prompt.trim().is_empty() {
+        return Some("needsPrompt".to_owned());
+    }
+    let client = service.codex()?;
+    if !client.connected() {
+        let arguments = self::background::CODEX_DAEMON_START.map(str::to_owned);
+        let started = self::background::codex(&arguments, Duration::from_secs(30));
+        if !started.is_some_and(|o| o.ok) {
+            return Some("codexNotStarted".to_owned());
+        }
+        // The client looks for the daemon's socket every few seconds.
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        while !client.connected() && std::time::Instant::now() < deadline {
+            std::thread::sleep(Duration::from_millis(200));
+        }
+    }
+    let Some(answer) = client.start_thread(folder, model, prompt.trim()) else {
+        return Some("codexNotStarted".to_owned());
+    };
+    match answer.recv_timeout(Duration::from_secs(30)) {
+        Ok(None) => None,
+        Ok(Some(words)) if !words.is_empty() => Some(words),
+        _ => Some("unavailable".to_owned()),
+    }
 }
 
 /// Typing can take a second or two (images wait for Claude Code), so it runs off the main thread.
