@@ -268,6 +268,19 @@ enum NotchChromiumDownloads {
         return (bytes, min(1, Double(bytes) / Double(total)))
     }
 
+    /// A native progress row for a partial the browser also has a record of.
+    /// Chromium publishes its partial's own path, so an Unconfirmed partial
+    /// would be named "Unconfirmed 123"; the record knows the real name, and
+    /// its total stands in when the publication gives no share.
+    static func merged(_ item: NotchDownloadItem, with partial: NotchPartialDownload?) -> NotchDownloadItem {
+        guard let partial, partial.browser != nil, !item.completed else { return item }
+        let counted = progress(of: partial)
+        return NotchDownloadItem(id: item.id, url: item.url, name: partial.expectedURL.lastPathComponent,
+                                 receivedBytes: item.receivedBytes ?? counted.bytes,
+                                 fraction: item.fraction ?? counted.fraction, completed: item.completed,
+                                 active: item.active, date: item.date)
+    }
+
     /// Whether the file's blocks cover its whole length, so it was written in
     /// order rather than stretched ahead of its data.
     static func isDense(_ url: URL) -> Bool {

@@ -385,6 +385,20 @@ enum NotchChromiumDownloadTests {
         suite.expect(NotchChromiumDownloads.annotate(replaced, previous: annotated, downloads: [])[
             unconfirmed.standardizedFileURL]?.browser == nil,
                      "a new file at the same path does not inherit the old record")
+        // Chromium's own NSProgress names the partial's path.
+        let native = NotchDownloadItem(id: unconfirmed.path, url: unconfirmed, name: "Unconfirmed 123",
+                                       receivedBytes: 30, fraction: 0.3, completed: false)
+        let renamed = NotchChromiumDownloads.merged(native, with: first)
+        suite.expect(renamed.name == "report.zip" && renamed.fraction == 0.3 && renamed.receivedBytes == 30
+                     && renamed.id == native.id && renamed.url == native.url,
+                     "a native row for a recorded partial keeps its own counts and takes the real name")
+        let vague = NotchDownloadItem(id: unconfirmed.path, url: unconfirmed, name: "Unconfirmed 123",
+                                      receivedBytes: nil, fraction: nil, completed: false)
+        suite.expect(NotchChromiumDownloads.merged(vague, with: first).fraction.map { abs($0 - 0.4) < 0.0001 } == true,
+                     "a native row with no share takes the record's known total")
+        suite.expect(NotchChromiumDownloads.merged(native, with: plain) == native
+                     && NotchChromiumDownloads.merged(native, with: nil) == native,
+                     "a native row with no record is left as published")
         suite.expect(NotchChromiumDownloads.progress(of: NotchPartialDownload(
             url: unknown, expectedURL: unknown, bytes: 9, resourceID: nil, modified: Date())) == (9, nil),
                      "without a record the file length and no share are shown, as before")

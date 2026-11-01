@@ -549,6 +549,13 @@ final class NotchDownloadService: ObservableObject {
         var active = progressItems.values.flatMap { $0 }
         var seen = Set<String>()
         active = active.filter { seen.insert($0.id).inserted }
+        // A native publication for a partial the browser has a record of
+        // takes the record's real name, and its total when it has none.
+        let recorded = Dictionary(partials.values.filter { $0.browser != nil }
+            .map { ($0.url.standardizedFileURL, $0) }) { first, _ in first }
+        if !recorded.isEmpty {
+            active = active.map { NotchChromiumDownloads.merged($0, with: recorded[$0.url.standardizedFileURL]) }
+        }
         let represented = Set(active.map { $0.url.standardizedFileURL })
         for partial in partials.values where !represented.contains(partial.url.standardizedFileURL)
             && !represented.contains(partial.expectedURL.standardizedFileURL) {
