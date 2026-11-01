@@ -180,6 +180,7 @@ struct NotchClaudeNewSessionView: View {
     @FocusState private var promptFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var agentPill
+    @Namespace private var folderHighlight
 
     /// The agents this Mac can start: Claude Code, Codex, or both.
     private var agents: [ClaudeSessionProvider] {
@@ -393,15 +394,20 @@ struct NotchClaudeNewSessionView: View {
                         .padding(.horizontal, 9)
                 }
                 ForEach(folders) { folder in
-                    Button { chosen = folder; problem = nil } label: {
+                    Button {
+                        guard chosen != folder else { return }
+                        problem = nil
+                        withAnimation(motion) { chosen = folder }
+                    } label: {
                         HStack(spacing: 7) {
                             Image(systemName: chosen == folder ? "checkmark.circle.fill" : "folder")
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundStyle(chosen == folder ? agent.tint : .white.opacity(0.5))
+                                .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace.downUp))
                                 .frame(width: 14)
                             Text(folder.name)
                                 .font(.system(size: 12, weight: .medium))
-                                .foregroundStyle(.white.opacity(0.92))
+                                .foregroundStyle(.white.opacity(chosen == folder ? 1 : 0.8))
                                 .lineLimit(1)
                             Text(folder.path)
                                 .font(.system(size: 10))
@@ -412,7 +418,14 @@ struct NotchClaudeNewSessionView: View {
                         }
                         .padding(.horizontal, 9)
                         .frame(height: 28)
-                        .background(.white.opacity(chosen == folder ? 0.1 : 0), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .background {
+                            // One highlight, sliding to the folder picked.
+                            if chosen == folder {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(.white.opacity(0.1))
+                                    .matchedGeometryEffect(id: "folder", in: folderHighlight)
+                            }
+                        }
                         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
                     .buttonStyle(NotchButtonStyle(cornerRadius: 8, lifts: false))
@@ -503,7 +516,7 @@ struct NotchClaudeNewSessionView: View {
         let existing = folders.first { $0.path == path }
         let folder = existing ?? ClaudeRecentFolder(path: path, configHome: folders.first?.configHome, used: nil)
         if existing == nil { folders.insert(folder, at: 0) }
-        chosen = folder
+        withAnimation(motion) { chosen = folder }
         problem = nil
     }
 }

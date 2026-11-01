@@ -6,7 +6,7 @@
 // their recent output, and the page that starts a new session.
 
 import { Check, ChevronsUpDown, Cpu, FileText, Folder, FolderPlus, Square, Trash2 } from "lucide-react";
-import { type CSSProperties, useEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useLocale } from "../i18n";
 import { useIsland } from "../island/store";
 import { bridge } from "../shared/bridge";
@@ -366,6 +366,14 @@ export function NewSession() {
   const promptPlaceholder = background ? S.firstPromptRequired : S.firstPrompt;
   const canStart = chosen !== null && !starting && !needsPrompt;
   const message = problem ?? (needsPrompt ? S.backgroundNeedsPrompt : null);
+  const folderList = useRef<HTMLDivElement>(null);
+  const [highlight, setHighlight] = useState<{ top: number; height: number } | null>(null);
+
+  // One highlight, sliding to the folder picked.
+  useLayoutEffect(() => {
+    const row = folderList.current?.querySelector<HTMLElement>(".s-new-folder.is-selected");
+    setHighlight(row ? { top: row.offsetTop, height: row.offsetHeight } : null);
+  }, [chosen, folders]);
 
   useEffect(() => {
     void bridge.sessions.recentFolders().then((found) => {
@@ -445,7 +453,14 @@ export function NewSession() {
 
   return (
     <div className="s-new-session" data-agent={agent}>
-      <div className="s-new-folders" role="listbox" aria-label={S.newSession}>
+      <div ref={folderList} className="s-new-folders" role="listbox" aria-label={S.newSession}>
+        {highlight ? (
+          <span
+            className="s-new-highlight"
+            aria-hidden
+            style={{ transform: `translateY(${highlight.top}px)`, height: highlight.height }}
+          />
+        ) : null}
         {folders.length === 0 ? <span className="s-new-none">{S.noRecentFolders}</span> : null}
         {folders.map((folder) => {
           const selected = chosen?.path === folder.path;
@@ -462,7 +477,9 @@ export function NewSession() {
                 setProblem(null);
               }}
             >
-              {selected ? <Check size={12} className="s-new-check" /> : <Folder size={12} />}
+              <span key={selected ? "picked" : "folder"} className={`s-new-icon${selected ? " is-picked" : ""}`}>
+                {selected ? <Check size={12} className="s-new-check" /> : <Folder size={12} />}
+              </span>
               <span className="s-new-name">{folder.name}</span>
               <span className="s-new-path">{folder.path}</span>
             </button>
