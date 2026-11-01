@@ -42,15 +42,23 @@ pub fn steps(text: &str, images: &[String]) -> Vec<Step> {
     steps
 }
 
-/// Whether `wezterm cli list --format json` still lists the pane.
-pub fn lists_pane(json: &str, pane: u32) -> bool {
+/// The tab of the pane, when `wezterm cli list --format json` still lists it.
+pub fn tab_of(json: &str, pane: u32) -> Option<u64> {
     serde_json::from_str::<Vec<serde_json::Value>>(json)
-        .map(|panes| {
-            panes.iter().any(|entry| {
-                entry.get("pane_id").and_then(|id| id.as_u64()) == Some(u64::from(pane))
-            })
+        .ok()?
+        .iter()
+        .find(|entry| entry.get("pane_id").and_then(|id| id.as_u64()) == Some(u64::from(pane)))
+        .map(|entry| {
+            entry
+                .get("tab_id")
+                .and_then(|id| id.as_u64())
+                .unwrap_or(u64::MAX)
         })
-        .unwrap_or(false)
+}
+
+/// Whether WezTerm still lists the pane.
+pub fn lists_pane(json: &str, pane: u32) -> bool {
+    tab_of(json, pane).is_some()
 }
 
 /// `wezterm.exe` beside the `wezterm-gui.exe` that runs the pane, so the
@@ -159,19 +167,32 @@ pub fn send(
     Ok(())
 }
 
-/// Shows the pane in its tab and window; the caller raises the window.
+/// Shows the pane's tab, then the pane in it; the caller raises the
+/// window. Activating the pane alone leaves another tab in front.
 pub fn focus(gui_pid: u32, pane: u32, socket: &str) -> bool {
     let Some(cli) = cli(gui_pid) else {
         return false;
     };
-    listed(&cli, socket, pane)
-        && run(
+    let Some(tab) =
+        run(&cli, socket, &["list", "--format", "json"], None).and_then(|json| tab_of(&json, pane))
+    else {
+        return false;
+    };
+    if tab != u64::MAX {
+        let _ = run(
             &cli,
             socket,
-            &["activate-pane", "--pane-id", &pane.to_string()],
+            &["activate-tab", "--tab-id", &tab.to_string()],
             None,
-        )
-        .is_some()
+        );
+    }
+    run(
+        &cli,
+        socket,
+        &["activate-pane", "--pane-id", &pane.to_string()],
+        None,
+    )
+    .is_some()
 }
 
 #[cfg(test)]
@@ -211,5 +232,6 @@ mod tests {
         assert!(lists_pane(json, 3) && lists_pane(json, 7));
         assert!(!lists_pane(json, 4));
         assert!(!lists_pane("not json", 3));
+        assert_eq!(tab_of(r#"[{"pane_id":3,"tab_id":5}]"#, 3), Some(5));
     }
 }

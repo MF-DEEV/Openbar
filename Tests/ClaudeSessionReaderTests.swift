@@ -393,6 +393,20 @@ enum ClaudeSessionReaderTests {
         suite.expect(kitty == .kitty(window: 3, socket: nil) && !kitty.acceptsReplies
                      && remote == .kitty(window: 3, socket: "unix:/tmp/kitty-9") && remote.acceptsReplies,
                      "kitty takes replies only with remote control on")
+        // Seen live: kitty started from Antigravity's terminal keeps TERM_PROGRAM=vscode.
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.google.antigravity-ide", tty: "/dev/ttys033", port: 20133,
+                                                 environment: ["TERM_PROGRAM": "vscode", "TERM": "xterm-kitty", "KITTY_WINDOW_ID": "1",
+                                                               "KITTY_LISTEN_ON": "unix:/tmp/vs-kitty-63317"])
+                     == .kitty(window: 1, socket: "unix:/tmp/vs-kitty-63317"), "kitty is kitty even with an editor's TERM_PROGRAM")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.microsoft.VSCode", tty: "/dev/ttys033", port: nil,
+                                                 environment: ["TERM_PROGRAM": "vscode", "TERM": "alacritty"])
+                     == .app("org.alacritty")
+                     && ClaudeSessionHosts.classify(bundle: "com.apple.Terminal", tty: "/dev/ttys033", port: nil,
+                                                    environment: ["TERM_PROGRAM": "Apple_Terminal", "TERM": "xterm-ghostty"])
+                     == .ghostty(tty: "/dev/ttys033"), "Alacritty and Ghostty are told by their TERM too")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.microsoft.VSCode", tty: "/dev/ttys033", port: nil,
+                                                 environment: ["TERM_PROGRAM": "vscode", "TERM": "xterm-256color", "KITTY_WINDOW_ID": "1"])
+                     == .ide(bundle: "com.microsoft.VSCode", port: nil), "an editor opened from kitty is still the editor")
         let warp = ClaudeSessionHosts.classify(bundle: "dev.warp.Warp-Stable", tty: "/dev/ttys015", port: nil,
                                                environment: ["TERM_PROGRAM": "WarpTerminal"])
         suite.expect(warp == .app("dev.warp.Warp-Stable") && !warp.acceptsReplies && warp.bundle == "dev.warp.Warp-Stable",

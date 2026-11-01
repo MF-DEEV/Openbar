@@ -22,13 +22,22 @@ enum ClaudeSessionHosts {
            let target = ClaudeTmuxPane(tmux: tmux, pane: pane) {
             return .tmux(target)
         }
+        // kitty and Alacritty leave a TERM_PROGRAM they inherited alone, so
+        // one started from an editor's terminal still says "vscode"; the
+        // TERM every terminal sets for itself tells them apart.
+        let term = environment["TERM"]
+        if term == "xterm-kitty" || program == "kitty", let window = environment["KITTY_WINDOW_ID"].flatMap(Int.init) {
+            return .kitty(window: window, socket: environment["KITTY_LISTEN_ON"].flatMap { $0.isEmpty ? nil : $0 })
+        }
+        if term == "alacritty" { return .app(ClaudeTerminalApps.alacritty) }
+        if term == "xterm-ghostty" { return tty.map { .ghostty(tty: $0) } ?? .app(ClaudeTerminalApps.ghostty) }
         if program == "vscode" {
             // An editor started from a terminal inherits that terminal's
             // identifier; the app responsible for the process knows better.
             if let ide = ClaudeIDE.find(bundle) ?? ClaudeIDE.find(owner) { return .ide(bundle: ide.bundle, port: port) }
             return (bundle ?? owner).map { .app($0) } ?? .unknown
         }
-        if program == nil || program == "kitty", let window = environment["KITTY_WINDOW_ID"].flatMap(Int.init) {
+        if program == nil, let window = environment["KITTY_WINDOW_ID"].flatMap(Int.init) {
             return .kitty(window: window, socket: environment["KITTY_LISTEN_ON"].flatMap { $0.isEmpty ? nil : $0 })
         }
         switch ClaudeTerminalApps.bundle(program: program) ?? bundle ?? owner {
@@ -102,7 +111,7 @@ enum ClaudeSessionHosts {
     /// The keys of a session's environment that tell where it runs. Nothing
     /// else in it is kept.
     static let hostKeys: Set<String> = [
-        "__CFBundleIdentifier", "CLAUDE_CODE_SSE_PORT", "TERM_PROGRAM", "TMUX", "TMUX_PANE",
+        "__CFBundleIdentifier", "CLAUDE_CODE_SSE_PORT", "TERM", "TERM_PROGRAM", "TMUX", "TMUX_PANE",
         "WEZTERM_PANE", "WEZTERM_UNIX_SOCKET", "KITTY_WINDOW_ID", "KITTY_LISTEN_ON",
     ]
 

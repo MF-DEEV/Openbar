@@ -463,9 +463,11 @@ enum ClaudeWezTerm {
         return nil
     }
 
-    /// Activates the pane and its tab, and names the window title to raise.
+    /// Shows the pane's tab, then the pane in it, and names the window
+    /// title to raise. Activating the pane alone leaves another tab in front.
     static func focus(pane id: Int, socket: String?, tty: String?) -> Pane? {
         guard let found = pane(id, socket: socket, tty: tty),
+              run(["activate-tab", "--tab-id", String(found.tab)], socket: socket) != nil,
               run(["activate-pane", "--pane-id", String(id)], socket: socket) != nil else { return nil }
         return found
     }
@@ -519,7 +521,10 @@ enum ClaudeKitty {
         for step in steps {
             switch step {
             case .paste(let text):
-                guard run(["send-text"] + match + ["--bracketed-paste", "enable", "--stdin"], socket: socket, input: text) != nil else {
+                // kitty would wrap every read of the input, the empty last one
+                // too, so the paste markers go in the text and kitty sends it as is.
+                let paste = "\u{1B}[200~" + text + "\u{1B}[201~"
+                guard run(["send-text"] + match + ["--bracketed-paste", "disable", "--stdin"], socket: socket, input: paste) != nil else {
                     return .unreachable
                 }
             case .wait(let seconds):
