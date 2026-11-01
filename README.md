@@ -30,6 +30,7 @@ This is an unofficial fork of [Vorssaint](https://github.com/vorssaint/vorssaint
 - **Watch it work.** Enlarge a session's page to read the whole conversation as it grows, with recent tools, tasks, cost and the model beside it, or fold the details away.
 - **Subagents too.** Agents a session starts get rows of their own, including the ones sent to the background, colored like their agent definitions.
 - **Codex too.** Codex CLI sessions join the same list, under Codex's own mark and color, with a little terminal robot instead of Clawd. Its approvals, questions and replies go through Codex's own server, so there is nothing to install. Always on a Codex request allows every request of the task under way, with Always: ON on its page and Cancel to stop it, until the task ends.
+- **Background sessions too.** Sessions started with `claude --bg` are listed with a Background mark and Agent View's name. Answer their prompts, reply, read their output, stop or remove them, or open a terminal on one. **New session** starts Claude Code in a recent folder, in the background or in a terminal.
 - **A Clawd for every session.** Each session and subagent gets a pixel Clawd in a random costume. Open the wardrobe to change its shell, hat, eyewear and extras, or let Surprise me pick.
 
 ## Set it up

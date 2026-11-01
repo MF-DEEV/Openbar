@@ -9,8 +9,9 @@ import Foundation
 /// section is on. It reads Claude Code's process registry and the new lines
 /// of each running session's transcript, takes in the hook events the
 /// sessions send, and publishes what the island shows. Nothing is written or
-/// sent; what sessions say stays unread unless previews are on, and then
-/// only in memory.
+/// sent until the person acts on a session; what sessions say stays unread
+/// unless previews are on, and then only in memory. It also asks Claude Code's
+/// Agent View now and then which sessions run in the background.
 ///
 /// Reading happens on a private queue; the main thread and that queue hand
 /// work to each other asynchronously.
