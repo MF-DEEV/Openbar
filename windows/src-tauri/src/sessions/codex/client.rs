@@ -72,7 +72,20 @@ enum Waiting {
     Resume,
     /// The newest turn of a thread joined while it worked (`running_turn`).
     Turns(String),
+    /// A thread the island asked for, its first prompt, and who waits:
+    /// None once Codex has it, else Codex's words.
+    Started(Value, Sender<Option<String>>),
     Other,
+}
+
+/// `thread/start`'s params: the folder and model, and no approval or sandbox
+/// overrides, so the thread runs as the person's `config.toml` says.
+pub fn thread_start_params(cwd: &str, model: Option<&str>) -> Value {
+    let mut params = json!({"cwd": cwd});
+    if let Some(model) = model.filter(|m| !m.is_empty()) {
+        params["model"] = json!(model);
+    }
+    params
 }
 
 struct Shared {
@@ -103,7 +116,12 @@ impl Shared {
     fn reset(&mut self) {
         self.connected = false;
         self.outbox = None;
-        self.waiting.clear();
+        // A start the daemon never answered failed.
+        for (_, waiting) in self.waiting.drain() {
+            if let Waiting::Started(_, done) = waiting {
+                let _ = done.send(Some(String::new()));
+            }
+        }
         self.focused.clear();
         self.state = State::default();
     }
@@ -250,6 +268,29 @@ impl CodexClient {
     /// A prompt for an idle thread, or one queued after the current turn of a working one.
     pub fn reply(&self, session: &str, text: &str, images: &[String]) -> bool {
         self.shared.lock().unwrap().reply(session, text, images)
+    }
+
+    /// Starts a thread in a folder with no terminal, and its first turn. The
+    /// receiver gets None once Codex has the thread, or Codex's words. None
+    /// when not connected or there is no prompt.
+    pub fn start_thread(
+        &self,
+        cwd: &str,
+        model: Option<&str>,
+        prompt: &str,
+    ) -> Option<Receiver<Option<String>>> {
+        let mut s = self.shared.lock().unwrap();
+        if !s.connected || prompt.trim().is_empty() {
+            return None;
+        }
+        let input = json!([{"type": "text", "text": prompt, "text_elements": []}]);
+        let (done, receiver) = channel();
+        s.call(
+            "thread/start",
+            thread_start_params(cwd, model),
+            Waiting::Started(input, done),
+        );
+        Some(receiver)
     }
 
     /// Joined to Codex's app-server right now.
@@ -404,6 +445,21 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
         (None, Some(id)) => {
             let waiting = id.as_i64().and_then(|id| s.waiting.remove(&id));
             let result = message.get("result").cloned().unwrap_or(Value::Null);
+            if let Some(Waiting::Started(input, done)) = &waiting {
+                let thread = result.pointer("/thread/id").and_then(Value::as_str);
+                if let Some(thread) = thread {
+                    let params = json!({"threadId": thread, "input": input});
+                    s.call("turn/start", params, Waiting::Other);
+                    let _ = done.send(None);
+                } else {
+                    let words = message
+                        .pointer("/error/message")
+                        .and_then(Value::as_str)
+                        .unwrap_or("");
+                    let _ = done.send(Some(words.to_owned()));
+                }
+                return false;
+            }
             match &waiting {
                 Some(Waiting::Initialize) => {
                     s.version = result
@@ -931,5 +987,18 @@ mod tests {
         assert_eq!(methods(&sent(&rx)), ["thread/queue/add"]);
         s.connected = false;
         assert!(!s.reply("t1", "go on", &[]), "not while disconnected");
+    }
+
+    #[test]
+    fn a_thread_starts_with_its_folder_and_model_only() {
+        assert_eq!(
+            thread_start_params("C:/w", Some("gpt-a")),
+            json!({"cwd": "C:/w", "model": "gpt-a"})
+        );
+        assert_eq!(
+            thread_start_params("C:/w", Some("")),
+            json!({"cwd": "C:/w"})
+        );
+        assert_eq!(thread_start_params("C:/w", None), json!({"cwd": "C:/w"}));
     }
 }

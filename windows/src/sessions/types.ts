@@ -8,7 +8,7 @@
 export type Phase =
   "generating" | "runningTool" | "waitingPermission" | "waitingInput" | "background" | "finished" | "idle";
 
-export type HostKind = "windowsTerminal" | "vscode" | "conhost" | "app" | "unknown";
+export type HostKind = "windowsTerminal" | "vscode" | "conhost" | "app" | "background" | "unknown";
 
 export interface ToolUse {
   id: string;
@@ -111,6 +111,26 @@ export interface Session {
   chat: ChatMessage[];
   backgroundLabel?: string;
   services: number;
+  /** Set for a whole session running in the background, with no terminal. */
+  background?: BackgroundDetails;
+}
+
+export type BackgroundState = "working" | "blocked" | "done" | "failed" | "stopped";
+
+export interface BackgroundDetails {
+  job: string;
+  state?: BackgroundState;
+  /** Its process is gone; Open brings it back. */
+  ended: boolean;
+  configHome?: string;
+}
+
+/** A folder Claude Code has worked in, to start a new session there. */
+export interface RecentFolder {
+  path: string;
+  name: string;
+  configHome?: string;
+  used?: number;
 }
 
 export interface Counts {
@@ -125,6 +145,12 @@ export interface Snapshot {
   sessions: Session[];
   counts: Counts;
   previews: boolean;
+  /** Claude Code is installed, so the island can start sessions in a terminal. */
+  canStart?: boolean;
+  /** Its Agent View is on, so it can run them in the background too. */
+  backgroundAvailable?: boolean;
+  /** Codex is installed, so New session can start it too. */
+  canStartCodex?: boolean;
   hooksInstalled: boolean;
 }
 
@@ -145,3 +171,16 @@ export interface ReplyAttachment {
 export const isWorking = (p: Phase) => p === "generating" || p === "runningTool";
 export const isActive = (p: Phase) => isWorking(p) || p === "background";
 export const isWaiting = (p: Phase) => p === "waitingPermission" || p === "waitingInput";
+
+/** A model a new session can start with; `id` null keeps the agent's own
+ * default, which `detail` names when it can be told. */
+export interface NewSessionModel {
+  id: string | null;
+  name: string;
+  detail: string | null;
+}
+
+export interface NewSessionModels {
+  claude: NewSessionModel[];
+  codex: NewSessionModel[];
+}

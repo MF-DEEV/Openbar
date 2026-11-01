@@ -1648,3 +1648,575 @@
     transition: none;
   }
 }
+
+/* Whole sessions in the background, and starting a new one. */
+
+.s-background-mark {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 9.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.s-background-bar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.s-background-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+}
+
+.s-background-gap {
+  flex: 1;
+}
+
+.s-background-ask {
+  flex: 1;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+}
+
+.s-background-off {
+  flex: 1;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10.5px;
+}
+
+.s-background-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: background 120ms ease;
+}
+
+.s-background-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.s-background-button:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.s-background-button.is-selected {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.s-background-button.is-destructive {
+  color: #ff8c80;
+}
+
+.s-background-problem {
+  color: #ff8c80;
+  font-size: 10.5px;
+}
+
+.s-background-logs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.s-background-screen {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  user-select: text;
+}
+
+.s-background-screen pre {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.s-background-screen p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+
+.s-new-session {
+  /* The picked agent's color, which the page's accents follow. */
+  --agent: 217, 120, 87;
+  --ease-spring: cubic-bezier(0.32, 1.25, 0.5, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  height: 100%;
+  min-height: 0;
+}
+
+.s-new-session[data-agent="codex"] {
+  --agent: 125, 153, 255;
+}
+
+/* On a narrow island the controls wrap rather than overlap. */
+.s-new-session .s-background-row {
+  flex-wrap: wrap;
+  row-gap: 5px;
+}
+
+.s-new-message {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 10.5px;
+  animation: s-new-message-in 220ms ease-out;
+}
+
+@keyframes s-new-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.s-agent-picker {
+  position: relative;
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(var(--count), minmax(max-content, 1fr));
+  padding: 2px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Slides under the picked agent, its color fading across. */
+.s-agent-pill {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / var(--count));
+  border-radius: 7px;
+  background: rgba(var(--agent), 0.22);
+  box-shadow: inset 0 0 0 1px rgba(var(--agent), 0.45);
+  transform: translateX(calc(100% * var(--index)));
+  transition:
+    transform 320ms var(--ease-spring),
+    background 250ms ease,
+    box-shadow 250ms ease;
+}
+
+.s-agent-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: color 200ms ease;
+}
+
+.s-agent-option .agent-mark {
+  filter: grayscale(1);
+  opacity: 0.55;
+  transition:
+    filter 250ms ease,
+    opacity 250ms ease,
+    transform 320ms var(--ease-spring);
+}
+
+.s-agent-option:hover:not(.is-selected) {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.s-agent-option.is-selected {
+  color: #fff;
+}
+
+.s-agent-option.is-selected .agent-mark {
+  filter: none;
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.s-agent-option:focus-visible,
+.s-model-button:focus-visible {
+  outline: 2px solid rgba(var(--agent), 0.8);
+  outline-offset: 1px;
+}
+
+.s-model-menu {
+  position: relative;
+  flex: none;
+}
+
+.s-model-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition:
+    background 120ms ease,
+    transform 160ms var(--ease-spring);
+}
+
+.s-model-button:hover,
+.s-model-button.is-open {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.s-model-button:active {
+  transform: scale(0.97);
+}
+
+.s-model-icon,
+.s-model-chevron {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.s-model-label {
+  display: inline-block;
+  max-width: min(150px, 34vw);
+  overflow: hidden;
+}
+
+/* A new name rises in from below. */
+.s-model-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: s-model-text-in 260ms var(--ease-spring);
+}
+
+@keyframes s-model-text-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Opens upward over the folders, growing from the button. */
+.s-model-list {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 190px;
+  max-height: 210px;
+  padding: 4px;
+  overflow-y: auto;
+  border-radius: 10px;
+  background: rgba(32, 32, 34, 0.98);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 12px 30px rgba(0, 0, 0, 0.55);
+  transform-origin: bottom right;
+  animation: s-model-list-in 180ms var(--ease-spring);
+}
+
+.s-model-list[hidden] {
+  display: none;
+}
+
+@keyframes s-model-list-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+}
+
+.s-model-option {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11.5px;
+  text-align: left;
+  white-space: nowrap;
+  animation: s-model-option-in 200ms ease-out both;
+  animation-delay: calc(min(var(--i), 8) * 14ms);
+}
+
+@keyframes s-model-option-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+.s-model-option.is-active {
+  background: rgba(var(--agent), 0.22);
+  color: #fff;
+}
+
+.s-model-check {
+  flex: none;
+  color: rgb(var(--agent));
+}
+
+.s-new-folders {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Slides under the folder picked. */
+.s-new-highlight {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  transition:
+    transform 320ms var(--ease-spring),
+    height 200ms ease;
+}
+
+.s-new-icon {
+  display: inline-flex;
+  flex: none;
+}
+
+/* The check pops in where the folder was. */
+.s-new-icon.is-picked {
+  animation: s-new-icon-in 300ms var(--ease-spring);
+}
+
+@keyframes s-new-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-20deg);
+  }
+}
+
+.s-new-none {
+  padding: 6px 9px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11.5px;
+}
+
+.s-new-folder {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.s-new-folder:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.s-new-folder.is-selected {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.s-new-folder .s-new-name {
+  color: rgba(255, 255, 255, 0.8);
+  transition: color 200ms ease;
+}
+
+.s-new-folder.is-selected .s-new-name {
+  color: #fff;
+}
+
+.s-new-check {
+  color: rgb(var(--agent));
+  transition: color 250ms ease;
+}
+
+.s-new-name {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s-new-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.35);
+  direction: rtl;
+  font-size: 10px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s-new-prompt {
+  flex: none;
+  height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font-size: 12px;
+}
+
+.s-new-prompt {
+  transition:
+    background 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.s-new-prompt:focus-visible {
+  background: rgba(255, 255, 255, 0.11);
+  box-shadow: inset 0 0 0 1px rgba(var(--agent), 0.55);
+}
+
+.s-new-start {
+  position: relative;
+  margin-left: auto;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: rgba(var(--agent), 0.85);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  transition:
+    background 250ms ease,
+    opacity 250ms ease,
+    transform 160ms var(--ease-spring);
+}
+
+.s-new-start:hover:not(:disabled) {
+  background: rgb(var(--agent));
+}
+
+.s-new-start:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.s-new-start:disabled:not(.is-starting) {
+  opacity: 0.4;
+}
+
+.s-new-start-text,
+.s-new-spinner {
+  grid-area: 1 / 1;
+  transition:
+    opacity 180ms ease,
+    transform 220ms var(--ease-spring);
+}
+
+.s-new-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.6);
+  animation: s-new-spin 700ms linear infinite;
+}
+
+.s-new-start.is-starting .s-new-start-text {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.s-new-start.is-starting .s-new-spinner {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@keyframes s-new-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-background-button,
+  .s-new-folder,
+  .s-new-start,
+  .s-new-start-text,
+  .s-new-spinner,
+  .s-new-prompt,
+  .s-new-check,
+  .s-agent-pill,
+  .s-new-highlight,
+  .s-new-folder .s-new-name,
+  .s-agent-option,
+  .s-agent-option .agent-mark,
+  .s-model-button {
+    transition-duration: 1ms;
+  }
+
+  .s-new-message,
+  .s-new-icon.is-picked,
+  .s-model-text,
+  .s-model-list,
+  .s-model-option {
+    animation: none;
+  }
+
+  .s-agent-option.is-selected .agent-mark {
+    transform: none;
+  }
+}
+
+/* The tag keeps its width on a page with no details beside it yet. */
+.s-header-text {
+  flex: 1;
+}

@@ -8,7 +8,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { register, unregister, type ShortcutEvent } from "@tauri-apps/plugin-global-shortcut";
-import type { Decision, ReplyAttachment, ReplyFailure, SessionEvent, Snapshot } from "../sessions/types";
+import type { Decision, RecentFolder, ReplyAttachment, ReplyFailure, SessionEvent, Snapshot } from "../sessions/types";
 import type { MusicCommand, NowPlaying } from "../music/types";
 import type { Access, Inbox, Item } from "../notifications/types";
 import type { DownloadSnapshot } from "../downloads/types";
@@ -140,6 +140,32 @@ export const bridge = {
     attachImage: (dataUrl: string) => call<ReplyAttachment>("sessions_attach_image", { dataUrl }),
     clipboardImages: () => call<ReplyAttachment[]>("sessions_clipboard_images"),
     open: (sessionId: string) => call<boolean>("sessions_open", { sessionId }),
+    /** What went wrong, or null. */
+    stopBackground: (sessionId: string) => call<string | null>("sessions_background_stop", { sessionId }),
+    removeBackground: (sessionId: string) => call<string | null>("sessions_background_remove", { sessionId }),
+    /** null when a stopped session keeps no output. */
+    backgroundLogs: (sessionId: string) => call<string | null>("sessions_background_logs", { sessionId }),
+    recentFolders: () => call<RecentFolder[]>("sessions_recent_folders"),
+    pickFolder: () => call<string | null>("sessions_pick_folder"),
+    /** What went wrong, or null. */
+    start: (
+      folder: string,
+      configHome: string | undefined,
+      prompt: string,
+      background: boolean,
+      agent: import("../sessions/types").Provider = "claude",
+      model: string | null = null,
+    ) =>
+      call<string | null>("sessions_start", {
+        folder,
+        configHome: configHome ?? null,
+        prompt,
+        background,
+        agent,
+        model,
+      }),
+    newModels: (configHome: string | undefined) =>
+      call<import("../sessions/types").NewSessionModels>("sessions_new_models", { configHome: configHome ?? null }),
   },
   music: {
     selectSource: (source: string | null) => call<void>("music_select_source", { source }),

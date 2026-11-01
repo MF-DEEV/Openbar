@@ -1019,6 +1019,7 @@ fn session(
         },
         background_label: None,
         services: 0,
+        background: None,
     }
 }
 

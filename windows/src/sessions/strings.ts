@@ -199,6 +199,109 @@ export const S = {
   get sendWhileWaiting() {
     return t("notchClaudeSessions.sendWhileWaiting");
   },
+  get backgroundMark() {
+    return t("windows.sessions.backgroundMark");
+  },
+  get backgroundHelp() {
+    return t("windows.sessions.backgroundHelp");
+  },
+  get backgroundStopped() {
+    return t("windows.sessions.backgroundStopped");
+  },
+  get backgroundFailed() {
+    return t("windows.sessions.backgroundFailed");
+  },
+  get backgroundNeedsReply() {
+    return t("windows.sessions.backgroundNeedsReply");
+  },
+  get logs() {
+    return t("windows.sessions.logs");
+  },
+  get logsTitle() {
+    return t("windows.sessions.logsTitle");
+  },
+  get logsEmpty() {
+    return t("windows.sessions.logsEmpty");
+  },
+  get logsGone() {
+    return t("windows.sessions.logsGone");
+  },
+  get stopSession() {
+    return t("windows.sessions.stopSession");
+  },
+  get stopConfirm() {
+    return t("windows.sessions.stopConfirm");
+  },
+  get removeSession() {
+    return t("windows.sessions.removeSession");
+  },
+  get removeConfirm() {
+    return t("windows.sessions.removeConfirm");
+  },
+  get keepSession() {
+    return t("windows.sessions.keepSession");
+  },
+  get replyEnded() {
+    return t("windows.sessions.replyEnded");
+  },
+  get commandFailed() {
+    return t("windows.sessions.commandFailed");
+  },
+  get newSession() {
+    return t("windows.sessions.newSession");
+  },
+  get browseFolder() {
+    return t("windows.sessions.browseFolder");
+  },
+  get noRecentFolders() {
+    return t("windows.sessions.noRecentFolders");
+  },
+  get firstPrompt() {
+    return t("windows.sessions.firstPrompt");
+  },
+  get firstPromptRequired() {
+    return t("windows.sessions.firstPromptRequired");
+  },
+  get runInBackground() {
+    return t("windows.sessions.runInBackground");
+  },
+  get runInTerminal() {
+    return t("windows.sessions.runInTerminal");
+  },
+  get backgroundOffHelp() {
+    return t("windows.sessions.backgroundOffHelp");
+  },
+  get startSession() {
+    return t("windows.sessions.startSession");
+  },
+  get folderNotTrusted() {
+    return t("windows.sessions.folderNotTrusted");
+  },
+  get agentPicker() {
+    return t("windows.sessions.agentPicker");
+  },
+  get modelPicker() {
+    return t("windows.sessions.modelPicker");
+  },
+  get defaultModel() {
+    return t("windows.sessions.defaultModel");
+  },
+  get backgroundNeedsPrompt() {
+    return t("windows.sessions.backgroundNeedsPrompt");
+  },
+  get codexNotStarted() {
+    return t("windows.sessions.codexNotStarted");
+  },
+  get codexFailed() {
+    return t("windows.sessions.codexFailed");
+  },
+  /** The agents' names, as Settings words them. */
+  get claudeCode() {
+    return t("windows.settings.claudeCode");
+  },
+  get codex() {
+    return t("windows.settings.codex");
+  },
   get openFailed() {
     return t("notchClaudeSessions.openFailed");
   },

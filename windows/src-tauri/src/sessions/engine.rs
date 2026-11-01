@@ -661,6 +661,15 @@ fn session(
         } else {
             0
         },
+        background: record
+            .job
+            .clone()
+            .map(|job| super::background::BackgroundDetails {
+                job,
+                state: None,
+                ended: false,
+                config_home: None,
+            }),
     }
 }
 
@@ -1095,6 +1104,7 @@ mod tests {
             host: HostKind::WindowsTerminal,
             accepts_replies: true,
             name_source: None,
+            job: None,
         }
     }
 

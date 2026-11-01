@@ -108,6 +108,8 @@ pub enum HostKind {
     Vscode,
     Conhost,
     App,
+    /// No terminal at all: a whole session running in the background.
+    Background,
     #[default]
     Unknown,
 }
@@ -133,6 +135,8 @@ pub struct SessionRecord {
     /// Where `name` came from: "user" for /rename, "auto" for one Claude
     /// Code made from the conversation; otherwise it follows the folder.
     pub name_source: Option<String>,
+    /// The job a background session goes by; None for one in a terminal.
+    pub job: Option<String>,
 }
 
 impl SessionRecord {
@@ -535,6 +539,9 @@ pub struct Session {
     pub background_label: Option<String>,
     /// Services it left running, like a dev server, which never end alone.
     pub services: i64,
+    /// Set for a whole session running in the background, with no terminal.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub background: Option<super::background::BackgroundDetails>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -987,6 +994,8 @@ pub fn dozes(session: &Session, now: Time) -> bool {
 
 /// Keys typed while any dialog is open would go to the dialog.
 pub fn can_reply(session: &Session) -> bool {
+    // A background session whose process has ended takes none until Open
+    // brings it back; `accepts_replies` already says so for it.
     session.accepts_replies && !session.phase.is_waiting() && session.waiting_for.is_none()
 }
 
@@ -1223,6 +1232,7 @@ mod tests {
             chat: vec![],
             background_label: None,
             services: 0,
+            background: None,
         }
     }
 

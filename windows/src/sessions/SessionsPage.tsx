@@ -7,10 +7,11 @@
 
 import { useLocale } from "../i18n";
 
-import { Check, ChevronLeft, ExternalLink, Maximize2, Minimize2, Pencil } from "lucide-react";
+import { Check, ChevronLeft, ExternalLink, Maximize2, Minimize2, Pencil, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { PageDefinition } from "../island/views/Expanded";
 import { useIsland } from "../island/store";
+import { NewSession } from "./Background";
 import { SessionDetail } from "./SessionDetail";
 import { SessionsList } from "./SessionsList";
 import { displayName } from "./format";
@@ -30,10 +31,12 @@ function Page() {
   const enlarged = useIsland((s) => s.sessionsEnlarged);
   const session = useFocusedSession();
   const focused = useSessions((s) => s.focused);
+  const composing = useSessions((s) => s.composing);
   // A session that ends while its page is open goes back to the list.
   useEffect(() => {
     if (focused && !session) useSessions.getState().focus(null);
   }, [focused, session]);
+  if (composing) return <NewSession />;
   return session ? <SessionDetail session={session} enlarged={enlarged} /> : <SessionsList />;
 }
 
@@ -60,6 +63,15 @@ function Leading() {
   useLocale();
   const session = useFocusedSession();
   const custom = useSessions((s) => (session ? s.names[session.id] : undefined));
+  const composing = useSessions((s) => s.composing);
+  if (composing) {
+    return (
+      <button type="button" className="s-back" onClick={() => useSessions.setState({ composing: false })}>
+        <ChevronLeft size={13} strokeWidth={2.5} />
+        <span>{S.newSession}</span>
+      </button>
+    );
+  }
   if (!session) return <Counts />;
   return (
     <button type="button" className="s-back" onClick={() => useSessions.getState().focus(null)}>
@@ -75,6 +87,8 @@ function Trailing() {
   const enlarged = useIsland((s) => s.sessionsEnlarged);
   const failedUntil = useSessions((s) => s.openFailedUntil);
   const renaming = useSessions((s) => s.renaming);
+  const composing = useSessions((s) => s.composing);
+  const canStart = useSessions((s) => s.snapshot.canStart === true || s.snapshot.canStartCodex === true);
   const [, tick] = useState(0);
   useEffect(() => {
     const wait = failedUntil * 1000 - Date.now();
@@ -82,7 +96,15 @@ function Trailing() {
     const t = setTimeout(() => tick((n) => n + 1), wait + 20);
     return () => clearTimeout(t);
   }, [failedUntil]);
-  if (!session) return null;
+  if (composing) return null;
+  if (!session) {
+    return canStart ? (
+      <button type="button" className="n-pill-button s-open" onClick={() => useSessions.setState({ composing: true })}>
+        <Plus size={11} />
+        {S.newSession}
+      </button>
+    ) : null;
+  }
   const failed = Date.now() / 1000 < failedUntil;
   return (
     <>

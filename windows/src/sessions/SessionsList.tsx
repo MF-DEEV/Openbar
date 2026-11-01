@@ -10,8 +10,9 @@ import { Check, ChevronRight, GalleryVerticalEnd, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { EmptyState } from "../island/views/Controls";
 import { SessionAvatar } from "./SessionAvatar";
-import { activityText, displayName, dozing, phaseClock, phaseTint, projectColor } from "./format";
+import { activityText, displayName, dozing, phaseClock, phaseTint, projectColor, sessionPhaseLabel } from "./format";
 import { useNow } from "./useNow";
+import { BackgroundMark } from "./Background";
 import { S } from "./strings";
 import { settled, useSessions } from "./store";
 import { isWaiting, type Session } from "./types";
@@ -95,7 +96,7 @@ function Row({ session, now }: { session: Session; now: number }) {
       role="button"
       tabIndex={0}
       className={`s-row${waiting ? " is-waiting" : ""}${asleep ? " is-dozing" : ""}`}
-      aria-label={`${name}, ${session.provider === "codex" ? "Codex" : "Claude Code"}, ${session.project}, ${S[session.phase]}`}
+      aria-label={`${name}, ${session.provider === "codex" ? S.codex : S.claudeCode}, ${session.project}, ${sessionPhaseLabel(session)}`}
       onClick={() => useSessions.getState().focus(session.id)}
       onKeyDown={(e) => e.key === "Enter" && useSessions.getState().focus(session.id)}
     >
@@ -103,6 +104,7 @@ function Row({ session, now }: { session: Session; now: number }) {
       <div className="s-row-text">
         <div className="s-row-line1">
           <span className="s-row-name">{name}</span>
+          {session.background ? <BackgroundMark /> : null}
           {time ? (
             <span className="s-clock" style={{ color: tint }}>
               {time}

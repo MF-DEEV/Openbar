@@ -38,11 +38,13 @@ import {
   projectColor,
   providerTint,
   totalTokens,
+  sessionPhaseLabel,
 } from "./format";
 import { answerMarks, messageTime } from "./conversation";
 import { RichText } from "./RichText";
 import { MessageImages } from "./MessageImages";
 import { useNow } from "./useNow";
+import { BackgroundBar, BackgroundLogs } from "./Background";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { setPrefs } from "../shared/prefs";
@@ -65,6 +67,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
   const [sidebarHidden, setSidebarHidden] = useState(() => storedNumber("sessions.sidebarHidden", 0) === 1);
   const [layoutHidden, setLayoutHidden] = useState(sidebarHidden);
   const [textSettling, setTextSettling] = useState(false);
+  const showingLogs = useSessions((s) => s.logsFor === session.id);
   const sidebarFrame = useRef(0);
   useEffect(() => () => cancelAnimationFrame(sidebarFrame.current), []);
   const [textSize, setTextSize] = useState(() =>
@@ -185,7 +188,18 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
           </motion.div>
         ) : null}
       </AnimatePresence>
-      <div className={`s-scroll${enlarged ? " is-large" : ""}`}>
+      {session.background ? (
+        <BackgroundBar
+          session={session}
+          showingLogs={showingLogs}
+          onLogs={(on) => useSessions.setState({ logsFor: on ? session.id : null })}
+        />
+      ) : null}
+      {showingLogs && session.background ? <BackgroundLogs session={session} /> : null}
+      <div
+        className={`s-scroll${enlarged ? " is-large" : ""}`}
+        style={showingLogs && session.background ? { display: "none" } : undefined}
+      >
         <div className="s-header">
           <button
             type="button"
@@ -200,7 +214,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
           <div className="s-header-text">
             <div className="s-header-line1">
               <span className="s-phase" style={{ color: tint }}>
-                {S[session.phase]}
+                {sessionPhaseLabel(session)}
               </span>
               {time ? <span className="s-clock is-page">{time}</span> : null}
               {session.phase === "runningTool" && session.currentTool ? (
@@ -611,6 +625,7 @@ function Subagents({ session, now, enlarged = false }: { session: Session; now: 
 function unavailable(session: Session): string | null {
   if (isWaiting(session.phase)) return S.replyWhileWaiting;
   if (session.waitingFor) return S.replyWhileDialog;
+  if (session.background?.ended) return S.replyEnded;
   if (!session.acceptsReplies) return S.replyUnavailable;
   return null;
 }

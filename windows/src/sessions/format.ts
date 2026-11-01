@@ -7,7 +7,7 @@
 import { tf } from "../i18n";
 
 import { S } from "./strings";
-import { isWaiting, isWorking, type Phase, type Provider, type Session, type Tokens } from "./types";
+import { isWaiting, isWorking, type Phase, type Provider, type Session, type Tokens, isActive } from "./types";
 
 export const CLAUDE_TINT = "#D97857";
 /** Codex's periwinkle, the same as the Mac's agent tint. */
@@ -45,6 +45,45 @@ export function phaseLabel(phase: Phase): string {
   return S[phase];
 }
 
+/**
+ * A background session's state in words where the phase doesn't say it. Agent
+ * View's `blocked` on a quiet session means it waits for a reply, with no
+ * dialog open.
+ */
+export function backgroundPhase(session: Session): string | null {
+  const details = session.background;
+  if (!details) return null;
+  if (details.ended) {
+    if (details.state === "failed") return S.backgroundFailed;
+    return details.state === "done" ? S.finished : S.backgroundStopped;
+  }
+  if (details.state === "blocked" && !isWaiting(session.phase) && !isActive(session.phase))
+    return S.backgroundNeedsReply;
+  return null;
+}
+
+export const sessionPhaseLabel = (session: Session): string => backgroundPhase(session) ?? phaseLabel(session.phase);
+
+export const canStopBackground = (session: Session): boolean => !!session.background && !session.background.ended;
+
+/** Only a session no longer at work should be removed. */
+export function canRemoveBackground(session: Session): boolean {
+  const details = session.background;
+  if (!details) return false;
+  if (details.ended) return true;
+  if (isActive(session.phase) || isWaiting(session.phase)) return false;
+  return details.state === "done" || details.state === "failed" || details.state === "stopped";
+}
+
+/** What the service says went wrong, in words. Claude Code's own words pass as they are. */
+export function problemText(failure: string | null | undefined): string | null {
+  if (failure === null) return null;
+  if (failure === undefined || failure === "unavailable") return S.commandFailed;
+  if (failure === "needsPrompt") return S.backgroundNeedsPrompt;
+  if (failure === "codexNotStarted") return S.codexNotStarted;
+  return failure === "notTrusted" ? S.folderNotTrusted : failure;
+}
+
 /** FNV-1a 64 over the lowercased project's UTF-8, mod 8: the same color as on the Mac. */
 export function projectColor(project: string): string {
   let hash = 0xcbf29ce484222325n;
@@ -59,6 +98,8 @@ export function projectColor(project: string): string {
 export function displayName(session: Session, custom?: string): string {
   if (custom) return custom;
   if (session.nameSource === "user" && session.name) return session.name;
+  // A background session goes by the name Agent View lists it under.
+  if (session.background && session.nameSource && session.name) return session.name;
   return session.title || session.name || session.project;
 }
 
@@ -118,7 +159,7 @@ export function cost(value: number): string {
 
 /** What a row says after its phase (NotchClaudeSessionsView.activityText). */
 export function activityText(session: Session, name: string): string {
-  const parts: (string | undefined)[] = [phaseLabel(session.phase)];
+  const parts: (string | undefined)[] = [sessionPhaseLabel(session)];
   const p = session.permission;
   switch (session.phase) {
     case "waitingPermission":

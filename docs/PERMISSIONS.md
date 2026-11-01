@@ -40,7 +40,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
   for you and for the optional side button trigger; opening apps, files and
   links with the keyboard shortcut alone needs nothing.
 - **Dynamic Island microphone status**, which reads Discord's Mute and Deafen controls and, while Discord is hidden, watches for the mute and deafen shortcuts you set in Discord without blocking them. Without the permission, Discord's state is not shown.
-- **Dynamic Island Sessions**, only if Accessibility is already allowed: Open brings the Antigravity window holding a session's folder to the front. It never asks for the permission; without it, Open brings Antigravity forward as a whole.
+- **Dynamic Island Sessions**, only if Accessibility is already allowed: Open brings the Antigravity window holding a session's folder to the front. It never asks for the permission; without it, Open brings Antigravity forward as a whole. It also opens a new Terminal window with `claude attach` for a background session, or to start a session in a terminal.
 
 **If you say no.** These features stay off. Vorssaint sees the moment you grant the permission and brings them to life with no relaunch.
 
