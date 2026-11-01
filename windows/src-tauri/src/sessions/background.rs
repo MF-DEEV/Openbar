@@ -510,8 +510,8 @@ pub const DETACH: u8 = 0x1a;
 /// needs: images are pasted as their paths, which Claude Code takes a moment to
 /// read, then the text; the return alone at the end sends it.
 pub fn keystrokes(text: &str, images: &[String]) -> Vec<(Vec<u8>, u64)> {
-    // A terminal pastes line breaks as returns; a line feed reaches a Windows
-    // console's input as a space.
+    // A terminal pastes line breaks as returns, which is what a console's
+    // input carries for the Enter key.
     let paste = |value: &str| {
         let value = value.replace("\r\n", "\r").replace('\n', "\r");
         format!("\u{1b}[200~{value}\u{1b}[201~").into_bytes()
