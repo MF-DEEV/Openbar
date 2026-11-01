@@ -14,7 +14,6 @@ import type { Size } from "../island/motion";
 import { useIsland } from "../island/store";
 import { useAgents } from "../agents/store";
 import { limitTint } from "../agents/format";
-import { LimitRing } from "./LimitsRow";
 import { CLAUDE_TINT, CODEX_TINT, FINISHED_TINT, LIMITED_TINT, WAITING_TINT } from "./format";
 import { S } from "./strings";
 import { useSessions } from "./store";
@@ -196,5 +195,27 @@ function StripLimitReading({ limit, textSize }: { limit: StripLimit; textSize: n
       <LimitRing value={display === "used" ? used : 1 - used} size={limitRing(textSize)} />
       <span style={{ fontSize: textSize * 0.85 }}>{limit.share}</span>
     </span>
+  );
+}
+
+/** A small ring filled by `value`, 0…1, in the current color. */
+export function LimitRing({ value, size }: { value: number; size: number }) {
+  const fraction = Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+  return (
+    <svg width={size} height={size} viewBox="0 0 14 14" aria-hidden>
+      <circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.2" />
+      <circle
+        cx="7"
+        cy="7"
+        r="5"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        pathLength="1"
+        strokeDasharray={`${fraction} 1`}
+        transform="rotate(-90 7 7)"
+      />
+    </svg>
   );
 }

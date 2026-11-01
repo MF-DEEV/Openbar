@@ -1,48 +1,19 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-// The plan limits the Sessions section shows beside its sessions
+// The plan limits the Sessions section shows on the island
 // (NotchSessionLimitsSupport.swift). They come from the reading the AI
 // section keeps (agent_usage); nothing here reads a file or asks an agent.
 // Limit times are milliseconds, as agent_usage sends them; session times are
 // seconds, as the sessions service sends them.
 
-import { current, displayedReset, restingLimit } from "../agents/model";
+import { displayedReset, restingLimit } from "../agents/model";
 import type { AgentSnapshot, LimitDisplay, LimitFocus, LimitWindow, Provider as AgentProvider } from "../agents/types";
 import { percent } from "../agents/format";
 import { isActive, isWaiting, type Session } from "./types";
 
 /** The agents Sessions follows that report plan limits. */
 export const LIMIT_PROVIDERS = ["claude", "codex"] as const;
-export type LimitProvider = (typeof LIMIT_PROVIDERS)[number];
-
-export interface LimitGroup {
-  provider: LimitProvider;
-  windows: LimitWindow[];
-}
-
-const order = (kind: LimitWindow["kind"]) => (kind === "session" ? 0 : kind === "weekly" ? 1 : 2);
-
-/** Each agent's session and weekly windows at `now` (ms), the shorter first,
- * or its most used window when it reports neither. A model's own allowance
- * is left to the AI page. */
-export function limitGroups(snapshot: AgentSnapshot, now: number): LimitGroup[] {
-  return LIMIT_PROVIDERS.flatMap((provider) => {
-    const limits = snapshot.limits[provider];
-    if (!limits) return [];
-    let windows = limits.windows
-      .filter((w) => w.scope === null && w.kind !== "other")
-      .map((w) => current(w, now))
-      .sort((a, b) => order(a.kind) - order(b.kind) || (a.minutes ?? 0) - (b.minutes ?? 0));
-    if (windows.length === 0) {
-      const most = [...limits.windows]
-        .map((w) => current(w, now))
-        .sort((a, b) => b.usedPercent - a.usedPercent || (b.resetsAt ?? 0) - (a.resetsAt ?? 0))[0];
-      windows = most ? [most] : [];
-    }
-    return windows.length ? [{ provider, windows: windows.slice(0, 2) }] : [];
-  });
-}
 
 /** The limit the closed strip shows beside the counts: the window the person
  * chose for the AI strip, or the most used one, among the agents with

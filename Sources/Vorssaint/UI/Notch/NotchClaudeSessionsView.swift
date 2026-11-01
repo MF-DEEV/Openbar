@@ -38,11 +38,8 @@ struct NotchClaudeSessionsView: View {
                 NotchClaudeSessionDetailView(session: focused, size: size)
                     .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
             } else if service.sessions.isEmpty {
-                VStack(spacing: 0) {
-                    NotchSessionLimitsRow(text: text)
-                    NotchEmptyView(symbol: NotchModule.sessions.symbol, message: text.emptyTitle + "\n" + text.emptyDetail)
-                }
-                .notchBand(trailing: { newSessionButton })
+                NotchEmptyView(symbol: NotchModule.sessions.symbol, message: text.emptyTitle + "\n" + text.emptyDetail)
+                    .notchBand(trailing: { newSessionButton })
             } else {
                 list.transition(reduceMotion ? .opacity : .move(edge: .leading).combined(with: .opacity))
             }
@@ -84,25 +81,21 @@ struct NotchClaudeSessionsView: View {
     }
 
     private var list: some View {
-        VStack(spacing: 6) {
-            // How much of each plan is left, above the work spending it.
-            NotchSessionLimitsRow(text: text)
-            TimelineView(.periodic(from: .now, by: 1)) { context in
-                ScrollView {
-                    LazyVStack(spacing: 6) {
-                        ForEach(service.sessions) { session in
-                            NotchClaudeSessionRow(session: session, name: service.displayName(session), now: context.date, text: text) {
-                                guard !preview else { return }
-                                service.focus(session.id)
-                            }
+        TimelineView(.periodic(from: .now, by: 1)) { context in
+            ScrollView {
+                LazyVStack(spacing: 6) {
+                    ForEach(service.sessions) { session in
+                        NotchClaudeSessionRow(session: session, name: service.displayName(session), now: context.date, text: text) {
+                            guard !preview else { return }
+                            service.focus(session.id)
                         }
                     }
-                    .padding(.bottom, 4)
-                    .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
-                               value: service.sessions.map(\.id))
                 }
-                .scrollIndicators(.automatic)
+                .padding(.bottom, 4)
+                .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
+                           value: service.sessions.map(\.id))
             }
+            .scrollIndicators(.automatic)
         }
         .notchBand(leading: { NotchClaudeSessionCounts(counts: service.counts, total: service.sessions.count) },
                    trailing: { newSessionButton })

@@ -450,7 +450,7 @@ private struct NotchAgentLimitsCard: View {
 }
 
 /// A glyph and its words, closer together than a stock label.
-struct NotchAgentInlineLabel: LabelStyle {
+private struct NotchAgentInlineLabel: LabelStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack(spacing: 2) {
             configuration.icon.imageScale(.small)

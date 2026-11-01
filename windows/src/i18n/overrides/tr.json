@@ -622,8 +622,6 @@
   "windows.sessions.codexFailed": "Codex oturumu başlatamadı",
   "notchClaudeSessions.limited": "Sınıra ulaşıldı",
   "notchClaudeSessions.resumesFormat": "%@ devam eder",
-  "notchClaudeSessions.limitsTitle": "Plan sınırları",
-  "notchClaudeSessions.resetsFormat": "%@ sıfırlanır",
   "notchClaudeSessions.limitsSetting": "Plan sınırlarını göster",
-  "windows.settings.sessions.limitsCaption": "Claude ve Codex plan sınırlarının ne kadarının kullanıldığını oturumların yanında, bir sınır yaklaştığında da şeritte gösterir. AI Agents kapalıyken ada bunun için sınırları okumaya devam eder."
+  "windows.settings.sessions.limitsCaption": "Bir Claude veya Codex sınırı yaklaştığında şeritte gösterir ve sınırda duran bir oturumun ne zaman devam edeceğini söyler. AI Agents kapalıyken ada bunun için sınırları okumaya devam eder."
 }

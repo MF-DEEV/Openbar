@@ -622,8 +622,6 @@
   "windows.sessions.codexFailed": "Codex konnte die Sitzung nicht starten",
   "notchClaudeSessions.limited": "Limit erreicht",
   "notchClaudeSessions.resumesFormat": "weiter ab %@",
-  "notchClaudeSessions.limitsTitle": "Tariflimits",
-  "notchClaudeSessions.resetsFormat": "neu ab %@",
   "notchClaudeSessions.limitsSetting": "Tariflimits anzeigen",
-  "windows.settings.sessions.limitsCaption": "Zeigt, wie viel der Tariflimits von Claude und Codex verbraucht ist, neben den Sitzungen und im Streifen, sobald ein Limit nahe ist. Ist AI Agents aus, liest die Insel die Limits dafür weiter."
+  "windows.settings.sessions.limitsCaption": "Zeigt ein Claude- oder Codex-Limit im Streifen, sobald es nahe ist, und sagt, wann eine vom Limit gestoppte Sitzung weitergeht. Ist AI Agents aus, liest die Insel die Limits dafür weiter."
 }

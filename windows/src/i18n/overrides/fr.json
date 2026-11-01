@@ -622,8 +622,6 @@
   "windows.sessions.codexFailed": "Codex n’a pas pu démarrer la session",
   "notchClaudeSessions.limited": "Limite atteinte",
   "notchClaudeSessions.resumesFormat": "reprend %@",
-  "notchClaudeSessions.limitsTitle": "Limites du forfait",
-  "notchClaudeSessions.resetsFormat": "renouvelée %@",
   "notchClaudeSessions.limitsSetting": "Afficher les limites du forfait",
-  "windows.settings.sessions.limitsCaption": "Affiche la part utilisée des limites des forfaits Claude et Codex, à côté des sessions et sur la bande quand une limite approche. Avec AI Agents désactivé, l’île continue de lire les limites pour cela."
+  "windows.settings.sessions.limitsCaption": "Affiche une limite Claude ou Codex sur la bande quand elle approche, et indique quand reprend une session arrêtée par sa limite. Avec AI Agents désactivé, l’île continue de lire les limites pour cela."
 }

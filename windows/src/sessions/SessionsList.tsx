@@ -19,7 +19,6 @@ import { isWaiting, type Session } from "./types";
 import { presentedSnapshot } from "./presentation";
 import { useAgents } from "../agents/store";
 import { limitReset, resetText } from "./limits";
-import { LimitsRow } from "./LimitsRow";
 
 /** waitingPermission 0 · waitingInput 1 · working 2 · limited 3 · background 4 · finished 5 · idle 6 (§3.6). */
 const RANK: Record<Session["phase"], number> = {
@@ -56,33 +55,24 @@ export function SessionsList() {
   const sessions = useSessions((s) => presentedSnapshot(s).sessions);
   const now = useNow();
   if (sessions.length === 0) {
-    return (
-      <div className="s-page-list">
-        <LimitsRow />
-        <EmptyState icon={GalleryVerticalEnd} title={S.emptyTitle} detail={S.emptyDetail} />
-      </div>
-    );
+    return <EmptyState icon={GalleryVerticalEnd} title={S.emptyTitle} detail={S.emptyDetail} />;
   }
   return (
-    // How much of each plan is left, above the work spending it.
-    <div className="s-page-list">
-      <LimitsRow />
-      <div className="s-list">
-        <AnimatePresence initial={false}>
-          {orderSessions(sessions).map((session) => (
-            <motion.div
-              key={session.id}
-              layout
-              transition={REORDER}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-            >
-              <Row session={session} now={now} />
-            </motion.div>
-          ))}
-        </AnimatePresence>
-      </div>
+    <div className="s-list">
+      <AnimatePresence initial={false}>
+        {orderSessions(sessions).map((session) => (
+          <motion.div
+            key={session.id}
+            layout
+            transition={REORDER}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <Row session={session} now={now} />
+          </motion.div>
+        ))}
+      </AnimatePresence>
     </div>
   );
 }

@@ -622,8 +622,6 @@
   "windows.sessions.codexFailed": "Codex не смог запустить сессию",
   "notchClaudeSessions.limited": "Лимит исчерпан",
   "notchClaudeSessions.resumesFormat": "продолжит %@",
-  "notchClaudeSessions.limitsTitle": "Лимиты тарифа",
-  "notchClaudeSessions.resetsFormat": "сброс %@",
   "notchClaudeSessions.limitsSetting": "Показывать лимиты тарифа",
-  "windows.settings.sessions.limitsCaption": "Показывает, какая часть лимитов тарифов Claude и Codex израсходована: рядом с сеансами, а на полоске, когда лимит близок. Если AI Agents выключен, остров продолжает читать лимиты для этого."
+  "windows.settings.sessions.limitsCaption": "Показывает лимит Claude или Codex на полоске, когда он близок, и сообщает, когда продолжится сеанс, остановленный лимитом. Если AI Agents выключен, остров продолжает читать лимиты для этого."
 }

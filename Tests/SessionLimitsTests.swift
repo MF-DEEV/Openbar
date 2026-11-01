@@ -201,11 +201,6 @@ enum SessionLimitsTests {
             window("opencode.x", .session, used: 99, minutes: 300, resets: at(60)),
         ], observedAt: at(0), source: .sessionLog)
 
-        let groups = NotchSessionLimitsSupport.groups(snapshot, now: at(1))
-        suite.expect(groups.map(\.provider) == [.claude, .codex], "only Claude and Codex, in that order")
-        suite.expect(groups.first?.windows.map(\.id) == ["claude.session", "claude.weekly"],
-                     "the session window first, a model's own left to the AI page")
-
         // The strip's most used window, as the AI strip's, counts a model's
         // own allowance too; without one the weekly cap is the binding one.
         var planWide = snapshot

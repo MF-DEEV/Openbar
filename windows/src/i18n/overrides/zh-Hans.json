@@ -622,8 +622,6 @@
   "windows.sessions.codexFailed": "Codex 无法启动会话",
   "notchClaudeSessions.limited": "已达额度上限",
   "notchClaudeSessions.resumesFormat": "%@ 恢复",
-  "notchClaudeSessions.limitsTitle": "套餐额度",
-  "notchClaudeSessions.resetsFormat": "%@ 重置",
   "notchClaudeSessions.limitsSetting": "显示套餐额度",
-  "windows.settings.sessions.limitsCaption": "在会话旁显示 Claude 和 Codex 套餐额度的用量，额度将尽时也显示在条带上。关闭 AI Agents 时，灵动岛仍会为此读取额度。"
+  "windows.settings.sessions.limitsCaption": "Claude 或 Codex 额度将尽时显示在条带上，并告诉你因额度停止的会话何时继续。关闭 AI Agents 时，灵动岛仍会为此读取额度。"
 }

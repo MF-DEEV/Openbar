@@ -622,8 +622,6 @@
   "windows.sessions.codexFailed": "Codex はセッションを開始できませんでした",
   "notchClaudeSessions.limited": "上限に到達",
   "notchClaudeSessions.resumesFormat": "%@に再開",
-  "notchClaudeSessions.limitsTitle": "プランの上限",
-  "notchClaudeSessions.resetsFormat": "%@にリセット",
   "notchClaudeSessions.limitsSetting": "プランの上限を表示",
-  "windows.settings.sessions.limitsCaption": "Claude と Codex のプラン上限の使用量を、セッションの横に、上限が近づくとストリップにも表示します。AI Agents がオフでも、このためにアイランドは上限を読み続けます。"
+  "windows.settings.sessions.limitsCaption": "Claude や Codex の上限が近づくとストリップに表示し、上限で止まったセッションがいつ再開するかを示します。AI Agents がオフでも、このためにアイランドは上限を読み続けます。"
 }

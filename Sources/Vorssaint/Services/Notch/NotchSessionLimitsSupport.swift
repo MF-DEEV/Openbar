@@ -3,7 +3,7 @@
 
 import Foundation
 
-/// The plan limits the Sessions section shows beside its sessions. They come
+/// The plan limits the Sessions section shows on the island. They come
 /// from the reading the AI section keeps (`AgentUsageService`); nothing here
 /// reads a file or asks an agent.
 enum NotchSessionLimitsSupport {
@@ -28,45 +28,6 @@ enum NotchSessionLimitsSupport {
     /// for its limits.
     static func usageWanted(in defaults: UserDefaults = .standard) -> Bool {
         NotchAgentSupport.isEnabled(in: defaults) || isEnabled(in: defaults)
-    }
-
-    // MARK: Page
-
-    /// One agent's plan-wide windows, the shorter first.
-    struct Group: Equatable, Identifiable {
-        let provider: AgentProvider
-        let windows: [AgentLimitWindow]
-        var id: String { provider.rawValue }
-    }
-
-    /// Each agent's session and weekly windows as they stand at `now`, or its
-    /// most used window when it reports neither. A model's own allowance is
-    /// left to the AI page.
-    static func groups(_ snapshot: AgentUsageSnapshot, now: Date) -> [Group] {
-        providers.compactMap { provider in
-            guard let limits = snapshot.limits[provider] else { return nil }
-            var windows = limits.windows.filter { $0.scope == nil && $0.kind != .other }
-                .map { AgentLimitSupport.current($0, at: now) }
-                .sorted { (order($0.kind), $0.minutes ?? 0) < (order($1.kind), $1.minutes ?? 0) }
-            if windows.isEmpty, let binding = AgentLimitSupport.binding(limits, now: now) { windows = [binding] }
-            return windows.isEmpty ? nil : Group(provider: provider, windows: Array(windows.prefix(2)))
-        }
-    }
-
-    private static func order(_ kind: AgentLimitWindow.Kind) -> Int {
-        switch kind {
-        case .session: return 0
-        case .weekly: return 1
-        case .other: return 2
-        }
-    }
-
-    /// How a window is called in the row: its length, like "5h" or "7d".
-    static func label(_ window: AgentLimitWindow, session: String, weekly: String, locale: Locale) -> String {
-        if let minutes = window.minutes, minutes > 0 {
-            return AgentFormat.duration(TimeInterval(minutes) * 60, locale: locale, units: 1)
-        }
-        return window.kind == .weekly ? weekly : session
     }
 
     // MARK: Strip

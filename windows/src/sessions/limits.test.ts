@@ -9,7 +9,7 @@ import type { AgentSnapshot, LimitWindow } from "../agents/types";
 import { demoSnapshot } from "./demo";
 import { activityText, LIMITED_TINT, phaseTint } from "./format";
 import { GaugeFill } from "./glyphs";
-import { limitGroups, limitReset, resetText, runningSessions, stripLimit, stripShare } from "./limits";
+import { limitReset, resetText, runningSessions, stripLimit, stripShare } from "./limits";
 import { countItems, readingWidth, stripWing } from "./SessionsStrip";
 import type { Session } from "./types";
 import { motionForPhase } from "./clawd/sprite";
@@ -49,12 +49,6 @@ const base = demoSnapshot().sessions[0]!;
 const session = (patch: Partial<Session>): Session => ({ ...base, ...patch });
 
 describe("plan limits beside the sessions", () => {
-  it("shows Claude's and Codex's plan-wide windows, the session one first", () => {
-    const groups = limitGroups(snapshot(), T + 1000);
-    expect(groups.map((g) => g.provider)).toEqual(["claude", "codex"]);
-    expect(groups[0]!.windows.map((w) => w.id)).toEqual(["claude.session", "claude.weekly"]);
-  });
-
   it("puts a limit on the strip only past the threshold, a spent weekly one before a quiet chosen one", () => {
     const planWide = snapshot();
     planWide.limits.claude!.windows = planWide.limits.claude!.windows.filter((w) => w.scope === null);

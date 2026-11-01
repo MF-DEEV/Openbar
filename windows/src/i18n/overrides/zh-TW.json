@@ -622,8 +622,6 @@
   "windows.sessions.codexFailed": "Codex 無法啟動工作階段",
   "notchClaudeSessions.limited": "已達額度上限",
   "notchClaudeSessions.resumesFormat": "%@ 恢復",
-  "notchClaudeSessions.limitsTitle": "方案額度",
-  "notchClaudeSessions.resetsFormat": "%@ 重設",
   "notchClaudeSessions.limitsSetting": "顯示方案額度",
-  "windows.settings.sessions.limitsCaption": "在工作階段旁顯示 Claude 和 Codex 方案額度的用量，額度將盡時也顯示在條帶上。關閉 AI Agents 時，動態島仍會為此讀取額度。"
+  "windows.settings.sessions.limitsCaption": "Claude 或 Codex 額度將盡時顯示在條帶上，並告訴你因額度停止的工作階段何時繼續。關閉 AI Agents 時，動態島仍會為此讀取額度。"
 }

@@ -622,8 +622,6 @@
   "windows.sessions.codexFailed": "Codex가 세션을 시작하지 못했습니다",
   "notchClaudeSessions.limited": "한도 도달",
   "notchClaudeSessions.resumesFormat": "%@ 재개",
-  "notchClaudeSessions.limitsTitle": "요금제 한도",
-  "notchClaudeSessions.resetsFormat": "%@ 초기화",
   "notchClaudeSessions.limitsSetting": "요금제 한도 표시",
-  "windows.settings.sessions.limitsCaption": "Claude와 Codex 요금제 한도를 얼마나 썼는지 세션 옆에, 한도가 가까워지면 스트립에도 보여 줍니다. AI Agents가 꺼져 있어도 이를 위해 아일랜드가 한도를 계속 읽습니다."
+  "windows.settings.sessions.limitsCaption": "Claude나 Codex 한도가 가까워지면 스트립에 표시하고, 한도로 멈춘 세션이 언제 다시 시작되는지 알려 줍니다. AI Agents가 꺼져 있어도 이를 위해 아일랜드가 한도를 계속 읽습니다."
 }

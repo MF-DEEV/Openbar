@@ -622,8 +622,6 @@
   "windows.sessions.codexFailed": "Codex couldn’t start the session",
   "notchClaudeSessions.limited": "Limit reached",
   "notchClaudeSessions.resumesFormat": "resumes %@",
-  "notchClaudeSessions.limitsTitle": "Plan limits",
-  "notchClaudeSessions.resetsFormat": "resets %@",
   "notchClaudeSessions.limitsSetting": "Show plan limits",
-  "windows.settings.sessions.limitsCaption": "Shows how much of the Claude and Codex plan limits is used, beside the sessions and on the strip once a limit gets close. With AI Agents off, the island keeps reading the limits for this."
+  "windows.settings.sessions.limitsCaption": "Puts a Claude or Codex limit on the strip once it gets close, and says when a session stopped at its limit goes on. With AI Agents off, the island keeps reading the limits for this."
 }

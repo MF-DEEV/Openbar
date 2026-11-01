@@ -622,8 +622,6 @@
   "windows.sessions.codexFailed": "Codex no pudo iniciar la sesión",
   "notchClaudeSessions.limited": "Límite alcanzado",
   "notchClaudeSessions.resumesFormat": "se reanuda %@",
-  "notchClaudeSessions.limitsTitle": "Límites del plan",
-  "notchClaudeSessions.resetsFormat": "se renueva %@",
   "notchClaudeSessions.limitsSetting": "Mostrar límites del plan",
-  "windows.settings.sessions.limitsCaption": "Muestra cuánto se ha usado de los límites de los planes de Claude y Codex, junto a las sesiones y en la franja cuando un límite se acerca. Con AI Agents desactivado, la isla sigue leyendo los límites para esto."
+  "windows.settings.sessions.limitsCaption": "Muestra un límite de Claude o Codex en la franja cuando se acerca y dice cuándo sigue una sesión detenida por su límite. Con AI Agents desactivado, la isla sigue leyendo los límites para esto."
 }

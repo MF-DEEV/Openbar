@@ -35,11 +35,7 @@ export const S = {
   get limited() {
     return t("notchClaudeSessions.limited");
   },
-  get limitsTitle() {
-    return t("notchClaudeSessions.limitsTitle");
-  },
   resumes: (when: string) => tf("notchClaudeSessions.resumesFormat", when),
-  resets: (when: string) => tf("notchClaudeSessions.resetsFormat", when),
   get finished() {
     return t("feedback.done");
   },
