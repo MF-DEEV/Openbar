@@ -4,6 +4,39 @@ import { writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 export async function checkMusicQueueArtwork({ send, evaluate, base }) {
+  // The plain browser has no Tauri HTTPS bridge. Supply actual public catalog
+  // responses through its bridge fixture, including the album verification step.
+  const songs = [
+    { title: "Out of My League", artist: "Fitz and The Tantrums" },
+    { title: "The Blonde", artist: "TV Girl" },
+    { title: "Let's Get It On", artist: "Marvin Gaye" },
+    { title: "Out of Touch", artist: "Daryl Hall & John Oates" },
+    { title: "Swing Lynn", artist: "Harmless" },
+    { title: "Take On Me", artist: "a-ha" },
+  ];
+  const reportedSong = { title: "Swimming Pools (Drank)", artist: "Kendrick Lamar" };
+  const catalog = await Promise.all(
+    [...songs, reportedSong].map(async (song) => {
+      const response = await fetch(
+        "https://api.deezer.com/search?" + new URLSearchParams({ q: song.title + " " + song.artist, limit: "12" }),
+      );
+      assert(response.ok, "Public catalog request failed");
+      const data = await response.json();
+      const normalized = (value) =>
+        value
+          .toLowerCase()
+          .replace(/&/g, "and")
+          .replace(/[^a-z0-9]+/g, "");
+      const row = data.data?.find(
+        (row) =>
+          normalized(row.title) === normalized(song.title) && normalized(row.artist.name) === normalized(song.artist),
+      );
+      assert(row, "Missing live catalog fixture: " + song.title);
+      const album = await (await fetch("https://api.deezer.com/album/" + row.album.id)).json();
+      assert(["single", "album", "ep"].includes(album.record_type), "Fixture must be an artist release");
+      return { song, search: { data: [row] }, album };
+    }),
+  );
   const wait = async (expression, count = 200) => {
     for (let i = 0; i < count; i++) {
       if (await evaluate(expression)) return;
@@ -19,7 +52,10 @@ export async function checkMusicQueueArtwork({ send, evaluate, base }) {
     window.music=(await import('/src/music/store.ts')).useMusic;
     window.bridge=(await import('/src/shared/bridge.ts')).bridge;
     window.artwork=(await import('/src/music/queueArtwork.ts')).useQueueArtwork;
-    window.songs=[{title:'Out of My League',artist:'Fitz and The Tantrums'},{title:'The Blonde',artist:'TV Girl'},{title:"Let's Get It On",artist:'Marvin Gaye'},{title:'Out of Touch',artist:'Daryl Hall & John Oates'},{title:'Swing Lynn',artist:'Harmless'},{title:'September',artist:'Earth, Wind & Fire'}];
+    window.songs=${JSON.stringify(songs)};
+    window.catalog=${JSON.stringify(catalog)};
+    bridge.music.queueArtwork=async(title,artist)=>catalog.find(entry=>entry.song.title===title&&entry.song.artist===artist)?.search;
+    bridge.music.queueAlbum=async(id)=>catalog.find(entry=>entry.album.id===id)?.album;
     window.originalPlayback={...music.getState().playback,title:'Now'};
     music.setState({playback:originalPlayback});
     bridge.music.queue=async(source,title)=>{
@@ -70,7 +106,7 @@ export async function checkMusicQueueArtwork({ send, evaluate, base }) {
     music.setState({playback:{...originalPlayback,title:songs[0].title,artist:songs[0].artist}});`);
   const immediate =
     await evaluate(`(async()=>{await new Promise(requestAnimationFrame);await new Promise(requestAnimationFrame);
-    const rows=Array.from(document.querySelectorAll('.m-queue-row'));const row=rows.find(r=>r.querySelector('strong').textContent==='September');
+    const rows=Array.from(document.querySelectorAll('.m-queue-row'));const row=rows.find(r=>r.querySelector('strong').textContent==='Take On Me');
     const image=row?.querySelector('img');return {present:!!row,decoded:!!image?.complete && image.naturalWidth>0,opacity:image?getComputedStyle(image).opacity:null};})()`);
   assert.equal(immediate.present, true, "The fifth row must appear from lookahead before the native read returns");
   assert.equal(immediate.decoded, true, "The new row's cover must already be downloaded and decoded");
@@ -100,6 +136,20 @@ export async function checkMusicQueueArtwork({ send, evaluate, base }) {
   await evaluate("queueObserver.disconnect()");
   const screenshot = await send("Page.captureScreenshot", { format: "png" });
   await writeFile(resolve("../music-queue-artwork.png"), Buffer.from(screenshot.data, "base64"));
+  await evaluate(`window.reportedRows=songs.slice(1,6);reportedRows[3]=${JSON.stringify(reportedSong)};
+    bridge.music.queue=async(source,title)=>({source,title,status:'ready',items:reportedRows,prefetch:[]});
+    document.querySelector('.m-queue-heading button').click();`);
+  await wait(
+    `Array.from(document.querySelectorAll('.m-queue-row')).some(row=>row.querySelector('strong')?.textContent==='Swimming Pools (Drank)' && row.querySelector('img')?.src.includes('4620d1f18a1e403b560efbf38a837c83'))`,
+  );
+  const clip = await evaluate(
+    `(()=>{const r=document.querySelector('.n-expanded').getBoundingClientRect();return {x:Math.max(0,r.left-75),y:Math.max(0,r.top),width:r.width+150,height:r.height+75,scale:1}})()`,
+  );
+  const editionScreenshot = await send("Page.captureScreenshot", { format: "png", clip });
+  await writeFile(resolve("../music-queue-cover-edition.png"), Buffer.from(editionScreenshot.data, "base64"));
+  console.log(
+    "Reported-song regression passed: original single cover, not Grammy compilation. Screenshot: ../music-queue-cover-edition.png",
+  );
   console.log(
     "Animation samples:",
     await evaluate(

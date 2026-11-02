@@ -28,6 +28,14 @@ Songs absent from that catalog use Deezer's public search and cover CDN. Its
 metadata request runs through a fixed-host native HTTPS command because the
 browser API does not enable CORS; no account, cookie or token is used. Title
 and primary artist must match before a returned cover is displayed.
+Compilation releases (including Various Artists collections) are rejected even
+when their track title and performer match. For Deezer, the matching album ID
+is looked up separately to verify its release type and album artist before its
+cover is accepted; these album lookups are coalesced and cached in memory. If
+release verification fails, the app keeps the placeholder instead of guessing.
+For example, `Swimming Pools (Drank)` must not use the `2014 GRAMMY Nominees`
+compilation cover; the original single is a valid exact-version match, while
+the differently titled Extended Version is not substituted.
 This is independent of the local Spotify queue reader. There is no artwork
 toggle, provider label or external cover link in the panel. A cover may represent a different release
 of that recording because Spotify's local queue does not supply album IDs.
