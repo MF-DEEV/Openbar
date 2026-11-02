@@ -216,15 +216,26 @@ struct NotchSessionsAgentSettingsRow: View {
             HStack(spacing: 8) {
                 NotchHookAgentMark(provider: provider, size: 14, working: false)
                     .frame(width: 18, height: 18)
-                VStack(alignment: .leading, spacing: 1) {
-                    Text(provider.displayName).font(.callout)
-                    if let caption = text.agentHookState(status?.state, present: status?.present ?? false) {
-                        Text(caption).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
+                Text(provider.displayName)
+                    .font(.callout)
+                    .fixedSize()
                 Spacer(minLength: 8)
+                Toggle(provider.displayName, isOn: $shown)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .onChange(of: shown) { _, _ in service.syncWithPreferences() }
+            }
+            HStack(spacing: 6) {
+                if let caption = text.agentHookState(status?.state, present: status?.present ?? false) {
+                    Text(caption).font(.caption).foregroundStyle(.secondary)
+                } else {
+                    ProgressView().controlSize(.mini)
+                }
+                Spacer(minLength: 6)
                 if let status, status.state != .unreadable {
-                    if status.state != .missing {
+                    // An update first; Remove comes back once it is current.
+                    if status.state == .installed {
                         Button(text.removeAgent(provider)) { service.installAgentHooks(provider, false) }
                             .controlSize(.small)
                             .fixedSize()
@@ -237,12 +248,8 @@ struct NotchSessionsAgentSettingsRow: View {
                         .fixedSize()
                     }
                 }
-                Toggle(provider.displayName, isOn: $shown)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .onChange(of: shown) { _, _ in service.syncWithPreferences() }
             }
+            .padding(.leading, 26)
             Text(text.agentHint(provider))
                 .font(.caption)
                 .foregroundStyle(.secondary)

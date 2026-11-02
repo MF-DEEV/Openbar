@@ -1296,11 +1296,12 @@ enum ClaudeTerminalReply {
 
     static func send(_ text: String, images: [URL] = [], named: [URL] = [], to session: ClaudeSession, bridge: URL) -> Failure? {
         let paths = images.map(\.path)
-        let steps = ClaudeTyping.steps(text, images: paths)
+        let delay = ClaudeTyping.enterDelay(session.provider)
+        let steps = delay.map { ClaudeTyping.steps(text, images: paths, enterAfter: $0) } ?? ClaudeTyping.steps(text, images: paths)
         switch session.host {
         case .terminal(let tty):
-            let script = paths.isEmpty ? ClaudeTerminalScripts.type(text, tty: tty)
-                : ClaudeTerminalScripts.type(text, images: paths, tty: tty)
+            let script = !paths.isEmpty ? ClaudeTerminalScripts.type(text, images: paths, tty: tty)
+                : delay.map { ClaudeTerminalScripts.type(text, tty: tty, enterAfter: $0) } ?? ClaudeTerminalScripts.type(text, tty: tty)
             return run(script, in: ClaudeSessionHosts.terminal)
         case .iterm(let tty):
             return run(ClaudeTTYTerminalScripts.itermType(steps, tty: tty), in: ClaudeTerminalApps.iterm)

@@ -122,7 +122,9 @@ enum AgentHookMessage {
         case "SessionEnd": return event(.ended)
         case "BeforeAgent": return event(.prompt(policy.previews ? preview(json["prompt"]) : nil))
         case "AfterAgent":
-            return event(.stopped(lastText: policy.previews ? preview(json["prompt_response"]) : nil, failed: false))
+            // Gemini CLI writes this when the turn ended with no text, as on an error.
+            let reply = preview(json["prompt_response"]).flatMap { $0 == "[no response text]" ? nil : $0 }
+            return event(.stopped(lastText: policy.previews ? reply : nil, failed: false))
         case "BeforeTool":
             return event(.toolStarted(toolUse(tool, input: input, at: date, policy: policy)))
         case "AfterTool":

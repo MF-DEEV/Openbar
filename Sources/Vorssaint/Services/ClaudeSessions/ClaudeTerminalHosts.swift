@@ -116,13 +116,20 @@ enum ClaudeTypingStep: Equatable {
 enum ClaudeTyping {
     /// Claude Code attaches an image when a paste is only its path and reads
     /// it a moment later, so the text and the return wait for the images.
-    static func steps(_ text: String, images: [String] = []) -> [ClaudeTypingStep] {
+    static func steps(_ text: String, images: [String] = [], enterAfter delay: Double = 0.08) -> [ClaudeTypingStep] {
         var steps: [ClaudeTypingStep] = []
         for image in images { steps += [.paste(image), .wait(0.06)] }
         if !images.isEmpty { steps.append(.wait(ClaudeTerminalScripts.imageSettle(images.count))) }
         if !text.isEmpty { steps.append(.paste(text)) }
-        steps += [.wait(0.08), .enter]
+        steps += [.wait(delay), .enter]
         return steps
+    }
+
+    /// How long an agent's prompt needs after a paste before a return sends
+    /// it rather than breaking the line: Gemini CLI's and the other hook
+    /// agents' take a quick one as part of the paste.
+    static func enterDelay(_ provider: ClaudeSessionProvider) -> Double? {
+        provider.reportsThroughHooks ? 0.5 : nil
     }
 
     /// The longest a sequence takes, for a timeout that outlasts it.

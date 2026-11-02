@@ -223,6 +223,29 @@ extension ClaudeTerminalScripts {
         """
     }
 
+    /// Types a reply as a paste and sends it with a return of its own a
+    /// moment later. Gemini CLI, like other agents' prompts, takes a return
+    /// that comes with a paste as a line break; the second return sends it,
+    /// and on an empty prompt does nothing.
+    static func type(_ text: String, tty: String, enterAfter delay: Double) -> String {
+        """
+        set marker to ASCII character 27
+        tell application "Terminal"
+            repeat with theWindow in windows
+                repeat with theTab in tabs of theWindow
+                    if tty of theTab is \(AppleScriptRunner.literal(tty)) then
+                        do script (marker & "[200~" & \(AppleScriptRunner.literal(text)) & marker & "[201~") in theTab
+                        delay \(delay)
+                        do script "" in theTab
+                        return "sent"
+                    end if
+                end repeat
+            end repeat
+        end tell
+        return "missing"
+        """
+    }
+
     /// The time Claude Code takes to read pasted images before the text.
     static func imageSettle(_ count: Int) -> Double { 1.2 + 0.3 * Double(count) }
 

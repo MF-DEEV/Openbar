@@ -120,6 +120,14 @@ enum AgentHookSessionTests {
         feed(tracker, event("AfterTool", ["tool_name": "read_file", "tool_input": ["file_path": "/w/app/Sources/a.swift"],
                                           "tool_response": ["error": ["message": "no such file"]]]))
         suite.expect(snapshot(tracker).sessions[0].timeline.last?.failed == true, "a tool's error marks it failed")
+        feed(tracker, event("BeforeAgent", ["prompt": "again"]))
+        feed(tracker, event("AfterAgent", ["prompt": "again", "prompt_response": "[no response text]"]))
+        suite.expect(snapshot(tracker).sessions[0].lastText == "All green.",
+                     "Gemini's stand-in for a turn with no text is no reply")
+        suite.expect(ClaudeTyping.steps("hi", enterAfter: ClaudeTyping.enterDelay(.gemini) ?? 0) == [.paste("hi"), .wait(0.5), .enter]
+                     && ClaudeTyping.enterDelay(.claude) == nil
+                     && ClaudeTerminalScripts.type("hi", tty: "/dev/ttys1", enterAfter: 0.5).contains("do script \"\" in theTab"),
+                     "a reply to Gemini is sent by a return of its own, after the paste settles")
         feed(tracker, event("SessionEnd", ["reason": "exit"]))
         suite.expect(snapshot(tracker).sessions.isEmpty, "a session that ended leaves the list")
     }

@@ -26,6 +26,8 @@ export const VorssaintIsland = async ({ client, directory }) => {
   const roles = new Map()
   const sent = new Map()
   const waiting = new Map()
+  // What the island was told of each session, told again after it restarts.
+  const known = new Map()
   const clip = (text) => (typeof text === "string" ? text.slice(0, LIMIT) : undefined)
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -75,10 +77,22 @@ export const VorssaintIsland = async ({ client, directory }) => {
     void send(event, false)
   }
 
+  const announce = () => {
+    for (const [session, state] of known) {
+      void send({ kind: "created", session, directory: state.directory }, false)
+      if (state.status) void send({ kind: "status", session, status: state.status }, false)
+      if (state.title) void send({ kind: "title", session, title: state.title }, false)
+    }
+  }
+
   // Replies the person types in the island, for this OpenCode's sessions.
+  // Each time the island is reached anew, as after it restarts, it hears of them again.
   const listen = async () => {
+    let fresh = true
     for (;;) {
+      if (fresh) announce()
       const answer = await send({ kind: "listen" }, true)
+      fresh = !answer
       const prompt = answer && answer.prompt
       if (prompt && prompt.session && prompt.text) {
         try {
@@ -124,6 +138,15 @@ export const VorssaintIsland = async ({ client, directory }) => {
       const session = p.sessionID ?? info.sessionID ?? (event.type.startsWith("session.") ? info.id : undefined)
       if (event.type === "session.created" && info.parentID) children.add(info.id)
       if (!session || children.has(session)) return
+      const state = known.get(session) ?? { directory: info.directory ?? directory }
+      if (event.type === "session.deleted") known.delete(session)
+      else {
+        if (event.type === "session.status") state.status = p.status && p.status.type
+        if (event.type === "session.idle") state.status = "idle"
+        if (event.type === "session.updated" && info.title && !/^New session - /.test(info.title)) state.title = clip(info.title)
+        known.set(session, state)
+        if (known.size > 200) known.delete(known.keys().next().value)
+      }
       switch (event.type) {
         case "session.created":
           return post({ kind: "created", session, directory: info.directory ?? directory })
