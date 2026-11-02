@@ -14,7 +14,7 @@ import type { Access, Inbox, Item } from "../notifications/types";
 import type { DownloadSnapshot } from "../downloads/types";
 import type { MicrophoneSnapshot } from "../microphone/model";
 import type { BatteryReading, MetricKind, SpeedTestState, SystemSnapshot } from "../system/types";
-import type { CalendarAccess, CalendarSnapshot } from "../calendar/types";
+import type { CalendarAccess, CalendarSnapshot, EventDraft } from "../calendar/types";
 import type { AudioState, BrightnessDisplay, KeepAwakeState } from "../audio/types";
 import type { CaptureOutcome, CapturePurpose, ToggleState } from "../tools/types";
 import type { CaptureSession, Pick } from "../capture/types";
@@ -239,6 +239,8 @@ export const bridge = {
     },
   },
   calendar: {
+    saveEvent: (draft: EventDraft) => call<CalendarSnapshot>("calendar_save_event", { draft }),
+    deleteEvent: (id: string) => call<CalendarSnapshot>("calendar_delete_event", { id }),
     snapshot: () => call<CalendarSnapshot>("calendar_snapshot"),
     onSnapshot(handler: (snapshot: CalendarSnapshot) => void): Promise<UnlistenFn> {
       if (!inTauri) return Promise.resolve(() => {});

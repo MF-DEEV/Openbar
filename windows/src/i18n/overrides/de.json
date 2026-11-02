@@ -640,5 +640,22 @@
   "windows.settings.sessions.agentConnecting": "Wird verbunden…",
   "windows.settings.sessions.agentUpdating": "Wird aktualisiert…",
   "windows.settings.sessions.agentOff": "Aus",
-  "windows.settings.sessions.tryAgain": "Erneut versuchen"
+  "windows.settings.sessions.tryAgain": "Erneut versuchen",
+  "windows.calendar.newEvent": "Neues Ereignis",
+  "windows.calendar.editEvent": "Ereignis bearbeiten",
+  "windows.calendar.eventTitle": "Titel des Ereignisses",
+  "windows.calendar.starts": "Beginn",
+  "windows.calendar.ends": "Ende",
+  "windows.calendar.location": "Ort (optional)",
+  "windows.calendar.description": "Notizen oder Besprechungsdetails",
+  "windows.calendar.colour": "Ereignisfarbe",
+  "windows.calendar.cancel": "Abbrechen",
+  "windows.calendar.save": "Ereignis speichern",
+  "windows.calendar.delete": "Ereignis löschen",
+  "windows.calendar.confirmDelete": "Dieses Ereignis löschen?",
+  "windows.calendar.invalidRange": "Das Ende muss nach dem Beginn liegen.",
+  "windows.calendar.saveFailed": "Das Ereignis konnte nicht gespeichert werden. Bitte erneut versuchen.",
+  "windows.calendar.deleteFailed": "Das Ereignis konnte nicht gelöscht werden. Bitte erneut versuchen.",
+  "windows.calendar.localHint": "Deine Ereignisse bleiben auf diesem Gerät.",
+  "windows.calendar.createHint": "Wähle einen Tag und füge dein erstes Ereignis hinzu."
 }

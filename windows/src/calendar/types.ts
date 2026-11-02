@@ -24,6 +24,7 @@ export interface CalendarEvent {
   end: number;
   allDay: boolean;
   location: string;
+  description?: string;
   /** `#rrggbb`. */
   color: string;
   /** What AppointmentManager opens; empty when unknown. */
@@ -45,6 +46,9 @@ export interface CalendarChoice {
 
 export interface CalendarSnapshot {
   access: CalendarAccess;
+  /** Windows permission is separate from the always-available local calendar. */
+  systemAccess?: CalendarAccess;
+  localError?: string | null;
   /** The range the page asked for, or the coming week. */
   events: CalendarEvent[];
   /** Always the coming week: what countdowns and the Controls tile follow. */
@@ -54,4 +58,16 @@ export interface CalendarSnapshot {
   firstWeekday: number;
   /** Days of a new year the first week needs (LOCALE_IFIRSTWEEKOFYEAR: 1, 7 or 4). */
   minimumDaysInFirstWeek: number;
+}
+
+export const LOCAL_CALENDAR = "vorssaint-local";
+export interface EventDraft {
+  id: string | null;
+  title: string;
+  start: number;
+  end: number;
+  allDay: boolean;
+  location: string;
+  description: string;
+  color: string;
 }

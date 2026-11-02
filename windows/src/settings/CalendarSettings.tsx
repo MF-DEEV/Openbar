@@ -6,7 +6,7 @@
 // which calendars show, grouped by account. Unchecked calendars stay out of
 // the page and the countdown.
 
-import { useLocale } from "../i18n";
+import { t, useLocale } from "../i18n";
 
 import { useEffect, useState } from "react";
 import { groupedChoices } from "../calendar/model";
@@ -37,7 +37,7 @@ export function CalendarOptions() {
   const set = useSettings((s) => s.island);
   const [snapshot, setSnapshot] = useCalendarSnapshot();
   const [busy, setBusy] = useState(false);
-  const access = snapshot?.access ?? "unavailable";
+  const access = snapshot?.systemAccess ?? snapshot?.access ?? "unavailable";
   const request = async () => {
     setBusy(true);
     try {
@@ -54,7 +54,7 @@ export function CalendarOptions() {
 
   return (
     <>
-      <p className="st-note">{T.calendar.permission}</p>
+      <p className="st-note">{t("windows.calendar.localHint")}</p>
       <SubRow title={T.calendar.access} caption={access === "unavailable" ? T.calendar.unavailableCaption : undefined}>
         {access === "allowed" ? (
           <Status tone="ok">{T.calendar.granted}</Status>
@@ -95,7 +95,7 @@ export function CalendarOptions() {
           onChange={(on) => set("calendarWeekNumbers", on)}
         />
       </SubRow>
-      {access === "allowed" && snapshot ? (
+      {snapshot?.access === "allowed" ? (
         <div className="st-calendars" role="group" aria-label={T.calendar.calendars}>
           <div className="st-calendars-title">{T.calendar.calendars}</div>
           {snapshot.calendars.length === 0 ? <p>{T.calendar.noCalendars}</p> : null}

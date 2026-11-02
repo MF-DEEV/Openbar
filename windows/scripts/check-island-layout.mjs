@@ -33,6 +33,7 @@ import { checkSessionRename } from "./session-rename-cases.mjs";
 import { checkI18n } from "./i18n-cases.mjs";
 import { checkMusicQueue } from "./music-queue-cases.mjs";
 import { checkMusicQueueArtwork } from "./music-queue-artwork-cases.mjs";
+import { checkCalendar } from "./calendar-cases.mjs";
 
 const browserPath = [
   process.env.ISLAND_TEST_BROWSER,
@@ -110,7 +111,9 @@ try {
     mobile: false,
   });
   await send("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
-  if (process.argv.includes("--music-queue-artwork")) {
+  if (process.argv.includes("--calendar")) {
+    await checkCalendar({ send, evaluate, base: server.resolvedUrls.local[0] });
+  } else if (process.argv.includes("--music-queue-artwork")) {
     await checkMusicQueueArtwork({ send, evaluate, base: server.resolvedUrls.local[0] });
   } else if (process.argv.includes("--music-queue")) {
     await checkMusicQueue({ send, evaluate, base: server.resolvedUrls.local[0] });

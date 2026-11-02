@@ -20,6 +20,7 @@ mod hosts;
 mod island;
 mod island_shortcut;
 mod keep_awake;
+mod local_calendar;
 mod locale;
 mod media;
 mod media_volume;
@@ -273,6 +274,8 @@ pub fn run() {
             calendar::calendar_request_access,
             calendar::calendar_open,
             calendar::calendar_open_privacy_settings,
+            local_calendar::calendar_save_event,
+            local_calendar::calendar_delete_event,
             audio::audio_state,
             audio::audio_set_output,
             audio::audio_set_input,
@@ -357,6 +360,7 @@ pub fn run() {
             app.manage(prefs::Prefs::load(app.handle()));
             locale::start(app.handle().clone());
             app.manage(scratchpad::Store::new(app.handle()));
+            app.manage(local_calendar::Store::new(app.handle()));
             app.manage(files::Files::load(app.handle()));
             // Followed before the island exists, so its first power_saver_on has it.
             power_saver::start(app.handle().clone());

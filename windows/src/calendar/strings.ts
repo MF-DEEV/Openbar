@@ -7,6 +7,15 @@
 import { t, tf, formatUnit } from "../i18n";
 
 export const C = {
+  get newEvent() {
+    return t("windows.calendar.newEvent");
+  },
+  get editEvent() {
+    return t("windows.calendar.editEvent");
+  },
+  get createHint() {
+    return t("windows.calendar.createHint");
+  },
   get title() {
     return t("notchCalendar.title");
   },
