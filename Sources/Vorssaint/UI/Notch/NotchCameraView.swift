@@ -64,6 +64,25 @@ struct NotchCameraChooser: View {
     }
 }
 
+/// Flips the island's preview between mirrored and as the camera sees it,
+/// in its top row beside the stop button while the camera runs.
+struct NotchCameraMirrorButton: View {
+    @ObservedObject private var service = CameraPreviewService.shared
+    @ObservedObject private var l10n = L10n.shared
+
+    var body: some View {
+        if service.isEmbeddedPresented, service.state == .running, service.session != nil {
+            let strings = FeatureStrings.cameraPreview(l10n.language)
+            let on = service.isMirrored && service.canMirror
+            NotchIconButton(symbol: CameraMirrorSymbol.name(mirrored: on),
+                            title: service.canMirror ? strings.mirrorLabel : strings.mirrorUnavailable,
+                            selected: on, action: service.toggleMirrored)
+                .disabled(!service.canMirror)
+                .opacity(service.canMirror ? 1 : 0.45)
+        }
+    }
+}
+
 /// Stops the mirror from the island's top row: a glyph beside the camera,
 /// where a word may not fit, and the word itself across a full row.
 struct NotchCameraStopButton: View {
