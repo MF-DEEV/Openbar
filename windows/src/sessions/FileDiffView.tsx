@@ -42,15 +42,18 @@ function Header({ diff }: { diff: FileDiff }) {
       <div className="s-diff-file">
         <Icon size={11} strokeWidth={2.4} aria-hidden />
         <span className="s-diff-path" title={diff.path}>
-          <span className="s-diff-folder">{folder}</span>
+          {/* The folder gives way first, cut from its start; the name stays whole. */}
+          <span className="s-diff-folder">
+            <bdi>{folder}</bdi>
+          </span>
           <span className="s-diff-name">{name}</span>
         </span>
+        {note ? <span className="s-diff-note">{note}</span> : null}
         <span className="s-diff-counts" aria-hidden>
           <span className="is-added">+{diff.added}</span>
           <span className="is-removed">−{diff.removed}</span>
         </span>
       </div>
-      {note ? <div className="s-diff-note">{note}</div> : null}
     </div>
   );
 }

@@ -1215,6 +1215,40 @@ mod tests {
         state
     }
 
+    /// As Codex 0.164 sent them on 2026-11-02: the item a millisecond before
+    /// the approval, which names it only by id and gives no reason.
+    #[test]
+    fn a_real_codex_patch_reaches_its_approval() {
+        let mut state = state_with_thread();
+        let item: Value = serde_json::from_str(r#"{"type": "fileChange", "id": "exec-8c2d", "changes": [{"path": "/tmp/vs-codex-diff/work/hello.md", "kind": {"type": "add"}, "diff": "hi\n"}, {"path": "/tmp/vs-codex-diff/work/notes.txt", "kind": {"type": "update", "move_path": null}, "diff": "@@ -1,2 +1,2 @@\n-old line\n+new line\n keep\n"}], "status": "inProgress"}"#).unwrap();
+        state.notify(
+            "item/started",
+            &json!({"threadId": "t1", "turnId": "u", "item": item}),
+            1.0,
+        );
+        state.request(json!(0), "item/fileChange/requestApproval",
+            &json!({"threadId": "t1", "turnId": "u", "itemId": "exec-8c2d", "startedAtMs": 1, "reason": null, "grantRoot": null}), 1.0);
+        let (sessions, _) = state.snapshot(1.0, ContentPolicy { previews: false });
+        let card = sessions[0].permission.clone().unwrap();
+        assert_eq!(card.diffs.len(), 2);
+        assert_eq!(
+            (card.diffs[0].change, card.diffs[0].added),
+            (crate::sessions::file_diff::Change::Add, 1)
+        );
+        assert_eq!(
+            (
+                card.diffs[1].added,
+                card.diffs[1].removed,
+                card.diffs[1].lines.len()
+            ),
+            (1, 1, 3)
+        );
+        assert_eq!(
+            card.detail,
+            "/tmp/vs-codex-diff/work/hello.md\n/tmp/vs-codex-diff/work/notes.txt"
+        );
+    }
+
     #[test]
     fn file_change_approvals_show_their_items_patch() {
         let mut state = state_with_thread();

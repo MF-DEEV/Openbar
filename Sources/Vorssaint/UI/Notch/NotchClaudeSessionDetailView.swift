@@ -334,8 +334,9 @@ struct NotchClaudeSessionPermissionCard: View {
     let session: ClaudeSession
     let text: NotchClaudeSessionStrings
     let open: () -> Void
-    /// How tall a file change's diff grows before it scrolls.
-    var diffHeight: CGFloat = 200
+    /// How tall a file change's diff grows before it scrolls: about five
+    /// lines on the island, so the buttons stay in sight below it.
+    var diffHeight: CGFloat = 76
     @ObservedObject private var service = ClaudeSessionService.shared
     /// A request that replaced the one on screen holds the buttons back a
     /// moment, so a click meant for the old one cannot answer it.

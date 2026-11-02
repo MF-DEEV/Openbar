@@ -266,6 +266,18 @@ enum ClaudeFileDiffTests {
             suite.expect(other.diffs.isEmpty && other.fitsOnALine, "a command has no diff")
         }
 
+        // As Codex 0.164 sent them on 2026-11-02: the item a millisecond
+        // before the approval, which names it only by id and gives no reason.
+        let real = CodexSessionTests.stateWithThread()
+        let item = (try? JSONSerialization.jsonObject(with: Data(#"{"type": "fileChange", "id": "exec-8c2d", "changes": [{"path": "/tmp/vs-codex-diff/work/hello.md", "kind": {"type": "add"}, "diff": "hi\n"}, {"path": "/tmp/vs-codex-diff/work/notes.txt", "kind": {"type": "update", "move_path": null}, "diff": "@@ -1,2 +1,2 @@\n-old line\n+new line\n keep\n"}], "status": "inProgress"}"#.utf8))) as? [String: Any] ?? [:]
+        real.notify("item/started", params: ["threadId": "t1", "turnId": "u", "item": item], now: CodexSessionTests.at(1))
+        _ = real.request(.number(0), method: "item/fileChange/requestApproval",
+                         params: ["threadId": "t1", "turnId": "u", "itemId": "exec-8c2d", "reason": NSNull(), "grantRoot": NSNull()],
+                         now: CodexSessionTests.at(1))
+        let realCard = real.snapshot(now: CodexSessionTests.at(1), previews: false).sessions.first?.permission
+        suite.expect(realCard?.diffs.map(\.change) == [.add, .update] && kinds(realCard?.diffs.last) == "-old line|+new line| keep"
+                     && kinds(realCard?.diffs.first) == "+hi", "a real Codex patch reaches its approval: \(kinds(realCard?.diffs.last))")
+
         // Codex: the approval names its item; the item carried the patch.
         let state = CodexSessionTests.stateWithThread()
         state.notify("item/started", params: ["threadId": "t1", "item": [

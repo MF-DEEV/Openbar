@@ -8,7 +8,9 @@ import SwiftUI
 struct NotchClaudeFileDiffView: View {
     let diffs: [ClaudeFileDiff]
     let text: NotchClaudeSessionStrings
-    var maxHeight: CGFloat = 200
+    var maxHeight: CGFloat = 76
+    /// One digit of the 10.5 pt monospaced numbers.
+    static let digitWidth: CGFloat = 6.6
 
     static let added = Color(red: 0.36, green: 0.84, blue: 0.52)
     static let removed = Color(red: 1.0, green: 0.42, blue: 0.42)
@@ -41,27 +43,28 @@ struct NotchClaudeFileDiffView: View {
     /// The file, shortened with the whole path on hover, what happens to it,
     /// and how many lines come and go.
     private func header(_ diff: ClaudeFileDiff) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            HStack(spacing: 6) {
-                Image(systemName: diff.change == .add ? "doc.badge.plus" : diff.change == .delete ? "doc.badge.minus" : "doc.text")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.6))
-                (Text(Self.folder(diff.path)).foregroundColor(.white.opacity(0.5))
-                    + Text(Self.name(diff.path)).foregroundColor(.white.opacity(0.95)))
-                    .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .lineLimit(1)
-                    .truncationMode(.head)
-                    .help(diff.path)
-                Spacer(minLength: 4)
-                counts(diff)
-            }
+        HStack(spacing: 6) {
+            Image(systemName: diff.change == .add ? "doc.badge.plus" : diff.change == .delete ? "doc.badge.minus" : "doc.text")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.6))
+            (Text(Self.folder(diff.path)).foregroundColor(.white.opacity(0.5))
+                + Text(Self.name(diff.path)).foregroundColor(.white.opacity(0.95)))
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.head)
+                .help(diff.path)
+                .layoutPriority(1)
+            // On the path's line, so the buttons below stay in sight.
             if let note = note(diff) {
                 Text(note)
                     .font(.system(size: 10))
                     .foregroundStyle(.white.opacity(0.55))
                     .lineLimit(1)
                     .truncationMode(.middle)
+                    .layoutPriority(2)
             }
+            Spacer(minLength: 4)
+            counts(diff)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel([diff.path, note(diff), text.diffCounts(added: diff.added, removed: diff.removed)]
@@ -116,7 +119,7 @@ struct NotchClaudeFileDiffView: View {
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.35))
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, digits > 0 ? CGFloat(digits) * 6.2 + 12 : 8)
+                .padding(.leading, digits > 0 ? CGFloat(digits) * Self.digitWidth + 12 : 8)
                 .padding(.vertical, 1)
                 .accessibilityHidden(true)
         } else {
@@ -124,7 +127,9 @@ struct NotchClaudeFileDiffView: View {
                 if digits > 0 {
                     Text(line.number.map(String.init) ?? "")
                         .foregroundStyle(.white.opacity(0.35))
-                        .frame(width: CGFloat(digits) * 6.2, alignment: .trailing)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .frame(minWidth: CGFloat(digits) * Self.digitWidth, alignment: .trailing)
                         .padding(.trailing, 6)
                 }
                 Text(sign(line.kind))

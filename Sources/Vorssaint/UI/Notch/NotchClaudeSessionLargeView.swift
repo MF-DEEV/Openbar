@@ -52,7 +52,8 @@ struct NotchClaudeSessionLargeView: View {
                     // Several questions run taller than the page; past most of
                     // it they scroll, leaving the conversation and the reply.
                     // The next request, or another session's, opens at its top.
-                    NotchClaudeSessionPermissionCard(session: session, text: text, open: open, diffHeight: 360)
+                    NotchClaudeSessionPermissionCard(session: session, text: text, open: open,
+                                                     diffHeight: Self.diffHeight(cardLimit: cardLimit))
                         .modifier(NotchClaudeFittedScroll(maxHeight: cardLimit,
                                                           start: [session.id, session.permission?.requestID ?? ""]))
                 }
@@ -102,6 +103,10 @@ struct NotchClaudeSessionLargeView: View {
 
     /// Most of the page, but never so much that large text or added images
     /// push the reply off a short screen.
+    /// What the card has left for a diff after its title, file line,
+    /// buttons and hint, up to 360: the buttons stay in sight.
+    static func diffHeight(cardLimit: CGFloat) -> CGFloat { min(360, max(76, cardLimit - 130)) }
+
     private var cardLimit: CGFloat {
         guard pageHeight > 0 else { return 360 }
         // The page's three gaps around the card and the conversation.
