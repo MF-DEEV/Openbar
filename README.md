@@ -101,11 +101,34 @@ A volume mixer, a system monitor, clipboard history, window layouts, keep awake,
 
 ## On Windows 11
 
+The same island, built with Tauri, hangs from the top of a Windows 11 screen. It's a beta with its own installer for x64 and arm64.
+
 <p align="center">
-  <img src="windows/docs/assets/island-sessions.png" width="640" alt="The Windows island open on Sessions, with Claude Code and Codex sessions in one list">
+  <img src="windows/docs/assets/readme/sessions.gif" width="820" alt="The Windows island: the Sessions list, a permission allowed, the session back at work, and a question answered">
 </p>
 
-The same island, built with Tauri, sits at the top of a Windows 11 screen: Sessions, the mixer, Now Playing, clipboard, files, system and the rest. It's a beta with its own installer for x64 and arm64. [Download it](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true) or [read the Windows notes](windows/README.md).
+<table>
+  <tr>
+    <td width="50%"><img src="windows/docs/assets/readme/music.gif" alt="The island opening on Now Playing with the song, progress and playback controls"></td>
+    <td width="50%"><img src="windows/docs/assets/readme/controls.gif" alt="The Controls page, then the volume mixer with an app's level dragged down and up"></td>
+  </tr>
+  <tr>
+    <td><b>Now Playing</b><br>Spotify, a browser or Media Player, with synced lyrics and what's up next.</td>
+    <td><b>Controls and mixer</b><br>Volume, outputs and a level for every app playing sound.</td>
+  </tr>
+  <tr>
+    <td><img src="windows/docs/assets/readme/system.gif" alt="System cards for processor, graphics, memory, battery, network, disk and power updating live"></td>
+    <td><img src="windows/docs/assets/readme/clipboard.gif" alt="Clipboard history, then files kept on the island's shelf"></td>
+  </tr>
+  <tr>
+    <td><b>System</b><br>Processor, memory, battery, network and disk, live, with history a click away.</td>
+    <td><b>Clipboard and Files</b><br>A searchable clipboard history and a shelf for files on the move.</td>
+  </tr>
+</table>
+
+<p align="center"><sub>Recorded from the Windows island's own interface with sample data.</sub></p>
+
+[Download the installer](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true) or [read the Windows notes](windows/README.md) for timers, calendar, downloads, screen capture, Watch and the rest.
 
 ## Get started
 
