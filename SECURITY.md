@@ -8,7 +8,7 @@ Report it privately. Don't open a public issue, pull request or discussion.
 
 **[Open a private security advisory](https://github.com/MF-DEEV/Openbar/security/advisories/new)**
 
-Only you and the maintainer can see it. Please include:
+Only you and the maintainers can see it. Please include:
 
 - what the issue is and what an attacker could do with it,
 - steps to reproduce, or a proof of concept,
