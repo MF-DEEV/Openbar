@@ -130,7 +130,7 @@
   "windows.music.includeOtherPlayers": "Andere Player einbeziehen",
   "windows.music.musicOptions": "Musikoptionen",
   "windows.music.valueVolume": "%@ Lautstärke",
-  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Benachrichtigungen zeigen nur das App-Symbol, den App-Namen und den Absender. Nachrichtentext wird nicht gesammelt oder angezeigt. Discords „Nicht stören“ und stummgeschaltete Unterhaltungen folgen den Desktop-Benachrichtigungseinstellungen. Benachrichtigungsdetails werden gelöscht, wenn du diesen PC sperrst oder dies ausschaltest.",
+  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Der Verlauf zeigt App, Absender und Nachricht von Windows. Die letzten 200 Benachrichtigungen bleiben auf diesem Gerät. Neue Mitteilungen erscheinen auf der Insel.",
   "windows.notifications.notificationAccessIsUnavailableInThisBuild": "Benachrichtigungszugriff ist in diesem Build nicht verfügbar",
   "windows.notifications.letTheIslandReadNewNotifications": "Die Insel neue Benachrichtigungen lesen lassen",
   "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller": "Das Lesen von Benachrichtigungen erfordert das Vorssaint-Paket, das der Installer registriert. Installiere Vorssaint erneut, um es hinzuzufügen, und öffne dann erneut die Benachrichtigungen.",
@@ -673,5 +673,8 @@
   "windows.sessions.diffAdded": "Hinzugefügt",
   "windows.sessions.diffRemoved": "Entfernt",
   "windows.sessions.diffUnchanged": "Unverändert",
-  "windows.sessions.diffLine": "%1$@, Zeile %2$@"
+  "windows.sessions.diffLine": "%1$@, Zeile %2$@",
+  "windows.notifications.searchHistory": "Benachrichtigungen suchen",
+  "windows.notifications.noMatches": "Keine passenden Benachrichtigungen",
+  "windows.notifications.openSettings": "Windows-Einstellungen öffnen"
 }

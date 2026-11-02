@@ -10,7 +10,7 @@ export interface Item {
   /** Epoch seconds. */
   time: number;
   title: string;
-  /** Legacy payloads may include a body; it is never displayed. */
+  /** Message text supplied by Windows; apps may redact or omit it. */
   body?: string;
   icon?: string;
 }
@@ -18,4 +18,5 @@ export interface Item {
 export interface Inbox {
   access: Access;
   items: Item[];
+  error?: string | null;
 }

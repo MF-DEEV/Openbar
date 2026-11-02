@@ -23,6 +23,8 @@
     <PublisherDisplayName>Vorssaint</PublisherDisplayName>
     <Logo>icon.png</Logo>
     <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+    <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>
   </Properties>
   <Dependencies>
     <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26300.0" />
@@ -40,6 +42,7 @@
     <uap:Capability Name="appointments" />
     <uap3:Capability Name="userNotificationListener" />
     <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
     <!-- Watch: capture a window without the yellow border. -->
     <rescap:Capability Name="graphicsCaptureWithoutBorder" />
   </Capabilities>

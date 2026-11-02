@@ -130,7 +130,7 @@
   "windows.music.includeOtherPlayers": "包含其他播放器",
   "windows.music.musicOptions": "音樂選項",
   "windows.music.valueVolume": "%@ 音量",
-  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "通知僅顯示應用程式圖示、應用程式名稱和發送者。訊息內容不會被收集或顯示。Discord 的「請勿打擾」及靜音對話遵循其桌面通知設定。當您鎖定此電腦或關閉此功能時，通知詳情將被清除。",
+  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "記錄顯示 Windows 提供的應用程式、傳送者和訊息。最近 200 則通知儲存在此裝置上，新通知會顯示在動態島上。",
   "windows.notifications.notificationAccessIsUnavailableInThisBuild": "在此版本中無法取得通知存取權",
   "windows.notifications.letTheIslandReadNewNotifications": "允許島嶼閱讀新通知",
   "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller": "讀取通知需要安裝程式註冊的 Vorssaint 套件。重新安裝 Vorssaint 以新增它，然後再次打開通知。",
@@ -673,5 +673,8 @@
   "windows.sessions.diffAdded": "新增",
   "windows.sessions.diffRemoved": "刪除",
   "windows.sessions.diffUnchanged": "未變更",
-  "windows.sessions.diffLine": "%1$@，第 %2$@ 行"
+  "windows.sessions.diffLine": "%1$@，第 %2$@ 行",
+  "windows.notifications.searchHistory": "搜尋通知",
+  "windows.notifications.noMatches": "沒有符合的通知",
+  "windows.notifications.openSettings": "開啟 Windows 設定"
 }

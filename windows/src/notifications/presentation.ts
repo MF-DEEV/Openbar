@@ -31,6 +31,7 @@ export function notificationPresentation(item: Item) {
   return {
     app: source.name,
     sender,
+    message: item.body?.trim() || undefined,
     icon: item.icon || source.fallbackIcon,
     fallbackIcon: source.fallbackIcon,
   };
@@ -47,6 +48,13 @@ export function notificationNotice(item: Item): Notice {
     opens: "notifications",
     image: display.icon,
     imageFallback: display.fallbackIcon,
-    notification: { id: item.id, app: display.app, sender: display.sender, aumid: item.aumid, time: item.time },
+    notification: {
+      id: item.id,
+      app: display.app,
+      sender: display.sender,
+      body: display.message,
+      aumid: item.aumid,
+      time: item.time,
+    },
   };
 }

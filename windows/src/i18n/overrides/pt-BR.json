@@ -130,7 +130,7 @@
   "windows.music.includeOtherPlayers": "Incluir outros reprodutores",
   "windows.music.musicOptions": "Opções de música",
   "windows.music.valueVolume": "Volume de %@",
-  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "As notificações mostram apenas o ícone do aplicativo, o nome do aplicativo e o remetente. O texto da mensagem não é coletado nem exibido. O Não Perturbe do Discord e as conversas silenciadas seguem as configurações de notificação da área de trabalho. Os detalhes da notificação são apagados quando você bloqueia este PC ou desativa isto.",
+  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "O histórico inclui o aplicativo, remetente e mensagem do Windows. As últimas 200 notificações ficam neste dispositivo. Novas notificações aparecem na ilha.",
   "windows.notifications.notificationAccessIsUnavailableInThisBuild": "O acesso a notificações não está disponível nesta versão",
   "windows.notifications.letTheIslandReadNewNotifications": "Permitir que a ilha leia novas notificações",
   "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller": "Ler notificações necessita do pacote Vorssaint que o instalador registra. Reinstale Vorssaint para adicioná-lo, depois abra Notificações novamente.",
@@ -673,5 +673,8 @@
   "windows.sessions.diffAdded": "Adicionada",
   "windows.sessions.diffRemoved": "Removida",
   "windows.sessions.diffUnchanged": "Sem alteração",
-  "windows.sessions.diffLine": "%1$@, linha %2$@"
+  "windows.sessions.diffLine": "%1$@, linha %2$@",
+  "windows.notifications.searchHistory": "Buscar notificações",
+  "windows.notifications.noMatches": "Nenhuma notificação correspondente",
+  "windows.notifications.openSettings": "Abrir configurações do Windows"
 }

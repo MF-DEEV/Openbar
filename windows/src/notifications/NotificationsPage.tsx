@@ -6,10 +6,10 @@
 // Open and Dismiss; an empty state; the access row while Windows has not let
 // the island listen; and the question before Clear All empties the inbox.
 
-import { useLocale, t } from "../i18n";
+import { useLocale, t, dateTimeFormat } from "../i18n";
 
-import { AppWindow, Bell, Trash2, X } from "lucide-react";
-import { useEffect } from "react";
+import { AppWindow, Bell, Search, Trash2, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useIsland } from "../island/store";
 import { EmptyState } from "../island/views/Controls";
 import { bridge } from "../shared/bridge";
@@ -25,6 +25,12 @@ export function NotificationsPage() {
   useLocale();
   const access = useNotifications((s) => s.access);
   const items = useNotifications((s) => s.items);
+  const error = useNotifications((s) => s.error);
+  const requesting = useNotifications((s) => s.requesting);
+  const [query, setQuery] = useState("");
+  const matches = items.filter((item) =>
+    `${item.app}\n${item.title}\n${item.body ?? ""}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()),
+  );
   const confirmingClear = useNotifications((s) => s.confirmingClear);
   useEffect(() => () => useNotifications.setState({ confirmingClear: false }), []);
 
@@ -52,26 +58,74 @@ export function NotificationsPage() {
           <button
             type="button"
             className="n-pill-button is-prominent"
+            disabled={requesting}
             onClick={() => void useNotifications.getState().requestAccess()}
           >
-            {t("notchClaudeSessions.allow")}
+            {requesting ? t("windows.calendar.loading") : t("notchClaudeSessions.allow")}
+          </button>
+        ) : null}
+        {access === "denied" ? (
+          <button
+            type="button"
+            className="n-pill-button is-prominent"
+            onClick={() => void bridge.notifications.openPrivacySettings()}
+          >
+            {t("windows.notifications.openSettings")}
           </button>
         ) : null}
       </div>
     );
   }
   if (items.length === 0) {
-    return <EmptyState icon={Bell} title={t("notchNotifications.empty")} detail={PRIVACY()} />;
+    return (
+      <>
+        <EmptyState icon={Bell} title={t("notchNotifications.empty")} detail={PRIVACY()} />
+        {error ? (
+          <p className="nt-error" role="alert">
+            {error}
+          </p>
+        ) : null}
+      </>
+    );
   }
   return (
-    <>
+    <div className="nt-history">
+      <div className="nt-history-toolbar">
+        <label className="nt-search">
+          <Search size={13} aria-hidden="true" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder={t("windows.notifications.searchHistory")}
+            aria-label={t("windows.notifications.searchHistory")}
+          />
+        </label>
+        <span className="nt-history-count">{items.length}</span>
+      </div>
+      {error ? (
+        <p className="nt-error" role="alert">
+          {error}
+        </p>
+      ) : null}
       <div className="nt-rail">
-        {items.map((item) => (
-          <Card key={item.id} item={item} />
-        ))}
+        {matches.map((item, index) => {
+          const day = new Date(item.time * 1000).toDateString();
+          const previous = matches[index - 1];
+          return (
+            <div className="nt-entry" key={item.id}>
+              {!previous || new Date(previous.time * 1000).toDateString() !== day ? (
+                <div className="nt-day-label">
+                  {dateTimeFormat({ weekday: "short", day: "numeric", month: "long" }).format(item.time * 1000)}
+                </div>
+              ) : null}
+              <Card item={item} />
+            </div>
+          );
+        })}
+        {matches.length === 0 ? <EmptyState icon={Search} title={t("windows.notifications.noMatches")} /> : null}
       </div>
       {confirmingClear ? <ClearConfirmation /> : null}
-    </>
+    </div>
   );
 }
 
@@ -90,8 +144,8 @@ function ClearConfirmation() {
   return (
     <Sheet
       title={t("windows.notifications.clearAllNotifications")}
-      confirm="Clear All"
-      cancel="Cancel"
+      confirm={t("notchNotifications.clearAll")}
+      cancel={t("windows.calendar.cancel")}
       destructive
       onConfirm={() => void useNotifications.getState().clear()}
       onCancel={() => useNotifications.setState({ confirmingClear: false })}
@@ -132,6 +186,7 @@ function Card({ item }: { item: Item }) {
       <div className="nt-title" title={display.sender}>
         {display.sender || display.app}
       </div>
+      {display.message ? <div className="nt-body">{display.message}</div> : null}
     </div>
   );
 }

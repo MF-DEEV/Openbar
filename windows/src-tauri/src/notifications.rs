@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-//! New notifications in the island (spec 04-media-info §2.5). Windows hands
-//! notifications only to an app with a package identity (the sparse package)
-//! that the person allowed. The reader polls once a second, diffs by id,
-//! and only ever shows banners that arrive after it started: what was
-//! already in Notification Center is never imported. The inbox lives in
-//! memory, newest first, at most 50.
+//! Windows notification history and new-message banners. Access requires the
+//! sparse package and the user's Windows consent. Existing Windows toasts are
+//! imported silently; new arrivals may show a banner. The latest 200 entries
+//! are kept on disk, including source icons, sender/title, message and time.
 
 // The reader itself is Windows only; on a Mac only the commands answer.
 #![cfg_attr(not(windows), allow(dead_code))]
@@ -14,9 +12,9 @@
 use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
-const INBOX_LIMIT: usize = 50;
+pub(crate) const INBOX_LIMIT: usize = 200;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -29,7 +27,7 @@ pub enum Access {
     Allowed,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Item {
     pub id: u32,
@@ -38,6 +36,8 @@ pub struct Item {
     /// Epoch seconds.
     pub time: f64,
     pub title: String,
+    #[serde(default)]
+    pub body: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub icon: Option<String>,
 }
@@ -47,6 +47,7 @@ pub struct Item {
 pub struct Inbox {
     pub access: Access,
     pub items: Vec<Item>,
+    pub error: Option<String>,
 }
 
 pub struct State {
@@ -55,6 +56,9 @@ pub struct State {
     seen: HashSet<u32>,
     primed: bool,
     enabled: bool,
+    locked: bool,
+    history: Option<crate::notification_history::History>,
+    error: Option<String>,
 }
 
 impl Default for State {
@@ -65,15 +69,22 @@ impl Default for State {
             seen: HashSet::new(),
             primed: false,
             enabled: true,
+            locked: false,
+            history: None,
+            error: None,
         }
     }
 }
 
 impl State {
     fn clear_private(&mut self) {
-        self.items.clear();
-        self.seen.clear();
         self.primed = false;
+    }
+
+    fn save(&mut self) {
+        if let Some(history) = &self.history {
+            self.error = history.save(&self.items, &self.seen).err();
+        }
     }
 
     /// Muted arrivals are consumed, so leaving quiet mode never replays them.
@@ -105,13 +116,20 @@ impl State {
     pub fn add(&mut self, item: Item) {
         self.items.retain(|i| i.id != item.id);
         self.items.insert(0, item);
+        self.items
+            .sort_by(|a, b| b.time.total_cmp(&a.time).then_with(|| b.id.cmp(&a.id)));
         self.items.truncate(INBOX_LIMIT);
     }
 
     pub fn inbox(&self) -> Inbox {
         Inbox {
             access: self.access,
-            items: self.items.clone(),
+            items: if self.locked || !self.enabled {
+                Vec::new()
+            } else {
+                self.items.clone()
+            },
+            error: self.error.clone(),
         }
     }
 }
@@ -139,7 +157,7 @@ mod imp {
     use std::time::Duration;
 
     use base64::Engine;
-    use tauri::{AppHandle, Emitter, Runtime};
+    use tauri::{AppHandle, Emitter, Manager, Runtime};
     use windows::ApplicationModel::Package;
     use windows::Foundation::Size;
     use windows::Storage::Streams::DataReader;
@@ -151,10 +169,21 @@ mod imp {
     };
     use windows::Win32::System::Com::{COINIT_MULTITHREADED, CoInitializeEx};
     use windows::Win32::UI::Shell::{
-        QUNS_ACCEPTS_NOTIFICATIONS, QUNS_NOT_PRESENT, SHQueryUserNotificationState,
+        QUERY_USER_NOTIFICATION_STATE, QUNS_ACCEPTS_NOTIFICATIONS, QUNS_APP, QUNS_BUSY,
+        QUNS_NOT_PRESENT, SHQueryUserNotificationState,
     };
 
     use super::{Access, Item, Shared};
+
+    /// Generic fullscreen/busy can include the island's own overlay. Its
+    /// fullscreen preference controls visibility; explicit quiet/presentation
+    /// and inactive-session states still suppress interrupting banners.
+    pub(super) fn may_interrupt(state: Option<QUERY_USER_NOTIFICATION_STATE>) -> bool {
+        matches!(
+            state,
+            None | Some(QUNS_ACCEPTS_NOTIFICATIONS | QUNS_BUSY | QUNS_APP)
+        )
+    }
 
     pub fn has_identity() -> bool {
         Package::Current().is_ok()
@@ -172,18 +201,27 @@ mod imp {
         }
     }
 
-    /// Shows Windows' own consent prompt; call from the UI thread.
-    pub fn request_access() -> Access {
+    /// Start consent on the UI thread; wait elsewhere so Windows can show its dialog.
+    pub fn request_access(reply: std::sync::mpsc::Sender<Access>) {
         if !has_identity() {
-            return Access::Unavailable;
+            let _ = reply.send(Access::Unavailable);
+            return;
         }
-        match UserNotificationListener::Current()
-            .and_then(|l| l.RequestAccessAsync())
-            .and_then(|op| op.join())
-        {
-            Ok(UserNotificationListenerAccessStatus::Allowed) => Access::Allowed,
-            Ok(UserNotificationListenerAccessStatus::Denied) => Access::Denied,
-            _ => access(),
+        match UserNotificationListener::Current().and_then(|l| l.RequestAccessAsync()) {
+            Ok(operation) => {
+                std::thread::spawn(move || {
+                    let _apartment = crate::com::Apartment::mta();
+                    let result = match operation.join() {
+                        Ok(UserNotificationListenerAccessStatus::Allowed) => Access::Allowed,
+                        Ok(UserNotificationListenerAccessStatus::Denied) => Access::Denied,
+                        _ => access(),
+                    };
+                    let _ = reply.send(result);
+                });
+            }
+            Err(_) => {
+                let _ = reply.send(access());
+            }
         }
     }
 
@@ -232,9 +270,14 @@ mod imp {
         reader.LoadAsync(size).ok()?.join().ok()?;
         let mut bytes = vec![0u8; size as usize];
         reader.ReadBytes(&mut bytes).ok()?;
+        let image = image::load_from_memory(&bytes).ok()?.thumbnail(48, 48);
+        let mut normalized = std::io::Cursor::new(Vec::new());
+        image
+            .write_to(&mut normalized, image::ImageFormat::Png)
+            .ok()?;
         Some(format!(
             "data:image/png;base64,{}",
-            base64::engine::general_purpose::STANDARD.encode(bytes)
+            base64::engine::general_purpose::STANDARD.encode(normalized.into_inner())
         ))
     }
 
@@ -263,27 +306,70 @@ mod imp {
             .ok()?
             .GetBinding(&KnownNotificationBindings::ToastGeneric().ok()?)
             .ok()?;
-        // Only the first toast text (sender/title) is needed. Never read or
-        // retain the remaining text elements containing the message body.
-        let title = binding
+        let mut text = binding
             .GetTextElements()
             .ok()?
             .into_iter()
+            .filter_map(|t| t.Text().ok().map(|s| s.to_string()));
+        let title = text
             .next()
-            .and_then(|t| t.Text().ok().map(|s| s.to_string()))
             .filter(|s| !s.trim().is_empty())
-            .unwrap_or_else(|| app.clone());
+            .unwrap_or_else(|| app.clone())
+            .chars()
+            .take(512)
+            .collect();
+        let body = text
+            .collect::<Vec<_>>()
+            .join("\n")
+            .chars()
+            .take(4096)
+            .collect();
         Some(Item {
             id,
             app,
             aumid,
             time,
             title,
+            body,
             icon: icon(n),
         })
     }
 
     pub fn start<R: Runtime>(app: AppHandle<R>, shared: Shared) {
+        {
+            let mut state = shared.lock().unwrap();
+            let prefs = app.state::<crate::prefs::Prefs>().get();
+            let flag = |path| {
+                prefs
+                    .pointer(path)
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(true)
+            };
+            state.enabled = flag("/island/enabled")
+                && flag("/island/sections/notifications")
+                && !prefs
+                    .pointer("/island/hiddenModules")
+                    .and_then(|v| v.as_array())
+                    .is_some_and(|v| v.iter().any(|id| id.as_str() == Some("notifications")));
+            match app.path().app_config_dir() {
+                Ok(path) => {
+                    let (history, loaded) = crate::notification_history::History::open(
+                        path.join("notifications").join("history.json"),
+                    );
+                    match loaded {
+                        Ok(document) => {
+                            state.items = document.items;
+                            state.seen = document.seen;
+                        }
+                        Err(error) => state.error = Some(error),
+                    }
+                    state.history = Some(history);
+                }
+                Err(_) => {
+                    state.error = Some("The notification history folder is unavailable.".into())
+                }
+            }
+        }
         thread::Builder::new()
             .name("notifications".into())
             .spawn(move || {
@@ -306,12 +392,10 @@ mod imp {
                     let locked = shell == Some(QUNS_NOT_PRESENT);
                     let enabled = {
                         let mut state = shared.lock().unwrap();
-                        if locked {
-                            let changed = !state.items.is_empty();
+                        if state.locked != locked {
+                            state.locked = locked;
                             state.clear_private();
-                            if changed {
-                                let _ = app.emit("notifications://inbox", state.inbox());
-                            }
+                            let _ = app.emit("notifications://inbox", state.inbox());
                         }
                         state.enabled
                     };
@@ -327,26 +411,42 @@ mod imp {
                     {
                         let notes: Vec<UserNotification> = list.into_iter().collect();
                         let ids: Vec<u32> = notes.iter().filter_map(|n| n.Id().ok()).collect();
-                        let fresh = shared
-                            .lock()
-                            .unwrap()
-                            .poll(&ids, shell.is_none_or(|s| s == QUNS_ACCEPTS_NOTIFICATIONS));
+                        let (collect, fresh, seen_changed) = {
+                            let mut state = shared.lock().unwrap();
+                            let previous = state.seen.clone();
+                            let collect: Vec<u32> = ids
+                                .iter()
+                                .copied()
+                                .filter(|id| !state.seen.contains(id))
+                                .collect();
+                            let fresh = state.poll(&ids, may_interrupt(shell));
+                            let history_ids: std::collections::HashSet<u32> =
+                                state.items.iter().map(|item| item.id).collect();
+                            state
+                                .seen
+                                .retain(|id| ids.contains(id) || history_ids.contains(id));
+                            let changed = state.seen != previous;
+                            (collect, fresh, changed)
+                        };
                         for n in notes
                             .iter()
-                            .filter(|n| n.Id().is_ok_and(|id| fresh.contains(&id)))
+                            .filter(|n| n.Id().is_ok_and(|id| collect.contains(&id)))
                         {
                             if let Some(item) = item(n) {
                                 let mut state = shared.lock().unwrap();
                                 // Preferences can change while Windows resolves an icon.
-                                if state.enabled {
+                                if state.enabled && !state.locked {
                                     state.add(item.clone());
-                                    let _ = app.emit("notifications://new", &item);
+                                    if fresh.contains(&item.id) {
+                                        let _ = app.emit("notifications://new", &item);
+                                    }
                                 }
                             }
                         }
-                        if !fresh.is_empty() {
-                            let _ =
-                                app.emit("notifications://inbox", shared.lock().unwrap().inbox());
+                        if seen_changed || !collect.is_empty() {
+                            let mut state = shared.lock().unwrap();
+                            state.save();
+                            let _ = app.emit("notifications://inbox", state.inbox());
                         }
                     }
                     thread::sleep(Duration::from_secs(1));
@@ -377,30 +477,62 @@ pub fn notifications_inbox(state: tauri::State<'_, Shared>) -> Inbox {
     state.lock().unwrap().inbox()
 }
 
-/// Asks Windows for the listener; a sync command runs on the UI thread, where the prompt belongs.
+/// Start consent on the UI thread without blocking the app while the user answers.
 #[tauri::command]
-pub fn notifications_request_access(state: tauri::State<'_, Shared>) -> Access {
+pub async fn notifications_request_access(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Shared>,
+) -> Result<Access, String> {
     #[cfg(windows)]
-    let access = imp::request_access();
+    let access = {
+        let (reply, answer) = std::sync::mpsc::channel();
+        if app
+            .run_on_main_thread(move || imp::request_access(reply))
+            .is_err()
+        {
+            return Ok(Access::Unavailable);
+        }
+        tauri::async_runtime::spawn_blocking(move || {
+            answer
+                .recv_timeout(std::time::Duration::from_secs(120))
+                .unwrap_or(Access::NotAsked)
+        })
+        .await
+        .unwrap_or(Access::Unavailable)
+    };
     #[cfg(not(windows))]
     let access = Access::Unavailable;
     state.lock().unwrap().access = access;
-    access
+    use tauri::Emitter;
+    let _ = app.emit("notifications://inbox", state.lock().unwrap().inbox());
+    Ok(access)
 }
 
 /// Removes an item from the island's inbox only; Notification Center keeps it.
 #[tauri::command]
-pub fn notifications_dismiss(state: tauri::State<'_, Shared>, id: u32) -> Inbox {
+pub fn notifications_dismiss(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, Shared>,
+    id: u32,
+) -> Inbox {
+    use tauri::Emitter;
     let mut s = state.lock().unwrap();
     s.items.retain(|i| i.id != id);
-    s.inbox()
+    s.save();
+    let inbox = s.inbox();
+    let _ = app.emit("notifications://inbox", &inbox);
+    inbox
 }
 
 #[tauri::command]
-pub fn notifications_clear(state: tauri::State<'_, Shared>) -> Inbox {
+pub fn notifications_clear(app: tauri::AppHandle, state: tauri::State<'_, Shared>) -> Inbox {
+    use tauri::Emitter;
     let mut s = state.lock().unwrap();
     s.items.clear();
-    s.inbox()
+    s.save();
+    let inbox = s.inbox();
+    let _ = app.emit("notifications://inbox", &inbox);
+    inbox
 }
 
 /// Opens the app a notification came from (the listener cannot run the banner's own action).
@@ -409,9 +541,31 @@ pub fn notifications_open(aumid: String) -> bool {
     crate::media::open_player(&aumid)
 }
 
+#[tauri::command]
+pub fn notifications_open_privacy_settings() -> bool {
+    tauri_plugin_opener::open_url("ms-settings:privacy-notifications", None::<&str>).is_ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(windows)]
+    #[test]
+    fn ordinary_busy_desktop_does_not_hide_banners_but_explicit_quiet_modes_do() {
+        use windows::Win32::UI::Shell::*;
+        assert!(imp::may_interrupt(Some(QUNS_BUSY)));
+        assert!(imp::may_interrupt(Some(QUNS_APP)));
+        assert!(imp::may_interrupt(Some(QUNS_ACCEPTS_NOTIFICATIONS)));
+        for state in [
+            QUNS_NOT_PRESENT,
+            QUNS_PRESENTATION_MODE,
+            QUNS_QUIET_TIME,
+            QUNS_RUNNING_D3D_FULL_SCREEN,
+        ] {
+            assert!(!imp::may_interrupt(Some(state)));
+        }
+    }
 
     fn item(id: u32) -> Item {
         Item {
@@ -420,6 +574,7 @@ mod tests {
             aumid: "a".into(),
             time: 0.0,
             title: "t".into(),
+            body: "Message".into(),
             icon: None,
         }
     }
@@ -433,16 +588,18 @@ mod tests {
     }
 
     #[test]
-    fn the_inbox_keeps_fifty_newest_first() {
+    fn the_history_keeps_two_hundred_newest_first() {
         let mut s = State::default();
-        for id in 0..60 {
+        for id in 0..210 {
             s.add(item(id));
         }
-        assert_eq!(s.items.len(), 50);
-        assert_eq!(s.items[0].id, 59);
-        s.add(item(30));
+        assert_eq!(s.items.len(), 200);
+        assert_eq!(s.items[0].id, 209);
+        let mut updated = item(30);
+        updated.time = 100.0;
+        s.add(updated);
         assert_eq!(s.items[0].id, 30);
-        assert_eq!(s.items.len(), 50);
+        assert_eq!(s.items.len(), 200);
     }
 
     #[test]
@@ -466,12 +623,16 @@ mod tests {
     }
 
     #[test]
-    fn lock_or_disabling_clears_messages_and_primes_again() {
+    fn locking_hides_history_without_erasing_it_and_primes_again() {
         let mut s = State::default();
         s.poll(&[], true);
         s.add(item(1));
+        s.locked = true;
         s.clear_private();
         assert!(s.inbox().items.is_empty());
+        assert_eq!(s.items.len(), 1);
+        s.locked = false;
+        assert_eq!(s.inbox().items.len(), 1);
         assert!(s.poll(&[1, 2], true).is_empty());
         assert_eq!(s.poll(&[1, 2, 3], true), vec![3]);
     }

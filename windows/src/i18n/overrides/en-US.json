@@ -129,7 +129,7 @@
   "windows.music.includeOtherPlayers": "Include other players",
   "windows.music.musicOptions": "Music options",
   "windows.music.valueVolume": "%@ volume",
-  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Notifications show the app icon, app name and sender only. Message text is not collected or displayed. Discord’s Do Not Disturb and muted conversations follow its desktop notification settings. Notification details are cleared when you lock this PC or turn this off.",
+  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "History includes the app, sender and message supplied by Windows. The 200 most recent notifications stay on this device. New arrivals appear on the island.",
   "windows.notifications.notificationAccessIsUnavailableInThisBuild": "Notification access is unavailable in this build",
   "windows.notifications.letTheIslandReadNewNotifications": "Let the island read new notifications",
   "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller": "Reading notifications needs the Vorssaint package the installer registers. Reinstall Vorssaint to add it, then open Notifications again.",
@@ -673,5 +673,8 @@
   "windows.sessions.diffAdded": "Added",
   "windows.sessions.diffRemoved": "Removed",
   "windows.sessions.diffUnchanged": "Unchanged",
-  "windows.sessions.diffLine": "%1$@, line %2$@"
+  "windows.sessions.diffLine": "%1$@, line %2$@",
+  "windows.notifications.searchHistory": "Search notifications",
+  "windows.notifications.noMatches": "No matching notifications",
+  "windows.notifications.openSettings": "Open Windows settings"
 }

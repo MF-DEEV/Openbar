@@ -25,7 +25,7 @@ import { subscribeMusic, useMusic } from "../music/store";
 import "../music/music.css";
 import { NotificationsPage, NotificationsTrailing } from "../notifications/NotificationsPage";
 import { subscribeNotifications } from "../notifications/store";
-import { notificationNotice } from "../notifications/presentation";
+import { queueNotification } from "../notifications/delivery";
 import "../notifications/notifications.css";
 import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
 import { DownloadsLeading, DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
@@ -287,5 +287,5 @@ subscribeNotifications((item) => {
   const island = useIsland.getState();
   if (!modulesOf(island).includes("notifications")) return;
   if (!island.settings.enabled) return;
-  island.showNotice(notificationNotice(item));
+  queueNotification(item);
 });

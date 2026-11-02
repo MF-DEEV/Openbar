@@ -4,21 +4,27 @@
   display: flex;
   gap: 8px;
   height: 100%;
-  overflow-x: auto;
-  scrollbar-width: none;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  padding-right: 3px;
 }
 
 .nt-card {
   box-sizing: border-box;
   flex: none;
-  width: 240px;
-  height: 100%;
+  width: 100%;
+  height: auto;
   padding: 12px;
   border-radius: 14px;
   background: rgba(255, 255, 255, 0.06);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   overflow: hidden;
 }
 
@@ -73,13 +79,104 @@
 }
 
 .nt-body {
-  flex: 1;
+  flex: none;
   font-size: 12px;
   line-height: 1.35;
   color: rgba(255, 255, 255, 0.8);
-  overflow: hidden;
+  overflow-wrap: anywhere;
   user-select: text;
   white-space: pre-wrap;
+}
+
+.nt-history {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.nt-history-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: none;
+}
+.nt-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.4);
+}
+.nt-search:focus-within {
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.nt-search input {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  color: rgba(255, 255, 255, 0.9);
+  font: inherit;
+  font-size: 12px;
+  background: transparent;
+  box-shadow: none;
+}
+.nt-search input::placeholder {
+  color: rgba(255, 255, 255, 0.36);
+}
+.nt-history-count {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.45);
+}
+.nt-entry {
+  flex: none;
+}
+.nt-day-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.38);
+  padding: 4px 4px 8px;
+}
+.nt-card {
+  transition: background-color 150ms ease-out;
+}
+.nt-card:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.nt-card .nt-icon {
+  flex: none;
+}
+.nt-card .nt-title {
+  padding-left: 24px;
+}
+.nt-card .nt-body {
+  padding-left: 24px;
+  color: rgba(255, 255, 255, 0.65);
+}
+.nt-preview-body {
+  flex: none;
+  font-size: 12px;
+  line-height: 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: rgba(255, 255, 255, 0.68);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+}
+.nt-error {
+  margin: 0;
+  flex: none;
+  font-size: 11px;
+  color: #ffb494;
+  overflow-wrap: anywhere;
 }
 
 .nt-preview {

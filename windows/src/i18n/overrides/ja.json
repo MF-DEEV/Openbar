@@ -130,7 +130,7 @@
   "windows.music.includeOtherPlayers": "他のプレーヤーも含める",
   "windows.music.musicOptions": "音楽オプション",
   "windows.music.valueVolume": "%@ の音量",
-  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "通知にはアプリのアイコン、アプリ名、送信者のみが表示されます。メッセージの内容は収集されず、表示されません。Discordの「取り込み中」およびミュートされた会話は、デスクトップ通知の設定に従います。このPCをロックするか、これをオフにすると通知の詳細は消去されます。",
+  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Windows が提供するアプリ、送信者、メッセージを履歴に表示します。最新の200件はこのデバイスに保存されます。新着通知はアイランドに表示されます。",
   "windows.notifications.notificationAccessIsUnavailableInThisBuild": "このビルドでは通知アクセスは利用できません",
   "windows.notifications.letTheIslandReadNewNotifications": "島に新しい通知を読ませる",
   "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller": "通知を読み取るには、インストーラーが登録する Vorssaint パッケージが必要です。追加するには Vorssaint を再インストールしてから、再度通知を開いてください。",
@@ -673,5 +673,8 @@
   "windows.sessions.diffAdded": "追加",
   "windows.sessions.diffRemoved": "削除",
   "windows.sessions.diffUnchanged": "変更なし",
-  "windows.sessions.diffLine": "%1$@、%2$@ 行目"
+  "windows.sessions.diffLine": "%1$@、%2$@ 行目",
+  "windows.notifications.searchHistory": "通知を検索",
+  "windows.notifications.noMatches": "一致する通知はありません",
+  "windows.notifications.openSettings": "Windows の設定を開く"
 }

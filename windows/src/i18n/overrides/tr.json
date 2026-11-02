@@ -130,7 +130,7 @@
   "windows.music.includeOtherPlayers": "Diğer çalarılar dahil et",
   "windows.music.musicOptions": "Müzik seçenekleri",
   "windows.music.valueVolume": "%@ sesi",
-  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Bildirimler yalnızca uygulama simgesini, uygulama adını ve göndereni gösterir. Mesaj metni toplanmaz veya görüntülenmez. Discord'un Rahatsız Etmeyin ve sessize alınmış konuşmaları, masaüstü bildirim ayarlarına uyar. Bildirim detayları bu PC'yi kilitlediğinizde veya bunu kapattığınızda temizlenir.",
+  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Geçmiş, Windows tarafından sağlanan uygulamayı, göndereni ve mesajı gösterir. Son 200 bildirim bu cihazda saklanır. Yenileri adada görünür.",
   "windows.notifications.notificationAccessIsUnavailableInThisBuild": "Bildirim erişimi bu yapıda kullanılamıyor",
   "windows.notifications.letTheIslandReadNewNotifications": "Adanın yeni bildirimleri okumasına izin ver",
   "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller": "Bildirimleri okumak için kurucunun kaydettiği Vorssaint paketine ihtiyaç vardır. Eklemek için Vorssaint'i yeniden yükleyin, ardından Bildirimleri tekrar açın.",
@@ -673,5 +673,8 @@
   "windows.sessions.diffAdded": "Eklendi",
   "windows.sessions.diffRemoved": "Silindi",
   "windows.sessions.diffUnchanged": "Değişmedi",
-  "windows.sessions.diffLine": "%1$@, satır %2$@"
+  "windows.sessions.diffLine": "%1$@, satır %2$@",
+  "windows.notifications.searchHistory": "Bildirimlerde ara",
+  "windows.notifications.noMatches": "Eşleşen bildirim yok",
+  "windows.notifications.openSettings": "Windows ayarlarını aç"
 }

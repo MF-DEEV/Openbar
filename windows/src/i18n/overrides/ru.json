@@ -130,7 +130,7 @@
   "windows.music.includeOtherPlayers": "Включить другие плееры",
   "windows.music.musicOptions": "Параметры музыки",
   "windows.music.valueVolume": "Громкость %@",
-  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Уведомления показывают только значок приложения, название приложения и отправителя. Текст сообщений не собирается и не отображается. Режим «Не беспокоить» Discord и отключенные беседы следуют настройкам уведомлений на рабочем столе. Детали уведомлений удаляются при блокировке этого ПК или выключении этой функции.",
+  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "История показывает приложение, отправителя и сообщение из Windows. Последние 200 уведомлений сохраняются на этом устройстве. Новые появляются на островке.",
   "windows.notifications.notificationAccessIsUnavailableInThisBuild": "Доступ к уведомлениям недоступен в этой сборке",
   "windows.notifications.letTheIslandReadNewNotifications": "Разрешить острову читать новые уведомления",
   "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller": "Чтение уведомлений требует пакет Vorssaint, который регистрирует установщик. Переустановите Vorssaint, чтобы добавить его, затем снова откройте Уведомления.",
@@ -673,5 +673,8 @@
   "windows.sessions.diffAdded": "Добавлено",
   "windows.sessions.diffRemoved": "Удалено",
   "windows.sessions.diffUnchanged": "Без изменений",
-  "windows.sessions.diffLine": "%1$@, строка %2$@"
+  "windows.sessions.diffLine": "%1$@, строка %2$@",
+  "windows.notifications.searchHistory": "Поиск уведомлений",
+  "windows.notifications.noMatches": "Нет подходящих уведомлений",
+  "windows.notifications.openSettings": "Открыть параметры Windows"
 }
