@@ -63,10 +63,6 @@ Every agent session on your machine, beside the camera. When one needs you, the 
   </tr>
 </table>
 
-<p align="center">
-  <img src="docs/assets/readme/shots/agents.png" width="820" alt="Claude Code, Codex and Gemini CLI sessions in one list, each under its own mark and color">
-</p>
-
 | Agent | In the list | Approve in the island | Reply from the island |
 |---|:-:|:-:|:-:|
 | Claude Code | ✓ | ✓ | ✓ |
@@ -92,14 +88,6 @@ Openbar grew out of a full menu bar toolkit, and all of it is still here. Instal
     <td><b>Shelf</b><br>Park files on the way from one app to another.</td>
   </tr>
   <tr>
-    <td><img src="docs/assets/readme/shots/menu-mixer.png" alt="The menu bar panel with a volume slider for each app"></td>
-    <td><img src="docs/assets/readme/shots/menu-system.png" alt="The menu bar panel showing temperatures, processor, graphics, battery and memory"></td>
-  </tr>
-  <tr>
-    <td><b>Volume mixer</b><br>A level for every app, boosted past 100% when you need it.</td>
-    <td><b>System monitor</b><br>Temperatures, load, memory and battery at a glance.</td>
-  </tr>
-  <tr>
     <td><img src="docs/assets/readme/cut-and-paste.gif" alt="A folder cut with Command-X and pasted with Command-V in Finder"></td>
     <td><img src="docs/assets/readme/quit-on-close.gif" alt="Closing an app's last window quits the app"></td>
   </tr>
@@ -109,7 +97,7 @@ Openbar grew out of a full menu bar toolkit, and all of it is still here. Instal
   </tr>
 </table>
 
-Clipboard history, window layouts, keep awake, Now Playing, a timer, a calendar, downloads and more are each one switch away in the Features hub.
+A volume mixer, a system monitor, clipboard history, window layouts, keep awake, Now Playing, a timer, a calendar, downloads and more are each one switch away in the Features hub.
 
 ## On Windows 11
 
