@@ -15,6 +15,7 @@ pub mod attachments;
 pub mod background;
 pub mod codex;
 pub mod engine;
+pub mod hook_agents;
 pub mod hook_message;
 pub mod models;
 pub mod registry;
