@@ -14,6 +14,23 @@ mod cli;
 pub(crate) use cli::search_path;
 /// Where `codex` is, for New session too.
 pub(crate) use codex::executable as codex_executable;
+
+/// Where a hook agent's command (`gemini`, `copilot`, `opencode`,
+/// `cursor-agent`) is, for New session: the PATH, then where npm-style
+/// installers and the agents' own put it.
+pub(crate) fn agent_executable(name: &str) -> Option<std::path::PathBuf> {
+    let exts = cli::extensions();
+    let mut candidates = cli::in_dirs(&cli::search_path(), name, &exts);
+    candidates.extend(cli::in_dirs(&cli::tool_dirs(), name, &exts));
+    if let Some(home) = files::home() {
+        let dirs = [
+            home.join(".local").join("bin"),
+            home.join(".opencode").join("bin"),
+        ];
+        candidates.extend(cli::in_dirs(&dirs, name, &exts));
+    }
+    cli::first_file(candidates, &[])
+}
 mod codex;
 mod files;
 mod model;

@@ -637,5 +637,6 @@
   "windows.settings.sessions.agentHintGemini": "钩子会先备份，再添加到 .gemini\\settings.json，与你自己的钩子并列。Gemini CLI 的权限请求在其终端中回应，回复也在那里输入。",
   "windows.settings.sessions.agentHintCopilot": "灵动岛专用的钩子文件会添加到 .copilot\\hooks。Copilot CLI 的权限请求在其终端中回应，回复也在那里输入。",
   "windows.settings.sessions.agentHintOpencode": "灵动岛专用的插件会添加到 .config\\opencode\\plugins。可以在灵动岛中允许或拒绝 OpenCode 的请求并发送回复。",
-  "windows.settings.sessions.agentHintCursor": "钩子会先备份，再添加到 .cursor\\hooks.json，与你自己的钩子并列，适用于 Cursor 的代理和 cursor-agent。批准仍在 Cursor 中进行，“打开”会带你前往。"
+  "windows.settings.sessions.agentHintCursor": "钩子会先备份，再添加到 .cursor\\hooks.json，与你自己的钩子并列，适用于 Cursor 的代理和 cursor-agent。批准仍在 Cursor 中进行，“打开”会带你前往。",
+  "windows.sessions.opensInTerminal": "%@ 会在控制台中打开，并发送你的第一条提示。"
 }

@@ -637,5 +637,6 @@
   "windows.settings.sessions.agentHintGemini": "Os hooks vão para .gemini\\settings.json ao lado dos seus, com um backup antes. Você responde aos pedidos de permissão do Gemini CLI no terminal dele; as respostas são digitadas lá.",
   "windows.settings.sessions.agentHintCopilot": "Um arquivo de hooks próprio da ilha vai para .copilot\\hooks. Você responde aos pedidos de permissão do Copilot CLI no terminal dele; as respostas são digitadas lá.",
   "windows.settings.sessions.agentHintOpencode": "Um plugin próprio da ilha vai para .config\\opencode\\plugins. Permita ou negue os pedidos do OpenCode e envie respostas pela ilha.",
-  "windows.settings.sessions.agentHintCursor": "Os hooks vão para .cursor\\hooks.json ao lado dos seus, com um backup antes, para o agente do Cursor e o cursor-agent. As aprovações ficam no Cursor; Abrir leva você até lá."
+  "windows.settings.sessions.agentHintCursor": "Os hooks vão para .cursor\\hooks.json ao lado dos seus, com um backup antes, para o agente do Cursor e o cursor-agent. As aprovações ficam no Cursor; Abrir leva você até lá.",
+  "windows.sessions.opensInTerminal": "O %@ abre em um console, com seu primeiro prompt."
 }

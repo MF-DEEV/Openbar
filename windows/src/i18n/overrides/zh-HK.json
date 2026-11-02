@@ -637,5 +637,6 @@
   "windows.settings.sessions.agentHintGemini": "掛鈎會先備份，再加入 .gemini\\settings.json，與你自己的掛鈎並列。Gemini CLI 的權限請求在其終端機中回應，回覆亦在那裡輸入。",
   "windows.settings.sessions.agentHintCopilot": "動態島專用的掛鈎檔案會加入 .copilot\\hooks。Copilot CLI 的權限請求在其終端機中回應，回覆亦在那裡輸入。",
   "windows.settings.sessions.agentHintOpencode": "動態島專用的外掛程式會加入 .config\\opencode\\plugins。可以在動態島中允許或拒絕 OpenCode 的請求並傳送回覆。",
-  "windows.settings.sessions.agentHintCursor": "掛鈎會先備份，再加入 .cursor\\hooks.json，與你自己的掛鈎並列，適用於 Cursor 的代理程式和 cursor-agent。批准仍在 Cursor 中進行，「打開」會帶你前往。"
+  "windows.settings.sessions.agentHintCursor": "掛鈎會先備份，再加入 .cursor\\hooks.json，與你自己的掛鈎並列，適用於 Cursor 的代理程式和 cursor-agent。批准仍在 Cursor 中進行，「打開」會帶你前往。",
+  "windows.sessions.opensInTerminal": "%@ 會在主控台中開啟，並傳送你的第一則提示。"
 }

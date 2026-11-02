@@ -637,5 +637,6 @@
   "windows.settings.sessions.agentHintGemini": "Kancalar önce yedek alınarak seninkilerin yanına .gemini\\settings.json dosyasına eklenir. Gemini CLI’ın izin isteklerini kendi terminalinde yanıtlarsın; yanıtlar oraya yazılır.",
   "windows.settings.sessions.agentHintCopilot": "Adaya ait bir kanca dosyası .copilot\\hooks klasörüne eklenir. Copilot CLI’ın izin isteklerini kendi terminalinde yanıtlarsın; yanıtlar oraya yazılır.",
   "windows.settings.sessions.agentHintOpencode": "Adaya ait bir eklenti .config\\opencode\\plugins klasörüne eklenir. OpenCode’un isteklerine adadan izin verebilir, reddedebilir ve yanıt gönderebilirsin.",
-  "windows.settings.sessions.agentHintCursor": "Kancalar önce yedek alınarak seninkilerin yanına .cursor\\hooks.json dosyasına eklenir; Cursor’ın ajanı ve cursor-agent için. Onaylar Cursor’da kalır; Aç seni oraya götürür."
+  "windows.settings.sessions.agentHintCursor": "Kancalar önce yedek alınarak seninkilerin yanına .cursor\\hooks.json dosyasına eklenir; Cursor’ın ajanı ve cursor-agent için. Onaylar Cursor’da kalır; Aç seni oraya götürür.",
+  "windows.sessions.opensInTerminal": "%@ ilk isteminle birlikte bir konsolda açılır."
 }

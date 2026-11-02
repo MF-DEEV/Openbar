@@ -93,6 +93,16 @@ export const PROVIDERS: readonly Provider[] = ["claude", "codex", "gemini", "cop
 export const HOOK_AGENTS = ["gemini", "copilot", "opencode", "cursor"] as const;
 export type HookAgent = (typeof HOOK_AGENTS)[number];
 
+/** The agent's name where room is short, as New session's picker. */
+export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
+  claude: "Claude",
+  codex: "Codex",
+  gemini: "Gemini",
+  copilot: "Copilot",
+  opencode: "OpenCode",
+  cursor: "Cursor",
+};
+
 export const isHookAgent = (provider: Provider): provider is HookAgent =>
   (HOOK_AGENTS as readonly string[]).includes(provider);
 
@@ -191,6 +201,8 @@ export interface Snapshot {
   backgroundAvailable?: boolean;
   /** Codex is installed, so New session can start it too. */
   canStartCodex?: boolean;
+  /** Gemini CLI, Copilot CLI, OpenCode and cursor-agent found on this PC, which New session starts in a console. */
+  startableAgents?: HookAgent[];
   hooksInstalled: boolean;
 }
 

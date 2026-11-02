@@ -637,5 +637,6 @@
   "windows.settings.sessions.agentHintGemini": "Hooky sa pridajú do .gemini\\settings.json vedľa tvojich, najprv so zálohou. Na žiadosti o povolenie od Gemini CLI odpovedáš v jeho termináli; odpovede sa píšu tam.",
   "windows.settings.sessions.agentHintCopilot": "Do .copilot\\hooks sa pridá vlastný súbor hookov ostrova. Na žiadosti o povolenie od Copilot CLI odpovedáš v jeho termináli; odpovede sa píšu tam.",
   "windows.settings.sessions.agentHintOpencode": "Do .config\\opencode\\plugins sa pridá vlastný plugin ostrova. Povoľuj alebo zamietaj žiadosti OpenCode a posielaj odpovede priamo z ostrova.",
-  "windows.settings.sessions.agentHintCursor": "Hooky sa pridajú do .cursor\\hooks.json vedľa tvojich, najprv so zálohou, pre agenta Cursoru a cursor-agent. Schválenia zostávajú v Cursore; Otvoriť ťa tam presunie."
+  "windows.settings.sessions.agentHintCursor": "Hooky sa pridajú do .cursor\\hooks.json vedľa tvojich, najprv so zálohou, pre agenta Cursoru a cursor-agent. Schválenia zostávajú v Cursore; Otvoriť ťa tam presunie.",
+  "windows.sessions.opensInTerminal": "%@ sa otvorí v konzole s tvojím prvým promptom."
 }

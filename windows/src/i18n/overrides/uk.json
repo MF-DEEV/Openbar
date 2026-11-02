@@ -637,5 +637,6 @@
   "windows.settings.sessions.agentHintGemini": "Хуки додаються до .gemini\\settings.json поруч із вашими, спершу з резервною копією. На запити дозволів Gemini CLI ви відповідаєте в його терміналі; відповіді вводяться там.",
   "windows.settings.sessions.agentHintCopilot": "Власний файл хуків острова додається до .copilot\\hooks. На запити дозволів Copilot CLI ви відповідаєте в його терміналі; відповіді вводяться там.",
   "windows.settings.sessions.agentHintOpencode": "Власний плагін острова додається до .config\\opencode\\plugins. Дозволяйте або відхиляйте запити OpenCode й надсилайте відповіді просто з острова.",
-  "windows.settings.sessions.agentHintCursor": "Хуки додаються до .cursor\\hooks.json поруч із вашими, спершу з резервною копією, для агента Cursor і cursor-agent. Підтвердження лишаються в Cursor; «Відкрити» переносить вас туди."
+  "windows.settings.sessions.agentHintCursor": "Хуки додаються до .cursor\\hooks.json поруч із вашими, спершу з резервною копією, для агента Cursor і cursor-agent. Підтвердження лишаються в Cursor; «Відкрити» переносить вас туди.",
+  "windows.sessions.opensInTerminal": "%@ відкриється в консолі з вашим першим запитом."
 }

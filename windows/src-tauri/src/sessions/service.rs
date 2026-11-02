@@ -73,6 +73,8 @@ struct Published<'a> {
     background_available: bool,
     /// Codex is installed, so New session can start it too.
     can_start_codex: bool,
+    /// Gemini CLI, Copilot CLI, OpenCode and `cursor-agent` found on this PC.
+    startable_agents: Vec<&'static str>,
     hooks_installed: bool,
 }
 
@@ -183,6 +185,7 @@ struct Inner {
     jobs_listed: Option<Time>,
     can_start: bool,
     can_start_codex: bool,
+    startable_agents: Vec<&'static str>,
     background_available: bool,
 }
 
@@ -223,6 +226,7 @@ impl Service {
                 jobs_listed: None,
                 can_start: false,
                 can_start_codex: false,
+                startable_agents: Vec::new(),
                 background_available: false,
             }),
             codex: Mutex::new(None),
@@ -637,6 +641,7 @@ impl Service {
             can_start: inner.can_start,
             background_available: inner.background_available,
             can_start_codex: inner.can_start_codex,
+            startable_agents: inner.startable_agents.clone(),
             hooks_installed: inner.hooks_installed,
         };
         let _ = self.app.emit("sessions://snapshot", &published);
@@ -675,6 +680,14 @@ impl Service {
         thread::spawn(move || {
             let can_start = background::executable().is_some();
             let can_start_codex = crate::agent_usage::codex_executable().is_some();
+            let startable_agents: Vec<&'static str> = models::Provider::HOOK_AGENTS
+                .iter()
+                .filter(|p| {
+                    hook_agents::command_name(**p)
+                        .is_some_and(|name| crate::agent_usage::agent_executable(name).is_some())
+                })
+                .map(|p| p.key())
+                .collect();
             let turned_off =
                 background::is_on(std::env::var(background::DISABLE_VARIABLE).ok().as_deref())
                     || homes.iter().any(|home| {
@@ -715,6 +728,7 @@ impl Service {
             inner.listing_jobs = false;
             inner.can_start = can_start;
             inner.can_start_codex = can_start_codex;
+            inner.startable_agents = startable_agents;
             inner.background_available = listed;
             service.publish(&mut inner, t);
         });
@@ -1506,6 +1520,24 @@ pub async fn sessions_start(
         let model = model.as_deref().filter(|m| !m.is_empty());
         if agent.as_deref() == Some("codex") {
             return start_codex(&service, &folder, &prompt, background, model);
+        }
+        // Gemini CLI, Copilot CLI, OpenCode and cursor-agent run only in a
+        // console, where their hooks or plugin report them.
+        if let Some(provider) = agent
+            .as_deref()
+            .and_then(models::Provider::from_key)
+            .filter(|p| p.reports_through_hooks())
+        {
+            let started = hook_agents::command_name(provider)
+                .and_then(crate::agent_usage::agent_executable)
+                .is_some_and(|exe| {
+                    self::background::agent_in_terminal(
+                        &exe,
+                        &hook_agents::start_arguments(provider, &prompt),
+                        Some(&folder),
+                    )
+                });
+            return (!started).then(|| "unavailable".to_owned());
         }
         // A background session has nobody to type to it.
         if background && prompt.trim().is_empty() {

@@ -1353,6 +1353,33 @@ pub fn agent_process(chain: &[(u32, String)], hint: i32) -> i32 {
         .unwrap_or(hint)
 }
 
+/// The command New session starts for an agent, in a console of its own.
+pub fn command_name(provider: Provider) -> Option<&'static str> {
+    match provider {
+        Provider::Gemini => Some("gemini"),
+        Provider::Copilot => Some("copilot"),
+        Provider::Opencode => Some("opencode"),
+        Provider::Cursor => Some("cursor-agent"),
+        Provider::Claude | Provider::Codex => None,
+    }
+}
+
+/// The arguments that open the agent's terminal UI with a first prompt
+/// already sent: `gemini -i`, `copilot -i`, `opencode --prompt`, and
+/// `cursor-agent` takes it as it is (AgentCLI in ClaudeBackgroundSessions.swift).
+pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
+    let prompt = prompt.trim();
+    if prompt.is_empty() {
+        return Vec::new();
+    }
+    match provider {
+        Provider::Gemini | Provider::Copilot => vec!["-i".into(), prompt.into()],
+        Provider::Opencode => vec!["--prompt".into(), prompt.into()],
+        Provider::Cursor => vec![prompt.into()],
+        Provider::Claude | Provider::Codex => Vec::new(),
+    }
+}
+
 /// The branch a folder's repository is on, read from its HEAD.
 pub fn read_branch(folder: &str) -> Option<String> {
     let mut path = PathBuf::from(folder);
@@ -2202,6 +2229,26 @@ mod tests {
             String::from_utf8(installer::opencode_file(r"\\.\pipe\vorssaint-x", "app")).unwrap();
         assert!(plugin.contains(r#"const SOCKET = "\\\\.\\pipe\\vorssaint-x""#));
         assert!(!plugin.contains("__VORSSAINT"));
+    }
+
+    #[test]
+    fn new_session_starts_each_agent_with_its_prompt() {
+        assert_eq!(
+            start_arguments(Provider::Gemini, " fix it "),
+            ["-i", "fix it"]
+        );
+        assert_eq!(
+            start_arguments(Provider::Copilot, "fix it"),
+            ["-i", "fix it"]
+        );
+        assert_eq!(
+            start_arguments(Provider::Opencode, "fix it"),
+            ["--prompt", "fix it"]
+        );
+        assert_eq!(start_arguments(Provider::Cursor, "fix it"), ["fix it"]);
+        assert!(start_arguments(Provider::Gemini, "  ").is_empty());
+        assert_eq!(command_name(Provider::Cursor), Some("cursor-agent"));
+        assert_eq!(command_name(Provider::Claude), None);
     }
 
     #[test]

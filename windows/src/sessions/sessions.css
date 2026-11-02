@@ -1801,6 +1801,46 @@
 .s-new-session[data-agent="codex"] {
   --agent: 125, 153, 255;
 }
+.s-new-session[data-agent="gemini"] {
+  --agent: 77, 189, 250;
+}
+.s-new-session[data-agent="copilot"] {
+  --agent: 77, 199, 173;
+}
+.s-new-session[data-agent="opencode"] {
+  --agent: 15, 186, 130;
+}
+.s-new-session[data-agent="cursor"] {
+  --agent: 204, 209, 230;
+}
+
+/* Past three agents the picker shows marks only, and names the picked one beside it. */
+.s-agent-picker-wrap {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+}
+.s-agent-picker.is-compact .s-agent-option {
+  padding: 0 8px;
+}
+.s-agent-picked {
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 500;
+  animation: s-agent-picked-in 220ms ease-out;
+}
+@keyframes s-agent-picked-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .s-agent-picked {
+    animation: none;
+  }
+}
 
 /* On a narrow island the controls wrap rather than overlap. */
 .s-new-session .s-background-row {

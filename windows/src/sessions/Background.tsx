@@ -5,9 +5,11 @@
 // (NotchClaudeBackgroundViews.swift): their mark, what can be done with them,
 // their recent output, and the page that starts a new session.
 
+import { useSettings } from "../settings/state";
+import { HOOK_AGENTS, isHookAgent, PROVIDER_NAMES, PROVIDERS, SHORT_NAMES } from "./types";
 import { Check, ChevronsUpDown, Cpu, FileText, Folder, FolderPlus, Square, Trash2 } from "lucide-react";
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useLocale } from "../i18n";
+import { tf, useLocale } from "../i18n";
 import { useIsland } from "../island/store";
 import { bridge } from "../shared/bridge";
 import { canRemoveBackground, canStopBackground, problemText } from "./format";
@@ -180,7 +182,14 @@ function menuText(model: NewSessionModel): string {
   return model.detail ? `${S.defaultModel} · ${model.detail}` : S.defaultModel;
 }
 
-/** Claude or Codex, the pill sliding to the one picked. */
+const AGENT_PREF = {
+  gemini: "agentGemini",
+  copilot: "agentCopilot",
+  opencode: "agentOpencode",
+  cursor: "agentCursor",
+} as const;
+
+/** The agents this PC can start, the pill sliding to the one picked. */
 function AgentPicker({
   agents,
   agent,
@@ -191,37 +200,47 @@ function AgentPicker({
   onPick: (p: Provider) => void;
 }) {
   const index = Math.max(0, agents.indexOf(agent));
+  // Past three agents only marks show; the picked one is named beside them.
+  const compact = agents.length > 3;
   return (
-    <div
-      className="s-agent-picker"
-      role="radiogroup"
-      aria-label={S.agentPicker}
-      style={{ "--count": agents.length, "--index": index } as CSSProperties}
-    >
-      <span className="s-agent-pill" aria-hidden />
-      {agents.map((provider) => {
-        const selected = provider === agent;
-        return (
-          <button
-            key={provider}
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            aria-label={provider === "claude" ? S.claudeCode : S.codex}
-            className={`s-agent-option${selected ? " is-selected" : ""}`}
-            onClick={() => onPick(provider)}
-            onKeyDown={(event) => {
-              if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-              event.preventDefault();
-              const step = event.key === "ArrowRight" ? 1 : -1;
-              onPick(agents[(index + step + agents.length) % agents.length]);
-            }}
-          >
-            <ProviderMark provider={provider} size={provider === "claude" ? 12 : 11} />
-            <span>{provider === "claude" ? "Claude" : "Codex"}</span>
-          </button>
-        );
-      })}
+    <div className="s-agent-picker-wrap">
+      <div
+        className={`s-agent-picker${compact ? " is-compact" : ""}`}
+        role="radiogroup"
+        aria-label={S.agentPicker}
+        style={{ "--count": agents.length, "--index": index } as CSSProperties}
+      >
+        <span className="s-agent-pill" aria-hidden />
+        {agents.map((provider) => {
+          const selected = provider === agent;
+          return (
+            <button
+              key={provider}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              aria-label={PROVIDER_NAMES[provider]}
+              title={PROVIDER_NAMES[provider]}
+              className={`s-agent-option${selected ? " is-selected" : ""}`}
+              onClick={() => onPick(provider)}
+              onKeyDown={(event) => {
+                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+                event.preventDefault();
+                const step = event.key === "ArrowRight" ? 1 : -1;
+                onPick(agents[(index + step + agents.length) % agents.length]);
+              }}
+            >
+              <ProviderMark provider={provider} size={provider === "claude" ? 12 : 11} />
+              {compact ? null : <span>{SHORT_NAMES[provider]}</span>}
+            </button>
+          );
+        })}
+      </div>
+      {compact ? (
+        <span key={agent} className="s-agent-picked">
+          {SHORT_NAMES[agent]}
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -342,6 +361,8 @@ export function NewSession() {
   const backgroundOn = useSessions((s) => s.snapshot.backgroundAvailable === true);
   const canClaude = useSessions((s) => s.snapshot.canStart === true);
   const canCodex = useSessions((s) => s.snapshot.canStartCodex === true);
+  const startable = useSessions((s) => s.snapshot.startableAgents);
+  const sessionPrefs = useSettings((s) => s.prefs.sessions);
   const [folders, setFolders] = useState<RecentFolder[]>([]);
   const [chosen, setChosen] = useState<RecentFolder | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -349,16 +370,25 @@ export function NewSession() {
   const [starting, setStarting] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const [models, setModels] = useState<NewSessionModels>({ claude: [], codex: [] });
-  const [picked, setPicked] = useState<Provider>(() => (remembered(REMEMBER.agent) === "codex" ? "codex" : "claude"));
+  const [picked, setPicked] = useState<Provider>(() => {
+    const saved = remembered(REMEMBER.agent);
+    return PROVIDERS.find((p) => p === saved) ?? "claude";
+  });
   const [claudeModel, setClaudeModel] = useState(() => remembered(REMEMBER.claude));
   const [codexModel, setCodexModel] = useState(() => remembered(REMEMBER.codex));
 
-  const agents: Provider[] = [...(canClaude ? (["claude"] as const) : []), ...(canCodex ? (["codex"] as const) : [])];
+  // Claude Code, Codex, and the hook agents found on this PC and shown in Sessions.
+  const agents: Provider[] = [
+    ...(canClaude ? (["claude"] as const) : []),
+    ...(canCodex ? (["codex"] as const) : []),
+    ...HOOK_AGENTS.filter((a) => startable?.includes(a) && sessionPrefs[AGENT_PREF[a]] !== false),
+  ];
   const agent: Provider = agents.includes(picked) ? picked : (agents[0] ?? "claude");
-  // Codex runs threads in its own background server, so it needs no Agent View.
-  const canRunInBackground = agent === "codex" || backgroundOn;
+  // Codex runs threads in its own background server, so it needs no Agent
+  // View; the agents after it run only in a console.
+  const canRunInBackground = agent === "codex" || (agent === "claude" && backgroundOn);
   const background = inBackground && canRunInBackground;
-  const list = agent === "codex" ? models.codex : models.claude;
+  const list = agent === "codex" ? models.codex : agent === "claude" ? models.claude : [];
   const key = agent === "codex" ? codexModel : claudeModel;
   const model = list.find((m) => modelKey(m) === key) ?? list[0];
   // A session in the background has nobody to type to it, so it starts with a prompt.
@@ -535,7 +565,9 @@ export function NewSession() {
             </button>
           </>
         ) : (
-          <span className="s-background-off">{S.backgroundOffHelp}</span>
+          <span className="s-background-off">
+            {isHookAgent(agent) ? tf("windows.sessions.opensInTerminal", PROVIDER_NAMES[agent]) : S.backgroundOffHelp}
+          </span>
         )}
         <span className="s-background-gap" />
         <button

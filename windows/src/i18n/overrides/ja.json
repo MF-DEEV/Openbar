@@ -637,5 +637,6 @@
   "windows.settings.sessions.agentHintGemini": "フックはバックアップを取ったうえで、あなたのフックと並べて .gemini\\settings.json に追加されます。Gemini CLI の許可の確認はそのターミナルで応答し、返信もそこに入力されます。",
   "windows.settings.sessions.agentHintCopilot": "アイランド専用のフックファイルが .copilot\\hooks に追加されます。Copilot CLI の許可の確認はそのターミナルで応答し、返信もそこに入力されます。",
   "windows.settings.sessions.agentHintOpencode": "アイランド専用のプラグインが .config\\opencode\\plugins に追加されます。OpenCode のリクエストの許可・拒否や返信をアイランドから行えます。",
-  "windows.settings.sessions.agentHintCursor": "フックはバックアップを取ったうえで、あなたのフックと並べて .cursor\\hooks.json に追加されます（Cursor のエージェントと cursor-agent 用）。承認は Cursor に残り、「開く」で移動できます。"
+  "windows.settings.sessions.agentHintCursor": "フックはバックアップを取ったうえで、あなたのフックと並べて .cursor\\hooks.json に追加されます（Cursor のエージェントと cursor-agent 用）。承認は Cursor に残り、「開く」で移動できます。",
+  "windows.sessions.opensInTerminal": "%@ は最初のプロンプト付きでコンソールで開きます。"
 }

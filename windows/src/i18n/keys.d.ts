@@ -3773,6 +3773,7 @@ export type CatalogKey =
   | "windows.sessions.codexFailed"
   | "windows.sessions.codexNotStarted"
   | "windows.sessions.answerInAgent"
+  | "windows.sessions.opensInTerminal"
   | "windows.sessions.replyInAgent"
   | "windows.sessions.replyToAgent"
   | "windows.settings.sessions.moreAgents"

@@ -637,5 +637,6 @@
   "windows.settings.sessions.agentHintGemini": "Les hooks vont dans .gemini\\settings.json à côté des tiens, après une sauvegarde. Tu réponds aux demandes d’autorisation de Gemini CLI dans son terminal ; les réponses y sont saisies.",
   "windows.settings.sessions.agentHintCopilot": "Un fichier de hooks propre à l’île va dans .copilot\\hooks. Tu réponds aux demandes d’autorisation de Copilot CLI dans son terminal ; les réponses y sont saisies.",
   "windows.settings.sessions.agentHintOpencode": "Un plugin propre à l’île va dans .config\\opencode\\plugins. Autorise ou refuse les demandes d’OpenCode et envoie des réponses depuis l’île.",
-  "windows.settings.sessions.agentHintCursor": "Les hooks vont dans .cursor\\hooks.json à côté des tiens, après une sauvegarde, pour l’agent de Cursor et cursor-agent. Les validations restent dans Cursor ; Ouvrir t’y amène."
+  "windows.settings.sessions.agentHintCursor": "Les hooks vont dans .cursor\\hooks.json à côté des tiens, après une sauvegarde, pour l’agent de Cursor et cursor-agent. Les validations restent dans Cursor ; Ouvrir t’y amène.",
+  "windows.sessions.opensInTerminal": "%@ s’ouvre dans une console, avec ton premier message."
 }
