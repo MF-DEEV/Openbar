@@ -130,7 +130,7 @@
   "windows.music.includeOtherPlayers": "Zahrnúť ďalších prehrávačov",
   "windows.music.musicOptions": "Možnosti hudby",
   "windows.music.valueVolume": "Hlasitosť %@",
-  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Upozornenia zobrazujú iba ikonu aplikácie, názov aplikácie a odosielateľa. Text správy sa nespracúva ani nezobrazuje. Nastavenia Nerušiť a stlmené konverzácie v aplikácii Discord sa riadia nastaveniami upozornení na počítači. Podrobnosti upozornení sa vymažú, keď uzamknete tento počítač alebo vypnete túto možnosť.",
+  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "História zobrazuje aplikáciu, odosielateľa a správu zo systému Windows. Posledných 200 upozornení zostáva v tomto zariadení. Nové sa zobrazujú na ostrove.",
   "windows.notifications.notificationAccessIsUnavailableInThisBuild": "Prístup k upozorneniam nie je v tejto verzii k dispozícii",
   "windows.notifications.letTheIslandReadNewNotifications": "Nechajte ostrov čítať nové upozornenia",
   "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller": "Na čítanie oznámení je potrebný balík Vorssaint, ktorý inštalátor zaregistruje. Preinštalujte Vorssaint, aby ho pridali, potom znova otvorte Oznámenia.",
@@ -673,5 +673,8 @@
   "windows.sessions.diffAdded": "Pridané",
   "windows.sessions.diffRemoved": "Odstránené",
   "windows.sessions.diffUnchanged": "Bez zmeny",
-  "windows.sessions.diffLine": "%1$@, riadok %2$@"
+  "windows.sessions.diffLine": "%1$@, riadok %2$@",
+  "windows.notifications.searchHistory": "Hľadať upozornenia",
+  "windows.notifications.noMatches": "Žiadne zodpovedajúce upozornenia",
+  "windows.notifications.openSettings": "Otvoriť nastavenia Windows"
 }

@@ -27,6 +27,7 @@ mod media_volume;
 mod microphone;
 mod music_levels;
 mod music_queue;
+mod notification_history;
 mod notifications;
 mod ocr;
 mod power_saver;
@@ -234,6 +235,7 @@ pub fn run() {
             notifications::notifications_dismiss,
             notifications::notifications_clear,
             notifications::notifications_open,
+            notifications::notifications_open_privacy_settings,
             prefs::prefs_get,
             prefs::prefs_set,
             prefs::launch_at_login_get,

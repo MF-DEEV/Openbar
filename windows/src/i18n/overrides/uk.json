@@ -130,7 +130,7 @@
   "windows.music.includeOtherPlayers": "Включати інші плеєри",
   "windows.music.musicOptions": "Музичні опції",
   "windows.music.valueVolume": "Гучність %@",
-  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Сповіщення показують лише іконку додатка, назву додатка та відправника. Текст повідомлення не збирається і не відображається. Не турбувати Discord та вимкнені розмови слідують налаштуванням сповіщень на робочому столі. Деталі сповіщень очищаються при блокуванні цього ПК або вимкненні цієї функції.",
+  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Історія показує програму, відправника й повідомлення з Windows. Останні 200 сповіщень зберігаються на цьому пристрої. Нові з’являються на острівці.",
   "windows.notifications.notificationAccessIsUnavailableInThisBuild": "Доступ до сповіщень недоступний у цій збірці",
   "windows.notifications.letTheIslandReadNewNotifications": "Дозволити острову читати нові сповіщення",
   "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller": "Для читання сповіщень потрібен пакет Vorssaint, який реєструє інсталятор. Перевстановіть Vorssaint, щоб додати його, потім знову відкрийте Сповіщення.",
@@ -673,5 +673,8 @@
   "windows.sessions.diffAdded": "Додано",
   "windows.sessions.diffRemoved": "Вилучено",
   "windows.sessions.diffUnchanged": "Без змін",
-  "windows.sessions.diffLine": "%1$@, рядок %2$@"
+  "windows.sessions.diffLine": "%1$@, рядок %2$@",
+  "windows.notifications.searchHistory": "Пошук сповіщень",
+  "windows.notifications.noMatches": "Немає відповідних сповіщень",
+  "windows.notifications.openSettings": "Відкрити параметри Windows"
 }

@@ -130,7 +130,7 @@
   "windows.music.includeOtherPlayers": "Includi altri lettori",
   "windows.music.musicOptions": "Opzioni musicali",
   "windows.music.valueVolume": "Volume di %@",
-  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Le notifiche mostrano solo l'icona dell'app, il nome dell'app e il mittente. Il testo del messaggio non viene raccolto né visualizzato. Le impostazioni Non disturbare di Discord e le conversazioni disattivate seguono le impostazioni delle notifiche desktop. I dettagli delle notifiche vengono cancellati quando blocchi questo PC o disattivi questa funzione.",
+  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "La cronologia mostra app, mittente e messaggio forniti da Windows. Le ultime 200 notifiche restano su questo dispositivo. Le nuove appaiono sull’isola.",
   "windows.notifications.notificationAccessIsUnavailableInThisBuild": "L'accesso alle notifiche non è disponibile in questa versione",
   "windows.notifications.letTheIslandReadNewNotifications": "Consenti all'isola di leggere le nuove notifiche",
   "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller": "La lettura delle notifiche richiede il pacchetto Vorssaint registrato dall'installatore. Reinstalla Vorssaint per aggiungerlo, quindi apri di nuovo Notifiche.",
@@ -673,5 +673,8 @@
   "windows.sessions.diffAdded": "Aggiunta",
   "windows.sessions.diffRemoved": "Rimossa",
   "windows.sessions.diffUnchanged": "Invariata",
-  "windows.sessions.diffLine": "%1$@, riga %2$@"
+  "windows.sessions.diffLine": "%1$@, riga %2$@",
+  "windows.notifications.searchHistory": "Cerca notifiche",
+  "windows.notifications.noMatches": "Nessuna notifica corrispondente",
+  "windows.notifications.openSettings": "Apri impostazioni Windows"
 }

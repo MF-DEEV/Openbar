@@ -90,7 +90,7 @@ export async function checkNotificationPreview({ send, evaluate, base }) {
     return {text:p.innerText,html:p.outerHTML,fits:last.bottom<=f.bottom,overflow:t.scrollHeight>t.clientHeight+1,width:f.width}})()`);
   assert.match(shown.text, /Discord/);
   assert.match(shown.text, /Alicja/);
-  assert.doesNotMatch(shown.html, /SECRET BODY/, "Message bodies must not reach the preview");
+  assert.match(shown.html, /SECRET BODY/, "The expanded preview shows the message supplied by Windows");
   assert(shown.fits && !shown.overflow, `The preview must fit its content: ${JSON.stringify(shown)}`);
   await shoot("notification-preview");
 
@@ -182,6 +182,23 @@ export async function checkNotificationPreview({ send, evaluate, base }) {
     ),
     { sheet: false, asking: false, held: false },
   );
+  // History shows multiple native sources and supports searching the message.
+  await evaluate(`(()=>{
+    inbox.getState().receive({access:'allowed',items:[...${JSON.stringify(items)},{id:3,app:'Mail',aumid:'mail.test',time:1793450003,title:'Project team',body:'Invoice approved',icon:'data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48"><rect width="48" height="48" rx="10" fill="#3a8cf5"/></svg>')}]});
+  })()`);
+  await wait(150);
+  assert.equal(await evaluate(`document.querySelectorAll('.nt-card').length`), 3);
+  await evaluate(
+    `(()=>{const e=document.querySelector('.nt-search input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'Invoice');e.dispatchEvent(new Event('input',{bubbles:true}))})()`,
+  );
+  await wait(150);
+  assert.equal(await evaluate(`document.querySelectorAll('.nt-card').length`), 1);
+  assert.match(
+    await evaluate(`document.querySelector('.nt-card').textContent`),
+    /Mail.*Project team.*Invoice approved/,
+  );
+  assert.equal(await evaluate(`!!document.querySelector('.nt-card .nt-icon')`), true);
+  await shoot("notification-history-search");
   console.log(
     "Notification preview passed. Screenshots: build/notification-preview.png, build/notification-clear-all.png",
   );

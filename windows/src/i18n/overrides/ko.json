@@ -130,7 +130,7 @@
   "windows.music.includeOtherPlayers": "다른 플레이어 포함",
   "windows.music.musicOptions": "음악 옵션",
   "windows.music.valueVolume": "%@ 볼륨",
-  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "알림은 앱 아이콘, 앱 이름, 발신자만 표시합니다. 메시지 내용은 수집되거나 표시되지 않습니다. Discord의 방해금지 모드 및 음소거된 대화는 데스크톱 알림 설정을 따릅니다. PC를 잠그거나 이 기능을 끄면 알림 세부 정보가 삭제됩니다.",
+  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Windows가 제공하는 앱, 보낸 사람과 메시지를 기록에 표시합니다. 최근 알림 200개는 이 기기에 저장됩니다. 새 알림은 아일랜드에 표시됩니다.",
   "windows.notifications.notificationAccessIsUnavailableInThisBuild": "이 빌드에서는 알림 접근 권한을 사용할 수 없습니다.",
   "windows.notifications.letTheIslandReadNewNotifications": "섬이 새 알림을 읽도록 허용",
   "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller": "알림을 읽으려면 설치 관리자가 등록한 Vorssaint 패키지가 필요합니다. 추가하려면 Vorssaint을 다시 설치한 다음 알림을 다시 여세요.",
@@ -673,5 +673,8 @@
   "windows.sessions.diffAdded": "추가됨",
   "windows.sessions.diffRemoved": "삭제됨",
   "windows.sessions.diffUnchanged": "변경 없음",
-  "windows.sessions.diffLine": "%1$@, %2$@번째 줄"
+  "windows.sessions.diffLine": "%1$@, %2$@번째 줄",
+  "windows.notifications.searchHistory": "알림 검색",
+  "windows.notifications.noMatches": "일치하는 알림이 없습니다",
+  "windows.notifications.openSettings": "Windows 설정 열기"
 }

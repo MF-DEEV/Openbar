@@ -191,6 +191,7 @@ export const bridge = {
     openPlayer: (source: string) => call<boolean>("music_open_player", { source }),
   },
   notifications: {
+    openPrivacySettings: () => call<boolean>("notifications_open_privacy_settings"),
     inbox: () => call<Inbox>("notifications_inbox"),
     onInbox(handler: (i: Inbox) => void): Promise<UnlistenFn> {
       if (!inTauri) return Promise.resolve(() => {});

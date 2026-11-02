@@ -2,12 +2,12 @@
 // Copyright (C) 2026 Vorssaint
 
 // A banner held open under the pointer (NotchNotificationPreviewView): the app,
-// time and sender with its actions. Message bodies are not collected on Windows
-// (docs/notifications.md), so the sender is all the text it has.
+// time, sender and message with its actions.
 
 import { useLocale, t, tf, dateTimeFormat } from "../i18n";
 
 import { AppWindow, Bell, Inbox, X } from "lucide-react";
+import { useEffect, useState } from "react";
 import { contentInsets, type Geometry, notificationPreviewSize } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { type Notice, useIsland } from "../island/store";
@@ -20,13 +20,32 @@ const ACTION_HEIGHT = 28;
 const SPACING = 8;
 const TITLE_LINE = 18;
 
+function messageLines(message: string, width: number) {
+  const ctx = measureContext();
+  ctx.font = "400 12px 'Inter Variable', Inter, sans-serif";
+  return Math.min(
+    3,
+    Math.max(
+      1,
+      message
+        .split(/\r?\n/)
+        .reduce(
+          (lines, line) => lines + Math.max(1, Math.ceil(ctx.measureText(line).width / Math.max(1, width - 16))),
+          0,
+        ),
+    ),
+  );
+}
+
 export function clock(time: number): string {
   return dateTimeFormat({ hour: "2-digit", minute: "2-digit" }).format(new Date(time * 1000));
 }
 
 export function NotificationIcon(props: { src?: string; fallback?: string }) {
   useLocale();
-  if (!props.src) return <Bell size={14} />;
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [props.src]);
+  if (!props.src || failed) return <Bell size={14} />;
   return (
     <img
       key={props.src}
@@ -37,7 +56,7 @@ export function NotificationIcon(props: { src?: string; fallback?: string }) {
         const image = event.currentTarget;
         if (props.fallback && image.getAttribute("src") !== props.fallback) {
           image.src = props.fallback;
-        } else image.style.visibility = "hidden";
+        } else setFailed(true);
       }}
     />
   );
@@ -53,6 +72,11 @@ export function previewSize(notification: NonNullable<Notice["notification"]>, g
     ctx.font = "600 14px 'Inter Variable', Inter, sans-serif";
     const lines = ctx.measureText(notification.sender).width > available - 2 ? 2 : 1;
     height += SPACING + lines * TITLE_LINE;
+  }
+  if (notification.body) {
+    const { width } = notificationPreviewSize(geometry, height);
+    const available = width - 2 * contentInsets(geometry, { width, height }).horizontal;
+    height += SPACING + messageLines(notification.body, available) * TITLE_LINE;
   }
   return notificationPreviewSize(geometry, height);
 }
@@ -106,6 +130,14 @@ export function NotificationPreview(props: { notice: Notice; geometry: Geometry;
       {notification.sender ? (
         <div className="nt-preview-title" title={notification.sender} style={{ lineHeight: `${TITLE_LINE}px` }}>
           {notification.sender}
+        </div>
+      ) : null}
+      {notification.body ? (
+        <div
+          className="nt-preview-body"
+          style={{ WebkitLineClamp: messageLines(notification.body, size.width - 2 * insets.horizontal) }}
+        >
+          {notification.body}
         </div>
       ) : null}
       <div className="nt-preview-actions" style={{ height: ACTION_HEIGHT }}>

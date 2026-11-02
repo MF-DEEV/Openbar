@@ -1,17 +1,32 @@
 # App notifications in the Windows island
 
 The island mirrors new Windows desktop notifications from Discord, Messenger,
-and other applications. The compact banner shows the source app's icon and name,
-and the sender/title supplied by Windows. Message bodies are not collected or
-displayed, including in the expanded Notifications section, tooltips and accessible
-labels. The source application's
-native icon is preferred; Discord and Messenger have bundled fallback icons.
+and other applications. The compact banner shows the source app's icon and name
+and the sender/title supplied by Windows. Its expanded preview and the searchable
+Notifications history also show the message text supplied by Windows. Apps may
+redact or omit text; Vorssaint does not read accounts or invent missing details.
+The source application's native icon is preferred; Discord and Messenger have
+bundled fallback icons.
+
+The latest 200 notifications are stored locally in
+`%APPDATA%\com.vorssaint.island\notifications\history.json`, including icons,
+source, sender, message and time. Writes are atomic. A file that cannot be read
+is preserved, and the page reports a saving error. Clear All and Dismiss change
+this local history; they leave Windows Notification Center unchanged. Dismissed
+Windows IDs are remembered so clearing history does not re-import those toasts
+after restarting the app.
 
 Holding the pointer on a banner keeps it on screen, and after the hover delay it
 opens in place with the app, time and sender, Open, Dismiss and the inbox count.
 With opening set to click it only waits, and hidden until hover shows no banner to
 hold. Leaving closes the preview; the notification stays in the inbox. Clear All on
 the Notifications page asks first.
+
+An incoming notification waits for a currently visible session/timer notice
+instead of being dropped by its higher priority. The pending queue is bounded to
+10 fresh messages and expires after 30 seconds; all captured messages remain in
+history even when their compact banner is no longer relevant. Opening the history
+shows incoming entries directly rather than replaying their banners afterwards.
 
 Vorssaint needs a registered package identity, Notifications enabled in Settings →
 Content, and access allowed from the island's Notifications page. Desktop
@@ -104,30 +119,32 @@ and it does not independently query the account's presence.
 See [Discord's status documentation](https://support.discord.com/hc/en-us/articles/227779547-Changing-Online-Status)
 and [notification settings](https://support.discord.com/hc/en-us/articles/215253258-Notifications-Settings-101).
 
-Only notifications arriving after monitoring starts are mirrored. Presentation
-and inactive-session suppression reported by Windows prevents new island
-notifications, and those arrivals are consumed instead of replayed later.
-Notification metadata remains in memory. Locking the PC, disabling the island/Notifications
-section, or losing notification permission clears the inbox. Resuming monitoring
-primes the current Windows notification IDs so old messages are not imported.
+The initial scan imports notifications currently in Windows Notification Center
+into history without showing old banners. Only new arrivals interrupt the island.
+Presentation and inactive-session suppression reported by Windows prevents new
+island banners; quiet arrivals can still enter history without being replayed
+later. Locking the PC or disabling the section hides the visible inbox and stops
+collection, while retaining the saved history. Resuming monitoring primes the
+current IDs so old messages never become new banners.
 
 ## Manual verification on Windows
 
 1. Enable desktop notifications in Discord, select Online, and receive a direct
    message while another app has focus. Confirm the island shows Discord's icon,
-   and the sender. Confirm the message text is absent from both the banner and
-   the expanded Notifications page, including tooltips.
+   and the sender. Hover to read the message, then find its app, sender, body and
+   timestamp in Notifications. Search by app, sender or message content.
 2. Select Do Not Disturb in Discord and receive another direct message. Confirm
    neither a Windows desktop notification nor an island banner appears.
 3. Return to Online and receive a new message. Confirm it appears once, without
    replaying messages suppressed during DND. Repeat with Idle and Invisible.
 4. Receive a notification from Messenger or another messaging app. Verify its
    app icon/name and the sender/title provided in its Windows notification.
-5. Disable Notifications in Vorssaint, then re-enable it. Confirm the inbox clears
-   and no notifications from the disabled interval are imported. Repeat across
-   locking and unlocking Windows.
+5. Restart Vorssaint and confirm history is retained without replaying banners.
+   Dismiss a history entry, restart again and confirm it stays dismissed. Clear
+   All must ask for confirmation. Lock/unlock and disable/re-enable the section:
+   history is retained, and old messages are not replayed as new banners.
 
 Automated tests cover app identity/icon fallback, sender/title preservation,
 banner/card rendering, initial priming, quiet-mode suppression without replay,
-disabled delivery, and inbox clearing. Actual Discord status behavior requires
+disabled delivery, disk round trips and unreadable-file preservation. Actual Discord status behavior requires
 the manual desktop test above; it is supplied by Discord itself.

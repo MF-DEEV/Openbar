@@ -130,7 +130,7 @@
   "windows.music.includeOtherPlayers": "Inclure d'autres lecteurs",
   "windows.music.musicOptions": "Options musicales",
   "windows.music.valueVolume": "Volume de %@",
-  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "Les notifications affichent uniquement l'icône de l'application, le nom de l'application et l'expéditeur. Le texte du message n'est pas collecté ni affiché. Le mode Ne pas déranger de Discord et les conversations mises en sourdine suivent les paramètres de notification de son bureau. Les détails des notifications sont effacés lorsque vous verrouillez ce PC ou désactivez ceci.",
+  "windows.notifications.notificationsShowTheAppIconAppNameAnd": "L’historique affiche l’application, l’expéditeur et le message fournis par Windows. Les 200 dernières notifications restent sur cet appareil. Les nouvelles apparaissent sur l’îlot.",
   "windows.notifications.notificationAccessIsUnavailableInThisBuild": "L'accès aux notifications n'est pas disponible dans cette version",
   "windows.notifications.letTheIslandReadNewNotifications": "Autoriser l'île à lire les nouvelles notifications",
   "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller": "La lecture des notifications nécessite le package Vorssaint que l'installateur enregistre. Réinstallez Vorssaint pour l'ajouter, puis ouvrez à nouveau les notifications.",
@@ -673,5 +673,8 @@
   "windows.sessions.diffAdded": "Ajoutée",
   "windows.sessions.diffRemoved": "Supprimée",
   "windows.sessions.diffUnchanged": "Inchangée",
-  "windows.sessions.diffLine": "%1$@, ligne %2$@"
+  "windows.sessions.diffLine": "%1$@, ligne %2$@",
+  "windows.notifications.searchHistory": "Rechercher des notifications",
+  "windows.notifications.noMatches": "Aucune notification correspondante",
+  "windows.notifications.openSettings": "Ouvrir les paramètres Windows"
 }

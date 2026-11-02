@@ -38,7 +38,7 @@ it("shows Discord and the sender without message text anywhere in the compact is
   const notice = notificationNotice(discord);
   expect(notice.title).toBe("Discord · Alicja (#general, Friends)");
   expect(notice.detail).toBeUndefined();
-  expect(notificationPresentation(discord)).not.toHaveProperty("message");
+  expect(notificationPresentation(discord).message).toBe("Hej!\nDruga linia");
   expect(notice.image).toBeTruthy();
   expect(notice.opens).toBe("notifications");
   const html = renderToStaticMarkup(
@@ -79,14 +79,14 @@ it("keeps other app identities even when a message mentions Discord or Messenger
   expect(notificationSource({ app: "Discord Tools", aumid: "org.example.discord" }).fallbackIcon).toBeUndefined();
 });
 
-it("shows only the source icon and sender on the notifications page", () => {
+it("shows the source icon, sender and Windows message in history", () => {
   useNotifications.setState({ access: "allowed", items: [discord] });
   const html = renderToStaticMarkup(<NotificationsPage />);
   expect(html).toContain("nt-icon");
   expect(html).toContain("Discord");
   expect(html).toContain("Alicja (#general, Friends)");
-  expect(html).not.toContain("Hej!");
-  expect(html).not.toContain("Druga linia");
+  expect(html).toContain("Hej!");
+  expect(html).toContain("Druga linia");
 });
 
 it("removes a visible message when the native inbox is cleared on lock or disable", () => {
