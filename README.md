@@ -135,7 +135,7 @@ Then, in Settings:
 
 ## Documentation
 
-| | |
+| Guide | What it covers |
 |---|---|
 | [Privacy](docs/PRIVACY.md) | What is read, what is kept, what never leaves |
 | [Permissions](docs/PERMISSIONS.md) | Every macOS permission, in plain words |
