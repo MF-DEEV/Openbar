@@ -35,6 +35,11 @@ export interface SessionPrefs {
   /** Plan limits beside the sessions; agent_usage keeps reading them for
    * this with the AI section off. */
   limits: boolean;
+  /** Each hook agent's sessions show in the list (sessions/hook_agents.rs). */
+  agentGemini: boolean;
+  agentCopilot: boolean;
+  agentOpencode: boolean;
+  agentCursor: boolean;
 }
 
 export const DEFAULT_SESSION_PREFS: SessionPrefs = {
@@ -43,6 +48,10 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   live: true,
   buddies: true,
   limits: true,
+  agentGemini: true,
+  agentCopilot: true,
+  agentOpencode: true,
+  agentCursor: true,
 };
 
 /** What is stored: only what differs from the defaults. */

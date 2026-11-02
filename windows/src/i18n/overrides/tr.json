@@ -623,5 +623,19 @@
   "notchClaudeSessions.limited": "Sınıra ulaşıldı",
   "notchClaudeSessions.resumesFormat": "%@ devam eder",
   "notchClaudeSessions.limitsSetting": "Plan sınırlarını göster",
-  "windows.settings.sessions.limitsCaption": "Bir Claude veya Codex sınırı yaklaştığında şeritte gösterir ve sınırda duran bir oturumun ne zaman devam edeceğini söyler. AI Agents kapalıyken ada bunun için sınırları okumaya devam eder."
+  "windows.settings.sessions.limitsCaption": "Bir Claude veya Codex sınırı yaklaştığında şeritte gösterir ve sınırda duran bir oturumun ne zaman devam edeceğini söyler. AI Agents kapalıyken ada bunun için sınırları okumaya devam eder.",
+  "windows.sessions.answerInAgent": "Bunu %@ içinde yanıtla.",
+  "windows.sessions.replyInAgent": "%@ içinde yanıtla",
+  "windows.sessions.replyToAgent": "%@ için yanıt…",
+  "windows.settings.sessions.moreAgents": "Diğer ajanlar",
+  "windows.settings.sessions.moreAgentsCaption": "Her ajan, kancaları veya eklentisi yüklendiğinde Oturumlar’da görünür. Yükle’ye basana kadar hiçbir şey eklenmez; Kaldır yalnızca adanın eklediklerini çıkarır.",
+  "windows.settings.sessions.agentUnreadable": "Ayarları okunamadı",
+  "windows.settings.sessions.installPlugin": "Eklentiyi yükle",
+  "windows.settings.sessions.removePlugin": "Eklentiyi kaldır",
+  "windows.settings.sessions.updatePlugin": "Eklentiyi güncelle",
+  "windows.settings.sessions.showAgent": "%@ oturumlarını göster",
+  "windows.settings.sessions.agentHintGemini": "Kancalar önce yedek alınarak seninkilerin yanına .gemini\\settings.json dosyasına eklenir. Gemini CLI’ın izin isteklerini kendi terminalinde yanıtlarsın; yanıtlar oraya yazılır.",
+  "windows.settings.sessions.agentHintCopilot": "Adaya ait bir kanca dosyası .copilot\\hooks klasörüne eklenir. Copilot CLI’ın izin isteklerini kendi terminalinde yanıtlarsın; yanıtlar oraya yazılır.",
+  "windows.settings.sessions.agentHintOpencode": "Adaya ait bir eklenti .config\\opencode\\plugins klasörüne eklenir. OpenCode’un isteklerine adadan izin verebilir, reddedebilir ve yanıt gönderebilirsin.",
+  "windows.settings.sessions.agentHintCursor": "Kancalar önce yedek alınarak seninkilerin yanına .cursor\\hooks.json dosyasına eklenir; Cursor’ın ajanı ve cursor-agent için. Onaylar Cursor’da kalır; Aç seni oraya götürür."
 }

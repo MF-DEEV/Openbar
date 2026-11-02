@@ -623,5 +623,19 @@
   "notchClaudeSessions.limited": "已達額度上限",
   "notchClaudeSessions.resumesFormat": "%@ 恢復",
   "notchClaudeSessions.limitsSetting": "顯示方案額度",
-  "windows.settings.sessions.limitsCaption": "Claude 或 Codex 額度將盡時顯示在條帶上，並告訴你因額度停止的工作階段何時繼續。關閉 AI Agents 時，動態島仍會為此讀取額度。"
+  "windows.settings.sessions.limitsCaption": "Claude 或 Codex 額度將盡時顯示在條帶上，並告訴你因額度停止的工作階段何時繼續。關閉 AI Agents 時，動態島仍會為此讀取額度。",
+  "windows.sessions.answerInAgent": "請在 %@ 中回應這個請求。",
+  "windows.sessions.replyInAgent": "在 %@ 中回覆",
+  "windows.sessions.replyToAgent": "回覆 %@…",
+  "windows.settings.sessions.moreAgents": "更多代理程式",
+  "windows.settings.sessions.moreAgentsCaption": "安裝了掛鉤或外掛後，每個代理程式都會出現在工作階段中。在你按下安裝之前不會新增任何內容，移除只會刪去動態島新增的內容。",
+  "windows.settings.sessions.agentUnreadable": "無法讀取其設定",
+  "windows.settings.sessions.installPlugin": "安裝外掛",
+  "windows.settings.sessions.removePlugin": "移除外掛",
+  "windows.settings.sessions.updatePlugin": "更新外掛",
+  "windows.settings.sessions.showAgent": "在工作階段中顯示 %@",
+  "windows.settings.sessions.agentHintGemini": "掛鉤會先備份，再加入 .gemini\\settings.json，與你自己的掛鉤並列。Gemini CLI 的權限請求在其終端機中回應，回覆也在那裡輸入。",
+  "windows.settings.sessions.agentHintCopilot": "動態島專用的掛鉤檔案會加入 .copilot\\hooks。Copilot CLI 的權限請求在其終端機中回應，回覆也在那裡輸入。",
+  "windows.settings.sessions.agentHintOpencode": "動態島專用的外掛會加入 .config\\opencode\\plugins。可以在動態島中允許或拒絕 OpenCode 的請求並傳送回覆。",
+  "windows.settings.sessions.agentHintCursor": "掛鉤會先備份，再加入 .cursor\\hooks.json，與你自己的掛鉤並列，適用於 Cursor 的代理程式和 cursor-agent。核准仍在 Cursor 中進行，「打開」會帶你前往。"
 }

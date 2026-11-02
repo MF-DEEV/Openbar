@@ -623,5 +623,19 @@
   "notchClaudeSessions.limited": "Limit vyčerpaný",
   "notchClaudeSessions.resumesFormat": "pokračuje %@",
   "notchClaudeSessions.limitsSetting": "Zobraziť limity plánu",
-  "windows.settings.sessions.limitsCaption": "Keď sa limit Claude alebo Codex blíži, ukáže ho na páse a povie, kedy bude pokračovať relácia zastavená limitom. Keď je AI Agents vypnuté, ostrov kvôli tomu limity číta ďalej."
+  "windows.settings.sessions.limitsCaption": "Keď sa limit Claude alebo Codex blíži, ukáže ho na páse a povie, kedy bude pokračovať relácia zastavená limitom. Keď je AI Agents vypnuté, ostrov kvôli tomu limity číta ďalej.",
+  "windows.sessions.answerInAgent": "Na toto odpovedz v %@.",
+  "windows.sessions.replyInAgent": "Odpovedať v %@",
+  "windows.sessions.replyToAgent": "Odpoveď pre %@…",
+  "windows.settings.sessions.moreAgents": "Ďalší agenti",
+  "windows.settings.sessions.moreAgentsCaption": "Každý agent sa zobrazí v Reláciách, keď sú nainštalované jeho hooky alebo plugin. Nič sa nepridá, kým nestlačíš Inštalovať, a Odstrániť vezme len to, čo pridal ostrov.",
+  "windows.settings.sessions.agentUnreadable": "Jeho nastavenia sa nepodarilo prečítať",
+  "windows.settings.sessions.installPlugin": "Inštalovať plugin",
+  "windows.settings.sessions.removePlugin": "Odstrániť plugin",
+  "windows.settings.sessions.updatePlugin": "Aktualizovať plugin",
+  "windows.settings.sessions.showAgent": "Zobraziť %@ v Reláciách",
+  "windows.settings.sessions.agentHintGemini": "Hooky sa pridajú do .gemini\\settings.json vedľa tvojich, najprv so zálohou. Na žiadosti o povolenie od Gemini CLI odpovedáš v jeho termináli; odpovede sa píšu tam.",
+  "windows.settings.sessions.agentHintCopilot": "Do .copilot\\hooks sa pridá vlastný súbor hookov ostrova. Na žiadosti o povolenie od Copilot CLI odpovedáš v jeho termináli; odpovede sa píšu tam.",
+  "windows.settings.sessions.agentHintOpencode": "Do .config\\opencode\\plugins sa pridá vlastný plugin ostrova. Povoľuj alebo zamietaj žiadosti OpenCode a posielaj odpovede priamo z ostrova.",
+  "windows.settings.sessions.agentHintCursor": "Hooky sa pridajú do .cursor\\hooks.json vedľa tvojich, najprv so zálohou, pre agenta Cursoru a cursor-agent. Schválenia zostávajú v Cursore; Otvoriť ťa tam presunie."
 }

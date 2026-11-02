@@ -623,5 +623,19 @@
   "notchClaudeSessions.limited": "Ліміт вичерпано",
   "notchClaudeSessions.resumesFormat": "продовжить %@",
   "notchClaudeSessions.limitsSetting": "Показувати ліміти тарифу",
-  "windows.settings.sessions.limitsCaption": "Показує ліміт Claude чи Codex на смужці, коли він близько, і каже, коли продовжиться сеанс, зупинений лімітом. Якщо AI Agents вимкнено, острів і далі читає ліміти для цього."
+  "windows.settings.sessions.limitsCaption": "Показує ліміт Claude чи Codex на смужці, коли він близько, і каже, коли продовжиться сеанс, зупинений лімітом. Якщо AI Agents вимкнено, острів і далі читає ліміти для цього.",
+  "windows.sessions.answerInAgent": "Дайте відповідь на це в %@.",
+  "windows.sessions.replyInAgent": "Відповісти в %@",
+  "windows.sessions.replyToAgent": "Відповідь для %@…",
+  "windows.settings.sessions.moreAgents": "Інші агенти",
+  "windows.settings.sessions.moreAgentsCaption": "Кожен агент з’являється в «Сесіях», коли встановлено його хуки чи плагін. Нічого не додається, доки ви не натиснете «Встановити», а «Вилучити» прибирає лише те, що додав острів.",
+  "windows.settings.sessions.agentUnreadable": "Не вдалося прочитати його налаштування",
+  "windows.settings.sessions.installPlugin": "Встановити плагін",
+  "windows.settings.sessions.removePlugin": "Вилучити плагін",
+  "windows.settings.sessions.updatePlugin": "Оновити плагін",
+  "windows.settings.sessions.showAgent": "Показувати %@ у «Сесіях»",
+  "windows.settings.sessions.agentHintGemini": "Хуки додаються до .gemini\\settings.json поруч із вашими, спершу з резервною копією. На запити дозволів Gemini CLI ви відповідаєте в його терміналі; відповіді вводяться там.",
+  "windows.settings.sessions.agentHintCopilot": "Власний файл хуків острова додається до .copilot\\hooks. На запити дозволів Copilot CLI ви відповідаєте в його терміналі; відповіді вводяться там.",
+  "windows.settings.sessions.agentHintOpencode": "Власний плагін острова додається до .config\\opencode\\plugins. Дозволяйте або відхиляйте запити OpenCode й надсилайте відповіді просто з острова.",
+  "windows.settings.sessions.agentHintCursor": "Хуки додаються до .cursor\\hooks.json поруч із вашими, спершу з резервною копією, для агента Cursor і cursor-agent. Підтвердження лишаються в Cursor; «Відкрити» переносить вас туди."
 }

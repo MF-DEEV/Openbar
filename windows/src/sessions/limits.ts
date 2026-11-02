@@ -58,7 +58,9 @@ export function limitReset(session: Session, snapshot: AgentSnapshot, nowSeconds
   const stop = session.limitStop;
   if (!stop) return null;
   if (stop.resetsAt !== undefined) return stop.resetsAt > nowSeconds ? stop.resetsAt : null;
-  const windows = snapshot.limits[session.provider]?.windows ?? [];
+  const agent = session.provider as AgentProvider;
+  // Gemini CLI and Cursor have no limits the AI section reads.
+  const windows = (agent in snapshot.limits ? snapshot.limits[agent]?.windows : undefined) ?? [];
   const resets = windows
     .filter((w) => w.usedPercent >= SPENT_PERCENT && (stop.kind === undefined || w.kind === stop.kind))
     .map((w) => displayedReset(w, nowSeconds * 1000))

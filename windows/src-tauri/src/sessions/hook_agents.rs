@@ -49,7 +49,10 @@ impl Provider {
     /// Gemini CLI's and Copilot CLI's hooks only hear of a prompt, and
     /// Cursor keeps its approvals; the person answers those in the agent.
     pub fn answers_permissions(self) -> bool {
-        matches!(self, Provider::Claude | Provider::Codex | Provider::Opencode)
+        matches!(
+            self,
+            Provider::Claude | Provider::Codex | Provider::Opencode
+        )
     }
 
     pub fn key(self) -> &'static str {
@@ -264,7 +267,13 @@ fn first_line(text: &str) -> String {
     tool_summary::clip(text.lines().next().unwrap_or("").trim())
 }
 
-fn waiting_permission(tool: &str, detail: String, offers_always: bool, at: Time, request: &str) -> Permission {
+fn waiting_permission(
+    tool: &str,
+    detail: String,
+    offers_always: bool,
+    at: Time,
+    request: &str,
+) -> Permission {
     let line = first_line(&detail);
     let mut permission = Permission::new(
         request,
@@ -279,7 +288,13 @@ fn waiting_permission(tool: &str, detail: String, offers_always: bool, at: Time,
 
 // MARK: Gemini CLI
 
-fn gemini(hook: &str, json: &Map<String, Value>, pid: i32, now: Time, policy: ContentPolicy) -> Vec<AgentEvent> {
+fn gemini(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+) -> Vec<AgentEvent> {
     let Some(session) = text(json, "session_id") else {
         return vec![];
     };
@@ -295,17 +310,24 @@ fn gemini(hook: &str, json: &Map<String, Value>, pid: i32, now: Time, policy: Co
             kind,
         }]
     };
-    let tool = name(Provider::Gemini, str_of(json.get("tool_name")).unwrap_or(""));
+    let tool = name(
+        Provider::Gemini,
+        str_of(json.get("tool_name")).unwrap_or(""),
+    );
     let input = arguments(json.get("tool_input"));
     match hook {
         "SessionStart" => event(Kind::Started),
         "SessionEnd" => event(Kind::Ended),
         "BeforeAgent" => event(Kind::Prompt(
-            policy.previews.then(|| reply_preview(json.get("prompt"))).flatten(),
+            policy
+                .previews
+                .then(|| reply_preview(json.get("prompt")))
+                .flatten(),
         )),
         "AfterAgent" => {
             // Gemini CLI writes this when the turn ended with no text, as on an error.
-            let reply = reply_preview(json.get("prompt_response")).filter(|t| t != "[no response text]");
+            let reply =
+                reply_preview(json.get("prompt_response")).filter(|t| t != "[no response text]");
             event(Kind::Stopped {
                 last_text: reply.filter(|_| policy.previews),
                 failed: false,
@@ -326,7 +348,11 @@ fn gemini(hook: &str, json: &Map<String, Value>, pid: i32, now: Time, policy: Co
             })
         }
         "Notification" if str_of(json.get("notification_type")) == Some("ToolPermission") => {
-            let details = json.get("details").and_then(Value::as_object).cloned().unwrap_or_default();
+            let details = json
+                .get("details")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
             let asked = name(
                 Provider::Gemini,
                 str_of(details.get("toolName"))
@@ -352,7 +378,13 @@ fn gemini(hook: &str, json: &Map<String, Value>, pid: i32, now: Time, policy: Co
 
 // MARK: Copilot CLI
 
-fn copilot(hook: &str, json: &Map<String, Value>, pid: i32, now: Time, policy: ContentPolicy) -> Vec<AgentEvent> {
+fn copilot(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+) -> Vec<AgentEvent> {
     let Some(session) = text(json, "sessionId").or_else(|| text(json, "session_id")) else {
         return vec![];
     };
@@ -368,13 +400,19 @@ fn copilot(hook: &str, json: &Map<String, Value>, pid: i32, now: Time, policy: C
             kind,
         }]
     };
-    let tool = name(Provider::Copilot, str_of(json.get("toolName")).unwrap_or(""));
+    let tool = name(
+        Provider::Copilot,
+        str_of(json.get("toolName")).unwrap_or(""),
+    );
     let input = arguments(json.get("toolArgs"));
     match hook {
         "sessionStart" => event(Kind::Started),
         "sessionEnd" => event(Kind::Ended),
         "userPromptSubmitted" => event(Kind::Prompt(
-            policy.previews.then(|| reply_preview(json.get("prompt"))).flatten(),
+            policy
+                .previews
+                .then(|| reply_preview(json.get("prompt")))
+                .flatten(),
         )),
         "preToolUse" => event(Kind::ToolStarted(tool_use(&tool, &input, date, policy))),
         "postToolUse" | "postToolUseFailure" => {
@@ -402,7 +440,9 @@ fn copilot(hook: &str, json: &Map<String, Value>, pid: i32, now: Time, policy: C
         }
         "notification" => match str_of(json.get("notification_type")) {
             Some("permission_prompt") => {
-                let message = text(json, "message").or_else(|| text(json, "title")).unwrap_or_default();
+                let message = text(json, "message")
+                    .or_else(|| text(json, "title"))
+                    .unwrap_or_default();
                 event(Kind::Permission(waiting_permission(
                     "Tool",
                     message,
@@ -420,14 +460,25 @@ fn copilot(hook: &str, json: &Map<String, Value>, pid: i32, now: Time, policy: C
 
 // MARK: Cursor
 
-fn cursor(hook: &str, json: &Map<String, Value>, pid: i32, now: Time, policy: ContentPolicy) -> Vec<AgentEvent> {
+fn cursor(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+) -> Vec<AgentEvent> {
     let Some(session) = text(json, "conversation_id").or_else(|| text(json, "session_id")) else {
         return vec![];
     };
     let cwd = json
         .get("workspace_roots")
         .and_then(Value::as_array)
-        .and_then(|roots| roots.iter().filter_map(Value::as_str).find(|r| !r.is_empty()))
+        .and_then(|roots| {
+            roots
+                .iter()
+                .filter_map(Value::as_str)
+                .find(|r| !r.is_empty())
+        })
         .map(str::to_owned)
         .or_else(|| text(json, "cwd"));
     let mut events = Vec::new();
@@ -444,12 +495,18 @@ fn cursor(hook: &str, json: &Map<String, Value>, pid: i32, now: Time, policy: Co
     if let Some(model) = text(json, "model") {
         add(Kind::Model(model));
     }
-    let tool = name(Provider::Cursor, str_of(json.get("tool_name")).unwrap_or(""));
+    let tool = name(
+        Provider::Cursor,
+        str_of(json.get("tool_name")).unwrap_or(""),
+    );
     match hook {
         "sessionStart" => add(Kind::Started),
         "sessionEnd" => add(Kind::Ended),
         "beforeSubmitPrompt" => add(Kind::Prompt(
-            policy.previews.then(|| reply_preview(json.get("prompt"))).flatten(),
+            policy
+                .previews
+                .then(|| reply_preview(json.get("prompt")))
+                .flatten(),
         )),
         "afterAgentThought" => add(Kind::Working),
         "afterAgentResponse" => match reply_preview(json.get("text")).filter(|_| policy.previews) {
@@ -458,7 +515,10 @@ fn cursor(hook: &str, json: &Map<String, Value>, pid: i32, now: Time, policy: Co
         },
         "postToolUse" | "postToolUseFailure" => {
             let input = arguments(json.get("tool_input"));
-            let seconds = json.get("duration").and_then(Value::as_f64).map(|ms| ms / 1000.0);
+            let seconds = json
+                .get("duration")
+                .and_then(Value::as_f64)
+                .map(|ms| ms / 1000.0);
             add(Kind::ToolFinished {
                 id: text(json, "tool_use_id"),
                 input_key: Some(tool_summary::input_key(&tool, &input)),
@@ -478,7 +538,13 @@ fn cursor(hook: &str, json: &Map<String, Value>, pid: i32, now: Time, policy: Co
 
 // MARK: OpenCode
 
-fn opencode(json: &Map<String, Value>, pid: i32, now: Time, policy: ContentPolicy, decoded: &mut Decoded) {
+fn opencode(
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+    decoded: &mut Decoded,
+) {
     let kind = str_of(json.get("kind")).unwrap_or("");
     if kind == "listen" {
         decoded.listens = true;
@@ -503,7 +569,10 @@ fn opencode(json: &Map<String, Value>, pid: i32, now: Time, policy: ContentPolic
         "created" => add(Kind::Started),
         "deleted" => add(Kind::Ended),
         "prompt" => add(Kind::Prompt(
-            policy.previews.then(|| reply_preview(json.get("text"))).flatten(),
+            policy
+                .previews
+                .then(|| reply_preview(json.get("text")))
+                .flatten(),
         )),
         "status" => match str_of(json.get("status")) {
             Some("busy" | "retry") => add(Kind::Working),
@@ -541,8 +610,15 @@ fn opencode(json: &Map<String, Value>, pid: i32, now: Time, policy: ContentPolic
             let Some(request) = text(json, "id") else {
                 return;
             };
-            let tool = name(Provider::Opencode, str_of(json.get("permission")).unwrap_or(""));
-            let metadata = json.get("metadata").and_then(Value::as_object).cloned().unwrap_or_default();
+            let tool = name(
+                Provider::Opencode,
+                str_of(json.get("permission")).unwrap_or(""),
+            );
+            let metadata = json
+                .get("metadata")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
             let patterns: Vec<String> = json
                 .get("patterns")
                 .and_then(Value::as_array)
@@ -567,7 +643,9 @@ fn opencode(json: &Map<String, Value>, pid: i32, now: Time, policy: ContentPolic
                 .is_some_and(|a| a.iter().filter_map(Value::as_str).any(|s| !s.is_empty()));
             let detail: String = detail.chars().take(tool_summary::DETAIL_LIMIT).collect();
             decoded.permission = Some((session.clone(), request.clone()));
-            add(Kind::Permission(waiting_permission(&tool, detail, always, date, &request)));
+            add(Kind::Permission(waiting_permission(
+                &tool, detail, always, date, &request,
+            )));
         }
         "permissionReplied" => add(Kind::PermissionSettled(text(json, "id"))),
         "question" => add(Kind::Question),
@@ -580,8 +658,15 @@ fn opencode(json: &Map<String, Value>, pid: i32, now: Time, policy: ContentPolic
             if let Some(model) = text(json, "model") {
                 add(Kind::Model(model));
             }
-            if let (Some(tokens), Some(message)) = (json.get("tokens").and_then(Value::as_object), text(json, "id")) {
-                let cache = tokens.get("cache").and_then(Value::as_object).cloned().unwrap_or_default();
+            if let (Some(tokens), Some(message)) = (
+                json.get("tokens").and_then(Value::as_object),
+                text(json, "id"),
+            ) {
+                let cache = tokens
+                    .get("cache")
+                    .and_then(Value::as_object)
+                    .cloned()
+                    .unwrap_or_default();
                 let reasoning = number(tokens.get("reasoning"));
                 add(Kind::Usage {
                     key: message,
@@ -619,7 +704,8 @@ pub fn opencode_reply(decision: &super::hook_message::Decision) -> Option<Vec<u8
 
 /// A prompt for OpenCode's listening plugin to send to one of its sessions.
 pub fn opencode_prompt(session: &str, text: &str) -> Vec<u8> {
-    serde_json::to_vec(&json!({ "prompt": { "session": session, "text": text } })).unwrap_or_default()
+    serde_json::to_vec(&json!({ "prompt": { "session": session, "text": text } }))
+        .unwrap_or_default()
 }
 
 // MARK: Tools
@@ -703,8 +789,20 @@ pub fn summary(tool: &str, input: &Map<String, Value>) -> Option<String> {
     if let Some(claude) = tool_summary::summary(tool, input) {
         return Some(claude);
     }
-    for key in ["command", "file_path", "filePath", "absolute_path", "path", "pattern", "url", "query", "description"] {
-        let Some(value) = str_of(input.get(key)) else { continue };
+    for key in [
+        "command",
+        "file_path",
+        "filePath",
+        "absolute_path",
+        "path",
+        "pattern",
+        "url",
+        "query",
+        "description",
+    ] {
+        let Some(value) = str_of(input.get(key)) else {
+            continue;
+        };
         let line = value.lines().next().unwrap_or("").trim();
         if line.is_empty() {
             continue;
@@ -856,7 +954,10 @@ impl Tracker {
             return;
         }
         let mut message_id = self.message_id;
-        let entry = self.entries.entry(id).or_insert_with(|| Entry::new(&event, now));
+        let entry = self
+            .entries
+            .entry(id)
+            .or_insert_with(|| Entry::new(&event, now));
         if event.pid > 0 {
             entry.pid = event.pid;
         }
@@ -912,10 +1013,17 @@ impl Tracker {
                     .and_then(|id| entry.tools.iter().rposition(|t| &t.id == id))
                     .or_else(|| {
                         entry.tools.iter().position(|t| {
-                            t.finished.is_none() && t.name == name && (input_key.is_none() || t.input_key == input_key)
+                            t.finished.is_none()
+                                && t.name == name
+                                && (input_key.is_none() || t.input_key == input_key)
                         })
                     })
-                    .or_else(|| entry.tools.iter().position(|t| t.finished.is_none() && t.name == name));
+                    .or_else(|| {
+                        entry
+                            .tools
+                            .iter()
+                            .position(|t| t.finished.is_none() && t.name == name)
+                    });
                 match index {
                     Some(i) => {
                         let tool = &mut entry.tools[i];
@@ -945,7 +1053,9 @@ impl Tracker {
                 entry.asking = false;
             }
             Kind::PermissionSettled(request) => {
-                if request.is_none() || entry.permission.as_ref().map(|p| &p.request_id) == request.as_ref() {
+                if request.is_none()
+                    || entry.permission.as_ref().map(|p| &p.request_id) == request.as_ref()
+                {
                     entry.clear_wait();
                 }
             }
@@ -978,7 +1088,11 @@ impl Tracker {
                             entry.append(ChatRole::Assistant, text, date, &mut message_id);
                         }
                     }
-                    if let Some(last) = entry.chat.last_mut().filter(|m| m.role == ChatRole::Assistant) {
+                    if let Some(last) = entry
+                        .chat
+                        .last_mut()
+                        .filter(|m| m.role == ChatRole::Assistant)
+                    {
                         last.ends_turn = true;
                     }
                 }
@@ -995,7 +1109,10 @@ impl Tracker {
     /// The person answered the request here; the agent tells when it moves on.
     pub fn resolve(&mut self, id: &str, request: &str) {
         if let Some(entry) = self.entries.get_mut(id)
-            && entry.permission.as_ref().is_some_and(|p| p.request_id == request)
+            && entry
+                .permission
+                .as_ref()
+                .is_some_and(|p| p.request_id == request)
         {
             entry.clear_wait();
         }
@@ -1093,9 +1210,15 @@ impl Tracker {
                 match phase {
                     SessionPhase::WaitingPermission => events.push(SessionEvent::NeedsPermission {
                         id: id.clone(),
-                        tool: entry.permission.as_ref().map(|p| p.tool.clone()).unwrap_or_default(),
+                        tool: entry
+                            .permission
+                            .as_ref()
+                            .map(|p| p.tool.clone())
+                            .unwrap_or_default(),
                     }),
-                    SessionPhase::WaitingInput => events.push(SessionEvent::NeedsInput { id: id.clone() }),
+                    SessionPhase::WaitingInput => {
+                        events.push(SessionEvent::NeedsInput { id: id.clone() })
+                    }
                     SessionPhase::Finished if previous.is_active() || previous.is_waiting() => {
                         events.push(SessionEvent::Finished {
                             id: id.clone(),
@@ -1105,10 +1228,19 @@ impl Tracker {
                     _ => {}
                 }
             }
-            sessions.push(session(id, entry, phase, since, policy, place(entry), branch(&entry.cwd)));
+            sessions.push(session(
+                id,
+                entry,
+                phase,
+                since,
+                policy,
+                place(entry),
+                branch(&entry.cwd),
+            ));
         }
         for session in &sessions {
-            self.phases.insert(session.id.clone(), (session.phase, session.phase_since));
+            self.phases
+                .insert(session.id.clone(), (session.phase, session.phase_since));
         }
         (sessions, events)
     }
@@ -1159,10 +1291,17 @@ fn session(
         last_active: Some(entry.turn_ended.map_or(entry.heard, |t| t.max(entry.heard))),
         looked_at: entry.acknowledged,
         waiting_for: (in_agent || entry.asking).then(|| ANSWER_IN_TERMINAL.to_owned()),
-        current_tool: matches!(phase, SessionPhase::RunningTool | SessionPhase::WaitingPermission)
-            .then(|| entry.open_tool().cloned())
-            .flatten(),
-        permission: if in_agent { None } else { entry.permission.clone() },
+        current_tool: matches!(
+            phase,
+            SessionPhase::RunningTool | SessionPhase::WaitingPermission
+        )
+        .then(|| entry.open_tool().cloned())
+        .flatten(),
+        permission: if in_agent {
+            None
+        } else {
+            entry.permission.clone()
+        },
         timeline,
         subagents: Vec::new(),
         tasks: None,
@@ -1171,7 +1310,11 @@ fn session(
         title: entry.title.clone().filter(|_| previews),
         last_text: entry.last_text.clone().filter(|_| previews),
         hooked: true,
-        chat: if previews { entry.chat.clone() } else { Vec::new() },
+        chat: if previews {
+            entry.chat.clone()
+        } else {
+            Vec::new()
+        },
         background_label: None,
         services: 0,
         background: None,
@@ -1184,8 +1327,18 @@ fn session(
 /// process that is none of these.
 pub fn agent_process(chain: &[(u32, String)], hint: i32) -> i32 {
     const SHELLS: [&str; 12] = [
-        "vorssaint.exe", "powershell.exe", "pwsh.exe", "cmd.exe", "bash.exe", "sh.exe", "conhost.exe",
-        "nc", "sh", "bash", "zsh", "dash",
+        "vorssaint.exe",
+        "powershell.exe",
+        "pwsh.exe",
+        "cmd.exe",
+        "bash.exe",
+        "sh.exe",
+        "conhost.exe",
+        "nc",
+        "sh",
+        "bash",
+        "zsh",
+        "dash",
     ];
     let own = std::env::current_exe()
         .ok()
@@ -1211,12 +1364,25 @@ pub fn read_branch(folder: &str) -> Option<String> {
             } else {
                 // A worktree's .git file names its own folder.
                 let text = std::fs::read_to_string(&git).ok()?;
-                let line = text.lines().next()?.strip_prefix("gitdir:")?.trim().to_owned();
+                let line = text
+                    .lines()
+                    .next()?
+                    .strip_prefix("gitdir:")?
+                    .trim()
+                    .to_owned();
                 let dir = PathBuf::from(&line);
-                if dir.is_absolute() { dir } else { path.join(dir) }.join("HEAD")
+                if dir.is_absolute() {
+                    dir
+                } else {
+                    path.join(dir)
+                }
+                .join("HEAD")
             };
             let text = std::fs::read_to_string(head).ok()?;
-            return text.trim().strip_prefix("ref: refs/heads/").map(str::to_owned);
+            return text
+                .trim()
+                .strip_prefix("ref: refs/heads/")
+                .map(str::to_owned);
         }
         if !path.pop() {
             return None;
@@ -1239,17 +1405,36 @@ pub mod installer {
 
     pub const EVENT_TIMEOUT: u64 = 5;
     pub const GEMINI_EVENTS: [&str; 7] = [
-        "SessionStart", "SessionEnd", "BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool", "Notification",
+        "SessionStart",
+        "SessionEnd",
+        "BeforeAgent",
+        "AfterAgent",
+        "BeforeTool",
+        "AfterTool",
+        "Notification",
     ];
     pub const COPILOT_EVENTS: [&str; 9] = [
-        "sessionStart", "sessionEnd", "userPromptSubmitted", "preToolUse", "postToolUse", "postToolUseFailure",
-        "agentStop", "errorOccurred", "notification",
+        "sessionStart",
+        "sessionEnd",
+        "userPromptSubmitted",
+        "preToolUse",
+        "postToolUse",
+        "postToolUseFailure",
+        "agentStop",
+        "errorOccurred",
+        "notification",
     ];
     /// Cursor blocks an action when a hook that may allow or deny it answers
     /// with nothing, so only hooks that only tell are installed.
     pub const CURSOR_EVENTS: [&str; 8] = [
-        "sessionStart", "sessionEnd", "beforeSubmitPrompt", "afterAgentThought", "afterAgentResponse",
-        "postToolUse", "postToolUseFailure", "stop",
+        "sessionStart",
+        "sessionEnd",
+        "beforeSubmitPrompt",
+        "afterAgentThought",
+        "afterAgentResponse",
+        "postToolUse",
+        "postToolUseFailure",
+        "stop",
     ];
     pub const CURSOR_CONTINUES: [&str; 1] = ["beforeSubmitPrompt"];
 
@@ -1263,7 +1448,9 @@ pub mod installer {
     }
 
     fn env_dir(name: &str) -> Option<PathBuf> {
-        std::env::var_os(name).filter(|v| !v.is_empty()).map(PathBuf::from)
+        std::env::var_os(name)
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
     }
 
     pub fn own_name(app: &str) -> String {
@@ -1271,7 +1458,10 @@ pub mod installer {
     }
 
     pub fn gemini_settings(home: &Path) -> PathBuf {
-        env_dir("GEMINI_CLI_HOME").unwrap_or_else(|| home.to_owned()).join(".gemini").join("settings.json")
+        env_dir("GEMINI_CLI_HOME")
+            .unwrap_or_else(|| home.to_owned())
+            .join(".gemini")
+            .join("settings.json")
     }
 
     pub fn copilot_folder(home: &Path) -> PathBuf {
@@ -1279,7 +1469,9 @@ pub mod installer {
     }
 
     pub fn copilot_hooks(home: &Path, app: &str) -> PathBuf {
-        copilot_folder(home).join("hooks").join(format!("{}.json", own_name(app)))
+        copilot_folder(home)
+            .join("hooks")
+            .join(format!("{}.json", own_name(app)))
     }
 
     pub fn cursor_hooks(home: &Path) -> PathBuf {
@@ -1288,11 +1480,15 @@ pub mod installer {
 
     /// OpenCode reads `~/.config/opencode` on Windows too.
     pub fn opencode_folder(home: &Path) -> PathBuf {
-        env_dir("XDG_CONFIG_HOME").unwrap_or_else(|| home.join(".config")).join("opencode")
+        env_dir("XDG_CONFIG_HOME")
+            .unwrap_or_else(|| home.join(".config"))
+            .join("opencode")
     }
 
     pub fn opencode_plugin(home: &Path, app: &str) -> PathBuf {
-        opencode_folder(home).join("plugins").join(format!("{}.js", own_name(app)))
+        opencode_folder(home)
+            .join("plugins")
+            .join(format!("{}.js", own_name(app)))
     }
 
     /// Whether the agent seems installed on this computer.
@@ -1323,9 +1519,11 @@ pub mod installer {
     /// by PowerShell (Gemini CLI and Cursor on Windows) or by any shell.
     pub fn command(provider: Provider, event: &str, exe: &Path, app: &str) -> String {
         let path = exe.to_string_lossy().replace('\\', "/");
-        let continues = (provider == Provider::Cursor && CURSOR_CONTINUES.contains(&event))
-            .then_some(" --continue")
-            .unwrap_or("");
+        let continues = if provider == Provider::Cursor && CURSOR_CONTINUES.contains(&event) {
+            " --continue"
+        } else {
+            ""
+        };
         format!(
             "& \"{path}\" --hook --agent {} --event {event}{continues} {}",
             provider.key(),
@@ -1348,7 +1546,8 @@ pub mod installer {
                 }]),
             );
         }
-        let mut data = serde_json::to_vec_pretty(&json!({ "version": 1, "hooks": hooks })).unwrap_or_default();
+        let mut data =
+            serde_json::to_vec_pretty(&json!({ "version": 1, "hooks": hooks })).unwrap_or_default();
         data.push(b'\n');
         data
     }
@@ -1368,23 +1567,37 @@ pub mod installer {
             return false;
         };
         events.iter().all(|event| {
-            hooks.get(*event).and_then(Value::as_array).is_some_and(|groups| {
-                groups.iter().any(|g| {
-                    g.get("hooks")
-                        .and_then(Value::as_array)
-                        .is_some_and(|e| e.iter().any(|h| h.get("command").and_then(Value::as_str) == Some(&command(event))))
+            hooks
+                .get(*event)
+                .and_then(Value::as_array)
+                .is_some_and(|groups| {
+                    groups.iter().any(|g| {
+                        g.get("hooks").and_then(Value::as_array).is_some_and(|e| {
+                            e.iter().any(|h| {
+                                h.get("command").and_then(Value::as_str) == Some(&command(event))
+                            })
+                        })
+                    })
                 })
-            })
         })
     }
 
     fn flat_has_any(settings: &Value, app: &str) -> bool {
         let marker = claude::marker(app);
-        settings.get("hooks").and_then(Value::as_object).is_some_and(|hooks| {
-            hooks.values().filter_map(Value::as_array).flatten().any(|h| {
-                h.get("command").and_then(Value::as_str).is_some_and(|c| c.contains(&marker))
+        settings
+            .get("hooks")
+            .and_then(Value::as_object)
+            .is_some_and(|hooks| {
+                hooks
+                    .values()
+                    .filter_map(Value::as_array)
+                    .flatten()
+                    .any(|h| {
+                        h.get("command")
+                            .and_then(Value::as_str)
+                            .is_some_and(|c| c.contains(&marker))
+                    })
             })
-        })
     }
 
     /// Cursor's hooks without the island's; events left empty go too.
@@ -1394,10 +1607,16 @@ pub mod installer {
         if let Some(hooks) = settings.get_mut("hooks").and_then(Value::as_object_mut) {
             let events: Vec<String> = hooks.keys().cloned().collect();
             for event in events {
-                let Some(list) = hooks.get(&event).and_then(Value::as_array) else { continue };
+                let Some(list) = hooks.get(&event).and_then(Value::as_array) else {
+                    continue;
+                };
                 let kept: Vec<Value> = list
                     .iter()
-                    .filter(|h| !h.get("command").and_then(Value::as_str).is_some_and(|c| c.contains(&marker)))
+                    .filter(|h| {
+                        !h.get("command")
+                            .and_then(Value::as_str)
+                            .is_some_and(|c| c.contains(&marker))
+                    })
                     .cloned()
                     .collect();
                 if kept.len() == list.len() {
@@ -1465,7 +1684,13 @@ pub mod installer {
         let read = |path: &Path| claude::read(path);
         match provider {
             Provider::Gemini => match read(&gemini_settings(home)) {
-                Ok(s) if groups_hold(&s, &GEMINI_EVENTS, |e| command(Provider::Gemini, e, exe, app)) => State::Installed,
+                Ok(s)
+                    if groups_hold(&s, &GEMINI_EVENTS, |e| {
+                        command(Provider::Gemini, e, exe, app)
+                    }) =>
+                {
+                    State::Installed
+                }
                 Ok(s) if claude::has_any(&s, app) => State::Outdated,
                 Ok(_) => State::Missing,
                 Err(_) => State::Unreadable,
@@ -1473,12 +1698,14 @@ pub mod installer {
             Provider::Cursor => match read(&cursor_hooks(home)) {
                 Ok(s) => {
                     let current = CURSOR_EVENTS.iter().all(|event| {
-                        s.pointer(&format!("/hooks/{event}")).and_then(Value::as_array).is_some_and(|l| {
-                            l.iter().any(|h| {
-                                h.get("command").and_then(Value::as_str)
-                                    == Some(&command(Provider::Cursor, event, exe, app))
+                        s.pointer(&format!("/hooks/{event}"))
+                            .and_then(Value::as_array)
+                            .is_some_and(|l| {
+                                l.iter().any(|h| {
+                                    h.get("command").and_then(Value::as_str)
+                                        == Some(&command(Provider::Cursor, event, exe, app))
+                                })
                             })
-                        })
                     });
                     if current {
                         State::Installed
@@ -1491,7 +1718,9 @@ pub mod installer {
                 Err(_) => State::Unreadable,
             },
             Provider::Copilot => own_state(&copilot_hooks(home, app), &copilot_file(exe, app)),
-            Provider::Opencode => own_state(&opencode_plugin(home, app), &opencode_file(endpoint, app)),
+            Provider::Opencode => {
+                own_state(&opencode_plugin(home, app), &opencode_file(endpoint, app))
+            }
             _ => State::Missing,
         }
     }
@@ -1505,14 +1734,28 @@ pub mod installer {
         }
     }
 
-    pub fn install(provider: Provider, home: &Path, exe: &Path, endpoint: &str, app: &str) -> Result<(), String> {
+    pub fn install(
+        provider: Provider,
+        home: &Path,
+        exe: &Path,
+        endpoint: &str,
+        app: &str,
+    ) -> Result<(), String> {
         match provider {
-            Provider::Gemini => claude::update(&gemini_settings(home), |s| gemini_installing(s, exe, app))
-                .map_err(|e| e.to_string()),
-            Provider::Cursor => claude::update(&cursor_hooks(home), |s| cursor_installing(s, exe, app))
-                .map_err(|e| e.to_string()),
+            Provider::Gemini => {
+                claude::update(&gemini_settings(home), |s| gemini_installing(s, exe, app))
+                    .map_err(|e| e.to_string())
+            }
+            Provider::Cursor => {
+                claude::update(&cursor_hooks(home), |s| cursor_installing(s, exe, app))
+                    .map_err(|e| e.to_string())
+            }
             Provider::Copilot => write_own(&copilot_hooks(home, app), &copilot_file(exe, app), app),
-            Provider::Opencode => write_own(&opencode_plugin(home, app), &opencode_file(endpoint, app), app),
+            Provider::Opencode => write_own(
+                &opencode_plugin(home, app),
+                &opencode_file(endpoint, app),
+                app,
+            ),
             _ => Ok(()),
         }
     }
@@ -1543,7 +1786,8 @@ pub mod installer {
         let marker = claude::marker(app);
         let copilot = format!("\"--app\",\n          \"{app}\"");
         let text = String::from_utf8_lossy(data);
-        text.contains(&marker) || (text.contains("vorssaint-hook") && (text.contains(&copilot) || text.contains(app)))
+        text.contains(&marker)
+            || (text.contains("vorssaint-hook") && (text.contains(&copilot) || text.contains(app)))
     }
 
     /// Writes a file of the island's own, never over one that is not.
@@ -1561,7 +1805,9 @@ pub mod installer {
 
     fn remove_own(path: &Path, app: &str) -> Result<(), String> {
         match std::fs::read(path) {
-            Ok(existing) if holds_marker(&existing, app) => std::fs::remove_file(path).map_err(|e| e.to_string()),
+            Ok(existing) if holds_marker(&existing, app) => {
+                std::fs::remove_file(path).map_err(|e| e.to_string())
+            }
             _ => Ok(()),
         }
     }
@@ -1576,11 +1822,17 @@ mod tests {
     const OFF: ContentPolicy = ContentPolicy { previews: false };
 
     fn envelope(provider: &str, hook: &str, event: Value) -> Vec<u8> {
-        serde_json::to_vec(&json!({ "vorssaint": provider, "hook": hook, "pid": 4242, "event": event })).unwrap()
+        serde_json::to_vec(
+            &json!({ "vorssaint": provider, "hook": hook, "pid": 4242, "event": event }),
+        )
+        .unwrap()
     }
 
     fn feed(tracker: &mut Tracker, data: &[u8], policy: ContentPolicy) {
-        for event in decode(data, NOW, policy).map(|d| d.events).unwrap_or_default() {
+        for event in decode(data, NOW, policy)
+            .map(|d| d.events)
+            .unwrap_or_default()
+        {
             tracker.ingest(event, NOW);
         }
     }
@@ -1600,14 +1852,31 @@ mod tests {
 
     #[test]
     fn envelopes_are_told_apart() {
-        let gemini = envelope("gemini", "SessionStart", json!({ "session_id": "g", "cwd": "C:/w/app" }));
+        let gemini = envelope(
+            "gemini",
+            "SessionStart",
+            json!({ "session_id": "g", "cwd": "C:/w/app" }),
+        );
         assert!(is_envelope(&gemini) && !waits(&gemini));
-        let claude = serde_json::to_vec(&json!({ "hook_event_name": "Stop", "session_id": "c" })).unwrap();
+        let claude =
+            serde_json::to_vec(&json!({ "hook_event_name": "Stop", "session_id": "c" })).unwrap();
         assert!(!is_envelope(&claude) && decode(&claude, NOW, ON).is_none());
         assert!(decode(&envelope("claude", "", json!({})), NOW, ON).is_none());
-        assert!(waits(&envelope("opencode", "", json!({ "kind": "permission", "session": "s", "id": "p" }))));
-        assert!(waits(&envelope("opencode", "", json!({ "kind": "listen" }))));
-        assert!(!waits(&envelope("opencode", "", json!({ "kind": "status" }))));
+        assert!(waits(&envelope(
+            "opencode",
+            "",
+            json!({ "kind": "permission", "session": "s", "id": "p" })
+        )));
+        assert!(waits(&envelope(
+            "opencode",
+            "",
+            json!({ "kind": "listen" })
+        )));
+        assert!(!waits(&envelope(
+            "opencode",
+            "",
+            json!({ "kind": "status" })
+        )));
         assert_eq!(decode(&gemini, NOW, ON).unwrap().events[0].id(), "gemini:g");
     }
 
@@ -1615,34 +1884,79 @@ mod tests {
     fn a_gemini_turn_goes_through_its_phases() {
         let mut t = Tracker::default();
         let ev = |hook: &str, extra: Value| {
-            let mut base = json!({ "session_id": "g1", "cwd": "C:/w/app", "hook_event_name": hook });
-            base.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            let mut base =
+                json!({ "session_id": "g1", "cwd": "C:/w/app", "hook_event_name": hook });
+            base.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
             envelope("gemini", hook, base)
         };
         feed(&mut t, &ev("SessionStart", json!({})), ON);
         assert_eq!(snap(&mut t, NOW, true).0[0].phase, SessionPhase::Idle);
-        feed(&mut t, &ev("BeforeAgent", json!({ "prompt": "fix it" })), ON);
-        feed(&mut t, &ev("BeforeTool", json!({ "tool_name": "run_shell_command", "tool_input": { "command": "npm test" } })), ON);
+        feed(
+            &mut t,
+            &ev("BeforeAgent", json!({ "prompt": "fix it" })),
+            ON,
+        );
+        feed(
+            &mut t,
+            &ev(
+                "BeforeTool",
+                json!({ "tool_name": "run_shell_command", "tool_input": { "command": "npm test" } }),
+            ),
+            ON,
+        );
         let s = &snap(&mut t, NOW, true).0[0];
         assert_eq!(s.phase, SessionPhase::RunningTool);
         assert_eq!(s.current_tool.as_ref().unwrap().name, "Bash");
-        assert_eq!(s.current_tool.as_ref().unwrap().summary.as_deref(), Some("npm test"));
-        feed(&mut t, &ev("Notification", json!({ "notification_type": "ToolPermission", "details": { "command": "npm test" } })), ON);
+        assert_eq!(
+            s.current_tool.as_ref().unwrap().summary.as_deref(),
+            Some("npm test")
+        );
+        feed(
+            &mut t,
+            &ev(
+                "Notification",
+                json!({ "notification_type": "ToolPermission", "details": { "command": "npm test" } }),
+            ),
+            ON,
+        );
         let (sessions, events) = snap(&mut t, NOW, true);
         assert_eq!(sessions[0].phase, SessionPhase::WaitingPermission);
         assert!(sessions[0].permission.is_none());
         assert_eq!(sessions[0].waiting_for.as_deref(), Some(ANSWER_IN_TERMINAL));
         assert!(matches!(events[0], SessionEvent::NeedsPermission { .. }));
-        feed(&mut t, &ev("AfterTool", json!({ "tool_name": "run_shell_command", "tool_input": { "command": "npm test" }, "tool_response": {} })), ON);
+        feed(
+            &mut t,
+            &ev(
+                "AfterTool",
+                json!({ "tool_name": "run_shell_command", "tool_input": { "command": "npm test" }, "tool_response": {} }),
+            ),
+            ON,
+        );
         assert_eq!(snap(&mut t, NOW, true).0[0].phase, SessionPhase::Generating);
-        feed(&mut t, &ev("AfterAgent", json!({ "prompt_response": "All green." })), ON);
+        feed(
+            &mut t,
+            &ev("AfterAgent", json!({ "prompt_response": "All green." })),
+            ON,
+        );
         let (sessions, events) = snap(&mut t, NOW, true);
         assert_eq!(sessions[0].phase, SessionPhase::Finished);
         assert_eq!(sessions[0].last_text.as_deref(), Some("All green."));
         assert!(matches!(events[0], SessionEvent::Finished { .. }));
         feed(&mut t, &ev("BeforeAgent", json!({ "prompt": "again" })), ON);
-        feed(&mut t, &ev("AfterAgent", json!({ "prompt_response": "[no response text]" })), ON);
-        assert_eq!(snap(&mut t, NOW, true).0[0].last_text.as_deref(), Some("All green."));
+        feed(
+            &mut t,
+            &ev(
+                "AfterAgent",
+                json!({ "prompt_response": "[no response text]" }),
+            ),
+            ON,
+        );
+        assert_eq!(
+            snap(&mut t, NOW, true).0[0].last_text.as_deref(),
+            Some("All green.")
+        );
         feed(&mut t, &ev("SessionEnd", json!({})), ON);
         assert!(snap(&mut t, NOW, true).0.is_empty());
     }
@@ -1650,18 +1964,57 @@ mod tests {
     #[test]
     fn copilot_and_cursor_read_their_own_shapes() {
         let mut t = Tracker::default();
-        let base = json!({ "sessionId": "c1", "cwd": "C:/w/api", "timestamp": 1_800_000_000_000_i64 });
+        let base =
+            json!({ "sessionId": "c1", "cwd": "C:/w/api", "timestamp": 1_800_000_000_000_i64 });
         let ev = |hook: &str, extra: Value| {
             let mut b = base.clone();
-            b.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            b.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
             envelope("copilot", hook, b)
         };
-        feed(&mut t, &ev("userPromptSubmitted", json!({ "prompt": "go" })), ON);
-        feed(&mut t, &ev("preToolUse", json!({ "toolName": "bash", "toolArgs": "{\"command\":\"ls\"}" })), ON);
-        assert_eq!(snap(&mut t, NOW, true).0[0].current_tool.as_ref().unwrap().summary.as_deref(), Some("ls"));
-        feed(&mut t, &ev("notification", json!({ "notification_type": "permission_prompt", "message": "Allow ls?" })), ON);
-        assert_eq!(snap(&mut t, NOW, true).0[0].phase, SessionPhase::WaitingPermission);
-        feed(&mut t, &ev("postToolUseFailure", json!({ "toolName": "bash", "toolArgs": "{\"command\":\"ls\"}" })), ON);
+        feed(
+            &mut t,
+            &ev("userPromptSubmitted", json!({ "prompt": "go" })),
+            ON,
+        );
+        feed(
+            &mut t,
+            &ev(
+                "preToolUse",
+                json!({ "toolName": "bash", "toolArgs": "{\"command\":\"ls\"}" }),
+            ),
+            ON,
+        );
+        assert_eq!(
+            snap(&mut t, NOW, true).0[0]
+                .current_tool
+                .as_ref()
+                .unwrap()
+                .summary
+                .as_deref(),
+            Some("ls")
+        );
+        feed(
+            &mut t,
+            &ev(
+                "notification",
+                json!({ "notification_type": "permission_prompt", "message": "Allow ls?" }),
+            ),
+            ON,
+        );
+        assert_eq!(
+            snap(&mut t, NOW, true).0[0].phase,
+            SessionPhase::WaitingPermission
+        );
+        feed(
+            &mut t,
+            &ev(
+                "postToolUseFailure",
+                json!({ "toolName": "bash", "toolArgs": "{\"command\":\"ls\"}" }),
+            ),
+            ON,
+        );
         let s = &snap(&mut t, NOW, true).0[0];
         assert_eq!(s.phase, SessionPhase::Generating);
         assert!(s.timeline[0].failed);
@@ -1669,13 +2022,34 @@ mod tests {
         let mut k = Tracker::default();
         let cursor = |hook: &str, extra: Value| {
             let mut b = json!({ "conversation_id": "k", "workspace_roots": ["C:/w/site"], "model": "composer-2" });
-            b.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+            b.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
             envelope("cursor", hook, b)
         };
-        feed(&mut k, &cursor("beforeSubmitPrompt", json!({ "prompt": "pink" })), ON);
-        feed(&mut k, &cursor("postToolUse", json!({ "tool_name": "Shell", "tool_input": { "command": "npm run build" }, "duration": 900 })), ON);
-        feed(&mut k, &cursor("afterAgentResponse", json!({ "text": "Done." })), ON);
-        feed(&mut k, &cursor("stop", json!({ "status": "completed" })), ON);
+        feed(
+            &mut k,
+            &cursor("beforeSubmitPrompt", json!({ "prompt": "pink" })),
+            ON,
+        );
+        feed(
+            &mut k,
+            &cursor(
+                "postToolUse",
+                json!({ "tool_name": "Shell", "tool_input": { "command": "npm run build" }, "duration": 900 }),
+            ),
+            ON,
+        );
+        feed(
+            &mut k,
+            &cursor("afterAgentResponse", json!({ "text": "Done." })),
+            ON,
+        );
+        feed(
+            &mut k,
+            &cursor("stop", json!({ "status": "completed" })),
+            ON,
+        );
         let s = &snap(&mut k, NOW, true).0[0];
         assert_eq!(s.project, "site");
         assert_eq!(s.model.as_deref(), Some("composer-2"));
@@ -1690,33 +2064,78 @@ mod tests {
     fn opencode_permissions_are_answered_here() {
         let mut t = Tracker::default();
         let ev = |fields: Value| envelope("opencode", "", fields);
-        feed(&mut t, &ev(json!({ "kind": "created", "session": "s", "directory": "C:/w/cli" })), ON);
-        feed(&mut t, &ev(json!({ "kind": "status", "session": "s", "status": "busy" })), ON);
-        let ask = ev(json!({ "kind": "permission", "session": "s", "id": "per", "permission": "bash", "metadata": { "command": "rm -rf build" }, "always": ["rm *"] }));
-        assert_eq!(decode(&ask, NOW, OFF).unwrap().permission, Some(("s".into(), "per".into())));
+        feed(
+            &mut t,
+            &ev(json!({ "kind": "created", "session": "s", "directory": "C:/w/cli" })),
+            ON,
+        );
+        feed(
+            &mut t,
+            &ev(json!({ "kind": "status", "session": "s", "status": "busy" })),
+            ON,
+        );
+        let ask = ev(
+            json!({ "kind": "permission", "session": "s", "id": "per", "permission": "bash", "metadata": { "command": "rm -rf build" }, "always": ["rm *"] }),
+        );
+        assert_eq!(
+            decode(&ask, NOW, OFF).unwrap().permission,
+            Some(("s".into(), "per".into()))
+        );
         feed(&mut t, &ask, OFF);
         let s = &snap(&mut t, NOW, false).0[0];
         assert_eq!(s.phase, SessionPhase::WaitingPermission);
         let permission = s.permission.as_ref().unwrap();
         assert_eq!(permission.detail, "rm -rf build");
         assert!(permission.offers_always);
-        assert_eq!(opencode_reply(&super::super::hook_message::Decision::Allow).unwrap(), br#"{"reply":"once"}"#);
-        assert_eq!(opencode_reply(&super::super::hook_message::Decision::Deny).unwrap(), br#"{"reply":"reject"}"#);
-        feed(&mut t, &ev(json!({ "kind": "permissionReplied", "session": "s", "id": "per" })), ON);
+        assert_eq!(
+            opencode_reply(&super::super::hook_message::Decision::Allow).unwrap(),
+            br#"{"reply":"once"}"#
+        );
+        assert_eq!(
+            opencode_reply(&super::super::hook_message::Decision::Deny).unwrap(),
+            br#"{"reply":"reject"}"#
+        );
+        feed(
+            &mut t,
+            &ev(json!({ "kind": "permissionReplied", "session": "s", "id": "per" })),
+            ON,
+        );
         assert_eq!(snap(&mut t, NOW, true).0[0].phase, SessionPhase::Generating);
-        feed(&mut t, &ev(json!({ "kind": "message", "session": "s", "id": "m", "model": "big-pickle", "cost": 0.5, "tokens": { "input": 10, "output": 2, "reasoning": 1, "cache": { "read": 3, "write": 4 } } })), ON);
-        feed(&mut t, &ev(json!({ "kind": "status", "session": "s", "status": "idle" })), ON);
+        feed(
+            &mut t,
+            &ev(
+                json!({ "kind": "message", "session": "s", "id": "m", "model": "big-pickle", "cost": 0.5, "tokens": { "input": 10, "output": 2, "reasoning": 1, "cache": { "read": 3, "write": 4 } } }),
+            ),
+            ON,
+        );
+        feed(
+            &mut t,
+            &ev(json!({ "kind": "status", "session": "s", "status": "idle" })),
+            ON,
+        );
         let s = &snap(&mut t, NOW, true).0[0];
         assert_eq!(s.phase, SessionPhase::Finished);
         assert_eq!(s.tokens.output, 3);
         assert_eq!(s.model.as_deref(), Some("big-pickle"));
-        assert!(decode(&ev(json!({ "kind": "listen" })), NOW, ON).unwrap().listens);
+        assert!(
+            decode(&ev(json!({ "kind": "listen" })), NOW, ON)
+                .unwrap()
+                .listens
+        );
     }
 
     #[test]
     fn sessions_of_a_quit_agent_leave_and_previews_stay_off() {
         let mut t = Tracker::default();
-        feed(&mut t, &envelope("gemini", "BeforeAgent", json!({ "session_id": "a", "prompt": "secret" })), OFF);
+        feed(
+            &mut t,
+            &envelope(
+                "gemini",
+                "BeforeAgent",
+                json!({ "session_id": "a", "prompt": "secret" }),
+            ),
+            OFF,
+        );
         assert!(snap(&mut t, NOW, false).0[0].chat.is_empty());
         t.prune(NOW, |_| false);
         assert!(t.is_empty());
@@ -1739,33 +2158,57 @@ mod tests {
         let exe = Path::new("C:\\Program Files\\Vorssaint\\Vorssaint.exe");
         let own = json!({ "hooks": { "BeforeTool": [{ "matcher": "write_file", "hooks": [{ "type": "command", "command": "mine.ps1" }] }] } });
         let installed = installer::gemini_installing(&own, exe, "app");
-        let tools = installed.pointer("/hooks/BeforeTool").unwrap().as_array().unwrap();
+        let tools = installed
+            .pointer("/hooks/BeforeTool")
+            .unwrap()
+            .as_array()
+            .unwrap();
         assert_eq!(tools.len(), 2);
-        assert_eq!(tools[0], own.pointer("/hooks/BeforeTool/0").unwrap().clone());
+        assert_eq!(
+            tools[0],
+            own.pointer("/hooks/BeforeTool/0").unwrap().clone()
+        );
         let command = installer::command(Provider::Gemini, "BeforeTool", exe, "app");
         assert!(command.starts_with("& \"C:/Program Files/Vorssaint/Vorssaint.exe\" --hook --agent gemini --event BeforeTool"));
         assert_eq!(crate::hooks::installer::removing(&installed, "app"), own);
 
         let cursor_own = json!({ "version": 1, "hooks": { "stop": [{ "command": "audit.ps1" }] } });
         let cursor = installer::cursor_installing(&cursor_own, exe, "app");
-        assert_eq!(cursor.pointer("/hooks/stop").unwrap().as_array().unwrap().len(), 2);
-        assert!(installer::command(Provider::Cursor, "beforeSubmitPrompt", exe, "app").contains("--continue"));
+        assert_eq!(
+            cursor
+                .pointer("/hooks/stop")
+                .unwrap()
+                .as_array()
+                .unwrap()
+                .len(),
+            2
+        );
+        assert!(
+            installer::command(Provider::Cursor, "beforeSubmitPrompt", exe, "app")
+                .contains("--continue")
+        );
         assert_eq!(installer::flat_removing(&cursor, "app"), cursor_own);
         assert!(!installer::CURSOR_EVENTS.contains(&"beforeShellExecution"));
 
         let copilot: Value = serde_json::from_slice(&installer::copilot_file(exe, "app")).unwrap();
         assert_eq!(copilot["version"], 1);
         assert!(copilot["hooks"].get("permissionRequest").is_none());
-        assert_eq!(copilot["hooks"]["preToolUse"][0]["exec"], exe.to_string_lossy().as_ref());
+        assert_eq!(
+            copilot["hooks"]["preToolUse"][0]["exec"],
+            exe.to_string_lossy().as_ref()
+        );
 
-        let plugin = String::from_utf8(installer::opencode_file(r"\\.\pipe\vorssaint-x", "app")).unwrap();
+        let plugin =
+            String::from_utf8(installer::opencode_file(r"\\.\pipe\vorssaint-x", "app")).unwrap();
         assert!(plugin.contains(r#"const SOCKET = "\\\\.\\pipe\\vorssaint-x""#));
         assert!(!plugin.contains("__VORSSAINT"));
     }
 
     #[test]
     fn the_plugin_is_the_one_the_mac_installs() {
-        let mac = include_str!("../../../../Sources/Vorssaint/Services/ClaudeSessions/AgentOpenCodePlugin.swift");
+        let mac = include_str!(
+            "../../../../Sources/Vorssaint/Services/ClaudeSessions/AgentOpenCodePlugin.swift"
+        );
         assert!(mac.contains(include_str!("opencode-plugin.js")));
     }
 
@@ -1775,8 +2218,15 @@ mod tests {
         let nested = root.join("repo").join("src");
         std::fs::create_dir_all(&nested).unwrap();
         std::fs::create_dir_all(root.join("repo").join(".git")).unwrap();
-        std::fs::write(root.join("repo").join(".git").join("HEAD"), "ref: refs/heads/feat/x\n").unwrap();
-        assert_eq!(read_branch(&nested.to_string_lossy()).as_deref(), Some("feat/x"));
+        std::fs::write(
+            root.join("repo").join(".git").join("HEAD"),
+            "ref: refs/heads/feat/x\n",
+        )
+        .unwrap();
+        assert_eq!(
+            read_branch(&nested.to_string_lossy()).as_deref(),
+            Some("feat/x")
+        );
         let _ = std::fs::remove_dir_all(&root);
     }
 }

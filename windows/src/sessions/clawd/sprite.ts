@@ -538,7 +538,8 @@ export function hatStamps(hat: ClawdHat, tick: number): Stamp[] {
 
 /** Where the right hand is in each pose, for what it holds. */
 function rightHand(arms: Arms, character: Character = "clawd"): [number, number] {
-  if (character === "codex") {
+  // The thin arms of the robot and the others sit a pixel closer.
+  if (character !== "clawd" && character !== "opencode") {
     switch (arms) {
       case "down":
       case "typeLeft":
@@ -807,7 +808,82 @@ const LEGS: Readonly<Record<Character, readonly (readonly [number, boolean])[]>>
     [8, false],
     [9, false],
   ],
+  gemini: [
+    [3, true],
+    [4, true],
+    [8, false],
+    [9, false],
+  ],
+  copilot: [
+    [3, true],
+    [4, true],
+    [8, false],
+    [9, false],
+  ],
+  opencode: [
+    [0, true],
+    [2, true],
+    [10, false],
+    [12, false],
+  ],
+  cursor: [
+    [4, true],
+    [5, true],
+    [7, false],
+    [8, false],
+  ],
 };
+
+// MARK: The other agents' figures (NotchClawdSprite.swift)
+
+/** Gemini CLI's figure: a round little sprite under a four-pointed star (G). */
+export const GEMINI_BODY = [
+  "...CCCCCCC...",
+  ".CCCCCCCCCCC.",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  ".CCCCCCCCCCC.",
+  "...ccccccc...",
+];
+const GEMINI_STAR = ["..G..", "..G..", "GGGGG", "..G..", "..G.."];
+
+/** Copilot CLI's figure: a pilot's round helmet with goggles (V) its eyes glow in. */
+export const COPILOT_BODY = [
+  "..CCCCCCCCC..",
+  ".CCCCCCCCCCC.",
+  "CCVVVVCVVVVCC",
+  "CCVVVVCVVVVCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  ".CCCCCCCCCCC.",
+  "..ccccccccc..",
+];
+
+/** OpenCode's figure: a square block with a square mouth (V). */
+export const OPENCODE_BODY = [
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCVVVCCCCC",
+  "CCCCCVVVCCCCC",
+  "CCCCCCCCCCCCC",
+  "ccccccccccccc",
+];
+
+/** Cursor's figure: a cube seen from a corner, its right faces in shade. */
+export const CURSOR_BODY = [
+  "....CCCCC....",
+  "..CCCCCCCCC..",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCccccccc",
+  "CCCCCCccccccc",
+  "..CCCCcccc...",
+  "....CCcc.....",
+];
 
 function compose(
   costume: ClawdCostume,
@@ -851,6 +927,17 @@ function compose(
     CODEX_ANTENNA.forEach((stamp) => put(stamp));
     put(s(0, 0, CODEX_BODY));
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "gemini") {
+    // The star rises behind the body, so a hat covers it too.
+    put(s(4, -4, GEMINI_STAR));
+    put(s(0, 0, GEMINI_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "copilot" || character === "cursor") {
+    put(s(0, 0, character === "copilot" ? COPILOT_BODY : CURSOR_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "opencode") {
+    put(s(0, 0, OPENCODE_BODY));
+    ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else {
     put(s(0, 0, BODY_ROWS));
     ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
@@ -929,6 +1016,10 @@ const shaded = (c: Rgb): Rgb => [
 /** Codex's screen and the light its eyes and status lamp give off. */
 const CODEX_SCREEN: Rgb = [16, 22, 28];
 const CODEX_GLOW: Rgb = [124, 240, 204];
+const GEMINI_STAR_LIGHT: Rgb = [186, 214, 255];
+const COPILOT_GOGGLES: Rgb = [30, 26, 58];
+const COPILOT_GLOW: Rgb = [160, 232, 255];
+const CURSOR_EYES: Rgb = [236, 238, 246];
 
 /** sRGB out of 255 for a letter on this costume, or null for one with no color. */
 export function color(letter: string, costume: ClawdCostume, character: Character = "clawd"): Rgb | null {
@@ -937,6 +1028,14 @@ export function color(letter: string, costume: ClawdCostume, character: Characte
     // Eyes glow on the dark screen instead of being dark on the shell.
     if (letter === "E" || letter === "G") return CODEX_GLOW;
   }
+  if (character === "gemini" && letter === "G") return GEMINI_STAR_LIGHT;
+  if (character === "copilot") {
+    if (letter === "V") return COPILOT_GOGGLES;
+    if (letter === "E") return COPILOT_GLOW;
+  }
+  if (character === "opencode" && letter === "V") return CODEX_SCREEN;
+  // Dark eyes would sink into the dark cube.
+  if (character === "cursor" && letter === "E") return CURSOR_EYES;
   const shell = SHELL_RGB[costume.shell];
   const accent = SHELL_RGB[ACCENT[costume.shell]];
   switch (letter) {

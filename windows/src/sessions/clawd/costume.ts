@@ -127,10 +127,23 @@ export const CLASSIC: Readonly<ClawdCostume> = Object.freeze({
  * Codex. The costume catalog and codes are shared; the figure and the shell
  * that comes up most often differ.
  */
-export type Character = "clawd" | "codex";
+export type Character = "clawd" | "codex" | "gemini" | "copilot" | "opencode" | "cursor";
 
-/** The shell each character's lots favour: Claude's clay, and for Codex the iris closest to its violet-blue. */
-export const FAVOURED_SHELL: Readonly<Record<Character, ClawdShell>> = { clawd: "clay", codex: "iris" };
+/** The shell each character's lots favour: Claude's clay, for Codex the iris
+ * closest to its violet-blue, and for the others the shell nearest their color. */
+export const FAVOURED_SHELL: Readonly<Record<Character, ClawdShell>> = {
+  clawd: "clay",
+  codex: "iris",
+  gemini: "sky",
+  copilot: "teal",
+  opencode: "mint",
+  cursor: "midnight",
+};
+
+/** The figure a session of each agent is drawn as: Claude Code's Clawd, the
+ * others their own (NotchClawdSprite.swift). */
+export const characterOf = (provider: string): Character =>
+  provider === "claude" ? "clawd" : Object.hasOwn(FAVOURED_SHELL, provider) ? (provider as Character) : "clawd";
 
 /** How often a lot draws something rather than nothing. */
 export const HAT_CHANCE = 0.7;

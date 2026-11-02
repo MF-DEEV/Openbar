@@ -159,7 +159,8 @@ pub fn run_hook(app: &str) -> ! {
     // Gemini CLI, Copilot CLI and Cursor: their input goes in the island's
     // envelope, naming the agent and the hook (sessions::hook_agents).
     if let Some(agent) = value("--agent") {
-        input = envelope(&agent, value("--event").as_deref().unwrap_or(""), &input).unwrap_or_default();
+        input =
+            envelope(&agent, value("--event").as_deref().unwrap_or(""), &input).unwrap_or_default();
     }
     let answer = ask(app, &input);
     let mut out = io::stdout().lock();

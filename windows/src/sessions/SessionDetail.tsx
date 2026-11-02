@@ -5,6 +5,7 @@
 // it is and what it does, what it asks, its recent tools, subagents and
 // last reply, and a field that types a reply into its terminal.
 
+import { characterOf } from "./clawd/costume";
 import { useLocale, t, tf } from "../i18n";
 
 import {
@@ -129,7 +130,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
   const wardrobe = useSessions((s) => s.wardrobe);
   const buddies = useSessions((s) => s.prefs.buddies);
   const kept = useSessions((s) => s.costumes[session.id]);
-  const character = session.provider === "codex" ? "codex" : "clawd";
+  const character = characterOf(session.provider);
 
   // Escape closes the wardrobe before it reaches the island.
   useEffect(() => {
@@ -626,7 +627,10 @@ function unavailable(session: Session): string | null {
   if (isWaiting(session.phase)) return S.replyWhileWaiting;
   if (session.waitingFor) return S.replyWhileDialog;
   if (session.background?.ended) return S.replyEnded;
-  if (!session.acceptsReplies) return session.hostName ? S.replyUnavailableIn(session.hostName) : S.replyUnavailable;
+  if (!session.acceptsReplies) {
+    if (session.provider === "cursor") return S.replyIn(session.provider);
+    return session.hostName ? S.replyUnavailableIn(session.hostName) : S.replyUnavailable;
+  }
   return null;
 }
 
@@ -741,11 +745,11 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
           <textarea
             className="s-reply-field s-composer"
             title={S.pasteImages}
-            aria-label={session.provider === "codex" ? S.replyPlaceholderCodex : S.replyPlaceholder}
+            aria-label={S.replyPlaceholderFor(session.provider)}
             value={draft}
             disabled={!!reason || sending}
             maxLength={4000}
-            placeholder={reason ?? (session.provider === "codex" ? S.replyPlaceholderCodex : S.replyPlaceholder)}
+            placeholder={reason ?? S.replyPlaceholderFor(session.provider)}
             onChange={(e) => {
               setFailure(null);
               useSessions.getState().setDraft(session.id, e.target.value);
@@ -761,11 +765,11 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
           <input
             className="s-reply-field"
             title={S.pasteImages}
-            aria-label={session.provider === "codex" ? S.replyPlaceholderCodex : S.replyPlaceholder}
+            aria-label={S.replyPlaceholderFor(session.provider)}
             value={draft}
             disabled={!!reason || sending}
             maxLength={4000}
-            placeholder={reason ?? (session.provider === "codex" ? S.replyPlaceholderCodex : S.replyPlaceholder)}
+            placeholder={reason ?? S.replyPlaceholderFor(session.provider)}
             onChange={(e) => {
               setFailure(null);
               useSessions.getState().setDraft(session.id, e.target.value);

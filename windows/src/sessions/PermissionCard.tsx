@@ -7,6 +7,7 @@
 // cannot read. Every new request keeps its buttons off for 0.8 s so a click
 // meant for the previous one cannot answer it.
 
+import { PROVIDER_NAMES } from "./types";
 import { useLocale, t } from "../i18n";
 
 import { ArrowUp, BadgeCheck, Check, CheckSquare, Circle, CircleDot, FastForward, Square, X } from "lucide-react";
@@ -44,9 +45,9 @@ export function PermissionCard({ session, onOpen }: { session: Session; onOpen: 
   const Icon = phaseIcon(session.phase, session.provider);
   const asks = !!p && p.questions.length > 0;
   const title = asks
-    ? session.provider === "codex"
-      ? S.codexQuestion
-      : S.question
+    ? session.provider === "claude"
+      ? S.question
+      : S.codexQuestion.replace("Codex", PROVIDER_NAMES[session.provider])
     : p?.tool === PLAN_TOOL
       ? S.plan
       : // "terminal": Codex waits on a request the island can't answer (an MCP form); the card says so.
@@ -69,7 +70,7 @@ export function PermissionCard({ session, onOpen }: { session: Session; onOpen: 
       </div>
       {!p ? (
         <div className="s-card-terminal">
-          <span>{S.answerInTerminal}</span>
+          <span>{S.answerIn(session.provider)}</span>
           <button type="button" className="s-button is-secondary" onClick={onOpen}>
             {S.open}
           </button>
@@ -234,13 +235,7 @@ function QuestionForm({ session }: { session: Session }) {
               className="s-own"
               value={own[qi] ?? ""}
               disabled={disabled}
-              placeholder={
-                q.options.length
-                  ? S.ownAnswer
-                  : session.provider === "codex"
-                    ? S.replyPlaceholderCodex
-                    : S.replyPlaceholder
-              }
+              placeholder={q.options.length ? S.ownAnswer : S.replyPlaceholderFor(session.provider)}
               maxLength={OWN_ANSWER_LIMIT}
               onChange={(e) => {
                 const text = e.target.value;

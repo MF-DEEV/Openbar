@@ -465,7 +465,8 @@ impl Service {
     fn on_agent(&self, connection: HookConnection) {
         let t = now();
         let mut inner = self.inner.lock().unwrap();
-        let Some(decoded) = hook_agents::decode(&connection.payload, t, inner.engine.policy()) else {
+        let Some(decoded) = hook_agents::decode(&connection.payload, t, inner.engine.policy())
+        else {
             return;
         };
         let Some(provider) = decoded.provider else {
@@ -510,7 +511,9 @@ impl Service {
                 let settled: Vec<String> = inner
                     .agent_pending
                     .iter()
-                    .filter(|(key, p)| p.session == id && request.as_ref().is_none_or(|r| r == *key))
+                    .filter(|(key, p)| {
+                        p.session == id && request.as_ref().is_none_or(|r| r == *key)
+                    })
                     .map(|(key, _)| key.clone())
                     .collect();
                 for key in settled {
@@ -570,15 +573,19 @@ impl Service {
             } = &mut *inner;
             let policy = engine.policy();
             for entry_pid in hook_agents.pids() {
-                if entry_pid > 0 && !located.contains_key(&entry_pid) {
-                    if let Some(found) = hosts::locate(entry_pid as u32) {
-                        located.insert(entry_pid, found);
-                    }
+                if entry_pid > 0
+                    && !located.contains_key(&entry_pid)
+                    && let Some(found) = hosts::locate(entry_pid as u32)
+                {
+                    located.insert(entry_pid, found);
                 }
             }
             let located = &*located;
             let branch = |folder: &str| -> Option<String> {
-                let fresh = branches.get(folder).filter(|(_, at)| t - at < 10.0).map(|(b, _)| b.clone());
+                let fresh = branches
+                    .get(folder)
+                    .filter(|(_, at)| t - at < 10.0)
+                    .map(|(b, _)| b.clone());
                 fresh.unwrap_or_else(|| hook_agents::read_branch(folder))
             };
             let (sessions, events) = hook_agents.snapshot(
@@ -586,12 +593,17 @@ impl Service {
                 policy,
                 |entry| {
                     let host = located.get(&entry.pid);
-                    let kind = host.map(|l| host_kind(&l.host)).unwrap_or(HostKind::Unknown);
+                    let kind = host
+                        .map(|l| host_kind(&l.host))
+                        .unwrap_or(HostKind::Unknown);
                     // OpenCode takes replies through its plugin; Cursor's app keeps its own chat.
                     let accepts = match entry.provider {
                         models::Provider::Opencode => true,
                         models::Provider::Cursor => {
-                            matches!(kind, HostKind::WindowsTerminal | HostKind::Conhost | HostKind::Wezterm)
+                            matches!(
+                                kind,
+                                HostKind::WindowsTerminal | HostKind::Conhost | HostKind::Wezterm
+                            )
                         }
                         _ => host.is_some_and(|l| l.host.accepts_replies()),
                     };
@@ -606,9 +618,11 @@ impl Service {
             for session in &sessions {
                 branches.insert(session.cwd.clone(), (session.branch.clone(), t));
             }
-            snapshot
-                .sessions
-                .extend(sessions.into_iter().filter(|s| !hidden_agents.contains(&s.provider)));
+            snapshot.sessions.extend(
+                sessions
+                    .into_iter()
+                    .filter(|s| !hidden_agents.contains(&s.provider)),
+            );
             snapshot.events.extend(events);
         }
         let sessions = models::sorted(self.with_background(inner, snapshot.sessions, t));
@@ -819,7 +833,11 @@ impl Service {
                 let Some(reply) = hook_agents::opencode_reply(&decision) else {
                     return false;
                 };
-                let Some(pending) = inner.agent_pending.remove(request).filter(|p| p.session == session) else {
+                let Some(pending) = inner
+                    .agent_pending
+                    .remove(request)
+                    .filter(|p| p.session == session)
+                else {
                     return false;
                 };
                 let sent = pending.connection.reply(&reply).is_ok();
@@ -989,11 +1007,13 @@ impl Service {
         let entry = inner.hook_agents.entry(session)?.clone();
         let current = inner.sessions.iter().find(|s| s.id == session)?.clone();
         if !models::can_reply(&current) {
-            return Some(Some(if current.phase.is_waiting() || current.waiting_for.is_some() {
-                "waiting"
-            } else {
-                "unreachable"
-            }));
+            return Some(Some(
+                if current.phase.is_waiting() || current.waiting_for.is_some() {
+                    "waiting"
+                } else {
+                    "unreachable"
+                },
+            ));
         }
         if entry.provider == models::Provider::Opencode {
             let Some(listener) = inner.listeners.remove(&entry.pid) else {
@@ -1283,7 +1303,8 @@ pub fn sessions_agent_hooks_status() -> Vec<AgentHooksStatus> {
     models::Provider::HOOK_AGENTS
         .iter()
         .map(|&provider| {
-            let state = hook_agents::installer::state(provider, &home, &exe, &endpoint, hooks::APP_ID);
+            let state =
+                hook_agents::installer::state(provider, &home, &exe, &endpoint, hooks::APP_ID);
             AgentHooksStatus {
                 agent: provider.key(),
                 state,

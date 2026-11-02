@@ -623,5 +623,19 @@
   "notchClaudeSessions.limited": "上限に到達",
   "notchClaudeSessions.resumesFormat": "%@に再開",
   "notchClaudeSessions.limitsSetting": "プランの上限を表示",
-  "windows.settings.sessions.limitsCaption": "Claude や Codex の上限が近づくとストリップに表示し、上限で止まったセッションがいつ再開するかを示します。AI Agents がオフでも、このためにアイランドは上限を読み続けます。"
+  "windows.settings.sessions.limitsCaption": "Claude や Codex の上限が近づくとストリップに表示し、上限で止まったセッションがいつ再開するかを示します。AI Agents がオフでも、このためにアイランドは上限を読み続けます。",
+  "windows.sessions.answerInAgent": "これは %@ で回答してください。",
+  "windows.sessions.replyInAgent": "%@ で返信",
+  "windows.sessions.replyToAgent": "%@ に返信…",
+  "windows.settings.sessions.moreAgents": "その他のエージェント",
+  "windows.settings.sessions.moreAgentsCaption": "各エージェントは、フックまたはプラグインを入れるとセッションに表示されます。インストールを押すまで何も追加されず、削除はアイランドが追加したものだけを取り除きます。",
+  "windows.settings.sessions.agentUnreadable": "設定を読み取れませんでした",
+  "windows.settings.sessions.installPlugin": "プラグインをインストール",
+  "windows.settings.sessions.removePlugin": "プラグインを削除",
+  "windows.settings.sessions.updatePlugin": "プラグインを更新",
+  "windows.settings.sessions.showAgent": "%@ をセッションに表示",
+  "windows.settings.sessions.agentHintGemini": "フックはバックアップを取ったうえで、あなたのフックと並べて .gemini\\settings.json に追加されます。Gemini CLI の許可の確認はそのターミナルで応答し、返信もそこに入力されます。",
+  "windows.settings.sessions.agentHintCopilot": "アイランド専用のフックファイルが .copilot\\hooks に追加されます。Copilot CLI の許可の確認はそのターミナルで応答し、返信もそこに入力されます。",
+  "windows.settings.sessions.agentHintOpencode": "アイランド専用のプラグインが .config\\opencode\\plugins に追加されます。OpenCode のリクエストの許可・拒否や返信をアイランドから行えます。",
+  "windows.settings.sessions.agentHintCursor": "フックはバックアップを取ったうえで、あなたのフックと並べて .cursor\\hooks.json に追加されます（Cursor のエージェントと cursor-agent 用）。承認は Cursor に残り、「開く」で移動できます。"
 }

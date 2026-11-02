@@ -137,12 +137,121 @@ export function CodexMark({ size = 14, style, className, working }: MarkProps) {
   );
 }
 
+const markClass = (working?: boolean, className?: string) =>
+  `agent-mark${working ? " is-working" : ""}${className ? ` ${className}` : ""}`;
+
+/** Gemini CLI's four-pointed star, its sides curving in, blue to violet to rose
+ * (NotchHookAgentMarks.swift). */
+export function GeminiMark({ size = 14, style, className, working }: MarkProps) {
+  useLocale();
+  const id = useId();
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={style}
+      className={markClass(working, className)}
+      aria-hidden
+    >
+      <defs>
+        <linearGradient id={id} gradientUnits="userSpaceOnUse" x1="2" y1="22" x2="22" y2="2">
+          <stop stopColor="#4D9EFF" />
+          <stop offset=".5" stopColor="#9E80F5" />
+          <stop offset="1" stopColor="#DB7A9E" />
+        </linearGradient>
+      </defs>
+      <path d="M12 2Q12 12 22 12Q12 12 12 22Q12 12 2 12Q12 12 12 2Z" fill={`url(#${id})`} />
+    </svg>
+  );
+}
+
+/** Copilot's goggled face: a round helmet with two goggles cut out. */
+export function CopilotMark({ size = 14, style, className, working }: MarkProps) {
+  useLocale();
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={{ color: COPILOT_MARK, ...style }}
+      className={markClass(working, className)}
+      aria-hidden
+    >
+      <path
+        fillRule="evenodd"
+        fill="currentColor"
+        d="M8.5 4.5h7a6.5 6.5 0 016.5 6.5v2a6.5 6.5 0 01-6.5 6.5h-7A6.5 6.5 0 012 13v-2a6.5 6.5 0 016.5-6.5zM7.4 8.6a2.4 2.4 0 00-2.4 2.4v1.4a2.4 2.4 0 004.8 0V11a2.4 2.4 0 00-2.4-2.4zm9.2 0a2.4 2.4 0 00-2.4 2.4v1.4a2.4 2.4 0 004.8 0V11a2.4 2.4 0 00-2.4-2.4z"
+      />
+    </svg>
+  );
+}
+
+/** OpenCode's hollow block. */
+export function OpencodeMark({ size = 14, style, className, working }: MarkProps) {
+  useLocale();
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={{ color: OPENCODE_MARK, ...style }}
+      className={markClass(working, className)}
+      aria-hidden
+    >
+      <path fillRule="evenodd" fill="currentColor" d="M4 2h16v20H4zM8.6 6.4v11.2h6.8V6.4z" />
+    </svg>
+  );
+}
+
+/** Cursor's cube seen from a corner, its lit faces on the left. */
+export function CursorMark({ size = 14, style, className, working }: MarkProps) {
+  useLocale();
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={{ color: CURSOR_MARK, ...style }}
+      className={markClass(working, className)}
+      aria-hidden
+    >
+      <path fill="currentColor" opacity=".55" d="M12 2l8.66 5v10L12 22l-8.66-5V7z" />
+      <path fill="currentColor" d="M12 2v20l-8.66-5V7z" />
+    </svg>
+  );
+}
+
+const COPILOT_MARK = "#4DC7AD";
+const OPENCODE_MARK = "#0FBA82";
+const CURSOR_MARK = "#CCD1E6";
+
 /** How much larger than a symbol each mark draws to look the same size: the
  * spark's thin rays need more of the box than the cloud (AgentProvider.markScale). */
-export const MARK_SCALE = { claude: 1.45, codex: 1.2 } as const;
+export const MARK_SCALE: Readonly<Record<Provider, number>> = {
+  claude: 1.45,
+  codex: 1.2,
+  gemini: 1.15,
+  copilot: 1.15,
+  opencode: 1.15,
+  cursor: 1.15,
+};
+
+const MARKS: Readonly<Record<Provider, (props: MarkProps) => ReturnType<typeof ClaudeMark>>> = {
+  claude: ClaudeMark,
+  codex: CodexMark,
+  gemini: GeminiMark,
+  copilot: CopilotMark,
+  opencode: OpencodeMark,
+  cursor: CursorMark,
+};
+
+/** The mark of an agent, to draw as a component. */
+export const markOf = (provider: Provider) => MARKS[provider] ?? ClaudeMark;
 
 /** The mark of whoever runs a session. */
 export function ProviderMark({ provider, ...props }: MarkProps & { provider: Provider }) {
   useLocale();
-  return provider === "codex" ? <CodexMark {...props} /> : <ClaudeMark {...props} />;
+  const Mark = markOf(provider);
+  return <Mark {...props} />;
 }
