@@ -92,9 +92,9 @@ struct NotchClaudeSessionsSettingsControls: View {
         }
     }
 
-    /// Gemini CLI, Copilot CLI, OpenCode and Cursor: each shown or hidden
-    /// in the list by its own switch, with its hooks or plugin put in or
-    /// taken out by its own button.
+    /// Gemini CLI, Copilot CLI, OpenCode and Cursor: each found on this Mac
+    /// gets its hooks or plugin by itself, and its switch shows it in the
+    /// list or takes its hooks out.
     private var agents: some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingsRow(symbol: "square.stack.3d.up", title: text.agentsTitle) {
@@ -195,8 +195,7 @@ struct NotchClaudeSessionsSettingsControls: View {
 }
 
 /// One agent's row: its mark and name, whether its hooks or plugin are in,
-/// the button that puts them in or takes them out, and the switch that shows
-/// its sessions.
+/// and the switch that shows its sessions and keeps its hooks in.
 struct NotchSessionsAgentSettingsRow: View {
     let provider: ClaudeSessionProvider
     let text: NotchClaudeSessionStrings
@@ -227,26 +226,19 @@ struct NotchSessionsAgentSettingsRow: View {
                     .onChange(of: shown) { _, _ in service.syncWithPreferences() }
             }
             HStack(spacing: 6) {
-                if let caption = text.agentHookState(status?.state, present: status?.present ?? false) {
-                    Text(caption).font(.caption).foregroundStyle(.secondary)
+                if let status {
+                    Text(text.agentAutoState(status.state, present: status.present, shown: shown))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 } else {
                     ProgressView().controlSize(.mini)
                 }
                 Spacer(minLength: 6)
-                if let status, status.state != .unreadable {
-                    // An update first; Remove comes back once it is current.
-                    if status.state == .installed {
-                        Button(text.removeAgent(provider)) { service.installAgentHooks(provider, false) }
-                            .controlSize(.small)
-                            .fixedSize()
-                    }
-                    if status.state != .installed {
-                        Button(status.state == .outdated ? text.updateAgentHooks : text.installAgent(provider)) {
-                            service.installAgentHooks(provider, true)
-                        }
+                // Hooks come and go by themselves; only a change that failed asks for a hand.
+                if service.agentHookFailures[provider] != nil, let status, status.state != .unreadable {
+                    Button(text.tryAgain) { service.installAgentHooks(provider, shown) }
                         .controlSize(.small)
                         .fixedSize()
-                    }
                 }
             }
             .padding(.leading, 26)

@@ -77,25 +77,40 @@ enum AgentHookInstaller {
         }
     }
 
-    /// Whether the agent seems installed: its folder, or its command on the
-    /// usual paths.
-    static func isPresent(_ provider: ClaudeSessionProvider, home: URL) -> Bool {
-        if let folder = agentFolder(provider, home: home), FileManager.default.fileExists(atPath: folder.path) { return true }
-        let commands: [String]
+    /// Whether the agent is installed: its command on the login shell's
+    /// `PATH` or where its installers put it, or, for Cursor and OpenCode,
+    /// their app. A folder like `~/.gemini` or `~/.copilot` is not enough:
+    /// other apps (Antigravity, VS Code) make those too.
+    static func isPresent(_ provider: ClaudeSessionProvider, home: URL, path: String?,
+                          isExecutable: (String) -> Bool = FileManager.default.isExecutableFile(atPath:),
+                          exists: (String) -> Bool = FileManager.default.fileExists(atPath:)) -> Bool {
+        if AgentCLI.locate(provider, path: path, home: home, isExecutable: isExecutable) != nil { return true }
+        let apps: [String]
         switch provider {
-        case .gemini: commands = ["gemini"]
-        case .copilot: commands = ["copilot"]
-        case .opencode: commands = ["opencode"]
-        case .cursor: commands = ["cursor-agent", "cursor"]
-        case .claude, .codex: return false
+        case .cursor: apps = ["Cursor.app"]
+        case .opencode: apps = ["OpenCode.app"]
+        default: apps = []
         }
-        let folders = ["/opt/homebrew/bin", "/usr/local/bin", home.appending(path: ".local/bin").path,
-                       home.appending(path: ".opencode/bin").path, home.appending(path: ".bun/bin").path,
-                       home.appending(path: ".npm-global/bin").path]
-        if commands.contains(where: { command in folders.contains { FileManager.default.isExecutableFile(atPath: "\($0)/\(command)") } }) {
-            return true
+        return apps.contains { app in ["/Applications", home.appending(path: "Applications").path].contains { exists("\($0)/\(app)") } }
+    }
+
+    /// What keeping the hooks in step asks: each found agent whose switch is
+    /// on gets its hooks or plugin, or an update of them; an agent whose
+    /// switch is off has the island's taken out. An agent not found is left
+    /// alone, and a file that could not be read is never touched.
+    static func plan(found: Set<ClaudeSessionProvider>, shown: Set<ClaudeSessionProvider>,
+                     states: [ClaudeSessionProvider: State]) -> (install: [ClaudeSessionProvider], remove: [ClaudeSessionProvider]) {
+        var install: [ClaudeSessionProvider] = []
+        var remove: [ClaudeSessionProvider] = []
+        for provider in ClaudeSessionProvider.hookAgents {
+            let state = states[provider] ?? .missing
+            if shown.contains(provider) {
+                if found.contains(provider), state == .missing || state == .outdated { install.append(provider) }
+            } else if state == .installed || state == .outdated {
+                remove.append(provider)
+            }
         }
-        return provider == .cursor && FileManager.default.fileExists(atPath: "/Applications/Cursor.app")
+        return (install, remove)
     }
 
     // MARK: Commands
