@@ -153,7 +153,7 @@ Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers 
 
 ## License
 
-[GPL 3.0 or later](LICENSE). Openbar is built on [Vorssaint](https://github.com/vorssaint/vorssaint-utils), copyright 2026 Vorssaint; the changes in this repository are copyright 2026 MF DEV under the same license. Openbar is not affiliated with Vorssaint; see [TRADEMARKS.md](TRADEMARKS.md).
+[GPL 3.0 or later](LICENSE). Openbar is built on [Vorssaint](https://github.com/vorssaint/vorssaint-utils), copyright 2026 Vorssaint; the changes in this repository are copyright 2026 MF DEV, Adrian (@atekuu) and the Openbar contributors, under the same license. Openbar is not affiliated with Vorssaint; see [TRADEMARKS.md](TRADEMARKS.md).
 
 <br>
 
@@ -163,5 +163,5 @@ Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers 
     <img src="docs/assets/readme/logo.svg" width="26" alt="">
   </picture>
   <br>
-  <sub>Made by <a href="https://github.com/MF-DEEV">MF DEV</a></sub>
+  <sub>Made by <a href="https://github.com/MF-DEEV">MF DEV</a> and <a href="https://github.com/atekuu">Adrian</a></sub>
 </p>
