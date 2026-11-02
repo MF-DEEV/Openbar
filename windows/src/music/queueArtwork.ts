@@ -34,18 +34,6 @@ const recordingTitle = (text: string, artist: string) =>
     }),
   );
 
-// A recording can also appear on a Various Artists compilation. Its title and
-// track artist still match, but its cover belongs to a different release.
-function isCompilation(artist: unknown, declared: unknown, recordType: unknown) {
-  if (declared === true || recordType === "compilation") return true;
-  return (
-    typeof artist === "string" &&
-    /^(?:various artists?|various|v a|multiple artists|verschiedene interpreten|divers artistes|varios artistas|artisti vari)$/.test(
-      normalize(artist),
-    )
-  );
-}
-
 export function selectArtwork(item: QueueItem, results: unknown): QueueArtwork | null {
   if (!Array.isArray(results)) return null;
   const artist = normalize(item.artist.split(",")[0]);
@@ -58,11 +46,6 @@ export function selectArtwork(item: QueueItem, results: unknown): QueueArtwork |
       typeof row.artistName !== "string" ||
       recordingTitle(row.trackName, item.artist) !== recordingTitle(item.title, item.artist) ||
       normalize(row.artistName.split(",")[0]) !== artist ||
-      isCompilation(row.collectionArtistName, row.isCompilation, row.collectionType) ||
-      (typeof row.collectionArtistId === "number" &&
-        typeof row.artistId === "number" &&
-        row.collectionArtistId !== row.artistId &&
-        typeof row.collectionArtistName !== "string") ||
       typeof row.artworkUrl100 !== "string" ||
       typeof row.trackViewUrl !== "string"
     )
@@ -95,7 +78,6 @@ export function selectSecondaryArtwork(item: QueueItem, metadata: unknown): Queu
       typeof row.artist?.name !== "string" ||
       recordingTitle(row.title, item.artist) !== recordingTitle(item.title, item.artist) ||
       normalize(row.artist.name) !== artist ||
-      isCompilation(row.album?.artist?.name, row.album?.isCompilation, row.album?.record_type) ||
       typeof row.album?.cover_medium !== "string"
     )
       continue;
@@ -162,39 +144,6 @@ export function createArtworkLoader(fetcher: typeof fetch = fetch, secondary?: (
   };
 }
 
-export async function verifySecondaryRelease(
-  item: QueueItem,
-  metadata: unknown,
-  album: (id: number) => Promise<unknown>,
-): Promise<unknown> {
-  if (!metadata || typeof metadata !== "object" || !("data" in metadata) || !Array.isArray(metadata.data))
-    return { data: [] };
-  for (const row of metadata.data.slice(0, 12)) {
-    if (!selectSecondaryArtwork(item, { data: [row] })) continue;
-    const id = row.album?.id;
-    if (!Number.isSafeInteger(id) || id <= 0) continue;
-    try {
-      const raw = await album(id);
-      if (!raw || typeof raw !== "object") continue;
-      const release = raw as Record<string, unknown>;
-      if (
-        release.id !== id ||
-        !["album", "single", "ep"].includes(String(release.record_type)) ||
-        !release.artist ||
-        typeof release.artist !== "object" ||
-        !("name" in release.artist) ||
-        typeof release.artist.name !== "string"
-      )
-        continue;
-      const candidate = { ...row, album: { ...row.album, ...release } };
-      if (selectSecondaryArtwork(item, { data: [candidate] })) return { data: [candidate] };
-    } catch {
-      /* Try another verified release; never guess after a failed lookup. */
-    }
-  }
-  return { data: [] };
-}
-
 // Keep decoded images alive, including the five lookahead covers. Several songs
 // on the same album share a single download and decode job.
 const preparedImages = new Map<string, Promise<HTMLImageElement>>();
@@ -241,19 +190,8 @@ export function createArtworkStore(
   }));
 }
 
-const albums = new Map<number, Promise<unknown>>();
 const load = createArtworkLoader(fetch, async (item) => {
   const { bridge } = await import("../shared/bridge");
-  const metadata = await bridge.music.queueArtwork(item.title, item.artist.split(",")[0]);
-  return verifySecondaryRelease(item, metadata, (id) => {
-    let pending = albums.get(id);
-    if (!pending) {
-      pending = bridge.music.queueAlbum(id);
-      albums.set(id, pending);
-      if (albums.size > 200) albums.delete(albums.keys().next().value!);
-      void pending.catch(() => albums.delete(id));
-    }
-    return pending;
-  });
+  return bridge.music.queueArtwork(item.title, item.artist.split(",")[0]);
 });
 export const useQueueArtwork = createArtworkStore(load, prepareArtwork);

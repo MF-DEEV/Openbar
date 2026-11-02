@@ -19,34 +19,8 @@ pub async fn music_queue_artwork(
         .ok_or_else(|| "Cover metadata unavailable".into())
 }
 
-#[tauri::command]
-pub async fn music_queue_album(album_id: u64) -> Result<serde_json::Value, String> {
-    if album_id == 0 {
-        return Err("Invalid release".into());
-    }
-    tauri::async_runtime::spawn_blocking(move || get(&format!("/album/{album_id}")))
-        .await
-        .map_err(|error| error.to_string())?
-        .ok_or_else(|| "Release metadata unavailable".into())
-}
-
-fn search(title: &str, artist: &str) -> Option<serde_json::Value> {
-    let term: String = format!("{} {}", title, artist).chars().take(500).collect();
-    let encoded: String = term
-        .bytes()
-        .map(|byte| {
-            if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
-                (byte as char).to_string()
-            } else {
-                format!("%{byte:02X}")
-            }
-        })
-        .collect();
-    get(&format!("/search?q={encoded}&limit=12"))
-}
-
 #[cfg(windows)]
-fn get(path: &str) -> Option<serde_json::Value> {
+fn search(title: &str, artist: &str) -> Option<serde_json::Value> {
     use windows::Win32::Networking::WinHttp::*;
     use windows::core::{HSTRING, PCWSTR};
     struct Handle(*mut core::ffi::c_void);
@@ -59,7 +33,18 @@ fn get(path: &str) -> Option<serde_json::Value> {
             }
         }
     }
-    let path = HSTRING::from(path);
+    let term: String = format!("{} {}", title, artist).chars().take(500).collect();
+    let encoded: String = term
+        .bytes()
+        .map(|byte| {
+            if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
+                (byte as char).to_string()
+            } else {
+                format!("%{byte:02X}")
+            }
+        })
+        .collect();
+    let path = HSTRING::from(format!("/search?q={encoded}&limit=12"));
     unsafe {
         let session = Handle(WinHttpOpen(
             &HSTRING::from(concat!("Vorssaint/", env!("CARGO_PKG_VERSION"))),
@@ -145,6 +130,6 @@ fn get(path: &str) -> Option<serde_json::Value> {
 }
 
 #[cfg(not(windows))]
-fn get(_path: &str) -> Option<serde_json::Value> {
+fn search(_title: &str, _artist: &str) -> Option<serde_json::Value> {
     None
 }
