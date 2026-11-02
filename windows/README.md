@@ -1,15 +1,23 @@
-<h1 align="center">Vorssaint for Windows</h1>
+<p align="center">
+  <img src="../docs/assets/brand/openbar-hero.gif" width="100%" alt="Openbar, written in violet glass beside a helmet logo">
+</p>
+
+<h3 align="center">Openbar for Windows</h3>
 
 <p align="center">
-  The Dynamic Island from Vorssaint for Mac, at the top of a Windows 11 screen.<br>
-  Your music, your notifications and every Claude Code and Codex session, one click away.
+  The Dynamic Island at the top of a Windows 11 screen.<br>
+  Your music, your notifications and every coding agent session, one click away.
 </p>
 
 <p align="center">
-  <a href="https://github.com/MF-DEEV/vorssaint-utils/releases?q=windows&expanded=true"><b>Download</b></a> ·
-  <a href="#install">Install</a> ·
-  <a href="#what-it-does">What it does</a> ·
-  <a href="#private-by-default">Privacy</a> ·
+  <a href="https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true"><b>Download</b></a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="#install">Install</a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="#what-it-does">What it does</a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="#private-by-default">Privacy</a>
+  &nbsp;&nbsp;&nbsp;
   <a href="#build-it-yourself">Build it yourself</a>
 </p>
 
@@ -19,11 +27,12 @@
 
 <p align="center"><sub>The Sessions page, shown with demo sessions.</sub></p>
 
-This is a port of the Dynamic Island from the unofficial [Vorssaint](https://github.com/vorssaint/vorssaint-utils) fork in this repository. It is not affiliated with or endorsed by the Vorssaint maintainer. It is a beta: the sections listed under [Not yet](#not-yet) show a placeholder for now.
+> [!NOTE]
+> This is a beta. The sections listed under [Not yet](#not-yet) show a placeholder for now. The installer and the app are still named Vorssaint, after the project Openbar is built on; Openbar is not affiliated with or endorsed by the Vorssaint maintainer.
 
 ## Install
 
-1. Download the installer for your PC from the [latest Windows release](https://github.com/MF-DEEV/vorssaint-utils/releases?q=windows&expanded=true):
+1. Download the installer for your PC from the [latest Windows release](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true):
    - `Vorssaint_<version>_x64-setup.exe` for most PCs (Intel and AMD).
    - `Vorssaint_<version>_arm64-setup.exe` for PCs with a Snapdragon or other ARM processor.
 2. Run it. The installer isn't signed yet, so Windows may say **Windows protected your PC**. Choose **More info**, then **Run anyway**.
