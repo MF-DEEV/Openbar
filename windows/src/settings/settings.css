@@ -1475,3 +1475,15 @@ select {
     transition: none;
   }
 }
+
+/* An agent's mark on a dark tile, as in the island, so the light marks
+ * (Cursor's silver, Copilot's teal) read on the light settings too. */
+.st-agent-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  border-radius: 6px;
+  background: #121212;
+}
