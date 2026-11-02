@@ -168,6 +168,9 @@ export const bridge = {
       call<import("../sessions/types").NewSessionModels>("sessions_new_models", { configHome: configHome ?? null }),
   },
   music: {
+    queueArtwork: (title: string, artist: string) => call<unknown>("music_queue_artwork", { title, artist }),
+    queue: (source: string, title: string, open: boolean) =>
+      call<import("../music/queueStore").QueueSnapshot>("music_queue", { source, title, open }),
     selectSource: (source: string | null) => call<void>("music_select_source", { source }),
     players: () => call<import("../music/types").Source[]>("music_players"),
     watchLevels: (on: boolean) => call<void>("music_watch_levels", { on }),
