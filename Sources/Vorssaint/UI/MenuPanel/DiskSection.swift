@@ -33,10 +33,14 @@ struct DiskSection: View {
                         .font(.system(size: 10.5))
                         .foregroundStyle(.tertiary)
                 } else {
-                    diskSelector
+                    if disks.count > 1 {
+                        diskSelector
+                    }
                     if let selected = selectedDisk {
-                        ForEach(blocks(editing: editing), id: \.self) { block in
-                            Divider()
+                        ForEach(Array(blocks(editing: editing, disk: selected).enumerated()), id: \.element) { index, block in
+                            if index > 0 || disks.count > 1 {
+                                Divider()
+                            }
                             PanelReorderableItem(item: block,
                                                  isEnabled: editing,
                                                  order: blockOrderBinding,
@@ -103,8 +107,14 @@ struct DiskSection: View {
         }
     }
 
-    private func blocks(editing: Bool) -> [Block] {
-        editing ? orderedBlocks : orderedBlocks.filter(isVisible)
+    private func blocks(editing: Bool, disk: DiskDeviceReading) -> [Block] {
+        guard !editing else { return orderedBlocks }
+        return orderedBlocks.filter { block in
+            guard isVisible(block) else { return false }
+            // Eject buttons that can never do anything only take room.
+            if block == .protection { return disk.canEject || !ejectableDisks.isEmpty }
+            return true
+        }
     }
 
     private func isVisible(_ block: Block) -> Bool {
@@ -140,17 +150,12 @@ struct DiskSection: View {
 
     @ViewBuilder
     private var diskSelector: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(l10n.s.diskSelect)
-                .font(.system(size: 10, weight: .medium))
-                .foregroundStyle(.tertiary)
-            LazyVGrid(columns: diskSelectorColumns, alignment: .leading, spacing: 6) {
-                ForEach(disks) { disk in
-                    diskSelectorButton(for: disk)
-                }
+        LazyVGrid(columns: diskSelectorColumns, alignment: .leading, spacing: 6) {
+            ForEach(disks) { disk in
+                diskSelectorButton(for: disk)
             }
-            .padding(.vertical, 1)
         }
+        .accessibilityLabel(l10n.s.diskSelect)
     }
 
     private var diskSelectorColumns: [GridItem] {
@@ -179,7 +184,7 @@ struct DiskSection: View {
                 }
                 .padding(.leading, 8)
                 .padding(.trailing, disk.canEject ? 2 : 8)
-                .padding(.vertical, 6)
+                .padding(.vertical, 5)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .contentShape(Rectangle())
             }
@@ -210,32 +215,54 @@ struct DiskSection: View {
                                systemImage: "internaldrive",
                                isVisible: $diskUsage)
         } else {
-            VStack(alignment: .leading, spacing: 8) {
-                blockHeader(l10n.s.monitorItemDiskUsage, editing: editing, visible: $diskUsage)
-                VStack(alignment: .leading, spacing: 5) {
-                    diskTitleRow(disk)
-                    DiskUsageBar(fraction: disk.usedFraction)
-                    HStack(spacing: 6) {
-                        Text("\(MetricFormat.percent(disk.usedFraction)) \(l10n.s.diskUsed)")
-                        Spacer()
-                        Text("\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskAvailable)")
+            VStack(alignment: .leading, spacing: 6) {
+                if editing {
+                    blockHeader(l10n.s.monitorItemDiskUsage, editing: editing, visible: $diskUsage)
+                }
+                diskTitleRow(disk, trailing: MetricFormat.percent(disk.usedFraction))
+                DiskUsageBar(fraction: disk.usedFraction)
+                usageFigures(disk)
+            }
+        }
+    }
+
+    private func usageFigures(_ disk: DiskDeviceReading) -> some View {
+        let used = Text("\(MetricFormat.diskBytes(disk.usedBytes)) / \(MetricFormat.diskBytes(disk.totalBytes))")
+        let available = Text("\(MetricFormat.diskBytes(disk.freeBytes)) \(l10n.s.diskAvailable)")
+        let purgeable = disk.purgeableBytes.flatMap { $0 >= 500_000_000 ? $0 : nil }.map {
+            Text("\(MetricFormat.diskBytes($0)) \(l10n.s.diskPurgeable)").foregroundStyle(.tertiary)
+        }
+        // One line when it fits, the purgeable figure drops to a second line when not.
+        return ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) {
+                used
+                Spacer(minLength: 8)
+                available
+                if let purgeable {
+                    Text("·").foregroundStyle(.tertiary)
+                    purgeable
+                }
+            }
+            .fixedSize(horizontal: true, vertical: false)
+            .frame(maxWidth: .infinity)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    used
+                    Spacer(minLength: 8)
+                    available
+                }
+                if let purgeable {
+                    HStack {
+                        Spacer(minLength: 0)
+                        purgeable
                     }
-                    .font(.system(size: 10.5, weight: .medium))
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
-                    HStack(spacing: 6) {
-                        Text("\(MetricFormat.diskBytes(disk.usedBytes)) / \(MetricFormat.diskBytes(disk.totalBytes))")
-                        if let purgeable = disk.purgeableBytes, purgeable >= 500_000_000 {
-                            Spacer()
-                            Text("\(MetricFormat.diskBytes(purgeable)) \(l10n.s.diskPurgeable)")
-                        }
-                    }
-                    .font(.system(size: 10))
-                    .monospacedDigit()
-                    .foregroundStyle(.tertiary)
                 }
             }
         }
+        .font(.system(size: 10.5, weight: .medium))
+        .monospacedDigit()
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
     }
 
     @ViewBuilder
@@ -245,8 +272,10 @@ struct DiskSection: View {
                                systemImage: "arrow.up.arrow.down",
                                isVisible: $diskActivity)
         } else {
-            VStack(alignment: .leading, spacing: 8) {
-                blockHeader(l10n.s.monitorItemDiskActivity, editing: editing, visible: $diskActivity)
+            VStack(alignment: .leading, spacing: 7) {
+                if editing {
+                    blockHeader(l10n.s.monitorItemDiskActivity, editing: editing, visible: $diskActivity)
+                }
                 HStack(spacing: 10) {
                     rateColumn(icon: "arrow.down",
                                label: l10n.s.diskRead,
@@ -317,56 +346,86 @@ struct DiskSection: View {
                                isVisible: $diskSMART)
         } else {
             VStack(alignment: .leading, spacing: 8) {
-                blockHeader(l10n.s.monitorItemDiskSMART, editing: editing, visible: $diskSMART)
-                VStack(alignment: .leading, spacing: 5) {
-                    diskTitleRow(disk, showsTags: !diskUsage)
-                    if let smart = disk.smart {
-                        smartRows(smart)
-                    } else {
-                        Text(l10n.s.diskSMARTUnavailable)
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(.tertiary)
-                    }
+                smartHeader(disk.smart?.status, editing: editing)
+                if !diskUsage {
+                    diskTitleRow(disk)
+                }
+                if let smart = disk.smart {
+                    smartTiles(smart)
+                } else {
+                    Text(l10n.s.diskSMARTUnavailable)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
                 }
             }
         }
     }
 
-    @ViewBuilder
-    private func smartRows(_ smart: DiskSMARTReading) -> some View {
-        if let status = smart.status {
-            smartRow(l10n.s.diskSMARTStatus, status)
-        }
-        if let written = smart.totalWrittenBytes {
-            smartRow(l10n.s.diskTotalWritten, MetricFormat.diskBytesPrecise(written))
-        }
-        if let read = smart.totalReadBytes {
-            smartRow(l10n.s.diskTotalRead, MetricFormat.diskBytesPrecise(read))
-        }
-        if let temp = smart.temperatureCelsius {
-            smartRow(l10n.s.diskTemperature, MetricFormat.temperature(temp, unit: displayTemperatureUnit))
-        }
-        if let health = smart.healthPercent {
-            smartRow(l10n.s.diskHealth, "\(health)%")
-        }
-        if let cycles = smart.powerCycles {
-            smartRow(l10n.s.diskPowerCycles, "\(cycles)")
-        }
-        if let hours = smart.powerOnHours {
-            smartRow(l10n.s.diskPowerOnHours, "\(hours)")
+    private func smartHeader(_ status: String?, editing: Bool) -> some View {
+        HStack(spacing: 6) {
+            Text(l10n.s.monitorItemDiskSMART)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.tertiary)
+            Spacer(minLength: 0)
+            if let status {
+                Text(status)
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(smartStatusColor(status))
+                    .lineLimit(1)
+            }
+            if editing {
+                PanelInlineHideButton(isVisible: $diskSMART)
+            }
         }
     }
 
-    private func smartRow(_ label: String, _ value: String) -> some View {
-        HStack(spacing: 8) {
-            Text(label)
-                .font(.system(size: 10.5))
-                .foregroundStyle(.secondary)
-            Spacer()
-            Text(value)
-                .font(.system(size: 10.5, weight: .semibold))
-                .monospacedDigit()
-                .foregroundStyle(.primary)
+    private func smartStatusColor(_ status: String) -> Color {
+        // IOKit reports the raw "Verified" / "Failing" string.
+        switch status.lowercased() {
+        case "verified": return PanelMetricColor.green(for: colorScheme)
+        case "failing": return PanelMetricColor.red(for: colorScheme)
+        default: return .primary
+        }
+    }
+
+    private func smartTiles(_ smart: DiskSMARTReading) -> some View {
+        var tiles: [(label: String, value: String)] = []
+        if let written = smart.totalWrittenBytes {
+            tiles.append((l10n.s.diskTotalWritten, MetricFormat.diskBytesPrecise(written)))
+        }
+        if let read = smart.totalReadBytes {
+            tiles.append((l10n.s.diskTotalRead, MetricFormat.diskBytesPrecise(read)))
+        }
+        if let temp = smart.temperatureCelsius {
+            tiles.append((l10n.s.diskTemperature, MetricFormat.temperature(temp, unit: displayTemperatureUnit)))
+        }
+        if let health = smart.healthPercent {
+            tiles.append((l10n.s.diskHealth, "\(health)%"))
+        }
+        if let cycles = smart.powerCycles {
+            tiles.append((l10n.s.diskPowerCycles, "\(cycles)"))
+        }
+        if let hours = smart.powerOnHours {
+            tiles.append((l10n.s.diskPowerOnHours, "\(hours)"))
+        }
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 8, alignment: .topLeading), count: 3)
+        return LazyVGrid(columns: columns, alignment: .leading, spacing: 8) {
+            ForEach(tiles, id: \.label) { tile in
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(tile.value)
+                        .font(.system(size: 12, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                    Text(tile.label)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.75)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .accessibilityElement(children: .combine)
+            }
         }
     }
 
@@ -377,8 +436,10 @@ struct DiskSection: View {
                                systemImage: "eject",
                                isVisible: $diskProtection)
         } else {
-            VStack(alignment: .leading, spacing: 7) {
-                blockHeader(l10n.s.monitorItemDiskProtection, editing: editing, visible: $diskProtection)
+            VStack(alignment: .leading, spacing: 6) {
+                if editing {
+                    blockHeader(l10n.s.monitorItemDiskProtection, editing: editing, visible: $diskProtection)
+                }
                 HStack(spacing: 7) {
                     Button {
                         protection.eject(disk)
@@ -401,6 +462,7 @@ struct DiskSection: View {
                     .disabled(ejectableDisks.isEmpty)
                 }
                 Text(disk.canEject ? ejectCaption(for: disk) : l10n.s.diskNoExternal)
+                    .fixedSize(horizontal: false, vertical: true)
                     .font(.system(size: 9.5))
                     .foregroundStyle(disk.canEject ? ejectCaptionColor(for: disk) : .secondary)
                     .lineLimit(2)
@@ -432,39 +494,45 @@ struct DiskSection: View {
                                systemImage: "folder.badge.gearshape",
                                isVisible: $diskTools)
         } else {
-            VStack(alignment: .leading, spacing: 7) {
-                blockHeader(l10n.s.monitorItemDiskTools, editing: editing, visible: $diskTools)
-                HStack(spacing: 8) {
-                    Text(disk.name)
-                        .font(.system(size: 11, weight: .medium))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
-                    Button {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: disk.mountPath))
-                    } label: {
-                        Label(l10n.s.diskOpenInFinder, systemImage: "folder")
-                            .font(.system(size: 10.5))
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+            VStack(alignment: .leading, spacing: 6) {
+                if editing {
+                    blockHeader(l10n.s.monitorItemDiskTools, editing: editing, visible: $diskTools)
                 }
-                Button {
-                    if let url = URL(string: "x-apple.systempreferences:com.apple.Storage-Settings.extension") {
-                        NSWorkspace.shared.open(url)
-                    }
-                } label: {
-                    Label(l10n.s.diskStorageSettings, systemImage: "gearshape")
-                        .font(.system(size: 10.5, weight: .medium))
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 7) { toolButtons(disk) }
+                    VStack(alignment: .leading, spacing: 6) { toolButtons(disk) }
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
             }
         }
     }
 
-    private func diskTitleRow(_ disk: DiskDeviceReading, showsTags: Bool = true) -> some View {
-        HStack(spacing: 6) {
+    @ViewBuilder
+    private func toolButtons(_ disk: DiskDeviceReading) -> some View {
+        Button {
+            NSWorkspace.shared.open(URL(fileURLWithPath: disk.mountPath))
+        } label: {
+            Label(l10n.s.diskOpenInFinder, systemImage: "folder")
+                .font(.system(size: 10.5, weight: .medium))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .help(disk.name)
+        .fixedSize()
+        Button {
+            if let url = URL(string: "x-apple.systempreferences:com.apple.Storage-Settings.extension") {
+                NSWorkspace.shared.open(url)
+            }
+        } label: {
+            Label(l10n.s.diskStorageSettings, systemImage: "gearshape")
+                .font(.system(size: 10.5, weight: .medium))
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .fixedSize()
+    }
+
+    private func diskTitleRow(_ disk: DiskDeviceReading, trailing: String? = nil) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
             Image(systemName: disk.isInternal ? "internaldrive" : "externaldrive")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(.secondary)
@@ -472,23 +540,25 @@ struct DiskSection: View {
                 .font(.system(size: 11.5, weight: .semibold))
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .layoutPriority(1)
+            Text(diskTags(disk))
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
             Spacer(minLength: 0)
-            if showsTags {
-                if let fileSystem = disk.fileSystem {
-                    titleTag(fileSystem)
-                }
-                titleTag(disk.isInternal ? l10n.s.diskInternal : l10n.s.diskExternal)
+            if let trailing {
+                Text(trailing)
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .monospacedDigit()
+                    .contentTransition(.numericText())
             }
         }
     }
 
-    private func titleTag(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 9, weight: .medium))
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 5)
-            .padding(.vertical, 2)
-            .background(Capsule().fill(Color.primary.opacity(0.07)))
+    private func diskTags(_ disk: DiskDeviceReading) -> String {
+        [disk.fileSystem, disk.isInternal ? l10n.s.diskInternal : l10n.s.diskExternal]
+            .compactMap { $0 }
+            .joined(separator: " · ")
     }
 
     private func blockHeader(_ title: String, editing: Bool, visible: Binding<Bool>) -> some View {
