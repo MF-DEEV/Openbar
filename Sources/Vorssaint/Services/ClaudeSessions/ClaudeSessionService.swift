@@ -63,6 +63,9 @@ final class ClaudeSessionService: ObservableObject {
     @Published private(set) var backgroundAvailable = false
     /// Codex is installed, so New session can start it too.
     @Published private(set) var canStartCodex = false
+    /// Gemini CLI, Copilot CLI, OpenCode and `cursor-agent` found on this Mac,
+    /// which New session can start in a terminal.
+    @Published private(set) var startableAgents: Set<ClaudeSessionProvider> = []
     /// The page that starts a new session is open.
     @Published var composingSession = false
 
@@ -507,9 +510,13 @@ final class ClaudeSessionService: ObservableObject {
                 self.apply(jobs, available: listed)
                 let canStart = shell.executable != nil
                 let canCodex = CodexCLI.locate(path: shell.environment["PATH"], home: home) != nil
+                let startable = Set(ClaudeSessionProvider.hookAgents.filter {
+                    AgentCLI.locate($0, path: shell.environment["PATH"], home: home) != nil
+                })
                 DispatchQueue.main.async {
                     if self.canStartSessions != canStart { self.canStartSessions = canStart }
                     if self.canStartCodex != canCodex { self.canStartCodex = canCodex }
+                    if self.startableAgents != startable { self.startableAgents = startable }
                     if self.backgroundAvailable != listed { self.backgroundAvailable = listed }
                 }
             }
@@ -615,6 +622,23 @@ final class ClaudeSessionService: ObservableObject {
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let terminal = ClaudeTerminalLauncher.preferred(from: sessions)
+        if provider.reportsThroughHooks {
+            // In a terminal, where the agent's own UI runs and its hooks report it.
+            commands.async {
+                let shell = ClaudeCLI.shell()
+                var problem: String?
+                if let executable = AgentCLI.locate(provider, path: shell.environment["PATH"],
+                                                    home: FileManager.default.homeDirectoryForCurrentUser) {
+                    let line = CodexCLI.line(executable: executable,
+                                             arguments: AgentCLI.startArguments(provider, prompt: trimmed), folder: folder)
+                    if !ClaudeTerminalLauncher.open(line, terminal: terminal) { problem = text.commandFailed }
+                } else {
+                    problem = text.commandFailed
+                }
+                DispatchQueue.main.async { completion(problem) }
+            }
+            return
+        }
         if provider == .codex {
             commands.async { [self] in
                 if background {

@@ -467,6 +467,7 @@ extension NotchClaudeSessionStrings {
     var answerInAgentFormat: String { "Answer this one in %@." }
     var replyInAgentFormat: String { "Reply in %@" }
     var agentHooksOutdated: String { "Needs an update" }
+    func opensInTerminal(_ name: String) -> String { "\(name) opens in a terminal, with your first prompt." }
     var agentHooksUnreadable: String { "Its settings couldn’t be read" }
     var installPlugin: String { "Install Plugin" }
     var removePlugin: String { "Remove Plugin" }

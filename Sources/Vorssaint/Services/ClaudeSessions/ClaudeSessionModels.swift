@@ -136,6 +136,16 @@ extension ClaudeSessionProvider {
         }
     }
 
+    /// The agent's name where room is short, as New session's picker.
+    var shortName: String {
+        switch self {
+        case .claude: return "Claude"
+        case .gemini: return "Gemini"
+        case .copilot: return "Copilot"
+        default: return displayName
+        }
+    }
+
     /// The agents that report through the island's hooks or plugin.
     static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor]
 

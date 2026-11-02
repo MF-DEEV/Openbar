@@ -18,6 +18,8 @@ enum AgentHookSessionTests {
         suite.run("hook agents: installer") { installer(suite) }
         suite.run("hook agents: strip") { strip(suite) }
         suite.run("hook agents: branch") { branch(suite) }
+        suite.run("hook agents: new session") { newSession(suite) }
+        suite.run("hook agents: marks") { marks(suite) }
     }
 
     static let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -453,5 +455,41 @@ enum AgentHookSessionTests {
         suite.expect(AgentGitBranch.read(worktree.path) == "fix/x", "a worktree reads its own branch")
         try? Data("0123456789abcdef\n".utf8).write(to: root.appending(path: "repo/.git/HEAD"))
         suite.expect(AgentGitBranch.read(nested.path) == nil, "a detached head has no branch")
+    }
+
+    // MARK: New session
+
+    static func newSession(_ suite: TestSuite) {
+        suite.expect(AgentCLI.startArguments(.gemini, prompt: "fix it") == ["-i", "fix it"]
+                     && AgentCLI.startArguments(.copilot, prompt: "fix it") == ["-i", "fix it"]
+                     && AgentCLI.startArguments(.opencode, prompt: "fix it") == ["--prompt", "fix it"]
+                     && AgentCLI.startArguments(.cursor, prompt: "fix it") == ["fix it"]
+                     && AgentCLI.startArguments(.gemini, prompt: "") == [] && AgentCLI.startArguments(.claude, prompt: "x") == [],
+                     "each agent opens with the first prompt already sent, by its own flag")
+        let home = URL(fileURLWithPath: "/Users/someone")
+        let found = AgentCLI.locate(.opencode, path: "/usr/bin:/opt/tools", home: home) {
+            $0 == "/Users/someone/.opencode/bin/opencode" || $0 == "/opt/tools/opencode"
+        }
+        suite.expect(found == "/opt/tools/opencode", "the PATH comes before the installers' folders")
+        suite.expect(AgentCLI.locate(.cursor, path: nil, home: home) { $0 == "/Users/someone/.local/bin/cursor-agent" }
+                     == "/Users/someone/.local/bin/cursor-agent"
+                     && AgentCLI.locate(.gemini, path: nil, home: home) { _ in false } == nil
+                     && AgentCLI.locate(.codex, path: "/bin", home: home) { _ in true } == nil,
+                     "cursor-agent is found where its installer puts it, and an agent not installed is skipped")
+        let line = CodexCLI.line(executable: "/opt/tools/gemini", arguments: AgentCLI.startArguments(.gemini, prompt: "it's done"),
+                                 folder: "/w/my app")
+        suite.expect(line == "cd '/w/my app' && '/opt/tools/gemini' '-i' 'it'\\''s done'", "the terminal line quotes everything: \(line)")
+    }
+
+    // MARK: Marks
+
+    static func marks(_ suite: TestSuite) {
+        for provider in ClaudeSessionProvider.hookAgents {
+            let layers = NotchHookAgentMarkPaths.mark(provider)?.layers ?? []
+            let boxes = layers.map { $0.path.boundingBoxOfPath }
+            suite.expect(!layers.isEmpty && boxes.allSatisfy { !$0.isEmpty && $0.minX >= -0.01 && $0.minY >= -0.01
+                                                                && $0.maxX <= 24.01 && $0.maxY <= 24.01 && $0.width > 10 },
+                         "\(provider)'s own mark parses and fills its 24-point square: \(boxes)")
+        }
     }
 }
