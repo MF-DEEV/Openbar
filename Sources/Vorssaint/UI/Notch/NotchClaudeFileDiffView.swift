@@ -34,7 +34,9 @@ struct NotchClaudeFileDiffView: View {
             .frame(maxHeight: maxHeight)
             .fixedSize(horizontal: false, vertical: true)
             .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
-            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            // A mask, not clipShape: on a ScrollView clipShape rounds every
+            // colored line into a pill as well.
+            .mask(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
     }
 
@@ -144,7 +146,7 @@ struct NotchClaudeFileDiffView: View {
             .padding(.leading, 6)
             .padding(.trailing, 8)
             .padding(.vertical, 0.5)
-            .background(background(line.kind))
+            .background(background(line.kind), in: Rectangle())
             .textSelection(.enabled)
             .accessibilityElement(children: .combine)
             .accessibilityLabel(text.diffLineLabel(added: line.kind == .added, removed: line.kind == .removed,
