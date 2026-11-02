@@ -17,7 +17,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use tauri::{AppHandle, Emitter, Wry};
+use tauri::{AppHandle, Emitter, Manager, Wry};
 
 use super::agent_colors::AgentColors;
 use super::background;
@@ -680,6 +680,12 @@ impl Service {
         thread::spawn(move || {
             let can_start = background::executable().is_some();
             let can_start_codex = crate::agent_usage::codex_executable().is_some();
+            // Each found agent is connected, and a switched-off one taken out, by itself.
+            // The switches are read from the settings themselves, so a sync
+            // before they reach the service never connects one turned off.
+            if let Some(prefs) = service.app.try_state::<crate::prefs::Prefs>() {
+                sync_agent_hooks(&crate::prefs::hidden_agents(&prefs.get()));
+            }
             let startable_agents: Vec<&'static str> = models::Provider::HOOK_AGENTS
                 .iter()
                 .filter(|p| {
@@ -1062,9 +1068,12 @@ impl Service {
         if inner.hidden_agents == hidden {
             return;
         }
-        inner.hidden_agents = hidden;
+        inner.hidden_agents = hidden.clone();
         let t = now();
         self.publish(&mut inner, t);
+        drop(inner);
+        // A switch turned on or off puts its agent's hooks in or takes them out.
+        thread::spawn(move || sync_agent_hooks(&hidden));
     }
 
     fn open(&self, session: &str) -> bool {
@@ -1299,6 +1308,44 @@ pub fn sessions_focus(service: tauri::State<'_, Shared>, session_id: Option<Stri
     }
 }
 
+/// Why the last change to each agent's hooks failed, for Settings.
+static AGENT_HOOK_FAILURES: Mutex<BTreeMap<&'static str, String>> = Mutex::new(BTreeMap::new());
+/// One sync at a time: the ticker's and a switch's may meet.
+static AGENT_HOOK_SYNC: Mutex<()> = Mutex::new(());
+
+/// Keeps every agent's hooks in step, with no button to press
+/// (ClaudeSessionService.syncAgentHooks).
+fn sync_agent_hooks(hidden: &HashSet<models::Provider>) {
+    let _one = AGENT_HOOK_SYNC.lock().unwrap();
+    let (Some(home), Ok(exe)) = (hooks::installer::home_dir(), std::env::current_exe()) else {
+        return;
+    };
+    let endpoint = hooks::transport::endpoint(hooks::APP_ID);
+    let found: Vec<models::Provider> = models::Provider::HOOK_AGENTS
+        .into_iter()
+        .filter(|p| hook_agents::installer::is_present(*p, &home))
+        .collect();
+    let (install, remove) = hook_agents::installer::plan(&found, hidden, |p| {
+        hook_agents::installer::state(p, &home, &exe, &endpoint, hooks::APP_ID)
+    });
+    for (provider, on) in install
+        .into_iter()
+        .map(|p| (p, true))
+        .chain(remove.into_iter().map(|p| (p, false)))
+    {
+        let result = if on {
+            hook_agents::installer::install(provider, &home, &exe, &endpoint, hooks::APP_ID)
+        } else {
+            hook_agents::installer::remove(provider, &home, hooks::APP_ID)
+        };
+        let mut failures = AGENT_HOOK_FAILURES.lock().unwrap();
+        match result {
+            Ok(()) => failures.remove(provider.key()),
+            Err(e) => failures.insert(provider.key(), e),
+        };
+    }
+}
+
 /// For Settings › Content › Sessions: each hook agent's hooks or plugin.
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1306,6 +1353,8 @@ pub struct AgentHooksStatus {
     agent: &'static str,
     state: hook_agents::installer::State,
     present: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    failure: Option<String>,
 }
 
 #[tauri::command]
@@ -1322,8 +1371,12 @@ pub fn sessions_agent_hooks_status() -> Vec<AgentHooksStatus> {
             AgentHooksStatus {
                 agent: provider.key(),
                 state,
-                present: state != hook_agents::installer::State::Missing
-                    || hook_agents::installer::is_present(provider, &home),
+                present: hook_agents::installer::is_present(provider, &home),
+                failure: AGENT_HOOK_FAILURES
+                    .lock()
+                    .unwrap()
+                    .get(provider.key())
+                    .cloned(),
             }
         })
         .collect()
@@ -1335,13 +1388,19 @@ pub fn sessions_agent_hooks_install(agent: String, install: bool) -> Result<(), 
         .filter(|p| p.reports_through_hooks())
         .ok_or("unknown agent")?;
     let home = hooks::installer::home_dir().ok_or("no home folder")?;
-    if install {
+    let result = if install {
         let exe = std::env::current_exe().map_err(|e| e.to_string())?;
         let endpoint = hooks::transport::endpoint(hooks::APP_ID);
         hook_agents::installer::install(provider, &home, &exe, &endpoint, hooks::APP_ID)
     } else {
         hook_agents::installer::remove(provider, &home, hooks::APP_ID)
-    }
+    };
+    let mut failures = AGENT_HOOK_FAILURES.lock().unwrap();
+    match &result {
+        Ok(()) => failures.remove(provider.key()),
+        Err(e) => failures.insert(provider.key(), e.clone()),
+    };
+    result
 }
 
 /// For Settings › Content › Sessions: whether the island hears Codex.

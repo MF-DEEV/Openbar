@@ -136,6 +136,7 @@ interface AgentHooksStatus {
   agent: HookAgent;
   state: AgentHookState;
   present: boolean;
+  failure?: string;
 }
 
 const AGENT_PREF = {
@@ -152,8 +153,27 @@ const AGENT_HINT: Record<HookAgent, StringKey> = {
   cursor: "windows.settings.sessions.agentHintCursor",
 };
 
-/** Gemini CLI, Copilot CLI, OpenCode and Cursor: each shown or hidden by its
- * own switch, with its hooks or plugin put in or taken out by its own button. */
+/** What an agent's hooks are doing now that they follow its switch by themselves. */
+function AgentState({ status, shown }: { status: AgentHooksStatus; shown: boolean }) {
+  useLocale();
+  if (status.state === "unreadable")
+    return <Status tone="warn">{t("windows.settings.sessions.agentUnreadable")}</Status>;
+  if (!shown) return <Status tone="off">{t("windows.settings.sessions.agentOff")}</Status>;
+  if (status.state === "installed") return <Status tone="ok">{t("windows.settings.sessions.agentConnected")}</Status>;
+  if (!status.present) return <Status tone="off">{T.sessions.codexNotFound}</Status>;
+  return (
+    <Status tone="warn">
+      {t(
+        status.state === "outdated"
+          ? "windows.settings.sessions.agentUpdating"
+          : "windows.settings.sessions.agentConnecting",
+      )}
+    </Status>
+  );
+}
+
+/** Gemini CLI, Copilot CLI, OpenCode and Cursor: each found on this PC is
+ * connected by itself, and its switch shows it in the list or takes its hooks out. */
 function MoreAgents() {
   useLocale();
   const prefs = useSettings((s) => s.prefs.sessions);
@@ -202,7 +222,6 @@ function MoreAgents() {
       />
       {HOOK_AGENTS.map((agent) => {
         const status = statuses?.find((s) => s.agent === agent);
-        const plugin = agent === "opencode";
         const shown = prefs[AGENT_PREF[agent]];
         return (
           <SubRow
@@ -211,45 +230,29 @@ function MoreAgents() {
             caption={
               <>
                 {t(AGENT_HINT[agent])}
-                {failure?.agent === agent ? <div className="st-error">{failure.reason}</div> : null}
+                {failure?.agent === agent || status?.failure ? (
+                  <div className="st-error">{failure?.agent === agent ? failure.reason : status?.failure}</div>
+                ) : null}
               </>
             }
           >
             <span className="st-agent-mark" aria-hidden>
               <ProviderMark provider={agent} size={14} />
             </span>
-            {!status ? null : status.state === "installed" ? (
-              <Status tone="ok">{T.sessions.hooksOn}</Status>
-            ) : status.state === "outdated" ? (
-              <Status tone="warn">{T.sessions.hooksStale}</Status>
-            ) : status.state === "unreadable" ? (
-              <Status tone="warn">{t("windows.settings.sessions.agentUnreadable")}</Status>
-            ) : status.present ? (
-              <Status tone="off">{T.sessions.hooksOff}</Status>
-            ) : (
-              <Status tone="off">{T.sessions.codexNotFound}</Status>
-            )}
-            {status && status.state !== "unreadable" ? (
-              status.state === "installed" ? (
-                <Button onClick={() => void run(agent, false)} busy={busy === agent} disabled={busy !== null}>
-                  {plugin ? t("windows.settings.sessions.removePlugin") : T.sessions.remove}
-                </Button>
-              ) : (
-                <Button accent onClick={() => void run(agent, true)} busy={busy === agent} disabled={busy !== null}>
-                  {status.state === "outdated"
-                    ? plugin
-                      ? t("windows.settings.sessions.updatePlugin")
-                      : T.sessions.update
-                    : plugin
-                      ? t("windows.settings.sessions.installPlugin")
-                      : T.sessions.install}
-                </Button>
-              )
+            {status ? <AgentState status={status} shown={shown} /> : null}
+            {(status?.failure || failure?.agent === agent) && status?.state !== "unreadable" ? (
+              <Button onClick={() => void run(agent, shown)} busy={busy === agent} disabled={busy !== null}>
+                {t("windows.settings.sessions.tryAgain")}
+              </Button>
             ) : null}
             <Toggle
               label={tf("windows.settings.sessions.showAgent", PROVIDER_NAMES[agent])}
               checked={shown}
-              onChange={(on) => set(AGENT_PREF[agent], on)}
+              onChange={(on) => {
+                set(AGENT_PREF[agent], on);
+                // The service puts the hooks in or takes them out; read the result back.
+                window.setTimeout(() => void refresh(), 800);
+              }}
             />
           </SubRow>
         );

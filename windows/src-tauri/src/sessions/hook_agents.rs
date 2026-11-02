@@ -1518,28 +1518,47 @@ pub mod installer {
             .join(format!("{}.js", own_name(app)))
     }
 
-    /// Whether the agent seems installed on this computer.
+    /// Whether the agent is installed: its command (as New session finds
+    /// it), or Cursor's app. A folder like `.gemini` or `.copilot` is not
+    /// enough: other apps make those too.
     pub fn is_present(provider: Provider, home: &Path) -> bool {
-        let folder = match provider {
-            Provider::Gemini => gemini_settings(home).parent().map(Path::to_path_buf),
-            Provider::Copilot => Some(copilot_folder(home)),
-            Provider::Cursor => Some(home.join(".cursor")),
-            Provider::Opencode => Some(opencode_folder(home)),
-            _ => None,
-        };
-        if folder.is_some_and(|f| f.is_dir()) {
+        if super::command_name(provider)
+            .and_then(crate::agent_usage::agent_executable)
+            .is_some()
+        {
             return true;
         }
-        let names: &[&str] = match provider {
-            Provider::Gemini => &["gemini.cmd", "gemini"],
-            Provider::Copilot => &["copilot.cmd", "copilot.exe", "copilot"],
-            Provider::Opencode => &["opencode.cmd", "opencode.exe", "opencode"],
-            Provider::Cursor => &["cursor-agent.cmd", "cursor-agent", "cursor.cmd", "cursor"],
-            _ => &[],
-        };
-        std::env::var_os("PATH").is_some_and(|path| {
-            std::env::split_paths(&path).any(|dir| names.iter().any(|n| dir.join(n).is_file()))
-        })
+        provider == Provider::Cursor
+            && std::env::var_os("LOCALAPPDATA")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join("AppData").join("Local"))
+                .join("Programs")
+                .join("cursor")
+                .join("Cursor.exe")
+                .is_file()
+    }
+
+    /// What keeping the hooks in step asks (AgentHookInstaller.plan): each
+    /// found agent whose switch is on gets its hooks or an update; one whose
+    /// switch is off has the island's taken out. An unreadable file is left alone.
+    pub fn plan(
+        found: &[Provider],
+        hidden: &std::collections::HashSet<Provider>,
+        state: impl Fn(Provider) -> State,
+    ) -> (Vec<Provider>, Vec<Provider>) {
+        let mut install = Vec::new();
+        let mut remove = Vec::new();
+        for provider in Provider::HOOK_AGENTS {
+            let now = state(provider);
+            if !hidden.contains(&provider) {
+                if found.contains(&provider) && matches!(now, State::Missing | State::Outdated) {
+                    install.push(provider);
+                }
+            } else if matches!(now, State::Installed | State::Outdated) {
+                remove.push(provider);
+            }
+        }
+        (install, remove)
     }
 
     /// The hook for one event: this app, quoted with forward slashes, run
@@ -2229,6 +2248,29 @@ mod tests {
             String::from_utf8(installer::opencode_file(r"\\.\pipe\vorssaint-x", "app")).unwrap();
         assert!(plugin.contains(r#"const SOCKET = "\\\\.\\pipe\\vorssaint-x""#));
         assert!(!plugin.contains("__VORSSAINT"));
+    }
+
+    #[test]
+    fn found_agents_are_connected_and_switched_off_ones_taken_out() {
+        use installer::{State, plan};
+        let none = std::collections::HashSet::new();
+        let states = |p| match p {
+            Provider::Gemini => State::Missing,
+            Provider::Copilot => State::Outdated,
+            Provider::Opencode => State::Installed,
+            _ => State::Unreadable,
+        };
+        let all = Provider::HOOK_AGENTS;
+        assert_eq!(
+            plan(&all, &none, states),
+            (vec![Provider::Gemini, Provider::Copilot], vec![])
+        );
+        assert_eq!(plan(&[], &none, states), (vec![], vec![]));
+        let hidden: std::collections::HashSet<_> = all.into_iter().collect();
+        assert_eq!(
+            plan(&all, &hidden, states),
+            (vec![], vec![Provider::Copilot, Provider::Opencode])
+        );
     }
 
     #[test]

@@ -1,6 +1,6 @@
 # More session agents: Gemini CLI, Copilot CLI, OpenCode and Cursor
 
-Sessions lists every coding agent the person runs, not only Claude Code and Codex (issue #123). Each agent below gets its own row in the shared list, its own mark, color and pixel figure, its count and mark in the closed island, and as much of the island's help as the agent allows. Nothing is installed until the person presses **Install** for that agent in the Sessions settings, and **Remove** takes out only what the island added.
+Sessions lists every coding agent the person runs, not only Claude Code and Codex (issue #123). Each agent below gets its own row in the shared list, its own mark, color and pixel figure, its count and mark in the closed island, and as much of the island's help as the agent allows. Each agent installed on the computer (its command, or Cursor's app; a folder like `~/.gemini`, which other apps make, does not count) is connected by itself: the island adds its hooks or plugin next to the person's own, after a backup, when Sessions starts, when its settings change and whenever the agents are looked for, so one installed later is picked up. Turning the agent's switch off takes out only what the island added.
 
 ## What each agent reaches
 
