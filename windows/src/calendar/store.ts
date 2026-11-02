@@ -21,8 +21,11 @@ import {
   startOfDay,
 } from "./model";
 import type { CalendarEvent, CalendarSnapshot } from "./types";
+import { rememberPlace, restoredPlace } from "./viewPrefs";
 
 export interface CalendarState extends CalendarSnapshot {
+  /** Undefined closes the editor; null creates a new event. */
+  editing: CalendarEvent | null | undefined;
   /** A first answer from calendar.rs has arrived. */
   received: boolean;
   /** The page asked for other days and they have not arrived yet. */
@@ -58,6 +61,7 @@ const EMPTY: CalendarSnapshot = {
 };
 
 export const useCalendar = create<CalendarState>(() => ({
+  editing: undefined,
   ...EMPTY,
   received: !inTauri,
   loading: false,
@@ -66,12 +70,19 @@ export const useCalendar = create<CalendarState>(() => ({
   countdown: null,
   lastCountdown: null,
   revealing: null,
-  focus: Date.now(),
-  selectedDay: null,
-  showingMonth: false,
+  ...restoredPlace(),
   wide: false,
   width: 0,
 }));
+
+useCalendar.subscribe((state, before) => {
+  if (
+    state.focus !== before.focus ||
+    state.selectedDay !== before.selectedDay ||
+    state.showingMonth !== before.showingMonth
+  )
+    rememberPlace({ focus: state.focus, selectedDay: state.selectedDay, showingMonth: state.showingMonth });
+});
 
 /** The section shows anywhere only while it is on in Settings › Content. */
 export function calendarShown(): boolean {
@@ -150,11 +161,16 @@ export async function showMonth(month: number | null) {
   const request = ++shownRequest;
   const { firstWeekday } = useCalendar.getState();
   // Outside Tauri nothing answers, so a designed sample stays.
-  if (month !== null && inTauri) useCalendar.setState({ events: [], loading: true });
+  if (month !== null && inTauri) useCalendar.setState({ loading: true });
+  const range =
+    month === null
+      ? null
+      : {
+          start: readInterval(addMonths(month, -2), Date.now(), firstWeekday).start,
+          end: readInterval(addMonths(month, 2), Date.now(), firstWeekday).end,
+        };
   try {
-    const answer = await bridge.calendar.showRange(
-      month === null ? null : readInterval(month, Date.now(), firstWeekday),
-    );
+    const answer = await bridge.calendar.showRange(range);
     // A later request's answer wins, whichever arrives first.
     if (answer && request === shownRequest) receive(answer);
   } finally {
@@ -181,6 +197,9 @@ export async function requestAccess() {
 // MARK: The page's place in time
 
 export const calendarView = {
+  browseMonth(month: number) {
+    useCalendar.setState({ focus: month, selectedDay: startOfDay(month) });
+  },
   select(day: number) {
     useCalendar.setState({ selectedDay: startOfDay(day), focus: day });
   },
@@ -206,8 +225,8 @@ export const calendarView = {
   closeMonth() {
     useCalendar.setState({ showingMonth: false });
   },
-  /** A page opened again starts on the coming week, as the Mac's view state does. */
+  /** Closing the page preserves the place, including across app restarts. */
   reset() {
-    useCalendar.setState({ focus: Date.now(), selectedDay: null, showingMonth: false });
+    useCalendar.setState({ revealing: null });
   },
 };

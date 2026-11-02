@@ -640,5 +640,22 @@
   "windows.settings.sessions.agentConnecting": "正在连接…",
   "windows.settings.sessions.agentUpdating": "正在更新…",
   "windows.settings.sessions.agentOff": "关",
-  "windows.settings.sessions.tryAgain": "重试"
+  "windows.settings.sessions.tryAgain": "重试",
+  "windows.calendar.newEvent": "新建日程",
+  "windows.calendar.editEvent": "编辑日程",
+  "windows.calendar.eventTitle": "日程标题",
+  "windows.calendar.starts": "开始",
+  "windows.calendar.ends": "结束",
+  "windows.calendar.location": "地点（可选）",
+  "windows.calendar.description": "备注或会议详情",
+  "windows.calendar.colour": "日程颜色",
+  "windows.calendar.cancel": "取消",
+  "windows.calendar.save": "保存日程",
+  "windows.calendar.delete": "删除日程",
+  "windows.calendar.confirmDelete": "删除此日程？",
+  "windows.calendar.invalidRange": "结束时间必须晚于开始时间。",
+  "windows.calendar.saveFailed": "无法保存日程，请重试。",
+  "windows.calendar.deleteFailed": "无法删除日程，请重试。",
+  "windows.calendar.localHint": "日程保存在此设备上。",
+  "windows.calendar.createHint": "选择日期并添加第一个日程。"
 }

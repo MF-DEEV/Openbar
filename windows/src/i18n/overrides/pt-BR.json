@@ -640,5 +640,22 @@
   "windows.settings.sessions.agentConnecting": "Conectando…",
   "windows.settings.sessions.agentUpdating": "Atualizando…",
   "windows.settings.sessions.agentOff": "Desativado",
-  "windows.settings.sessions.tryAgain": "Tentar de novo"
+  "windows.settings.sessions.tryAgain": "Tentar de novo",
+  "windows.calendar.newEvent": "Novo evento",
+  "windows.calendar.editEvent": "Editar evento",
+  "windows.calendar.eventTitle": "Título do evento",
+  "windows.calendar.starts": "Início",
+  "windows.calendar.ends": "Fim",
+  "windows.calendar.location": "Local (opcional)",
+  "windows.calendar.description": "Notas ou detalhes da reunião",
+  "windows.calendar.colour": "Cor do evento",
+  "windows.calendar.cancel": "Cancelar",
+  "windows.calendar.save": "Salvar evento",
+  "windows.calendar.delete": "Excluir evento",
+  "windows.calendar.confirmDelete": "Excluir este evento?",
+  "windows.calendar.invalidRange": "Escolha um término posterior ao início.",
+  "windows.calendar.saveFailed": "Não foi possível salvar o evento. Tente novamente.",
+  "windows.calendar.deleteFailed": "Não foi possível excluir o evento. Tente novamente.",
+  "windows.calendar.localHint": "Seus eventos ficam neste dispositivo.",
+  "windows.calendar.createHint": "Escolha um dia e adicione seu primeiro evento."
 }

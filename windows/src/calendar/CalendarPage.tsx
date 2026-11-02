@@ -17,7 +17,7 @@ import {
   CircleDot,
   LoaderCircle,
   MapPin,
-  SquareArrowOutUpRight,
+  Plus,
   Timer,
 } from "lucide-react";
 import { type CSSProperties, useEffect, useRef } from "react";
@@ -34,7 +34,6 @@ import {
   isChosen,
   monthDays,
   MONTH_WEEKDAY_HEIGHT,
-  monthRowHeight,
   next,
   sameDay,
   sameMonth,
@@ -48,6 +47,9 @@ import {
 import { calendarView, requestAccess, setCountdownChoice, showMonth, useCalendar } from "./store";
 import { C } from "./strings";
 import type { CalendarEvent } from "./types";
+import { LOCAL_CALENDAR } from "./types";
+import { EventEditor } from "./EventEditor";
+import { MonthScroller } from "./MonthScroller";
 import { useMinute } from "./useMinute";
 import "./calendar.css";
 
@@ -71,16 +73,20 @@ export function CalendarPage({ width, height }: PageProps) {
   useLocale();
   const access = useCalendar((s) => s.access);
   const received = useCalendar((s) => s.received);
+  const editing = useCalendar((s) => s.editing);
   const focus = useCalendar((s) => s.focus);
   const selectedDay = useCalendar((s) => s.selectedDay);
   const showingMonth = useCalendar((s) => s.showingMonth);
   const wide = isWide(width, height);
+  const setPageContent = useIsland((s) => s.setPageContent);
   const now = useMinute();
   const month = startOfMonth(focus);
 
   const firstWeekday = useCalendar((s) => s.firstWeekday);
   // A new day moves the coming week on, so the page reads again then too.
   const today = startOfDay(now);
+  const previousDay = useRef(today);
+  useEffect(() => setPageContent("calendar", 288), [setPageContent]);
   useEffect(() => useCalendar.setState({ wide, width }), [wide, width]);
   useEffect(() => {
     void showMonth(month);
@@ -89,12 +95,15 @@ export function CalendarPage({ width, height }: PageProps) {
     () => () => {
       void showMonth(null);
       calendarView.reset();
+      useCalendar.setState({ editing: undefined });
     },
     [],
   );
   // A new day brings the page back to today unless a day is chosen.
   useEffect(() => {
-    if (useCalendar.getState().selectedDay === null) useCalendar.setState({ focus: Date.now() });
+    if (previousDay.current !== today && useCalendar.getState().selectedDay === null)
+      useCalendar.setState({ focus: Date.now() });
+    previousDay.current = today;
   }, [today]);
   // Escape returns from the month grid to the strip before the island closes.
   usePageLayer(showingMonth && !wide, calendarView.closeMonth);
@@ -106,17 +115,20 @@ export function CalendarPage({ width, height }: PageProps) {
   }, [access]);
 
   if (!received) return <Spinner />;
+  if (editing !== undefined) return <EventEditor key={editing?.id ?? "new"} event={editing} />;
   if (access !== "allowed") return <PermissionCard />;
   if (wide) {
     return (
       <div className="cal-wide">
         <div className="cal-wide-month">
-          <MonthView month={focus} selectedDay={selectedDay} now={now} />
+          <MonthScroller month={focus} onBrowse={calendarView.browseMonth}>
+            {(month) => <MonthView month={month} selectedDay={selectedDay} now={now} height={height} />}
+          </MonthScroller>
         </div>
         <div className="cal-divider" aria-hidden="true" />
         <div className="cal-wide-agenda">
           <AgendaHeader />
-          <Agenda now={now} width={width} />
+          <Agenda now={now} />
         </div>
       </div>
     );
@@ -125,7 +137,7 @@ export function CalendarPage({ width, height }: PageProps) {
   return (
     <div className="cal-short">
       <WeekStrip focus={focus} selectedDay={selectedDay} now={now} />
-      <Agenda now={now} width={width} />
+      <Agenda now={now} />
     </div>
   );
 }
@@ -138,13 +150,8 @@ let measureCanvas: HTMLCanvasElement | undefined;
 function titleWidth(text: string) {
   measureCanvas ??= document.createElement("canvas");
   const ctx = measureCanvas.getContext("2d")!;
-  ctx.font = "600 13px 'Inter Variable', Inter, sans-serif";
+  ctx.font = "600 14px 'Inter Variable', Inter, sans-serif";
   return Math.ceil(ctx.measureText(text).width) + 14;
-}
-
-/** Whether the top row holds Open Calendar after the title and the arrows. */
-function rowOpensCalendar(rowWidth: number, focus: number) {
-  return rowWidth - titleWidth(monthFormat("short").format(focus)) - 12 >= NAVIGATION_WIDTH + OPEN_WIDTH;
 }
 
 /**
@@ -154,6 +161,7 @@ function rowOpensCalendar(rowWidth: number, focus: number) {
  */
 export function MonthTitle() {
   useLocale();
+  const editing = useCalendar((s) => s.editing);
   const focus = useCalendar((s) => s.focus);
   const wide = useCalendar((s) => s.wide);
   const showingMonth = useCalendar((s) => s.showingMonth);
@@ -161,6 +169,7 @@ export function MonthTitle() {
   const row = useCalendar((s) => s.width);
   const ready = useCalendar((s) => s.received && s.access === "allowed");
   if (!ready) return null;
+  if (editing !== undefined) return <h2 className="cal-title">{editing ? C.editEvent : C.newEvent}</h2>;
   const long = monthFormat("long").format(focus);
   const fits = row === 0 || titleWidth(long) + 12 + NAVIGATION_WIDTH + OPEN_WIDTH <= row;
   const title = fits ? long : monthFormat("short").format(focus);
@@ -182,12 +191,11 @@ export function MonthTitle() {
 /** The arrows step by week over the strip and by month over a grid, around the way back to today. */
 export function Navigation() {
   useLocale();
-  const focus = useCalendar((s) => s.focus);
+  const editing = useCalendar((s) => s.editing);
   const byWeek = useCalendar((s) => !s.wide && !s.showingMonth);
-  const row = useCalendar((s) => s.width);
   // The band carries the month only once the page shows one (NotchCalendarView: notchBand).
   const ready = useCalendar((s) => s.received && s.access === "allowed");
-  if (!ready) return null;
+  if (!ready || editing !== undefined) return null;
   return (
     <div className="cal-navigation">
       <div className="cal-arrows">
@@ -203,14 +211,16 @@ export function Navigation() {
           onClick={() => (byWeek ? calendarView.moveWeek(1) : calendarView.moveMonth(1))}
         />
       </div>
-      {row === 0 || rowOpensCalendar(row, focus) ? (
-        <IconButton icon={SquareArrowOutUpRight} label={C.openCalendar} onClick={() => openCalendar()} />
-      ) : null}
+      <IconButton icon={Plus} label={C.newEvent} onClick={() => useCalendar.setState({ editing: null })} />
     </div>
   );
 }
 
 function openCalendar(event?: CalendarEvent) {
+  if (!event || event.calendarId === LOCAL_CALENDAR) {
+    useCalendar.setState({ editing: event ?? null });
+    return;
+  }
   void bridge.calendar.open(event?.localId || null, event?.instanceStart ?? null);
 }
 
@@ -280,10 +290,10 @@ function WeekStrip({ focus, selectedDay, now }: { focus: number; selectedDay: nu
             day={day}
             now={now}
             selected={selected}
-            circle={26}
-            fontSize={12}
-            height={52}
-            spacing={2}
+            circle={30}
+            fontSize={14}
+            height={58}
+            spacing={5}
             letter
             onClick={() => (selected ? calendarView.week() : calendarView.select(day))}
           />
@@ -369,41 +379,103 @@ function GridDay(props: GridProps & { day: number; numbered: boolean }) {
 }
 
 /** The month beside the agenda of a tall island. */
-function MonthView(props: { month: number; selectedDay: number | null; now: number }) {
+function MonthView(props: { month: number; selectedDay: number | null; now: number; height: number }) {
   useLocale();
+  const rowHeight = Math.min(36, Math.max(24, Math.floor((props.height - 119) / 6)));
   return (
-    <Grid
-      {...props}
-      rowHeight={30}
-      weekdayHeight={18}
-      circle={24}
-      fontSize={11}
-      gap={4}
-      spacing={2}
-      onPick={(day) => calendarView.select(day)}
-    />
+    <>
+      <MonthHeading month={props.month} />
+      <Grid
+        {...props}
+        rowHeight={rowHeight}
+        weekdayHeight={20}
+        circle={Math.min(27, rowHeight - 8)}
+        fontSize={13}
+        gap={3}
+        spacing={5}
+        onPick={(day) => calendarView.select(day)}
+      />
+      <MonthPreview month={props.month} now={props.now} />
+    </>
   );
 }
 
 /** The month over a short island's strip, rows sized to what is left; a pick returns to the strip. */
 function MonthGrid(props: { month: number; selectedDay: number | null; now: number; height: number }) {
   useLocale();
-  const rowHeight = monthRowHeight(props.height);
-  const circle = Math.min(24, rowHeight - 3);
+  const rowHeight = Math.min(34, Math.max(18, Math.floor((props.height - 84 - MONTH_WEEKDAY_HEIGHT) / 6)));
+  const circle = Math.min(26, rowHeight - 8);
   return (
-    <Grid
-      {...props}
-      rowHeight={rowHeight}
-      weekdayHeight={MONTH_WEEKDAY_HEIGHT}
-      circle={circle}
-      fontSize={Math.min(11, circle * 0.62)}
-      gap={0}
-      spacing={0}
-      onPick={(day) => {
-        calendarView.select(day);
-        calendarView.closeMonth();
-      }}
-    />
+    <MonthScroller month={props.month} onBrowse={calendarView.browseMonth}>
+      {(month) => (
+        <>
+          <MonthHeading month={month} />
+          <Grid
+            {...props}
+            month={month}
+            rowHeight={rowHeight}
+            weekdayHeight={MONTH_WEEKDAY_HEIGHT}
+            circle={circle}
+            fontSize={Math.min(13, circle * 0.62)}
+            gap={0}
+            spacing={5}
+            onPick={(day) => {
+              calendarView.select(day);
+              calendarView.closeMonth();
+            }}
+          />
+          <MonthPreview month={month} now={props.now} />
+        </>
+      )}
+    </MonthScroller>
+  );
+}
+
+function MonthHeading({ month }: { month: number }) {
+  useLocale();
+  return (
+    <div className="cal-month-heading">
+      <span>{dateTimeFormat({ month: "long" }).format(month)}</span>
+      <span>{dateTimeFormat({ year: "numeric" }).format(month)}</span>
+    </div>
+  );
+}
+
+function MonthPreview({ month, now }: { month: number; now: number }) {
+  useLocale();
+  const events = useCalendar((s) => s.events);
+  const event = events.find((e) => sameMonth(e.start, month) && e.end > now);
+  return (
+    <div className="cal-month-preview">
+      {event ? (
+        <button
+          type="button"
+          className="cal-month-appointment"
+          onClick={() => openCalendar(event)}
+          style={{ "--cal-color": event.color } as CSSProperties}
+        >
+          <span className="cal-month-event-dot" />
+          <span>
+            <strong>{event.title || C.untitled}</strong>
+            <small>
+              {dayLabel(event.start)} · {timeLine(event, startOfDay(event.start), C.allDay)}
+            </small>
+          </span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="cal-month-add"
+          onClick={() => {
+            calendarView.browseMonth(month);
+            useCalendar.setState({ editing: null });
+          }}
+        >
+          <Plus size={13} />
+          {C.newEvent}
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -432,14 +504,14 @@ function Spinner() {
   );
 }
 
-function Agenda({ now, width }: { now: number; width: number }) {
+function Agenda({ now }: { now: number }) {
   useLocale();
   const events = useCalendar((s) => s.events);
   const loading = useCalendar((s) => s.loading);
+  const localError = useCalendar((s) => s.localError);
   const revealing = useCalendar((s) => s.revealing);
   const selectedDay = useCalendar((s) => s.selectedDay);
   const calendars = useCalendar((s) => s.calendars);
-  const focus = useCalendar((s) => s.focus);
   const everyStart = useIsland((s) => s.settings.calendarCountdown);
   const chosen = useIsland((s) => s.settings.calendarChosenCountdowns);
   const list = useRef<HTMLDivElement>(null);
@@ -464,19 +536,25 @@ function Agenda({ now, width }: { now: number; width: number }) {
   }, [revealing, loading, events]);
 
   if (loading) return <Spinner />;
+  if (localError)
+    return (
+      <div className="cal-editor-error" role="alert">
+        {localError}
+      </div>
+    );
   if (groups.length === 0) {
     return (
       <div className="cal-empty">
         <CalendarCheck size={26} strokeWidth={1.25} aria-hidden="true" />
         <div>
           <p>{selectedDay === null ? C.empty : C.emptyDay}</p>
-          {calendars.length === 0 ? <p className="cal-empty-hint">{C.noCalendars}</p> : null}
+          <p className="cal-empty-hint">
+            {calendars.some((c) => c.id === LOCAL_CALENDAR) ? C.createHint : C.noCalendars}
+          </p>
           {/* With no card to open it from and no room for it in the row. */}
-          {!rowOpensCalendar(width, focus) ? (
-            <PillButton prominent onClick={() => openCalendar()}>
-              {C.openCalendar}
-            </PillButton>
-          ) : null}
+          <PillButton prominent onClick={() => openCalendar()}>
+            {C.newEvent}
+          </PillButton>
         </div>
       </div>
     );
@@ -551,7 +629,7 @@ function EventCard(props: {
       data-event={event.id}
       className={`cal-card${ongoing ? " is-ongoing" : ""}${ended ? " is-ended" : ""}`}
       style={{ "--cal-color": event.color } as CSSProperties}
-      title={C.openCalendar}
+      title={event.calendarId === LOCAL_CALENDAR ? C.editEvent : C.openCalendar}
       onClick={() => openCalendar(event)}
       onContextMenu={(e) => {
         e.preventDefault();
@@ -573,6 +651,7 @@ function EventCard(props: {
           {event.location}
         </span>
       ) : null}
+      {event.description ? <span className="cal-card-description">{event.description}</span> : null}
     </button>
   );
 }

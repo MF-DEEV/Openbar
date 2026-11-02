@@ -9,7 +9,8 @@
 //! when the store changes, the clock or time zone changes, the PC wakes, and
 //! at the next boundary (an event's start or end, midnight, or 15 minutes).
 //! Every read that changes something goes to all windows as
-//! `calendar://events`. No event text is kept anywhere but in memory.
+//! `calendar://events`. System appointments stay in memory; events created
+//! in Vorssaint are saved separately by local_calendar.
 
 // The reader itself is Windows only; on a Mac only the commands answer.
 #![cfg_attr(not(windows), allow(dead_code))]
@@ -19,7 +20,7 @@ use std::sync::mpsc::{Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 
 pub const EVENT: &str = "calendar://events";
 /// The agenda looks again at least this often (NotchCalendarSupport.nextRefresh).
@@ -41,7 +42,7 @@ pub enum Access {
     Allowed,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Event {
     pub id: String,
@@ -53,6 +54,8 @@ pub struct Event {
     pub end: i64,
     pub all_day: bool,
     pub location: String,
+    #[serde(default)]
+    pub description: String,
     pub color: String,
     pub local_id: String,
     /// The occurrence's original start in a series, for opening that one.
@@ -74,6 +77,8 @@ pub struct Choice {
 #[serde(rename_all = "camelCase")]
 pub struct Snapshot {
     pub access: Access,
+    pub system_access: Access,
+    pub local_error: Option<String>,
     /// The range the page asked for, or the coming week.
     pub events: Vec<Event>,
     /// Always the coming week, which countdowns follow.
@@ -88,6 +93,8 @@ impl Default for Snapshot {
     fn default() -> Self {
         Snapshot {
             access: Access::Unavailable,
+            system_access: Access::Unavailable,
+            local_error: None,
             events: Vec::new(),
             current: Vec::new(),
             calendars: Vec::new(),
@@ -143,6 +150,7 @@ pub fn event(raw: Raw, calendar: Option<&Choice>) -> Event {
         end: raw.end,
         all_day: raw.all_day,
         location: raw.location,
+        description: String::new(),
         color: calendar.map_or_else(|| FALLBACK_COLOR.into(), |c| c.color.clone()),
         local_id: raw.local_id,
         instance_start: raw.original_start,
@@ -217,6 +225,9 @@ struct Inner {
 pub struct Shared(Arc<Inner>);
 
 impl Shared {
+    pub(crate) fn refresh(&self) -> Snapshot {
+        self.ask(None)
+    }
     fn send(&self, message: Message) -> bool {
         self.0
             .tx
@@ -757,6 +768,26 @@ fn run<R: tauri::Runtime>(
             }
         }
 
+        next.system_access = next.access;
+        let today = imp::local_midnight(now, 0).unwrap_or(now);
+        let week = (
+            today,
+            imp::local_midnight(now, 7).unwrap_or(today + 7 * 86_400_000),
+        );
+        merge_local(
+            &mut next,
+            app.state::<crate::local_calendar::Store>().load(),
+            visible.unwrap_or(week),
+            week,
+            &excluded(&prefs),
+        );
+        let at = next_refresh(
+            &next.current,
+            now,
+            imp::local_midnight(now, 1).unwrap_or(now + QUARTER_HOUR),
+        );
+        wake = wake.min(Instant::now() + Duration::from_millis((at - now).max(1000) as u64));
+
         let changed = {
             let mut snapshot = shared.0.snapshot.lock().unwrap();
             let changed = *snapshot != next;
@@ -770,6 +801,52 @@ fn run<R: tauri::Runtime>(
             let _ = reply.send(next.clone());
         }
     }
+}
+
+fn merge_local(
+    snapshot: &mut Snapshot,
+    local: Result<Vec<Event>, String>,
+    range: (i64, i64),
+    week: (i64, i64),
+    excluded: &HashSet<String>,
+) {
+    use crate::local_calendar::ID;
+    snapshot.events.retain(|e| e.calendar_id != ID);
+    snapshot.current.retain(|e| e.calendar_id != ID);
+    snapshot.calendars.retain(|c| c.id != ID);
+    snapshot.calendars.push(Choice {
+        id: ID.into(),
+        title: "Vorssaint".into(),
+        source_id: ID.into(),
+        source: "Vorssaint".into(),
+        color: "#ff5c63".into(),
+    });
+    // Local events are available even when Windows cannot share appointments.
+    snapshot.access = Access::Allowed;
+    match local {
+        Ok(events) => {
+            if !excluded.contains(ID) {
+                snapshot.events.extend(
+                    events
+                        .iter()
+                        .filter(|e| e.start < range.1 && e.end > range.0)
+                        .cloned(),
+                );
+                snapshot.current.extend(
+                    events
+                        .into_iter()
+                        .filter(|e| e.start < week.1 && e.end > week.0),
+                );
+            }
+        }
+        Err(error) => snapshot.local_error = Some(error),
+    }
+    snapshot
+        .events
+        .sort_by_key(|e| (e.start, e.end, e.id.clone()));
+    snapshot
+        .current
+        .sort_by_key(|e| (e.start, e.end, e.id.clone()));
 }
 
 #[tauri::command]
@@ -858,6 +935,58 @@ mod tests {
             },
             None,
         )
+    }
+
+    #[test]
+    fn local_events_work_without_windows_access_and_follow_ranges_and_exclusions() {
+        let mut snapshot = Snapshot::default();
+        let mut local = ev(10, 20);
+        local.calendar_id = crate::local_calendar::ID.into();
+        merge_local(
+            &mut snapshot,
+            Ok(vec![local.clone()]),
+            (0, 30),
+            (15, 25),
+            &HashSet::new(),
+        );
+        assert_eq!(snapshot.access, Access::Allowed);
+        assert_eq!(snapshot.system_access, Access::Unavailable);
+        assert_eq!(snapshot.events.len(), 1);
+        assert_eq!(
+            snapshot.current.len(),
+            1,
+            "An event overlapping midnight stays visible"
+        );
+        merge_local(
+            &mut snapshot,
+            Ok(vec![local.clone()]),
+            (20, 30),
+            (0, 5),
+            &HashSet::new(),
+        );
+        assert!(snapshot.events.is_empty());
+        assert!(snapshot.current.is_empty());
+        assert_eq!(
+            snapshot.calendars.len(),
+            1,
+            "No duplicate local source after refresh"
+        );
+        merge_local(
+            &mut snapshot,
+            Ok(vec![local]),
+            (0, 30),
+            (0, 30),
+            &[crate::local_calendar::ID.into()].into(),
+        );
+        assert!(snapshot.events.is_empty());
+        merge_local(
+            &mut snapshot,
+            Err("unreadable".into()),
+            (0, 30),
+            (0, 30),
+            &HashSet::new(),
+        );
+        assert_eq!(snapshot.local_error.as_deref(), Some("unreadable"));
     }
 
     #[test]

@@ -640,5 +640,22 @@
   "windows.settings.sessions.agentConnecting": "正在連線…",
   "windows.settings.sessions.agentUpdating": "正在更新…",
   "windows.settings.sessions.agentOff": "關",
-  "windows.settings.sessions.tryAgain": "重試"
+  "windows.settings.sessions.tryAgain": "重試",
+  "windows.calendar.newEvent": "新增活動",
+  "windows.calendar.editEvent": "編輯活動",
+  "windows.calendar.eventTitle": "活動標題",
+  "windows.calendar.starts": "開始",
+  "windows.calendar.ends": "結束",
+  "windows.calendar.location": "地點（選填）",
+  "windows.calendar.description": "備註或會議詳情",
+  "windows.calendar.colour": "活動顏色",
+  "windows.calendar.cancel": "取消",
+  "windows.calendar.save": "儲存活動",
+  "windows.calendar.delete": "刪除活動",
+  "windows.calendar.confirmDelete": "刪除此活動？",
+  "windows.calendar.invalidRange": "結束時間必須晚於開始時間。",
+  "windows.calendar.saveFailed": "無法儲存活動，請重試。",
+  "windows.calendar.deleteFailed": "無法刪除活動，請重試。",
+  "windows.calendar.localHint": "活動儲存在此裝置上。",
+  "windows.calendar.createHint": "選擇日期並新增第一個活動。"
 }
