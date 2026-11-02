@@ -7,7 +7,8 @@
 
 import { t, useLocale, tf } from "../i18n";
 
-import { FastForward, Music, Pause, Play, Rewind, Shuffle } from "lucide-react";
+import { FastForward, ListMusic, Music, Pause, Play, Rewind, Shuffle } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { useIsland } from "../island/store";
 import { bridge } from "../shared/bridge";
@@ -18,17 +19,28 @@ import { isPlaying, useMusic } from "./store";
 import { position, time, type Playback } from "./types";
 import { LyricsSection } from "./LyricsPanel";
 import { useLyrics } from "./lyricsStore";
+import { QueuePanel } from "./QueuePanel";
+import { QUEUE_HEIGHT, useQueue } from "./queueStore";
+import { usePageLayer } from "../island/pageLayer";
 
 export const MUSIC_WIDTH = 344;
 const COVER = 68;
 
 /** head + 14 + (timeline 16 + 10 while it has one) + 46 + 8 (NotchLayout.player). */
-export function playerHeight(p: Playback | null, lyricsExpanded = false): number {
-  return COVER + 14 + (p && p.duration > 0 ? 16 + 10 : 0) + 46 + 8 + (p ? 38 + (lyricsExpanded ? 250 : 0) : 0);
+export function playerHeight(p: Playback | null, lyricsExpanded = false, queueExpanded = false): number {
+  return (
+    COVER +
+    14 +
+    (p && p.duration > 0 ? 16 + 10 : 0) +
+    46 +
+    8 +
+    (p ? 38 + (queueExpanded ? QUEUE_HEIGHT + 14 : lyricsExpanded ? 250 : 0) : 0)
+  );
 }
 
 export function Cover(props: { src?: string; size: number; radius: number; dimmed?: boolean }) {
   useLocale();
+  const [failedImage, setFailedImage] = useState<string>();
   return (
     <span
       className="m-cover"
@@ -39,7 +51,11 @@ export function Cover(props: { src?: string; size: number; radius: number; dimme
         transform: props.dimmed ? "scale(0.94)" : undefined,
       }}
     >
-      {props.src ? <img src={props.src} alt="" draggable={false} /> : <Music size={props.size * 0.3} strokeWidth={2} />}
+      {props.src && failedImage !== props.src ? (
+        <img src={props.src} alt="" draggable={false} decoding="async" onError={() => setFailedImage(props.src)} />
+      ) : (
+        <Music size={props.size * 0.3} strokeWidth={2} />
+      )}
     </span>
   );
 }
@@ -53,6 +69,12 @@ export function MusicPage() {
   const failed = useMusic((s) => s.failed);
   const command = useMusic((s) => s.command);
   const lyricsExpanded = useLyrics((s) => s.expanded);
+  const queueExpanded = useQueue((s) => s.expanded);
+  const reducedMotion = useReducedMotion();
+  usePageLayer(queueExpanded, () => useQueue.getState().close());
+  useEffect(() => {
+    if (!playback) useQueue.getState().close();
+  }, [!!playback]);
   const [opening, setOpening] = useState(false);
   const openingPlayer = useRef(false);
   const [failedSource, setFailedSource] = useState<string | null>(null);
@@ -193,16 +215,49 @@ export function MusicPage() {
       </div>
       {playback && (
         <>
-          <button
-            type="button"
-            className="m-lyrics-toggle"
-            aria-expanded={lyricsExpanded}
-            aria-controls="music-lyrics"
-            onClick={() => useLyrics.getState().toggle()}
-          >
-            {t("notchMusicExtras.lyrics")}
-          </button>
+          <div className="m-extras">
+            <button
+              type="button"
+              className="m-lyrics-toggle"
+              aria-expanded={lyricsExpanded}
+              aria-controls="music-lyrics"
+              onClick={() => {
+                useQueue.getState().close();
+                useLyrics.getState().toggle();
+              }}
+            >
+              {t("notchMusicExtras.lyrics")}
+            </button>
+            <button
+              type="button"
+              className="m-lyrics-toggle"
+              aria-expanded={queueExpanded}
+              aria-controls="music-queue"
+              onClick={() => {
+                useLyrics.setState({ expanded: false });
+                useQueue.getState().toggle();
+              }}
+            >
+              <ListMusic size={14} aria-hidden="true" />
+              {t("notchMusicExtras.queue")}
+            </button>
+          </div>
           {lyricsExpanded && <LyricsSection />}
+          <AnimatePresence initial={false}>
+            {queueExpanded && (
+              <motion.div
+                key="queue"
+                className="m-queue-reveal"
+                style={{ height: QUEUE_HEIGHT }}
+                initial={{ opacity: 0, y: reducedMotion ? 0 : 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: reducedMotion ? 0 : 4 }}
+                transition={{ duration: reducedMotion ? 0 : 0.28, ease: [0.22, 1, 0.36, 1] }}
+              >
+                <QueuePanel playback={playback} />
+              </motion.div>
+            )}
+          </AnimatePresence>
         </>
       )}
     </div>
@@ -277,9 +332,10 @@ function Timeline({ playback, accent }: { playback: Playback; accent: string }) 
 export function useMusicHeight() {
   const playback = useMusic((s) => s.playback);
   const expanded = useLyrics((s) => s.expanded);
+  const queueExpanded = useQueue((s) => s.expanded);
   const setPageContent = useIsland((s) => s.setPageContent);
   useEffect(
-    () => setPageContent("music", playerHeight(playback, expanded)),
-    [playback?.duration, !!playback, expanded, setPageContent],
+    () => setPageContent("music", playerHeight(playback, expanded, queueExpanded), queueExpanded),
+    [playback?.duration, !!playback, expanded, queueExpanded, setPageContent],
   );
 }

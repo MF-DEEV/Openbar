@@ -25,6 +25,7 @@ mod media;
 mod media_volume;
 mod microphone;
 mod music_levels;
+mod music_queue;
 mod notifications;
 mod ocr;
 mod power_saver;
@@ -55,6 +56,15 @@ pub fn hook_main() -> ! {
 /// `Vorssaint.exe --music-probe <file>`: writes what the media reader sees.
 pub fn music_probe_main(path: &str) -> ! {
     let _ = std::fs::write(path, media::probe());
+    std::process::exit(0)
+}
+
+/// On-demand queue diagnostic; never starts the island or changes playback.
+pub fn music_queue_probe_main(path: &str, title: &str) -> ! {
+    let snapshot = music_queue::read("Spotify.exe", title, true);
+    if let Ok(json) = serde_json::to_string_pretty(&snapshot) {
+        let _ = std::fs::write(path, json);
+    }
     std::process::exit(0)
 }
 
@@ -211,6 +221,8 @@ pub fn run() {
             downloads::downloads_open_folder,
             downloads::downloads_choose_folder,
             media_volume::music_volume,
+            music_queue::music_queue,
+            music_queue::artwork::music_queue_artwork,
             media::music_command,
             media::music_seek,
             media::music_shuffle,

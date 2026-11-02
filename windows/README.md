@@ -81,7 +81,8 @@ The closed island can also rest with **Battery**, **Music**, **AI Agents**, or *
 
 ## Private by default
 
-- Nothing the island reads leaves your PC. There is no telemetry, no analytics and no account.
+- There is no telemetry, analytics or account. Online lyrics and Up next artwork use the services described below; other readings stay on your PC.
+- **Up next**, beside **Lyrics**, shows up to five upcoming Spotify desktop songs with their artists and automatic covers. While open, song titles and primary artists are matched through the public iTunes and Deezer catalogs; images load from their cover CDNs. No account token is needed. [Queue support and limitations](docs/music-queue.md).
 - Lyrics are looked up on lrclib.net only after you turn on **Find lyrics online** (off by default), and only while lyrics are open: the song's title, artist, album and duration are sent. Imported lyrics and timing adjustments stay on your PC.
 - Prompts, replies, session titles and command output stay hidden unless you turn on **Show previews** in **Content › Sessions**. With it on, they are kept in memory only and cleared when you turn it off.
 - A permission prompt always shows what it would run, so nothing is allowed unread.

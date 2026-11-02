@@ -124,7 +124,8 @@ export interface IslandState {
   focusRequest: number;
   /** Pages with a height of their own (music, timer, controls) report it here. */
   pageContent: Partial<Record<ModuleId, number>>;
-  setPageContent(module: ModuleId, height: number | null): void;
+  pageFitsWidth: Partial<Record<ModuleId, boolean>>;
+  setPageContent(module: ModuleId, height: number | null, fitWidth?: boolean): void;
   /** A drag is over the closed island: it shows where to drop (notchDragReveal). */
   dropHint: boolean;
   setDropHint(on: boolean): void;
@@ -236,16 +237,17 @@ export const useIsland = create<IslandState>()((set, get) => ({
   activityPickerOpen: false,
   focusRequest: 0,
   pageContent: {},
+  pageFitsWidth: {},
   dropHint: false,
   held: false,
 
-  setPageContent: (module, height) =>
+  setPageContent: (module, height, fitWidth = false) =>
     set((s) => {
-      if (s.pageContent[module] === (height ?? undefined)) return s;
+      if (s.pageContent[module] === (height ?? undefined) && !!s.pageFitsWidth[module] === fitWidth) return s;
       const pageContent = { ...s.pageContent };
       if (height === null) delete pageContent[module];
       else pageContent[module] = height;
-      return { pageContent };
+      return { pageContent, pageFitsWidth: { ...s.pageFitsWidth, [module]: height !== null && fitWidth } };
     }),
 
   setScreen: (screen, devicePixelRatio) => set({ screen, devicePixelRatio }),
@@ -618,7 +620,13 @@ export function presentation(
           ),
           bottomBubbles,
         })
-      : expandedHeight(geometry, { hasRow, enlarged, bottomBubbles, content: s.pageContent[s.selected] });
+      : expandedHeight(geometry, {
+          hasRow,
+          enlarged,
+          bottomBubbles,
+          content: s.pageContent[s.selected],
+          fitWidth: s.pageFitsWidth[s.selected] ? natural : undefined,
+        });
     return {
       kind: "expanded",
       key: s.showingSections ? "expanded:sections" : `expanded:${s.selected}${enlarged ? ":large" : ""}`,

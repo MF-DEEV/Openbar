@@ -3,6 +3,13 @@
 #![cfg_attr(target_os = "windows", windows_subsystem = "windows")]
 
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("--music-queue-probe") {
+        let path = std::env::args()
+            .nth(2)
+            .unwrap_or_else(|| "music-queue-probe.json".into());
+        let title = std::env::args().nth(3).unwrap_or_default();
+        vorssaint_windows_lib::music_queue_probe_main(&path, &title);
+    }
     if std::env::args().nth(1).as_deref() == Some("--microphone-probe") {
         let path = std::env::args()
             .nth(2)

@@ -481,6 +481,10 @@
 }
 
 .m-lyrics-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   align-self: center;
   height: 24px;
   padding: 0 12px;
@@ -492,6 +496,157 @@
 .m-lyrics-toggle[aria-expanded="true"] {
   background: rgba(255, 255, 255, 0.09);
   color: #fff;
+}
+.m-extras {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+.m-queue-reveal {
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.m-queue {
+  height: 282px;
+  position: relative;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  padding-top: 10px;
+  gap: 6px;
+}
+.m-queue-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 24px;
+  flex: none;
+  color: rgba(255, 255, 255, 0.65);
+}
+.m-queue-heading strong {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+}
+.m-queue-heading button {
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+}
+.m-queue-list {
+  position: relative;
+  flex: none;
+  height: 240px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow: clip;
+  contain: layout paint style;
+}
+.m-queue-row {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  height: 48px;
+  padding: 2px 0;
+  box-sizing: border-box;
+}
+.m-queue-number {
+  width: 12px;
+  flex: none;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.m-queue-art {
+  position: relative;
+  overflow: hidden;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.4);
+}
+.m-queue-song {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.m-queue-song strong,
+.m-queue-song > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.m-queue-song strong {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+.m-queue-song > span {
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.45);
+}
+.m-queue-empty {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 12px;
+  color: rgba(255, 255, 255, 0.45);
+  text-align: center;
+  font-size: 12px;
+}
+.m-queue-empty p {
+  margin: 0;
+  max-width: 240px;
+  line-height: 1.5;
+}
+.m-queue-open {
+  border-radius: 14px;
+  padding: 6px 12px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+.m-queue-spinner {
+  animation: m-queue-spin 1s linear infinite;
+}
+.m-queue-art img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+}
+.m-queue-art img.is-loaded {
+  opacity: 1;
+}
+@keyframes m-queue-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .m-queue-art img {
+    transition: none;
+  }
+  .m-queue-spinner {
+    animation: none;
+  }
 }
 .m-lyrics {
   height: 236px;

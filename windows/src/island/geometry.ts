@@ -311,13 +311,23 @@ export function contentBudget(geometry: Geometry, hasRow: boolean): number {
  */
 export function expandedHeight(
   geometry: Geometry,
-  opts: { hasRow: boolean; content?: number; enlarged?: boolean; bottomBubbles?: boolean },
+  opts: { hasRow: boolean; content?: number; enlarged?: boolean; bottomBubbles?: boolean; fitWidth?: number },
 ): number {
   const cap = geometry.screen.height - 48 - (opts.bottomBubbles ? QUICK_ACCESS_GUTTER : 0);
   if (opts.enlarged) return Math.min(0.8 * geometry.screen.height, geometry.screen.height - 48 - 72);
   const h = headerMetrics(geometry, opts.hasRow);
   let height = h.headerTopInset + h.headerChromeHeight + (opts.content ?? contentBudget(geometry, opts.hasRow));
   if (geometry.input.layout === "custom") height = geometry.input.customHeight ?? 480;
+  else if (opts.fitWidth && opts.content !== undefined) {
+    const width = expandedWidth(geometry, { natural: opts.fitWidth });
+    // Match the same proportional width fit as Expanded; otherwise a narrow
+    // page gets a full unscaled height and a large empty area below it.
+    for (let step = 0; step < 4; step++) {
+      const insets = contentInsets(geometry, { width, height });
+      const scale = Math.max(0, Math.min(1, (width - 2 * insets.horizontal) / opts.fitWidth));
+      height = h.headerTopInset + (h.pageTopInset - h.headerTopInset + opts.content) * scale + insets.bottom;
+    }
+  }
   return Math.min(height, cap);
 }
 
