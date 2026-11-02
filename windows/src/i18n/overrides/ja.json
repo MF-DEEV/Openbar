@@ -657,5 +657,21 @@
   "windows.calendar.saveFailed": "イベントを保存できませんでした。もう一度お試しください。",
   "windows.calendar.deleteFailed": "イベントを削除できませんでした。もう一度お試しください。",
   "windows.calendar.localHint": "イベントはこのデバイスに保存されます。",
-  "windows.calendar.createHint": "日付を選んで最初のイベントを追加しましょう。"
+  "windows.calendar.createHint": "日付を選んで最初のイベントを追加しましょう。",
+  "windows.sessions.diffLabel": "変更",
+  "windows.sessions.diffNewFile": "新しいファイル",
+  "windows.sessions.diffDeletedFile": "ファイルを削除",
+  "windows.sessions.diffReplacesFile": "ファイル全体を置き換え",
+  "windows.sessions.diffNewCell": "新しいセル",
+  "windows.sessions.diffDeletedCell": "セルを削除",
+  "windows.sessions.diffEveryMatch": "すべての一致",
+  "windows.sessions.diffCell": "セル %@",
+  "windows.sessions.diffPlaces": "%@ か所",
+  "windows.sessions.diffMovesTo": "%@ へ移動",
+  "windows.sessions.diffMoreLines": "… ほか %@ 行",
+  "windows.sessions.diffCounts": "%1$@ 行追加、%2$@ 行削除",
+  "windows.sessions.diffAdded": "追加",
+  "windows.sessions.diffRemoved": "削除",
+  "windows.sessions.diffUnchanged": "変更なし",
+  "windows.sessions.diffLine": "%1$@、%2$@ 行目"
 }

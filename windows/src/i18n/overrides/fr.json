@@ -657,5 +657,21 @@
   "windows.calendar.saveFailed": "Impossible d’enregistrer l’événement. Réessayez.",
   "windows.calendar.deleteFailed": "Impossible de supprimer l’événement. Réessayez.",
   "windows.calendar.localHint": "Vos événements restent sur cet appareil.",
-  "windows.calendar.createHint": "Choisissez un jour et ajoutez votre premier événement."
+  "windows.calendar.createHint": "Choisissez un jour et ajoutez votre premier événement.",
+  "windows.sessions.diffLabel": "Modifications",
+  "windows.sessions.diffNewFile": "Nouveau fichier",
+  "windows.sessions.diffDeletedFile": "Supprime le fichier",
+  "windows.sessions.diffReplacesFile": "Remplace tout le fichier",
+  "windows.sessions.diffNewCell": "Nouvelle cellule",
+  "windows.sessions.diffDeletedCell": "Supprime la cellule",
+  "windows.sessions.diffEveryMatch": "Chaque occurrence",
+  "windows.sessions.diffCell": "Cellule %@",
+  "windows.sessions.diffPlaces": "%@ endroits",
+  "windows.sessions.diffMovesTo": "Déplacé vers %@",
+  "windows.sessions.diffMoreLines": "… %@ lignes de plus",
+  "windows.sessions.diffCounts": "%1$@ ajoutées, %2$@ supprimées",
+  "windows.sessions.diffAdded": "Ajoutée",
+  "windows.sessions.diffRemoved": "Supprimée",
+  "windows.sessions.diffUnchanged": "Inchangée",
+  "windows.sessions.diffLine": "%1$@, ligne %2$@"
 }

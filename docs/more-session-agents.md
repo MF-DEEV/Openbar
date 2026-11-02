@@ -36,4 +36,5 @@ OpenCode's plugin (`AgentOpenCodePlugin.swift`, the same file as `windows/src-ta
 
 - None of these agents keeps a registry the island could read, so a Gemini CLI, Copilot CLI or Cursor session that was already running when the island started shows up at its next event. OpenCode's plugin announces its sessions itself.
 - Gemini CLI says nothing when a permission prompt is answered no; the row waits until the agent's next event.
+- A file change's diff shows for OpenCode (from the permission's `metadata.diff` or `metadata.files`, which the plugin passes on) and for Gemini CLI (from its edit confirmation's `originalContent`/`newContent`, or `fileDiff`), above where to answer it. Copilot CLI's permission notice carries only a message and Cursor's approvals stay in Cursor, so neither shows one.
 - Usage and cost for Gemini CLI and Cursor in AI Agents are out of scope (#123).

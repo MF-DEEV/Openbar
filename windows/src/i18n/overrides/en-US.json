@@ -657,5 +657,21 @@
   "windows.calendar.saveFailed": "Could not save your event. Please try again.",
   "windows.calendar.deleteFailed": "Could not delete your event. Please try again.",
   "windows.calendar.localHint": "Your events stay on this device.",
-  "windows.calendar.createHint": "Choose a day and add your first event."
+  "windows.calendar.createHint": "Choose a day and add your first event.",
+  "windows.sessions.diffLabel": "Changes",
+  "windows.sessions.diffNewFile": "New file",
+  "windows.sessions.diffDeletedFile": "Deletes the file",
+  "windows.sessions.diffReplacesFile": "Replaces the whole file",
+  "windows.sessions.diffNewCell": "New cell",
+  "windows.sessions.diffDeletedCell": "Deletes the cell",
+  "windows.sessions.diffEveryMatch": "Every match",
+  "windows.sessions.diffCell": "Cell %@",
+  "windows.sessions.diffPlaces": "%@ places",
+  "windows.sessions.diffMovesTo": "Moves to %@",
+  "windows.sessions.diffMoreLines": "… %@ more lines",
+  "windows.sessions.diffCounts": "%1$@ added, %2$@ removed",
+  "windows.sessions.diffAdded": "Added",
+  "windows.sessions.diffRemoved": "Removed",
+  "windows.sessions.diffUnchanged": "Unchanged",
+  "windows.sessions.diffLine": "%1$@, line %2$@"
 }

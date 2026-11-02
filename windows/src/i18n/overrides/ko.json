@@ -657,5 +657,21 @@
   "windows.calendar.saveFailed": "일정을 저장할 수 없습니다. 다시 시도하세요.",
   "windows.calendar.deleteFailed": "일정을 삭제할 수 없습니다. 다시 시도하세요.",
   "windows.calendar.localHint": "일정은 이 기기에 저장됩니다.",
-  "windows.calendar.createHint": "날짜를 선택하고 첫 일정을 추가하세요."
+  "windows.calendar.createHint": "날짜를 선택하고 첫 일정을 추가하세요.",
+  "windows.sessions.diffLabel": "변경 사항",
+  "windows.sessions.diffNewFile": "새 파일",
+  "windows.sessions.diffDeletedFile": "파일 삭제",
+  "windows.sessions.diffReplacesFile": "파일 전체 교체",
+  "windows.sessions.diffNewCell": "새 셀",
+  "windows.sessions.diffDeletedCell": "셀 삭제",
+  "windows.sessions.diffEveryMatch": "모든 일치 항목",
+  "windows.sessions.diffCell": "셀 %@",
+  "windows.sessions.diffPlaces": "%@곳",
+  "windows.sessions.diffMovesTo": "%@(으)로 이동",
+  "windows.sessions.diffMoreLines": "… %@줄 더",
+  "windows.sessions.diffCounts": "%1$@줄 추가, %2$@줄 삭제",
+  "windows.sessions.diffAdded": "추가됨",
+  "windows.sessions.diffRemoved": "삭제됨",
+  "windows.sessions.diffUnchanged": "변경 없음",
+  "windows.sessions.diffLine": "%1$@, %2$@번째 줄"
 }

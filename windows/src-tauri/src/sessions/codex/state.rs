@@ -144,6 +144,9 @@ pub struct Thread {
     pub limit: Option<LimitStop>,
     pub acknowledged: Time,
     pub pending: Vec<Pending>,
+    /// The patch of each file change item still running, by item id, for
+    /// its approval to show; dropped when the item ends.
+    pub file_changes: HashMap<String, Value>,
     pub phase: Option<(SessionPhase, Time)>,
     pub parent: Option<String>,
     /// Codex's own helper threads (titles and the like), never a person's session.
@@ -161,6 +164,21 @@ pub struct State {
 }
 
 impl Thread {
+    /// Gives a file change's approval, already waiting, the item's patch.
+    fn attach(&mut self, changes: &Value, item: &str) -> bool {
+        let mut attached = false;
+        for pending in self.pending.iter_mut().filter(|p| {
+            p.method == "item/fileChange/requestApproval"
+                && str_at(&p.params, "itemId") == Some(item)
+        }) {
+            if let Some(params) = pending.params.as_object_mut() {
+                params.insert("changes".into(), changes.clone());
+                attached = true;
+            }
+        }
+        attached
+    }
+
     fn message(&mut self, item: &Value, at: Time) -> bool {
         let Some(id) = str_at(item, "id") else {
             return false;
@@ -551,6 +569,7 @@ impl State {
                 }
                 // A turn that ends takes its questions with it.
                 thread.pending.clear();
+                thread.file_changes.clear();
                 for tool in thread.tools.iter_mut().filter(|t| t.finished.is_none()) {
                     tool.finished = Some(at);
                 }
@@ -567,6 +586,19 @@ impl State {
                     return None;
                 }
                 let id = str_at(item, "id").unwrap_or("").to_string();
+                if kind == "fileChange" && !id.is_empty() {
+                    // Kept whatever the previews: the approval card shows the patch.
+                    match (method, item.get("changes").filter(|c| c.is_array())) {
+                        ("item/started", Some(changes)) => {
+                            thread.file_changes.insert(id.clone(), changes.clone());
+                            thread.attach(changes, &id);
+                        }
+                        ("item/completed", _) => {
+                            thread.file_changes.remove(&id);
+                        }
+                        _ => {}
+                    }
+                }
                 if method == "item/started" {
                     let started = time_at(params, "startedAtMs").unwrap_or(now);
                     thread.tools.push(ToolUse {
@@ -589,6 +621,14 @@ impl State {
                         matches!(str_at(item, "status"), Some("failed") | Some("declined"));
                 }
                 Some(Notified::CHANGED)
+            }
+            "item/fileChange/patchUpdated" => {
+                let thread = self.threads.get_mut(&thread_id?)?;
+                let item = str_at(params, "itemId")?.to_string();
+                let changes = params.get("changes").filter(|c| c.is_array())?.clone();
+                let attached = thread.attach(&changes, &item);
+                thread.file_changes.insert(item, changes);
+                attached.then_some(Notified::CHANGED)
             }
             "thread/tokenUsage/updated" => {
                 let thread = self.threads.get_mut(&thread_id?)?;
@@ -640,10 +680,20 @@ impl State {
             return false;
         };
         thread.pending.retain(|p| p.rpc_id != rpc_id);
+        let mut params = params.clone();
+        // A file change's approval names its item; the item carries the patch.
+        if method == "item/fileChange/requestApproval" {
+            let changes = str_at(&params, "itemId")
+                .and_then(|item| thread.file_changes.get(item))
+                .cloned();
+            if let (Some(changes), Some(object)) = (changes, params.as_object_mut()) {
+                object.insert("changes".into(), changes);
+            }
+        }
         thread.pending.push(Pending {
             rpc_id,
             method: method.to_string(),
-            params: params.clone(),
+            params,
             since: now,
         });
         true
@@ -893,8 +943,29 @@ fn permission(pending: &Pending) -> Permission {
             )
         }
         "item/fileChange/requestApproval" => {
-            let reason = str_at(p, "reason").unwrap_or("Codex wants to change files.");
-            ("Edit", None, reason.to_string(), true)
+            let paths: Vec<&str> = p
+                .get("changes")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+                .filter_map(|c| str_at(c, "path"))
+                .collect();
+            let reason = str_at(p, "reason");
+            // With the patch at hand the diff shows what changes; the paths
+            // stand in for the list and notices.
+            let detail = if paths.is_empty() {
+                reason.unwrap_or("Codex wants to change files.").to_string()
+            } else {
+                reason
+                    .into_iter()
+                    .chain(paths.iter().copied())
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            };
+            let summary = paths
+                .first()
+                .map(|path| path.rsplit(['/', '\\']).next().unwrap_or(path).to_string());
+            ("Edit", summary, detail, true)
         }
         "item/permissions/requestApproval" => {
             let reason = str_at(p, "reason").unwrap_or("Codex asks for more access.");
@@ -925,6 +996,13 @@ fn permission(pending: &Pending) -> Permission {
     card.detail = clip(detail.trim(), DETAIL_LIMIT);
     if pending.method == "item/tool/requestUserInput" {
         card.questions = questions(p).into_iter().map(|(_, q)| q).collect();
+    }
+    if let Some(changes) = p
+        .get("changes")
+        .and_then(Value::as_array)
+        .filter(|_| pending.method == "item/fileChange/requestApproval")
+    {
+        card.diffs = crate::sessions::file_diff::codex(changes);
     }
     card
 }
@@ -1037,6 +1115,7 @@ fn session(
         .then_some(current)
         .flatten(),
         permission: card,
+        waiting_diffs: Vec::new(),
         timeline,
         subagents: Vec::new(),
         tasks: None,
@@ -1134,6 +1213,89 @@ mod tests {
             "gitInfo": {"branch": "feat/x"}, "createdAt": 100, "updatedAt": 200, "status": {"type": "idle"}
         }));
         state
+    }
+
+    /// As Codex 0.164 sent them on 2026-11-02: the item a millisecond before
+    /// the approval, which names it only by id and gives no reason.
+    #[test]
+    fn a_real_codex_patch_reaches_its_approval() {
+        let mut state = state_with_thread();
+        let item: Value = serde_json::from_str(r#"{"type": "fileChange", "id": "exec-8c2d", "changes": [{"path": "/tmp/vs-codex-diff/work/hello.md", "kind": {"type": "add"}, "diff": "hi\n"}, {"path": "/tmp/vs-codex-diff/work/notes.txt", "kind": {"type": "update", "move_path": null}, "diff": "@@ -1,2 +1,2 @@\n-old line\n+new line\n keep\n"}], "status": "inProgress"}"#).unwrap();
+        state.notify(
+            "item/started",
+            &json!({"threadId": "t1", "turnId": "u", "item": item}),
+            1.0,
+        );
+        state.request(json!(0), "item/fileChange/requestApproval",
+            &json!({"threadId": "t1", "turnId": "u", "itemId": "exec-8c2d", "startedAtMs": 1, "reason": null, "grantRoot": null}), 1.0);
+        let (sessions, _) = state.snapshot(1.0, ContentPolicy { previews: false });
+        let card = sessions[0].permission.clone().unwrap();
+        assert_eq!(card.diffs.len(), 2);
+        assert_eq!(
+            (card.diffs[0].change, card.diffs[0].added),
+            (crate::sessions::file_diff::Change::Add, 1)
+        );
+        assert_eq!(
+            (
+                card.diffs[1].added,
+                card.diffs[1].removed,
+                card.diffs[1].lines.len()
+            ),
+            (1, 1, 3)
+        );
+        assert_eq!(
+            card.detail,
+            "/tmp/vs-codex-diff/work/hello.md\n/tmp/vs-codex-diff/work/notes.txt"
+        );
+    }
+
+    #[test]
+    fn file_change_approvals_show_their_items_patch() {
+        let mut state = state_with_thread();
+        state.notify("item/started", &json!({"threadId": "t1", "item": {
+            "type": "fileChange", "id": "fc1", "status": "inProgress",
+            "changes": [{"path": "C:\\w\\x.rs", "kind": {"type": "update"}, "diff": "@@ -1 +1 @@\n-a\n+b\n"}]
+        }}), 1.0);
+        assert!(state.request(
+            json!(4),
+            "item/fileChange/requestApproval",
+            &json!({"threadId": "t1", "turnId": "u", "itemId": "fc1"}),
+            2.0
+        ));
+        let (sessions, _) = state.snapshot(2.0, ContentPolicy { previews: false });
+        let card = sessions[0].permission.clone().unwrap();
+        assert_eq!(card.diffs.len(), 1);
+        assert_eq!(card.diffs[0].path, "C:\\w\\x.rs");
+        assert_eq!((card.diffs[0].added, card.diffs[0].removed), (1, 1));
+        assert_eq!(card.summary.as_deref(), Some("x.rs"));
+        assert_eq!(card.detail, "C:\\w\\x.rs");
+        assert!(!card.fits_on_a_line());
+        // A patch that changes while the request waits is shown as it is now.
+        state.notify("item/fileChange/patchUpdated", &json!({"threadId": "t1", "turnId": "u", "itemId": "fc1",
+            "changes": [{"path": "C:\\w\\x.rs", "kind": {"type": "update"}, "diff": "@@ -1 +1,2 @@\n-a\n+c\n+d\n"}]}), 3.0);
+        let (sessions, _) = state.snapshot(3.0, ContentPolicy { previews: false });
+        assert_eq!(sessions[0].permission.as_ref().unwrap().diffs[0].added, 2);
+        // An item that ends takes its patch with it, even one the timeline lost.
+        state.threads.get_mut("t1").unwrap().tools.clear();
+        state.notify(
+            "item/completed",
+            &json!({"threadId": "t1", "item": {
+            "type": "fileChange", "id": "fc1", "status": "completed", "changes": []}}),
+            4.0,
+        );
+        assert!(state.threads["t1"].file_changes.is_empty());
+        // An approval without its item reads its reason, as before.
+        state.threads.get_mut("t1").unwrap().pending.clear();
+        state.request(
+            json!(5),
+            "item/fileChange/requestApproval",
+            &json!({"threadId": "t1", "itemId": "unknown", "reason": "write outside"}),
+            5.0,
+        );
+        let (sessions, _) = state.snapshot(5.0, ContentPolicy { previews: false });
+        let bare = sessions[0].permission.clone().unwrap();
+        assert!(bare.diffs.is_empty());
+        assert_eq!(bare.detail, "write outside");
     }
 
     #[test]

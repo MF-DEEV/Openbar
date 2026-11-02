@@ -103,6 +103,15 @@ enum AgentHookSessionTests {
             if case .needsPermission(let id, _) = $0 { return id == "gemini:g1" }
             return false
         }, "the wait is news: \(asked.events)")
+        suite.expect(listed[0].waitingDiffs.isEmpty, "a command has no diff to show")
+        // An edit Gemini asks about shows what it changes, though it is answered there.
+        feed(tracker, event("Notification", ["notification_type": "ToolPermission", "message": "Apply this change?",
+                                             "details": ["type": "edit", "filePath": "/w/app/a.ts", "fileName": "a.ts",
+                                                         "originalContent": "a\nb\n", "newContent": "a\nc\n"]]))
+        let edit = snapshot(tracker).sessions[0]
+        suite.expect(edit.permission == nil && edit.waitingDiffs.first?.path == "/w/app/a.ts"
+                     && edit.waitingDiffs.first?.added == 1 && edit.waitingDiffs.first?.removed == 1,
+                     "a Gemini edit shows its diff above the terminal's answer: \(edit.waitingDiffs)")
         feed(tracker, event("AfterTool", ["tool_name": "run_shell_command", "tool_input": ["command": "npm test"],
                                           "tool_response": ["llmContent": "ok"]]))
         listed = snapshot(tracker).sessions

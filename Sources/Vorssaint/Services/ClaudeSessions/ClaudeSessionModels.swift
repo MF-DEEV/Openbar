@@ -252,12 +252,16 @@ struct ClaudePermission: Equatable {
     /// What Claude asks the person to choose, when the request is for a
     /// question rather than a tool; it is answered, not allowed.
     var questions: [ClaudeQuestion] = []
+    /// What a file change would do to each file it touches, shown like the
+    /// detail even with previews off.
+    var diffs: [ClaudeFileDiff] = []
 
     var asksQuestions: Bool { !questions.isEmpty }
 
-    /// A request short enough to read whole on one line of the list.
+    /// A request short enough to read whole on one line of the list. A file
+    /// change never is: its path alone does not say what changes.
     var fitsOnALine: Bool {
-        !asksQuestions && !detail.contains("\n") && detail.count <= ClaudeToolSummary.quickDecisionLimit
+        !asksQuestions && diffs.isEmpty && !detail.contains("\n") && detail.count <= ClaudeToolSummary.quickDecisionLimit
     }
 }
 
@@ -353,6 +357,9 @@ struct ClaudeSession: Equatable, Identifiable {
     var waitingFor: String?
     var currentTool: ClaudeToolUse?
     var permission: ClaudePermission?
+    /// What a file change only the agent can answer would do: shown above
+    /// "answer it there", since the request itself is not the island's.
+    var waitingDiffs: [ClaudeFileDiff] = []
     /// The latest tools of the main agent, oldest first.
     var timeline: [ClaudeToolUse]
     var subagents: [ClaudeSubagent]

@@ -19,6 +19,8 @@ import { connect } from "node:net";
 
 const SOCKET = "__VORSSAINT_SOCKET__";
 const LIMIT = 4000;
+// A file change's patch, shown as a diff on the permission card.
+const PATCH_LIMIT = 200000;
 
 export const VorssaintIsland = async ({ client, directory }) => {
   const pid = process.pid;
@@ -29,6 +31,7 @@ export const VorssaintIsland = async ({ client, directory }) => {
   // What the island was told of each session, told again after it restarts.
   const known = new Map();
   const clip = (text) => (typeof text === "string" ? text.slice(0, LIMIT) : undefined);
+  const clipPatch = (text) => (typeof text === "string" ? text.slice(0, PATCH_LIMIT) : undefined);
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   // One event on its own connection. One that waits gets the island's answer back.
@@ -119,6 +122,16 @@ export const VorssaintIsland = async ({ client, directory }) => {
         metadata: {
           command: clip(p.metadata && p.metadata.command),
           filepath: clip(p.metadata && (p.metadata.filepath ?? p.metadata.filePath)),
+          diff: clipPatch(p.metadata && p.metadata.diff),
+          files:
+            p.metadata && Array.isArray(p.metadata.files)
+              ? p.metadata.files.slice(0, 50).map((f) => ({
+                  filePath: clip(f && (f.filePath ?? f.relativePath)),
+                  type: clip(f && f.type),
+                  patch: clipPatch(f && f.patch),
+                  movePath: clip(f && f.movePath),
+                }))
+              : undefined,
         },
         always: Array.isArray(p.always) ? p.always.map(clip) : [],
       },

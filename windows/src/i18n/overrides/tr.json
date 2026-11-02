@@ -657,5 +657,21 @@
   "windows.calendar.saveFailed": "Etkinlik kaydedilemedi. Tekrar deneyin.",
   "windows.calendar.deleteFailed": "Etkinlik silinemedi. Tekrar deneyin.",
   "windows.calendar.localHint": "Etkinlikleriniz bu cihazda kalır.",
-  "windows.calendar.createHint": "Bir gün seçin ve ilk etkinliğinizi ekleyin."
+  "windows.calendar.createHint": "Bir gün seçin ve ilk etkinliğinizi ekleyin.",
+  "windows.sessions.diffLabel": "Değişiklikler",
+  "windows.sessions.diffNewFile": "Yeni dosya",
+  "windows.sessions.diffDeletedFile": "Dosyayı siler",
+  "windows.sessions.diffReplacesFile": "Dosyanın tamamını değiştirir",
+  "windows.sessions.diffNewCell": "Yeni hücre",
+  "windows.sessions.diffDeletedCell": "Hücreyi siler",
+  "windows.sessions.diffEveryMatch": "Her eşleşme",
+  "windows.sessions.diffCell": "Hücre %@",
+  "windows.sessions.diffPlaces": "%@ yer",
+  "windows.sessions.diffMovesTo": "%@ konumuna taşınır",
+  "windows.sessions.diffMoreLines": "… %@ satır daha",
+  "windows.sessions.diffCounts": "%1$@ eklendi, %2$@ silindi",
+  "windows.sessions.diffAdded": "Eklendi",
+  "windows.sessions.diffRemoved": "Silindi",
+  "windows.sessions.diffUnchanged": "Değişmedi",
+  "windows.sessions.diffLine": "%1$@, satır %2$@"
 }

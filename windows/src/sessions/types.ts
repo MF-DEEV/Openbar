@@ -40,6 +40,30 @@ export interface Question {
   multiSelect: boolean;
 }
 
+/** One line of a file change's diff (ClaudeFileDiff.Line). */
+export interface DiffLine {
+  kind: "context" | "added" | "removed" | "gap";
+  text: string;
+  /** In the file: the new number, or the old one for a removed line. */
+  number?: number;
+}
+
+/** What a file change would do to one file (file_diff.rs). */
+export interface FileDiff {
+  path: string;
+  change: "update" | "add" | "delete" | "replace";
+  places?: number;
+  everyMatch: boolean;
+  /** Set for a notebook cell, empty when the edit names none. */
+  cell?: string;
+  movedTo?: string;
+  added: number;
+  removed: number;
+  lines: DiffLine[];
+  /** Lines past the limit, left out. */
+  hidden: number;
+}
+
 export interface Permission {
   requestId: string;
   tool: string;
@@ -48,6 +72,8 @@ export interface Permission {
   offersAlways: boolean;
   since: number;
   questions: Question[];
+  /** A file change's diff, per file; empty for anything else. */
+  diffs?: FileDiff[];
   fitsOnALine: boolean;
 }
 
@@ -141,6 +167,8 @@ export interface Session {
   waitingFor?: string;
   currentTool?: ToolUse;
   permission?: Permission;
+  /** A file change only the agent can answer, shown above "answer it there". */
+  waitingDiffs?: FileDiff[];
   timeline: ToolUse[];
   subagents: Subagent[];
   tasks?: Tasks;

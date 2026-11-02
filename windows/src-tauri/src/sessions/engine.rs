@@ -638,6 +638,7 @@ fn session(
             None
         },
         permission: entry.permissions.first().cloned(),
+        waiting_diffs: Vec::new(),
         timeline: entry.tools[start..].iter().map(gated).collect(),
         subagents,
         tasks,

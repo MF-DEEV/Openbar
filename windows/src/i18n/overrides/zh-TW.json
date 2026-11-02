@@ -657,5 +657,21 @@
   "windows.calendar.saveFailed": "無法儲存行程，請重試。",
   "windows.calendar.deleteFailed": "無法刪除行程，請重試。",
   "windows.calendar.localHint": "行程儲存在此裝置上。",
-  "windows.calendar.createHint": "選擇日期並新增第一個行程。"
+  "windows.calendar.createHint": "選擇日期並新增第一個行程。",
+  "windows.sessions.diffLabel": "變更",
+  "windows.sessions.diffNewFile": "新檔案",
+  "windows.sessions.diffDeletedFile": "刪除此檔案",
+  "windows.sessions.diffReplacesFile": "取代整個檔案",
+  "windows.sessions.diffNewCell": "新儲存格",
+  "windows.sessions.diffDeletedCell": "刪除此儲存格",
+  "windows.sessions.diffEveryMatch": "所有相符項目",
+  "windows.sessions.diffCell": "儲存格 %@",
+  "windows.sessions.diffPlaces": "%@ 處",
+  "windows.sessions.diffMovesTo": "移至 %@",
+  "windows.sessions.diffMoreLines": "… 另有 %@ 行",
+  "windows.sessions.diffCounts": "新增 %1$@ 行，刪除 %2$@ 行",
+  "windows.sessions.diffAdded": "新增",
+  "windows.sessions.diffRemoved": "刪除",
+  "windows.sessions.diffUnchanged": "未變更",
+  "windows.sessions.diffLine": "%1$@，第 %2$@ 行"
 }

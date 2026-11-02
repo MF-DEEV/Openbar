@@ -18,6 +18,7 @@ use std::path::{Path, PathBuf};
 
 use serde_json::{Map, Value, json};
 
+use super::file_diff;
 use super::models::{
     ChatMessage, ChatRole, ContentPolicy, HostKind, Permission, Provider, Session, SessionEvent,
     SessionPhase, Time, Tokens, ToolUse, preview, project_name, str_of, tool_summary,
@@ -364,13 +365,10 @@ fn gemini(
                 .find_map(|k| text(&details, k))
                 .or_else(|| text(json, "message"))
                 .unwrap_or_default();
-            event(Kind::Permission(waiting_permission(
-                &asked,
-                detail,
-                false,
-                date,
-                &format!("{:x}", rand_id()),
-            )))
+            let mut permission =
+                waiting_permission(&asked, detail, false, date, &format!("{:x}", rand_id()));
+            permission.diffs = file_diff::gemini(&details);
+            event(Kind::Permission(permission))
         }
         _ => vec![],
     }
@@ -643,9 +641,11 @@ fn opencode(
                 .is_some_and(|a| a.iter().filter_map(Value::as_str).any(|s| !s.is_empty()));
             let detail: String = detail.chars().take(tool_summary::DETAIL_LIMIT).collect();
             decoded.permission = Some((session.clone(), request.clone()));
-            add(Kind::Permission(waiting_permission(
-                &tool, detail, always, date, &request,
-            )));
+            let mut permission = waiting_permission(&tool, detail, always, date, &request);
+            if tool == "Edit" {
+                permission.diffs = file_diff::opencode(&metadata);
+            }
+            add(Kind::Permission(permission));
         }
         "permissionReplied" => add(Kind::PermissionSettled(text(json, "id"))),
         "question" => add(Kind::Question),
@@ -1301,6 +1301,15 @@ fn session(
             None
         } else {
             entry.permission.clone()
+        },
+        waiting_diffs: if in_agent {
+            entry
+                .permission
+                .as_ref()
+                .map(|p| p.diffs.clone())
+                .unwrap_or_default()
+        } else {
+            Vec::new()
         },
         timeline,
         subagents: Vec::new(),
@@ -1972,6 +1981,30 @@ mod tests {
         assert!(sessions[0].permission.is_none());
         assert_eq!(sessions[0].waiting_for.as_deref(), Some(ANSWER_IN_TERMINAL));
         assert!(matches!(events[0], SessionEvent::NeedsPermission { .. }));
+        assert!(sessions[0].waiting_diffs.is_empty());
+        // An edit Gemini asks about shows what it changes, though it is answered there.
+        feed(
+            &mut t,
+            &ev(
+                "Notification",
+                json!({ "notification_type": "ToolPermission", "details": {
+                    "type": "edit", "filePath": "C:\\w\\a.ts", "fileName": "a.ts",
+                    "originalContent": "a\nb\n", "newContent": "a\nc\n" } }),
+            ),
+            ON,
+        );
+        let (sessions, _) = snap(&mut t, NOW, true);
+        assert!(sessions[0].permission.is_none());
+        assert_eq!(sessions[0].waiting_diffs.len(), 1);
+        assert_eq!(
+            (
+                sessions[0].waiting_diffs[0].added,
+                sessions[0].waiting_diffs[0].removed
+            ),
+            (1, 1)
+        );
+        let value = serde_json::to_value(&sessions[0]).unwrap();
+        assert_eq!(value["waitingDiffs"][0]["path"], "C:\\w\\a.ts");
         feed(
             &mut t,
             &ev(

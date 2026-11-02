@@ -9,6 +9,43 @@ import { isHookAgent, PROVIDER_NAMES, type Provider } from "./types";
 import { t, tf } from "../i18n";
 
 export const S = {
+  get diffLabel() {
+    return t("windows.sessions.diffLabel");
+  },
+  get diffNewFile() {
+    return t("windows.sessions.diffNewFile");
+  },
+  get diffDeletedFile() {
+    return t("windows.sessions.diffDeletedFile");
+  },
+  get diffReplacesFile() {
+    return t("windows.sessions.diffReplacesFile");
+  },
+  get diffNewCell() {
+    return t("windows.sessions.diffNewCell");
+  },
+  get diffDeletedCell() {
+    return t("windows.sessions.diffDeletedCell");
+  },
+  get diffEveryMatch() {
+    return t("windows.sessions.diffEveryMatch");
+  },
+  diffCell: (id: string) => tf("windows.sessions.diffCell", id),
+  diffPlaces: (n: number) => tf("windows.sessions.diffPlaces", n),
+  diffMovesTo: (path: string) => tf("windows.sessions.diffMovesTo", path),
+  diffMoreLines: (n: number) => tf("windows.sessions.diffMoreLines", n),
+  diffCounts: (added: number, removed: number) => tf("windows.sessions.diffCounts", added, removed),
+  /** "Added, line 12: text", read out for one line of a diff. */
+  diffLineLabel(line: { kind: string; number?: number; text: string }) {
+    const kind =
+      line.kind === "added"
+        ? t("windows.sessions.diffAdded")
+        : line.kind === "removed"
+          ? t("windows.sessions.diffRemoved")
+          : t("windows.sessions.diffUnchanged");
+    const head = line.number === undefined ? kind : tf("windows.sessions.diffLine", kind, line.number);
+    return [head, line.text].join(": ");
+  },
   get title() {
     return t("notchClaudeSessions.title");
   },

@@ -20,6 +20,7 @@ import type { Question, Session } from "./types";
 import { handlePermissionKey } from "./permissionKeys";
 import { subscribeGlobalPermissionKeys } from "./globalPermissionKeys";
 import { AutoAllowButton } from "./AutoAllowButton";
+import { FileDiffView } from "./FileDiffView";
 
 /** The tool Claude Code calls to have its plan approved (ClaudeToolSummary.planTool). */
 export const PLAN_TOOL = "ExitPlanMode";
@@ -69,12 +70,16 @@ export function PermissionCard({ session, onOpen }: { session: Session; onOpen: 
         <span>{title}</span>
       </div>
       {!p ? (
-        <div className="s-card-terminal">
-          <span>{S.answerIn(session.provider)}</span>
-          <button type="button" className="s-button is-secondary" onClick={onOpen}>
-            {S.open}
-          </button>
-        </div>
+        <>
+          {/* A file change only the agent can answer still shows what it changes. */}
+          {session.waitingDiffs?.length ? <FileDiffView diffs={session.waitingDiffs} /> : null}
+          <div className="s-card-terminal">
+            <span>{S.answerIn(session.provider)}</span>
+            <button type="button" className="s-button is-secondary" onClick={onOpen}>
+              {S.open}
+            </button>
+          </div>
+        </>
       ) : asks ? (
         <QuestionForm key={p.requestId} session={session} />
       ) : (
@@ -102,7 +107,12 @@ function ToolRequest({ session }: { session: Session }) {
   }, [session.id, p.requestId]);
   return (
     <>
-      <pre className={plan ? "s-detail is-plan" : "s-detail"}>{p.detail}</pre>
+      {p.diffs?.length ? (
+        // A file change shows what changes, not just where.
+        <FileDiffView diffs={p.diffs} />
+      ) : (
+        <pre className={plan ? "s-detail is-plan" : "s-detail"}>{p.detail}</pre>
+      )}
       <div className="s-card-buttons">
         <button
           type="button"
