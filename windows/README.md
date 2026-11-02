@@ -22,10 +22,10 @@
 </p>
 
 <p align="center">
-  <img src="docs/assets/island-sessions.png" width="640" alt="The island open on its Sessions page: Claude Code and Codex sessions in one list, one waiting for permission with Allow and Deny, one asking a question, others working or done">
+  <img src="docs/assets/readme/sessions.gif" width="720" alt="The island's Sessions list, a permission allowed, the session back at work, and a question answered">
 </p>
 
-<p align="center"><sub>The Sessions page, shown with demo sessions.</sub></p>
+<p align="center"><sub>The Sessions page, recorded with sample sessions.</sub></p>
 
 > [!NOTE]
 > This is a beta. The sections listed under [Not yet](#not-yet) show a placeholder for now. The installer and the app are still named Vorssaint, after the project Openbar is built on; Openbar is not affiliated with or endorsed by the Vorssaint maintainer.
