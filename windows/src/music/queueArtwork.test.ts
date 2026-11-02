@@ -1,6 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { describe, expect, it, vi } from "vitest";
-import { createArtworkStore, selectSecondaryArtwork, createArtworkLoader, selectArtwork } from "./queueArtwork";
+import {
+  verifySecondaryRelease,
+  createArtworkStore,
+  selectSecondaryArtwork,
+  createArtworkLoader,
+  selectArtwork,
+} from "./queueArtwork";
 
 const item = { title: "Out of My League", artist: "Fitz and The Tantrums" };
 const metadata = {
@@ -10,6 +16,107 @@ const metadata = {
   trackViewUrl: "https://music.apple.com/us/album/song/123?i=456",
 };
 describe("queue artwork", () => {
+  it("checks the real album metadata before accepting a secondary search result", async () => {
+    const row = {
+      title: item.title,
+      artist: { name: item.artist },
+      album: { id: 1, cover_medium: "https://cdn-images.dzcdn.net/images/cover/compilation.jpg" },
+    };
+    const original = {
+      ...row,
+      album: { id: 2, cover_medium: "https://cdn-images.dzcdn.net/images/cover/original.jpg" },
+    };
+    const lookup = vi.fn(async (id: number) => ({
+      id,
+      record_type: id === 1 ? "compilation" : "single",
+      artist: { name: id === 1 ? "Various Artists" : item.artist },
+    }));
+    const result = await verifySecondaryRelease(item, { data: [row, original] }, lookup);
+    expect(selectSecondaryArtwork(item, result)?.image).toBe(original.album.cover_medium);
+    expect(lookup.mock.calls.map((call) => call[0])).toEqual([1, 2]);
+  });
+  it("does not show an unverified cover when release metadata fails or belongs to another album", async () => {
+    const row = {
+      title: item.title,
+      artist: { name: item.artist },
+      album: { id: 1, cover_medium: "https://cdn-images.dzcdn.net/images/cover/test.jpg" },
+    };
+    expect(
+      selectSecondaryArtwork(
+        item,
+        await verifySecondaryRelease(item, { data: [row] }, async () => {
+          throw Error("Offline");
+        }),
+      ),
+    ).toBeNull();
+    expect(
+      selectSecondaryArtwork(
+        item,
+        await verifySecondaryRelease(item, { data: [row] }, async () => ({
+          id: 2,
+          record_type: "album",
+          artist: { name: item.artist },
+        })),
+      ),
+    ).toBeNull();
+  });
+  it("rejects the Grammy compilation for Swimming Pools and falls back to the original single", async () => {
+    const song = { title: "Swimming Pools (Drank)", artist: "Kendrick Lamar" };
+    const compilation = {
+      ...metadata,
+      trackName: song.title,
+      artistName: song.artist,
+      artistId: 368183298,
+      collectionName: "2014 GRAMMY® Nominees",
+      collectionArtistName: "Various Artists",
+      collectionArtistId: 36270,
+    };
+    const extended = {
+      ...compilation,
+      trackName: song.title + " [Extended Version]",
+      collectionArtistName: song.artist,
+      collectionArtistId: 368183298,
+    };
+    expect(selectArtwork(song, [extended, compilation])).toBeNull();
+    const original = {
+      title: song.title,
+      artist: { name: song.artist },
+      album: {
+        title: song.title,
+        cover_medium:
+          "https://cdn-images.dzcdn.net/images/cover/4620d1f18a1e403b560efbf38a837c83/250x250-000000-80-0-0.jpg",
+      },
+    };
+    const secondary = vi.fn(async () => ({ data: [original] }));
+    const load = createArtworkLoader(
+      async () => new Response(JSON.stringify({ results: [extended, compilation] })),
+      secondary,
+    );
+    expect((await load(song))?.image).toBe(original.album.cover_medium);
+    expect(secondary).toHaveBeenCalledTimes(1);
+  });
+  it("skips compilation artwork even when it is the first exact title and artist match", () => {
+    const compilation = { ...metadata, collectionArtistName: "Various Artists" };
+    expect(
+      selectArtwork(item, [
+        compilation,
+        { ...metadata, artworkUrl100: "https://is1-ssl.mzstatic.com/image/original.jpg" },
+      ])?.image,
+    ).toBe("https://is1-ssl.mzstatic.com/image/original.jpg");
+    expect(selectArtwork(item, [{ ...metadata, isCompilation: true }])).toBeNull();
+    expect(selectArtwork(item, [{ ...metadata, artistId: 1, collectionArtistId: 2 }])).toBeNull();
+    const row = {
+      title: item.title,
+      artist: { name: item.artist },
+      album: { record_type: "compilation", cover_medium: "https://cdn-images.dzcdn.net/images/cover/compilation.jpg" },
+    };
+    expect(selectSecondaryArtwork(item, { data: [row] })).toBeNull();
+    expect(
+      selectSecondaryArtwork(item, {
+        data: [{ ...row, album: { ...row.album, record_type: "album", artist: { name: "Various Artists" } } }],
+      }),
+    ).toBeNull();
+  });
   it("publishes a cover only after its image is downloaded and decoded", async () => {
     let decoded!: () => void;
     const cover = { image: metadata.artworkUrl100, link: metadata.trackViewUrl };

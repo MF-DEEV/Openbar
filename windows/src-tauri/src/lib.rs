@@ -223,6 +223,7 @@ pub fn run() {
             media_volume::music_volume,
             music_queue::music_queue,
             music_queue::artwork::music_queue_artwork,
+            music_queue::artwork::music_queue_album,
             media::music_command,
             media::music_seek,
             media::music_shuffle,
