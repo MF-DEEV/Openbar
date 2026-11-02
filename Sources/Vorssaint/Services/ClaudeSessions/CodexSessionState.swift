@@ -64,7 +64,7 @@ final class CodexSessionState {
     struct Pending {
         let rpcID: CodexRPCID
         let method: String
-        let params: [String: Any]
+        var params: [String: Any]
         let since: Date
 
         /// The id the island knows it by.
@@ -101,6 +101,9 @@ final class CodexSessionState {
         var limit: ClaudeLimitStop?
         var acknowledged: Date?
         var pending: [Pending] = []
+        /// The patch of each file change item still running, by item id, for
+        /// its approval to show; dropped when the item ends.
+        var fileChanges: [String: [Any]] = [:]
         var phase: (phase: ClaudeSessionPhase, since: Date)?
         var parent: String?
         /// Codex's own helper threads (titles and the like), never a person's session.
@@ -119,6 +122,18 @@ final class CodexSessionState {
         var chat: [Message] = []
         var nextMessage = 0
         var historyOrder = 0
+
+        /// Gives a file change's approval, already waiting, the item's patch.
+        @discardableResult
+        mutating func attach(_ changes: [Any], to item: String) -> Bool {
+            var attached = false
+            for index in pending.indices where pending[index].method == "item/fileChange/requestApproval"
+                && CodexSessionState.string(pending[index].params, "itemId") == item {
+                pending[index].params["changes"] = changes
+                attached = true
+            }
+            return attached
+        }
 
         @discardableResult
         mutating func message(_ item: [String: Any], at: Date, live: Bool, revision: Int = 0) -> Bool {
@@ -363,6 +378,7 @@ final class CodexSessionState {
             if let stop = Self.limitStop(turn, at: at) { thread.limit = stop }
             // A turn that ends takes its questions with it.
             thread.pending.removeAll()
+            thread.fileChanges.removeAll()
             for index in thread.tools.indices where thread.tools[index].finished == nil {
                 thread.tools[index].finished = at
             }
@@ -380,6 +396,15 @@ final class CodexSessionState {
             }
             guard Self.toolItems.contains(kind) else { return unchanged }
             let itemID = Self.string(item, "id") ?? ""
+            if kind == "fileChange", !itemID.isEmpty {
+                // Kept whatever the previews: the approval card shows the patch.
+                if method == "item/started", let changes = item["changes"] as? [Any] {
+                    thread.fileChanges[itemID] = changes
+                    thread.attach(changes, to: itemID)
+                } else if method == "item/completed" {
+                    thread.fileChanges[itemID] = nil
+                }
+            }
             if method == "item/started" {
                 let started = Self.time(params, "startedAtMs") ?? now
                 thread.tools.append(ClaudeToolUse(id: itemID, name: Self.toolName(kind),
@@ -392,10 +417,18 @@ final class CodexSessionState {
                 let status = Self.string(item, "status")
                 thread.tools[index].failed = status == "failed" || status == "declined"
             } else {
+                threads[id] = thread
                 return unchanged
             }
             threads[id] = thread
             return changed
+        case "item/fileChange/patchUpdated":
+            guard let id = threadID, var thread = threads[id], let itemID = Self.string(params, "itemId"),
+                  let changes = params["changes"] as? [Any] else { return unchanged }
+            thread.fileChanges[itemID] = changes
+            let attached = thread.attach(changes, to: itemID)
+            threads[id] = thread
+            return attached ? changed : unchanged
         case "thread/tokenUsage/updated":
             guard let id = threadID, threads[id] != nil,
                   let total = (params["tokenUsage"] as? [String: Any])?["total"] as? [String: Any] else { return unchanged }
@@ -427,6 +460,12 @@ final class CodexSessionState {
         guard let id = Self.string(params, "threadId"), threads[id] != nil, Self.knownRequests.contains(method)
         else { return false }
         threads[id]?.pending.removeAll { $0.rpcID == rpcID }
+        var params = params
+        // A file change's approval names its item; the item carries the patch.
+        if method == "item/fileChange/requestApproval", let item = Self.string(params, "itemId"),
+           let changes = threads[id]?.fileChanges[item] {
+            params["changes"] = changes
+        }
         threads[id]?.pending.append(Pending(rpcID: rpcID, method: method, params: params, since: now))
         return true
     }
@@ -715,7 +754,13 @@ final class CodexSessionState {
             if let reason = string(params, "reason") { text += "\n\n\(reason)" }
             (tool, summary, detail, always) = ("Command", firstLine(command), text, true)
         case "item/fileChange/requestApproval":
-            (tool, detail, always) = ("Edit", string(params, "reason") ?? "Codex wants to change files.", true)
+            let paths = (params["changes"] as? [Any] ?? []).compactMap { ($0 as? [String: Any]).flatMap { string($0, "path") } }
+            let reason = string(params, "reason")
+            // With the patch at hand the diff shows what changes; the paths
+            // stand in for the list and notices.
+            let text = paths.isEmpty ? reason ?? "Codex wants to change files."
+                : ([reason].compactMap { $0 } + paths).joined(separator: "\n")
+            (tool, summary, detail, always) = ("Edit", paths.first.map { ($0 as NSString).lastPathComponent }, text, true)
         case "item/permissions/requestApproval":
             let reason = string(params, "reason") ?? "Codex asks for more access."
             let asked = params["permissions"].map(prettyJSON) ?? ""
@@ -733,6 +778,9 @@ final class CodexSessionState {
         card.detail = clip(detail.trimmingCharacters(in: .whitespacesAndNewlines), limit: detailLimit)
         if pending.method == "item/tool/requestUserInput" {
             card.questions = questions(params).map(\.question)
+        }
+        if pending.method == "item/fileChange/requestApproval", let changes = params["changes"] as? [Any] {
+            card.diffs = ClaudeFileDiffs.codex(changes)
         }
         return card
     }

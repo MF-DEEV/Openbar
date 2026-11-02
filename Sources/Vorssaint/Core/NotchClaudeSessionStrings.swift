@@ -451,6 +451,23 @@ extension NotchClaudeSessionStrings {
 }
 
 extension NotchClaudeSessionStrings {
+    // A file change's diff on the permission card.
+    var diffNewFile: String { "New file" }
+    var diffDeletedFile: String { "Deletes the file" }
+    var diffReplacesFile: String { "Replaces the whole file" }
+    var diffNewCell: String { "New cell" }
+    var diffDeletedCell: String { "Deletes the cell" }
+    var diffEveryMatch: String { "Every match" }
+    func diffCell(_ id: String) -> String { "Cell \(id)" }
+    func diffPlaces(_ count: Int) -> String { "\(count) places" }
+    func diffMovesTo(_ path: String) -> String { "Moves to \(path)" }
+    func diffMoreLines(_ count: Int) -> String { count == 1 ? "… 1 more line" : "… \(count) more lines" }
+    func diffCounts(added: Int, removed: Int) -> String { "\(added) added, \(removed) removed" }
+    func diffLineLabel(added: Bool, removed: Bool, number: Int?, text: String) -> String {
+        let kind = added ? "Added" : removed ? "Removed" : "Unchanged"
+        return [number.map { "\(kind), line \($0)" } ?? kind, text].joined(separator: ": ")
+    }
+
     var answerInAgentFormat: String { "Answer this one in %@." }
     var replyInAgentFormat: String { "Reply in %@" }
     var agentHooksOutdated: String { "Needs an update" }

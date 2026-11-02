@@ -52,7 +52,7 @@ struct NotchClaudeSessionLargeView: View {
                     // Several questions run taller than the page; past most of
                     // it they scroll, leaving the conversation and the reply.
                     // The next request, or another session's, opens at its top.
-                    NotchClaudeSessionPermissionCard(session: session, text: text, open: open)
+                    NotchClaudeSessionPermissionCard(session: session, text: text, open: open, diffHeight: 360)
                         .modifier(NotchClaudeFittedScroll(maxHeight: cardLimit,
                                                           start: [session.id, session.permission?.requestID ?? ""]))
                 }

@@ -140,7 +140,7 @@ enum AgentHookMessage {
             return event(.permission(ClaudePermission(
                 requestID: UUID().uuidString, tool: asked.isEmpty ? "Tool" : asked,
                 summary: ClaudeToolSummary.clip(detail.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""),
-                detail: detail, offersAlways: false, since: date)))
+                detail: detail, offersAlways: false, since: date, diffs: ClaudeFileDiffs.gemini(details))))
         default: return []
         }
     }
@@ -274,7 +274,8 @@ enum AgentHookMessage {
             add(.permission(ClaudePermission(
                 requestID: request, tool: tool.isEmpty ? "Tool" : tool,
                 summary: ClaudeToolSummary.clip(detail.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""),
-                detail: String(detail.prefix(ClaudeToolSummary.detailLimit)), offersAlways: always, since: date)))
+                detail: String(detail.prefix(ClaudeToolSummary.detailLimit)), offersAlways: always, since: date,
+                diffs: tool == "Edit" ? ClaudeFileDiffs.opencode(metadata) : [])))
         case "permissionReplied": add(.permissionSettled(text(json, "id")))
         case "question": add(.question)
         case "reply":

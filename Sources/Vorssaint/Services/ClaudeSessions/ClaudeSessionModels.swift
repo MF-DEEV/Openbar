@@ -252,12 +252,16 @@ struct ClaudePermission: Equatable {
     /// What Claude asks the person to choose, when the request is for a
     /// question rather than a tool; it is answered, not allowed.
     var questions: [ClaudeQuestion] = []
+    /// What a file change would do to each file it touches, shown like the
+    /// detail even with previews off.
+    var diffs: [ClaudeFileDiff] = []
 
     var asksQuestions: Bool { !questions.isEmpty }
 
-    /// A request short enough to read whole on one line of the list.
+    /// A request short enough to read whole on one line of the list. A file
+    /// change never is: its path alone does not say what changes.
     var fitsOnALine: Bool {
-        !asksQuestions && !detail.contains("\n") && detail.count <= ClaudeToolSummary.quickDecisionLimit
+        !asksQuestions && diffs.isEmpty && !detail.contains("\n") && detail.count <= ClaudeToolSummary.quickDecisionLimit
     }
 }
 

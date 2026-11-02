@@ -73,7 +73,8 @@ struct ClaudeHookMessage {
                     ?? ClaudeToolSummary.summary(name: tool, input: input),
                 detail: ClaudeToolSummary.permissionDetail(name: tool, input: input),
                 offersAlways: !offered.isEmpty && questions.isEmpty, since: now,
-                inputKey: ClaudeToolSummary.inputKey(name: tool, input: input), questions: questions))
+                inputKey: ClaudeToolSummary.inputKey(name: tool, input: input), questions: questions,
+                diffs: ClaudeFileDiffs.diffs(tool: tool, input: input, cwd: json["cwd"] as? String)))
         case "Notification": event = .notification(type: json["notification_type"] as? String ?? "")
         case "Stop":
             let text = policy.previews ? (json["last_assistant_message"] as? String).map(preview) : nil

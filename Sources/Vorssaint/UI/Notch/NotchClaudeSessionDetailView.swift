@@ -334,6 +334,8 @@ struct NotchClaudeSessionPermissionCard: View {
     let session: ClaudeSession
     let text: NotchClaudeSessionStrings
     let open: () -> Void
+    /// How tall a file change's diff grows before it scrolls.
+    var diffHeight: CGFloat = 200
     @ObservedObject private var service = ClaudeSessionService.shared
     /// A request that replaced the one on screen holds the buttons back a
     /// moment, so a click meant for the old one cannot answer it.
@@ -381,7 +383,10 @@ struct NotchClaudeSessionPermissionCard: View {
 
     /// A tool's request, read whole and allowed or denied.
     @ViewBuilder private var request: some View {
-        if let detail = session.permission?.detail, !detail.isEmpty {
+        if let diffs = session.permission?.diffs, !diffs.isEmpty {
+            // A file change shows what changes, not just where.
+            NotchClaudeFileDiffView(diffs: diffs, text: text, maxHeight: diffHeight)
+        } else if let detail = session.permission?.detail, !detail.isEmpty {
             // A plan is prose, read in the interface's font.
             let plan = session.permission?.tool == ClaudeToolSummary.planTool
             // The whole request, every line of it, so nothing is allowed unread.
