@@ -640,5 +640,21 @@
   "windows.settings.sessions.agentConnecting": "Connecting…",
   "windows.settings.sessions.agentUpdating": "Updating…",
   "windows.settings.sessions.agentOff": "Off",
-  "windows.settings.sessions.tryAgain": "Try again"
+  "windows.settings.sessions.tryAgain": "Try again",
+  "windows.sessions.diffLabel": "Changes",
+  "windows.sessions.diffNewFile": "New file",
+  "windows.sessions.diffDeletedFile": "Deletes the file",
+  "windows.sessions.diffReplacesFile": "Replaces the whole file",
+  "windows.sessions.diffNewCell": "New cell",
+  "windows.sessions.diffDeletedCell": "Deletes the cell",
+  "windows.sessions.diffEveryMatch": "Every match",
+  "windows.sessions.diffCell": "Cell %@",
+  "windows.sessions.diffPlaces": "%@ places",
+  "windows.sessions.diffMovesTo": "Moves to %@",
+  "windows.sessions.diffMoreLines": "… %@ more lines",
+  "windows.sessions.diffCounts": "%1$@ added, %2$@ removed",
+  "windows.sessions.diffAdded": "Added",
+  "windows.sessions.diffRemoved": "Removed",
+  "windows.sessions.diffUnchanged": "Unchanged",
+  "windows.sessions.diffLine": "%1$@, line %2$@"
 }

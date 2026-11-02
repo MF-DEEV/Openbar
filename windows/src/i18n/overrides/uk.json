@@ -640,5 +640,21 @@
   "windows.settings.sessions.agentConnecting": "Підключення…",
   "windows.settings.sessions.agentUpdating": "Оновлення…",
   "windows.settings.sessions.agentOff": "Вимк.",
-  "windows.settings.sessions.tryAgain": "Спробувати ще"
+  "windows.settings.sessions.tryAgain": "Спробувати ще",
+  "windows.sessions.diffLabel": "Зміни",
+  "windows.sessions.diffNewFile": "Новий файл",
+  "windows.sessions.diffDeletedFile": "Видаляє файл",
+  "windows.sessions.diffReplacesFile": "Замінює весь файл",
+  "windows.sessions.diffNewCell": "Нова клітинка",
+  "windows.sessions.diffDeletedCell": "Видаляє клітинку",
+  "windows.sessions.diffEveryMatch": "Кожен збіг",
+  "windows.sessions.diffCell": "Клітинка %@",
+  "windows.sessions.diffPlaces": "Місць: %@",
+  "windows.sessions.diffMovesTo": "Переміщується до %@",
+  "windows.sessions.diffMoreLines": "… ще рядків: %@",
+  "windows.sessions.diffCounts": "Додано: %1$@, вилучено: %2$@",
+  "windows.sessions.diffAdded": "Додано",
+  "windows.sessions.diffRemoved": "Вилучено",
+  "windows.sessions.diffUnchanged": "Без змін",
+  "windows.sessions.diffLine": "%1$@, рядок %2$@"
 }

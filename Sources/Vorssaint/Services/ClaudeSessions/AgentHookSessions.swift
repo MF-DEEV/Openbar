@@ -258,6 +258,7 @@ final class AgentHookSessions {
             title: previews ? entry.title : nil, lastText: previews ? entry.lastText : nil,
             hooked: true, provider: entry.provider)
         if previews { session.chat = entry.chat }
+        if inAgent { session.waitingDiffs = entry.permission?.diffs ?? [] }
         return session
     }
 }

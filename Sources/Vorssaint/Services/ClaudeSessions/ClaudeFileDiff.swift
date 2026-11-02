@@ -516,7 +516,8 @@ enum ClaudeFileDiffs {
               attributes[.type] as? FileAttributeType == .typeRegular,
               let size = attributes[.size] as? NSNumber, size.intValue <= fileLimit,
               let data = FileManager.default.contents(atPath: path),
-              !data.prefix(8192).contains(0) else { return nil }
-        return String(data: data, encoding: .utf8)
+              !data.prefix(8192).contains(0), let text = String(data: data, encoding: .utf8) else { return nil }
+        // A byte order mark is not part of the first line.
+        return text.hasPrefix("\u{FEFF}") ? String(text.dropFirst()) : text
     }
 }

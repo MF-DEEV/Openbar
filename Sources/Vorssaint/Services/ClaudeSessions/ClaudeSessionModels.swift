@@ -357,6 +357,9 @@ struct ClaudeSession: Equatable, Identifiable {
     var waitingFor: String?
     var currentTool: ClaudeToolUse?
     var permission: ClaudePermission?
+    /// What a file change only the agent can answer would do: shown above
+    /// "answer it there", since the request itself is not the island's.
+    var waitingDiffs: [ClaudeFileDiff] = []
     /// The latest tools of the main agent, oldest first.
     var timeline: [ClaudeToolUse]
     var subagents: [ClaudeSubagent]

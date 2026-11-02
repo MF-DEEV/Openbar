@@ -640,5 +640,21 @@
   "windows.settings.sessions.agentConnecting": "正在连接…",
   "windows.settings.sessions.agentUpdating": "正在更新…",
   "windows.settings.sessions.agentOff": "关",
-  "windows.settings.sessions.tryAgain": "重试"
+  "windows.settings.sessions.tryAgain": "重试",
+  "windows.sessions.diffLabel": "更改",
+  "windows.sessions.diffNewFile": "新文件",
+  "windows.sessions.diffDeletedFile": "删除该文件",
+  "windows.sessions.diffReplacesFile": "替换整个文件",
+  "windows.sessions.diffNewCell": "新单元格",
+  "windows.sessions.diffDeletedCell": "删除该单元格",
+  "windows.sessions.diffEveryMatch": "所有匹配",
+  "windows.sessions.diffCell": "单元格 %@",
+  "windows.sessions.diffPlaces": "%@ 处",
+  "windows.sessions.diffMovesTo": "移动到 %@",
+  "windows.sessions.diffMoreLines": "… 另有 %@ 行",
+  "windows.sessions.diffCounts": "新增 %1$@ 行，删除 %2$@ 行",
+  "windows.sessions.diffAdded": "新增",
+  "windows.sessions.diffRemoved": "删除",
+  "windows.sessions.diffUnchanged": "未更改",
+  "windows.sessions.diffLine": "%1$@，第 %2$@ 行"
 }

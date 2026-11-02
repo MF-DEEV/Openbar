@@ -640,5 +640,21 @@
   "windows.settings.sessions.agentConnecting": "Pripája sa…",
   "windows.settings.sessions.agentUpdating": "Aktualizuje sa…",
   "windows.settings.sessions.agentOff": "Vypnuté",
-  "windows.settings.sessions.tryAgain": "Skúsiť znova"
+  "windows.settings.sessions.tryAgain": "Skúsiť znova",
+  "windows.sessions.diffLabel": "Zmeny",
+  "windows.sessions.diffNewFile": "Nový súbor",
+  "windows.sessions.diffDeletedFile": "Vymaže súbor",
+  "windows.sessions.diffReplacesFile": "Nahradí celý súbor",
+  "windows.sessions.diffNewCell": "Nová bunka",
+  "windows.sessions.diffDeletedCell": "Vymaže bunku",
+  "windows.sessions.diffEveryMatch": "Každá zhoda",
+  "windows.sessions.diffCell": "Bunka %@",
+  "windows.sessions.diffPlaces": "Miest: %@",
+  "windows.sessions.diffMovesTo": "Presunie sa do %@",
+  "windows.sessions.diffMoreLines": "… ďalšie riadky: %@",
+  "windows.sessions.diffCounts": "Pridané: %1$@, odstránené: %2$@",
+  "windows.sessions.diffAdded": "Pridané",
+  "windows.sessions.diffRemoved": "Odstránené",
+  "windows.sessions.diffUnchanged": "Bez zmeny",
+  "windows.sessions.diffLine": "%1$@, riadok %2$@"
 }

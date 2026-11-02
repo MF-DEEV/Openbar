@@ -200,6 +200,7 @@ pub fn ended_session(job: &Job, ended: Time, branch: Option<String>) -> Session 
         waiting_for: None,
         current_tool: None,
         permission: None,
+        waiting_diffs: Vec::new(),
         timeline: vec![],
         subagents: vec![],
         tasks: None,

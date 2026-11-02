@@ -17,6 +17,8 @@ use serde::ser::SerializeStruct;
 use serde_json::{Map, Value};
 use unicode_segmentation::UnicodeSegmentation;
 
+use super::file_diff::FileDiff;
+
 /// Seconds since 1970, as every time here is kept.
 pub type Time = f64;
 
@@ -263,6 +265,9 @@ pub struct Permission {
     /// What Claude asks the person to choose, when the request is for a
     /// question rather than a tool; it is answered, not allowed.
     pub questions: Vec<Question>,
+    /// What a file change would do to each file it touches, shown like the
+    /// detail even with previews off.
+    pub diffs: Vec<FileDiff>,
 }
 
 impl Permission {
@@ -283,6 +288,7 @@ impl Permission {
             tool_id: None,
             input_key: None,
             questions: Vec::new(),
+            diffs: Vec::new(),
         }
     }
 
@@ -292,9 +298,11 @@ impl Permission {
 
     /// A request short enough to read whole on one line of the list. A
     /// `\r\n` counts as a line break here; Swift's Character-wise `contains`
-    /// missed it, which Windows commands would hit.
+    /// missed it, which Windows commands would hit. A file change never is:
+    /// its path alone does not say what changes.
     pub fn fits_on_a_line(&self) -> bool {
         !self.asks_questions()
+            && self.diffs.is_empty()
             && !self.detail.contains('\n')
             && char_count(&self.detail) <= QUICK_DECISION_LIMIT
     }
@@ -302,7 +310,7 @@ impl Permission {
 
 impl Serialize for Permission {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut out = serializer.serialize_struct("Permission", 9)?;
+        let mut out = serializer.serialize_struct("Permission", 10)?;
         out.serialize_field("requestId", &self.request_id)?;
         out.serialize_field("tool", &self.tool)?;
         match &self.summary {
@@ -313,6 +321,7 @@ impl Serialize for Permission {
         out.serialize_field("offersAlways", &self.offers_always)?;
         out.serialize_field("since", &self.since)?;
         out.serialize_field("questions", &self.questions)?;
+        out.serialize_field("diffs", &self.diffs)?;
         // Worked out here, where the character count matches the Mac's.
         out.serialize_field("asksQuestions", &self.asks_questions())?;
         out.serialize_field("fitsOnALine", &self.fits_on_a_line())?;
@@ -576,6 +585,10 @@ pub struct Session {
     pub current_tool: Option<ToolUse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permission: Option<Permission>,
+    /// What a file change only the agent can answer would do: shown above
+    /// "answer it there", since the request itself is not the island's.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub waiting_diffs: Vec<FileDiff>,
     /// The latest tools of the main agent, oldest first.
     pub timeline: Vec<ToolUse>,
     pub subagents: Vec<Subagent>,
@@ -1304,6 +1317,7 @@ mod tests {
             waiting_for: None,
             current_tool: None,
             permission: None,
+            waiting_diffs: Vec::new(),
             timeline: vec![],
             subagents: vec![],
             tasks: None,

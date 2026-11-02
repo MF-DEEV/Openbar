@@ -11,6 +11,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde_json::{Map, Value, json};
 use unicode_segmentation::UnicodeSegmentation;
 
+use super::file_diff;
 use super::models::{
     ContentPolicy, HookEvent, HookFact, Permission, Question, Time, ToolUse, canonical_json,
     preview, str_of, tool_summary, trim,
@@ -141,6 +142,7 @@ impl HookMessage {
                     tool_id: None,
                     input_key: Some(tool_summary::input_key(tool, input)),
                     questions,
+                    diffs: file_diff::diffs(tool, input, str_of(json.get("cwd"))),
                 })
             }
             "Notification" => HookEvent::Notification {
@@ -940,5 +942,27 @@ mod tests {
             HookEvent::Other("PermissionRequest".into()),
             "a blank-looking question is left to the terminal"
         );
+    }
+
+    #[test]
+    fn file_edits_carry_a_diff_whatever_the_previews() {
+        let json = r#"{"session_id":"s","hook_event_name":"PermissionRequest","tool_name":"Edit","cwd":"C:\\nope","tool_input":{"file_path":"C:\\nope\\missing-file.rs","old_string":"let a = 1","new_string":"let a = 2"}}"#;
+        let message = decode(json, false).unwrap();
+        let HookEvent::PermissionRequested(ask) = &message.fact.event else {
+            panic!("an edit request decodes");
+        };
+        assert_eq!(ask.diffs.len(), 1);
+        assert_eq!((ask.diffs[0].added, ask.diffs[0].removed), (1, 1));
+        assert!(
+            !ask.fits_on_a_line(),
+            "a file change is never a one-line quick decision"
+        );
+        let value = serde_json::to_value(ask).unwrap();
+        assert_eq!(value["diffs"][0]["lines"][1]["text"], "let a = 2");
+        let bash = decode(r#"{"session_id":"s","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"ls"}}"#, false).unwrap();
+        let HookEvent::PermissionRequested(other) = &bash.fact.event else {
+            panic!("a command decodes");
+        };
+        assert!(other.diffs.is_empty() && other.fits_on_a_line());
     }
 }

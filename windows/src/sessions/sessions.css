@@ -1090,6 +1090,188 @@
   user-select: text;
 }
 
+/* A file change's diff (NotchClaudeFileDiffView.swift). */
+.s-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.s-diff-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.s-diff-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.s-diff-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  /* The name stays when the folder runs long: cut from the start. */
+  direction: rtl;
+  text-align: left;
+  text-overflow: ellipsis;
+  font:
+    600 11px/1.4 "Cascadia Mono",
+    Consolas,
+    ui-monospace,
+    monospace;
+}
+
+.s-diff-path > span {
+  direction: ltr;
+  unicode-bidi: isolate;
+}
+
+.s-diff-folder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.s-diff-name {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.s-diff-counts {
+  display: flex;
+  flex: none;
+  gap: 5px;
+  font:
+    600 10.5px/1.4 "Cascadia Mono",
+    Consolas,
+    ui-monospace,
+    monospace;
+}
+
+.s-diff-counts .is-added,
+.s-diff-line.is-added .s-diff-sign {
+  color: rgb(92, 214, 133);
+}
+
+.s-diff-counts .is-removed,
+.s-diff-line.is-removed .s-diff-sign {
+  color: rgb(255, 107, 107);
+}
+
+.s-diff-note {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.s-diff-scroll {
+  max-height: 200px;
+  overflow: auto;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  user-select: text;
+}
+
+.s-diff-scroll:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 1px;
+}
+
+.s-detail-page.is-large .s-diff-scroll {
+  max-height: 360px;
+}
+
+.s-diff-block {
+  padding: 4px 0;
+}
+
+.s-diff-block + .s-diff-block {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.s-diff-block > .s-diff-header {
+  padding: 2px 8px 4px;
+}
+
+.s-diff-lines {
+  font:
+    10.5px/1.45 "Cascadia Mono",
+    Consolas,
+    ui-monospace,
+    monospace;
+}
+
+.s-diff-line {
+  display: flex;
+  align-items: baseline;
+  padding: 0 8px 0 6px;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.s-diff-line.is-context {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.s-diff-line.is-added {
+  background: rgba(92, 214, 133, 0.14);
+}
+
+.s-diff-line.is-removed {
+  background: rgba(255, 107, 107, 0.14);
+}
+
+.s-diff-line.is-gap {
+  padding-left: calc(var(--s-diff-digits, 0) * 1ch + 18px);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.s-diff-number {
+  flex: none;
+  width: calc(var(--s-diff-digits, 0) * 1ch);
+  margin-right: 6px;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.35);
+  user-select: none;
+}
+
+.s-diff-sign {
+  flex: none;
+  width: 10px;
+  user-select: none;
+}
+
+.s-diff-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.s-diff-more {
+  padding: 4px 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* More contrast: the added and removed lines are told apart by more than tint. */
+@media (prefers-contrast: more), (forced-colors: active) {
+  .s-diff-line.is-added,
+  .s-diff-line.is-removed {
+    background: transparent;
+  }
+  .s-diff-line.is-added .s-diff-sign,
+  .s-diff-line.is-removed .s-diff-sign {
+    font-weight: 700;
+  }
+}
+
 .s-detail.is-preview {
   max-height: 140px;
   font-size: 10.5px;

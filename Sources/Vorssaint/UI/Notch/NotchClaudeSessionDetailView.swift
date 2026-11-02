@@ -401,6 +401,9 @@ struct NotchClaudeSessionPermissionCard: View {
             .frame(maxHeight: 120)
             .padding(8)
             .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        } else if session.permission == nil, !session.waitingDiffs.isEmpty {
+            // A file change only the agent can answer still shows what it changes.
+            NotchClaudeFileDiffView(diffs: session.waitingDiffs, text: text, maxHeight: diffHeight)
         }
         HStack(spacing: 6) {
             if let permission = session.permission {

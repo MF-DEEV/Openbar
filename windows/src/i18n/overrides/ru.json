@@ -640,5 +640,21 @@
   "windows.settings.sessions.agentConnecting": "Подключение…",
   "windows.settings.sessions.agentUpdating": "Обновление…",
   "windows.settings.sessions.agentOff": "Выкл.",
-  "windows.settings.sessions.tryAgain": "Повторить"
+  "windows.settings.sessions.tryAgain": "Повторить",
+  "windows.sessions.diffLabel": "Изменения",
+  "windows.sessions.diffNewFile": "Новый файл",
+  "windows.sessions.diffDeletedFile": "Удаляет файл",
+  "windows.sessions.diffReplacesFile": "Заменяет весь файл",
+  "windows.sessions.diffNewCell": "Новая ячейка",
+  "windows.sessions.diffDeletedCell": "Удаляет ячейку",
+  "windows.sessions.diffEveryMatch": "Каждое совпадение",
+  "windows.sessions.diffCell": "Ячейка %@",
+  "windows.sessions.diffPlaces": "Мест: %@",
+  "windows.sessions.diffMovesTo": "Перемещается в %@",
+  "windows.sessions.diffMoreLines": "… ещё строк: %@",
+  "windows.sessions.diffCounts": "Добавлено: %1$@, удалено: %2$@",
+  "windows.sessions.diffAdded": "Добавлено",
+  "windows.sessions.diffRemoved": "Удалено",
+  "windows.sessions.diffUnchanged": "Без изменений",
+  "windows.sessions.diffLine": "%1$@, строка %2$@"
 }
