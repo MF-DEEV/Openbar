@@ -14,7 +14,6 @@
   <a href="windows/README.md"><img alt="Windows 11 beta" src="https://img.shields.io/badge/Windows%2011-beta-16151d?style=flat-square"></a>
   <a href="https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true"><img alt="Latest Windows release" src="https://img.shields.io/github/v/release/MF-DEEV/Openbar?include_prereleases&filter=windows-*&label=release&style=flat-square&color=8b7cf6&labelColor=16151d"></a>
   <a href="LICENSE"><img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-8b7cf6?style=flat-square&labelColor=16151d"></a>
-  <a href="https://github.com/MF-DEEV/Openbar/stargazers"><img alt="GitHub stars" src="https://img.shields.io/github/stars/MF-DEEV/Openbar?style=flat-square&color=8b7cf6&labelColor=16151d"></a>
 </p>
 
 <p align="center">
