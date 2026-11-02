@@ -1,5 +1,5 @@
-name: "✨ Feature Request"
-description: Suggest a new feature or improvement for Vorssaint
+name: Feature request
+description: Suggest something new for Openbar
 labels:
   - enhancement
 
@@ -7,46 +7,50 @@ body:
   - type: markdown
     attributes:
       value: |
-        **Someone may have asked already.** [Enhancement Summary](https://github.com/vorssaint/vorssaint-utils/issues/838)
-        indexes every open request, sorted into what already shipped, what is
-        worth doing, and what has been ruled out and why.
-
-        A comment and a 👍 on the existing request carries further than a
-        second issue for the same thing, since the votes stay in one place.
+        Search the [open issues](https://github.com/MF-DEEV/Openbar/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement) first. A thumbs-up on an existing request counts for more than a second issue.
+        For a loose idea, [Discussions](https://github.com/MF-DEEV/Openbar/discussions/categories/ideas) is a better start.
 
   - type: textarea
     id: problem
     attributes:
-      label: Problem or Motivation
-      description: Is your feature request related to a problem?
-      placeholder: I'm frustrated when...
+      label: Problem
+      description: What you're trying to do, and what gets in the way.
+      placeholder: When I run three agents at once, I...
     validations:
       required: true
 
   - type: textarea
     id: solution
     attributes:
-      label: Proposed Solution
-      description: Describe the solution you'd like to see.
-      placeholder: It would be great if Vorssaint could...
+      label: Proposal
+      description: What you'd like Openbar to do.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS
+        - Windows
+        - Both
     validations:
       required: true
 
   - type: dropdown
     id: feature_area
     attributes:
-      label: Feature Area
-      description: The same groups you see in Settings.
+      label: Area
       options:
-        - Essentials
-        - Utilities
+        - Sessions (Claude Code, Codex and other agents)
+        - Dynamic Island
+        - Menu bar panel
         - Sound
-        - Energy and display
         - Windows and Dock
-        - Mouse and keyboard
-        - Files
-        - App management
-        - App
+        - Files and clipboard
+        - Energy and display
+        - Settings
         - Other
     validations:
       required: true
@@ -54,5 +58,5 @@ body:
   - type: textarea
     id: mockups
     attributes:
-      label: Mockups / References
-      description: Attach sketches, screenshots, or references.
+      label: Mockups or references
+      description: Sketches, screenshots or apps that do it well.

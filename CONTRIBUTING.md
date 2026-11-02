@@ -1,25 +1,27 @@
-# Contributing to Vorssaint
+# Contributing to Openbar
 
-Vorssaint aims to stay small, native and readable. Contributions are accepted
+Openbar aims to stay small, native and readable. Contributions are accepted
 under GPL-3.0-or-later unless stated otherwise.
 
 ## Getting started
 
-You need macOS 14 or newer, Apple Silicon and the Xcode Command Line Tools.
+On the Mac you need macOS 14 or newer, Apple Silicon and the Xcode Command Line Tools.
+The Windows island lives in `windows/`; its [README](windows/README.md#build-it-yourself) covers that build.
 The project builds with `build.sh`, without an Xcode project or external package
 dependencies. `Package.swift` supports editor indexing; it does not assemble or
 sign the app bundle.
 
 ```sh
-git clone https://github.com/vorssaint/vorssaint-utils.git
-cd vorssaint-utils
+git clone https://github.com/MF-DEEV/Openbar.git
+cd Openbar
 ./build.sh --dev
 ./build/VorssaintDeveloper --selftest
 ./build.sh --test
 ```
 
 To install and launch the separate Developer app, use `./build.sh --dev --install`.
-It has its own preferences and permissions and does not replace the official app.
+The app and its binaries are still named Vorssaint, the project Openbar is built on.
+The Developer build has its own preferences and permissions.
 A plain `./build.sh` builds the optimized variant; its health check is
 `./build/Vorssaint --selftest`.
 
@@ -31,8 +33,7 @@ Keep that identity across rebuilds: ad-hoc signatures change with the binary and
 can invalidate macOS permission grants. Check the build output for signing
 failures. For stale grants, see [troubleshooting](docs/TROUBLESHOOTING.md#resetting-permissions).
 
-Official releases use Developer ID signing and notarization through upstream's
-protected release workflow. Local signing does not produce an official release.
+Openbar ships no signed Mac builds yet; you build the app yourself, as above.
 
 ## Scope and implementation
 
@@ -69,6 +70,23 @@ prove the app builds. Build the app and run its selftest for runtime, UI or bund
 resource changes. CI runs the tests only; the build and selftest are yours to run.
 Builds should finish without warnings.
 
+### Checks on pull requests
+
+Every pull request runs [PR checks](.github/workflows/pr.yml) for the parts it
+changes, each job capped at fifteen minutes, and **CI ok** sums them up as the one
+check to require before merging into `main`. Run the same checks before you push:
+
+- Mac: `./build.sh --test`
+- Windows UI, in `windows/`: `bun run typecheck`, `bun run format:check`, `bun run test`
+- Windows backend, in `windows/src-tauri/`, after `bun run build` in `windows/`:
+  `cargo fmt --check`, `cargo xwin clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings`
+  and `cargo test`. CI pins Rust 1.99.1 (`RUST_TOOLCHAIN` in the workflow), so a
+  newer local toolchain can report lints CI does not.
+
+The release build and its selftest are not part of CI; run
+`./build.sh && ./build/Vorssaint --selftest` yourself for runtime, UI or bundled
+resource changes.
+
 For behavior involving windows, permissions or hardware, describe what you actually
 verified and on which Mac and macOS version. Include display, Spaces or language
 details when relevant, and state what remains untested. Compilation and static
@@ -91,30 +109,19 @@ Refs #123
 Refs #456
 ```
 
-Avoid `Closes` or `Fixes`: those close the issue at merge, before users receive
-the fix. Upstream's fix-status workflow tracks the reference, notifies the reporter
-when a stable release carries the fix, and can close the issue after two weeks
-without a response. If the PR addresses only part of an issue, say exactly which part.
+Avoid `Closes` or `Fixes` unless the change fully resolves the issue. If the PR
+addresses only part of an issue, say exactly which part.
 
 For agent-assisted work, see [contributing with an agent](docs/AI-CONTRIBUTIONS.md).
-Bug reports and feature requests use the [issue forms](https://github.com/vorssaint/vorssaint-utils/issues/new/choose).
+Bug reports and feature requests use the [issue forms](https://github.com/MF-DEEV/Openbar/issues/new/choose);
+questions go to [Discussions](https://github.com/MF-DEEV/Openbar/discussions).
+Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 Report vulnerabilities through [private security reporting](SECURITY.md).
 
 ## Releases (maintainers)
 
-This describes upstream's release process; this fork has no release workflow.
-
-Integrating into `main`, pushing a branch and opening a PR do not publish a release.
-Publication requires an explicit release decision, including beta or stable.
-
-Before sending a version tag, validate the final commit on `main`, confirm its
-verified signature, and match `Resources/Info.plist` and the release notes to the
-chosen version. Use a signed tag such as `vX.Y.Z-beta.N` or `vX.Y.Z`.
-Sending the tag starts [the release workflow](https://github.com/vorssaint/vorssaint-utils/blob/main/.github/workflows/release.yml).
-
-The protected `release-signing` environment holds the signing and notarization
-credentials. The workflow builds, signs and notarizes the app and DMG, then
-publishes an immutable release. Confirm publication succeeded; a pushed tag alone
-is not a published version. Beta releases remain prereleases and do not replace
-the latest stable release or its Homebrew cask. Do not move published tags or
-replace published artifacts.
+Openbar publishes Windows installers as GitHub releases tagged `windows-vX.Y.Z`,
+marked as pre-releases while the port is in beta. Mac users build from source.
+Integrating into `main`, pushing a branch and opening a PR do not publish a release;
+publishing is an explicit decision. Don't move published tags or replace published
+artifacts.

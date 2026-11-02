@@ -1,102 +1,167 @@
-<h1 align="center">Claude sessions in your notch</h1>
+<p align="center">
+  <img src="docs/assets/brand/openbar-hero.gif" width="100%" alt="Openbar, written in violet glass beside a helmet logo, with a beam of light crossing the letters">
+</p>
+
+<h3 align="center">Your coding agents, in the notch.</h3>
 
 <p align="center">
-  Every Claude Code session on your Mac, in the Dynamic Island.<br>
-  Allow, answer and reply without switching to the terminal.
+  Allow, answer and reply to Claude Code, Codex and four more agents<br>
+  from your Mac's Dynamic Island. A full menu bar toolkit comes with it.
 </p>
 
 <p align="center">
-  <a href="#what-it-does">What it does</a> ·
-  <a href="#set-it-up">Set it up</a> ·
-  <a href="#how-it-works">How it works</a> ·
-  <a href="#private-by-default">Privacy</a> ·
-  <a href="#on-windows">Windows</a> ·
-  <a href="#about-this-fork">About this fork</a>
+  <a href="#get-started"><img alt="macOS 14 or later" src="https://img.shields.io/badge/macOS-14%2B-16151d?style=flat-square&logo=apple&logoColor=white"></a>
+  <a href="windows/README.md"><img alt="Windows 11 beta" src="https://img.shields.io/badge/Windows%2011-beta-16151d?style=flat-square"></a>
+  <a href="https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true"><img alt="Latest Windows release" src="https://img.shields.io/github/v/release/MF-DEEV/Openbar?include_prereleases&filter=windows-*&label=release&style=flat-square&color=8b7cf6&labelColor=16151d"></a>
+  <a href="LICENSE"><img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-8b7cf6?style=flat-square&labelColor=16151d"></a>
 </p>
 
 <p align="center">
-  <img src="docs/assets/readme/claude-sessions.gif" width="720" alt="Five Claude Code sessions working in the Dynamic Island, then a permission allowed, a question answered, a reply sent, a conversation enlarged, subagents at work and a Clawd getting a top hat">
+  <a href="#get-started"><b>Build for Mac</b></a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true"><b>Download for Windows</b></a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="#documentation">Docs</a>
+  &nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/MF-DEEV/Openbar/discussions">Discussions</a>
 </p>
 
+<br>
 
-This is an unofficial fork of [Vorssaint](https://github.com/vorssaint/vorssaint-utils) that adds a Sessions section to its Dynamic Island. It is not affiliated with or endorsed by the Vorssaint maintainer. Everything in the video is the real app driving real Claude Code sessions, recorded on a MacBook.
+<p align="center">
+  <img src="docs/assets/readme/sessions/overview.gif" width="820" alt="Five Claude Code sessions listed in the Dynamic Island, each with its project, branch, cost and a pixel Clawd">
+</p>
 
-## What it does
+## Sessions
 
-- **Every session at a glance.** Running sessions are listed beside the camera with their name, project, git branch and state: working, running a tool, waiting for permission, waiting for you, done or idle. Each project gets its own color, and a session that sat idle for a while fades out.
-- **Allow from the island.** When Claude asks to run something, the island opens on its own with the whole command in view once you are at the desktop or in Vorssaint; while you work in another app, the request waits as a count on the closed island instead. Allow, Deny or Always, by click or with ⌘Y, ⌘N and ⌘T, which work from any app while the request is on screen. When it asks to edit or write a file, the card shows the change as a diff, red for removed lines and green for added ones, so you can decide without going to the terminal.
-- **Answer Claude's questions.** Questions Claude asks with options show up as a card. Pick one, pick several, or write your own answer.
-- **Reply without switching apps.** Type a reply in the island and it reaches the session as if typed there: in Terminal, iTerm2, Ghostty, WezTerm, kitty, tmux (inside any of them), and the terminal of VS Code, Cursor, Windsurf or Antigravity. ⌘↩ sends, and ⌘V or a drop adds images.
-- **Watch it work.** Enlarge a session's page to read the whole conversation as it grows, with recent tools, tasks, cost and the model beside it, or fold the details away.
-- **Subagents too.** Agents a session starts get rows of their own, including the ones sent to the background, colored like their agent definitions.
-- **Codex too.** Codex CLI sessions join the same list, under Codex's own mark and color, with a little terminal robot instead of Clawd. Its approvals, questions and replies go through Codex's own server, so there is nothing to install. Always on a Codex request allows every request of the task under way, with Always: ON on its page and Cancel to stop it, until the task ends.
-- **Gemini CLI, Copilot CLI, OpenCode and Cursor.** Each joins the list under its own mark, color and pixel figure by itself once it is installed; each has a switch in the Sessions settings. OpenCode's permission requests and replies go through a small plugin, so you answer them in the island; Gemini CLI and Copilot CLI show when they wait on you, and replies are typed into their terminal; Cursor's approvals stay in Cursor. [The notes](docs/more-session-agents.md) say what each agent allows.
-- **Background sessions too.** Sessions started with `claude --bg` are listed with a Background mark and Agent View's name. Answer their prompts, reply, read their output, stop or remove them, or open a terminal on one. **New session** starts Claude Code in a recent folder, in the background or in a terminal.
-- **A Clawd for every session.** Each session and subagent gets a pixel Clawd in a random costume. Open the wardrobe to change its shell, hat, eyewear and extras, or let Surprise me pick.
+Every agent session on your machine, beside the camera. When one needs you, the island opens with the request in full.
 
-## Set it up
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/readme/sessions/allow.gif" alt="A permission request opens in the island and is allowed with one click"></td>
+    <td width="50%"><img src="docs/assets/readme/sessions/answer.gif" alt="A question from Claude answered by picking an option in the island"></td>
+  </tr>
+  <tr>
+    <td><b>Allow</b><br>Allow, Deny or Always, with the whole command or the file diff in view. <kbd>⌘Y</kbd> <kbd>⌘N</kbd> <kbd>⌘T</kbd> work from any app.</td>
+    <td><b>Answer</b><br>Pick one option, several, or write your own.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/readme/sessions/reply.gif" alt="A reply typed in the island arriving in the session's terminal"></td>
+    <td><img src="docs/assets/readme/sessions/watch.gif" alt="A session's page enlarged to read the conversation as it grows"></td>
+  </tr>
+  <tr>
+    <td><b>Reply</b><br>Type in the island and it lands in the session's own terminal or editor. Images too.</td>
+    <td><b>Watch</b><br>Enlarge a session to read the conversation live, with tools, tasks, cost and model.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/readme/sessions/subagents.gif" alt="Three subagents listed under the session that started them"></td>
+    <td><img src="docs/assets/readme/sessions/wardrobe.gif" alt="The wardrobe changing a Clawd's shell color, hat and glasses"></td>
+  </tr>
+  <tr>
+    <td><b>Subagents</b><br>Agents a session starts get rows of their own, background ones included.</td>
+    <td><b>A Clawd each</b><br>Every session gets a pixel buddy in a random costume. Dress it up.</td>
+  </tr>
+</table>
 
-You need a Mac with Apple Silicon, macOS 14 or newer, the Xcode Command Line Tools and [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+| Agent | In the list | Approve in the island | Reply from the island |
+|---|:-:|:-:|:-:|
+| Claude Code | ✓ | ✓ | ✓ |
+| Codex | ✓ | ✓ | ✓ |
+| OpenCode | ✓ | ✓ | ✓ |
+| Gemini CLI | ✓ | in Gemini CLI | ✓ |
+| Copilot CLI | ✓ | in Copilot CLI | ✓ |
+| Cursor | ✓ | in Cursor | `cursor-agent` only |
 
-1. Build and install it:
+Background sessions (`claude --bg`), plan limits and **New session** are there too. See [what each agent allows](docs/more-session-agents.md) and [which terminals replies reach](docs/terminal-hosts.md).
 
-   ```sh
-   git clone https://github.com/MF-DEEV/vorssaint-utils.git
-   cd vorssaint-utils
-   ./build.sh --dev --install
-   ```
+## The rest of your Mac
 
-   This installs a separate Developer build next to any official Vorssaint. Run only one of them at a time, or you get two islands.
+Openbar grew out of a full menu bar toolkit, and all of it is still here. Install only the features you use.
 
-2. In Settings, install the AI Agents feature from the Features hub, then turn on the Sessions section in the Dynamic Island settings.
-3. For Claude Code, press **Install Hooks** in the Sessions settings. Hooks let the island show which tool runs and answer permission prompts and questions. They are added to `~/.claude/settings.json` next to your own, after a backup, and **Remove Hooks** takes them out again. Codex needs nothing: its sessions show up while it runs.
-4. If you work in VS Code, Cursor, Windsurf or Antigravity, press **Install** beside it under Editor extension so replies can reach its terminals. For Terminal, iTerm2 and Ghostty, macOS asks for Automation access the first time you send a reply.
-5. Start `claude` in a terminal or an editor. The session shows up in the island.
+<table>
+  <tr>
+    <td width="50%"><img src="docs/assets/readme/window-switcher.gif" alt="Switching between windows with live previews"></td>
+    <td width="50%"><img src="docs/assets/readme/shelf-demonstration.gif" alt="Files dropped on the shelf and dragged out again"></td>
+  </tr>
+  <tr>
+    <td><b>App switcher</b><br>Windows, not just apps, with live previews.</td>
+    <td><b>Shelf</b><br>Park files on the way from one app to another.</td>
+  </tr>
+  <tr>
+    <td><img src="docs/assets/readme/cut-and-paste.gif" alt="A folder cut with Command-X and pasted with Command-V in Finder"></td>
+    <td><img src="docs/assets/readme/quit-on-close.gif" alt="Closing an app's last window quits the app"></td>
+  </tr>
+  <tr>
+    <td><b>Cut and paste</b><br><kbd>⌘X</kbd> and <kbd>⌘V</kbd> move files in Finder.</td>
+    <td><b>Quit on close</b><br>Closing the last window quits the app.</td>
+  </tr>
+</table>
 
-## How it works
+A volume mixer, a system monitor, clipboard history, window layouts, keep awake, Now Playing, a timer, a calendar, downloads and more are each one switch away in the Features hub.
 
-The island reads the small records Claude Code keeps for each running session in `~/.claude/sessions`, then follows that session's transcript, subagents and tasks as they grow. Permission prompts and questions arrive through Claude Code's own hooks, which talk to the app over a local socket. Claude Code shows the same prompt in the terminal at the same time, and whichever answer comes first wins. With the app closed, Claude Code simply asks in the terminal as usual.
+## On Windows 11
 
-Replies are typed into the session's own tab, pane or window, found by its terminal device or the pane its terminal names, or into its editor terminal through the extension. Warp, Alacritty and other terminals can only be brought forward; the reply field says so. [docs/terminal-hosts.md](docs/terminal-hosts.md) lists every terminal and how it is reached.
+<p align="center">
+  <img src="windows/docs/assets/island-sessions.png" width="640" alt="The Windows island open on Sessions, with Claude Code and Codex sessions in one list">
+</p>
 
-Codex sessions come from the app server Codex's terminal UIs share, at `~/.codex/app-server-control/app-server-control.sock`. The island joins a thread while it works or while its page is open, shows its approvals and questions, and sends your answers and replies back through that server. [The Codex notes](docs/codex-sessions.md) describe the protocol.
+The same island, built with Tauri, sits at the top of a Windows 11 screen: Sessions, the mixer, Now Playing, clipboard, files, system and the rest. It's a beta with its own installer for x64 and arm64. [Download it](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true) or [read the Windows notes](windows/README.md).
+
+## Get started
+
+**Mac**: Apple Silicon, macOS 14 or later and the Xcode Command Line Tools.
+
+```sh
+git clone https://github.com/MF-DEEV/Openbar.git
+cd Openbar
+./build.sh --dev --install
+```
+
+Then, in Settings:
+
+1. Install **AI Agents** from the Features hub and turn on **Sessions** under Dynamic Island.
+2. Press **Install Hooks** for Claude Code. Your `~/.claude/settings.json` is backed up first, and **Remove Hooks** takes them out. Codex needs nothing.
+3. Start `claude` or `codex`. The session appears in the island.
+
+> [!NOTE]
+> The build is still named **Vorssaint (Developer)**, after the project Openbar is built on. Run only one of them at a time, or you get two islands.
+
+**Windows**: run the installer from the [latest Windows release](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true). It installs for your account only.
 
 ## Private by default
 
-Nothing leaves your Mac. Prompts, replies, titles and commands stay unread until you turn on **Show previews**, which is off by default, and even then they are kept in memory only and cleared when you turn it off. The [privacy notes](docs/PRIVACY.md) list everything the Sessions page reads and writes, and the [permissions guide](docs/PERMISSIONS.md) covers the Automation access replies use.
+> [!IMPORTANT]
+> Nothing leaves your machine. Prompts, replies and commands stay hidden until you turn on **Show previews**, and even then they're kept in memory only. With the app closed, your agents ask in the terminal as usual. See [everything the app reads and writes](docs/PRIVACY.md).
 
-## On Windows
+## Documentation
 
-The Dynamic Island also runs on Windows 11, with the same sections: Sessions for Claude Code, Codex, Gemini CLI, Copilot CLI, OpenCode and Cursor, Controls, the volume mixer, Now Playing, clipboard history, the Files shelf, System, Tools, Calendar, notifications, Timer, Downloads, AI Agents and Watch. It is a beta with its own installer: download it from the [Windows releases](https://github.com/MF-DEEV/vorssaint-utils/releases?q=windows&expanded=true) (x64 for most PCs, arm64 for Snapdragon), and read [windows/README.md](windows/README.md) for what it does and how to build it.
+| Guide | What it covers |
+|---|---|
+| [Privacy](docs/PRIVACY.md) | What is read, what is kept, what never leaves |
+| [Permissions](docs/PERMISSIONS.md) | Every macOS permission, in plain words |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | The common fixes |
+| [Claude Code sessions](docs/claude-sessions-spike.md) | What Claude Code exposes and how the island uses it |
+| [Codex sessions](docs/codex-sessions.md) | How the island talks to Codex's app server |
+| [More agents](docs/more-session-agents.md) | Gemini CLI, Copilot CLI, OpenCode and Cursor |
+| [Background sessions](docs/background-sessions.md) | `claude --bg`, Agent View and New session |
+| [Terminals](docs/terminal-hosts.md) | Every terminal and editor replies reach |
+| [Windows](windows/README.md) | The Windows island, installer and build |
 
-## About this fork
+## Contributing
 
-The rest of the app is Vorssaint as it is upstream: volume mixer, system monitor, app switcher, window snapping, clipboard history, the Dynamic Island and much more. Its [README](https://github.com/vorssaint/vorssaint-utils#readme) describes all of it, and official builds come only from the [Vorssaint releases](https://github.com/vorssaint/vorssaint-utils/releases).
-
-On the Mac this fork ships no builds of its own; you build it from source as above. The Windows island has installers in this repository's releases. The Vorssaint name, icon and look belong to its maintainer, as [TRADEMARKS.md](TRADEMARKS.md) explains.
-
-- [Privacy](docs/PRIVACY.md), what does and does not leave your Mac
-- [Permissions](docs/PERMISSIONS.md), every macOS permission in plain words
-- [Troubleshooting](docs/TROUBLESHOOTING.md), the common fixes
-- [Contributing](CONTRIBUTING.md), build, layout and conventions
-- [Claude Code session notes](docs/claude-sessions-spike.md), what Claude Code exposes and how the island uses it
-- [Codex session notes](docs/codex-sessions.md), how the island talks to Codex's app server
-- [More session agents](docs/more-session-agents.md), what Gemini CLI, Copilot CLI, OpenCode and Cursor tell the island, and how much of it each allows
-
-### Checks on pull requests
-
-Every pull request runs [PR checks](.github/workflows/pr.yml) for the parts it changes, each job capped at fifteen minutes, and **CI ok** sums them up as the one check to require before merging into `main`. You can run the same checks before you push:
-
-- Mac: `./build.sh --test`
-- Windows UI, in `windows/`: `bun run typecheck`, `bun run format:check`, `bun run test`
-- Windows backend, in `windows/src-tauri/`, after `bun run build` in `windows/`: `cargo fmt --check`, `cargo xwin clippy --target x86_64-pc-windows-msvc --all-targets -- -D warnings` and `cargo test`. CI pins Rust 1.99.1 (`RUST_TOOLCHAIN` in the workflow), so a newer local toolchain can report lints CI does not.
-
-The release build and its selftest are not part of CI; run `./build.sh && ./build/Vorssaint --selftest` yourself for runtime, UI or bundled resource changes.
+Issues and pull requests are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) covers the build, the layout and the checks every PR runs. Questions go to [Discussions](https://github.com/MF-DEEV/Openbar/discussions), and security reports follow [SECURITY.md](SECURITY.md). Everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
 
 ## License
 
-[GPL 3.0 or later](LICENSE). Vorssaint is copyright 2026 Vorssaint; the changes in this fork are copyright 2026 MF DEV under the same license.
+[GPL 3.0 or later](LICENSE). Openbar is built on [Vorssaint](https://github.com/vorssaint/vorssaint-utils), copyright 2026 Vorssaint; the changes in this repository are copyright 2026 MF DEV under the same license. Openbar is not affiliated with Vorssaint; see [TRADEMARKS.md](TRADEMARKS.md).
+
+<br>
 
 <p align="center">
-  <sub>Fork by <a href="https://github.com/MF-DEEV">MF DEV</a> · Based on <a href="https://github.com/vorssaint/vorssaint-utils">Vorssaint</a></sub>
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/logo-dark.svg">
+    <img src="docs/assets/readme/logo.svg" width="26" alt="">
+  </picture>
+  <br>
+  <sub>Made by <a href="https://github.com/MF-DEEV">MF DEV</a></sub>
 </p>

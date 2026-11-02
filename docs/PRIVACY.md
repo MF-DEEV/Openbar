@@ -107,4 +107,4 @@ This page describes how the current version of Vorssaint behaves. If the app's b
 
 ## Questions
 
-If anything here is unclear, open a question in [GitHub issues](https://github.com/vorssaint/vorssaint-utils/issues), or have a look at [support](../SUPPORT.md).
+If anything here is unclear, ask in [Discussions](https://github.com/MF-DEEV/Openbar/discussions), or have a look at [support](../SUPPORT.md).
