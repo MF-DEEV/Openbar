@@ -1,0 +1,155 @@
+<!doctype html><html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Saira:wdth,wght@125,900&display=block" rel="stylesheet">
+<style>html,body{margin:0;background:#050507;overflow:hidden}canvas{display:block}</style></head><body>
+<canvas id="c"></canvas>
+<script>
+const Q = new URLSearchParams(location.search);
+const W = +(Q.get('w') ?? 1280), H = +(Q.get('h') ?? 360), DPR = +(Q.get('dpr') ?? 2);
+const TEXT = Q.get('text') ?? 'Openbar';
+const FONT = Q.get('font') ?? 'Saira';
+const STRETCH = +(Q.get('stretch') ?? 1.4);
+const HELMET = Q.get('helmet') !== '0';
+const TAG = Q.get('tag') ?? '';
+const PERIOD = +(Q.get('period') ?? 6);
+const cw = W * DPR, ch = H * DPR;
+const c = document.getElementById('c'); c.width = cw; c.height = ch; c.style.width = W + 'px'; c.style.height = H + 'px';
+
+function mk() { const k = document.createElement('canvas'); k.width = cw; k.height = ch; return k; }
+async function buildMask() {
+  await document.fonts.load(`900 extra-expanded 100px "${FONT}"`); await document.fonts.load(`900 100px "${FONT}"`);
+  await document.fonts.ready;
+  const m = mk(), g = m.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, cw, ch); g.fillStyle = '#fff';
+  const tagSpace = TAG ? 0.16 : 0;
+  // fit: helmet + gap + text inside 82% width
+  const capFrac = 0.42; // text size relative to height
+  let size = ch * capFrac * (TAG ? 0.8 : 1);
+  g.font = `900 ${size}px "${FONT}"`; g.fontStretch = 'extra-expanded';
+  let tw = g.measureText(TEXT).width * STRETCH;
+  const helmetH = size * 0.98, helmetW = helmetH * 523 / 720, gap = HELMET ? size * 0.42 : 0;
+  let total = (HELMET ? helmetW + gap : 0) + tw;
+  const maxW = cw * +(Q.get('fill') ?? 0.84);
+  if (total > maxW) { const s = maxW / total; size *= s; g.font = `900 ${size}px "${FONT}"`; g.fontStretch = 'extra-expanded'; tw = g.measureText(TEXT).width * STRETCH; }
+  const hH = size * 0.98, hW = hH * 523 / 720, gp = HELMET ? size * 0.42 : 0;
+  total = (HELMET ? hW + gp : 0) + tw;
+  const x0 = (cw - total) / 2, cy = ch * (0.5 - tagSpace / 2);
+  const mt = g.measureText(TEXT); const asc = mt.actualBoundingBoxAscent, desc = mt.actualBoundingBoxDescent;
+  // align by x-height-ish: center the cap box (ascent of 'O')
+  const capAsc = g.measureText('O').actualBoundingBoxAscent;
+  const baseline = cy + capAsc / 2;
+  if (HELMET) {
+    const img = new Image(); img.src = 'helmet.svg'; await img.decode();
+    // white helmet: draw via composite
+    const t = document.createElement('canvas'); t.width = Math.ceil(hW); t.height = Math.ceil(hH);
+    const tg = t.getContext('2d'); tg.drawImage(img, 0, 0, hW, hH); tg.globalCompositeOperation = 'source-in'; tg.fillStyle = '#fff'; tg.fillRect(0, 0, t.width, t.height);
+    g.drawImage(t, x0, baseline - capAsc / 2 - hH / 2 - capAsc*0.0);
+  }
+  g.save(); g.translate(x0 + (HELMET ? hW + gp : 0), baseline); g.scale(STRETCH, 1); g.fillText(TEXT, 0, 0); const sw=+(Q.get('weight') ?? 0)*size; if (sw>0) { g.lineWidth=sw; g.lineJoin='round'; g.strokeStyle='#fff'; g.strokeText(TEXT,0,0); } g.restore();
+  const meta = { x0, total, baseline, capAsc, size };
+  return { m, meta };
+}
+function edt1d(f, n, d, v, z) {
+  let k = 0; v[0] = 0; z[0] = -1e20; z[1] = 1e20;
+  for (let q = 1; q < n; q++) { let s; do { const r = v[k]; s = ((f[q] + q*q) - (f[r] + r*r)) / (2*q - 2*r); if (s <= z[k]) k--; else break; } while (k >= 0); k++; v[k] = q; z[k] = s; z[k+1] = 1e20; }
+  k = 0; for (let q = 0; q < n; q++) { while (z[k+1] < q) k++; const r = v[k]; d[q] = (q-r)*(q-r) + f[r]; } }
+function insideDistance(mask) { // distance (px) from each inside pixel to the nearest outside pixel
+  const g = mask.getContext('2d'); const a = g.getImageData(0, 0, cw, ch).data; const INF = 1e20;
+  const D = new Float32Array(cw*ch); for (let i = 0; i < cw*ch; i++) D[i] = a[i*4] > 127 ? INF : 0;
+  const n = Math.max(cw, ch); const f = new Float64Array(n), d = new Float64Array(n), v = new Int32Array(n), z = new Float64Array(n+1);
+  for (let x = 0; x < cw; x++) { for (let y = 0; y < ch; y++) f[y] = D[y*cw+x]; edt1d(f, ch, d, v, z); for (let y = 0; y < ch; y++) D[y*cw+x] = d[y]; }
+  for (let y = 0; y < ch; y++) { for (let x = 0; x < cw; x++) f[x] = D[y*cw+x]; edt1d(f, cw, d, v, z); for (let x = 0; x < cw; x++) D[y*cw+x] = Math.sqrt(d[x]); }
+  return { D, a }; }
+function boxBlur(A, r) { if (r <= 0) return; const T = new Float32Array(A.length);
+  for (let y = 0; y < ch; y++) { let acc = 0; const o = y*cw; for (let x = -r; x <= r; x++) acc += A[o + Math.min(cw-1, Math.max(0, x))];
+    for (let x = 0; x < cw; x++) { T[o+x] = acc/(2*r+1); acc += A[o + Math.min(cw-1, x+r+1)] - A[o + Math.max(0, x-r)]; } }
+  for (let x = 0; x < cw; x++) { let acc = 0; for (let y = -r; y <= r; y++) acc += T[Math.min(ch-1, Math.max(0, y))*cw + x];
+    for (let y = 0; y < ch; y++) { A[y*cw+x] = acc/(2*r+1); acc += T[Math.min(ch-1, y+r+1)*cw + x] - T[Math.max(0, y-r)*cw + x]; } } }
+function normalMap(mask, bevel) {
+  const { D, a } = insideDistance(mask); const H = new Float32Array(cw*ch);
+  for (let i = 0; i < cw*ch; i++) { const aa = a[i*4]/255; let t = Math.min(1, (D[i] + aa*0.5) / bevel); H[i] = Math.sqrt(Math.max(0, 1 - (1-t)*(1-t))) * bevel * (aa > 0 ? 1 : 0); }
+  boxBlur(H, +(Q.get('smooth') ?? 4)); boxBlur(H, +(Q.get('smooth') ?? 4)); boxBlur(H, +(Q.get('smooth') ?? 4));
+  const k = document.createElement('canvas'); k.width = cw; k.height = ch; const g = k.getContext('2d'); const im = g.createImageData(cw, ch); const o = im.data;
+  for (let y = 1; y < ch-1; y++) for (let x = 1; x < cw-1; x++) { const i = y*cw+x;
+    const gx = (H[i+1] - H[i-1]) * .5, gy = (H[i+cw] - H[i-cw]) * .5;
+    let nx = -gx, ny = -gy, nz = 1; const l = Math.hypot(nx, ny, nz); nx/=l; ny/=l;
+    o[i*4] = (nx*.5+.5)*255; o[i*4+1] = (ny*.5+.5)*255; o[i*4+2] = Math.min(1, H[i]/bevel)*255; o[i*4+3] = 255; }
+  g.putImageData(im, 0, 0); return k; }
+function blurred(src, r) { const k = mk(), g = k.getContext('2d'); g.filter = `blur(${r}px)`; g.drawImage(src, 0, 0); return k; }
+
+const VS = `#version 300 es
+in vec2 p; out vec2 uv; void main(){ uv = p*.5+.5; uv.y = 1.-uv.y; gl_Position = vec4(p,0,1); }`;
+const FS = `#version 300 es
+precision highp float; in vec2 uv; out vec4 o;
+uniform sampler2D M, B1, B2, B3, N; uniform vec2 R; uniform float T, PERIOD;
+float h(vec2 q){ return .55*texture(B1,q).r + .45*texture(B2,q).r; }
+vec3 env(vec3 r, float ph){
+  // lavender horizon band + cool ceiling + a moving soft light bar
+  float y = r.y;
+  vec3 c = mix(vec3(.20,.19,.24), vec3(.42,.39,.55), smoothstep(-.6,.5,-y));
+  c += vec3(.55,.48,.85) * exp(-pow((y+.15)*3.2,2.)) * .55;
+  float bar = r.x*1.2 + .9 - 3.6*ph;
+  c += vec3(.95,.92,1.) * exp(-bar*bar*9.) * 1.15;
+  float bar2 = r.x*1.2 + .9 - 3.6*fract(ph+.5);
+  c += vec3(.62,.55,1.) * exp(-bar2*bar2*14.) * .45;
+  return c;
+}
+void main(){
+  vec2 px = 1./R;
+  float m = texture(M,uv).r;
+  float glow = texture(B3,uv).r;
+  float ph = fract(T/PERIOD);
+  vec3 bg = vec3(.02,.02,.028);
+  // halo
+  vec3 col = bg + vec3(.34,.28,.70) * pow(glow,1.8) * .30 * (1.-m);
+  if (m > .002) {
+    vec4 nm = texture(N, uv);
+    vec2 nxy = nm.xy*2.-1.;
+    vec3 n = normalize(vec3(nxy.x, -nxy.y, sqrt(max(0., 1.-dot(nxy,nxy)))));
+    float slope = 1.-n.z;                       // 0 on the face, 1 at the rim
+    vec3 L1 = normalize(vec3(-.55,-.75,.45));   // key light from lower left
+    vec3 L2 = normalize(vec3(.7,.6,.35));       // cool fill from upper right
+    float k1 = max(dot(n,L1),0.), k2 = max(dot(n,L2),0.);
+    // face: smoky glass, darker at the top, violet toward the bottom
+    vec3 face = mix(vec3(.19,.18,.23), vec3(.40,.36,.58), smoothstep(.32,.74,uv.y));
+    // beam: a soft vertical band that crosses the word once per period
+    float bx = uv.x - (-.25 + 1.5*ph);
+    float beam = exp(-bx*bx*55.);
+    float beam2 = exp(-pow(uv.x - (-.25 + 1.5*fract(ph+.5)),2.)*160.)*.35;
+    vec3 c = face * (.85 + .55*beam + .8*beam2) + vec3(.26,.20,.58)*beam*.30;
+    c += vec3(.58,.48,1.) * pow(k1, 3.) * (.45 + 1.1*slope) * (1. - .45*beam);
+    c += vec3(.50,.52,.70) * pow(k2, 4.) * .35 * slope;
+    // rim: lavender, flaring where the beam passes
+    c += vec3(.70,.58,1.) * pow(slope, 1.5) * (.40 + 1.3*beam + .7*beam2);
+    // glossy specular streak on the face
+    vec3 r = reflect(vec3(0,0,-1), n);
+    c += env(r, ph) * .10;
+    col = mix(col, c, smoothstep(0.,1.,m));
+  }
+  // vignette-free; gentle dither
+  float d = fract(sin(dot(gl_FragCoord.xy, vec2(12.9898,78.233)))*43758.5453)/255.;
+  o = vec4(col + d, 1.);
+}`;
+let gl, prog, uT;
+function tex(unit, canvas) { const t = gl.createTexture(); gl.activeTexture(gl.TEXTURE0 + unit); gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, canvas); }
+function sh(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(s); return s; }
+window.render = (t) => { gl.uniform1f(uT, t); gl.drawArrays(gl.TRIANGLES, 0, 6); gl.finish(); };
+(async () => {
+  const { m, meta } = await buildMask();
+  const s = meta.size / 300 * DPR / 2; // scale blur radii with type size
+  const b1 = blurred(m, 9 * s * 2), b2 = blurred(m, 22 * s * 2), b3 = blurred(m, 40 * s * 2);
+  gl = c.getContext('webgl2', { preserveDrawingBuffer: true, antialias: false });
+  prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, VS)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, FS)); gl.linkProgram(prog); gl.useProgram(prog);
+  const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1,-1,1,-1,-1,1,-1,1,1,-1,1,1]), gl.STATIC_DRAW);
+  const loc = gl.getAttribLocation(prog, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
+  [['M', m], ['B1', b1], ['B2', b2], ['B3', b3], ['N', normalMap(m, meta.size * +(Q.get('bevel') ?? 0.10))]].forEach(([n, k], i) => { tex(i, k); gl.uniform1i(gl.getUniformLocation(prog, n), i); });
+  gl.uniform2f(gl.getUniformLocation(prog, 'R'), cw, ch); gl.uniform1f(gl.getUniformLocation(prog, 'PERIOD'), PERIOD);
+  uT = gl.getUniformLocation(prog, 'T');
+  if (TAG) { /* tagline drawn as DOM over canvas */ const d = document.createElement('div'); d.textContent = TAG;
+    Object.assign(d.style, { position: 'absolute', left: 0, right: 0, top: (meta.baseline / DPR + meta.capAsc / DPR * 0.9 + H * 0.06) + 'px', textAlign: 'center', color: '#9d98b3', font: `500 ${Math.round(H*0.052)}px -apple-system, "Helvetica Neue", Helvetica, sans-serif`, letterSpacing: '0.01em' }); document.body.appendChild(d); }
+  window.render(+(Q.get('t') ?? 1.5));
+  window.ready = true;
+})();
+</script></body></html>
