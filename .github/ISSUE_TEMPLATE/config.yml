@@ -1,9 +1,12 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 
 contact_links:
-  - name: Troubleshooting Guide
-    about: The usual fixes for permissions, Gatekeeper and a feature that stopped responding.
-    url: https://github.com/vorssaint/vorssaint-utils/blob/main/docs/TROUBLESHOOTING.md
-  - name: Security Vulnerability
-    about: Please report security vulnerabilities privately.
-    url: https://github.com/vorssaint/vorssaint-utils/security/advisories/new
+  - name: Questions and ideas
+    about: Ask how something works or float an idea in Discussions.
+    url: https://github.com/MF-DEEV/Openbar/discussions
+  - name: Troubleshooting guide
+    about: The usual fixes for permissions, hooks and a feature that stopped responding.
+    url: https://github.com/MF-DEEV/Openbar/blob/main/docs/TROUBLESHOOTING.md
+  - name: Security vulnerability
+    about: Report it privately, not in a public issue.
+    url: https://github.com/MF-DEEV/Openbar/security/advisories/new
