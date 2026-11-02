@@ -29,7 +29,7 @@
 <br>
 
 <p align="center">
-  <img src="docs/assets/readme/sessions/overview.gif" width="820" alt="Five Claude Code sessions listed in the Dynamic Island, each with its project, branch, cost and a pixel Clawd">
+  <img src="docs/assets/readme/sessions/demo.gif" width="820" alt="Five Claude Code sessions in the Dynamic Island: a permission allowed, a question answered, a reply sent, a conversation enlarged, subagents at work and a Clawd dressed up">
 </p>
 
 ## Sessions
