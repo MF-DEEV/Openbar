@@ -22,6 +22,14 @@ final class CameraPreviewService: ObservableObject {
     @Published private(set) var devices: [AVCaptureDevice] = []
     @Published private(set) var selectedDeviceID: String?
     @Published private(set) var isEmbeddedPresented = false
+    /// Whether the preview shows the image flipped, as a mirror would. It is
+    /// on by default and holds for one preview session, across camera
+    /// switches; the next preview opens mirrored again. Only the preview
+    /// flips: the camera's frames, and what a call app gets, never change.
+    @Published private(set) var isMirrored = true
+    /// Whether the shown camera's preview can be flipped at all, as its
+    /// preview layer reports once it is connected.
+    @Published private(set) var canMirror = true
     private var captureGeneration = UUID()
     private var sessionRequest: CameraPreviewRequest?
     private var sessionObservers: [NSObjectProtocol] = []
@@ -146,6 +154,20 @@ final class CameraPreviewService: ObservableObject {
         state = .idle
         devices = []
         selectedDeviceID = nil
+        isMirrored = true
+        canMirror = true
+    }
+
+    func toggleMirrored() {
+        guard isPresented, canMirror else { return }
+        isMirrored.toggle()
+    }
+
+    /// The preview layer reports this after every update; only a change
+    /// publishes, so the report never feeds back into another update.
+    func reportMirroringSupport(_ supported: Bool) {
+        guard isPresented, canMirror != supported else { return }
+        canMirror = supported
     }
 
     // MARK: - Capture

@@ -44,7 +44,8 @@ struct CameraPreviewView: View {
         switch service.state {
         case .running:
             if let session = service.session {
-                CameraLayerView(session: session)
+                CameraLayerView(session: session, mirrored: service.isMirrored,
+                                onMirroringSupport: service.reportMirroringSupport)
             }
         case .idle, .waitingPermission, .starting:
             ProgressView()
@@ -67,22 +68,30 @@ struct CameraPreviewView: View {
         }
     }
 
-    private var showsMenu: Bool {
+    private var showsControls: Bool {
         showsCameraMenu && hovering && service.state == .running && service.session != nil
-            && service.devices.count > 1
     }
+
+    private var showsMenu: Bool { service.devices.count > 1 }
 
     @ViewBuilder
     private var controls: some View {
-        if showsMenu {
+        if showsControls {
             // A camera name too long for the image leaves the picker its
             // icon, so it is never cut off at the image's edges.
             ViewThatFits(in: .horizontal) {
-                cameraMenu(showsName: true)
-                cameraMenu(showsName: false)
+                controlRow(showsName: true)
+                controlRow(showsName: false)
             }
             .transition(.opacity)
             .padding([.horizontal, .bottom], 10)
+        }
+    }
+
+    private func controlRow(showsName: Bool) -> some View {
+        HStack(spacing: 8) {
+            if showsMenu { cameraMenu(showsName: showsName) }
+            CameraMirrorButton()
         }
     }
 
@@ -145,11 +154,48 @@ struct CameraPreviewView: View {
     }
 }
 
+/// Flips the preview between mirrored and as the camera sees it. A camera
+/// whose preview can't be flipped keeps the button, dimmed, saying so.
+private struct CameraMirrorButton: View {
+    @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var service = CameraPreviewService.shared
+
+    var body: some View {
+        let strings = FeatureStrings.cameraPreview(l10n.language)
+        let on = service.isMirrored && service.canMirror
+        Button(action: service.toggleMirrored) {
+            Image(systemName: CameraMirrorSymbol.name(mirrored: on))
+                .font(.system(size: 11, weight: .semibold))
+                .frame(width: 26, height: 26)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.white.opacity(service.canMirror ? 1 : 0.4))
+        .background(on ? .white.opacity(0.28) : .black.opacity(0.55), in: Circle())
+        .disabled(!service.canMirror)
+        .help(service.canMirror ? strings.mirrorLabel : strings.mirrorUnavailable)
+        .accessibilityLabel(strings.mirrorLabel)
+        .accessibilityValue(service.canMirror ? "" : strings.mirrorUnavailable)
+        .accessibilityAddTraits(on ? .isSelected : [])
+    }
+}
+
+/// The flip glyph, filled while the preview is mirrored, so the state reads
+/// without relying on the button's background alone.
+enum CameraMirrorSymbol {
+    static func name(mirrored: Bool) -> String {
+        mirrored ? "arrow.left.and.right.righttriangle.left.righttriangle.right.fill"
+            : "arrow.left.and.right.righttriangle.left.righttriangle.right"
+    }
+}
+
 /// Hosts the AVCaptureVideoPreviewLayer. The mirror flip lives on the layer's
-/// connection, which only exists once the session has its input, so it is
-/// (re)applied on every update.
+/// connection, which only exists once the session has its input and is
+/// replaced when the camera changes, so it is (re)applied on every update.
 private struct CameraLayerView: NSViewRepresentable {
     let session: AVCaptureSession
+    let mirrored: Bool
+    let onMirroringSupport: (Bool) -> Void
 
     final class LayerHostView: NSView {
         let previewLayer: AVCaptureVideoPreviewLayer
@@ -160,24 +206,25 @@ private struct CameraLayerView: NSViewRepresentable {
             wantsLayer = true
             previewLayer.videoGravity = .resizeAspectFill
             layer = previewLayer
-            applyMirroring()
         }
 
         @available(*, unavailable)
         required init?(coder: NSCoder) { nil }
 
-        /// A mirror shows what a mirror would: the image flipped, on every
-        /// camera, the same thing Photo Booth does.
-        func applyMirroring() {
-            guard let connection = previewLayer.connection,
-                  connection.isVideoMirroringSupported
-            else { return }
+        /// Mirrored is what a mirror shows, the same thing Photo Booth does;
+        /// unmirrored is what the people on a call see. Only the preview
+        /// layer flips, never the frames. Returns whether this camera's
+        /// preview can be flipped, or nil while there is no connection yet.
+        func applyMirroring(_ mirrored: Bool) -> Bool? {
+            guard let connection = previewLayer.connection else { return nil }
+            guard connection.isVideoMirroringSupported else { return false }
             if connection.automaticallyAdjustsVideoMirroring {
                 connection.automaticallyAdjustsVideoMirroring = false
             }
-            if !connection.isVideoMirrored {
-                connection.isVideoMirrored = true
+            if connection.isVideoMirrored != mirrored {
+                connection.isVideoMirrored = mirrored
             }
+            return true
         }
     }
 
@@ -189,6 +236,8 @@ private struct CameraLayerView: NSViewRepresentable {
         if view.previewLayer.session !== session {
             view.previewLayer.session = session
         }
-        view.applyMirroring()
+        guard let supported = view.applyMirroring(mirrored) else { return }
+        // Publishing in the middle of a view update is not allowed.
+        DispatchQueue.main.async { onMirroringSupport(supported) }
     }
 }

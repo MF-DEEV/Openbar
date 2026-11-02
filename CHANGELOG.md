@@ -11,6 +11,7 @@ All notable changes to this project are documented here. The format follows
 - Dynamic Island's Sessions page lists Gemini CLI, GitHub Copilot CLI, OpenCode and Cursor sessions next to Claude Code and Codex, each with its own mark, color and pixel figure. Press Install for an agent to add its hooks or plugin; OpenCode's requests and replies are answered in the island, and the others say where to answer. Settings → Dynamic Island → Content → Sessions → More agents.
 - Dynamic Island shows when you mute your microphone or deafen in Discord, with a red mark while muted, and a short notice when you unmute. It follows your Discord shortcuts while Discord is hidden. Settings → Dynamic Island → Activity → Microphone status.
 - Dynamic Island's Downloads page watches your Downloads folder and the folders Chrome, Edge, Brave, Arc, Vivaldi, Opera, Firefox, Zen and other browsers save to, plus any folders you add. A folder chosen before stays watched. Settings → Dynamic Island → Content → Downloads.
+- Camera preview can show your image as the camera sees it, not just mirrored. Use the flip button on the floating preview (it appears when you hover) or in the top row of Dynamic Island's Camera page. Each preview opens mirrored and keeps your choice when you switch cameras. Calls and recordings are not affected.
 - Dynamic Island's quick access buttons can go back to the original five in one click. Settings → Dynamic Island → Layout → Restore default buttons.
 
 ### Changed
