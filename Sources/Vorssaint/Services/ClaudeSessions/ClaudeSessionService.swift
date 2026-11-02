@@ -66,6 +66,8 @@ final class ClaudeSessionService: ObservableObject {
     /// Gemini CLI, Copilot CLI, OpenCode and `cursor-agent` found on this Mac,
     /// which New session can start in a terminal.
     @Published private(set) var startableAgents: Set<ClaudeSessionProvider> = []
+    /// The agents shown when the settings were last read. Main thread.
+    private var lastShownAgents: Set<ClaudeSessionProvider>?
     /// The page that starts a new session is open.
     @Published var composingSession = false
 
@@ -177,6 +179,9 @@ final class ClaudeSessionService: ObservableObject {
                 publish(now: Date())
             }
         }
+        // A switch turned on or off puts its agent's hooks in or takes them out.
+        if running, agents != lastShownAgents { syncAgentHooks() }
+        lastShownAgents = agents
         guard !running else { return }
         running = true
         // Agents defined inside folders macOS guards are read only with Full
@@ -204,6 +209,7 @@ final class ClaudeSessionService: ObservableObject {
             }
         }
         checkHooks()
+        syncAgentHooks()
     }
 
     func stop() {
@@ -517,6 +523,8 @@ final class ClaudeSessionService: ObservableObject {
                     if self.canStartSessions != canStart { self.canStartSessions = canStart }
                     if self.canStartCodex != canCodex { self.canStartCodex = canCodex }
                     if self.startableAgents != startable { self.startableAgents = startable }
+                    // An agent installed since is picked up as it is found.
+                    if self.running { self.syncAgentHooks() }
                     if self.backgroundAvailable != listed { self.backgroundAvailable = listed }
                 }
             }
@@ -715,37 +723,79 @@ final class ClaudeSessionService: ObservableObject {
             var states: [ClaudeSessionProvider: (state: AgentHookInstaller.State, present: Bool)] = [:]
             for provider in ClaudeSessionProvider.hookAgents {
                 let state = AgentHookInstaller.state(provider, home: home, socket: socket, bundle: bundle)
-                states[provider] = (state, state != .missing || AgentHookInstaller.isPresent(provider, home: home))
+                let path = ClaudeCLI.shell(home: home).environment["PATH"]
+                states[provider] = (state, AgentHookInstaller.isPresent(provider, home: home, path: path))
             }
             DispatchQueue.main.async { self.agentHooks = states }
         }
     }
 
-    /// Puts the island's hooks or plugin into one agent, or takes them out.
+    /// Puts the island's hooks or plugin into one agent, or takes them out,
+    /// as Try again asks after a change that failed.
     func installAgentHooks(_ provider: ClaudeSessionProvider, _ install: Bool) {
         let home = home
         let socket = Self.socketPath(home: home)
         let bundle = Self.bundleID
-        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
         actions.async {
-            var failure: String?
-            do {
-                if install { try AgentHookInstaller.install(provider, home: home, socket: socket, bundle: bundle) }
-                else { try AgentHookInstaller.remove(provider, home: home, bundle: bundle) }
-            } catch let error as ClaudeHookInstaller.Failure {
-                switch error {
-                case .unreadable: failure = text.settingsUnreadable
-                case .unwritable(let reason): failure = reason
-                case .busy: failure = text.settingsBusy
-                case .noBackup: failure = text.settingsNoBackup
-                }
-            } catch {
-                failure = error.localizedDescription
-            }
+            let failure = Self.changeAgentHooks(provider, install: install, home: home, socket: socket, bundle: bundle)
             DispatchQueue.main.async {
                 self.agentHookFailures[provider] = failure
                 self.checkAgentHooks()
             }
+        }
+    }
+
+    /// Keeps every agent's hooks in step, with no button to press: an agent
+    /// found on this Mac whose switch is on gets the island's hooks or
+    /// plugin, with a backup first, and an update when they point elsewhere;
+    /// an agent whose switch is off has them taken out. Runs when the
+    /// section starts, when its settings change, and as the agents are
+    /// looked for, so one installed later is picked up.
+    func syncAgentHooks() {
+        let home = home
+        let socket = Self.socketPath(home: home)
+        let bundle = Self.bundleID
+        let shown = NotchClaudeSessionsSupport.shownAgents()
+        actions.async {
+            let path = ClaudeCLI.shell(home: home).environment["PATH"]
+            let found = Set(ClaudeSessionProvider.hookAgents.filter { AgentHookInstaller.isPresent($0, home: home, path: path) })
+            var states: [ClaudeSessionProvider: AgentHookInstaller.State] = [:]
+            for provider in ClaudeSessionProvider.hookAgents {
+                states[provider] = AgentHookInstaller.state(provider, home: home, socket: socket, bundle: bundle)
+            }
+            let plan = AgentHookInstaller.plan(found: found, shown: shown, states: states)
+            guard !plan.install.isEmpty || !plan.remove.isEmpty else { return }
+            var failures: [ClaudeSessionProvider: String?] = [:]
+            for provider in plan.install {
+                failures[provider] = Self.changeAgentHooks(provider, install: true, home: home, socket: socket, bundle: bundle)
+            }
+            for provider in plan.remove {
+                failures[provider] = Self.changeAgentHooks(provider, install: false, home: home, socket: socket, bundle: bundle)
+            }
+            DispatchQueue.main.async {
+                for (provider, failure) in failures { self.agentHookFailures[provider] = failure }
+                self.checkAgentHooks()
+            }
+        }
+    }
+
+    /// One agent's hooks put in or taken out; why it failed, if it did.
+    private static func changeAgentHooks(_ provider: ClaudeSessionProvider, install: Bool, home: URL, socket: String,
+                                         bundle: String) -> String? {
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
+        do {
+            if install { try AgentHookInstaller.install(provider, home: home, socket: socket, bundle: bundle) }
+            else { try AgentHookInstaller.remove(provider, home: home, bundle: bundle) }
+            return nil
+        } catch let error as ClaudeHookInstaller.Failure {
+            switch error {
+            case .unreadable: return text.settingsUnreadable
+            case .unwritable(let reason): return reason
+            case .busy: return text.settingsBusy
+            case .noBackup: return text.settingsNoBackup
+            }
+        } catch {
+            return error.localizedDescription
         }
     }
 

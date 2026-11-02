@@ -223,17 +223,6 @@ struct NotchClaudeSessionStrings {
         return replyUnavailable(for: session.host)
     }
 
-    /// What an agent's row in Settings says about its hooks or plugin.
-    func agentHookState(_ state: AgentHookInstaller.State?, present: Bool) -> String? {
-        switch state {
-        case .installed?: return hooksInstalled
-        case .outdated?: return agentHooksOutdated
-        case .unreadable?: return agentHooksUnreadable
-        case .missing?: return present ? hooksMissing : codexNotFound
-        case nil: return nil
-        }
-    }
-
     func agentHint(_ provider: ClaudeSessionProvider) -> String {
         switch provider {
         case .gemini: return agentHintGemini
@@ -244,8 +233,6 @@ struct NotchClaudeSessionStrings {
         }
     }
 
-    func installAgent(_ provider: ClaudeSessionProvider) -> String { provider == .opencode ? installPlugin : installHooks }
-    func removeAgent(_ provider: ClaudeSessionProvider) -> String { provider == .opencode ? removePlugin : removeHooks }
 
     func moreSubagents(_ count: Int) -> String { String(format: moreSubagentsFormat, count) }
     func tasks(done: Int, total: Int) -> String { String(format: tasksFormat, done, total) }
@@ -467,25 +454,31 @@ extension NotchClaudeSessionStrings {
     var answerInAgentFormat: String { "Answer this one in %@." }
     var replyInAgentFormat: String { "Reply in %@" }
     var agentHooksOutdated: String { "Needs an update" }
+    var tryAgain: String { "Try Again" }
+    /// An agent's state now that its hooks follow its switch by themselves.
+    func agentAutoState(_ state: AgentHookInstaller.State, present: Bool, shown: Bool) -> String {
+        if state == .unreadable { return agentHooksUnreadable }
+        if !shown { return state == .missing ? "Off" : "Turning off…" }
+        if state == .installed { return present ? "Connected" : "Connected, not found on this Mac" }
+        if !present { return codexNotFound }
+        return state == .outdated ? "Updating…" : "Connecting…"
+    }
     func opensInTerminal(_ name: String) -> String { "\(name) opens in a terminal, with your first prompt." }
     var agentHooksUnreadable: String { "Its settings couldn’t be read" }
-    var installPlugin: String { "Install Plugin" }
-    var removePlugin: String { "Remove Plugin" }
-    var updateAgentHooks: String { "Update" }
     var agentsTitle: String { "More agents" }
     var agentsHint: String {
-        "Each agent shows in Sessions once its hooks or plugin are in. Nothing is added until you press Install, and Remove takes out only what the island added."
+        "Each agent installed on this Mac is connected by itself: the island adds its hooks or plugin next to your own, after a backup. Turning an agent off takes out only what the island added."
     }
     var agentHintGemini: String {
-        "Hooks go into ~/.gemini/settings.json next to your own, with a backup first. Sessions show what runs and when Gemini CLI waits on you; you answer its permission prompts in the terminal, and replies are typed there."
+        "Hooks in ~/.gemini/settings.json, next to your own. Sessions show what runs and when Gemini CLI waits on you; you answer its permission prompts in the terminal, and replies are typed there."
     }
     var agentHintCopilot: String {
-        "A hooks file of the island’s own goes into ~/.copilot/hooks. Sessions show what runs and when Copilot CLI waits on you; you answer its permission prompts in the terminal, and replies are typed there."
+        "A hooks file of the island’s own in ~/.copilot/hooks. Sessions show what runs and when Copilot CLI waits on you; you answer its permission prompts in the terminal, and replies are typed there."
     }
     var agentHintOpenCode: String {
-        "A plugin of the island’s own goes into ~/.config/opencode/plugins. It shows what each session does, and lets you allow or deny OpenCode’s permission requests and send replies from the island."
+        "A plugin of the island’s own in ~/.config/opencode/plugins. It shows what each session does, and lets you allow or deny OpenCode’s permission requests and send replies from the island."
     }
     var agentHintCursor: String {
-        "Hooks go into ~/.cursor/hooks.json next to your own, with a backup first, for Cursor’s agent and cursor-agent. Approvals stay in Cursor; Open takes you there."
+        "Hooks in ~/.cursor/hooks.json, next to your own, for Cursor’s agent and cursor-agent. Approvals stay in Cursor; Open takes you there."
     }
 }

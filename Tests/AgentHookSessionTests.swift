@@ -20,6 +20,7 @@ enum AgentHookSessionTests {
         suite.run("hook agents: branch") { branch(suite) }
         suite.run("hook agents: new session") { newSession(suite) }
         suite.run("hook agents: marks") { marks(suite) }
+        suite.run("hook agents: automatic hooks") { automatic(suite) }
     }
 
     static let now = Date(timeIntervalSince1970: 1_800_000_000)
@@ -491,5 +492,39 @@ enum AgentHookSessionTests {
                                                                 && $0.maxX <= 24.01 && $0.maxY <= 24.01 && $0.width > 10 },
                          "\(provider)'s own mark parses and fills its 24-point square: \(boxes)")
         }
+    }
+
+    // MARK: Automatic
+
+    static func automatic(_ suite: TestSuite) {
+        let all = Set(ClaudeSessionProvider.hookAgents)
+        var states: [ClaudeSessionProvider: AgentHookInstaller.State] =
+            [.gemini: .missing, .copilot: .outdated, .opencode: .installed, .cursor: .unreadable]
+        var plan = AgentHookInstaller.plan(found: [.gemini, .copilot, .opencode, .cursor], shown: all, states: states)
+        suite.expect(plan.install == [.gemini, .copilot] && plan.remove.isEmpty,
+                     "found agents get their hooks or an update, an unreadable file is left alone: \(plan)")
+        plan = AgentHookInstaller.plan(found: [], shown: all, states: [.gemini: .missing])
+        suite.expect(plan.install.isEmpty && plan.remove.isEmpty, "an agent not found gets nothing")
+        states = [.gemini: .installed, .copilot: .outdated, .opencode: .missing, .cursor: .unreadable]
+        plan = AgentHookInstaller.plan(found: all, shown: [], states: states)
+        suite.expect(plan.remove == [.gemini, .copilot] && plan.install.isEmpty,
+                     "an agent switched off has the island's hooks taken out, found or not: \(plan)")
+        let home = URL(fileURLWithPath: "/Users/someone")
+        suite.expect(!AgentHookInstaller.isPresent(.gemini, home: home, path: "/usr/bin", isExecutable: { _ in false },
+                                                   exists: { $0.hasSuffix(".gemini") || $0.hasSuffix(".copilot") })
+                     && !AgentHookInstaller.isPresent(.copilot, home: home, path: nil, isExecutable: { _ in false }, exists: { _ in true }),
+                     "a folder another app made is not the agent")
+        suite.expect(AgentHookInstaller.isPresent(.gemini, home: home, path: "/opt/bin", isExecutable: { $0 == "/opt/bin/gemini" },
+                                                  exists: { _ in false })
+                     && AgentHookInstaller.isPresent(.cursor, home: home, path: nil, isExecutable: { _ in false },
+                                                     exists: { $0 == "/Applications/Cursor.app" })
+                     && !AgentHookInstaller.isPresent(.copilot, home: home, path: nil, isExecutable: { _ in false },
+                                                      exists: { _ in false }),
+                     "an agent is found by its command, or Cursor by its app")
+        let text = FeatureStrings.notchClaudeSessions(.enUS)
+        suite.expect(text.agentAutoState(.installed, present: true, shown: true) == "Connected"
+                     && text.agentAutoState(.missing, present: false, shown: true) == text.codexNotFound
+                     && text.agentAutoState(.missing, present: true, shown: false) == "Off",
+                     "the row says what happened, with no button to press")
     }
 }
