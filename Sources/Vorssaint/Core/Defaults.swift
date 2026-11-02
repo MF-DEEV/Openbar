@@ -904,6 +904,12 @@ enum DefaultsKey {
     static let notchSessionsAutoExpand = "notchSessionsAutoExpand"
     /// Prompts, replies, titles and tool arguments may be read into memory.
     static let notchSessionsContentPreview = "notchSessionsContentPreview"
+    /// Whether the Sessions list shows each agent reporting through the
+    /// island's hooks or plugin; Claude Code and Codex are always shown.
+    static let notchSessionsAgentGemini = "notchSessionsAgentGemini"
+    static let notchSessionsAgentCopilot = "notchSessionsAgentCopilot"
+    static let notchSessionsAgentOpenCode = "notchSessionsAgentOpenCode"
+    static let notchSessionsAgentCursor = "notchSessionsAgentCursor"
     /// Names given to Claude Code sessions in the island, by session.
     static let notchSessionsNames = "notchSessionsNames"
     /// Each session and subagent shows a Clawd in a costume of its own.
@@ -1523,6 +1529,10 @@ enum Defaults {
         DefaultsKey.notchSessionsLiveActivity: true,
         DefaultsKey.notchSessionsAutoExpand: true,
         DefaultsKey.notchSessionsContentPreview: false,
+        DefaultsKey.notchSessionsAgentGemini: true,
+        DefaultsKey.notchSessionsAgentCopilot: true,
+        DefaultsKey.notchSessionsAgentOpenCode: true,
+        DefaultsKey.notchSessionsAgentCursor: true,
         DefaultsKey.notchSessionsLargeTextSize: 15.0,
         DefaultsKey.notchSessionsSidebarHidden: false,
         DefaultsKey.notchSessionsBuddies: true,

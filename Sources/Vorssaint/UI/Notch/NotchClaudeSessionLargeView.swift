@@ -480,11 +480,11 @@ struct NotchClaudeThinkingRow: View {
                 .font(.system(size: size + 1, weight: .semibold))
                 .foregroundStyle(session.provider.tint)
                 .frame(width: size + 4)
-        case .codex:
+        default:
             // As wide as the star's column; centred on the word's letters
             // rather than sat on their baseline. It breathes on its own clock
             // and stays still under Reduce Motion.
-            NotchSessionAgentGlyph(provider: .codex, size: (size + 3) / 1.45)
+            NotchSessionAgentGlyph(provider: session.provider, size: (size + 3) / 1.45)
                 .frame(width: size + 4)
                 .alignmentGuide(.firstTextBaseline) { $0.height / 2 + size * 0.35 }
         }
@@ -527,8 +527,8 @@ struct NotchClaudeSessionComposer: View {
     private var unavailable: String? {
         if session.phase.isWaiting { return text.replyWhileWaiting }
         if session.waitingFor != nil { return text.replyWhileDialog }
-        // Codex takes replies through its server, wherever its terminal is.
-        if session.provider != .codex, !session.host.acceptsReplies { return text.replyUnavailable(for: session.host) }
+        // Codex and OpenCode take replies through their own channel, wherever their terminal is.
+        if !NotchClaudeSessionsSupport.repliesReach(session) { return text.replyUnavailable(for: session) }
         return nil
     }
 

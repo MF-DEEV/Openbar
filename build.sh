@@ -311,6 +311,10 @@ if (( TEST )); then
         Sources/Vorssaint/Services/ClaudeSessions/ClaudeAgentColors.swift
         Sources/Vorssaint/Services/ClaudeSessions/CodexSessionState.swift
         Sources/Vorssaint/Services/ClaudeSessions/CodexSessionClient.swift
+        Sources/Vorssaint/Services/ClaudeSessions/AgentHookMessage.swift
+        Sources/Vorssaint/Services/ClaudeSessions/AgentHookSessions.swift
+        Sources/Vorssaint/Services/ClaudeSessions/AgentHookInstaller.swift
+        Sources/Vorssaint/Services/ClaudeSessions/AgentOpenCodePlugin.swift
         Sources/Vorssaint/Core/NotchLockScreenStrings.swift
         Sources/Vorssaint/Services/Notch/NotchLockScreenSupport.swift
         Sources/Vorssaint/Services/AgentUsage/AgentUsageModels.swift

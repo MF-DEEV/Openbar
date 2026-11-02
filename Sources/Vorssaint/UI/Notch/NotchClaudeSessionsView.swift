@@ -345,8 +345,16 @@ extension ClaudeSessionPhase {
 }
 
 extension ClaudeSessionProvider {
-    /// Claude's orange or Codex's periwinkle, the same as on the AI page.
-    var tint: Color { agent.tint }
+    /// Claude's orange or Codex's periwinkle, the same as on the AI page,
+    /// and OpenCode's and Copilot's from there too. Gemini CLI gets the cyan
+    /// of its star's first light, and Cursor a silver for its grey cube.
+    var tint: Color {
+        if let agent { return agent.tint }
+        switch self {
+        case .gemini: return Color(red: 0.30, green: 0.74, blue: 0.98)
+        default: return Color(red: 0.80, green: 0.82, blue: 0.90)
+        }
+    }
 }
 
 extension ClaudeSession {

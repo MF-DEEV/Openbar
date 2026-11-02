@@ -272,6 +272,20 @@ enum NotchClawdSprite {
             codexAntenna.forEach { put($0) }
             put(Stamp(x: 0, y: 0, rows: codexBody))
             codexArms(pose.arms).forEach { put($0) }
+        case .gemini:
+            // The star rises behind the body, so a hat covers it too.
+            put(Stamp(x: 4, y: -4, rows: geminiStar))
+            put(Stamp(x: 0, y: 0, rows: geminiBody))
+            codexArms(pose.arms).forEach { put($0) }
+        case .copilot:
+            put(Stamp(x: 0, y: 0, rows: copilotBody))
+            codexArms(pose.arms).forEach { put($0) }
+        case .opencode:
+            put(Stamp(x: 0, y: 0, rows: opencodeBody))
+            arms(pose.arms).forEach { put($0) }
+        case .cursor:
+            put(Stamp(x: 0, y: 0, rows: cursorBody))
+            codexArms(pose.arms).forEach { put($0) }
         }
         put(eyes(pose.eyes, column: 3))
         put(eyes(pose.eyes, column: 9))
@@ -302,9 +316,63 @@ enum NotchClawdSprite {
         switch character {
         case .clawd: return [(0, true), (2, true), (10, false), (12, false)]
         // Two stubby feet, each two pixels wide, under the terminal.
-        case .codex: return [(3, true), (4, true), (8, false), (9, false)]
+        case .codex, .gemini, .copilot: return [(3, true), (4, true), (8, false), (9, false)]
+        case .opencode: return [(0, true), (2, true), (10, false), (12, false)]
+        case .cursor: return [(4, true), (5, true), (7, false), (8, false)]
         }
     }
+
+    // MARK: The other agents' figures
+
+    /// Gemini CLI's figure: a round little sprite under a four-pointed star (G).
+    static let geminiBody = [
+        "...CCCCCCC...",
+        ".CCCCCCCCCCC.",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        ".CCCCCCCCCCC.",
+        "...ccccccc...",
+    ]
+    static let geminiStar = ["..G..", "..G..", "GGGGG", "..G..", "..G.."]
+
+    /// Copilot CLI's figure: a pilot's round helmet with goggles (V) its eyes glow in.
+    static let copilotBody = [
+        "..CCCCCCCCC..",
+        ".CCCCCCCCCCC.",
+        "CCVVVVCVVVVCC",
+        "CCVVVVCVVVVCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        ".CCCCCCCCCCC.",
+        "..ccccccccc..",
+    ]
+
+    /// OpenCode's figure: a square block with a square mouth (V), after its
+    /// hollow-square mark.
+    static let opencodeBody = [
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCVVVCCCCC",
+        "CCCCCVVVCCCCC",
+        "CCCCCCCCCCCCC",
+        "ccccccccccccc",
+    ]
+
+    /// Cursor's figure: a cube seen from a corner, its right faces in shade.
+    static let cursorBody = [
+        "....CCCCC....",
+        "..CCCCCCCCC..",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCccccccc",
+        "CCCCCCccccccc",
+        "..CCCCcccc...",
+        "....CCcc.....",
+    ]
 
     // MARK: Codex's robot
 
@@ -590,8 +658,8 @@ enum NotchClawdSprite {
 
     /// Where the right hand is in each pose, for what it holds.
     private static func rightHand(_ arms: NotchClawdPose.Arms, character: ClawdCharacter) -> (x: Int, y: Int) {
-        if character == .codex {
-            // The robot's arms are thinner and sit a pixel closer.
+        if character != .clawd && character != .opencode {
+            // The thin arms of the robot and the others sit a pixel closer.
             switch arms {
             case .down, .typeLeft: return (14, 3)
             case .typeRight: return (14, 4)
@@ -816,18 +884,38 @@ enum NotchClawdSprite {
     /// Codex's screen, and the light its eyes and status lamp give off.
     static let codexScreen = (red: 16, green: 22, blue: 28)
     static let codexGlow = (red: 124, green: 240, blue: 204)
+    static let geminiStarLight = (red: 186, green: 214, blue: 255)
+    static let copilotGoggles = (red: 30, green: 26, blue: 58)
+    static let copilotGlow = (red: 160, green: 232, blue: 255)
+    static let cursorEyes = (red: 236, green: 238, blue: 246)
 
     /// sRGB out of 255 for each letter; the shell and accent letters come
     /// from the costume.
     static func color(_ letter: Character, costume: ClawdCostume,
                       character: ClawdCharacter = .clawd) -> (red: Int, green: Int, blue: Int)? {
-        if character == .codex {
+        switch character {
+        case .codex:
             // The eyes glow on the dark screen instead of sitting dark on the shell.
             switch letter {
             case "V": return codexScreen
             case "E", "G": return codexGlow
             default: break
             }
+        case .gemini:
+            if letter == "G" { return geminiStarLight }
+        case .copilot:
+            switch letter {
+            case "V": return copilotGoggles
+            case "E": return copilotGlow
+            default: break
+            }
+        case .opencode:
+            if letter == "V" { return codexScreen }
+        case .cursor:
+            // Dark eyes would sink into the dark cube.
+            if letter == "E" { return cursorEyes }
+        case .clawd:
+            break
         }
         let shell = costume.shell.rgb, accent = accent(for: costume.shell).rgb
         switch letter {
