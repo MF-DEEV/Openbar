@@ -64,7 +64,7 @@ enum NotchSessionLimitsSupport {
     static func reset(of session: ClaudeSession, snapshot: AgentUsageSnapshot, now: Date) -> Date? {
         guard let stop = session.limitStop else { return nil }
         if let resets = stop.resetsAt { return resets > now ? resets : nil }
-        let windows = snapshot.limits[session.provider.agent]?.windows ?? []
+        let windows = session.provider.agent.flatMap { snapshot.limits[$0]?.windows } ?? []
         return windows.filter { $0.usedPercent >= spentPercent && (stop.kind == nil || $0.kind == stop.kind) }
             .compactMap { AgentLimitSupport.displayedReset($0, now: now) }.max()
     }

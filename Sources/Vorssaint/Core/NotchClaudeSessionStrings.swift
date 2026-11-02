@@ -187,15 +187,65 @@ struct NotchClaudeSessionStrings {
 
     func resumes(_ when: String) -> String { String(format: resumesFormat, when) }
 
-    /// What names the agent of a session, where Claude would otherwise be named.
-    func question(for provider: ClaudeSessionProvider) -> String { provider == .codex ? questionCodex : question }
-    func questionHint(for provider: ClaudeSessionProvider) -> String { provider == .codex ? questionHintCodex : questionHint }
+    /// What names the agent of a session, where Claude would otherwise be
+    /// named. Codex's wording is the pattern for the agents after it.
+    func question(for provider: ClaudeSessionProvider) -> String { named(question, questionCodex, provider) }
+    func questionHint(for provider: ClaudeSessionProvider) -> String { named(questionHint, questionHintCodex, provider) }
     func replyPlaceholder(for provider: ClaudeSessionProvider) -> String {
-        provider == .codex ? replyPlaceholderCodex : replyPlaceholder
+        named(replyPlaceholder, replyPlaceholderCodex, provider)
     }
-    func previewsOff(for provider: ClaudeSessionProvider) -> String { provider == .codex ? previewsOffCodex : previewsOff }
+    func previewsOff(for provider: ClaudeSessionProvider) -> String { named(previewsOff, previewsOffCodex, provider) }
     /// The agent's own name, which is the same in every language.
-    func agent(_ provider: ClaudeSessionProvider) -> String { provider == .codex ? "Codex" : "Claude" }
+    func agent(_ provider: ClaudeSessionProvider) -> String {
+        switch provider {
+        case .claude: return "Claude"
+        case .codex: return "Codex"
+        default: return provider.displayName
+        }
+    }
+
+    private func named(_ claude: String, _ codex: String, _ provider: ClaudeSessionProvider) -> String {
+        switch provider {
+        case .claude: return claude
+        case .codex: return codex
+        default: return codex.replacingOccurrences(of: "Codex", with: agent(provider))
+        }
+    }
+
+    /// Where a request the island can't answer is answered.
+    func answerIn(_ provider: ClaudeSessionProvider) -> String {
+        provider.reportsThroughHooks ? String(format: answerInAgentFormat, provider.displayName) : answerInTerminal
+    }
+
+    /// The reply field of a session replies can't reach.
+    func replyUnavailable(for session: ClaudeSession) -> String {
+        if session.provider == .cursor { return String(format: replyInAgentFormat, session.provider.displayName) }
+        return replyUnavailable(for: session.host)
+    }
+
+    /// What an agent's row in Settings says about its hooks or plugin.
+    func agentHookState(_ state: AgentHookInstaller.State?, present: Bool) -> String? {
+        switch state {
+        case .installed?: return hooksInstalled
+        case .outdated?: return agentHooksOutdated
+        case .unreadable?: return agentHooksUnreadable
+        case .missing?: return present ? hooksMissing : codexNotFound
+        case nil: return nil
+        }
+    }
+
+    func agentHint(_ provider: ClaudeSessionProvider) -> String {
+        switch provider {
+        case .gemini: return agentHintGemini
+        case .copilot: return agentHintCopilot
+        case .opencode: return agentHintOpenCode
+        case .cursor: return agentHintCursor
+        case .claude, .codex: return ""
+        }
+    }
+
+    func installAgent(_ provider: ClaudeSessionProvider) -> String { provider == .opencode ? installPlugin : installHooks }
+    func removeAgent(_ provider: ClaudeSessionProvider) -> String { provider == .opencode ? removePlugin : removeHooks }
 
     func moreSubagents(_ count: Int) -> String { String(format: moreSubagentsFormat, count) }
     func tasks(done: Int, total: Int) -> String { String(format: tasksFormat, done, total) }
@@ -411,4 +461,31 @@ extension NotchClaudeSessionStrings {
                  .strangeSpell: "Doctor Strange spell", .webShooter: "Spider-Man web",
                  .ironReactor: "Iron Man arc reactor", .supermanEmblem: "Superman emblem",
                  .flashEmblem: "Flash lightning", .lanternEmblem: "Green Lantern emblem"])
+}
+
+extension NotchClaudeSessionStrings {
+    var answerInAgentFormat: String { "Answer this one in %@." }
+    var replyInAgentFormat: String { "Reply in %@" }
+    var agentHooksOutdated: String { "Needs an update" }
+    func opensInTerminal(_ name: String) -> String { "\(name) opens in a terminal, with your first prompt." }
+    var agentHooksUnreadable: String { "Its settings couldn’t be read" }
+    var installPlugin: String { "Install Plugin" }
+    var removePlugin: String { "Remove Plugin" }
+    var updateAgentHooks: String { "Update" }
+    var agentsTitle: String { "More agents" }
+    var agentsHint: String {
+        "Each agent shows in Sessions once its hooks or plugin are in. Nothing is added until you press Install, and Remove takes out only what the island added."
+    }
+    var agentHintGemini: String {
+        "Hooks go into ~/.gemini/settings.json next to your own, with a backup first. Sessions show what runs and when Gemini CLI waits on you; you answer its permission prompts in the terminal, and replies are typed there."
+    }
+    var agentHintCopilot: String {
+        "A hooks file of the island’s own goes into ~/.copilot/hooks. Sessions show what runs and when Copilot CLI waits on you; you answer its permission prompts in the terminal, and replies are typed there."
+    }
+    var agentHintOpenCode: String {
+        "A plugin of the island’s own goes into ~/.config/opencode/plugins. It shows what each session does, and lets you allow or deny OpenCode’s permission requests and send replies from the island."
+    }
+    var agentHintCursor: String {
+        "Hooks go into ~/.cursor/hooks.json next to your own, with a backup first, for Cursor’s agent and cursor-agent. Approvals stay in Cursor; Open takes you there."
+    }
 }

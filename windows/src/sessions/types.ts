@@ -83,7 +83,38 @@ export interface ChatMessage {
   endsTurn: boolean;
 }
 
-export type Provider = "claude" | "codex";
+export type Provider = "claude" | "codex" | "gemini" | "copilot" | "opencode" | "cursor";
+
+/** Every agent, in the order the strip and lists take them. */
+export const PROVIDERS: readonly Provider[] = ["claude", "codex", "gemini", "copilot", "opencode", "cursor"];
+
+/** The agents that report through the island's hooks or plugin
+ * (sessions/hook_agents.rs, docs/more-session-agents.md). */
+export const HOOK_AGENTS = ["gemini", "copilot", "opencode", "cursor"] as const;
+export type HookAgent = (typeof HOOK_AGENTS)[number];
+
+/** The agent's name where room is short, as New session's picker. */
+export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
+  claude: "Claude",
+  codex: "Codex",
+  gemini: "Gemini",
+  copilot: "Copilot",
+  opencode: "OpenCode",
+  cursor: "Cursor",
+};
+
+export const isHookAgent = (provider: Provider): provider is HookAgent =>
+  (HOOK_AGENTS as readonly string[]).includes(provider);
+
+/** What the island calls each agent; product names, the same in every language. */
+export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
+  claude: "Claude Code",
+  codex: "Codex",
+  gemini: "Gemini CLI",
+  copilot: "Copilot CLI",
+  opencode: "OpenCode",
+  cursor: "Cursor",
+};
 
 export interface Session {
   id: string;
@@ -149,6 +180,11 @@ export interface Counts {
   working: number;
   /** Of `working`, the Codex ones. */
   workingCodex: number;
+  /** Of `working`, each hook agent's; absent from an older service. */
+  workingGemini?: number;
+  workingCopilot?: number;
+  workingOpencode?: number;
+  workingCursor?: number;
   waiting: number;
   /** Stopped by the plan's usage limit; absent from an older service. */
   limited?: number;
@@ -165,6 +201,8 @@ export interface Snapshot {
   backgroundAvailable?: boolean;
   /** Codex is installed, so New session can start it too. */
   canStartCodex?: boolean;
+  /** Gemini CLI, Copilot CLI, OpenCode and cursor-agent found on this PC, which New session starts in a console. */
+  startableAgents?: HookAgent[];
   hooksInstalled: boolean;
 }
 
@@ -197,4 +235,20 @@ export interface NewSessionModel {
 export interface NewSessionModels {
   claude: NewSessionModel[];
   codex: NewSessionModel[];
+}
+
+/** How many of one agent's sessions work: Claude's are the ones no other agent claims. */
+export function workingOf(counts: Counts, provider: Provider): number {
+  const total = Math.max(0, counts.working);
+  const others: Record<Exclude<Provider, "claude">, number> = {
+    codex: counts.workingCodex,
+    gemini: counts.workingGemini ?? 0,
+    copilot: counts.workingCopilot ?? 0,
+    opencode: counts.workingOpencode ?? 0,
+    cursor: counts.workingCursor ?? 0,
+  };
+  if (provider === "claude") {
+    return Math.max(0, total - Object.values(others).reduce((sum, n) => sum + Math.max(0, n), 0));
+  }
+  return Math.min(Math.max(0, others[provider]), total);
 }

@@ -420,7 +420,7 @@ struct NotchClaudeSessionPermissionCard: View {
                 }
                 .disabled(settling)
             } else {
-                Text(text.answerInTerminal).font(.system(size: 10.5)).foregroundStyle(.secondary)
+                Text(text.answerIn(session.provider)).font(.system(size: 10.5)).foregroundStyle(.secondary)
                 Spacer(minLength: 0)
                 NotchClaudeDecisionButton(title: text.open, symbol: "arrow.up.forward.app", role: .secondary, action: open)
             }
@@ -722,8 +722,8 @@ struct NotchClaudeSessionReplyField: View {
         if session.phase.isWaiting { return text.replyWhileWaiting }
         if session.waitingFor != nil { return text.replyWhileDialog }
         if session.background?.ended == true { return text.replyEnded }
-        // Codex takes replies through its server, wherever its terminal is.
-        if session.provider != .codex, !session.host.acceptsReplies { return text.replyUnavailable(for: session.host) }
+        // Codex and OpenCode take replies through their own channel, wherever their terminal is.
+        if !NotchClaudeSessionsSupport.repliesReach(session) { return text.replyUnavailable(for: session) }
         return nil
     }
 

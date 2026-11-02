@@ -1,11 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-// Sessions options: Claude Code and Codex in the island. Claude Code needs Vorssaint's
-// hooks in its settings.json; Codex needs nothing, its app-server already
-// tells the island everything (spec 02-sessions, 07-codex-sessions).
+// Sessions options: Claude Code, Codex and the agents that report through
+// hooks in the island. Claude Code needs Vorssaint's hooks in its
+// settings.json; Codex needs nothing, its app-server already tells the island
+// everything (spec 02-sessions, 07-codex-sessions); Gemini CLI, Copilot CLI,
+// OpenCode and Cursor each get the island's hooks or plugin on Install
+// (docs/more-session-agents.md).
 
-import { useLocale, t } from "../i18n";
+import { type StringKey, useLocale, t, tf } from "../i18n";
+import { HOOK_AGENTS, type HookAgent, PROVIDER_NAMES } from "../sessions/types";
+import { ProviderMark } from "../sessions/glyphs";
+import type { SessionPrefs } from "../shared/prefs";
 
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
@@ -125,6 +131,133 @@ function EditorExtensions() {
   );
 }
 
+type AgentHookState = "installed" | "outdated" | "missing" | "unreadable";
+interface AgentHooksStatus {
+  agent: HookAgent;
+  state: AgentHookState;
+  present: boolean;
+}
+
+const AGENT_PREF = {
+  gemini: "agentGemini",
+  copilot: "agentCopilot",
+  opencode: "agentOpencode",
+  cursor: "agentCursor",
+} as const satisfies Record<HookAgent, keyof SessionPrefs>;
+
+const AGENT_HINT: Record<HookAgent, StringKey> = {
+  gemini: "windows.settings.sessions.agentHintGemini",
+  copilot: "windows.settings.sessions.agentHintCopilot",
+  opencode: "windows.settings.sessions.agentHintOpencode",
+  cursor: "windows.settings.sessions.agentHintCursor",
+};
+
+/** Gemini CLI, Copilot CLI, OpenCode and Cursor: each shown or hidden by its
+ * own switch, with its hooks or plugin put in or taken out by its own button. */
+function MoreAgents() {
+  useLocale();
+  const prefs = useSettings((s) => s.prefs.sessions);
+  const set = useSettings((s) => s.sessions);
+  const [statuses, setStatuses] = useState<AgentHooksStatus[] | null>(null);
+  const [busy, setBusy] = useState<HookAgent | null>(null);
+  const [failure, setFailure] = useState<{ agent: HookAgent; reason: string } | null>(null);
+  const refresh = useCallback(async () => {
+    setStatuses(
+      inTauri
+        ? await invoke<AgentHooksStatus[]>("sessions_agent_hooks_status")
+        : (statuses ?? HOOK_AGENTS.map((agent) => ({ agent, state: "missing" as const, present: agent !== "cursor" }))),
+    );
+  }, [statuses]);
+  useEffect(() => {
+    void refresh();
+    // The person may edit an agent's settings by hand while the window is open.
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const run = async (agent: HookAgent, install: boolean) => {
+    setBusy(agent);
+    setFailure(null);
+    try {
+      if (inTauri) {
+        await invoke("sessions_agent_hooks_install", { agent, install });
+        await refresh();
+      } else {
+        setStatuses((list) =>
+          (list ?? []).map((s) => (s.agent === agent ? { ...s, state: install ? "installed" : "missing" } : s)),
+        );
+      }
+    } catch (e) {
+      setFailure({ agent, reason: String(e) });
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <>
+      <SubRow
+        title={t("windows.settings.sessions.moreAgents")}
+        caption={t("windows.settings.sessions.moreAgentsCaption")}
+      />
+      {HOOK_AGENTS.map((agent) => {
+        const status = statuses?.find((s) => s.agent === agent);
+        const plugin = agent === "opencode";
+        const shown = prefs[AGENT_PREF[agent]];
+        return (
+          <SubRow
+            key={agent}
+            title={PROVIDER_NAMES[agent]}
+            caption={
+              <>
+                {t(AGENT_HINT[agent])}
+                {failure?.agent === agent ? <div className="st-error">{failure.reason}</div> : null}
+              </>
+            }
+          >
+            <span className="st-agent-mark" aria-hidden>
+              <ProviderMark provider={agent} size={14} />
+            </span>
+            {!status ? null : status.state === "installed" ? (
+              <Status tone="ok">{T.sessions.hooksOn}</Status>
+            ) : status.state === "outdated" ? (
+              <Status tone="warn">{T.sessions.hooksStale}</Status>
+            ) : status.state === "unreadable" ? (
+              <Status tone="warn">{t("windows.settings.sessions.agentUnreadable")}</Status>
+            ) : status.present ? (
+              <Status tone="off">{T.sessions.hooksOff}</Status>
+            ) : (
+              <Status tone="off">{T.sessions.codexNotFound}</Status>
+            )}
+            {status && status.state !== "unreadable" ? (
+              status.state === "installed" ? (
+                <Button onClick={() => void run(agent, false)} busy={busy === agent} disabled={busy !== null}>
+                  {plugin ? t("windows.settings.sessions.removePlugin") : T.sessions.remove}
+                </Button>
+              ) : (
+                <Button accent onClick={() => void run(agent, true)} busy={busy === agent} disabled={busy !== null}>
+                  {status.state === "outdated"
+                    ? plugin
+                      ? t("windows.settings.sessions.updatePlugin")
+                      : T.sessions.update
+                    : plugin
+                      ? t("windows.settings.sessions.installPlugin")
+                      : T.sessions.install}
+                </Button>
+              )
+            ) : null}
+            <Toggle
+              label={tf("windows.settings.sessions.showAgent", PROVIDER_NAMES[agent])}
+              checked={shown}
+              onChange={(on) => set(AGENT_PREF[agent], on)}
+            />
+          </SubRow>
+        );
+      })}
+    </>
+  );
+}
+
 /** The Sessions section's options, inside its card on the Content tab. */
 type CodexStatus = "connected" | "notRunning" | "notFound";
 
@@ -192,6 +325,7 @@ export function SessionsOptions() {
           <Status tone="off">{T.sessions.codexNotFound}</Status>
         ) : null}
       </SubRow>
+      <MoreAgents />
       <SubRow title={T.sessions.live} caption={T.sessions.liveCaption}>
         <Toggle label={T.sessions.live} checked={prefs.live} onChange={(on) => set("live", on)} />
       </SubRow>

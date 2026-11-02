@@ -623,5 +623,20 @@
   "notchClaudeSessions.limited": "Limite atingido",
   "notchClaudeSessions.resumesFormat": "retoma %@",
   "notchClaudeSessions.limitsSetting": "Mostrar limites do plano",
-  "windows.settings.sessions.limitsCaption": "Mostra um limite do Claude ou do Codex na faixa quando ele se aproxima e diz quando uma sessão parada pelo limite continua. Com AI Agents desligado, a ilha continua lendo os limites para isso."
+  "windows.settings.sessions.limitsCaption": "Mostra um limite do Claude ou do Codex na faixa quando ele se aproxima e diz quando uma sessão parada pelo limite continua. Com AI Agents desligado, a ilha continua lendo os limites para isso.",
+  "windows.sessions.answerInAgent": "Responda a esta no %@.",
+  "windows.sessions.replyInAgent": "Responder no %@",
+  "windows.sessions.replyToAgent": "Responder ao %@…",
+  "windows.settings.sessions.moreAgents": "Mais agentes",
+  "windows.settings.sessions.moreAgentsCaption": "Cada agente aparece em Sessões quando seus hooks ou plugin estão instalados. Nada é adicionado até você tocar em Instalar, e Remover tira apenas o que a ilha adicionou.",
+  "windows.settings.sessions.agentUnreadable": "Não foi possível ler os ajustes dele",
+  "windows.settings.sessions.installPlugin": "Instalar plugin",
+  "windows.settings.sessions.removePlugin": "Remover plugin",
+  "windows.settings.sessions.updatePlugin": "Atualizar plugin",
+  "windows.settings.sessions.showAgent": "Mostrar %@ em Sessões",
+  "windows.settings.sessions.agentHintGemini": "Os hooks vão para .gemini\\settings.json ao lado dos seus, com um backup antes. Você responde aos pedidos de permissão do Gemini CLI no terminal dele; as respostas são digitadas lá.",
+  "windows.settings.sessions.agentHintCopilot": "Um arquivo de hooks próprio da ilha vai para .copilot\\hooks. Você responde aos pedidos de permissão do Copilot CLI no terminal dele; as respostas são digitadas lá.",
+  "windows.settings.sessions.agentHintOpencode": "Um plugin próprio da ilha vai para .config\\opencode\\plugins. Permita ou negue os pedidos do OpenCode e envie respostas pela ilha.",
+  "windows.settings.sessions.agentHintCursor": "Os hooks vão para .cursor\\hooks.json ao lado dos seus, com um backup antes, para o agente do Cursor e o cursor-agent. As aprovações ficam no Cursor; Abrir leva você até lá.",
+  "windows.sessions.opensInTerminal": "O %@ abre em um console, com seu primeiro prompt."
 }

@@ -623,5 +623,20 @@
   "notchClaudeSessions.limited": "한도 도달",
   "notchClaudeSessions.resumesFormat": "%@ 재개",
   "notchClaudeSessions.limitsSetting": "요금제 한도 표시",
-  "windows.settings.sessions.limitsCaption": "Claude나 Codex 한도가 가까워지면 스트립에 표시하고, 한도로 멈춘 세션이 언제 다시 시작되는지 알려 줍니다. AI Agents가 꺼져 있어도 이를 위해 아일랜드가 한도를 계속 읽습니다."
+  "windows.settings.sessions.limitsCaption": "Claude나 Codex 한도가 가까워지면 스트립에 표시하고, 한도로 멈춘 세션이 언제 다시 시작되는지 알려 줍니다. AI Agents가 꺼져 있어도 이를 위해 아일랜드가 한도를 계속 읽습니다.",
+  "windows.sessions.answerInAgent": "이 요청은 %@에서 응답하세요.",
+  "windows.sessions.replyInAgent": "%@에서 답장",
+  "windows.sessions.replyToAgent": "%@에 답장…",
+  "windows.settings.sessions.moreAgents": "다른 에이전트",
+  "windows.settings.sessions.moreAgentsCaption": "각 에이전트는 훅이나 플러그인이 설치되면 세션에 표시됩니다. 설치를 누르기 전에는 아무것도 추가되지 않으며, 제거는 아일랜드가 추가한 것만 지웁니다.",
+  "windows.settings.sessions.agentUnreadable": "설정을 읽을 수 없습니다",
+  "windows.settings.sessions.installPlugin": "플러그인 설치",
+  "windows.settings.sessions.removePlugin": "플러그인 제거",
+  "windows.settings.sessions.updatePlugin": "플러그인 업데이트",
+  "windows.settings.sessions.showAgent": "세션에 %@ 표시",
+  "windows.settings.sessions.agentHintGemini": "훅은 먼저 백업한 뒤 내 훅 옆에 .gemini\\settings.json으로 추가됩니다. Gemini CLI의 권한 요청은 해당 터미널에서 응답하며, 답장도 그곳에 입력됩니다.",
+  "windows.settings.sessions.agentHintCopilot": "아일랜드 전용 훅 파일이 .copilot\\hooks에 추가됩니다. Copilot CLI의 권한 요청은 해당 터미널에서 응답하며, 답장도 그곳에 입력됩니다.",
+  "windows.settings.sessions.agentHintOpencode": "아일랜드 전용 플러그인이 .config\\opencode\\plugins에 추가됩니다. 아일랜드에서 OpenCode의 요청을 허용하거나 거부하고 답장을 보낼 수 있습니다.",
+  "windows.settings.sessions.agentHintCursor": "훅은 먼저 백업한 뒤 내 훅 옆에 .cursor\\hooks.json으로 추가됩니다(Cursor 에이전트와 cursor-agent용). 승인은 Cursor에 남으며, 열기를 누르면 그곳으로 이동합니다.",
+  "windows.sessions.opensInTerminal": "%@은(는) 첫 프롬프트와 함께 콘솔에서 열립니다."
 }

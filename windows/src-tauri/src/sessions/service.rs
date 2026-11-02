@@ -24,6 +24,7 @@ use super::background;
 use super::codex::client::CodexClient;
 use super::codex::state::Answer as CodexAnswer;
 use super::engine::Engine;
+use super::hook_agents::{self, Tracker as HookAgents};
 use super::hook_message::{self, Decision, HookMessage};
 use super::models::{
     self, ContentPolicy, HookEvent, HostKind, Session, SessionCounts, SessionEvent, SessionRecord,
@@ -72,6 +73,8 @@ struct Published<'a> {
     background_available: bool,
     /// Codex is installed, so New session can start it too.
     can_start_codex: bool,
+    /// Gemini CLI, Copilot CLI, OpenCode and `cursor-agent` found on this PC.
+    startable_agents: Vec<&'static str>,
     hooks_installed: bool,
 }
 
@@ -145,7 +148,22 @@ impl Tail {
     }
 }
 
+/// An OpenCode permission request whose plugin waits for the island's answer.
+struct AgentPending {
+    connection: HookConnection,
+    session: String,
+    since: Time,
+}
+
 struct Inner {
+    /// Gemini CLI's, Copilot CLI's, OpenCode's and Cursor's sessions.
+    hook_agents: HookAgents,
+    agent_pending: HashMap<String, AgentPending>,
+    /// Each OpenCode's plugin listening for replies, by its process.
+    listeners: HashMap<i32, HookConnection>,
+    /// The agents whose sessions the list shows.
+    hidden_agents: HashSet<models::Provider>,
+    branches: HashMap<String, (Option<String>, Time)>,
     engine: Engine,
     agent_colors: AgentColors,
     tails: HashMap<PathBuf, Tail>,
@@ -167,6 +185,7 @@ struct Inner {
     jobs_listed: Option<Time>,
     can_start: bool,
     can_start_codex: bool,
+    startable_agents: Vec<&'static str>,
     background_available: bool,
 }
 
@@ -183,6 +202,11 @@ impl Service {
         let service = Arc::new(Service {
             app,
             inner: Mutex::new(Inner {
+                hook_agents: HookAgents::default(),
+                agent_pending: HashMap::new(),
+                listeners: HashMap::new(),
+                hidden_agents: HashSet::new(),
+                branches: HashMap::new(),
                 engine: Engine::new(ContentPolicy::default()),
                 agent_colors: AgentColors::default(),
                 tails: HashMap::new(),
@@ -202,6 +226,7 @@ impl Service {
                 jobs_listed: None,
                 can_start: false,
                 can_start_codex: false,
+                startable_agents: Vec::new(),
                 background_available: false,
             }),
             codex: Mutex::new(None),
@@ -265,7 +290,9 @@ impl Service {
                 records.push(last);
             }
         }
-        let live: HashSet<i32> = records.iter().map(|r| r.pid).collect();
+        self.release_agents(&mut inner, t);
+        let mut live: HashSet<i32> = records.iter().map(|r| r.pid).collect();
+        live.extend(inner.hook_agents.pids());
         inner.hosts.retain(|pid, _| live.contains(pid));
         for record in &mut records {
             // A background session has no terminal to find.
@@ -409,6 +436,99 @@ impl Service {
 
     /// Lets go of hooks whose question is gone: answered in the terminal,
     /// the turn moved on, the hook process killed, or nearly timed out.
+    /// Drops hook agents' sessions whose process quit, and lets go of
+    /// OpenCode requests and listeners nobody waits on any more.
+    fn release_agents(&self, inner: &mut Inner, t: Time) {
+        inner
+            .hook_agents
+            .prune(t, |pid| hosts::process::is_running(pid as u32));
+        let stale: Vec<String> = inner
+            .agent_pending
+            .iter()
+            .filter(|(request, p)| {
+                inner
+                    .hook_agents
+                    .entry(&p.session)
+                    .and_then(|e| e.permission.as_ref())
+                    .is_none_or(|perm| &perm.request_id != *request)
+                    || t - p.since > HOOK_PATIENCE
+            })
+            .map(|(r, _)| r.clone())
+            .collect();
+        for request in stale {
+            if let Some(p) = inner.agent_pending.remove(&request) {
+                inner.hook_agents.resolve(&p.session, &request);
+            }
+        }
+        inner
+            .listeners
+            .retain(|pid, _| hosts::process::is_running(*pid as u32));
+    }
+
+    /// One event of Gemini CLI, Copilot CLI, Cursor or OpenCode.
+    fn on_agent(&self, connection: HookConnection) {
+        let t = now();
+        let mut inner = self.inner.lock().unwrap();
+        let Some(decoded) = hook_agents::decode(&connection.payload, t, inner.engine.policy())
+        else {
+            return;
+        };
+        let Some(provider) = decoded.provider else {
+            return;
+        };
+        if inner.hidden_agents.contains(&provider) {
+            return;
+        }
+        // The agent is the process above the hook and its shells; OpenCode's
+        // plugin writes from inside it.
+        let chain: Vec<(u32, String)> = connection
+            .peer_pid
+            .and_then(hosts::process::ancestors)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|e| (e.pid, e.name))
+            .collect();
+        let pid = hook_agents::agent_process(&chain, decoded.pid);
+        if decoded.listens {
+            inner.listeners.insert(pid, connection);
+            return;
+        }
+        let mut connection = Some(connection);
+        if let Some((session, request)) = &decoded.permission
+            && let Some(connection) = connection.take()
+        {
+            inner.agent_pending.insert(
+                request.clone(),
+                AgentPending {
+                    connection,
+                    session: hook_agents::id(provider, session),
+                    since: t,
+                },
+            );
+        }
+        drop(connection);
+        for mut event in decoded.events {
+            event.pid = if pid > 0 { pid } else { event.pid };
+            if let hook_agents::Kind::PermissionSettled(request) = &event.kind {
+                // Answered in OpenCode itself: its plugin stops waiting too.
+                let id = event.id();
+                let settled: Vec<String> = inner
+                    .agent_pending
+                    .iter()
+                    .filter(|(key, p)| {
+                        p.session == id && request.as_ref().is_none_or(|r| r == *key)
+                    })
+                    .map(|(key, _)| key.clone())
+                    .collect();
+                for key in settled {
+                    inner.agent_pending.remove(&key);
+                }
+            }
+            inner.hook_agents.ingest(event, t);
+        }
+        self.publish(&mut inner, t);
+    }
+
     fn release_stale_hooks(&self, inner: &mut Inner, t: Time) {
         let stale: Vec<String> = inner
             .pending
@@ -446,6 +566,69 @@ impl Service {
             snapshot.sessions.extend(sessions);
             snapshot.events.extend(events);
         }
+        {
+            let Inner {
+                hook_agents,
+                hosts: located,
+                branches,
+                hidden_agents,
+                engine,
+                ..
+            } = &mut *inner;
+            let policy = engine.policy();
+            for entry_pid in hook_agents.pids() {
+                if entry_pid > 0
+                    && !located.contains_key(&entry_pid)
+                    && let Some(found) = hosts::locate(entry_pid as u32)
+                {
+                    located.insert(entry_pid, found);
+                }
+            }
+            let located = &*located;
+            let branch = |folder: &str| -> Option<String> {
+                let fresh = branches
+                    .get(folder)
+                    .filter(|(_, at)| t - at < 10.0)
+                    .map(|(b, _)| b.clone());
+                fresh.unwrap_or_else(|| hook_agents::read_branch(folder))
+            };
+            let (sessions, events) = hook_agents.snapshot(
+                t,
+                policy,
+                |entry| {
+                    let host = located.get(&entry.pid);
+                    let kind = host
+                        .map(|l| host_kind(&l.host))
+                        .unwrap_or(HostKind::Unknown);
+                    // OpenCode takes replies through its plugin; Cursor's app keeps its own chat.
+                    let accepts = match entry.provider {
+                        models::Provider::Opencode => true,
+                        models::Provider::Cursor => {
+                            matches!(
+                                kind,
+                                HostKind::WindowsTerminal | HostKind::Conhost | HostKind::Wezterm
+                            )
+                        }
+                        _ => host.is_some_and(|l| l.host.accepts_replies()),
+                    };
+                    hook_agents::Place {
+                        host: kind,
+                        accepts_replies: accepts,
+                        host_name: host.and_then(|l| l.host.display_name()),
+                    }
+                },
+                branch,
+            );
+            for session in &sessions {
+                branches.insert(session.cwd.clone(), (session.branch.clone(), t));
+            }
+            snapshot.sessions.extend(
+                sessions
+                    .into_iter()
+                    .filter(|s| !hidden_agents.contains(&s.provider)),
+            );
+            snapshot.events.extend(events);
+        }
         let sessions = models::sorted(self.with_background(inner, snapshot.sessions, t));
         let counts = SessionCounts::of(&sessions);
         let busy = sessions
@@ -458,6 +641,7 @@ impl Service {
             can_start: inner.can_start,
             background_available: inner.background_available,
             can_start_codex: inner.can_start_codex,
+            startable_agents: inner.startable_agents.clone(),
             hooks_installed: inner.hooks_installed,
         };
         let _ = self.app.emit("sessions://snapshot", &published);
@@ -496,6 +680,14 @@ impl Service {
         thread::spawn(move || {
             let can_start = background::executable().is_some();
             let can_start_codex = crate::agent_usage::codex_executable().is_some();
+            let startable_agents: Vec<&'static str> = models::Provider::HOOK_AGENTS
+                .iter()
+                .filter(|p| {
+                    hook_agents::command_name(**p)
+                        .is_some_and(|name| crate::agent_usage::agent_executable(name).is_some())
+                })
+                .map(|p| p.key())
+                .collect();
             let turned_off =
                 background::is_on(std::env::var(background::DISABLE_VARIABLE).ok().as_deref())
                     || homes.iter().any(|home| {
@@ -536,6 +728,7 @@ impl Service {
             inner.listing_jobs = false;
             inner.can_start = can_start;
             inner.can_start_codex = can_start_codex;
+            inner.startable_agents = startable_agents;
             inner.background_available = listed;
             service.publish(&mut inner, t);
         });
@@ -600,6 +793,9 @@ impl Service {
     // MARK: Hooks
 
     fn on_hook(&self, connection: HookConnection) {
+        if hook_agents::is_envelope(&connection.payload) {
+            return self.on_agent(connection);
+        }
         let request_id = format!("{:032x}", rand_id());
         let mut inner = self.inner.lock().unwrap();
         let policy = inner.engine.policy();
@@ -644,6 +840,28 @@ impl Service {
     // MARK: Actions
 
     fn answer(&self, session: &str, request: &str, decision: Decision) -> bool {
+        {
+            let mut inner = self.inner.lock().unwrap();
+            if inner.hook_agents.owns(session) {
+                // OpenCode's plugin waits for the answer; the other agents ask in their own terminal.
+                let Some(reply) = hook_agents::opencode_reply(&decision) else {
+                    return false;
+                };
+                let Some(pending) = inner
+                    .agent_pending
+                    .remove(request)
+                    .filter(|p| p.session == session)
+                else {
+                    return false;
+                };
+                let sent = pending.connection.reply(&reply).is_ok();
+                let t = now();
+                inner.hook_agents.resolve(session, request);
+                inner.hook_agents.acknowledge(session, t);
+                self.publish(&mut inner, t);
+                return sent;
+            }
+        }
         if let Some(codex) = self.codex().filter(|c| c.owns(session)) {
             let answer = match decision {
                 Decision::Allow => CodexAnswer::Allow,
@@ -696,6 +914,7 @@ impl Service {
         if let Some(codex) = self.codex() {
             codex.acknowledge(session, t);
         }
+        inner.hook_agents.acknowledge(session, t);
         inner.engine.acknowledge(session, t);
         self.publish(&mut inner, t);
     }
@@ -707,6 +926,9 @@ impl Service {
             return;
         }
         inner.engine.set_policy(ContentPolicy { previews: on });
+        if !on {
+            inner.hook_agents.purge_content();
+        }
         if on {
             // Read everything again to fill in what was skipped.
             inner.tails.clear();
@@ -728,6 +950,9 @@ impl Service {
             }
             let inner = self.inner.lock().unwrap();
             return Some(codex_refusal(&inner.sessions, session));
+        }
+        if let Some(refusal) = self.reply_to_agent(session, text) {
+            return refusal;
         }
         let job = self.background_of(session);
         let (pid, located) = {
@@ -784,6 +1009,62 @@ impl Service {
             }
             Err(_) => Some("unreachable"),
         }
+    }
+
+    /// A reply to OpenCode goes to its listening plugin; one to Gemini CLI,
+    /// Copilot CLI or `cursor-agent` is typed into its terminal and sent by
+    /// a return of its own a moment later, as their prompts take a return
+    /// that comes with a paste as a line break. None when the session is
+    /// not one of theirs.
+    fn reply_to_agent(&self, session: &str, text: &str) -> Option<Option<&'static str>> {
+        let mut inner = self.inner.lock().unwrap();
+        let entry = inner.hook_agents.entry(session)?.clone();
+        let current = inner.sessions.iter().find(|s| s.id == session)?.clone();
+        if !models::can_reply(&current) {
+            return Some(Some(
+                if current.phase.is_waiting() || current.waiting_for.is_some() {
+                    "waiting"
+                } else {
+                    "unreachable"
+                },
+            ));
+        }
+        if entry.provider == models::Provider::Opencode {
+            let Some(listener) = inner.listeners.remove(&entry.pid) else {
+                return Some(Some("unreachable"));
+            };
+            let sent = listener
+                .reply(&hook_agents::opencode_prompt(&entry.session_id, text))
+                .is_ok();
+            drop(inner);
+            if sent {
+                self.acknowledge(session);
+            }
+            return Some((!sent).then_some("unreachable"));
+        }
+        let Some(located) = inner.hosts.get(&entry.pid).cloned() else {
+            return Some(Some("unreachable"));
+        };
+        drop(inner);
+        let typed = hosts::deliver(entry.pid as u32, &located, text, &[]).is_ok() && {
+            std::thread::sleep(Duration::from_millis(450));
+            hosts::deliver(entry.pid as u32, &located, "", &[]).is_ok()
+        };
+        if typed {
+            self.acknowledge(session);
+        }
+        Some((!typed).then_some("unreachable"))
+    }
+
+    /// Hides or shows each hook agent's sessions, as Settings say.
+    pub fn set_hidden_agents(&self, hidden: HashSet<models::Provider>) {
+        let mut inner = self.inner.lock().unwrap();
+        if inner.hidden_agents == hidden {
+            return;
+        }
+        inner.hidden_agents = hidden;
+        let t = now();
+        self.publish(&mut inner, t);
     }
 
     fn open(&self, session: &str) -> bool {
@@ -1018,6 +1299,51 @@ pub fn sessions_focus(service: tauri::State<'_, Shared>, session_id: Option<Stri
     }
 }
 
+/// For Settings › Content › Sessions: each hook agent's hooks or plugin.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentHooksStatus {
+    agent: &'static str,
+    state: hook_agents::installer::State,
+    present: bool,
+}
+
+#[tauri::command]
+pub fn sessions_agent_hooks_status() -> Vec<AgentHooksStatus> {
+    let (Some(home), Ok(exe)) = (hooks::installer::home_dir(), std::env::current_exe()) else {
+        return Vec::new();
+    };
+    let endpoint = hooks::transport::endpoint(hooks::APP_ID);
+    models::Provider::HOOK_AGENTS
+        .iter()
+        .map(|&provider| {
+            let state =
+                hook_agents::installer::state(provider, &home, &exe, &endpoint, hooks::APP_ID);
+            AgentHooksStatus {
+                agent: provider.key(),
+                state,
+                present: state != hook_agents::installer::State::Missing
+                    || hook_agents::installer::is_present(provider, &home),
+            }
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn sessions_agent_hooks_install(agent: String, install: bool) -> Result<(), String> {
+    let provider = models::Provider::from_key(&agent)
+        .filter(|p| p.reports_through_hooks())
+        .ok_or("unknown agent")?;
+    let home = hooks::installer::home_dir().ok_or("no home folder")?;
+    if install {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let endpoint = hooks::transport::endpoint(hooks::APP_ID);
+        hook_agents::installer::install(provider, &home, &exe, &endpoint, hooks::APP_ID)
+    } else {
+        hook_agents::installer::remove(provider, &home, hooks::APP_ID)
+    }
+}
+
 /// For Settings › Content › Sessions: whether the island hears Codex.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -1194,6 +1520,24 @@ pub async fn sessions_start(
         let model = model.as_deref().filter(|m| !m.is_empty());
         if agent.as_deref() == Some("codex") {
             return start_codex(&service, &folder, &prompt, background, model);
+        }
+        // Gemini CLI, Copilot CLI, OpenCode and cursor-agent run only in a
+        // console, where their hooks or plugin report them.
+        if let Some(provider) = agent
+            .as_deref()
+            .and_then(models::Provider::from_key)
+            .filter(|p| p.reports_through_hooks())
+        {
+            let started = hook_agents::command_name(provider)
+                .and_then(crate::agent_usage::agent_executable)
+                .is_some_and(|exe| {
+                    self::background::agent_in_terminal(
+                        &exe,
+                        &hook_agents::start_arguments(provider, &prompt),
+                        Some(&folder),
+                    )
+                });
+            return (!started).then(|| "unavailable".to_owned());
         }
         // A background session has nobody to type to it.
         if background && prompt.trim().is_empty() {

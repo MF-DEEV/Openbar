@@ -52,12 +52,20 @@ final class ClaudeSessionService: ObservableObject {
     @Published private(set) var bridgeFailures: [String: String] = [:]
     /// Whether the island hears Codex, for its row in Settings.
     @Published private(set) var codexStatus: CodexStatus?
+    /// Whether Gemini CLI, Copilot CLI, OpenCode and Cursor hold the island's
+    /// hooks or plugin, and whether each seems installed; nil until checked.
+    @Published private(set) var agentHooks: [ClaudeSessionProvider: (state: AgentHookInstaller.State, present: Bool)]?
+    /// Why the last install into an agent failed.
+    @Published private(set) var agentHookFailures: [ClaudeSessionProvider: String] = [:]
     /// Claude Code is installed, so the island can start sessions in a terminal.
     @Published private(set) var canStartSessions = false
     /// Its Agent View is on, so it can run them in the background too.
     @Published private(set) var backgroundAvailable = false
     /// Codex is installed, so New session can start it too.
     @Published private(set) var canStartCodex = false
+    /// Gemini CLI, Copilot CLI, OpenCode and `cursor-agent` found on this Mac,
+    /// which New session can start in a terminal.
+    @Published private(set) var startableAgents: Set<ClaudeSessionProvider> = []
     /// The page that starts a new session is open.
     @Published var composingSession = false
 
@@ -111,6 +119,16 @@ final class ClaudeSessionService: ObservableObject {
     /// Codex's terminal UIs by working folder, refreshed each tick, so Open
     /// and the host of a Codex session find its terminal.
     private var codexTerminals: [(pid: Int32, cwd: String)] = []
+    /// Gemini CLI's, Copilot CLI's, OpenCode's and Cursor's sessions, from
+    /// their hooks and plugin. Queue.
+    private let hookAgents = AgentHookSessions()
+    private let branches = AgentGitBranch()
+    /// OpenCode permission requests whose plugin waits for the island's answer.
+    private var agentPending: [String: (connection: ClaudeHookServer.Connection, session: String, since: Date)] = [:]
+    /// Each OpenCode's plugin listening for replies, by its process.
+    private var listeners: [Int32: ClaudeHookServer.Connection] = [:]
+    /// The agents whose sessions the list shows. Queue.
+    private var shownAgents = Set(ClaudeSessionProvider.allCases)
     /// What Agent View last listed, by config folder's order. Queue.
     private var backgroundJobs: [ClaudeBackgroundJob] = []
     private var backgroundEndings: [String: Date] = [:]
@@ -140,12 +158,20 @@ final class ClaudeSessionService: ObservableObject {
 
     func syncWithPreferences() {
         let policy = NotchClaudeSessionsSupport.policy()
+        let agents = NotchClaudeSessionsSupport.shownAgents()
         guard NotchClaudeSessionsSupport.isEnabled() else { stop(); return }
         queue.async { [self] in
+            if shownAgents != agents {
+                shownAgents = agents
+                publish(now: Date())
+            }
             if engine.policy != policy {
                 engine.policy = policy
                 // Reading again with previews on fills in what was skipped.
-                if policy.previews { readers = [:]; subagentMeta = []; taskStamps = [:] } else { ClaudeChatImage.forget() }
+                if policy.previews { readers = [:]; subagentMeta = []; taskStamps = [:] } else {
+                    ClaudeChatImage.forget()
+                    hookAgents.purgeContent()
+                }
                 for key in readers.keys { readers[key]?.reader.policy = policy }
                 // What was cleared leaves the island now, not at the next read.
                 publish(now: Date())
@@ -213,6 +239,11 @@ final class ClaudeSessionService: ObservableObject {
             // Hooks waiting for an answer go back to the terminal's prompt.
             pending.values.forEach { $0.connection.finish() }
             pending = [:]
+            agentPending.values.forEach { $0.connection.finish() }
+            agentPending = [:]
+            listeners.values.forEach { $0.finish() }
+            listeners = [:]
+            hookAgents.prune(now: Date()) { _ in false }
             server?.stop()
             server = nil
             codex?.stop()
@@ -291,6 +322,7 @@ final class ClaudeSessionService: ObservableObject {
 
     func acknowledge(_ id: String) {
         queue.async { [self] in
+            hookAgents.acknowledge(id, now: Date())
             codex?.acknowledge(id, now: Date())
             engine.acknowledge(id, now: Date())
             publish(now: Date())
@@ -308,6 +340,17 @@ final class ClaudeSessionService: ObservableObject {
                 if codex.answer(id, requestID: request, answer: CodexAnswer(decision)) {
                     codex.acknowledge(id, now: Date())
                 }
+                publish(now: Date())
+                return
+            }
+            if hookAgents.owns(id) {
+                // OpenCode's plugin waits for the answer; the other agents ask in their own terminal.
+                guard let asked = agentPending[request], asked.session == id,
+                      let reply = AgentHookMessage.opencodeReply(decision) else { return }
+                agentPending[request] = nil
+                asked.connection.finish(reply)
+                hookAgents.resolve(id, request: request)
+                hookAgents.acknowledge(id, now: Date())
                 publish(now: Date())
                 return
             }
@@ -354,6 +397,32 @@ final class ClaudeSessionService: ObservableObject {
         let reply = NotchClaudeSessionsSupport.reply(text) ?? ""
         guard !reply.isEmpty || !images.isEmpty, NotchClaudeSessionsSupport.canReply(session) else {
             return completion(session.phase.isWaiting || session.waitingFor != nil ? .waiting : .unreachable)
+        }
+        if session.provider == .opencode {
+            // OpenCode's plugin sends the reply from inside OpenCode.
+            queue.async { [self] in
+                let id = hookAgents.entry(session.id)?.sessionID
+                let listener = hookAgents.entry(session.id).flatMap { listeners[$0.pid] }
+                var sent = false
+                if let id, let listener, !listener.isClosed, let prompt = AgentHookMessage.opencodePrompt(session: id, text: reply) {
+                    listeners[session.pid] = nil
+                    listener.finish(prompt)
+                    sent = true
+                    hookAgents.acknowledge(session.id, now: Date())
+                }
+                finishSend(sent ? nil : .unreachable, session: session, completion: completion)
+            }
+            return
+        }
+        if session.provider.reportsThroughHooks {
+            // Typed into the agent's terminal, as for Claude Code; images stay
+            // behind, since only Claude Code reads them from a paste.
+            let bridge = ClaudeTerminalBridge.folder(home: home)
+            actions.async { [self] in
+                let failure = reply.isEmpty ? .unreachable : ClaudeTerminalReply.send(reply, to: session, bridge: bridge)
+                finishSend(failure, session: session, completion: completion)
+            }
+            return
         }
         if session.provider == .codex {
             // Codex takes replies through its server: nothing is typed into
@@ -441,9 +510,13 @@ final class ClaudeSessionService: ObservableObject {
                 self.apply(jobs, available: listed)
                 let canStart = shell.executable != nil
                 let canCodex = CodexCLI.locate(path: shell.environment["PATH"], home: home) != nil
+                let startable = Set(ClaudeSessionProvider.hookAgents.filter {
+                    AgentCLI.locate($0, path: shell.environment["PATH"], home: home) != nil
+                })
                 DispatchQueue.main.async {
                     if self.canStartSessions != canStart { self.canStartSessions = canStart }
                     if self.canStartCodex != canCodex { self.canStartCodex = canCodex }
+                    if self.startableAgents != startable { self.startableAgents = startable }
                     if self.backgroundAvailable != listed { self.backgroundAvailable = listed }
                 }
             }
@@ -549,6 +622,23 @@ final class ClaudeSessionService: ObservableObject {
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let terminal = ClaudeTerminalLauncher.preferred(from: sessions)
+        if provider.reportsThroughHooks {
+            // In a terminal, where the agent's own UI runs and its hooks report it.
+            commands.async {
+                let shell = ClaudeCLI.shell()
+                var problem: String?
+                if let executable = AgentCLI.locate(provider, path: shell.environment["PATH"],
+                                                    home: FileManager.default.homeDirectoryForCurrentUser) {
+                    let line = CodexCLI.line(executable: executable,
+                                             arguments: AgentCLI.startArguments(provider, prompt: trimmed), folder: folder)
+                    if !ClaudeTerminalLauncher.open(line, terminal: terminal) { problem = text.commandFailed }
+                } else {
+                    problem = text.commandFailed
+                }
+                DispatchQueue.main.async { completion(problem) }
+            }
+            return
+        }
         if provider == .codex {
             commands.async { [self] in
                 if background {
@@ -617,6 +707,48 @@ final class ClaudeSessionService: ObservableObject {
         }
     }
 
+    func checkAgentHooks() {
+        let home = home
+        let socket = Self.socketPath(home: home)
+        let bundle = Self.bundleID
+        actions.async {
+            var states: [ClaudeSessionProvider: (state: AgentHookInstaller.State, present: Bool)] = [:]
+            for provider in ClaudeSessionProvider.hookAgents {
+                let state = AgentHookInstaller.state(provider, home: home, socket: socket, bundle: bundle)
+                states[provider] = (state, state != .missing || AgentHookInstaller.isPresent(provider, home: home))
+            }
+            DispatchQueue.main.async { self.agentHooks = states }
+        }
+    }
+
+    /// Puts the island's hooks or plugin into one agent, or takes them out.
+    func installAgentHooks(_ provider: ClaudeSessionProvider, _ install: Bool) {
+        let home = home
+        let socket = Self.socketPath(home: home)
+        let bundle = Self.bundleID
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
+        actions.async {
+            var failure: String?
+            do {
+                if install { try AgentHookInstaller.install(provider, home: home, socket: socket, bundle: bundle) }
+                else { try AgentHookInstaller.remove(provider, home: home, bundle: bundle) }
+            } catch let error as ClaudeHookInstaller.Failure {
+                switch error {
+                case .unreadable: failure = text.settingsUnreadable
+                case .unwritable(let reason): failure = reason
+                case .busy: failure = text.settingsBusy
+                case .noBackup: failure = text.settingsNoBackup
+                }
+            } catch {
+                failure = error.localizedDescription
+            }
+            DispatchQueue.main.async {
+                self.agentHookFailures[provider] = failure
+                self.checkAgentHooks()
+            }
+        }
+    }
+
     func checkBridge() {
         let home = home
         actions.async {
@@ -658,7 +790,10 @@ final class ClaudeSessionService: ObservableObject {
             // Only a permission waits for an answer; every other hook is let
             // go here, so a long read on the session queue never holds it.
             let delivered = Date()
-            if !ClaudeHookMessage.isPermissionRequest(payload) { connection.finish() }
+            let envelope = AgentHookMessage.isEnvelope(payload)
+            if envelope ? !AgentHookMessage.waits(payload) : !ClaudeHookMessage.isPermissionRequest(payload) {
+                connection.finish()
+            }
             self?.queue.async { self?.receive(payload, from: connection, at: delivered) }
         }
         server = created.start() ? created : nil
@@ -668,6 +803,7 @@ final class ClaudeSessionService: ObservableObject {
     private func receive(_ payload: Data, from connection: ClaudeHookServer.Connection, at now: Date) {
         // A hook that arrived as the section stopped goes back to the terminal.
         guard timer != nil else { return connection.finish() }
+        if AgentHookMessage.isEnvelope(payload) { return receiveAgent(payload, from: connection, at: now) }
         let request = UUID().uuidString
         guard let message = ClaudeHookMessage.decode(payload, requestID: request, now: now, policy: engine.policy) else {
             return connection.finish()
@@ -687,6 +823,58 @@ final class ClaudeSessionService: ObservableObject {
         }
         engine.ingest(hook: message.fact, now: now)
         publish(now: now)
+    }
+
+    /// One event of Gemini CLI, Copilot CLI, Cursor or OpenCode, on the queue.
+    private func receiveAgent(_ payload: Data, from connection: ClaudeHookServer.Connection, at now: Date) {
+        guard let decoded = AgentHookMessage.decode(payload, now: now, policy: engine.policy),
+              shownAgents.contains(decoded.provider) else { return connection.finish() }
+        // The agent is the process above the hook's shells; OpenCode's plugin
+        // writes from inside it.
+        let pid = AgentHookProcess.agent(fromHook: connection.peer, hint: decoded.pid)
+        if decoded.listens {
+            listeners.removeValue(forKey: pid)?.finish()
+            listeners[pid] = connection
+            return
+        }
+        if let asked = decoded.permission {
+            let id = AgentHookEvent.id(decoded.provider, asked.session)
+            agentPending.removeValue(forKey: asked.request)?.connection.finish()
+            agentPending[asked.request] = (connection, id, now)
+        } else {
+            connection.finish()
+        }
+        for event in decoded.events {
+            let placed = AgentHookEvent(provider: event.provider, sessionID: event.sessionID, pid: pid > 0 ? pid : event.pid,
+                                        cwd: event.cwd, date: event.date, kind: event.kind)
+            if case .permissionSettled(let request) = event.kind {
+                // Answered in OpenCode itself: its plugin stops waiting too.
+                for (key, waiting) in agentPending where waiting.session == placed.id && (request == nil || key == request) {
+                    agentPending[key] = nil
+                    waiting.connection.finish()
+                }
+            }
+            hookAgents.ingest(placed, now: now)
+        }
+        publish(now: now)
+    }
+
+    /// Lets go of OpenCode requests whose session left or that waited too
+    /// long, and of listeners whose OpenCode quit.
+    private func releaseAgents(now: Date) {
+        hookAgents.prune(now: now)
+        for (request, waiting) in agentPending {
+            let current = hookAgents.entry(waiting.session)?.permission?.requestID == request
+            guard !current || waiting.connection.isClosed || now.timeIntervalSince(waiting.since) > Self.permissionDeadline
+            else { continue }
+            agentPending[request] = nil
+            waiting.connection.finish()
+            if current { hookAgents.resolve(waiting.session, request: request) }
+        }
+        for (pid, listener) in listeners where listener.isClosed || !AgentHookSessions.isAlive(pid) {
+            listeners[pid] = nil
+            listener.finish()
+        }
     }
 
     /// Lets go of hooks whose question was answered in the terminal, whose
@@ -783,7 +971,9 @@ final class ClaudeSessionService: ObservableObject {
             codexTerminals = ClaudeSessionHosts.codexTerminals()
         }
         let codexPids = Set(codexTerminals.map(\.pid))
-        hosts = hosts.filter { alive.contains($0.key) || codexPids.contains($0.key) }
+        releaseAgents(now: now)
+        let agentPids = Set(hookAgents.entries.values.map(\.pid))
+        hosts = hosts.filter { alive.contains($0.key) || codexPids.contains($0.key) || agentPids.contains($0.key) }
         for index in records.indices {
             let pid = records[index].pid
             // A background session has no terminal to find.
@@ -892,12 +1082,19 @@ final class ClaudeSessionService: ObservableObject {
         let codexSessions = fromCodex.sessions.map { session in
             placed(session, others: fromCodex.sessions.filter { $0.id != session.id }.map(\.cwd))
         }
-        let sorted = NotchClaudeSessionsSupport.sorted(withBackground(claude, now: now) + codexSessions)
+        let fromAgents = hookAgents.snapshot(now: now, previews: engine.policy.previews, host: { [self] pid in
+            guard pid > 0 else { return .unknown }
+            if hosts[pid] == nil { hosts[pid] = ClaudeSessionHosts.host(of: pid) }
+            return hosts[pid] ?? .unknown
+        }, branch: { [self] folder in branches.branch(of: folder, now: now) })
+        let agentSessions = fromAgents.sessions.filter { shownAgents.contains($0.provider) }
+        let sorted = NotchClaudeSessionsSupport.sorted(withBackground(claude, now: now) + codexSessions + agentSessions)
         let shown = autoAllowing(sorted, now: now)
         let allowed = autoAllow.sessions
         let hidden = Set(sorted.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed, now: now) }
             .map(\.id))
-        let events = (snapshot.events + fromCodex.events).filter { NotchClaudeSessionsSupport.shows($0, hidden: hidden) }
+        let events = (snapshot.events + fromCodex.events + fromAgents.events)
+            .filter { NotchClaudeSessionsSupport.shows($0, hidden: hidden) }
         let changed = shown != published || allowed != publishedAutoAllow
         published = shown
         publishedAutoAllow = allowed
@@ -1123,11 +1320,12 @@ enum ClaudeTerminalReply {
 
     static func send(_ text: String, images: [URL] = [], named: [URL] = [], to session: ClaudeSession, bridge: URL) -> Failure? {
         let paths = images.map(\.path)
-        let steps = ClaudeTyping.steps(text, images: paths)
+        let delay = ClaudeTyping.enterDelay(session.provider)
+        let steps = delay.map { ClaudeTyping.steps(text, images: paths, enterAfter: $0) } ?? ClaudeTyping.steps(text, images: paths)
         switch session.host {
         case .terminal(let tty):
-            let script = paths.isEmpty ? ClaudeTerminalScripts.type(text, tty: tty)
-                : ClaudeTerminalScripts.type(text, images: paths, tty: tty)
+            let script = !paths.isEmpty ? ClaudeTerminalScripts.type(text, images: paths, tty: tty)
+                : delay.map { ClaudeTerminalScripts.type(text, tty: tty, enterAfter: $0) } ?? ClaudeTerminalScripts.type(text, tty: tty)
             return run(script, in: ClaudeSessionHosts.terminal)
         case .iterm(let tty):
             return run(ClaudeTTYTerminalScripts.itermType(steps, tty: tty), in: ClaudeTerminalApps.iterm)
@@ -1266,6 +1464,8 @@ enum ClaudeSessionCleanup {
         if let current = try? ClaudeHookInstaller.read(settings), ClaudeHookInstaller.hasAny(in: current, bundle: bundle) {
             hooks = (try? ClaudeHookInstaller.update(settings) { ClaudeHookInstaller.removing(from: $0, bundle: bundle) }) != nil
         }
+        // Gemini CLI's, Copilot CLI's, Cursor's and OpenCode's go with them.
+        AgentHookInstaller.removeAll(home: home, bundle: bundle)
         let folder = home.appending(path: ".vorssaint", directoryHint: .isDirectory)
         try? FileManager.default.removeItem(at: folder.appending(path: "\(bundle).sock"))
         let others = siblings(of: bundle).filter { sibling in

@@ -30,6 +30,7 @@ This is an unofficial fork of [Vorssaint](https://github.com/vorssaint/vorssaint
 - **Watch it work.** Enlarge a session's page to read the whole conversation as it grows, with recent tools, tasks, cost and the model beside it, or fold the details away.
 - **Subagents too.** Agents a session starts get rows of their own, including the ones sent to the background, colored like their agent definitions.
 - **Codex too.** Codex CLI sessions join the same list, under Codex's own mark and color, with a little terminal robot instead of Clawd. Its approvals, questions and replies go through Codex's own server, so there is nothing to install. Always on a Codex request allows every request of the task under way, with Always: ON on its page and Cancel to stop it, until the task ends.
+- **Gemini CLI, Copilot CLI, OpenCode and Cursor.** Each joins the list under its own mark, color and pixel figure once you press Install for it in the Sessions settings. OpenCode's permission requests and replies go through a small plugin, so you answer them in the island; Gemini CLI and Copilot CLI show when they wait on you, and replies are typed into their terminal; Cursor's approvals stay in Cursor. [The notes](docs/more-session-agents.md) say what each agent allows.
 - **Background sessions too.** Sessions started with `claude --bg` are listed with a Background mark and Agent View's name. Answer their prompts, reply, read their output, stop or remove them, or open a terminal on one. **New session** starts Claude Code in a recent folder, in the background or in a terminal.
 - **A Clawd for every session.** Each session and subagent gets a pixel Clawd in a random costume. Open the wardrobe to change its shell, hat, eyewear and extras, or let Surprise me pick.
 
@@ -66,7 +67,7 @@ Nothing leaves your Mac. Prompts, replies, titles and commands stay unread until
 
 ## On Windows
 
-The Dynamic Island also runs on Windows 11, with the same sections: Sessions for Claude Code and Codex, Controls, the volume mixer, Now Playing, clipboard history, the Files shelf, System, Tools, Calendar, notifications, Timer, Downloads, AI Agents and Watch. It is a beta with its own installer: download it from the [Windows releases](https://github.com/MF-DEEV/vorssaint-utils/releases?q=windows&expanded=true) (x64 for most PCs, arm64 for Snapdragon), and read [windows/README.md](windows/README.md) for what it does and how to build it.
+The Dynamic Island also runs on Windows 11, with the same sections: Sessions for Claude Code, Codex, Gemini CLI, Copilot CLI, OpenCode and Cursor, Controls, the volume mixer, Now Playing, clipboard history, the Files shelf, System, Tools, Calendar, notifications, Timer, Downloads, AI Agents and Watch. It is a beta with its own installer: download it from the [Windows releases](https://github.com/MF-DEEV/vorssaint-utils/releases?q=windows&expanded=true) (x64 for most PCs, arm64 for Snapdragon), and read [windows/README.md](windows/README.md) for what it does and how to build it.
 
 ## About this fork
 
@@ -80,6 +81,7 @@ On the Mac this fork ships no builds of its own; you build it from source as abo
 - [Contributing](CONTRIBUTING.md), build, layout and conventions
 - [Claude Code session notes](docs/claude-sessions-spike.md), what Claude Code exposes and how the island uses it
 - [Codex session notes](docs/codex-sessions.md), how the island talks to Codex's app server
+- [More session agents](docs/more-session-agents.md), what Gemini CLI, Copilot CLI, OpenCode and Cursor tell the island, and how much of it each allows
 
 ### Checks on pull requests
 

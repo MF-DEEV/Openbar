@@ -5,10 +5,11 @@
 // wardrobe), moving with its phase; a round phase badge with buddies off.
 // A sleeping session's row fades as a whole (SessionsList), not the face.
 
+import { characterOf } from "./clawd/costume";
 import { useLocale } from "../i18n";
 
 import { PhaseBadge, phaseIcon } from "./Avatar";
-import { ClaudeMark, CodexMark } from "./glyphs";
+import { markOf } from "./glyphs";
 import { Clawd } from "./clawd/Clawd";
 import { resolvedCostume, subagentKey } from "./clawd/costume";
 import { CLAWD_SIZES, motionForNotice, motionForPhase, motionForSubagent } from "./clawd/sprite";
@@ -45,8 +46,8 @@ export function SessionAvatar(props: {
   return (
     <span className="s-avatar" style={{ width: s.width, height: s.height }}>
       <Clawd
-        character={session.provider === "codex" ? "codex" : "clawd"}
-        costume={resolvedCostume(session.id, kept, null, session.provider === "codex" ? "codex" : "clawd")}
+        character={characterOf(session.provider)}
+        costume={resolvedCostume(session.id, kept, null, characterOf(session.provider))}
         motion={motionForPhase(session.phase, dozing(session, props.now, props.lookedAt))}
         seed={session.id}
         since={session.phaseSince * 1000}
@@ -62,7 +63,7 @@ export function SessionAvatar(props: {
  *  way an app's badge sits on a contact's picture: shape as well as color, so
  *  a Codex robot and a Claude crab in one shell are still told apart. */
 export function AgentMarkBadge({ provider }: { provider: Provider }) {
-  const Mark = provider === "codex" ? CodexMark : ClaudeMark;
+  const Mark = markOf(provider);
   return (
     <span className="s-agent-mark" data-provider={provider} aria-hidden>
       {/* Both paths fill their square, so one size looks the same for both. */}
@@ -113,7 +114,7 @@ export function SessionNoticeMark(props: {
   // The notice's own agent stands in for a session that has already left the list.
   const live = useSessions((st) => st.snapshot.sessions.find((s) => s.id === id));
   const provider = live?.provider ?? props.session.provider;
-  const character = provider === "codex" ? "codex" : "clawd";
+  const character = characterOf(provider);
   if (!buddies) {
     const phase = NOTICE_PHASE[event];
     const Icon = phaseIcon(phase, provider);

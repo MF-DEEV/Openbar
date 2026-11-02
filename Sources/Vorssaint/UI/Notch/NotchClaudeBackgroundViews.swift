@@ -182,21 +182,37 @@ struct NotchClaudeNewSessionView: View {
     @Namespace private var agentPill
     @Namespace private var folderHighlight
 
-    /// The agents this Mac can start: Claude Code, Codex, or both.
+    /// The agents this Mac can start: Claude Code, Codex, and those of
+    /// Gemini CLI, Copilot CLI, OpenCode and `cursor-agent` that are
+    /// installed and shown in Sessions.
     private var agents: [ClaudeSessionProvider] {
-        (service.canStartSessions ? [.claude] : []) + (service.canStartCodex ? [.codex] : [])
+        let shown = NotchClaudeSessionsSupport.shownAgents()
+        return (service.canStartSessions ? [.claude] : []) + (service.canStartCodex ? [.codex] : [])
+            + ClaudeSessionProvider.hookAgents.filter { service.startableAgents.contains($0) && shown.contains($0) }
     }
+
+    /// Past three agents only the one picked is named; the rest show their mark.
+    private var compactPicker: Bool { agents.count > 3 }
 
     private var agent: ClaudeSessionProvider {
         let picked = ClaudeSessionProvider(rawValue: agentChoice) ?? .claude
         return agents.contains(picked) ? picked : (agents.first ?? .claude)
     }
 
-    /// Codex runs threads in its own background server, so it needs no Agent View.
-    private var canRunInBackground: Bool { agent == .codex || service.backgroundAvailable }
+    /// Codex runs threads in its own background server, so it needs no Agent
+    /// View; the agents after it run only in a terminal.
+    private var canRunInBackground: Bool {
+        agent == .codex || (agent == .claude && service.backgroundAvailable)
+    }
     private var background: Bool { inBackground && canRunInBackground }
 
-    private var models: [NewSessionModel] { agent == .codex ? codexModels : claudeModels }
+    private var models: [NewSessionModel] {
+        switch agent {
+        case .codex: return codexModels
+        case .claude: return claudeModels
+        default: return []
+        }
+    }
     private var modelKey: Binding<String> { agent == .codex ? $codexModel : $claudeModel }
     private var model: NewSessionModel? {
         models.first { $0.key == modelKey.wrappedValue } ?? models.first
@@ -252,7 +268,7 @@ struct NotchClaudeNewSessionView: View {
                     mode(text.runInBackground, selected: inBackground) { inBackground = true }
                     mode(text.runInTerminal, selected: !inBackground) { inBackground = false }
                 } else {
-                    Text(text.backgroundOffHelp)
+                    Text(agent.reportsThroughHooks ? text.opensInTerminal(agent.displayName) : text.backgroundOffHelp)
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -301,11 +317,16 @@ struct NotchClaudeNewSessionView: View {
                             .saturation(selected ? 1 : 0)
                             .opacity(selected ? 1 : 0.55)
                             .scaleEffect(selected && !reduceMotion ? 1.06 : 1)
-                        Text(provider == .claude ? "Claude" : "Codex")
-                            .font(.system(size: 11.5, weight: .medium))
-                            .foregroundStyle(.white.opacity(selected ? 1 : 0.6))
+                        if selected || !compactPicker {
+                            Text(provider.shortName)
+                                .font(.system(size: 11.5, weight: .medium))
+                                .foregroundStyle(.white.opacity(selected ? 1 : 0.6))
+                                .lineLimit(1)
+                                .fixedSize()
+                                .transition(.opacity)
+                        }
                     }
-                    .padding(.horizontal, 9)
+                    .padding(.horizontal, selected || !compactPicker ? 9 : 7)
                     .frame(height: 26)
                     .background {
                         if selected {
@@ -319,7 +340,8 @@ struct NotchClaudeNewSessionView: View {
                     .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
                 }
                 .buttonStyle(NotchButtonStyle(cornerRadius: 7, highlights: !selected))
-                .accessibilityLabel(provider == .claude ? "Claude Code" : "Codex")
+                .accessibilityLabel(provider.displayName)
+                .help(provider.displayName)
                 .accessibilityAddTraits(selected ? .isSelected : [])
             }
         }

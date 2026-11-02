@@ -25,6 +25,24 @@ enum NotchClaudeSessionsSupport {
         ClaudeContentPolicy(previews: defaults.bool(forKey: DefaultsKey.notchSessionsContentPreview))
     }
 
+    /// The setting that shows one agent's sessions; nil for the agents always shown.
+    static func agentKey(_ provider: ClaudeSessionProvider) -> String? {
+        switch provider {
+        case .gemini: return DefaultsKey.notchSessionsAgentGemini
+        case .copilot: return DefaultsKey.notchSessionsAgentCopilot
+        case .opencode: return DefaultsKey.notchSessionsAgentOpenCode
+        case .cursor: return DefaultsKey.notchSessionsAgentCursor
+        case .claude, .codex: return nil
+        }
+    }
+
+    /// The agents whose sessions the list shows.
+    static func shownAgents(in defaults: UserDefaults = .standard) -> Set<ClaudeSessionProvider> {
+        Set(ClaudeSessionProvider.allCases.filter { provider in
+            agentKey(provider).map { defaults.object(forKey: $0) as? Bool ?? true } ?? true
+        })
+    }
+
     static func showsBuddies(in defaults: UserDefaults = .standard) -> Bool {
         defaults.object(forKey: DefaultsKey.notchSessionsBuddies) as? Bool ?? true
     }
@@ -127,25 +145,18 @@ enum NotchClaudeSessionsSupport {
     /// mark shows once, on the other side of the camera; each count keeps
     /// the phase's symbol.
     static func stripReading(_ counts: ClaudeSessionCounts) -> [StripItem] {
-        let codex = min(max(0, counts.workingCodex), max(0, counts.working))
-        return [StripItem(phase: .waitingPermission, count: counts.waiting),
-                StripItem(phase: .generating, count: max(0, counts.working) - codex, provider: .claude),
-                StripItem(phase: .generating, count: codex, provider: .codex),
-                StripItem(phase: .limited, count: counts.limited),
-                StripItem(phase: .finished, count: counts.finished)]
+        ([StripItem(phase: .waitingPermission, count: counts.waiting)]
+            + ClaudeSessionProvider.allCases.map { StripItem(phase: .generating, count: counts.working($0), provider: $0) }
+            + [StripItem(phase: .limited, count: counts.limited), StripItem(phase: .finished, count: counts.finished)])
             .filter { $0.count > 0 }
     }
 
-    /// Whose marks the strip shows while sessions work, front first: the
-    /// one agent at work, or both stacked with Claude's in front when Claude
-    /// and Codex work at once. Empty when none do.
+    /// Whose marks the strip shows while sessions work, front first, in the
+    /// agents' own order: Claude, Codex, Gemini CLI, Copilot CLI, OpenCode,
+    /// Cursor. Two agents at work stack; past two, the first two show and
+    /// the counts tell the rest. Empty when none work.
     static func stripAgents(_ counts: ClaudeSessionCounts) -> [ClaudeSessionProvider] {
-        let working = max(0, counts.working)
-        let codex = min(max(0, counts.workingCodex), working)
-        var agents: [ClaudeSessionProvider] = []
-        if working > codex { agents.append(.claude) }
-        if codex > 0 { agents.append(.codex) }
-        return agents
+        Array(ClaudeSessionProvider.allCases.filter { counts.working($0) > 0 }.prefix(2))
     }
 
     /// The mark in front: Claude's while any Claude session works, Codex's
@@ -213,8 +224,22 @@ enum NotchClaudeSessionsSupport {
         // Keys typed while any dialog is open would go to the dialog. Codex
         // takes replies through its server, wherever its terminal is.
         // A background session whose process has ended takes none until Open brings it back.
-        (session.provider == .codex || session.host.acceptsReplies) && !session.phase.isWaiting && session.waitingFor == nil
+        repliesReach(session) && !session.phase.isWaiting && session.waitingFor == nil
             && session.background?.ended != true
+    }
+
+    /// Whether a reply could reach the session at all: through the agent's
+    /// own channel, or typed into the terminal it runs in. Cursor's app keeps
+    /// its chat in its own window, so only `cursor-agent` in a terminal takes one.
+    static func repliesReach(_ session: ClaudeSession) -> Bool {
+        if session.provider.takesRepliesDirectly { return true }
+        if session.provider == .cursor {
+            switch session.host {
+            case .ide, .app, .unknown, .background: return false
+            default: break
+            }
+        }
+        return session.host.acceptsReplies
     }
 
     static let replyLimit = 4000

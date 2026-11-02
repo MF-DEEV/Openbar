@@ -177,6 +177,16 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
         .unwrap_or(false);
     if let Some(service) = app.try_state::<crate::sessions::service::Shared>() {
         service.set_previews(previews);
+        // Gemini CLI, Copilot CLI, OpenCode and Cursor each have a switch.
+        let hidden = crate::sessions::models::Provider::HOOK_AGENTS
+            .into_iter()
+            .filter(|p| {
+                let key = p.key();
+                let pointer = format!("/sessions/agent{}{}", key[..1].to_uppercase(), &key[1..]);
+                !flag(&pointer, true)
+            })
+            .collect();
+        service.set_hidden_agents(hidden);
     }
     crate::clipboard::apply_prefs(app, before, value);
     crate::audio::apply_prefs(app, value);

@@ -178,7 +178,7 @@ extension NotchSessionLimitsSupport {
     static func currentStripLimit(now: Date = Date())
         -> (provider: AgentProvider, window: AgentLimitWindow, share: String)? {
         guard isEnabled() else { return nil }
-        let agents = Set(ClaudeSessionService.shared.sessions.map(\.provider.agent))
+        let agents = Set(ClaudeSessionService.shared.sessions.compactMap(\.provider.agent))
         let threshold = NotchAgentSupport.limitThreshold() ?? NotchAgentSupport.defaultLimitThreshold
         guard let limit = stripLimit(AgentUsageService.shared.snapshot, agents: agents, focus: NotchAgentSupport.limitFocus(),
                                      threshold: threshold, now: now) else { return nil }

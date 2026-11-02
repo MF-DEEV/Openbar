@@ -29,11 +29,13 @@ struct NotchClaudeSessionsSettingsControls: View {
             Divider()
             hooks
             codex
+            agents
             bridge
         }
         .onAppear {
             service.checkHooks()
             service.checkCodex()
+            service.checkAgentHooks()
             service.checkBridge()
         }
     }
@@ -87,6 +89,26 @@ struct NotchClaudeSessionsSettingsControls: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.leading, settingsRowTextInset)
+        }
+    }
+
+    /// Gemini CLI, Copilot CLI, OpenCode and Cursor: each shown or hidden
+    /// in the list by its own switch, with its hooks or plugin put in or
+    /// taken out by its own button.
+    private var agents: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            SettingsRow(symbol: "square.stack.3d.up", title: text.agentsTitle) {
+                if service.agentHooks == nil { ProgressView().controlSize(.small) }
+            }
+            Text(text.agentsHint)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, settingsRowTextInset)
+            ForEach(ClaudeSessionProvider.hookAgents, id: \.self) { provider in
+                NotchSessionsAgentSettingsRow(provider: provider, text: text)
+                    .padding(.leading, settingsRowTextInset)
+            }
         }
     }
 
@@ -169,5 +191,77 @@ struct NotchClaudeSessionsSettingsControls: View {
                     .padding(.leading, settingsRowTextInset)
             }
         }
+    }
+}
+
+/// One agent's row: its mark and name, whether its hooks or plugin are in,
+/// the button that puts them in or takes them out, and the switch that shows
+/// its sessions.
+struct NotchSessionsAgentSettingsRow: View {
+    let provider: ClaudeSessionProvider
+    let text: NotchClaudeSessionStrings
+    @ObservedObject private var service = ClaudeSessionService.shared
+    @AppStorage private var shown: Bool
+
+    init(provider: ClaudeSessionProvider, text: NotchClaudeSessionStrings) {
+        self.provider = provider
+        self.text = text
+        _shown = AppStorage(wrappedValue: true, NotchClaudeSessionsSupport.agentKey(provider) ?? "")
+    }
+
+    private var status: (state: AgentHookInstaller.State, present: Bool)? { service.agentHooks?[provider] }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 8) {
+                NotchHookAgentMark(provider: provider, size: 14, working: false)
+                    .frame(width: 18, height: 18)
+                Text(provider.displayName)
+                    .font(.callout)
+                    .fixedSize()
+                Spacer(minLength: 8)
+                Toggle(provider.displayName, isOn: $shown)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .onChange(of: shown) { _, _ in service.syncWithPreferences() }
+            }
+            HStack(spacing: 6) {
+                if let caption = text.agentHookState(status?.state, present: status?.present ?? false) {
+                    Text(caption).font(.caption).foregroundStyle(.secondary)
+                } else {
+                    ProgressView().controlSize(.mini)
+                }
+                Spacer(minLength: 6)
+                if let status, status.state != .unreadable {
+                    // An update first; Remove comes back once it is current.
+                    if status.state == .installed {
+                        Button(text.removeAgent(provider)) { service.installAgentHooks(provider, false) }
+                            .controlSize(.small)
+                            .fixedSize()
+                    }
+                    if status.state != .installed {
+                        Button(status.state == .outdated ? text.updateAgentHooks : text.installAgent(provider)) {
+                            service.installAgentHooks(provider, true)
+                        }
+                        .controlSize(.small)
+                        .fixedSize()
+                    }
+                }
+            }
+            .padding(.leading, 26)
+            Text(text.agentHint(provider))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.leading, 26)
+            if let failure = service.agentHookFailures[provider] {
+                Label(text.hooksFailed(failure), systemImage: "exclamationmark.triangle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(.leading, 26)
+            }
+        }
+        .opacity(shown ? 1 : 0.6)
     }
 }

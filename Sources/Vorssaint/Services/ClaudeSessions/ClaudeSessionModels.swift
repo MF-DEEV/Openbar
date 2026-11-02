@@ -99,20 +99,70 @@ enum ClaudeReplyFailure: Error, Equatable {
 
 /// The agent behind a session: each has its own figure, color and channel.
 /// Claude Code reports through its registry and hooks; Codex through the
-/// app-server its TUI runs (docs/codex-sessions.md).
-enum ClaudeSessionProvider: String, Equatable {
+/// app-server its TUI runs (docs/codex-sessions.md). Gemini CLI, Copilot CLI
+/// and Cursor report through hooks in their own settings, OpenCode through a
+/// plugin; all four reach the island's socket (docs/more-session-agents.md).
+enum ClaudeSessionProvider: String, Equatable, CaseIterable {
     case claude
     case codex
+    case gemini
+    case copilot
+    case opencode
+    case cursor
 }
 
 extension ClaudeSessionProvider {
-    /// The agent behind a session, as the AI section knows it.
-    var agent: AgentProvider {
+    /// The agent behind a session, as the AI section knows it; nil for the
+    /// ones whose usage it does not read.
+    var agent: AgentProvider? {
         switch self {
         case .claude: return .claude
         case .codex: return .codex
+        case .opencode: return .opencode
+        case .copilot: return .copilot
+        case .gemini, .cursor: return nil
         }
     }
+
+    /// What the island calls the agent.
+    var displayName: String {
+        switch self {
+        case .claude: return "Claude Code"
+        case .codex: return "Codex"
+        case .gemini: return "Gemini CLI"
+        case .copilot: return "Copilot CLI"
+        case .opencode: return "OpenCode"
+        case .cursor: return "Cursor"
+        }
+    }
+
+    /// The agent's name where room is short, as New session's picker.
+    var shortName: String {
+        switch self {
+        case .claude: return "Claude"
+        case .gemini: return "Gemini"
+        case .copilot: return "Copilot"
+        default: return displayName
+        }
+    }
+
+    /// The agents that report through the island's hooks or plugin.
+    static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor]
+
+    var reportsThroughHooks: Bool { Self.hookAgents.contains(self) }
+
+    /// Whether the island can answer the agent's permission requests. Gemini
+    /// CLI's and Copilot CLI's hooks only hear of a prompt, and Cursor keeps
+    /// its approvals; the person answers those in the agent.
+    var answersPermissions: Bool {
+        switch self {
+        case .claude, .codex, .opencode: return true
+        case .gemini, .copilot, .cursor: return false
+        }
+    }
+
+    /// Whether replies go to the agent itself rather than being typed into its terminal.
+    var takesRepliesDirectly: Bool { self == .codex || self == .opencode }
 }
 
 /// The app showing a session's terminal, which Open brings forward and a
@@ -365,8 +415,9 @@ struct ClaudeChatMessage: Equatable, Identifiable {
 
 struct ClaudeSessionCounts: Equatable {
     var working = 0
-    /// Of `working`, the Codex ones: each agent shows its own mark and color.
-    var workingCodex = 0
+    /// Of `working`, the ones of each agent but Claude: each agent shows its
+    /// own mark and color.
+    var workingOthers: [ClaudeSessionProvider: Int] = [:]
     var waiting = 0
     /// Stopped by the plan's usage limit.
     var limited = 0
@@ -374,9 +425,27 @@ struct ClaudeSessionCounts: Equatable {
 
     var isEmpty: Bool { working + waiting + limited + finished == 0 }
 
-    init(working: Int = 0, workingCodex: Int = 0, waiting: Int = 0, limited: Int = 0, finished: Int = 0) {
+    /// Of `working`, the Codex ones.
+    var workingCodex: Int {
+        get { workingOthers[.codex] ?? 0 }
+        set { workingOthers[.codex] = newValue > 0 ? newValue : nil }
+    }
+
+    /// How many of one agent's sessions work: Claude's are the ones no other
+    /// agent claims.
+    func working(_ provider: ClaudeSessionProvider) -> Int {
+        let total = max(0, working)
+        guard provider != .claude else {
+            return max(0, total - workingOthers.values.reduce(0) { $0 + max(0, $1) })
+        }
+        return min(max(0, workingOthers[provider] ?? 0), total)
+    }
+
+    init(working: Int = 0, workingCodex: Int = 0, workingOthers: [ClaudeSessionProvider: Int] = [:], waiting: Int = 0,
+         limited: Int = 0, finished: Int = 0) {
         self.working = working
-        self.workingCodex = workingCodex
+        self.workingOthers = workingOthers.filter { $0.key != .claude && $0.value > 0 }
+        if workingCodex > 0 { self.workingOthers[.codex] = workingCodex }
         self.waiting = waiting
         self.limited = limited
         self.finished = finished
@@ -386,7 +455,7 @@ struct ClaudeSessionCounts: Equatable {
         for session in sessions {
             if session.phase.isActive {
                 working += 1
-                if session.provider == .codex { workingCodex += 1 }
+                if session.provider != .claude { workingOthers[session.provider, default: 0] += 1 }
             }
             if session.phase.isWaiting { waiting += 1 }
             if session.phase == .limited { limited += 1 }

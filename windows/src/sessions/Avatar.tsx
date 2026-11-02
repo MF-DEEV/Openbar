@@ -9,7 +9,7 @@ import { useLocale } from "../i18n";
 import { Hammer, Hourglass, MessageCircleQuestion, MoonStar, type LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";
 import { phaseTint } from "./format";
-import { CheckCircleFill, ClaudeMark, CodexMark, GaugeFill, type GlyphProps, HandFill, MARK_SCALE } from "./glyphs";
+import { CheckCircleFill, ClaudeMark, GaugeFill, type GlyphProps, HandFill, MARK_SCALE, markOf } from "./glyphs";
 import type { Phase, Provider } from "./types";
 
 const PHASE_ICON: Record<Phase, LucideIcon | ComponentType<GlyphProps>> = {
@@ -25,7 +25,7 @@ const PHASE_ICON: Record<Phase, LucideIcon | ComponentType<GlyphProps>> = {
 
 /** A phase's symbol; generating shows the mark of the agent at work. */
 export function phaseIcon(phase: Phase, provider: Provider): LucideIcon | ComponentType<GlyphProps> {
-  if (phase === "generating") return provider === "codex" ? CodexMark : ClaudeMark;
+  if (phase === "generating") return markOf(provider);
   return PHASE_ICON[phase];
 }
 

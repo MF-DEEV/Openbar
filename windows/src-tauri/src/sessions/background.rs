@@ -684,6 +684,22 @@ mod platform {
     }
 
     /// Codex's terminal UI in a console of its own, in a folder.
+    /// Another agent's command in a console of its own. A `.cmd` shim, as
+    /// npm installs, is run by the standard library, which quotes each
+    /// argument for cmd and refuses one it cannot pass safely.
+    pub fn agent_in_terminal(
+        executable: &std::path::Path,
+        arguments: &[String],
+        folder: Option<&str>,
+    ) -> bool {
+        let mut command = Command::new(executable);
+        command.args(arguments).creation_flags(CREATE_NEW_CONSOLE);
+        if let Some(folder) = folder {
+            command.current_dir(folder);
+        }
+        command.spawn().is_ok()
+    }
+
     pub fn codex_in_terminal(arguments: &[String], folder: Option<&str>) -> bool {
         let Some(executable) = crate::agent_usage::codex_executable() else {
             return false;
@@ -971,6 +987,9 @@ mod platform {
     pub fn codex_in_terminal(_: &[String], _: Option<&str>) -> bool {
         false
     }
+    pub fn agent_in_terminal(_: &std::path::Path, _: &[String], _: Option<&str>) -> bool {
+        false
+    }
     pub fn reply(_: &str, _: &[String], _: &str, _: Option<&str>) -> bool {
         false
     }
@@ -979,7 +998,9 @@ mod platform {
     }
 }
 
-pub use platform::{claude, codex, codex_in_terminal, executable, in_terminal, reply, screen};
+pub use platform::{
+    agent_in_terminal, claude, codex, codex_in_terminal, executable, in_terminal, reply, screen,
+};
 
 /// A model a new session can start with. `id` None keeps the agent's own
 /// default; `detail` names that default when it can be told.

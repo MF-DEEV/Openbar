@@ -537,7 +537,7 @@ pub enum ChatRole {
 #[serde(rename_all = "camelCase")]
 pub struct Session {
     pub id: String,
-    /// Which agent runs it: Claude Code or Codex.
+    /// Which agent runs it: Claude Code, Codex, or one reporting through hooks.
     pub provider: Provider,
     pub pid: i32,
     pub cwd: String,
@@ -611,6 +611,11 @@ pub struct SessionCounts {
     pub working: i64,
     /// Of `working`, the Codex ones: each agent shows its own mark and color.
     pub working_codex: i64,
+    /// Of `working`, the ones of Gemini CLI, Copilot CLI, OpenCode and Cursor.
+    pub working_gemini: i64,
+    pub working_copilot: i64,
+    pub working_opencode: i64,
+    pub working_cursor: i64,
     pub waiting: i64,
     /// Stopped by the plan's usage limit.
     pub limited: i64,
@@ -623,8 +628,13 @@ impl SessionCounts {
         for session in sessions {
             if session.phase.is_active() {
                 counts.working += 1;
-                if session.provider == Provider::Codex {
-                    counts.working_codex += 1;
+                match session.provider {
+                    Provider::Codex => counts.working_codex += 1,
+                    Provider::Gemini => counts.working_gemini += 1,
+                    Provider::Copilot => counts.working_copilot += 1,
+                    Provider::Opencode => counts.working_opencode += 1,
+                    Provider::Cursor => counts.working_cursor += 1,
+                    Provider::Claude => {}
                 }
             }
             if session.phase.is_waiting() {
@@ -652,6 +662,10 @@ pub enum Provider {
     #[default]
     Claude,
     Codex,
+    Gemini,
+    Copilot,
+    Opencode,
+    Cursor,
 }
 
 /// A change worth a notice in the island.
@@ -1680,7 +1694,8 @@ mod tests {
                 working_codex: 1,
                 waiting: 2,
                 limited: 0,
-                finished: 1
+                finished: 1,
+                ..Default::default()
             }
         );
         assert!(SessionCounts::default().is_empty() && !counts.is_empty());

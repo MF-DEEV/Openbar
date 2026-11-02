@@ -8,18 +8,18 @@
 
 import { useLocale } from "../i18n";
 
-import { CheckCircleFill, ClaudeMark, CodexMark, GaugeFill, HandFill, MARK_SCALE, SparkleFill } from "./glyphs";
+import { CheckCircleFill, GaugeFill, HandFill, MARK_SCALE, markOf, SparkleFill } from "./glyphs";
 import { edgeInset, type Geometry } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { useIsland } from "../island/store";
 import { useAgents } from "../agents/store";
 import { limitTint } from "../agents/format";
-import { CLAUDE_TINT, CODEX_TINT, FINISHED_TINT, LIMITED_TINT, WAITING_TINT } from "./format";
+import { FINISHED_TINT, LIMITED_TINT, providerTint, WAITING_TINT } from "./format";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { presentedSnapshot } from "./presentation";
 import { currentStripLimit, type StripLimit } from "./stripLimit";
-import type { Counts } from "./types";
+import { type Counts, PROVIDERS, type Provider, workingOf } from "./types";
 
 /** min(15, strip − 7): 15 pt in the Windows bar's 24 pt strip. */
 export const stripTextSize = (stripHeight: number) => Math.min(15, stripHeight - 7);
@@ -32,8 +32,7 @@ const MARK = 14;
 export function countItems(counts: Counts) {
   return [
     { n: counts.waiting, Icon: HandFill, tint: WAITING_TINT },
-    { n: counts.working - counts.workingCodex, Icon: SparkleFill, tint: CLAUDE_TINT },
-    { n: counts.workingCodex, Icon: SparkleFill, tint: CODEX_TINT },
+    ...PROVIDERS.map((p) => ({ n: workingOf(counts, p), Icon: SparkleFill, tint: providerTint(p) })),
     { n: counts.limited ?? 0, Icon: GaugeFill, tint: LIMITED_TINT },
     { n: counts.finished, Icon: SparkleFill, tint: FINISHED_TINT },
   ].filter((i) => i.n > 0);
@@ -52,22 +51,16 @@ export function readingWidth(counts: Counts, size: number, limit?: string | null
   return width;
 }
 
-/** Whose marks show while sessions work, front first: the one agent at
- * work, or both stacked with Claude's in front when Claude and Codex work at
- * once (NotchClaudeSessionsSupport.stripAgents). Empty when none do. */
-export function stripAgents(counts: Counts): ("claude" | "codex")[] {
-  const working = Math.max(0, counts.working);
-  const codex = Math.min(Math.max(0, counts.workingCodex), working);
-  const agents: ("claude" | "codex")[] = [];
-  if (working > codex) agents.push("claude");
-  if (codex > 0) agents.push("codex");
-  return agents;
+/** Whose marks show while sessions work, front first, in the agents' order:
+ * the one agent at work, or the first two stacked
+ * (NotchClaudeSessionsSupport.stripAgents). Empty when none do. */
+export function stripAgents(counts: Counts): Provider[] {
+  return PROVIDERS.filter((p) => workingOf(counts, p) > 0).slice(0, 2);
 }
 
-const SPARK = Math.round(MARK * MARK_SCALE.claude);
+const markSize = (provider: Provider) => Math.round(MARK * MARK_SCALE[provider]);
+/** The mark behind is drawn at most at the cloud's size, so the wing never grows. */
 const CLOUD = Math.round(MARK * MARK_SCALE.codex);
-/** The spark's disc of the strip's black, a ring past its rays. */
-const DISC = SPARK + 2;
 /** Where the cloud behind starts, from the spark's left: past the disc's
  * middle, so about three quarters of it shows. */
 export const STACK_OFFSET = 17;
@@ -76,7 +69,7 @@ export const STACK_OFFSET = 17;
  * hand or a finished check takes the mark's place, as on the Mac. */
 const stacks = (counts: Counts) => counts.waiting <= 0 && stripAgents(counts).length > 1;
 
-/** How wide the marks draw: one mark, or the spark and the cloud past it. */
+/** How wide the marks draw: one mark, or the front one and the one past it. */
 export function marksWidth(counts: Counts): number {
   return stacks(counts) ? STACK_OFFSET + CLOUD : MARK;
 }
@@ -90,16 +83,21 @@ export function stripWing(counts: Counts, stripHeight: number, limit?: string | 
   return Math.min(80, Math.max(44, Math.ceil(Math.max(text, mark))));
 }
 
-/** Claude's spark on its disc with Codex's cloud showing past it; the cloud
- * slides out from behind when Codex starts. */
-function StackedMarks() {
+/** The front agent's mark on its disc with the other's showing past it;
+ * the one behind slides out when its agent starts. */
+function StackedMarks({ front, behind }: { front: Provider; behind: Provider }) {
+  const Front = markOf(front);
+  const Behind = markOf(behind);
+  const frontSize = markSize(front);
+  const behindSize = Math.min(CLOUD, markSize(behind));
+  const disc = frontSize + 2;
   return (
-    <span className="s-strip-stack" style={{ width: STACK_OFFSET + CLOUD, height: DISC }} aria-hidden>
-      <span className="s-strip-behind" style={{ left: STACK_OFFSET, marginTop: -CLOUD / 2 }}>
-        <CodexMark size={CLOUD} working />
+    <span className="s-strip-stack" style={{ width: STACK_OFFSET + CLOUD, height: disc }} aria-hidden>
+      <span className="s-strip-behind" style={{ left: STACK_OFFSET, marginTop: -behindSize / 2 }}>
+        <Behind size={behindSize} working />
       </span>
-      <span className="s-strip-front" style={{ width: DISC, height: DISC, marginTop: -DISC / 2, left: -1 }}>
-        <ClaudeMark size={SPARK} working />
+      <span className="s-strip-front" style={{ width: disc, height: disc, marginTop: -disc / 2, left: -1 }}>
+        <Front size={frontSize} working />
       </span>
     </span>
   );
@@ -127,24 +125,17 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
     if (opened && waiting) useSessions.getState().focus(waiting.id);
   };
 
-  // Claude's spark while any Claude session works, Codex's cloud when only
-  // Codex does; both stacked while both do.
+  // The mark of the first agent at work, in the agents' order; the first
+  // two stacked while two or more agents work.
   const working = counts.working > 0;
+  const agents = stripAgents(counts);
   const stacked = stacks(counts);
   // Nothing works and the plan stopped something: that comes before a result.
   const limited = !working && counts.waiting <= 0 && (counts.limited ?? 0) > 0;
   const Mark =
-    counts.waiting > 0
-      ? HandFill
-      : limited
-        ? GaugeFill
-        : !working
-          ? CheckCircleFill
-          : counts.workingCodex === counts.working
-            ? CodexMark
-            : ClaudeMark;
+    counts.waiting > 0 ? HandFill : limited ? GaugeFill : !working ? CheckCircleFill : markOf(agents[0] ?? "claude");
   const markTint = counts.waiting > 0 ? WAITING_TINT : working ? undefined : limited ? LIMITED_TINT : FINISHED_TINT;
-  const markScale = counts.waiting > 0 || !working ? 1 : MARK_SCALE[Mark === CodexMark ? "codex" : "claude"];
+  const markScale = counts.waiting > 0 || !working ? 1 : MARK_SCALE[agents[0] ?? "claude"];
 
   return (
     <button
@@ -156,7 +147,7 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
     >
       <span className="s-strip-wing" style={{ width: wing, paddingLeft: iconInset, justifyContent: "flex-start" }}>
         {stacked ? (
-          <StackedMarks />
+          <StackedMarks front={agents[0]!} behind={agents[1]!} />
         ) : (
           <Mark
             size={Math.round(MARK * markScale)}

@@ -771,3 +771,42 @@ enum CodexCLI {
         return parts.joined(separator: " ")
     }
 }
+
+/// The command lines of Gemini CLI, Copilot CLI, OpenCode and Cursor's
+/// `cursor-agent`, found as `codex` is. New session starts them in a
+/// terminal with the first prompt; they have no background of their own.
+enum AgentCLI {
+    static func command(_ provider: ClaudeSessionProvider) -> String? {
+        switch provider {
+        case .gemini: return "gemini"
+        case .copilot: return "copilot"
+        case .opencode: return "opencode"
+        case .cursor: return "cursor-agent"
+        case .claude, .codex: return nil
+        }
+    }
+
+    /// The command on the person's `PATH`, then where its installers put it.
+    static func locate(_ provider: ClaudeSessionProvider, path: String?, home: URL,
+                       isExecutable: (String) -> Bool = FileManager.default.isExecutableFile(atPath:)) -> String? {
+        guard let command = command(provider) else { return nil }
+        let onPath = (path ?? "").split(separator: ":").map { "\($0)/\(command)" }
+        let usual = [".local/bin", ".npm-global/bin", ".bun/bin", ".volta/bin", ".opencode/bin", ".cursor/bin"]
+            .map { home.appending(path: "\($0)/\(command)").path }
+            + ["/opt/homebrew/bin/\(command)", "/usr/local/bin/\(command)"]
+        return (onPath + usual).first(where: isExecutable)
+    }
+
+    /// The arguments that open the agent's terminal UI with a first prompt
+    /// already sent: `gemini -i`, `copilot -i`, `opencode --prompt`, and
+    /// `cursor-agent` takes it as it is.
+    static func startArguments(_ provider: ClaudeSessionProvider, prompt: String?) -> [String] {
+        guard let prompt, !prompt.isEmpty else { return [] }
+        switch provider {
+        case .gemini, .copilot: return ["-i", prompt]
+        case .opencode: return ["--prompt", prompt]
+        case .cursor: return [prompt]
+        case .claude, .codex: return []
+        }
+    }
+}

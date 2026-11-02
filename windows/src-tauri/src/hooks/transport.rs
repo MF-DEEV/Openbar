@@ -149,12 +149,43 @@ pub fn run_hook(app: &str) -> ! {
     let _ = io::stdin()
         .take(MAX_MESSAGE as u64 + 1)
         .read_to_end(&mut input);
-    if let Some(answer) = ask(app, &input) {
-        let mut out = io::stdout().lock();
-        let _ = out.write_all(&answer);
-        let _ = out.flush();
+    let args: Vec<String> = std::env::args().collect();
+    let value = |flag: &str| {
+        args.iter()
+            .position(|a| a == flag)
+            .and_then(|i| args.get(i + 1))
+            .cloned()
+    };
+    // Gemini CLI, Copilot CLI and Cursor: their input goes in the island's
+    // envelope, naming the agent and the hook (sessions::hook_agents).
+    if let Some(agent) = value("--agent") {
+        input =
+            envelope(&agent, value("--event").as_deref().unwrap_or(""), &input).unwrap_or_default();
     }
+    let answer = ask(app, &input);
+    let mut out = io::stdout().lock();
+    if let Some(answer) = &answer {
+        let _ = out.write_all(answer);
+    } else if args.iter().any(|a| a == "--continue") {
+        // Cursor's prompt hook must say the prompt goes on, island or not.
+        let _ = out.write_all(br#"{"continue":true}"#);
+    }
+    let _ = out.flush();
     std::process::exit(0)
+}
+
+/// The agent's input inside the island's envelope; None for input that is
+/// not one JSON object.
+pub fn envelope(agent: &str, event: &str, input: &[u8]) -> Option<Vec<u8>> {
+    let payload: serde_json::Value = serde_json::from_slice(input).ok()?;
+    payload.is_object().then_some(())?;
+    serde_json::to_vec(&serde_json::json!({
+        "vorssaint": agent,
+        "hook": event,
+        "pid": std::process::id(),
+        "event": payload,
+    }))
+    .ok()
 }
 
 fn ask(app: &str, input: &[u8]) -> Option<Vec<u8>> {

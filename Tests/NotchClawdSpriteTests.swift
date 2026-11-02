@@ -77,7 +77,7 @@ enum NotchClawdSpriteTests {
         // Windows draws from its own copy of these drawings (sprite.ts); the
         // same fingerprint on both keeps the copies alike pixel for pixel.
         var fingerprint: UInt32 = 0x811c_9dc5
-        for character in [ClawdCharacter.clawd, .codex] {
+        for character in [ClawdCharacter.clawd, .codex, .gemini, .copilot, .opencode, .cursor] {
             let classic = ClawdCostume.classic
             let parts = ClawdHat.allCases.map { ClawdCostume(shell: classic.shell, hat: $0, eyewear: .none, extra: .none) }
                 + ClawdEyewear.allCases.map { ClawdCostume(shell: classic.shell, hat: .none, eyewear: $0, extra: .none) }
@@ -88,7 +88,7 @@ enum NotchClawdSpriteTests {
                 }
             }
         }
-        suite.expect(fingerprint == 0x99f1_6c5e, "every part is drawn as on Windows: \(String(fingerprint, radix: 16))")
+        suite.expect(fingerprint == 0xdb05_147a, "every part is drawn as on Windows: \(String(fingerprint, radix: 16))")
         for shell in ClawdShell.allCases {
             suite.expect(NotchClawdSprite.accent(for: shell) != shell, "a hat on \(shell) is told from the shell")
         }

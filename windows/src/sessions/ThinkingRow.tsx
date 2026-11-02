@@ -11,7 +11,7 @@ import { useLocale } from "../i18n";
 
 import { useEffect, useState } from "react";
 import { clock, providerTint, thinkingWord } from "./format";
-import { CodexMark } from "./glyphs";
+import { markOf } from "./glyphs";
 import type { Session } from "./types";
 
 const GLYPHS = ["·", "✢", "✳", "✶", "✻", "✽"];
@@ -55,12 +55,13 @@ export function ThinkingRow({ session, size, now }: { session: Session; size: nu
   const glyph = still ? "✻" : GLYPHS[step < 6 ? step : 10 - step]!;
   const center = ((t * 14) % (word.length + 12)) - 6;
   const tint = providerTint(session.provider);
-  const codex = session.provider === "codex";
+  // Claude thinks in its spinning star; every other agent shows its own mark.
+  const Mark = session.provider === "claude" ? null : markOf(session.provider);
 
   return (
     <div className="s-thinking" style={{ fontSize: size }}>
       <span className="s-thinking-glyph" style={{ color: tint, fontSize: size + 1 }}>
-        {codex ? <CodexMark size={size} working={!still} /> : glyph}
+        {Mark ? <Mark size={size} working={!still} /> : glyph}
       </span>
       <span className="s-thinking-word">
         {[...word].map((ch, i) => (

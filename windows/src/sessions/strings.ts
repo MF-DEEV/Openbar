@@ -5,6 +5,7 @@
 // language (NotchClaudeSessionStrings.swift); Mac-only wording is swapped
 // for Windows here.
 
+import { isHookAgent, PROVIDER_NAMES, type Provider } from "./types";
 import { t, tf } from "../i18n";
 
 export const S = {
@@ -157,6 +158,22 @@ export const S = {
   },
   get replyPlaceholderCodex() {
     return t("notchClaudeSessions.replyPlaceholderCodex");
+  },
+  /** "Reply to Gemini CLI…": the reply field of each agent but Claude. */
+  replyPlaceholderFor(provider: Provider) {
+    if (provider === "claude") return this.replyPlaceholder;
+    if (provider === "codex") return this.replyPlaceholderCodex;
+    return tf("windows.sessions.replyToAgent", PROVIDER_NAMES[provider]);
+  },
+  /** Where a request the island can't answer is answered. */
+  answerIn(provider: Provider) {
+    return isHookAgent(provider)
+      ? tf("windows.sessions.answerInAgent", PROVIDER_NAMES[provider])
+      : this.answerInTerminal;
+  },
+  /** Cursor's app keeps its own chat. */
+  replyIn(provider: Provider) {
+    return tf("windows.sessions.replyInAgent", PROVIDER_NAMES[provider]);
   },
   get replyUnavailable() {
     return t("windows.sessions.replyUnavailable");

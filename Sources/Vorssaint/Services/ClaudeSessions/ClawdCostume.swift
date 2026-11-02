@@ -14,13 +14,21 @@ import Foundation
 /// its lots favour differ.
 enum ClawdCharacter: String, CaseIterable {
     case clawd, codex
+    /// Gemini CLI's star sprite, Copilot CLI's goggled pilot, OpenCode's
+    /// block and Cursor's cube.
+    case gemini, copilot, opencode, cursor
 
-    /// The shell this character's lots come up in most: Claude's clay, and
-    /// for Codex the iris closest to its violet-blue.
+    /// The shell this character's lots come up in most: Claude's clay, for
+    /// Codex the iris closest to its violet-blue, and for the others the
+    /// shell nearest their agent's color.
     var favouredShell: ClawdShell {
         switch self {
         case .clawd: return .clay
         case .codex: return .iris
+        case .gemini: return .sky
+        case .copilot: return .teal
+        case .opencode: return .mint
+        case .cursor: return .midnight
         }
     }
 }
@@ -31,6 +39,10 @@ extension ClaudeSessionProvider {
         switch self {
         case .claude: return .clawd
         case .codex: return .codex
+        case .gemini: return .gemini
+        case .copilot: return .copilot
+        case .opencode: return .opencode
+        case .cursor: return .cursor
         }
     }
 }

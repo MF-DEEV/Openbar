@@ -21,8 +21,24 @@ export const LINK = "#6BA8FF";
 
 const PROJECT_PALETTE = ["#6BA3FF", "#B88CFF", "#FF80BD", "#45D1D6", "#9ED65C", "#D6AD85", "#61DBFF", "#DBC7FF"];
 
+/** Gemini CLI's cyan, the first light of its star; Copilot's teal and
+ * OpenCode's green, as on the AI page; Cursor's silver for its grey cube. */
+export const GEMINI_TINT = "#4DBDFA";
+export const COPILOT_TINT = "#4DC7AD";
+export const OPENCODE_TINT = "#0FBA82";
+export const CURSOR_TINT = "#CCD1E6";
+
+const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
+  claude: CLAUDE_TINT,
+  codex: CODEX_TINT,
+  gemini: GEMINI_TINT,
+  copilot: COPILOT_TINT,
+  opencode: OPENCODE_TINT,
+  cursor: CURSOR_TINT,
+};
+
 export function providerTint(provider: Provider): string {
-  return provider === "codex" ? CODEX_TINT : CLAUDE_TINT;
+  return PROVIDER_TINTS[provider] ?? CLAUDE_TINT;
 }
 
 /** Working phases take the agent's own color, the rest are shared. */
