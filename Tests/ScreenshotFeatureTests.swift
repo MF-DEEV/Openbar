@@ -1328,8 +1328,8 @@ enum ScreenshotFeatureTests {
                 && routeStatements.dropFirst().first == "beginLatestCapture(capture)",
                "turning screenshots off invalidates pending shortcut uploads, and every capture starts as the latest one")
         suite.expect(serviceBody("    func syncWithPreferences() {")
-                    .contains("enabled: ScreenshotSharingSupport.uploadShortcutEnabled(in: defaults),"),
-               "the upload shortcut is registered only while it and temporary links are both on")
+                    .contains("enabled: ScreenshotSharingSupport.uploadShortcutEnabled(in: defaults)\n                && ScreenshotSharingSupport.isAvailable(in: defaults),"),
+               "the upload shortcut is registered only while it and temporary links are both on, and there is a server")
         suite.expect(serviceBody("    private func route(_ capture:").contains("latestCapture: latestCaptureToken)")
                 && serviceBody("    func restorePreview(").contains("latestCapture: nil)")
                 && screenshotServiceCode.contains("self.discardLatestCapture(latestCapture)\n                    return [.discard]"),
@@ -3698,8 +3698,6 @@ enum ScreenshotFeatureTests {
                 && !ScreenshotSharingSupport.isAvailable(in: sharingDefaults, bundleIdentifier: "com.openbar.app")
                 && !RecordingSharingSupport.isAvailable(in: sharingDefaults, bundleIdentifier: "com.openbar.app"),
                "with no Openbar server, sharing is off and never reaches Vorssaint's server")
-        suite.expect(!ScreenshotSharingSupport.uploadShortcutEnabled(in: sharingDefaults),
-               "a migrated upload shortcut stays off while there is no server")
         sharingDefaults.set("https://test.example", forKey: DefaultsKey.screenshotSharingDeveloperEndpoint)
         suite.expect(ScreenshotSharingSupport.isAvailable(in: sharingDefaults,
                                                           bundleIdentifier: ScreenshotSharingSupport.developerBundleIdentifier),

@@ -55,6 +55,9 @@ fn main() {
     if let Some(arg) = std::env::args().nth(1) {
         openbar_windows_lib::network_helper_main(&arg);
     }
+    if std::env::args().nth(1).as_deref() == Some("--migrate-legacy") {
+        openbar_windows_lib::migrate_legacy_main();
+    }
     if std::env::args().nth(1).as_deref() == Some("--remove-hooks") {
         openbar_windows_lib::remove_hooks_main();
     }

@@ -28,6 +28,18 @@
 !define OPENBAR_IDENTITY '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\identity\identity.ps1"'
 
 !macro NSIS_HOOK_POSTINSTALL
+  ; The island used to install as Vorssaint. Bring its settings, hooks and
+  ; Start with Windows entry over to Openbar, then remove the old app with its
+  ; own uninstaller, so the two never run side by side.
+  ${If} ${FileExists} "$LOCALAPPDATA\Vorssaint\uninstall.exe"
+    nsExec::Exec 'taskkill /IM "Vorssaint.exe" /F'
+    Pop $0
+    nsExec::Exec '"$INSTDIR\Openbar.exe" --migrate-legacy'
+    Pop $0
+    ExecWait '"$LOCALAPPDATA\Vorssaint\uninstall.exe" /S _?=$LOCALAPPDATA\Vorssaint'
+    Delete "$LOCALAPPDATA\Vorssaint\uninstall.exe"
+    RMDir "$LOCALAPPDATA\Vorssaint"
+  ${EndIf}
   ${If} ${FileExists} "$INSTDIR\identity\Openbar.msix"
     !insertmacro OPENBAR_POWERSHELL
     nsExec::Exec '"$R9" ${OPENBAR_IDENTITY} -Action Trusted'

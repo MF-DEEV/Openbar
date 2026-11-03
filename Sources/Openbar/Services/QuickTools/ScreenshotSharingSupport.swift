@@ -65,7 +65,6 @@ enum ScreenshotSharingSupport {
     static func uploadShortcutEnabled(in defaults: UserDefaults = .standard) -> Bool {
         defaults.bool(forKey: DefaultsKey.screenshotUploadShortcutEnabled)
             && defaults.bool(forKey: DefaultsKey.screenshotSharingEnabled)
-            && isAvailable(in: defaults)
     }
 
     static func retainsLatestCapture(in defaults: UserDefaults = .standard) -> Bool {

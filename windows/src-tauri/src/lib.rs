@@ -20,6 +20,7 @@ mod hosts;
 mod island;
 mod island_shortcut;
 mod keep_awake;
+mod legacy;
 mod local_calendar;
 mod locale;
 mod media;
@@ -104,6 +105,12 @@ pub fn network_helper_main(arg: &str) {
 
 /// `Openbar.exe --remove-hooks`: the uninstaller takes Openbar's hooks out
 /// of Claude Code's settings, so Claude doesn't call a program that's gone.
+/// `Openbar.exe --migrate-legacy`: the installer brings settings and hooks
+/// over from the app's old name before it removes the old app.
+pub fn migrate_legacy_main() -> ! {
+    legacy::migrate_main()
+}
+
 pub fn remove_hooks_main() -> ! {
     std::process::exit(if hooks::claude_hooks_remove().is_ok() {
         0
@@ -132,6 +139,8 @@ pub fn console_main(pid: u32) -> ! {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Settings and hooks from the app's old name, before anything reads them.
+    legacy::migrate_at_start();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             settings::open(app)

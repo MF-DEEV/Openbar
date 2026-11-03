@@ -1490,7 +1490,11 @@ pub mod installer {
     }
 
     pub fn own_name(app: &str) -> String {
-        format!("openbar-{app}")
+        if crate::legacy::is_legacy(app) {
+            format!("vorssaint-{app}")
+        } else {
+            format!("openbar-{app}")
+        }
     }
 
     pub fn gemini_settings(home: &Path) -> PathBuf {
@@ -1596,7 +1600,7 @@ pub mod installer {
                 json!([{
                     "type": "command",
                     "exec": path,
-                    "args": ["--hook", "--agent", "copilot", "--event", event, "--marker", "openbar-hook", "--app", app],
+                    "args": ["--hook", "--agent", "copilot", "--event", event, "--marker", claude::marker_name(app), "--app", app],
                     "timeoutSec": EVENT_TIMEOUT,
                 }]),
             );
@@ -1842,7 +1846,8 @@ pub mod installer {
         let copilot = format!("\"--app\",\n          \"{app}\"");
         let text = String::from_utf8_lossy(data);
         text.contains(&marker)
-            || (text.contains("openbar-hook") && (text.contains(&copilot) || text.contains(app)))
+            || (text.contains(claude::marker_name(app))
+                && (text.contains(&copilot) || text.contains(app)))
     }
 
     /// Writes a file of the island's own, never over one that is not.
@@ -2248,7 +2253,9 @@ mod tests {
             own.pointer("/hooks/BeforeTool/0").unwrap().clone()
         );
         let command = installer::command(Provider::Gemini, "BeforeTool", exe, "app");
-        assert!(command.starts_with("& \"C:/Program Files/Openbar/Openbar.exe\" --hook --agent gemini --event BeforeTool"));
+        assert!(command.starts_with(
+            "& \"C:/Program Files/Openbar/Openbar.exe\" --hook --agent gemini --event BeforeTool"
+        ));
         assert_eq!(crate::hooks::installer::removing(&installed, "app"), own);
 
         let cursor_own = json!({ "version": 1, "hooks": { "stop": [{ "command": "audit.ps1" }] } });

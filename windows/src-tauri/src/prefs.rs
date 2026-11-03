@@ -256,6 +256,16 @@ pub fn launch_at_login_set(on: bool) -> Result<bool, String> {
     Ok(autostart::enabled())
 }
 
+/// The Run value the app had before Openbar's own name: whether it is there,
+/// and taking it out.
+pub fn legacy_launch_at_login() -> bool {
+    autostart::legacy_present()
+}
+
+pub fn remove_legacy_launch_at_login() {
+    autostart::remove_legacy();
+}
+
 #[cfg(windows)]
 mod autostart {
     use windows::Win32::System::Registry::{
@@ -329,6 +339,30 @@ mod autostart {
         }
     }
 
+    const LEGACY_NAME: &str = "Vorssaint";
+
+    pub fn legacy_present() -> bool {
+        let Some(key) = open(KEY_QUERY_VALUE) else {
+            return false;
+        };
+        let present = unsafe {
+            RegQueryValueExW(key, &HSTRING::from(LEGACY_NAME), None, None, None, None).is_ok()
+        };
+        unsafe {
+            let _ = RegCloseKey(key);
+        }
+        present
+    }
+
+    pub fn remove_legacy() {
+        if let Some(key) = open(KEY_SET_VALUE) {
+            unsafe {
+                let _ = RegDeleteValueW(key, PCWSTR(HSTRING::from(LEGACY_NAME).as_ptr()));
+                let _ = RegCloseKey(key);
+            }
+        }
+    }
+
     pub fn set(on: bool) -> Result<(), String> {
         let key = open(KEY_SET_VALUE).ok_or("couldn't open the Run key")?;
         let result = if on {
@@ -361,6 +395,10 @@ mod autostart {
     pub fn set(_on: bool) -> Result<(), String> {
         Err("launch at login is Windows only".into())
     }
+    pub fn legacy_present() -> bool {
+        false
+    }
+    pub fn remove_legacy() {}
 }
 
 #[cfg(test)]

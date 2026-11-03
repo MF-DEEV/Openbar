@@ -79,7 +79,17 @@ pub fn home_dir() -> Option<PathBuf> {
 /// The marker is an argument, not a shell comment: on Windows the hook may
 /// run under Git Bash, cmd or PowerShell, and only an argument survives all three.
 pub fn marker(app: &str) -> String {
-    format!("--marker openbar-hook --app {app}")
+    format!("--marker {} --app {app}", marker_name(app))
+}
+
+/// Hooks written before Openbar had its own name carry the old marker with
+/// the old app id, so the migration can find and replace them.
+pub fn marker_name(app: &str) -> &'static str {
+    if crate::legacy::is_legacy(app) {
+        "vorssaint-hook"
+    } else {
+        "openbar-hook"
+    }
 }
 
 /// The command Claude Code runs: this executable, quoted, with forward

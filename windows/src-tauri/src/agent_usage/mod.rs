@@ -1628,8 +1628,7 @@ mod tests {
 
     #[test]
     fn read_for_sessions_alone_only_limits_leave() {
-        let dir =
-            std::env::temp_dir().join(format!("openbar-limits-only-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("openbar-limits-only-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let projects = dir.join("projects").join("C--work-site");
         std::fs::create_dir_all(&projects).unwrap();
