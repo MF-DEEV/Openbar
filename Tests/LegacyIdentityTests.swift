@@ -11,6 +11,14 @@ enum LegacyIdentityTests {
     }
 
     static func settings(_ suite: TestSuite) {
+        let home = URL(fileURLWithPath: "/Users/me")
+        suite.expect(!LegacyIdentity.installed(among: [
+            URL(fileURLWithPath: "/Users/me/Desktop/Projekty/x/build/stage.noindex/Vorssaint (Developer).app"),
+            URL(fileURLWithPath: "/Users/me/.Trash/Vorssaint (Developer).app"),
+        ], home: home), "a copy in a build folder or the Trash is not an installed app")
+        suite.expect(LegacyIdentity.installed(among: [URL(fileURLWithPath: "/Applications/Vorssaint.app")], home: home)
+                     && LegacyIdentity.installed(among: [URL(fileURLWithPath: "/Users/me/Applications/Vorssaint.app")], home: home),
+                     "an app in either Applications folder is")
         suite.expect(LegacyIdentity.bundleID(for: "com.openbar.app") == "com.vorssaint.utils"
                      && LegacyIdentity.bundleID(for: "com.openbar.app.dev") == "com.vorssaint.utils.dev"
                      && LegacyIdentity.bundleID(for: "com.other") == nil,

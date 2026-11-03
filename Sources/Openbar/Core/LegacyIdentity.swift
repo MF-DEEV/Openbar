@@ -26,6 +26,17 @@ enum LegacyIdentity {
 
     static func isLegacy(_ bundle: String) -> Bool { bundle.hasPrefix("com.vorssaint.") }
 
+    /// Whether any of these copies of an app is an installed one: in
+    /// /Applications or ~/Applications, not in a build folder or the Trash.
+    static func installed(among urls: [URL],
+                          home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Bool {
+        let folders = ["/Applications/", home.appending(path: "Applications").path + "/"]
+        return urls.contains { url in
+            let path = url.standardizedFileURL.path
+            return folders.contains { path.hasPrefix($0) } && !path.contains("/.Trash/")
+        }
+    }
+
     // MARK: Settings
 
     /// The old settings as the new app reads them: keys and values that named
