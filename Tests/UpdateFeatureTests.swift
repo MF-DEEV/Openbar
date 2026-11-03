@@ -13,6 +13,16 @@ import VMStatisticsCompat
 
 enum UpdateFeatureTests {
     static func run(_ suite: TestSuite) {
+        suite.expect(UpdateServiceSupport.releaseRepository == "MF-DEEV/Openbar",
+                     "updates are looked up in Openbar's releases, not upstream Vorssaint's")
+        suite.expect(UpdateServiceSupport.selectUpdate(
+            from: [.init(tagName: "windows-v0.2.0", isPrerelease: true, isDraft: false,
+                         dmgURL: nil, dmgExpectedBytes: nil, body: nil),
+                   .init(tagName: "v3.5.0-beta.2", isPrerelease: true, isDraft: false,
+                         dmgURL: URL(string: "https://github.com/MF-DEEV/Openbar/releases/download/v3.5.0-beta.2/Vorssaint-3.5.0-beta.2.dmg"),
+                         dmgExpectedBytes: 1, body: nil)],
+            currentVersion: "3.5.0-beta.1", includeBetas: true)?.tagName == "v3.5.0-beta.2",
+                     "a Windows release beside a Mac one is never offered as a Mac update")
         suite.expect(BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0-beta.7",
                                                           previousVersion: "3.4.0-beta.6")
                     && BrightnessUpdatePromptInfo.isUpgrade(appVersion: "3.4.0",
