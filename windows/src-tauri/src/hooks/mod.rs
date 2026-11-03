@@ -8,7 +8,7 @@ pub mod installer;
 pub mod transport;
 
 /// The app id in the hook's marker and endpoint, so a second build can install beside this one.
-pub const APP_ID: &str = "com.vorssaint.island";
+pub const APP_ID: &str = "com.openbar.island";
 
 use serde::Serialize;
 

@@ -4,7 +4,7 @@ This spec covers these island pages and surfaces: **Controls** (home page with l
 
 Each section lists what it shows, how it behaves, the preferences it reads, the Mac service APIs it calls, the **minimal** Windows backend the island version needs, and the Windows 11 API for each capability. ⚠️ marks a capability with no good Windows equivalent, or one that needs an undocumented API.
 
-Path abbreviations used in `file:line` refs (all under `Sources/Vorssaint/`):
+Path abbreviations used in `file:line` refs (all under `Sources/Openbar/`):
 
 | Prefix | Path |
 |---|---|
@@ -228,10 +228,10 @@ Entry model (`CHSup:135-178`): `{id, text, copiedAt, pinnedAt?, kind: text|image
 | Read | `OpenClipboard` (retry about 5 × 20 ms, since other apps hold the clipboard briefly). `CF_UNICODETEXT`; images from the registered `"PNG"` format, else `CF_DIBV5`/`CF_DIB`, re-encoded to PNG (the `image` crate); files via `CF_HDROP` + `DragQueryFileW`. Hash the PNG with SHA-256. |
 | Privacy (the equivalent of ConcealedType) | Skip the update when the clipboard carries the registered formats `ExcludeClipboardContentFromMonitorProcessing`, `CanIncludeInClipboardHistory` (with DWORD 0), or `Clipboard Viewer Ignore`. Password managers set these. Keep the app ignore list. |
 | Source app ⚠️ | `GetClipboardOwner()` → `GetWindowThreadProcessId` → exe. The owner is often missing or hidden; fall back to `GetForegroundWindow()` at the time of the update. This is less reliable than the Mac's `org.nspasteboard.source`, so the badge is best effort. |
-| Write | `OpenClipboard` / `EmptyClipboard` / `SetClipboardData` (`CF_UNICODETEXT`; `CF_DIB` + `"PNG"`; `CF_HDROP` via `DROPFILES`). Add a private registered format such as `Vorssaint.Source`, and record the resulting sequence number so the listener skips the write. |
+| Write | `OpenClipboard` / `EmptyClipboard` / `SetClipboardData` (`CF_UNICODETEXT`; `CF_DIB` + `"PNG"`; `CF_HDROP` via `DROPFILES`). Add a private registered format such as `Openbar.Source`, and record the resulting sequence number so the listener skips the write. |
 | Paste into the previous app ⚠️ | Remember the foreground HWND **before** the island takes keyboard focus. On paste: write the clipboard, `SetForegroundWindow(prev)` (allowed because we are the foreground app at that moment), wait about 50 ms, then `SendInput` Ctrl+V. UIPI blocks `SendInput` into elevated windows when we aren't elevated, and neither the return value nor `GetLastError` reveals it. So check **before** sending: if the target process is elevated (`OpenProcess` + `GetTokenInformation(TokenElevation)` fails or reports elevated), copy instead and show the check. `SendInput` doesn't reset keys the user is still holding (Ctrl from Ctrl+1, Enter), so first send key-ups for any that `GetAsyncKeyState` reports down. No permission gate is needed (`permissions.accessibility` is effectively always true). |
 | File icons | `SHGetFileInfoW` / `IShellItemImageFactory`, cached per path set (the Mac caches 256). |
-| Storage | `%APPDATA%\Vorssaint\clipboard\history.json` plus PNGs in an `images\` folder. Write atomically (temp file + `MoveFileExW(MOVEFILE_REPLACE_EXISTING)`). |
+| Storage | `%APPDATA%\Openbar\clipboard\history.json` plus PNGs in an `images\` folder. Write atomically (temp file + `MoveFileExW(MOVEFILE_REPLACE_EXISTING)`). |
 | History window, edit image | Out of the minimal scope: hide the "open window" button, or make it select this page. Hide pencil/edit unless a screenshot editor is ported. |
 | Alternative ⚠️ | Windows' own clipboard history (`Windows.ApplicationModel.DataTransfer.Clipboard.GetHistoryItemsAsync`) exists, but it requires the user's Win+V history to be on and cannot pin or reorder on our behalf. Don't depend on it. |
 
@@ -270,7 +270,7 @@ Entry model (`RCStore:6-28`): `{id, kind: screenshot|recording, createdAt, scree
 | Pin (floating screenshot) | Optional: a small always-on-top Tauri window. Hide in the minimal port. |
 | Share link (upload) | Out of scope (`screenshotSharingEnabled` feature): hide. |
 | Screen recording ⚠️ | `Windows.Graphics.Capture` frames → Media Foundation `IMFSinkWriter` (H.264/MP4); system audio via WASAPI loopback (`AUDCLNT_STREAMFLAGS_LOOPBACK`); mic via WASAPI capture. This is a large job. Minimal port: hide the `recording` tool, tile and quick-panel item. |
-| History store | `%APPDATA%\Vorssaint\captures\index.json` + PNG files + thumbnails (≈ 2× of 104×68). |
+| History store | `%APPDATA%\Openbar\captures\index.json` + PNG files + thumbnails (≈ 2× of 104×68). |
 
 ---
 
@@ -349,7 +349,7 @@ Band (`NFV:87-95`):
 | Share | `IDataTransferManagerInterop::ShowShareUIForWindow` with the `StorageFile`s. |
 | ZIP | The Rust `zip` crate (Deflate), written to a temp file then renamed with `MoveFileExW`, never replacing. Directories are added recursively with the parent folder kept. A Windows identity check uses `GetFileInformationByHandle` (volume serial + file index) to refuse a destination inside an input. Cancel uses an atomic flag checked per entry. |
 | Save dialog / folder picker | `tauri-plugin-dialog` (`save` with `.zip` filter, `open({directory:true})`), parented to the island window. Keep the island open while the dialog is up (`keepFileInteractionOpen`). |
-| Shelf persistence | `%APPDATA%\Vorssaint\shelf\items.json` + a `files\` folder for pasted images and text. Windows has no bookmark data: store the path, and optionally the file ID (`FILE_ID_INFO`) to re-find a moved file on the same volume ⚠️ (best effort). |
+| Shelf persistence | `%APPDATA%\Openbar\shelf\items.json` + a `files\` folder for pasted images and text. Windows has no bookmark data: store the path, and optionally the file ID (`FILE_ID_INFO`) to re-find a moved file on the same volume ⚠️ (best effort). |
 | Media tools (optimize, GIF, video) ⚠️ | Out of the minimal scope: they need ffmpeg or Media Foundation transcoding. Set `AppFeature.mediaTools` unavailable, which removes the destination chooser, the wand button and "Return to media". The ZIP action then needs a home: keep the wand popover with only "Create ZIP", or move ZIP into the context menu. See Open questions. |
 
 ---
@@ -489,7 +489,7 @@ Source: `NSPV:14-333`, model `SPSup:9-130`, `505-545`.
 * Storage: `Scratchpad.json` = `{pads:[{id,name,text,modifiedAt?}], selectedID}` (`SPSup:57-120`).
 * Routing: the island page needs `notchScratchpad` (default true, `DEF:1456`) and the `scratchpad` module; otherwise the shortcut opens the floating pad.
 
-**Windows**: pure frontend plus file I/O. Use a `<textarea>`, or CodeMirror 6 for find, undo and list continuation (closer to `NSTextView` behavior), and a Markdown renderer (`markdown-it` with a task-list plugin) whose checkbox clicks edit the source text. Persist `%APPDATA%\Vorssaint\Scratchpad.json` with atomic writes. Export through `tauri-plugin-dialog save` + `fs`. Copy all: clipboard write, which must also be ignored by our clipboard listener (§3.4).
+**Windows**: pure frontend plus file I/O. Use a `<textarea>`, or CodeMirror 6 for find, undo and list continuation (closer to `NSTextView` behavior), and a Markdown renderer (`markdown-it` with a task-list plugin) whose checkbox clicks edit the source text. Persist `%APPDATA%\Openbar\Scratchpad.json` with atomic writes. Export through `tauri-plugin-dialog save` + `fs`. Copy all: clipboard write, which must also be ignored by our clipboard listener (§3.4).
 
 ---
 

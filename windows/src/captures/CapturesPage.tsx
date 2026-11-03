@@ -44,7 +44,7 @@ export function CapturesPage({ width, height }: PageProps) {
         <EmptyState
           icon={ScanLine}
           title={loading ? t("windows.captures.loadingCaptures") : t("windows.captures.noRecentCaptures")}
-          detail={loading ? undefined : t("windows.captures.screenshotsYouTakeWithVorssaintWillAppearHere")}
+          detail={loading ? undefined : t("windows.captures.screenshotsYouTakeWithOpenbarWillAppearHere")}
         />
       ) : (
         <div

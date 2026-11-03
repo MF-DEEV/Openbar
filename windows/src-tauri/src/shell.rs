@@ -16,7 +16,7 @@ use crate::com::Worker;
 
 fn worker() -> &'static Worker {
     static W: OnceLock<Worker> = OnceLock::new();
-    W.get_or_init(|| Worker::spawn("vorssaint-shell", true))
+    W.get_or_init(|| Worker::spawn("openbar-shell", true))
 }
 
 const CACHE_LIMIT: usize = 256;

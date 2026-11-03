@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 // Sessions options: Claude Code, Codex and the agents that report through
-// hooks in the island. Claude Code needs Vorssaint's hooks in its
+// hooks in the island. Claude Code needs Openbar's hooks in its
 // settings.json; Codex needs nothing, its app-server already tells the island
 // everything (spec 02-sessions, 07-codex-sessions); Gemini CLI, Copilot CLI,
 // OpenCode and Cursor each get the island's hooks or plugin on Install

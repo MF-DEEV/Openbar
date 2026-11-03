@@ -28,19 +28,19 @@
 <p align="center"><sub>The Sessions page, recorded with sample sessions.</sub></p>
 
 > [!NOTE]
-> This is a beta. The sections listed under [Not yet](#not-yet) show a placeholder for now. The installer and the app are still named Vorssaint, after the project Openbar is built on; Openbar is not affiliated with or endorsed by the Vorssaint maintainer.
+> This is a beta. The sections listed under [Not yet](#not-yet) show a placeholder for now. Openbar is built on Vorssaint's source under the GPL and is not affiliated with or endorsed by the Vorssaint maintainer.
 
 ## Install
 
 1. Download the installer for your PC from the [latest Windows release](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true):
-   - `Vorssaint_<version>_x64-setup.exe` for most PCs (Intel and AMD).
-   - `Vorssaint_<version>_arm64-setup.exe` for PCs with a Snapdragon or other ARM processor.
+   - `Openbar_<version>_x64-setup.exe` for most PCs (Intel and AMD).
+   - `Openbar_<version>_arm64-setup.exe` for PCs with a Snapdragon or other ARM processor.
 2. Run it. The installer isn't signed yet, so Windows may say **Windows protected your PC**. Choose **More info**, then **Run anyway**.
 3. Go through the setup. It installs for your account only, needs no administrator password, and starts the island when it's done.
 
 You need Windows 11. The island sits at the top center of your main display. Click it to open, or press **Ctrl+Alt+Space** from any app. With several displays, **Settings › Behavior › Show on** keeps it on the main display, moves it to the display the pointer is on, or shows it on all of them. It follows monitors being plugged in or removed and changes of resolution or scale.
 
-To remove it, use **Settings › Apps › Installed apps › Vorssaint › Uninstall**. That also takes out its Start with Windows entry and the hooks it added to Claude Code. If you allowed the per-app network list, Windows asks for an administrator once more to remove its helper.
+To remove it, use **Settings › Apps › Installed apps › Openbar › Uninstall**. That also takes out its Start with Windows entry and the hooks it added to Claude Code. If you allowed the per-app network list, Windows asks for an administrator once more to remove its helper.
 
 ## What it does
 
@@ -74,7 +74,7 @@ To remove it, use **Settings › Apps › Installed apps › Vorssaint › Unins
 
 ### Using it with Claude Code
 
-Open the island's settings with the gear beside it, go to **Content › Sessions** and choose **Install hooks**. Vorssaint adds its hooks to `~/.claude/settings.json`, next to your own and with a backup first. Without them the island still lists your sessions, but it can't answer their permission prompts.
+Open the island's settings with the gear beside it, go to **Content › Sessions** and choose **Install hooks**. Openbar adds its hooks to `~/.claude/settings.json`, next to your own and with a backup first. Without them the island still lists your sessions, but it can't answer their permission prompts.
 
 ### Using it with Codex
 
@@ -95,9 +95,9 @@ The closed island can also rest with **Battery**, **Music**, **AI Agents**, or *
 - Lyrics are looked up on lrclib.net only after you turn on **Find lyrics online** (off by default), and only while lyrics are open: the song's title, artist, album and duration are sent. Imported lyrics and timing adjustments stay on your PC.
 - Prompts, replies, session titles and command output stay hidden unless you turn on **Show previews** in **Content › Sessions**. With it on, they are kept in memory only and cleared when you turn it off.
 - A permission prompt always shows what it would run, so nothing is allowed unread.
-- Your settings live in `%APPDATA%\com.vorssaint.island\settings.json` and only hold what you changed.
+- Your settings live in `%APPDATA%\com.openbar.island\settings.json` and only hold what you changed.
 - The clipboard history, the Files shelf, the scratchpad and the audio priority lists are saved in the same folder, so they survive a restart. Uninstalling keeps them unless you tick the box to delete app data.
-- AI Agents reads Claude Code, Codex, OpenCode and Copilot logs on this PC and asks the `claude` and `codex` programs for your plan limits; it never reads their sign-in files. For each Codex folder you add, `codex` is run with that folder as `CODEX_HOME` and its own sign-in, only while the AI Agents page is open or when you check its limits; Vorssaint looks only at who owns the folder and its `auth.json` or `config.toml` and who may open them, never at what they hold. Once a day it downloads the public price list from GitHub, which you can turn off in **Content › AI Agents**.
+- AI Agents reads Claude Code, Codex, OpenCode and Copilot logs on this PC and asks the `claude` and `codex` programs for your plan limits; it never reads their sign-in files. For each Codex folder you add, `codex` is run with that folder as `CODEX_HOME` and its own sign-in, only while the AI Agents page is open or when you check its limits; Openbar looks only at who owns the folder and its `auth.json` or `config.toml` and who may open them, never at what they hold. Once a day it downloads the public price list from GitHub, which you can turn off in **Content › AI Agents**.
 - The speed test in the network detail reaches Cloudflare's public speed endpoints (`speed.cloudflare.com`) only when you start it. It uploads zeros, never your data.
 
 ## Not yet
@@ -128,15 +128,15 @@ bunx tauri build --runner cargo-xwin --target aarch64-pc-windows-msvc
 
 ### The identity package
 
-Notifications and Calendar need a package identity, which a signed sparse package lends `Vorssaint.exe`. Build it once per release on Windows with the Windows SDK; the signing key stays outside the repository:
+Notifications and Calendar need a package identity, which a signed sparse package lends `Openbar.exe`. Build it once per release on Windows with the Windows SDK; the signing key stays outside the repository:
 
 ```powershell
-$env:VORSSAINT_SIGNING_PFX = 'C:\keys\vorssaint-signing.pfx'
-$env:VORSSAINT_SIGNING_PASSWORD = '…'
+$env:OPENBAR_SIGNING_PFX = 'C:\keys\openbar-signing.pfx'
+$env:OPENBAR_SIGNING_PASSWORD = '…'
 .\tools\package-identity\build-sparse.ps1 -NewCertificate   # the first time only; later runs reuse the PFX
 ```
 
-From the Mac, `tools/package-identity/build-sparse-vm.sh` runs the same script in the build VM and copies the result back. Either way `packaging/out` gets `Vorssaint.msix` and `Vorssaint.cer`, and an installer built with
+From the Mac, `tools/package-identity/build-sparse-vm.sh` runs the same script in the build VM and copies the result back. Either way `packaging/out` gets `Openbar.msix` and `Openbar.cer`, and an installer built with
 
 ```sh
 bunx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --config src-tauri/tauri.identity.conf.json
@@ -147,7 +147,7 @@ carries them. See [docs/notifications.md](docs/notifications.md) for what the in
 For a local update of an existing Windows installation, build with `bun run tauri build --no-bundle`, then run:
 
 ```powershell
-.\tools\install-local.ps1 -ExecutablePath .\src-tauri\target\release\Vorssaint.exe -EnableAutostart
+.\tools\install-local.ps1 -ExecutablePath .\src-tauri\target\release\Openbar.exe -EnableAutostart
 ```
 
 This keeps a backup of the installed executable and preserves settings. It rejects console executables, so a local build cannot accidentally make the island depend on a terminal window. The island uses the Windows GUI subsystem in both release and debug builds; use a full Tauri build for installation so the frontend is bundled and no development server is needed.
@@ -160,4 +160,4 @@ The closed-island regression is `npm run test:idle-content`. It checks both shap
 
 ## License
 
-GPL-3.0-or-later, like Vorssaint. See [LICENSE](../LICENSE).
+GPL-3.0-or-later, like Vorssaint, the project Openbar is built on. See [LICENSE](../LICENSE).

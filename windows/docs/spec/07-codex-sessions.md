@@ -14,7 +14,7 @@ Every claim cites one of the sources below. **[GUESS]** marks an inference that 
 | `help` | `codex --help`, `codex <sub> --help`, `codex app-server help daemon`, `codex features list` from that binary | run read-only on this Mac |
 | `home` | Read-only look at `~/.codex/` on this Mac (rollouts dated 2026-08-24 … 2026-10-21, written by 0.155 … 0.163). `auth.json` was not opened. | `~/.codex/` |
 | `src` | `github.com/openai/codex` at tag **`rust-v0.163.0`** (commit `83086188ae06`, 2026-10-15). Paths below are relative to `codex-rs/` unless they start with `scripts/` or `README.md`. | cloned read-only into the session scratchpad |
-| `mac` | How the Mac app already reads Codex | `Sources/Vorssaint/Services/AgentUsage/Harness/CodexReader.swift`, `AgentCodexServer.swift`, `CodexAccountLimits.swift`, `CodexProfileLimitsService.swift`; `windows/docs/spec/03-agents.md` §3, §6 |
+| `mac` | How the Mac app already reads Codex | `Sources/Openbar/Services/AgentUsage/Harness/CodexReader.swift`, `AgentCodexServer.swift`, `CodexAccountLimits.swift`, `CodexProfileLimitsService.swift`; `windows/docs/spec/03-agents.md` §3, §6 |
 | `win` | The Windows engine we already have | `windows/src-tauri/src/sessions/`, `hooks/`, `hosts/` |
 
 ---
@@ -39,7 +39,7 @@ Every claim cites one of the sources below. **[GUESS]** marks an inference that 
                                                  │ writes %USERPROFILE%\.codex\sessions\…\rollout-*.jsonl,
                                                  │        state_5.sqlite, thread-writer-locks\<id>.lock
                                                  ▲
- Vorssaint island (Rust) ──WS over AF_UNIX───────┘  initialize → thread/loaded/list → thread/resume
+ Openbar island (Rust) ──WS over AF_UNIX───────┘  initialize → thread/loaded/list → thread/resume
                                                      ← thread/status/changed, item/*, turn/*, requestApproval
                                                      → {"decision":"accept"} / turn/start …
  Host/focus/reply fallback: codex.exe pid → process tree (existing hosts::locate) → WT / VS Code / conhost
@@ -180,7 +180,7 @@ Counts here: `cli/codex-tui` and `cli/NULL` (older) for TUI threads, `exec/codex
 - Handshake (`remote.rs:844-987`; `protocol/v1.rs:27-85`):
 
 ```json
-→ {"id":1,"method":"initialize","params":{"clientInfo":{"name":"vorssaint","title":"Vorssaint","version":"<app version>"},
+→ {"id":1,"method":"initialize","params":{"clientInfo":{"name":"openbar","title":"Openbar","version":"<app version>"},
      "capabilities":{"experimentalApi":true}}}
 ← {"id":1,"result":{"userAgent":"…","codexHome":"C:\\Users\\…\\.codex","platformFamily":"…","platformOs":"…"}}
 → {"method":"initialized"}
@@ -264,8 +264,8 @@ This is exactly the "parallel, first answer wins" behaviour the Claude `Permissi
 matcher = "*"
 [[hooks.PermissionRequest.hooks]]
 type = "command"
-command = "vorssaint-hook"                      # non-Windows
-commandWindows = 'C:\Users\<u>\AppData\Local\Programs\Vorssaint\vorssaint-hook.exe --codex --marker vorssaint-hook'
+command = "openbar-hook"                      # non-Windows
+commandWindows = 'C:\Users\<u>\AppData\Local\Programs\Openbar\openbar-hook.exe --codex --marker openbar-hook'
 timeout = 600                                    # seconds, default 600, min 1, no max
 statusMessage = "Waiting for the island"
 ```
@@ -279,7 +279,7 @@ statusMessage = "Waiting for the island"
 
 ### 4.2 Legacy `notify`
 
-`notify = ["C:\\…\\vorssaint-hook.exe", "--codex-notify"]` at the top level of `config.toml` (`config/src/config_toml.rs:245-247`). It fires once per completed turn, after Stop hooks (`core/src/session/turn.rs:768-776`), with **no trust gate and no feature flag** (`hooks/src/registry.rs:124-129`). The JSON is the **last argv argument** (stdin/stdout null, fire-and-forget, no shell, `CREATE_NO_WINDOW`) (`hooks/src/legacy_notify.rs:13-100`):
+`notify = ["C:\\…\\openbar-hook.exe", "--codex-notify"]` at the top level of `config.toml` (`config/src/config_toml.rs:245-247`). It fires once per completed turn, after Stop hooks (`core/src/session/turn.rs:768-776`), with **no trust gate and no feature flag** (`hooks/src/registry.rs:124-129`). The JSON is the **last argv argument** (stdin/stdout null, fire-and-forget, no shell, `CREATE_NO_WINDOW`) (`hooks/src/legacy_notify.rs:13-100`):
 
 ```json
 {"type":"agent-turn-complete","thread-id":"<uuid>","turn-id":"…","cwd":"…","client":"codex-tui","input-messages":["<content>"],"last-assistant-message":"<content>"}
@@ -403,7 +403,7 @@ Risks: the protocol is marked experimental and churns between releases (methods 
 
 Use it only when the user turns on "Answer Codex approvals from the island even without the background server", and **don't install it when rank 1 is available**: in daemon mode it would block the request from reaching the TUI, and us, until it returns.
 
-Design, if built: the hook binary is the existing `vorssaint-hook.exe` with `--codex`. It reuses the Claude pipe transport (02-sessions §6.2.4). The app answers within a **short window** (proposal: 30 s, or until the island is dismissed). Otherwise it prints nothing and exits 0, so the TUI prompt appears. Map the island buttons to `allow` / `deny` only; there is no "for session" or "stop". Trust: after installing, tell the user to accept it in Codex's "Hooks need review" screen.
+Design, if built: the hook binary is the existing `openbar-hook.exe` with `--codex`. It reuses the Claude pipe transport (02-sessions §6.2.4). The app answers within a **short window** (proposal: 30 s, or until the island is dismissed). Otherwise it prints nothing and exits 0, so the TUI prompt appears. Map the island buttons to `allow` / `deny` only; there is no "for session" or "stop". Trust: after installing, tell the user to accept it in Codex's "Hooks need review" screen.
 
 ### 7.3 Rank 3 — keystrokes into the terminal (last resort, explicit click only)
 
@@ -475,7 +475,7 @@ When §6.3 found the TUI's `codex.exe` pid, reuse `hosts::locate(pid)` / `hosts:
 
 ## 10. Tokens, cost and model names
 
-- Tokens per session: `tokenUsage.total` from `thread/tokenUsage/updated` (daemon), or `token_usage_record.thread_token_usage` / `usage` from the rollout. Map them exactly like `AgentLogParser.codexTokens` in the Mac app (`Sources/Vorssaint/Services/AgentUsage/AgentLogParser.swift:146-152`), which treats input as *including* cache reads and cache writes: `cache_read = min(input, cached)`, `cache_write = min(input − cache_read, cacheWrite)`, `input = input − cache_read − cache_write`, `output`, `reasoning`. Then Sessions and the AI page agree (03-agents §3.1).
+- Tokens per session: `tokenUsage.total` from `thread/tokenUsage/updated` (daemon), or `token_usage_record.thread_token_usage` / `usage` from the rollout. Map them exactly like `AgentLogParser.codexTokens` in the Mac app (`Sources/Openbar/Services/AgentUsage/AgentLogParser.swift:146-152`), which treats input as *including* cache reads and cache writes: `cache_read = min(input, cached)`, `cache_write = min(input − cache_read, cacheWrite)`, `input = input − cache_read − cache_write`, `output`, `reasoning`. Then Sessions and the AI page agree (03-agents §3.1).
 - Cost: the existing price list (`Resources/agent-prices.json`, `updated 2026-10-09`, codex table: 73 OpenAI ids with sources `developers.openai.com/api/docs/pricing`, `…/codex/models`; 03-agents §6). Model matching and the cost formula follow 03-agents §6.3–6.4. Fast tier: `thread_settings.service_tier` (`mac` `CodexReader.swift:41, 98-101`). Examples (USD / 1M tokens): `gpt-5.6-sol` in 4 / out 20 / cache read 0.4 / cache write 5, long context above 272 000 ×2 in / ×1.5 out; `gpt-5.6-luna` 0.2 / 1.2 / 0.02 / 0.25; `gpt-6.1-sol` 2 / 10 / 0.1 / 2.5.
 - This is an **API-equivalent cost**. ChatGPT-plan users (`plan_type` `plus` here) don't pay per token. Use the same caption as Claude sessions.
 - Model names seen on this Mac: `gpt-5.6-sol` (config default, TUI), `gpt-5.6-luna` (`codex exec`), `gpt-6-astra` (in `[tui.model_availability_nux]`). Display names come from 03-agents §6.5. The live catalog is `codex debug models` (`help`).

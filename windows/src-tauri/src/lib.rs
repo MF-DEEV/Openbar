@@ -20,6 +20,7 @@ mod hosts;
 mod island;
 mod island_shortcut;
 mod keep_awake;
+mod legacy;
 mod local_calendar;
 mod locale;
 mod media;
@@ -49,13 +50,13 @@ mod watch;
 use tauri::{Emitter, Manager, RunEvent};
 use tauri_plugin_global_shortcut::ShortcutState;
 
-/// `Vorssaint.exe --hook`: Claude Code runs this for every hook event. It
+/// `Openbar.exe --hook`: Claude Code runs this for every hook event. It
 /// never starts the app, only hands the event to the running island.
 pub fn hook_main() -> ! {
     hooks::transport::run_hook(hooks::APP_ID)
 }
 
-/// `Vorssaint.exe --music-probe <file>`: writes what the media reader sees.
+/// `Openbar.exe --music-probe <file>`: writes what the media reader sees.
 pub fn music_probe_main(path: &str) -> ! {
     let _ = std::fs::write(path, media::probe());
     std::process::exit(0)
@@ -74,14 +75,14 @@ pub fn microphone_probe_main(path: &str) -> ! {
     microphone::probe_main(path)
 }
 
-/// `Vorssaint.exe --watch-probe <file> <title>`: times Watch's capture steps for a window.
+/// `Openbar.exe --watch-probe <file> <title>`: times Watch's capture steps for a window.
 #[cfg(windows)]
 pub fn watch_probe_main(path: &str, title: &str) -> ! {
     watch::probe(path, title);
     std::process::exit(0)
 }
 
-/// `Vorssaint.exe --agents-probe <file> [--limits]`: what the AI page would read.
+/// `Openbar.exe --agents-probe <file> [--limits]`: what the AI page would read.
 pub fn agents_probe_main(path: &str, limits: bool) -> ! {
     agent_usage::probe_main(path, limits)
 }
@@ -90,20 +91,26 @@ pub fn notifications_probe_main(path: &str) -> ! {
     notifications::probe_main(path)
 }
 
-/// `Vorssaint.exe --speed-test-probe <file>`: runs the network detail's speed test.
+/// `Openbar.exe --speed-test-probe <file>`: runs the network detail's speed test.
 pub fn speed_test_probe_main(path: &str) -> ! {
     speed_test::probe_main(path)
 }
 
-/// `Vorssaint.exe --network-helper`, `--install-network-helper` or
+/// `Openbar.exe --network-helper`, `--install-network-helper` or
 /// `--remove-network-helper`: the per-app network list's elevated helper
 /// and the steps that approve and remove it. Returns for anything else.
 pub fn network_helper_main(arg: &str) {
     system_monitor::network_helper_main(arg)
 }
 
-/// `Vorssaint.exe --remove-hooks`: the uninstaller takes Vorssaint's hooks out
+/// `Openbar.exe --remove-hooks`: the uninstaller takes Openbar's hooks out
 /// of Claude Code's settings, so Claude doesn't call a program that's gone.
+/// `Openbar.exe --migrate-legacy`: the installer brings settings and hooks
+/// over from the app's old name before it removes the old app.
+pub fn migrate_legacy_main() -> ! {
+    legacy::migrate_main()
+}
+
 pub fn remove_hooks_main() -> ! {
     std::process::exit(if hooks::claude_hooks_remove().is_ok() {
         0
@@ -112,19 +119,19 @@ pub fn remove_hooks_main() -> ! {
     })
 }
 
-/// `Vorssaint.exe --remove-ide-bridge`: the uninstaller takes the IDE bridge
+/// `Openbar.exe --remove-ide-bridge`: the uninstaller takes the IDE bridge
 /// extension out of every editor that has it.
 pub fn remove_ide_bridge_main() -> ! {
     hosts::bridge_installer::remove_everywhere();
     std::process::exit(0)
 }
 
-/// `Vorssaint.exe --codex-probe`: prints what Codex's app-server tells the island.
+/// `Openbar.exe --codex-probe`: prints what Codex's app-server tells the island.
 pub fn codex_probe_main() -> ! {
     sessions::codex::client::probe()
 }
 
-/// `Vorssaint.exe --console <pid>`: the helper that types into a session's console.
+/// `Openbar.exe --console <pid>`: the helper that types into a session's console.
 #[cfg(windows)]
 pub fn console_main(pid: u32) -> ! {
     hosts::console::helper_main(pid)
@@ -132,6 +139,8 @@ pub fn console_main(pid: u32) -> ! {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Settings and hooks from the app's old name, before anything reads them.
+    legacy::migrate_at_start();
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             settings::open(app)
@@ -419,7 +428,7 @@ pub fn run() {
             Ok(())
         })
         .build(tauri::generate_context!())
-        .expect("error while building Vorssaint");
+        .expect("error while building Openbar");
 
     app.run(|app, event| {
         if let RunEvent::Exit = event {

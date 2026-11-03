@@ -17,7 +17,7 @@ fn save(bytes: &[u8]) -> Result<Attachment, String> {
         return Err("Image must be smaller than 20 MB".into());
     }
     let (mime, extension) = super::service::image_format(bytes).ok_or("Unsupported image")?;
-    let folder = std::env::temp_dir().join("vorssaint-session-attachments");
+    let folder = std::env::temp_dir().join("openbar-session-attachments");
     std::fs::create_dir_all(&folder).map_err(|_| "Cannot save image")?;
     let mut random = [0u8; 16];
     getrandom::fill(&mut random).map_err(|_| "Cannot save image")?;

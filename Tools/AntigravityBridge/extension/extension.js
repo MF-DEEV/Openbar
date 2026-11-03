@@ -18,7 +18,7 @@ let server;
 let socketPath;
 
 function activate(context) {
-  const folder = path.join(os.homedir(), '.vorssaint', 'terminals');
+  const folder = path.join(os.homedir(), '.openbar', 'terminals');
   fs.mkdirSync(folder, { recursive: true, mode: 0o700 });
   fs.chmodSync(folder, 0o700);
   socketPath = path.join(folder, `${process.pid}.sock`);

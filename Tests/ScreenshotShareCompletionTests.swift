@@ -94,7 +94,7 @@ enum ScreenshotShareCompletionTests {
             }
         }
         let session = Session()
-        let endpoint = URL(string: "https://example.com")!
+        let endpoint: URL? = URL(string: "https://example.com")!
         let decoder = JSONDecoder()
         var removedRecordIDs = Set<String>()
         var records: [ScreenshotShareRecord] = []

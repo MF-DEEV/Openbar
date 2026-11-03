@@ -157,7 +157,7 @@ impl<R: Runtime> Registry for Plugin<'_, R> {
     fn register(&self, key: Shortcut) -> Result<(), String> {
         let plugin = self.0.global_shortcut();
         if plugin.is_registered(key) {
-            return Err("This shortcut is already used by another Vorssaint feature.".into());
+            return Err("This shortcut is already used by another Openbar feature.".into());
         }
         plugin.register(key).map_err(|e| {
             format!("Windows couldn't register this shortcut. Another app may be using it. {e}")

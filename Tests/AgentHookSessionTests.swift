@@ -28,7 +28,7 @@ enum AgentHookSessionTests {
     static let off = ClaudeContentPolicy(previews: false)
 
     static func envelope(_ provider: String, hook: String = "", pid: Int = 4242, _ event: [String: Any]) -> Data {
-        var json: [String: Any] = ["vorssaint": provider, "pid": pid, "event": event]
+        var json: [String: Any] = ["openbar": provider, "pid": pid, "event": event]
         if !hook.isEmpty { json["hook"] = hook }
         return try! JSONSerialization.data(withJSONObject: json)
     }
@@ -63,7 +63,7 @@ enum AgentHookSessionTests {
                      && AgentHookMessage.waits(envelope("opencode", ["kind": "listen"]))
                      && !AgentHookMessage.waits(envelope("opencode", ["kind": "status", "session": "o", "status": "busy"])),
                      "only OpenCode's permissions and its listening plugin wait")
-        suite.expect(decode(Data("{\"vorssaint\":\"gemini\",\"pid\":1,\"event\":".utf8)).isEmpty,
+        suite.expect(decode(Data("{\"openbar\":\"gemini\",\"pid\":1,\"event\":".utf8)).isEmpty,
                      "a cut-off envelope, as from a hook with no input, is dropped")
         let ids = decode(gemini).map(\.id)
         suite.expect(ids == ["gemini:g1"], "a session's id names its agent, so no two agents' ids meet: \(ids)")
@@ -275,8 +275,8 @@ enum AgentHookSessionTests {
         feed(tracker, event(["kind": "deleted", "session": "ses_1"]))
         suite.expect(snapshot(tracker).sessions.isEmpty, "a deleted session leaves")
         let source = AgentHookInstaller.opencodeSource(AgentOpenCodePlugin.source, socket: "/Users/a b/it's.sock", bundle: "x.y")
-        suite.expect(source.contains(#"const SOCKET = "/Users/a b/it's.sock""#) && source.contains("# vorssaint-hook x.y")
-                     && !source.contains("__VORSSAINT"),
+        suite.expect(source.contains(#"const SOCKET = "/Users/a b/it's.sock""#) && source.contains("# openbar-hook x.y")
+                     && !source.contains("__OPENBAR"),
                      "the plugin has the socket and the marker written in")
     }
 
@@ -325,7 +325,7 @@ enum AgentHookSessionTests {
         let home = FileManager.default.temporaryDirectory.appending(path: "vs-hook-agents-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: home) }
         let socket = "/tmp/island's.sock"
-        let bundle = "com.vorssaint.utils.dev"
+        let bundle = "com.openbar.app.dev"
         let none: [String: String] = [:]
         // Gemini: beside the person's own hooks, with a backup.
         let gemini = AgentHookInstaller.geminiSettings(home: home, environment: none)
@@ -393,18 +393,18 @@ enum AgentHookSessionTests {
         AgentHookInstaller.removeAll(home: home, bundle: bundle)
         suite.expect(!FileManager.default.fileExists(atPath: copilot.path) && !FileManager.default.fileExists(atPath: plugin.path),
                      "uninstalling takes the island's own files away")
-        suite.expect(AgentHookInstaller.copilotHooks(home: home, bundle: "com.vorssaint.utils", environment: none)
+        suite.expect(AgentHookInstaller.copilotHooks(home: home, bundle: "com.openbar.app", environment: none)
                      != AgentHookInstaller.copilotHooks(home: home, bundle: bundle, environment: none),
                      "the release and the Developer build never share a file")
         suite.expect(AgentHookInstaller.geminiSettings(home: home, environment: ["GEMINI_CLI_HOME": "/g"]).path
                      == "/g/.gemini/settings.json"
                      && AgentHookInstaller.copilotHooks(home: home, bundle: bundle, environment: ["COPILOT_HOME": "/c"]).path
-                     == "/c/hooks/vorssaint-\(bundle).json",
+                     == "/c/hooks/openbar-\(bundle).json",
                      "the agents' own home settings are followed")
 
         // The hook itself.
         let command = AgentHookInstaller.command(.gemini, event: "BeforeTool", socket: socket, bundle: bundle)
-        suite.expect(command.contains("/usr/bin/nc -U '/tmp/island'\\''s.sock'") && command.hasSuffix("# vorssaint-hook \(bundle)")
+        suite.expect(command.contains("/usr/bin/nc -U '/tmp/island'\\''s.sock'") && command.hasSuffix("# openbar-hook \(bundle)")
                      && command.contains("exit 0"),
                      "the hook quotes the socket, never fails the agent, and carries the marker: \(command)")
     }

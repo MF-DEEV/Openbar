@@ -54,11 +54,11 @@ const CF_DIBV5: u32 = 17;
 const MAX_TEXT_BYTES: usize = 8 * 1024 * 1024;
 /// Rides along a write from the history, so the listener never records it
 /// again (the sequence number below covers the same write a second way).
-const HISTORY_MARK: &str = "Vorssaint.HistoryCopy";
+const HISTORY_MARK: &str = "Openbar.HistoryCopy";
 
 /// A change worth reading, with who made it as far as Windows can tell.
 pub struct Update {
-    /// Vorssaint's own write (an OCR result, a color) or a copy made inside
+    /// Openbar's own write (an OCR result, a color) or a copy made inside
     /// the island: recorded, with no app named.
     pub own: bool,
     /// The exe the copy came from: the clipboard's owner, else the window in front.
@@ -73,7 +73,7 @@ static WINDOW: AtomicIsize = AtomicIsize::new(0);
 static OWN_SEQUENCE: AtomicU32 = AtomicU32::new(0);
 /// The last change heard, so a repeated notice for it isn't read twice.
 static SEEN_SEQUENCE: AtomicU32 = AtomicU32::new(0);
-/// The last window in front that isn't Vorssaint's, for a paste when the
+/// The last window in front that isn't Openbar's, for a paste when the
 /// island never recorded where it came from (opened by hover, then clicked).
 static LAST_FOREIGN: AtomicIsize = AtomicIsize::new(0);
 static FRONT: Mutex<Vec<String>> = Mutex::new(Vec::new());
@@ -102,10 +102,10 @@ pub fn listen(on_update: impl Fn(Update) + Send + Sync + 'static) {
         return;
     }
     let _ = std::thread::Builder::new()
-        .name("vorssaint-clipboard".into())
+        .name("openbar-clipboard".into())
         .spawn(|| unsafe {
             let instance = GetModuleHandleW(PCWSTR::null()).unwrap_or_default();
-            let class = w!("VorssaintClipboardListener");
+            let class = w!("OpenbarClipboardListener");
             let wc = WNDCLASSW {
                 lpfnWndProc: Some(window_proc),
                 hInstance: instance.into(),
@@ -451,7 +451,7 @@ fn set(format: u32, data: &[u8]) -> bool {
 // MARK: Pasting
 
 /// Where a paste goes: the window the island took the keyboard from, else
-/// the last other app in front. Never one of Vorssaint's own windows.
+/// the last other app in front. Never one of Openbar's own windows.
 pub fn paste_target(island_previous: isize) -> Option<isize> {
     let me = unsafe { GetCurrentProcessId() };
     [island_previous, LAST_FOREIGN.load(Ordering::SeqCst)]

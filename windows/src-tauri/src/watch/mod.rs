@@ -19,7 +19,7 @@
 
 mod platform;
 
-/// `Vorssaint.exe --watch-probe`: times the capture steps for a window (see platform::probe).
+/// `Openbar.exe --watch-probe`: times the capture steps for a window (see platform::probe).
 #[cfg(windows)]
 pub fn probe(path: &str, title: &str) {
     platform::probe(path, title);

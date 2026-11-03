@@ -33,7 +33,7 @@ resets it. Imported lyrics override automatic results, including pending
 requests. Song switches cancel requests and reject older response generations.
 
 Imported files and offsets persist in the WebView's local storage under
-`vorssaint.music.lyrics.v1`, for the most recently modified 100 recording
+`openbar.music.lyrics.v1`, for the most recently modified 100 recording
 identities (title, artist, album and rounded duration). They survive restarting
 the app and are shared across players reporting identical metadata. Storage
 failures keep the current lyrics usable and show a save error. Automatic

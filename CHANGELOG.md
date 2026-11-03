@@ -6,6 +6,15 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Changed
+- The app is now Openbar everywhere: its name, menu bar, Settings, notifications and installers, on Mac and Windows. It has its own bundle ID (com.openbar.app on Mac, com.openbar.island on Windows) and signing identity, so it can no longer be mistaken for Vorssaint, the project it is built on.
+- Moving from a build that still ran as Vorssaint: your settings, saved data and the hooks for Claude Code, Gemini CLI, Copilot CLI, OpenCode and Cursor come along by themselves. On Mac, macOS sees a new app, so grant Accessibility, Screen Recording and the other permissions again, then delete the old Vorssaint app. On Windows, the installer removes the old app for you.
+- Report a bug and Suggest a feature open a GitHub issue form for Openbar, with your app and macOS versions filled in.
+
+### Removed
+- Temporary links for screenshots and recordings are hidden until Openbar runs its own server. They went through Vorssaint's.
+- The Buy Me a Coffee and Discord buttons, which led to Vorssaint's pages. Follow on X now opens @Openbar99.
+
 ## [3.5.0-beta.1] - 2026-11-03
 
 ### Summary

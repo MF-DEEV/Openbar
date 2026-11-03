@@ -34,7 +34,7 @@ const WRITE_INTERVAL: Duration = Duration::from_millis(100);
 
 fn worker() -> &'static Worker {
     static W: OnceLock<Worker> = OnceLock::new();
-    W.get_or_init(|| Worker::spawn("vorssaint-brightness", false))
+    W.get_or_init(|| Worker::spawn("openbar-brightness", false))
 }
 
 fn pending() -> &'static Mutex<HashMap<String, f32>> {

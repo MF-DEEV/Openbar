@@ -118,7 +118,7 @@ fn floating_window<R: Runtime>(
         WebviewUrl::App("screenshot-preview.html".into()),
     )
     .title(format!(
-        "{} — Vorssaint",
+        "{} — Openbar",
         crate::locale::text(app, "screenshot")
     ))
     .decorations(false)

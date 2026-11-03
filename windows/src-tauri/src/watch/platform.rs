@@ -230,7 +230,7 @@ mod imp {
         post().is_ok()
     }
 
-    /// `Vorssaint.exe --watch-probe <file> <window title part>`: runs the capture
+    /// `Openbar.exe --watch-probe <file> <window title part>`: runs the capture
     /// steps for that window one by one and writes how long each took, line by
     /// line, so a step that never returns shows as the last line.
     pub fn probe(path: &str, title: &str) {

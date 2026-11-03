@@ -52,9 +52,9 @@ trace is denied, `network_helper.rs` takes over:
 
 - An administrator approves it once with the network detail's **Allow**
   button. Windows shows its UAC prompt, and the elevated
-  `Vorssaint.exe --install-network-helper` copies the exe to
-  `%ProgramFiles%\Vorssaint\Vorssaint Network.exe` and registers the hidden
-  task `Vorssaint Network Activity <user SID>`. It runs that copy with
+  `Openbar.exe --install-network-helper` copies the exe to
+  `%ProgramFiles%\Openbar\Openbar Network.exe` and registers the hidden
+  task `Openbar Network Activity <user SID>`. It runs that copy with
   `--network-helper` as the same user with the highest privileges, on demand
   only. Administrators and SYSTEM own the task; the user may read and run it
   but not change or delete it. Installing protects the copy's folder so that
@@ -62,7 +62,7 @@ trace is denied, `network_helper.rs` takes over:
   whatever its parent or an existing folder allowed, so the task can't be used
   to run anything else elevated.
 - From then on, opening the network detail runs the task without a prompt.
-  The helper creates `\\.\pipe\vorssaint-network-<user SID>` (local clients
+  The helper creates `\\.\pipe\openbar-network-<user SID>` (local clients
   only, read and write for that user at medium integrity), starts its own trace
   when the island connects, answers each sample request with every process's
   bytes since the previous one and stops the trace when the island hangs up.
@@ -74,7 +74,7 @@ trace is denied, `network_helper.rs` takes over:
   account's, which may be serving its island) and copies the current exe.
   The greeting also carries a protocol number, checked the same way.
 - The prompt is started through PowerShell. With the sparse package identity
-  (docs/notifications.md) Windows refuses to elevate a child of Vorssaint
+  (docs/notifications.md) Windows refuses to elevate a child of Openbar
   and reports "cannot access the specified device, path, or file" only after
   the user agreed. PowerShell has no package identity.
 - Uninstalling (`--remove-network-helper`, from the installer's hook) asks for

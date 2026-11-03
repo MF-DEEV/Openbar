@@ -48,7 +48,7 @@ export function NotificationsPage() {
           </div>
           <div className="n-empty-detail">
             {access === "unavailable"
-              ? t("windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller")
+              ? t("windows.notifications.readingNotificationsNeedsTheOpenbarPackageTheInstaller")
               : access === "denied"
                 ? t("windows.notifications.windowsSaysNoAllowItInSettingsPrivacy")
                 : t("windows.notifications.windowsAsksYouOnce") + PRIVACY()}

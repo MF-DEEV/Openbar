@@ -2,7 +2,7 @@
 
 Scope: the island **shell** (window, silhouette, sizes, state machine, motion, navigation chrome, quick-access bubbles, notices framing, settings that drive the shell). Section page *contents* (music player, timer ruler, clipboard list, sessions, mascot/companion, lock screen, Command Bar internals) are other specs; this doc only gives the frame they live in.
 
-Source commit: `482540dd` (branch `feat/windows`). All references are `File.swift:line`. File legend (all under `Sources/Vorssaint/`):
+Source commit: `482540dd` (branch `feat/windows`). All references are `File.swift:line`. File legend (all under `Sources/Openbar/`):
 
 | Short name | Path |
 |---|---|
@@ -13,7 +13,7 @@ Source commit: `482540dd` (branch `feat/windows`). All references are `File.swif
 | `NotchGestureSupport.swift`, `NotchSectionPaging.swift`, `NotchOverlaySpace.swift`, `NotchMenuBarSpace.swift`, `NotchSliderEditing.swift`, `NotchVolumeKeyGate.swift`, `NotchNotificationSupport.swift` | `Services/Notch/…` |
 | `NotchSettings.swift`, `NotchSettingsTabRow.swift`, `NotchLayoutEditor.swift` | `UI/Settings/…` |
 | `Defaults.swift` | `Core/Defaults.swift` (registered defaults, lines 1210–1565) |
-| `NotchPresentationProbe.swift` | `Support/NotchPresentationProbe.swift` (dev-only self-test harness, `#if VORSSAINT_DEVELOPMENT`) |
+| `NotchPresentationProbe.swift` | `Support/NotchPresentationProbe.swift` (dev-only self-test harness, `#if OPENBAR_DEVELOPMENT`) |
 
 Conventions:
 - **pt** = macOS point. On Windows use **1 pt = 1 DIP = 1 CSS px** inside WebView2 (device-independent, already multiplied by the monitor DPI scale). All numbers below are in pt/DIP.
@@ -534,10 +534,10 @@ UI: Settings › Dynamic Island, tabs **Layout · Content · Activity · Behavio
 
 ### 7.0 Windows: where preferences live (built)
 
-- One JSON file, `%APPDATA%\com.vorssaint.island\settings.json`, holding **only what the person changed**: `{ "island": {…IslandSettings}, "sessions": {…SessionPrefs} }`. The windows own the schema and defaults (`src/island/settings.ts`, `src/shared/prefs.ts`); `resolve()` fills the rest and reads any value of the wrong type or an unknown choice as the default.
+- One JSON file, `%APPDATA%\com.openbar.island\settings.json`, holding **only what the person changed**: `{ "island": {…IslandSettings}, "sessions": {…SessionPrefs} }`. The windows own the schema and defaults (`src/island/settings.ts`, `src/shared/prefs.ts`); `resolve()` fills the rest and reads any value of the wrong type or an unknown choice as the default.
 - Patches merge objects, replace anything else, and `null` removes a key (the default comes back). Writes are atomic (temp file + rename) and every window gets `prefs://changed`.
 - A file that isn't a JSON object, or can't be read, is moved to `settings.json.broken`; if even that fails, saving is refused rather than overwriting it.
-- The backend applies what it owns itself, only when it changed: display, content previews, the global shortcut, hiding in full screen, leaving the island out of captures, and the Mixer options (headphone guard, the finer volume keys, output switcher shortcut; `audio::apply_prefs`) (`prefs.rs` `apply`). Start with Windows is the per-user Run value `Vorssaint`, read as on only when it starts this exe.
+- The backend applies what it owns itself, only when it changed: display, content previews, the global shortcut, hiding in full screen, leaving the island out of captures, and the Mixer options (headphone guard, the finer volume keys, output switcher shortcut; `audio::apply_prefs`) (`prefs.rs` `apply`). Start with Windows is the per-user Run value `Openbar`, read as on only when it starts this exe.
 - Windows defaults that differ from the Mac: silhouette **notch** (Mac capsule), `shortcutEnabled` **true** (Mac false), `hideInFullscreen` **true** (Mac false), Sessions and Agents sections **on** (Mac off), display offers **Main display / Follow pointer** only (`all` reads as primary until the island can live on several displays). Ctrl+Alt+Space is fixed; `shortcut` is stored but not read yet.
 
 ### 7.1 Shell preferences

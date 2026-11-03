@@ -136,6 +136,7 @@ struct MetricsTests {
                 NotchSessionAutoAllowTests.run(suite)
                 AgentHookSessionTests.run(suite)
                 ClaudeFileDiffTests.run(suite)
+                LegacyIdentityTests.run(suite)
             }),
             ("file-diffs", { ClaudeFileDiffTests.run(suite) }),
             ("hook-agents", { AgentHookSessionTests.run(suite) }),

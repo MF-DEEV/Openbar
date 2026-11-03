@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Vorssaint",
+  "productName": "Openbar",
   "version": "0.2.0",
-  "identifier": "com.vorssaint.island",
+  "identifier": "com.openbar.island",
   "build": {
     "beforeDevCommand": "bun run dev",
     "devUrl": "http://localhost:1420",
@@ -20,8 +20,8 @@
     "active": true,
     "targets": ["nsis"],
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
-    "publisher": "Vorssaint",
-    "copyright": "Copyright (C) 2026 Vorssaint. GPL-3.0-or-later.",
+    "publisher": "MF DEV",
+    "copyright": "Copyright (C) 2026 MF DEV, Adrian and the Openbar contributors. Based on Vorssaint, Copyright (C) 2026 Vorssaint. GPL-3.0-or-later.",
     "shortDescription": "Dynamic Island for Windows",
     "longDescription": "A Dynamic Island at the top of your screen: music, notifications, your calendar, and your Claude Code and Codex sessions.",
     "category": "Utility",
@@ -34,10 +34,10 @@
         "installMode": "currentUser",
         "languages": ["English"],
         "displayLanguageSelector": false,
-        "startMenuFolder": "Vorssaint",
+        "startMenuFolder": "Openbar",
         "installerHooks": "installer-hooks.nsh"
       }
     }
   },
-  "mainBinaryName": "Vorssaint"
+  "mainBinaryName": "Openbar"
 }

@@ -181,7 +181,7 @@ enum ClaudeHookTests {
 
     /// Runs the hook command Claude Code would, against the server.
     static func hook(_ socket: String, input: String, timeout: TimeInterval = 5) -> (output: String, status: Int32) {
-        let command = ClaudeHookInstaller.command(socket: socket, bundle: "com.vorssaint.tests")
+        let command = ClaudeHookInstaller.command(socket: socket, bundle: "com.openbar.tests")
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = ["-c", command]
@@ -285,7 +285,7 @@ enum ClaudeHookTests {
         let url = folder.appending(path: "settings.json")
         let own = #"{"model":"opus","hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"my-guard.sh"}]}]},"permissions":{"allow":["Bash(ls)"]}}"#
         try? Data(own.utf8).write(to: url)
-        let bundle = "com.vorssaint.tests"
+        let bundle = "com.openbar.tests"
         let command = ClaudeHookInstaller.command(socket: "/Users/me/Library/Application Support/x/claude hooks.sock", bundle: bundle)
         suite.expect(command.contains("'/Users/me/Library/Application Support/x/claude hooks.sock'")
                      && command.hasSuffix(ClaudeHookInstaller.marker(bundle: bundle)), "the socket path is quoted and the entry marked")
@@ -316,7 +316,7 @@ enum ClaudeHookTests {
         let count = ((again["hooks"] as? [String: Any])?["Stop"] as? [[String: Any]])?.count
         suite.expect(count == 1, "installing again adds nothing")
 
-        let other = ClaudeHookInstaller.installing(into: again, command: "x # vorssaint-hook com.other", bundle: "com.other")
+        let other = ClaudeHookInstaller.installing(into: again, command: "x # openbar-hook com.other", bundle: "com.other")
         let removed = ClaudeHookInstaller.removing(from: other, bundle: bundle)
         suite.expect(!ClaudeHookInstaller.hasAny(in: removed, bundle: bundle) && ClaudeHookInstaller.hasAny(in: removed, bundle: "com.other"),
                      "removing takes only this app's entries")
@@ -460,7 +460,7 @@ enum ClaudeHookTests {
         suite.expect(ClaudeTerminalBridge.focus(shell: 111, folder: folder), "a window shows its terminal on request")
         queue.sync { first.stop(); second.stop(); old.stop() }
 
-        let board = NSPasteboard(name: NSPasteboard.Name("vorssaint-test-\(getpid())"))
+        let board = NSPasteboard(name: NSPasteboard.Name("openbar-test-\(getpid())"))
         defer { board.releaseGlobally() }
         board.clearContents()
         board.setString("plain words", forType: .string)

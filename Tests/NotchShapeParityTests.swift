@@ -112,7 +112,7 @@ enum NotchShapeParityTests {
                 }
             }
         }
-        let domain = "com.vorssaint.tests.shape-parity"
+        let domain = "com.openbar.tests.shape-parity"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
         defer { defaults.removePersistentDomain(forName: domain) }

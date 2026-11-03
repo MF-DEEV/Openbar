@@ -573,7 +573,7 @@ mod network_process;
 #[path = "network_helper.rs"]
 mod network_helper;
 
-/// `Vorssaint.exe --network-helper` and its install/remove steps; returns for
+/// `Openbar.exe --network-helper` and its install/remove steps; returns for
 /// any other argument.
 pub fn network_helper_main(arg: &str) {
     #[cfg(windows)]

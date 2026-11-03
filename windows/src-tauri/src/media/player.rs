@@ -121,7 +121,7 @@ mod tests {
         use windows::Win32::UI::WindowsAndMessaging::{
             GetForegroundWindow, GetWindowThreadProcessId,
         };
-        assert!(!open_player("Vorssaint.MissingPlayer_0000000000000!App"));
+        assert!(!open_player("Openbar.MissingPlayer_0000000000000!App"));
         assert!(!crate::hosts::process::pids_named("Spotify.exe").is_empty());
         assert!(open_player("Spotify.exe"));
         for _ in 0..40 {

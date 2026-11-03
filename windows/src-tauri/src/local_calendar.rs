@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-//! Events created in Vorssaint, independent of Windows' optional appointment store.
+//! Events created in Openbar, independent of Windows' optional appointment store.
 //! A failed read never becomes an empty file on the next save.
 use crate::calendar::{Event, Shared, Snapshot};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf, sync::Mutex};
 use tauri::Manager;
 
-pub const ID: &str = "vorssaint-local";
+pub const ID: &str = "openbar-local";
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -49,7 +49,7 @@ impl Draft {
             local_id: id.clone(),
             countdown_key: id,
             title: self.title.trim().into(),
-            calendar: "Vorssaint".into(),
+            calendar: "Openbar".into(),
             calendar_id: ID.into(),
             start: self.start,
             end: self.end,

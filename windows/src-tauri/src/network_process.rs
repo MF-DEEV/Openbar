@@ -119,7 +119,7 @@ impl NetworkTrace {
         properties.header.FlushTimer = 1;
         // Let ETW assign a unique session GUID. A unique name also avoids
         // attaching to or stopping another application's trace session.
-        let mut name: Vec<u16> = format!("Vorssaint-Network-{}-{}", std::process::id(), unsafe {
+        let mut name: Vec<u16> = format!("Openbar-Network-{}-{}", std::process::id(), unsafe {
             windows::Win32::System::SystemInformation::GetTickCount64()
         })
         .encode_utf16()

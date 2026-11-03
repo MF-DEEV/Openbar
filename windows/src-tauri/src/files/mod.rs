@@ -82,7 +82,7 @@ struct State {
 }
 
 pub struct Files {
-    /// `%APPDATA%\com.vorssaint.island\shelf`.
+    /// `%APPDATA%\com.openbar.island\shelf`.
     dir: Option<PathBuf>,
     state: Mutex<State>,
 }

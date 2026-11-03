@@ -8,7 +8,7 @@
 //! and they are due, or when a card or Settings asks, and never while the
 //! section, Codex or the Limits card is off.
 //!
-//! Only metadata is looked at: Codex, not Vorssaint, opens the sign-in.
+//! Only metadata is looked at: Codex, not Openbar, opens the sign-in.
 
 use super::codex;
 use super::model::{Limits, Time};
@@ -973,7 +973,7 @@ mod tests {
         let set = |p: &Path, mode| {
             std::fs::set_permissions(p, std::fs::Permissions::from_mode(mode)).unwrap()
         };
-        let root = std::env::temp_dir().join(format!("vorssaint-profiles-{}", std::process::id()));
+        let root = std::env::temp_dir().join(format!("openbar-profiles-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
         let home = root.join("home");
         let work = home.join(".codex-work");

@@ -5,7 +5,7 @@
 # Usage: windows/tools/i18n-extract/ground_truth.sh   (from the repo root)
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
-CORE="$ROOT/Sources/Vorssaint/Core"
+CORE="$ROOT/Sources/Openbar/Core"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 

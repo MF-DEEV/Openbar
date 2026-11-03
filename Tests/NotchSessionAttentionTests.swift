@@ -90,10 +90,10 @@ enum NotchSessionAttentionTests {
     }
 
     static func context(_ suite: TestSuite) {
-        let own = "com.vorssaint.utils.dev"
+        let own = "com.openbar.app.dev"
         suite.expect(NotchSessionAttention.allowsPresenting(frontmost: "com.apple.finder", own: own),
                      "the desktop allows presenting")
-        suite.expect(NotchSessionAttention.allowsPresenting(frontmost: own, own: own), "Vorssaint itself does")
+        suite.expect(NotchSessionAttention.allowsPresenting(frontmost: own, own: own), "Openbar itself does")
         suite.expect(!NotchSessionAttention.allowsPresenting(frontmost: "com.apple.Terminal", own: own)
                      && !NotchSessionAttention.allowsPresenting(frontmost: nil, own: own),
                      "another app, or none known, does not")

@@ -23,7 +23,7 @@ pub fn endpoint(app: &str) -> String {
     {
         let user = std::env::var("USERNAME").unwrap_or_default();
         let user: String = user.chars().filter(|c| c.is_ascii_alphanumeric()).collect();
-        format!(r"\\.\pipe\vorssaint-claude-hooks-{app}-{user}")
+        format!(r"\\.\pipe\openbar-claude-hooks-{app}-{user}")
     }
     #[cfg(not(windows))]
     {
@@ -39,7 +39,7 @@ fn private_dir() -> std::path::PathBuf {
     let base = std::env::var_os("HOME")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
-    base.join(".vorssaint")
+    base.join(".openbar")
 }
 
 /// True once `buf` holds one whole JSON object (ClaudeHookMessage.isComplete).
@@ -180,7 +180,7 @@ pub fn envelope(agent: &str, event: &str, input: &[u8]) -> Option<Vec<u8>> {
     let payload: serde_json::Value = serde_json::from_slice(input).ok()?;
     payload.is_object().then_some(())?;
     serde_json::to_vec(&serde_json::json!({
-        "vorssaint": agent,
+        "openbar": agent,
         "hook": event,
         "pid": std::process::id(),
         "event": payload,

@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 //! The person's preferences, one JSON file in the app's config folder
-//! (`%APPDATA%\com.vorssaint.island\settings.json`). The windows own the
+//! (`%APPDATA%\com.openbar.island\settings.json`). The windows own the
 //! schema and its defaults; this keeps what was changed, merges patches
 //! (objects merge, anything else replaces, null removes), writes atomically
 //! and tells every window. The few preferences the backend acts on itself
@@ -244,7 +244,7 @@ fn save_patch<R: Runtime>(app: &AppHandle<R>, patch: Value) -> Result<Value, Str
     Ok(next)
 }
 
-/// Starts Vorssaint when the person signs in to Windows (the per-user Run key).
+/// Starts Openbar when the person signs in to Windows (the per-user Run key).
 #[tauri::command]
 pub fn launch_at_login_get() -> bool {
     autostart::enabled()
@@ -256,6 +256,16 @@ pub fn launch_at_login_set(on: bool) -> Result<bool, String> {
     Ok(autostart::enabled())
 }
 
+/// The Run value the app had before Openbar's own name: whether it is there,
+/// and taking it out.
+pub fn legacy_launch_at_login() -> bool {
+    autostart::legacy_present()
+}
+
+pub fn remove_legacy_launch_at_login() {
+    autostart::remove_legacy();
+}
+
 #[cfg(windows)]
 mod autostart {
     use windows::Win32::System::Registry::{
@@ -265,7 +275,7 @@ mod autostart {
     use windows::core::{HSTRING, PCWSTR};
 
     const RUN: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
-    const NAME: &str = "Vorssaint";
+    const NAME: &str = "Openbar";
 
     fn open(access: windows::Win32::System::Registry::REG_SAM_FLAGS) -> Option<HKEY> {
         let mut key = HKEY::default();
@@ -329,10 +339,34 @@ mod autostart {
         }
     }
 
+    const LEGACY_NAME: &str = "Vorssaint";
+
+    pub fn legacy_present() -> bool {
+        let Some(key) = open(KEY_QUERY_VALUE) else {
+            return false;
+        };
+        let present = unsafe {
+            RegQueryValueExW(key, &HSTRING::from(LEGACY_NAME), None, None, None, None).is_ok()
+        };
+        unsafe {
+            let _ = RegCloseKey(key);
+        }
+        present
+    }
+
+    pub fn remove_legacy() {
+        if let Some(key) = open(KEY_SET_VALUE) {
+            unsafe {
+                let _ = RegDeleteValueW(key, PCWSTR(HSTRING::from(LEGACY_NAME).as_ptr()));
+                let _ = RegCloseKey(key);
+            }
+        }
+    }
+
     pub fn set(on: bool) -> Result<(), String> {
         let key = open(KEY_SET_VALUE).ok_or("couldn't open the Run key")?;
         let result = if on {
-            let command = command().ok_or("couldn't find Vorssaint.exe")?;
+            let command = command().ok_or("couldn't find Openbar.exe")?;
             let wide: Vec<u16> = command.encode_utf16().chain(Some(0)).collect();
             let bytes =
                 unsafe { std::slice::from_raw_parts(wide.as_ptr().cast::<u8>(), wide.len() * 2) };
@@ -361,6 +395,10 @@ mod autostart {
     pub fn set(_on: bool) -> Result<(), String> {
         Err("launch at login is Windows only".into())
     }
+    pub fn legacy_present() -> bool {
+        false
+    }
+    pub fn remove_legacy() {}
 }
 
 #[cfg(test)]

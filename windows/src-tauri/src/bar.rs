@@ -99,7 +99,7 @@ mod imp {
         let scale = monitor.scale_factor();
         let width = monitor.size().width as f64 / scale;
         let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("bar.html".into()))
-            .title("Vorssaint Bar")
+            .title("Openbar Bar")
             .inner_size(width, HEIGHT)
             .decorations(false)
             .transparent(true)

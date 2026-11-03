@@ -10,7 +10,7 @@
 //! at the next boundary (an event's start or end, midnight, or 15 minutes).
 //! Every read that changes something goes to all windows as
 //! `calendar://events`. System appointments stay in memory; events created
-//! in Vorssaint are saved separately by local_calendar.
+//! in Openbar are saved separately by local_calendar.
 
 // The reader itself is Windows only; on a Mac only the commands answer.
 #![cfg_attr(not(windows), allow(dead_code))]
@@ -625,7 +625,7 @@ mod imp {
             .spawn(|| unsafe {
                 let class = WNDCLASSW {
                     lpfnWndProc: Some(clock_proc),
-                    lpszClassName: w!("VorssaintCalendarClock"),
+                    lpszClassName: w!("OpenbarCalendarClock"),
                     ..Default::default()
                 };
                 if RegisterClassW(&class) == 0 {
@@ -633,7 +633,7 @@ mod imp {
                 }
                 let Ok(_hwnd) = CreateWindowExW(
                     WINDOW_EX_STYLE::default(),
-                    w!("VorssaintCalendarClock"),
+                    w!("OpenbarCalendarClock"),
                     w!(""),
                     WS_POPUP,
                     0,
@@ -816,9 +816,9 @@ fn merge_local(
     snapshot.calendars.retain(|c| c.id != ID);
     snapshot.calendars.push(Choice {
         id: ID.into(),
-        title: "Vorssaint".into(),
+        title: "Openbar".into(),
         source_id: ID.into(),
-        source: "Vorssaint".into(),
+        source: "Openbar".into(),
         color: "#ff5c63".into(),
     });
     // Local events are available even when Windows cannot share appointments.

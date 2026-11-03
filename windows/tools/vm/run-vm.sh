@@ -58,7 +58,7 @@ audio=(-audiodev none,id=snd0 -device usb-audio,audiodev=snd0)
 
 rm -f qmp.sock
 exec qemu-system-aarch64 \
-  -name vorssaint-win11 \
+  -name openbar-win11 \
   -machine virt,highmem=on,gic-version=3 -accel hvf -cpu host \
   -smp "${VM_CPUS:-8}" -m "${VM_MEM:-12G}" \
   -drive "if=pflash,format=raw,readonly=on,file=$share/edk2-aarch64-code.fd" \

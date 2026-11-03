@@ -70,7 +70,7 @@ function period(days: Bucket[], count: number): PeriodUsage {
     share("claude:Sonnet 5.5", "Sonnet 5.5", "claude", 0.22),
   ].sort((a, b) => b.totals.cost - a.totals.cost);
   usage.projects = [
-    share("vorssaint", "vorssaint", null, 0.62),
+    share("openbar", "openbar", null, 0.62),
     share("island-windows", "island-windows", null, 0.27),
     share("dotfiles", "dotfiles", null, 0.11),
   ];
@@ -175,12 +175,12 @@ export function demoSnapshot(now = Date.now(), accounts = false): AgentSnapshot 
   };
   snapshot.live = [
     {
-      id: "C:\\Users\\me\\.claude\\projects\\vorssaint\\session.jsonl",
+      id: "C:\\Users\\me\\.claude\\projects\\openbar\\session.jsonl",
       provider: "claude",
       started: now - 754_000,
       lastActivity: now - 2_000,
       model: "claude-opus-5-5",
-      project: "vorssaint",
+      project: "openbar",
       tokens: { input: 18_000, cacheWrite: 120_000, cacheRead: 1_040_000, output: 20_400, reasoning: 3_000 },
       cost: 4.56,
     },

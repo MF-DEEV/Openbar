@@ -18,7 +18,7 @@
     </windowsSettings>
   </application>
   <msix xmlns="urn:schemas-microsoft-com:msix.v1"
-    publisher="CN=Vorssaint"
-    packageName="Vorssaint.Island"
-    applicationId="Vorssaint" />
+    publisher="CN=Openbar"
+    packageName="Openbar.Island"
+    applicationId="Openbar" />
 </assembly>

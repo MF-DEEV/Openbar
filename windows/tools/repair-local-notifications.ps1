@@ -21,25 +21,25 @@ $binary = (Resolve-Path -LiteralPath $ExecutablePath).ProviderPath
 $package = (Resolve-Path -LiteralPath $PackagePath).ProviderPath
 $signTool = (Resolve-Path -LiteralPath $SignToolPath).ProviderPath
 $installDir = (Resolve-Path -LiteralPath $InstallDirectory).ProviderPath
-$expectedDir = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Vorssaint'))
+$expectedDir = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Openbar'))
 if (-not [string]::Equals($installDir.TrimEnd('\'), $expectedDir.TrimEnd('\'), [StringComparison]::OrdinalIgnoreCase)) {
-    throw 'This repair only targets the current user installation in LOCALAPPDATA\Vorssaint.'
+    throw 'This repair only targets the current user installation in LOCALAPPDATA\Openbar.'
 }
-if ([IO.Path]::GetFileName($binary) -ne 'Vorssaint.exe' -or [IO.Path]::GetExtension($package) -ne '.msix') {
-    throw 'Expected a built Vorssaint.exe and a prepared .msix identity package.'
+if ([IO.Path]::GetFileName($binary) -ne 'Openbar.exe' -or [IO.Path]::GetExtension($package) -ne '.msix') {
+    throw 'Expected a built Openbar.exe and a prepared .msix identity package.'
 }
-$target = Join-Path $installDir 'Vorssaint.exe'
+$target = Join-Path $installDir 'Openbar.exe'
 if ([string]::Equals($target, $binary, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'The prepared executable must be separate from the running installation.'
 }
 
-$certificateName = 'Vorssaint local notification access'
+$certificateName = 'Openbar local notification access'
 $certificate = Get-ChildItem Cert:\CurrentUser\My | Where-Object {
-    $_.Subject -eq 'CN=Vorssaint' -and $_.FriendlyName -eq $certificateName -and
+    $_.Subject -eq 'CN=Openbar' -and $_.FriendlyName -eq $certificateName -and
     $_.HasPrivateKey -and $_.NotAfter -gt (Get-Date).AddDays(7)
 } | Select-Object -First 1
 if ($null -eq $certificate) {
-    $certificate = New-SelfSignedCertificate -Type Custom -Subject 'CN=Vorssaint' `
+    $certificate = New-SelfSignedCertificate -Type Custom -Subject 'CN=Openbar' `
         -FriendlyName $certificateName -CertStoreLocation 'Cert:\CurrentUser\My' `
         -KeyAlgorithm RSA -KeyLength 2048 -HashAlgorithm SHA256 -KeyUsage DigitalSignature `
         -KeyExportPolicy NonExportable -NotAfter (Get-Date).AddYears(1) `
@@ -48,7 +48,7 @@ if ($null -eq $certificate) {
 
 & $signTool sign /fd SHA256 /sha1 $certificate.Thumbprint /s My $package
 if ($LASTEXITCODE -ne 0) { throw 'Signing the local notification package failed.' }
-$publicCert = Join-Path ([IO.Path]::GetDirectoryName($package)) 'Vorssaint-local.cer'
+$publicCert = Join-Path ([IO.Path]::GetDirectoryName($package)) 'Openbar-local.cer'
 Export-Certificate -Cert $certificate -FilePath $publicCert -Force > $null
 $trustedPath = 'Cert:\CurrentUser\TrustedPeople\' + $certificate.Thumbprint
 if (-not (Test-Path -LiteralPath $trustedPath)) {
@@ -57,7 +57,7 @@ if (-not (Test-Path -LiteralPath $trustedPath)) {
 Write-Output ('Local package certificate: ' + $certificate.Thumbprint)
 
 # Stop only the executable being updated; keep a copy for rollback.
-$running = Get-Process Vorssaint -ErrorAction SilentlyContinue | Where-Object {
+$running = Get-Process Openbar -ErrorAction SilentlyContinue | Where-Object {
     [string]::Equals($_.Path, $target, [StringComparison]::OrdinalIgnoreCase)
 }
 $backup = $target + '.before-notifications-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.bak'
@@ -75,5 +75,5 @@ try {
     throw
 }
 Start-Process -FilePath $target -WindowStyle Hidden
-Get-AppxPackage -Name 'Vorssaint.Island' | Select-Object Name, PackageFamilyName
-Write-Output 'Updated and restarted Vorssaint. Open Notifications and allow Windows notification access when prompted.'
+Get-AppxPackage -Name 'Openbar.Island' | Select-Object Name, PackageFamilyName
+Write-Output 'Updated and restarted Openbar. Open Notifications and allow Windows notification access when prompted.'

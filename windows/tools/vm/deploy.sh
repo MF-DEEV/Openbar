@@ -15,6 +15,6 @@ export PATH="/opt/homebrew/opt/rustup/bin:/opt/homebrew/opt/llvm/bin:$HOME/.carg
 (cd "$root/src-tauri" && XWIN_ACCEPT_LICENSE=1 cargo xwin build --release --target aarch64-pc-windows-msvc \
   --features tauri/custom-protocol 2>&1 | grep -E "^(error|warning: unused)|Finished" || true)
 
-"$vm/ssh.sh" 'Stop-Process -Name Vorssaint -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500' || true
-"$vm/scp.sh" "$root/src-tauri/target/aarch64-pc-windows-msvc/release/vorssaint-windows.exe" "vors@127.0.0.1:$app_dir/Vorssaint.exe"
-"$vm/ssh.sh" "schtasks /Run /TN $task | Out-Null; Start-Sleep 3; (Get-Process Vorssaint -ErrorAction SilentlyContinue).Id"
+"$vm/ssh.sh" 'Stop-Process -Name Openbar -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500' || true
+"$vm/scp.sh" "$root/src-tauri/target/aarch64-pc-windows-msvc/release/openbar-windows.exe" "vors@127.0.0.1:$app_dir/Openbar.exe"
+"$vm/ssh.sh" "schtasks /Run /TN $task | Out-Null; Start-Sleep 3; (Get-Process Openbar -ErrorAction SilentlyContinue).Id"

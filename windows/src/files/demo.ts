@@ -24,7 +24,7 @@ export function demoShelf(): FilesSnapshot {
         title: "Meeting notes for Thursday",
         text: "Meeting notes for Thursday\n- budget\n- hiring",
       },
-      { id: "d", kind: "link", title: "github.com", url: "https://github.com/MF-DEEV/vorssaint" },
+      { id: "d", kind: "link", title: "github.com", url: "https://github.com/MF-DEEV/openbar" },
       {
         id: "e",
         kind: "batch",

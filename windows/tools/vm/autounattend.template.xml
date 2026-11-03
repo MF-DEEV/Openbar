@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Unattended Windows 11 ARM64 install for the Vorssaint test VM.
+  Unattended Windows 11 ARM64 install for the Openbar test VM.
   make-config-iso.sh fills @USER@ and @PASSWORD@ and puts this file at the
   root of a small ISO, where Windows Setup looks for it.
 -->
@@ -106,7 +106,7 @@
         <SynchronousCommand wcm:action="add">
           <Order>1</Order>
           <CommandLine>powershell -NoProfile -ExecutionPolicy Bypass -Command "foreach ($d in Get-PSDrive -PSProvider FileSystem) { $s = Join-Path $d.Root 'setup-guest.ps1'; if (Test-Path $s) { &amp; $s -ConfigRoot $d.Root; break } }"</CommandLine>
-          <Description>Vorssaint guest setup</Description>
+          <Description>Openbar guest setup</Description>
         </SynchronousCommand>
       </FirstLogonCommands>
     </component>

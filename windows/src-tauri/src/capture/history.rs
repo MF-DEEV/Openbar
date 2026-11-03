@@ -296,10 +296,8 @@ mod tests {
     fn fixture() -> PathBuf {
         let mut random = [0u8; 8];
         getrandom::fill(&mut random).unwrap();
-        let dir = std::env::temp_dir().join(format!(
-            "vorssaint-captures-{:x}",
-            u64::from_le_bytes(random)
-        ));
+        let dir =
+            std::env::temp_dir().join(format!("openbar-captures-{:x}", u64::from_le_bytes(random)));
         fs::create_dir_all(&dir).unwrap();
         dir
     }

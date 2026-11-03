@@ -41,7 +41,7 @@ const browserPath = [
   `${process.env.ProgramFiles}/Microsoft/Edge/Application/msedge.exe`,
 ].find((path) => path && existsSync(path));
 assert(browserPath, "Microsoft Edge not found; set ISLAND_TEST_BROWSER to a Chromium executable.");
-const profile = await mkdtemp(join(tmpdir(), "vorssaint-layout-"));
+const profile = await mkdtemp(join(tmpdir(), "openbar-layout-"));
 const server = await createServer({
   server: {
     host: "127.0.0.1",
@@ -259,6 +259,6 @@ try {
     await new Promise((resolve) => browser.once("exit", resolve));
   }
   await server.close();
-  assert(dirname(resolve(profile)) === resolve(tmpdir()) && basename(profile).startsWith("vorssaint-layout-"));
+  assert(dirname(resolve(profile)) === resolve(tmpdir()) && basename(profile).startsWith("openbar-layout-"));
   await rm(profile, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 }).catch(() => {});
 }

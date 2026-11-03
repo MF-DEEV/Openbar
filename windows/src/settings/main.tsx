@@ -81,7 +81,7 @@ const PAGES: { id: PageId; icon: LucideIcon; label: string; Page: () => React.JS
   },
 ];
 
-const PAGE_KEY = "vorssaint.settings.page";
+const PAGE_KEY = "openbar.settings.page";
 
 function initialPage(): PageId {
   const hash = location.hash.slice(1) as PageId;
@@ -118,7 +118,7 @@ function App() {
         <div className="st-brand">
           <span className="st-brand-mark" aria-hidden />
           <span className="st-brand-text">
-            <div className="st-brand-name">{t("s.keepAwakeActiveIconVorssaint")}</div>
+            <div className="st-brand-name">{t("s.keepAwakeActiveIconOpenbar")}</div>
             <div className="st-brand-sub">{T.brand}</div>
           </span>
         </div>

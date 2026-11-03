@@ -3,7 +3,7 @@
 
 //! The client side of the IDE bridge extension (windows/tools/ide-bridge):
 //! every running IDE window registers its pipe and token under
-//! `%LOCALAPPDATA%\Vorssaint\terminals`, and the window holding the session's
+//! `%LOCALAPPDATA%\Openbar\terminals`, and the window holding the session's
 //! terminal answers ok; the others say "missing".
 
 use std::io::{BufRead, BufReader, Write};
@@ -29,7 +29,7 @@ pub enum BridgeError {
 
 pub(super) fn folder() -> Option<PathBuf> {
     let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from)?;
-    Some(base.join("Vorssaint").join("terminals"))
+    Some(base.join("Openbar").join("terminals"))
 }
 
 fn registrations() -> Vec<Registration> {

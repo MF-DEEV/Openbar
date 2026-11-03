@@ -416,7 +416,7 @@
   {
     "file": "src/agents/strings.ts",
     "key": "notchAgents.resetsHelp",
-    "english": "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Vorssaint never reads.",
+    "english": "A reset renews the Codex session and weekly limits at once. Codex checks your resets with its own sign-in, which Openbar never reads.",
     "source": "notchAgents.resetsHelp"
   },
   {
@@ -698,7 +698,7 @@
   {
     "file": "src/agents/strings.ts",
     "key": "windows.agents.claudeLimitsPrivacy",
-    "english": "Claude Code checks your account’s limits, including use on other machines, with its own sign-in, which Vorssaint never reads. No prompt is sent. When it cannot check, the percentages the Claude app saves on this PC are used.",
+    "english": "Claude Code checks your account’s limits, including use on other machines, with its own sign-in, which Openbar never reads. No prompt is sent. When it cannot check, the percentages the Claude app saves on this PC are used.",
     "source": null
   },
   {
@@ -794,7 +794,7 @@
   {
     "file": "src/calendar/strings.ts",
     "key": "windows.calendar.unavailable",
-    "english": "Reading your calendars needs the Vorssaint package the installer registers. Reinstall Vorssaint to add it, then open Calendar again.",
+    "english": "Reading your calendars needs the Openbar package the installer registers. Reinstall Openbar to add it, then open Calendar again.",
     "source": null
   },
   {
@@ -1129,8 +1129,8 @@
   },
   {
     "file": "src/captures/CapturesPage.tsx",
-    "key": "windows.captures.screenshotsYouTakeWithVorssaintWillAppearHere",
-    "english": "Screenshots you take with Vorssaint will appear here.",
+    "key": "windows.captures.screenshotsYouTakeWithOpenbarWillAppearHere",
+    "english": "Screenshots you take with Openbar will appear here.",
     "source": null
   },
   {
@@ -2599,8 +2599,8 @@
   },
   {
     "file": "src/notifications/NotificationsPage.tsx",
-    "key": "windows.notifications.readingNotificationsNeedsTheVorssaintPackageTheInstaller",
-    "english": "Reading notifications needs the Vorssaint package the installer registers. Reinstall Vorssaint to add it, then open Notifications again.",
+    "key": "windows.notifications.readingNotificationsNeedsTheOpenbarPackageTheInstaller",
+    "english": "Reading notifications needs the Openbar package the installer registers. Reinstall Openbar to add it, then open Notifications again.",
     "source": null
   },
   {
@@ -4147,9 +4147,9 @@
   },
   {
     "file": "src/settings/main.tsx",
-    "key": "s.keepAwakeActiveIconVorssaint",
-    "english": "Vorssaint",
-    "source": "s.keepAwakeActiveIconVorssaint"
+    "key": "s.keepAwakeActiveIconOpenbar",
+    "english": "Openbar",
+    "source": "s.keepAwakeActiveIconOpenbar"
   },
   {
     "file": "src/settings/MascotSettings.tsx",
@@ -4622,7 +4622,7 @@
   {
     "file": "src/settings/strings.ts",
     "key": "windows.settings.general.loginCaption",
-    "english": "Opens Vorssaint in the background when you sign in.",
+    "english": "Opens Openbar in the background when you sign in.",
     "source": null
   },
   {
@@ -5732,7 +5732,7 @@
   {
     "file": "src/settings/strings.ts",
     "key": "windows.settings.sessions.claudeOnCaption",
-    "english": "Vorssaint hears every session through hooks in ~/.claude/settings.json.",
+    "english": "Openbar hears every session through hooks in ~/.claude/settings.json.",
     "source": null
   },
   {
@@ -5792,7 +5792,7 @@
   {
     "file": "src/settings/strings.ts",
     "key": "windows.settings.sessions.bridgeCaption",
-    "english": "Replies and Open for sessions in an editor's terminal go through a small extension included with Vorssaint. It shows a terminal or types into it only when you ask. If a window that's already open doesn't pick it up, reload it.",
+    "english": "Replies and Open for sessions in an editor's terminal go through a small extension included with Openbar. It shows a terminal or types into it only when you ask. If a window that's already open doesn't pick it up, reload it.",
     "source": null
   },
   {
@@ -5966,7 +5966,7 @@
   {
     "file": "src/settings/strings.ts",
     "key": "windows.settings.calendar.unavailableCaption",
-    "english": "Reading calendars needs the Vorssaint package the installer registers. Reinstall Vorssaint to add it.",
+    "english": "Reading calendars needs the Openbar package the installer registers. Reinstall Openbar to add it.",
     "source": null
   },
   {
@@ -7382,7 +7382,7 @@
   {
     "file": "src/watch/strings.ts",
     "key": "windows.watch.permissionHint",
-    "english": "Windows didn't let Vorssaint read this area. Watch reads it on this PC only; nothing leaves your PC.",
+    "english": "Windows didn't let Openbar read this area. Watch reads it on this PC only; nothing leaves your PC.",
     "source": null
   },
   {

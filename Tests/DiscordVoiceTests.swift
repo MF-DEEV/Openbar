@@ -310,7 +310,7 @@ enum DiscordVoiceTests {
 
     private static func cachedReaderContracts(_ suite: TestSuite) {
         let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("vorssaint-discord-test-\(ProcessInfo.processInfo.processIdentifier)-\(UUID().uuidString)")
+            .appendingPathComponent("openbar-discord-test-\(ProcessInfo.processInfo.processIdentifier)-\(UUID().uuidString)")
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
         let base = directory.appendingPathComponent("000001.ldb")
@@ -530,7 +530,7 @@ enum DiscordVoiceTests {
     }
 
     private static func gateContracts(_ suite: TestSuite) {
-        let domain = "com.vorssaint.tests.notch-voice"
+        let domain = "com.openbar.tests.notch-voice"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
         defer { defaults.removePersistentDomain(forName: domain) }
@@ -563,7 +563,7 @@ enum DiscordVoiceTests {
     /// Reads the real profile on this Mac only when asked, so the suite
     /// never depends on Discord being installed.
     private static func localProfileDiagnostic(_ suite: TestSuite) {
-        guard ProcessInfo.processInfo.environment["VORSSAINT_DISCORD_DIAGNOSTIC"] == "1" else { return }
+        guard ProcessInfo.processInfo.environment["OPENBAR_DISCORD_DIAGNOSTIC"] == "1" else { return }
         let directory = DiscordStorage.directory(profile: "discord")
         let voice = DiscordStorage.voiceReader().read(directory)
         let bindings = DiscordStorage.keybindReader().read(directory)
