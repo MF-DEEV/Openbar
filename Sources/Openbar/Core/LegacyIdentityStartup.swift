@@ -17,8 +17,21 @@ extension LegacyIdentity {
             if let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
                 migrateDataFolder(support: support, current: current, legacy: legacy)
             }
-            migrateDefaults(defaults, current: current, legacy: legacy)
+            let carried = migrateDefaults(defaults, current: current, legacy: legacy)
             defaults.set(true, forKey: migratedKey)
+            // macOS ties permissions to the bundle ID, so the features that
+            // came over are off until they are granted again. Their requests
+            // normally wait for a feature's own switch; ask for the two most
+            // of them need once the app is up, so Openbar is in the list.
+            if carried {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    // One at a time, so the guide card and System Settings
+                    // show the same list. Neither prompt shows for a
+                    // permission already granted.
+                    Permissions.shared.requestAccessibility()
+                    askForScreenRecordingOnceTrusted(deadline: Date().addingTimeInterval(600))
+                }
+            }
         }
         let legacyInstalled = isInstalled(legacy)
         let socket = ClaudeSessionService.socketPath(home: home)
@@ -49,5 +62,18 @@ extension LegacyIdentity {
     /// forever, so only the Applications folders count.
     static func isInstalled(_ bundle: String) -> Bool {
         installed(among: NSWorkspace.shared.urlsForApplications(withBundleIdentifier: bundle))
+    }
+
+    /// Screen Recording is asked for once Accessibility is on, or never if
+    /// that takes longer than the deadline.
+    private static func askForScreenRecordingOnceTrusted(deadline: Date) {
+        guard Date() < deadline else { return }
+        guard AXIsProcessTrusted() else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                askForScreenRecordingOnceTrusted(deadline: deadline)
+            }
+            return
+        }
+        Permissions.shared.requestScreenRecording()
     }
 }
