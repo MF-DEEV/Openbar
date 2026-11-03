@@ -44,11 +44,6 @@ pub fn codex_home() -> Option<PathBuf> {
     env_dir("CODEX_HOME").or_else(|| home().map(|h| h.join(".codex")))
 }
 
-/// `%CLAUDE_CONFIG_DIR%` or `%USERPROFILE%\.claude`.
-pub fn claude_dir() -> Option<PathBuf> {
-    env_dir("CLAUDE_CONFIG_DIR").or_else(|| home().map(|h| h.join(".claude")))
-}
-
 /// Every log root, whether or not it exists yet. Unlike the Mac, the
 /// relocation variables are honoured (§13.8).
 pub fn roots() -> Vec<Root> {

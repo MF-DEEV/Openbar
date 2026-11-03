@@ -105,15 +105,43 @@ enum AgentClaudeServer {
         }
     }
 
-    static func organization(home: URL) -> String? {
-        profile(home: home).organization
+    static func organization(home: URL, config: URL? = nil) -> String? {
+        profile(home: home, config: config).organization
+    }
+
+    /// The account a check reads is the one Claude Code keeps in `config`:
+    /// `~/.claude` when nil, or a folder `CLAUDE_CONFIG_DIR` moved it to,
+    /// which holds its own `.claude.json` and settings.
+    static func isStandard(_ config: URL?, home: URL) -> Bool {
+        guard let config else { return true }
+        return config.standardizedFileURL.path == home.appending(path: ".claude").standardizedFileURL.path
+    }
+
+    static func profileFile(home: URL, config: URL?) -> URL {
+        isStandard(config, home: home) ? home.appending(path: ".claude.json")
+            : config!.appending(path: ".claude.json")
+    }
+
+    static func settingsFile(home: URL, config: URL?) -> URL {
+        (isStandard(config, home: home) ? home.appending(path: ".claude") : config!).appending(path: "settings.json")
+    }
+
+    /// The config folder of the session that changed last, so the limits
+    /// follow the account in use; with no session running, the one before.
+    static func accountFolder(_ records: [ClaudeSessionRecord], previous: URL?) -> URL? {
+        let latest = records.compactMap { record -> (URL, Date)? in
+            guard let folder = record.configHome else { return nil }
+            return (URL(fileURLWithPath: folder, isDirectory: true),
+                    record.statusUpdated ?? record.started ?? .distantPast)
+        }.max { $0.1 < $1.1 }
+        return latest?.0 ?? previous
     }
 
     /// The organization Claude Code signs in to, and when it last fetched
     /// the account's usage. After a failed fetch, get_usage answers from
     /// that saved copy, up to an hour old, with nothing to say so.
-    static func profile(home: URL) -> (organization: String?, usageFetched: Date?) {
-        guard let data = try? Data(contentsOf: home.appending(path: ".claude.json")),
+    static func profile(home: URL, config: URL? = nil) -> (organization: String?, usageFetched: Date?) {
+        guard let data = try? Data(contentsOf: profileFile(home: home, config: config)),
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return (nil, nil) }
         let organization = (json["oauthAccount"] as? [String: Any])?["organizationUuid"] as? String
         guard let number = (json["cachedUsageUtilization"] as? [String: Any])?["fetchedAtMs"] as? NSNumber,
@@ -125,11 +153,14 @@ enum AgentClaudeServer {
     /// The app's environment for a check: Claude Code never updates itself
     /// from one, and the opt-outs and the proxy the person keeps in its user
     /// settings apply as in their own sessions. Nothing else is turned off.
-    static func environment(_ base: [String: String], home: URL) -> [String: String] {
+    static func environment(_ base: [String: String], home: URL, config: URL? = nil) -> [String: String] {
         var environment = base
         environment.removeValue(forKey: "CLAUDECODE")
         environment["DISABLE_AUTOUPDATER"] = "1"
-        guard let data = try? Data(contentsOf: home.appending(path: ".claude/settings.json")),
+        if let config {
+            environment[ClaudeConfigHomes.variable] = isStandard(config, home: home) ? nil : config.path
+        }
+        guard let data = try? Data(contentsOf: settingsFile(home: home, config: config)),
               let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let settings = json["env"] as? [String: Any] else { return environment }
         // Claude Code lets its settings override the environment, and reads
@@ -199,12 +230,12 @@ enum AgentClaudeServer {
             active?.end()
         }
 
-        func run(_ executable: URL, home: URL, environment: [String: String],
+        func run(_ executable: URL, home: URL, config: URL? = nil, environment: [String: String],
                  timeout: TimeInterval = AgentClaudeServer.timeout) -> Result<Summary, Failure> {
             guard !lock.withLock({ cancelled }) else { return .failure(.unreachable) }
             let started = Date()
-            let organization = AgentClaudeServer.organization(home: home)
-            let environment = AgentClaudeServer.environment(environment, home: home)
+            let organization = AgentClaudeServer.organization(home: home, config: config)
+            let environment = AgentClaudeServer.environment(environment, home: home, config: config)
             let arguments = ["--print", "--input-format", "stream-json", "--output-format", "stream-json",
                 "--verbose", "--no-session-persistence", "--tools", "", "--strict-mcp-config", "--mcp-config",
                 "{\"mcpServers\":{}}", "--setting-sources", "", "--settings", "{\"disableAllHooks\":true}"]
@@ -232,7 +263,7 @@ enum AgentClaudeServer {
                     // what it fetched for this answer is on disk.
                     channel.end()
                     channel.waitForExit(timeout: 3)
-                    let saved = AgentClaudeServer.profile(home: home)
+                    let saved = AgentClaudeServer.profile(home: home, config: config)
                     guard !self.lock.withLock({ self.cancelled }),
                           organization == saved.organization else { return .failure(.unreachable) }
                     // A copy saved before this check began was answered in place

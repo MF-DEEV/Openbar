@@ -289,6 +289,21 @@ pub fn scan(
     }
 }
 
+/// The config folder of the running session that changed last, so Claude's
+/// account limits follow the account in use (AgentClaudeServer.accountFolder).
+pub fn latest_home(by_home: &[(PathBuf, Vec<SessionRecord>)]) -> Option<PathBuf> {
+    let mut latest: Option<(Time, &PathBuf)> = None;
+    for (home, records) in by_home {
+        for record in records {
+            let changed = record.status_updated.or(record.started).unwrap_or(0.0);
+            if latest.is_none_or(|(time, _)| changed > time) {
+                latest = Some((changed, home));
+            }
+        }
+    }
+    latest.map(|(_, home)| home.clone())
+}
+
 #[cfg(test)]
 mod tests {
     // Skipped from ClaudeSessionReaderTests.swift: `hosts` (Terminal tty and
@@ -625,5 +640,33 @@ mod tests {
             scanned.records.is_empty() && scanned.unreadable.is_empty(),
             "pids of zero and below are never looked up"
         );
+    }
+
+    #[test]
+    fn limits_follow_the_config_folder_of_the_latest_session() {
+        let rec = |pid: i32, changed: Time| {
+            let mut r = record(WAITING.as_bytes(), MAC_PID_DOMAINS).unwrap();
+            r.pid = pid;
+            r.status_updated = Some(changed);
+            r
+        };
+        let standard = PathBuf::from("/Users/me/.claude");
+        let moved = PathBuf::from("/Users/me/.claude-2");
+        assert_eq!(
+            latest_home(&[
+                (standard.clone(), vec![rec(1, 100.0)]),
+                (moved.clone(), vec![rec(2, 200.0)]),
+            ]),
+            Some(moved.clone()),
+            "the account of the session that changed last"
+        );
+        assert_eq!(
+            latest_home(&[
+                (standard.clone(), vec![rec(1, 300.0)]),
+                (moved, vec![rec(2, 200.0)])
+            ]),
+            Some(standard)
+        );
+        assert_eq!(latest_home(&[]), None, "no session keeps the folder in use");
     }
 }
