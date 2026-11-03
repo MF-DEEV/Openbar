@@ -70,6 +70,28 @@
     "threshold": "Nivel rojo",
     "title": "Poner en rojo con poca batería"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Activa Dictado en los ajustes de Teclado; Apple solo reconoce la voz en este Mac con él activado.",
+    "escCancels": "Esc cancela",
+    "followAppFormat": "Como la app (%@)",
+    "language": "Idioma",
+    "listening": "Escuchando…",
+    "microphoneDenied": "Openbar no tiene permiso para usar el micrófono.",
+    "noMicrophone": "No hay ningún micrófono conectado.",
+    "notOnDeviceFormat": "%@ no se puede reconocer en este Mac. Añádelo en Dictado, en los ajustes de Teclado.",
+    "notOnDeviceTag": "no disponible en este Mac",
+    "openSettings": "Abrir Ajustes",
+    "recognizerFailed": "No se pudo reconocer la voz. Inténtalo de nuevo.",
+    "sendOnStop": "Enviar cuando deje de hablar",
+    "sendOnStopHint": "Las palabras van a la sesión en cuanto termina la grabación, sin ⌘↩.",
+    "settingHint": "Un micrófono en el campo de respuesta de la sesión: habla y las palabras aparecen mientras hablas. La voz se reconoce solo en este Mac, nunca en un servidor.",
+    "settingTitle": "Respuestas por voz",
+    "shortcut": "Mantener para hablar",
+    "shortcutHint": "Mantén las teclas y habla con la sesión en pantalla o con la última que trabajó. Suelta para parar.",
+    "speechDenied": "Openbar no tiene permiso para reconocer la voz.",
+    "start": "Responder por voz",
+    "stop": "Detener grabación"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "Coloca el puntero en el centro de la siguiente pantalla.",
     "title": "Mover puntero a la siguiente pantalla"
@@ -253,6 +275,8 @@
     "cameraMenuLabel": "Cámara",
     "deniedMessage": "El acceso a la cámara para Openbar está desactivado en Ajustes del Sistema.",
     "hubDescription": "Abre un espejo flotante con tu cámara",
+    "mirrorLabel": "Espejar vista previa",
+    "mirrorUnavailable": "Esta cámara no se puede mostrar en espejo",
     "noCameraMessage": "No se detectó ninguna cámara",
     "openButton": "Abrir vista previa",
     "pageTitle": "Vista previa de la cámara",

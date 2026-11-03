@@ -46,6 +46,9 @@ icu_properties = { version = "2.4", default-features = false, features = ["compi
 
 [target.'cfg(windows)'.dependencies]
 uds_windows = "1"
+# Voice replies: speech recognized on this PC (src/voice). Cross-builds from a
+# Mac need cmake/xwin-toolchain.cmake; see docs/voice-replies.md.
+whisper-rs = "0.16"
 widestring = "1"
 webview2-com = "0.39"
 # The `interface` and `implement` macros expand to `::windows_core` paths.

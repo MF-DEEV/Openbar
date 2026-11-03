@@ -3,6 +3,9 @@ fn main() {
     // They do not receive Tauri's application manifest, so request Common Controls
     // v6 explicitly; the legacy DLL has no TaskDialogIndirect entry point.
     if std::env::var("CARGO_CFG_TARGET_OS").as_deref() == Ok("windows") {
+        // whisper.cpp reads the CPU's name from the registry; whisper-rs-sys
+        // asks for advapi32 only when the build machine runs Windows.
+        println!("cargo:rustc-link-lib=advapi32");
         println!(
             "cargo:rustc-link-arg=/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"
         );

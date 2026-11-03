@@ -143,6 +143,8 @@ final class NotchService: ObservableObject {
     private let sessionAllowKey = QuickToolHotkey(id: 82)
     private let sessionDenyKey = QuickToolHotkey(id: 83)
     private let sessionAlwaysKey = QuickToolHotkey(id: 84)
+    /// Held to speak a reply to a session; recording stops when it is let go.
+    private let sessionVoiceKey = QuickToolHotkey(id: 85)
     private var sessionKeysWork: DispatchWorkItem?
     /// Whether a session's request may take the island now: the desktop or
     /// Openbar has been in front a moment. Otherwise it waits as the count.
@@ -1197,6 +1199,7 @@ final class NotchService: ObservableObject {
             installObservers()
         }
         syncShortcut()
+        syncVoiceShortcut()
         if !NotchTimerSupport.isEnabled() { NotchTimerService.shared.stop() }
         // A watch keeps reading while the island is away, as on the lock
         // screen, and says so with a notification if it cannot show itself.
@@ -1300,6 +1303,25 @@ final class NotchService: ObservableObject {
         if failed != shortcutRegistrationFailed { shortcutRegistrationFailed = failed }
     }
 
+    /// Hold to talk: registered while the Sessions page and voice replies
+    /// are on and the person turned the shortcut on, like the island's own.
+    private func syncVoiceShortcut() {
+        if sessionVoiceKey.onPress == nil {
+            sessionVoiceKey.onPress = { VoiceReplyRecorder.shared.shortcutPressed() }
+            sessionVoiceKey.onRelease = { VoiceReplyRecorder.shared.shortcutReleased() }
+        }
+        let defaults = UserDefaults.standard
+        let holds = NotchSupport.modules().contains(.sessions)
+            && defaults.bool(forKey: DefaultsKey.notchSessionsVoiceReplies)
+            && defaults.bool(forKey: DefaultsKey.notchSessionsVoiceShortcutEnabled)
+        let shortcut = GlobalShortcut.saved(for: DefaultsKey.notchSessionsVoiceShortcut, fallback: .sessionVoiceDefault)
+        sessionVoiceKey.sync(enabled: holds && !ShortcutCapture.isCapturing,
+                             shortcut: shortcut, storageKey: DefaultsKey.notchSessionsVoiceShortcut)
+    }
+
+    /// Escape while a reply is spoken cancels it and gives the field back.
+    private func cancelVoiceReply() -> Bool { VoiceReplyRecorder.shared.cancel() }
+
     private func refreshModules() {
         let updated = NotchSupport.modules()
         if modules != updated { modules = updated }
@@ -1315,6 +1337,8 @@ final class NotchService: ObservableObject {
     func stop(restoreCapture: Bool = true) {
         preferenceSyncWork?.cancel(); preferenceSyncWork = nil
         hotkey.unregister()
+        sessionVoiceKey.unregister()
+        VoiceReplyRecorder.shared.end(.islandClosed)
         sessionAllowKey.unregister()
         sessionDenyKey.unregister()
         sessionAlwaysKey.unregister()
@@ -3890,6 +3914,8 @@ final class NotchService: ObservableObject {
                (self.panel?.firstResponder as? NSTextView)?.hasMarkedText() == true { return event }
             // The Command Bar inside the island reads its own keys, Escape included.
             if event.type == .keyDown, event.window === self.panel, self.showingCommandBar { return event }
+            if event.type == .keyDown, event.window === self.panel, event.keyCode == 53,
+               self.cancelVoiceReply() { return nil }
             if event.type == .keyDown, event.window === self.panel, self.captureControls == nil {
                 let modifiers = event.modifierFlags.intersection([.command, .control, .option, .shift])
                 if modifiers == .command, event.charactersIgnoringModifiers?.lowercased() == "k" {

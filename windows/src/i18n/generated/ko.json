@@ -70,6 +70,28 @@
     "threshold": "빨간색 수준",
     "title": "배터리가 부족하면 빨간색으로 표시"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "키보드 설정에서 받아쓰기를 켜세요. 꺼져 있으면 이 Mac에서 음성을 인식할 수 없습니다.",
+    "escCancels": "Esc로 취소",
+    "followAppFormat": "앱과 같게 (%@)",
+    "language": "언어",
+    "listening": "듣는 중…",
+    "microphoneDenied": "Openbar에 마이크 사용 권한이 없습니다.",
+    "noMicrophone": "연결된 마이크가 없습니다.",
+    "notOnDeviceFormat": "이 Mac에서는 %@을(를) 인식할 수 없습니다. 키보드 설정의 받아쓰기에서 추가하세요.",
+    "notOnDeviceTag": "이 Mac에서 사용 불가",
+    "openSettings": "설정 열기",
+    "recognizerFailed": "음성을 인식하지 못했습니다. 다시 시도하세요.",
+    "sendOnStop": "말을 멈추면 보내기",
+    "sendOnStopHint": "녹음이 끝나는 즉시 ⌘↩ 없이 세션으로 보냅니다.",
+    "settingHint": "세션 답장 칸에 마이크가 생깁니다. 말하면 바로 글자로 채워집니다. 음성은 이 Mac에서만 인식되며 서버로 보내지 않습니다.",
+    "settingTitle": "음성 답장",
+    "shortcut": "누르고 말하기",
+    "shortcutHint": "키를 누른 채 화면의 세션이나 마지막으로 작업한 세션에 말하세요. 놓으면 멈춥니다.",
+    "speechDenied": "Openbar에 음성 인식 권한이 없습니다.",
+    "start": "음성으로 답장",
+    "stop": "녹음 중지"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "포인터를 다음 디스플레이의 가운데로 옮깁니다.",
     "title": "포인터를 다음 디스플레이로 이동"
@@ -253,6 +275,8 @@
     "cameraMenuLabel": "카메라",
     "deniedMessage": "시스템 설정에서 Openbar의 카메라 접근이 꺼져 있습니다.",
     "hubDescription": "카메라를 비추는 떠 있는 거울을 엽니다",
+    "mirrorLabel": "미러 미리보기",
+    "mirrorUnavailable": "이 카메라는 미러로 표시할 수 없습니다",
     "noCameraMessage": "카메라를 찾을 수 없습니다",
     "openButton": "미리보기 열기",
     "pageTitle": "카메라 미리보기",

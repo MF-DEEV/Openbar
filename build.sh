@@ -293,6 +293,8 @@ if (( TEST )); then
         Sources/Openbar/Services/Notch/NotchAgentSupport.swift
         Sources/Openbar/Core/NotchClaudeSessionStrings.swift
         Sources/Openbar/Services/Notch/NotchClaudeSessionsSupport.swift
+        Sources/Openbar/Services/ClaudeSessions/VoiceReplySupport.swift
+        Sources/Openbar/Core/NotchVoiceReplyStrings.swift
         Sources/Openbar/Services/Notch/NotchSessionLimitsSupport.swift
         Sources/Openbar/Services/Notch/NotchSessionAttention.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeSessionModels.swift

@@ -70,6 +70,28 @@
     "threshold": "Niveau rouge",
     "title": "Passer en rouge si faible"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Activez la Dictée dans les réglages Clavier ; sans elle, Apple ne reconnaît pas la parole sur ce Mac.",
+    "escCancels": "Échap annule",
+    "followAppFormat": "Comme l’app (%@)",
+    "language": "Langue",
+    "listening": "À l’écoute…",
+    "microphoneDenied": "Openbar n’est pas autorisé à utiliser le micro.",
+    "noMicrophone": "Aucun micro n’est branché.",
+    "notOnDeviceFormat": "%@ ne peut pas être reconnu sur ce Mac. Ajoutez la langue dans Dictée, dans les réglages Clavier.",
+    "notOnDeviceTag": "absente de ce Mac",
+    "openSettings": "Ouvrir les réglages",
+    "recognizerFailed": "La parole n’a pas pu être reconnue. Réessayez.",
+    "sendOnStop": "Envoyer quand je m’arrête de parler",
+    "sendOnStopHint": "Les mots partent vers la session dès la fin de l’enregistrement, sans ⌘↩.",
+    "settingHint": "Un micro dans le champ de réponse d’une session : parlez, les mots s’écrivent au fur et à mesure. La parole est reconnue sur ce Mac uniquement, jamais sur un serveur.",
+    "settingTitle": "Réponses vocales",
+    "shortcut": "Maintenir pour parler",
+    "shortcutHint": "Maintenez les touches et parlez à la session affichée, ou à la dernière au travail. Relâchez pour arrêter.",
+    "speechDenied": "Openbar n’est pas autorisé à reconnaître la parole.",
+    "start": "Répondre à voix haute",
+    "stop": "Arrêter l’enregistrement"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "Place le pointeur au centre de l’écran suivant.",
     "title": "Déplacer le pointeur vers l’écran suivant"
@@ -253,6 +275,8 @@
     "cameraMenuLabel": "Caméra",
     "deniedMessage": "L’accès à la caméra pour Openbar est désactivé dans Réglages Système.",
     "hubDescription": "Ouvre un miroir flottant avec votre caméra",
+    "mirrorLabel": "Miroir de l’aperçu",
+    "mirrorUnavailable": "Cette caméra ne peut pas être affichée en miroir",
     "noCameraMessage": "Aucune caméra détectée",
     "openButton": "Ouvrir l’aperçu",
     "pageTitle": "Aperçu de la caméra",

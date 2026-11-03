@@ -70,6 +70,28 @@
     "threshold": "紅色電量",
     "title": "電量低時顯示為紅色"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "請喺鍵盤設定打開「聽寫」；閂咗嘅話，呢部 Mac 辨識唔到語音。",
+    "escCancels": "按 Esc 取消",
+    "followAppFormat": "同 App 一樣（%@）",
+    "language": "語言",
+    "listening": "聆聽中…",
+    "microphoneDenied": "Openbar 未有使用咪高峰嘅權限。",
+    "noMicrophone": "未連接咪高峰。",
+    "notOnDeviceFormat": "呢部 Mac 辨識唔到%@。請喺鍵盤設定嘅「聽寫」加入呢種語言。",
+    "notOnDeviceTag": "呢部 Mac 不支援",
+    "openSettings": "打開設定",
+    "recognizerFailed": "辨識唔到語音，請再試。",
+    "sendOnStop": "講完就傳送",
+    "sendOnStopHint": "錄音一完就傳去工作階段，唔使按 ⌘↩。",
+    "settingHint": "喺工作階段嘅回覆欄放一個咪：開口講嘢，文字一路講一路出。語音只會喺呢部 Mac 上辨識，唔會傳去伺服器。",
+    "settingTitle": "語音回覆",
+    "shortcut": "按住講嘢",
+    "shortcutHint": "按住按鍵，對住畫面上嘅工作階段或者最近做緊嘢嘅工作階段講嘢。放手就停。",
+    "speechDenied": "Openbar 未有語音辨識嘅權限。",
+    "start": "語音回覆",
+    "stop": "停止錄音"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "將指標移到下一部顯示器的中央。",
     "title": "將指標移到下一部顯示器"
@@ -253,6 +275,8 @@
     "cameraMenuLabel": "相機",
     "deniedMessage": "Openbar 的相機取用權限已在系統設定中關閉。",
     "hubDescription": "打開一面顯示相機畫面的浮動鏡子",
+    "mirrorLabel": "鏡像預覽",
+    "mirrorUnavailable": "此相機無法以鏡像顯示",
     "noCameraMessage": "未偵測到相機",
     "openButton": "打開預覽",
     "pageTitle": "相機預覽",

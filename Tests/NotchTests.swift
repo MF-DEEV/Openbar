@@ -1689,8 +1689,10 @@ enum NotchTests {
         suite.expect(service.contains("hotkey.onPress = { [weak self] in self?.toggleFromShortcut() }"),
                "the island shortcut answers like a click on the island")
         suite.expect(service.contains("guard NotchSupport.isEnabled() else { stop(); return }")
-                && service.contains("        syncShortcut()\n        if !NotchTimerSupport.isEnabled()"),
-               "every preference sync of a running island registers or releases its shortcut")
+                && service.contains("        syncShortcut()\n        syncVoiceShortcut()\n        if !NotchTimerSupport.isEnabled()"),
+               "every preference sync of a running island registers or releases its shortcuts")
+        suite.expect(service.contains("hotkey.unregister()\n        sessionVoiceKey.unregister()"),
+               "stopping the island releases the hold-to-talk key too")
         suite.expect(service.contains("preferenceSyncWork?.cancel(); preferenceSyncWork = nil\n        hotkey.unregister()"),
                "stopping the island releases its shortcut")
     }

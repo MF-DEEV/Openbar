@@ -70,6 +70,28 @@
     "threshold": "赤のレベル",
     "title": "残量が少ないときに赤く表示"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "キーボード設定で音声入力をオンにしてください。オフのままでは、このMacで音声を認識できません。",
+    "escCancels": "Escでキャンセル",
+    "followAppFormat": "アプリと同じ（%@）",
+    "language": "言語",
+    "listening": "聞き取り中…",
+    "microphoneDenied": "Openbarにマイクの使用が許可されていません。",
+    "noMicrophone": "マイクが接続されていません。",
+    "notOnDeviceFormat": "%@はこのMacで認識できません。キーボード設定の音声入力で追加してください。",
+    "notOnDeviceTag": "このMacでは使用不可",
+    "openSettings": "設定を開く",
+    "recognizerFailed": "音声を認識できませんでした。もう一度お試しください。",
+    "sendOnStop": "話し終えたら送信",
+    "sendOnStopHint": "録音が終わるとすぐに、⌘↩なしでセッションに送ります。",
+    "settingHint": "セッションの返信欄にマイクを表示します。話すとその場で文字になります。音声認識はこのMac上だけで行い、サーバーには送りません。",
+    "settingTitle": "音声で返信",
+    "shortcut": "押している間話す",
+    "shortcutHint": "キーを押している間、表示中のセッション、または最後に動いていたセッションに話しかけます。離すと止まります。",
+    "speechDenied": "Openbarに音声認識が許可されていません。",
+    "start": "音声で返信",
+    "stop": "録音を停止"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "ポインタを次のディスプレイの中央に移動します。",
     "title": "ポインタを次のディスプレイへ移動"
@@ -253,6 +275,8 @@
     "cameraMenuLabel": "カメラ",
     "deniedMessage": "システム設定でOpenbarのカメラへのアクセスがオフになっています。",
     "hubDescription": "カメラを映すフローティングミラーを開きます",
+    "mirrorLabel": "プレビューをミラー",
+    "mirrorUnavailable": "このカメラはミラー表示できません",
     "noCameraMessage": "カメラが見つかりません",
     "openButton": "プレビューを開く",
     "pageTitle": "カメラプレビュー",

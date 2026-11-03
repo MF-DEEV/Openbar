@@ -722,9 +722,19 @@ struct NotchClaudeSessionReplyField: View {
     @State private var sending = false
     @State private var problem: String?
     @State private var dropping = false
+    @ObservedObject private var voice = VoiceReplyRecorder.shared
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.notchSessionsVoiceReplies) private var voiceReplies = false
 
     private var draft: Binding<String> {
         Binding(get: { service.drafts[session.id] ?? "" }, set: { service.drafts[session.id] = $0 })
+    }
+
+    private var recording: Bool { voice.isRecording(session) }
+
+    private var placeholder: String {
+        if recording { return NotchVoiceReplyStrings.forLanguage(l10n.language).listening }
+        return unavailable ?? text.replyPlaceholder(for: session.provider)
     }
 
     private var unavailable: String? {
@@ -740,13 +750,18 @@ struct NotchClaudeSessionReplyField: View {
         VStack(alignment: .leading, spacing: 3) {
             NotchClaudeAttachmentStrip(sessionID: session.id, text: text, side: 36)
             HStack(spacing: 6) {
-                TextField(unavailable ?? text.replyPlaceholder(for: session.provider), text: draft)
+                TextField(placeholder, text: draft)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                     .focused($focused)
                     .onSubmit(send)
-                    .disabled(unavailable != nil || sending)
+                    // The words fill in by themselves while it listens.
+                    .disabled(unavailable != nil || sending || recording)
                     .accessibilityLabel(text.replyPlaceholder(for: session.provider))
+                if VoiceReplySupport.showsMicrophone(for: session, enabled: voiceReplies) {
+                    NotchVoiceReplyButton(session: session, side: 24)
+                        .disabled(unavailable != nil || sending)
+                }
                 Button(action: send) {
                     Group {
                         if sending {
@@ -781,12 +796,13 @@ struct NotchClaudeSessionReplyField: View {
                     .foregroundStyle(.orange)
                     .transition(.opacity)
             }
+            NotchVoiceReplyProblemLabel(session: session, text: text, fontSize: 10)
         }
         .onChange(of: session.id) { _, _ in problem = nil }
     }
 
     private var canSend: Bool {
-        unavailable == nil && !sending
+        unavailable == nil && !sending && !recording
             && (NotchClaudeSessionsSupport.reply(draft.wrappedValue) != nil || service.attachments[session.id] != nil)
     }
 

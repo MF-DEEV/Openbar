@@ -29,6 +29,7 @@ import { Expanded } from "./views/Expanded";
 import { QuickAccess } from "./views/QuickAccess";
 import { ActivityPicker } from "./views/ActivityPicker";
 import { useSessions } from "../sessions/store";
+import { useVoice } from "../sessions/voice";
 import { presentedSnapshot } from "../sessions/presentation";
 import { DropHint } from "../files/DropHint";
 import { useBattery } from "./battery";
@@ -111,6 +112,11 @@ function useKeyboard() {
     const onKey = (e: KeyboardEvent) => {
       const s = useIsland.getState();
       if (e.defaultPrevented) return;
+      // Escape while a reply is spoken cancels it and gives the field back.
+      if (e.key === "Escape" && !e.isComposing && useVoice.getState().cancel()) {
+        e.preventDefault();
+        return;
+      }
       if (e.key === "Escape" && !e.isComposing && closeTopLayer()) {
         e.preventDefault();
         return;

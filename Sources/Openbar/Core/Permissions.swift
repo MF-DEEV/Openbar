@@ -390,6 +390,20 @@ final class Permissions: ObservableObject {
         open(pane: "Privacy_Microphone")
     }
 
+    func openSpeechRecognitionSettings() {
+        open(pane: "Privacy_SpeechRecognition")
+    }
+
+    /// Keyboard settings, where Dictation downloads the languages speech is
+    /// recognized in on this Mac.
+    func openDictationSettings() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension")!)
+    }
+
+    func openSoundInputSettings() {
+        NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Sound-Settings.extension?input")!)
+    }
+
     func openNotificationSettings() {
         let url = URL(string: "x-apple.systempreferences:com.apple.Notifications-Settings.extension")!
         NSWorkspace.shared.open(url)

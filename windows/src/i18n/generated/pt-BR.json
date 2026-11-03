@@ -70,6 +70,28 @@
     "threshold": "Nível vermelho",
     "title": "Ficar vermelho com pouca bateria"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Ative o Ditado nos ajustes de Teclado; a Apple só reconhece fala neste Mac com ele ativado.",
+    "escCancels": "Esc cancela",
+    "followAppFormat": "Igual ao app (%@)",
+    "language": "Idioma",
+    "listening": "Ouvindo…",
+    "microphoneDenied": "O Openbar não tem permissão para usar o microfone.",
+    "noMicrophone": "Nenhum microfone conectado.",
+    "notOnDeviceFormat": "%@ não pode ser reconhecido neste Mac. Adicione-o em Ditado nos ajustes de Teclado.",
+    "notOnDeviceTag": "indisponível neste Mac",
+    "openSettings": "Abrir Ajustes",
+    "recognizerFailed": "Não foi possível reconhecer a fala. Tente de novo.",
+    "sendOnStop": "Enviar quando eu parar de falar",
+    "sendOnStopHint": "As palavras vão para a sessão assim que a gravação termina, sem ⌘↩.",
+    "settingHint": "Um microfone no campo de resposta da sessão: fale e as palavras aparecem enquanto você fala. A fala é reconhecida só neste Mac, nunca em um servidor.",
+    "settingTitle": "Respostas por voz",
+    "shortcut": "Segurar para falar",
+    "shortcutHint": "Segure as teclas e fale com a sessão na tela ou com a última que trabalhou. Solte para parar.",
+    "speechDenied": "O Openbar não tem permissão para reconhecer fala.",
+    "start": "Responder por voz",
+    "stop": "Parar gravação"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "Coloca o ponteiro no centro do próximo display.",
     "title": "Mover ponteiro para o próximo display"
@@ -253,6 +275,8 @@
     "cameraMenuLabel": "Câmera",
     "deniedMessage": "O acesso à câmera para o Openbar está desativado nos Ajustes do Sistema.",
     "hubDescription": "Abre um espelho flutuante com a sua câmera",
+    "mirrorLabel": "Espelhar pré-visualização",
+    "mirrorUnavailable": "Esta câmera não pode ser mostrada espelhada",
     "noCameraMessage": "Nenhuma câmera detectada",
     "openButton": "Abrir prévia",
     "pageTitle": "Prévia da câmera",

@@ -70,6 +70,28 @@
     "threshold": "红色电量",
     "title": "电量低时显示为红色"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "请在键盘设置中打开“听写”；关闭时，这台 Mac 无法识别语音。",
+    "escCancels": "按 Esc 取消",
+    "followAppFormat": "与应用相同（%@）",
+    "language": "语言",
+    "listening": "正在聆听…",
+    "microphoneDenied": "Openbar 没有使用麦克风的权限。",
+    "noMicrophone": "没有连接麦克风。",
+    "notOnDeviceFormat": "此 Mac 无法识别%@。请在键盘设置的“听写”中添加该语言。",
+    "notOnDeviceTag": "此 Mac 不支持",
+    "openSettings": "打开设置",
+    "recognizerFailed": "无法识别语音，请重试。",
+    "sendOnStop": "说完后发送",
+    "sendOnStopHint": "录音一结束就发送到会话，无需 ⌘↩。",
+    "settingHint": "在会话的回复栏里放一个麦克风：开口说话，文字随说随出。语音只在这台 Mac 上识别，从不发送到服务器。",
+    "settingTitle": "语音回复",
+    "shortcut": "按住说话",
+    "shortcutHint": "按住按键，对屏幕上的会话或最近在工作的会话说话。松开即停止。",
+    "speechDenied": "Openbar 没有语音识别的权限。",
+    "start": "语音回复",
+    "stop": "停止录音"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "将指针移到下一台显示器的中央。",
     "title": "将指针移到下一台显示器"
@@ -253,6 +275,8 @@
     "cameraMenuLabel": "相机",
     "deniedMessage": "Openbar 的相机访问权限已在系统设置中关闭。",
     "hubDescription": "打开一面显示相机画面的浮动镜子",
+    "mirrorLabel": "镜像预览",
+    "mirrorUnavailable": "此摄像头无法镜像显示",
     "noCameraMessage": "未检测到相机",
     "openButton": "打开预览",
     "pageTitle": "相机预览",

@@ -67,6 +67,7 @@ To remove it, use **Settings › Apps › Installed apps › Openbar › Uninsta
   - **Allow from the island.** On the desktop, a session that needs approval opens with the whole command in view. While another app or a game is in front, it stays in the small waiting-hand indicator without taking focus. Returning to the desktop checks all still-pending requests, including ones that were waiting before the app started. Allow, Deny or Always.
   - **Answer questions.** Pick one of the answers a session offers, or write your own.
   - **Reply without switching apps.** Type in the island and it reaches the session.
+  - **Or say it.** Turn on **Voice replies** in **Content › Sessions**, download the 60 MB speech model there once, and a microphone appears in the reply field; a hold-to-talk shortcut (Ctrl+Alt+V once turned on) works from any app. The words fill in as you speak and are recognized on this PC with whisper.cpp. [How it works](../docs/voice-replies.md).
   - **Open.** Brings the session's terminal window forward.
   - **A buddy for every session.** Clawd for Claude Code and a little terminal robot for Codex, each in a random outfit you can change.
 - **A companion.** Turn it on in **Settings › Companion**: a little friend, a coloured shape or a robot, who rests in the island, strolls through now and then, and reacts to timers, music, downloads, screenshots, the microphone, agents, your battery and unlocking your PC. Rest the pointer on it to pet it.
@@ -95,6 +96,7 @@ The closed island can also rest with **Battery**, **Music**, **AI Agents**, or *
 - Lyrics are looked up on lrclib.net only after you turn on **Find lyrics online** (off by default), and only while lyrics are open: the song's title, artist, album and duration are sent. Imported lyrics and timing adjustments stay on your PC.
 - Prompts, replies, session titles and command output stay hidden unless you turn on **Show previews** in **Content › Sessions**. With it on, they are kept in memory only and cleared when you turn it off.
 - A permission prompt always shows what it would run, so nothing is allowed unread.
+- Voice replies are recognized on this PC by whisper.cpp; no audio is sent anywhere or written to disk. Windows' own dictation isn't used, because it needs Online speech recognition and sends the audio to Microsoft. The speech model is downloaded from Hugging Face (`huggingface.co`) only when you press Download in **Content › Sessions**, checked against its SHA-256, and can be deleted there.
 - Your settings live in `%APPDATA%\com.openbar.island\settings.json` and only hold what you changed.
 - The clipboard history, the Files shelf, the scratchpad and the audio priority lists are saved in the same folder, so they survive a restart. Uninstalling keeps them unless you tick the box to delete app data.
 - AI Agents reads Claude Code, Codex, OpenCode and Copilot logs on this PC and asks the `claude` and `codex` programs for your plan limits; it never reads their sign-in files. For each Codex folder you add, `codex` is run with that folder as `CODEX_HOME` and its own sign-in, only while the AI Agents page is open or when you check its limits; Openbar looks only at who owns the folder and its `auth.json` or `config.toml` and who may open them, never at what they hold. Once a day it downloads the public price list from GitHub, which you can turn off in **Content › AI Agents**.
@@ -111,7 +113,7 @@ The closed island can also rest with **Battery**, **Music**, **AI Agents**, or *
 
 ## Build it yourself
 
-You need [Bun](https://bun.sh), [Rust](https://rustup.rs) and, on Windows, the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
+You need [Bun](https://bun.sh), [Rust](https://rustup.rs), CMake and LLVM (for whisper.cpp, which voice replies use) and, on Windows, the [Tauri prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```sh
 cd windows
@@ -119,11 +121,11 @@ bun install
 bun run tauri build
 ```
 
-The installer lands in `src-tauri/target/release/bundle/nsis/`. The installers in the releases are cross-compiled on a Mac with `cargo-xwin` and `makensis`:
+The installer lands in `src-tauri/target/release/bundle/nsis/`. The installers in the releases are cross-compiled on a Mac with `cargo-xwin` and `makensis`, through `tools/xwin-cargo.sh`, which gives whisper.cpp the static C runtime and CMake setup it needs there (`brew install cmake ninja`; see [voice replies](../docs/voice-replies.md#building-from-a-mac)):
 
 ```sh
-bunx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc
-bunx tauri build --runner cargo-xwin --target aarch64-pc-windows-msvc
+tools/xwin-cargo.sh bunx tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc
+tools/xwin-cargo.sh bunx tauri build --runner cargo-xwin --target aarch64-pc-windows-msvc
 ```
 
 ### The identity package

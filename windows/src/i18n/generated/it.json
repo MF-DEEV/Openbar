@@ -70,6 +70,28 @@
     "threshold": "Livello rosso",
     "title": "Diventa rosso quando è scarica"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Attiva Dettatura nelle impostazioni Tastiera; senza di essa Apple non riconosce la voce su questo Mac.",
+    "escCancels": "Esc annulla",
+    "followAppFormat": "Come l’app (%@)",
+    "language": "Lingua",
+    "listening": "In ascolto…",
+    "microphoneDenied": "Openbar non ha il permesso di usare il microfono.",
+    "noMicrophone": "Nessun microfono collegato.",
+    "notOnDeviceFormat": "%@ non può essere riconosciuto su questo Mac. Aggiungilo in Dettatura nelle impostazioni Tastiera.",
+    "notOnDeviceTag": "non su questo Mac",
+    "openSettings": "Apri Impostazioni",
+    "recognizerFailed": "Non è stato possibile riconoscere la voce. Riprova.",
+    "sendOnStop": "Invia quando smetto di parlare",
+    "sendOnStopHint": "Le parole vanno alla sessione appena finisce la registrazione, senza ⌘↩.",
+    "settingHint": "Un microfono nel campo di risposta della sessione: parla e le parole compaiono mentre parli. La voce è riconosciuta solo su questo Mac, mai su un server.",
+    "settingTitle": "Risposte vocali",
+    "shortcut": "Tieni premuto per parlare",
+    "shortcutHint": "Tieni premuti i tasti e parla alla sessione sullo schermo o all’ultima al lavoro. Rilascia per fermare.",
+    "speechDenied": "Openbar non ha il permesso di riconoscere la voce.",
+    "start": "Rispondi a voce",
+    "stop": "Ferma registrazione"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "Porta il puntatore al centro del display successivo.",
     "title": "Sposta il puntatore al display successivo"
@@ -253,6 +275,8 @@
     "cameraMenuLabel": "Fotocamera",
     "deniedMessage": "L’accesso alla fotocamera per Openbar è disattivato in Impostazioni di Sistema.",
     "hubDescription": "Apre uno specchio fluttuante con la tua fotocamera",
+    "mirrorLabel": "Anteprima specchiata",
+    "mirrorUnavailable": "Questa fotocamera non può essere mostrata specchiata",
     "noCameraMessage": "Nessuna fotocamera rilevata",
     "openButton": "Apri anteprima",
     "pageTitle": "Anteprima della fotocamera",

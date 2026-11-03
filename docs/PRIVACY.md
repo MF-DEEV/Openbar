@@ -55,6 +55,8 @@ Playback controls prefer active playback, including a browser video when a music
 
 Covers for Firefox-based browsers are off until you turn on Find covers for Firefox and Zen in the Dynamic Island's music settings. While it is on and Firefox, Firefox Developer Edition, Firefox Nightly, Zen, LibreWolf, Waterfox or Floorp plays without a sharp cover, Openbar reads that browser's newest saved session file from its profile folders under `~/Library/Application Support` on this Mac. That file lists every open tab with its history, form data and session cookies. It is decoded in memory only, and Openbar keeps just the title and address of the open YouTube and YouTube Music tabs, while a lookup runs, to find the tab whose title is the song's. Nothing from the session is saved, and nothing from it leaves the Mac except the found video's ID, as described below.
 
+Voice replies, off by default, add a microphone to a session's reply field (Settings → Dynamic Island → Content → Sessions → Voice replies). Only while you hold the shortcut or the button is on, the default microphone's audio goes to Apple's speech recognizer with on-device recognition required, so it never leaves the Mac; a language this Mac can't recognize on the device is refused rather than sent. The audio is held in memory only until recognition ends and is never written to disk. The words fill the reply field and go to the session only when you send them, or by themselves if you turn on Send when I stop talking. Recording never starts on its own and stops after a minute at most.
+
 ## Network connections
 
 Openbar opens only a few kinds of connection, and each one belongs to a visible feature.

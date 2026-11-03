@@ -50,7 +50,7 @@ Every agent session on your machine, beside the camera. When one needs you, the 
     <td><img src="docs/assets/readme/sessions/watch.gif" alt="A session's page enlarged to read the conversation as it grows"></td>
   </tr>
   <tr>
-    <td><b>Reply</b><br>Type in the island and it lands in the session's own terminal or editor. Images too.</td>
+    <td><b>Reply</b><br>Type or speak in the island and it lands in the session's own terminal or editor. Images too. Speech is recognized on your machine.</td>
     <td><b>Watch</b><br>Enlarge a session to read the conversation live, with tools, tasks, cost and model.</td>
   </tr>
   <tr>
