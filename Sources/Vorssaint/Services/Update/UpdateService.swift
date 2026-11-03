@@ -27,8 +27,12 @@ final class UpdateService: ObservableObject {
     /// preview. Set alongside `.available`; cleared otherwise.
     @Published private(set) var availableNotes: String?
 
-    private let repository = "vorssaint/vorssaint-utils"
+    /// Openbar's releases. Its DMGs are not signed by the Vorssaint team the
+    /// in-place installer requires, so an update opens its release page instead.
+    private var repository: String { UpdateServiceSupport.releaseRepository }
     private var downloadURL: URL?
+    /// The release page of the update on offer, opened in place of installing it.
+    private var releasePageURL: URL?
     /// Size the release advertises for the asset, used to bound the download.
     private var downloadExpectedBytes: Int64?
     private var refreshTimer: Timer?
@@ -171,6 +175,7 @@ final class UpdateService: ObservableObject {
                 ) {
                     let versionClean = chosen.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
                     self.downloadURL = chosen.dmgURL
+                    self.releasePageURL = URL(string: "https://github.com/\(self.repository)/releases/tag/\(chosen.tagName)")
                     self.downloadExpectedBytes = chosen.dmgExpectedBytes
                     self.availableNotes = ReleaseNotes.inAppUpdateNotes(from: chosen.body)
                     self.state = .available(version: versionClean)
@@ -207,6 +212,10 @@ final class UpdateService: ObservableObject {
 
     func downloadAndInstall() {
         if AppInfo.isDeveloperBuild { return }  // never replace the local dev build over itself
+        if let releasePageURL {
+            NSWorkspace.shared.open(releasePageURL)
+            return
+        }
         guard let downloadURL else { return }
         // Pre-flight BEFORE spending the download: a translocated app or one
         // running from a read-only volume (the mounted DMG) can never be

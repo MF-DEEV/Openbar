@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.5.0-beta.1] - 2026-11-03
+
+### Summary
+The first Openbar build for Mac: Gemini CLI, Copilot CLI, OpenCode and Cursor beside Claude Code and Codex, file diffs on permission cards, Discord mute in the island, and fixes for downloads, the mixer and more.
+
 ### Added
 - Speak a reply to a session: a microphone in the reply field of Dynamic Island's session page fills in the words as you talk, and a hold-to-talk shortcut works from any app. Speech is recognized on your machine only: Apple's on-device recognizer on the Mac, and whisper.cpp with a 60 MB model you download from Settings on Windows. Recording stops when you stop talking or after a minute; Escape gives the field back. Send when I stop talking sends the words at once. On Mac and Windows. Settings → Dynamic Island → Content → Sessions → Voice replies.
 - When a session asks to edit or write a file, Dynamic Island's permission card shows what changes: removed lines in red, added lines in green, a few unchanged lines around them with their line numbers, and how many lines come and go. A new file shows all its lines, a written file is compared with the one on disk, and a replace-all says how many places it changes. Allow, Deny and Always stay where they were, and the enlarged page shows more of the diff. Works for Claude Code, Codex and OpenCode, and for Gemini CLI's edits, which you still answer in its terminal. On Mac and Windows.
@@ -17,6 +22,7 @@ All notable changes to this project are documented here. The format follows
 - Dynamic Island's quick access buttons can go back to the original five in one click. Settings → Dynamic Island → Layout → Restore default buttons.
 
 ### Changed
+- Updates now come from Openbar's releases on GitHub. When one is out, Install opens its release page to download the new DMG.
 - Dynamic Island's Now Playing page has a larger cover, song title and playback buttons. A song title or artist too long for its row slides along it so you can read it all, and stays still with Reduce Motion on. Shuffle turns green while it is on.
 
 ### Fixed

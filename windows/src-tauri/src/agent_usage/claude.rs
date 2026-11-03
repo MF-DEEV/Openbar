@@ -38,15 +38,35 @@ impl Failure {
     }
 }
 
-/// `%USERPROFILE%\.claude.json`, or inside `CLAUDE_CONFIG_DIR` when set.
-pub fn profile_path() -> Option<PathBuf> {
-    if let Some(dir) = std::env::var_os("CLAUDE_CONFIG_DIR").filter(|v| !v.is_empty()) {
-        let inside = PathBuf::from(dir).join(".claude.json");
-        if inside.is_file() {
-            return Some(inside);
-        }
+/// The config folder whose account the limits are read for: the one the
+/// running sessions use (a shell's `CLAUDE_CONFIG_DIR` the app never sees),
+/// else the app's own `CLAUDE_CONFIG_DIR`; None for `%USERPROFILE%\.claude`.
+pub fn account_dir() -> Option<PathBuf> {
+    let home = super::files::home();
+    let chosen = crate::sessions::service::account_folder().or_else(|| {
+        std::env::var_os("CLAUDE_CONFIG_DIR")
+            .filter(|v| !v.is_empty())
+            .map(PathBuf::from)
+    });
+    moved(chosen, home.as_deref())
+}
+
+/// A folder other than the standard `<home>\.claude`, or None.
+pub fn moved(folder: Option<PathBuf>, home: Option<&Path>) -> Option<PathBuf> {
+    folder.filter(|folder| home.is_none_or(|home| *folder != home.join(".claude")))
+}
+
+/// `.claude.json` of the account: inside a moved config folder, else
+/// `%USERPROFILE%\.claude.json`.
+pub fn profile_path_in(dir: Option<&Path>) -> Option<PathBuf> {
+    match dir {
+        Some(dir) => Some(dir.join(".claude.json")),
+        None => super::files::home().map(|h| h.join(".claude.json")),
     }
-    super::files::home().map(|h| h.join(".claude.json"))
+}
+
+pub fn profile_path() -> Option<PathBuf> {
+    profile_path_in(account_dir().as_deref())
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -86,7 +106,11 @@ pub fn profile(bytes: &[u8]) -> Profile {
 }
 
 pub fn read_profile() -> Profile {
-    profile_path()
+    read_profile_in(account_dir().as_deref())
+}
+
+fn read_profile_in(dir: Option<&Path>) -> Profile {
+    profile_path_in(dir)
         .and_then(|p| std::fs::read(p).ok())
         .map(|b| profile(&b))
         .unwrap_or_default()
@@ -279,10 +303,23 @@ fn config_args(executable: &Path) -> Option<(String, String)> {
 pub fn check(now: &dyn Fn() -> Time) -> Result<Limits, Failure> {
     let executable = executable().ok_or(Failure::Missing)?;
     let started = now();
-    let organization = read_profile().organization;
-    let settings =
-        super::files::claude_dir().and_then(|d| std::fs::read(d.join("settings.json")).ok());
-    let env = environment(settings.as_deref(), &executable);
+    // One folder for the whole check, even if the sessions move meanwhile.
+    let dir = account_dir();
+    let organization = read_profile_in(dir.as_deref()).organization;
+    let settings_dir = dir
+        .clone()
+        .or_else(|| super::files::home().map(|h| h.join(".claude")));
+    let settings = settings_dir.and_then(|d| std::fs::read(d.join("settings.json")).ok());
+    let mut env = environment(settings.as_deref(), &executable);
+    // Claude Code signs in to the account kept in its config folder.
+    let mut remove = vec!["CLAUDECODE"];
+    match &dir {
+        Some(dir) => env.push((
+            "CLAUDE_CONFIG_DIR".to_string(),
+            dir.to_string_lossy().into_owned(),
+        )),
+        None => remove.push("CLAUDE_CONFIG_DIR"),
+    }
     let (mcp, hooks) = config_args(&executable).ok_or(Failure::Unreachable)?;
     let args = [
         "--print",
@@ -302,7 +339,7 @@ pub fn check(now: &dyn Fn() -> Time) -> Result<Limits, Failure> {
         "--settings",
         &hooks,
     ];
-    let mut channel = Conversation::start(&executable, &args, &env, &["CLAUDECODE"], TIMEOUT)
+    let mut channel = Conversation::start(&executable, &args, &env, &remove, TIMEOUT)
         .ok_or(Failure::Unreachable)?;
     let ask = |channel: &mut Conversation, id: &str, request: Value| -> Result<Value, Failure> {
         if !channel.send(&json!({"type": "control_request", "request_id": id, "request": request}))
@@ -323,7 +360,7 @@ pub fn check(now: &dyn Fn() -> Time) -> Result<Limits, Failure> {
     // The saved copy is read once Claude Code has exited, so what it fetched
     // for this answer is on disk.
     channel.end(Duration::from_secs(3));
-    let saved = read_profile();
+    let saved = read_profile_in(dir.as_deref());
     accept(&result, organization.as_deref(), &saved, started, now())
 }
 
@@ -518,5 +555,21 @@ mod tests {
             [300.0, 600.0, 1200.0, 1800.0, 1800.0]
         );
         assert_eq!(interval(Some(Failure::NeedsSignIn), 0, true), 1800.0);
+    }
+
+    #[test]
+    fn a_moved_config_folder_is_told_from_the_standard_one() {
+        let home = Path::new("/Users/me");
+        assert_eq!(moved(Some(home.join(".claude")), Some(home)), None);
+        assert_eq!(
+            moved(Some(home.join(".claude-2")), Some(home)),
+            Some(home.join(".claude-2"))
+        );
+        assert_eq!(moved(None, Some(home)), None);
+        assert_eq!(
+            profile_path_in(Some(&home.join(".claude-2"))),
+            Some(home.join(".claude-2").join(".claude.json")),
+            "a moved folder keeps its own .claude.json"
+        );
     }
 }

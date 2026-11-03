@@ -104,6 +104,14 @@ final class AgentUsageService: ObservableObject {
     /// The organization Claude Code signs in to, when its profile says.
     private var claudeOrganization: String?
     private var claudeProfileModified: Date?
+    /// The Claude Code config folder whose account the limits are read for;
+    /// nil for `~/.claude`. Written on `queue`, read by the account check.
+    private var claudeConfig: URL? {
+        get { claudeConfigLock.withLock { claudeConfigValue } }
+        set { claudeConfigLock.withLock { claudeConfigValue = newValue } }
+    }
+    private var claudeConfigValue: URL?
+    private let claudeConfigLock = NSLock()
     private var claudeAppModified: Date?
     private var claudeAppSamples: [AgentClaudeAppUsage.Sample] = []
     private var claudeAccountLimits: AgentLimits?
@@ -720,7 +728,18 @@ final class AgentUsageService: ObservableObject {
     /// else in that file is kept.
     private func readClaudePlan() {
         guard enabled.contains(.claude) else { return }
-        let url = home.appending(path: ".claude.json")
+        // Claude Code started with CLAUDE_CONFIG_DIR signs in to the account
+        // kept in that folder, so the limits follow the sessions in use.
+        let records = ClaudeSessionRegistryReader.read(ClaudeSessionRegistryReader.folders(home))
+        let config = AgentClaudeServer.accountFolder(records, previous: claudeConfig)
+        if config?.standardizedFileURL.path != claudeConfig?.standardizedFileURL.path {
+            claudeConfig = config
+            claudeProfileModified = nil
+            claudeAccountLimits = nil
+            store.clearLimits(.claude)
+            DispatchQueue.main.async { [weak self] in self?.claudeAccountAttempted = .distantPast }
+        }
+        let url = AgentClaudeServer.profileFile(home: home, config: config)
         let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
         guard modified != claudeProfileModified else { return }
         claudeProfileModified = modified
@@ -790,12 +809,13 @@ final class AgentUsageService: ObservableObject {
         claudeAccountRequest = request
         let session = self.session
         let home = self.home
+        let config = claudeConfig
         claudeAccountQueue.async { [weak self] in
             let result: Result<AgentClaudeServer.Summary, AgentClaudeServer.Failure>
             if let executable = AgentClaudeServer.executable(home: home, searchPath: ProcessInfo.processInfo.environment["PATH"]) {
                 var environment = AgentCodexServer.environment(for: executable, searchPath: nil)
                 environment["PATH"] = AgentClaudeServer.searchPath(after: environment["PATH"] ?? "", home: home)
-                result = request.run(executable, home: home, environment: environment)
+                result = request.run(executable, home: home, config: config, environment: environment)
             } else { result = .failure(.missing) }
             DispatchQueue.main.async {
                 guard let self, self.running, !self.paused, self.session == session,
