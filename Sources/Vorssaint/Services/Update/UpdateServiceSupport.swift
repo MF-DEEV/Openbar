@@ -136,6 +136,9 @@ enum UpdateServiceSupport {
 
     // MARK: - Release Candidate Selection
 
+    /// Where the app looks for newer releases: Openbar's, not upstream Vorssaint's.
+    static let releaseRepository = "MF-DEEV/Openbar"
+
     struct ReleaseCandidate {
         let tagName: String
         let isPrerelease: Bool
