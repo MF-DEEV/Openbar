@@ -71,6 +71,7 @@
     "title": "Червоний при низькому заряді"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Увімкніть диктування в налаштуваннях клавіатури: без нього Apple не розпізнає мовлення на цьому Mac.",
     "escCancels": "Esc — скасувати",
     "followAppFormat": "Як у застосунку (%@)",
     "language": "Мова",

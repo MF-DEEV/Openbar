@@ -71,6 +71,7 @@
     "title": "Sčervenať pri nízkej batérii"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Zapnite Diktovanie v nastaveniach klávesnice; bez neho Apple reč na tomto Macu nerozpozná.",
     "escCancels": "Esc zruší",
     "followAppFormat": "Ako aplikácia (%@)",
     "language": "Jazyk",

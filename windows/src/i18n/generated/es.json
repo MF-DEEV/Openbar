@@ -71,6 +71,7 @@
     "title": "Poner en rojo con poca batería"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Activa Dictado en los ajustes de Teclado; Apple solo reconoce la voz en este Mac con él activado.",
     "escCancels": "Esc cancela",
     "followAppFormat": "Como la app (%@)",
     "language": "Idioma",

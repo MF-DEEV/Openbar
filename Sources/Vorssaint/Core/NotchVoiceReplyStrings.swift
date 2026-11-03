@@ -216,7 +216,7 @@ extension NotchVoiceReplyStrings {
 
     static let fr = NotchVoiceReplyStrings(
         settingTitle: "Réponses vocales",
-        settingHint: "Un micro dans le champ de réponse d’une session : parlez, les mots s’écrivent au fur et à mesure. La parole est reconnue sur ce Mac uniquement, jamais sur un serveur.",
+        settingHint: "Un micro dans le champ de réponse d’une session\u{00A0}: parlez, les mots s’écrivent au fur et à mesure. La parole est reconnue sur ce Mac uniquement, jamais sur un serveur.",
         language: "Langue",
         followAppFormat: "Comme l’app (%@)",
         notOnDeviceTag: "absente de ce Mac",
@@ -232,7 +232,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint n’est pas autorisé à utiliser le micro.",
         speechDenied: "Vorssaint n’est pas autorisé à reconnaître la parole.",
         notOnDeviceFormat: "%@ ne peut pas être reconnu sur ce Mac. Ajoutez la langue dans Dictée, dans les réglages Clavier.",
-        dictationOff: "Activez la Dictée dans les réglages Clavier ; sans elle, Apple ne reconnaît pas la parole sur ce Mac.",
+        dictationOff: "Activez la Dictée dans les réglages Clavier\u{00A0}; sans elle, Apple ne reconnaît pas la parole sur ce Mac.",
         recognizerFailed: "La parole n’a pas pu être reconnue. Réessayez.",
         openSettings: "Ouvrir les réglages"
     )

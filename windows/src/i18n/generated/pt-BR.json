@@ -71,6 +71,7 @@
     "title": "Ficar vermelho com pouca bateria"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Ative o Ditado nos ajustes de Teclado; a Apple só reconhece fala neste Mac com ele ativado.",
     "escCancels": "Esc cancela",
     "followAppFormat": "Igual ao app (%@)",
     "language": "Idioma",

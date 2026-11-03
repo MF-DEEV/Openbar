@@ -71,6 +71,7 @@
     "title": "Turn red when low"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Turn on Dictation in Keyboard settings; Apple recognizes speech on this Mac only with it on.",
     "escCancels": "Esc cancels",
     "followAppFormat": "Same as the app (%@)",
     "language": "Language",

@@ -9,7 +9,8 @@ You can review or change every grant in System Settings, under Privacy and Secur
 | Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring, keyboard feedback and Discord microphone status |
 | Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
 | System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
-| Microphone | Yes | Your voice in a screen recording, only when you turn it on |
+| Microphone | Yes | Your voice in a screen recording, or a reply you speak to a session, only while you record it |
+| Speech Recognition | Yes | Turning a reply you speak to a session into text, on this Mac only |
 | Camera | Yes | The camera preview mirror, floating or inside the notch |
 | Calendars | Yes | Upcoming appointments in the notch |
 | Bluetooth | Yes | Accessory battery levels in Monitor, optional accessory alerts in the notch and Bluetooth on sleep |
@@ -72,11 +73,21 @@ The color picker also uses this permission for Vorssaint's magnifier and keyboar
 
 **Why it comes up.** macOS asks before an app can record your microphone.
 
-**What uses it.** The screen recorder, only when you turn on microphone audio. Your voice is kept on a separate track so you can adjust or remove it in the editor.
+**What uses it.** The screen recorder, only when you turn on microphone audio. Your voice is kept on a separate track so you can adjust or remove it in the editor. Voice replies in Dynamic Island's Sessions page, only while you hold the shortcut or the microphone button is on; that audio goes to the speech recognizer on this Mac and is not kept. The prompt comes the first time you press the microphone, never at launch.
 
-**If you say no.** Screen recording still works without your microphone. System audio remains a separate choice.
+**If you say no.** Screen recording still works without your microphone. System audio remains a separate choice. The microphone button says it can't listen and opens this page of System Settings.
 
 **Optional.** Yes. Microphone audio stays in the recording on your Mac unless you explicitly create a temporary link for the finished video.
+
+## Speech Recognition
+
+**Why it comes up.** macOS asks before an app can use its speech recognizer.
+
+**What uses it.** Voice replies in Dynamic Island's Sessions page (Settings → Dynamic Island → Content → Sessions → Voice replies, off by default). Vorssaint asks the recognizer to work on this Mac only (`requiresOnDeviceRecognition`), so nothing you say goes to Apple; a language without an on-device recognizer is refused, not sent. Apple's recognizer also needs Dictation turned on in Keyboard settings, where it downloads the languages. The prompt comes the first time you press the microphone, never at launch.
+
+**If you say no.** Typed replies work as before. The microphone button says speech recognition is off and opens this page of System Settings.
+
+**Optional.** Yes.
 
 ## Camera
 

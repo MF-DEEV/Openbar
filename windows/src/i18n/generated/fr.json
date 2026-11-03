@@ -71,6 +71,7 @@
     "title": "Passer en rouge si faible"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Activez la Dictée dans les réglages Clavier ; sans elle, Apple ne reconnaît pas la parole sur ce Mac.",
     "escCancels": "Échap annule",
     "followAppFormat": "Comme l’app (%@)",
     "language": "Langue",
@@ -83,7 +84,7 @@
     "recognizerFailed": "La parole n’a pas pu être reconnue. Réessayez.",
     "sendOnStop": "Envoyer quand je m’arrête de parler",
     "sendOnStopHint": "Les mots partent vers la session dès la fin de l’enregistrement, sans ⌘↩.",
-    "settingHint": "Un micro dans le champ de réponse d’une session : parlez, les mots s’écrivent au fur et à mesure. La parole est reconnue sur ce Mac uniquement, jamais sur un serveur.",
+    "settingHint": "Un micro dans le champ de réponse d’une session : parlez, les mots s’écrivent au fur et à mesure. La parole est reconnue sur ce Mac uniquement, jamais sur un serveur.",
     "settingTitle": "Réponses vocales",
     "shortcut": "Maintenir pour parler",
     "shortcutHint": "Maintenez les touches et parlez à la session affichée, ou à la dernière au travail. Relâchez pour arrêter.",

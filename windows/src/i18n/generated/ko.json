@@ -71,6 +71,7 @@
     "title": "배터리가 부족하면 빨간색으로 표시"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "키보드 설정에서 받아쓰기를 켜세요. 꺼져 있으면 이 Mac에서 음성을 인식할 수 없습니다.",
     "escCancels": "Esc로 취소",
     "followAppFormat": "앱과 같게 (%@)",
     "language": "언어",

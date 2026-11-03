@@ -71,6 +71,7 @@
     "title": "Diventa rosso quando è scarica"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Attiva Dettatura nelle impostazioni Tastiera; senza di essa Apple non riconosce la voce su questo Mac.",
     "escCancels": "Esc annulla",
     "followAppFormat": "Come l’app (%@)",
     "language": "Lingua",

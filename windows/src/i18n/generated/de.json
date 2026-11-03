@@ -71,6 +71,7 @@
     "title": "Bei niedrigem Akku rot färben"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Schalte Diktat in den Tastatur-Einstellungen ein; ohne Diktat erkennt Apple auf diesem Mac keine Sprache.",
     "escCancels": "Esc bricht ab",
     "followAppFormat": "Wie die App (%@)",
     "language": "Sprache",

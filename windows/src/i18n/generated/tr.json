@@ -71,6 +71,7 @@
     "title": "Azaldığında kırmızı yap"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Klavye ayarlarında Dikte’yi açın; Apple konuşmayı bu Mac’te yalnızca Dikte açıkken tanır.",
     "escCancels": "Esc iptal eder",
     "followAppFormat": "Uygulamayla aynı (%@)",
     "language": "Dil",

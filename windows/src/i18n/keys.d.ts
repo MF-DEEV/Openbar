@@ -65,6 +65,7 @@ export type CatalogKey =
   | "NotchLowBatteryStrings.localized.menuBar"
   | "NotchLowBatteryStrings.localized.threshold"
   | "NotchLowBatteryStrings.localized.title"
+  | "NotchVoiceReplyStrings.forLanguage.dictationOff"
   | "NotchVoiceReplyStrings.forLanguage.escCancels"
   | "NotchVoiceReplyStrings.forLanguage.followAppFormat"
   | "NotchVoiceReplyStrings.forLanguage.language"

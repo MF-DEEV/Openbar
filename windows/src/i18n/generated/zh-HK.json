@@ -71,6 +71,7 @@
     "title": "電量低時顯示為紅色"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "請喺鍵盤設定打開「聽寫」；閂咗嘅話，呢部 Mac 辨識唔到語音。",
     "escCancels": "按 Esc 取消",
     "followAppFormat": "同 App 一樣（%@）",
     "language": "語言",

@@ -71,6 +71,7 @@
     "title": "残量が少ないときに赤く表示"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "キーボード設定で音声入力をオンにしてください。オフのままでは、このMacで音声を認識できません。",
     "escCancels": "Escでキャンセル",
     "followAppFormat": "アプリと同じ（%@）",
     "language": "言語",

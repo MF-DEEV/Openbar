@@ -71,6 +71,7 @@
     "title": "Красный при низком заряде"
   },
   "NotchVoiceReplyStrings.forLanguage": {
+    "dictationOff": "Включите диктовку в настройках клавиатуры: без неё Apple не распознаёт речь на этом Mac.",
     "escCancels": "Esc — отмена",
     "followAppFormat": "Как в приложении (%@)",
     "language": "Язык",

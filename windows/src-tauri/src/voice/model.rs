@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 //! The speech model: whisper.cpp's multilingual base model, quantized
-//! (ggml-base-q5_1, 57 MB). It is downloaded only when the person asks, in
+//! (ggml-base-q5_1, 60 MB). It is downloaded only when the person asks, in
 //! Settings, after the size is shown; it is checked against its SHA-256
 //! before it is kept, and can be deleted again. Nothing else is downloaded,
 //! and no audio is ever sent.
