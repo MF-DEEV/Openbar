@@ -196,6 +196,50 @@ enum AgentClaudeServerTests {
             suite.expect(host.store.limits[.claude] == nil && host.claudeAccountLimits == nil,
                          "turning Claude off clears its account and desktop readings")
         } catch { suite.expect(false, "Claude CLI fixture: \(error)") }
+        configFolder(suite)
+    }
+
+    /// A Claude Code started with CLAUDE_CONFIG_DIR signs in to the account
+    /// kept in that folder; the check has to ask that one.
+    static func configFolder(_ suite: TestSuite) {
+        let home = URL(fileURLWithPath: NSTemporaryDirectory()).appending(path: "claude-config-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: home) }
+        let moved = home.appending(path: ".claude-2", directoryHint: .isDirectory)
+        let standard = home.appending(path: ".claude", directoryHint: .isDirectory)
+        do {
+            try FileManager.default.createDirectory(at: moved, withIntermediateDirectories: true)
+            try JSONSerialization.data(withJSONObject: ["oauthAccount": ["organizationUuid": "second"]])
+                .write(to: moved.appending(path: ".claude.json"))
+            try JSONSerialization.data(withJSONObject: ["oauthAccount": ["organizationUuid": "first"]])
+                .write(to: home.appending(path: ".claude.json"))
+            try JSONSerialization.data(withJSONObject: ["env": ["DISABLE_TELEMETRY": "1"]])
+                .write(to: moved.appending(path: "settings.json"))
+        } catch { suite.expect(false, "config folder fixture: \(error)"); return }
+        suite.expect(AgentClaudeServer.organization(home: home, config: moved) == "second"
+                        && AgentClaudeServer.organization(home: home, config: standard) == "first"
+                        && AgentClaudeServer.organization(home: home) == "first",
+                     "a moved config folder's account is read from its own .claude.json, the standard one from ~/.claude.json")
+        suite.expect(AgentClaudeServer.environment(["PATH": "/usr/bin"], home: home, config: moved)
+                        == ["PATH": "/usr/bin", "DISABLE_AUTOUPDATER": "1", "DISABLE_TELEMETRY": "1",
+                            "CLAUDE_CONFIG_DIR": moved.path],
+                     "a check of a moved folder runs Claude Code in it, with that folder's opt-outs")
+        suite.expect(AgentClaudeServer.environment(["PATH": "/usr/bin", "CLAUDE_CONFIG_DIR": moved.path],
+                                                   home: home, config: standard)
+                        == ["PATH": "/usr/bin", "DISABLE_AUTOUPDATER": "1"],
+                     "a check of ~/.claude drops a CLAUDE_CONFIG_DIR the app inherited")
+        func record(_ pid: Int32, _ folder: URL, changed: TimeInterval) -> ClaudeSessionRecord {
+            var record = ClaudeSessionRecord(pid: pid, sessionID: "s\(pid)", cwd: "/tmp", name: "a", status: .busy,
+                                             waitingFor: nil, statusUpdated: Date(timeIntervalSince1970: changed),
+                                             started: Date(timeIntervalSince1970: 0), version: "2.1.316")
+            record.configHome = folder.path
+            return record
+        }
+        let chosen = AgentClaudeServer.accountFolder([record(1, standard, changed: 100), record(2, moved, changed: 200)],
+                                                     previous: nil)
+        suite.expect(chosen?.path == moved.path, "the limits follow the account of the session that changed last")
+        suite.expect(AgentClaudeServer.accountFolder([], previous: moved)?.path == moved.path
+                        && AgentClaudeServer.accountFolder([], previous: nil) == nil,
+                     "with no session running the account in use stays, and starts as ~/.claude")
     }
 
     /// The production reading and alert methods, replayed tick by tick over

@@ -277,7 +277,12 @@ impl Service {
     /// One scan; true while any session works or waits, so the next comes sooner.
     fn tick(&self) -> bool {
         let home = hooks::installer::home_dir();
-        let files = home.as_deref().map(registry_files).unwrap_or_default();
+        let by_home = home
+            .as_deref()
+            .map(registry_files_by_home)
+            .unwrap_or_default();
+        note_account_folder(&by_home);
+        let files: Vec<RegistryFile> = by_home.into_iter().flat_map(|(_, files)| files).collect();
         let scan = registry::scan(&files, PID_DOMAINS, process_start);
         let mut inner = self.inner.lock().unwrap();
         inner.ticks += 1;
@@ -1157,25 +1162,69 @@ fn host_kind(host: &hosts::Host) -> HostKind {
     }
 }
 
+/// The Claude Code config folder whose account the limits are read for;
+/// None until a session has run, which means `%USERPROFILE%\.claude`.
+static ACCOUNT_FOLDER: Mutex<Option<PathBuf>> = Mutex::new(None);
+
+pub fn account_folder() -> Option<PathBuf> {
+    ACCOUNT_FOLDER.lock().ok().and_then(|folder| folder.clone())
+}
+
+/// Follows the account of the session that changed last; with none running,
+/// the one before stays.
+fn note_account_folder(by_home: &[(PathBuf, Vec<RegistryFile>)]) {
+    let records: Vec<_> = by_home
+        .iter()
+        .map(|(claude, files)| {
+            (
+                claude.clone(),
+                registry::scan(files, PID_DOMAINS, process_start).records,
+            )
+        })
+        .collect();
+    if let (Some(folder), Ok(mut current)) =
+        (registry::latest_home(&records), ACCOUNT_FOLDER.lock())
+    {
+        *current = Some(folder);
+    }
+}
+
+/// Every registry folder's files, with their contents, by config folder.
+fn registry_files_by_home(home: &Path) -> Vec<(PathBuf, Vec<RegistryFile>)> {
+    registry::homes(home)
+        .into_iter()
+        .map(|claude| {
+            let files = folder_files(&claude.join("sessions"));
+            (claude, files)
+        })
+        .collect()
+}
+
 /// Every file of every registry folder, with its contents.
 fn registry_files(home: &Path) -> Vec<RegistryFile> {
+    registry_files_by_home(home)
+        .into_iter()
+        .flat_map(|(_, files)| files)
+        .collect()
+}
+
+/// The record files of one registry folder.
+fn folder_files(folder: &Path) -> Vec<RegistryFile> {
+    let Ok(entries) = std::fs::read_dir(folder) else {
+        return Vec::new();
+    };
     let mut files = Vec::new();
-    for folder in registry::folders(home) {
-        let Ok(entries) = std::fs::read_dir(folder) else {
+    for entry in entries.filter_map(Result::ok) {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if registry::pid_of_file(&name).is_none() {
             continue;
-        };
-        for entry in entries.filter_map(Result::ok) {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if registry::pid_of_file(&name).is_none() {
-                continue;
-            }
-            let data = entry
-                .metadata()
-                .ok()
-                .filter(|m| m.len() < registry::MAX_RECORD_BYTES as u64)
-                .and_then(|_| std::fs::read(entry.path()).ok());
-            files.push(RegistryFile { name, data });
         }
+        let data = entry
+            .metadata()
+            .ok()
+            .filter(|m| m.len() < registry::MAX_RECORD_BYTES as u64)
+            .and_then(|_| std::fs::read(entry.path()).ok());
+        files.push(RegistryFile { name, data });
     }
     files
 }
