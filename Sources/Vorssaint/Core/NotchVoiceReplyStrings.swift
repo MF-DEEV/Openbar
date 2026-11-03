@@ -24,6 +24,7 @@ struct NotchVoiceReplyStrings {
     let microphoneDenied: String
     let speechDenied: String
     let notOnDeviceFormat: String
+    let dictationOff: String
     let recognizerFailed: String
     let openSettings: String
 
@@ -70,6 +71,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint isn’t allowed to use the microphone.",
         speechDenied: "Vorssaint isn’t allowed to recognize speech.",
         notOnDeviceFormat: "%@ can’t be recognized on this Mac. Add it under Dictation in Keyboard settings.",
+        dictationOff: "Turn on Dictation in Keyboard settings; Apple recognizes speech on this Mac only with it on.",
         recognizerFailed: "Speech couldn’t be recognized. Try again.",
         openSettings: "Open Settings"
     )
@@ -92,6 +94,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "O Vorssaint não tem permissão para usar o microfone.",
         speechDenied: "O Vorssaint não tem permissão para reconhecer fala.",
         notOnDeviceFormat: "%@ não pode ser reconhecido neste Mac. Adicione-o em Ditado nos ajustes de Teclado.",
+        dictationOff: "Ative o Ditado nos ajustes de Teclado; a Apple só reconhece fala neste Mac com ele ativado.",
         recognizerFailed: "Não foi possível reconhecer a fala. Tente de novo.",
         openSettings: "Abrir Ajustes"
     )
@@ -114,6 +117,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint’in mikrofonu kullanma izni yok.",
         speechDenied: "Vorssaint’in konuşma tanıma izni yok.",
         notOnDeviceFormat: "%@ bu Mac’te tanınamıyor. Klavye ayarlarında Dikte altından ekleyin.",
+        dictationOff: "Klavye ayarlarında Dikte’yi açın; Apple konuşmayı bu Mac’te yalnızca Dikte açıkken tanır.",
         recognizerFailed: "Konuşma tanınamadı. Yeniden deneyin.",
         openSettings: "Ayarları Aç"
     )
@@ -136,6 +140,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint не разрешено использовать микрофон.",
         speechDenied: "Vorssaint не разрешено распознавать речь.",
         notOnDeviceFormat: "%@ нельзя распознать на этом Mac. Добавьте язык в разделе «Диктовка» настроек клавиатуры.",
+        dictationOff: "Включите диктовку в настройках клавиатуры: без неё Apple не распознаёт речь на этом Mac.",
         recognizerFailed: "Не удалось распознать речь. Попробуйте ещё раз.",
         openSettings: "Открыть настройки"
     )
@@ -158,6 +163,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint no tiene permiso para usar el micrófono.",
         speechDenied: "Vorssaint no tiene permiso para reconocer la voz.",
         notOnDeviceFormat: "%@ no se puede reconocer en este Mac. Añádelo en Dictado, en los ajustes de Teclado.",
+        dictationOff: "Activa Dictado en los ajustes de Teclado; Apple solo reconoce la voz en este Mac con él activado.",
         recognizerFailed: "No se pudo reconocer la voz. Inténtalo de nuevo.",
         openSettings: "Abrir Ajustes"
     )
@@ -180,6 +186,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint nemá povolenie používať mikrofón.",
         speechDenied: "Vorssaint nemá povolenie rozpoznávať reč.",
         notOnDeviceFormat: "%@ sa na tomto Macu nedá rozpoznať. Pridajte ho v Diktovaní v nastaveniach klávesnice.",
+        dictationOff: "Zapnite Diktovanie v nastaveniach klávesnice; bez neho Apple reč na tomto Macu nerozpozná.",
         recognizerFailed: "Reč sa nepodarilo rozpoznať. Skúste to znova.",
         openSettings: "Otvoriť nastavenia"
     )
@@ -202,6 +209,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint darf das Mikrofon nicht verwenden.",
         speechDenied: "Vorssaint darf keine Sprache erkennen.",
         notOnDeviceFormat: "%@ kann auf diesem Mac nicht erkannt werden. Füge die Sprache unter Diktat in den Tastatur-Einstellungen hinzu.",
+        dictationOff: "Schalte Diktat in den Tastatur-Einstellungen ein; ohne Diktat erkennt Apple auf diesem Mac keine Sprache.",
         recognizerFailed: "Die Sprache konnte nicht erkannt werden. Versuch es noch einmal.",
         openSettings: "Einstellungen öffnen"
     )
@@ -224,6 +232,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint n’est pas autorisé à utiliser le micro.",
         speechDenied: "Vorssaint n’est pas autorisé à reconnaître la parole.",
         notOnDeviceFormat: "%@ ne peut pas être reconnu sur ce Mac. Ajoutez la langue dans Dictée, dans les réglages Clavier.",
+        dictationOff: "Activez la Dictée dans les réglages Clavier ; sans elle, Apple ne reconnaît pas la parole sur ce Mac.",
         recognizerFailed: "La parole n’a pas pu être reconnue. Réessayez.",
         openSettings: "Ouvrir les réglages"
     )
@@ -246,6 +255,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint non ha il permesso di usare il microfono.",
         speechDenied: "Vorssaint non ha il permesso di riconoscere la voce.",
         notOnDeviceFormat: "%@ non può essere riconosciuto su questo Mac. Aggiungilo in Dettatura nelle impostazioni Tastiera.",
+        dictationOff: "Attiva Dettatura nelle impostazioni Tastiera; senza di essa Apple non riconosce la voce su questo Mac.",
         recognizerFailed: "Non è stato possibile riconoscere la voce. Riprova.",
         openSettings: "Apri Impostazioni"
     )
@@ -268,6 +278,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaintにマイクの使用が許可されていません。",
         speechDenied: "Vorssaintに音声認識が許可されていません。",
         notOnDeviceFormat: "%@はこのMacで認識できません。キーボード設定の音声入力で追加してください。",
+        dictationOff: "キーボード設定で音声入力をオンにしてください。オフのままでは、このMacで音声を認識できません。",
         recognizerFailed: "音声を認識できませんでした。もう一度お試しください。",
         openSettings: "設定を開く"
     )
@@ -290,6 +301,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint에 마이크 사용 권한이 없습니다.",
         speechDenied: "Vorssaint에 음성 인식 권한이 없습니다.",
         notOnDeviceFormat: "이 Mac에서는 %@을(를) 인식할 수 없습니다. 키보드 설정의 받아쓰기에서 추가하세요.",
+        dictationOff: "키보드 설정에서 받아쓰기를 켜세요. 꺼져 있으면 이 Mac에서 음성을 인식할 수 없습니다.",
         recognizerFailed: "음성을 인식하지 못했습니다. 다시 시도하세요.",
         openSettings: "설정 열기"
     )
@@ -312,6 +324,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint не дозволено використовувати мікрофон.",
         speechDenied: "Vorssaint не дозволено розпізнавати мовлення.",
         notOnDeviceFormat: "%@ не можна розпізнати на цьому Mac. Додайте мову в розділі «Диктування» налаштувань клавіатури.",
+        dictationOff: "Увімкніть диктування в налаштуваннях клавіатури: без нього Apple не розпізнає мовлення на цьому Mac.",
         recognizerFailed: "Не вдалося розпізнати мовлення. Спробуйте ще раз.",
         openSettings: "Відкрити налаштування"
     )
@@ -334,6 +347,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint 没有使用麦克风的权限。",
         speechDenied: "Vorssaint 没有语音识别的权限。",
         notOnDeviceFormat: "此 Mac 无法识别%@。请在键盘设置的“听写”中添加该语言。",
+        dictationOff: "请在键盘设置中打开“听写”；关闭时，这台 Mac 无法识别语音。",
         recognizerFailed: "无法识别语音，请重试。",
         openSettings: "打开设置"
     )
@@ -356,6 +370,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint 沒有使用麥克風的權限。",
         speechDenied: "Vorssaint 沒有語音辨識的權限。",
         notOnDeviceFormat: "此 Mac 無法辨識%@。請在鍵盤設定的「聽寫」中加入該語言。",
+        dictationOff: "請在鍵盤設定中打開「聽寫」；關閉時，這台 Mac 無法辨識語音。",
         recognizerFailed: "無法辨識語音，請再試一次。",
         openSettings: "打開設定"
     )
@@ -378,6 +393,7 @@ extension NotchVoiceReplyStrings {
         microphoneDenied: "Vorssaint 未有使用咪高峰嘅權限。",
         speechDenied: "Vorssaint 未有語音辨識嘅權限。",
         notOnDeviceFormat: "呢部 Mac 辨識唔到%@。請喺鍵盤設定嘅「聽寫」加入呢種語言。",
+        dictationOff: "請喺鍵盤設定打開「聽寫」；閂咗嘅話，呢部 Mac 辨識唔到語音。",
         recognizerFailed: "辨識唔到語音，請再試。",
         openSettings: "打開設定"
     )

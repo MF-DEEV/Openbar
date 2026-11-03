@@ -4,6 +4,7 @@
 import AVFoundation
 import Combine
 import Speech
+import os
 
 /// Speaks a reply into a session's reply field. The microphone feeds
 /// Apple's on-device recognizer and nothing else: when the language has no
@@ -11,6 +12,7 @@ import Speech
 /// fill the field as they come and go out by the same path as typed ones.
 final class VoiceReplyRecorder: ObservableObject {
     static let shared = VoiceReplyRecorder()
+    private static let log = Logger(subsystem: "com.vorssaint.voice-replies", category: "recorder")
 
     struct Problem: Equatable {
         let sessionID: String
@@ -168,6 +170,12 @@ final class VoiceReplyRecorder: ObservableObject {
     // MARK: Recording
 
     private func begin(session id: String, token: Int) {
+        // The permission prompt closed the island; it opens again where the press was.
+        let notch = NotchService.shared
+        if !notch.expanded || ClaudeSessionService.shared.focusedID != id {
+            ClaudeSessionService.shared.focus(id)
+            notch.open(.sessions)
+        }
         let identifier = VoiceReplySupport.localeIdentifier(
             saved: defaults.string(forKey: DefaultsKey.notchSessionsVoiceLanguage) ?? "", app: L10n.shared.language)
         let name = Locale.current.localizedString(forIdentifier: identifier) ?? identifier
@@ -186,7 +194,11 @@ final class VoiceReplyRecorder: ObservableObject {
 
         if let replayFile {
             let feeder = VoiceReplyFileFeeder(url: replayFile, request: request, meter: meter)
-            guard feeder.start() else { fail(.recognizerFailed, session: id); return }
+            guard feeder.start() else {
+                Self.log.error("can't read \(replayFile.path, privacy: .public)")
+                fail(.recognizerFailed, session: id)
+                return
+            }
             self.feeder = feeder
         } else {
             let engine = AVAudioEngine()
@@ -210,9 +222,13 @@ final class VoiceReplyRecorder: ObservableObject {
         task = recognizer.recognitionTask(with: request) { [weak self] result, error in
             let text = result?.bestTranscription.formattedString
             let isFinal = result?.isFinal ?? false
+            let problem = (error as NSError?).map { error -> VoiceReplyProblem in
+                Self.log.error("recognizer: \(error.domain, privacy: .public) \(error.code): \(error.localizedDescription, privacy: .public)")
+                return VoiceReplySupport.problem(domain: error.domain, code: error.code)
+            }
             DispatchQueue.main.async {
                 guard let self, self.generation == token else { return }
-                self.recognized(text, isFinal: isFinal, failed: error != nil && result == nil)
+                self.recognized(text, isFinal: isFinal, failed: result == nil ? problem : nil)
             }
         }
         machine.began(at: ProcessInfo.processInfo.systemUptime)
@@ -221,17 +237,17 @@ final class VoiceReplyRecorder: ObservableObject {
         }
     }
 
-    private func recognized(_ text: String?, isFinal: Bool, failed: Bool) {
+    private func recognized(_ text: String?, isFinal: Bool, failed: VoiceReplyProblem?) {
         let id = machine.sessionID
-        if case .finishing = machine.phase, isFinal || failed {
+        if case .finishing = machine.phase, isFinal || failed != nil {
             apply(machine.finished(text), session: id)
         } else if let text {
             apply(machine.partial(text, at: ProcessInfo.processInfo.systemUptime), session: id)
-        } else if failed, machine.isRecording {
+        } else if let failed, machine.isRecording {
             // The recognizer gave up while the microphone was still open.
             let effects = machine.failed()
             apply(effects, session: id)
-            if let id { problem = Problem(sessionID: id, kind: .recognizerFailed) }
+            if let id { problem = Problem(sessionID: id, kind: failed) }
         }
     }
 

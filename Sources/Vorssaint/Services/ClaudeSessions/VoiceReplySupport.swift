@@ -12,6 +12,8 @@ enum VoiceReplyProblem: Equatable {
     /// The language has no on-device recognizer on this Mac; the island
     /// never falls back to Apple's servers.
     case notOnDevice(String)
+    /// Apple's recognizer runs only with Dictation on, on the device too.
+    case dictationOff
     case recognizerFailed
     case sendFailed(ClaudeReplyFailure)
 }
@@ -140,6 +142,9 @@ struct VoiceReplyMachine: Equatable {
         case .idle:
             return Effects()
         case .preparing:
+            // The first press asks for permission, and the prompt takes the
+            // island's focus away; the press waits for the answer.
+            if ending == .islandClosed { return Effects() }
             let restore = ending == .cancelled ? snapshot : nil
             reset()
             return Effects(draft: restore, abort: true)
@@ -227,6 +232,17 @@ enum VoiceReplySupport {
 
     private static func activity(_ session: ClaudeSession) -> Date {
         session.lastActive ?? session.phaseSince
+    }
+
+    /// What a recognizer error means for the person. With Dictation off in
+    /// Keyboard settings, the on-device recognizer refuses to start
+    /// ("Siri and Dictation are disabled": kLSRErrorDomain 201, which reaches
+    /// apps as kAFAssistantErrorDomain 1700).
+    static func problem(domain: String, code: Int) -> VoiceReplyProblem {
+        switch (domain, code) {
+        case ("kLSRErrorDomain", 201), ("kAFAssistantErrorDomain", 1700): return .dictationOff
+        default: return .recognizerFailed
+        }
     }
 
     /// The recognizer locale for a saved choice, or the app's language.

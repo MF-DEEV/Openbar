@@ -97,7 +97,8 @@ export function end(m: Machine, ending: VoiceEnding): [Machine, Effects] {
     case "idle":
       return [m, {}];
     case "preparing":
-      return drop();
+      // A permission prompt can take the island's focus; the press waits for its answer.
+      return ending === "islandClosed" ? [m, {}] : drop();
     case "finishing":
       return !keepsWords(ending) && keepsWords(m.phase.ending) ? drop() : [m, {}];
     case "recording":

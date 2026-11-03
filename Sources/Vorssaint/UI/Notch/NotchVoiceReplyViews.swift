@@ -113,6 +113,7 @@ struct NotchVoiceReplyProblemLabel: View {
         case .microphoneDenied: return strings.microphoneDenied
         case .speechDenied: return strings.speechDenied
         case .notOnDevice(let language): return strings.notOnDevice(language)
+        case .dictationOff: return strings.dictationOff
         case .recognizerFailed: return strings.recognizerFailed
         case .sendFailed(let failure): return NotchClaudeSessionFormat.problem(failure, text: text)
         }
@@ -123,7 +124,7 @@ struct NotchVoiceReplyProblemLabel: View {
         case .noMicrophone: return { Permissions.shared.openSoundInputSettings() }
         case .microphoneDenied: return { Permissions.shared.openMicrophoneSettings() }
         case .speechDenied: return { Permissions.shared.openSpeechRecognitionSettings() }
-        case .notOnDevice: return { Permissions.shared.openDictationSettings() }
+        case .notOnDevice, .dictationOff: return { Permissions.shared.openDictationSettings() }
         case .recognizerFailed, .sendFailed: return nil
         }
     }

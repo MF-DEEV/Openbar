@@ -64,7 +64,8 @@ struct NotchClaudeSessionsSettingsControls: View {
                         }
                     }
                     .labelsHidden()
-                    .fixedSize()
+                    // The longest of the many language names would push the title out.
+                    .frame(maxWidth: 220)
                 }
                 switchRow("keyboard", strings.shortcut, caption: strings.shortcutHint, isOn: $voiceShortcut)
                 if voiceShortcut {

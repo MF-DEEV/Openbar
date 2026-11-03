@@ -58,6 +58,9 @@ describe("voice replies", () => {
 
     const preparing = start(IDLE, "s", "before", false)!;
     expect(end(preparing, "cancelled")[1]).toEqual({ abort: true, draft: "before" });
+    const [waiting, waitingFx] = end(preparing, "islandClosed");
+    expect(waitingFx).toEqual({});
+    expect(waiting.phase.kind).toBe("preparing");
 
     let finishing = recording("a");
     [finishing] = partial(finishing, "b");

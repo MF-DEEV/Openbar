@@ -60,6 +60,10 @@ enum VoiceReplyTests {
 
         var preparing = VoiceReplyMachine()
         _ = preparing.start(session: "s", draft: "before")
+        var prompted = VoiceReplyMachine()
+        _ = prompted.start(session: "s", draft: "")
+        suite.expect(prompted.end(.islandClosed) == .init() && prompted.phase == .preparing,
+                     "the island closing behind a permission prompt keeps the press waiting")
         let early = preparing.end(.cancelled)
         suite.expect(early.draft == "before" && early.abort, "Escape while asking for permission")
 
@@ -206,13 +210,18 @@ enum VoiceReplyTests {
     }
 
     static func strings(_ suite: TestSuite) {
+        suite.expect(VoiceReplySupport.problem(domain: "kLSRErrorDomain", code: 201) == .dictationOff, "Dictation off")
+        suite.expect(VoiceReplySupport.problem(domain: "kAFAssistantErrorDomain", code: 1700) == .dictationOff,
+                     "Dictation off, as apps see it")
+        suite.expect(VoiceReplySupport.problem(domain: "kAFAssistantErrorDomain", code: 1110) == .recognizerFailed,
+                     "anything else is a failure to try again")
         suite.expect(VoiceReplySupport.localeIdentifier(saved: "", app: .de) == "de-DE", "follows the app")
         suite.expect(VoiceReplySupport.localeIdentifier(saved: "en-GB", app: .de) == "en-GB", "a chosen language wins")
         let english = NotchVoiceReplyStrings.forLanguage(.enUS)
         for language in AppLanguage.allCases {
             let strings = NotchVoiceReplyStrings.forLanguage(language)
             let all = Mirror(reflecting: strings).children.compactMap { $0.value as? String }
-            suite.expect(all.count == 19 && all.allSatisfy { !$0.isEmpty }, "\(language): every string is there")
+            suite.expect(all.count == 20 && all.allSatisfy { !$0.isEmpty }, "\(language): every string is there")
             if language != .enUS {
                 suite.expect(strings.settingTitle != english.settingTitle, "\(language): translated")
             }
