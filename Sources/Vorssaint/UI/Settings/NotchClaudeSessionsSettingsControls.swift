@@ -12,6 +12,11 @@ struct NotchClaudeSessionsSettingsControls: View {
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
     @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
     @AppStorage(DefaultsKey.notchSessionsLimits) private var limits = true
+    @AppStorage(DefaultsKey.notchSessionsVoiceReplies) private var voiceReplies = false
+    @AppStorage(DefaultsKey.notchSessionsVoiceLanguage) private var voiceLanguage = ""
+    @AppStorage(DefaultsKey.notchSessionsVoiceSendOnStop) private var voiceSendOnStop = false
+    @AppStorage(DefaultsKey.notchSessionsVoiceShortcutEnabled) private var voiceShortcut = false
+    @State private var voiceLanguages: [VoiceReplyLanguage] = []
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
 
@@ -26,6 +31,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             switchRow("text.bubble", text.contentPreview, caption: text.contentPreviewHint, isOn: $previews)
             switchRow("gauge.with.dots.needle.50percent", text.limitsSetting, caption: text.limitsSettingHint, isOn: $limits)
             buddiesRow
+            voice
             Divider()
             hooks
             codex
@@ -37,6 +43,42 @@ struct NotchClaudeSessionsSettingsControls: View {
             service.checkCodex()
             service.checkAgentHooks()
             service.checkBridge()
+        }
+    }
+
+    /// Speaking a reply: the switch, then the language, the hold-to-talk
+    /// shortcut and sending by itself, once it is on.
+    private var voice: some View {
+        let strings = NotchVoiceReplyStrings.forLanguage(l10n.language)
+        let appLocale = VoiceReplySupport.localeIdentifier(saved: "", app: l10n.language)
+        return VStack(alignment: .leading, spacing: 10) {
+            switchRow("mic", strings.settingTitle, caption: strings.settingHint, isOn: $voiceReplies)
+            if voiceReplies {
+                SettingsRow(symbol: "globe", title: strings.language) {
+                    Picker(strings.language, selection: $voiceLanguage) {
+                        Text(strings.followApp(Locale.current.localizedString(forIdentifier: appLocale) ?? appLocale)).tag("")
+                        Divider()
+                        ForEach(voiceLanguages) { language in
+                            Text(language.onDevice ? language.name : language.name + " (" + strings.notOnDeviceTag + ")")
+                                .tag(language.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .fixedSize()
+                }
+                switchRow("keyboard", strings.shortcut, caption: strings.shortcutHint, isOn: $voiceShortcut)
+                if voiceShortcut {
+                    ShortcutPreferenceRow(role: .sessionVoice) {
+                        NotchService.shared.syncWithPreferences()
+                    }
+                    .padding(.leading, settingsRowTextInset)
+                }
+                switchRow("paperplane", strings.sendOnStop, caption: strings.sendOnStopHint, isOn: $voiceSendOnStop)
+            }
+        }
+        .task(id: voiceReplies) {
+            guard voiceReplies, voiceLanguages.isEmpty else { return }
+            voiceLanguages = await Task.detached(priority: .utility) { VoiceReplyLanguage.all() }.value
         }
     }
 

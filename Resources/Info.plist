@@ -75,7 +75,9 @@
 	<key>NSHumanReadableCopyright</key>
 	<string>© 2026 Vorssaint</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Vorssaint records your microphone only when you turn it on for a screen recording. The audio stays on your Mac unless you choose to create a temporary link.</string>
+	<string>Vorssaint uses your microphone only while you record it: in a screen recording you turn it on for, or while you speak a reply to a session. Spoken replies are turned into text on this Mac and the audio is not kept. A screen recording stays on your Mac unless you choose to create a temporary link.</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Vorssaint turns a reply you speak to a session into text. Recognition runs on this Mac only, and nothing you say is sent anywhere or kept.</string>
 	<key>NSNetworkVolumesUsageDescription</key>
 	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here. Downloads in the Dynamic Island also shows files arriving in your Downloads folder and the folders your browsers save to.</string>
 	<key>NSPrincipalClass</key>

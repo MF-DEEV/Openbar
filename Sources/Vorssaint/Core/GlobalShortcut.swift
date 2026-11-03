@@ -223,6 +223,9 @@ struct GlobalShortcut: Equatable, Hashable {
     // I for island, on the same free control-option-command layer.
     static let notchDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_I),
                                              modifiers: [.control, .option, .command])
+    // A for audio: held to speak a reply to a session, on the same layer.
+    static let sessionVoiceDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_A),
+                                                    modifiers: [.control, .option, .command])
     // L for library (S already belongs to the sound output switcher), on the
     // same free control-option-command layer.
     static let snippetLibraryDefault = GlobalShortcut(keyCode: Int64(kVK_ANSI_L),
@@ -724,6 +727,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
     case keyboardBrightnessIncrease
     case pointerNextDisplay
     case notch
+    case sessionVoice
 
     var id: String { storageKey }
 
@@ -759,6 +763,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessIncrease: return DefaultsKey.keyboardBrightnessIncreaseShortcut
         case .pointerNextDisplay: return DefaultsKey.pointerDisplayShortcut
         case .notch: return DefaultsKey.notchShortcut
+        case .sessionVoice: return DefaultsKey.notchSessionsVoiceShortcut
         }
     }
 
@@ -794,6 +799,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .keyboardBrightnessIncrease: return .keyboardBrightnessIncreaseDefault
         case .pointerNextDisplay: return .pointerNextDisplayDefault
         case .notch: return .notchDefault
+        case .sessionVoice: return .sessionVoiceDefault
         }
     }
 
@@ -858,6 +864,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return FeatureStrings.brightness(L10n.shared.language).keyboardBrightnessIncrease
         case .pointerNextDisplay: return PointerDisplayStrings.localized(L10n.shared.language).title
         case .notch: return FeatureStrings.notch(L10n.shared.language).title
+        case .sessionVoice: return NotchVoiceReplyStrings.forLanguage(L10n.shared.language).shortcut
         }
     }
 
@@ -916,6 +923,8 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
             return [DefaultsKey.keyboardBrightnessShortcutsEnabled]
         case .pointerNextDisplay: return [DefaultsKey.pointerDisplayEnabled]
         case .notch: return [DefaultsKey.notchEnabled, DefaultsKey.notchShortcutEnabled]
+        case .sessionVoice: return [DefaultsKey.notchEnabled, DefaultsKey.notchSessionsEnabled,
+                                    DefaultsKey.notchSessionsVoiceReplies, DefaultsKey.notchSessionsVoiceShortcutEnabled]
         }
     }
 
@@ -947,7 +956,7 @@ enum GlobalShortcutRole: CaseIterable, Identifiable {
         case .displayBrightnessDecrease, .displayBrightnessIncrease: return .brightness
         case .keyboardBrightnessDecrease, .keyboardBrightnessIncrease: return .brightness
         case .pointerNextDisplay: return .windowLayout
-        case .notch: return .notch
+        case .notch, .sessionVoice: return .notch
         }
     }
 

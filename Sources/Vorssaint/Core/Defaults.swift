@@ -917,6 +917,15 @@ enum DefaultsKey {
     /// The plan limits show beside the sessions, read by the AI section's
     /// reader, which then runs for them even with that section off.
     static let notchSessionsLimits = "notchSessionsLimits"
+    /// Replies spoken into a session's reply field, recognized on this Mac only.
+    static let notchSessionsVoiceReplies = "notchSessionsVoiceReplies"
+    /// The language voice replies are recognized in; empty follows the app's.
+    static let notchSessionsVoiceLanguage = "notchSessionsVoiceLanguage"
+    /// A voice reply goes to the session by itself once the person stops talking.
+    static let notchSessionsVoiceSendOnStop = "notchSessionsVoiceSendOnStop"
+    /// The hold-to-talk shortcut, off until the person turns it on.
+    static let notchSessionsVoiceShortcutEnabled = "notchSessionsVoiceShortcutEnabled"
+    static let notchSessionsVoiceShortcut = "notchSessionsVoiceShortcut" // GlobalShortcut storage value
     /// The agent and models New session last started with.
     static let notchNewSessionAgent = "notchNewSessionAgent"
     static let notchNewSessionClaudeModel = "notchNewSessionClaudeModel"
@@ -1537,6 +1546,11 @@ enum Defaults {
         DefaultsKey.notchSessionsSidebarHidden: false,
         DefaultsKey.notchSessionsBuddies: true,
         DefaultsKey.notchSessionsLimits: true,
+        DefaultsKey.notchSessionsVoiceReplies: false,
+        DefaultsKey.notchSessionsVoiceLanguage: "",
+        DefaultsKey.notchSessionsVoiceSendOnStop: false,
+        DefaultsKey.notchSessionsVoiceShortcutEnabled: false,
+        DefaultsKey.notchSessionsVoiceShortcut: GlobalShortcut.sessionVoiceDefault.storageValue,
         DefaultsKey.notchLyricsEnabled: true,
         DefaultsKey.notchLyricsOnline: false,
         DefaultsKey.notchBrowserCovers: false,

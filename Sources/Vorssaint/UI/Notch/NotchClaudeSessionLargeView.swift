@@ -524,10 +524,15 @@ struct NotchClaudeSessionComposer: View {
     @State private var sending = false
     @State private var problem: String?
     @State private var dropping = false
+    @ObservedObject private var voice = VoiceReplyRecorder.shared
+    @ObservedObject private var l10n = L10n.shared
+    @AppStorage(DefaultsKey.notchSessionsVoiceReplies) private var voiceReplies = false
 
     private var draft: Binding<String> {
         Binding(get: { service.drafts[session.id] ?? "" }, set: { service.drafts[session.id] = $0 })
     }
+
+    private var recording: Bool { voice.isRecording(session) }
 
     private var unavailable: String? {
         if session.phase.isWaiting { return text.replyWhileWaiting }
@@ -538,7 +543,7 @@ struct NotchClaudeSessionComposer: View {
     }
 
     private var canSend: Bool {
-        unavailable == nil && !sending
+        unavailable == nil && !sending && !recording
             && (NotchClaudeSessionsSupport.reply(draft.wrappedValue) != nil || service.attachments[session.id] != nil)
     }
 
@@ -548,7 +553,8 @@ struct NotchClaudeSessionComposer: View {
             HStack(alignment: .bottom, spacing: 10) {
                 ZStack(alignment: .topLeading) {
                     if draft.wrappedValue.isEmpty {
-                        Text(unavailable ?? text.replyPlaceholder(for: session.provider))
+                        Text(recording ? NotchVoiceReplyStrings.forLanguage(l10n.language).listening
+                             : unavailable ?? text.replyPlaceholder(for: session.provider))
                             .font(.system(size: size))
                             .foregroundStyle(.white.opacity(0.35))
                             .padding(.horizontal, 5)
@@ -558,7 +564,7 @@ struct NotchClaudeSessionComposer: View {
                         .font(.system(size: size))
                         .scrollContentBackground(.hidden)
                         .focused($focused)
-                        .disabled(unavailable != nil || sending)
+                        .disabled(unavailable != nil || sending || recording)
                         .accessibilityLabel(text.replyPlaceholder(for: session.provider))
                 }
                 // About three lines; the editor scrolls past that.
@@ -570,6 +576,10 @@ struct NotchClaudeSessionComposer: View {
                         .strokeBorder(.white.opacity(dropping ? 0.6 : focused ? 0.3 : 0.08), lineWidth: 1)
                 }
                 .modifier(NotchClaudeImageInput(sessionID: session.id, dropping: $dropping))
+                if VoiceReplySupport.showsMicrophone(for: session, enabled: voiceReplies) {
+                    NotchVoiceReplyButton(session: session, side: 38)
+                        .disabled(unavailable != nil || sending)
+                }
                 Button(action: send) {
                     Group {
                         if sending { ProgressView().controlSize(.small) } else {
@@ -590,6 +600,7 @@ struct NotchClaudeSessionComposer: View {
                 if let problem {
                     Label(problem, systemImage: "exclamationmark.triangle.fill").foregroundStyle(.orange)
                 }
+                NotchVoiceReplyProblemLabel(session: session, text: text, fontSize: 11)
                 Spacer()
                 Text(text.pasteImages + " · " + text.sendShortcut).foregroundStyle(.tertiary)
             }
