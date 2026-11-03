@@ -17,8 +17,19 @@ extension LegacyIdentity {
             if let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
                 migrateDataFolder(support: support, current: current, legacy: legacy)
             }
-            migrateDefaults(defaults, current: current, legacy: legacy)
+            let carried = migrateDefaults(defaults, current: current, legacy: legacy)
             defaults.set(true, forKey: migratedKey)
+            // macOS ties permissions to the bundle ID, so the features that
+            // came over are off until they are granted again. Their requests
+            // normally wait for a feature's own switch; ask for the two most
+            // of them need once the app is up, so Openbar is in the list.
+            if carried {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                    // Neither prompt shows for a permission already granted.
+                    Permissions.shared.requestAccessibility()
+                    Permissions.shared.requestScreenRecording()
+                }
+            }
         }
         let legacyInstalled = isInstalled(legacy)
         let socket = ClaudeSessionService.socketPath(home: home)
