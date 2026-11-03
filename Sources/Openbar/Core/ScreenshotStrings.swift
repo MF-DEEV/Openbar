@@ -2507,7 +2507,7 @@ extension ScreenshotFeatureStrings {
         done: "완료",
         sharePrivacyButton: "개인정보 보호",
         sharePrivacyTitle: "임시 링크 개인정보 보호",
-        sharePrivacyData: "Openbar은 완성된 이미지와 선택한 만료 시간만 전송합니다. 이름, 계정, 기기 식별자 또는 MAC 주소는 전송하지 않습니다. 이 Mac에는 링크가 활성화된 동안 링크, 만료 시간 및 비공개 삭제 토큰만 보관됩니다.",
+        sharePrivacyData: "Openbar는 완성된 이미지와 선택한 만료 시간만 전송합니다. 이름, 계정, 기기 식별자 또는 MAC 주소는 전송하지 않습니다. 이 Mac에는 링크가 활성화된 동안 링크, 만료 시간 및 비공개 삭제 토큰만 보관됩니다.",
         sharePrivacyStorage: "네트워크 제공업체와 서비스는 악용을 막기 위해 공개 IP 주소를 일시적으로 처리합니다. 링크를 삭제하거나 만료되면 이미지와 링크 메타데이터는 영구적으로 삭제됩니다. 서비스는 스크린샷 백업을 만들지 않습니다.",
         sharePrivacyAccess: "링크를 가진 사람은 누구나 이미지를 보고, 다운로드하고, 저장하거나 재배포할 수 있습니다. 악용 관리를 위해 활성 링크는 서비스 운영자도 확인할 수 있습니다. 신뢰하는 사람에게만 공유하세요.",
         scrollingCaptureCaption: "영역을 선택해 마우스나 트랙패드로 스크롤한 다음 Enter 키나 완료를 눌러 하나로 이어 붙이세요.",

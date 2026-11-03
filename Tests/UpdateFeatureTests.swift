@@ -1273,7 +1273,7 @@ enum UpdateFeatureTests {
         ![Menu bar temperature metrics](Resources/Images/menu-bar-temperature-metrics.png)
 
         ### Website
-        - Official site: [openbar.com](https://github.com/MF-DEEV/Openbar).
+        - Official site: [github.com/MF-DEEV/Openbar](https://github.com/MF-DEEV/Openbar).
 
         ## [2.17.1] - 2026-06-17
 

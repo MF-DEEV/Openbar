@@ -693,7 +693,7 @@ extension Strings {
         obBack: "Späť",
         obSkipStep: "Preskočiť tento krok",
         obStart: "Otvoriť Openbar",
-        obStepWelcomeTitle: "Vitajte vo Openbare",
+        obStepWelcomeTitle: "Vitajte v Openbare",
         obStepWelcomeBody: "Nenápadný nástroj v lište s ponukami, ktorý robí každodenný macOS praktickejším.",
         obWelcomeBullet1Title: "Energia pod kontrolou",
         obWelcomeBullet1Body: "Udržte Mac bdelý tak dlho, ako chcete, aj so zatvoreným vekom.",
