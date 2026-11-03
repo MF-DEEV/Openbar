@@ -20,7 +20,7 @@ extension LegacyIdentity {
             migrateDefaults(defaults, current: current, legacy: legacy)
             defaults.set(true, forKey: migratedKey)
         }
-        let legacyInstalled = NSWorkspace.shared.urlForApplication(withBundleIdentifier: legacy) != nil
+        let legacyInstalled = isInstalled(legacy)
         let socket = ClaudeSessionService.socketPath(home: home)
         DispatchQueue.global(qos: .utility).async {
             migrateHooks(home: home, current: current, legacy: legacy, socket: socket,
@@ -38,9 +38,16 @@ extension LegacyIdentity {
             // The folder both builds talked through: the Developer build
             // still uses it while it keeps the old ID.
             let siblings = [legacy, legacy.hasSuffix(".dev") ? String(legacy.dropLast(4)) : legacy + ".dev"]
-            if siblings.allSatisfy({ NSWorkspace.shared.urlForApplication(withBundleIdentifier: $0) == nil }) {
+            if !siblings.contains(where: isInstalled) {
                 try? FileManager.default.removeItem(at: home.appending(path: ".vorssaint", directoryHint: .isDirectory))
             }
         }
+    }
+
+    /// Whether an app with this ID is installed. LaunchServices also knows
+    /// copies in build folders and the Trash, which would keep the old hooks
+    /// forever, so only the Applications folders count.
+    static func isInstalled(_ bundle: String) -> Bool {
+        installed(among: NSWorkspace.shared.urlsForApplications(withBundleIdentifier: bundle))
     }
 }
