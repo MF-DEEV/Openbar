@@ -5,7 +5,7 @@ the top, followed by the currently discovered Windows media sessions,
 **Automatic**, **Preferred player** and **Include other players**. A manual choice keeps following that player while
 paused. If it closes or has no track, Automatic fills the gap; the manual
 choice is retained and resumes when the player returns. This temporary choice
-lasts until Vorssaint restarts, matching macOS.
+lasts until Openbar restarts, matching macOS.
 
 Automatic prefers playing music apps, then playing other media apps when
 enabled, then a previously followed paused non-music player, then paused music

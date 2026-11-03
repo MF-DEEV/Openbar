@@ -2,16 +2,16 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Vorssaint
 
-# Cleanly removes Vorssaint and every piece of system state it created:
+# Cleanly removes Openbar and every piece of system state it created:
 # the fan helper daemon, the login item, TCC permissions, preferences, saved
 # state, the app's own data folder and (if present) the password-free
 # closed-lid sudoers rule. Leaves no dead entries behind.
-# Also clears the pre-rename "Vorssaint Utils.app" if it is still around.
+# An app still installed as "Vorssaint.app" is left alone: it may be Vorssaint
+# itself, a different product with its own state.
 set -uo pipefail
 
-BUNDLE="com.vorssaint.utils"
-APP="/Applications/Vorssaint.app"
-LEGACY_APP="/Applications/Vorssaint Utils.app"
+BUNDLE="com.openbar.app"
+APP="/Applications/Openbar.app"
 
 # A readable domain with a missing key is different from a failed read. Export
 # the whole domain first, including an empty dictionary when it does not exist.
@@ -113,8 +113,7 @@ spaces_removal_state() {
 }
 
 echo "▸ Quitting…"
-pkill -x Vorssaint 2>/dev/null || true
-pkill -x VorssaintUtils 2>/dev/null || true
+pkill -x Openbar 2>/dev/null || true
 sleep 0.5
 
 # Detach from the system from inside whichever bundle still exists: unregisters
@@ -125,7 +124,7 @@ sleep 0.5
 # check after the loop settles what its absence or failure left behind.
 detached=1
 ran_app=0
-for candidate in "$APP/Contents/MacOS/Vorssaint" "$LEGACY_APP/Contents/MacOS/VorssaintUtils"; do
+for candidate in "$APP/Contents/MacOS/Openbar"; do
     if [[ -x "$candidate" ]]; then
         echo "▸ Detaching the fan helper and login item, restoring sleep and Space rearranging…"
         ran_app=1
@@ -148,7 +147,7 @@ fi
 
 # Whether the closed-lid feature is the reason sleep is off. Read here because
 # the preferences that hold it are deleted a few lines below, and without it a
-# check on the setting alone would blame Vorssaint for a `pmset disablesleep 1`
+# check on the setting alone would blame Openbar for a `pmset disablesleep 1`
 # that somebody else, or the user, had set.
 sleep_was_ours=0
 [[ "$(defaults read "$BUNDLE" vorssDisabledSleep 2>/dev/null)" == "1" ]] && sleep_was_ours=1
@@ -182,7 +181,7 @@ echo "▸ Resetting permissions (Accessibility, Screen Recording)…"
 tccutil reset All "$BUNDLE" >/dev/null 2>&1 || true
 
 echo "▸ Removing app, preferences, saved state and stored data (clipboard history, shelf files, share links)…"
-rm -rf "$APP" "$LEGACY_APP"
+rm -rf "$APP"
 defaults delete "$BUNDLE" >/dev/null 2>&1 || true
 rm -f "$HOME/Library/Preferences/$BUNDLE.plist"
 rm -rf "$HOME/Library/Saved Application State/$BUNDLE.savedState"
@@ -195,12 +194,12 @@ rm -rf "$HOME/Library/Caches/$BUNDLE"
 rm -rf "$HOME/Library/HTTPStorages/$BUNDLE" "$HOME/Library/HTTPStorages/$BUNDLE.binarycookies"
 # The Sessions hooks' fallback socket. `--uninstall`, when the app could
 # still run it, took the hooks out of ~/.claude/settings.json and removed the
-# shared ~/.vorssaint folder and Antigravity extension if no other build
+# shared ~/.openbar folder and Antigravity extension if no other build
 # needs them; without the app, only this build's own socket goes.
-rm -f "$HOME/.vorssaint/$BUNDLE.sock"
-if grep -qF "# vorssaint-hook $BUNDLE" "$HOME/.claude/settings.json" 2>/dev/null; then
+rm -f "$HOME/.openbar/$BUNDLE.sock"
+if grep -qF "# openbar-hook $BUNDLE" "$HOME/.claude/settings.json" 2>/dev/null; then
     echo "  Claude Code hooks for $BUNDLE are still in ~/.claude/settings.json. They do nothing without the app;"
-    echo "  remove the entries marked \"# vorssaint-hook $BUNDLE\" to tidy up."
+    echo "  remove the entries marked \"# openbar-hook $BUNDLE\" to tidy up."
 fi
 # `defaults delete` does not reach ByHost. The (N) qualifier is load-bearing:
 # without it zsh aborts the command on an unmatched pattern, which is the
@@ -211,14 +210,14 @@ rm -f "$HOME/Library/Preferences/ByHost/$BUNDLE".*.plist(N)
 # same files the app looks for. Each path is checked on its own. zsh passes an
 # unquoted string to a command as a single word, and one `ls` over all three
 # fails as soon as any of them is missing.
-RULES=(/etc/sudoers.d/vorssaint-clamshell /etc/sudoers.d/vorssaint-utils-clamshell /etc/sudoers.d/vorss-clamshell)
+RULES=(/etc/sudoers.d/openbar-clamshell /etc/sudoers.d/vorssaint-clamshell /etc/sudoers.d/vorssaint-utils-clamshell /etc/sudoers.d/vorss-clamshell)
 found_rules=()
 for rule in "${RULES[@]}"; do
     [[ -e "$rule" ]] && found_rules+=("$rule")
 done
 if (( ${#found_rules} )); then
     echo "▸ Removing closed-lid sudoers rule (asks for your admin password)…"
-    osascript -e "do shell script \"rm -f $found_rules\" with administrator privileges with prompt \"Vorssaint uninstaller\"" || true
+    osascript -e "do shell script \"rm -f $found_rules\" with administrator privileges with prompt \"Openbar uninstaller\"" || true
 fi
 
 # `--uninstall` restores sleep, but it runs before the app has an
@@ -255,36 +254,36 @@ case "$(spaces_removal_state "$spaces_owed" "$spaces_journal")" in
 esac
 
 if (( detached == 0 && sleep_stuck == 0 && sleep_unknown == 0 && spaces_stuck == 0 && spaces_unloaded == 0 && spaces_unknown == 0 )); then
-    echo "✓ Vorssaint fully removed."
+    echo "✓ Openbar fully removed."
     exit 0
 fi
 if (( detached )); then
-    echo "⚠ Vorssaint removed, but its fan helper is still registered with the system." >&2
-    echo "  Reinstall Vorssaint, then use Settings › Advanced to uninstall from inside the app." >&2
+    echo "⚠ Openbar removed, but its fan helper is still registered with the system." >&2
+    echo "  Reinstall Openbar, then use Settings › Advanced to uninstall from inside the app." >&2
 fi
 if (( sleep_stuck )); then
-    echo "⚠ Vorssaint removed, but this Mac still has sleep switched off." >&2
+    echo "⚠ Openbar removed, but this Mac still has sleep switched off." >&2
     echo "  Closed-lid mode disabled it, and restoring it needed a password this script could not ask for." >&2
     echo "  Put it back with: sudo pmset disablesleep 0" >&2
 fi
 if (( sleep_unknown )); then
-    echo "⚠ Vorssaint removed, but whether sleep came back could not be read." >&2
+    echo "⚠ Openbar removed, but whether sleep came back could not be read." >&2
     echo "  Closed-lid mode had switched it off. Check with: pmset -g | grep SleepDisabled" >&2
     echo "  If that reads 1, put it back with: sudo pmset disablesleep 0" >&2
 fi
 if (( spaces_stuck )); then
-    echo "⚠ Vorssaint removed, but Spaces are still kept in a fixed order." >&2
+    echo "⚠ Openbar removed, but Spaces are still kept in a fixed order." >&2
     echo "  Fixed Space order had turned rearranging off, and it was not put back." >&2
     echo "  Turn it back on in System Settings › Desktop & Dock with" >&2
     echo "  \"Automatically rearrange Spaces based on most recent use\"." >&2
 fi
 if (( spaces_unloaded )); then
-    echo "⚠ Vorssaint removed, but the Dock still keeps Spaces in a fixed order." >&2
+    echo "⚠ Openbar removed, but the Dock still keeps Spaces in a fixed order." >&2
     echo "  Space rearranging was put back on, and the Dock reads it when it restarts." >&2
     echo "  Log out and back in to finish." >&2
 fi
 if (( spaces_unknown )); then
-    print -u2 "Vorssaint removed, but whether Space rearranging was restored could not be confirmed."
+    print -u2 "Openbar removed, but whether Space rearranging was restored could not be confirmed."
     print -u2 "Check Automatically rearrange Spaces based on most recent use in System Settings."
 fi
 exit 1

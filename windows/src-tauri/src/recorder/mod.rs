@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-//! The screen recorder (Sources/Vorssaint/Services/Recorder): an area of one
+//! The screen recorder (Sources/Openbar/Services/Recorder): an area of one
 //! display, the system's sound and the microphone, into an MP4 in the Videos
 //! folder. Windows.Graphics.Capture gives the frames, WASAPI the sound and a
 //! Media Foundation sink writer encodes H.264 and AAC. Nothing runs between

@@ -215,7 +215,7 @@ impl Server {
             last_id: 0,
             cancelled,
         };
-        server.ask("initialize", json!({"clientInfo": {"name": "vorssaint", "title": "Vorssaint", "version": env!("CARGO_PKG_VERSION")}, "capabilities": null}))?;
+        server.ask("initialize", json!({"clientInfo": {"name": "openbar", "title": "Openbar", "version": env!("CARGO_PKG_VERSION")}, "capabilities": null}))?;
         if !server.channel.send(&json!({"method": "initialized"})) {
             return Err(Failure::Unreachable);
         }

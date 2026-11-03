@@ -217,7 +217,7 @@ fn run_online(report: &mut dyn FnMut(&State)) {
     }
 }
 
-/// `Vorssaint.exe --speed-test-probe <file>`: runs a test, writing each step
+/// `Openbar.exe --speed-test-probe <file>`: runs a test, writing each step
 /// and the result as JSON lines.
 pub fn probe_main(path: &str) -> ! {
     let mut lines = Vec::new();
@@ -273,7 +273,7 @@ impl WinHttp {
     fn open() -> Result<Self, Failure> {
         use windows::Win32::Networking::WinHttp::*;
         use windows::core::{HSTRING, PCWSTR};
-        let agent = HSTRING::from(format!("Vorssaint/{}", env!("CARGO_PKG_VERSION")));
+        let agent = HSTRING::from(format!("Openbar/{}", env!("CARGO_PKG_VERSION")));
         unsafe {
             let session = Handle(WinHttpOpen(
                 &agent,

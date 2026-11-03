@@ -28,13 +28,13 @@ pub fn changed() {
 pub fn refresh_titles<R: Runtime>(app: &AppHandle<R>) {
     if let Some(window) = app.get_webview_window(crate::settings::LABEL) {
         let _ = window.set_title(&format!(
-            "Vorssaint — {}",
+            "Openbar — {}",
             text(app, "settings").trim_end_matches('…')
         ));
     }
     for (label, window) in app.webview_windows() {
         if label.starts_with("screenshot-preview-") {
-            let _ = window.set_title(&format!("{} — Vorssaint", text(app, "screenshot")));
+            let _ = window.set_title(&format!("{} — Openbar", text(app, "screenshot")));
         }
     }
 }

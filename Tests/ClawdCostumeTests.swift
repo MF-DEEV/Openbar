@@ -156,9 +156,9 @@ enum ClawdCostumeTests {
                      "costumes and names, kept by this Mac's session ids, do not")
         suite.expect(Defaults.registeredDefaults[DefaultsKey.notchSessionsBuddies] as? Bool == true,
                      "Clawds are on until the person turns them off")
-        let defaults = UserDefaults(suiteName: "com.vorssaint.tests.clawd")!
-        defaults.removePersistentDomain(forName: "com.vorssaint.tests.clawd")
-        defer { defaults.removePersistentDomain(forName: "com.vorssaint.tests.clawd") }
+        let defaults = UserDefaults(suiteName: "com.openbar.tests.clawd")!
+        defaults.removePersistentDomain(forName: "com.openbar.tests.clawd")
+        defer { defaults.removePersistentDomain(forName: "com.openbar.tests.clawd") }
         suite.expect(NotchClaudeSessionsSupport.showsBuddies(in: defaults), "with nothing stored, Clawds show")
         defaults.set(false, forKey: DefaultsKey.notchSessionsBuddies)
         suite.expect(!NotchClaudeSessionsSupport.showsBuddies(in: defaults), "and the switch hides them")

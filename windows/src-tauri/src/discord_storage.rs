@@ -776,7 +776,7 @@ mod tests {
     #[test]
     fn cached_reader_follows_live_log_updates_and_compaction_without_writing_database() {
         let directory = std::env::temp_dir().join(format!(
-            "vorssaint-discord-test-{}-{}",
+            "openbar-discord-test-{}-{}",
             std::process::id(),
             SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)

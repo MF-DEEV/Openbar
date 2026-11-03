@@ -8,12 +8,12 @@ This document says what the Mac app does. Proposed Windows behavior is in §6 an
 
 | Short name | Path |
 |---|---|
-| `ClaudeSession*.swift`, `ClaudeHook*.swift`, `ClaudeTranscriptReader.swift`, `ClaudeImageAttachments.swift`, `ClaudeAgentColors.swift`, `ClawdCostume.swift` | `Sources/Vorssaint/Services/ClaudeSessions/` |
-| `NotchClaudeSessionsSupport.swift`, `NotchService.swift`, `NotchSupport.swift`, `NotchAgentSupport.swift` | `Sources/Vorssaint/Services/Notch/` |
-| `NotchClaudeSession*View.swift`, `NotchClaudeSessionStrip.swift`, `NotchClaudeRichText.swift`, `NotchClawd*.swift`, `NotchAgentComponents.swift`, `NotchNoticeView.swift`, `NotchCapsuleViews.swift` | `Sources/Vorssaint/UI/Notch/` |
-| `NotchClaudeSessionStrings.swift`, `Defaults.swift` | `Sources/Vorssaint/Core/` |
-| `NotchClaudeSessionsSettingsControls.swift` | `Sources/Vorssaint/UI/Settings/` |
-| `AgentUsageStore.swift`, `AgentLogParser.swift`, `Harness/ClaudeReader.swift` | `Sources/Vorssaint/Services/AgentUsage/` |
+| `ClaudeSession*.swift`, `ClaudeHook*.swift`, `ClaudeTranscriptReader.swift`, `ClaudeImageAttachments.swift`, `ClaudeAgentColors.swift`, `ClawdCostume.swift` | `Sources/Openbar/Services/ClaudeSessions/` |
+| `NotchClaudeSessionsSupport.swift`, `NotchService.swift`, `NotchSupport.swift`, `NotchAgentSupport.swift` | `Sources/Openbar/Services/Notch/` |
+| `NotchClaudeSession*View.swift`, `NotchClaudeSessionStrip.swift`, `NotchClaudeRichText.swift`, `NotchClawd*.swift`, `NotchAgentComponents.swift`, `NotchNoticeView.swift`, `NotchCapsuleViews.swift` | `Sources/Openbar/UI/Notch/` |
+| `NotchClaudeSessionStrings.swift`, `Defaults.swift` | `Sources/Openbar/Core/` |
+| `NotchClaudeSessionsSettingsControls.swift` | `Sources/Openbar/UI/Settings/` |
+| `AgentUsageStore.swift`, `AgentLogParser.swift`, `Harness/ClaudeReader.swift` | `Sources/Openbar/Services/AgentUsage/` |
 | Antigravity companion extension | `Tools/AntigravityBridge/extension/extension.js`, `package.json`, `extension.vsixmanifest` |
 | Tests that pin behavior | `Tests/ClaudeHookTests.swift`, `ClaudeSessionEngineTests.swift`, `ClaudeSessionReaderTests.swift`, `ClawdCostumeTests.swift`, `NotchClawdSpriteTests.swift`, `ClaudeAgentColorTests.swift` |
 
@@ -29,7 +29,7 @@ This document says what the Mac app does. Proposed Windows behavior is in §6 an
    │ writes ~/.claude/projects/<enc-cwd>/<sessionId>.jsonl  (+ <sessionId>/subagents/agent-<id>.jsonl, .meta.json)
    │ writes ~/.claude/tasks/<sessionId>/*.json  (task list)
    │ runs hooks from ~/.claude/settings.json:
-   │     /usr/bin/nc -U '<app socket>' 2>/dev/null; exit 0 # vorssaint-hook <bundleId>
+   │     /usr/bin/nc -U '<app socket>' 2>/dev/null; exit 0 # openbar-hook <bundleId>
    ▼
  ClaudeHookServer (AF_UNIX stream socket, 0600)  ──► ClaudeSessionService (private queue)
                                                       ├─ polls registry every 1 s (active) / 3 s (quiet)
@@ -39,7 +39,7 @@ This document says what the Mac app does. Proposed Windows behavior is in §6 an
                                                       └─ actions: allow/deny/answer (hook reply), reply typing, focus window
  Reply / focus:
    Terminal.app  ← AppleScript, tab matched by tty, bracketed paste via `do script`
-   Antigravity   ← companion VS Code extension, per-window socket ~/.vorssaint/terminals/<extHostPid>.sock
+   Antigravity   ← companion VS Code extension, per-window socket ~/.openbar/terminals/<extHostPid>.sock
 ```
 
 The engine is pure (no files, clocks or queues; `ClaudeSessionEngine.swift:6-16`). The service does all I/O (`ClaudeSessionService.swift:8-17`). The Windows port should keep the same split: a pure Rust `engine` module with the same rules plus unit tests ported from `ClaudeSessionEngineTests.swift`, and an I/O `service` module.
@@ -232,19 +232,19 @@ Search order (`ClaudeAgentColors.swift:59-79, 219-239`):
 `ClaudeHookInstaller.swift:35-40`:
 
 ```
-/usr/bin/nc -U '<socketPath>' 2>/dev/null; exit 0 # vorssaint-hook <bundleId>
+/usr/bin/nc -U '<socketPath>' 2>/dev/null; exit 0 # openbar-hook <bundleId>
 ```
 
 - The socket path is single-quoted, with `'` escaped as `'\''`.
-- `# vorssaint-hook <bundleId>` is a shell comment that doubles as the **ownership marker**. `bundleId` is `com.vorssaint.utils` (official) or `com.vorssaint.utils.dev` (Developer build), so two builds can install side by side.
+- `# openbar-hook <bundleId>` is a shell comment that doubles as the **ownership marker**. `bundleId` is `com.openbar.app` (official) or `com.openbar.app.dev` (Developer build), so two builds can install side by side.
 - `exit 0` means the hook never fails a tool call. When the app is not running, `nc` cannot connect, prints nothing, and Claude Code carries on as if there were no hook (it shows its own terminal prompt).
 
-Socket path (`ClaudeSessionService.swift:92-96`): `~/Library/Application Support/<bundleId>/claude-hooks.sock`. If that is too long for `sun_path` (≥ 104 bytes), the fallback is `~/.vorssaint/<bundleId>.sock`.
+Socket path (`ClaudeSessionService.swift:92-96`): `~/Library/Application Support/<bundleId>/claude-hooks.sock`. If that is too long for `sun_path` (≥ 104 bytes), the fallback is `~/.openbar/<bundleId>.sock`.
 
 Real installed entry:
 ```json
 "PermissionRequest": [ {"matcher":"*","hooks":[{"type":"command",
-  "command":"/usr/bin/nc -U '/Users/me/Library/Application Support/com.vorssaint.utils.dev/claude-hooks.sock' 2>/dev/null; exit 0 # vorssaint-hook com.vorssaint.utils.dev",
+  "command":"/usr/bin/nc -U '/Users/me/Library/Application Support/com.openbar.app.dev/claude-hooks.sock' 2>/dev/null; exit 0 # openbar-hook com.openbar.app.dev",
   "timeout":600}]} ]
 ```
 
@@ -253,7 +253,7 @@ Real installed entry:
 File: `~/.claude/settings.json` (the `.config/claude` home is **not** considered for hooks; `ClaudeHookInstaller.swift:31-33`).
 
 - **Install** (`installing`, `:86-98`): first remove this bundle's entries, then for each event **append** a new group `{"hooks":[{"type":"command","command":C,"timeout":T}]}` (plus `"matcher":"*"` for tool events) to `hooks[event]`. Groups belonging to the user or to other tools are never touched.
-- **Remove** (`removing`, `:65-84`): in every event, drop each hook entry whose `command` contains the marker `# vorssaint-hook <bundleId>`. A group left empty is dropped, an event left with no groups is dropped, and an empty `hooks` object is dropped.
+- **Remove** (`removing`, `:65-84`): in every event, drop each hook entry whose `command` contains the marker `# openbar-hook <bundleId>`. A group left empty is dropped, an event left with no groups is dropped, and an empty `hooks` object is dropped.
 - **Installed check** (`isInstalled`, `:45-52`): every one of the 11 events has some group with a hook whose `command` equals the **current** command exactly. So a changed socket path reads as "not installed", and installing again replaces the old entries.
 - **Read** (`:105-123`): no file → `{}`. A whitespace-only file → `{}`. Non-JSON, a folder, an unreadable file, or a dangling symlink → error `unreadable`, and the file is left alone.
 - **Atomic update with retry** (`update`, `:131-174`):
@@ -261,10 +261,10 @@ File: `~/.claude/settings.json` (the `.config/claude` home is **not** considered
   2. Up to 3 attempts: read mtime + contents, compute the change. **If nothing changes, return without writing** (idempotent, and no file is created just to hold `{}`).
   3. Serialize pretty-printed, keys sorted, slashes unescaped, trailing `\n`.
   4. If mtime or contents changed meanwhile (Claude Code wrote the file), retry. After 3 retries → `busy`.
-  5. Backup: `settings.json.vorssaint-<unixSeconds>.bak` beside it, mode 0600. If the backup fails → `noBackup` and nothing is written. Keep the newest **3** backups (by number in the name).
-  6. Write to `.settings.json.vorssaint-<UUID>` in the same folder, copy the original POSIX permissions, then `rename()` over the target.
+  5. Backup: `settings.json.openbar-<unixSeconds>.bak` beside it, mode 0600. If the backup fails → `noBackup` and nothing is written. Keep the newest **3** backups (by number in the name).
+  6. Write to `.settings.json.openbar-<UUID>` in the same folder, copy the original POSIX permissions, then `rename()` over the target.
 - User-facing errors: `NotchClaudeSessionStrings.swift` `settingsUnreadable`, `settingsBusy`, `settingsNoBackup`, or the OS error, shown as "Couldn’t change the settings: %@".
-- Uninstall cleanup (`ClaudeSessionService.swift:772-802`): remove this bundle's hooks and `~/.vorssaint/<bundleId>.sock`. If no sibling build is installed and the sibling has no hooks left, also uninstall the Antigravity extension and delete `~/.vorssaint/`.
+- Uninstall cleanup (`ClaudeSessionService.swift:772-802`): remove this bundle's hooks and `~/.openbar/<bundleId>.sock`. If no sibling build is installed and the sibling has no hooks left, also uninstall the Antigravity extension and delete `~/.openbar/`.
 
 ### 2.4 Transport and message protocol
 
@@ -571,9 +571,9 @@ Phase symbols (SF Symbols → use an icon font on Windows; `NotchClaudeSessionsS
 `ClaudeImageAttachments.swift`. Claude Code attaches an image when a paste is nothing but the path of a PNG/JPEG/GIF/WebP file.
 - Input: ⌘V (if the clipboard holds image files, or image data with no text) or drag-and-drop of files/image data onto the field or composer. Otherwise ⌘V pastes text.
 - Limits: at most **5** per reply, each ≤ **20 MiB**. Duplicates are ignored.
-- png/jpg/jpeg/gif/webp files are used where they lie. Any other image, or raw image data, is converted to PNG in `$TMPDIR/vorssaint-images/<UUID>.png` (folder 0700, file 0600). Files there older than 24 h are swept at start.
+- png/jpg/jpeg/gif/webp files are used where they lie. Any other image, or raw image data, is converted to PNG in `$TMPDIR/openbar-images/<UUID>.png` (folder 0700, file 0600). Files there older than 24 h are swept at start.
 - Thumbnails: a radius-8 square with a white 15% border and an ✕ remove button (14 pt) offset (5, −5).
-- For the fallback "naming" mode (an old extension), the images are copied to `/private/tmp/claude-<uid>/<project-folder-of-transcript>/<sessionId>/images/vorssaint-<UUID>.<ext>` if that folder exists. Claude reads there without asking. Otherwise the original paths are used.
+- For the fallback "naming" mode (an old extension), the images are copied to `/private/tmp/claude-<uid>/<project-folder-of-transcript>/<sessionId>/images/openbar-<UUID>.<ext>` if that folder exists. Claude reads there without asking. Otherwise the original paths are used.
 
 ### 4.10 Jump-to-window ("Open")
 
@@ -774,7 +774,7 @@ List row 32×30 · page header button 40×36 (badge 30) · large header 48×42 (
 
 **Antigravity** (`ClaudeSessionService.swift:605-623`, `ClaudeSessionHosts.swift:174-271`, `Tools/AntigravityBridge/extension/extension.js`):
 - Shell pid = **parent pid** of the claude pid. The VS Code API knows a terminal by its shell's pid (`terminal.processId`).
-- Extension: activates `onStartupFinished` with `extensionKind: ["ui"]`. Each window's extension host listens on `~/.vorssaint/terminals/<extHostPid>.sock` (folder 0700, socket 0600, umask 077, `allowHalfOpen`, 5 s connection timeout, max request 64 KiB).
+- Extension: activates `onStartupFinished` with `extensionKind: ["ui"]`. Each window's extension host listens on `~/.openbar/terminals/<extHostPid>.sock` (folder 0700, socket 0600, umask 077, `allowHalfOpen`, 5 s connection timeout, max request 64 KiB).
 - Protocol: one request line of JSON + `\n`; one reply line of JSON + `\n`, after which the connection is ended.
 
   | Request | Reply |
@@ -789,7 +789,7 @@ List row 32×30 · page header button 40×36 (badge 30) · large header 48×42 (
   | exception | `{"ok":false,"error":"<message>"}` |
 - Client: tries **every** `*.sock` in the folder in turn, stopping at the first `ok:true`. Timeout 4 s per socket (send-images: `4 + 1.2 + 0.3·n`). If no window has `send-images` (an old extension says `unknown`), it falls back to `send` with the text plus `\n\n[Image: <path>]` lines.
 - Focus: read `<home>/ide/<CLAUDE_CODE_SSE_PORT>.lock` → `workspaceFolders`. `openFolder` = the deepest workspace folder that equals or prefixes the cwd. Activate the app first (otherwise Antigravity only reorders its own windows). If no open folder is known, raise the window whose AX title contains `windowHint` (the folder's last component) via the Accessibility API. If a folder is known, run `<Antigravity.app>/Contents/Resources/app/bin/antigravity-ide <folder>`, which brings the window holding that folder forward and never opens a new one, because only open folders are asked for. Then send the extension `focus`.
-- Install: zip `Resources/AntigravityBridge` into a `.vsix`, then run `antigravity-ide --install-extension <vsix> --force`. "Installed" = a folder `~/.antigravity-ide/extensions/vorssaint.vorssaint-terminal-bridge-<version>` exists. "Outdated" = no installed version equals (or starts with) the bundled `package.json` version. An outdated extension is reinstalled automatically at start. Settings row: "Antigravity extension" with an Install/Update button.
+- Install: zip `Resources/AntigravityBridge` into a `.vsix`, then run `antigravity-ide --install-extension <vsix> --force`. "Installed" = a folder `~/.antigravity-ide/extensions/openbar.openbar-terminal-bridge-<version>` exists. "Outdated" = no installed version equals (or starts with) the bundled `package.json` version. An outdated extension is reinstalled automatically at start. Settings row: "Antigravity extension" with an Install/Update button.
 
 **Other apps** (`.app(bundle)`): Open only activates the app; replies are unavailable. **Unknown**: Open is disabled.
 
@@ -813,15 +813,15 @@ Goals: the same UX for (a) Windows Terminal, (b) VS Code / Cursor / Antigravity 
 #### 6.2.2 Deliver text: three candidates, in order of preference
 
 **A. VS Code-family companion extension (preferred for IDEs).** Port `extension.js` almost unchanged:
-- Transport: a Windows named pipe `\\.\pipe\vorssaint-terminals-<userSidHash>-<extHostPid>` (Node `net.createServer().listen(pipePath)` supports pipes). Unix modes do not apply; rely on the default pipe DACL being the creating user + SYSTEM + Administrators, or create the pipe from a native helper with an explicit DACL **[VERIFY]**.
-- Discovery: Windows has no pipe directory to list cheaply (`FindFirstFileW("\\\\.\\pipe\\*")` works but lists every pipe). Instead each extension writes a registration file `%LOCALAPPDATA%\Vorssaint\terminals\<extHostPid>.json` = `{"pipe":"\\\\.\\pipe\\…","version":"1.1.0","ide":"vscode|cursor|antigravity|windsurf","pid":<extHostPid>}`, removed in `deactivate`. The app ignores files whose pid is dead.
+- Transport: a Windows named pipe `\\.\pipe\openbar-terminals-<userSidHash>-<extHostPid>` (Node `net.createServer().listen(pipePath)` supports pipes). Unix modes do not apply; rely on the default pipe DACL being the creating user + SYSTEM + Administrators, or create the pipe from a native helper with an explicit DACL **[VERIFY]**.
+- Discovery: Windows has no pipe directory to list cheaply (`FindFirstFileW("\\\\.\\pipe\\*")` works but lists every pipe). Instead each extension writes a registration file `%LOCALAPPDATA%\Openbar\terminals\<extHostPid>.json` = `{"pipe":"\\\\.\\pipe\\…","version":"1.1.0","ide":"vscode|cursor|antigravity|windsurf","pid":<extHostPid>}`, removed in `deactivate`. The app ignores files whose pid is dead.
 - Same JSON line protocol. Add `shellPids: [..]` (the ancestor chain) so the extension matches any `terminal.processId` in the chain. Keep `shellPid` for compatibility.
 - Install: `code --install-extension <vsix> --force` (likewise `cursor`, `antigravity`, `windsurf` CLIs; find them via the IDE's install dir `bin\<cli>.cmd`). Detect installed versions under `~\<dataFolderName>\extensions`, with `dataFolderName` read from the editor's `product.json` (since VS Code 1.144 at `<install>\<build>\resources\app\`), from the editor's own `extensions.json` there (a removed extension's folder can outlive its entry, and isn't always in `.obsolete`), or from the folders when that file can't be read. Built in `hosts/bridge_installer.rs`. Verified end to end on VS Code 1.144 (`%LOCALAPPDATA%\Programs\Microsoft VS Code\bin\code.cmd`, `.vscode`); an open window loads a new install without a reload. **[VERIFY: the Cursor, Antigravity and Windsurf install folders and CLI names]**.
 - Bracketed paste through `terminal.sendText` → ConPTY → claude.exe: **[VERIFY]**. ConPTY must pass `ESC[200~`/`ESC[201~` through to an app that enabled bracketed paste mode (`ESC[?2004h`), and Claude Code on Windows must treat it as a paste (newlines kept, no submit). If that fails, fall back to sending multi-line text with Claude Code's newline keystroke (`\` + Enter, or Shift+Enter **[VERIFY]**) per line, then `\r`.
 - Also bump the version and **fix the `.vsixmanifest` version mismatch** (manifest says 1.0.1, `package.json` says 1.0.3).
 
 **B. Windows Terminal and conhost: `AttachConsole` + `WriteConsoleInputW` (preferred for terminals).**
-- From a small helper process (`vorssaint-console.exe`; a GUI app should not attach to consoles itself): `FreeConsole()`, then `AttachConsole(claudePid)` (that attaches to the pseudoconsole/OpenConsole that hosts the WT tab, or to the conhost window). Open `CONIN$` (`CreateFileW("CONIN$", GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE, …)`), build `KEY_EVENT` records (key down + key up per UTF-16 unit, `uChar.UnicodeChar` set, `wVirtualKeyCode = 0` or `VK_PACKET`), `WriteConsoleInputW`, `FreeConsole()`.
+- From a small helper process (`openbar-console.exe`; a GUI app should not attach to consoles itself): `FreeConsole()`, then `AttachConsole(claudePid)` (that attaches to the pseudoconsole/OpenConsole that hosts the WT tab, or to the conhost window). Open `CONIN$` (`CreateFileW("CONIN$", GENERIC_READ|GENERIC_WRITE, FILE_SHARE_READ|FILE_SHARE_WRITE, …)`), build `KEY_EVENT` records (key down + key up per UTF-16 unit, `uChar.UnicodeChar` set, `wVirtualKeyCode = 0` or `VK_PACKET`), `WriteConsoleInputW`, `FreeConsole()`.
 - Sequence: `ESC [ 2 0 0 ~` + text + `ESC [ 2 0 1 ~`, pause about 80 ms, then a `VK_RETURN` key event (`\r`).
 - **[VERIFY]** Claude Code reads input in VT mode (`ENABLE_VIRTUAL_TERMINAL_INPUT`). Check that injected ESC sequences arrive as a bracketed paste and not as a literal Escape key, which would cancel. Fallback: per-line text with Shift+Enter (`KEY_EVENT` VK_RETURN with `SHIFT_PRESSED`) for newlines **[VERIFY: Claude Code honors Shift+Enter on Windows]**.
 - **[VERIFY]** `AttachConsole` across integrity levels: an elevated claude cannot be attached from a non-elevated app. Report `.unreachable`.
@@ -844,9 +844,9 @@ Goals: the same UX for (a) Windows Terminal, (b) VS Code / Cursor / Antigravity 
 
 #### 6.2.4 Hook transport on Windows **[VERIFY: all of it]**
 
-- No `nc`. Ship `vorssaint-hook.exe` (Rust, console subsystem, ~200 KB). It reads all of stdin, connects to `\\.\pipe\vorssaint-claude-hooks-<bundleId>-<userSidHash>`, writes the payload, signals the end of input (named pipes have no half-close, so frame it: send a 4-byte little-endian length + the payload, or rely on the existing "complete JSON" detection), reads the reply until the server closes, prints it to stdout, and always exits 0. If the pipe is absent it exits 0 at once and prints nothing. Connect timeout is about 200 ms.
+- No `nc`. Ship `openbar-hook.exe` (Rust, console subsystem, ~200 KB). It reads all of stdin, connects to `\\.\pipe\openbar-claude-hooks-<bundleId>-<userSidHash>`, writes the payload, signals the end of input (named pipes have no half-close, so frame it: send a 4-byte little-endian length + the payload, or rely on the existing "complete JSON" detection), reads the reply until the server closes, prints it to stdout, and always exits 0. If the pipe is absent it exits 0 at once and prints nothing. Connect timeout is about 200 ms.
 - Server: the Rust app, `CreateNamedPipeW` with `PIPE_REJECT_REMOTE_CLIENTS`, a DACL limited to the current user SID, and `FILE_FLAG_FIRST_PIPE_INSTANCE` on the first instance. Get the client pid with `GetNamedPipeClientProcessId` for the "peer gone" check (`OpenProcess` + `WaitForSingleObject(h, 0)`), and verify the client's token user SID equals ours.
-- The settings command must work whatever shell Claude Code uses to run hooks on Windows (Git Bash, cmd or PowerShell) **[VERIFY: which one, in Claude Code 2.1.3xx native Windows]**. Do not rely on `#` comments, `;`, `2>/dev/null` or quoting. Proposal: `"C:/Users/<u>/AppData/Local/Programs/Vorssaint/vorssaint-hook.exe" --app com.vorssaint.windows --marker vorssaint-hook` (forward slashes, double quotes). The marker becomes an **argument**, and the installer matches `command.contains("--marker vorssaint-hook") && command.contains("--app <bundleId>")`. If PowerShell is the hook shell, a quoted path needs `& `; test this. An alternative is to install into a path without spaces.
+- The settings command must work whatever shell Claude Code uses to run hooks on Windows (Git Bash, cmd or PowerShell) **[VERIFY: which one, in Claude Code 2.1.3xx native Windows]**. Do not rely on `#` comments, `;`, `2>/dev/null` or quoting. Proposal: `"C:/Users/<u>/AppData/Local/Programs/Openbar/openbar-hook.exe" --app com.openbar.windows --marker openbar-hook` (forward slashes, double quotes). The marker becomes an **argument**, and the installer matches `command.contains("--marker openbar-hook") && command.contains("--app <bundleId>")`. If PowerShell is the hook shell, a quoted path needs `& `; test this. An alternative is to install into a path without spaces.
 - Timeouts unchanged: 5 s, and 600 s for PermissionRequest. The app lets go at 590 s.
 
 ---

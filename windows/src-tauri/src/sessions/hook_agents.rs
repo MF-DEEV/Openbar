@@ -6,7 +6,7 @@
 //! The hook the island installs is this app run with `--hook --agent <name>
 //! --event <hook>`, which wraps what the agent hands it in an envelope:
 //!
-//! `{"vorssaint": "gemini", "hook": "BeforeTool", "pid": 0, "event": {…}}`
+//! `{"openbar": "gemini", "hook": "BeforeTool", "pid": 0, "event": {…}}`
 //!
 //! OpenCode's plugin writes the same envelope with an event of its own
 //! making. None of these agents keeps a registry, so a session is listed from
@@ -26,7 +26,7 @@ use super::models::{
 use super::transcript::REPLY_LIMIT;
 
 /// The envelope's key, which no agent's own payload carries.
-pub const KEY: &str = "vorssaint";
+pub const KEY: &str = "openbar";
 pub const ANSWER_IN_TERMINAL: &str = super::codex::state::ANSWER_IN_TERMINAL;
 /// How long an unread finished turn stays marked, as for Claude Code.
 pub const FINISHED_FOR: Time = 10.0 * 60.0;
@@ -151,7 +151,7 @@ pub struct Decoded {
 
 /// Whether the input is an envelope from another agent, told cheaply.
 pub fn is_envelope(data: &[u8]) -> bool {
-    contains(data, b"\"vorssaint\":")
+    contains(data, b"\"openbar\":")
 }
 
 /// Whether the hook waits for the island's answer: an OpenCode permission
@@ -1336,7 +1336,7 @@ fn session(
 /// process that is none of these.
 pub fn agent_process(chain: &[(u32, String)], hint: i32) -> i32 {
     const SHELLS: [&str; 12] = [
-        "vorssaint.exe",
+        "openbar.exe",
         "powershell.exe",
         "pwsh.exe",
         "cmd.exe",
@@ -1490,7 +1490,7 @@ pub mod installer {
     }
 
     pub fn own_name(app: &str) -> String {
-        format!("vorssaint-{app}")
+        format!("openbar-{app}")
     }
 
     pub fn gemini_settings(home: &Path) -> PathBuf {
@@ -1596,7 +1596,7 @@ pub mod installer {
                 json!([{
                     "type": "command",
                     "exec": path,
-                    "args": ["--hook", "--agent", "copilot", "--event", event, "--marker", "vorssaint-hook", "--app", app],
+                    "args": ["--hook", "--agent", "copilot", "--event", event, "--marker", "openbar-hook", "--app", app],
                     "timeoutSec": EVENT_TIMEOUT,
                 }]),
             );
@@ -1610,8 +1610,8 @@ pub mod installer {
     pub fn opencode_file(endpoint: &str, app: &str) -> Vec<u8> {
         let literal = serde_json::to_string(endpoint).unwrap_or_else(|_| "\"\"".into());
         PLUGIN
-            .replace("\"__VORSSAINT_SOCKET__\"", &literal)
-            .replace("__VORSSAINT_MARKER__", &claude::marker(app))
+            .replace("\"__OPENBAR_SOCKET__\"", &literal)
+            .replace("__OPENBAR_MARKER__", &claude::marker(app))
             .into_bytes()
     }
 
@@ -1701,7 +1701,7 @@ pub mod installer {
         for event in GEMINI_EVENTS {
             let entry = json!({
                 "type": "command",
-                "name": "vorssaint",
+                "name": "openbar",
                 "timeout": EVENT_TIMEOUT * 1000,
                 "command": command(Provider::Gemini, event, exe, app),
             });
@@ -1842,7 +1842,7 @@ pub mod installer {
         let copilot = format!("\"--app\",\n          \"{app}\"");
         let text = String::from_utf8_lossy(data);
         text.contains(&marker)
-            || (text.contains("vorssaint-hook") && (text.contains(&copilot) || text.contains(app)))
+            || (text.contains("openbar-hook") && (text.contains(&copilot) || text.contains(app)))
     }
 
     /// Writes a file of the island's own, never over one that is not.
@@ -1878,7 +1878,7 @@ mod tests {
 
     fn envelope(provider: &str, hook: &str, event: Value) -> Vec<u8> {
         serde_json::to_vec(
-            &json!({ "vorssaint": provider, "hook": hook, "pid": 4242, "event": event }),
+            &json!({ "openbar": provider, "hook": hook, "pid": 4242, "event": event }),
         )
         .unwrap()
     }
@@ -2223,7 +2223,7 @@ mod tests {
     #[test]
     fn the_agent_is_the_first_process_above_the_shells() {
         let chain = vec![
-            (10, "Vorssaint.exe".to_owned()),
+            (10, "Openbar.exe".to_owned()),
             (9, "powershell.exe".to_owned()),
             (8, "node.exe".to_owned()),
             (7, "WindowsTerminal.exe".to_owned()),
@@ -2234,7 +2234,7 @@ mod tests {
 
     #[test]
     fn hooks_go_in_beside_the_persons_own_and_come_out_alone() {
-        let exe = Path::new("C:\\Program Files\\Vorssaint\\Vorssaint.exe");
+        let exe = Path::new("C:\\Program Files\\Openbar\\Openbar.exe");
         let own = json!({ "hooks": { "BeforeTool": [{ "matcher": "write_file", "hooks": [{ "type": "command", "command": "mine.ps1" }] }] } });
         let installed = installer::gemini_installing(&own, exe, "app");
         let tools = installed
@@ -2248,7 +2248,7 @@ mod tests {
             own.pointer("/hooks/BeforeTool/0").unwrap().clone()
         );
         let command = installer::command(Provider::Gemini, "BeforeTool", exe, "app");
-        assert!(command.starts_with("& \"C:/Program Files/Vorssaint/Vorssaint.exe\" --hook --agent gemini --event BeforeTool"));
+        assert!(command.starts_with("& \"C:/Program Files/Openbar/Openbar.exe\" --hook --agent gemini --event BeforeTool"));
         assert_eq!(crate::hooks::installer::removing(&installed, "app"), own);
 
         let cursor_own = json!({ "version": 1, "hooks": { "stop": [{ "command": "audit.ps1" }] } });
@@ -2278,9 +2278,9 @@ mod tests {
         );
 
         let plugin =
-            String::from_utf8(installer::opencode_file(r"\\.\pipe\vorssaint-x", "app")).unwrap();
-        assert!(plugin.contains(r#"const SOCKET = "\\\\.\\pipe\\vorssaint-x""#));
-        assert!(!plugin.contains("__VORSSAINT"));
+            String::from_utf8(installer::opencode_file(r"\\.\pipe\openbar-x", "app")).unwrap();
+        assert!(plugin.contains(r#"const SOCKET = "\\\\.\\pipe\\openbar-x""#));
+        assert!(!plugin.contains("__OPENBAR"));
     }
 
     #[test]
@@ -2329,7 +2329,7 @@ mod tests {
     #[test]
     fn the_plugin_is_the_one_the_mac_installs() {
         let mac = include_str!(
-            "../../../../Sources/Vorssaint/Services/ClaudeSessions/AgentOpenCodePlugin.swift"
+            "../../../../Sources/Openbar/Services/ClaudeSessions/AgentOpenCodePlugin.swift"
         );
         assert!(mac.contains(include_str!("opencode-plugin.js")));
     }

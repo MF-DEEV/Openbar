@@ -25,14 +25,14 @@ pub(super) const HELPER_FLAG: &str = "--network-helper";
 pub(super) const INSTALL_FLAG: &str = "--install-network-helper";
 pub(super) const REMOVE_FLAG: &str = "--remove-network-helper";
 
-const TASK_PREFIX: &str = "Vorssaint Network Activity ";
+const TASK_PREFIX: &str = "Openbar Network Activity ";
 
 fn task_name(sid: &str) -> String {
     format!("{TASK_PREFIX}{sid}")
 }
 
 fn pipe_name(sid: &str) -> String {
-    format!(r"\\.\pipe\vorssaint-network-{sid}")
+    format!(r"\\.\pipe\openbar-network-{sid}")
 }
 
 fn xml_escape(text: &str) -> String {
@@ -49,7 +49,7 @@ fn task_xml(sid: &str, exe: &str) -> String {
         r#"<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
   <RegistrationInfo>
-    <Description>Lets Vorssaint show which apps use the network.</Description>
+    <Description>Lets Openbar show which apps use the network.</Description>
   </RegistrationInfo>
   <Principals>
     <Principal id="Author">
@@ -335,7 +335,7 @@ mod imp {
             .is_some_and(|t| t == TokenElevationTypeLimited)
     }
 
-    /// `%ProgramFiles%\Vorssaint\Vorssaint Network.exe`, writable by administrators only.
+    /// `%ProgramFiles%\Openbar\Openbar Network.exe`, writable by administrators only.
     fn helper_path() -> Option<PathBuf> {
         unsafe {
             let path = SHGetKnownFolderPath(&FOLDERID_ProgramFiles, KF_FLAG_DEFAULT, None).ok()?;
@@ -343,8 +343,8 @@ mod imp {
             CoTaskMemFree(Some(path.0.cast()));
             Some(
                 PathBuf::from(text?)
-                    .join("Vorssaint")
-                    .join("Vorssaint Network.exe"),
+                    .join("Openbar")
+                    .join("Openbar Network.exe"),
             )
         }
     }
@@ -370,7 +370,7 @@ mod imp {
     ///
     /// PowerShell asks, not this process: with the sparse package's identity
     /// (docs/notifications.md) Windows won't start an elevated child of
-    /// Vorssaint unless the package allows elevation, and says so only after
+    /// Openbar unless the package allows elevation, and says so only after
     /// the user said yes ("cannot access the specified device, path, or
     /// file"). PowerShell has no package identity.
     fn run_elevated(arg: &str) -> bool {
@@ -393,11 +393,11 @@ mod imp {
                 // Stop: a declined prompt fails the command (exit 1) instead
                 // of leaving $p null, which would exit 0.
                 "$ErrorActionPreference = 'Stop'; \
-                 $p = Start-Process -FilePath $env:VORSSAINT_EXE -ArgumentList $env:VORSSAINT_ARG \
+                 $p = Start-Process -FilePath $env:OPENBAR_EXE -ArgumentList $env:OPENBAR_ARG \
                  -Verb RunAs -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode",
             )
-            .env("VORSSAINT_EXE", exe)
-            .env("VORSSAINT_ARG", arg)
+            .env("OPENBAR_EXE", exe)
+            .env("OPENBAR_ARG", arg)
             .creation_flags(CREATE_NO_WINDOW)
             .status()
             .is_ok_and(|status| status.success())
@@ -577,7 +577,7 @@ mod imp {
         }
     }
 
-    /// `Vorssaint.exe --network-helper | --install-network-helper |
+    /// `Openbar.exe --network-helper | --install-network-helper |
     /// --remove-network-helper`; returns for any other argument.
     pub fn command_main(arg: &str) {
         let ok = match arg {
@@ -778,7 +778,7 @@ mod imp {
                 started: Instant::now(),
                 failed: None,
             };
-            // A copy from an older Vorssaint, or none: an uninstall that found
+            // A copy from an older Openbar, or none: an uninstall that found
             // it running deletes it at the next restart, even if it was
             // approved again since. Approving copies this exe again.
             let current = copy_is_current();
@@ -837,7 +837,7 @@ mod imp {
             match wire::read_hello(&hello) {
                 (PROTOCOL, Some(ProcessStatus::Ready)) => self.pipe = Some(pipe),
                 (PROTOCOL, Some(status)) => self.failed = Some(status),
-                // A copy from an older Vorssaint: approving copies this one.
+                // A copy from an older Openbar: approving copies this one.
                 _ => {
                     self.failed = Some(if can_approve() {
                         ProcessStatus::NeedsApproval
@@ -1018,11 +1018,11 @@ mod tests {
 
     #[test]
     fn the_task_runs_only_the_approved_copy_elevated_and_the_user_cannot_edit_it() {
-        let xml = task_xml("S-1-5-21-1", r"C:\Program Files\Vorssaint\A&B.exe");
+        let xml = task_xml("S-1-5-21-1", r"C:\Program Files\Openbar\A&B.exe");
         assert!(xml.contains("<UserId>S-1-5-21-1</UserId>"));
         assert!(xml.contains("<RunLevel>HighestAvailable</RunLevel>"));
         assert!(xml.contains("<LogonType>InteractiveToken</LogonType>"));
-        assert!(xml.contains(r#"<Command>"C:\Program Files\Vorssaint\A&amp;B.exe"</Command>"#));
+        assert!(xml.contains(r#"<Command>"C:\Program Files\Openbar\A&amp;B.exe"</Command>"#));
         assert!(xml.contains("<Arguments>--network-helper</Arguments>"));
         // Read and execute for the user; full control for administrators only.
         assert_eq!(
@@ -1037,7 +1037,7 @@ mod tests {
         assert!(FOLDER_SDDL.contains("(A;OICI;0x1200a9;;;BU)"));
         assert_eq!(
             pipe_name("S-1-5-21-1"),
-            r"\\.\pipe\vorssaint-network-S-1-5-21-1"
+            r"\\.\pipe\openbar-network-S-1-5-21-1"
         );
     }
 }

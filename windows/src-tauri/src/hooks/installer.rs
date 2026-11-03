@@ -79,7 +79,7 @@ pub fn home_dir() -> Option<PathBuf> {
 /// The marker is an argument, not a shell comment: on Windows the hook may
 /// run under Git Bash, cmd or PowerShell, and only an argument survives all three.
 pub fn marker(app: &str) -> String {
-    format!("--marker vorssaint-hook --app {app}")
+    format!("--marker openbar-hook --app {app}")
 }
 
 /// The command Claude Code runs: this executable, quoted, with forward
@@ -308,11 +308,11 @@ pub fn update(link: &Path, change: impl Fn(&Value) -> Value) -> Result<(), Failu
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_secs())
                 .unwrap_or(0);
-            let backup = folder.join(format!("{name}.vorssaint-{stamp}.bak"));
+            let backup = folder.join(format!("{name}.openbar-{stamp}.bak"));
             write_private(&backup, original).map_err(|_| Failure::NoBackup)?;
             prune(&folder, &name);
         }
-        let temporary = folder.join(format!(".{name}.vorssaint-{}", std::process::id()));
+        let temporary = folder.join(format!(".{name}.openbar-{}", std::process::id()));
         fs::write(&temporary, &data).map_err(|e| Failure::Unwritable(e.to_string()))?;
         if let Ok(meta) = fs::metadata(&path) {
             let _ = fs::set_permissions(&temporary, meta.permissions());
@@ -352,7 +352,7 @@ fn replace(from: &Path, to: &Path) -> io::Result<()> {
 
 /// Keeps the newest copies only, by the number in their names.
 fn prune(folder: &Path, name: &str) {
-    let prefix = format!("{name}.vorssaint-");
+    let prefix = format!("{name}.openbar-");
     let Ok(entries) = fs::read_dir(folder) else {
         return;
     };
@@ -378,11 +378,11 @@ fn prune(folder: &Path, name: &str) {
 mod tests {
     use super::*;
 
-    const APP: &str = "com.vorssaint.island";
+    const APP: &str = "com.openbar.island";
 
     fn cmd() -> String {
         command(
-            Path::new("C:\\Users\\Vors Name\\AppData\\Local\\Vorssaint\\Vorssaint.exe"),
+            Path::new("C:\\Users\\Vors Name\\AppData\\Local\\Openbar\\Openbar.exe"),
             APP,
         )
     }
@@ -391,7 +391,7 @@ mod tests {
     fn command_is_quoted_with_forward_slashes_and_marked() {
         assert_eq!(
             cmd(),
-            "\"C:/Users/Vors Name/AppData/Local/Vorssaint/Vorssaint.exe\" --hook --marker vorssaint-hook --app com.vorssaint.island"
+            "\"C:/Users/Vors Name/AppData/Local/Openbar/Openbar.exe\" --hook --marker openbar-hook --app com.openbar.island"
         );
     }
 
@@ -454,18 +454,18 @@ mod tests {
     fn another_build_is_left_alone() {
         let other = installing(
             &json!({}),
-            "\"x\" --hook --marker vorssaint-hook --app com.vorssaint.other",
-            "com.vorssaint.other",
+            "\"x\" --hook --marker openbar-hook --app com.openbar.other",
+            "com.openbar.other",
         );
         let both = installing(&other, &cmd(), APP);
         let removed = removing(&both, APP);
-        assert!(has_any(&removed, "com.vorssaint.other"));
+        assert!(has_any(&removed, "com.openbar.other"));
         assert!(!has_any(&removed, APP));
     }
 
     fn temp_dir(tag: &str) -> PathBuf {
         let dir =
-            std::env::temp_dir().join(format!("vorssaint-hooks-test-{tag}-{}", std::process::id()));
+            std::env::temp_dir().join(format!("openbar-hooks-test-{tag}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
@@ -478,7 +478,7 @@ mod tests {
         fs::write(&file, b"{\"z\":1,\"a\":{\"y\":2,\"b\":3}}").unwrap();
         for (i, stamp) in [100u64, 200, 300].iter().enumerate() {
             fs::write(
-                dir.join(format!("settings.json.vorssaint-{stamp}.bak")),
+                dir.join(format!("settings.json.openbar-{stamp}.bak")),
                 format!("{i}"),
             )
             .unwrap();
@@ -500,7 +500,7 @@ mod tests {
             })
             .count();
         assert_eq!(backups, 3);
-        assert!(!dir.join("settings.json.vorssaint-100.bak").exists());
+        assert!(!dir.join("settings.json.openbar-100.bak").exists());
         let _ = fs::remove_dir_all(&dir);
     }
 

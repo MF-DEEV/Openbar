@@ -7,7 +7,7 @@ name: PR checks
 # Pushes to main run everything, which also keeps a Rust cache that new pull
 # requests can start from.
 # This is the fork's only workflow: the release build and selftest are run by
-# hand (./build.sh && ./build/Vorssaint --selftest).
+# hand (./build.sh && ./build/Openbar --selftest).
 on:
   pull_request:
   push:

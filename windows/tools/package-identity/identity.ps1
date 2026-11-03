@@ -1,14 +1,14 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Vorssaint
 
-# Installed with Vorssaint (resources\identity) and run by the NSIS installer
+# Installed with Openbar (resources\identity) and run by the NSIS installer
 # hooks: trusts the package certificate, then registers the signed sparse
-# package that lends Vorssaint.exe its identity (notifications, calendar).
+# package that lends Openbar.exe its identity (notifications, calendar).
 #   -Action Trusted     exit 0 when this PC already trusts the certificate
 #   -Action Trust       (elevated) LocalMachine\TrustedPeople gets the certificate
 #   -Action Register    (as the user) the package, with -Directory as its external location
 #   -Action Unregister  (as the user) removes the package
-# Every failure is reported in %TEMP%\Vorssaint-identity.log and as exit 1;
+# Every failure is reported in %TEMP%\Openbar-identity.log and as exit 1;
 # the island works without an identity, only without those two sections.
 [CmdletBinding()]
 param(
@@ -17,11 +17,11 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$packageName = 'Vorssaint.Island'
-$publisher = 'CN=Vorssaint'
-$package = Join-Path $PSScriptRoot 'Vorssaint.msix'
-$certificatePath = Join-Path $PSScriptRoot 'Vorssaint.cer'
-$log = Join-Path ([IO.Path]::GetTempPath()) 'Vorssaint-identity.log'
+$packageName = 'Openbar.Island'
+$publisher = 'CN=Openbar'
+$package = Join-Path $PSScriptRoot 'Openbar.msix'
+$certificatePath = Join-Path $PSScriptRoot 'Openbar.cer'
+$log = Join-Path ([IO.Path]::GetTempPath()) 'Openbar-identity.log'
 
 function Get-PackageCertificate {
     $certificate = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2 -ArgumentList $certificatePath
@@ -48,8 +48,8 @@ try {
         }
         'Register' {
             $folder = (Resolve-Path -LiteralPath $Directory).ProviderPath
-            if (-not (Test-Path -LiteralPath (Join-Path $folder 'Vorssaint.exe'))) {
-                throw "Vorssaint.exe is not in $folder."
+            if (-not (Test-Path -LiteralPath (Join-Path $folder 'Openbar.exe'))) {
+                throw "Openbar.exe is not in $folder."
             }
             # Without trust the package can't install; a working registration stays.
             $thumbprint = (Get-PackageCertificate).Thumbprint

@@ -1,24 +1,24 @@
 /* macOS Automation permission prompt. */
-"NSAppleEventsUsageDescription" = "O Vorssaint usa a Automação para mover arquivos, enviar itens ao Lixo, abrir comandos solicitados, digitar suas respostas em sessões do Claude Code no Terminal e controlar a reprodução nos seus apps de mídia.";
+"NSAppleEventsUsageDescription" = "O Openbar usa a Automação para mover arquivos, enviar itens ao Lixo, abrir comandos solicitados, digitar suas respostas em sessões do Claude Code no Terminal e controlar a reprodução nos seus apps de mídia.";
 
 /* macOS Screen & System Audio Recording permission prompt. */
-"NSAudioCaptureUsageDescription" = "O Vorssaint usa o áudio de cada app para ajustar o volume no mixer, para mover as barras de música da Dynamic Island e para incluir o som do Mac nas gravações de tela que você iniciar. Nada sai do seu Mac.";
+"NSAudioCaptureUsageDescription" = "O Openbar usa o áudio de cada app para ajustar o volume no mixer, para mover as barras de música da Dynamic Island e para incluir o som do Mac nas gravações de tela que você iniciar. Nada sai do seu Mac.";
 
 /* macOS Bluetooth permission prompt. */
-"NSBluetoothAlwaysUsageDescription" = "O Vorssaint usa o Bluetooth apenas para ler a bateria dos periféricos conectados. Nada sai do seu Mac.";
+"NSBluetoothAlwaysUsageDescription" = "O Openbar usa o Bluetooth apenas para ler a bateria dos periféricos conectados. Nada sai do seu Mac.";
 
 /* macOS Microphone permission prompt. */
-"NSMicrophoneUsageDescription" = "O Vorssaint grava seu microfone apenas quando você o ativa em uma gravação de tela. O áudio fica no seu Mac, a menos que você escolha criar um link temporário.";
+"NSMicrophoneUsageDescription" = "O Openbar grava seu microfone apenas quando você o ativa em uma gravação de tela. O áudio fica no seu Mac, a menos que você escolha criar um link temporário.";
 
 /* macOS Camera permission prompt. */
-"NSCameraUsageDescription" = "O Vorssaint mostra sua câmera apenas na janela de prévia que você abre, para conferir como você está antes de uma chamada. Nada é gravado nem sai do seu Mac.";
+"NSCameraUsageDescription" = "O Openbar mostra sua câmera apenas na janela de prévia que você abre, para conferir como você está antes de uma chamada. Nada é gravado nem sai do seu Mac.";
 
 /* macOS Downloads folder permission prompt. */
-"NSDownloadsFolderUsageDescription" = "O Vorssaint consulta metadados locais em Downloads para revisar, organizar ou mover para a Lixeira apenas os arquivos confirmados do WhatsApp que você escolher. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui. Downloads na Dynamic Island também mostra os arquivos que chegam à pasta Downloads e às pastas onde seus navegadores salvam.";
+"NSDownloadsFolderUsageDescription" = "O Openbar consulta metadados locais em Downloads para revisar, organizar ou mover para a Lixeira apenas os arquivos confirmados do WhatsApp que você escolher. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui. Downloads na Dynamic Island também mostra os arquivos que chegam à pasta Downloads e às pastas onde seus navegadores salvam.";
 
 /* macOS user-selected organizer destination prompts. */
-"NSDesktopFolderUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui. Downloads na Dynamic Island também mostra os arquivos que chegam à pasta Downloads e às pastas onde seus navegadores salvam.";
-"NSDocumentsFolderUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui. Downloads na Dynamic Island também mostra os arquivos que chegam à pasta Downloads e às pastas onde seus navegadores salvam.";
-"NSNetworkVolumesUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui. Downloads na Dynamic Island também mostra os arquivos que chegam à pasta Downloads e às pastas onde seus navegadores salvam.";
-"NSRemovableVolumesUsageDescription" = "O Vorssaint organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui. Downloads na Dynamic Island também mostra os arquivos que chegam à pasta Downloads e às pastas onde seus navegadores salvam.";
+"NSDesktopFolderUsageDescription" = "O Openbar organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui. Downloads na Dynamic Island também mostra os arquivos que chegam à pasta Downloads e às pastas onde seus navegadores salvam.";
+"NSDocumentsFolderUsageDescription" = "O Openbar organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui. Downloads na Dynamic Island também mostra os arquivos que chegam à pasta Downloads e às pastas onde seus navegadores salvam.";
+"NSNetworkVolumesUsageDescription" = "O Openbar organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui. Downloads na Dynamic Island também mostra os arquivos que chegam à pasta Downloads e às pastas onde seus navegadores salvam.";
+"NSRemovableVolumesUsageDescription" = "O Openbar organiza downloads confirmados do WhatsApp em uma pasta de destino escolhida explicitamente por você. A Limpeza também procura capturas de tela esquecidas quando você as salva aqui. Downloads na Dynamic Island também mostra os arquivos que chegam à pasta Downloads e às pastas onde seus navegadores salvam.";
 "NSCalendarsFullAccessUsageDescription" = "Mostra seus próximos compromissos na parte superior da tela. Os eventos do calendário ficam neste Mac.";

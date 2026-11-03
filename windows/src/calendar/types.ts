@@ -60,7 +60,7 @@ export interface CalendarSnapshot {
   minimumDaysInFirstWeek: number;
 }
 
-export const LOCAL_CALENDAR = "vorssaint-local";
+export const LOCAL_CALENDAR = "openbar-local";
 export interface EventDraft {
   id: string | null;
   title: string;

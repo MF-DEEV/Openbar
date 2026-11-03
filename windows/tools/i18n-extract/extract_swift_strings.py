@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prototype: extract Vorssaint's compiled-in Swift string tables to JSON.
+"""Prototype: extract Openbar's compiled-in Swift string tables to JSON.
 
 The Mac app keeps every user-facing string in Swift structs (see
 windows/docs/spec/06-i18n.md). This script tokenizes the Swift source (strings,
@@ -433,7 +433,7 @@ FORMAT_RE = re.compile(r"%(?:\d+\$)?(?:@|l{0,2}d|l{0,2}u|\.?\d*f|s|%)")
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("core", help="Sources/Vorssaint/Core")
+    ap.add_argument("core", help="Sources/Openbar/Core")
     ap.add_argument("--out", help="directory for <lang>.json files")
     ap.add_argument("--only", nargs="*", help="limit to these file names (plus Localizations/ for Strings)")
     a = ap.parse_args()

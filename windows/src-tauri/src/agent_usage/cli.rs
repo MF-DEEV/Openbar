@@ -340,7 +340,7 @@ mod tests {
 
     #[test]
     fn candidates_skip_folders_that_are_excluded() {
-        let dir = std::env::temp_dir().join(format!("vorssaint-cli-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("openbar-cli-{}", std::process::id()));
         let app = dir.join("AnthropicClaude");
         std::fs::create_dir_all(&app).unwrap();
         std::fs::write(app.join("claude.exe"), b"").unwrap();

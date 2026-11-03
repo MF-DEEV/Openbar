@@ -6,7 +6,7 @@ export interface CalendarPlace {
   selectedDay: number | null;
   showingMonth: boolean;
 }
-const KEY = "vorssaint.calendar.place.v1";
+const KEY = "openbar.calendar.place.v1";
 export function restoredPlace(now = Date.now()): CalendarPlace {
   const fallback = { focus: now, selectedDay: null, showingMonth: true };
   try {

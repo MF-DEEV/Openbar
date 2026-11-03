@@ -23,7 +23,7 @@ let registration;
 
 function registryFolder() {
   const base = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
-  return path.join(base, "Vorssaint", "terminals");
+  return path.join(base, "Openbar", "terminals");
 }
 
 function ideName() {
@@ -36,7 +36,7 @@ function ideName() {
 
 function activate(context) {
   const user = (process.env.USERNAME || "user").replace(/[^A-Za-z0-9]/g, "");
-  const pipe = `\\\\.\\pipe\\vorssaint-terminals-${user}-${process.pid}`;
+  const pipe = `\\\\.\\pipe\\openbar-terminals-${user}-${process.pid}`;
   const token = crypto.randomBytes(24).toString("hex");
   server = net.createServer({ allowHalfOpen: true }, (connection) => {
     let buffer = "";

@@ -3,7 +3,7 @@
 
 // Wires the Tools section into the island: its page, the keep-awake and
 // mic state its tiles show, and the screenshot the Controls page asks for
-// with a `vorssaint:screenshot` window event. The Scratchpad section, which
+// with a `openbar:screenshot` window event. The Scratchpad section, which
 // a Tools tile opens, registers alongside.
 
 import { pages } from "../island/views/Expanded";
@@ -22,8 +22,8 @@ pages.tools = { Page: ToolsPage, Leading: ToolsLeading, Trailing: ToolsTrailing 
 
 void subscribeExternals();
 
-window.addEventListener("vorssaint:screenshot", () => void runCapture("screenshot"));
-window.addEventListener("vorssaint:recording", () => toggleRecording());
+window.addEventListener("openbar:screenshot", () => void runCapture("screenshot"));
+window.addEventListener("openbar:recording", () => toggleRecording());
 
 activityViews.recording = RecordingStrip;
 function setRecording(startedAt: number | null) {

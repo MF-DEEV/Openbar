@@ -299,7 +299,7 @@ mod tests {
             let mut random = [0; 16];
             getrandom::fill(&mut random).unwrap();
             let root = std::env::temp_dir().join(format!(
-                "vorssaint-agent-colors-{:x}",
+                "openbar-agent-colors-{:x}",
                 u128::from_ne_bytes(random)
             ));
             fs::create_dir_all(&root).unwrap();

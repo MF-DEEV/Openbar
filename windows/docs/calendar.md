@@ -1,11 +1,11 @@
 # Calendar on Windows
 
-The Calendar section includes a local Vorssaint calendar, available without a
+The Calendar section includes a local Openbar calendar, available without a
 Windows package identity. Use **+** to create an event and click its card to edit
 the title, start/end, all-day dates, location, notes and colour. Deletion asks for
 confirmation. Events appear in the month/week view and existing countdowns.
 
-Events are saved in `%APPDATA%\com.vorssaint.island\calendar\events.json`.
+Events are saved in `%APPDATA%\com.openbar.island\calendar\events.json`.
 The native store serializes mutations, validates events and atomically replaces
 the file. An unreadable file is reported and never overwritten by a save.
 Local events stay on this device; they do not send invitations or sync to an account.

@@ -10,16 +10,16 @@ use super::pricing::PriceList;
 use std::path::PathBuf;
 
 pub const HOST: &str = "raw.githubusercontent.com";
-pub const PATH: &str = "/vorssaint/vorssaint-utils/main/Resources/agent-prices.json";
+pub const PATH: &str = "/MF-DEEV/Openbar/main/Resources/agent-prices.json";
 /// Once a day; six hours after a failure.
 pub const INTERVAL: f64 = 24.0 * 3600.0;
 pub const RETRY: f64 = 6.0 * 3600.0;
 
-/// `%APPDATA%\com.vorssaint.island\agent-prices.json`.
+/// `%APPDATA%\com.openbar.island\agent-prices.json`.
 pub fn cache_path() -> Option<PathBuf> {
     std::env::var_os("APPDATA").map(|a| {
         PathBuf::from(a)
-            .join("com.vorssaint.island")
+            .join("com.openbar.island")
             .join("agent-prices.json")
     })
 }
@@ -54,7 +54,7 @@ fn get() -> Option<Vec<u8>> {
             }
         }
     }
-    let agent = HSTRING::from(format!("Vorssaint/{}", env!("CARGO_PKG_VERSION")));
+    let agent = HSTRING::from(format!("Openbar/{}", env!("CARGO_PKG_VERSION")));
     unsafe {
         let session = Handle(WinHttpOpen(
             &agent,

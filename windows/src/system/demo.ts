@@ -48,7 +48,7 @@ export function demoSnapshot(seq: number): SystemSnapshot {
       { name: "Visual Studio Code", path: null, value: 12.9, netDown: null, netUp: null },
       { name: "Microsoft Teams", path: null, value: 6.2, netDown: null, netUp: null },
       { name: "Desktop Window Manager", path: null, value: 3.1, netDown: null, netUp: null },
-      { name: "Vorssaint", path: null, value: 0.8, netDown: null, netUp: null },
+      { name: "Openbar", path: null, value: 0.8, netDown: null, netUp: null },
     ],
     processStatus: "ready",
     processesFor: "cpu",

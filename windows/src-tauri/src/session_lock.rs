@@ -33,7 +33,7 @@ pub fn start(app: AppHandle) {
         .name("session-lock".into())
         .spawn(|| unsafe {
             let instance: HINSTANCE = GetModuleHandleW(None).map(Into::into).unwrap_or_default();
-            let class = w!("VorssaintSessionLock");
+            let class = w!("OpenbarSessionLock");
             let description = WNDCLASSW {
                 lpfnWndProc: Some(window_proc),
                 hInstance: instance,
@@ -45,7 +45,7 @@ pub fn start(app: AppHandle) {
             let Ok(window): Result<HWND, _> = CreateWindowExW(
                 WINDOW_EX_STYLE(0),
                 class,
-                w!("Vorssaint session"),
+                w!("Openbar session"),
                 WS_OVERLAPPED,
                 0,
                 0,

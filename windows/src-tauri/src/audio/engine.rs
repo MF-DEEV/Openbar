@@ -71,7 +71,7 @@ const PRIORITY_FILE: &str = "audio-priority.json";
 
 fn worker() -> &'static Worker {
     static W: OnceLock<Worker> = OnceLock::new();
-    W.get_or_init(|| Worker::spawn("vorssaint-audio", false))
+    W.get_or_init(|| Worker::spawn("openbar-audio", false))
 }
 
 thread_local! {
@@ -137,7 +137,7 @@ pub fn post(job: impl FnOnce(&mut Engine) + Send + 'static) {
 /// Runs `job` on the audio thread after `ms`, for the priority passes.
 fn after(ms: u64, job: impl FnOnce(&mut Engine) + Send + 'static) {
     let _ = std::thread::Builder::new()
-        .name("vorssaint-audio-later".into())
+        .name("openbar-audio-later".into())
         .spawn(move || {
             std::thread::sleep(Duration::from_millis(ms));
             post(job);
@@ -166,7 +166,7 @@ pub fn start() {
     });
     // Four readings a second while the mixer page shows; parked otherwise.
     let ticker = std::thread::Builder::new()
-        .name("vorssaint-audio-meter".into())
+        .name("openbar-audio-meter".into())
         .spawn(|| {
             loop {
                 if !WATCHING.load(Ordering::SeqCst) {

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-// Copying what Vorssaint makes (a screenshot, OCR text, a picked color). The
+// Copying what Openbar makes (a screenshot, OCR text, a picked color). The
 // copy goes through the clipboard history's own writer, so it joins the
-// history with no app named, as the Mac's declareVorssaintSource does.
+// history with no app named, as the Mac's declareOpenbarSource does.
 
 import { bridge } from "../shared/bridge";
 

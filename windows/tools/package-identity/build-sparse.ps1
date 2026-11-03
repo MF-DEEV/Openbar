@@ -1,18 +1,18 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (C) 2026 Vorssaint
 
-# Builds the signed sparse package that gives the installed Vorssaint.exe its
+# Builds the signed sparse package that gives the installed Openbar.exe its
 # package identity (notifications, calendar), plus the public certificate the
 # installer trusts. Runs on Windows with the Windows SDK (makeappx, signtool).
 #
-#   $env:VORSSAINT_SIGNING_PFX      = 'C:\keys\vorssaint-signing.pfx'   # outside the repo
-#   $env:VORSSAINT_SIGNING_PASSWORD = '...'
+#   $env:OPENBAR_SIGNING_PFX      = 'C:\keys\openbar-signing.pfx'   # outside the repo
+#   $env:OPENBAR_SIGNING_PASSWORD = '...'
 #   .\build-sparse.ps1 [-NewCertificate] [-Revision 3]
 #
-# -NewCertificate makes the self-signed "CN=Vorssaint" code-signing key once
+# -NewCertificate makes the self-signed "CN=Openbar" code-signing key once
 # and writes it to that PFX; keep the PFX: every later package must be signed
 # by the same certificate, or installs that trusted the old one fail.
-# Writes packaging\out\Vorssaint.msix and Vorssaint.cer, which
+# Writes packaging\out\Openbar.msix and Openbar.cer, which
 # src-tauri\tauri.identity.conf.json bundles into the installer.
 [CmdletBinding()]
 param(
@@ -24,10 +24,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$pfxPath = $env:VORSSAINT_SIGNING_PFX
-$password = $env:VORSSAINT_SIGNING_PASSWORD
+$pfxPath = $env:OPENBAR_SIGNING_PFX
+$password = $env:OPENBAR_SIGNING_PASSWORD
 if ([string]::IsNullOrEmpty($pfxPath) -or [string]::IsNullOrEmpty($password)) {
-    throw 'Set VORSSAINT_SIGNING_PFX (a path outside the repository) and VORSSAINT_SIGNING_PASSWORD.'
+    throw 'Set OPENBAR_SIGNING_PFX (a path outside the repository) and OPENBAR_SIGNING_PASSWORD.'
 }
 $repo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..')).ProviderPath
 if ([IO.Path]::GetFullPath($pfxPath).StartsWith($repo, [StringComparison]::OrdinalIgnoreCase)) {
@@ -41,7 +41,7 @@ $publisher = $manifest.Package.Identity.Publisher
 if ($NewCertificate) {
     if (Test-Path -LiteralPath $pfxPath) { throw "$pfxPath exists already; reuse it instead of making a new key." }
     $created = New-SelfSignedCertificate -Type CodeSigningCert -Subject $publisher `
-        -FriendlyName 'Vorssaint package signing' -CertStoreLocation 'Cert:\CurrentUser\My' `
+        -FriendlyName 'Openbar package signing' -CertStoreLocation 'Cert:\CurrentUser\My' `
         -KeyAlgorithm RSA -KeyLength 3072 -HashAlgorithm SHA256 -KeyExportPolicy Exportable `
         -NotAfter (Get-Date).AddYears(10) -TextExtension @('2.5.29.19={text}')
     try {
@@ -80,12 +80,12 @@ $config = Get-Content -LiteralPath (Join-Path $repo 'src-tauri\tauri.conf.json')
 $version = '{0}.{1}' -f $config.version, $Revision
 $manifest.Package.Identity.Version = $version
 
-$staging = Join-Path ([IO.Path]::GetTempPath()) ('vorssaint-identity-' + [guid]::NewGuid())
+$staging = Join-Path ([IO.Path]::GetTempPath()) ('openbar-identity-' + [guid]::NewGuid())
 New-Item -ItemType Directory -Path $staging > $null
 New-Item -ItemType Directory -Force -Path $OutDirectory > $null
 $out = (Resolve-Path -LiteralPath $OutDirectory).ProviderPath
-$package = Join-Path $out 'Vorssaint.msix'
-$publicCertificate = Join-Path $out 'Vorssaint.cer'
+$package = Join-Path $out 'Openbar.msix'
+$publicCertificate = Join-Path $out 'Openbar.cer'
 try {
     $manifest.Save((Join-Path $staging 'AppxManifest.xml'))
     Copy-Item -LiteralPath (Join-Path $repo 'packaging\icon.png') -Destination $staging

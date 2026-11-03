@@ -15,15 +15,15 @@ sign the app bundle.
 git clone https://github.com/MF-DEEV/Openbar.git
 cd Openbar
 ./build.sh --dev
-./build/VorssaintDeveloper --selftest
+./build/OpenbarDeveloper --selftest
 ./build.sh --test
 ```
 
 To install and launch the separate Developer app, use `./build.sh --dev --install`.
-The app and its binaries are still named Vorssaint, the project Openbar is built on.
+The app and its binaries are still named Openbar, the project Openbar is built on.
 The Developer build has its own preferences and permissions.
 A plain `./build.sh` builds the optimized variant; its health check is
-`./build/Vorssaint --selftest`.
+`./build/Openbar --selftest`.
 
 ### Stable signing
 
@@ -42,7 +42,7 @@ direction in an issue. Explain the user need, required permissions, dependencies
 and ongoing maintenance. Prefer existing macOS capabilities and repository code
 over a new subsystem. Keep each PR focused on one independently useful change.
 
-- App lifecycle lives in `Sources/Vorssaint/App`, shared catalogs and preferences
+- App lifecycle lives in `Sources/Openbar/App`, shared catalogs and preferences
   in `Core`, behavior in `Services`, views in `UI`, and diagnostics in `Support`.
   Keep reusable decisions outside views where they can be tested.
 - Check other callers and the upgrade path when fixing shared behavior.
@@ -55,7 +55,7 @@ over a new subsystem. Keep each PR focused on one independently useful change.
   permission prompts where applicable, and coverage tests.
 - New source files retain the project's SPDX license and copyright headers.
 
-Sensor changes should include a dump from `./build/Vorssaint --sensors` and the
+Sensor changes should include a dump from `./build/Openbar --sensors` and the
 Mac model. Selection logic lives in `TemperatureSensorSelector` and `SystemMonitor`.
 
 ## Validation
@@ -84,7 +84,7 @@ check to require before merging into `main`. Run the same checks before you push
   newer local toolchain can report lints CI does not.
 
 The release build and its selftest are not part of CI; run
-`./build.sh && ./build/Vorssaint --selftest` yourself for runtime, UI or bundled
+`./build.sh && ./build/Openbar --selftest` yourself for runtime, UI or bundled
 resource changes.
 
 For behavior involving windows, permissions or hardware, describe what you actually
