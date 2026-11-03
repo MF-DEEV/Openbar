@@ -19,6 +19,8 @@ you have explicit permission from the project maintainer.
 
 Openbar is this project's own name, with its own helmet mark. It is built on
 Vorssaint's source under the GPL and is not affiliated with or endorsed by the
-Vorssaint maintainer. The app's binaries and bundle still carry the Vorssaint
-name until the rename inside the app lands; that is a technical leftover, not a
-claim to be Vorssaint.
+Vorssaint maintainer. As the section above asks of forks, Openbar ships under
+its own name, icon, bundle identifiers (`com.openbar.app`, `com.openbar.island`),
+signing identity and update feed (`MF-DEEV/Openbar` releases), and does not use
+Vorssaint's servers. The copyright notices of the original Vorssaint files are
+kept, as the GPL requires.

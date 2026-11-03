@@ -60,7 +60,7 @@ pub fn default_path() -> Option<PathBuf> {
     let base = std::env::var_os("APPDATA")?;
     Some(
         PathBuf::from(base)
-            .join("com.vorssaint.island")
+            .join("com.openbar.island")
             .join("models")
             .join(FILE),
     )
@@ -229,7 +229,7 @@ fn fetch(part: &Path, progress: &mut dyn FnMut(u64)) -> Result<(), String> {
     }
     let failed = |e: windows::core::Error| format!("{} ({:#010x})", e.message(), e.code().0);
     let mut out = std::fs::File::create(part).map_err(|e| e.to_string())?;
-    let agent = HSTRING::from(format!("Vorssaint/{}", env!("CARGO_PKG_VERSION")));
+    let agent = HSTRING::from(format!("Openbar/{}", env!("CARGO_PKG_VERSION")));
     unsafe {
         let session = Handle(WinHttpOpen(
             &agent,

@@ -6,19 +6,19 @@ Path abbreviations used in `file:line` refs:
 
 | Prefix | Path |
 |---|---|
-| `AU/` | `Sources/Vorssaint/Services/AgentUsage/` |
-| `AUH/` | `Sources/Vorssaint/Services/AgentUsage/Harness/` |
-| `NAS` | `Sources/Vorssaint/Services/Notch/NotchAgentSupport.swift` |
-| `NAV` | `Sources/Vorssaint/UI/Notch/NotchAgentsView.swift` |
-| `NAC` | `Sources/Vorssaint/UI/Notch/NotchAgentComponents.swift` |
-| `NASt` | `Sources/Vorssaint/UI/Notch/NotchAgentStrip.swift` |
-| `NAAV` | `Sources/Vorssaint/UI/Notch/NotchAgentAnimationView.swift` |
-| `NASet` | `Sources/Vorssaint/UI/Settings/NotchAgentsSettings.swift` |
-| `CAS` | `Sources/Vorssaint/UI/Settings/CodexAccountsSettings.swift` |
-| `STR` | `Sources/Vorssaint/Core/NotchAgentStrings.swift` (English at :191–288) |
-| `CAStr` | `Sources/Vorssaint/Core/CodexAccountStrings.swift` (English at :33–51) |
-| `DEF` | `Sources/Vorssaint/Core/Defaults.swift` |
-| `NS` | `Sources/Vorssaint/Services/Notch/NotchService.swift` |
+| `AU/` | `Sources/Openbar/Services/AgentUsage/` |
+| `AUH/` | `Sources/Openbar/Services/AgentUsage/Harness/` |
+| `NAS` | `Sources/Openbar/Services/Notch/NotchAgentSupport.swift` |
+| `NAV` | `Sources/Openbar/UI/Notch/NotchAgentsView.swift` |
+| `NAC` | `Sources/Openbar/UI/Notch/NotchAgentComponents.swift` |
+| `NASt` | `Sources/Openbar/UI/Notch/NotchAgentStrip.swift` |
+| `NAAV` | `Sources/Openbar/UI/Notch/NotchAgentAnimationView.swift` |
+| `NASet` | `Sources/Openbar/UI/Settings/NotchAgentsSettings.swift` |
+| `CAS` | `Sources/Openbar/UI/Settings/CodexAccountsSettings.swift` |
+| `STR` | `Sources/Openbar/Core/NotchAgentStrings.swift` (English at :191–288) |
+| `CAStr` | `Sources/Openbar/Core/CodexAccountStrings.swift` (English at :33–51) |
+| `DEF` | `Sources/Openbar/Core/Defaults.swift` |
+| `NS` | `Sources/Openbar/Services/Notch/NotchService.swift` |
 | `PRICES` | `Resources/agent-prices.json` |
 
 ---
@@ -329,7 +329,7 @@ Line types used (shapes observed on this Mac, Codex CLI 2026-09):
 ### 3.3 `codex app-server` JSON-RPC (`AU/AgentCodexServer.swift:100-230`)
 * Command: `codex -c features.plugins=false app-server`. The transport is NDJSON over stdio (same transport as §2.2), with a timeout of 20 s for checks and 30 s for redeem.
 ```json
-→ {"id":1,"method":"initialize","params":{"clientInfo":{"name":"vorssaint","title":"Vorssaint","version":"<app ver>"},"capabilities":null}}
+→ {"id":1,"method":"initialize","params":{"clientInfo":{"name":"openbar","title":"Openbar","version":"<app ver>"},"capabilities":null}}
 ← {"id":1,"result":{…}}
 → {"method":"initialized"}
 → {"id":2,"method":"account/read","params":{}}            // profile reader sends {"refreshToken":false}
@@ -389,7 +389,7 @@ Line types used (shapes observed on this Mac, Codex CLI 2026-09):
   * Env allow-list: the Mac list plus `USERPROFILE`, `USERNAME`, `USERDOMAIN`, `HOMEDRIVE`, `HOMEPATH`, `APPDATA`, `LOCALAPPDATA`, `SystemRoot`, `SystemDrive`, `windir`, `ComSpec`, `PATHEXT`, `TEMP`, `TMP`, `ProgramData`, `ProgramFiles`, `ProgramFiles(x86)`, `ProgramW6432`, `CommonProgramFiles`, `PROCESSOR_ARCHITECTURE`, `NUMBER_OF_PROCESSORS` and `OS`, matched case-insensitively, then `PATH` (the CLI search path), `CODEX_HOME` and `LANG`. Everything else (`OPENAI_API_KEY`, `CODEX_*`, …) is cleared.
   * A check that is called off (home removed, section, Codex or the Limits card turned off) stops reading the app-server at once and ends it.
   * Scheduling: the service's 2 s step re-queues due homes while the page shows, in place of the Mac's 30 s page timer.
-  * The invalid-folder alert is an inline warning under the buttons. `Vorssaint.exe --agents-probe <file> --limits` also lists every discovered home with its check (`codexHomes`).
+  * The invalid-folder alert is an inline warning under the buttons. `Openbar.exe --agents-probe <file> --limits` also lists every discovered home with its check (`codexHomes`).
 
 ---
 
@@ -455,8 +455,8 @@ Line types used (shapes observed on this Mac, Codex CLI 2026-09):
 ### 6.1 Sources and precedence
 1. **Bundled**: `Resources/agent-prices.json` (15.6 KB; `updated: 2026-10-09`; 25 Claude models, 73 OpenAI models).
 2. **Cached download**: `~/Library/Application Support/<bundle id>/agent-prices.json`, written atomically with mode 0600 (`AU/AgentPriceSource.swift:23-39`). On Windows: `%APPDATA%\<app id>\agent-prices.json`.
-3. **Remote**: `GET https://raw.githubusercontent.com/vorssaint/vorssaint-utils/main/Resources/agent-prices.json` (`:11`).
-   * Header `User-Agent: Vorssaint/<version>`. Ephemeral session: no cookies, no cache. Timeouts: 15 s per request, 30 s per resource. Size ≤ 256 KiB. Status must be 200. Redirects are followed only to the same https host (`:53-101`).
+3. **Remote**: `GET https://raw.githubusercontent.com/MF-DEEV/Openbar/main/Resources/agent-prices.json` (`:11`).
+   * Header `User-Agent: Openbar/<version>`. Ephemeral session: no cookies, no cache. Timeouts: 15 s per request, 30 s per resource. Size ≤ 256 KiB. Status must be 200. Redirects are followed only to the same https host (`:53-101`).
    * The download runs only when `notchAgentsPriceUpdates` (default true) is on, at most every 24 h, and 6 h after a failure (`AU/AgentUsageService.swift:855-884`).
    * **The Windows port must decide whether to keep this URL**, because it is the upstream project's repository.
 * Precedence: the newer `updated` day wins; on the same day the download wins (`AU/AgentPricing.swift:98-102`). After a new list is installed, all non-reported records are repriced (`AU/AgentUsageStore.swift:263-274`).
@@ -790,7 +790,7 @@ Path handling: project names are derived from `cwd`. On Windows `cwd` will look 
 7. **OpenCode and Copilot data dirs on Windows** (`~/.local/share/opencode`, `~/.copilot`) are inferred from their XDG-style code paths and need checking on a real install. Both may also honour `XDG_*` / `COPILOT_HOME` overrides that the Mac build ignores.
 8. **`CLAUDE_CONFIG_DIR` / `CODEX_HOME` overrides** are not honoured for log roots on Mac. Only the fixed home paths are read (`AU/AgentUsageStore.swift:475-481`). A Windows user with relocated dirs would see nothing; consider adding them.
 9. **Executable discovery on Windows** (npm `.cmd` shims, Volta, nvm-windows, Scoop `%USERPROFILE%\scoop\shims`, winget). This differs completely from the Mac list. The child env must keep `SystemRoot`, `PATHEXT` and `APPDATA`, or Node/Rust CLIs fail.
-10. **Price list URL** points at the upstream `vorssaint/vorssaint-utils` repo. Decide whether the Windows port fetches from there (licence and trust) or hosts its own copy. The bundled list will go stale: `updated` is 2026-10-09, and the notes flag promotional prices ending 2026-11-21.
+10. **Price list URL** points at the upstream `MF-DEEV/Openbar` repo. Decide whether the Windows port fetches from there (licence and trust) or hosts its own copy. The bundled list will go stale: `updated` is 2026-10-09, and the notes flag promotional prices ending 2026-11-21.
 11. **Model naming from Copilot and OpenCode** (provider prefixes such as `anthropic/claude-…`, dots in versions) relies on the normalizer. Gemini, Grok and other non-Anthropic/OpenAI models are always unpriced, so totals show `≥`.
 12. **Archive invalidation on every app update** causes a full re-read of 91 days of logs, which can be gigabytes. The Windows port should version its cache by parser version, not build number, to avoid long first loads after updates.
 13. **Vendor marks.** The Mac borrows icons from installed vendor apps at runtime. On Windows, extracting exe icons is possible but has trademark and UX implications. Consider neutral glyphs.

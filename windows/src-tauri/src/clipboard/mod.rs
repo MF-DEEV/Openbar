@@ -3,7 +3,7 @@
 
 //! Clipboard history (ClipboardHistoryService.swift; spec 05 §3): every copy
 //! while `clipboardHistoryEnabled` is on, kept in
-//! `%APPDATA%\com.vorssaint.island\clipboard\history.json` with pictures in
+//! `%APPDATA%\com.openbar.island\clipboard\history.json` with pictures in
 //! `images\`, and the commands the island's Clipboard page and the Tools
 //! section use to copy, paste, pin, move and delete. Reads run on a worker
 //! and are given up after 5 s, as on the Mac: an app that renders its
@@ -514,7 +514,7 @@ pub fn clipboard_clear_recent<R: Runtime>(app: AppHandle<R>, confirmed: HashMap<
     mutate(&app, |h| h.clear_recent(&confirmed));
 }
 
-/// Copies text Vorssaint made (OCR, a color). It joins the history as a
+/// Copies text Openbar made (OCR, a color). It joins the history as a
 /// copy with no app named, as on the Mac.
 #[tauri::command]
 pub async fn clipboard_copy_text(text: String) -> bool {
@@ -523,7 +523,7 @@ pub async fn clipboard_copy_text(text: String) -> bool {
         .unwrap_or(false)
 }
 
-/// Copies a PNG Vorssaint made (a screenshot), as CF_DIB and "PNG".
+/// Copies a PNG Openbar made (a screenshot), as CF_DIB and "PNG".
 #[tauri::command]
 pub async fn clipboard_copy_image(data_url: String) -> bool {
     tauri::async_runtime::spawn_blocking(move || {
@@ -645,7 +645,7 @@ mod tests {
     #[test]
     fn the_store_saves_atomically_reloads_and_cleans_unused_pictures() {
         let dir =
-            std::env::temp_dir().join(format!("vorssaint-clipboard-test-{}", history::new_id()));
+            std::env::temp_dir().join(format!("openbar-clipboard-test-{}", history::new_id()));
         let mut store = Store {
             dir: Some(dir.clone()),
             ..Store::default()
@@ -706,7 +706,7 @@ mod tests {
     #[test]
     fn pictures_of_a_set_aside_history_survive_the_next_launch() {
         let dir =
-            std::env::temp_dir().join(format!("vorssaint-clipboard-broken-{}", history::new_id()));
+            std::env::temp_dir().join(format!("openbar-clipboard-broken-{}", history::new_id()));
         let mut store = Store {
             dir: Some(dir.clone()),
             ..Store::default()

@@ -487,7 +487,7 @@ pub fn roller_key(shortcut: &tauri_plugin_global_shortcut::Shortcut, pressed: bo
         ROLLER_PRESS[1 - index].fetch_add(1, Ordering::SeqCst);
         roller_step(direction);
         let _ = std::thread::Builder::new()
-            .name("vorssaint-volume-repeat".into())
+            .name("openbar-volume-repeat".into())
             .spawn(move || {
                 std::thread::sleep(std::time::Duration::from_millis(ROLLER_REPEAT_DELAY_MS));
                 while ROLLER_PRESS[index].load(Ordering::SeqCst) == press {

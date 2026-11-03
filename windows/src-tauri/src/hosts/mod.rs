@@ -595,12 +595,12 @@ mod tests {
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "Raises the live session process selected with VORSSAINT_TEST_FOCUS_PID"]
+    #[ignore = "Raises the live session process selected with OPENBAR_TEST_FOCUS_PID"]
     fn live_session_open_raises_its_host() {
         use windows::Win32::UI::WindowsAndMessaging::{
             GetForegroundWindow, GetWindowThreadProcessId,
         };
-        let pid: u32 = std::env::var("VORSSAINT_TEST_FOCUS_PID")
+        let pid: u32 = std::env::var("OPENBAR_TEST_FOCUS_PID")
             .expect("set the target pid")
             .parse()
             .unwrap();
@@ -629,13 +629,13 @@ mod tests {
 
     #[test]
     #[cfg(windows)]
-    #[ignore = "Types into the live session process selected with VORSSAINT_TEST_REPLY_PID"]
+    #[ignore = "Types into the live session process selected with OPENBAR_TEST_REPLY_PID"]
     fn live_session_reply_reaches_its_host() {
-        let pid: u32 = std::env::var("VORSSAINT_TEST_REPLY_PID")
+        let pid: u32 = std::env::var("OPENBAR_TEST_REPLY_PID")
             .expect("set the target pid")
             .parse()
             .unwrap();
-        let text = std::env::var("VORSSAINT_TEST_REPLY_TEXT")
+        let text = std::env::var("OPENBAR_TEST_REPLY_TEXT")
             .unwrap_or_else(|_| "hello\nsecond line".into());
         let located = locate(pid).expect("session ancestors");
         eprintln!(
@@ -644,7 +644,7 @@ mod tests {
             located.host.display_name(),
             located.host.accepts_replies()
         );
-        if std::env::var("VORSSAINT_TEST_OPEN").is_ok() {
+        if std::env::var("OPENBAR_TEST_OPEN").is_ok() {
             eprintln!("Open: {}", focus(pid, &located, ""));
         }
         let delivered = deliver(pid, &located, &text, &[]);

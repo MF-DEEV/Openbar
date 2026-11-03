@@ -341,7 +341,7 @@ pub fn clean(text: &str) -> String {
     out.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
-/// `Vorssaint.exe --voice-probe <wav> <out> [language]`: the island's
+/// `Openbar.exe --voice-probe <wav> <out> [language]`: the island's
 /// recognizer on a file, and how long it took.
 pub fn probe_main(wav: &str, out: &str, language: &str) -> ! {
     let report = probe(wav, language);

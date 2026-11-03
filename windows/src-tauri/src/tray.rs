@@ -14,8 +14,8 @@ use crate::settings;
 pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
     let menu = localized_menu(app)?;
 
-    let mut tray = TrayIconBuilder::with_id("vorssaint")
-        .tooltip("Vorssaint")
+    let mut tray = TrayIconBuilder::with_id("openbar")
+        .tooltip("Openbar")
         .menu(&menu)
         .show_menu_on_left_click(false)
         .on_menu_event(|app, event| match event.id.as_ref() {
@@ -58,7 +58,7 @@ fn localized_menu<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<Menu<R>> {
     Menu::with_items(app, &[&open, &PredefinedMenuItem::separator(app)?, &quit])
 }
 pub fn refresh<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<()> {
-    if let Some(tray) = app.tray_by_id("vorssaint") {
+    if let Some(tray) = app.tray_by_id("openbar") {
         tray.set_menu(Some(localized_menu(app)?))?;
     }
     Ok(())
@@ -98,8 +98,8 @@ fn warning_color(level: &str) -> Option<[u8; 3]> {
 
 fn tooltip(percent: Option<i64>, warned: bool) -> String {
     match percent {
-        Some(percent) if warned => format!("Vorssaint: battery {percent}%"),
-        _ => "Vorssaint".to_owned(),
+        Some(percent) if warned => format!("Openbar: battery {percent}%"),
+        _ => "Openbar".to_owned(),
     }
 }
 
@@ -109,7 +109,7 @@ pub fn tray_battery_warning<R: Runtime>(
     level: String,
     percent: Option<i64>,
 ) -> Result<(), String> {
-    let (Some(tray), Some(icon)) = (app.tray_by_id("vorssaint"), app.default_window_icon()) else {
+    let (Some(tray), Some(icon)) = (app.tray_by_id("openbar"), app.default_window_icon()) else {
         return Ok(());
     };
     let color = warning_color(&level);
@@ -152,8 +152,8 @@ mod tests {
         assert_eq!(warning_color("early"), Some([0xff, 0x9f, 0x0a]));
         assert_eq!(warning_color("none"), None);
         assert_eq!(warning_color("anything"), None);
-        assert_eq!(tooltip(Some(7), true), "Vorssaint: battery 7%");
-        assert_eq!(tooltip(Some(7), false), "Vorssaint");
-        assert_eq!(tooltip(None, true), "Vorssaint");
+        assert_eq!(tooltip(Some(7), true), "Openbar: battery 7%");
+        assert_eq!(tooltip(Some(7), false), "Openbar");
+        assert_eq!(tooltip(None, true), "Openbar");
     }
 }

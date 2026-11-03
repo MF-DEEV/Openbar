@@ -4,12 +4,12 @@ The island mirrors new Windows desktop notifications from Discord, Messenger,
 and other applications. The compact banner shows the source app's icon and name
 and the sender/title supplied by Windows. Its expanded preview and the searchable
 Notifications history also show the message text supplied by Windows. Apps may
-redact or omit text; Vorssaint does not read accounts or invent missing details.
+redact or omit text; Openbar does not read accounts or invent missing details.
 The source application's native icon is preferred; Discord and Messenger have
 bundled fallback icons.
 
 The latest 200 notifications are stored locally in
-`%APPDATA%\com.vorssaint.island\notifications\history.json`, including icons,
+`%APPDATA%\com.openbar.island\notifications\history.json`, including icons,
 source, sender, message and time. Writes are atomic. A file that cannot be read
 is preserved, and the page reports a saving error. Clear All and Dismiss change
 this local history; they leave Windows Notification Center unchanged. Dismissed
@@ -28,7 +28,7 @@ instead of being dropped by its higher priority. The pending queue is bounded to
 history even when their compact banner is no longer relevant. Opening the history
 shows incoming entries directly rather than replaying their banners afterwards.
 
-Vorssaint needs a registered package identity, Notifications enabled in Settings →
+Openbar needs a registered package identity, Notifications enabled in Settings →
 Content, and access allowed from the island's Notifications page. Desktop
 notifications must also be enabled in the source application. Browser-hosted
 services follow the browser's Windows notification identity and permissions;
@@ -38,23 +38,23 @@ the island does not infer a service from message contents.
 
 Windows hands notifications (`userNotificationListener`) and the appointment
 store (`appointments`, the Calendar section) only to an app with a package
-identity. Vorssaint gets one from a **sparse package**: a signed `.msix` with no
+identity. Openbar gets one from a **sparse package**: a signed `.msix` with no
 files of its own, whose manifest (`packaging/AppxManifest.xml`) names
-`Vorssaint.exe` in the install folder as its external location. The exe's own
-manifest (`src-tauri/windows-app.manifest`, `<msix … packageName="Vorssaint.Island"/>`)
+`Openbar.exe` in the install folder as its external location. The exe's own
+manifest (`src-tauri/windows-app.manifest`, `<msix … packageName="Openbar.Island"/>`)
 names the package back. No Developer Mode is needed for a signed package.
 
 ### Building it
 
 1. On Windows with the Windows SDK, `tools/package-identity/build-sparse.ps1`
    stamps the app version into the manifest, packs it with `makeappx` and signs
-   it with `signtool`, using a self-signed `CN=Vorssaint` code-signing
+   it with `signtool`, using a self-signed `CN=Openbar` code-signing
    certificate. Its subject must equal the manifest's `Publisher`; the script
    checks. The PFX lives outside the repository and is passed through
-   `VORSSAINT_SIGNING_PFX` and `VORSSAINT_SIGNING_PASSWORD`; `-NewCertificate`
+   `OPENBAR_SIGNING_PFX` and `OPENBAR_SIGNING_PASSWORD`; `-NewCertificate`
    makes it the first time. Keep that PFX: installs that trusted it accept only
-   packages it signed. Output: `packaging/out/Vorssaint.msix` and the public
-   `Vorssaint.cer` (both ignored by git).
+   packages it signed. Output: `packaging/out/Openbar.msix` and the public
+   `Openbar.cer` (both ignored by git).
 2. From the Mac, `tools/package-identity/build-sparse-vm.sh` copies the inputs
    into the build VM, runs the script there over ssh (the password travels on
    stdin) and copies the two files back.
@@ -70,18 +70,18 @@ The installer runs per user (`installMode: currentUser`). After installing,
 1. checks whether this PC already trusts the certificate
    (`identity.ps1 -Action Trusted`);
 2. if not, starts `identity.ps1 -Action Trust` elevated, which shows **one UAC
-   prompt** and adds `Vorssaint.cer` to `LocalMachine\TrustedPeople` (never to
+   prompt** and adds `Openbar.cer` to `LocalMachine\TrustedPeople` (never to
    the root store); the script refuses any certificate other than a
-   `CN=Vorssaint` code-signing one;
+   `CN=Openbar` code-signing one;
 3. registers the package for the installing user:
-   `Add-AppxPackage -Path …\identity\Vorssaint.msix -ExternalLocation <install folder>`.
+   `Add-AppxPackage -Path …\identity\Openbar.msix -ExternalLocation <install folder>`.
    A package registered before with the same version (an earlier build or a
    development registration) is removed and registered again.
 
 Each step may fail, for example when the UAC prompt is declined, without
 failing the install: the island runs without an identity, and the Notifications
 and Calendar pages say that access is unavailable. Failures are written to
-`%TEMP%\Vorssaint-identity.log`. Updating keeps the package; uninstalling
+`%TEMP%\Openbar-identity.log`. Updating keeps the package; uninstalling
 removes it (`Remove-AppxPackage`). The certificate stays trusted after
 uninstalling, since removing it would need another UAC prompt; remove it by
 hand from `certlm.msc` › Trusted People if wanted.
@@ -89,8 +89,8 @@ hand from `certlm.msc` › Trusted People if wanted.
 To check a PC:
 
 ```powershell
-Get-AppxPackage -Name Vorssaint.Island | Select-Object Name, Version, InstallLocation, IsDevelopmentMode
-Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object Subject -eq 'CN=Vorssaint'
+Get-AppxPackage -Name Openbar.Island | Select-Object Name, Version, InstallLocation, IsDevelopmentMode
+Get-ChildItem Cert:\LocalMachine\TrustedPeople | Where-Object Subject -eq 'CN=Openbar'
 ```
 
 ### Development builds
@@ -99,7 +99,7 @@ For a local development build on a PC that already has Windows Developer Mode
 enabled, register the manifest against the built executable instead:
 
 ```powershell
-.\tools\register-notifications.ps1 -ExecutablePath .\src-tauri\target\debug\Vorssaint.exe
+.\tools\register-notifications.ps1 -ExecutablePath .\src-tauri\target\debug\Openbar.exe
 ```
 
 Restart that executable afterwards, then open Notifications or Calendar and allow
@@ -139,7 +139,7 @@ current IDs so old messages never become new banners.
    replaying messages suppressed during DND. Repeat with Idle and Invisible.
 4. Receive a notification from Messenger or another messaging app. Verify its
    app icon/name and the sender/title provided in its Windows notification.
-5. Restart Vorssaint and confirm history is retained without replaying banners.
+5. Restart Openbar and confirm history is retained without replaying banners.
    Dismiss a history entry, restart again and confirm it stays dismissed. Clear
    All must ask for confirmation. Lock/unlock and disable/re-enable the section:
    history is retained, and old messages are not replayed as new banners.

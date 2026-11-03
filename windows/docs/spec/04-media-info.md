@@ -2,7 +2,7 @@
 
 Scope: Music (lyrics, queue, equalizer bars, browser artwork, live audio level, shuffle, preferred player, playback source, commands), Notifications, Calendar, Timer (ruler, strip, alerts), Downloads, Watch, Keep Awake strip, System, Lock screen (brief).
 
-Source of truth: the Swift tree at the commit this was written against (`482540dd`). All `file:line` refs are relative to `Sources/Vorssaint/` unless they start with `Sources/`. Abbreviations: **NS** = `Services/Notch/NotchService.swift`, **NSup** = `Services/Notch/NotchSupport.swift`, **Def** = `Core/Defaults.swift`.
+Source of truth: the Swift tree at the commit this was written against (`482540dd`). All `file:line` refs are relative to `Sources/Openbar/` unless they start with `Sources/`. Abbreviations: **NS** = `Services/Notch/NotchService.swift`, **NSup** = `Services/Notch/NotchSupport.swift`, **Def** = `Core/Defaults.swift`.
 
 Units: SwiftUI points map 1:1 to CSS px at 100 % scaling (DIPs). On Windows, multiply by the monitor's DPI scale for physical pixels. "SF Symbol X" means an icon of the same meaning. The Windows build needs a matching icon set (Fluent System Icons is the natural pick). Colors are sRGB.
 
@@ -185,7 +185,7 @@ The player height is `head + 14 + (playing ? 14 + 10 : 0) + 44 + 8`, where head 
 (Def:1432-1552; on migration from an old configured install, lyrics, queue, live EQ and track change default to false, Def:2097-2108.)
 
 ### 1.6 Data source — macOS
-- **Now Playing.** The private framework MediaRemote can no longer be called in-process since macOS 15.4. The app runs `/usr/bin/perl now-playing.pl libVorssaintNowPlaying.dylib watch|watch_all` as a child process. It emits one JSON line per change on stdout and takes commands on stdin (MusicService:94-213, `Sources/NowPlayingAdapter/NowPlayingAdapter.swift:1-13`).
+- **Now Playing.** The private framework MediaRemote can no longer be called in-process since macOS 15.4. The app runs `/usr/bin/perl now-playing.pl libOpenbarNowPlaying.dylib watch|watch_all` as a child process. It emits one JSON line per change on stdout and takes commands on stdin (MusicService:94-213, `Sources/NowPlayingAdapter/NowPlayingAdapter.swift:1-13`).
   - It is event driven, not polled. It subscribes to 7–8 MediaRemote notifications plus app-terminate, debounced **0.12 s** (:287-306). A read that waits longer than 2 s exits the child (:234-238).
   - The child is restarted at most 2 times, after 1 s then 2 s. The budget resets after 60 s of uptime (MusicService:290-306).
   - Artwork travels base64, ≤12 MB (:32).
@@ -244,7 +244,7 @@ The player height is `head + 14 + (playing ? 14 + 10 : 0) + 44 + 8`, where head 
   1. **LRCLIB.** `GET https://lrclib.net/api/get?track_name&artist_name[&album_name]&duration`. Duration must be 1–3600 s, fields ≤1024 bytes. The album is omitted when the player reports none (`Services/Notch/NotchLyricsSupport.swift:129-145`).
   2. Then `https://lrclib.net/api/search` fallbacks: normalized artist/title, primary artist, discovery query (:197-206, 316-330).
   3. Last resort: **MusicBrainz** artist/recording/release-group lookups (`https://musicbrainz.org/ws/2/...`, :499-571) to verify artist aliases, rate-limited to **one request per 1.05 s** (`Services/Notch/NotchLyricsService.swift:233-252`).
-  - Requests are ephemeral: no cookies, cache or credentials; **redirects refused**; timeouts 10 s per request / 15 s per resource; payload ≤128 KB (≤1 MB for search). Header `User-Agent: Vorssaint/<version> (https://github.com/vorssaint/vorssaint-utils)`, `Accept: application/json` (:356-410).
+  - Requests are ephemeral: no cookies, cache or credentials; **redirects refused**; timeouts 10 s per request / 15 s per resource; payload ≤128 KB (≤1 MB for search). Header `User-Agent: Openbar/<version> (https://github.com/MF-DEEV/Openbar)`, `Accept: application/json` (:356-410).
   - A match must agree on title, artist and album (when both have one), and duration within ±2 s (:147-160).
   - Results are cached: "no lyrics" 60 s, failure 15 s (:137), artist identities 15 s / 600 s / 3600 s (:262).
 - **Consent.** Online lookup runs only with `notchLyricsOnline`. Off, the view shows an explanation plus an "Find lyrics online" button that flips the pref (`UI/Notch/NotchLyricsView.swift:93-106`). Lookups run only while the lyrics view is visible.
@@ -585,7 +585,7 @@ Compact #1 (the highest). It can pair as primary with downloads, and while runni
 
 ### 6.1 Flow
 `Services/Notch/NotchWatchService.swift`:
-1. **Choose.** If screen-recording access is missing, request it. Otherwise show the area-selection overlay (the screenshot selector in geometry mode; Vorssaint windows hidden; no pointer; no frozen frame; purpose text shown) (:87-108).
+1. **Choose.** If screen-recording access is missing, request it. Otherwise show the area-selection overlay (the screenshot selector in geometry mode; Openbar windows hidden; no pointer; no frozen frame; purpose text shown) (:87-108).
 2. **Resolve the target** (:110-151):
    - If the selection hit a window, the target is that window with a crop in points from its top-left. Otherwise the window under the area's middle (front to back) is picked, clipped to ≥ 8 × 8 pt (`windowCrop`, `NotchWatchSupport.swift:354-361`).
    - With no window (desktop or menu bar), a **fixed display region** in pixels, keeping the island itself out of the capture.
@@ -642,7 +642,7 @@ Compact #1 (the highest). It can pair as primary with downloads, and while runni
   - Set `IsCursorCaptureEnabled = false`.
   - **Yellow border (flag)**: `IsBorderRequired = false` needs Windows 11 and `GraphicsCaptureAccess.RequestAccessAsync(GraphicsCaptureAccessKind.Borderless)`. Behavior for unpackaged apps should be verified; it may require identity or show a consent prompt.
   - **Minimized windows** deliver no new frames → map "no frame within N ms" (or `IsIconic`) to the `hidden` state. A window on another virtual desktop still captures.
-- **Display region**: `CreateForMonitor(hmonitor)` + crop. Exclude the island from captures with `SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)` on all island windows. That also covers the Mac's `hideVorssaintWindows` and `keepsIslandOut`.
+- **Display region**: `CreateForMonitor(hmonitor)` + crop. Exclude the island from captures with `SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE)` on all island windows. That also covers the Mac's `hideOpenbarWindows` and `keepsIslandOut`.
 - **Window metadata**: `IsWindow` (closed detection), `GetWindowTextW` (title), `GetWindowThreadProcessId` → process → app display name (the exe's `FileDescription`, or the AUMID via `SHGetPropertyStoreForWindow(PKEY_AppUserModel_ID)`) and icon. The crop is stored in DIPs relative to `DwmGetWindowAttribute(DWMWA_EXTENDED_FRAME_BOUNDS)`.
 - **OCR**: `Windows.Media.Ocr.OcrEngine.TryCreateFromUserProfileLanguages()`, or `TryCreateFromLanguage` per the UI language, then `RecognizeAsync(SoftwareBitmap)`.
   - Check `OcrEngine.MaxImageDimension`.

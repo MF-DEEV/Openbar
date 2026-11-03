@@ -18,10 +18,10 @@ Where the island can't answer a request, the card says "Answer this one in Gemin
 On the Mac each hook is the system's `nc` writing the agent's input, wrapped in an envelope, to the island's socket:
 
 ```
-{ printf '{"vorssaint":"gemini","hook":"BeforeTool","pid":%d,"event":' "$PPID"; cat; printf '}'; } | /usr/bin/nc -U '<socket>' 2>/dev/null; exit 0 # vorssaint-hook <bundle>
+{ printf '{"openbar":"gemini","hook":"BeforeTool","pid":%d,"event":' "$PPID"; cat; printf '}'; } | /usr/bin/nc -U '<socket>' 2>/dev/null; exit 0 # openbar-hook <bundle>
 ```
 
-On Windows the hook is the app itself, `Vorssaint.exe --hook --agent gemini --event BeforeTool`, which builds the same envelope (run with `&` under PowerShell for Gemini CLI and Cursor, and with Copilot's `exec` and `args`, which need no shell). When the island is not running the hook connects to nothing, prints nothing and exits 0, so the agent carries on as if there were no hook. The island finds the agent's own process by walking up from the hook's process past the shells, which tells it when the agent quits and which terminal shows it.
+On Windows the hook is the app itself, `Openbar.exe --hook --agent gemini --event BeforeTool`, which builds the same envelope (run with `&` under PowerShell for Gemini CLI and Cursor, and with Copilot's `exec` and `args`, which need no shell). When the island is not running the hook connects to nothing, prints nothing and exits 0, so the agent carries on as if there were no hook. The island finds the agent's own process by walking up from the hook's process past the shells, which tells it when the agent quits and which terminal shows it.
 
 OpenCode's plugin (`AgentOpenCodePlugin.swift`, the same file as `windows/src-tauri/src/sessions/opencode-plugin.js`; a Rust test keeps them alike) runs inside OpenCode and writes envelopes of its own: `created`, `status`, `tool`, `permission`, `permissionReplied`, `message` (model, tokens, cost), `reply`, `title`, `deleted`. A `permission` envelope waits on its connection for `{"reply":"once"|"always"|"reject"}`, which the plugin hands to OpenCode with `client.postSessionIdPermissionsPermissionId`. A `listen` envelope waits for `{"prompt":{"session":…,"text":…}}`, which the plugin sends with `client.session.promptAsync`. Each time the plugin reaches the island anew, as after it restarts, it tells it of its sessions again.
 

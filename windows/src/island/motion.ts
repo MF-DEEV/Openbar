@@ -2,7 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 // The island's resize motion, ported from NotchMotion / NotchMotionTimeline
-// (Sources/Vorssaint/Services/Notch/NotchSupport.swift). Width and height
+// (Sources/Openbar/Services/Notch/NotchSupport.swift). Width and height
 // each ride a spring of their own, chosen by direction; a growing side may
 // swing past its target, a shrinking one never does.
 

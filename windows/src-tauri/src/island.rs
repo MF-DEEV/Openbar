@@ -225,7 +225,7 @@ struct PointerEvent {
 
 pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>> {
     let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("island.html".into()))
-        .title("Vorssaint Island")
+        .title("Openbar Island")
         .inner_size(1000.0, 760.0)
         .decorations(false)
         .transparent(true)
@@ -420,7 +420,7 @@ fn open_mirror<R: Runtime>(
         state.next_mirror.fetch_add(1, Ordering::Relaxed)
     );
     let window = WebviewWindowBuilder::new(app, &label, WebviewUrl::App("mirror.html".into()))
-        .title("Vorssaint Island")
+        .title("Openbar Island")
         .inner_size(display.width as f64 / display.scale, MIRROR_HEIGHT)
         .decorations(false)
         .transparent(true)

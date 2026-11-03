@@ -3,7 +3,7 @@
 
 //! The scratchpad's pads on disk (ScratchpadStore / ScratchpadDocument,
 //! ScratchpadSupport.swift:57-160; spec 05 §11): one small JSON document in
-//! `%APPDATA%\com.vorssaint.island\scratchpad\Scratchpad.json`, written
+//! `%APPDATA%\com.openbar.island\scratchpad\Scratchpad.json`, written
 //! atomically. The page keeps the model; this reads it back sanitized
 //! (at most 12 pads, unique ids, names of 40 characters at most, a valid
 //! selection) and never overwrites a file it couldn't read.

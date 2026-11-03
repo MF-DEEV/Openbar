@@ -25,12 +25,12 @@ enum CodexSessionTests {
     // MARK: Reply input
 
     static func replyInput(_ suite: TestSuite) {
-        let shot = URL(fileURLWithPath: "/tmp/vorssaint-images/shot.png")
+        let shot = URL(fileURLWithPath: "/tmp/openbar-images/shot.png")
         suite.expect(json(CodexSessionClient.input(text: "Look at this", images: [shot]))
-                         == #"[{"text":"Look at this","text_elements":[],"type":"text"},{"path":"\/tmp\/vorssaint-images\/shot.png","type":"localImage"}]"#,
+                         == #"[{"text":"Look at this","text_elements":[],"type":"text"},{"path":"\/tmp\/openbar-images\/shot.png","type":"localImage"}]"#,
                      "a reply gives its text, then each image as the file Codex reads it from")
         suite.expect(json(CodexSessionClient.input(text: " \n", images: [shot]))
-                         == #"[{"path":"\/tmp\/vorssaint-images\/shot.png","type":"localImage"}]"#,
+                         == #"[{"path":"\/tmp\/openbar-images\/shot.png","type":"localImage"}]"#,
                      "images alone go without an empty text")
         suite.expect(json(CodexSessionClient.input(text: "hi", images: []))
                          == #"[{"text":"hi","text_elements":[],"type":"text"}]"#, "text alone is as before")
@@ -870,7 +870,7 @@ enum CodexSessionTests {
         // Handshake.
         let initialize = expectCall("initialize", "the island introduces itself")
         let info = params(initialize)["clientInfo"] as? [String: Any]
-        suite.expect(info?["name"] as? String == "vorssaint" && info?["title"] as? String == "Vorssaint"
+        suite.expect(info?["name"] as? String == "openbar" && info?["title"] as? String == "Openbar"
                          && info?["version"] as? String == "9.9", "with its name and version")
         suite.expect((params(initialize)["capabilities"] as? [String: Any])?["experimentalApi"] as? Bool == true,
                      "and asks for the experimental API")

@@ -13,7 +13,7 @@ Speech is recognized on the device, on both platforms. There is no cloud fallbac
 - The session ending stops recording and nothing is written or sent. The island closing, or moving to another page, stops it and keeps the words unsent. A press waiting on a permission prompt is kept, since the prompt itself closes the island.
 - Recognition uses the system's default input in shared mode. A call or Discord keeps its microphone, and the input device never changes. Audio is held in memory only while recording and dropped when recognition ends.
 
-The rules are one state machine per platform, `VoiceReplyMachine` (Mac, `Sources/Vorssaint/Services/ClaudeSessions/VoiceReplySupport.swift`) and `windows/src/sessions/voice.ts`, with the same tests (`Tests/VoiceReplyTests.swift`, `voice.test.ts`).
+The rules are one state machine per platform, `VoiceReplyMachine` (Mac, `Sources/Openbar/Services/ClaudeSessions/VoiceReplySupport.swift`) and `windows/src/sessions/voice.ts`, with the same tests (`Tests/VoiceReplyTests.swift`, `voice.test.ts`).
 
 Settings → Dynamic Island → Content → Sessions → **Voice replies**: on/off (off by default), language (follows the app's), hold-to-talk shortcut (off by default; ⌃⌥⌘A on the Mac, Ctrl+Alt+V on Windows once turned on), and Send when I stop talking (off by default).
 
@@ -31,12 +31,12 @@ Facts found while building it:
 
 **Decision.** `Windows.Media.SpeechRecognition` free dictation (`SpeechRecognitionTopicConstraint`) is a web-service grammar. It needs Settings → Privacy → Speech → Online speech recognition, and sends the audio to Microsoft. Only list and SRGS grammars run on the device, and they can't take free dictation. The older SAPI desktop dictation is deprecated and covers only a few of the app's 15 languages. Neither keeps the promise, so voice replies use **whisper.cpp** through `whisper-rs`, linked into the app.
 
-- Model: whisper.cpp's multilingual base model, quantized (`ggml-base-q5_1.bin`, 60 MB, SHA-256 `422f1ae4…8898`). It is downloaded once, when the person presses Download in Settings (the size is shown first), from `huggingface.co/ggerganov/whisper.cpp`. It is checked against its hash before it is kept, saved to `%APPDATA%\com.vorssaint.island\models\`, and can be deleted from Settings. No audio is ever sent.
+- Model: whisper.cpp's multilingual base model, quantized (`ggml-base-q5_1.bin`, 60 MB, SHA-256 `422f1ae4…8898`). It is downloaded once, when the person presses Download in Settings (the size is shown first), from `huggingface.co/ggerganov/whisper.cpp`. It is checked against its hash before it is kept, saved to `%APPDATA%\com.openbar.island\models\`, and can be deleted from Settings. No audio is ever sent.
 - Capture: WASAPI shared mode on the default communications input, converted by Windows to 16 kHz mono float.
 - While recording, what was heard is transcribed again about every 1.2 s for live text, and once more on stop. Audio quieter than about -44 dBFS is never transcribed, because whisper makes words up from a quiet room. A hard cap of 75 s on the Rust side backs up the island's 60 s.
 - On an ARM64 VM with 8 cores, a 3.7 s sentence takes about 0.8 s.
 - Microphone privacy off for desktop apps (`E_ACCESSDENIED`) opens `ms-settings:privacy-microphone`; no input device opens `ms-settings:sound`.
-- `Vorssaint.exe --voice-probe <wav> <out> [language]` runs the recognizer on a 16 kHz WAV. `--voice-reply-file <wav>` replays a file in place of the microphone, as on the Mac.
+- `Openbar.exe --voice-probe <wav> <out> [language]` runs the recognizer on a 16 kHz WAV. `--voice-reply-file <wav>` replays a file in place of the microphone, as on the Mac.
 
 ### Building from a Mac
 

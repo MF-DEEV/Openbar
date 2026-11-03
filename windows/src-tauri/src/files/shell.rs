@@ -18,7 +18,7 @@ use crate::com::Worker;
 #[cfg_attr(not(windows), allow(dead_code))]
 fn worker() -> &'static Worker {
     static W: OnceLock<Worker> = OnceLock::new();
-    W.get_or_init(|| Worker::spawn("vorssaint-files", true))
+    W.get_or_init(|| Worker::spawn("openbar-files", true))
 }
 
 pub fn open(paths: Vec<String>) {

@@ -96,7 +96,7 @@ export function demoHistory(): ClipboardSnapshot {
         },
         90,
       ),
-      entry({ id: "t3", text: "https://github.com/MF-DEEV/vorssaint" }, 200),
+      entry({ id: "t3", text: "https://github.com/MF-DEEV/openbar" }, 200),
     ],
   };
 }

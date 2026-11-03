@@ -590,7 +590,7 @@ mod browser {
     #[test]
     fn reads_only_active_downloads_and_uses_received_bytes_instead_of_preallocation() {
         let root = std::env::temp_dir().join(format!(
-            "vorssaint-browser-download-test-{}",
+            "openbar-browser-download-test-{}",
             std::process::id()
         ));
         std::fs::create_dir_all(&root).unwrap();
@@ -666,7 +666,7 @@ mod tests {
     #[test]
     fn a_saved_file_deleted_later_leaves_the_list() {
         let root =
-            std::env::temp_dir().join(format!("vorssaint-download-gone-{}", std::process::id()));
+            std::env::temp_dir().join(format!("openbar-download-gone-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
         let file = root.join("a.zip");
         std::fs::write(&file, b"done").unwrap();
@@ -717,7 +717,7 @@ mod tests {
     #[test]
     fn paused_partial_stays_active_and_rename_is_completed_only_when_target_exists() {
         let root =
-            std::env::temp_dir().join(format!("vorssaint-download-test-{}", std::process::id()));
+            std::env::temp_dir().join(format!("openbar-download-test-{}", std::process::id()));
         std::fs::create_dir_all(&root).unwrap();
         let path = root.join("fixture.zip.part");
         let mut tracker = Tracker::default();

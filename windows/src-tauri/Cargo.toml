@@ -1,8 +1,8 @@
 [package]
-name = "vorssaint-windows"
+name = "openbar-windows"
 version = "0.2.0"
-description = "Vorssaint Dynamic Island for Windows"
-authors = ["Vorssaint"]
+description = "Openbar Dynamic Island for Windows"
+authors = ["Openbar"]
 license = "GPL-3.0-or-later"
 edition = "2024"
 
@@ -12,7 +12,7 @@ edition = "2024"
 # The `_lib` suffix may seem redundant but it is necessary
 # to make the lib name unique and wouldn't conflict with the bin name.
 # This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
-name = "vorssaint_windows_lib"
+name = "openbar_windows_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

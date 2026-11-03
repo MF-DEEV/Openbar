@@ -218,7 +218,7 @@ pub fn start<R: Runtime>(app: AppHandle<R>, state: State) {
         .expect("agent usage thread");
 }
 
-/// `Vorssaint.exe --agents-probe <file> [--limits]`: reads every log once,
+/// `Openbar.exe --agents-probe <file> [--limits]`: reads every log once,
 /// as the island does at launch, and writes the snapshot with where the logs
 /// and CLIs were found. `--limits` also asks Claude Code and Codex for the
 /// account limits, and lists every Codex home Settings would find with its
@@ -1416,7 +1416,7 @@ mod tests {
 
     #[test]
     fn a_rewritten_log_keeps_its_history_and_its_turn() {
-        let dir = std::env::temp_dir().join(format!("vorssaint-restart-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("openbar-restart-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let projects = dir.join("projects").join("p");
         std::fs::create_dir_all(&projects).unwrap();
@@ -1564,7 +1564,7 @@ mod tests {
 
     #[test]
     fn logs_become_a_snapshot_and_a_finished_turn_a_notice() {
-        let dir = std::env::temp_dir().join(format!("vorssaint-service-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("openbar-service-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let projects = dir.join("projects").join("C--work-site");
         std::fs::create_dir_all(&projects).unwrap();
@@ -1628,8 +1628,7 @@ mod tests {
 
     #[test]
     fn read_for_sessions_alone_only_limits_leave() {
-        let dir =
-            std::env::temp_dir().join(format!("vorssaint-limits-only-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("openbar-limits-only-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         let projects = dir.join("projects").join("C--work-site");
         std::fs::create_dir_all(&projects).unwrap();

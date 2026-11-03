@@ -93,7 +93,7 @@ enum NotchDownloadFolderTests {
     }
 
     private static func migration(_ suite: TestSuite) {
-        let domain = "com.vorssaint.tests.notch-download-folders"
+        let domain = "com.openbar.tests.notch-download-folders"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
         defer { defaults.removePersistentDomain(forName: domain) }

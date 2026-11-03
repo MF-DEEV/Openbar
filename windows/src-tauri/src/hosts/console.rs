@@ -81,7 +81,7 @@ pub fn run_helper(pid: u32, action: Action) -> Result<String, String> {
     }
 }
 
-/// The helper's own entry point: `Vorssaint.exe --console <pid>`, the action as JSON on stdin.
+/// The helper's own entry point: `Openbar.exe --console <pid>`, the action as JSON on stdin.
 pub fn helper_main(pid: u32) -> ! {
     let mut input = Vec::new();
     let _ = std::io::stdin().read_to_end(&mut input);

@@ -43,7 +43,7 @@ pub const QUIET_NOTIFICATIONS: [&str; 10] = [
 /// `initialize`'s params: who the island is, and what it would rather not hear.
 fn initialize_params() -> Value {
     json!({
-        "clientInfo": {"name": "vorssaint", "title": "Vorssaint", "version": env!("CARGO_PKG_VERSION")},
+        "clientInfo": {"name": "openbar", "title": "Openbar", "version": env!("CARGO_PKG_VERSION")},
         "capabilities": {"experimentalApi": true, "optOutNotificationMethods": QUIET_NOTIFICATIONS}
     })
 }
@@ -579,7 +579,7 @@ fn uuid_v7() -> String {
     )
 }
 
-/// `Vorssaint.exe --codex-probe`: connects like the island does and prints
+/// `Openbar.exe --codex-probe`: connects like the island does and prints
 /// every message for a few seconds, to see what Codex says on this machine.
 pub fn probe() -> ! {
     let code = (|| -> Result<(), String> {
@@ -597,7 +597,7 @@ pub fn probe() -> ! {
         };
         send(
             &mut socket,
-            json!({"id": 1, "method": "initialize", "params": {"clientInfo": {"name": "vorssaint-probe", "title": "Vorssaint", "version": env!("CARGO_PKG_VERSION")}, "capabilities": {"experimentalApi": true}}}),
+            json!({"id": 1, "method": "initialize", "params": {"clientInfo": {"name": "openbar-probe", "title": "Openbar", "version": env!("CARGO_PKG_VERSION")}, "capabilities": {"experimentalApi": true}}}),
         )?;
         let deadline = std::time::Instant::now() + Duration::from_secs(8);
         while std::time::Instant::now() < deadline {
@@ -741,7 +741,7 @@ mod tests {
             .collect();
         assert_eq!(opted, QUIET_NOTIFICATIONS);
         assert!(opted.contains(&"item/agentMessage/delta"));
-        assert_eq!(params["clientInfo"]["name"], json!("vorssaint"));
+        assert_eq!(params["clientInfo"]["name"], json!("openbar"));
     }
 
     #[test]

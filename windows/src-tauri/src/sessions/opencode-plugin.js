@@ -1,13 +1,13 @@
-// Vorssaint Dynamic Island: shows OpenCode's sessions in the island's Sessions list.
-// Installed and removed from the island's settings. __VORSSAINT_MARKER__
+// Openbar Dynamic Island: shows OpenCode's sessions in the island's Sessions list.
+// Installed and removed from the island's settings. __OPENBAR_MARKER__
 import { connect } from "node:net";
 
-const SOCKET = "__VORSSAINT_SOCKET__";
+const SOCKET = "__OPENBAR_SOCKET__";
 const LIMIT = 4000;
 // A file change's patch, shown as a diff on the permission card.
 const PATCH_LIMIT = 200000;
 
-export const VorssaintIsland = async ({ client, directory }) => {
+export const OpenbarIsland = async ({ client, directory }) => {
   const pid = process.pid;
   const children = new Set();
   const roles = new Map();
@@ -39,7 +39,7 @@ export const VorssaintIsland = async ({ client, directory }) => {
       if (key) waiting.set(key, socket);
       socket.on("error", () => finish(null));
       socket.on("connect", () => {
-        socket.end(JSON.stringify({ vorssaint: "opencode", pid, event: { directory, at: Date.now(), ...event } }));
+        socket.end(JSON.stringify({ openbar: "opencode", pid, event: { directory, at: Date.now(), ...event } }));
       });
       socket.on("data", (chunk) => {
         reply += chunk;

@@ -147,7 +147,7 @@ Then, in Settings:
 3. Start `claude` or `codex`. The session appears in the island.
 
 > [!NOTE]
-> The build is still named **Vorssaint (Developer)**, after the project Openbar is built on. Run only one of them at a time, or you get two islands.
+> This builds **Openbar (Developer)**. It has its own bundle ID, so it can sit beside an installed Openbar, but run only one of them at a time or you get two islands.
 
 **Windows**: run the installer from the [latest Windows release](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true). It installs for your account only.
 

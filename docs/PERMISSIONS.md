@@ -1,6 +1,6 @@
 # Permissions
 
-Vorssaint asks for a macOS permission only when a feature actually needs it, and every one of them is optional. Skip a permission and the feature that leans on it simply stays off or runs in a lighter mode, while the rest of the app carries on as normal. The first run walks you through each grant, and you can come back to it anytime from Settings under About.
+Openbar asks for a macOS permission only when a feature actually needs it, and every one of them is optional. Skip a permission and the feature that leans on it simply stays off or runs in a lighter mode, while the rest of the app carries on as normal. The first run walks you through each grant, and you can come back to it anytime from Settings under About.
 
 You can review or change every grant in System Settings, under Privacy and Security, and reset them whenever you like. The [troubleshooting guide](TROUBLESHOOTING.md) shows how.
 
@@ -43,7 +43,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 - **Dynamic Island microphone status**, which reads Discord's Mute and Deafen controls and, while Discord is hidden, watches for the mute and deafen shortcuts you set in Discord without blocking them. Without the permission, Discord's state is not shown.
 - **Dynamic Island Sessions**, only if Accessibility is already allowed: Open brings the editor window (Antigravity, VS Code, Cursor, Windsurf) holding a session's folder to the front, and the WezTerm window showing a session's pane. It never asks for the permission; without it, Open brings Antigravity forward as a whole. It also opens a new Terminal window with `claude attach` for a background session, or to start a session in a terminal.
 
-**If you say no.** These features stay off. Vorssaint sees the moment you grant the permission and brings them to life with no relaunch.
+**If you say no.** These features stay off. Openbar sees the moment you grant the permission and brings them to life with no relaunch.
 
 **Optional.** Yes. macOS shows its prompt the first time a feature needs it, and you can also grant it later in System Settings, under Privacy and Security, Accessibility.
 
@@ -53,7 +53,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **What uses it.** The window switcher and Dock Preview for live thumbnails and titles, screenshots and copy text from screen for the area you select, and the screen recorder for the area, window or display you choose.
 
-The color picker also uses this permission for Vorssaint's magnifier and keyboard controls. Arrow keys select a pixel; Return or keypad Enter copies its color and closes the picker. C copies without closing. Without this permission, the native macOS color picker remains available.
+The color picker also uses this permission for Openbar's magnifier and keyboard controls. Arrow keys select a pixel; Return or keypad Enter copies its color and closes the picker. C copies without closing. Without this permission, the native macOS color picker remains available.
 
 **If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
 
@@ -83,7 +83,7 @@ The color picker also uses this permission for Vorssaint's magnifier and keyboar
 
 **Why it comes up.** macOS asks before an app can use its speech recognizer.
 
-**What uses it.** Voice replies in Dynamic Island's Sessions page (Settings → Dynamic Island → Content → Sessions → Voice replies, off by default). Vorssaint asks the recognizer to work on this Mac only (`requiresOnDeviceRecognition`), so nothing you say goes to Apple; a language without an on-device recognizer is refused, not sent. Apple's recognizer also needs Dictation turned on in Keyboard settings, where it downloads the languages. The prompt comes the first time you press the microphone, never at launch.
+**What uses it.** Voice replies in Dynamic Island's Sessions page (Settings → Dynamic Island → Content → Sessions → Voice replies, off by default). Openbar asks the recognizer to work on this Mac only (`requiresOnDeviceRecognition`), so nothing you say goes to Apple; a language without an on-device recognizer is refused, not sent. Apple's recognizer also needs Dictation turned on in Keyboard settings, where it downloads the languages. The prompt comes the first time you press the microphone, never at launch.
 
 **If you say no.** Typed replies work as before. The microphone button says speech recognition is off and opens this page of System Settings.
 
@@ -101,7 +101,7 @@ The color picker also uses this permission for Vorssaint's magnifier and keyboar
 
 ## Calendars
 
-The optional notch calendar asks for access when you press its permission button. macOS calls this full calendar access; Vorssaint uses it only to read appointments and never modifies them. If access is denied, the calendar shows a System Settings shortcut while the rest of the notch remains available. Event content stays on this Mac.
+The optional notch calendar asks for access when you press its permission button. macOS calls this full calendar access; Openbar uses it only to read appointments and never modifies them. If access is denied, the calendar shows a System Settings shortcut while the rest of the notch remains available. Event content stays on this Mac.
 
 ## Bluetooth
 
@@ -119,7 +119,7 @@ The optional notch calendar asks for access when you press its permission button
 
 ## Files and Folders
 
-Download monitoring watches your Downloads folder, the folders your browsers save to and any folder you add in Settings. Browser folders come from each Chromium profile's Preferences file and Firefox's prefs.js, which are read for that folder setting only; history, addresses and file contents are never read. While a Chromium browser (Chrome, Edge, Brave, Arc, Vivaldi, Opera and others) is writing a partial file into a watched folder, Vorssaint also reads that profile's in-progress download store (`shared_proto_db`) for the partial's path, final name and byte counts, so the row can show a percentage and the real file name. The store is read from disk without opening it for writing or taking its lock; the address, referrer and tab fields in each record are skipped unread, and nothing from the store is saved. macOS may ask once before the Downloads folder or a browser's folder on the Desktop, in Documents or on another volume is read. A folder you add in the system picker keeps its access as a local bookmark that does not travel in a settings backup; if it becomes unavailable or access is revoked, Settings marks it so you can add it again. Only the top level of each folder is read, and Full Disk Access is not needed for this feature.
+Download monitoring watches your Downloads folder, the folders your browsers save to and any folder you add in Settings. Browser folders come from each Chromium profile's Preferences file and Firefox's prefs.js, which are read for that folder setting only; history, addresses and file contents are never read. While a Chromium browser (Chrome, Edge, Brave, Arc, Vivaldi, Opera and others) is writing a partial file into a watched folder, Openbar also reads that profile's in-progress download store (`shared_proto_db`) for the partial's path, final name and byte counts, so the row can show a percentage and the real file name. The store is read from disk without opening it for writing or taking its lock; the address, referrer and tab fields in each record are skipped unread, and nothing from the store is saved. macOS may ask once before the Downloads folder or a browser's folder on the Desktop, in Documents or on another volume is read. A folder you add in the system picker keeps its access as a local bookmark that does not travel in a settings backup; if it becomes unavailable or access is revoked, Settings marks it so you can add it again. Only the top level of each folder is read, and Full Disk Access is not needed for this feature.
 
 ## Notifications
 
@@ -145,17 +145,17 @@ Download monitoring watches your Downloads folder, the folders your browsers sav
 
 **If you say no.** The uninstaller still works and scans the places it can reach. It just might not surface files tucked away in protected folders. A subagent from a project in a protected folder keeps the color its Clawd drew at random.
 
-**Optional.** Yes. There is no pop up for Full Disk Access. You add Vorssaint in System Settings, under Privacy and Security, Full Disk Access, and Vorssaint opens that pane for you when the feature calls for it.
+**Optional.** Yes. There is no pop up for Full Disk Access. You add Openbar in System Settings, under Privacy and Security, Full Disk Access, and Openbar opens that pane for you when the feature calls for it.
 
 ## Administrator, one time and optional
 
-**Why it comes up.** Keeping the Mac awake with the lid shut relies on `pmset disablesleep`, which needs administrator rights. So it does not have to ask for your password every time you flip closed lid mode, Vorssaint can install a tightly scoped `sudoers` rule that allows only that single command.
+**Why it comes up.** Keeping the Mac awake with the lid shut relies on `pmset disablesleep`, which needs administrator rights. So it does not have to ask for your password every time you flip closed lid mode, Openbar can install a tightly scoped `sudoers` rule that allows only that single command.
 
 **What uses it.** Closed lid keep awake.
 
 **If you say no.** Closed lid mode still works. macOS just asks for your administrator password each time you turn it on or off.
 
-**Optional.** Yes, and it is a one time choice. The rule is limited to `pmset disablesleep` and nothing else, and it goes away on its own when you uninstall Vorssaint or reset things from Settings under Advanced.
+**Optional.** Yes, and it is a one time choice. The rule is limited to `pmset disablesleep` and nothing else, and it goes away on its own when you uninstall Openbar or reset things from Settings under Advanced.
 
 ## Automation
 
@@ -167,7 +167,7 @@ Download monitoring watches your Downloads folder, the folders your browsers sav
 - **Uninstaller**, which moves leftover files to the Trash.
 - **Empty the Trash** in Quick toggles, which asks Finder to empty it. The other quick toggles, dark mode included, need no permission.
 - **Homebrew manager**, which can open Terminal with the exact Homebrew install or setup command when the app should not collect a password itself.
-- **Dynamic Island Sessions**, which finds the Terminal tab a Claude Code session runs in by its device, brings it forward when you press Open, and types the reply you send from the island into it. Nothing is typed while that session waits on a permission or a question. iTerm2 and Ghostty (1.4 or later) are reached the same way: the island asks each app for the session whose device is the session's own, and macOS asks once per app whether Vorssaint may control it. Sessions in the terminal of Antigravity, VS Code, Cursor or Windsurf go through the extension the page installs into that editor instead, which needs no permission. Sessions in tmux, WezTerm and kitty go through those programs' own command lines and need no permission either: the island checks that the tmux pane, WezTerm pane or kitty window still runs the session before it selects or types anything. kitty takes keys from outside only with remote control turned on in kitty.conf (`allow_remote_control` and `listen_on`). Warp, Alacritty and other terminals can only be brought forward, and the reply field says so. Answering permission prompts and Claude's questions from the island goes through Claude Code hooks, which are written to `~/.claude/settings.json` when you press Install Hooks and need no permission either. Codex sessions take approvals, answers and replies through Codex's own app server and need no permission; Open on one finds its Terminal tab the same way.
+- **Dynamic Island Sessions**, which finds the Terminal tab a Claude Code session runs in by its device, brings it forward when you press Open, and types the reply you send from the island into it. Nothing is typed while that session waits on a permission or a question. iTerm2 and Ghostty (1.4 or later) are reached the same way: the island asks each app for the session whose device is the session's own, and macOS asks once per app whether Openbar may control it. Sessions in the terminal of Antigravity, VS Code, Cursor or Windsurf go through the extension the page installs into that editor instead, which needs no permission. Sessions in tmux, WezTerm and kitty go through those programs' own command lines and need no permission either: the island checks that the tmux pane, WezTerm pane or kitty window still runs the session before it selects or types anything. kitty takes keys from outside only with remote control turned on in kitty.conf (`allow_remote_control` and `listen_on`). Warp, Alacritty and other terminals can only be brought forward, and the reply field says so. Answering permission prompts and Claude's questions from the island goes through Claude Code hooks, which are written to `~/.claude/settings.json` when you press Install Hooks and need no permission either. Codex sessions take approvals, answers and replies through Codex's own app server and need no permission; Open on one finds its Terminal tab the same way.
 - **Dynamic Island playback**, when a music app requires Automation to control its own playback while another app is active. Only playback commands declared by the selected app are used; an explicit button requests permission before a new action can be sent. The shuffle button on the music page reads and switches only the shuffle setting the app declares, and reads whether shuffle is available for what is playing when the app declares that too. Until the app is allowed, its first press only asks for this permission, even for an app whose playback controls work without it.
 
 **If you say no.** Those Finder or Terminal handoff steps will not go through, and replies to sessions in Terminal, iTerm2 or Ghostty stay unsent; you can still answer in the session's own tab. Music stays visible, and you can open its player to control it there. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
@@ -182,7 +182,7 @@ Download monitoring watches your Downloads folder, the folders your browsers sav
 
 **If you say no.** Package updates keep working, but operations that change installed apps can be blocked. You can grant access later in System Settings, under Privacy and Security, App Management.
 
-**Optional.** Yes. macOS records the request when an update first tries to change an installed app, so Vorssaint cannot check the status beforehand.
+**Optional.** Yes. macOS records the request when an update first tries to change an installed app, so Openbar cannot check the status beforehand.
 
 ## Resetting permissions
 

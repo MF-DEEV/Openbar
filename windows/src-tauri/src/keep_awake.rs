@@ -65,7 +65,7 @@ impl Request {
             POWER_REQUEST_CONTEXT_SIMPLE_STRING, REASON_CONTEXT, REASON_CONTEXT_0,
         };
         use windows::core::PWSTR;
-        let mut reason: Vec<u16> = "Vorssaint: Keep awake is on"
+        let mut reason: Vec<u16> = "Openbar: Keep awake is on"
             .encode_utf16()
             .chain(Some(0))
             .collect();

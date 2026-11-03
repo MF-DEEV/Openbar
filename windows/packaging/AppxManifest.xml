@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  A sparse package: no files of its own, only an identity for Vorssaint.exe,
+  A sparse package: no files of its own, only an identity for Openbar.exe,
   which stays where the installer put it (the external location). Windows
   lets an app with an identity ask for the notification listener (the
   Notifications section) and read the appointment store (the Calendar
@@ -17,10 +17,10 @@
   xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
   xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
   IgnorableNamespaces="uap uap3 uap10 desktop6 rescap">
-  <Identity Name="Vorssaint.Island" Publisher="CN=Vorssaint" Version="0.1.0.0" ProcessorArchitecture="neutral" />
+  <Identity Name="Openbar.Island" Publisher="CN=Openbar" Version="0.1.0.0" ProcessorArchitecture="neutral" />
   <Properties>
-    <DisplayName>Vorssaint</DisplayName>
-    <PublisherDisplayName>Vorssaint</PublisherDisplayName>
+    <DisplayName>Openbar</DisplayName>
+    <PublisherDisplayName>Openbar</PublisherDisplayName>
     <Logo>icon.png</Logo>
     <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
     <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
@@ -33,8 +33,8 @@
     <Resource Language="en-us" />
   </Resources>
   <Applications>
-    <Application Id="Vorssaint" Executable="Vorssaint.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
-      <uap:VisualElements DisplayName="Vorssaint" Description="Vorssaint Dynamic Island" BackgroundColor="transparent"
+    <Application Id="Openbar" Executable="Openbar.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements DisplayName="Openbar" Description="Openbar Dynamic Island" BackgroundColor="transparent"
         Square150x150Logo="icon.png" Square44x44Logo="icon.png" AppListEntry="none" />
     </Application>
   </Applications>

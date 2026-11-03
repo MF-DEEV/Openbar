@@ -19,12 +19,12 @@ export async function checkCalendar({ send, evaluate, base }) {
     window.island = (await import('/src/island/store.ts')).useIsland;
     window.bridge = (await import('/src/shared/bridge.ts')).bridge;
     window.rows = []; window.saveCalls = 0; window.failSave = false;
-    window.snapshot = () => ({access:'allowed',systemAccess:'unavailable',localError:null,events:rows,current:rows,calendars:[{id:'vorssaint-local',title:'Vorssaint',sourceId:'vorssaint-local',source:'Vorssaint',color:'#ff5c63'}],firstWeekday:1,minimumDaysInFirstWeek:4});
+    window.snapshot = () => ({access:'allowed',systemAccess:'unavailable',localError:null,events:rows,current:rows,calendars:[{id:'openbar-local',title:'Openbar',sourceId:'openbar-local',source:'Openbar',color:'#ff5c63'}],firstWeekday:1,minimumDaysInFirstWeek:4});
     bridge.calendar.showRange = async () => snapshot();
     bridge.calendar.saveEvent = async draft => {
       saveCalls++; if(failSave) throw 'Test write failure';
       const id=draft.id || 'local-test';
-      const row={...draft,id,calendar:'Vorssaint',calendarId:'vorssaint-local',localId:id,instanceStart:null,countdownKey:id};
+      const row={...draft,id,calendar:'Openbar',calendarId:'openbar-local',localId:id,instanceStart:null,countdownKey:id};
       rows=rows.filter(r=>r.id!==id).concat(row); return snapshot();
     };
     bridge.calendar.deleteEvent = async id => {rows=rows.filter(r=>r.id!==id);return snapshot();};

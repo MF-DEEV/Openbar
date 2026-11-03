@@ -24,7 +24,7 @@ fn show<R: Runtime>(app: &AppHandle<R>) {
     }
     let _ = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("settings.html".into()))
         .title(format!(
-            "Vorssaint — {}",
+            "Openbar — {}",
             crate::locale::text(app, "settings").trim_end_matches('…')
         ))
         .inner_size(860.0, 620.0)

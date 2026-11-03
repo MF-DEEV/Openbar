@@ -10,7 +10,7 @@ enum NotchFileToolsTests {
         NotchChromiumDownloadTests.run(suite)
         MediaDialogHostTests.run { suite.expect($0, $1) }
         ShelfDragCompletionTests.run(suite)
-        let domain = "com.vorssaint.tests.notch-files"
+        let domain = "com.openbar.tests.notch-files"
         let defaults = UserDefaults(suiteName: domain)!
         defaults.removePersistentDomain(forName: domain)
         defer { defaults.removePersistentDomain(forName: domain) }

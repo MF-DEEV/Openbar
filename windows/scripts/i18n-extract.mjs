@@ -66,7 +66,7 @@ else if (process.argv[1]?.endsWith("i18n-extract.mjs")) {
   const out = resolve("build/i18n-extracted");
   const result = spawnSync(
     python,
-    ["-I", "tools/i18n-extract/extract_swift_strings.py", "../Sources/Vorssaint/Core", "--out", out],
+    ["-I", "tools/i18n-extract/extract_swift_strings.py", "../Sources/Openbar/Core", "--out", out],
     { encoding: "utf8", windowsHide: true },
   );
   if (result.error || result.status !== 0) throw result.error ?? new Error(result.stderr);

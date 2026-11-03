@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde_json::Value;
 
-const EXTENSION_ID: &str = "vorssaint.vorssaint-terminal-bridge";
+const EXTENSION_ID: &str = "openbar.openbar-terminal-bridge";
 const PACKAGE_JSON: &[u8] = include_bytes!("../../../tools/ide-bridge/extension/package.json");
 const VSIX_FILES: [(&str, &[u8]); 4] = [
     (
@@ -202,7 +202,7 @@ fn find<'a>(editor: &'a Editor, places: &Places) -> Option<Found<'a>> {
 
 /// The versions an editor lists as installed. `extensions.json` is its own
 /// record: a removed extension's folder can stay until it restarts.
-fn listed_versions(extensions: &Path) -> Option<Vec<String>> {
+fn listed_versions(extensions: &Path, id: &str) -> Option<Vec<String>> {
     let bytes = std::fs::read(extensions.join("extensions.json")).ok()?;
     let list: Value = serde_json::from_slice(&bytes).ok()?;
     let versions = list
@@ -211,7 +211,7 @@ fn listed_versions(extensions: &Path) -> Option<Vec<String>> {
         .filter(|entry| {
             entry["identifier"]["id"]
                 .as_str()
-                .is_some_and(|id| id.eq_ignore_ascii_case(EXTENSION_ID))
+                .is_some_and(|listed| listed.eq_ignore_ascii_case(id))
         })
         .filter_map(|entry| entry["version"].as_str().map(str::to_owned))
         .collect();
@@ -219,12 +219,12 @@ fn listed_versions(extensions: &Path) -> Option<Vec<String>> {
 }
 
 /// Without that record, the folders, less those listed in `.obsolete`.
-fn folder_versions(extensions: &Path) -> Vec<String> {
+fn folder_versions(extensions: &Path, id: &str) -> Vec<String> {
     let obsolete: Value = std::fs::read(extensions.join(".obsolete"))
         .ok()
         .and_then(|bytes| serde_json::from_slice(&bytes).ok())
         .unwrap_or(Value::Null);
-    let prefix = format!("{EXTENSION_ID}-");
+    let prefix = format!("{id}-");
     let Ok(entries) = std::fs::read_dir(extensions) else {
         return Vec::new();
     };
@@ -241,7 +241,11 @@ fn folder_versions(extensions: &Path) -> Vec<String> {
 }
 
 fn installed_versions(extensions: &Path) -> Vec<String> {
-    listed_versions(extensions).unwrap_or_else(|| folder_versions(extensions))
+    installed_versions_of(extensions, EXTENSION_ID)
+}
+
+fn installed_versions_of(extensions: &Path, id: &str) -> Vec<String> {
+    listed_versions(extensions, id).unwrap_or_else(|| folder_versions(extensions, id))
 }
 
 /// The version this build carries, from the extension's own manifest.
@@ -338,7 +342,7 @@ impl WorkFolder {
             .duration_since(std::time::UNIX_EPOCH)
             .map_or(0, |elapsed| elapsed.subsec_nanos());
         let folder =
-            std::env::temp_dir().join(format!("vorssaint-bridge-{}-{nanos}", std::process::id()));
+            std::env::temp_dir().join(format!("openbar-bridge-{}-{nanos}", std::process::id()));
         std::fs::create_dir_all(&folder).map_err(|_| Failure::Packaging)?;
         Ok(Self(folder))
     }
@@ -414,7 +418,7 @@ fn end_tree(child: &mut std::process::Child) {
 
 fn install_found(found: &Found, bundled: &str, timeout: Duration) -> Result<(), Failure> {
     let work = WorkFolder::new()?;
-    let vsix = work.0.join("vorssaint-terminal-bridge.vsix");
+    let vsix = work.0.join("openbar-terminal-bridge.vsix");
     write_vsix(&vsix)?;
     run_cli(
         &found.cli,
@@ -455,6 +459,35 @@ pub fn update_outdated() {
         if state_of(&found.extensions, &bundled) == State::Outdated {
             let _ = install_found(&found, &bundled, INSTALL_TIMEOUT);
         }
+    }
+}
+
+/// The extension as it was named before Openbar had its own name.
+const LEGACY_EXTENSION_ID: &str = "vorssaint.vorssaint-terminal-bridge";
+
+/// Puts the current extension in each editor that had it under its old name,
+/// then takes the old one out.
+pub fn replace_legacy() {
+    let (Some(places), Some(bundled)) = (Places::of_this_pc(), bundled_version()) else {
+        return;
+    };
+    let _one_at_a_time = WORK.lock().unwrap_or_else(|poison| poison.into_inner());
+    for found in EDITORS.iter().filter_map(|editor| find(editor, &places)) {
+        if installed_versions_of(&found.extensions, LEGACY_EXTENSION_ID).is_empty() {
+            continue;
+        }
+        if state_of(&found.extensions, &bundled) != State::Current {
+            let _ = install_found(&found, &bundled, INSTALL_TIMEOUT);
+        }
+        let _ = run_cli(
+            &found.cli,
+            &[
+                "--uninstall-extension".as_ref(),
+                LEGACY_EXTENSION_ID.as_ref(),
+            ],
+            &places.home,
+            UNINSTALL_TIMEOUT,
+        );
     }
 }
 
@@ -516,10 +549,8 @@ mod tests {
 
     impl Pc {
         fn new(name: &str) -> Self {
-            let base = std::env::temp_dir().join(format!(
-                "vorssaint-bridge-test-{name}-{}",
-                std::process::id()
-            ));
+            let base = std::env::temp_dir()
+                .join(format!("openbar-bridge-test-{name}-{}", std::process::id()));
             let _ = fs::remove_dir_all(&base);
             fs::create_dir_all(base.join("home")).unwrap();
             fs::create_dir_all(base.join("Programs")).unwrap();
@@ -574,7 +605,7 @@ mod tests {
         let bundled = bundled_version().unwrap();
         let manifest = std::str::from_utf8(VSIX_FILES[1].1).unwrap();
         assert!(
-            manifest.contains(&format!("Version=\"{bundled}\" Publisher=\"vorssaint\"")),
+            manifest.contains(&format!("Version=\"{bundled}\" Publisher=\"openbar\"")),
             "extension.vsixmanifest and package.json name different versions"
         );
     }
@@ -602,14 +633,14 @@ mod tests {
             .unwrap()
             .read_to_string(&mut package)
             .unwrap();
-        assert!(package.contains("vorssaint-terminal-bridge"));
+        assert!(package.contains("openbar-terminal-bridge"));
     }
 
     #[test]
     fn nothing_listed_when_no_editor_is_here() {
         let pc = Pc::new("empty");
         // Data left behind by an editor since removed isn't an editor.
-        pc.extension(".vscode", "vorssaint.vorssaint-terminal-bridge-1.0.0");
+        pc.extension(".vscode", "openbar.openbar-terminal-bridge-1.0.0");
         assert!(statuses(&pc.places(), "1.1.0").is_empty());
     }
 
@@ -705,15 +736,12 @@ mod tests {
         assert_eq!(state_of(&extensions, "1.1.0"), State::Missing);
         pc.extension(".vscode", "other.extension-1.1.0");
         assert_eq!(state_of(&extensions, "1.1.0"), State::Missing);
-        pc.extension(".vscode", "vorssaint.vorssaint-terminal-bridge-1.0.3");
+        pc.extension(".vscode", "openbar.openbar-terminal-bridge-1.0.3");
         assert_eq!(state_of(&extensions, "1.1.0"), State::Outdated);
         // 1.1.0 isn't 1.1.01.
-        pc.extension(".vscode", "vorssaint.vorssaint-terminal-bridge-1.1.01");
+        pc.extension(".vscode", "openbar.openbar-terminal-bridge-1.1.01");
         assert_eq!(state_of(&extensions, "1.1.0"), State::Outdated);
-        pc.extension(
-            ".vscode",
-            "vorssaint.vorssaint-terminal-bridge-1.1.0-universal",
-        );
+        pc.extension(".vscode", "openbar.openbar-terminal-bridge-1.1.0-universal");
         assert_eq!(state_of(&extensions, "1.1.0"), State::Current);
     }
 
@@ -721,10 +749,10 @@ mod tests {
     fn a_folder_marked_obsolete_is_not_installed() {
         let pc = Pc::new("obsolete");
         let extensions = pc.base.join("home/.vscode/extensions");
-        pc.extension(".vscode", "vorssaint.vorssaint-terminal-bridge-1.1.0");
+        pc.extension(".vscode", "openbar.openbar-terminal-bridge-1.1.0");
         fs::write(
             extensions.join(".obsolete"),
-            r#"{"vorssaint.vorssaint-terminal-bridge-1.1.0":true}"#,
+            r#"{"openbar.openbar-terminal-bridge-1.1.0":true}"#,
         )
         .unwrap();
         assert_eq!(state_of(&extensions, "1.1.0"), State::Missing);
@@ -737,13 +765,13 @@ mod tests {
         let pc = Pc::new("listed");
         let extensions = pc.base.join("home/.vscode/extensions");
         // As VS Code leaves it: uninstalled, the folder still there, not in .obsolete.
-        pc.extension(".vscode", "vorssaint.vorssaint-terminal-bridge-1.1.0");
+        pc.extension(".vscode", "openbar.openbar-terminal-bridge-1.1.0");
         fs::write(extensions.join("extensions.json"), "[]").unwrap();
         assert_eq!(state_of(&extensions, "1.1.0"), State::Missing);
 
         fs::write(
             extensions.join("extensions.json"),
-            r#"[{"identifier":{"id":"Vorssaint.Vorssaint-Terminal-Bridge"},"version":"1.0.3"},
+            r#"[{"identifier":{"id":"Openbar.Openbar-Terminal-Bridge"},"version":"1.0.3"},
                 {"identifier":{"id":"other.extension"},"version":"1.1.0"}]"#,
         )
         .unwrap();
@@ -751,7 +779,7 @@ mod tests {
 
         fs::write(
             extensions.join("extensions.json"),
-            r#"[{"identifier":{"id":"vorssaint.vorssaint-terminal-bridge"},"version":"1.1.0"}]"#,
+            r#"[{"identifier":{"id":"openbar.openbar-terminal-bridge"},"version":"1.1.0"}]"#,
         )
         .unwrap();
         assert_eq!(state_of(&extensions, "1.1.0"), State::Current);
@@ -807,7 +835,7 @@ mod tests {
             );
 
             // Gets the args and a .vsix that is really there.
-            let done = extensions.join("vorssaint.vorssaint-terminal-bridge-1.1.0");
+            let done = extensions.join("openbar.openbar-terminal-bridge-1.1.0");
             script(
                 &pc,
                 &format!(

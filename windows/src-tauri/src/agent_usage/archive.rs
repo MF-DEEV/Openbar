@@ -25,11 +25,11 @@ pub struct Archive {
     pub cursors: Vec<SavedCursor>,
 }
 
-/// `%LOCALAPPDATA%\com.vorssaint.island\AgentUsage\`, a cache safe to delete.
+/// `%LOCALAPPDATA%\com.openbar.island\AgentUsage\`, a cache safe to delete.
 pub fn folder() -> Option<PathBuf> {
     std::env::var_os("LOCALAPPDATA").map(|l| {
         PathBuf::from(l)
-            .join("com.vorssaint.island")
+            .join("com.openbar.island")
             .join("AgentUsage")
     })
 }
@@ -65,7 +65,7 @@ mod tests {
 
     #[test]
     fn an_archive_resumes_only_for_its_parser_and_provider_set() {
-        let dir = std::env::temp_dir().join(format!("vorssaint-archive-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("openbar-archive-{}", std::process::id()));
         let record = Record {
             provider: Provider::Codex,
             date: 1.0,

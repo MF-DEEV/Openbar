@@ -20,7 +20,7 @@
 //! // selection.rect   — the area, in desktop (virtual-screen) physical pixels
 //! // selection.monitor — the display it was chosen on, same units
 //! // selection.window — the top-level window under the area's centre, not
-//! //                    Vorssaint's own; 0 over the desktop or nothing
+//! //                    Openbar's own; 0 over the desktop or nothing
 //! let text = ocr::recognize(&rgba, width, height)?.text(); // see ocr.rs
 //! ```
 //!
@@ -306,7 +306,7 @@ fn open_overlay<R: Runtime>(app: &AppHandle<R>, monitor: Rect, id: u64) -> tauri
         let _ = stale.destroy();
     }
     let window = WebviewWindowBuilder::new(app, LABEL, WebviewUrl::App("capture.html".into()))
-        .title("Vorssaint Capture")
+        .title("Openbar Capture")
         .decorations(false)
         .transparent(true)
         .shadow(false)

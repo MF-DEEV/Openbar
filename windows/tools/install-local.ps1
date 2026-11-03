@@ -10,8 +10,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $binary = (Resolve-Path -LiteralPath $ExecutablePath).ProviderPath
-$installDir = Join-Path $env:LOCALAPPDATA 'Vorssaint'
-$target = Join-Path $installDir 'Vorssaint.exe'
+$installDir = Join-Path $env:LOCALAPPDATA 'Openbar'
+$target = Join-Path $installDir 'Openbar.exe'
 if ([string]::Equals($binary, $target, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'Build the replacement separately from the installed app.'
 }
@@ -36,12 +36,12 @@ if (Test-Path -LiteralPath $target) {
     $backup = $target + '.before-startup-repair-' + (Get-Date -Format 'yyyyMMdd-HHmmss') + '.bak'
     Copy-Item -LiteralPath $target -Destination $backup
 }
-$running = @(Get-Process -Name Vorssaint -ErrorAction SilentlyContinue | Where-Object {
+$running = @(Get-Process -Name Openbar -ErrorAction SilentlyContinue | Where-Object {
     [string]::Equals($_.Path, $target, [StringComparison]::OrdinalIgnoreCase)
 })
 foreach ($process in $running) {
     Stop-Process -Id $process.Id
-    if (-not $process.WaitForExit(10000)) { throw 'Vorssaint did not exit.' }
+    if (-not $process.WaitForExit(10000)) { throw 'Openbar did not exit.' }
 }
 try {
     Copy-Item -LiteralPath $binary -Destination $target -Force
@@ -51,7 +51,7 @@ try {
     if ($EnableAutostart) {
         $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
         if (-not (Test-Path -LiteralPath $runKey)) { New-Item -Path $runKey -Force > $null }
-        New-ItemProperty -LiteralPath $runKey -Name Vorssaint -PropertyType String -Value ('"' + $target + '"') -Force > $null
+        New-ItemProperty -LiteralPath $runKey -Name Openbar -PropertyType String -Value ('"' + $target + '"') -Force > $null
     }
     # Show the island itself, as Explorer/login does. The GUI subsystem prevents
     # a console; SW_HIDE can suppress the island's first native ShowWindow call.

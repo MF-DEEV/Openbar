@@ -146,9 +146,9 @@ export function BackgroundLogs({ session }: { session: Session }) {
 
 /** The agent and models New session last started with, kept for the next visit. */
 const REMEMBER = {
-  agent: "vorssaint.newSession.agent",
-  claude: "vorssaint.newSession.claudeModel",
-  codex: "vorssaint.newSession.codexModel",
+  agent: "openbar.newSession.agent",
+  claude: "openbar.newSession.claudeModel",
+  codex: "openbar.newSession.codexModel",
 } as const;
 
 function remembered(key: string): string {

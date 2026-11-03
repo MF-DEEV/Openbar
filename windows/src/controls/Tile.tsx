@@ -79,17 +79,17 @@ const select = (module: ModuleId) => () => useIsland.getState().select(module);
 
 /**
  * Collapses, then asks for a screenshot. The Tools engineer's capture code
- * listens for "vorssaint:screenshot" and waits for the island to settle
+ * listens for "openbar:screenshot" and waits for the island to settle
  * before it shoots (service.perform, spec 05 §0).
  */
 function recording() {
   useIsland.getState().collapse();
-  window.dispatchEvent(new CustomEvent("vorssaint:recording"));
+  window.dispatchEvent(new CustomEvent("openbar:recording"));
 }
 
 function screenshot() {
   useIsland.getState().collapse();
-  window.dispatchEvent(new CustomEvent("vorssaint:screenshot"));
+  window.dispatchEvent(new CustomEvent("openbar:screenshot"));
 }
 
 function KeepAwakeTile() {

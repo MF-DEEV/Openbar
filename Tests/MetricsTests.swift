@@ -137,6 +137,7 @@ struct MetricsTests {
                 AgentHookSessionTests.run(suite)
                 ClaudeFileDiffTests.run(suite)
                 VoiceReplyTests.run(suite)
+                LegacyIdentityTests.run(suite)
             }),
             ("file-diffs", { ClaudeFileDiffTests.run(suite) }),
             ("voice-replies", { VoiceReplyTests.run(suite) }),

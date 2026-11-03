@@ -94,7 +94,7 @@ serialized and accessibility connection/transaction timeouts are bounded.
 - `node scripts/check-island-layout.mjs --music-queue-artwork`: verifies five
   real online covers, larger sizing, a skip transition with retained DOM nodes
   and images, and absence of a loading/empty-panel flash.
-- `Vorssaint.exe --music-queue-probe <output.json> <current-title>`: optional
+- `Openbar.exe --music-queue-probe <output.json> <current-title>`: optional
   on-demand native diagnostic for the current Spotify desktop queue. It does
   not start the island or alter playback. A title mismatch returns unavailable.
 

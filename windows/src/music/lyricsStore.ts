@@ -12,7 +12,7 @@ interface SavedSong {
   offset: number;
 }
 type StorageAccess = Pick<Storage, "getItem" | "setItem">;
-const STORAGE_KEY = "vorssaint.music.lyrics.v1";
+const STORAGE_KEY = "openbar.music.lyrics.v1";
 
 interface LyricsState {
   key: string | null;

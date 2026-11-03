@@ -9,7 +9,7 @@
 ; (docs/process-metrics.md). An update keeps them all.
 ;
 ; An installer built with tauri.identity.conf.json also carries the signed
-; sparse package that gives Vorssaint.exe its identity (notifications,
+; sparse package that gives Openbar.exe its identity (notifications,
 ; calendar; see docs/notifications.md). Installing trusts its certificate
 ; once per PC, which needs an administrator (one UAC prompt), then registers
 ; the package for this user; uninstalling removes the package, an update
@@ -18,46 +18,58 @@
 
 ; The native PowerShell: the installer is a 32-bit process, and the Appx
 ; cmdlets refuse to run in 32-bit PowerShell.
-!macro VORSSAINT_POWERSHELL
+!macro OPENBAR_POWERSHELL
   StrCpy $R9 "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
   ${IfNot} ${FileExists} "$R9"
     StrCpy $R9 "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe"
   ${EndIf}
 !macroend
 
-!define VORSSAINT_IDENTITY '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\identity\identity.ps1"'
+!define OPENBAR_IDENTITY '-NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$INSTDIR\identity\identity.ps1"'
 
 !macro NSIS_HOOK_POSTINSTALL
-  ${If} ${FileExists} "$INSTDIR\identity\Vorssaint.msix"
-    !insertmacro VORSSAINT_POWERSHELL
-    nsExec::Exec '"$R9" ${VORSSAINT_IDENTITY} -Action Trusted'
+  ; The island used to install as Vorssaint. Bring its settings, hooks and
+  ; Start with Windows entry over to Openbar, then remove the old app with its
+  ; own uninstaller, so the two never run side by side.
+  ${If} ${FileExists} "$LOCALAPPDATA\Vorssaint\uninstall.exe"
+    nsExec::Exec 'taskkill /IM "Vorssaint.exe" /F'
+    Pop $0
+    nsExec::Exec '"$INSTDIR\Openbar.exe" --migrate-legacy'
+    Pop $0
+    ExecWait '"$LOCALAPPDATA\Vorssaint\uninstall.exe" /S _?=$LOCALAPPDATA\Vorssaint'
+    Delete "$LOCALAPPDATA\Vorssaint\uninstall.exe"
+    RMDir "$LOCALAPPDATA\Vorssaint"
+  ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\identity\Openbar.msix"
+    !insertmacro OPENBAR_POWERSHELL
+    nsExec::Exec '"$R9" ${OPENBAR_IDENTITY} -Action Trusted'
     Pop $0
     ${If} $0 != 0
       ; The installer runs per user, so only this step asks for elevation.
       ; Elevation starts the program through the AppInfo service, which can't
       ; see Sysnative, so this one uses System32: a 32-bit PowerShell, which is
       ; enough to add a certificate to the machine store.
-      ExecShellWait "runas" "$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" '${VORSSAINT_IDENTITY} -Action Trust' SW_HIDE
+      ExecShellWait "runas" "$WINDIR\System32\WindowsPowerShell\v1.0\powershell.exe" '${OPENBAR_IDENTITY} -Action Trust' SW_HIDE
       ClearErrors
     ${EndIf}
     ; Registered as the user who installs, whom the package is for.
-    nsExec::Exec '"$R9" ${VORSSAINT_IDENTITY} -Action Register -Directory "$INSTDIR"'
+    nsExec::Exec '"$R9" ${OPENBAR_IDENTITY} -Action Register -Directory "$INSTDIR"'
     Pop $0
   ${EndIf}
 !macroend
 
 !macro NSIS_HOOK_PREUNINSTALL
-  nsExec::Exec 'taskkill /IM "Vorssaint.exe" /F'
+  nsExec::Exec 'taskkill /IM "Openbar.exe" /F'
   ${If} $UpdateMode <> 1
-    nsExec::Exec '"$INSTDIR\Vorssaint.exe" --remove-hooks'
-    nsExec::Exec '"$INSTDIR\Vorssaint.exe" --remove-ide-bridge'
+    nsExec::Exec '"$INSTDIR\Openbar.exe" --remove-hooks'
+    nsExec::Exec '"$INSTDIR\Openbar.exe" --remove-ide-bridge'
     ; The per-app network helper, if it was approved: removing it takes an
     ; administrator again, so Windows asks only on PCs that have it.
-    nsExec::Exec '"$INSTDIR\Vorssaint.exe" --remove-network-helper'
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Vorssaint"
+    nsExec::Exec '"$INSTDIR\Openbar.exe" --remove-network-helper'
+    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "Openbar"
     ${If} ${FileExists} "$INSTDIR\identity\identity.ps1"
-      !insertmacro VORSSAINT_POWERSHELL
-      nsExec::Exec '"$R9" ${VORSSAINT_IDENTITY} -Action Unregister'
+      !insertmacro OPENBAR_POWERSHELL
+      nsExec::Exec '"$R9" ${OPENBAR_IDENTITY} -Action Unregister'
       Pop $0
     ${EndIf}
   ${EndIf}

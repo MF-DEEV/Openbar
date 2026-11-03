@@ -242,7 +242,7 @@ impl Service {
         if let Err(e) = hooks::transport::serve(hooks::APP_ID, move |connection| {
             hook_side.on_hook(connection)
         }) {
-            eprintln!("vorssaint: Claude Code hooks unavailable: {e}");
+            eprintln!("openbar: Claude Code hooks unavailable: {e}");
         }
         let ticker = service.clone();
         thread::Builder::new()

@@ -62,7 +62,7 @@ fn get(path: &str) -> Option<serde_json::Value> {
     let path = HSTRING::from(path);
     unsafe {
         let session = Handle(WinHttpOpen(
-            &HSTRING::from(concat!("Vorssaint/", env!("CARGO_PKG_VERSION"))),
+            &HSTRING::from(concat!("Openbar/", env!("CARGO_PKG_VERSION"))),
             WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY,
             PCWSTR::null(),
             PCWSTR::null(),

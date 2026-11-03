@@ -7,15 +7,15 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>Vorssaint</string>
+	<string>Openbar</string>
 	<key>CFBundleExecutable</key>
-	<string>Vorssaint</string>
+	<string>Openbar</string>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.vorssaint.utils</string>
+	<string>com.openbar.app</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleLocalizations</key>
@@ -37,7 +37,7 @@
 		<string>zh-HK</string>
 	</array>
 	<key>CFBundleName</key>
-	<string>Vorssaint</string>
+	<string>Openbar</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -55,34 +55,34 @@
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSAppleEventsUsageDescription</key>
-	<string>Vorssaint uses Automation to move files, send items to the Trash, open requested commands, type your replies into Claude Code sessions in Terminal and control playback in your media apps.</string>
+	<string>Openbar uses Automation to move files, send items to the Trash, open requested commands, type your replies into Claude Code sessions in Terminal and control playback in your media apps.</string>
 	<key>NSAudioCaptureUsageDescription</key>
-	<string>Vorssaint uses each app's audio to adjust its volume in the mixer, to move Dynamic Island's music bars and to include the Mac's sound in the screen recordings you start. Nothing leaves your Mac.</string>
+	<string>Openbar uses each app's audio to adjust its volume in the mixer, to move Dynamic Island's music bars and to include the Mac's sound in the screen recordings you start. Nothing leaves your Mac.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Vorssaint uses Bluetooth only to read the battery level of connected peripherals. Nothing leaves your Mac.</string>
+	<string>Openbar uses Bluetooth only to read the battery level of connected peripherals. Nothing leaves your Mac.</string>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>Show your upcoming appointments in the notch. Calendar events stay on this Mac.</string>
 	<key>NSCameraUsageDescription</key>
-	<string>Vorssaint shows your camera only in the preview window you open, so you can check how you look before a call. Nothing is recorded or leaves your Mac.</string>
+	<string>Openbar shows your camera only in the preview window you open, so you can check how you look before a call. Nothing is recorded or leaves your Mac.</string>
 	<key>NSCameraUseContinuityCameraDeviceType</key>
 	<true/>
 	<key>NSDesktopFolderUsageDescription</key>
-	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here. Downloads in the Dynamic Island also shows files arriving in your Downloads folder and the folders your browsers save to.</string>
+	<string>Openbar organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here. Downloads in the Dynamic Island also shows files arriving in your Downloads folder and the folders your browsers save to.</string>
 	<key>NSDocumentsFolderUsageDescription</key>
-	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here. Downloads in the Dynamic Island also shows files arriving in your Downloads folder and the folders your browsers save to.</string>
+	<string>Openbar organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here. Downloads in the Dynamic Island also shows files arriving in your Downloads folder and the folders your browsers save to.</string>
 	<key>NSDownloadsFolderUsageDescription</key>
-	<string>Vorssaint checks local metadata in Downloads to review, organize or trash only confirmed WhatsApp files you choose. The Cleaner also looks for forgotten screenshots when you save screenshots here. Downloads in the Dynamic Island also shows files arriving in your Downloads folder and the folders your browsers save to.</string>
+	<string>Openbar checks local metadata in Downloads to review, organize or trash only confirmed WhatsApp files you choose. The Cleaner also looks for forgotten screenshots when you save screenshots here. Downloads in the Dynamic Island also shows files arriving in your Downloads folder and the folders your browsers save to.</string>
 	<key>NSHumanReadableCopyright</key>
-	<string>© 2026 Vorssaint</string>
+	<string>© 2026 MF DEV, Adrian and the Openbar contributors. Based on Vorssaint, © 2026 Vorssaint.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>Vorssaint uses your microphone only while you record it: in a screen recording you turn it on for, or while you speak a reply to a session. Spoken replies are turned into text on this Mac and the audio is not kept. A screen recording stays on your Mac unless you choose to create a temporary link.</string>
+	<string>Openbar uses your microphone only while you record it: in a screen recording you turn it on for, or while you speak a reply to a session. Spoken replies are turned into text on this Mac and the audio is not kept. A screen recording stays on your Mac unless you choose to create a temporary link.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>Vorssaint turns a reply you speak to a session into text. Recognition runs on this Mac only, and nothing you say is sent anywhere or kept.</string>
+	<string>Openbar turns a reply you speak to a session into text. Recognition runs on this Mac only, and nothing you say is sent anywhere or kept.</string>
 	<key>NSNetworkVolumesUsageDescription</key>
-	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here. Downloads in the Dynamic Island also shows files arriving in your Downloads folder and the folders your browsers save to.</string>
+	<string>Openbar organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here. Downloads in the Dynamic Island also shows files arriving in your Downloads folder and the folders your browsers save to.</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 	<key>NSRemovableVolumesUsageDescription</key>
-	<string>Vorssaint organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here. Downloads in the Dynamic Island also shows files arriving in your Downloads folder and the folders your browsers save to.</string>
+	<string>Openbar organizes confirmed WhatsApp downloads in a destination folder you explicitly choose. The Cleaner also looks for forgotten screenshots when you save screenshots here. Downloads in the Dynamic Island also shows files arriving in your Downloads folder and the folders your browsers save to.</string>
 </dict>
 </plist>

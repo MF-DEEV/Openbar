@@ -16,11 +16,11 @@ if ($null -eq $developerSettings -or $developerSettings.AllowDevelopmentWithoutD
 }
 
 $executable = Get-Item -LiteralPath $ExecutablePath
-if ($executable.PSIsContainer -or $executable.Name -ne 'Vorssaint.exe') {
-    throw 'ExecutablePath must point to the built Vorssaint.exe.'
+if ($executable.PSIsContainer -or $executable.Name -ne 'Openbar.exe') {
+    throw 'ExecutablePath must point to the built Openbar.exe.'
 }
 $manifestPath = Join-Path $PSScriptRoot '..\packaging\AppxManifest.xml'
 $manifest = (Resolve-Path -LiteralPath $manifestPath).ProviderPath
 $externalLocation = $executable.DirectoryName
 Add-AppxPackage -Path $manifest -Register -ExternalLocation $externalLocation
-Write-Output 'Package identity registered for this build. Restart Vorssaint, open Notifications or Calendar, and allow access.'
+Write-Output 'Package identity registered for this build. Restart Openbar, open Notifications or Calendar, and allow access.'
