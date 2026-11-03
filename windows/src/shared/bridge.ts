@@ -60,6 +60,17 @@ async function call<T>(command: string, args?: Record<string, unknown>): Promise
   return invoke<T>(command, args);
 }
 
+/** Why a voice reply could not start or went wrong (voice/mod.rs Problem). */
+export type VoiceProblem = "noMicrophone" | "microphoneDenied" | "modelMissing" | "failed" | "busy";
+
+/** The speech model on this PC (voice/model.rs Status). */
+export interface VoiceModel {
+  phase: "missing" | "downloading" | "ready" | "failed";
+  downloaded: number;
+  size: number;
+  error: string | null;
+}
+
 /** How a recording finished (recorder/mod.rs Ended). */
 export interface RecordingEnded {
   path: string | null;
@@ -70,6 +81,45 @@ export interface RecordingEnded {
 }
 
 export const bridge = {
+  /** Voice replies: speech recognized on this PC (src-tauri/src/voice). */
+  voice: {
+    /** The recording's id; rejects with a VoiceProblem. */
+    start: (language: string) => call<number>("voice_start", { language }),
+    stop: (id: number) => call<void>("voice_stop", { id }),
+    cancel: (id: number) => call<void>("voice_cancel", { id }),
+    onLevel(handler: (e: { id: number; level: number }) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<{ id: number; level: number }>("voice://level", (e) => handler(e.payload));
+    },
+    onPartial(handler: (e: { id: number; text: string }) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<{ id: number; text: string }>("voice://partial", (e) => handler(e.payload));
+    },
+    onFinal(handler: (e: { id: number; text: string }) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<{ id: number; text: string }>("voice://final", (e) => handler(e.payload));
+    },
+    onError(handler: (e: { id: number; problem: VoiceProblem }) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<{ id: number; problem: VoiceProblem }>("voice://error", (e) => handler(e.payload));
+    },
+    /** Windows' microphone privacy page, or its sound page for input devices. */
+    openWindowsSettings: (page: "microphone" | "sound") => call<boolean>("voice_open_settings", { page }),
+    model: () => call<VoiceModel>("voice_model_status"),
+    downloadModel: () => call<VoiceModel>("voice_model_download"),
+    deleteModel: () => call<VoiceModel>("voice_model_delete"),
+    onModel(handler: (model: VoiceModel) => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen<VoiceModel>("voice://model", (e) => handler(e.payload));
+    },
+    /** The hold-to-talk shortcut; the handler hears it go down and up. */
+    registerKey: async (accelerator: string, handler: (event: ShortcutEvent) => void) => {
+      if (inTauri) await register(accelerator, handler);
+    },
+    unregisterKey: async (accelerator: string) => {
+      if (inTauri) await unregister(accelerator);
+    },
+  },
   microphone: {
     snapshot: () => call<MicrophoneSnapshot>("microphone_snapshot"),
     onSnapshot(handler: (snapshot: MicrophoneSnapshot) => void): Promise<UnlistenFn> {

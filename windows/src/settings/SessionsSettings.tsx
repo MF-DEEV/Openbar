@@ -15,7 +15,11 @@ import type { SessionPrefs } from "../shared/prefs";
 
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
-import { inTauri } from "../shared/bridge";
+import { bridge, inTauri, type VoiceModel } from "../shared/bridge";
+import { ShortcutField } from "../shared/ui/ShortcutField";
+import { formatAccelerator } from "../shared/shortcut";
+import { getLanguage } from "../i18n";
+import { Select } from "./Select";
 import { useSettings } from "./state";
 import { Button, Status, SubRow, Toggle } from "./ui";
 import { T } from "./strings";
@@ -261,6 +265,180 @@ function MoreAgents() {
   );
 }
 
+/** The speech model on this PC; a stand-in outside the app. */
+function useVoiceModel() {
+  const [model, setModel] = useState<VoiceModel | null>(null);
+  useEffect(() => {
+    if (!inTauri) {
+      setModel({ phase: "missing", downloaded: 0, size: 59_707_625, error: null });
+      return;
+    }
+    void bridge.voice.model().then((m) => m && setModel(m));
+    const off = bridge.voice.onModel(setModel);
+    return () => void off.then((f) => f());
+  }, []);
+  const megabytes = (bytes: number) => `${Math.round(bytes / 1_000_000)} MB`;
+  return {
+    model,
+    megabytes,
+    download: () => void bridge.voice.downloadModel().then((m) => m && setModel(m)),
+    remove: () => void bridge.voice.deleteModel().then((m) => m && setModel(m)),
+  };
+}
+
+/** Languages whisper's model hears well, named in the app's language. */
+const VOICE_LANGUAGES = [
+  "en",
+  "de",
+  "es",
+  "fr",
+  "it",
+  "ja",
+  "ko",
+  "pt",
+  "ru",
+  "sk",
+  "tr",
+  "uk",
+  "zh",
+  "pl",
+  "nl",
+  "cs",
+  "sv",
+];
+
+/** Speaking a reply: the switch, then the model, language, shortcut and sending by itself. */
+function VoiceReplies({
+  prefs,
+  set,
+}: {
+  prefs: SessionPrefs;
+  set: <K extends keyof SessionPrefs>(key: K, value: SessionPrefs[K]) => void;
+}) {
+  useLocale();
+  const voice = useVoiceModel();
+  const [shortcutError, setShortcutError] = useState<string | null>(null);
+  const names = new Intl.DisplayNames([getLanguage()], { type: "language" });
+  const languages = [
+    { value: "", label: t("windows.settings.sessions.voiceLanguageApp") },
+    { value: "auto", label: t("windows.settings.sessions.voiceLanguageAuto") },
+    ...VOICE_LANGUAGES.map((code) => ({ value: code, label: names.of(code) ?? code })).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    ),
+  ];
+  const model = voice.model;
+  return (
+    <>
+      <SubRow title={t("windows.settings.sessions.voice")} caption={t("windows.settings.sessions.voiceCaption")}>
+        <Toggle
+          label={t("windows.settings.sessions.voice")}
+          checked={prefs.voiceReplies}
+          onChange={(on) => set("voiceReplies", on)}
+        />
+      </SubRow>
+      {prefs.voiceReplies ? (
+        <>
+          <SubRow
+            title={t("windows.settings.sessions.voiceModel")}
+            caption={
+              <>
+                {t("windows.settings.sessions.voiceModelCaption")}
+                {model?.phase === "failed" && model.error ? (
+                  <div className="st-error">{tf("windows.settings.sessions.voiceModelFailed", model.error)}</div>
+                ) : null}
+              </>
+            }
+          >
+            {model?.phase === "ready" ? (
+              <>
+                <Status tone="ok">{t("windows.settings.sessions.voiceModelReady")}</Status>
+                <Button onClick={voice.remove}>{t("windows.settings.sessions.voiceModelDelete")}</Button>
+              </>
+            ) : model?.phase === "downloading" ? (
+              <Status tone="warn">
+                {tf(
+                  "windows.settings.sessions.voiceModelDownloading",
+                  `${Math.floor((model.downloaded / Math.max(1, model.size)) * 100)}%`,
+                )}
+              </Status>
+            ) : model ? (
+              <>
+                <Status tone="off">{t("windows.settings.sessions.voiceModelMissing")}</Status>
+                <Button accent onClick={voice.download}>
+                  {tf("windows.settings.sessions.voiceModelDownload", voice.megabytes(model.size))}
+                </Button>
+              </>
+            ) : null}
+          </SubRow>
+          <SubRow title={t("windows.settings.sessions.voiceLanguage")}>
+            <Select
+              label={t("windows.settings.sessions.voiceLanguage")}
+              value={prefs.voiceLanguage}
+              options={languages}
+              onChange={(value) => set("voiceLanguage", value)}
+            />
+          </SubRow>
+          <SubRow
+            title={t("windows.settings.sessions.voiceShortcut")}
+            caption={
+              <>
+                {t("windows.settings.sessions.voiceShortcutCaption")}
+                {shortcutError ? <div className="st-error">{shortcutError}</div> : null}
+              </>
+            }
+          >
+            {prefs.voiceShortcutEnabled ? (
+              <div className="st-island-shortcut">
+                <span className="st-keys" aria-label={t("windows.settings.configuredShortcut")}>
+                  {formatAccelerator(prefs.voiceShortcut)
+                    .split("+")
+                    .map((key, i) => (
+                      <kbd key={i}>{key}</kbd>
+                    ))}
+                </span>
+                <ShortcutField
+                  className="st-button st-shortcut"
+                  label={t("windows.settings.sessions.voiceShortcut")}
+                  actionLabel={T.behavior.shortcutChange}
+                  recordingLabel={T.behavior.shortcutPressKeys}
+                  value={prefs.voiceShortcut}
+                  onRecording={(on) => {
+                    if (on) setShortcutError(null);
+                  }}
+                  onInvalid={() => setShortcutError(T.behavior.shortcutInvalid)}
+                  onError={(e) => setShortcutError(String(e))}
+                  onChange={(accelerator) => {
+                    if (accelerator === useSettings.getState().prefs.island.shortcut) {
+                      setShortcutError(t("windows.settings.sessions.voiceShortcutTaken"));
+                      return;
+                    }
+                    set("voiceShortcut", accelerator);
+                  }}
+                />
+              </div>
+            ) : null}
+            <Toggle
+              label={t("windows.settings.sessions.voiceShortcut")}
+              checked={prefs.voiceShortcutEnabled}
+              onChange={(on) => set("voiceShortcutEnabled", on)}
+            />
+          </SubRow>
+          <SubRow
+            title={t("windows.settings.sessions.voiceSendOnStop")}
+            caption={t("windows.settings.sessions.voiceSendOnStopCaption")}
+          >
+            <Toggle
+              label={t("windows.settings.sessions.voiceSendOnStop")}
+              checked={prefs.voiceSendOnStop}
+              onChange={(on) => set("voiceSendOnStop", on)}
+            />
+          </SubRow>
+        </>
+      ) : null}
+    </>
+  );
+}
+
 /** The Sessions section's options, inside its card on the Content tab. */
 type CodexStatus = "connected" | "notRunning" | "notFound";
 
@@ -344,6 +522,7 @@ export function SessionsOptions() {
       <SubRow title={T.sessions.limits} caption={T.sessions.limitsCaption}>
         <Toggle label={T.sessions.limits} checked={prefs.limits} onChange={(on) => set("limits", on)} />
       </SubRow>
+      <VoiceReplies prefs={prefs} set={set} />
     </>
   );
 }

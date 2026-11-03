@@ -10,7 +10,9 @@ use super::{PARTIAL_EVERY_MS, Problem, SAMPLE_RATE, clean};
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState};
+use whisper_rs::{
+    FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState,
+};
 
 fn load(model: &Path) -> Result<WhisperContext, Problem> {
     // whisper.cpp prints its progress to stderr; the island has no console.
@@ -19,7 +21,11 @@ fn load(model: &Path) -> Result<WhisperContext, Problem> {
         .map_err(|_| Problem::Failed)
 }
 
-fn transcribe(state: &mut WhisperState, language: Option<&str>, audio: &[f32]) -> Result<String, Problem> {
+fn transcribe(
+    state: &mut WhisperState,
+    language: Option<&str>,
+    audio: &[f32],
+) -> Result<String, Problem> {
     let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
     params.set_language(Some(language.unwrap_or("auto")));
     params.set_translate(false);
@@ -30,7 +36,10 @@ fn transcribe(state: &mut WhisperState, language: Option<&str>, audio: &[f32]) -
     params.set_print_realtime(false);
     params.set_print_special(false);
     params.set_print_timestamps(false);
-    let threads = std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4).clamp(1, 8);
+    let threads = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(4)
+        .clamp(1, 8);
     params.set_n_threads(threads as i32);
     // Under a second of audio, whisper pads it; a short word still reads.
     let mut padded;
@@ -100,7 +109,11 @@ pub fn listen(
 }
 
 /// One transcription of a whole recording, for the probe.
-pub fn transcribe_once(model: &Path, language: Option<&str>, audio: &[f32]) -> Result<String, Problem> {
+pub fn transcribe_once(
+    model: &Path,
+    language: Option<&str>,
+    audio: &[f32],
+) -> Result<String, Problem> {
     let context = load(model)?;
     let mut state = context.create_state().map_err(|_| Problem::Failed)?;
     transcribe(&mut state, language, audio)

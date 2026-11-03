@@ -70,6 +70,27 @@
     "threshold": "Kırmızı seviye",
     "title": "Azaldığında kırmızı yap"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "escCancels": "Esc iptal eder",
+    "followAppFormat": "Uygulamayla aynı (%@)",
+    "language": "Dil",
+    "listening": "Dinleniyor…",
+    "microphoneDenied": "Vorssaint’in mikrofonu kullanma izni yok.",
+    "noMicrophone": "Bağlı mikrofon yok.",
+    "notOnDeviceFormat": "%@ bu Mac’te tanınamıyor. Klavye ayarlarında Dikte altından ekleyin.",
+    "notOnDeviceTag": "bu Mac’te yok",
+    "openSettings": "Ayarları Aç",
+    "recognizerFailed": "Konuşma tanınamadı. Yeniden deneyin.",
+    "sendOnStop": "Konuşmayı bitirince gönder",
+    "sendOnStopHint": "Kayıt biter bitmez sözcükler ⌘↩ olmadan oturuma gider.",
+    "settingHint": "Oturumun yanıt alanında bir mikrofon: konuşun, sözcükler siz konuştukça yazılsın. Konuşma yalnızca bu Mac’te tanınır, hiçbir zaman bir sunucuda değil.",
+    "settingTitle": "Sesli yanıtlar",
+    "shortcut": "Basılı tut ve konuş",
+    "shortcutHint": "Tuşları basılı tutup ekrandaki oturumla ya da en son çalışanla konuşun. Durdurmak için bırakın.",
+    "speechDenied": "Vorssaint’in konuşma tanıma izni yok.",
+    "start": "Sesle yanıtla",
+    "stop": "Kaydı durdur"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "İşaretçiyi sonraki ekranın ortasına götürür.",
     "title": "İşaretçiyi sonraki ekrana taşı"
@@ -253,6 +274,8 @@
     "cameraMenuLabel": "Kamera",
     "deniedMessage": "Vorssaint için kamera erişimi Sistem Ayarları’nda kapalı.",
     "hubDescription": "Kameranızı gösteren yüzen bir ayna açar",
+    "mirrorLabel": "Önizlemeyi aynala",
+    "mirrorUnavailable": "Bu kamera aynalanmış gösterilemiyor",
     "noCameraMessage": "Kamera bulunamadı",
     "openButton": "Önizlemeyi aç",
     "pageTitle": "Kamera önizlemesi",

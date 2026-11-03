@@ -47,6 +47,7 @@ import "../agents/register";
 import "../watch/register";
 import "../screenshot-preview/register";
 import { startMascot } from "../mascot/register";
+import { subscribeVoiceShortcut, watchVoice } from "../sessions/voice";
 
 activityViews.microphone = MicrophoneStrip;
 void subscribeMicrophone();
@@ -69,6 +70,24 @@ void loadPrefs().then((prefs) => {
 void onPrefs(applyPrefs);
 
 pages.sessions = sessionsPage;
+
+// Voice replies stop when the session ends or the island leaves its page,
+// and the hold-to-talk shortcut speaks to the page on screen or opens one.
+const showingSession = () => {
+  const island = useIsland.getState();
+  return island.expanded && island.selected === "sessions" ? useSessions.getState().focused : null;
+};
+watchVoice(
+  () => showingSession() !== null,
+  (fn) => useIsland.subscribe(fn),
+);
+subscribeVoiceShortcut({
+  showing: showingSession,
+  openOn: (id) => {
+    useSessions.getState().focus(id);
+    useIsland.getState().open("sessions");
+  },
+});
 pages.music = {
   Page: function Music() {
     useLocale();

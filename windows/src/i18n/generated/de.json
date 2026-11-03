@@ -70,6 +70,27 @@
     "threshold": "Rote Stufe",
     "title": "Bei niedrigem Akku rot färben"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "escCancels": "Esc bricht ab",
+    "followAppFormat": "Wie die App (%@)",
+    "language": "Sprache",
+    "listening": "Hört zu …",
+    "microphoneDenied": "Vorssaint darf das Mikrofon nicht verwenden.",
+    "noMicrophone": "Kein Mikrofon angeschlossen.",
+    "notOnDeviceFormat": "%@ kann auf diesem Mac nicht erkannt werden. Füge die Sprache unter Diktat in den Tastatur-Einstellungen hinzu.",
+    "notOnDeviceTag": "nicht auf diesem Mac",
+    "openSettings": "Einstellungen öffnen",
+    "recognizerFailed": "Die Sprache konnte nicht erkannt werden. Versuch es noch einmal.",
+    "sendOnStop": "Senden, wenn ich aufhöre zu sprechen",
+    "sendOnStopHint": "Die Wörter gehen an die Sitzung, sobald die Aufnahme endet, ohne ⌘↩.",
+    "settingHint": "Ein Mikrofon im Antwortfeld einer Sitzung: Sprich, und die Wörter erscheinen beim Sprechen. Die Sprache wird nur auf diesem Mac erkannt, nie auf einem Server.",
+    "settingTitle": "Sprachantworten",
+    "shortcut": "Zum Sprechen halten",
+    "shortcutHint": "Halte die Tasten und sprich mit der Sitzung auf dem Bildschirm oder mit der zuletzt aktiven. Loslassen beendet.",
+    "speechDenied": "Vorssaint darf keine Sprache erkennen.",
+    "start": "Per Sprache antworten",
+    "stop": "Aufnahme beenden"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "Setzt den Zeiger in die Mitte des nächsten Displays.",
     "title": "Zeiger auf nächstes Display bewegen"
@@ -253,6 +274,8 @@
     "cameraMenuLabel": "Kamera",
     "deniedMessage": "Der Kamerazugriff für Vorssaint ist in den Systemeinstellungen deaktiviert.",
     "hubDescription": "Öffnet einen schwebenden Spiegel mit deiner Kamera",
+    "mirrorLabel": "Vorschau spiegeln",
+    "mirrorUnavailable": "Diese Kamera kann nicht gespiegelt angezeigt werden",
     "noCameraMessage": "Keine Kamera gefunden",
     "openButton": "Vorschau öffnen",
     "pageTitle": "Kameravorschau",

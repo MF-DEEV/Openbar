@@ -70,6 +70,27 @@
     "threshold": "Red level",
     "title": "Turn red when low"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "escCancels": "Esc cancels",
+    "followAppFormat": "Same as the app (%@)",
+    "language": "Language",
+    "listening": "Listening…",
+    "microphoneDenied": "Vorssaint isn’t allowed to use the microphone.",
+    "noMicrophone": "No microphone is connected.",
+    "notOnDeviceFormat": "%@ can’t be recognized on this Mac. Add it under Dictation in Keyboard settings.",
+    "notOnDeviceTag": "not on this Mac",
+    "openSettings": "Open Settings",
+    "recognizerFailed": "Speech couldn’t be recognized. Try again.",
+    "sendOnStop": "Send when I stop talking",
+    "sendOnStopHint": "The words go to the session as soon as recording ends, without ⌘↩.",
+    "settingHint": "A microphone in a session’s reply field: speak, and the words fill in as you go. Speech is recognized on this Mac only, never on a server.",
+    "settingTitle": "Voice replies",
+    "shortcut": "Hold to talk",
+    "shortcutHint": "Hold the keys and speak to the session on screen, or to the one last at work. Let go to stop.",
+    "speechDenied": "Vorssaint isn’t allowed to recognize speech.",
+    "start": "Speak a reply",
+    "stop": "Stop recording"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "Puts the pointer in the center of the next display.",
     "title": "Move pointer to next display"
@@ -253,6 +274,8 @@
     "cameraMenuLabel": "Camera",
     "deniedMessage": "Camera access for Vorssaint is turned off in System Settings.",
     "hubDescription": "Opens a floating mirror with your camera",
+    "mirrorLabel": "Mirror preview",
+    "mirrorUnavailable": "This camera can’t be shown mirrored",
     "noCameraMessage": "No camera detected",
     "openButton": "Open preview",
     "pageTitle": "Camera preview",

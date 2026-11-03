@@ -147,7 +147,9 @@ fn problem(error: &windows::core::Error) -> Problem {
     match error.code() {
         code if code == E_ACCESSDENIED => Problem::MicrophoneDenied,
         // No capture device at all (HRESULT_FROM_WIN32(ERROR_NOT_FOUND)), or it just went away.
-        code if code == ERROR_NOT_FOUND.to_hresult() || code == AUDCLNT_E_DEVICE_INVALIDATED => Problem::NoMicrophone,
+        code if code == ERROR_NOT_FOUND.to_hresult() || code == AUDCLNT_E_DEVICE_INVALIDATED => {
+            Problem::NoMicrophone
+        }
         _ => Problem::Failed,
     }
 }
@@ -156,7 +158,8 @@ fn open() -> windows::core::Result<(IAudioClient, IAudioCaptureClient)> {
     unsafe {
         let enumerator: IMMDeviceEnumerator =
             CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL)?;
-        let device = enumerator.GetDefaultAudioEndpoint(eCapture, eCommunications)
+        let device = enumerator
+            .GetDefaultAudioEndpoint(eCapture, eCommunications)
             .or_else(|_| enumerator.GetDefaultAudioEndpoint(eCapture, eConsole))?;
         let client: IAudioClient = device.Activate(CLSCTX_ALL, None)?;
         client.Initialize(
@@ -202,7 +205,10 @@ fn microphone<F: Fn(f32)>(
     }
 }
 
-fn drain<F: Fn(f32)>(reader: &IAudioCaptureClient, sink: &mut Sink<F>) -> windows::core::Result<()> {
+fn drain<F: Fn(f32)>(
+    reader: &IAudioCaptureClient,
+    sink: &mut Sink<F>,
+) -> windows::core::Result<()> {
     unsafe {
         while reader.GetNextPacketSize()? > 0 {
             let (mut data, mut frames, mut flags) = (std::ptr::null_mut(), 0, 0);
@@ -225,7 +231,10 @@ fn file<F: Fn(f32)>(
     path: &std::path::Path,
     opened: std::sync::mpsc::Sender<Result<(), Problem>>,
 ) {
-    let audio = match std::fs::read(path).map_err(|e| e.to_string()).and_then(|b| read_wav(&b)) {
+    let audio = match std::fs::read(path)
+        .map_err(|e| e.to_string())
+        .and_then(|b| read_wav(&b))
+    {
         Ok(audio) => audio,
         Err(_) => {
             let _ = opened.send(Err(Problem::NoMicrophone));

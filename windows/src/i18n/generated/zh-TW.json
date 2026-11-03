@@ -70,6 +70,27 @@
     "threshold": "紅色電量",
     "title": "電量低時顯示為紅色"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "escCancels": "按 Esc 取消",
+    "followAppFormat": "與 App 相同（%@）",
+    "language": "語言",
+    "listening": "正在聆聽…",
+    "microphoneDenied": "Vorssaint 沒有使用麥克風的權限。",
+    "noMicrophone": "沒有連接麥克風。",
+    "notOnDeviceFormat": "此 Mac 無法辨識%@。請在鍵盤設定的「聽寫」中加入該語言。",
+    "notOnDeviceTag": "此 Mac 不支援",
+    "openSettings": "打開設定",
+    "recognizerFailed": "無法辨識語音，請再試一次。",
+    "sendOnStop": "說完後傳送",
+    "sendOnStopHint": "錄音一結束就傳送到工作階段，不必按 ⌘↩。",
+    "settingHint": "在工作階段的回覆欄放一個麥克風：開口說話，文字隨說隨出。語音只在這台 Mac 上辨識，絕不傳到伺服器。",
+    "settingTitle": "語音回覆",
+    "shortcut": "按住說話",
+    "shortcutHint": "按住按鍵，對畫面上的工作階段或最近在工作的工作階段說話。放開即停止。",
+    "speechDenied": "Vorssaint 沒有語音辨識的權限。",
+    "start": "語音回覆",
+    "stop": "停止錄音"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "將指標移到下一台顯示器的中央。",
     "title": "將指標移到下一台顯示器"
@@ -253,6 +274,8 @@
     "cameraMenuLabel": "相機",
     "deniedMessage": "Vorssaint 的相機取用權限已在系統設定中關閉。",
     "hubDescription": "打開一面顯示相機畫面的浮動鏡子",
+    "mirrorLabel": "鏡像預覽",
+    "mirrorUnavailable": "此相機無法以鏡像顯示",
     "noCameraMessage": "未偵測到相機",
     "openButton": "打開預覽",
     "pageTitle": "相機預覽",

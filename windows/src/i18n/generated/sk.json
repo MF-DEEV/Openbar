@@ -70,6 +70,27 @@
     "threshold": "Červená úroveň",
     "title": "Sčervenať pri nízkej batérii"
   },
+  "NotchVoiceReplyStrings.forLanguage": {
+    "escCancels": "Esc zruší",
+    "followAppFormat": "Ako aplikácia (%@)",
+    "language": "Jazyk",
+    "listening": "Počúvam…",
+    "microphoneDenied": "Vorssaint nemá povolenie používať mikrofón.",
+    "noMicrophone": "Nie je pripojený žiadny mikrofón.",
+    "notOnDeviceFormat": "%@ sa na tomto Macu nedá rozpoznať. Pridajte ho v Diktovaní v nastaveniach klávesnice.",
+    "notOnDeviceTag": "nie je na tomto Macu",
+    "openSettings": "Otvoriť nastavenia",
+    "recognizerFailed": "Reč sa nepodarilo rozpoznať. Skúste to znova.",
+    "sendOnStop": "Odoslať, keď prestanem hovoriť",
+    "sendOnStopHint": "Slová idú do relácie hneď po skončení nahrávania, bez ⌘↩.",
+    "settingHint": "Mikrofón v poli odpovede relácie: hovorte a slová sa dopĺňajú priebežne. Reč sa rozpoznáva len na tomto Macu, nikdy na serveri.",
+    "settingTitle": "Hlasové odpovede",
+    "shortcut": "Podržať a hovoriť",
+    "shortcutHint": "Podržte klávesy a hovorte k relácii na obrazovke alebo k tej, ktorá pracovala naposledy. Pustením zastavíte.",
+    "speechDenied": "Vorssaint nemá povolenie rozpoznávať reč.",
+    "start": "Odpovedať hlasom",
+    "stop": "Zastaviť nahrávanie"
+  },
   "PointerDisplayStrings.localized": {
     "caption": "Umiestni kurzor do stredu ďalšieho displeja.",
     "title": "Presunúť kurzor na ďalší displej"
@@ -253,6 +274,8 @@
     "cameraMenuLabel": "Kamera",
     "deniedMessage": "Prístup ku kamere pre Vorssaint je v Systémových nastaveniach vypnutý.",
     "hubDescription": "Otvorí plávajúce zrkadlo s vašou kamerou",
+    "mirrorLabel": "Zrkadlový náhľad",
+    "mirrorUnavailable": "Túto kameru nemožno zobraziť zrkadlovo",
     "noCameraMessage": "Kamera nebola zistená",
     "openButton": "Otvoriť náhľad",
     "pageTitle": "Náhľad kamery",

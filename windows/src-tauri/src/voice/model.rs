@@ -48,14 +48,22 @@ pub struct Shared(Arc<Mutex<Option<Status>>>);
 
 /// Where the model lives: beside settings.json, in its own folder.
 pub fn path<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
-    app.path().app_config_dir().ok().map(|dir| dir.join("models").join(FILE))
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|dir| dir.join("models").join(FILE))
 }
 
 /// The same place without the app, for the probe.
 #[cfg_attr(not(windows), allow(dead_code))]
 pub fn default_path() -> Option<PathBuf> {
     let base = std::env::var_os("APPDATA")?;
-    Some(PathBuf::from(base).join("com.vorssaint.island").join("models").join(FILE))
+    Some(
+        PathBuf::from(base)
+            .join("com.vorssaint.island")
+            .join("models")
+            .join(FILE),
+    )
 }
 
 /// A model of the right size is taken as ready; its hash was checked when
@@ -66,7 +74,11 @@ pub fn is_ready(path: &Path) -> bool {
 
 fn status_of(path: Option<&Path>) -> Status {
     Status {
-        phase: if path.is_some_and(is_ready) { Phase::Ready } else { Phase::Missing },
+        phase: if path.is_some_and(is_ready) {
+            Phase::Ready
+        } else {
+            Phase::Missing
+        },
         downloaded: 0,
         size: SIZE,
         error: None,
@@ -74,7 +86,10 @@ fn status_of(path: Option<&Path>) -> Status {
 }
 
 #[tauri::command]
-pub fn voice_model_status<R: Runtime>(app: AppHandle<R>, state: tauri::State<'_, super::Shared>) -> Status {
+pub fn voice_model_status<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, super::Shared>,
+) -> Status {
     if let Some(status) = state.model.0.lock().unwrap().clone() {
         return status;
     }
@@ -82,9 +97,15 @@ pub fn voice_model_status<R: Runtime>(app: AppHandle<R>, state: tauri::State<'_,
 }
 
 #[tauri::command]
-pub fn voice_model_delete<R: Runtime>(app: AppHandle<R>, state: tauri::State<'_, super::Shared>) -> Status {
+pub fn voice_model_delete<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, super::Shared>,
+) -> Status {
     let mut current = state.model.0.lock().unwrap();
-    if current.as_ref().is_some_and(|s| s.phase == Phase::Downloading) {
+    if current
+        .as_ref()
+        .is_some_and(|s| s.phase == Phase::Downloading)
+    {
         return current.clone().unwrap();
     }
     if let Some(path) = path(&app) {
@@ -96,7 +117,10 @@ pub fn voice_model_delete<R: Runtime>(app: AppHandle<R>, state: tauri::State<'_,
 
 /// Starts the download; progress comes as `voice://model`.
 #[tauri::command]
-pub fn voice_model_download<R: Runtime>(app: AppHandle<R>, state: tauri::State<'_, super::Shared>) -> Status {
+pub fn voice_model_download<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, super::Shared>,
+) -> Status {
     let shared = state.model.clone();
     let mut current = shared.0.lock().unwrap();
     if let Some(status) = current.as_ref().filter(|s| s.phase == Phase::Downloading) {
@@ -218,7 +242,12 @@ fn fetch(part: &Path, progress: &mut dyn FnMut(u64)) -> Result<(), String> {
             return Err(failed(windows::core::Error::from_thread()));
         }
         WinHttpSetTimeouts(session.0, 20_000, 20_000, 30_000, 30_000).map_err(failed)?;
-        let connect = Handle(WinHttpConnect(session.0, &HSTRING::from(HOST), INTERNET_DEFAULT_HTTPS_PORT, 0));
+        let connect = Handle(WinHttpConnect(
+            session.0,
+            &HSTRING::from(HOST),
+            INTERNET_DEFAULT_HTTPS_PORT,
+            0,
+        ));
         if connect.0.is_null() {
             return Err(failed(windows::core::Error::from_thread()));
         }
@@ -236,7 +265,12 @@ fn fetch(part: &Path, progress: &mut dyn FnMut(u64)) -> Result<(), String> {
             return Err(failed(windows::core::Error::from_thread()));
         }
         let no_cookies = WINHTTP_DISABLE_COOKIES.to_le_bytes();
-        WinHttpSetOption(Some(request.0), WINHTTP_OPTION_DISABLE_FEATURE, Some(&no_cookies)).map_err(failed)?;
+        WinHttpSetOption(
+            Some(request.0),
+            WINHTTP_OPTION_DISABLE_FEATURE,
+            Some(&no_cookies),
+        )
+        .map_err(failed)?;
         WinHttpSendRequest(request.0, None, None, 0, 0, 0).map_err(failed)?;
         WinHttpReceiveResponse(request.0, std::ptr::null_mut()).map_err(failed)?;
         let mut status = 0u32;
@@ -258,12 +292,18 @@ fn fetch(part: &Path, progress: &mut dyn FnMut(u64)) -> Result<(), String> {
         let mut reported = 0u64;
         loop {
             let mut read = 0u32;
-            WinHttpReadData(request.0, buffer.as_mut_ptr().cast(), buffer.len() as u32, &mut read)
-                .map_err(failed)?;
+            WinHttpReadData(
+                request.0,
+                buffer.as_mut_ptr().cast(),
+                buffer.len() as u32,
+                &mut read,
+            )
+            .map_err(failed)?;
             if read == 0 {
                 break;
             }
-            out.write_all(&buffer[..read as usize]).map_err(|e| e.to_string())?;
+            out.write_all(&buffer[..read as usize])
+                .map_err(|e| e.to_string())?;
             total += u64::from(read);
             if total > SIZE {
                 return Err("the download is larger than the model".into());

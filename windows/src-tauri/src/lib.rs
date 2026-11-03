@@ -282,6 +282,7 @@ pub fn run() {
             voice::voice_start,
             voice::voice_stop,
             voice::voice_cancel,
+            voice::voice_open_settings,
             voice::model::voice_model_status,
             voice::model::voice_model_download,
             voice::model::voice_model_delete,

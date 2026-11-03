@@ -11,9 +11,9 @@
 //! This side only listens and transcribes. When to stop (silence, the cap,
 //! Escape, the session going away) is the island's: sessions/voice.ts.
 
-pub mod model;
 #[cfg(windows)]
 mod capture;
+pub mod model;
 #[cfg(windows)]
 mod whisper;
 
@@ -30,9 +30,9 @@ pub const SAMPLE_RATE: u32 = 16_000;
 pub const HARD_CAP_SECONDS: u32 = 75;
 /// How often the words heard so far are transcribed again.
 pub const PARTIAL_EVERY_MS: u64 = 1_200;
-/// A voice is louder than this (RMS, about -42 dBFS); quieter audio is never
+/// A voice is louder than this (RMS, about -44 dBFS); quieter audio is never
 /// transcribed, since whisper makes words up from a quiet room.
-pub const SPEECH_RMS: f32 = 0.008;
+pub const SPEECH_RMS: f32 = 0.006;
 
 /// Why a recording could not start or went wrong.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
@@ -119,7 +119,13 @@ pub fn voice_start<R: Runtime>(
 /// Stops listening and transcribes what was heard one last time.
 #[tauri::command]
 pub fn voice_stop(state: tauri::State<'_, Shared>, id: u64) {
-    if let Some(recording) = state.recording.lock().unwrap().as_ref().filter(|r| r.id == id) {
+    if let Some(recording) = state
+        .recording
+        .lock()
+        .unwrap()
+        .as_ref()
+        .filter(|r| r.id == id)
+    {
         recording.stop.store(true, Ordering::SeqCst);
     }
 }
@@ -127,10 +133,28 @@ pub fn voice_stop(state: tauri::State<'_, Shared>, id: u64) {
 /// Stops listening and drops what was heard, without a last transcription.
 #[tauri::command]
 pub fn voice_cancel(state: tauri::State<'_, Shared>, id: u64) {
-    if let Some(recording) = state.recording.lock().unwrap().as_ref().filter(|r| r.id == id) {
+    if let Some(recording) = state
+        .recording
+        .lock()
+        .unwrap()
+        .as_ref()
+        .filter(|r| r.id == id)
+    {
         recording.cancel.store(true, Ordering::SeqCst);
         recording.stop.store(true, Ordering::SeqCst);
     }
+}
+
+/// The Windows page that fixes a microphone problem: its privacy switch, or
+/// the sound page where an input device is picked.
+#[tauri::command]
+pub fn voice_open_settings(page: String) -> bool {
+    let url = match page.as_str() {
+        "microphone" => "ms-settings:privacy-microphone",
+        "sound" => "ms-settings:sound",
+        _ => return false,
+    };
+    tauri_plugin_opener::open_url(url, None::<&str>).is_ok()
 }
 
 /// The worker is done with recording `id`; another may start.
@@ -207,7 +231,11 @@ fn replay_file() -> Option<std::path::PathBuf> {
 /// The island's language, or one picked in Settings, as whisper names it;
 /// None lets whisper tell which language is spoken.
 pub fn whisper_language(choice: &str) -> Option<&'static str> {
-    let base = choice.split(['-', '_']).next().unwrap_or("").to_ascii_lowercase();
+    let base = choice
+        .split(['-', '_'])
+        .next()
+        .unwrap_or("")
+        .to_ascii_lowercase();
     Some(match base.as_str() {
         "en" => "en",
         "pt" => "pt",
@@ -273,12 +301,16 @@ pub fn read_wav(bytes: &[u8]) -> Result<Vec<f32>, String> {
             }
             let frames: Vec<f32> = match (format, bits) {
                 (1, 16) => body
-                    .chunks_exact(2)
-                    .map(|c| i16::from_le_bytes([c[0], c[1]]) as f32 / 32768.0)
+                    .as_chunks::<2>()
+                    .0
+                    .iter()
+                    .map(|c| i16::from_le_bytes(*c) as f32 / 32768.0)
                     .collect(),
                 (3, 32) => body
-                    .chunks_exact(4)
-                    .map(|c| f32::from_le_bytes(c.try_into().unwrap()))
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .map(|c| f32::from_le_bytes(*c))
                     .collect(),
                 _ => return Err(format!("format {format}, {bits} bits")),
             };
@@ -322,7 +354,10 @@ fn probe(wav: &str, language: &str) -> String {
     let Some(path) = model::default_path().filter(|p| model::is_ready(p)) else {
         return "model missing".into();
     };
-    let audio = match std::fs::read(wav).map_err(|e| e.to_string()).and_then(|b| read_wav(&b)) {
+    let audio = match std::fs::read(wav)
+        .map_err(|e| e.to_string())
+        .and_then(|b| read_wav(&b))
+    {
         Ok(audio) => audio,
         Err(error) => return format!("unreadable: {error}"),
     };
@@ -366,13 +401,29 @@ mod tests {
 
     #[test]
     fn reads_the_wavs_say_writes() {
-        let pcm: Vec<u8> = [0i16, 16384, -32768].iter().flat_map(|s| s.to_le_bytes()).collect();
-        assert_eq!(read_wav(&wav(1, 16, 1, 16_000, &pcm)).unwrap(), vec![0.0, 0.5, -1.0]);
+        let pcm: Vec<u8> = [0i16, 16384, -32768]
+            .iter()
+            .flat_map(|s| s.to_le_bytes())
+            .collect();
+        assert_eq!(
+            read_wav(&wav(1, 16, 1, 16_000, &pcm)).unwrap(),
+            vec![0.0, 0.5, -1.0]
+        );
         let stereo: Vec<u8> = [16384i16, 0].iter().flat_map(|s| s.to_le_bytes()).collect();
-        assert_eq!(read_wav(&wav(1, 16, 2, 16_000, &stereo)).unwrap(), vec![0.25]);
+        assert_eq!(
+            read_wav(&wav(1, 16, 2, 16_000, &stereo)).unwrap(),
+            vec![0.25]
+        );
         let float: Vec<u8> = [0.25f32].iter().flat_map(|s| s.to_le_bytes()).collect();
-        assert_eq!(read_wav(&wav(3, 32, 1, 16_000, &float)).unwrap(), vec![0.25]);
-        assert!(read_wav(&wav(1, 16, 1, 44_100, &pcm)).unwrap_err().contains("44100"));
+        assert_eq!(
+            read_wav(&wav(3, 32, 1, 16_000, &float)).unwrap(),
+            vec![0.25]
+        );
+        assert!(
+            read_wav(&wav(1, 16, 1, 44_100, &pcm))
+                .unwrap_err()
+                .contains("44100")
+        );
         assert!(read_wav(&wav(1, 8, 1, 16_000, &[1, 2])).is_err());
         assert!(read_wav(b"nope").is_err());
         assert!(read_wav(b"RIFF\0\0\0\0WAVE").is_err());

@@ -52,6 +52,8 @@ import { setPrefs } from "../shared/prefs";
 import { bridge } from "../shared/bridge";
 import { IMAGE_LIMIT, imageDataUrl, imageFiles, isImagePasteShortcut } from "./paste";
 import { isWaiting, isWorking, type ReplyFailure, type Session } from "./types";
+import { VoiceButton, VoiceProblem } from "./VoiceReply";
+import { isActive as voiceActive, showsMicrophone, useVoice } from "./voice";
 
 function storedNumber(key: string, fallback: number) {
   try {
@@ -644,7 +646,14 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
   const pastingNow = useRef(false);
   const [sending, setSending] = useState(false);
   const reason = unavailable(session);
-  const sendable = !reason && !sending && !pasting && (draft.trim().length > 0 || !!images?.length);
+  const voiceOn = useSessions((s) => s.prefs.voiceReplies);
+  const mic = showsMicrophone(session, voiceOn);
+  const recording = useVoice((s) => s.machine.sessionId === session.id && voiceActive(s.machine));
+  const listening = useVoice((s) => s.machine.sessionId === session.id && s.machine.phase.kind === "recording");
+  const placeholder = recording
+    ? t("windows.sessions.voiceListening")
+    : (reason ?? S.replyPlaceholderFor(session.provider));
+  const sendable = !reason && !sending && !pasting && !recording && (draft.trim().length > 0 || !!images?.length);
 
   const paste = async (files?: File[]) => {
     if (reason || sending || pastingNow.current) return;
@@ -740,16 +749,16 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
           ))}
         </div>
       ) : null}
-      <div className="s-reply-row">
+      <div className={`s-reply-row${mic ? " has-mic" : ""}${listening ? " is-listening" : ""}`}>
         {enlarged ? (
           <textarea
             className="s-reply-field s-composer"
             title={S.pasteImages}
             aria-label={S.replyPlaceholderFor(session.provider)}
             value={draft}
-            disabled={!!reason || sending}
+            disabled={!!reason || sending || recording}
             maxLength={4000}
-            placeholder={reason ?? S.replyPlaceholderFor(session.provider)}
+            placeholder={placeholder}
             onChange={(e) => {
               setFailure(null);
               useSessions.getState().setDraft(session.id, e.target.value);
@@ -767,9 +776,9 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
             title={S.pasteImages}
             aria-label={S.replyPlaceholderFor(session.provider)}
             value={draft}
-            disabled={!!reason || sending}
+            disabled={!!reason || sending || recording}
             maxLength={4000}
-            placeholder={reason ?? S.replyPlaceholderFor(session.provider)}
+            placeholder={placeholder}
             onChange={(e) => {
               setFailure(null);
               useSessions.getState().setDraft(session.id, e.target.value);
@@ -782,6 +791,7 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
             }}
           />
         )}
+        {mic ? <VoiceButton session={session} disabled={!!reason || sending} large={enlarged} /> : null}
         <button
           type="button"
           className={`s-send${sendable ? " is-ready" : ""}`}
@@ -809,6 +819,7 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
           {failure === "waiting" ? S.sendWhileWaiting : S.sendFailed}
         </div>
       ) : null}
+      <VoiceProblem session={session} />
     </div>
   );
 }

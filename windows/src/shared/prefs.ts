@@ -40,6 +40,15 @@ export interface SessionPrefs {
   agentCopilot: boolean;
   agentOpencode: boolean;
   agentCursor: boolean;
+  /** A microphone in the reply field; speech is recognized on this PC only. */
+  voiceReplies: boolean;
+  /** The language voice replies are heard in; empty follows the app. */
+  voiceLanguage: string;
+  /** Words go to the session as soon as recording ends. */
+  voiceSendOnStop: boolean;
+  /** Hold-to-talk, off until turned on, and its keys. */
+  voiceShortcutEnabled: boolean;
+  voiceShortcut: string;
 }
 
 export const DEFAULT_SESSION_PREFS: SessionPrefs = {
@@ -52,6 +61,11 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   agentCopilot: true,
   agentOpencode: true,
   agentCursor: true,
+  voiceReplies: false,
+  voiceLanguage: "",
+  voiceSendOnStop: false,
+  voiceShortcutEnabled: false,
+  voiceShortcut: "Ctrl+Alt+V",
 };
 
 /** What is stored: only what differs from the defaults. */
