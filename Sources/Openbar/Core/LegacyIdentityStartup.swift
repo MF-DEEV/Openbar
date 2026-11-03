@@ -25,9 +25,11 @@ extension LegacyIdentity {
             // of them need once the app is up, so Openbar is in the list.
             if carried {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                    // Neither prompt shows for a permission already granted.
+                    // One at a time, so the guide card and System Settings
+                    // show the same list. Neither prompt shows for a
+                    // permission already granted.
                     Permissions.shared.requestAccessibility()
-                    Permissions.shared.requestScreenRecording()
+                    askForScreenRecordingOnceTrusted(deadline: Date().addingTimeInterval(600))
                 }
             }
         }
@@ -60,5 +62,18 @@ extension LegacyIdentity {
     /// forever, so only the Applications folders count.
     static func isInstalled(_ bundle: String) -> Bool {
         installed(among: NSWorkspace.shared.urlsForApplications(withBundleIdentifier: bundle))
+    }
+
+    /// Screen Recording is asked for once Accessibility is on, or never if
+    /// that takes longer than the deadline.
+    private static func askForScreenRecordingOnceTrusted(deadline: Date) {
+        guard Date() < deadline else { return }
+        guard AXIsProcessTrusted() else {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                askForScreenRecordingOnceTrusted(deadline: deadline)
+            }
+            return
+        }
+        Permissions.shared.requestScreenRecording()
     }
 }
