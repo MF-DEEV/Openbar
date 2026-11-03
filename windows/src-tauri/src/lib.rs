@@ -44,6 +44,7 @@ mod system_monitor;
 mod timer;
 mod toggles;
 mod tray;
+mod voice;
 mod watch;
 
 use tauri::{Emitter, Manager, RunEvent};
@@ -93,6 +94,12 @@ pub fn notifications_probe_main(path: &str) -> ! {
 /// `Vorssaint.exe --speed-test-probe <file>`: runs the network detail's speed test.
 pub fn speed_test_probe_main(path: &str) -> ! {
     speed_test::probe_main(path)
+}
+
+/// `Vorssaint.exe --voice-probe <wav> <file> [language]`: the voice-reply
+/// recognizer on a recording, without the island.
+pub fn voice_probe_main(wav: &str, path: &str, language: &str) -> ! {
+    voice::probe_main(wav, path, language)
 }
 
 /// `Vorssaint.exe --network-helper`, `--install-network-helper` or
@@ -165,6 +172,7 @@ pub fn run() {
         .manage(notifications::Shared::default())
         .manage(system_monitor::Shared::default())
         .manage(speed_test::Shared::default())
+        .manage(voice::Shared::default())
         .manage(calendar::Shared::default())
         .manage(audio::Shared::default())
         .manage(keep_awake::Shared::default())
@@ -271,6 +279,12 @@ pub fn run() {
             system_monitor::system_network_approve,
             speed_test::speed_test_state,
             speed_test::speed_test_start,
+            voice::voice_start,
+            voice::voice_stop,
+            voice::voice_cancel,
+            voice::model::voice_model_status,
+            voice::model::voice_model_download,
+            voice::model::voice_model_delete,
             calendar::calendar_snapshot,
             calendar::calendar_show_range,
             calendar::calendar_request_access,

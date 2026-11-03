@@ -12,7 +12,7 @@ task="${VORS_TASK:-VorsIsland}"
 export PATH="/opt/homebrew/opt/rustup/bin:/opt/homebrew/opt/llvm/bin:$HOME/.cargo/bin:$HOME/.bun/bin:$PATH"
 
 (cd "$root" && bun run build >/dev/null)
-(cd "$root/src-tauri" && XWIN_ACCEPT_LICENSE=1 cargo xwin build --release --target aarch64-pc-windows-msvc \
+(cd "$root/src-tauri" && XWIN_ACCEPT_LICENSE=1 "$root/tools/xwin-cargo.sh" cargo xwin build --release --target aarch64-pc-windows-msvc \
   --features tauri/custom-protocol 2>&1 | grep -E "^(error|warning: unused)|Finished" || true)
 
 "$vm/ssh.sh" 'Stop-Process -Name Vorssaint -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500' || true
