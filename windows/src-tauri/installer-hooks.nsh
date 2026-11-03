@@ -37,7 +37,17 @@
     nsExec::Exec '"$INSTDIR\Openbar.exe" --migrate-legacy'
     Pop $0
     ExecWait '"$LOCALAPPDATA\Vorssaint\uninstall.exe" /S _?=$LOCALAPPDATA\Vorssaint'
+    ; Run in place, the old uninstaller leaves itself behind, and Windows
+    ; may hold the file for a moment after it exits.
+    StrCpy $R8 0
+    openbar_remove_old_uninstaller:
     Delete "$LOCALAPPDATA\Vorssaint\uninstall.exe"
+    ${If} ${FileExists} "$LOCALAPPDATA\Vorssaint\uninstall.exe"
+    ${AndIf} $R8 < 20
+      Sleep 250
+      IntOp $R8 $R8 + 1
+      Goto openbar_remove_old_uninstaller
+    ${EndIf}
     RMDir "$LOCALAPPDATA\Vorssaint"
   ${EndIf}
   ${If} ${FileExists} "$INSTDIR\identity\Openbar.msix"
