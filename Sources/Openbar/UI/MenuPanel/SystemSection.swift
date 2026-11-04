@@ -219,23 +219,27 @@ struct SystemSection: View {
     // MARK: Per-app breakdown
 
     private func toggleBreakdown(_ kind: BreakdownKind) {
-        if expanded == kind {
-            expanded = nil
-            breakdownRows = []
-            breakdownIsLoading = false
-        } else {
-            expanded = kind
-            breakdownRows = ProcessUsageService.shared.cachedTop(kind, limit: breakdownLimit) ?? []
-            refreshBreakdown()
+        withAnimation(PanelMotion.disclosure) {
+            if expanded == kind {
+                expanded = nil
+                breakdownRows = []
+                breakdownIsLoading = false
+            } else {
+                expanded = kind
+                breakdownRows = ProcessUsageService.shared.cachedTop(kind, limit: breakdownLimit) ?? []
+            }
         }
+        if expanded == kind { refreshBreakdown() }
     }
 
     /// Opening the folded CPU apps list starts from the same recent reading
     /// expanding a row does, not from rows kept while it was folded.
     private func toggleCPUApps() {
-        cpuAppsExpanded.toggle()
-        if cpuAppsExpanded {
-            breakdownRows = ProcessUsageService.shared.cachedTop(.cpu, limit: breakdownLimit) ?? []
+        withAnimation(PanelMotion.disclosure) {
+            cpuAppsExpanded.toggle()
+            if cpuAppsExpanded {
+                breakdownRows = ProcessUsageService.shared.cachedTop(.cpu, limit: breakdownLimit) ?? []
+            }
         }
         refreshBreakdown()
     }
@@ -347,6 +351,7 @@ struct SystemSection: View {
             Text(value.map { MetricFormat.temperature($0, unit: displayTemperatureUnit) } ?? "-")
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .monospacedDigit()
+                .panelRollingValue(value.map { MetricFormat.temperature($0, unit: displayTemperatureUnit) } ?? "-")
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
@@ -500,6 +505,7 @@ struct SystemSection: View {
             Text(fraction.map { String(format: "%.0f%%", locale: MetricFormat.locale, $0 * 100) } ?? "-")
                 .font(.system(size: 11, weight: .medium))
                 .monospacedDigit()
+                .panelRollingValue(fraction.map { String(format: "%.0f%%", locale: MetricFormat.locale, $0 * 100) } ?? "-")
                 .frame(width: 38, alignment: .trailing)
             trailing()
         }
@@ -561,6 +567,7 @@ struct SystemSection: View {
                 Text(formatMemory(bytes))
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()
+                    .panelRollingValue(formatMemory(bytes))
                     .foregroundStyle(.secondary)
             }
             .padding(.leading, 16)
@@ -584,6 +591,7 @@ struct SystemSection: View {
                 Text("\(formatMemory(used)) / \(formatMemory(total))")
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()
+                    .panelRollingValue("\(formatMemory(used)) / \(formatMemory(total))")
                     .foregroundStyle(.secondary)
             }
         }
@@ -606,7 +614,7 @@ struct SystemSection: View {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 6) {
                     Button {
-                        alertsExpanded.toggle()
+                        withAnimation(PanelMotion.disclosure) { alertsExpanded.toggle() }
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "chevron.right")

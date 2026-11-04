@@ -243,6 +243,7 @@ struct PanelSection<Content: View>: View {
 
             if !collapsible || !collapsed {
                 content(isEditing)
+                    .transition(PanelMotion.revealTransition)
             }
         }
     }
@@ -339,7 +340,9 @@ struct PanelSection<Content: View>: View {
     }
 
     private func toggle() {
-        collapsed.toggle()
+        withAnimation(PanelMotion.disclosure) {
+            collapsed.toggle()
+        }
         PanelLayout.setCollapsed(collapsed, for: id)
     }
 }

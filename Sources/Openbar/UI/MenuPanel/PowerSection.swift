@@ -295,6 +295,7 @@ struct PowerSection: View {
                     Text("\(device.percent)%")
                         .font(.system(size: 10.5, weight: .semibold))
                         .monospacedDigit()
+                        .panelRollingValue("\(device.percent)%")
                 }
             }
             let extra = max(0, monitor.snapshot.peripheralBatteries.count - 5)
@@ -385,7 +386,7 @@ private struct EnergyAppsBreakdown: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Button {
-                expanded.toggle()
+                withAnimation(PanelMotion.disclosure) { expanded.toggle() }
                 requestID = UUID()
                 if expanded {
                     rows = ProcessUsageService.shared.cachedTop(.energy, limit: 15) ?? []

@@ -94,7 +94,7 @@ struct MixerSection: View {
     private var optionsDisclosure: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                optionsExpanded.toggle()
+                withAnimation(PanelMotion.disclosure) { optionsExpanded.toggle() }
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "chevron.right")
@@ -695,7 +695,7 @@ struct MixerOptionsControls: View {
     private var listVisibilityFooter: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
-                showListChooser.toggle()
+                withAnimation(PanelMotion.disclosure) { showListChooser.toggle() }
             } label: {
                 HStack(spacing: 8) {
                     Text(l10n.s.mixerVisibleApps)

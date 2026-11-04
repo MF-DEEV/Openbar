@@ -288,7 +288,7 @@ struct DisclosureHeaderRow<Label: View>: View {
 
     var body: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
+            withAnimation(PanelMotion.disclosure) {
                 isExpanded.wrappedValue.toggle()
             }
         } label: {

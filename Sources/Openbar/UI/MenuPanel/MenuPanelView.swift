@@ -91,7 +91,11 @@ struct MenuPanelView: View {
     @State private var updateBannerHeight: CGFloat = 0
     @State private var selectedSection: PanelSectionID = PanelLayout.order.first ?? .keepAwake
     @State private var selectedMetric: MetricDetailKind?
+    /// +1 when the last tab change moved right, -1 left; the incoming section
+    /// slides in from that side.
+    @State private var sectionDirection: CGFloat = 1
     @FocusState private var focusedSection: PanelSectionID?
+    @Namespace private var tabHighlight
 
     /// Cap the panel to the usable screen height so it never overflows the menu
     /// bar; taller content scrolls inside. Measured against the display the
@@ -141,7 +145,7 @@ struct MenuPanelView: View {
             applyFocus(request)
         }
         .onChange(of: focusedSection) { _, section in
-            if let section { selectedSection = section }
+            if let section { select(section) }
         }
     }
 
@@ -170,7 +174,7 @@ struct MenuPanelView: View {
         case .section(let section):
             guard isSectionVisible(section) else { return }
             selectedMetric = nil
-            selectedSection = section
+            select(section)
             focusedSection = section
         case .metric(let metric):
             focusedSection = nil
@@ -192,7 +196,7 @@ struct MenuPanelView: View {
             OverlayScrollView(measuredHeight: $navigableContentHeight) {
                 Group {
                     if let selectedMetric { MetricDetailView(kind: selectedMetric) }
-                    else { section(for: activeSection, collapsible: false) }
+                    else { animatedSection }
                 }
                 .frame(width: size.width)
                 .environment(\.notchPresentation, true)
@@ -212,10 +216,8 @@ struct MenuPanelView: View {
             sectionNavigation
 
             OverlayScrollView(measuredHeight: $navigableContentHeight) {
-                VStack(alignment: .leading, spacing: 12) {
-                    section(for: activeSection, collapsible: false)
-                }
-                .frame(width: 308)
+                animatedSection
+                    .frame(width: 308)
             }
             .frame(width: 308, height: navigableScrollHeight)
 
@@ -318,6 +320,34 @@ struct MenuPanelView: View {
         }
     }
 
+    /// The active section, swapped with a slide when the tabs change. Both
+    /// sections share one top-aligned slot during the swap, so the measured
+    /// height never stacks the outgoing and incoming sections.
+    private var animatedSection: some View {
+        ZStack(alignment: .topLeading) {
+            VStack(alignment: .leading, spacing: 12) {
+                section(for: activeSection, collapsible: false)
+            }
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .id(activeSection)
+            .transition(PanelMotion.sectionTransition(direction: sectionDirection))
+        }
+        .animation(PanelMotion.tab, value: activeSection)
+    }
+
+    /// Picks a section, noting which way the tabs moved first so the
+    /// transition built for the new section already knows its side.
+    private func select(_ id: PanelSectionID) {
+        guard id != selectedSection else { return }
+        let order = visibleSections
+        if let from = order.firstIndex(of: activeSection), let to = order.firstIndex(of: id) {
+            sectionDirection = to >= from ? 1 : -1
+        }
+        withAnimation(PanelMotion.tab) {
+            selectedSection = id
+        }
+    }
+
     /// Renders the section for an id, honoring its "show in panel" toggle. Each
     /// section self-hides when it has nothing to show, so the order is stable
     /// whether or not a section is currently populated.
@@ -373,7 +403,7 @@ struct MenuPanelView: View {
             ForEach(visibleSections) { id in
                 let isActive = activeSection == id
                 Button {
-                    selectedSection = id
+                    select(id)
                     focusedSection = id
                 } label: {
                     Image(systemName: id.symbolName)
@@ -382,13 +412,18 @@ struct MenuPanelView: View {
                         .frame(height: 30)
                         .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(.panelPress)
                 .focused($focusedSection, equals: id)
                 .foregroundStyle(isActive ? (notchSize != nil ? Color.white : Color.brandAccent) : Color.secondary.opacity(0.86))
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(isActive ? navigationActiveFill : Color.clear)
-                )
+                // One highlight slides between the tabs instead of each tab
+                // switching its own fill on and off.
+                .background {
+                    if isActive {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(navigationActiveFill)
+                            .matchedGeometryEffect(id: "activeTab", in: tabHighlight)
+                    }
+                }
                 .help(id.title(l10n.s))
                 // Icon-only tabs: VoiceOver reads the section name, not the
                 // symbol's, and hears which one is showing.
@@ -424,7 +459,7 @@ struct MenuPanelView: View {
                     .frame(width: 24, height: 24)
                     .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.panelPress)
             .foregroundStyle(.secondary)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
@@ -499,7 +534,7 @@ struct MenuPanelView: View {
                 )
                 .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.panelPress)
         .foregroundStyle(.secondary)
     }
 }
@@ -2821,12 +2856,15 @@ struct KeepAwakeCard: View {
     private var optionsDisclosure: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                optionsExpanded.toggle()
+                withAnimation(PanelMotion.disclosure) {
+                    optionsExpanded.toggle()
+                }
             } label: {
                 HStack(spacing: 7) {
-                    Image(systemName: optionsExpanded ? "chevron.down" : "chevron.right")
+                    Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(optionsExpanded ? 90 : 0))
                         .frame(width: 12)
                     Text(l10n.s.keepAwakeOptions)
                         .font(.system(size: 11.5, weight: .semibold))
@@ -2861,16 +2899,20 @@ struct KeepAwakeCard: View {
                     )
                     if keepAwakeMouseJiggle {
                         mouseJiggleIntervalRow
+                            .transition(PanelMotion.revealTransition)
                         if mouseJiggleNeedsAccessibility {
                             Button(l10n.s.permissionRequest) {
                                 grantAccessibility()
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
+                            .transition(PanelMotion.revealTransition)
                         }
                     }
                 }
                 .padding(.leading, 19)
+                .animation(PanelMotion.disclosure, value: keepAwakeMouseJiggle)
+                .transition(PanelMotion.revealTransition)
             }
         }
     }
@@ -2878,7 +2920,9 @@ struct KeepAwakeCard: View {
     private var automationDisclosure: some View {
         VStack(alignment: .leading, spacing: 7) {
             Button {
-                automationExpanded.toggle()
+                withAnimation(PanelMotion.disclosure) {
+                    automationExpanded.toggle()
+                }
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "bolt.fill")
@@ -2891,9 +2935,10 @@ struct KeepAwakeCard: View {
                         .lineLimit(1)
                     Spacer(minLength: 6)
                     automationSummaryBadges
-                    Image(systemName: automationExpanded ? "chevron.down" : "chevron.right")
+                    Image(systemName: "chevron.right")
                         .font(.system(size: 8.5, weight: .bold))
                         .foregroundStyle(.tertiary)
+                        .rotationEffect(.degrees(automationExpanded ? 90 : 0))
                 }
                 .contentShape(Rectangle())
             }
@@ -2909,6 +2954,7 @@ struct KeepAwakeCard: View {
                     )
                 }
                 .padding(.leading, 22)
+                .transition(PanelMotion.revealTransition)
             }
         }
     }
@@ -3239,6 +3285,9 @@ struct KeepAwakeChipStyle: ButtonStyle {
                 ? Color.brandAccent.opacity(configuration.isPressed ? 0.8 : 1)
                 : Color.primary.opacity(configuration.isPressed ? 0.16 : 0.07)))
             .contentShape(Capsule())
+            .scaleEffect(PanelMotion.pressScale(configuration.isPressed))
+            .animation(PanelMotion.press, value: configuration.isPressed)
+            .animation(PanelMotion.selection, value: isSelected)
     }
 }
 
