@@ -74,15 +74,15 @@ export function Collapse(props: { open: boolean; id?: string; className?: string
 /**
  * A page that settles in when it mounts: it slides a few pixels in from the
  * side the user moved toward. Key it by the page so each switch plays it
- * once; the outgoing page leaves at once, so the two never stack. It starts
- * partly visible: starting from nothing left the window empty for a couple
- * of frames, which read as the controls blinking.
+ * once; the outgoing page leaves at once, so the two never stack. It only
+ * slides, at full opacity: fading from nothing left the window empty for a
+ * couple of frames, and fading from 60% held bright controls visibly dark.
  */
 export function PageEnter(props: { direction?: 1 | -1; axis?: "x" | "y"; className?: string; children: ReactNode }) {
   const reduce = useReducedMotion();
   const travel = 10 * (props.direction ?? 1);
-  const from = reduce ? { opacity: 0.6 } : { opacity: 0.6, [props.axis ?? "x"]: travel };
-  const to = reduce ? { opacity: 1 } : { opacity: 1, x: 0, y: 0 };
+  const from = reduce ? {} : { [props.axis ?? "x"]: travel };
+  const to = reduce ? {} : { x: 0, y: 0 };
   return (
     <motion.div className={props.className} initial={from} animate={to} transition={reduce ? QUICK_FADE : SPRING_TAB}>
       {props.children}

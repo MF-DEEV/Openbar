@@ -65,14 +65,14 @@ private struct PanelReveal: ViewModifier {
 
 extension View {
     /// A section arriving from a tab: `direction` is +1 when the tabs moved
-    /// right and -1 when they moved left. It starts partly visible: the old
-    /// section is gone in that same frame, and starting from nothing left
-    /// the panel empty for a couple of frames, which read as the controls
-    /// blinking. No blur either, since it greyed the switch knobs.
+    /// right and -1 when they moved left. It only slides, at full opacity.
+    /// The old section is gone in that same frame, so fading from nothing
+    /// left the panel empty for a couple of frames, and fading from 60% held
+    /// the bright pickers visibly dark for a quarter second (measured frame
+    /// by frame); a blur greyed the switch knobs.
     func panelSectionReveal(direction: CGFloat) -> some View {
-        let still = PanelMotion.reduceMotion
-        return modifier(PanelReveal(offset: still ? .zero : CGSize(width: 10 * direction, height: 0),
-                                    startOpacity: 0.6))
+        modifier(PanelReveal(offset: PanelMotion.reduceMotion ? .zero : CGSize(width: 10 * direction, height: 0),
+                             startOpacity: 1))
     }
 
     /// Rows opening under a disclosure drop a few points into place.
