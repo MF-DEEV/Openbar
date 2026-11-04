@@ -235,6 +235,7 @@ struct NetworkSection: View {
                 Text(value.map { MetricFormat.networkRate($0, inBits: speedInBits) } ?? l10n.s.networkMeasuring)
                     .font(.system(size: 13.5, weight: .semibold, design: .rounded))
                     .monospacedDigit()
+                    .panelRollingValue(value.map { MetricFormat.networkRate($0, inBits: speedInBits) } ?? l10n.s.networkMeasuring)
                     .contentTransition(.numericText())
                 Text(label)
                     .font(.system(size: 10))
@@ -278,6 +279,7 @@ struct NetworkSection: View {
                     Text("↓\(MetricFormat.bytes(down))  ↑\(MetricFormat.bytes(up))")
                         .font(.system(size: 10.5, weight: .medium))
                         .monospacedDigit()
+                        .panelRollingValue("↓\(MetricFormat.bytes(down))  ↑\(MetricFormat.bytes(up))")
                         .foregroundStyle(.secondary)
                 }
                 if editing {

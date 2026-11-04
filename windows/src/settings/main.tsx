@@ -12,6 +12,7 @@ import "@fontsource-variable/inter";
 import { Activity, LayoutTemplate, type LucideIcon, Settings2, SlidersHorizontal, Smile, Wand2 } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
+import { PageEnter, SlidingHighlight, SPRING_TAB } from "../shared/ui/motionKit";
 import { ActivitySettings } from "./ActivitySettings";
 import { BehaviorSettings } from "./BehaviorSettings";
 import { ContentSettings } from "./ContentSettings";
@@ -110,7 +111,15 @@ function App() {
   }, [page]);
 
   const current = PAGES.find((p) => p.id === page)!;
-  const pick = (id: PageId) => setPage(id);
+  // The new page settles in from the side of the nav it was picked on.
+  const [direction, setDirection] = useState<1 | -1>(1);
+  const pick = (id: PageId) => {
+    if (id === page) return;
+    const from = PAGES.findIndex((p) => p.id === page);
+    const to = PAGES.findIndex((p) => p.id === id);
+    setDirection(to >= from ? 1 : -1);
+    setPage(id);
+  };
 
   return (
     <div className="st-app">
@@ -132,6 +141,9 @@ function App() {
               title={p.label}
               onClick={() => pick(p.id)}
             >
+              {p.id === page ? (
+                <SlidingHighlight layoutId="st-nav-selection" className="st-nav-indicator" transition={SPRING_TAB} />
+              ) : null}
               <p.icon size={18} strokeWidth={1.75} aria-hidden />
               <span className="st-nav-label">{p.label}</span>
             </button>
@@ -144,7 +156,9 @@ function App() {
             {T.saveFailed} {error}
           </div>
         ) : null}
-        <current.Page key={current.id} />
+        <PageEnter key={current.id} direction={direction} axis="y">
+          <current.Page />
+        </PageEnter>
       </main>
     </div>
   );

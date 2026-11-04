@@ -295,6 +295,7 @@ struct PowerSection: View {
                     Text("\(device.percent)%")
                         .font(.system(size: 10.5, weight: .semibold))
                         .monospacedDigit()
+                        .panelRollingValue("\(device.percent)%")
                 }
             }
             let extra = max(0, monitor.snapshot.peripheralBatteries.count - 5)
@@ -397,7 +398,8 @@ private struct EnergyAppsBreakdown: View {
                 HStack(spacing: 8) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 8, weight: .semibold))
-                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                        // Only the turn animates, never the chevron\'s place in the row.
+                        .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(expanded ? 90 : 0)) }
                     Text(l10n.s.energyAppsTitle)
                     Spacer()
                 }

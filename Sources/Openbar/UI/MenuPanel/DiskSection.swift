@@ -269,6 +269,7 @@ struct DiskSection: View {
                     Text("↓ \(MetricFormat.diskBytes(disk.totalReadBytes ?? 0))  ↑ \(MetricFormat.diskBytes(disk.totalWrittenBytes ?? 0))")
                         .font(.system(size: 10.5, weight: .medium))
                         .monospacedDigit()
+                        .panelRollingValue("↓ \(MetricFormat.diskBytes(disk.totalReadBytes ?? 0))  ↑ \(MetricFormat.diskBytes(disk.totalWrittenBytes ?? 0))")
                         .foregroundStyle(.secondary)
                 }
             }
@@ -299,6 +300,7 @@ struct DiskSection: View {
                 Text(value.map { MetricFormat.bytesPerSec($0) } ?? l10n.s.networkMeasuring)
                     .font(.system(size: 13.5, weight: .semibold, design: .rounded))
                     .monospacedDigit()
+                    .panelRollingValue(value.map { MetricFormat.bytesPerSec($0) } ?? l10n.s.networkMeasuring)
                     .contentTransition(.numericText())
                 Text(label)
                     .font(.system(size: 10))

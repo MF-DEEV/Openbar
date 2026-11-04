@@ -347,6 +347,7 @@ struct SystemSection: View {
             Text(value.map { MetricFormat.temperature($0, unit: displayTemperatureUnit) } ?? "-")
                 .font(.system(size: 15, weight: .semibold, design: .rounded))
                 .monospacedDigit()
+                .panelRollingValue(value.map { MetricFormat.temperature($0, unit: displayTemperatureUnit) } ?? "-")
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 6)
@@ -395,7 +396,8 @@ struct SystemSection: View {
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(cpuAppsExpanded ? 90 : 0))
+                                // Only the turn animates, never the chevron\'s place in the row.
+                                .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(cpuAppsExpanded ? 90 : 0)) }
                             subsectionLabel(FeatureStrings.cpuCores(l10n.language).apps)
                             Spacer(minLength: 0)
                         }
@@ -488,7 +490,8 @@ struct SystemSection: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .rotationEffect(.degrees(expanded == kind ? 90 : 0))
+                // Only the turn animates, never the chevron\'s place in the row.
+                .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(expanded == kind ? 90 : 0)) }
                 .opacity(isInteractive ? 1 : 0.35)
             Text(label)
                 .font(.system(size: 11))
@@ -500,6 +503,7 @@ struct SystemSection: View {
             Text(fraction.map { String(format: "%.0f%%", locale: MetricFormat.locale, $0 * 100) } ?? "-")
                 .font(.system(size: 11, weight: .medium))
                 .monospacedDigit()
+                .panelRollingValue(fraction.map { String(format: "%.0f%%", locale: MetricFormat.locale, $0 * 100) } ?? "-")
                 .frame(width: 38, alignment: .trailing)
             trailing()
         }
@@ -561,6 +565,7 @@ struct SystemSection: View {
                 Text(formatMemory(bytes))
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()
+                    .panelRollingValue(formatMemory(bytes))
                     .foregroundStyle(.secondary)
             }
             .padding(.leading, 16)
@@ -572,7 +577,8 @@ struct SystemSection: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .rotationEffect(.degrees(expanded == .memory ? 90 : 0))
+                // Only the turn animates, never the chevron\'s place in the row.
+                .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(expanded == .memory ? 90 : 0)) }
                 .opacity(isInteractive ? 1 : 0.35)
             Text(l10n.s.memoryPressure)
                 .font(.system(size: 11))
@@ -584,6 +590,7 @@ struct SystemSection: View {
                 Text("\(formatMemory(used)) / \(formatMemory(total))")
                     .font(.system(size: 11, weight: .medium))
                     .monospacedDigit()
+                    .panelRollingValue("\(formatMemory(used)) / \(formatMemory(total))")
                     .foregroundStyle(.secondary)
             }
         }
@@ -612,7 +619,8 @@ struct SystemSection: View {
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(alertsExpanded ? 90 : 0))
+                                // Only the turn animates, never the chevron\'s place in the row.
+                                .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(alertsExpanded ? 90 : 0)) }
                             subsectionLabel(text.section)
                             Spacer(minLength: 0)
                         }

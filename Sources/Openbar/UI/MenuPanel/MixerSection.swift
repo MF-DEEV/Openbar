@@ -101,7 +101,8 @@ struct MixerSection: View {
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
-                        .rotationEffect(.degrees(optionsExpanded ? 90 : 0))
+                        // Only the turn animates, never the chevron\'s place in the row.
+                        .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(optionsExpanded ? 90 : 0)) }
                     Text(l10n.s.keepAwakeOptions)
                         .font(.system(size: 11.5, weight: .semibold))
                         .foregroundStyle(.secondary)
@@ -710,7 +711,8 @@ struct MixerOptionsControls: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(showListChooser ? 90 : 0))
+                        // Only the turn animates, never the chevron\'s place in the row.
+                        .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(showListChooser ? 90 : 0)) }
                 }
                 .contentShape(Rectangle())
             }

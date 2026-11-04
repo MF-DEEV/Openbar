@@ -52,6 +52,7 @@ import {
   railLayout,
 } from "./model";
 import { QuickToggles } from "./QuickToggles";
+import { SlidingHighlight } from "../shared/ui/motionKit";
 import { S } from "./strings";
 import { useRecording } from "./recording";
 import { reorderTools, resetTools, runTool, setToolHidden, toolLists, useTools } from "./store";
@@ -465,7 +466,8 @@ function OptionsCard({ id }: { id: ToolId }) {
             onClick={() => void setPrefs({ island: { colorPickerFormat: f.value } })}
             onKeyDown={(e) => pickFormat(e, index)}
           >
-            {f.label}
+            {format === f.value ? <SlidingHighlight layoutId="tl-format" className="tl-segmented-pill" /> : null}
+            <span className="tl-segmented-label">{f.label}</span>
           </button>
         ))}
       </div>

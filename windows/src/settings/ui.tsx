@@ -10,6 +10,7 @@ import { t, useLocale } from "../i18n";
 
 import { ChevronDown, type LucideIcon } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
+import { Collapse, SlidingHighlight } from "../shared/ui/motionKit";
 import type { Option } from "./Select";
 export { Select } from "./Select";
 export type { Option } from "./Select";
@@ -107,9 +108,9 @@ export function Expander(props: {
           <ChevronDown size={16} aria-hidden />
         </button>
       </div>
-      <div className="st-expander-body" id={bodyId} hidden={!open}>
-        {props.children}
-      </div>
+      <Collapse open={open} id={bodyId}>
+        <div className="st-expander-body">{props.children}</div>
+      </Collapse>
     </div>
   );
 }
@@ -170,6 +171,7 @@ export function Segmented<T extends string>(props: {
   disabled?: boolean;
 }) {
   useLocale();
+  const group = useId();
   return (
     <div className="st-segmented" role="radiogroup" aria-label={props.label}>
       {props.options.map((o) => (
@@ -182,7 +184,8 @@ export function Segmented<T extends string>(props: {
           className={o.value === props.value ? "is-selected" : undefined}
           onClick={() => props.onChange(o.value)}
         >
-          {o.label}
+          {o.value === props.value ? <SlidingHighlight layoutId={group} className="st-segmented-pill" /> : null}
+          <span className="st-segmented-label">{o.label}</span>
         </button>
       ))}
     </div>
