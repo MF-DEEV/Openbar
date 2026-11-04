@@ -185,7 +185,7 @@ struct FeatureHubSettings: View {
         HStack(spacing: 12) {
             Image(systemName: "arrow.clockwise.circle.fill")
                 .font(.system(size: 24))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
             Text(hub.restartNote)
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)
@@ -196,7 +196,7 @@ struct FeatureHubSettings: View {
             .buttonStyle(.borderedProminent)
         }
         .padding(16)
-        .background(Color.accentColor.opacity(0.12),
+        .background(Color.brandAccent.opacity(0.12),
                     in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
@@ -414,9 +414,9 @@ struct FeatureHubSettings: View {
         HStack(spacing: 10) {
             Image(systemName: group.symbolName)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
                 .frame(width: 26, height: 26)
-                .background(Color.accentColor.opacity(0.12),
+                .background(Color.brandAccent.opacity(0.12),
                             in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             Text(groupTitle(group)).font(.headline)
             Spacer(minLength: 12)
@@ -467,7 +467,7 @@ private struct InstalledShareBar: View {
     var body: some View {
         ProgressView(value: Double(min(installed, total)), total: Double(max(total, 1)))
             .progressViewStyle(.linear)
-            .tint(Color.accentColor)
+            .tint(Color.brandAccent)
     }
 }
 
@@ -484,9 +484,9 @@ private struct PresetCard: View {
         VStack(alignment: .leading, spacing: 8) {
             Image(systemName: preset.symbolName)
                 .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
                 .frame(width: 34, height: 34)
-                .background(Color.accentColor.opacity(0.12),
+                .background(Color.brandAccent.opacity(0.12),
                             in: RoundedRectangle(cornerRadius: 9, style: .continuous))
             Text(name)
                 .font(.system(size: 13, weight: .semibold))
@@ -608,7 +608,7 @@ private struct FeatureHubRow: View {
     }
 
     private var rowFill: Color {
-        if isHighlighted { return Color.accentColor.opacity(0.10) }
+        if isHighlighted { return Color.brandAccent.opacity(0.10) }
         return hovering && opensSettings ? Color.primary.opacity(0.04) : Color.clear
     }
 
@@ -630,10 +630,10 @@ private struct FeatureHubRow: View {
                     if feature.isBeta {
                         Text(l10n.s.betaBadge)
                             .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(Color.white)
+                            .foregroundStyle(Color.brandOnAccent)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
-                            .background(Capsule().fill(Color.accentColor))
+                            .background(Capsule().fill(Color.brandAccent))
                             .accessibilityHidden(true)
                     }
                 }

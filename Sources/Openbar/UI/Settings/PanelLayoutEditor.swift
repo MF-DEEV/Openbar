@@ -182,9 +182,9 @@ private struct PanelSectionRow: View {
                     .frame(width: 14)
                 Image(systemName: id.symbolName)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(shown ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(shown ? Color.brandAccent : Color.secondary)
                     .frame(width: 26, height: 26)
-                    .background((shown ? Color.accentColor : Color.secondary).opacity(0.12),
+                    .background((shown ? Color.brandAccent : Color.secondary).opacity(0.12),
                                 in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                 VStack(alignment: .leading, spacing: 1) {
                     Text(title)
@@ -218,7 +218,7 @@ private struct PanelSectionRow: View {
     }
 
     private var rowFill: Color {
-        if isActive { return Color.accentColor.opacity(0.10) }
+        if isActive { return Color.brandAccent.opacity(0.10) }
         return isHovered ? Color.primary.opacity(0.04) : Color.clear
     }
 }
@@ -314,7 +314,7 @@ private struct MenuBarPanelMiniature: View {
                         .contentShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(isActive ? Color.accentColor : Color.secondary.opacity(0.86))
+                .foregroundStyle(isActive ? Color.brandAccent : Color.secondary.opacity(0.86))
                 .background(isActive ? activeFill : Color.clear,
                             in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                 .help(id.title(l10n.s))
@@ -332,7 +332,7 @@ private struct MenuBarPanelMiniature: View {
     }
 
     private var activeFill: Color {
-        colorScheme == .light ? Color.accentColor.opacity(0.13) : Color.accentColor.opacity(0.20)
+        colorScheme == .light ? Color.brandAccent.opacity(0.13) : Color.brandAccent.opacity(0.20)
     }
 
     private var openTab: some View {

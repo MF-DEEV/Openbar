@@ -128,7 +128,7 @@ struct CleaningOverlayView: View {
         HStack(spacing: 4) {
             ForEach(0..<manager.unlockThreshold, id: \.self) { index in
                 Circle()
-                    .fill(index < manager.unlockProgress ? Color.accentColor : Color.primary.opacity(0.2))
+                    .fill(index < manager.unlockProgress ? Color.brandAccent : Color.primary.opacity(0.2))
                     .frame(width: 6, height: 6)
             }
         }

@@ -58,10 +58,10 @@ struct SettingsRow<Accessory: View>: View {
                     if let badge {
                         Text(badge)
                             .font(.system(size: 8, weight: .bold))
-                            .foregroundStyle(Color.white)
+                            .foregroundStyle(Color.brandOnAccent)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1)
-                            .background(Capsule().fill(Color.accentColor))
+                            .background(Capsule().fill(Color.brandAccent))
                             .accessibilityHidden(true)
                     }
                 }
@@ -82,9 +82,9 @@ struct SettingsRow<Accessory: View>: View {
         if let symbol {
             Image(systemName: symbol)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
                 .frame(width: 26, height: 26)
-                .background(Color.accentColor.opacity(0.12),
+                .background(Color.brandAccent.opacity(0.12),
                             in: RoundedRectangle(cornerRadius: 7, style: .continuous))
         } else {
             // The menu bar draws the glyph white on a dark bar; the badge keeps

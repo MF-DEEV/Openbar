@@ -118,12 +118,12 @@ struct RecorderInspector: View {
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.1)
+                    .fill(selected ? Color.brandAccent.opacity(0.1)
                                    : Color.white.opacity(hovered ? 0.07 : 0.035))
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor.opacity(0.72)
+                    .strokeBorder(selected ? Color.brandAccent.opacity(0.72)
                                            : Color.white.opacity(hovered ? 0.14 : 0.07),
                                   lineWidth: selected ? 1.25 : 1)
             }
@@ -131,7 +131,7 @@ struct RecorderInspector: View {
             .overlay(alignment: .topTrailing) {
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(selected ? Color.accentColor : Color.secondary.opacity(0.28))
+                    .foregroundStyle(selected ? Color.brandAccent : Color.secondary.opacity(0.28))
                     .padding(6)
             }
         }
@@ -283,7 +283,7 @@ struct RecorderInspector: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(Color.brandAccent)
             .keyboardShortcut(.escape, modifiers: [])
             sectionTitle(strings.thisZoomLabel)
             valueSlider(title: strings.zoomAmountLabel,
@@ -318,7 +318,7 @@ struct RecorderInspector: View {
                     Button(strings.zoomPickSpotHint) { model.beginAiming() }
                         .buttonStyle(.borderless)
                         .font(.system(size: 10.5))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.brandAccent)
                 }
             }
             Button(strings.removeZoom) { model.removeSelectedZoom() }
@@ -345,7 +345,7 @@ struct RecorderInspector: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(Color.brandAccent)
             .keyboardShortcut(.escape, modifiers: [])
             sectionTitle(strings.thisTextLabel)
 
@@ -397,7 +397,7 @@ struct RecorderInspector: View {
                             .overlay {
                                 Circle().strokeBorder(
                                     overlay.palette == palette
-                                        ? Color.accentColor : Color.white.opacity(0.18),
+                                        ? Color.brandAccent : Color.white.opacity(0.18),
                                     lineWidth: overlay.palette == palette ? 2.5 : 1)
                             }
                             .onTapGesture {
@@ -434,7 +434,7 @@ struct RecorderInspector: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(Color.brandAccent)
             .keyboardShortcut(.escape, modifiers: [])
             sectionTitle(strings.thisImageLabel)
 
@@ -503,7 +503,7 @@ struct RecorderInspector: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.borderless)
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(Color.brandAccent)
             .keyboardShortcut(.escape, modifiers: [])
             sectionTitle(strings.thisBlurLabel)
 
@@ -560,7 +560,7 @@ struct RecorderInspector: View {
                     ForEach(rows[row], id: \.rawValue) { anchor in
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
                             .fill(selected == anchor
-                                  ? Color.accentColor.opacity(0.85)
+                                  ? Color.brandAccent.opacity(0.85)
                                   : Color.white.opacity(0.08))
                             .frame(height: 20)
                             .onTapGesture {
@@ -684,7 +684,7 @@ struct RecorderInspector: View {
                             Button(strings.regenerateZooms) { model.regenerateZooms() }
                                 .buttonStyle(.borderless)
                                 .font(.system(size: 10.5, weight: .medium))
-                                .foregroundStyle(Color.accentColor)
+                                .foregroundStyle(Color.brandAccent)
                         }
                     }
                     .padding(11)
@@ -699,11 +699,11 @@ struct RecorderInspector: View {
         VStack(spacing: 9) {
             ZStack {
                 Circle()
-                    .fill(Color.accentColor.opacity(0.12))
+                    .fill(Color.brandAccent.opacity(0.12))
                     .frame(width: 38, height: 38)
                 Image(systemName: "plus.magnifyingglass")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.brandAccent)
             }
             VStack(spacing: 3) {
                 Text(strings.zoomEmptyTitle)

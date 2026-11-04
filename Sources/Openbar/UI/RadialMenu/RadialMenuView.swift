@@ -32,7 +32,7 @@ struct RadialMenuView: View {
     /// what the menu is now, not a preference.
     private var animates: Bool { !reduceMotion }
     private var profileColor: Color {
-        service.activeProfile?.color.color(for: colorScheme) ?? .accentColor
+        service.activeProfile?.color.color(for: colorScheme) ?? .brandAccent
     }
 
     var body: some View {

@@ -82,12 +82,12 @@ struct KeepAwakeIconPicker: View {
             .frame(height: compact ? 29 : 35)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.14)
+                    .fill(selected ? Color.brandAccent.opacity(0.14)
                                    : Color.secondary.opacity(0.06))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor.opacity(0.75)
+                    .strokeBorder(selected ? Color.brandAccent.opacity(0.75)
                                            : Color.secondary.opacity(0.13),
                                   lineWidth: selected ? 1.2 : 1)
             )
@@ -133,11 +133,11 @@ struct KeepAwakeIconPicker: View {
             .frame(height: compact ? 24 : 28)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.12) : Color.clear)
+                    .fill(selected ? Color.brandAccent.opacity(0.12) : Color.clear)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor.opacity(0.7) : Color.clear,
+                    .strokeBorder(selected ? Color.brandAccent.opacity(0.7) : Color.clear,
                                   lineWidth: 1.1)
             )
             .contentShape(Rectangle())

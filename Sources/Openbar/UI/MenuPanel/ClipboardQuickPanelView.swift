@@ -82,7 +82,7 @@ struct ClipboardQuickPanelView: View {
             } label: {
                 Label(text.previewLabel,
                       systemImage: history.quickPreviewPresented ? "sidebar.right" : "eye")
-                    .foregroundStyle(history.quickPreviewPresented ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(history.quickPreviewPresented ? Color.brandAccent : Color.secondary)
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
@@ -461,8 +461,8 @@ private struct QuickEntryView: View, Equatable {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .strokeBorder(isBatchSelected ? Color.accentColor.opacity(0.38)
-                              : isSelected ? Color.accentColor.opacity(0.24) : Color.clear,
+                .strokeBorder(isBatchSelected ? Color.brandAccent.opacity(0.38)
+                              : isSelected ? Color.brandAccent.opacity(0.24) : Color.clear,
                               lineWidth: 1)
         )
     }
@@ -489,7 +489,7 @@ private struct QuickEntryView: View, Equatable {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(isBatchSelected || isSelected ? Color.accentColor : Color.primary.opacity(0.1),
+                .strokeBorder(isBatchSelected || isSelected ? Color.brandAccent : Color.primary.opacity(0.1),
                               lineWidth: isBatchSelected || isSelected ? 2.5 : 0.5)
         )
     }
@@ -701,7 +701,7 @@ private struct QuickEntryView: View, Equatable {
             // The app's or the file's icon took the pin's place on the left.
             Image(systemName: "pin.fill")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
         }
     }
 
@@ -759,11 +759,11 @@ private struct QuickEntryView: View, Equatable {
                                isHovered: Bool) -> some View {
         if isBatchSelected {
             Image(systemName: "checkmark.circle.fill")
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
                 .frame(width: 25, height: 25)
         } else if isHovered {
             Image(systemName: "circle")
-                .foregroundStyle(Color.accentColor.opacity(0.7))
+                .foregroundStyle(Color.brandAccent.opacity(0.7))
                 .frame(width: 25, height: 25)
         } else if !isRow, let app = sourceApp, !showsFileIcon {
             // A row keeps the kind's symbol, as the list always showed.
@@ -777,7 +777,7 @@ private struct QuickEntryView: View, Equatable {
                   ClipboardImageStore.isImageFile(atPath: path) {
             Image(systemName: entry.isPinned ? "pin.fill" : "photo")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(entry.isPinned ? Color.accentColor : Color.secondary)
+                .foregroundStyle(entry.isPinned ? Color.brandAccent : Color.secondary)
                 .frame(width: 25, height: 25)
         } else if let icon = fileIcon(for: entry) {
             Image(nsImage: icon)
@@ -787,7 +787,7 @@ private struct QuickEntryView: View, Equatable {
         } else {
             Image(systemName: entry.isPinned ? "pin.fill" : kindSymbol(entry.kind))
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(entry.isPinned ? Color.accentColor : Color.secondary)
+                .foregroundStyle(entry.isPinned ? Color.brandAccent : Color.secondary)
                 .frame(width: 25, height: 25)
         }
     }
@@ -810,8 +810,8 @@ private struct QuickEntryView: View, Equatable {
     private func rowBackground(isSelected: Bool,
                                isBatchSelected: Bool,
                                isHovered: Bool) -> Color {
-        if isBatchSelected { return Color.accentColor.opacity(isHovered ? 0.17 : 0.13) }
-        if isSelected { return Color.accentColor.opacity(isHovered ? 0.13 : 0.09) }
+        if isBatchSelected { return Color.brandAccent.opacity(isHovered ? 0.17 : 0.13) }
+        if isSelected { return Color.brandAccent.opacity(isHovered ? 0.13 : 0.09) }
         if isHovered { return Color.primary.opacity(0.055) }
         return .clear
     }

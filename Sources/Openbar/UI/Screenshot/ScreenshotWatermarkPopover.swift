@@ -174,7 +174,7 @@ struct ScreenshotWatermarkPopover: View {
             .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.12),
+                    .strokeBorder(selected ? Color.brandAccent : Color.primary.opacity(0.12),
                                   lineWidth: selected ? 2.5 : 1)
             )
         }
@@ -283,7 +283,7 @@ struct ScreenshotWatermarkPopover: View {
                         } label: {
                             RoundedRectangle(cornerRadius: 3, style: .continuous)
                                 .fill(selected
-                                      ? Color.accentColor.opacity(0.85)
+                                      ? Color.brandAccent.opacity(0.85)
                                       : Color.primary.opacity(0.10))
                                 .frame(width: 22, height: 15)
                         }

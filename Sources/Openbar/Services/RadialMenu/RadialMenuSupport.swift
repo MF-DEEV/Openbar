@@ -15,7 +15,7 @@ enum RadialMenuColor: String, Codable, CaseIterable, Identifiable {
 
     func color(for scheme: ColorScheme) -> Color {
         switch self {
-        case .accent: return .accentColor
+        case .accent: return .brandAccent
         case .blue: return scheme == .light ? Color(red: 0.00, green: 0.48, blue: 1.00) : .blue
         case .purple: return scheme == .light ? Color(red: 0.58, green: 0.20, blue: 0.85) : .purple
         case .pink: return scheme == .light ? Color(red: 0.88, green: 0.16, blue: 0.45) : .pink
@@ -32,7 +32,7 @@ enum RadialMenuColor: String, Codable, CaseIterable, Identifiable {
 
     var baseColor: Color {
         switch self {
-        case .accent: return .accentColor
+        case .accent: return .brandAccent
         case .blue: return .blue
         case .purple: return .purple
         case .pink: return .pink

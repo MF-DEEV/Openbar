@@ -342,10 +342,10 @@ struct AppUpdatesListView: View {
                         .truncationMode(.middle)
                     Text(sourceBadge(for: item))
                         .font(.system(size: 8.5, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.brandAccent)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
-                        .background(Capsule().fill(Color.accentColor.opacity(0.12)))
+                        .background(Capsule().fill(Color.brandAccent.opacity(0.12)))
                 }
                 Text(item.versionSummary)
                     .font(.system(size: compact ? 9.5 : 10.5))

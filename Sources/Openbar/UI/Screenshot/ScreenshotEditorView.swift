@@ -650,7 +650,7 @@ struct ScreenshotEditorView: View {
                             in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(Color.accentColor.opacity(0.7), lineWidth: 1)
+                        .strokeBorder(Color.brandAccent.opacity(0.7), lineWidth: 1)
                 )
                 .offset(x: (annotation.rect.minX + pad) * zoom - 6,
                         y: (annotation.rect.minY + pad) * zoom - 3)
@@ -703,9 +703,9 @@ struct ScreenshotEditorView: View {
                     .background(
                         RoundedRectangle(cornerRadius: 9, style: .continuous)
                             .fill(toolOptionsShown
-                                    ? Color.accentColor.opacity(0.22) : .clear)
+                                    ? Color.brandAccent.opacity(0.22) : .clear)
                     )
-                    .foregroundStyle(toolOptionsShown ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(toolOptionsShown ? Color.brandAccent : Color.secondary)
                     .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             }
             .buttonStyle(.borderless)
@@ -750,7 +750,7 @@ struct ScreenshotEditorView: View {
                     Text(shortcutLabel)
                         .font(.system(size: 8, weight: .bold, design: .rounded))
                         .fixedSize()
-                        .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(isActive ? Color.brandAccent : Color.secondary)
                         .padding(2)
                         .opacity(isHovered || isActive ? 0.9 : 0.55)
                 }
@@ -758,10 +758,10 @@ struct ScreenshotEditorView: View {
             .background(
                 RoundedRectangle(cornerRadius: 9, style: .continuous)
                     .fill(isActive
-                            ? Color.accentColor.opacity(0.22)
+                            ? Color.brandAccent.opacity(0.22)
                             : isHovered ? Color.primary.opacity(0.08) : .clear)
             )
-            .foregroundStyle(isActive ? Color.accentColor : Color.primary.opacity(0.85))
+            .foregroundStyle(isActive ? Color.brandAccent : Color.primary.opacity(0.85))
             .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
             .scaleEffect(isHovered && !isActive ? 1.06 : 1)
         }
@@ -793,9 +793,9 @@ struct ScreenshotEditorView: View {
                 .frame(width: 33, height: height)
                 .background(
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .fill(holdsActive ? Color.accentColor.opacity(0.22) : .clear)
+                        .fill(holdsActive ? Color.brandAccent.opacity(0.22) : .clear)
                 )
-                .foregroundStyle(holdsActive ? Color.accentColor : Color.secondary)
+                .foregroundStyle(holdsActive ? Color.brandAccent : Color.secondary)
                 .contentShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
         }
         // A borderless menu draws its label as a small pop-up button; a
@@ -819,7 +819,7 @@ struct ScreenshotEditorView: View {
                 .frame(width: 24, height: 24)
         }
         .buttonStyle(.borderless)
-        .tint(.accentColor)
+        .tint(.brandAccent)
         .screenshotSafeHelp(l10n.s.qrResultTitle)
         .accessibilityLabel(l10n.s.qrResultTitle)
     }
@@ -1343,12 +1343,12 @@ struct ScreenshotEditorView: View {
             model.stroke = stroke
         } label: {
             Capsule()
-                .fill(selected ? Color.accentColor : Color.primary.opacity(0.6))
+                .fill(selected ? Color.brandAccent : Color.primary.opacity(0.6))
                 .frame(width: 15, height: height)
                 .frame(width: 25, height: 24)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(selected ? Color.accentColor.opacity(0.18) : .clear)
+                        .fill(selected ? Color.brandAccent.opacity(0.18) : .clear)
                 )
         }
         .buttonStyle(.borderless)
@@ -1431,9 +1431,9 @@ struct ScreenshotEditorView: View {
             .frame(height: 24)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(model.blurTextOnly ? Color.accentColor.opacity(0.20) : .clear)
+                    .fill(model.blurTextOnly ? Color.brandAccent.opacity(0.20) : .clear)
             )
-            .foregroundStyle(model.blurTextOnly ? Color.accentColor : Color.primary.opacity(0.65))
+            .foregroundStyle(model.blurTextOnly ? Color.brandAccent : Color.primary.opacity(0.65))
             .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.borderless)
@@ -1536,10 +1536,10 @@ struct ScreenshotEditorView: View {
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(model.annotationShadowsEnabled
-                                ? Color.accentColor.opacity(0.20) : .clear)
+                                ? Color.brandAccent.opacity(0.20) : .clear)
                 )
                 .foregroundStyle(model.annotationShadowsEnabled
-                                    ? Color.accentColor : Color.primary.opacity(0.65))
+                                    ? Color.brandAccent : Color.primary.opacity(0.65))
                 .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.borderless)
@@ -1604,10 +1604,10 @@ struct ScreenshotEditorView: View {
         return HStack(spacing: 6) {
             Image(systemName: "signature")
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(active ? Color.accentColor : Color.primary.opacity(0.85))
+                .foregroundStyle(active ? Color.brandAccent : Color.primary.opacity(0.85))
             Text(strings.watermarkLabel)
                 .font(.system(size: 11.5, weight: .medium))
-                .foregroundStyle(active ? Color.accentColor : Color.secondary)
+                .foregroundStyle(active ? Color.brandAccent : Color.secondary)
         }
         .padding(.horizontal, 7)
         .frame(height: 24)
@@ -1686,9 +1686,9 @@ struct ScreenshotEditorView: View {
         Button(action: action) {
             label()
                 .frame(width: 30, height: 20)
-                .background(active ? Color.accentColor : .clear,
+                .background(active ? Color.brandAccent : .clear,
                             in: RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .foregroundStyle(active ? Color.white : Color.primary.opacity(0.85))
+                .foregroundStyle(active ? Color.brandOnAccent : Color.primary.opacity(0.85))
                 .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
         .buttonStyle(.borderless)

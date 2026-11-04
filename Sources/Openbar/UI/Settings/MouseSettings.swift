@@ -154,7 +154,7 @@ struct MouseSettings: View {
                     } label: {
                         HStack(spacing: 10) {
                             Circle()
-                                .fill(on ? Color.accentColor : Color.secondary.opacity(0.35))
+                                .fill(on ? Color.brandAccent : Color.secondary.opacity(0.35))
                                 .frame(width: 8, height: 8)
                             Text(feature.hubTitle(l10n.s, hub: hub))
                                 .font(.callout)
@@ -249,14 +249,14 @@ struct MouseSettings: View {
                             Text(name)
                                 .font(.system(size: 11, weight: .medium))
                         }
-                        .foregroundStyle(selected ? Color.accentColor : .primary)
+                        .foregroundStyle(selected ? Color.brandAccent : .primary)
                         .padding(.horizontal, 10)
                         .frame(height: 28)
-                        .background(selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.06),
+                        .background(selected ? Color.brandAccent.opacity(0.12) : Color.primary.opacity(0.06),
                                     in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                         .overlay {
                             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                .strokeBorder(selected ? Color.accentColor.opacity(0.7) : Color.primary.opacity(0.14),
+                                .strokeBorder(selected ? Color.brandAccent.opacity(0.7) : Color.primary.opacity(0.14),
                                               lineWidth: 1)
                         }
                         .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
@@ -511,14 +511,14 @@ struct MouseSettings: View {
         } label: {
             Label(title, systemImage: symbol)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(selected ? Color.accentColor : .primary)
+                .foregroundStyle(selected ? Color.brandAccent : .primary)
                 .padding(.horizontal, 10)
                 .frame(height: 28)
-                .background(selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06),
+                .background(selected ? Color.brandAccent.opacity(0.12) : Color.secondary.opacity(0.06),
                             in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(selected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1)
+                        .strokeBorder(selected ? Color.brandAccent.opacity(0.7) : .clear, lineWidth: 1)
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }

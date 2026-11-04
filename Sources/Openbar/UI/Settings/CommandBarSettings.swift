@@ -169,7 +169,7 @@ struct CommandBarSettings: View {
                     HStack(spacing: 8) {
                         Image(systemName: "folder")
                             .font(.system(size: 11))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.brandAccent)
                             .frame(width: 16)
                         Text(scope)
                             .font(.system(size: 12))
@@ -236,7 +236,7 @@ struct CommandBarSettings: View {
                     HStack(spacing: 8) {
                         Image(systemName: link.kind.symbolName)
                             .font(.system(size: 11))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.brandAccent)
                             .frame(width: 16)
                         Text(link.name)
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
@@ -273,7 +273,7 @@ struct CommandBarSettings: View {
                     HStack {
                         Text(entry.alias)
                             .font(.system(size: 11, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.brandAccent)
                         Text(entry.title)
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)
@@ -305,7 +305,7 @@ struct CommandBarSettings: View {
                     HStack {
                         Text(entry.alias)
                             .font(.system(size: 12, weight: .semibold, design: .rounded))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.brandAccent)
                         Text(entry.title)
                             .font(.system(size: 12))
                             .foregroundStyle(.secondary)

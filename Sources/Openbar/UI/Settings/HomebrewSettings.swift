@@ -448,7 +448,7 @@ struct HomebrewSettings: View {
         .padding(.vertical, 6)
         .background(
             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                .fill(homebrew.selectedPackage?.id == package.id ? Color.accentColor.opacity(0.12) : Color.clear)
+                .fill(homebrew.selectedPackage?.id == package.id ? Color.brandAccent.opacity(0.12) : Color.clear)
         )
         .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         .contextMenu {
@@ -678,7 +678,7 @@ struct HomebrewSettings: View {
             ?? (package.update != nil
                 ? l10n.s.homebrewUpdateAvailableBadge
                 : (package.isInstalled ? l10n.s.homebrewInstalledBadge : l10n.s.homebrewNotInstalledBadge))
-        let color: Color = active != nil ? .accentColor : (package.update != nil ? .orange : (package.isInstalled ? .green : .secondary))
+        let color: Color = active != nil ? .brandAccent : (package.update != nil ? .orange : (package.isInstalled ? .green : .secondary))
         return Text(title)
             .font(.system(size: 10, weight: .semibold))
             .foregroundStyle(color)
@@ -703,10 +703,10 @@ struct HomebrewSettings: View {
     private func popularityBadge(_ popularity: HomebrewPopularity) -> some View {
         Text(popularity.compactCount)
             .font(.system(size: 10, weight: .semibold))
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(Color.brandAccent)
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
-            .background(Capsule().fill(Color.accentColor.opacity(0.12)))
+            .background(Capsule().fill(Color.brandAccent.opacity(0.12)))
             .help(popularityDescription(popularity))
     }
 

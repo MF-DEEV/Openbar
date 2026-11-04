@@ -58,7 +58,7 @@ final class PermissionGuideOverlay {
         staleWork = stale
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.staleAfter, execute: stale)
 
-        let host = NSHostingView(rootView: view)
+        let host = NSHostingView(rootView: view.brandControlTint())
         let size = host.fittingSize
         let screen = NSScreen.main ?? NSScreen.screens.first
         let visible = screen?.visibleFrame ?? .zero
@@ -147,7 +147,7 @@ private struct PermissionGuideCard: View {
             HStack(spacing: 7) {
                 Image(systemName: "hand.raised.fill")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.brandAccent)
                 Text(guide.title)
                     .font(.system(size: 13, weight: .semibold))
                 Text(permissionName)
@@ -223,9 +223,9 @@ private struct PermissionGuideCard: View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
             Text("\(number)")
                 .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.brandOnAccent)
                 .frame(width: 16, height: 16)
-                .background(Circle().fill(Color.accentColor))
+                .background(Circle().fill(Color.brandAccent))
             Text(text)
                 .font(.system(size: 12))
                 .fixedSize(horizontal: false, vertical: true)

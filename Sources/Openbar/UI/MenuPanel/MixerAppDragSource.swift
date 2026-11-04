@@ -145,7 +145,7 @@ struct MixerAppReorderModifier: ViewModifier {
             }
             .overlay(alignment: markerEdge) {
                 if target?.id == id, draggingID != nil {
-                    Capsule().fill(Color.accentColor)
+                    Capsule().fill(Color.brandAccent)
                         .frame(width: sideways ? 2 : nil, height: sideways ? nil : 2)
                         .allowsHitTesting(false)
                 }

@@ -315,14 +315,14 @@ struct SwitcherSettings: View {
                         Text(label)
                             .font(.system(size: 11, weight: .medium))
                             .lineLimit(1)
-                            .foregroundStyle(selected ? Color.accentColor : .primary)
+                            .foregroundStyle(selected ? Color.brandAccent : .primary)
                             .padding(.horizontal, 10)
                             .frame(height: 28)
-                            .background(selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06),
+                            .background(selected ? Color.brandAccent.opacity(0.12) : Color.secondary.opacity(0.06),
                                         in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                             .overlay {
                                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                    .strokeBorder(selected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1)
+                                    .strokeBorder(selected ? Color.brandAccent.opacity(0.7) : .clear, lineWidth: 1)
                             }
                             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                     }
@@ -413,10 +413,10 @@ struct WindowPreviewsCard: View {
         } label: {
             VStack(spacing: 8) {
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.35) : Color.secondary.opacity(0.3))
+                    .fill(selected ? Color.brandAccent.opacity(0.35) : Color.secondary.opacity(0.3))
                     .overlay(alignment: .top) {
                         RoundedRectangle(cornerRadius: 2, style: .continuous)
-                            .fill(selected ? Color.accentColor : Color.secondary.opacity(0.6))
+                            .fill(selected ? Color.brandAccent : Color.secondary.opacity(0.6))
                             .frame(height: 4)
                             .padding(3)
                     }
@@ -424,16 +424,16 @@ struct WindowPreviewsCard: View {
                     .frame(height: 42)
                 Text(title)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(selected ? Color.accentColor : .primary)
+                    .foregroundStyle(selected ? Color.brandAccent : .primary)
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity)
             .padding(8)
-            .background(selected ? Color.accentColor.opacity(0.10) : Color.secondary.opacity(0.05),
+            .background(selected ? Color.brandAccent.opacity(0.10) : Color.secondary.opacity(0.05),
                         in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor.opacity(0.55) : .clear, lineWidth: 1)
+                    .strokeBorder(selected ? Color.brandAccent.opacity(0.55) : .clear, lineWidth: 1)
             }
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
@@ -462,7 +462,7 @@ private struct SwitcherLayoutChoice: View {
                     .background(Color.black.opacity(0.82), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 Text(title)
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(selected ? Color.accentColor : .primary)
+                    .foregroundStyle(selected ? Color.brandAccent : .primary)
                 Text(caption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -471,11 +471,11 @@ private struct SwitcherLayoutChoice: View {
             }
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .padding(10)
-            .background(selected ? Color.accentColor.opacity(0.10) : Color.secondary.opacity(0.05),
+            .background(selected ? Color.brandAccent.opacity(0.10) : Color.secondary.opacity(0.05),
                         in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor.opacity(0.55) : .clear, lineWidth: 1)
+                    .strokeBorder(selected ? Color.brandAccent.opacity(0.55) : .clear, lineWidth: 1)
             }
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
@@ -502,7 +502,7 @@ private struct SwitcherLayoutChoice: View {
                             .frame(width: 26, height: 18)
                             .opacity(index == 0 ? 1 : 0)
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(index == 0 ? Color.accentColor : Color.white.opacity(0.35))
+                            .fill(index == 0 ? Color.brandAccent : Color.white.opacity(0.35))
                             .frame(width: 16, height: 16)
                     }
                 }
@@ -517,7 +517,7 @@ private struct SwitcherLayoutChoice: View {
                 HStack(spacing: 8) {
                     ForEach(0..<4, id: \.self) { index in
                         RoundedRectangle(cornerRadius: 4, style: .continuous)
-                            .fill(index == 0 ? Color.accentColor : Color.white.opacity(0.35))
+                            .fill(index == 0 ? Color.brandAccent : Color.white.opacity(0.35))
                             .frame(width: 16, height: 16)
                     }
                 }
@@ -537,7 +537,7 @@ private struct SwitcherLayoutChoice: View {
             }
             .overlay {
                 RoundedRectangle(cornerRadius: 3, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 1.5)
+                    .strokeBorder(selected ? Color.brandAccent : .clear, lineWidth: 1.5)
             }
     }
 }

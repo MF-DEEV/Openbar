@@ -127,12 +127,12 @@ struct NotchShapeSettings: View {
             }
             .padding(8)
             .background(
-                selected ? Color.accentColor.opacity(0.08) : .clear,
+                selected ? Color.brandAccent.opacity(0.08) : .clear,
                 in: RoundedRectangle(cornerRadius: 12)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 12).strokeBorder(
-                    selected ? Color.accentColor.opacity(0.7) : .clear)
+                    selected ? Color.brandAccent.opacity(0.7) : .clear)
             }
         }
         .buttonStyle(.plain)

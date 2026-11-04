@@ -154,17 +154,17 @@ struct SuperKeySettings: View {
             Text(choice.symbol)
                 .font(.system(size: 12, weight: .medium))
                 .frame(minWidth: 30, minHeight: 30)
-                .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                .foregroundStyle(selected ? Color.brandAccent : Color.secondary)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .fill(selected
-                            ? Color.accentColor.opacity(0.14)
+                            ? Color.brandAccent.opacity(0.14)
                             : Color.primary.opacity(0.04))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
                         .strokeBorder(selected
-                            ? Color.accentColor.opacity(0.45)
+                            ? Color.brandAccent.opacity(0.45)
                             : Color.primary.opacity(0.1))
                 )
         }

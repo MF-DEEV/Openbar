@@ -182,7 +182,7 @@ struct ScratchpadView: View {
                 .foregroundStyle(selected ? Color.primary : Color.secondary)
                 .background {
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(selected ? Color.accentColor.opacity(0.16) : Color.clear)
+                        .fill(selected ? Color.brandAccent.opacity(0.16) : Color.clear)
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
         }
@@ -261,7 +261,7 @@ struct ScratchpadView: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .foregroundStyle(service.isPinned ? Color.accentColor : Color.secondary)
+            .foregroundStyle(service.isPinned ? Color.brandAccent : Color.secondary)
             .help(service.isPinned ? text.closeOnClickOutside : text.keepOpen)
             .accessibilityLabel(service.isPinned ? text.closeOnClickOutside : text.keepOpen)
             Button {
@@ -335,7 +335,7 @@ struct ScratchpadView: View {
             // Outside the disabled group below: an empty pad is exactly where
             // someone reaches for a heading, and the chip is how they find one.
             footerButton("textformat", text.formatMarks,
-                         tint: service.marksExpanded ? .accentColor : nil) {
+                         tint: service.marksExpanded ? .brandAccent : nil) {
                 withAnimation(.easeOut(duration: 0.15)) { service.toggleMarks() }
             }
             .disabled(service.isPreviewing)
@@ -343,7 +343,7 @@ struct ScratchpadView: View {
             Group {
                 footerButton(service.isPreviewing ? "pencil" : "eye",
                              service.isPreviewing ? text.editText : text.previewFormatting,
-                             tint: service.isPreviewing ? .accentColor : nil) {
+                             tint: service.isPreviewing ? .brandAccent : nil) {
                     service.togglePreview()
                 }
                 footerButton(copied ? "checkmark" : "doc.on.doc",
@@ -608,7 +608,7 @@ struct MarkdownPreview: NSViewRepresentable {
         textView.isSelectable = true
         textView.isRichText = true
         textView.textContainerInset = NSSize(width: 7, height: 2)
-        textView.linkTextAttributes = [.foregroundColor: NSColor.controlAccentColor]
+        textView.linkTextAttributes = [.foregroundColor: BrandPalette.accent]
         context.coordinator.show(blocks, base: baseSize, taskStates: taskStates, in: textView)
         return scroll
     }
@@ -858,7 +858,7 @@ final class TaskBoxAttachment: NSTextAttachment {
         // tertiary label at a faint 7%; hierarchical draws it as Notes does.
         let configuration = NSImage.SymbolConfiguration(pointSize: size, weight: .regular)
             .applying(checked
-                ? NSImage.SymbolConfiguration(paletteColors: [.white, .controlAccentColor])
+                ? NSImage.SymbolConfiguration(paletteColors: [BrandPalette.onAccent, BrandPalette.accent])
                 : NSImage.SymbolConfiguration(hierarchicalColor: .tertiaryLabelColor))
         let symbol = NSImage(systemSymbolName: checked ? "checkmark.circle.fill" : "circle",
                              accessibilityDescription: description)?

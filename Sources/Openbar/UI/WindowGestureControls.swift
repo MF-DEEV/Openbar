@@ -248,14 +248,14 @@ private struct WindowEdgeSnapAreaButton: View {
             ZStack {
                 shape
                     .fill(isOn
-                        ? Color.accentColor.opacity(hovered ? 0.2 : 0.13)
+                        ? Color.brandAccent.opacity(hovered ? 0.2 : 0.13)
                         : Color.primary.opacity(hovered ? 0.065 : 0.025))
                 shape
                     .strokeBorder(isOn
-                        ? Color.accentColor.opacity(hovered ? 0.65 : 0.42)
+                        ? Color.brandAccent.opacity(hovered ? 0.65 : 0.42)
                         : Color.primary.opacity(hovered ? 0.2 : 0.09))
                 WindowEdgeSnapPlacementGlyph(action: action, compact: compact)
-                    .foregroundStyle(isOn ? Color.accentColor : Color.secondary.opacity(0.45))
+                    .foregroundStyle(isOn ? Color.brandAccent : Color.secondary.opacity(0.45))
             }
             .contentShape(shape)
         }
@@ -393,14 +393,14 @@ struct WindowGestureModifierPicker: View {
                     Text(choice.symbol)
                         .font(.system(size: compact ? 12 : 14, weight: .semibold, design: .rounded))
                         .frame(width: compact ? 25 : 30, height: compact ? 22 : 25)
-                        .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(selected ? Color.brandAccent : Color.secondary)
                         .background(
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(selected ? Color.accentColor.opacity(0.14) : Color.primary.opacity(0.045))
+                                .fill(selected ? Color.brandAccent.opacity(0.14) : Color.primary.opacity(0.045))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .stroke(selected ? Color.accentColor.opacity(0.45) : Color.primary.opacity(0.1),
+                                .stroke(selected ? Color.brandAccent.opacity(0.45) : Color.primary.opacity(0.1),
                                         lineWidth: 1)
                         )
                 }
@@ -477,7 +477,7 @@ struct WindowGestureHints: View {
                     ? "arrow.up.and.down.and.arrow.left.and.right"
                     : "arrow.up.left.and.arrow.down.right")
                 .font(.system(size: compact ? 10 : 11, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
                 .frame(width: compact ? 15 : 17, height: compact ? 15 : 17)
                 .accessibilityHidden(true)
             Text(text)

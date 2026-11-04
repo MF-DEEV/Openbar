@@ -158,7 +158,7 @@ struct PanelPortManagerView: View {
         HStack(spacing: 8) {
             Image(systemName: "network")
                 .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
                 .frame(width: 18)
 
             VStack(alignment: .leading, spacing: 1) {

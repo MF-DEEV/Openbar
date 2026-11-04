@@ -191,10 +191,10 @@ struct FanControlCardContent: View {
                         .font(.system(size: 12, weight: .semibold))
                     Text(betaLabel)
                         .font(.system(size: 7.5, weight: .bold))
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(Color.brandOnAccent)
                         .padding(.horizontal, 4)
                         .padding(.vertical, 1)
-                        .background(Capsule().fill(Color.accentColor))
+                        .background(Capsule().fill(Color.brandAccent))
                 }
                 Text(statusText)
                     .font(.system(size: 10).monospacedDigit())

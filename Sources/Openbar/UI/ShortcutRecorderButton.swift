@@ -498,7 +498,7 @@ struct ShortcutRowLabel: View {
         HStack(alignment: .top, spacing: 7) {
             if let symbolName {
                 Image(systemName: symbolName)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.brandAccent)
                     .frame(width: 18)
             }
             VStack(alignment: .leading, spacing: 2) {

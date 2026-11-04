@@ -327,7 +327,7 @@ struct ReleaseNotesContent: View {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text("v\(release.version)")
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundStyle(isLatest ? Color.accentColor : .primary)
+                    .foregroundStyle(isLatest ? Color.brandAccent : .primary)
                 if let date = release.date {
                     Text(date)
                         .font(.caption)
@@ -349,7 +349,7 @@ struct ReleaseNotesContent: View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
                 .frame(width: 18, alignment: .center)
             Text(l10n.s.obWhatsNewFallback)
                 .font(.system(size: 12.5))
@@ -384,7 +384,7 @@ struct ReleaseNotesContent: View {
             HStack(alignment: .top, spacing: 9) {
                 Image(systemName: iconName(for: sectionTitle))
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.brandAccent)
                     .frame(width: 18, alignment: .center)
                 Text(text)
                     .font(.system(size: 12.5))

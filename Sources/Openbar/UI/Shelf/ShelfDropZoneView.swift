@@ -61,11 +61,11 @@ private struct ShelfPill: View {
         .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .strokeBorder(targeted ? Color.accentColor : Color.white.opacity(0.12),
+                .strokeBorder(targeted ? Color.brandAccent : Color.white.opacity(0.12),
                               lineWidth: targeted ? 2 : 1)
         )
         .scaleEffect(targeted ? 1.06 : 1)
-        .shadow(color: targeted ? Color.accentColor.opacity(0.32) : Color.black.opacity(0.16),
+        .shadow(color: targeted ? Color.brandAccent.opacity(0.32) : Color.black.opacity(0.16),
                 radius: targeted ? 12 : 7, x: 0, y: 3)
         .contentShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
         .onHover { hovered = $0 }
@@ -136,7 +136,7 @@ private struct ShelfTopCenterBadge: View {
                     in: RoundedRectangle(cornerRadius: 13, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .strokeBorder(targeted ? Color.accentColor : foreground.opacity(hovered ? 0.3 : 0.15),
+                .strokeBorder(targeted ? Color.brandAccent : foreground.opacity(hovered ? 0.3 : 0.15),
                               lineWidth: targeted ? 2 : 1)
         )
         .shadow(color: .black.opacity(colorScheme == .dark ? 0.25 : 0.12), radius: 5, x: 0, y: 2)

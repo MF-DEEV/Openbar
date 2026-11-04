@@ -324,7 +324,7 @@ private struct WallpaperThumbButton: View {
                 .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .strokeBorder(isApplied ? Color.accentColor : Color.clear, lineWidth: 2)
+                        .strokeBorder(isApplied ? Color.brandAccent : Color.clear, lineWidth: 2)
                 )
             }
             .buttonStyle(.plain)

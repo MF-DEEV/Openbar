@@ -33,7 +33,7 @@ final class QRResultController {
             strings: strings,
             copy: { [weak self] in self?.copy(reading.payload) },
             open: { [weak self] in reading.url.map { self?.open($0) } })
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.brandControlTint())
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
 
@@ -144,7 +144,7 @@ private struct QRResultView: View {
             HStack(spacing: 7) {
                 Image(systemName: "qrcode")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.brandAccent)
                 Text(strings.qrResultTitle)
                     .font(.system(size: 13, weight: .semibold))
             }

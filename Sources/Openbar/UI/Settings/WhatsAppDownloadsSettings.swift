@@ -569,7 +569,7 @@ struct WhatsAppDownloadsSettings: View {
             .disabled(candidate.excluded)
             Image(systemName: categoryIcon(candidate.category))
                 .frame(width: 18)
-                .foregroundStyle(candidate.excluded ? Color.secondary : Color.accentColor)
+                .foregroundStyle(candidate.excluded ? Color.secondary : Color.brandAccent)
             VStack(alignment: .leading, spacing: 2) {
                 Text(candidate.name)
                     .font(.system(size: 12))

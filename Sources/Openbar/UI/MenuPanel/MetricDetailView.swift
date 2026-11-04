@@ -266,7 +266,7 @@ struct MetricDetailView: View {
             let peak = MetricFormat.networkGraphCeiling(max(down.max() ?? 0, up.max() ?? 0, 1),
                                                         inBits: inBits)
             ZStack {
-                Sparkline(values: down, color: .accentColor, maxValue: peak, showsZeroBaseline: true)
+                Sparkline(values: down, color: .brandAccent, maxValue: peak, showsZeroBaseline: true)
                 Sparkline(values: up,
                           color: PanelMetricColor.green(for: colorScheme),
                           maxValue: peak,
@@ -559,7 +559,7 @@ struct MetricDetailView: View {
     private var summaryColor: Color {
         switch kind {
         case .cpu, .network:
-            return .accentColor
+            return .brandAccent
         case .gpu:
             return PanelMetricColor.cyan(for: colorScheme)
         case .memory:

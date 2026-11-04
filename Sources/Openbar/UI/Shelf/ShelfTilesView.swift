@@ -351,11 +351,11 @@ final class ShelfTileView: NSView, NSDraggingSource {
 
     private func syncChrome() {
         layer?.backgroundColor = isSelected
-            ? NSColor.controlAccentColor.withAlphaComponent(0.16).cgColor
+            ? BrandPalette.accent.withAlphaComponent(0.16).cgColor
             : nil
         if isSelected || isDropTargeted {
             layer?.borderWidth = 2
-            layer?.borderColor = NSColor.controlAccentColor.cgColor
+            layer?.borderColor = BrandPalette.accent.cgColor
         } else {
             layer?.borderWidth = 0
             layer?.borderColor = nil
@@ -393,10 +393,10 @@ final class ShelfTileView: NSView, NSDraggingSource {
             badge.frame = NSRect(x: 50, y: 39, width: 22, height: 15)
             badge.font = .systemFont(ofSize: 9, weight: .bold)
             badge.alignment = .center
-            badge.textColor = .white
+            badge.textColor = BrandPalette.onAccent
             badge.wantsLayer = true
             badge.layer?.cornerRadius = 7.5
-            badge.layer?.backgroundColor = NSColor.controlAccentColor.cgColor
+            badge.layer?.backgroundColor = BrandPalette.accent.cgColor
             addSubview(badge)
 
             let expand = NSButton(frame: NSRect(x: 4, y: 4, width: 17, height: 17))
@@ -425,7 +425,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
             let badgeY: CGFloat = item.isBatch ? 22 : 4
             let badge = NSImageView(frame: NSRect(x: 4, y: badgeY, width: 16, height: 16))
             badge.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)
-            badge.contentTintColor = .controlAccentColor
+            badge.contentTintColor = BrandPalette.accent
             addSubview(badge)
         }
 
@@ -433,7 +433,7 @@ final class ShelfTileView: NSView, NSDraggingSource {
         if isPinned {
             let badge = NSImageView(frame: NSRect(x: 58, y: 4, width: 17, height: 17))
             badge.image = NSImage(systemSymbolName: "pin.circle.fill", accessibilityDescription: nil)
-            badge.contentTintColor = .controlAccentColor
+            badge.contentTintColor = BrandPalette.accent
             pinBadge = badge
             addSubview(badge)
         }

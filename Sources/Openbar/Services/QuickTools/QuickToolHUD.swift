@@ -52,7 +52,7 @@ enum QuickToolHUD {
             } else {
                 Image(systemName: icon)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.brandAccent)
             }
             Text(message)
                 .font(.system(size: 12, weight: .semibold))
@@ -164,7 +164,7 @@ enum QuickToolHUD {
     private static func present(_ content: AnyView,
                                 dismissAfter: Double,
                                 windowShadow: Bool = true) {
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.brandControlTint())
         host.view.layoutSubtreeIfNeeded()
         let size = host.view.fittingSize
 
@@ -256,7 +256,7 @@ private struct QuickToolCountdownView: View {
                 .strokeBorder(Color.white.opacity(0.12), lineWidth: 1)
             Circle()
                 .trim(from: 0.04, to: 0.04 + progress * 0.92)
-                .stroke(Color.accentColor,
+                .stroke(Color.brandAccent,
                         style: StrokeStyle(lineWidth: 3, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .padding(6)
@@ -302,7 +302,7 @@ private struct ScrollingCaptureHUDView: View {
                 } else {
                     Image(systemName: "rectangle.stack.fill")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.brandAccent)
                 }
             }
             .frame(width: 16, height: 16)
