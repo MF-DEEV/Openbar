@@ -131,7 +131,7 @@ final class ScreenshotQuickPreviewController {
             finishShowing()
             return
         }
-        let host = NSHostingController(rootView: content)
+        let host = NSHostingController(rootView: content.brandControlTint())
         let size = Self.size(showingLink: model.sharedRecord != nil)
         let panel = ScreenshotQuickPreviewPanel(
             contentRect: CGRect(origin: .zero, size: size),
@@ -790,7 +790,7 @@ private struct ScreenshotQuickPreviewView: View {
         }
         .modifier(ScreenshotPreviewActionStyle(embedded: embedded))
         .controlSize(.small)
-        .tint(.accentColor)
+        .tint(.brandAccent)
         .screenshotSafeHelp(L10n.shared.s.qrResultTitle)
         .accessibilityLabel(L10n.shared.s.qrResultTitle)
     }

@@ -593,13 +593,13 @@
 }
 
 .mx-priority-row:focus-visible {
-  outline: 2px solid #0a84ff;
+  outline: 2px solid #f2f2f3;
   outline-offset: 1px;
 }
 
 .mx-priority-row.is-current {
-  background: rgba(10, 132, 255, 0.1);
-  box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.65);
+  background: rgba(242, 242, 243, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(242, 242, 243, 0.65);
 }
 
 .mx-priority-row.is-moving {
@@ -649,7 +649,7 @@
 .mx-priority-current {
   flex: none;
   font-size: 9px;
-  color: #0a84ff;
+  color: #f2f2f3;
 }
 
 .mx-priority-unavailable {

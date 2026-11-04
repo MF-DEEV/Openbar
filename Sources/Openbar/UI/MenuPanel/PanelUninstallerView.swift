@@ -135,17 +135,17 @@ struct PanelUninstallerView: View {
     private var dropZone: some View {
         RoundedRectangle(cornerRadius: 12, style: .continuous)
             .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 5]))
-            .foregroundStyle(dropTargeted ? Color.accentColor : Color.secondary.opacity(0.35))
+            .foregroundStyle(dropTargeted ? Color.brandAccent : Color.secondary.opacity(0.35))
             .background(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(dropTargeted ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.025))
+                    .fill(dropTargeted ? Color.brandAccent.opacity(0.08) : Color.primary.opacity(0.025))
             )
             .frame(height: 108)
             .overlay(
                 VStack(spacing: 6) {
                     Image(systemName: "arrow.down.app")
                         .font(.system(size: 28, weight: .light))
-                        .foregroundStyle(dropTargeted ? Color.accentColor : .secondary)
+                        .foregroundStyle(dropTargeted ? Color.brandAccent : .secondary)
                     Text(l10n.s.uninstallerDropTitle)
                         .font(.system(size: 12, weight: .semibold))
                     Text(l10n.s.uninstallerDropSubtitle)

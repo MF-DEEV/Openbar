@@ -206,16 +206,16 @@ private struct AppearanceChoice: View {
                     .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                     .overlay {
                         RoundedRectangle(cornerRadius: 9, style: .continuous)
-                            .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.12),
+                            .strokeBorder(selected ? Color.brandAccent : Color.primary.opacity(0.12),
                                           lineWidth: selected ? 2 : 1)
                     }
                 Text(title)
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(selected ? Color.accentColor : .primary)
+                    .foregroundStyle(selected ? Color.brandAccent : .primary)
             }
             .frame(maxWidth: .infinity)
             .padding(8)
-            .background(selected ? Color.accentColor.opacity(0.08) : Color.clear,
+            .background(selected ? Color.brandAccent.opacity(0.08) : Color.clear,
                         in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }

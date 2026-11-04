@@ -378,7 +378,7 @@ enum ClipboardFeatureTests {
         let styledRuns = styled.runs.map { (String(styled[$0.range].characters), $0[HighlightColor.self], $0[HighlightFont.self]) }
         suite.expect(styledRuns.count == 2
                      && styledRuns[0].0 == "Reunião com " && styledRuns[0].1 == nil && styledRuns[0].2 == nil
-                     && styledRuns[1].0 == "João" && styledRuns[1].1 == Color.accentColor && styledRuns[1].2 != nil,
+                     && styledRuns[1].0 == "João" && styledRuns[1].1 == Color.brandAccent && styledRuns[1].2 != nil,
                      "a highlighted row styles only its matches and leaves the rest to its text's modifiers")
         let weightOnly = SearchHighlightText.highlighted("Reunião com João", tokens: ["joao"], fontSize: 12,
                                                          highlightColor: nil)

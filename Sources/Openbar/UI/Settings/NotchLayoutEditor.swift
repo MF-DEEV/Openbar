@@ -38,8 +38,8 @@ struct NotchLayoutEditor: View {
                         ForEach(NotchQuickAccessSide.allCases, id: \.self) { side in
                             let target = dropFrame(side, island: frame)
                             RoundedRectangle(cornerRadius: 16)
-                                .fill(Color.accentColor.opacity(target.contains(dragLocation ?? .zero) ? 0.15 : 0.04))
-                                .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(Color.accentColor.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4])) }
+                                .fill(Color.brandAccent.opacity(target.contains(dragLocation ?? .zero) ? 0.15 : 0.04))
+                                .overlay { RoundedRectangle(cornerRadius: 16).strokeBorder(Color.brandAccent.opacity(0.3), style: StrokeStyle(lineWidth: 1, dash: [4, 4])) }
                                 .frame(width: target.width, height: target.height)
                                 .position(x: target.midX, y: target.midY)
                                 .allowsHitTesting(false)
@@ -87,9 +87,9 @@ struct NotchLayoutEditor: View {
                                 Image(systemName: "plus").font(.system(size: 15, weight: .semibold))
                                     .frame(width: 30, height: 30)
                                     .background(.background, in: Circle())
-                                    .overlay { Circle().strokeBorder(Color.accentColor.opacity(0.65), style: StrokeStyle(lineWidth: 1, dash: [3, 3])) }
+                                    .overlay { Circle().strokeBorder(Color.brandAccent.opacity(0.65), style: StrokeStyle(lineWidth: 1, dash: [3, 3])) }
                             }
-                            .buttonStyle(.plain).foregroundStyle(Color.accentColor)
+                            .buttonStyle(.plain).foregroundStyle(Color.brandAccent)
                             .help(editor.addButton)
                             .accessibilityLabel(editor.addButton + ", " + side.title(l10n))
                             .popover(isPresented: Binding(get: { addingSide == side }, set: { if !$0 { addingSide = nil } }),
@@ -105,10 +105,10 @@ struct NotchLayoutEditor: View {
                     }
                     // A grip on the corner, clear of the page inside the silhouette.
                     Image(systemName: "arrow.up.left.and.arrow.down.right")
-                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.accentColor)
+                        .font(.system(size: 10, weight: .semibold)).foregroundStyle(Color.brandAccent)
                         .frame(width: 24, height: 24)
                         .background(.background, in: Circle())
-                        .overlay { Circle().strokeBorder(Color.accentColor.opacity(0.65), lineWidth: 1) }
+                        .overlay { Circle().strokeBorder(Color.brandAccent.opacity(0.65), lineWidth: 1) }
                         .shadow(color: .black.opacity(0.12), radius: 3, y: 2)
                         .contentShape(Circle())
                         .gesture(DragGesture(minimumDistance: 3, coordinateSpace: .named("island.editor")).onChanged { value in
@@ -222,7 +222,7 @@ struct NotchLayoutEditor: View {
             Image(systemName: button.action?.symbol ?? "questionmark")
                 .font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
                 .frame(width: 30, height: 30).background(.black, in: Circle())
-                .overlay { Circle().strokeBorder(editingID == button.id ? Color.accentColor : .white.opacity(0.2), lineWidth: 1.5) }
+                .overlay { Circle().strokeBorder(editingID == button.id ? Color.brandAccent : .white.opacity(0.2), lineWidth: 1.5) }
                 .shadow(color: .black.opacity(0.12), radius: 3, y: 2)
                 .opacity(hidden ? 0.4 : 1)
         }
@@ -416,7 +416,7 @@ struct NotchActionChooser: View {
                             Label(action.title(l10n), systemImage: action.symbol)
                                 .font(.system(size: 11)).lineLimit(2)
                                 .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading).padding(.horizontal, 8)
-                                .background(selected == action ? Color.accentColor.opacity(0.14) : Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))
+                                .background(selected == action ? Color.brandAccent.opacity(0.14) : Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))
                         }.buttonStyle(.plain).disabled(!action.isAvailable())
                     }
                 }

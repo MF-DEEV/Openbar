@@ -7,7 +7,7 @@ private enum SwitcherIconStyle {
     static let surface = Color(nsColor: .controlBackgroundColor)
     static let surfaceRaised = Color(nsColor: .windowBackgroundColor)
     static let tile = Color.primary.opacity(0.045)
-    static let tileSelected = Color.accentColor.opacity(0.15)
+    static let tileSelected = Color.brandAccent.opacity(0.15)
     static let stroke = Color.primary.opacity(0.12)
     static let text = Color.primary
     static let secondaryText = Color.secondary
@@ -740,7 +740,7 @@ private struct SwitcherWindowTitleChip: View {
         )
         .overlay(
             Capsule(style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor.opacity(0.9) : SwitcherIconStyle.stroke,
+                .strokeBorder(isSelected ? Color.brandAccent.opacity(0.9) : SwitcherIconStyle.stroke,
                               lineWidth: isSelected ? 1.15 : 1)
         )
         .contentShape(Capsule(style: .continuous))
@@ -799,21 +799,21 @@ private struct SwitcherIconTile: View {
                 if windowCount > 1 {
                     Text("\(windowCount)")
                         .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(Color.brandOnAccent)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
-                        .background(Capsule(style: .continuous).fill(Color.accentColor))
+                        .background(Capsule(style: .continuous).fill(Color.brandAccent))
                         .offset(x: -2, y: 2)
                 } else if window.isOnHiddenSpace {
                     Image(systemName: "rectangle.stack")
                         .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Color.white)
+                        .foregroundStyle(Color.brandOnAccent)
                         .frame(width: 18, height: 16)
-                        .background(RoundedRectangle(cornerRadius: 5).fill(Color.accentColor))
+                        .background(RoundedRectangle(cornerRadius: 5).fill(Color.brandAccent))
                         .offset(x: 1, y: -1)
                 } else if window.isMinimized || window.isFullscreen {
                     Circle()
-                        .fill(Color.accentColor)
+                        .fill(Color.brandAccent)
                         .frame(width: 12, height: 12)
                         .offset(x: 1, y: -1)
                 }
@@ -837,7 +837,7 @@ private struct SwitcherIconTile: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor.opacity(0.92) : Color.clear, lineWidth: 1.5)
+                .strokeBorder(isSelected ? Color.brandAccent.opacity(0.92) : Color.clear, lineWidth: 1.5)
         )
         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .onTapGesture(perform: onCommit)
@@ -941,7 +941,7 @@ private struct SwitcherWindowPreviewTile: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor.opacity(0.9) : (minimalPreviews ? Color.clear : SwitcherIconStyle.stroke),
+                .strokeBorder(isSelected ? Color.brandAccent.opacity(0.9) : (minimalPreviews ? Color.clear : SwitcherIconStyle.stroke),
                               lineWidth: isSelected ? 1.25 : 1)
         )
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
@@ -1132,7 +1132,7 @@ private struct WindowCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                .strokeBorder(isSelected ? Color.brandAccent : Color.clear, lineWidth: 2)
         )
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onTapGesture {

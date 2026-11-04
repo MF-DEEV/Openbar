@@ -323,7 +323,7 @@ struct NotchSectionListRow: View {
             }
             .padding(.horizontal, 8)
             .frame(minHeight: 32)
-            .background(selected ? Color.accentColor.opacity(0.16) : hovering ? Color.primary.opacity(0.05) : .clear,
+            .background(selected ? Color.brandAccent.opacity(0.16) : hovering ? Color.primary.opacity(0.05) : .clear,
                         in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .contentShape(Rectangle())
             .onHover { hovering = $0 }

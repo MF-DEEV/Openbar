@@ -92,12 +92,12 @@ struct KeepAwakeAutomationEditor: View {
                 HStack {
                     Image(systemName: icon)
                         .font(.system(size: compact ? 14 : 17, weight: .semibold))
-                        .foregroundStyle(selected ? Color.accentColor : Color.secondary)
+                        .foregroundStyle(selected ? Color.brandAccent : Color.secondary)
                     Spacer(minLength: 4)
                     if selected {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.system(size: compact ? 11 : 13, weight: .semibold))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.brandAccent)
                     }
                 }
                 Text(title)
@@ -110,11 +110,11 @@ struct KeepAwakeAutomationEditor: View {
             .frame(maxWidth: .infinity, minHeight: compact ? 65 : 78, alignment: .topLeading)
             .background(
                 RoundedRectangle(cornerRadius: compact ? 9 : 11, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.11) : Color.primary.opacity(0.045))
+                    .fill(selected ? Color.brandAccent.opacity(0.11) : Color.primary.opacity(0.045))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: compact ? 9 : 11, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor.opacity(0.32) : Color.primary.opacity(0.08))
+                    .strokeBorder(selected ? Color.brandAccent.opacity(0.32) : Color.primary.opacity(0.08))
             )
             .contentShape(RoundedRectangle(cornerRadius: compact ? 9 : 11, style: .continuous))
         }

@@ -22,9 +22,10 @@
   --st-control-stroke: rgba(255, 255, 255, 0.1);
   --st-menu-bg: #292929;
   --st-menu-shadow: 0 12px 36px #0007, 0 2px 8px #0004;
-  --st-accent: #60cdff;
-  --st-on-accent: #000000;
-  --st-accent-hover: #5abce9;
+  /* Graphite: the ink of the helmet mark, the same accent as the Mac app. */
+  --st-accent: #f2f2f3;
+  --st-on-accent: #111113;
+  --st-accent-hover: #dcdcde;
   --st-focus: #ffffff;
   --st-ok: #6ccb5f;
   --st-warn: #fce100;
@@ -52,9 +53,9 @@
     --st-control-stroke: rgba(0, 0, 0, 0.12);
     --st-menu-bg: #fafafa;
     --st-menu-shadow: 0 12px 36px #0002, 0 2px 8px #0001;
-    --st-accent: #005fb8;
+    --st-accent: #18181a;
     --st-on-accent: #ffffff;
-    --st-accent-hover: #1a6fc2;
+    --st-accent-hover: #2e2e31;
     --st-focus: #000000;
     --st-ok: #0f7b0f;
     --st-warn: #9d5d00;
@@ -1064,7 +1065,7 @@ select {
 }
 .st-notch-preview svg path + path {
   fill: none;
-  stroke: #60cdff;
+  stroke: var(--st-accent);
   stroke-width: 2;
   vector-effect: non-scaling-stroke;
 }

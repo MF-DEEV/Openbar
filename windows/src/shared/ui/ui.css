@@ -360,9 +360,9 @@ input.u-percent {
 }
 
 .u-check input:checked + .u-check-box {
-  background: #0a84ff;
+  background: #f2f2f3;
   box-shadow: none;
-  color: #fff;
+  color: #111113;
 }
 
 .u-check input:checked + .u-check-box svg {
@@ -377,7 +377,7 @@ input.u-percent {
 }
 
 .u-check input:focus-visible + .u-check-box {
-  outline: 2px solid #0a84ff;
+  outline: 2px solid #f2f2f3;
   outline-offset: 2px;
 }
 
@@ -427,14 +427,14 @@ input.u-percent {
 }
 
 .u-shortcut.is-recording {
-  box-shadow: inset 0 0 0 1px #0a84ff;
+  box-shadow: inset 0 0 0 1px #f2f2f3;
   color: var(--n-dim);
   animation: u-shortcut-wait 1.2s ease-in-out infinite;
 }
 
 @keyframes u-shortcut-wait {
   50% {
-    box-shadow: inset 0 0 0 1px rgba(10, 132, 255, 0.35);
+    box-shadow: inset 0 0 0 1px rgba(242, 242, 243, 0.35);
   }
 }
 

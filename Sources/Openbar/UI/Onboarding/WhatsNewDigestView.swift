@@ -128,7 +128,7 @@ struct WhatsNewDigestView: View {
             Spacer(minLength: 4)
             if isUnread {
                 Circle()
-                    .fill(Color.accentColor)
+                    .fill(Color.brandAccent)
                     .frame(width: 7, height: 7)
                     .accessibilityHidden(true)
             }
@@ -275,7 +275,7 @@ private struct WhatsNewFeaturePage: View {
         return HStack(alignment: .firstTextBaseline, spacing: 8) {
             if change.kind == .new {
                 Image(systemName: "plus.circle.fill")
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.brandAccent)
                     .accessibilityHidden(true)
             }
             VStack(alignment: .leading, spacing: 3) {

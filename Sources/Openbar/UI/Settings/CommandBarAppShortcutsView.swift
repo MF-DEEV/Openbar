@@ -97,7 +97,7 @@ struct CommandBarAppShortcutsView: View {
                         service.togglePin(entry)
                     } label: {
                         Image(systemName: pinned ? "pin.fill" : "pin")
-                            .foregroundStyle(pinned ? Color.accentColor : Color.secondary)
+                            .foregroundStyle(pinned ? Color.brandAccent : Color.secondary)
                             .frame(maxWidth: .infinity)
                     }
                     .buttonStyle(.borderless)

@@ -168,7 +168,7 @@ struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.12),
+                        .strokeBorder(selected ? Color.brandAccent : Color.primary.opacity(0.12),
                                       lineWidth: selected ? 2.5 : 1)
                 )
         }
@@ -298,7 +298,7 @@ struct ScreenshotBackdropPopover<Model: BackdropEditing>: View {
                 .overlay(Circle().strokeBorder(Color.primary.opacity(0.25), lineWidth: 0.5))
                 .overlay(
                     Circle()
-                        .strokeBorder(Color.accentColor, lineWidth: active ? 2 : 0)
+                        .strokeBorder(Color.brandAccent, lineWidth: active ? 2 : 0)
                         .padding(-3)
                 )
                 .padding(3)

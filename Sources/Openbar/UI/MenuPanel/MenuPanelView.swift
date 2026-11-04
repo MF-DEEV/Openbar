@@ -384,7 +384,7 @@ struct MenuPanelView: View {
                 }
                 .buttonStyle(.plain)
                 .focused($focusedSection, equals: id)
-                .foregroundStyle(isActive ? (notchSize != nil ? Color.white : Color.accentColor) : Color.secondary.opacity(0.86))
+                .foregroundStyle(isActive ? (notchSize != nil ? Color.white : Color.brandAccent) : Color.secondary.opacity(0.86))
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(isActive ? navigationActiveFill : Color.clear)
@@ -409,7 +409,7 @@ struct MenuPanelView: View {
 
     private var navigationActiveFill: Color {
         if notchSize != nil { return .black }
-        return colorScheme == .light ? Color.accentColor.opacity(0.13) : Color.accentColor.opacity(0.20)
+        return colorScheme == .light ? Color.brandAccent.opacity(0.13) : Color.brandAccent.opacity(0.20)
     }
 
     private func metricNavigationHeader(_ kind: MetricDetailKind) -> some View {
@@ -520,8 +520,8 @@ private struct MenuPanelHeader: View {
                         .font(.system(size: 9, weight: .bold))
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.18))
-                        .foregroundStyle(.orange)
+                        .background(Color.brandAccent.opacity(0.12))
+                        .foregroundStyle(Color.brandAccent)
                         .clipShape(Capsule())
 
                     Spacer()
@@ -1302,7 +1302,7 @@ struct QuickControlsSection: View {
                 Spacer(minLength: 0)
                 Text("\(enabledCount)/\(categoryItems.count)")
                     .font(.system(size: 9.5, weight: .semibold, design: .rounded))
-                    .foregroundStyle(enabledCount > 0 ? Color.accentColor : Color.secondary)
+                    .foregroundStyle(enabledCount > 0 ? Color.brandAccent : Color.secondary)
                     .monospacedDigit()
             }
             .contentShape(Rectangle())
@@ -2203,7 +2203,7 @@ struct UtilityActionButton: View {
 
     private var iconColor: Color {
         if isHiddenInEditor { return .secondary }
-        return needsAttention ? .orange : .accentColor
+        return needsAttention ? .orange : .brandAccent
     }
 
     private var captionColor: Color {
@@ -2327,7 +2327,7 @@ struct PanelToggleRow: View {
     private var iconColor: Color {
         if isHiddenInEditor { return .secondary }
         if needsAttention { return .orange }
-        return isOn ? .accentColor : .secondary
+        return isOn ? .brandAccent : .secondary
     }
 
     private var captionColor: Color {
@@ -2488,6 +2488,10 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
         self.content = content()
     }
 
+    /// The hosted content starts a new SwiftUI tree, which inherits nothing
+    /// from the panel, so it takes the Graphite control tint itself.
+    private var hostedContent: AnyView { AnyView(content.brandControlTint()) }
+
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
         scroll.hasVerticalScroller = true
@@ -2497,7 +2501,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
         scroll.drawsBackground = false
         scroll.borderType = .noBorder
 
-        let host = HeightReportingHostingView(rootView: content)
+        let host = HeightReportingHostingView(rootView: hostedContent)
         host.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = host
         let clip = scroll.contentView
@@ -2515,7 +2519,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         scroll.scrollerStyle = .overlay
         guard let host = context.coordinator.host else { return }
-        host.rootView = content
+        host.rootView = hostedContent
         installReporter(on: host)               // re-bind to the latest measuredHeight
         let h = host.fittingSize.height          // catch content changes with no new layout pass
         if h > 1, abs(h - measuredHeight) > 0.5 {
@@ -2528,7 +2532,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     /// animation — so the popover tracks the real content height instead of a
     /// single stale reading taken when SwiftUI happened to re-run updateNSView.
     /// The 0.5pt guard also breaks the measure → resize → measure feedback loop.
-    private func installReporter(on host: HeightReportingHostingView<Content>) {
+    private func installReporter(on host: HeightReportingHostingView<AnyView>) {
         let binding = $measuredHeight
         host.onLayout = { [weak host] in
             guard let host else { return }
@@ -2539,7 +2543,7 @@ private struct OverlayScrollView<Content: View>: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
-    final class Coordinator { var host: HeightReportingHostingView<Content>? }
+    final class Coordinator { var host: HeightReportingHostingView<AnyView>? }
 }
 
 /// An `NSHostingView` that fires `onLayout` after each AppKit layout pass. The
@@ -2612,7 +2616,8 @@ struct UpdateBanner: View {
         switch updates.state {
         case let .available(version):
             let isBeta = UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease ?? false
-            let tintColor: Color = isBeta ? .orange : .accentColor
+            let tintColor: Color = isBeta ? .orange : .brandAccent
+            let inkColor: Color = isBeta ? .white : .brandOnAccent
 
             Button {
                 appDelegate()?.showUpdatePreview()
@@ -2620,17 +2625,17 @@ struct UpdateBanner: View {
                 HStack(spacing: 9) {
                     Image(systemName: "arrow.down.circle.fill")
                         .font(.system(size: 16))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(inkColor)
                     VStack(alignment: .leading, spacing: 1) {
                         Text(l10n.s.updateBannerTitle)
                             .font(.system(size: 12, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(inkColor)
                         // The title above already says an update is waiting,
                         // so this line carries the version instead of saying
                         // the same words a second time.
                         Text("\(l10n.s.versionPrefix) \(version)")
                             .font(.system(size: 10.5))
-                            .foregroundStyle(.white.opacity(0.85))
+                            .foregroundStyle(inkColor.opacity(0.85))
                     }
                     Spacer()
                     Text(l10n.s.updateBannerAction)
@@ -2638,7 +2643,7 @@ struct UpdateBanner: View {
                         .foregroundStyle(tintColor)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 4)
-                        .background(Capsule().fill(.white))
+                        .background(Capsule().fill(inkColor))
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
@@ -2938,9 +2943,9 @@ struct KeepAwakeCard: View {
     private func automationSystemBadge(_ icon: String) -> some View {
         Image(systemName: icon)
             .font(.system(size: 9, weight: .semibold))
-            .foregroundStyle(Color.accentColor)
+            .foregroundStyle(Color.brandAccent)
             .frame(width: 17, height: 17)
-            .background(Circle().fill(Color.accentColor.opacity(0.12)))
+            .background(Circle().fill(Color.brandAccent.opacity(0.12)))
     }
 
     private func compactOptionToggle(icon: String,
@@ -3226,12 +3231,12 @@ struct KeepAwakeChipStyle: ButtonStyle {
             .font(.system(size: 11, weight: .medium))
             .monospacedDigit()
             .lineLimit(1)
-            .foregroundStyle(isSelected ? Color.white : Color.primary)
+            .foregroundStyle(isSelected ? Color.brandOnAccent : Color.primary)
             .padding(.horizontal, 8)
             .frame(minHeight: 22)
             .frame(maxWidth: .infinity)
             .background(Capsule().fill(isSelected
-                ? Color.accentColor.opacity(configuration.isPressed ? 0.8 : 1)
+                ? Color.brandAccent.opacity(configuration.isPressed ? 0.8 : 1)
                 : Color.primary.opacity(configuration.isPressed ? 0.16 : 0.07)))
             .contentShape(Capsule())
     }

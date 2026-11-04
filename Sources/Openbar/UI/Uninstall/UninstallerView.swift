@@ -68,17 +68,17 @@ struct UninstallerView: View {
             Spacer()
             RoundedRectangle(cornerRadius: 18, style: .continuous)
                 .strokeBorder(style: StrokeStyle(lineWidth: 2, dash: [9, 7]))
-                .foregroundStyle(dropTargeted ? Color.accentColor : Color.secondary.opacity(0.35))
+                .foregroundStyle(dropTargeted ? Color.brandAccent : Color.secondary.opacity(0.35))
                 .background(
                     RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(dropTargeted ? Color.accentColor.opacity(0.06) : Color.clear)
+                        .fill(dropTargeted ? Color.brandAccent.opacity(0.06) : Color.clear)
                 )
                 .frame(width: 360, height: 200)
                 .overlay(
                     VStack(spacing: 12) {
                         Image(systemName: "trash.square")
                             .font(.system(size: 44, weight: .light))
-                            .foregroundStyle(dropTargeted ? Color.accentColor : .secondary)
+                            .foregroundStyle(dropTargeted ? Color.brandAccent : .secondary)
                         Text(l10n.s.uninstallerDropTitle)
                             .font(.system(size: 16, weight: .semibold))
                         Text(l10n.s.uninstallerDropSubtitle)

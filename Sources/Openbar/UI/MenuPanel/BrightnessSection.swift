@@ -248,7 +248,7 @@ struct SoftwareDimmingButton: View {
                         .font(.system(size: compact ? 10 : 12, weight: .medium))
                         .lineLimit(1)
                 }
-                .foregroundStyle(chosen ? Color.accentColor : Color.secondary)
+                .foregroundStyle(chosen ? Color.brandAccent : Color.secondary)
             }
             .buttonStyle(.plain)
             .disabled(service.isDisplayPending(display.id))

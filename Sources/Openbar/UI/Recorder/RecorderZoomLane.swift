@@ -276,7 +276,7 @@ struct RecorderZoomLane: NSViewRepresentable {
 
             let accent: NSColor
             switch kind {
-            case .zoom: accent = NSColor.controlAccentColor.usingColorSpace(.sRGB) ?? .systemBlue
+            case .zoom: accent = BrandPalette.accent.usingColorSpace(.sRGB) ?? .systemBlue
             case .text: accent = .systemPurple
             case .image: accent = .systemOrange
             case .blur: accent = .systemTeal

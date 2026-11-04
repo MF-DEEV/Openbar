@@ -235,7 +235,7 @@ private struct DockPreviewPanelContent: View {
                         .frame(width: 22, height: 20)
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
                 .help(l10n.s.dockPreviewUnpinPanel)
                 .accessibilityLabel(l10n.s.dockPreviewUnpinPanel)
                 Button {
@@ -482,7 +482,7 @@ private struct DockPreviewCard: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(isSelected ? Color.accentColor : Color.clear, lineWidth: 2)
+                .strokeBorder(isSelected ? Color.brandAccent : Color.clear, lineWidth: 2)
                 .animation(.spring(response: 0.2, dampingFraction: 0.82), value: isSelected)
         )
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))

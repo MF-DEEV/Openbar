@@ -230,9 +230,9 @@ struct ShelfSettings: View {
         HStack(alignment: .top, spacing: 10) {
             Text(number)
                 .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(.white)
+                .foregroundStyle(Color.brandOnAccent)
                 .frame(width: 18, height: 18)
-                .background(Circle().fill(Color.accentColor))
+                .background(Circle().fill(Color.brandAccent))
             Text(text)
                 .font(.callout)
                 .fixedSize(horizontal: false, vertical: true)

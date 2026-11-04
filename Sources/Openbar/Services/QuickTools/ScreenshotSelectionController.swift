@@ -2056,9 +2056,9 @@ private struct UnifiedCaptureGuideContent: View {
                 HStack(spacing: 6) {
                     Text(tool.shortcutKey)
                         .font(.system(size: 10, weight: .bold, design: .rounded))
-                        .foregroundStyle(selected ? Color.white : Color.primary)
+                        .foregroundStyle(selected ? Color.brandOnAccent : Color.primary)
                         .frame(width: 19, height: 19)
-                        .background(selected ? Color.accentColor : Color.primary.opacity(0.11),
+                        .background(selected ? Color.brandAccent : Color.primary.opacity(0.11),
                                     in: RoundedRectangle(cornerRadius: 5, style: .continuous))
                     Image(systemName: tool.systemImageName)
                         .font(.system(size: 13, weight: .semibold))
@@ -2071,12 +2071,12 @@ private struct UnifiedCaptureGuideContent: View {
             }
             .foregroundStyle(selected ? Color.primary : Color.primary.opacity(0.78))
             .frame(width: 116, height: 48)
-            .background(selected ? Color.accentColor.opacity(0.16)
+            .background(selected ? Color.brandAccent.opacity(0.16)
                         : Color.primary.opacity(hovered ? 0.08 : 0.035),
                         in: RoundedRectangle(cornerRadius: 10, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.accentColor.opacity(selected ? 0.48 : 0), lineWidth: 1)
+                    .strokeBorder(Color.brandAccent.opacity(selected ? 0.48 : 0), lineWidth: 1)
             }
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }

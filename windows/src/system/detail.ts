@@ -28,7 +28,7 @@ import type { BatteryReading, MetricKind, ProcessRow, SystemSnapshot } from "./t
 
 /** The panel's metric colors in dark appearance (PanelMetricColor). */
 export const COLORS = {
-  accent: "#0a84ff",
+  accent: "#f2f2f3",
   cyan: "#64d2ff",
   mint: "#66d4cf",
   yellow: "#ffd60a",

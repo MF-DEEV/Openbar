@@ -171,7 +171,7 @@ struct SnippetLibraryView: View {
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.18) : .clear)
+                    .fill(selected ? Color.brandAccent.opacity(0.18) : .clear)
             )
         }
         .buttonStyle(.plain)

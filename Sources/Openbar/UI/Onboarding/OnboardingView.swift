@@ -101,7 +101,7 @@ struct OnboardingView: View {
             HStack(spacing: 6) {
                 ForEach(steps.indices, id: \.self) { i in
                     Capsule()
-                        .fill(i == index ? Color.accentColor : Color.primary.opacity(0.15))
+                        .fill(i == index ? Color.brandAccent : Color.primary.opacity(0.15))
                         .frame(width: i == index ? 18 : 7, height: 7)
                         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: index)
                 }
@@ -293,7 +293,7 @@ private struct PurposeStep: View {
             HStack(spacing: 12) {
                 Image(systemName: preset.symbolName)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.brandAccent)
                     .frame(width: 26)
                     .accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 2) {
@@ -308,7 +308,7 @@ private struct PurposeStep: View {
                 Spacer()
                 if selected {
                     Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.accentColor)
+                        .foregroundStyle(Color.brandAccent)
                         .accessibilityHidden(true)
                 }
             }
@@ -316,11 +316,11 @@ private struct PurposeStep: View {
             .padding(.vertical, 10)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.12) : Color.primary.opacity(0.05))
+                    .fill(selected ? Color.brandAccent.opacity(0.12) : Color.primary.opacity(0.05))
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor.opacity(0.45) : .clear,
+                    .strokeBorder(selected ? Color.brandAccent.opacity(0.45) : .clear,
                                   lineWidth: 1)
             }
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
@@ -374,14 +374,14 @@ private struct PurposeStep: View {
                 Spacer(minLength: 8)
                 Image(systemName: selected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(selected ? Color.accentColor : Color.secondary.opacity(0.45))
+                    .foregroundStyle(selected ? Color.brandAccent : Color.secondary.opacity(0.45))
                     .accessibilityHidden(true)
             }
             .padding(.horizontal, 11)
             .padding(.vertical, 8)
             .background(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(selected ? Color.accentColor.opacity(0.09) : Color.primary.opacity(0.035))
+                    .fill(selected ? Color.brandAccent.opacity(0.09) : Color.primary.opacity(0.035))
             )
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }

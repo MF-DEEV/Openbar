@@ -200,7 +200,7 @@ struct DiskSection: View {
     }
 
     private func selectorBackground(for disk: DiskDeviceReading) -> some ShapeStyle {
-        disk.id == selectedDisk?.id ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.06)
+        disk.id == selectedDisk?.id ? Color.brandAccent.opacity(0.18) : Color.primary.opacity(0.06)
     }
 
     @ViewBuilder
@@ -251,7 +251,7 @@ struct DiskSection: View {
                     rateColumn(icon: "arrow.down",
                                label: l10n.s.diskRead,
                                value: disk.readBytesPerSec,
-                               color: .accentColor)
+                               color: .brandAccent)
                     Divider().frame(height: 28)
                     rateColumn(icon: "arrow.up",
                                label: l10n.s.diskWrite,
@@ -280,7 +280,7 @@ struct DiskSection: View {
         let write = monitor.snapshot.diskWriteHistory
         let peak = MetricFormat.graphCeiling(max(read.max() ?? 0, write.max() ?? 0, 1), unitStep: 1024)
         return ZStack {
-            Sparkline(values: read, color: .accentColor, maxValue: peak, showsZeroBaseline: true)
+            Sparkline(values: read, color: .brandAccent, maxValue: peak, showsZeroBaseline: true)
             Sparkline(values: write,
                       color: PanelMetricColor.pink(for: colorScheme),
                       maxValue: peak,
@@ -588,7 +588,7 @@ private struct DiskUsageBar: View {
 
     private var color: Color {
         switch fraction {
-        case ..<0.75: return .accentColor
+        case ..<0.75: return .brandAccent
         case ..<0.9: return PanelMetricColor.yellow(for: colorScheme)
         default: return PanelMetricColor.red(for: colorScheme)
         }

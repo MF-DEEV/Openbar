@@ -2801,7 +2801,7 @@ private final class WindowDirectionalIndicatorCanvasView: NSView {
             context.addPath(highlight)
             context.clip()
 
-            let accent = NSColor.controlAccentColor
+            let accent = BrandPalette.accent
             let lighterAccent = accent.blended(withFraction: 0.30, of: .white) ?? accent
             let colors = [
                 lighterAccent.withAlphaComponent(0.85).cgColor,
@@ -2903,7 +2903,7 @@ private final class WindowDirectionalIndicatorCanvasView: NSView {
                           color: NSColor.black.withAlphaComponent(0.25).cgColor)
 
         if action == .maximize {
-            let accent = NSColor.controlAccentColor
+            let accent = BrandPalette.accent
             context.setFillColor(accent.withAlphaComponent(0.30).cgColor)
             context.fillEllipse(in: hub)
             context.restoreGState()
@@ -2970,14 +2970,14 @@ private final class WindowDirectionalIndicatorCanvasView: NSView {
             context.saveGState()
             let fillPath = CGPath(roundedRect: inner, cornerWidth: 2.5, cornerHeight: 2.5, transform: nil)
             context.addPath(fillPath)
-            context.setFillColor(NSColor.controlAccentColor.withAlphaComponent(0.95).cgColor)
+            context.setFillColor(BrandPalette.accent.withAlphaComponent(0.95).cgColor)
             context.fillPath()
             context.restoreGState()
         } else if let action, let region = glyphRegion(for: action, in: window.insetBy(dx: 2.5, dy: 2.5)) {
             context.saveGState()
             let fillPath = CGPath(roundedRect: region, cornerWidth: 2, cornerHeight: 2, transform: nil)
             context.addPath(fillPath)
-            context.setFillColor(NSColor.controlAccentColor.withAlphaComponent(0.95).cgColor)
+            context.setFillColor(BrandPalette.accent.withAlphaComponent(0.95).cgColor)
             context.fillPath()
             context.restoreGState()
         }
@@ -3150,7 +3150,7 @@ private final class WindowEdgeSnapPreviewView: NSView {
 
     private func updateAppearance() {
         guard let layer else { return }
-        let accent = NSColor.controlAccentColor
+        let accent = BrandPalette.accent
         layer.cornerRadius = 14
         layer.cornerCurve = .continuous
         layer.backgroundColor = accent.withAlphaComponent(0.16).cgColor

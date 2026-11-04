@@ -186,7 +186,7 @@ private struct PriorityDeviceList: View {
                     if isCurrent {
                         Text(l10n.s.audioPriorityCurrent)
                             .font(.system(size: 9))
-                            .foregroundStyle(Color.accentColor)
+                            .foregroundStyle(Color.brandAccent)
                             .fixedSize()
                     }
                 }
@@ -210,11 +210,11 @@ private struct PriorityDeviceList: View {
         .padding(.vertical, 4)
         .background(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .fill(isCurrent ? Color.accentColor.opacity(0.08) : Color.primary.opacity(0.035))
+                .fill(isCurrent ? Color.brandAccent.opacity(0.08) : Color.primary.opacity(0.035))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 7, style: .continuous)
-                .stroke(isCurrent ? Color.accentColor.opacity(0.65) : Color.clear, lineWidth: 1)
+                .stroke(isCurrent ? Color.brandAccent.opacity(0.65) : Color.clear, lineWidth: 1)
         )
         .contentShape(Rectangle())
         .opacity(draggingUID == uid ? 0.45 : 1)

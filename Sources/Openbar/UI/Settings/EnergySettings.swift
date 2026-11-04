@@ -199,14 +199,14 @@ struct EnergySettings: View {
                 .font(.system(size: 11, weight: .medium))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .foregroundStyle(selected ? Color.accentColor : .primary)
+                .foregroundStyle(selected ? Color.brandAccent : .primary)
                 .frame(maxWidth: .infinity)
                 .frame(height: 28)
-                .background(selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06),
+                .background(selected ? Color.brandAccent.opacity(0.12) : Color.secondary.opacity(0.06),
                             in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(selected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1)
+                        .strokeBorder(selected ? Color.brandAccent.opacity(0.7) : .clear, lineWidth: 1)
                 }
                 .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
@@ -388,9 +388,9 @@ struct EnergySettings: View {
         HStack(spacing: 12) {
             Image(systemName: display.isBuiltIn ? "laptopcomputer" : "display")
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(display.isActive ? Color.accentColor : Color.secondary)
+                .foregroundStyle(display.isActive ? Color.brandAccent : Color.secondary)
                 .frame(width: 26, height: 26)
-                .background((display.isActive ? Color.accentColor : Color.secondary).opacity(0.12),
+                .background((display.isActive ? Color.brandAccent : Color.secondary).opacity(0.12),
                             in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             Text(display.name)
                 .lineLimit(1)

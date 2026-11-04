@@ -86,9 +86,9 @@ struct NotchMascotSettings: View {
         return HStack(spacing: 12) {
             Image(systemName: AppFeature.notch.symbolName)
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
                 .frame(width: 26, height: 26)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                .background(Color.brandAccent.opacity(0.12), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
             VStack(alignment: .leading, spacing: 2) {
                 Text(text.livesInIsland)
                 if !installed {
@@ -156,7 +156,7 @@ struct NotchMascotSettings: View {
                         .background(Color.black, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                         .padding(2)
                         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
-                            .strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 2))
+                            .strokeBorder(selected ? Color.brandAccent : .clear, lineWidth: 2))
                         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)
@@ -180,7 +180,7 @@ struct NotchMascotSettings: View {
                         .frame(width: 22, height: 22)
                         .overlay(Circle().strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5))
                         .padding(3)
-                        .overlay(Circle().strokeBorder(selected ? Color.accentColor : .clear, lineWidth: 2))
+                        .overlay(Circle().strokeBorder(selected ? Color.brandAccent : .clear, lineWidth: 2))
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -471,8 +471,8 @@ private struct NotchMascotStage: View {
         ZStack(alignment: .top) {
             // The desktop, washed with the accent color like a wallpaper,
             // and the menu bar across it, translucent as the real one.
-            LinearGradient(colors: [Color.accentColor.opacity(dark ? 0.30 : 0.20),
-                                    Color.accentColor.opacity(dark ? 0.08 : 0.05)],
+            LinearGradient(colors: [Color.brandAccent.opacity(dark ? 0.30 : 0.20),
+                                    Color.brandAccent.opacity(dark ? 0.08 : 0.05)],
                            startPoint: .topLeading, endPoint: .bottomTrailing)
             Rectangle()
                 .fill(dark ? Color.black.opacity(0.28) : Color.white.opacity(0.55))
@@ -705,10 +705,10 @@ private struct NotchMascotMomentChip: View {
                 .lineLimit(1)
                 .padding(.horizontal, 9)
                 .padding(.vertical, 5)
-                .foregroundStyle(playing ? Color.accentColor : .primary)
-                .background(Capsule().fill(playing ? Color.accentColor.opacity(0.16)
+                .foregroundStyle(playing ? Color.brandAccent : .primary)
+                .background(Capsule().fill(playing ? Color.brandAccent.opacity(0.16)
                                            : Color.primary.opacity(hovering && isEnabled ? 0.11 : 0.06)))
-                .overlay(Capsule().strokeBorder(playing ? Color.accentColor.opacity(0.5) : .clear, lineWidth: 1))
+                .overlay(Capsule().strokeBorder(playing ? Color.brandAccent.opacity(0.5) : .clear, lineWidth: 1))
                 .contentShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -738,12 +738,12 @@ private struct NotchMascotChoiceTile<Preview: View>: View {
             }
             .frame(maxWidth: .infinity, minHeight: 68)
             .padding(8)
-            .foregroundStyle(selected ? Color.accentColor : .primary)
-            .background(selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06),
+            .foregroundStyle(selected ? Color.brandAccent : .primary)
+            .background(selected ? Color.brandAccent.opacity(0.12) : Color.secondary.opacity(0.06),
                         in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             .overlay {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .strokeBorder(selected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1)
+                    .strokeBorder(selected ? Color.brandAccent.opacity(0.7) : .clear, lineWidth: 1)
             }
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }

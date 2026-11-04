@@ -788,9 +788,9 @@ struct NotchSettings: View {
                 Image(systemName: symbol).font(.system(size: 20, weight: .medium))
                 Text(title).font(.system(size: 11, weight: .medium)).lineLimit(2).multilineTextAlignment(.center)
             }.frame(maxWidth: .infinity, minHeight: 68).padding(8)
-                .foregroundStyle(selected ? Color.accentColor : .primary)
-                .background(selected ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
-                .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1) }
+                .foregroundStyle(selected ? Color.brandAccent : .primary)
+                .background(selected ? Color.brandAccent.opacity(0.12) : Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                .overlay { RoundedRectangle(cornerRadius: 12).strokeBorder(selected ? Color.brandAccent.opacity(0.7) : .clear, lineWidth: 1) }
         }.buttonStyle(.plain).accessibilityAddTraits(selected ? .isSelected : [])
     }
 
@@ -928,7 +928,7 @@ struct NotchSettings: View {
                     }.foregroundStyle(.white).padding(10).background(.black, in: Capsule())
                     Text(title).font(.system(size: 11, weight: .medium))
                 }.frame(maxWidth: .infinity).padding(.vertical, 14)
-                    .background(marked ? Color.accentColor.opacity(0.12) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+                    .background(marked ? Color.brandAccent.opacity(0.12) : Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
             }.buttonStyle(.plain).accessibilityAddTraits(restingChoice == item ? .isSelected : [])
                 // VoiceOver selects what the island rests with. A saved choice
                 // that waits says it is hidden from the island, and the link
@@ -939,7 +939,7 @@ struct NotchSettings: View {
                 Button(reason, action: fix)
                     .buttonStyle(.plain)
                     .font(.caption2)
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.brandAccent)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }

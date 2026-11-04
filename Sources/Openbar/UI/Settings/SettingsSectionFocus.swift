@@ -58,11 +58,11 @@ private struct SettingsSectionFocusModifier: ViewModifier {
                             }
                             let rect = boundsRect.insetBy(dx: -first.padding, dy: -first.padding)
                             RoundedRectangle(cornerRadius: first.cornerRadius, style: .continuous)
-                                .fill(Color.accentColor.opacity(0.10))
+                                .fill(Color.brandAccent.opacity(0.10))
                                 .overlay {
                                     RoundedRectangle(cornerRadius: first.cornerRadius, style: .continuous)
-                                        .strokeBorder(Color.accentColor.opacity(0.9), lineWidth: 2)
-                                        .shadow(color: Color.accentColor.opacity(0.5), radius: 14)
+                                        .strokeBorder(Color.brandAccent.opacity(0.9), lineWidth: 2)
+                                        .shadow(color: Color.brandAccent.opacity(0.5), radius: 14)
                                 }
                                 .frame(width: rect.width, height: rect.height)
                                 .position(x: rect.midX, y: rect.midY)

@@ -157,10 +157,10 @@ private struct TimeDigitWheel: View {
             Text(String(format: "%02d", value))
                 .font(.system(size: 26, weight: .medium))
                 .monospacedDigit()
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
                 .frame(width: 52, height: 36)
                 .background(RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(Color.accentColor.opacity(hovering ? 0.2 : 0.13)))
+                    .fill(Color.brandAccent.opacity(hovering ? 0.2 : 0.13)))
             neighbour(1)
         }
         .contentShape(Rectangle())

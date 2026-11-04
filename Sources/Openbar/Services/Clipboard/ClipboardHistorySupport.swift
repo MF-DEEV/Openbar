@@ -793,7 +793,7 @@ enum SearchHighlightText {
     static func highlighted(_ string: String,
                             tokens: [String],
                             fontSize: CGFloat,
-                            highlightColor: Color? = .accentColor,
+                            highlightColor: Color? = .brandAccent,
                             highlightWeight: Font.Weight = .semibold) -> AttributedString {
         let visible = excerpt(string)
         var attributed = AttributedString(visible)
@@ -809,7 +809,7 @@ enum SearchHighlightText {
     static func text(_ string: String,
                      tokens: [String],
                      fontSize: CGFloat,
-                     highlightColor: Color? = .accentColor) -> Text {
+                     highlightColor: Color? = .brandAccent) -> Text {
         guard !tokens.isEmpty else { return Text(string) }
         return Text(highlighted(string, tokens: tokens, fontSize: fontSize, highlightColor: highlightColor))
     }

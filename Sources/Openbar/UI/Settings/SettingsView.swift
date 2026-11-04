@@ -680,7 +680,7 @@ struct UpdatesView: View {
         case .upToDate:
             label(l10n.s.updateUpToDate, system: "checkmark.circle.fill", tint: .green)
         case let .available(version):
-            label("\(l10n.s.updateAvailablePrefix) \(version)", system: "arrow.down.circle.fill", tint: .accentColor)
+            label("\(l10n.s.updateAvailablePrefix) \(version)", system: "arrow.down.circle.fill", tint: .brandAccent)
         case let .downloading(progress):
             if let progress {
                 label("\(l10n.s.updateDownloading) \(Int(progress * 100))%",
@@ -831,7 +831,7 @@ struct ReleaseNotesSettings: View {
         HStack(alignment: .top, spacing: 9) {
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
                 .frame(width: 18, alignment: .center)
             Text(l10n.s.obWhatsNewFallback)
                 .font(.system(size: 12.5))
@@ -866,7 +866,7 @@ struct ReleaseNotesSettings: View {
             HStack(alignment: .top, spacing: 9) {
                 Image(systemName: iconName(for: sectionTitle))
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .foregroundStyle(Color.brandAccent)
                     .frame(width: 18, alignment: .center)
                 Text(text)
                     .font(.system(size: 12.5))
@@ -1336,10 +1336,10 @@ private extension View {
             .contentShape(Rectangle())
             .padding(.vertical, 4)
             .padding(.horizontal, 6)
-            .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+            .foregroundStyle(isSelected ? Color.brandAccent : Color.primary)
             .background {
                 RoundedRectangle(cornerRadius: 6)
-                    .fill(isSelected ? Color.accentColor.opacity(0.18) : .clear)
+                    .fill(isSelected ? Color.brandAccent.opacity(0.18) : .clear)
             }
     }
 }

@@ -22,7 +22,7 @@ struct MixerSection: View {
     @AppStorage(DefaultsKey.mixerHideInactiveApps)
     private var hideInactiveApps = false
     @State private var optionsExpanded = false
-    @State private var normalSliderTint = Color(nsColor: .controlAccentColor)
+    @State private var normalSliderTint = Color(nsColor: BrandPalette.controlTint)
     @State private var accentRevision = 0
     @State private var lastResolvedAccent: NSColor?
     @State private var editingVolumeID: String?
@@ -504,11 +504,11 @@ struct MixerSection: View {
     private func refreshSliderTint() {
         var resolved: NSColor?
         NSApplication.shared.effectiveAppearance.performAsCurrentDrawingAppearance {
-            resolved = NSColor.controlAccentColor.usingColorSpace(.sRGB)
+            resolved = BrandPalette.controlTint.usingColorSpace(.sRGB)
         }
         if let resolved, let last = lastResolvedAccent, resolved == last { return }
         lastResolvedAccent = resolved
-        normalSliderTint = Color(nsColor: .controlAccentColor)
+        normalSliderTint = Color(nsColor: BrandPalette.controlTint)
         accentRevision += 1
     }
 
@@ -1139,7 +1139,7 @@ struct EditableVolumePercent<Label: View>: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 4, style: .continuous)
-                    .strokeBorder(Color.accentColor.opacity(0.7), lineWidth: 1)
+                    .strokeBorder(Color.brandAccent.opacity(0.7), lineWidth: 1)
             )
             .opacity(isEditing ? 1 : 0)
             .allowsHitTesting(isEditing)

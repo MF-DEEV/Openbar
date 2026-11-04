@@ -541,7 +541,7 @@ struct RecorderEditorView: View {
             Button(strings.cancelButton) { model.cancelExport() }
                 .buttonStyle(.borderless)
                 .font(.system(size: 11))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.brandAccent)
                 .fixedSize()
         }
         .padding(.horizontal, 12)
@@ -917,7 +917,7 @@ private struct Filmstrip: View {
                     .offset(x: endX)
                     .allowsHitTesting(false)
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .strokeBorder(Color.accentColor.opacity(0.9), lineWidth: 2)
+                    .strokeBorder(Color.brandAccent.opacity(0.9), lineWidth: 2)
                     .frame(width: endX - startX)
                     .offset(x: startX)
                     .allowsHitTesting(false)
@@ -954,11 +954,11 @@ private struct Filmstrip: View {
 
     private func handle(height: CGFloat) -> some View {
         RoundedRectangle(cornerRadius: 4, style: .continuous)
-            .fill(Color.accentColor)
+            .fill(Color.brandAccent)
             .frame(width: handleWidth, height: height)
             .overlay {
                 RoundedRectangle(cornerRadius: 1.5, style: .continuous)
-                    .fill(Color.white.opacity(0.85))
+                    .fill(Color.brandOnAccent.opacity(0.85))
                     .frame(width: 2, height: height * 0.36)
             }
             .contentShape(Rectangle().inset(by: -6))
