@@ -1546,7 +1546,7 @@ enum Defaults {
         DefaultsKey.notchSessionsSidebarHidden: false,
         DefaultsKey.notchSessionsBuddies: true,
         DefaultsKey.notchSessionsLimits: true,
-        DefaultsKey.notchSessionsVoiceReplies: false,
+        DefaultsKey.notchSessionsVoiceReplies: true,
         DefaultsKey.notchSessionsVoiceLanguage: "",
         DefaultsKey.notchSessionsVoiceSendOnStop: false,
         DefaultsKey.notchSessionsVoiceShortcutEnabled: false,

@@ -15,7 +15,7 @@ Speech is recognized on the device, on both platforms. There is no cloud fallbac
 
 The rules are one state machine per platform, `VoiceReplyMachine` (Mac, `Sources/Openbar/Services/ClaudeSessions/VoiceReplySupport.swift`) and `windows/src/sessions/voice.ts`, with the same tests (`Tests/VoiceReplyTests.swift`, `voice.test.ts`).
 
-Settings → Dynamic Island → Content → Sessions → **Voice replies**: on/off (off by default), language (follows the app's), hold-to-talk shortcut (off by default; ⌃⌥⌘A on the Mac, Ctrl+Alt+V on Windows once turned on), and Send when I stop talking (off by default).
+Settings → Dynamic Island → Content → Sessions → **Voice replies**: on/off (on by default; nothing is recorded until the microphone is pressed), language (follows the app's), hold-to-talk shortcut (off by default; ⌃⌥⌘A on the Mac, Ctrl+Alt+V on Windows once turned on), and Send when I stop talking (off by default).
 
 ## Mac: Apple's on-device recognizer
 

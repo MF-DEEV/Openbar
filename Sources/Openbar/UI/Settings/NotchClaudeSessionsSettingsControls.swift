@@ -12,7 +12,7 @@ struct NotchClaudeSessionsSettingsControls: View {
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
     @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
     @AppStorage(DefaultsKey.notchSessionsLimits) private var limits = true
-    @AppStorage(DefaultsKey.notchSessionsVoiceReplies) private var voiceReplies = false
+    @AppStorage(DefaultsKey.notchSessionsVoiceReplies) private var voiceReplies = true
     @AppStorage(DefaultsKey.notchSessionsVoiceLanguage) private var voiceLanguage = ""
     @AppStorage(DefaultsKey.notchSessionsVoiceSendOnStop) private var voiceSendOnStop = false
     @AppStorage(DefaultsKey.notchSessionsVoiceShortcutEnabled) private var voiceShortcut = false

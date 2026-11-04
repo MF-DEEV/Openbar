@@ -526,7 +526,7 @@ struct NotchClaudeSessionComposer: View {
     @State private var dropping = false
     @ObservedObject private var voice = VoiceReplyRecorder.shared
     @ObservedObject private var l10n = L10n.shared
-    @AppStorage(DefaultsKey.notchSessionsVoiceReplies) private var voiceReplies = false
+    @AppStorage(DefaultsKey.notchSessionsVoiceReplies) private var voiceReplies = true
 
     private var draft: Binding<String> {
         Binding(get: { service.drafts[session.id] ?? "" }, set: { service.drafts[session.id] = $0 })
