@@ -61,7 +61,7 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   agentCopilot: true,
   agentOpencode: true,
   agentCursor: true,
-  voiceReplies: false,
+  voiceReplies: true,
   voiceLanguage: "",
   voiceSendOnStop: false,
   voiceShortcutEnabled: false,

@@ -83,7 +83,7 @@ The color picker also uses this permission for Openbar's magnifier and keyboard 
 
 **Why it comes up.** macOS asks before an app can use its speech recognizer.
 
-**What uses it.** Voice replies in Dynamic Island's Sessions page (Settings → Dynamic Island → Content → Sessions → Voice replies, off by default). Openbar asks the recognizer to work on this Mac only (`requiresOnDeviceRecognition`), so nothing you say goes to Apple; a language without an on-device recognizer is refused, not sent. Apple's recognizer also needs Dictation turned on in Keyboard settings, where it downloads the languages. The prompt comes the first time you press the microphone, never at launch.
+**What uses it.** Voice replies in Dynamic Island's Sessions page (Settings → Dynamic Island → Content → Sessions → Voice replies, on by default). Openbar asks the recognizer to work on this Mac only (`requiresOnDeviceRecognition`), so nothing you say goes to Apple; a language without an on-device recognizer is refused, not sent. Apple's recognizer also needs Dictation turned on in Keyboard settings, where it downloads the languages. The prompt comes the first time you press the microphone, never at launch.
 
 **If you say no.** Typed replies work as before. The microphone button says speech recognition is off and opens this page of System Settings.
 
