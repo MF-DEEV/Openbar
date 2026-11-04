@@ -250,6 +250,7 @@ if (( TEST )); then
     TEST_OBJECT_DIR="build/objects/tests"
     mkdir -p "$TEST_OBJECT_DIR"
     TEST_SOURCES=(
+        Sources/Openbar/UI/BrandPalette.swift
         Sources/Openbar/Services/Media/MediaSupport.swift
         Sources/Openbar/Core/QuitProtectionSupport.swift
         Sources/Openbar/Core/QuitProtectionStrings.swift

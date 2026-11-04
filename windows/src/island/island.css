@@ -118,8 +118,8 @@ input:focus-visible {
 }
 
 .n-context-menu .u-menu-item.is-active:enabled {
-  background: #0a84ff;
-  color: #fff;
+  background: #f2f2f3;
+  color: #111113;
 }
 
 .n-context-menu .u-menu-item.is-active .u-menu-icon {

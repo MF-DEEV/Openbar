@@ -2,8 +2,8 @@
 /* The Files section (NotchFilesView, ShelfTilesView). Sizes are Mac points. */
 
 :root {
-  --fl-accent: #60cdff;
-  --fl-accent-wash: rgba(96, 205, 255, 0.16);
+  --fl-accent: #f2f2f3;
+  --fl-accent-wash: rgba(242, 242, 243, 0.14);
 }
 
 .fl-page {

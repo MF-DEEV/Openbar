@@ -77,7 +77,7 @@
 }
 
 .tl-glyph.is-active {
-  color: #0a84ff;
+  color: #f2f2f3;
 }
 
 .tl-glyph.is-muted {
@@ -187,8 +187,8 @@
 }
 
 .tl-gear.is-open {
-  background: #0a84ff;
-  color: #fff;
+  background: #f2f2f3;
+  color: #111113;
 }
 
 .tl-tray {
@@ -450,7 +450,7 @@
 }
 
 .tl-sheet-field:focus {
-  box-shadow: 0 0 0 2px rgba(10, 132, 255, 0.6);
+  box-shadow: 0 0 0 2px rgba(242, 242, 243, 0.6);
 }
 
 .tl-sheet-buttons {
@@ -474,7 +474,8 @@
 }
 
 .tl-sheet-button.is-default {
-  background: #0a84ff;
+  background: #f2f2f3;
+  color: #111113;
   font-weight: 600;
 }
 

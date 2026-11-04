@@ -87,8 +87,8 @@
   width: 52px;
   height: 58px;
   border-radius: 12px;
-  color: #60cdff;
-  background: #111b22;
+  color: #f2f2f3;
+  background: #1c1c1e;
 }
 .dl-file-icon.is-completed {
   color: #69d69b;
@@ -146,7 +146,7 @@
 .dl-info progress {
   width: 100%;
   height: 4px;
-  accent-color: #60cdff;
+  accent-color: #f2f2f3;
 }
 .dl-folder {
   overflow-wrap: anywhere;
@@ -159,7 +159,7 @@
   justify-content: space-between;
   padding: 0 18px;
   box-sizing: border-box;
-  color: #60cdff;
+  color: #f2f2f3;
   font-size: 11px;
 }
 .dl-strip > span {
@@ -190,7 +190,7 @@
 .dl-mini-progress > span {
   display: block;
   height: 100%;
-  background: #60cdff;
+  background: #f2f2f3;
   border-radius: inherit;
 }
 .dl-mini-progress.is-indeterminate > span {
@@ -210,7 +210,7 @@
 .n-download-progress > span {
   display: block;
   height: 100%;
-  background: #60cdff;
+  background: #f2f2f3;
 }
 .n-download-progress.is-indeterminate > span {
   width: 30%;
