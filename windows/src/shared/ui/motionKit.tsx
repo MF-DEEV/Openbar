@@ -73,19 +73,16 @@ export function Collapse(props: { open: boolean; id?: string; className?: string
 
 /**
  * A page that settles in when it mounts: it slides a few pixels in from the
- * side the user moved toward and sharpens out of a light blur. Key it by
- * the page so each switch plays it once; the outgoing page leaves at once,
- * so the two never stack.
+ * side the user moved toward. Key it by the page so each switch plays it
+ * once; the outgoing page leaves at once, so the two never stack. It starts
+ * partly visible: starting from nothing left the window empty for a couple
+ * of frames, which read as the controls blinking.
  */
 export function PageEnter(props: { direction?: 1 | -1; axis?: "x" | "y"; className?: string; children: ReactNode }) {
   const reduce = useReducedMotion();
   const travel = 10 * (props.direction ?? 1);
-  const from = reduce ? { opacity: 0 } : { opacity: 0, filter: "blur(3px)", [props.axis ?? "x"]: travel };
-  // A finished entrance leaves no filter behind: even blur(0) would make the
-  // page the containing block for fixed pop-ups inside it.
-  const to = reduce
-    ? { opacity: 1 }
-    : { opacity: 1, filter: "blur(0px)", x: 0, y: 0, transitionEnd: { filter: "none" } };
+  const from = reduce ? { opacity: 0.6 } : { opacity: 0.6, [props.axis ?? "x"]: travel };
+  const to = reduce ? { opacity: 1 } : { opacity: 1, x: 0, y: 0 };
   return (
     <motion.div className={props.className} initial={from} animate={to} transition={reduce ? QUICK_FADE : SPRING_TAB}>
       {props.children}
