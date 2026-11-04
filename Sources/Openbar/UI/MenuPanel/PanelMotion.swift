@@ -41,56 +41,43 @@ enum PanelMotion {
     static func pressScale(_ pressed: Bool) -> CGFloat {
         pressed && !reduceMotion ? 0.96 : 1
     }
-
-    /// The incoming section slides a few points in from the side the user
-    /// moved toward and sharpens out of a light blur; the outgoing one only
-    /// fades, so the two never read as a shuffle.
-    static func sectionTransition(direction: CGFloat) -> AnyTransition {
-        if reduceMotion { return .opacity }
-        return .asymmetric(
-            insertion: .modifier(
-                active: PanelSlideBlur(offset: 14 * direction, blur: 3, opacity: 0),
-                identity: PanelSlideBlur(offset: 0, blur: 0, opacity: 1)
-            ),
-            removal: .opacity.animation(.easeOut(duration: 0.12))
-        )
-    }
-
-    /// Content that appears under a disclosure header: it drops a few points
-    /// into place while the group grows around it.
-    static var revealTransition: AnyTransition {
-        if reduceMotion { return .opacity }
-        return .asymmetric(
-            insertion: .modifier(
-                active: PanelDropIn(offset: -6, opacity: 0),
-                identity: PanelDropIn(offset: 0, opacity: 1)
-            ),
-            removal: .opacity.animation(.easeOut(duration: 0.1))
-        )
-    }
 }
 
-private struct PanelSlideBlur: ViewModifier {
-    var offset: CGFloat
-    var blur: CGFloat
-    var opacity: Double
+/// Content that settles in when it appears: it fades up from a few points
+/// off and out of a light blur. Only the content's own opacity, offset and
+/// blur move. Animating the layout instead (a transition inside
+/// `withAnimation`) springs the panel's height, and the hosting view in the
+/// panel's scroll area then draws everything shifted down for a few frames.
+private struct PanelReveal: ViewModifier {
+    let offset: CGSize
+    let blur: CGFloat
+    @State private var shown = false
 
     func body(content: Content) -> some View {
         content
-            .offset(x: offset)
-            .blur(radius: blur)
-            .opacity(opacity)
+            .opacity(shown ? 1 : 0)
+            .offset(shown ? .zero : offset)
+            .blur(radius: shown ? 0 : blur)
+            .onAppear {
+                guard !shown else { return }
+                withAnimation(PanelMotion.tab) { shown = true }
+            }
     }
 }
 
-private struct PanelDropIn: ViewModifier {
-    var offset: CGFloat
-    var opacity: Double
+extension View {
+    /// A section arriving from a tab: `direction` is +1 when the tabs moved
+    /// right and -1 when they moved left.
+    func panelSectionReveal(direction: CGFloat) -> some View {
+        let still = PanelMotion.reduceMotion
+        return modifier(PanelReveal(offset: still ? .zero : CGSize(width: 14 * direction, height: 0),
+                                    blur: still ? 0 : 3))
+    }
 
-    func body(content: Content) -> some View {
-        content
-            .offset(y: offset)
-            .opacity(opacity)
+    /// Rows opening under a disclosure drop a few points into place.
+    func panelReveal() -> some View {
+        modifier(PanelReveal(offset: PanelMotion.reduceMotion ? .zero : CGSize(width: 0, height: -6),
+                             blur: 0))
     }
 }
 
@@ -109,9 +96,10 @@ private struct PanelPressBody: View {
 
     var body: some View {
         configuration.label
-            .opacity(isEnabled ? (configuration.isPressed ? 0.78 : 1) : 0.45)
-            .scaleEffect(PanelMotion.pressScale(configuration.isPressed))
-            .animation(PanelMotion.press, value: configuration.isPressed)
+            .animation(PanelMotion.press) {
+                $0.opacity(isEnabled ? (configuration.isPressed ? 0.78 : 1) : 0.45)
+                    .scaleEffect(PanelMotion.pressScale(configuration.isPressed))
+            }
     }
 }
 

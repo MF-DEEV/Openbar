@@ -94,14 +94,15 @@ struct MixerSection: View {
     private var optionsDisclosure: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                withAnimation(PanelMotion.disclosure) { optionsExpanded.toggle() }
+                optionsExpanded.toggle()
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
                         .frame(width: 12)
-                        .rotationEffect(.degrees(optionsExpanded ? 90 : 0))
+                        // Only the turn animates, never the chevron\'s place in the row.
+                        .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(optionsExpanded ? 90 : 0)) }
                     Text(l10n.s.keepAwakeOptions)
                         .font(.system(size: 11.5, weight: .semibold))
                         .foregroundStyle(.secondary)
@@ -695,7 +696,7 @@ struct MixerOptionsControls: View {
     private var listVisibilityFooter: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
-                withAnimation(PanelMotion.disclosure) { showListChooser.toggle() }
+                showListChooser.toggle()
             } label: {
                 HStack(spacing: 8) {
                     Text(l10n.s.mixerVisibleApps)
@@ -710,7 +711,8 @@ struct MixerOptionsControls: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 8, weight: .semibold))
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(showListChooser ? 90 : 0))
+                        // Only the turn animates, never the chevron\'s place in the row.
+                        .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(showListChooser ? 90 : 0)) }
                 }
                 .contentShape(Rectangle())
             }

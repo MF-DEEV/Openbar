@@ -320,19 +320,15 @@ struct MenuPanelView: View {
         }
     }
 
-    /// The active section, swapped with a slide when the tabs change. Both
-    /// sections share one top-aligned slot during the swap, so the measured
-    /// height never stacks the outgoing and incoming sections.
+    /// The active section. A new section takes its height at once and
+    /// settles in from the side the tabs moved toward.
     private var animatedSection: some View {
-        ZStack(alignment: .topLeading) {
-            VStack(alignment: .leading, spacing: 12) {
-                section(for: activeSection, collapsible: false)
-            }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .id(activeSection)
-            .transition(PanelMotion.sectionTransition(direction: sectionDirection))
+        VStack(alignment: .leading, spacing: 12) {
+            section(for: activeSection, collapsible: false)
         }
-        .animation(PanelMotion.tab, value: activeSection)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .panelSectionReveal(direction: sectionDirection)
+        .id(activeSection)
     }
 
     /// Picks a section, noting which way the tabs moved first so the
@@ -2856,15 +2852,14 @@ struct KeepAwakeCard: View {
     private var optionsDisclosure: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                withAnimation(PanelMotion.disclosure) {
-                    optionsExpanded.toggle()
-                }
+                optionsExpanded.toggle()
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.secondary)
-                        .rotationEffect(.degrees(optionsExpanded ? 90 : 0))
+                        // Only the turn animates, never the chevron\'s place in the row.
+                        .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(optionsExpanded ? 90 : 0)) }
                         .frame(width: 12)
                     Text(l10n.s.keepAwakeOptions)
                         .font(.system(size: 11.5, weight: .semibold))
@@ -2899,20 +2894,19 @@ struct KeepAwakeCard: View {
                     )
                     if keepAwakeMouseJiggle {
                         mouseJiggleIntervalRow
-                            .transition(PanelMotion.revealTransition)
+                            .panelReveal()
                         if mouseJiggleNeedsAccessibility {
                             Button(l10n.s.permissionRequest) {
                                 grantAccessibility()
                             }
                             .buttonStyle(.bordered)
                             .controlSize(.small)
-                            .transition(PanelMotion.revealTransition)
+                            .panelReveal()
                         }
                     }
                 }
                 .padding(.leading, 19)
-                .animation(PanelMotion.disclosure, value: keepAwakeMouseJiggle)
-                .transition(PanelMotion.revealTransition)
+                .panelReveal()
             }
         }
     }
@@ -2920,9 +2914,7 @@ struct KeepAwakeCard: View {
     private var automationDisclosure: some View {
         VStack(alignment: .leading, spacing: 7) {
             Button {
-                withAnimation(PanelMotion.disclosure) {
-                    automationExpanded.toggle()
-                }
+                automationExpanded.toggle()
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "bolt.fill")
@@ -2938,7 +2930,8 @@ struct KeepAwakeCard: View {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 8.5, weight: .bold))
                         .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(automationExpanded ? 90 : 0))
+                        // Only the turn animates, never the chevron\'s place in the row.
+                        .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(automationExpanded ? 90 : 0)) }
                 }
                 .contentShape(Rectangle())
             }
@@ -2954,7 +2947,7 @@ struct KeepAwakeCard: View {
                     )
                 }
                 .padding(.leading, 22)
-                .transition(PanelMotion.revealTransition)
+                .panelReveal()
             }
         }
     }
@@ -3281,13 +3274,17 @@ struct KeepAwakeChipStyle: ButtonStyle {
             .padding(.horizontal, 8)
             .frame(minHeight: 22)
             .frame(maxWidth: .infinity)
-            .background(Capsule().fill(isSelected
-                ? Color.brandAccent.opacity(configuration.isPressed ? 0.8 : 1)
-                : Color.primary.opacity(configuration.isPressed ? 0.16 : 0.07)))
+            // The fill and the press animate on their own, so a chip never
+            // glides when the row around it changes.
+            .animation(PanelMotion.selection) {
+                $0.background(Capsule().fill(isSelected
+                    ? Color.brandAccent.opacity(configuration.isPressed ? 0.8 : 1)
+                    : Color.primary.opacity(configuration.isPressed ? 0.16 : 0.07)))
+            }
             .contentShape(Capsule())
-            .scaleEffect(PanelMotion.pressScale(configuration.isPressed))
-            .animation(PanelMotion.press, value: configuration.isPressed)
-            .animation(PanelMotion.selection, value: isSelected)
+            .animation(PanelMotion.press) {
+                $0.scaleEffect(PanelMotion.pressScale(configuration.isPressed))
+            }
     }
 }
 

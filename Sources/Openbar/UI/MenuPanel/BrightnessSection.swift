@@ -68,7 +68,7 @@ struct BrightnessSection: View {
     private var optionsDisclosure: some View {
         VStack(alignment: .leading, spacing: 8) {
             Button {
-                withAnimation(PanelMotion.disclosure) { optionsExpanded.toggle() }
+                optionsExpanded.toggle()
             } label: {
                 HStack(spacing: 7) {
                     Image(systemName: "chevron.right")

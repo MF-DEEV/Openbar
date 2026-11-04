@@ -219,27 +219,23 @@ struct SystemSection: View {
     // MARK: Per-app breakdown
 
     private func toggleBreakdown(_ kind: BreakdownKind) {
-        withAnimation(PanelMotion.disclosure) {
-            if expanded == kind {
-                expanded = nil
-                breakdownRows = []
-                breakdownIsLoading = false
-            } else {
-                expanded = kind
-                breakdownRows = ProcessUsageService.shared.cachedTop(kind, limit: breakdownLimit) ?? []
-            }
+        if expanded == kind {
+            expanded = nil
+            breakdownRows = []
+            breakdownIsLoading = false
+        } else {
+            expanded = kind
+            breakdownRows = ProcessUsageService.shared.cachedTop(kind, limit: breakdownLimit) ?? []
+            refreshBreakdown()
         }
-        if expanded == kind { refreshBreakdown() }
     }
 
     /// Opening the folded CPU apps list starts from the same recent reading
     /// expanding a row does, not from rows kept while it was folded.
     private func toggleCPUApps() {
-        withAnimation(PanelMotion.disclosure) {
-            cpuAppsExpanded.toggle()
-            if cpuAppsExpanded {
-                breakdownRows = ProcessUsageService.shared.cachedTop(.cpu, limit: breakdownLimit) ?? []
-            }
+        cpuAppsExpanded.toggle()
+        if cpuAppsExpanded {
+            breakdownRows = ProcessUsageService.shared.cachedTop(.cpu, limit: breakdownLimit) ?? []
         }
         refreshBreakdown()
     }
@@ -400,7 +396,8 @@ struct SystemSection: View {
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(cpuAppsExpanded ? 90 : 0))
+                                // Only the turn animates, never the chevron\'s place in the row.
+                                .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(cpuAppsExpanded ? 90 : 0)) }
                             subsectionLabel(FeatureStrings.cpuCores(l10n.language).apps)
                             Spacer(minLength: 0)
                         }
@@ -493,7 +490,8 @@ struct SystemSection: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .rotationEffect(.degrees(expanded == kind ? 90 : 0))
+                // Only the turn animates, never the chevron\'s place in the row.
+                .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(expanded == kind ? 90 : 0)) }
                 .opacity(isInteractive ? 1 : 0.35)
             Text(label)
                 .font(.system(size: 11))
@@ -579,7 +577,8 @@ struct SystemSection: View {
             Image(systemName: "chevron.right")
                 .font(.system(size: 8, weight: .semibold))
                 .foregroundStyle(.secondary)
-                .rotationEffect(.degrees(expanded == .memory ? 90 : 0))
+                // Only the turn animates, never the chevron\'s place in the row.
+                .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(expanded == .memory ? 90 : 0)) }
                 .opacity(isInteractive ? 1 : 0.35)
             Text(l10n.s.memoryPressure)
                 .font(.system(size: 11))
@@ -614,13 +613,14 @@ struct SystemSection: View {
             VStack(alignment: .leading, spacing: 7) {
                 HStack(spacing: 6) {
                     Button {
-                        withAnimation(PanelMotion.disclosure) { alertsExpanded.toggle() }
+                        alertsExpanded.toggle()
                     } label: {
                         HStack(spacing: 8) {
                             Image(systemName: "chevron.right")
                                 .font(.system(size: 8, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .rotationEffect(.degrees(alertsExpanded ? 90 : 0))
+                                // Only the turn animates, never the chevron\'s place in the row.
+                                .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(alertsExpanded ? 90 : 0)) }
                             subsectionLabel(text.section)
                             Spacer(minLength: 0)
                         }

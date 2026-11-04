@@ -26,7 +26,7 @@ struct AudioPriorityDisclosure: View {
         VStack(alignment: .leading, spacing: 8) {
             if showsHeader {
                 Button {
-                    withAnimation(PanelMotion.disclosure) { expanded.toggle() }
+                    expanded.toggle()
                 } label: {
                     HStack(spacing: 7) {
                         Image(systemName: "list.number")
@@ -40,7 +40,8 @@ struct AudioPriorityDisclosure: View {
                             .font(.system(size: 9, weight: .bold))
                             .foregroundStyle(.secondary)
                             .frame(width: 12)
-                            .rotationEffect(.degrees(expanded ? 90 : 0))
+                            // Only the turn animates, never the chevron\'s place in the row.
+                            .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(expanded ? 90 : 0)) }
                     }
                     .contentShape(Rectangle())
                 }

@@ -243,7 +243,7 @@ struct PanelSection<Content: View>: View {
 
             if !collapsible || !collapsed {
                 content(isEditing)
-                    .transition(PanelMotion.revealTransition)
+                    .panelReveal()
             }
         }
     }
@@ -283,7 +283,8 @@ struct PanelSection<Content: View>: View {
         Image(systemName: "chevron.right")
             .font(.system(size: 9, weight: .semibold))
             .foregroundStyle(.tertiary)
-            .rotationEffect(.degrees(collapsed ? 0 : 90))
+            // Only the turn animates, never the chevron\'s place in the row.
+            .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(collapsed ? 0 : 90)) }
     }
 
     private var editButton: some View {
@@ -340,9 +341,7 @@ struct PanelSection<Content: View>: View {
     }
 
     private func toggle() {
-        withAnimation(PanelMotion.disclosure) {
-            collapsed.toggle()
-        }
+        collapsed.toggle()
         PanelLayout.setCollapsed(collapsed, for: id)
     }
 }

@@ -386,7 +386,7 @@ private struct EnergyAppsBreakdown: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Button {
-                withAnimation(PanelMotion.disclosure) { expanded.toggle() }
+                expanded.toggle()
                 requestID = UUID()
                 if expanded {
                     rows = ProcessUsageService.shared.cachedTop(.energy, limit: 15) ?? []
@@ -398,7 +398,8 @@ private struct EnergyAppsBreakdown: View {
                 HStack(spacing: 8) {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 8, weight: .semibold))
-                        .rotationEffect(.degrees(expanded ? 90 : 0))
+                        // Only the turn animates, never the chevron\'s place in the row.
+                        .animation(PanelMotion.disclosure) { $0.rotationEffect(.degrees(expanded ? 90 : 0)) }
                     Text(l10n.s.energyAppsTitle)
                     Spacer()
                 }
