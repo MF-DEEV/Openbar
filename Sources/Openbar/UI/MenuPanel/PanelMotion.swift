@@ -44,20 +44,18 @@ enum PanelMotion {
 }
 
 /// Content that settles in when it appears: it fades up from a few points
-/// off and out of a light blur. Only the content's own opacity, offset and
-/// blur move. Animating the layout instead (a transition inside
+/// off. Only the content's own opacity and offset move. Animating the layout instead (a transition inside
 /// `withAnimation`) springs the panel's height, and the hosting view in the
 /// panel's scroll area then draws everything shifted down for a few frames.
 private struct PanelReveal: ViewModifier {
     let offset: CGSize
-    let blur: CGFloat
+    let startOpacity: Double
     @State private var shown = false
 
     func body(content: Content) -> some View {
         content
-            .opacity(shown ? 1 : 0)
+            .opacity(shown ? 1 : startOpacity)
             .offset(shown ? .zero : offset)
-            .blur(radius: shown ? 0 : blur)
             .onAppear {
                 guard !shown else { return }
                 withAnimation(PanelMotion.tab) { shown = true }
@@ -67,17 +65,20 @@ private struct PanelReveal: ViewModifier {
 
 extension View {
     /// A section arriving from a tab: `direction` is +1 when the tabs moved
-    /// right and -1 when they moved left.
+    /// right and -1 when they moved left. It only slides, at full opacity.
+    /// The old section is gone in that same frame, so fading from nothing
+    /// left the panel empty for a couple of frames, and fading from 60% held
+    /// the bright pickers visibly dark for a quarter second (measured frame
+    /// by frame); a blur greyed the switch knobs.
     func panelSectionReveal(direction: CGFloat) -> some View {
-        let still = PanelMotion.reduceMotion
-        return modifier(PanelReveal(offset: still ? .zero : CGSize(width: 14 * direction, height: 0),
-                                    blur: still ? 0 : 3))
+        modifier(PanelReveal(offset: PanelMotion.reduceMotion ? .zero : CGSize(width: 10 * direction, height: 0),
+                             startOpacity: 1))
     }
 
     /// Rows opening under a disclosure drop a few points into place.
     func panelReveal() -> some View {
         modifier(PanelReveal(offset: PanelMotion.reduceMotion ? .zero : CGSize(width: 0, height: -6),
-                             blur: 0))
+                             startOpacity: 0))
     }
 }
 
