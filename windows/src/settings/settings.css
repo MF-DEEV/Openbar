@@ -163,7 +163,9 @@ select {
   background: transparent;
   text-align: left;
   cursor: pointer;
-  transition: background-color 120ms ease;
+  transition:
+    background-color 120ms ease,
+    transform 120ms var(--st-ease);
 }
 
 .st-nav-item:hover {
@@ -172,15 +174,29 @@ select {
 
 .st-nav-item:active {
   background: var(--st-card-press);
+  transform: scale(0.985);
 }
 
 .st-nav-item[aria-current="page"] {
-  background: var(--st-nav-selected);
   font-weight: 500;
 }
 
-/* Windows' selection pill, which grows in from the middle. */
-.st-nav-item::before {
+.st-nav-item[aria-current="page"]:hover,
+.st-nav-item[aria-current="page"]:active {
+  background: transparent;
+}
+
+/* The selected fill and Windows' accent pill travel together from the old
+   page to the new one, the way the Windows 11 Settings nav moves. */
+.st-nav-indicator {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--st-radius);
+  background: var(--st-nav-selected);
+  pointer-events: none;
+}
+
+.st-nav-indicator::before {
   content: "";
   position: absolute;
   left: 0;
@@ -190,12 +206,10 @@ select {
   margin-top: -8px;
   border-radius: 3px;
   background: var(--st-accent);
-  transform: scaleY(0);
-  transition: transform 180ms var(--st-ease);
 }
 
-.st-nav-item[aria-current="page"]::before {
-  transform: scaleY(1);
+.st-nav-item > :not(.st-nav-indicator) {
+  position: relative;
 }
 
 .st-nav-item svg {
@@ -364,14 +378,6 @@ select {
   border-top: 0;
   border-radius: 0 0 var(--st-radius) var(--st-radius);
   background: var(--st-card);
-  animation: st-expand 220ms var(--st-ease) both;
-}
-
-@keyframes st-expand {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
 }
 
 .st-subrow {
@@ -479,6 +485,7 @@ select {
 }
 
 .st-segmented button {
+  position: relative;
   min-height: 32px;
   padding: 0 14px;
   border: 0;
@@ -489,7 +496,12 @@ select {
   white-space: nowrap;
   transition:
     background-color 140ms ease,
-    color 140ms ease;
+    color 140ms ease,
+    transform 120ms var(--st-ease);
+}
+
+.st-segmented button:active:not(:disabled) {
+  transform: scale(0.97);
 }
 
 .st-segmented button:hover:not(.is-selected):not(:disabled) {
@@ -498,9 +510,20 @@ select {
 }
 
 .st-segmented button.is-selected {
-  background: var(--st-accent);
   color: var(--st-on-accent);
   font-weight: 500;
+}
+
+/* One accent pill that slides to the picked option. */
+.st-segmented-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: var(--st-accent);
+}
+
+.st-segmented-label {
+  position: relative;
 }
 
 .st-segmented button:disabled {
@@ -1487,4 +1510,11 @@ select {
   flex: none;
   border-radius: 6px;
   background: #121212;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-nav-item:active,
+  .st-segmented button:active:not(:disabled) {
+    transform: none;
+  }
 }
