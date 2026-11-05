@@ -9,7 +9,7 @@ import { create } from "zustand";
 import { bridge } from "../shared/bridge";
 import { localCostumeStore } from "./clawd/costume";
 import { autoAllowConsent } from "./autoAllowConsent";
-import type { Decision, ReplyAttachment, ReplyFailure, Session, SessionEvent, Snapshot } from "./types";
+import type { Decision, PlanMode, ReplyAttachment, ReplyFailure, Session, SessionEvent, Snapshot } from "./types";
 import { DEFAULT_SESSION_PREFS, type SessionPrefs } from "../shared/prefs";
 
 /** A permission must be on screen this long before a click or Ctrl+Y can answer it. */
@@ -50,7 +50,7 @@ interface SessionsState {
   addAttachments(id: string, images: ReplyAttachment[]): void;
   removeAttachment(id: string, path: string): void;
   rename(id: string, name: string): void;
-  decide(session: Session, decision: Decision): Promise<boolean>;
+  decide(session: Session, decision: Decision, planMode?: PlanMode): Promise<boolean>;
   answer(session: Session, answers: Record<string, string | string[]>): Promise<boolean>;
   skip(session: Session): Promise<boolean>;
   reply(session: Session, text: string, images: string[]): Promise<ReplyFailure | null>;
@@ -200,9 +200,15 @@ export const useSessions = create<SessionsState>()((set, get) => ({
     });
   },
 
-  async decide(session, decision) {
+  async decide(session, decision, planMode) {
     if (!session.permission || session.permission.questions.length > 0 || !settled(get(), session)) return false;
-    return (await bridge.sessions.decide(session.id, session.permission.requestId, decision)) ?? false;
+    const { id } = session;
+    const request = session.permission.requestId;
+    // A mode goes along only for a plan's approval.
+    const sent = planMode
+      ? bridge.sessions.decide(id, request, decision, planMode)
+      : bridge.sessions.decide(id, request, decision);
+    return (await sent) ?? false;
   },
 
   async answer(session, answers) {

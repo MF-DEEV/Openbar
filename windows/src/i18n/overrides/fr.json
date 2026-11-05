@@ -312,6 +312,7 @@
   "notchClaudeSessions.inputNotice": "Vous attend",
   "notchClaudeSessions.finishedAfterFormat": "Fait après %@",
   "windows.sessions.shortcutsHint": "Ctrl+Y autorise, Ctrl+T sélectionne Toujours, Ctrl+N refuse. Fonctionne pendant qu'une autre application est active.",
+  "windows.sessions.shortcutsHintPlan": "Ctrl+Y approuve avec %@, Ctrl+N continue la planification. Fonctionne pendant qu'une autre application est active.",
   "notchClaudeSessions.sendFailed": "Impossible d'atteindre ce terminal",
   "notchClaudeSessions.sendWhileWaiting": "Il attend maintenant une invite. Répondez-y d'abord.",
   "notchClaudeSessions.openFailed": "Impossible de trouver cette fenêtre",

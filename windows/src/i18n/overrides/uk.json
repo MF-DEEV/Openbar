@@ -312,6 +312,7 @@
   "notchClaudeSessions.inputNotice": "Чекає на вас",
   "notchClaudeSessions.finishedAfterFormat": "Виконано після %@",
   "windows.sessions.shortcutsHint": "Ctrl+Y дозволяє, Ctrl+T вибирає Завжди, Ctrl+N забороняє. Працює, поки зосереджено інший додаток.",
+  "windows.sessions.shortcutsHintPlan": "Ctrl+Y схвалює з режимом %@, Ctrl+N продовжує планування. Працює, навіть коли активна інша програма.",
   "notchClaudeSessions.sendFailed": "Не вдалося підключитися до цього терміналу",
   "notchClaudeSessions.sendWhileWaiting": "Зараз очікує на підказку. Спочатку дайте відповідь на неї.",
   "notchClaudeSessions.openFailed": "Не вдалося знайти це вікно",

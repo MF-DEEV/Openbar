@@ -5,7 +5,7 @@
 // language (NotchClaudeSessionStrings.swift); Mac-only wording is swapped
 // for Windows here.
 
-import { isHookAgent, PROVIDER_NAMES, type Provider } from "./types";
+import { isHookAgent, PROVIDER_NAMES, type PlanMode, type Provider } from "./types";
 import { t, tf } from "../i18n";
 
 export const S = {
@@ -98,6 +98,33 @@ export const S = {
   get keepPlanning() {
     return t("notchClaudeSessions.keepPlanning");
   },
+  /** A plan's approval mode, as Claude Code's plan dialog names it (NotchClaudeSessionStrings.planMode). */
+  planMode(mode: PlanMode): string {
+    switch (mode) {
+      case "auto":
+        return t("notchClaudeSessions.planAuto");
+      case "acceptEdits":
+        return t("notchClaudeSessions.planAcceptEdits");
+      case "bypassPermissions":
+        return t("notchClaudeSessions.planBypass");
+      case "default":
+        return t("notchClaudeSessions.planManual");
+    }
+  },
+  planModeHelp(mode: PlanMode): string {
+    switch (mode) {
+      case "auto":
+        return t("notchClaudeSessions.planAutoHelp");
+      case "acceptEdits":
+        return t("notchClaudeSessions.planAcceptEditsHelp");
+      case "bypassPermissions":
+        return t("notchClaudeSessions.planBypassHelp");
+      case "default":
+        return t("notchClaudeSessions.planManualHelp");
+    }
+  },
+  /** The hint on a plan's card, with the mode Ctrl+Y picks. */
+  shortcutsHintPlan: (mode: string) => tf("windows.sessions.shortcutsHintPlan", mode),
   get answerInTerminal() {
     return t("notchClaudeSessions.answerInTerminal");
   },

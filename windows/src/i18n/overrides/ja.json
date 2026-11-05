@@ -312,6 +312,7 @@
   "notchClaudeSessions.inputNotice": "あなたを待っています",
   "notchClaudeSessions.finishedAfterFormat": "%@ 後に完了",
   "windows.sessions.shortcutsHint": "Ctrl+Y が許可し、Ctrl+T が常に選択し、Ctrl+N が拒否します。別のアプリがフォーカスされている間も機能します。",
+  "windows.sessions.shortcutsHintPlan": "Ctrl+Y で %@ として承認、Ctrl+N で計画を続けます。別のアプリがアクティブでも使えます。",
   "notchClaudeSessions.sendFailed": "そのターミナルに接続できませんでした",
   "notchClaudeSessions.sendWhileWaiting": "現在プロンプトの入力待ちです。まずそれに答えてください。",
   "notchClaudeSessions.openFailed": "そのウィンドウが見つかりませんでした",

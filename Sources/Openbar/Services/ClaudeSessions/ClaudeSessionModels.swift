@@ -255,6 +255,9 @@ struct ClaudePermission: Equatable {
     /// What a file change would do to each file it touches, shown like the
     /// detail even with previews off.
     var diffs: [ClaudeFileDiff] = []
+    /// For a plan, the modes it can be approved into, the one a plain
+    /// approval picks first.
+    var planModes: [ClaudePlanMode] = []
 
     var asksQuestions: Bool { !questions.isEmpty }
 

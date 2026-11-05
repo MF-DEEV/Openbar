@@ -30,6 +30,7 @@ use super::models::{
     self, ContentPolicy, HookEvent, HostKind, Session, SessionCounts, SessionEvent, SessionRecord,
     Time,
 };
+use super::plan_modes::PlanMode;
 use super::registry::{self, RegistryFile};
 use super::transcript::{self, NoPricing, TranscriptReader};
 use crate::hooks::{self, transport::HookConnection};
@@ -85,6 +86,7 @@ struct Pending {
     suggestions: Option<Value>,
     question_input: Option<Map<String, Value>>,
     approval_input: Option<Map<String, Value>>,
+    plan_modes: Vec<PlanMode>,
     since: Time,
 }
 
@@ -827,6 +829,10 @@ impl Service {
             self.read_transcript(&mut inner, &id, home.as_deref(), now());
         }
         let session = message.fact.session_id.clone();
+        let modes = match &message.fact.event {
+            HookEvent::PermissionRequested(asked) => asked.plan_modes.clone(),
+            _ => Vec::new(),
+        };
         inner.engine.ingest_hook(message.fact, now());
         if permission {
             inner.pending.insert(
@@ -837,6 +843,7 @@ impl Service {
                     suggestions: message.suggestions,
                     question_input: message.question_input,
                     approval_input: message.approval_input,
+                    plan_modes: modes,
                     since: now(),
                 },
             );
@@ -875,7 +882,7 @@ impl Service {
         }
         if let Some(codex) = self.codex().filter(|c| c.owns(session)) {
             let answer = match decision {
-                Decision::Allow => CodexAnswer::Allow,
+                Decision::Allow | Decision::ApprovePlan(_) => CodexAnswer::Allow,
                 Decision::AllowAlways => CodexAnswer::AllowForSession,
                 Decision::Deny => CodexAnswer::Deny,
                 Decision::Answer(map) => CodexAnswer::Questions(map.into_iter().collect()),
@@ -896,14 +903,33 @@ impl Service {
             .is_some_and(|p| !p.questions.is_empty());
         let fits = match &decision {
             Decision::Answer(_) => asks,
-            Decision::Allow | Decision::AllowAlways => !asks,
+            Decision::Allow | Decision::AllowAlways | Decision::ApprovePlan(_) => !asks,
             Decision::Deny => true,
         };
         if !fits || !inner.engine.holds(request, session) {
             return false;
         }
+        // A mode goes only to a plan that offers it.
+        if let Decision::ApprovePlan(mode) = &decision {
+            let offered = inner
+                .pending
+                .get(request)
+                .is_some_and(|p| p.approval_input.is_some() && p.plan_modes.contains(mode));
+            if !offered {
+                return false;
+            }
+        }
         let Some(pending) = inner.pending.remove(request) else {
             return false;
+        };
+        // A plain approval of a plan, from a shortcut or the list, picks the
+        // mode the card puts first.
+        let decision = match decision {
+            Decision::Allow | Decision::AllowAlways if pending.approval_input.is_some() => pending
+                .plan_modes
+                .first()
+                .map_or(decision, |first| Decision::ApprovePlan(*first)),
+            other => other,
         };
         let body = hook_message::reply(
             &decision,
@@ -1298,11 +1324,13 @@ pub fn sessions_decide(
     session_id: String,
     request_id: String,
     decision: UiDecision,
+    plan_mode: Option<PlanMode>,
 ) -> bool {
-    let decision = match decision {
-        UiDecision::Allow => Decision::Allow,
-        UiDecision::Always => Decision::AllowAlways,
-        UiDecision::Deny => Decision::Deny,
+    let decision = match (decision, plan_mode) {
+        (UiDecision::Allow, Some(mode)) => Decision::ApprovePlan(mode),
+        (UiDecision::Allow, None) => Decision::Allow,
+        (UiDecision::Always, _) => Decision::AllowAlways,
+        (UiDecision::Deny, _) => Decision::Deny,
     };
     service.answer(&session_id, &request_id, decision)
 }

@@ -312,6 +312,7 @@
   "notchClaudeSessions.inputNotice": "Čaká na vás",
   "notchClaudeSessions.finishedAfterFormat": "Dokončené po %@",
   "windows.sessions.shortcutsHint": "Ctrl+Y povoľuje, Ctrl+T vyberá Vždy, Ctrl+N zamieta. Funguje, kým je aktívna iná aplikácia.",
+  "windows.sessions.shortcutsHintPlan": "Ctrl+Y schváli s režimom %@, Ctrl+N pokračuje v plánovaní. Funguje, aj keď je aktívna iná aplikácia.",
   "notchClaudeSessions.sendFailed": "Nepodarilo sa dosiahnuť tento terminál",
   "notchClaudeSessions.sendWhileWaiting": "Teraz čaká na vyzvanie. Odpovedzte najprv naň.",
   "notchClaudeSessions.openFailed": "Nepodarilo sa nájsť toto okno",

@@ -300,7 +300,7 @@ enum AgentHookMessage {
     static func opencodeReply(_ decision: ClaudeHookMessage.Decision) -> Data? {
         let reply: String
         switch decision {
-        case .allow: reply = "once"
+        case .allow, .approvePlan: reply = "once"
         case .allowAlways: reply = "always"
         case .deny: reply = "reject"
         case .answer: return nil

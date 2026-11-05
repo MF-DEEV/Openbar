@@ -8,7 +8,15 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { register, unregister, type ShortcutEvent } from "@tauri-apps/plugin-global-shortcut";
-import type { Decision, RecentFolder, ReplyAttachment, ReplyFailure, SessionEvent, Snapshot } from "../sessions/types";
+import type {
+  Decision,
+  PlanMode,
+  RecentFolder,
+  ReplyAttachment,
+  ReplyFailure,
+  SessionEvent,
+  Snapshot,
+} from "../sessions/types";
 import type { MusicCommand, NowPlaying } from "../music/types";
 import type { Access, Inbox, Item } from "../notifications/types";
 import type { DownloadSnapshot } from "../downloads/types";
@@ -180,8 +188,9 @@ export const bridge = {
     acknowledge: (sessionId: string) => call("sessions_acknowledge", { sessionId }),
     /** The open session page (null for the list), so Codex keeps that thread joined. */
     focus: (sessionId: string | null) => call("sessions_focus", { sessionId }),
-    decide: (sessionId: string, requestId: string, decision: Decision) =>
-      call<boolean>("sessions_decide", { sessionId, requestId, decision }),
+    /** A plan's allow can name the mode it is approved into. */
+    decide: (sessionId: string, requestId: string, decision: Decision, planMode?: PlanMode) =>
+      call<boolean>("sessions_decide", { sessionId, requestId, decision, planMode: planMode ?? null }),
     answer: (sessionId: string, requestId: string, answers: Record<string, string | string[]>) =>
       call<boolean>("sessions_answer", { sessionId, requestId, answers }),
     /** null when delivered. */

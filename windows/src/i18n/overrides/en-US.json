@@ -311,6 +311,7 @@
   "notchClaudeSessions.inputNotice": "Waiting for you",
   "notchClaudeSessions.finishedAfterFormat": "Done after %@",
   "windows.sessions.shortcutsHint": "Ctrl+Y allows, Ctrl+T selects Always, Ctrl+N denies. Works while another app is focused.",
+  "windows.sessions.shortcutsHintPlan": "Ctrl+Y approves with %@, Ctrl+N keeps planning. Works while another app is focused.",
   "notchClaudeSessions.sendFailed": "Couldn’t reach that terminal",
   "notchClaudeSessions.sendWhileWaiting": "It’s waiting on a prompt now. Answer it first.",
   "notchClaudeSessions.openFailed": "Couldn’t find that window",
