@@ -2670,10 +2670,12 @@ struct NotchGeometry: Equatable {
     /// A working agent keeps its mark and one reading beside the camera,
     /// never below it, like the timer. Both wings take the width the reading
     /// needs, so a short one leaves no band of empty black at the ends.
-    func compactAgentGeometry(wing: CGFloat) -> NotchGeometry {
+    /// `widest` caps the wing; the menus beside the camera cap it too.
+    func compactAgentGeometry(wing: CGFloat,
+                              widest: CGFloat = NotchAgentSupport.stripWingRange.upperBound) -> NotchGeometry {
         var compact = self
         let room = compactSideRoom ?? 0
-        let fitted = min(NotchAgentSupport.stripWingRange.upperBound,
+        let fitted = min(max(NotchAgentSupport.stripWingRange.lowerBound, widest),
                          max(NotchAgentSupport.stripWingRange.lowerBound, wing.isFinite ? wing.rounded(.up) : 0))
         compact.compactSideRoom = room.isFinite && room >= NotchAgentSupport.stripWingRange.lowerBound ? min(fitted, room) : 0
         compact.minimumCompactWidth = cameraWidth + fitted * 2

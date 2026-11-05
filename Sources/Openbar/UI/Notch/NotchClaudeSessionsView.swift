@@ -363,8 +363,12 @@ extension ClaudeSession {
 }
 
 extension NotchClaudeSessionsSupport.StripItem {
-    /// An agent's count at work in its color; the rest in the phase's.
-    var tint: Color { phase.tint(for: provider ?? .claude) }
+    /// An agent's count at work in its color; the rest in the phase's. A
+    /// count joining several agents at work takes none of theirs.
+    var tint: Color {
+        if phase == .generating, provider == nil { return .white.opacity(0.9) }
+        return phase.tint(for: provider ?? .claude)
+    }
 }
 
 enum NotchClaudeSessionFormat {

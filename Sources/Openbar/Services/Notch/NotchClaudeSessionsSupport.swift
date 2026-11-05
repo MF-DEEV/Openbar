@@ -151,6 +151,28 @@ enum NotchClaudeSessionsSupport {
             .filter { $0.count > 0 }
     }
 
+    /// The same counts with every agent at work in one count, for a strip
+    /// the menus beside the camera leave too narrow for each agent's own.
+    static func stripJointReading(_ counts: ClaudeSessionCounts) -> [StripItem] {
+        let agents = stripAgents(counts)
+        return stripReading(counts).reduce(into: []) { items, item in
+            guard item.phase == .generating else { items.append(item); return }
+            if let index = items.firstIndex(where: { $0.phase == .generating }) {
+                items[index] = StripItem(phase: .generating, count: items[index].count + item.count,
+                                         provider: items[index].provider)
+            } else {
+                items.append(StripItem(phase: .generating, count: item.count,
+                                       provider: agents.count == 1 ? item.provider : nil))
+            }
+        }
+    }
+
+    /// How wide the counts may take the wing beside the camera. Every agent
+    /// at work keeps its own count, so a busy strip needs far more than the
+    /// AI strip's single reading; the menus beside the camera still cap it,
+    /// so the counts never run under a physical camera.
+    static let stripWidestWing: CGFloat = 320
+
     /// Whose marks the strip shows while sessions work, front first, in the
     /// agents' own order: Claude, Codex, Gemini CLI, Copilot CLI, OpenCode,
     /// Cursor. Two agents at work stack; past two, the first two show and
@@ -186,11 +208,14 @@ enum NotchClaudeSessionsSupport {
     }
 
     /// How wide the strip draws the counts: a mark, its number, and room
-    /// between them; and the limit's ring and share after them.
+    /// between them; and the limit's ring and share after them. Each count
+    /// keeps a point for the glyphs rounding to whole points, and the
+    /// semibold digits run wider than the share's, so a measure that comes
+    /// up short never pushes the first count under the camera.
     static func stripReadingWidth(_ counts: ClaudeSessionCounts, limit: String? = nil, textSize: CGFloat) -> CGFloat {
         let items = stripReading(counts)
         let digits = items.map { String($0.count).count }.reduce(0, +)
-        var width = CGFloat(items.count) * (textSize * 0.9 + 2) + CGFloat(digits) * textSize * 0.62
+        var width = CGFloat(items.count) * (textSize * 0.9 + 3) + CGFloat(digits) * textSize * 0.66
             + CGFloat(max(0, items.count - 1)) * 6
         if let limit {
             // The ring, then the share in the counts' size, a little smaller.
