@@ -924,7 +924,7 @@ enum CodexAnswer: Equatable {
 
     init(_ decision: ClaudeHookMessage.Decision) {
         switch decision {
-        case .allow: self = .allow
+        case .allow, .approvePlan: self = .allow
         case .allowAlways: self = .allowForSession
         case .deny: self = .deny
         case .answer(let answers): self = .questions(answers)

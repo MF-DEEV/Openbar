@@ -34,6 +34,16 @@ struct NotchClaudeSessionStrings {
     let plan: String
     let approvePlan: String
     let keepPlanning: String
+    /// The modes a plan is approved into, as Claude Code's plan dialog
+    /// offers them, each with what it does.
+    let planAuto: String
+    let planAutoHelp: String
+    let planAcceptEdits: String
+    let planAcceptEditsHelp: String
+    let planBypass: String
+    let planBypassHelp: String
+    let planManual: String
+    let planManualHelp: String
     let answerInTerminal: String
     let question: String
     let questionCodex: String
@@ -99,6 +109,8 @@ struct NotchClaudeSessionStrings {
     let shortcutsHint: String
     /// The same, on a card that offers Always.
     let shortcutsHintAlways: String
+    /// The same, on a plan's card, with the mode ⌘Y picks.
+    let shortcutsHintPlanFormat: String
     let sendFailed: String
     let sendWhileWaiting: String
     let bridgeTitle: String
@@ -298,6 +310,14 @@ extension NotchClaudeSessionStrings {
         plan: "Plan to approve",
         approvePlan: "Approve",
         keepPlanning: "Keep planning",
+        planAuto: "Auto mode",
+        planAutoHelp: "Approve the plan and switch to auto mode, where a reviewer model screens what Claude does instead of asking you.",
+        planAcceptEdits: "Accept edits",
+        planAcceptEditsHelp: "Approve the plan and let Claude edit files without asking.",
+        planBypass: "Bypass",
+        planBypassHelp: "Approve the plan and bypass permissions, so Claude asks for nothing.",
+        planManual: "Manual",
+        planManualHelp: "Approve the plan and have Claude ask before each edit.",
         answerInTerminal: "Answer this one in the terminal.",
         question: "Claude asks",
         questionCodex: "Codex asks",
@@ -361,6 +381,7 @@ extension NotchClaudeSessionStrings {
         hooksFailedFormat: "Couldn’t change the settings: %@",
         shortcutsHint: "⌘Y allows and ⌘N denies, even while another app is in front.",
         shortcutsHintAlways: "⌘Y allows, ⌘T picks Always and ⌘N denies, even while another app is in front.",
+        shortcutsHintPlanFormat: "⌘Y approves with %@ and ⌘N keeps planning, even while another app is in front.",
         sendFailed: "Couldn’t reach that terminal",
         sendWhileWaiting: "It’s waiting on a prompt now. Answer it first.",
         bridgeTitle: "Editor extension",
@@ -497,5 +518,25 @@ extension NotchClaudeSessionStrings {
     }
     var agentHintCursor: String {
         "Hooks in ~/.cursor/hooks.json, next to your own, for Cursor’s agent and cursor-agent. Approvals stay in Cursor; Open takes you there."
+    }
+}
+
+extension NotchClaudeSessionStrings {
+    func planMode(_ mode: ClaudePlanMode) -> String {
+        switch mode {
+        case .auto: return planAuto
+        case .acceptEdits: return planAcceptEdits
+        case .bypass: return planBypass
+        case .manual: return planManual
+        }
+    }
+
+    func planModeHelp(_ mode: ClaudePlanMode) -> String {
+        switch mode {
+        case .auto: return planAutoHelp
+        case .acceptEdits: return planAcceptEditsHelp
+        case .bypass: return planBypassHelp
+        case .manual: return planManualHelp
+        }
     }
 }

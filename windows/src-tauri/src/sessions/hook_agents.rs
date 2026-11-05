@@ -694,7 +694,7 @@ fn opencode(
 pub fn opencode_reply(decision: &super::hook_message::Decision) -> Option<Vec<u8>> {
     use super::hook_message::Decision;
     let reply = match decision {
-        Decision::Allow => "once",
+        Decision::Allow | Decision::ApprovePlan(_) => "once",
         Decision::AllowAlways => "always",
         Decision::Deny => "reject",
         Decision::Answer(_) => return None,

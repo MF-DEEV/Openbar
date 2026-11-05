@@ -74,8 +74,13 @@ export interface Permission {
   questions: Question[];
   /** A file change's diff, per file; empty for anything else. */
   diffs?: FileDiff[];
+  /** For a plan, the modes it can be approved into, the one a plain approval picks first. */
+  planModes?: PlanMode[];
   fitsOnALine: boolean;
 }
+
+/** A mode a plan is approved into, by the name Claude Code takes (ClaudePlanMode). */
+export type PlanMode = "bypassPermissions" | "auto" | "acceptEdits" | "default";
 
 export interface Subagent {
   id: string;

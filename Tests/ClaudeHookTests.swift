@@ -45,10 +45,84 @@ enum ClaudeHookTests {
                      && kept["updatedInput"] == nil,
                      "keeping on planning tells Claude the plan was not approved")
 
+        planModes(suite, base: base, original: original, json: json)
+
         let bash = decode(#"{\#(base),"hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"ls"}}"#)
         suite.expect(bash?.approvalInput == nil, "other tools are allowed without their input")
         let plain = json(ClaudeHookMessage.reply(.allow, suggestions: nil))["decision"] as? [String: Any] ?? [:]
         suite.expect(plain["updatedInput"] == nil && plain["behavior"] as? String == "allow", "and their allow stays bare")
+    }
+
+    /// The modes a plan is approved into, as Claude Code 2.1.318's plan
+    /// dialog offers them, and the setMode its answer carries.
+    static func planModes(_ suite: TestSuite, base: String, original: [String: Any], json: (Data) -> [String: Any]) {
+        var asked: (String?, String?)?
+        let message = ClaudeHookMessage.decode(
+            Data(##"{\##(base),"permission_mode":"plan","hook_event_name":"PermissionRequest","tool_name":"ExitPlanMode","tool_input":{"plan":"x"}}"##.utf8),
+            requestID: "r1", now: now, policy: ClaudeContentPolicy(previews: false),
+            planModes: { asked = ($0, $1); return [.auto, .manual] })
+        suite.expect(message?.planModes == [.auto, .manual] && asked?.0 == "/x/s1.jsonl" && asked?.1 == "/a",
+                     "a plan carries the modes read for its session and folder")
+        var readForBash = false
+        let bash = ClaudeHookMessage.decode(
+            Data(#"{\#(base),"hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{"command":"ls"}}"#.utf8),
+            requestID: "r2", now: now, policy: ClaudeContentPolicy(previews: false),
+            planModes: { _, _ in readForBash = true; return [.auto] })
+        suite.expect(bash?.planModes == [] && !readForBash, "any other request has none, and nothing is read for it")
+
+        for mode in ClaudePlanMode.allCases {
+            let body = json(ClaudeHookMessage.reply(.approvePlan(mode), suggestions: nil, approved: original))["decision"]
+                as? [String: Any] ?? [:]
+            let updates = body["updatedPermissions"] as? [[String: Any]] ?? []
+            suite.expect(body["behavior"] as? String == "allow"
+                         && (body["updatedInput"] as? [String: Any])?["plan"] as? String == original["plan"] as? String
+                         && updates.count == 1 && updates[0]["type"] as? String == "setMode"
+                         && updates[0]["mode"] as? String == mode.rawValue && updates[0]["destination"] as? String == "session",
+                         "approving into \(mode.rawValue) hands the plan back and sets the session's mode")
+        }
+        suite.expect(ClaudePlanMode.manual.rawValue == "default" && ClaudePlanMode.bypass.rawValue == "bypassPermissions",
+                     "the modes are named as Claude Code takes them")
+
+        // What the dialog offers.
+        typealias Reading = ClaudePlanModes.Reading
+        suite.expect(ClaudePlanModes.offered(Reading()) == [.acceptEdits, .manual],
+                     "with no sign of auto mode, a plan goes on accepting edits, or asking")
+        suite.expect(ClaudePlanModes.offered(Reading(seen: ["auto", "plan"])) == [.auto, .manual],
+                     "a session that was in auto mode goes back to it")
+        suite.expect(ClaudePlanModes.offered(Reading(autoConfigured: true)) == [.auto, .manual],
+                     "so does one whose settings start or configure auto mode")
+        suite.expect(ClaudePlanModes.offered(Reading(seen: ["auto"], autoConfigured: true, autoDisabled: true))
+                        == [.acceptEdits, .manual],
+                     "settings that turn auto mode off keep it off the card")
+        suite.expect(ClaudePlanModes.offered(Reading(seen: ["bypassPermissions", "auto"])) == [.bypass, .manual],
+                     "a session launched able to bypass is offered bypass, as in the terminal")
+
+        // Read from the transcript and the settings Claude Code reads.
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("plan-modes-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let config = root.appendingPathComponent("config"), cwd = root.appendingPathComponent("work")
+        let folder = config.appendingPathComponent("projects/-work")
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? FileManager.default.createDirectory(at: cwd.appendingPathComponent(".claude"), withIntermediateDirectories: true)
+        let transcript = folder.appendingPathComponent("s.jsonl")
+        func write(_ text: String, _ url: URL) { try? Data(text.utf8).write(to: url) }
+        write(#"{"type":"permission-mode","permissionMode":"auto","sessionId":"s"}"# + "\n"
+              + #"{"type":"user","permissionMode":"plan"}"# + "\n", transcript)
+        let none: [String] = []
+        var reading = ClaudePlanModes.read(transcript: transcript.path, cwd: cwd.path, managed: none)
+        suite.expect(reading == Reading(seen: ["auto"]), "the transcript tells the modes the session was in that a plan goes to")
+        write(#"{"permissions":{"defaultMode":"auto"}}"#, config.appendingPathComponent("settings.json"))
+        reading = ClaudePlanModes.read(transcript: nil, cwd: nil, managed: [config.appendingPathComponent("settings.json").path])
+        suite.expect(reading.autoConfigured && reading.seen.isEmpty, "a defaultMode of auto counts as auto mode")
+        reading = ClaudePlanModes.read(transcript: transcript.path, cwd: nil, managed: none)
+        suite.expect(reading.autoConfigured, "the user's settings are the ones in the transcript's config folder")
+        write(#"{"permissions":{"disableAutoMode":"disable"}}"#, cwd.appendingPathComponent(".claude/settings.local.json"))
+        reading = ClaudePlanModes.read(transcript: transcript.path, cwd: cwd.path, managed: none)
+        suite.expect(reading.autoDisabled && ClaudePlanModes.offered(reading) == [.acceptEdits, .manual],
+                     "the project's local settings can turn it off")
+        write("not json", cwd.appendingPathComponent(".claude/settings.local.json"))
+        reading = ClaudePlanModes.read(transcript: root.appendingPathComponent("gone.jsonl").path, cwd: cwd.path, managed: none)
+        suite.expect(reading == Reading(), "a missing transcript and unreadable settings tell nothing")
     }
 
     // MARK: Questions

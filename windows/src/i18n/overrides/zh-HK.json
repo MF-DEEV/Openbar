@@ -312,6 +312,7 @@
   "notchClaudeSessions.inputNotice": "正在等待你",
   "notchClaudeSessions.finishedAfterFormat": "%@ 後完成",
   "windows.sessions.shortcutsHint": "Ctrl+Y 允許，Ctrl+T 選擇總是，Ctrl+N 拒絕。當其他應用程式專注時也有效。",
+  "windows.sessions.shortcutsHintPlan": "Ctrl+Y 以 %@ 批准，Ctrl+N 繼續規劃。其他應用程式在前景時也有效。",
   "notchClaudeSessions.sendFailed": "無法連接該終端機",
   "notchClaudeSessions.sendWhileWaiting": "現在正在等待提示，請先回答它。",
   "notchClaudeSessions.openFailed": "找不到該視窗",

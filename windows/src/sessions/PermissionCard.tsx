@@ -21,6 +21,7 @@ import { handlePermissionKey } from "./permissionKeys";
 import { subscribeGlobalPermissionKeys } from "./globalPermissionKeys";
 import { AutoAllowButton } from "./AutoAllowButton";
 import { FileDiffView } from "./FileDiffView";
+import { HandFill } from "./glyphs";
 
 /** The tool Claude Code calls to have its plan approved (ClaudeToolSummary.planTool). */
 export const PLAN_TOOL = "ExitPlanMode";
@@ -96,6 +97,9 @@ function ToolRequest({ session }: { session: Session }) {
   const decide = useSessions((s) => s.decide);
   // A plan is prose, read in the interface's font.
   const plan = p.tool === PLAN_TOOL;
+  // As Claude Code's plan dialog: the mode that lets Claude work on its own
+  // first, then approving each edit.
+  const [firstMode, ...otherModes] = plan ? (p.planModes ?? []) : [];
   useEffect(() => {
     const unsubscribe = subscribeGlobalPermissionKeys(session.id, p.requestId);
     const onKey = (event: KeyboardEvent) => handlePermissionKey(event, session.id, p.requestId);
@@ -141,19 +145,34 @@ function ToolRequest({ session }: { session: Session }) {
             {S.alwaysAllow}
           </button>
         ) : null}
+        {otherModes.reverse().map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            className="s-button is-secondary"
+            title={S.planModeHelp(mode)}
+            disabled={!ready}
+            onClick={() => void decide(session, "allow", mode)}
+          >
+            <HandFill size={10} />
+            {S.planMode(mode)}
+          </button>
+        ))}
         <button
           type="button"
           className="s-button is-allow"
           aria-keyshortcuts="Control+y"
-          title={t("windows.sessions.ctrlY")}
+          title={
+            firstMode ? `${S.planModeHelp(firstMode)} (${t("windows.sessions.ctrlY")})` : t("windows.sessions.ctrlY")
+          }
           disabled={!ready}
-          onClick={() => void decide(session, "allow")}
+          onClick={() => void decide(session, "allow", firstMode)}
         >
           <Check size={10} strokeWidth={3.5} />
-          {plan ? S.approvePlan : S.allow}
+          {firstMode ? S.planMode(firstMode) : plan ? S.approvePlan : S.allow}
         </button>
       </div>
-      <div className="s-hint">{S.shortcutsHint}</div>
+      <div className="s-hint">{firstMode ? S.shortcutsHintPlan(S.planMode(firstMode)) : S.shortcutsHint}</div>
     </>
   );
 }

@@ -424,10 +424,27 @@ struct NotchClaudeSessionPermissionCard: View {
                     }
                     .disabled(settling)
                 }
-                NotchClaudeDecisionButton(title: plan ? text.approvePlan : text.allow, symbol: "checkmark", role: .allow) {
-                    service.decide(session.id, request: permission.requestID, .allow)
+                if plan, let first = permission.planModes.first {
+                    // As Claude Code's plan dialog: the mode that lets Claude
+                    // work on its own first, then approving each edit.
+                    ForEach(Array(permission.planModes.dropFirst().reversed()), id: \.self) { mode in
+                        NotchClaudeDecisionButton(title: text.planMode(mode), symbol: "hand.raised", role: .secondary,
+                                                  help: text.planModeHelp(mode)) {
+                            service.decide(session.id, request: permission.requestID, .approvePlan(mode))
+                        }
+                        .disabled(settling)
+                    }
+                    NotchClaudeDecisionButton(title: text.planMode(first), symbol: "checkmark", role: .allow,
+                                              help: text.planModeHelp(first) + " (⌘Y)") {
+                        service.decide(session.id, request: permission.requestID, .approvePlan(first))
+                    }
+                    .disabled(settling)
+                } else {
+                    NotchClaudeDecisionButton(title: plan ? text.approvePlan : text.allow, symbol: "checkmark", role: .allow) {
+                        service.decide(session.id, request: permission.requestID, .allow)
+                    }
+                    .disabled(settling)
                 }
-                .disabled(settling)
             } else {
                 Text(text.answerIn(session.provider)).font(.system(size: 10.5)).foregroundStyle(.secondary)
                 Spacer(minLength: 0)
@@ -435,7 +452,8 @@ struct NotchClaudeSessionPermissionCard: View {
             }
         }
         if let permission = session.permission {
-            Text(session.provider == .codex || permission.offersAlways ? text.shortcutsHintAlways : text.shortcutsHint)
+            Text(permission.planModes.first.map { String(format: text.shortcutsHintPlanFormat, text.planMode($0)) }
+                 ?? (session.provider == .codex || permission.offersAlways ? text.shortcutsHintAlways : text.shortcutsHint))
                 .font(.system(size: 9.5)).foregroundStyle(.tertiary)
         }
     }

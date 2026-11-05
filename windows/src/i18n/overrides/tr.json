@@ -312,6 +312,7 @@
   "notchClaudeSessions.inputNotice": "Sizin için bekliyor",
   "notchClaudeSessions.finishedAfterFormat": "%@ sonra tamamlandı",
   "windows.sessions.shortcutsHint": "Ctrl+Y izin verir, Ctrl+T Her zaman seçer, Ctrl+N reddeder. Başka bir uygulama aktifken de çalışır.",
+  "windows.sessions.shortcutsHintPlan": "Ctrl+Y %@ ile onaylar, Ctrl+N planlamaya devam eder. Başka bir uygulama odaktayken de çalışır.",
   "notchClaudeSessions.sendFailed": "O terminale ulaşılamadı",
   "notchClaudeSessions.sendWhileWaiting": "Şu anda bir istem bekliyor. Önce ona cevap ver.",
   "notchClaudeSessions.openFailed": "O pencere bulunamadı",

@@ -18,6 +18,7 @@ use serde_json::{Map, Value};
 use unicode_segmentation::UnicodeSegmentation;
 
 use super::file_diff::FileDiff;
+use super::plan_modes::PlanMode;
 
 /// Seconds since 1970, as every time here is kept.
 pub type Time = f64;
@@ -268,6 +269,9 @@ pub struct Permission {
     /// What a file change would do to each file it touches, shown like the
     /// detail even with previews off.
     pub diffs: Vec<FileDiff>,
+    /// For a plan, the modes it can be approved into, the one a plain
+    /// approval picks first.
+    pub plan_modes: Vec<PlanMode>,
 }
 
 impl Permission {
@@ -289,6 +293,7 @@ impl Permission {
             input_key: None,
             questions: Vec::new(),
             diffs: Vec::new(),
+            plan_modes: Vec::new(),
         }
     }
 
@@ -310,7 +315,7 @@ impl Permission {
 
 impl Serialize for Permission {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut out = serializer.serialize_struct("Permission", 10)?;
+        let mut out = serializer.serialize_struct("Permission", 11)?;
         out.serialize_field("requestId", &self.request_id)?;
         out.serialize_field("tool", &self.tool)?;
         match &self.summary {
@@ -322,6 +327,7 @@ impl Serialize for Permission {
         out.serialize_field("since", &self.since)?;
         out.serialize_field("questions", &self.questions)?;
         out.serialize_field("diffs", &self.diffs)?;
+        out.serialize_field("planModes", &self.plan_modes)?;
         // Worked out here, where the character count matches the Mac's.
         out.serialize_field("asksQuestions", &self.asks_questions())?;
         out.serialize_field("fitsOnALine", &self.fits_on_a_line())?;

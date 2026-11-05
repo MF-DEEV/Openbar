@@ -144,7 +144,8 @@ final class ClaudeSessionService: ObservableObject {
     private static let jobsEveryQuietly: TimeInterval = 60
     /// Permission requests whose hook waits for the island's answer.
     private var pending: [String: (connection: ClaudeHookServer.Connection, session: String, suggestions: Any?,
-                                   question: [String: Any]?, approved: [String: Any]?, since: Date)] = [:]
+                                   question: [String: Any]?, approved: [String: Any]?, planModes: [ClaudePlanMode],
+                                   since: Date)] = [:]
     /// Claude Code gives up on a hook after its timeout; the island lets go first.
     private static let permissionDeadline: TimeInterval = TimeInterval(ClaudeHookInstaller.permissionTimeout - 10)
 
@@ -362,9 +363,15 @@ final class ClaudeSessionService: ObservableObject {
             }
             guard engine.holds(request, for: id), let asked = pending[request] else { return }
             // A question is answered or skipped, never allowed as it stands;
-            // answers go only to a question.
+            // answers go only to a question, and a mode only to a plan.
+            var decision = decision
             switch decision {
-            case .allow, .allowAlways: guard asked.question == nil else { return }
+            case .allow, .allowAlways:
+                guard asked.question == nil else { return }
+                // A plain approval of a plan, from a shortcut or the list,
+                // picks the mode the card puts first.
+                if asked.approved != nil, let first = asked.planModes.first { decision = .approvePlan(first) }
+            case .approvePlan(let mode): guard asked.approved != nil, asked.planModes.contains(mode) else { return }
             case .answer: guard asked.question != nil else { return }
             case .deny: break
             }
@@ -861,7 +868,7 @@ final class ClaudeSessionService: ObservableObject {
         if let transcript = message.transcript, !transcript.isEmpty { transcripts[message.fact.sessionID] = transcript }
         if message.isPermissionRequest {
             pending[request] = (connection, message.fact.sessionID, message.suggestions, message.questionInput,
-                                message.approvalInput, now)
+                                message.approvalInput, message.planModes, now)
         } else {
             connection.finish()
         }

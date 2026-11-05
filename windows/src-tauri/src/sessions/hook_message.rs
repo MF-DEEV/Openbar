@@ -16,6 +16,7 @@ use super::models::{
     ContentPolicy, HookEvent, HookFact, Permission, Question, Time, ToolUse, canonical_json,
     preview, str_of, tool_summary, trim,
 };
+use super::plan_modes::{self, PlanMode};
 use super::transcript::REPLY_LIMIT;
 
 #[derive(Clone, Debug, PartialEq)]
@@ -48,6 +49,23 @@ impl HookMessage {
         request_id: &str,
         now: Time,
         policy: ContentPolicy,
+    ) -> Option<HookMessage> {
+        Self::decode_with(data, request_id, now, policy, |transcript, cwd| {
+            plan_modes::offered(&plan_modes::read(
+                transcript,
+                cwd,
+                &plan_modes::managed_settings(),
+            ))
+        })
+    }
+
+    /// The same, with the modes a plan is approved into read by `plan_modes`.
+    pub fn decode_with(
+        data: &[u8],
+        request_id: &str,
+        now: Time,
+        policy: ContentPolicy,
+        plan_modes: impl FnOnce(Option<&str>, Option<&str>) -> Vec<PlanMode>,
     ) -> Option<HookMessage> {
         let value: Value = serde_json::from_slice(data).ok()?;
         let json = value.as_object()?;
@@ -125,6 +143,13 @@ impl HookMessage {
                 if APPROVED_WITH_INPUT.contains(&tool) {
                     approval_input = Some(input.clone());
                 }
+                // A plan is approved into a mode, as Claude Code's plan
+                // dialog offers them for the session.
+                let modes = if tool == tool_summary::PLAN_TOOL {
+                    plan_modes(str_of(json.get("transcript_path")), str_of(json.get("cwd")))
+                } else {
+                    Vec::new()
+                };
                 HookEvent::PermissionRequested(Permission {
                     request_id: request_id.to_owned(),
                     tool: if tool.is_empty() {
@@ -143,6 +168,7 @@ impl HookMessage {
                     input_key: Some(tool_summary::input_key(tool, input)),
                     questions,
                     diffs: file_diff::diffs(tool, input, str_of(json.get("cwd"))),
+                    plan_modes: modes,
                 })
             }
             "Notification" => HookEvent::Notification {
@@ -195,6 +221,8 @@ pub enum Decision {
     Deny,
     /// What the person picked or typed for each question, by its text.
     Answer(BTreeMap<String, Vec<String>>),
+    /// A plan approved into a mode for the rest of the session.
+    ApprovePlan(PlanMode),
 }
 
 pub const DENY_MESSAGE: &str = "Denied from the Dynamic Island.";
@@ -217,6 +245,12 @@ pub fn reply(
 ) -> Vec<u8> {
     let mut body = match decision {
         Decision::Allow => json!({"behavior": "allow"}),
+        // Claude Code's plan dialog answers the same way: the plan's input
+        // back, and the mode the session goes on in.
+        Decision::ApprovePlan(mode) => json!({
+            "behavior": "allow",
+            "updatedPermissions": [{"type": "setMode", "mode": mode.name(), "destination": "session"}],
+        }),
         Decision::AllowAlways => {
             let mut body = Map::new();
             body.insert("behavior".into(), json!("allow"));
@@ -257,8 +291,11 @@ pub fn reply(
             json!({"behavior": "allow", "updatedInput": Value::Object(updated)})
         }
     };
-    if let (Decision::Allow | Decision::AllowAlways, Some(approved), Some(body)) =
-        (decision, approved, body.as_object_mut())
+    if let (
+        Decision::Allow | Decision::AllowAlways | Decision::ApprovePlan(_),
+        Some(approved),
+        Some(body),
+    ) = (decision, approved, body.as_object_mut())
     {
         body.insert("updatedInput".into(), Value::Object(approved.clone()));
     }
@@ -715,6 +752,75 @@ mod tests {
                 && kept["decision"]["message"] == PLAN_DENY_MESSAGE
                 && kept["decision"].get("updatedInput").is_none(),
             "keeping on planning tells Claude the plan was not approved"
+        );
+
+        // Approved into a mode, as Claude Code 2.1.318's plan dialog does.
+        for mode in PlanMode::ALL {
+            let body = output(&reply(
+                &Decision::ApprovePlan(mode),
+                None,
+                None,
+                Some(&original),
+            ));
+            let updates = body["decision"]["updatedPermissions"]
+                .as_array()
+                .cloned()
+                .unwrap_or_default();
+            assert!(
+                body["decision"]["behavior"] == "allow"
+                    && body["decision"]["updatedInput"] == Value::Object(original.clone())
+                    && updates
+                        == vec![
+                            json!({"type": "setMode", "mode": mode.name(), "destination": "session"})
+                        ],
+                "approving into {} hands the plan back and sets the session's mode",
+                mode.name()
+            );
+        }
+        let mut asked = None;
+        let modes = HookMessage::decode_with(
+            format!(r#"{{{BASE},"permission_mode":"plan","hook_event_name":"PermissionRequest","tool_name":"ExitPlanMode","tool_input":{{"plan":"x"}}}}"#).as_bytes(),
+            "r1",
+            NOW,
+            ContentPolicy { previews: false },
+            |transcript, cwd| {
+                asked = Some((transcript.map(str::to_owned), cwd.map(str::to_owned)));
+                vec![PlanMode::Auto, PlanMode::Manual]
+            },
+        )
+        .expect("a plan decodes");
+        let HookEvent::PermissionRequested(plan) = &modes.fact.event else {
+            panic!("a plan is a request")
+        };
+        assert_eq!(plan.plan_modes, vec![PlanMode::Auto, PlanMode::Manual]);
+        assert!(
+            asked.is_some_and(|(t, c)| t.is_some() && c.is_some()),
+            "read for the session's transcript and folder"
+        );
+        let serialized = serde_json::to_value(plan).unwrap();
+        assert_eq!(
+            serialized["planModes"],
+            json!(["auto", "default"]),
+            "the card gets them by Claude Code's names"
+        );
+        let mut read = false;
+        let bash = HookMessage::decode_with(
+            format!(r#"{{{BASE},"hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{{"command":"ls"}}}}"#).as_bytes(),
+            "r2",
+            NOW,
+            ContentPolicy { previews: false },
+            |_, _| {
+                read = true;
+                vec![PlanMode::Auto]
+            },
+        )
+        .expect("a request decodes");
+        let HookEvent::PermissionRequested(bash) = &bash.fact.event else {
+            panic!("a request")
+        };
+        assert!(
+            bash.plan_modes.is_empty() && !read,
+            "any other request has none, and nothing is read for it"
         );
 
         let bash = decode(

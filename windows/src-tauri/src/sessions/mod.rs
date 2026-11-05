@@ -19,6 +19,7 @@ pub mod file_diff;
 pub mod hook_agents;
 pub mod hook_message;
 pub mod models;
+pub mod plan_modes;
 pub mod registry;
 pub mod service;
 pub mod transcript;

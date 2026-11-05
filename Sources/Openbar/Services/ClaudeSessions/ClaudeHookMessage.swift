@@ -21,6 +21,12 @@ struct ClaudeHookMessage {
     /// leaves the terminal dialog open, and the island would have let go.
     static let approvedWithInput: Set<String> = [ClaudeToolSummary.planTool]
 
+    /// The modes a plan can be approved into; empty for any other request.
+    var planModes: [ClaudePlanMode] {
+        if case .permissionRequested(let permission) = fact.event { return permission.planModes }
+        return []
+    }
+
     var isPermissionRequest: Bool {
         if case .permissionRequested = fact.event { return true }
         return false
@@ -28,7 +34,10 @@ struct ClaudeHookMessage {
 
     /// Nil for input that is not a hook event. Text and arguments are kept
     /// only as the policy allows, except what a permission would run.
-    static func decode(_ data: Data, requestID: String, now: Date, policy: ClaudeContentPolicy) -> ClaudeHookMessage? {
+    static func decode(_ data: Data, requestID: String, now: Date, policy: ClaudeContentPolicy,
+                       planModes: (_ transcript: String?, _ cwd: String?) -> [ClaudePlanMode] = { transcript, cwd in
+                           ClaudePlanModes.offered(ClaudePlanModes.read(transcript: transcript, cwd: cwd))
+                       }) -> ClaudeHookMessage? {
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let name = json["hook_event_name"] as? String,
               let session = json["session_id"] as? String, !session.isEmpty else { return nil }
@@ -67,6 +76,10 @@ struct ClaudeHookMessage {
             let questions = tool == ClaudeQuestion.tool ? ClaudeQuestion.questions(in: input) ?? [] : []
             if !questions.isEmpty { questionInput = input }
             if approvedWithInput.contains(tool) { approvalInput = input }
+            // A plan is approved into a mode, as Claude Code's plan dialog
+            // offers them for the session.
+            let modes = tool == ClaudeToolSummary.planTool
+                ? planModes(json["transcript_path"] as? String, json["cwd"] as? String) : []
             event = .permissionRequested(ClaudePermission(
                 requestID: requestID, tool: tool.isEmpty ? "Tool" : tool,
                 summary: questions.first.map { ClaudeToolSummary.clip($0.question) }
@@ -74,7 +87,8 @@ struct ClaudeHookMessage {
                 detail: ClaudeToolSummary.permissionDetail(name: tool, input: input),
                 offersAlways: !offered.isEmpty && questions.isEmpty, since: now,
                 inputKey: ClaudeToolSummary.inputKey(name: tool, input: input), questions: questions,
-                diffs: ClaudeFileDiffs.diffs(tool: tool, input: input, cwd: json["cwd"] as? String)))
+                diffs: ClaudeFileDiffs.diffs(tool: tool, input: input, cwd: json["cwd"] as? String),
+                planModes: modes))
         case "Notification": event = .notification(type: json["notification_type"] as? String ?? "")
         case "Stop":
             let text = policy.previews ? (json["last_assistant_message"] as? String).map(preview) : nil
@@ -104,6 +118,8 @@ struct ClaudeHookMessage {
 
     enum Decision: Equatable {
         case allow, allowAlways, deny
+        /// A plan approved into a mode for the rest of the session.
+        case approvePlan(ClaudePlanMode)
         /// What the person picked or typed for each question, by its text.
         case answer([String: [String]])
     }
@@ -121,6 +137,11 @@ struct ClaudeHookMessage {
         var body: [String: Any]
         switch decision {
         case .allow: body = ["behavior": "allow"]
+        case .approvePlan(let mode):
+            // Claude Code's plan dialog answers the same way: the plan's
+            // input back, and the mode the session goes on in.
+            body = ["behavior": "allow",
+                    "updatedPermissions": [["type": "setMode", "mode": mode.rawValue, "destination": "session"]]]
         case .allowAlways:
             body = ["behavior": "allow"]
             if let suggestions { body["updatedPermissions"] = suggestions }
@@ -134,7 +155,7 @@ struct ClaudeHookMessage {
             updated["answers"] = answers.mapValues { picked -> Any in picked.count == 1 ? picked[0] : picked }
             body = ["behavior": "allow", "updatedInput": updated]
         }
-        if decision == .allow || decision == .allowAlways, let approved { body["updatedInput"] = approved }
+        if body["behavior"] as? String == "allow", input == nil, let approved { body["updatedInput"] = approved }
         let output: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": body]]
         return (try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys])) ?? Data()
     }
