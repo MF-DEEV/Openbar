@@ -695,7 +695,9 @@ final class NotchService: ObservableObject {
             let name = NotchDownloadService.shared.items.first { $0.active && !$0.completed }?.name
             return geometry.compactDownloadGeometry(wing: NotchDownloadSupport.compactWing(for: name, in: geometry))
         case .agents: return geometry.compactAgentGeometry(wing: agentStripWing(in: geometry))
-        case .sessions: return geometry.compactAgentGeometry(wing: sessionStripWing(in: geometry))
+        case .sessions:
+            return geometry.compactAgentGeometry(wing: sessionStripWing(in: geometry),
+                                                 widest: NotchClaudeSessionsSupport.stripWidestWing)
         case .watch: return geometry.compactWatchGeometry(wing: watchStripWing(in: geometry))
         case .calendar:
             return geometry.compactCalendarGeometry(wing: calendarStripWing(for: companion, in: geometry),

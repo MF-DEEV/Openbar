@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import AppKit
 import CoreGraphics
 import Foundation
+import SwiftUI
 
 /// Claude Code and Codex sessions share the Sessions list; each reads as
 /// its own agent: its figure, its mark and its color.
@@ -11,6 +13,65 @@ enum NotchSessionAgentTests {
         suite.run("sessions by agent") { byAgent(suite) }
         suite.run("svg path data") { pathData(suite) }
         suite.run("codex mark") { codexMark(suite) }
+        suite.run("busy strip stays beside the camera") { MainActor.assumeIsolated { busyStrip(suite) } }
+    }
+
+    /// Six counts at once, as a busy fleet shows them, kept beside a
+    /// physical camera instead of running under it.
+    /// The counts as `NotchClaudeSessionStripCounts` lays them out.
+    @MainActor static func drawnWidth(_ items: [NotchClaudeSessionsSupport.StripItem], size: CGFloat) -> CGFloat {
+        NSHostingView(rootView: HStack(spacing: 6) {
+            ForEach(items) { item in
+                HStack(spacing: 2) {
+                    Image(systemName: item.phase == .finished ? "sparkle" : NotchClaudeSessionsSupport.symbol(item.phase)).font(.system(size: size * 0.7, weight: .bold))
+                    Text("\(item.count)").font(.system(size: size, weight: .semibold)).monospacedDigit()
+                }
+            }
+        }.lineLimit(1).fixedSize()).fittingSize.width
+    }
+
+    @MainActor static func busyStrip(_ suite: TestSuite) {
+        let busy = ClaudeSessionCounts(working: 13, workingCodex: 3,
+                                       workingOthers: [.gemini: 2, .copilot: 1, .opencode: 2], finished: 1)
+        suite.expect(NotchClaudeSessionsSupport.stripReading(busy).count == 6,
+                     "the fleet in the report shows six counts")
+        let screen = CGRect(x: 0, y: 0, width: 1512, height: 982)
+        for layout in [NotchSize.compact, .spacious] {
+            let roomy = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 185, layout: layout,
+                                      menuBarHeight: 32, compactSideRoom: 400)
+            let provisional = roomy.compactAgentGeometry(wing: NotchAgentSupport.stripWingRange.lowerBound)
+            let size = NotchAgentSupport.stripTextSize(height: provisional.compactActivityContentHeight)
+            let need = NotchClaudeSessionsSupport.stripReadingWidth(busy, textSize: size)
+                + provisional.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+                + NotchAgentSupport.stripCameraGap
+            let strip = roomy.compactAgentGeometry(wing: need, widest: NotchClaudeSessionsSupport.stripWidestWing)
+            let drawn = drawnWidth(NotchClaudeSessionsSupport.stripReading(busy), size: size)
+            let inset = strip.compactActivityEdgeInset(boxHeight: size * 0.72, radius: 0)
+            suite.expect(drawn + inset <= strip.compactActivityWingWidth,
+                         "\(layout): the six counts (\(drawn) + \(inset)) fit their wing (\(strip.compactActivityWingWidth))")
+            for counts in [ClaudeSessionCounts(working: 1), ClaudeSessionCounts(working: 12, waiting: 1, finished: 3),
+                           ClaudeSessionCounts(working: 4, workingCodex: 1, limited: 2, finished: 10)] {
+                let width = drawnWidth(NotchClaudeSessionsSupport.stripReading(counts), size: size)
+                suite.expect(width <= NotchClaudeSessionsSupport.stripReadingWidth(counts, textSize: size) + 0.5,
+                             "\(layout): the measure leaves room for the counts as drawn (\(width))")
+            }
+            // Menus leave too little for each agent's count: the agents share one.
+            let crowded = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 185, layout: layout,
+                                        menuBarHeight: 32, compactSideRoom: 110)
+            let narrow = crowded.compactAgentGeometry(wing: need, widest: NotchClaudeSessionsSupport.stripWidestWing)
+            let joint = drawnWidth(NotchClaudeSessionsSupport.stripJointReading(busy), size: size)
+            suite.expect(narrow.compactActivityWingWidth <= 110 && joint + inset <= narrow.compactActivityWingWidth,
+                         "\(layout): a crowded menu bar keeps the joint counts (\(joint)) beside the camera")
+        }
+        suite.expect(NotchClaudeSessionsSupport.stripJointReading(busy).map(\.count) == [13, 1]
+                     && NotchClaudeSessionsSupport.stripJointReading(busy).first?.provider == nil
+                     && NotchClaudeSessionsSupport.stripJointReading(ClaudeSessionCounts(working: 2, waiting: 1))
+                        == NotchClaudeSessionsSupport.stripReading(ClaudeSessionCounts(working: 2, waiting: 1)),
+                     "the joint reading adds every agent's count at work and leaves a lone agent's as it is")
+        let geometry = NotchGeometry(screen: screen, safeAreaTop: 32, cameraWidth: 185, layout: .spacious,
+                                     compactSideRoom: 300)
+        suite.expect(geometry.compactAgentGeometry(wing: 300).compactActivityWingWidth == 80,
+                     "the AI strip keeps its own cap")
     }
 
     static func session(_ id: String, _ phase: ClaudeSessionPhase, provider: ClaudeSessionProvider) -> ClaudeSession {

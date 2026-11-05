@@ -37,7 +37,13 @@ struct NotchClaudeSessionStrip: View {
             }
             Color.clear.frame(width: geometry.compactActivityCameraGap)
             Button(action: open) {
-                NotchClaudeSessionStripCounts(counts: counts, size: textSize)
+                // Where the menus leave the wing too narrow for each agent's
+                // count, the agents at work share one, so no count runs
+                // under the camera.
+                ViewThatFits(in: .horizontal) {
+                    NotchClaudeSessionStripCounts(counts: counts, size: textSize)
+                    NotchClaudeSessionStripCounts(counts: counts, size: textSize, joint: true)
+                }
                     .padding(.trailing, textInset)
                     .frame(width: geometry.compactActivityWingWidth, height: geometry.compactActivityContentHeight,
                            alignment: .trailing)
@@ -131,6 +137,8 @@ struct NotchClaudeSessionStripMark: View {
 struct NotchClaudeSessionStripCounts: View {
     let counts: ClaudeSessionCounts
     let size: CGFloat
+    /// Every agent at work in one count.
+    var joint = false
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var sessions = ClaudeSessionService.shared
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -138,7 +146,8 @@ struct NotchClaudeSessionStripCounts: View {
     var body: some View {
         let limit = NotchSessionLimitsSupport.currentStripLimit()
         HStack(spacing: 6) {
-            ForEach(NotchClaudeSessionsSupport.stripReading(counts)) { item in
+            ForEach(joint ? NotchClaudeSessionsSupport.stripJointReading(counts)
+                          : NotchClaudeSessionsSupport.stripReading(counts)) { item in
                 HStack(spacing: 2) {
                     Image(systemName: item.phase == .finished ? "sparkle" : NotchClaudeSessionsSupport.symbol(item.phase))
                         .font(.system(size: size * 0.7, weight: .bold))

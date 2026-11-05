@@ -42,11 +42,13 @@ export function countItems(counts: Counts) {
 export const limitRing = (size: number) => Math.round(size * 0.75);
 
 /** How wide the counts draw (NotchClaudeSessionsSupport.stripReadingWidth),
- * and the limit's ring and share after them. */
+ * and the limit's ring and share after them. Each count keeps a point for
+ * glyphs rounding to whole pixels, and the semibold digits run wider than
+ * the share's, so a short measure never pushes a count into the camera. */
 export function readingWidth(counts: Counts, size: number, limit?: string | null): number {
   const list = countItems(counts);
   const digits = list.reduce((sum, i) => sum + String(i.n).length, 0);
-  let width = list.length * (size * 0.9 + 2) + digits * size * 0.62 + Math.max(0, list.length - 1) * 6;
+  let width = list.length * (size * 0.9 + 3) + digits * size * 0.66 + Math.max(0, list.length - 1) * 6;
   if (limit) width += (list.length ? 6 : 0) + limitRing(size) + 2 + limit.length * size * 0.62;
   return width;
 }
@@ -74,13 +76,19 @@ export function marksWidth(counts: Counts): number {
   return stacks(counts) ? STACK_OFFSET + CLOUD : MARK;
 }
 
-/** The wing each side needs, clamped to 44…80 like the agents' strip. */
+/** How wide a wing may grow (NotchClaudeSessionsSupport.stripWidestWing):
+ * every agent at work keeps its own count, so a busy strip needs far more
+ * than the agents' strip's single reading. */
+export const WIDEST_WING = 320;
+
+/** The wing each side needs, at least 44 like the agents' strip and at most
+ * WIDEST_WING, so six counts at once stay beside the camera. */
 export function stripWing(counts: Counts, stripHeight: number, limit?: string | null): number {
   const size = stripTextSize(stripHeight);
   const box = { width: 300, height: stripHeight };
   const text = edgeInset(box, size * 0.72, 0) + readingWidth(counts, size, limit);
   const mark = edgeInset(box, 18, 9) + marksWidth(counts);
-  return Math.min(80, Math.max(44, Math.ceil(Math.max(text, mark))));
+  return Math.min(WIDEST_WING, Math.max(44, Math.ceil(Math.max(text, mark))));
 }
 
 /** The front agent's mark on its disc with the other's showing past it;
