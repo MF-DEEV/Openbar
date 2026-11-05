@@ -156,7 +156,6 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
         project={session.project}
         motion={motionForPhase(session.phase)}
         since={session.phaseSince * 1000}
-        band={false}
         onBack={() => useSessions.setState({ wardrobe: false })}
         onChange={(_, code) => useSessions.getState().setCostume(session.id, code)}
       />
