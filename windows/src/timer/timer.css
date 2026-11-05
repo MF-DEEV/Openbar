@@ -23,7 +23,7 @@
 .tm-ruler-row {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 18px;
 }
 
 .tm-ruler {
@@ -33,6 +33,19 @@
   touch-action: none;
   border-radius: 7px;
   outline: none;
+  cursor: grab;
+  background: linear-gradient(180deg, transparent 45%, rgba(255, 159, 10, 0.035));
+}
+
+.tm-ruler:active {
+  cursor: grabbing;
+}
+
+.tm-setup .tm-clock {
+  padding-left: 16px;
+  border-left: 1px solid rgba(255, 159, 10, 0.16);
+  font-weight: 300;
+  letter-spacing: -0.035em;
 }
 
 /* Keyboard focus: a 1 pt orange rounded rect (radius 7). */
@@ -167,6 +180,13 @@
   color: #fff;
 }
 
+.tm-mode:focus-visible,
+.tm-start:focus-visible,
+.tm-round:focus-visible {
+  outline: 2px solid var(--tm-orange);
+  outline-offset: 3px;
+}
+
 /* The 2 pt orange line slides under the chosen word (spring 0.3 s, damping 0.8). */
 .tm-mode-line {
   position: absolute;
@@ -208,6 +228,7 @@
   white-space: nowrap;
   color: var(--tm-orange);
   background: rgba(255, 159, 10, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 159, 10, 0.1);
   transition:
     transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1),
     background-color 0.15s;

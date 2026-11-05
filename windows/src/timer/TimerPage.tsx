@@ -75,7 +75,7 @@ function Setup({ width, height }: { width: number; height: number }) {
         ) : (
           <span className="tm-spacer" />
         )}
-        <Clock text={clock} size={26} room={width} />
+        <Clock text={clock} size={28} room={width} rolling />
       </div>
       {mode === "pomodoro" ? <Readouts /> : null}
     </div>

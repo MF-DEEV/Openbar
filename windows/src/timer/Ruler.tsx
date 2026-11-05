@@ -9,6 +9,7 @@
 import { useLocale } from "../i18n";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useReducedMotion } from "motion/react";
 import { durationText, rulerLabel, rulerMinute, rulerMoving, rulerOffset, RULER_SPACING } from "./model";
 
 /** The height the ruler is drawn for; a shorter one compresses the ticks and pointer under the labels. */
@@ -29,6 +30,40 @@ export function Ruler(props: { value: number; onChange(minutes: number): void; l
   const scroll = useRef<{ value: number; at: number } | null>(null);
   const contrast = useHighContrast();
   const selected = rulerMinute(value);
+  const reducedMotion = useReducedMotion();
+  const position = useRef(value);
+  const frame = useRef(0);
+  const wheelEnd = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const paint = useRef(() => {});
+
+  const move = (next: number, direct = false) => {
+    cancelAnimationFrame(frame.current);
+    const destination = rulerMoving(next, 0);
+    if (direct || reducedMotion) {
+      position.current = destination;
+      paint.current();
+      return;
+    }
+    let previous = performance.now();
+    const step = (now: number) => {
+      const elapsed = Math.min(64, now - previous);
+      previous = now;
+      position.current += (destination - position.current) * (1 - Math.exp(-elapsed / 45));
+      const settled = Math.abs(destination - position.current) < 0.002;
+      if (settled) position.current = destination;
+      paint.current();
+      if (!settled) frame.current = requestAnimationFrame(step);
+    };
+    frame.current = requestAnimationFrame(step);
+  };
+
+  useEffect(
+    () => () => {
+      cancelAnimationFrame(frame.current);
+      if (wheelEnd.current !== null) clearTimeout(wheelEnd.current);
+    },
+    [],
+  );
 
   useLayoutEffect(() => {
     const el = canvas.current;
@@ -47,8 +82,13 @@ export function Ruler(props: { value: number; onChange(minutes: number): void; l
     el.width = Math.round(width * dpr);
     el.height = Math.round(height * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    draw(ctx, width, height, selected, contrast);
-  }, [width, height, selected, contrast]);
+    paint.current = () => draw(ctx, width, height, position.current, contrast);
+    paint.current();
+  }, [width, height, contrast]);
+
+  useLayoutEffect(() => {
+    if (!drag.current && !scroll.current) move(selected);
+  }, [selected, reducedMotion]);
 
   const select = (next: number) => {
     const minute = rulerMinute(next);
@@ -70,26 +110,43 @@ export function Ruler(props: { value: number; onChange(minutes: number): void; l
       onPointerDown={(e) => {
         if (e.button !== 0) return;
         e.currentTarget.setPointerCapture(e.pointerId);
-        drag.current = { x: e.clientX, value, moved: false, id: e.pointerId };
+        drag.current = { x: e.clientX, value: position.current, moved: false, id: e.pointerId };
         scroll.current = null;
+        if (wheelEnd.current !== null) clearTimeout(wheelEnd.current);
+        move(position.current, true);
       }}
       onPointerMove={(e) => {
         const d = drag.current;
         if (!d || d.id !== e.pointerId) return;
         if (!d.moved && Math.abs(e.clientX - d.x) < CLICK_SLOP) return;
-        const next = rulerMoving(d.value, e.clientX - d.x);
+        const rect = e.currentTarget.getBoundingClientRect();
+        const next = rulerMoving(d.value, ((e.clientX - d.x) * width) / rect.width);
         drag.current = { ...d, x: e.clientX, value: next, moved: true };
+        move(next, true);
         select(next);
       }}
       onPointerUp={(e) => {
         const d = drag.current;
+        if (!d || d.id !== e.pointerId) return;
         drag.current = null;
-        if (!d || d.moved || d.id !== e.pointerId) return;
+        if (d.moved) {
+          move(rulerMinute(d.value));
+          return;
+        }
         // A click brings the tick under the pointer to the centre.
         const rect = e.currentTarget.getBoundingClientRect();
-        select(rulerMoving(value, -(e.clientX - rect.left - rect.width / 2)));
+        const next = rulerMinute(
+          rulerMoving(position.current, (-(e.clientX - rect.left - rect.width / 2) * width) / rect.width),
+        );
+        move(next);
+        select(next);
       }}
-      onPointerCancel={() => (drag.current = null)}
+      onLostPointerCapture={() => {
+        if (!drag.current) return;
+        const next = rulerMinute(drag.current.value);
+        drag.current = null;
+        move(next);
+      }}
       onWheel={(e) => {
         if (drag.current) return;
         const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY);
@@ -107,7 +164,13 @@ export function Ruler(props: { value: number; onChange(minutes: number): void; l
         const from = scroll.current && now - scroll.current.at < SCROLL_IDLE_MS ? scroll.current.value : value;
         // The DOM's deltas run opposite to the Mac's scrolling deltas.
         const next = rulerMoving(from, -points);
-        scroll.current = notches !== null ? null : { value: next, at: now };
+        scroll.current = { value: next, at: now };
+        move(next, notches === null);
+        if (wheelEnd.current !== null) clearTimeout(wheelEnd.current);
+        wheelEnd.current = setTimeout(() => {
+          scroll.current = null;
+          move(rulerMinute(next));
+        }, SCROLL_IDLE_MS);
         select(next);
       }}
       onKeyDown={(e) => {
@@ -124,6 +187,8 @@ export function Ruler(props: { value: number; onChange(minutes: number): void; l
         if (next === undefined) return;
         e.preventDefault();
         scroll.current = null;
+        if (wheelEnd.current !== null) clearTimeout(wheelEnd.current);
+        move(rulerMinute(next));
         select(next);
       }}
     />
@@ -142,18 +207,21 @@ function draw(ctx: CanvasRenderingContext2D, width: number, height: number, sele
     const x = mid + rulerOffset(minute, selected);
     if (x < -16 || x > width + 16) continue;
     const fade = Math.min(1, Math.max(0, Math.min(x, width - x) / edgeFade));
-    const strength = minute <= selected ? 1 : contrast ? 0.65 : 0.35;
+    const major = minute === 1 || minute % 5 === 0;
+    const strength = minute <= Math.round(selected) ? 1 : contrast ? 0.65 : 0.3;
     ctx.fillStyle = `rgba(${ORANGE_RGB}, ${fade * strength})`;
     ctx.beginPath();
-    ctx.roundRect(x - 2, 26 * scale, 4, 38 * scale, 2);
+    const tickWidth = major ? 3.5 : 2.5;
+    const tickHeight = major ? 38 : 28;
+    ctx.roundRect(x - tickWidth / 2, (64 - tickHeight) * scale, tickWidth, tickHeight * scale, tickWidth / 2);
     ctx.fill();
-    if (minute === 1 || minute % 5 === 0) ctx.fillText(rulerLabel(minute), x, 0);
+    if (major) ctx.fillText(rulerLabel(minute), x, 2 * scale);
   }
   ctx.fillStyle = `rgb(${ORANGE_RGB})`;
   ctx.beginPath();
-  ctx.moveTo(mid, 70 * scale);
-  ctx.lineTo(mid + 6, 80 * scale);
-  ctx.lineTo(mid - 6, 80 * scale);
+  ctx.moveTo(mid, 71 * scale);
+  ctx.lineTo(mid + 4, 78 * scale);
+  ctx.lineTo(mid - 4, 78 * scale);
   ctx.closePath();
   ctx.fill();
 }
