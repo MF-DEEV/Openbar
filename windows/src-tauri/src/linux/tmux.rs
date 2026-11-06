@@ -9,7 +9,7 @@
 //! a pane keeps the variables too.
 
 use super::command::run;
-use super::wezterm::Step;
+use crate::hosts::wezterm::Step;
 
 pub const TMUX: &str = "TMUX";
 pub const PANE: &str = "TMUX_PANE";
@@ -71,7 +71,7 @@ fn send_with(
     if !holds_with(program, socket, pane, terminal) {
         return Err(());
     }
-    for step in super::wezterm::steps(text, images) {
+    for step in crate::hosts::wezterm::steps(text, images) {
         match step {
             // A bracketed paste, so line breaks stay text.
             Step::Paste(content) => {

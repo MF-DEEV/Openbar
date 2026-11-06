@@ -6,7 +6,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use super::process::{Entry, Metadata};
+use crate::hosts::process::{Entry, Metadata};
 
 fn proc(pid: u32, leaf: &str) -> PathBuf {
     Path::new("/proc").join(pid.to_string()).join(leaf)

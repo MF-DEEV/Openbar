@@ -61,22 +61,76 @@ pub fn lists_pane(json: &str, pane: u32) -> bool {
     tab_of(json, pane).is_some()
 }
 
-/// `wezterm.exe` (`wezterm` elsewhere) beside the GUI program that runs the
-/// pane, so the command line always matches that WezTerm.
+/// `wezterm.exe` beside the `wezterm-gui.exe` that runs the pane, so the
+/// command line always matches that WezTerm.
+#[cfg(not(target_os = "linux"))]
 fn cli(gui_pid: u32) -> Option<PathBuf> {
     let gui = super::process::image_path(gui_pid)?;
-    let cli = gui.parent()?.join(if cfg!(windows) {
-        "wezterm.exe"
-    } else {
-        "wezterm"
-    });
+    let cli = gui.parent()?.join("wezterm.exe");
     cli.is_file().then_some(cli)
 }
 
+#[cfg(target_os = "linux")]
+fn cli(gui_pid: u32) -> Option<PathBuf> {
+    crate::linux::wezterm::cli(gui_pid)
+}
+
+#[cfg(windows)]
 fn run(cli: &PathBuf, socket: &str, arguments: &[&str], input: Option<&str>) -> Option<String> {
-    let mut command = vec!["cli"];
-    command.extend_from_slice(arguments);
-    super::command::run(cli, &[(SOCKET, socket)], &command, input)
+    use std::io::Write;
+    use std::os::windows::process::CommandExt;
+    use std::process::{Command, Stdio};
+    use std::time::{Duration, Instant};
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    let mut child = Command::new(cli)
+        .arg("cli")
+        .args(arguments)
+        .env(SOCKET, socket)
+        .stdin(if input.is_some() {
+            Stdio::piped()
+        } else {
+            Stdio::null()
+        })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .ok()?;
+    if let Some(input) = input {
+        let mut stdin = child.stdin.take()?;
+        stdin.write_all(input.as_bytes()).ok()?;
+    }
+    // Read while it runs, so a long pane list never fills the pipe and stalls it.
+    let mut stdout = child.stdout.take()?;
+    let reader = std::thread::spawn(move || {
+        let mut output = String::new();
+        std::io::Read::read_to_string(&mut stdout, &mut output)
+            .ok()
+            .map(|_| output)
+    });
+    let deadline = Instant::now() + Duration::from_secs(4);
+    loop {
+        match child.try_wait() {
+            Ok(Some(status)) if status.success() => break,
+            Ok(Some(_)) | Err(_) => return None,
+            Ok(None) if Instant::now() > deadline => {
+                let _ = child.kill();
+                return None;
+            }
+            Ok(None) => std::thread::sleep(Duration::from_millis(20)),
+        }
+    }
+    reader.join().ok().flatten()
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
+fn run(_cli: &PathBuf, _socket: &str, _arguments: &[&str], _input: Option<&str>) -> Option<String> {
+    None
+}
+
+#[cfg(target_os = "linux")]
+fn run(cli: &PathBuf, socket: &str, arguments: &[&str], input: Option<&str>) -> Option<String> {
+    crate::linux::wezterm::run(cli, socket, arguments, input)
 }
 
 fn listed(cli: &PathBuf, socket: &str, pane: u32) -> bool {

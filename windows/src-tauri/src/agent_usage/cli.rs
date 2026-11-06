@@ -259,25 +259,25 @@ fn registry_string(
 }
 
 /// `PATHEXT`'s extensions, lowercase, the executable kinds first.
+#[cfg(not(target_os = "linux"))]
 pub fn extensions() -> Vec<String> {
-    // Programs have no extension outside Windows.
-    #[cfg(not(windows))]
-    return vec![String::new()];
-    #[cfg(windows)]
     let mut out: Vec<String> = std::env::var("PATHEXT")
         .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into())
         .split(';')
         .filter(|e| !e.is_empty())
         .map(|e| e.to_lowercase())
         .collect();
-    #[cfg(windows)]
-    {
-        out.retain(|e| matches!(e.as_str(), ".exe" | ".cmd" | ".bat" | ".com"));
-        if out.is_empty() {
-            out = vec![".exe".into(), ".cmd".into()];
-        }
-        out
+    out.retain(|e| matches!(e.as_str(), ".exe" | ".cmd" | ".bat" | ".com"));
+    if out.is_empty() {
+        out = vec![".exe".into(), ".cmd".into()];
     }
+    out
+}
+
+/// Programs have no extension on Linux.
+#[cfg(target_os = "linux")]
+pub fn extensions() -> Vec<String> {
+    vec![String::new()]
 }
 
 /// The first existing file among `candidates`, never one inside `excluded`.
@@ -319,7 +319,7 @@ pub fn tool_dirs() -> Vec<PathBuf> {
         out.push(home.join(".volta").join("bin"));
     }
     // Where npm, pnpm and the agents' own installers put commands on Linux.
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
     if let Some(home) = super::files::home() {
         out.push(home.join(".local").join("bin"));
         out.push(home.join(".npm-global").join("bin"));

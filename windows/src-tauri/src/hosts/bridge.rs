@@ -2,10 +2,9 @@
 // Copyright (C) 2026 Vorssaint
 
 //! The client side of the IDE bridge extension (windows/tools/ide-bridge):
-//! every running IDE window registers its pipe (a socket outside Windows) and
-//! token under `%LOCALAPPDATA%\Openbar\terminals` (`~/.local/share/Openbar/terminals`
-//! elsewhere), and the window holding the session's terminal answers ok; the
-//! others say "missing".
+//! every running IDE window registers its pipe and token under
+//! `%LOCALAPPDATA%\Openbar\terminals`, and the window holding the session's
+//! terminal answers ok; the others say "missing".
 
 use std::io::{BufRead, BufReader, Write};
 use std::path::PathBuf;
@@ -28,15 +27,19 @@ pub enum BridgeError {
     Missing,
 }
 
+#[cfg(not(target_os = "linux"))]
 pub(super) fn folder() -> Option<PathBuf> {
-    #[cfg(windows)]
     let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from)?;
-    #[cfg(not(windows))]
-    let base = std::env::var_os("XDG_DATA_HOME")
-        .map(PathBuf::from)
-        .filter(|dir| dir.is_absolute())
-        .or_else(|| Some(PathBuf::from(std::env::var_os("HOME")?).join(".local/share")))?;
     Some(base.join("Openbar").join("terminals"))
+}
+
+#[cfg(target_os = "linux")]
+pub(super) fn folder() -> Option<PathBuf> {
+    Some(
+        crate::linux::paths::data()?
+            .join("Openbar")
+            .join("terminals"),
+    )
 }
 
 fn registrations() -> Vec<Registration> {

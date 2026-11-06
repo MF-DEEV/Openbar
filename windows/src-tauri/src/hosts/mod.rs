@@ -12,17 +12,10 @@ use serde::Serialize;
 
 pub mod bridge;
 pub mod bridge_installer;
-mod command;
 #[cfg(windows)]
 pub mod console;
-pub mod kitty;
 pub mod process;
-#[cfg(target_os = "linux")]
-mod process_linux;
-pub mod tmux;
 pub mod wezterm;
-#[cfg(target_os = "linux")]
-mod x11;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
@@ -43,12 +36,14 @@ pub enum Host {
         socket: String,
     },
     /// A tmux pane, by the server socket and pane id tmux put in the
-    /// environment.
+    /// environment (Linux).
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Tmux {
         socket: String,
         pane: String,
     },
-    /// A kitty window with remote control on.
+    /// A kitty window with remote control on (Linux).
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Kitty {
         window: u32,
         listen: String,
@@ -98,38 +93,19 @@ impl Host {
     }
 }
 
-/// Terminals the island can only bring forward, by their program's name
-/// (lower case, without ".exe"). WezTerm is here too: without the variables
-/// of its pane it is one of them.
-const TERMINALS: &[(&str, &str)] = &[
-    ("wezterm-gui", "WezTerm"),
-    ("mintty", "Git Bash"),
-    ("alacritty", "Alacritty"),
-    ("warp", "Warp"),
-    ("warp-terminal", "Warp"),
-    ("tabby", "Tabby"),
-    ("hyper", "Hyper"),
-    ("conemu64", "ConEmu"),
-    ("conemu", "ConEmu"),
-    ("rio", "Rio"),
-    ("kitty", "kitty"),
-    ("ghostty", "Ghostty"),
-    ("gnome-terminal-server", "GNOME Terminal"),
-    ("konsole", "Konsole"),
-    ("xfce4-terminal", "Xfce Terminal"),
-    ("tilix", "Tilix"),
-    ("terminator", "Terminator"),
-    ("foot", "foot"),
+/// Terminals the island can only bring forward, by their program's name.
+/// WezTerm is here too: without the variables of its pane it is one of them.
+const TERMINALS: [(&str, &str); 9] = [
+    ("wezterm-gui.exe", "WezTerm"),
+    ("mintty.exe", "Git Bash"),
+    ("alacritty.exe", "Alacritty"),
+    ("warp.exe", "Warp"),
+    ("tabby.exe", "Tabby"),
+    ("hyper.exe", "Hyper"),
+    ("conemu64.exe", "ConEmu"),
+    ("conemu.exe", "ConEmu"),
+    ("rio.exe", "Rio"),
 ];
-
-/// A program's name in lower case without Windows' ".exe".
-fn stem(name: &str) -> String {
-    let lowered = name.to_ascii_lowercase();
-    match lowered.strip_suffix(".exe") {
-        Some(stem) => stem.to_owned(),
-        None => lowered,
-    }
-}
 
 /// A WezTerm pane, when the session's own environment names one; WezTerm
 /// sets both variables in every pane it starts.
@@ -156,26 +132,30 @@ pub struct Located {
     pub ancestors: Vec<u32>,
 }
 
-const IDES: &[(&str, &str)] = &[
-    ("code", "vscode"),
-    ("code - insiders", "vscode"),
-    ("code-insiders", "vscode"),
-    ("cursor", "cursor"),
-    ("antigravity", "antigravity"),
-    ("antigravity ide", "antigravity"),
-    ("windsurf", "windsurf"),
+const IDES: [(&str, &str); 6] = [
+    ("code.exe", "vscode"),
+    ("code - insiders.exe", "vscode"),
+    ("cursor.exe", "cursor"),
+    ("antigravity.exe", "antigravity"),
+    ("antigravity ide.exe", "antigravity"),
+    ("windsurf.exe", "windsurf"),
 ];
 
 /// Classifies by the first ancestor whose image is a terminal or an IDE.
 pub fn classify(chain: &[process::Entry]) -> Located {
     let ancestors: Vec<u32> = chain
         .iter()
-        .take_while(|e| !is_shell_root(&stem(&e.name)))
+        .take_while(|e| {
+            !matches!(
+                e.name.to_ascii_lowercase().as_str(),
+                "explorer.exe" | "services.exe" | "svchost.exe"
+            )
+        })
         .map(|e| e.pid)
         .collect();
     for entry in chain.iter().skip(1) {
-        let name = stem(&entry.name);
-        if name == "windowsterminal" {
+        let name = entry.name.to_ascii_lowercase();
+        if name == "windowsterminal.exe" {
             return Located {
                 host: Host::WindowsTerminal {
                     terminal_pid: entry.pid,
@@ -183,7 +163,7 @@ pub fn classify(chain: &[process::Entry]) -> Located {
                 ancestors,
             };
         }
-        if let Some((_, ide)) = IDES.iter().find(|(known, _)| *known == name) {
+        if let Some((_, ide)) = IDES.iter().find(|(exe, _)| *exe == name) {
             return Located {
                 host: Host::Vscode {
                     ide: (*ide).into(),
@@ -192,7 +172,7 @@ pub fn classify(chain: &[process::Entry]) -> Located {
                 ancestors,
             };
         }
-        if let Some((_, terminal)) = TERMINALS.iter().find(|(known, _)| *known == name) {
+        if let Some((_, terminal)) = TERMINALS.iter().find(|(exe, _)| *exe == name) {
             return Located {
                 host: Host::App {
                     name: (*terminal).into(),
@@ -200,31 +180,22 @@ pub fn classify(chain: &[process::Entry]) -> Located {
                 ancestors,
             };
         }
-        if is_shell_root(&name) {
+        if name == "explorer.exe" || name == "services.exe" || name == "svchost.exe" {
             break;
         }
     }
     // A shell started from Explorer or Run owns a console window of its own.
-    let host = if cfg!(target_os = "linux") || chain.len() <= 1 {
-        Host::Unknown
-    } else {
+    let host = if chain.len() > 1 {
         Host::Conhost
+    } else {
+        Host::Unknown
     };
     Located { host, ancestors }
 }
 
-/// The Windows processes where a session's chain of parents ends.
-fn is_shell_root(name: &str) -> bool {
-    matches!(name, "explorer" | "services" | "svchost")
-}
-
 /// Finds the host of claude process `pid` (None when it is gone).
+#[cfg(not(target_os = "linux"))]
 pub fn locate(pid: u32) -> Option<Located> {
-    locate_with(pid, "tmux", "kitten")
-}
-
-/// `locate` with the command lines of tmux and kitty named, for tests.
-fn locate_with(pid: u32, tmux_program: &str, kitten_program: &str) -> Option<Located> {
     let chain = process::ancestors(pid)?;
     let mut located = classify(&chain);
     // WezTerm is reached by the pane the session's environment names.
@@ -232,7 +203,9 @@ fn locate_with(pid: u32, tmux_program: &str, kitten_program: &str) -> Option<Loc
         == (Host::App {
             name: "WezTerm".into(),
         })
-        && let Some(gui) = chain.iter().find(|e| stem(&e.name) == "wezterm-gui")
+        && let Some(gui) = chain
+            .iter()
+            .find(|e| e.name.eq_ignore_ascii_case("wezterm-gui.exe"))
         && let Some(host) = wezterm_host(
             gui.pid,
             &process::environment_values(pid, &[wezterm::PANE, wezterm::SOCKET]),
@@ -240,85 +213,11 @@ fn locate_with(pid: u32, tmux_program: &str, kitten_program: &str) -> Option<Loc
     {
         located.host = host;
     }
-    // kitty is reached by the window its remote control names, once it lists the session.
-    let window = process::environment_values(pid, &[kitty::WINDOW, kitty::LISTEN]);
-    if let Some(host) = kitty_in(&located, pid, &window, kitten_program) {
-        located.host = host;
-    }
-    // A pane of tmux wins over the terminal around it, once it is on the session's terminal.
-    #[cfg(unix)]
-    if let Some(host) = tmux_in(
-        process::terminal_of(pid).as_deref(),
-        &process::environment_values(pid, &[tmux::TMUX, tmux::PANE]),
-        tmux_program,
-    ) {
-        located.host = host;
-    }
-    #[cfg(not(unix))]
-    let _ = tmux_program;
     Some(located)
 }
 
-/// The kitty window the session's environment names, once kitty lists the session in it.
-fn kitty_in(
-    located: &Located,
-    pid: u32,
-    environment: &std::collections::HashMap<String, String>,
-    program: &str,
-) -> Option<Host> {
-    if located.host
-        != (Host::App {
-            name: "kitty".into(),
-        })
-    {
-        return None;
-    }
-    let host = kitty_host(environment)?;
-    let Host::Kitty { window, listen } = &host else {
-        return None;
-    };
-    kitty::holds_with(program, listen, *window, pid).then_some(host)
-}
-
-/// The tmux pane the session's environment names, once it is on the session's own terminal:
-/// an editor opened from a pane keeps `TMUX` and `TMUX_PANE` too.
-#[cfg(unix)]
-fn tmux_in(
-    terminal: Option<&str>,
-    environment: &std::collections::HashMap<String, String>,
-    program: &str,
-) -> Option<Host> {
-    let host = tmux_host(environment)?;
-    let Host::Tmux { socket, pane } = &host else {
-        return None;
-    };
-    tmux::holds_with(program, socket, pane, terminal).then_some(host)
-}
-
-/// A tmux pane, when the session's own environment names one.
-#[cfg_attr(windows, allow(dead_code))]
-pub fn tmux_host(environment: &std::collections::HashMap<String, String>) -> Option<Host> {
-    let socket = tmux::socket_of(environment.get(tmux::TMUX)?)?;
-    let pane = environment.get(tmux::PANE)?.trim();
-    pane.strip_prefix('%')?.parse::<u32>().ok()?;
-    Some(Host::Tmux {
-        socket,
-        pane: pane.to_owned(),
-    })
-}
-
-/// A kitty window, when remote control is on and the environment names it.
-pub fn kitty_host(environment: &std::collections::HashMap<String, String>) -> Option<Host> {
-    let window = environment.get(kitty::WINDOW)?.trim().parse().ok()?;
-    let listen = environment
-        .get(kitty::LISTEN)
-        .map(|l| l.trim())
-        .filter(|l| !l.is_empty())?;
-    Some(Host::Kitty {
-        window,
-        listen: listen.to_owned(),
-    })
-}
+#[cfg(target_os = "linux")]
+pub use crate::linux::hosts::locate;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum DeliveryError {
@@ -343,16 +242,9 @@ pub fn deliver(
             socket,
         } => wezterm::send(*gui_pid, *pane, socket, text, images)
             .map_err(|_| DeliveryError::Unreachable),
-        Host::Tmux { socket, pane } => tmux::send(
-            socket,
-            pane,
-            process::terminal_of(pid).as_deref(),
-            text,
-            images,
-        )
-        .map_err(|_| DeliveryError::Unreachable),
-        Host::Kitty { window, listen } => {
-            kitty::send(listen, *window, pid, text, images).map_err(|_| DeliveryError::Unreachable)
+        #[cfg(target_os = "linux")]
+        Host::Tmux { .. } | Host::Kitty { .. } => {
+            crate::linux::hosts::deliver(pid, located, text, images)
         }
         _ => Err(DeliveryError::Unreachable),
     }
@@ -378,24 +270,10 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
             let _ = wezterm::focus(*gui_pid, *pane, socket);
             platform_raise_host(&located.ancestors, cwd)
         }
-        Host::Tmux { socket, pane } => {
-            let mut pids = tmux::focus(socket, pane, process::terminal_of(pid).as_deref());
-            // The terminal around each attached client, nearest first.
-            let clients = pids.clone();
-            for client in clients {
-                pids.extend(
-                    process::ancestors(client)
-                        .into_iter()
-                        .flatten()
-                        .map(|entry| entry.pid),
-                );
-            }
-            !pids.is_empty() && platform_raise_host(&pids, cwd)
-        }
-        Host::Kitty { window, listen } => {
-            let _ = kitty::focus(listen, *window, pid);
-            platform_raise_host(&located.ancestors, cwd)
-        }
+        #[cfg(target_os = "linux")]
+        Host::Tmux { .. } | Host::Kitty { .. } => crate::linux::hosts::focus(pid, located, cwd),
+        #[cfg(not(target_os = "linux"))]
+        Host::Tmux { .. } | Host::Kitty { .. } => false,
         // A terminal the island can't type into still comes forward.
         Host::App { .. } => platform_raise_host(&located.ancestors, cwd),
         Host::Unknown => false,
@@ -639,7 +517,7 @@ fn console_focus(_pid: u32) -> bool {
 
 #[cfg(target_os = "linux")]
 fn platform_raise_host(pids: &[u32], cwd: &str) -> bool {
-    x11::raise(pids, cwd)
+    crate::linux::x11::raise(pids, cwd)
 }
 
 #[cfg(not(any(windows, target_os = "linux")))]
@@ -925,142 +803,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg(not(target_os = "linux"))]
     fn a_shell_from_explorer_is_a_console_window() {
         let l = classify(&chain(&["claude.exe", "cmd.exe", "explorer.exe"]));
         assert_eq!(l.host, Host::Conhost);
         assert!(l.host.accepts_replies());
         assert_eq!(classify(&chain(&["claude.exe"])).host, Host::Unknown);
-    }
-
-    #[test]
-    fn linux_program_names_are_recognized() {
-        let l = classify(&chain(&["claude", "bash", "kitty", "systemd"]));
-        assert_eq!(
-            l.host,
-            Host::App {
-                name: "kitty".into()
-            }
-        );
-        assert!(!l.host.accepts_replies());
-        let l = classify(&chain(&["claude", "zsh", "code", "systemd"]));
-        assert_eq!(
-            l.host,
-            Host::Vscode {
-                ide: "vscode".into(),
-                ide_pid: 102
-            }
-        );
-        let l = classify(&chain(&["claude", "bash", "gnome-terminal-server"]));
-        assert_eq!(l.host.display_name().as_deref(), Some("GNOME Terminal"));
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn a_session_in_an_unknown_terminal_is_not_a_console_window() {
-        let l = classify(&chain(&["claude", "bash", "someterm"]));
-        assert_eq!(l.host, Host::Unknown);
-        assert!(!l.host.accepts_replies());
-    }
-
-    /// A command line of a terminal in a folder of its own: its directory and path.
-    #[cfg(unix)]
-    fn scripted(name: &str, program: &str, body: &str) -> (std::path::PathBuf, String) {
-        let dir = std::env::temp_dir().join(format!("openbar-host-{name}-{}", std::process::id()));
-        let path = command::fake_program(&dir, program, body);
-        (dir, path.display().to_string())
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn a_tmux_pane_counts_only_on_the_sessions_own_terminal() {
-        let body = "case \"$*\" in *pane_tty*) echo /dev/pts/7;; *) exit 1;; esac\n";
-        let (dir, program) = scripted("pane", "tmux", body);
-        let mut environment = std::collections::HashMap::new();
-        environment.insert(
-            tmux::TMUX.to_owned(),
-            "/tmp/tmux-1000/default,1234,0".to_owned(),
-        );
-        environment.insert(tmux::PANE.to_owned(), "%3".to_owned());
-        let pane = Host::Tmux {
-            socket: "/tmp/tmux-1000/default".into(),
-            pane: "%3".into(),
-        };
-        assert_eq!(
-            tmux_in(Some("/dev/pts/7"), &environment, &program),
-            Some(pane)
-        );
-        // An editor opened from the pane has the variables, not the pane's terminal.
-        assert_eq!(tmux_in(Some("/dev/pts/9"), &environment, &program), None);
-        assert_eq!(tmux_in(None, &environment, &program), None);
-        let empty = std::collections::HashMap::new();
-        assert_eq!(tmux_in(Some("/dev/pts/7"), &empty, &program), None);
-        let _ = std::fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    #[cfg(unix)]
-    fn a_kitty_window_counts_only_when_it_lists_the_session() {
-        let body = r#"case "$*" in *' ls '*) echo '[{"tabs":[{"windows":[{"id":3,"pid":500,"foreground_processes":[{"pid":501}]}]}]}]';; *) exit 1;; esac
-"#;
-        let (dir, program) = scripted("window", "kitten", body);
-        let in_kitty = Located {
-            host: Host::App {
-                name: "kitty".into(),
-            },
-            ancestors: Vec::new(),
-        };
-        let mut environment = std::collections::HashMap::new();
-        environment.insert(kitty::WINDOW.to_owned(), "3".to_owned());
-        environment.insert(kitty::LISTEN.to_owned(), "unix:/tmp/k".to_owned());
-        let window = Host::Kitty {
-            window: 3,
-            listen: "unix:/tmp/k".into(),
-        };
-        assert_eq!(
-            kitty_in(&in_kitty, 501, &environment, &program),
-            Some(window)
-        );
-        // Another kitty can have a window with the same id.
-        assert_eq!(kitty_in(&in_kitty, 777, &environment, &program), None);
-        // A session that is not under a kitty at all got the variables from a parent shell.
-        let elsewhere = Located {
-            host: Host::Unknown,
-            ancestors: Vec::new(),
-        };
-        assert_eq!(kitty_in(&elsewhere, 501, &environment, &program), None);
-        let _ = std::fs::remove_dir_all(dir);
-    }
-
-    #[test]
-    #[cfg(target_os = "linux")]
-    fn a_session_in_a_pane_is_found_by_the_terminal_it_runs_on() {
-        let Some(session) = process_linux::OnTerminal::start(&[
-            (tmux::TMUX, "/tmp/openbar-no-such-socket,1,0"),
-            (tmux::PANE, "%3"),
-        ]) else {
-            eprintln!("no pseudo-terminals here");
-            return;
-        };
-        let own = format!(
-            "case \"$*\" in *pane_tty*) echo {};; *) exit 1;; esac\n",
-            session.device
-        );
-        let (dir, program) = scripted("own", "tmux", &own);
-        let found = locate_with(session.child.id(), &program, "kitten").unwrap();
-        assert_eq!(
-            found.host,
-            Host::Tmux {
-                socket: "/tmp/openbar-no-such-socket".into(),
-                pane: "%3".into()
-            }
-        );
-        // The same variables on another terminal: an editor opened from the pane.
-        let body = "case \"$*\" in *pane_tty*) echo /dev/pts/99999;; *) exit 1;; esac\n";
-        let (other_dir, other) = scripted("elsewhere", "tmux", body);
-        let found = locate_with(session.child.id(), &other, "kitten").unwrap();
-        assert!(!matches!(found.host, Host::Tmux { .. }));
-        let _ = std::fs::remove_dir_all(dir);
-        let _ = std::fs::remove_dir_all(other_dir);
     }
 }

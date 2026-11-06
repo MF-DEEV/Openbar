@@ -175,10 +175,8 @@ impl DisplaySettle {
 #[derive(Default)]
 pub struct IslandState {
     rects: Mutex<Vec<HitRect>>,
-    /// What is on screen now, when the page says it is less than `rects`: a
-    /// growing island answers to where it is going, but only what is drawn may
-    /// be cut out of the canvas, or a compositor that blurs behind the window
-    /// shows a frosted ghost of the final size.
+    /// What is on screen now (Linux), see `linux/island.rs`.
+    #[cfg(target_os = "linux")]
     drawn: Mutex<Option<Vec<HitRect>>>,
     /// While the page holds the pointer (a drag, a slider, an open menu) the
     /// window keeps mouse input even outside the shape.
@@ -207,12 +205,6 @@ impl IslandState {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .iter()
             .any(|r| r.contains(x, y))
-    }
-
-    /// What the canvas is cut down to: what the page says is drawn, else all it answers to.
-    fn shape(&self) -> Vec<HitRect> {
-        let drawn = self.drawn.lock().unwrap().clone();
-        drawn.unwrap_or_else(|| self.rects.lock().unwrap().clone())
     }
 }
 
@@ -254,7 +246,7 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>>
         .disable_drag_drop_handler()
         .build()?;
     place(&window, DisplayChoice::Primary)?;
-    platform::set_click_through(&window, true)?;
+    set_click_through(&window, true)?;
     platform::style(&window);
     platform::watch_displays(&window);
     window.show()?;
@@ -403,10 +395,8 @@ fn sync_mirrors<R: Runtime>(app: &AppHandle<R>, window: &WebviewWindow<R>, state
         }
     }
     let any = !after.is_empty();
-    let frame = state.mirror_frame.lock().unwrap().clone();
-    for mirror in &after {
-        shape_mirror(app, mirror, &frame);
-    }
+    #[cfg(target_os = "linux")]
+    platform::shape_mirrors(app, state, &after);
     *state.mirrors.lock().unwrap() = after;
     set_mirroring(app, state, any);
 }
@@ -450,7 +440,7 @@ fn open_mirror<R: Runtime>(
         .visible(false)
         .disable_drag_drop_handler()
         .build()?;
-    platform::set_click_through(&window, true)?;
+    set_click_through(&window, true)?;
     platform::style(&window);
     platform::show_in_captures(&window, !state.hidden_from_captures.load(Ordering::Relaxed));
     Ok(Mirror {
@@ -509,7 +499,7 @@ fn watch_pointer<R: Runtime>(app: AppHandle<R>) {
             let wants_input = inside || *state.capture.lock().unwrap();
             if wants_input != taking_input {
                 taking_input = wants_input;
-                let _ = platform::set_click_through(&window, !wants_input);
+                let _ = set_click_through(&window, !wants_input);
             }
             if inside != was_inside {
                 was_inside = inside;
@@ -535,7 +525,7 @@ fn watch_pointer<R: Runtime>(app: AppHandle<R>) {
             if over_mirror != taking_mirror {
                 for (label, ignore) in [(&taking_mirror, true), (&over_mirror, false)] {
                     if let Some(mirror) = label.as_ref().and_then(|l| app.get_webview_window(l)) {
-                        let _ = platform::set_click_through(&mirror, ignore);
+                        let _ = set_click_through(&mirror, ignore);
                     }
                 }
                 taking_mirror = over_mirror;
@@ -543,6 +533,14 @@ fn watch_pointer<R: Runtime>(app: AppHandle<R>) {
         }
     });
 }
+
+/// Mouse input passes through the window, or not. Linux does it in `linux/island.rs`.
+#[cfg(not(target_os = "linux"))]
+fn set_click_through<R: Runtime>(window: &WebviewWindow<R>, ignore: bool) -> tauri::Result<()> {
+    window.set_ignore_cursor_events(ignore)
+}
+#[cfg(target_os = "linux")]
+use platform::set_click_through;
 
 /// The pointer in the window's CSS pixels.
 fn pointer_in_window<R: Runtime>(window: &WebviewWindow<R>) -> Option<(f64, f64)> {
@@ -555,6 +553,13 @@ fn pointer_in_window<R: Runtime>(window: &WebviewWindow<R>) -> Option<(f64, f64)
     ))
 }
 
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+pub fn island_set_hit_rects(state: tauri::State<'_, IslandState>, rects: Vec<HitRect>) {
+    *state.rects.lock().unwrap() = rects;
+}
+
+#[cfg(target_os = "linux")]
 #[tauri::command]
 pub fn island_set_hit_rects<R: Runtime>(
     app: AppHandle<R>,
@@ -562,26 +567,23 @@ pub fn island_set_hit_rects<R: Runtime>(
     rects: Vec<HitRect>,
     drawn: Option<Vec<HitRect>>,
 ) {
-    *state.rects.lock().unwrap() = rects;
-    *state.drawn.lock().unwrap() = drawn;
-    reshape(&app, &state);
+    platform::set_hit_rects(&app, &state, rects, drawn)
 }
 
+#[cfg(not(target_os = "linux"))]
+#[tauri::command]
+pub fn island_set_capture(state: tauri::State<'_, IslandState>, capture: bool) {
+    *state.capture.lock().unwrap() = capture;
+}
+
+#[cfg(target_os = "linux")]
 #[tauri::command]
 pub fn island_set_capture<R: Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, IslandState>,
     capture: bool,
 ) {
-    *state.capture.lock().unwrap() = capture;
-    reshape(&app, &state);
-}
-
-/// Where the platform cuts the canvas down to what is drawn (X11 only).
-fn reshape<R: Runtime>(app: &AppHandle<R>, state: &IslandState) {
-    if let Some(window) = app.get_webview_window(LABEL) {
-        platform::set_shape(&window, &state.shape(), *state.capture.lock().unwrap());
-    }
+    platform::set_capture(&app, &state, capture)
 }
 
 /// What the mirrors draw; None draws nothing (the island is off or hidden).
@@ -592,29 +594,18 @@ pub fn island_mirror_update<R: Runtime>(
     frame: Option<MirrorFrame>,
 ) {
     *state.mirror_frame.lock().unwrap() = frame.clone();
-    let mirrors = state.mirrors.lock().unwrap().clone();
-    for mirror in mirrors {
-        let _ = app.emit_to(&mirror.label, "island://mirror-frame", &frame);
-        shape_mirror(&app, &mirror, &frame);
-    }
-}
-
-/// Where a mirror exists: only where its island is drawn, as on the island's own window.
-fn shape_mirror<R: Runtime>(app: &AppHandle<R>, mirror: &Mirror, frame: &Option<MirrorFrame>) {
-    let Some(window) = app.get_webview_window(&mirror.label) else {
-        return;
-    };
-    let rects: Vec<HitRect> = frame
+    let labels: Vec<String> = state
+        .mirrors
+        .lock()
+        .unwrap()
         .iter()
-        .map(|frame| {
-            let left = (mirror.display.width as f64 / mirror.display.scale - frame.width) / 2.0;
-            HitRect {
-                x: frame.hit.x + left,
-                ..frame.hit
-            }
-        })
+        .map(|m| m.label.clone())
         .collect();
-    platform::set_shape(&window, &rects, false);
+    for label in labels {
+        let _ = app.emit_to(&label, "island://mirror-frame", &frame);
+    }
+    #[cfg(target_os = "linux")]
+    platform::shape_mirrors(&app, &state, &state.mirrors.lock().unwrap().clone());
 }
 
 /// A mirror page that just loaded asks for the current frame.
@@ -775,20 +766,6 @@ mod platform {
         }
     }
 
-    pub fn set_click_through<R: Runtime>(
-        window: &WebviewWindow<R>,
-        ignore: bool,
-    ) -> tauri::Result<()> {
-        window.set_ignore_cursor_events(ignore)
-    }
-
-    pub fn set_shape<R: Runtime>(
-        _window: &WebviewWindow<R>,
-        _rects: &[super::HitRect],
-        _capture: bool,
-    ) {
-    }
-
     /// No taskbar button, no Alt+Tab entry, and clicking the closed island
     /// does not take focus from the app the person is working in.
     pub fn style<R: Runtime>(window: &WebviewWindow<R>) {
@@ -859,20 +836,6 @@ mod platform {
 
     pub fn style<R: Runtime>(_window: &WebviewWindow<R>) {}
 
-    pub fn set_click_through<R: Runtime>(
-        window: &WebviewWindow<R>,
-        ignore: bool,
-    ) -> tauri::Result<()> {
-        window.set_ignore_cursor_events(ignore)
-    }
-
-    pub fn set_shape<R: Runtime>(
-        _window: &WebviewWindow<R>,
-        _rects: &[super::HitRect],
-        _capture: bool,
-    ) {
-    }
-
     pub fn watch_displays<R: Runtime>(_window: &WebviewWindow<R>) {}
 
     pub fn display_changes() -> u32 {
@@ -902,9 +865,7 @@ mod platform {
 
 #[cfg(test)]
 mod tests {
-    use super::{
-        Display, DisplayChoice, DisplaySettle, HitRect, IslandState, MirrorFrame, mirrored,
-    };
+    use super::{Display, DisplayChoice, DisplaySettle, HitRect, MirrorFrame, mirrored};
     use std::time::{Duration, Instant};
 
     fn display(x: i32, width: u32, scale: f64) -> Display {
@@ -1056,34 +1017,5 @@ mod tests {
         )
         .unwrap();
         assert_eq!(r.bottom_radius, 8.0);
-    }
-
-    #[test]
-    fn the_canvas_is_cut_to_what_is_drawn_not_to_where_the_pointer_is_answered() {
-        let state = IslandState::default();
-        let (small, large) = (
-            rect(0.0, 8.0),
-            HitRect {
-                width: 400.0,
-                ..rect(0.0, 8.0)
-            },
-        );
-        *state.rects.lock().unwrap() = vec![large];
-        assert_eq!(
-            state.shape(),
-            vec![large],
-            "a page that says nothing is drawn as it answers"
-        );
-        *state.drawn.lock().unwrap() = Some(vec![small]);
-        assert_eq!(state.shape(), vec![small]);
-        assert!(
-            state.contains(300.0, 10.0),
-            "hover still reaches the larger area"
-        );
-        *state.drawn.lock().unwrap() = Some(Vec::new());
-        assert!(
-            state.shape().is_empty(),
-            "an empty drawing is not the fallback"
-        );
     }
 }

@@ -35,6 +35,10 @@ const VSIX_FILES: [(&str, &[u8]); 4] = [
 const INSTALL_TIMEOUT: Duration = Duration::from_secs(120);
 const UNINSTALL_TIMEOUT: Duration = Duration::from_secs(60);
 
+#[cfg(target_os = "linux")]
+#[path = "../linux/ide.rs"]
+mod linux_ide;
+
 /// One install at a time: Settings and the update at launch may overlap.
 static WORK: Mutex<()> = Mutex::new(());
 
@@ -48,12 +52,6 @@ struct Editor {
     exes: &'static [&'static str],
     /// Used when product.json can't name the data folder.
     data_folder: &'static str,
-    /// The command on PATH where editors are not installed under Programs.
-    #[cfg_attr(windows, allow(dead_code))]
-    unix_cli: &'static str,
-    /// Where Linux and macOS builds keep their data, when it differs.
-    #[cfg_attr(windows, allow(dead_code))]
-    unix_data_folder: &'static str,
 }
 
 const EDITORS: [Editor; 5] = [
@@ -64,8 +62,6 @@ const EDITORS: [Editor; 5] = [
         clis: &["code.cmd"],
         exes: &["Code.exe"],
         data_folder: ".vscode",
-        unix_cli: "code",
-        unix_data_folder: ".vscode",
     },
     Editor {
         id: "vscode-insiders",
@@ -74,8 +70,6 @@ const EDITORS: [Editor; 5] = [
         clis: &["code-insiders.cmd"],
         exes: &["Code - Insiders.exe"],
         data_folder: ".vscode-insiders",
-        unix_cli: "code-insiders",
-        unix_data_folder: ".vscode-insiders",
     },
     Editor {
         id: "cursor",
@@ -84,8 +78,6 @@ const EDITORS: [Editor; 5] = [
         clis: &["cursor.cmd"],
         exes: &["Cursor.exe"],
         data_folder: ".cursor",
-        unix_cli: "cursor",
-        unix_data_folder: ".cursor",
     },
     Editor {
         id: "antigravity",
@@ -94,8 +86,6 @@ const EDITORS: [Editor; 5] = [
         clis: &["antigravity-ide.cmd", "antigravity.cmd"],
         exes: &["Antigravity IDE.exe", "Antigravity.exe"],
         data_folder: ".antigravity-ide",
-        unix_cli: "antigravity",
-        unix_data_folder: ".antigravity",
     },
     Editor {
         id: "windsurf",
@@ -104,8 +94,6 @@ const EDITORS: [Editor; 5] = [
         clis: &["windsurf.cmd"],
         exes: &["Windsurf.exe"],
         data_folder: ".windsurf",
-        unix_cli: "windsurf",
-        unix_data_folder: ".windsurf",
     },
 ];
 
@@ -186,32 +174,11 @@ fn extensions_folder(home: &Path, root: &Path, editor: &Editor) -> PathBuf {
         .join("extensions")
 }
 
-/// Where an editor is: under Programs on Windows, elsewhere its command on PATH.
-fn locate<'a>(editor: &'a Editor, places: &Places) -> Option<Found<'a>> {
-    #[cfg(not(windows))]
-    if let Some(found) = find_on_path(editor, places) {
+fn find<'a>(editor: &'a Editor, places: &Places) -> Option<Found<'a>> {
+    #[cfg(target_os = "linux")]
+    if let Some(found) = linux_ide::find_on_path(editor, places) {
         return Some(found);
     }
-    find(editor, places)
-}
-
-/// An editor installed system-wide: its command on PATH, its data in the home folder.
-#[cfg(not(windows))]
-fn find_on_path<'a>(editor: &'a Editor, places: &Places) -> Option<Found<'a>> {
-    let cli = places
-        .path
-        .iter()
-        .filter(|dir| dir.is_absolute())
-        .map(|dir| dir.join(editor.unix_cli))
-        .find(|cli| cli.is_file())?;
-    Some(Found {
-        editor,
-        extensions: places.home.join(editor.unix_data_folder).join("extensions"),
-        cli,
-    })
-}
-
-fn find<'a>(editor: &'a Editor, places: &Places) -> Option<Found<'a>> {
     let installed = places.roots.iter().flat_map(|root| {
         editor.folders.iter().flat_map(move |folder| {
             editor.clis.iter().flat_map(move |cli| {
@@ -330,7 +297,7 @@ pub struct EditorStatus {
 fn statuses(places: &Places, bundled: &str) -> Vec<EditorStatus> {
     EDITORS
         .iter()
-        .filter_map(|editor| locate(editor, places))
+        .filter_map(|editor| find(editor, places))
         .map(|found| EditorStatus {
             id: found.editor.id,
             name: found.editor.name,
@@ -484,7 +451,7 @@ fn install(id: &str, places: &Places, bundled: &str) -> Result<(), Failure> {
     let found = EDITORS
         .iter()
         .find(|editor| editor.id == id)
-        .and_then(|editor| locate(editor, places))
+        .and_then(|editor| find(editor, places))
         .ok_or(Failure::NotFound)?;
     install_found(&found, bundled, INSTALL_TIMEOUT)
 }
@@ -496,7 +463,7 @@ pub fn update_outdated() {
         return;
     };
     let _one_at_a_time = WORK.lock().unwrap_or_else(|poison| poison.into_inner());
-    for found in EDITORS.iter().filter_map(|editor| locate(editor, &places)) {
+    for found in EDITORS.iter().filter_map(|editor| find(editor, &places)) {
         if state_of(&found.extensions, &bundled) == State::Outdated {
             let _ = install_found(&found, &bundled, INSTALL_TIMEOUT);
         }
@@ -513,7 +480,7 @@ pub fn replace_legacy() {
         return;
     };
     let _one_at_a_time = WORK.lock().unwrap_or_else(|poison| poison.into_inner());
-    for found in EDITORS.iter().filter_map(|editor| locate(editor, &places)) {
+    for found in EDITORS.iter().filter_map(|editor| find(editor, &places)) {
         if installed_versions_of(&found.extensions, LEGACY_EXTENSION_ID).is_empty() {
             continue;
         }
@@ -538,7 +505,7 @@ pub fn remove_everywhere() {
     let Some(places) = Places::of_this_pc() else {
         return;
     };
-    for found in EDITORS.iter().filter_map(|editor| locate(editor, &places)) {
+    for found in EDITORS.iter().filter_map(|editor| find(editor, &places)) {
         if !installed_versions(&found.extensions).is_empty() {
             let _ = run_cli(
                 &found.cli,
@@ -749,26 +716,6 @@ mod tests {
         }
     }
 
-    #[cfg(not(windows))]
-    #[test]
-    fn an_editor_installed_system_wide_is_found_by_its_command_on_path() {
-        let pc = Pc::new("unix");
-        let bin = pc.base.join("usr/bin");
-        touch(&bin.join("code"));
-        touch(&bin.join("antigravity"));
-        let mut places = pc.places();
-        places.path = vec![PathBuf::from("relative"), bin.clone()];
-        let code = locate(editor("vscode"), &places).unwrap();
-        assert_eq!(code.cli, bin.join("code"));
-        assert_eq!(code.extensions, places.home.join(".vscode/extensions"));
-        let antigravity = locate(editor("antigravity"), &places).unwrap();
-        assert_eq!(
-            antigravity.extensions,
-            places.home.join(".antigravity/extensions")
-        );
-        assert!(locate(editor("windsurf"), &places).is_none());
-    }
-
     #[test]
     fn a_forks_code_cmd_on_path_is_not_vs_code() {
         let pc = Pc::new("fork");
@@ -935,5 +882,25 @@ mod tests {
             Failure::Other("disk full".into()).into_reason(),
             "disk full"
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn an_editor_installed_system_wide_is_found_by_its_command_on_path() {
+        let pc = Pc::new("unix");
+        let bin = pc.base.join("usr/bin");
+        touch(&bin.join("code"));
+        touch(&bin.join("antigravity"));
+        let mut places = pc.places();
+        places.path = vec![PathBuf::from("relative"), bin.clone()];
+        let code = find(editor("vscode"), &places).unwrap();
+        assert_eq!(code.cli, bin.join("code"));
+        assert_eq!(code.extensions, places.home.join(".vscode/extensions"));
+        let antigravity = find(editor("antigravity"), &places).unwrap();
+        assert_eq!(
+            antigravity.extensions,
+            places.home.join(".antigravity/extensions")
+        );
+        assert!(find(editor("windsurf"), &places).is_none());
     }
 }

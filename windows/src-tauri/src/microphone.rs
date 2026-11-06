@@ -4,9 +4,8 @@
 //! Read-only audio metering and Discord accessibility. Never opens a recording
 //! stream, changes Discord, reads messages, or assumes WASAPI mute = Discord mute.
 use std::sync::{Arc, Mutex};
-use tauri::AppHandle;
-#[cfg(windows)]
-use tauri::{Emitter, Manager};
+#[cfg_attr(not(windows), allow(unused_imports))]
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize)]
 #[serde(rename_all = "camelCase")]

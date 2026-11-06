@@ -45,14 +45,17 @@ const HOOK_PATIENCE: f64 = 590.0;
 const MAX_LINE: usize = 32 * 1024 * 1024;
 const CHUNK: usize = 4 * 1024 * 1024;
 
+#[cfg(windows)]
+const PID_DOMAINS: &[&str] = registry::WINDOWS_PID_DOMAINS;
+#[cfg(not(any(windows, target_os = "linux")))]
+const PID_DOMAINS: &[&str] = registry::MAC_PID_DOMAINS;
+
 /// The `pidDomain`s of records written on this machine.
 fn pid_domains() -> &'static [&'static str] {
-    #[cfg(windows)]
-    return registry::WINDOWS_PID_DOMAINS;
     #[cfg(target_os = "linux")]
-    return registry::linux_pid_domains();
-    #[cfg(not(any(windows, target_os = "linux")))]
-    return registry::MAC_PID_DOMAINS;
+    return crate::linux::sessions::pid_domains();
+    #[cfg(not(target_os = "linux"))]
+    PID_DOMAINS
 }
 
 /// How often Agent View is asked: more often while it has sessions.
@@ -1447,7 +1450,7 @@ pub struct AgentHooksStatus {
 
 #[tauri::command]
 pub fn sessions_agent_hooks_status() -> Vec<AgentHooksStatus> {
-    let (Some(home), Ok(exe)) = (hooks::installer::home_dir(), std::env::current_exe()) else {
+    let (Some(home), Ok(exe)) = (hooks::installer::home_dir(), hooks::current_program()) else {
         return Vec::new();
     };
     let endpoint = hooks::transport::endpoint(hooks::APP_ID);
@@ -1477,7 +1480,7 @@ pub fn sessions_agent_hooks_install(agent: String, install: bool) -> Result<(), 
         .ok_or("unknown agent")?;
     let home = hooks::installer::home_dir().ok_or("no home folder")?;
     let result = if install {
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let exe = hooks::current_program()?;
         let endpoint = hooks::transport::endpoint(hooks::APP_ID);
         hook_agents::installer::install(provider, &home, &exe, &endpoint, hooks::APP_ID)
     } else {

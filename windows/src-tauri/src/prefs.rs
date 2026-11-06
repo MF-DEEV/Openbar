@@ -396,7 +396,7 @@ mod autostart {
         false
     }
     pub fn set(_on: bool) -> Result<(), String> {
-        Err("launch at login is not supported here".into())
+        Err("launch at login is Windows only".into())
     }
     pub fn legacy_present() -> bool {
         false

@@ -24,6 +24,10 @@ Packages: `bun run tauri build --bundles deb,rpm,appimage` (the config's own tar
 - Global shortcuts, tray icon (its menu; a plain click does not open Settings, the tray protocol has no click event), launch at login (`~/.config/autostart/openbar.desktop`).
 - Settings and caches live in `~/.config/com.openbar.island` and `~/.cache/com.openbar.island`.
 
+## Where the code is
+
+Everything Linux does differently is in `src-tauri/src/linux/`, a file for each piece of Windows code it stands in for: the window (`island.rs`), fullscreen (`fullscreen.rs`), launch at login (`autostart.rs`), processes from `/proc` (`process.rs`), terminals and editors (`hosts.rs`, `tmux.rs`, `kitty.rs`, `wezterm.rs`, `x11.rs`, `command.rs`, `ide.rs`), session records (`sessions.rs`), hooks (`hooks.rs`) and the XDG folders (`paths.rs`). The Windows modules only hand over to these with `cfg(target_os = "linux")`, and the code Windows compiles is otherwise as it was. A new Linux piece, media through MPRIS say, is a new file there and one hand-over where the Windows module has its own.
+
 ## NVIDIA
 
 WebKitGTK cannot back its GBM buffers on the proprietary driver and leaves every page blank. The app sets `WEBKIT_DMABUF_RENDERER_FORCE_SHM=1` when `/proc/driver/nvidia/version` exists, unless one of the `WEBKIT_DMABUF_RENDERER_*` or `WEBKIT_DISABLE_DMABUF_RENDERER` variables is already set. `WEBKIT_DISABLE_DMABUF_RENDERER=1` alone does not draw the island's body.

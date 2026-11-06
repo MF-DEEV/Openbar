@@ -21,53 +21,17 @@ pub struct HooksStatus {
     error: Option<String>,
 }
 
-/// The program a hook should run: an AppImage's own file, since the
-/// executable inside it lives in a mount that is gone when the app closes.
-fn hook_program(
-    appimage: Option<std::ffi::OsString>,
-    current: std::path::PathBuf,
-) -> std::path::PathBuf {
-    appimage
-        .map(std::path::PathBuf::from)
-        .filter(|path| path.is_absolute() && path.is_file())
-        .unwrap_or(current)
-}
-
 /// The program every agent's hook runs.
 pub fn current_program() -> Result<std::path::PathBuf, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
-    Ok(hook_program(std::env::var_os("APPIMAGE"), exe))
+    #[cfg(target_os = "linux")]
+    return Ok(crate::linux::hooks::program(exe));
+    #[cfg(not(target_os = "linux"))]
+    Ok(exe)
 }
 
 fn current_command() -> Result<String, String> {
     Ok(installer::command(&current_program()?, APP_ID))
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-
-    #[test]
-    fn an_appimage_is_run_by_its_own_file_not_its_mount() {
-        let file = std::env::temp_dir().join(format!("openbar-appimage-{}", std::process::id()));
-        std::fs::write(&file, b"").unwrap();
-        let mounted = PathBuf::from("/tmp/.mount_Openbar1/usr/bin/openbar");
-        assert_eq!(
-            hook_program(Some(file.clone().into_os_string()), mounted.clone()),
-            file
-        );
-        // A variable naming nothing is ignored.
-        assert_eq!(
-            hook_program(
-                Some("/nonexistent/Openbar.AppImage".into()),
-                mounted.clone()
-            ),
-            mounted
-        );
-        assert_eq!(hook_program(None, mounted.clone()), mounted);
-        let _ = std::fs::remove_file(file);
-    }
 }
 
 /// Whether every event runs this app's current hook, for the sessions snapshot.

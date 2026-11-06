@@ -10,12 +10,12 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use gtk::gdk::{Screen, WindowTypeHint};
 use gtk::prelude::{GtkWindowExt, WidgetExt};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use tauri::{Runtime, WebviewWindow};
+use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{AtomEnum, ClientMessageEvent, ConnectionExt, EventMask, KeyButMask};
 use x11rb::rust_connection::RustConnection;
 
-use super::{HitRect, IslandState};
+use super::{HitRect, IslandState, LABEL, Mirror, MirrorFrame};
 
 static DISPLAY_CHANGES: AtomicU32 = AtomicU32::new(0);
 
@@ -199,6 +199,59 @@ pub fn set_shape<R: Runtime>(window: &WebviewWindow<R>, rects: &[HitRect], captu
     });
 }
 
+/// What the canvas is cut down to: what the page says is drawn, else all it answers to.
+fn shape(state: &IslandState) -> Vec<HitRect> {
+    let drawn = state.drawn.lock().unwrap().clone();
+    drawn.unwrap_or_else(|| state.rects.lock().unwrap().clone())
+}
+
+/// Cuts the island's window down to what is drawn.
+fn reshape<R: Runtime>(app: &AppHandle<R>, state: &IslandState) {
+    if let Some(window) = app.get_webview_window(LABEL) {
+        set_shape(&window, &shape(state), *state.capture.lock().unwrap());
+    }
+}
+
+/// A growing island answers to where it is going, but only what is drawn may be
+/// cut out of the canvas, or a compositor that blurs behind the window shows a
+/// frosted ghost of the final size.
+pub fn set_hit_rects<R: Runtime>(
+    app: &AppHandle<R>,
+    state: &IslandState,
+    rects: Vec<HitRect>,
+    drawn: Option<Vec<HitRect>>,
+) {
+    *state.rects.lock().unwrap() = rects;
+    *state.drawn.lock().unwrap() = drawn;
+    reshape(app, state);
+}
+
+pub fn set_capture<R: Runtime>(app: &AppHandle<R>, state: &IslandState, capture: bool) {
+    *state.capture.lock().unwrap() = capture;
+    reshape(app, state);
+}
+
+/// Where the mirrors exist: only where their island is drawn, as on the island's own window.
+pub fn shape_mirrors<R: Runtime>(app: &AppHandle<R>, state: &IslandState, mirrors: &[Mirror]) {
+    let frame = state.mirror_frame.lock().unwrap().clone();
+    for mirror in mirrors {
+        let Some(window) = app.get_webview_window(&mirror.label) else {
+            continue;
+        };
+        let rects: Vec<HitRect> = frame
+            .iter()
+            .map(|frame: &MirrorFrame| {
+                let left = (mirror.display.width as f64 / mirror.display.scale - frame.width) / 2.0;
+                HitRect {
+                    x: frame.hit.x + left,
+                    ..frame.hit
+                }
+            })
+            .collect();
+        set_shape(&window, &rects, false);
+    }
+}
+
 pub fn show_in_captures<R: Runtime>(window: &WebviewWindow<R>, show: bool) {
     let _ = window.set_content_protected(!show);
 }
@@ -243,6 +296,33 @@ pub fn mouse_buttons_down() -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_canvas_is_cut_to_what_is_drawn_not_to_where_the_pointer_is_answered() {
+        let state = IslandState::default();
+        let small = rect(0.0, 0.0, 100.0, 40.0, 0.0, 8.0);
+        let large = HitRect {
+            width: 400.0,
+            ..small
+        };
+        *state.rects.lock().unwrap() = vec![large];
+        assert_eq!(
+            shape(&state),
+            vec![large],
+            "a page that says nothing is drawn as it answers"
+        );
+        *state.drawn.lock().unwrap() = Some(vec![small]);
+        assert_eq!(shape(&state), vec![small]);
+        assert!(
+            state.contains(300.0, 10.0),
+            "hover still reaches the larger area"
+        );
+        *state.drawn.lock().unwrap() = Some(Vec::new());
+        assert!(
+            shape(&state).is_empty(),
+            "an empty drawing is not the fallback"
+        );
+    }
 
     fn rect(x: f64, y: f64, width: f64, height: f64, top: f64, bottom: f64) -> HitRect {
         HitRect {

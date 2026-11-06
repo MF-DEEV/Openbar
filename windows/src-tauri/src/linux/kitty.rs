@@ -8,7 +8,7 @@
 //! started from another keeps the address, and ids repeat between kittys.
 
 use super::command::run;
-use super::wezterm::Step;
+use crate::hosts::wezterm::Step;
 
 pub const WINDOW: &str = "KITTY_WINDOW_ID";
 pub const LISTEN: &str = "KITTY_LISTEN_ON";
@@ -74,7 +74,7 @@ fn send_with(
         return Err(());
     }
     let target = format!("id:{window}");
-    for step in super::wezterm::steps(text, images) {
+    for step in crate::hosts::wezterm::steps(text, images) {
         match step {
             Step::Paste(content) => {
                 kitten(

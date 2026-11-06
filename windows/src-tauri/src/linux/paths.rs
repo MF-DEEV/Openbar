@@ -22,6 +22,11 @@ pub fn cache() -> Option<PathBuf> {
     xdg("XDG_CACHE_HOME", ".cache")
 }
 
+/// `$XDG_DATA_HOME` (`~/.local/share`).
+pub fn data() -> Option<PathBuf> {
+    xdg("XDG_DATA_HOME", ".local/share")
+}
+
 fn xdg(variable: &str, fallback: &str) -> Option<PathBuf> {
     env_dir(variable).or_else(|| Some(env_dir("HOME")?.join(fallback)))
 }

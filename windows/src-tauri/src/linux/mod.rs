@@ -5,12 +5,21 @@
 //! Linux side of a module that is Windows code elsewhere, picked with
 //! `cfg(target_os = "linux")` where that module hands over to it.
 //!
-//! Two files are not declared here: `island.rs` and `fullscreen.rs` are
-//! included by the modules they belong to (as their `platform` and `imp`), since
-//! they use what those modules keep private.
+//! Three files are not declared here: `island.rs`, `fullscreen.rs` and `ide.rs`
+//! are included by the modules they belong to (as their `platform`, `imp` and
+//! `linux_ide`), since they use what those modules keep private.
 
 pub mod autostart;
+pub mod command;
+pub mod hooks;
+pub mod hosts;
+pub mod kitty;
 pub mod paths;
+pub mod process;
+pub mod sessions;
+pub mod tmux;
+pub mod wezterm;
+pub mod x11;
 
 /// NVIDIA cannot back WebKitGTK's GBM buffers, so draw into shared memory; a
 /// setting the person made wins. Called first thing in `run`.

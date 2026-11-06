@@ -304,14 +304,13 @@ fn saved_file(name: &str) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|dir| dir.join(name))
 }
 
+#[cfg_attr(not(windows), allow(clippy::needless_return))]
 pub fn start(app: AppHandle, shared: Shared) {
-    let first = APP.set((app, shared)).is_ok();
-    #[cfg(windows)]
-    if first {
-        engine::start();
+    if APP.set((app, shared)).is_err() {
+        return;
     }
-    #[cfg(not(windows))]
-    let _ = first;
+    #[cfg(windows)]
+    engine::start();
 }
 
 /// The Mixer options from the preferences, at launch and on every change:

@@ -38,34 +38,6 @@ pub const MAC_PID_DOMAINS: &[&str] = &["darwin"];
 /// its pids are not Windows pids, so leaving it out is right.
 pub const WINDOWS_PID_DOMAINS: &[&str] = &["win32"];
 
-/// Linux names the machine and the pid namespace, like
-/// `linux:8474584911d3444fb483d450f2ab879f:pid:[4026531836]`: another machine
-/// sharing the folder, or a container, writes another. None when this
-/// machine has no id to compare with.
-#[cfg(target_os = "linux")]
-fn local_pid_domain() -> Option<String> {
-    let id = ["/etc/machine-id", "/var/lib/dbus/machine-id"]
-        .iter()
-        .find_map(|path| std::fs::read_to_string(path).ok())?;
-    let namespace = std::fs::read_link("/proc/self/ns/pid").ok()?;
-    Some(format!(
-        "linux:{}:{}",
-        id.trim(),
-        namespace.to_string_lossy()
-    ))
-}
-
-#[cfg(target_os = "linux")]
-pub fn linux_pid_domains() -> &'static [&'static str] {
-    static DOMAINS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
-    DOMAINS.get_or_init(|| {
-        local_pid_domain()
-            .map(|domain| &*Box::leak(domain.into_boxed_str()))
-            .into_iter()
-            .collect()
-    })
-}
-
 /// The folders Claude Code keeps its state in: the two standard ones, the
 /// same the AI section reads logs from, then any `CLAUDE_CONFIG_DIR` moved it
 /// to, as on the Mac. The variable counts only for the person's own home (a
@@ -171,7 +143,7 @@ pub fn record(data: &[u8], accepted_domains: &[&str]) -> Option<SessionRecord> {
         status_updated: milliseconds(json.get("statusUpdatedAt"))
             .or_else(|| milliseconds(json.get("updatedAt"))),
         started: str_of(json.get("procStart"))
-            .and_then(|text| proc_start(text).or_else(|| proc_start_ticks(text)))
+            .and_then(proc_start)
             .or_else(|| milliseconds(json.get("startedAt"))),
         version: str_of(json.get("version")).unwrap_or("").to_owned(),
         host: Default::default(),
@@ -200,6 +172,10 @@ pub fn is_current(recorded: Option<Time>, actual: Option<Time>) -> bool {
 /// with runs of spaces collapsed as the Mac does. [VERIFY] what Claude Code
 /// writes on Windows; `startedAt` is the fallback when this does not parse.
 pub fn proc_start(text: &str) -> Option<Time> {
+    #[cfg(target_os = "linux")]
+    if let Some(started) = crate::linux::sessions::proc_start_ticks(text) {
+        return Some(started);
+    }
     let words: Vec<&str> = text.split(' ').filter(|word| !word.is_empty()).collect();
     let [weekday, month, day, time, year] = words.as_slice() else {
         return None;
@@ -249,18 +225,6 @@ pub fn proc_start(text: &str) -> Option<Time> {
         return None;
     }
     Some((days_from_civil(year, month, day) * 86_400 + hour * 3600 + minute * 60 + second) as f64)
-}
-
-/// On Linux `procStart` is the clock ticks after boot at which the process
-/// began, as `/proc/<pid>/stat` has it, like "2012813".
-#[cfg(target_os = "linux")]
-fn proc_start_ticks(text: &str) -> Option<Time> {
-    crate::hosts::process::epoch_of_ticks(text.parse().ok()?)
-}
-
-#[cfg(not(target_os = "linux"))]
-fn proc_start_ticks(_: &str) -> Option<Time> {
-    None
 }
 
 fn milliseconds(value: Option<&Value>) -> Option<Time> {
@@ -658,56 +622,6 @@ mod tests {
             updated.unwrap().status_updated,
             Some(1.0),
             "a zero time is no time"
-        );
-    }
-
-    // A record as Claude Code writes it on Linux: the domain names the machine
-    // and the pid namespace, procStart is the start in clock ticks since boot.
-    #[cfg(target_os = "linux")]
-    #[test]
-    fn a_linux_record_counts_while_its_process_runs() {
-        let pid = std::process::id();
-        let stat = std::fs::read_to_string("/proc/self/stat").unwrap();
-        let ticks = stat[stat.rfind(')').unwrap() + 1..]
-            .split_whitespace()
-            .nth(19)
-            .unwrap()
-            .to_owned();
-        let domains = linux_pid_domains();
-        assert_eq!(domains.len(), 1, "this machine has an id and a namespace");
-        assert!(domains[0].starts_with("linux:") && domains[0].contains(":pid:["));
-        let write = |domain: &str| {
-            format!(
-                r#"{{"pid":{pid},"sessionId":"s","cwd":"/a","procStart":"{ticks}","pidDomain":"{domain}","startedAt":1}}"#
-            )
-        };
-        let own = write(domains[0]);
-        let parsed = record(own.as_bytes(), domains).unwrap();
-        assert_eq!(parsed.started, crate::hosts::process::started_at(pid));
-        let files = [RegistryFile {
-            name: format!("{pid}.json"),
-            data: Some(own.into_bytes()),
-        }];
-        let found = scan(&files, domains, |p| {
-            crate::hosts::process::started_at(p as u32)
-        });
-        assert_eq!(found.records.len(), 1, "the running session is listed");
-        let other = write("linux:00000000000000000000000000000000:pid:[1]");
-        assert!(
-            record(other.as_bytes(), domains).is_none(),
-            "another machine or container is left out"
-        );
-        let reused = write(domains[0]).replace(&format!("\"{ticks}\""), "\"1\"");
-        let files = [RegistryFile {
-            name: format!("{pid}.json"),
-            data: Some(reused.into_bytes()),
-        }];
-        let found = scan(&files, domains, |p| {
-            crate::hosts::process::started_at(p as u32)
-        });
-        assert!(
-            found.records.is_empty(),
-            "a pid that came back for another process is not the session"
         );
     }
 
