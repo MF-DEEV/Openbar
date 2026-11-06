@@ -514,6 +514,10 @@ const PID_DOMAIN: &str = "darwin";
 /// containers) by `:<hostname>` or more: Claude Code 2.1.312 builds it as
 /// `` `${platform}:${hostname().toLowerCase()}` `` on Windows.
 fn local_domain(domain: &str) -> bool {
+    #[cfg(target_os = "linux")]
+    if crate::linux::sessions::pid_domains().contains(&domain) {
+        return true;
+    }
     domain == PID_DOMAIN
         || domain
             .strip_prefix(PID_DOMAIN)
@@ -745,5 +749,60 @@ mod tests {
             "a domain with the hostname is this PC's"
         );
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    // Claude Code on Linux writes `linux:<machine id>:pid:[<namespace>]`.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_record_written_on_this_linux_machine_counts_and_another_machines_does_not() {
+        let Some(this) = crate::linux::sessions::pid_domains().first().copied() else {
+            eprintln!("skipped: this machine has no id to name its records by");
+            return;
+        };
+        let dir = temp("linux-registry");
+        let sessions = dir.join("sessions");
+        std::fs::create_dir_all(&sessions).unwrap();
+        let elsewhere = "linux:00000000000000000000000000000000:pid:[4026531836]";
+        for (pid, session, domain) in [
+            (10, "mine", this),
+            (11, "other", elsewhere),
+            (12, "gone", this),
+        ] {
+            std::fs::write(
+                sessions.join(format!("{pid}.json")),
+                format!(r#"{{"pid":{pid},"sessionId":"{session}","pidDomain":"{domain}"}}"#),
+            )
+            .unwrap();
+        }
+        let roots = [Root {
+            provider: Provider::Claude,
+            path: dir.join("projects"),
+        }];
+        let registry = registry_with(&roots, &|pid| pid == 10 || pid == 11);
+        assert!(registry.running.contains("mine"));
+        assert!(registry.ended.contains("gone"));
+        assert!(
+            !registry.running.contains("other") && !registry.ended.contains("other"),
+            "another machine's process is not this PC's to judge"
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    #[ignore = "reads a real Claude config folder with a session running: OPENBAR_LIVE_CLAUDE_DIR=~/.claude"]
+    fn live_a_session_that_is_running_here_is_found_running() {
+        let dir = std::env::var("OPENBAR_LIVE_CLAUDE_DIR").expect("OPENBAR_LIVE_CLAUDE_DIR");
+        let roots = [Root {
+            provider: Provider::Claude,
+            path: Path::new(&dir).join("projects"),
+        }];
+        let registry = registry(&roots);
+        eprintln!(
+            "running {}, ended {}",
+            registry.running.len(),
+            registry.ended.len()
+        );
+        assert!(registry.listed && !registry.running.is_empty());
     }
 }
