@@ -145,10 +145,13 @@ fn command_program(words: &[String]) -> Option<&str> {
         .find(|word| *word != "env" && (word.starts_with('/') || !word.contains('=')))
 }
 
-/// The name of the desktop entry whose program is `exe`'s file name, to name a process by.
+/// The name of the desktop entry whose program is `exe`'s file name, to name
+/// a process by; else that file name, without `.exe` (a Wine program) and
+/// otherwise whole, since a program called `2.1.319` has no extension for the
+/// caller to cut.
 pub fn file_description(exe: &str) -> Option<String> {
     let wanted = Path::new(exe).file_name()?.to_str()?;
-    gio::AppInfo::all()
+    let entry = gio::AppInfo::all()
         .into_iter()
         .filter(|info| info.should_show())
         .find(|info| {
@@ -167,7 +170,11 @@ pub fn file_description(exe: &str) -> Option<String> {
                 .is_some_and(|name| name == wanted)
         })
         .map(|info| info.name().to_string())
-        .filter(|name| !name.is_empty())
+        .filter(|name| !name.is_empty());
+    Some(entry.unwrap_or_else(|| {
+        let dotted = wanted.len() > 4 && wanted[wanted.len() - 4..].eq_ignore_ascii_case(".exe");
+        wanted[..wanted.len() - if dotted { 4 } else { 0 }].to_string()
+    }))
 }
 
 pub fn process_path(pid: u32) -> Option<String> {
