@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 MF DEV, Adrian and the Openbar contributors
 
-//! The per-user folders the app keeps files in: `%APPDATA%` and `%LOCALAPPDATA%`
-//! on Windows, the XDG folders elsewhere (where Tauri puts its own config folder too).
+//! The per-user folders on Linux: the XDG ones, where Tauri puts its own config folder too.
+//! Windows keeps the same things under `%APPDATA%` and `%LOCALAPPDATA%`.
 
 use std::path::PathBuf;
 
@@ -12,28 +12,21 @@ fn env_dir(name: &str) -> Option<PathBuf> {
         .filter(|p| p.is_absolute())
 }
 
-/// `%APPDATA%`, or `$XDG_CONFIG_HOME` (`~/.config`).
+/// `$XDG_CONFIG_HOME` (`~/.config`), where Windows has `%APPDATA%`.
 pub fn roaming() -> Option<PathBuf> {
-    #[cfg(windows)]
-    return env_dir("APPDATA");
-    #[cfg(not(windows))]
-    return xdg("XDG_CONFIG_HOME", ".config");
+    xdg("XDG_CONFIG_HOME", ".config")
 }
 
-/// `%LOCALAPPDATA%`, or `$XDG_CACHE_HOME` (`~/.cache`): for what is safe to delete.
+/// `$XDG_CACHE_HOME` (`~/.cache`), where Windows has `%LOCALAPPDATA%`: for what is safe to delete.
 pub fn cache() -> Option<PathBuf> {
-    #[cfg(windows)]
-    return env_dir("LOCALAPPDATA");
-    #[cfg(not(windows))]
-    return xdg("XDG_CACHE_HOME", ".cache");
+    xdg("XDG_CACHE_HOME", ".cache")
 }
 
-#[cfg(not(windows))]
 fn xdg(variable: &str, fallback: &str) -> Option<PathBuf> {
     env_dir(variable).or_else(|| Some(env_dir("HOME")?.join(fallback)))
 }
 
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use super::*;
 
