@@ -25,13 +25,9 @@ pub struct Archive {
     pub cursors: Vec<SavedCursor>,
 }
 
-/// `%LOCALAPPDATA%\com.openbar.island\AgentUsage\`, a cache safe to delete.
+/// `%LOCALAPPDATA%\com.openbar.island\AgentUsage\` (`~/.cache/...` on Linux), a cache safe to delete.
 pub fn folder() -> Option<PathBuf> {
-    std::env::var_os("LOCALAPPDATA").map(|l| {
-        PathBuf::from(l)
-            .join("com.openbar.island")
-            .join("AgentUsage")
-    })
+    crate::paths::cache().map(|l| l.join("com.openbar.island").join("AgentUsage"))
 }
 
 /// The archive, only when saved by this parser for this provider set.

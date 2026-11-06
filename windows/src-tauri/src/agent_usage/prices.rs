@@ -15,13 +15,9 @@ pub const PATH: &str = "/MF-DEEV/Openbar/main/Resources/agent-prices.json";
 pub const INTERVAL: f64 = 24.0 * 3600.0;
 pub const RETRY: f64 = 6.0 * 3600.0;
 
-/// `%APPDATA%\com.openbar.island\agent-prices.json`.
+/// `%APPDATA%\com.openbar.island\agent-prices.json` (`~/.config/...` on Linux).
 pub fn cache_path() -> Option<PathBuf> {
-    std::env::var_os("APPDATA").map(|a| {
-        PathBuf::from(a)
-            .join("com.openbar.island")
-            .join("agent-prices.json")
-    })
+    crate::paths::roaming().map(|a| a.join("com.openbar.island").join("agent-prices.json"))
 }
 
 pub fn cached() -> Option<PriceList> {

@@ -57,9 +57,8 @@ pub fn path<R: Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
 /// The same place without the app, for the probe.
 #[cfg_attr(not(windows), allow(dead_code))]
 pub fn default_path() -> Option<PathBuf> {
-    let base = std::env::var_os("APPDATA")?;
     Some(
-        PathBuf::from(base)
+        crate::paths::roaming()?
             .join("com.openbar.island")
             .join("models")
             .join(FILE),

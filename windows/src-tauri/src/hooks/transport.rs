@@ -36,10 +36,23 @@ pub fn endpoint(app: &str) -> String {
 
 #[cfg(not(windows))]
 fn private_dir() -> std::path::PathBuf {
-    let base = std::env::var_os("HOME")
-        .map(std::path::PathBuf::from)
-        .unwrap_or_else(std::env::temp_dir);
-    base.join(".openbar")
+    private_dir_in(std::env::var_os("HOME").map(std::path::PathBuf::from))
+}
+
+/// `~/.openbar`, unless the socket in it would not fit a socket address
+/// (about 108 bytes): then a folder of the same name in the temp folder.
+#[cfg(not(windows))]
+fn private_dir_in(home: Option<std::path::PathBuf>) -> std::path::PathBuf {
+    // Room for "/com.openbar.island.sock" and the app ids a second build may use.
+    const ROOM: usize = 72;
+    let beside = |dir: std::path::PathBuf| dir.join(".openbar");
+    match home {
+        Some(home) if beside(home.clone()).as_os_str().len() <= ROOM => beside(home),
+        _ => {
+            let user = std::env::var("USER").unwrap_or_default();
+            std::env::temp_dir().join(format!("openbar-{user}"))
+        }
+    }
 }
 
 /// True once `buf` holds one whole JSON object (ClaudeHookMessage.isComplete).
@@ -290,15 +303,42 @@ mod platform {
             .and_then(|p| u32::try_from(p).ok())
     }
 
-    /// The socket is 0600 in a 0700 folder; only this user can reach it.
-    pub fn same_user(_stream: &Stream) -> bool {
-        true
+    /// The socket is 0600 in a 0700 folder; on Linux the kernel also names the caller.
+    pub fn same_user(stream: &Stream) -> bool {
+        #[cfg(target_os = "linux")]
+        {
+            use interprocess::local_socket::traits::StreamCommon;
+            stream
+                .peer_creds()
+                .ok()
+                .and_then(|c| c.euid())
+                .is_none_or(|uid| uid == unsafe { libc::geteuid() })
+        }
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = stream;
+            true
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(windows))]
+    #[test]
+    fn a_long_home_folder_moves_the_socket_to_the_temp_folder() {
+        use std::path::PathBuf;
+        assert_eq!(
+            private_dir_in(Some(PathBuf::from("/home/me"))),
+            PathBuf::from("/home/me/.openbar")
+        );
+        let long = PathBuf::from(format!("/home/{}", "x".repeat(80)));
+        let moved = private_dir_in(Some(long));
+        assert!(moved.starts_with(std::env::temp_dir()));
+        assert!(private_dir_in(None).starts_with(std::env::temp_dir()));
+    }
 
     #[test]
     fn completeness_waits_for_a_whole_object() {
