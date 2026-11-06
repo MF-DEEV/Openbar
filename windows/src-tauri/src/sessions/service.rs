@@ -1555,50 +1555,37 @@ pub async fn sessions_background_remove(
 }
 
 fn remove_job(service: &Shared, session: &str, anyway: bool) -> super::worktree::Removal {
-    use super::worktree::{Removal, claude_kept, discard_changes};
+    use super::worktree::{Removal, discard_changes};
     let Some(details) = service.background_of(session) else {
         return Removal::Failed {
             message: "unavailable".to_owned(),
         };
     };
-    let worktree = worktree_of(service, session);
-    let remove = |extra: &[&str]| {
-        let mut arguments = vec!["rm".to_owned(), details.job.clone()];
-        arguments.extend(extra.iter().map(|a| (*a).to_owned()));
-        background::claude(
-            &arguments,
-            details.config_home.as_deref(),
-            None,
-            Duration::from_secs(15),
-        )
+    let cwd = {
+        let inner = service.inner.lock().unwrap();
+        inner
+            .sessions
+            .iter()
+            .find(|s| s.id == session)
+            .map(|s| s.cwd.clone())
     };
-    let kept_by = |output: &Option<background::Output>| {
-        output
-            .as_ref()
-            .filter(|o| !o.ok)
-            .and_then(|o| claude_kept(&o.error))
-    };
-    let mut output = remove(&[]);
-    let mut kept = kept_by(&output);
-    if anyway && kept.is_some() {
-        // Uncommitted changes have no flag of their own; unpushed commits do.
-        if matches!(kept, Some(None)) && worktree.as_deref().is_some_and(discard_changes) {
-            output = remove(&[]);
-            kept = kept_by(&output);
-        }
-        if let Some(Some(discard)) = kept.clone() {
-            output = remove(&["--discard-unpushed", &discard]);
-            kept = None;
-        }
-    }
+    let outcome = super::worktree::remove_claude_job(
+        |arguments| {
+            let mut all = vec!["rm".to_owned(), details.job.clone()];
+            all.extend_from_slice(arguments);
+            background::claude(
+                &all,
+                details.config_home.as_deref(),
+                None,
+                Duration::from_secs(15),
+            )
+        },
+        cwd.as_deref().unwrap_or(""),
+        anyway,
+        discard_changes,
+    );
     Service::list_background_jobs(service, true);
-    if kept.is_some() {
-        return Removal::Unsaved;
-    }
-    match command_failure(output) {
-        Some(message) => Removal::Failed { message },
-        None => Removal::Done,
-    }
+    outcome
 }
 
 /// Its recent output, read off what `claude logs` prints. None when there is

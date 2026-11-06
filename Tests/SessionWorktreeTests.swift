@@ -89,6 +89,33 @@ enum SessionWorktreeTests {
         suite.expect(SessionWorktrees.claudeKept(unpushed)?.discard
             == "e2e9c7e505907d26dfded67443f63316996c7da1@ab7ce62461ef70f6394d434955c2c51b", "unpushed commits give the flag's value")
         suite.expect(SessionWorktrees.claudeKept("removed f9db0992") == nil, "a removal kept nothing")
+
+        // Remove, as the session's page runs it, against what claude rm answers in turn.
+        func removal(_ answers: [String?], anyway: Bool, discards: Bool = true) -> (WorktreeRemoval, [[String]], [String]) {
+            var answers = answers
+            var calls: [[String]] = []
+            var discarded: [String] = []
+            let outcome = SessionWorktrees.removeClaudeJob("f9db0992", configHome: nil, cwd: "/r/.claude/worktrees/w/src", anyway: anyway,
+                                                            run: { arguments in
+                calls.append(arguments)
+                let said = answers.isEmpty ? nil : answers.removeFirst()
+                // Claude Code 2.1.318 prints what it kept on standard output.
+                return ClaudeCLI.Output(status: said == nil ? 0 : 1, out: Data((said ?? "").utf8), error: "")
+            }, discard: { folder in discarded.append(folder); return discards })
+            return (outcome, calls, discarded)
+        }
+        suite.expect(removal([nil], anyway: false).0 == .done, "a session with a clean worktree goes")
+        let asked = removal([unsaved], anyway: false)
+        suite.expect(asked.0 == .unsaved && asked.2.isEmpty, "unsaved changes ask first and lose nothing")
+        let dropped = removal([unsaved, nil], anyway: true)
+        suite.expect(dropped.0 == .done && dropped.2 == ["/r/.claude/worktrees/w"] && dropped.1.count == 2,
+                     "anyway drops the changes, then removes")
+        let both = removal([unsaved, unpushed, nil], anyway: true)
+        suite.expect(both.0 == .done && both.1.last?.contains("--discard-unpushed") == true, "then unpushed commits go with the flag")
+        let pushedOnly = removal([unpushed, nil], anyway: true)
+        suite.expect(pushedOnly.0 == .done && pushedOnly.2.isEmpty && pushedOnly.1.count == 2, "commits alone need only the flag")
+        suite.expect(removal([unsaved], anyway: true, discards: false).0 == .unsaved, "changes that can't be dropped keep it")
+        suite.expect(removal(["no such session"], anyway: true).0 == .failed("no such session"), "another failure says so")
         suite.expect(SessionWorktrees.claudeKept("no such session") == nil, "another failure is not about the worktree")
     }
 

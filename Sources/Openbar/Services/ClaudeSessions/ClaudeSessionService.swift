@@ -595,23 +595,10 @@ final class ClaudeSessionService: ObservableObject {
     func removeBackground(_ session: ClaudeSession, anyway: Bool = false,
                           completion: @escaping (WorktreeRemoval) -> Void) {
         guard let details = session.background else { return completion(.done) }
-        let worktree = SessionWorktrees.worktreeFolder(session.cwd)
         commands.async { [self] in
-            let remove = { (extra: [String]) in ClaudeCLI.claude(["rm", details.job] + extra, configHome: details.configHome) }
-            var output = remove([])
-            var kept = output.flatMap { $0.status == 0 ? nil : SessionWorktrees.claudeKept($0.error) }
-            if kept != nil, anyway {
-                // Uncommitted changes have no flag of their own; unpushed commits do.
-                if kept?.discard == nil, let worktree, SessionWorktrees.discardChanges(worktree) {
-                    output = remove([])
-                    kept = output.flatMap { $0.status == 0 ? nil : SessionWorktrees.claudeKept($0.error) }
-                }
-                if let discard = kept?.discard {
-                    output = remove(["--discard-unpushed", discard])
-                    kept = nil
-                }
-            }
-            let outcome: WorktreeRemoval = kept != nil ? .unsaved : failure(of: output).map(WorktreeRemoval.failed) ?? .done
+            var outcome = SessionWorktrees.removeClaudeJob(details.job, configHome: details.configHome,
+                                                           cwd: session.cwd, anyway: anyway)
+            if outcome == .failed("") { outcome = .failed(FeatureStrings.notchClaudeSessions(L10n.shared.language).commandFailed) }
             queue.async { [self] in listBackgroundJobs(now: Date(), force: true) }
             DispatchQueue.main.async { completion(outcome) }
         }

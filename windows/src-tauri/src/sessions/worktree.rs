@@ -558,6 +558,59 @@ pub fn claude_kept(said: &str) -> Option<Option<String>> {
     Some((!value.is_empty()).then_some(value))
 }
 
+/// `claude rm` on a background session, given the arguments after the job.
+/// A worktree with changes found nowhere else keeps the session unless
+/// `anyway` says to lose them: uncommitted changes are dropped first, as
+/// `claude rm` has no flag for them, then unpushed commits go with the
+/// `--discard-unpushed` it names.
+pub fn remove_claude_job(
+    mut run: impl FnMut(&[String]) -> Option<Output>,
+    cwd: &str,
+    anyway: bool,
+    discard: impl Fn(&str) -> bool,
+) -> Removal {
+    // It says what it kept on standard output.
+    let said = |o: &Output| {
+        let out = String::from_utf8_lossy(&o.out);
+        [out.trim(), o.error.trim()]
+            .into_iter()
+            .filter(|t| !t.is_empty())
+            .collect::<Vec<_>>()
+            .join("\n")
+    };
+    let kept_by = |output: &Option<Output>| {
+        output
+            .as_ref()
+            .filter(|o| !o.ok)
+            .and_then(|o| claude_kept(&said(o)))
+    };
+    let mut output = run(&[]);
+    let mut kept = kept_by(&output);
+    if anyway && kept.is_some() {
+        if matches!(kept, Some(None)) && worktree_folder(cwd).is_some_and(|folder| discard(&folder))
+        {
+            output = run(&[]);
+            kept = kept_by(&output);
+        }
+        if let Some(Some(flag)) = kept.clone() {
+            output = run(&["--discard-unpushed".to_owned(), flag]);
+            kept = kept_by(&output);
+        }
+    }
+    if kept.is_some() {
+        return Removal::Unsaved;
+    }
+    match output {
+        Some(o) if o.ok => Removal::Done,
+        Some(o) if !said(&o).is_empty() => Removal::Failed {
+            message: last_line(&said(&o)),
+        },
+        _ => Removal::Failed {
+            message: "unavailable".to_owned(),
+        },
+    }
+}
+
 /// Drops a worktree's uncommitted changes, which `claude rm` has no flag
 /// for, once the person has said to lose them.
 pub fn discard_changes(folder: &str) -> bool {
@@ -665,6 +718,58 @@ mod tests {
             Some(Some("e2e9c7e5@ab7ce624".to_owned()))
         );
         assert_eq!(claude_kept("removed f9db0992"), None);
+    }
+
+    #[test]
+    fn removing_a_claude_session_with_a_worktree() {
+        let unsaved = "kept f9db0992 — its worktree is still at “C:\\r”\n  The worktree has uncommitted changes. Deleting it would lose them.";
+        let unpushed = "kept f9db0992 — its worktree is still at “C:\\r”\n  discard the worktree and its commits: claude rm f9db0992 --discard-unpushed e2e9@ab7c";
+        let removal = |answers: &[Option<&str>], anyway: bool, discards: bool| {
+            let mut answers: Vec<Option<String>> =
+                answers.iter().map(|a| a.map(str::to_owned)).collect();
+            answers.reverse();
+            let mut calls: Vec<Vec<String>> = Vec::new();
+            let discarded = std::cell::RefCell::new(Vec::new());
+            let outcome = remove_claude_job(
+                |arguments| {
+                    calls.push(arguments.to_vec());
+                    let said = answers.pop().flatten();
+                    // Claude Code 2.1.318 prints what it kept on standard output.
+                    Some(Output {
+                        ok: said.is_none(),
+                        out: said.unwrap_or_default().into_bytes(),
+                        error: String::new(),
+                    })
+                },
+                r"C:\r\.claude\worktrees\w\src",
+                anyway,
+                |folder: &str| {
+                    discarded.borrow_mut().push(folder.to_owned());
+                    discards
+                },
+            );
+            (outcome, calls, discarded.into_inner())
+        };
+        assert_eq!(removal(&[None], false, true).0, Removal::Done);
+        let asked = removal(&[Some(unsaved)], false, true);
+        assert_eq!(asked.0, Removal::Unsaved);
+        assert!(asked.2.is_empty());
+        let dropped = removal(&[Some(unsaved), None], true, true);
+        assert_eq!(dropped.0, Removal::Done);
+        assert_eq!(dropped.2, vec![r"C:\r\.claude\worktrees\w".to_owned()]);
+        let both = removal(&[Some(unsaved), Some(unpushed), None], true, true);
+        assert_eq!(both.0, Removal::Done);
+        assert_eq!(
+            both.1.last().unwrap(),
+            &vec!["--discard-unpushed".to_owned(), "e2e9@ab7c".to_owned()]
+        );
+        assert_eq!(removal(&[Some(unsaved)], true, false).0, Removal::Unsaved);
+        assert_eq!(
+            removal(&[Some("no such session")], true, true).0,
+            Removal::Failed {
+                message: "no such session".to_owned()
+            }
+        );
     }
 
     #[test]

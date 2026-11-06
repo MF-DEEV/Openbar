@@ -294,6 +294,38 @@ enum SessionWorktrees {
         return ClaudeKept(discard: value.isEmpty ? nil : String(value))
     }
 
+    /// `claude rm` on a background session. A worktree with changes found
+    /// nowhere else keeps the session unless `anyway` says to lose them:
+    /// uncommitted changes are dropped first, as `claude rm` has no flag for
+    /// them, then unpushed commits go with the `--discard-unpushed` it names.
+    static func removeClaudeJob(_ job: String, configHome: String?, cwd: String, anyway: Bool,
+                                run: (([String]) -> ClaudeCLI.Output?)? = nil,
+                                discard: (String) -> Bool = SessionWorktrees.discardChanges) -> WorktreeRemoval {
+        let remove = { (extra: [String]) in
+            run?(["rm", job] + extra) ?? (run == nil ? ClaudeCLI.claude(["rm", job] + extra, configHome: configHome) : nil)
+        }
+        // It says what it kept on standard output.
+        let said = { (output: ClaudeCLI.Output) in
+            [String(decoding: output.out, as: UTF8.self), output.error].filter { !$0.isEmpty }.joined(separator: "\n")
+        }
+        let keptBy = { (output: ClaudeCLI.Output?) in output.flatMap { $0.status == 0 ? nil : claudeKept(said($0)) } }
+        var output = remove([])
+        var kept = keptBy(output)
+        if kept != nil, anyway {
+            if kept?.discard == nil, let folder = worktreeFolder(cwd), discard(folder) {
+                output = remove([])
+                kept = keptBy(output)
+            }
+            if let discard = kept?.discard {
+                output = remove(["--discard-unpushed", discard])
+                kept = keptBy(output)
+            }
+        }
+        if kept != nil { return .unsaved }
+        guard let output else { return .failed("") }
+        return output.status == 0 ? .done : .failed(lastLine(said(output)))
+    }
+
     /// Drops a worktree's uncommitted changes, which `claude rm` has no flag
     /// for, once the person has said to lose them.
     static func discardChanges(_ folder: String) -> Bool {
