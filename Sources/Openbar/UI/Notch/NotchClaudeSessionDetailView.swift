@@ -29,6 +29,9 @@ struct NotchClaudeSessionDetailView: View {
             if session.background != nil {
                 NotchClaudeBackgroundBar(session: session, text: text, showingLogs: $showingLogs)
             }
+            if session.worktree != nil {
+                NotchClaudeWorktreeBar(session: session, text: text)
+            }
             if showingLogs, session.background != nil {
                 NotchClaudeBackgroundLogsView(session: session, text: text)
             } else if notch.sessionsEnlarged {

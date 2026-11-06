@@ -930,6 +930,10 @@ enum DefaultsKey {
     static let notchNewSessionAgent = "notchNewSessionAgent"
     static let notchNewSessionClaudeModel = "notchNewSessionClaudeModel"
     static let notchNewSessionCodexModel = "notchNewSessionCodexModel"
+    /// The agents New session starts without a worktree of their own, by
+    /// `ClaudeSessionProvider` raw value, comma-separated; every other agent
+    /// gets one.
+    static let notchNewSessionNoWorktree = "notchNewSessionNoWorktree"
     /// Costumes the person dressed sessions in, by session, as
     /// `ClawdCostume.code`. Session ids belong to this Mac, so like the names
     /// they stay out of settings backups.

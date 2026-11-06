@@ -4,6 +4,7 @@
 // The Sessions page: one row per running Claude Code session, the ones
 // waiting on the person first (NotchClaudeSessionsView.swift; spec §4.3).
 
+import { worktreeName } from "./worktree";
 import { useLocale } from "../i18n";
 
 import { Check, ChevronRight, GalleryVerticalEnd, X } from "lucide-react";
@@ -126,7 +127,10 @@ function Row({ session, now }: { session: Session; now: number }) {
           <span className="s-activity" style={waiting || limited ? { color: tint } : undefined}>
             {activity}
           </span>
-          {session.branch ? <span className="s-branch">⎇ {session.branch}</span> : null}
+          {/* A worktree names the session's own checkout better than the branch made for it. */}
+          {(worktreeName(session.cwd) ?? session.branch) ? (
+            <span className="s-branch">⎇ {worktreeName(session.cwd) ?? session.branch}</span>
+          ) : null}
         </div>
       </div>
       {quick ? <QuickDecision session={session} /> : <ChevronRight className="s-chevron" size={11} strokeWidth={2.5} />}

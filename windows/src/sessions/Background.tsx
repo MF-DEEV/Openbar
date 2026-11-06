@@ -7,7 +7,19 @@
 
 import { useSettings } from "../settings/state";
 import { HOOK_AGENTS, isHookAgent, PROVIDER_NAMES, PROVIDERS, SHORT_NAMES } from "./types";
-import { Check, ChevronsUpDown, Cpu, FileText, Folder, FolderPlus, Square, Trash2 } from "lucide-react";
+import {
+  Check,
+  ChevronsUpDown,
+  Copy,
+  Cpu,
+  FileText,
+  Folder,
+  FolderOpen,
+  FolderPlus,
+  GitBranch,
+  Square,
+  Trash2,
+} from "lucide-react";
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { tf, useLocale } from "../i18n";
 import { useIsland } from "../island/store";
@@ -16,7 +28,16 @@ import { canRemoveBackground, canStopBackground, problemText } from "./format";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { ProviderMark } from "./glyphs";
-import type { NewSessionModel, NewSessionModels, Provider, RecentFolder, Session } from "./types";
+import type {
+  NewSessionModel,
+  NewSessionModels,
+  Provider,
+  RecentFolder,
+  RepoState,
+  Session,
+  WorktreeRemoval,
+} from "./types";
+import { isOwnWorktree, worktreeName, worktreeSlug } from "./worktree";
 
 /** Says a session runs in the background, in words, on its row. */
 export function BackgroundMark() {
@@ -39,26 +60,35 @@ export function BackgroundBar({
   onLogs: (showing: boolean) => void;
 }) {
   useLocale();
-  const [asking, setAsking] = useState<"stop" | "remove" | null>(null);
+  const [asking, setAsking] = useState<"stop" | "remove" | "removeAnyway" | null>(null);
   const [working, setWorking] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
-  const run = async (action: "stop" | "remove") => {
+  const run = async (action: "stop" | "remove" | "removeAnyway") => {
     setWorking(true);
     const sessions = bridge.sessions;
-    const failure = await (action === "stop"
-      ? sessions.stopBackground(session.id)
-      : sessions.removeBackground(session.id));
+    if (action === "stop") {
+      const failure = await sessions.stopBackground(session.id);
+      setWorking(false);
+      setAsking(null);
+      setProblem(problemText(failure));
+      return;
+    }
+    const outcome = await sessions.removeBackground(session.id, action === "removeAnyway");
     setWorking(false);
+    // Its worktree holds work found nowhere else: ask again, in words that say so.
+    if (outcome?.kind === "unsaved") return setAsking("removeAnyway");
     setAsking(null);
-    setProblem(problemText(failure));
+    setProblem(outcome?.kind === "done" ? null : problemText(outcome?.kind === "failed" ? outcome.message : undefined));
   };
+  const askText = asking === "stop" ? S.stopConfirm : asking === "remove" ? S.removeConfirm : S.worktreeUnsaved;
+  const actText = asking === "stop" ? S.stopSession : asking === "remove" ? S.removeSession : S.removeAnyway;
 
   return (
     <div className="s-background-bar">
       {asking ? (
         <div className="s-background-row">
-          <span className="s-background-ask">{asking === "stop" ? S.stopConfirm : S.removeConfirm}</span>
+          <span className="s-background-ask">{askText}</span>
           <button type="button" className="s-background-button" onClick={() => setAsking(null)}>
             {S.keepSession}
           </button>
@@ -69,7 +99,7 @@ export function BackgroundBar({
             onClick={() => void run(asking)}
           >
             {asking === "stop" ? <Square size={10} /> : <Trash2 size={11} />}
-            {asking === "stop" ? S.stopSession : S.removeSession}
+            {actText}
           </button>
         </div>
       ) : (
@@ -116,6 +146,112 @@ export function BackgroundBar({
   );
 }
 
+/** The worktree a session works in: open its folder, copy its branch, and
+ * remove one the island made once the session is done with it. Claude
+ * Code's own go with `claude rm`. */
+export function WorktreeBar({ session }: { session: Session }) {
+  useLocale();
+  const name = worktreeName(session.cwd);
+  const [branch, setBranch] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [asking, setAsking] = useState<"remove" | "unsaved" | null>(null);
+  const [working, setWorking] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const busy =
+    session.phase === "generating" || session.phase === "runningTool" || session.phase === "waitingPermission";
+  const canRemove = isOwnWorktree(session.cwd) && !busy && session.phase !== "waitingInput";
+
+  useEffect(() => {
+    let gone = false;
+    void bridge.sessions.worktreeBranch(session.id).then((found) => !gone && setBranch(found ?? null));
+    return () => {
+      gone = true;
+    };
+  }, [session.id, session.cwd]);
+
+  if (!name) return null;
+
+  const remove = async (anyway: boolean) => {
+    setWorking(true);
+    const outcome: WorktreeRemoval | undefined = await bridge.sessions.removeWorktree(session.id, anyway);
+    setWorking(false);
+    if (outcome?.kind === "unsaved") return setAsking("unsaved");
+    setAsking(null);
+    if (outcome?.kind === "failed") setProblem(outcome.message || S.commandFailed);
+    else if (!outcome) setProblem(S.commandFailed);
+  };
+
+  const copy = async () => {
+    if (!branch) return;
+    try {
+      await navigator.clipboard.writeText(branch);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      setProblem(S.commandFailed);
+    }
+  };
+
+  return (
+    <div className="s-background-bar s-worktree-bar">
+      {asking ? (
+        <div className="s-background-row">
+          <span className="s-background-ask">{asking === "remove" ? S.removeWorktreeConfirm : S.worktreeUnsaved}</span>
+          <button type="button" className="s-background-button" onClick={() => setAsking(null)}>
+            {S.keepSession}
+          </button>
+          <button
+            type="button"
+            className="s-background-button is-destructive"
+            disabled={working}
+            onClick={() => void remove(asking === "unsaved")}
+          >
+            <Trash2 size={11} />
+            {asking === "remove" ? S.removeWorktree : S.removeAnyway}
+          </button>
+        </div>
+      ) : (
+        <div className="s-background-row">
+          <span className="s-worktree-name" title={S.worktreeMark}>
+            <GitBranch size={11} />
+            {name}
+          </span>
+          <span className="s-background-gap" />
+          <button
+            type="button"
+            className="s-background-button"
+            onClick={() => void bridge.sessions.openWorktree(session.id)}
+          >
+            <FolderOpen size={11} />
+            {S.openWorktree}
+          </button>
+          {branch ? (
+            <button type="button" className="s-background-button" title={branch} onClick={() => void copy()}>
+              {copied ? <Check size={11} /> : <Copy size={11} />}
+              {copied ? S.branchCopied : S.copyBranch}
+            </button>
+          ) : null}
+          {canRemove ? (
+            <button
+              type="button"
+              className="s-background-button"
+              onClick={() => (setProblem(null), setAsking("remove"))}
+            >
+              <Trash2 size={11} />
+              {S.removeWorktree}
+            </button>
+          ) : null}
+        </div>
+      )}
+      {problem ? (
+        <span className="s-background-problem" role="alert">
+          {problem}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 /** A background session's recent output, read again while it shows. */
 export function BackgroundLogs({ session }: { session: Session }) {
   useLocale();
@@ -149,6 +285,8 @@ const REMEMBER = {
   agent: "openbar.newSession.agent",
   claude: "openbar.newSession.claudeModel",
   codex: "openbar.newSession.codexModel",
+  /** The agents that start without a worktree of their own, comma-separated. */
+  noWorktree: "openbar.newSession.noWorktree",
 } as const;
 
 function remembered(key: string): string {
@@ -376,6 +514,10 @@ export function NewSession() {
   });
   const [claudeModel, setClaudeModel] = useState(() => remembered(REMEMBER.claude));
   const [codexModel, setCodexModel] = useState(() => remembered(REMEMBER.codex));
+  const [noWorktree, setNoWorktree] = useState(() => remembered(REMEMBER.noWorktree));
+  const [worktreeNameText, setWorktreeNameText] = useState("");
+  /** What the folder picked is to git; null while it's being asked. */
+  const [repository, setRepository] = useState<RepoState | null>(null);
 
   // Claude Code, Codex, and the hook agents found on this PC and shown in Sessions.
   const agents: Provider[] = [
@@ -396,6 +538,17 @@ export function NewSession() {
   const promptPlaceholder = background ? S.firstPromptRequired : S.firstPrompt;
   const canStart = chosen !== null && !starting && !needsPrompt;
   const message = problem ?? (needsPrompt ? S.backgroundNeedsPrompt : null);
+  // A worktree of its own for each agent, as last chosen for it; on until turned off.
+  const wantsWorktree = !noWorktree.split(",").includes(agent);
+  const isRepository = repository !== null && repository.kind !== "notRepo";
+  const usesWorktree = wantsWorktree && isRepository;
+  const worktreePlaceholder = worktreeSlug(prompt) || S.worktreeNamePlaceholder;
+  const worktreeNote =
+    repository?.kind === "notRepo"
+      ? S.worktreeNotRepo
+      : repository?.kind === "dirty" && wantsWorktree
+        ? S.worktreeFromHead
+        : null;
   const folderList = useRef<HTMLDivElement>(null);
   const [highlight, setHighlight] = useState<{ top: number; height: number } | null>(null);
 
@@ -411,6 +564,27 @@ export function NewSession() {
       setChosen((current) => current ?? found?.[0] ?? null);
     });
   }, []);
+
+  useEffect(() => {
+    const path = chosen?.path;
+    setRepository(null);
+    if (!path) return;
+    let gone = false;
+    // An answer for a folder no longer picked is old news.
+    void bridge.sessions.repoState(path).then((state) => !gone && setRepository(state ?? { kind: "notRepo" }));
+    return () => {
+      gone = true;
+    };
+  }, [chosen?.path]);
+
+  const toggleWorktree = () => {
+    const off = new Set(noWorktree.split(",").filter(Boolean));
+    if (wantsWorktree) off.add(agent);
+    else off.delete(agent);
+    const value = [...off].sort().join(",");
+    setNoWorktree(value);
+    remember(REMEMBER.noWorktree, value);
+  };
 
   useEffect(() => {
     void bridge.sessions.newModels(chosen?.configHome).then((found) => {
@@ -473,6 +647,8 @@ export function NewSession() {
       background,
       agent,
       model?.id ?? null,
+      usesWorktree,
+      worktreeNameText.trim() || null,
     );
     setStarting(false);
     if (failure === "unavailable" && agent === "codex") setProblem(S.codexFailed);
@@ -537,6 +713,41 @@ export function NewSession() {
           {message}
         </span>
       ) : null}
+      <div className="s-worktree-row">
+        <div className="s-background-row">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={usesWorktree}
+            disabled={!isRepository}
+            className={`s-background-button s-worktree-toggle${usesWorktree ? " is-selected" : ""}`}
+            title={`${S.ownWorktreeHelp} ${S.worktreeIgnoredFiles}`}
+            onClick={toggleWorktree}
+          >
+            <span className={`s-worktree-box${usesWorktree ? " is-on" : ""}`} aria-hidden>
+              {usesWorktree ? <Check size={9} strokeWidth={3} /> : null}
+            </span>
+            <GitBranch size={11} />
+            {S.ownWorktree}
+          </button>
+          {usesWorktree ? (
+            <input
+              className="s-worktree-input"
+              value={worktreeNameText}
+              placeholder={worktreePlaceholder}
+              aria-label={S.worktreeNamePlaceholder}
+              spellCheck={false}
+              onChange={(event) => setWorktreeNameText(event.target.value)}
+              onKeyDown={(event) => event.key === "Enter" && void start()}
+            />
+          ) : null}
+        </div>
+        {worktreeNote ? (
+          <span key={worktreeNote} className="s-new-message" role="status">
+            {worktreeNote}
+          </span>
+        ) : null}
+      </div>
       {agents.length > 1 || list.length > 0 ? (
         <div className="s-background-row">
           {agents.length > 1 ? <AgentPicker agents={agents} agent={agent} onPick={pickAgent} /> : null}

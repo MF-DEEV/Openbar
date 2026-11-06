@@ -201,7 +201,13 @@ export const bridge = {
     open: (sessionId: string) => call<boolean>("sessions_open", { sessionId }),
     /** What went wrong, or null. */
     stopBackground: (sessionId: string) => call<string | null>("sessions_background_stop", { sessionId }),
-    removeBackground: (sessionId: string) => call<string | null>("sessions_background_remove", { sessionId }),
+    removeBackground: (sessionId: string, anyway = false) =>
+      call<import("../sessions/types").WorktreeRemoval>("sessions_background_remove", { sessionId, anyway }),
+    repoState: (folder: string) => call<import("../sessions/types").RepoState>("sessions_repo_state", { folder }),
+    removeWorktree: (sessionId: string, anyway = false) =>
+      call<import("../sessions/types").WorktreeRemoval>("sessions_worktree_remove", { sessionId, anyway }),
+    worktreeBranch: (sessionId: string) => call<string | null>("sessions_worktree_branch", { sessionId }),
+    openWorktree: (sessionId: string) => call<boolean>("sessions_worktree_open", { sessionId }),
     /** null when a stopped session keeps no output. */
     backgroundLogs: (sessionId: string) => call<string | null>("sessions_background_logs", { sessionId }),
     recentFolders: () => call<RecentFolder[]>("sessions_recent_folders"),
@@ -214,6 +220,8 @@ export const bridge = {
       background: boolean,
       agent: import("../sessions/types").Provider = "claude",
       model: string | null = null,
+      worktree = false,
+      worktreeName: string | null = null,
     ) =>
       call<string | null>("sessions_start", {
         folder,
@@ -222,6 +230,8 @@ export const bridge = {
         background,
         agent,
         model,
+        worktree,
+        worktreeName,
       }),
     newModels: (configHome: string | undefined) =>
       call<import("../sessions/types").NewSessionModels>("sessions_new_models", { configHome: configHome ?? null }),

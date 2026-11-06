@@ -247,7 +247,9 @@ struct NotchClaudeSessionRow: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .layoutPriority(1)
-                if let branch = session.branch {
+                // A worktree names the session's own checkout better than
+                // the branch made for it.
+                if let branch = session.worktree ?? session.branch {
                     Label(branch, systemImage: "arrow.triangle.branch")
                         .labelStyle(NotchClaudeSessionInlineLabel())
                         .foregroundStyle(.tertiary)

@@ -2646,3 +2646,77 @@
     animation: none;
   }
 }
+
+/* A worktree of the session's own (SessionWorktrees.swift). */
+.s-worktree-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.s-worktree-toggle:disabled {
+  opacity: 0.45;
+}
+
+.s-worktree-box {
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 3.5px;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  color: #fff;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.s-worktree-box.is-on {
+  border-color: var(--agent-tint, #d97757);
+  background: var(--agent-tint, #d97757);
+}
+
+.s-worktree-input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font:
+    11.5px ui-monospace,
+    "Cascadia Mono",
+    Consolas,
+    monospace;
+  animation: s-new-message-in 200ms ease-out;
+}
+
+.s-worktree-input:focus-visible {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.s-worktree-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-worktree-input {
+    animation: none;
+  }
+  .s-worktree-box {
+    transition: none;
+  }
+}

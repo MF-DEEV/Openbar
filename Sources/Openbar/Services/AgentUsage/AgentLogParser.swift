@@ -236,8 +236,7 @@ enum AgentLogParser {
     /// The folder an agent ran in names the project. A worktree kept inside
     /// the repository still belongs to that repository.
     static func projectName(_ path: String) -> String {
-        var path = path
-        if let range = path.range(of: "/.claude/worktrees/") { path = String(path[..<range.lowerBound]) }
+        var path = SessionWorktrees.repository(of: path)
         while path.count > 1, path.hasSuffix("/") { path.removeLast() }
         return native((path as NSString).lastPathComponent)
     }

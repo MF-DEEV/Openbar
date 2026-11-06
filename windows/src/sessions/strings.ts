@@ -9,6 +9,51 @@ import { isHookAgent, PROVIDER_NAMES, type PlanMode, type Provider } from "./typ
 import { t, tf } from "../i18n";
 
 export const S = {
+  get ownWorktree() {
+    return t("notchClaudeSessions.ownWorktree");
+  },
+  get ownWorktreeHelp() {
+    return t("notchClaudeSessions.ownWorktreeHelp");
+  },
+  get worktreeNamePlaceholder() {
+    return t("notchClaudeSessions.worktreeNamePlaceholder");
+  },
+  get worktreeNotRepo() {
+    return t("notchClaudeSessions.worktreeNotRepo");
+  },
+  get worktreeFromHead() {
+    return t("notchClaudeSessions.worktreeFromHead");
+  },
+  get worktreeIgnoredFiles() {
+    return t("notchClaudeSessions.worktreeIgnoredFiles");
+  },
+  get worktreeFailed() {
+    return t("notchClaudeSessions.worktreeFailed");
+  },
+  get worktreeMark() {
+    return t("notchClaudeSessions.worktreeMark");
+  },
+  get openWorktree() {
+    return t("notchClaudeSessions.openWorktree");
+  },
+  get copyBranch() {
+    return t("notchClaudeSessions.copyBranch");
+  },
+  get branchCopied() {
+    return t("notchClaudeSessions.branchCopied");
+  },
+  get removeWorktree() {
+    return t("notchClaudeSessions.removeWorktree");
+  },
+  get removeWorktreeConfirm() {
+    return t("notchClaudeSessions.removeWorktreeConfirm");
+  },
+  get worktreeUnsaved() {
+    return t("notchClaudeSessions.worktreeUnsaved");
+  },
+  get removeAnyway() {
+    return t("notchClaudeSessions.removeAnyway");
+  },
   get diffLabel() {
     return t("windows.sessions.diffLabel");
   },

@@ -333,10 +333,12 @@ enum ClaudeCLI {
     }
 
     /// The arguments that start a session; `--` keeps a prompt that begins
-    /// with a dash from reading as an option.
-    static func startArguments(prompt: String?, background: Bool, model: String? = nil) -> [String] {
+    /// with a dash from reading as an option. A worktree name has Claude Code
+    /// make the session its own worktree, which `claude rm` removes again.
+    static func startArguments(prompt: String?, background: Bool, model: String? = nil, worktree: String? = nil) -> [String] {
         var arguments = background ? ["--bg"] : []
         if let model, !model.isEmpty { arguments += ["--model", model] }
+        if let worktree, !worktree.isEmpty { arguments += ["--worktree", worktree] }
         if let prompt, !prompt.isEmpty { arguments += ["--", prompt] }
         return arguments
     }

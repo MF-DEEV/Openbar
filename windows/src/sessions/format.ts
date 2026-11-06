@@ -101,6 +101,8 @@ export function problemText(failure: string | null | undefined): string | null {
   if (failure === undefined || failure === "unavailable") return S.commandFailed;
   if (failure === "needsPrompt") return S.backgroundNeedsPrompt;
   if (failure === "codexNotStarted") return S.codexNotStarted;
+  if (failure === "worktreeFailed") return S.worktreeFailed;
+  if (failure.startsWith("worktreeFailed: ")) return `${S.worktreeFailed}: ${failure.slice("worktreeFailed: ".length)}`;
   return failure === "notTrusted" ? S.folderNotTrusted : failure;
 }
 
