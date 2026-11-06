@@ -579,6 +579,7 @@ pub async fn music_players<R: tauri::Runtime>(
     state: tauri::State<'_, Shared>,
 ) -> Result<Vec<Source>, String> {
     use tauri::Manager;
+    #[cfg_attr(not(windows), allow(unused_variables))]
     let preferred = app
         .state::<crate::prefs::Prefs>()
         .get()

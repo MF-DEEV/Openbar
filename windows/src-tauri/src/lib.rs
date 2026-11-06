@@ -31,6 +31,7 @@ mod music_queue;
 mod notification_history;
 mod notifications;
 mod ocr;
+mod paths;
 mod power_saver;
 mod prefs;
 mod recorder;
@@ -144,8 +145,26 @@ pub fn console_main(pid: u32) -> ! {
     hosts::console::helper_main(pid)
 }
 
+/// NVIDIA cannot back WebKitGTK's GBM buffers, so draw into shared memory; a setting the person made wins.
+#[cfg(target_os = "linux")]
+fn webkit_workarounds() {
+    let chosen = [
+        "WEBKIT_DISABLE_DMABUF_RENDERER",
+        "WEBKIT_DMABUF_RENDERER_FORCE_SHM",
+        "WEBKIT_DMABUF_RENDERER_DISABLE_GBM",
+    ]
+    .iter()
+    .any(|name| std::env::var_os(name).is_some());
+    if !chosen && std::path::Path::new("/proc/driver/nvidia/version").exists() {
+        // SAFETY: nothing else is running yet, the first thing `run` does.
+        unsafe { std::env::set_var("WEBKIT_DMABUF_RENDERER_FORCE_SHM", "1") };
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    webkit_workarounds();
     // Settings and hooks from the app's old name, before anything reads them.
     legacy::migrate_at_start();
     let app = tauri::Builder::default()

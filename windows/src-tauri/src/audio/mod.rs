@@ -305,11 +305,13 @@ fn saved_file(name: &str) -> Option<std::path::PathBuf> {
 }
 
 pub fn start(app: AppHandle, shared: Shared) {
-    if APP.set((app, shared)).is_err() {
-        return;
-    }
+    let first = APP.set((app, shared)).is_ok();
     #[cfg(windows)]
-    engine::start();
+    if first {
+        engine::start();
+    }
+    #[cfg(not(windows))]
+    let _ = first;
 }
 
 /// The Mixer options from the preferences, at launch and on every change:

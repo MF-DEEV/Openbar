@@ -11,7 +11,9 @@
 //! steps from the moment it changes.
 
 use std::sync::{Mutex, MutexGuard, OnceLock};
-use tauri::{AppHandle, Emitter};
+use tauri::AppHandle;
+#[cfg(windows)]
+use tauri::Emitter;
 
 pub const EVENT: &str = "power://saver";
 
