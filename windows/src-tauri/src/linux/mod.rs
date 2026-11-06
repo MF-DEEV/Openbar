@@ -21,9 +21,11 @@ pub mod hosts;
 pub mod ics;
 pub mod image;
 pub mod kitty;
+pub mod ocr;
 pub mod paths;
 pub mod process;
 pub mod pulse;
+pub mod screen;
 pub mod session_lock;
 pub mod sessions;
 #[cfg(test)]

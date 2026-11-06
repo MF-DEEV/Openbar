@@ -769,7 +769,24 @@ mod platform {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+mod platform {
+    use std::path::PathBuf;
+    use tauri::{Runtime, WebviewWindow};
+
+    pub use crate::linux::screen::{monitor_under_cursor, take_foreground, window_at};
+
+    /// Nothing on X11 leaves a window out of a capture; the picture is taken
+    /// before the overlay is shown, so it is not in it.
+    pub fn exclude_from_capture<R: Runtime>(_window: &WebviewWindow<R>) {}
+
+    pub fn screenshots_folder() -> Option<PathBuf> {
+        std::env::var_os("HOME")
+            .map(|home| PathBuf::from(home).join("Pictures").join("Screenshots"))
+    }
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 mod platform {
     use super::Rect;
     use std::path::PathBuf;
