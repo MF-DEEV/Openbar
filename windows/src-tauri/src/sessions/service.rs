@@ -1537,15 +1537,68 @@ pub async fn sessions_background_stop(
         .map_err(|_| ())
 }
 
+/// Deletes a background session for good, and the worktree Claude Code made
+/// for it. A worktree with changes found nowhere else is kept, and the
+/// session with it, unless `anyway` says to lose them.
 #[tauri::command]
 pub async fn sessions_background_remove(
     service: tauri::State<'_, Shared>,
     session_id: String,
-) -> Result<Option<String>, ()> {
+    anyway: Option<bool>,
+) -> Result<super::worktree::Removal, ()> {
     let service = service.inner().clone();
-    tauri::async_runtime::spawn_blocking(move || run_on_job(&service, &session_id, "rm"))
-        .await
-        .map_err(|_| ())
+    tauri::async_runtime::spawn_blocking(move || {
+        remove_job(&service, &session_id, anyway.unwrap_or(false))
+    })
+    .await
+    .map_err(|_| ())
+}
+
+fn remove_job(service: &Shared, session: &str, anyway: bool) -> super::worktree::Removal {
+    use super::worktree::{Removal, claude_kept, discard_changes};
+    let Some(details) = service.background_of(session) else {
+        return Removal::Failed {
+            message: "unavailable".to_owned(),
+        };
+    };
+    let worktree = worktree_of(service, session);
+    let remove = |extra: &[&str]| {
+        let mut arguments = vec!["rm".to_owned(), details.job.clone()];
+        arguments.extend(extra.iter().map(|a| (*a).to_owned()));
+        background::claude(
+            &arguments,
+            details.config_home.as_deref(),
+            None,
+            Duration::from_secs(15),
+        )
+    };
+    let kept_by = |output: &Option<background::Output>| {
+        output
+            .as_ref()
+            .filter(|o| !o.ok)
+            .and_then(|o| claude_kept(&o.error))
+    };
+    let mut output = remove(&[]);
+    let mut kept = kept_by(&output);
+    if anyway && kept.is_some() {
+        // Uncommitted changes have no flag of their own; unpushed commits do.
+        if matches!(kept, Some(None)) && worktree.as_deref().is_some_and(discard_changes) {
+            output = remove(&[]);
+            kept = kept_by(&output);
+        }
+        if let Some(Some(discard)) = kept.clone() {
+            output = remove(&["--discard-unpushed", &discard]);
+            kept = None;
+        }
+    }
+    Service::list_background_jobs(service, true);
+    if kept.is_some() {
+        return Removal::Unsaved;
+    }
+    match command_failure(output) {
+        Some(message) => Removal::Failed { message },
+        None => Removal::Done,
+    }
 }
 
 /// Its recent output, read off what `claude logs` prints. None when there is
@@ -1636,10 +1689,13 @@ pub async fn sessions_new_models(config_home: Option<String>) -> Result<NewSessi
     .map_err(|_| ())
 }
 
-/// Starts Claude Code or Codex in a folder, in the background or in the
-/// person's terminal, with a model or the agent's default. "notTrusted",
-/// "needsPrompt", "codexNotStarted", "unavailable" or the agent's own words
-/// when it didn't start.
+/// Starts Claude Code, Codex or another agent in a folder, in the background
+/// or in the person's terminal, with a model or the agent's default. With
+/// `worktree`, a folder in a git repository gets the session its own
+/// worktree: Claude Code makes it with `--worktree`, the island makes it for
+/// the rest. "notTrusted", "needsPrompt", "codexNotStarted", "unavailable",
+/// "worktreeFailed[: what git said]" or the agent's own words when it didn't
+/// start.
 #[tauri::command]
 #[allow(clippy::too_many_arguments)]
 pub async fn sessions_start(
@@ -1650,20 +1706,46 @@ pub async fn sessions_start(
     background: bool,
     agent: Option<String>,
     model: Option<String>,
+    worktree: Option<bool>,
+    worktree_name: Option<String>,
 ) -> Result<Option<String>, ()> {
     let service = service.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let model = model.as_deref().filter(|m| !m.is_empty());
-        if agent.as_deref() == Some("codex") {
+        let hook_agent = agent
+            .as_deref()
+            .and_then(models::Provider::from_key)
+            .filter(|p| p.reports_through_hooks());
+        let codex = agent.as_deref() == Some("codex");
+        // A background session has nobody to type to it.
+        if background && hook_agent.is_none() && prompt.trim().is_empty() {
+            return Some("needsPrompt".to_owned());
+        }
+        let mut folder = folder;
+        let mut claude_worktree = None;
+        let root = worktree
+            .unwrap_or(false)
+            .then(|| super::worktree::state(&folder).root().map(str::to_owned))
+            .flatten();
+        if let Some(root) = root {
+            let name =
+                super::worktree::reserve_name(worktree_name.as_deref(), prompt.trim(), &root);
+            if codex || hook_agent.is_some() {
+                match super::worktree::create(&root, &name) {
+                    Ok(path) => folder = super::worktree::inside(&path, &folder, &root),
+                    Err(said) if said.is_empty() => return Some("worktreeFailed".to_owned()),
+                    Err(said) => return Some(format!("worktreeFailed: {said}")),
+                }
+            } else {
+                claude_worktree = Some(name);
+            }
+        }
+        if codex {
             return start_codex(&service, &folder, &prompt, background, model);
         }
         // Gemini CLI, Copilot CLI, OpenCode and cursor-agent run only in a
         // console, where their hooks or plugin report them.
-        if let Some(provider) = agent
-            .as_deref()
-            .and_then(models::Provider::from_key)
-            .filter(|p| p.reports_through_hooks())
-        {
+        if let Some(provider) = hook_agent {
             let started = hook_agents::command_name(provider)
                 .and_then(crate::agent_usage::agent_executable)
                 .is_some_and(|exe| {
@@ -1675,11 +1757,12 @@ pub async fn sessions_start(
                 });
             return (!started).then(|| "unavailable".to_owned());
         }
-        // A background session has nobody to type to it.
-        if background && prompt.trim().is_empty() {
-            return Some("needsPrompt".to_owned());
-        }
-        let arguments = self::background::start_arguments(&prompt, background, model);
+        let arguments = self::background::start_arguments(
+            &prompt,
+            background,
+            model,
+            claude_worktree.as_deref(),
+        );
         let home = config_home.as_deref();
         let failure = if background {
             let output =
@@ -1700,6 +1783,92 @@ pub async fn sessions_start(
         };
         Service::list_background_jobs(&service, true);
         failure
+    })
+    .await
+    .map_err(|_| ())
+}
+
+/// Whether a folder is in a git repository, and whether its checkout has
+/// changes a new worktree won't start with, for the New session page.
+#[tauri::command]
+pub async fn sessions_repo_state(folder: String) -> Result<super::worktree::RepoState, ()> {
+    tauri::async_runtime::spawn_blocking(move || super::worktree::state(&folder))
+        .await
+        .map_err(|_| ())
+}
+
+/// The folder of the session's worktree, when it works in one.
+fn worktree_of(service: &Shared, session: &str) -> Option<String> {
+    let inner = service.inner.lock().unwrap();
+    let cwd = &inner.sessions.iter().find(|s| s.id == session)?.cwd;
+    super::worktree::worktree_folder(cwd)
+}
+
+/// Removes the worktree the island made for a session, keeping its branch.
+/// One with changes stays unless `anyway` says to lose them.
+#[tauri::command]
+pub async fn sessions_worktree_remove(
+    service: tauri::State<'_, Shared>,
+    session_id: String,
+    anyway: bool,
+) -> Result<super::worktree::Removal, ()> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || match worktree_of(&service, &session_id) {
+        Some(folder) => super::worktree::remove(&folder, anyway),
+        None => super::worktree::Removal::Failed {
+            message: String::new(),
+        },
+    })
+    .await
+    .map_err(|_| ())
+}
+
+/// The branch a session's worktree is on, for Copy branch.
+#[tauri::command]
+pub async fn sessions_worktree_branch(
+    service: tauri::State<'_, Shared>,
+    session_id: String,
+) -> Result<Option<String>, ()> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let folder = worktree_of(&service, &session_id)?;
+        std::path::Path::new(&folder)
+            .exists()
+            .then(|| super::worktree::branch(&folder))
+            .flatten()
+    })
+    .await
+    .map_err(|_| ())
+}
+
+/// Opens the session's worktree in Explorer.
+#[tauri::command]
+pub async fn sessions_worktree_open(
+    service: tauri::State<'_, Shared>,
+    session_id: String,
+) -> Result<bool, ()> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(folder) = worktree_of(&service, &session_id) else {
+            return false;
+        };
+        if !std::path::Path::new(&folder).is_dir() {
+            return false;
+        }
+        #[cfg(windows)]
+        {
+            std::process::Command::new("explorer.exe")
+                .arg(&folder)
+                .spawn()
+                .is_ok()
+        }
+        #[cfg(not(windows))]
+        {
+            std::process::Command::new("open")
+                .arg(&folder)
+                .spawn()
+                .is_ok()
+        }
     })
     .await
     .map_err(|_| ())

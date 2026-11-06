@@ -173,10 +173,7 @@ pub fn timestamp(v: Option<&Value>) -> Option<Time> {
 /// The folder an agent ran in names the project. A worktree kept inside the
 /// repository belongs to it; Windows paths split on both separators.
 pub fn project_name(path: &str) -> String {
-    let mut path = path.replace('\\', "/");
-    if let Some(at) = path.to_ascii_lowercase().find("/.claude/worktrees/") {
-        path.truncate(at);
-    }
+    let mut path = crate::sessions::worktree::repository_of(path).replace('\\', "/");
     while path.len() > 1 && path.ends_with('/') {
         path.pop();
     }

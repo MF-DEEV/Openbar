@@ -23,3 +23,4 @@ pub mod plan_modes;
 pub mod registry;
 pub mod service;
 pub mod transcript;
+pub mod worktree;

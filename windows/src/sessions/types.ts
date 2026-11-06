@@ -285,3 +285,9 @@ export function workingOf(counts: Counts, provider: Provider): number {
   }
   return Math.min(Math.max(0, others[provider]), total);
 }
+
+/** What a folder is to git, for the New session page (worktree.rs). */
+export type RepoState = { kind: "notRepo" } | { kind: "clean"; root: string } | { kind: "dirty"; root: string };
+
+/** How removing a session or its worktree went. */
+export type WorktreeRemoval = { kind: "done" } | { kind: "unsaved" } | { kind: "failed"; message: string };

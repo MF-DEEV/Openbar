@@ -1239,13 +1239,7 @@ pub fn last_path_component(path: &str) -> String {
 /// The folder an agent ran in names the project. A worktree kept inside
 /// the repository still belongs to that repository.
 pub fn project_name(path: &str) -> String {
-    let mut path = path;
-    for marker in ["/.claude/worktrees/", "\\.claude\\worktrees\\"] {
-        if let Some(index) = path.find(marker) {
-            path = &path[..index];
-        }
-    }
-    let mut path = path.to_owned();
+    let mut path = super::worktree::repository_of(path).to_owned();
     while path.chars().count() > 1 && path.ends_with(SEPARATORS) {
         path.pop();
     }
