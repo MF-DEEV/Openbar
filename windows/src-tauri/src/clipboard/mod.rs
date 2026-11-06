@@ -15,6 +15,9 @@ pub mod formats;
 pub mod history;
 #[cfg(windows)]
 pub mod native;
+#[cfg(target_os = "linux")]
+#[path = "../linux/clipboard.rs"]
+pub mod native;
 mod sensitive;
 
 use std::collections::HashMap;
@@ -29,7 +32,7 @@ use tauri::{AppHandle, Emitter, Manager, Runtime};
 use history::{Content, Entry, History, Kind, Source};
 
 pub const EVENT: &str = "clipboard://history";
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 const READ_TIMEOUT: Duration = Duration::from_secs(5);
 /// The Mac trims to the limit and retention hourly (CHS:658-664).
 const TRIM_INTERVAL: Duration = Duration::from_secs(3_600);
@@ -215,7 +218,7 @@ impl Store {
     }
 
     /// The bytes an entry puts back on the clipboard.
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     fn payload(&self, id: &str) -> Option<native::Payload> {
         let entry = self.history.entries.iter().find(|e| e.id == id)?;
         Some(match entry.kind {
@@ -329,7 +332,7 @@ pub fn start<R: Runtime>(app: AppHandle<R>, shared: Shared) {
         store.clean_images();
         *shared.lock().unwrap() = store;
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     {
         let (tx, rx) = std::sync::mpsc::channel::<native::Update>();
         native::listen(move |update| {
@@ -349,7 +352,7 @@ pub fn start<R: Runtime>(app: AppHandle<R>, shared: Shared) {
 /// One read at a time. Changes that pile up behind a slow read are taken
 /// as one, the newest content, left out if any of them came from an
 /// ignored app.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn capture<R: Runtime>(
     app: AppHandle<R>,
     shared: Shared,
@@ -446,7 +449,7 @@ pub async fn clipboard_copy<R: Runtime>(app: AppHandle<R>, id: String) -> bool {
         .unwrap_or(false)
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn put_back<R: Runtime>(app: &AppHandle<R>, id: &str) -> bool {
     let Some(shared) = app.try_state::<Shared>() else {
         return false;
@@ -460,7 +463,7 @@ fn put_back<R: Runtime>(app: &AppHandle<R>, id: &str) -> bool {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn put_back<R: Runtime>(app: &AppHandle<R>, id: &str) -> bool {
     mutate(app, |h| h.touch(id, now_ms()))
 }
@@ -472,11 +475,13 @@ fn put_back<R: Runtime>(app: &AppHandle<R>, id: &str) -> bool {
 pub async fn clipboard_paste<R: Runtime>(app: AppHandle<R>, id: String) -> &'static str {
     #[cfg(windows)]
     let previous = crate::island::previous_foreground(&app);
+    #[cfg(target_os = "linux")]
+    let previous = 0isize;
     tauri::async_runtime::spawn_blocking(move || {
         if !put_back(&app, &id) {
             return "failed";
         }
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         if let Some(target) = native::paste_target(previous).filter(|&t| !native::blocks_input(t)) {
             // The entry stays on the clipboard either way; a target that
             // never came forward gets nothing typed, and says so.
@@ -533,17 +538,17 @@ pub async fn clipboard_copy_image(data_url: String) -> bool {
     .unwrap_or(false)
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn write_own_text(text: String) -> bool {
     native::write(&native::Payload::Text(text), false)
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn write_own_png(png: Vec<u8>) -> bool {
     native::write(&native::Payload::Image(png), false)
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn write_own_text(_text: String) -> bool {
     false
 }
@@ -551,23 +556,23 @@ fn write_own_text(_text: String) -> bool {
 /// Text copied that the history must not record, as its own copies aren't:
 /// the scratchpad's Copy all (spec 05 §11).
 pub fn write_unrecorded_text(text: String) -> bool {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     return native::write(&native::Payload::Text(text), true);
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = text;
         false
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn write_own_png(_png: Vec<u8>) -> bool {
     false
 }
 
 #[tauri::command]
 pub fn clipboard_beep() {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     native::beep();
 }
 
