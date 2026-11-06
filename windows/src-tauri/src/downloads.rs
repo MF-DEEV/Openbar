@@ -240,6 +240,10 @@ fn locations(extra: &[PathBuf]) -> Locations {
             windows::Win32::System::Com::CoTaskMemFree(Some(path.0.cast()));
         }
     }
+    #[cfg(target_os = "linux")]
+    for folder in crate::linux::downloads::folders() {
+        add_folder(&mut out.folders, folder);
+    }
     if out.folders.is_empty()
         && let Some(home) = std::env::var_os("USERPROFILE")
     {

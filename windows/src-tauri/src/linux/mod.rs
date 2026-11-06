@@ -15,6 +15,8 @@ pub mod battery;
 pub mod brightness;
 pub mod command;
 pub mod desktop;
+pub mod downloads;
+pub mod files;
 pub mod gtk_main;
 pub mod hooks;
 pub mod hosts;
