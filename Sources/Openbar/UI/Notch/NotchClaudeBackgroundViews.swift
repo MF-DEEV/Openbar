@@ -33,7 +33,7 @@ struct NotchClaudeBackgroundBar: View {
     @State private var working = false
     @State private var problem: String?
 
-    private enum Action { case stop, remove }
+    private enum Action { case stop, remove, removeAnyway }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -69,15 +69,15 @@ struct NotchClaudeBackgroundBar: View {
 
     private func confirmation(_ action: Action) -> some View {
         HStack(spacing: 6) {
-            Text(action == .stop ? text.stopConfirm : text.removeConfirm)
+            Text(action == .stop ? text.stopConfirm : action == .remove ? text.removeConfirm : text.worktreeUnsaved)
                 .font(.system(size: 11))
                 .foregroundStyle(.white.opacity(0.85))
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer(minLength: 4)
             button(text.keepSession, symbol: nil) { asking = nil }
-            button(action == .stop ? text.stopSession : text.removeSession, symbol: action == .stop ? "stop.fill" : "trash",
-                   destructive: true) { run(action) }
+            button(action == .stop ? text.stopSession : action == .remove ? text.removeSession : text.removeAnyway,
+                   symbol: action == .stop ? "stop.fill" : "trash", destructive: true) { run(action) }
                 .disabled(working)
         }
     }
@@ -89,9 +89,20 @@ struct NotchClaudeBackgroundBar: View {
             asking = nil
             problem = failure
         }
+        let removed: (WorktreeRemoval) -> Void = { outcome in
+            switch outcome {
+            case .done: finish(nil)
+            case .failed(let said): finish(said)
+            // Its worktree holds work found nowhere else: ask again, in words that say so.
+            case .unsaved:
+                working = false
+                asking = .removeAnyway
+            }
+        }
         switch action {
         case .stop: service.stopBackground(session, completion: finish)
-        case .remove: service.removeBackground(session, completion: finish)
+        case .remove: service.removeBackground(session, completion: removed)
+        case .removeAnyway: service.removeBackground(session, anyway: true, completion: removed)
         }
     }
 
@@ -106,6 +117,120 @@ struct NotchClaudeBackgroundBar: View {
             .padding(.horizontal, 8)
             .frame(height: 26)
             .background(.white.opacity(active ? 0.16 : 0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 8))
+    }
+}
+
+/// What can be done with the worktree a session works in: open its folder,
+/// copy its branch, and remove one the island made once the session is done
+/// with it. Claude Code's own go with `claude rm`.
+struct NotchClaudeWorktreeBar: View {
+    let session: ClaudeSession
+    let text: NotchClaudeSessionStrings
+    @ObservedObject private var service = ClaudeSessionService.shared
+    @State private var branch: String?
+    @State private var copied = false
+    @State private var asking: Ask?
+    @State private var working = false
+    @State private var problem: String?
+
+    private enum Ask { case remove, unsaved }
+
+    private var canRemove: Bool {
+        SessionWorktrees.isOwn(session.cwd) && !session.phase.isActive && !session.phase.isWaiting
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let asking { confirmation(asking) } else { buttons }
+            if let problem {
+                Text(problem)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(Color(red: 1.0, green: 0.55, blue: 0.5))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onAppear { service.worktreeBranch(session) { branch = $0 } }
+    }
+
+    private var buttons: some View {
+        HStack(spacing: 5) {
+            Label(session.worktree ?? "", systemImage: "arrow.triangle.branch")
+                .labelStyle(NotchClaudeSessionInlineLabel())
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(.white.opacity(0.6))
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .help(text.worktreeMark)
+            Spacer(minLength: 4)
+            chip(text.openWorktree, symbol: "folder") {
+                guard let folder = SessionWorktrees.worktreeFolder(session.cwd) else { return }
+                NSWorkspace.shared.open(URL(fileURLWithPath: folder, isDirectory: true))
+            }
+            if let branch {
+                chip(copied ? text.branchCopied : text.copyBranch, symbol: copied ? "checkmark" : "doc.on.doc") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(branch, forType: .string)
+                    copied = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+                }
+                .help(branch)
+            }
+            if canRemove {
+                chip(text.removeWorktree, symbol: "trash") { problem = nil; asking = .remove }
+            }
+        }
+    }
+
+    private func confirmation(_ ask: Ask) -> some View {
+        HStack(spacing: 6) {
+            Text(ask == .remove ? text.removeWorktreeConfirm : text.worktreeUnsaved)
+                .font(.system(size: 11))
+                .foregroundStyle(.white.opacity(0.85))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 4)
+            chip(text.keepSession, symbol: nil) { asking = nil }
+            chip(ask == .remove ? text.removeWorktree : text.removeAnyway, symbol: "trash", destructive: true) {
+                remove(anyway: ask == .unsaved)
+            }
+            .disabled(working)
+        }
+    }
+
+    private func remove(anyway: Bool) {
+        working = true
+        service.removeWorktree(session, anyway: anyway) { outcome in
+            working = false
+            switch outcome {
+            case .done: asking = nil
+            case .unsaved: asking = .unsaved
+            case .failed(let said):
+                asking = nil
+                problem = said
+            }
+        }
+    }
+
+    private func chip(_ title: String, symbol: String?, destructive: Bool = false,
+                      action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                if let symbol {
+                    Image(systemName: symbol)
+                        .font(.system(size: 10, weight: .semibold))
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                Text(title).font(.system(size: 11.5, weight: .medium)).lineLimit(1)
+            }
+            .foregroundStyle(destructive ? Color(red: 1.0, green: 0.55, blue: 0.5) : .white.opacity(0.85))
+            .padding(.horizontal, 8)
+            .frame(height: 26)
+            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 8))
@@ -177,6 +302,10 @@ struct NotchClaudeNewSessionView: View {
     @AppStorage(DefaultsKey.notchNewSessionAgent) private var agentChoice = ClaudeSessionProvider.claude.rawValue
     @AppStorage(DefaultsKey.notchNewSessionClaudeModel) private var claudeModel = ""
     @AppStorage(DefaultsKey.notchNewSessionCodexModel) private var codexModel = ""
+    @AppStorage(DefaultsKey.notchNewSessionNoWorktree) private var noWorktree = ""
+    @State private var worktreeName = ""
+    /// What the folder picked is to git; nil while it's being asked.
+    @State private var repository: SessionWorktrees.RepoState?
     @FocusState private var promptFocused: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Namespace private var agentPill
@@ -225,6 +354,34 @@ struct NotchClaudeNewSessionView: View {
 
     private var promptPlaceholder: String { background ? text.firstPromptRequired : text.firstPrompt }
 
+    /// Whether this agent starts in a worktree of its own, as last chosen for
+    /// it; on until turned off.
+    private var wantsWorktree: Bool { !noWorktree.split(separator: ",").contains(Substring(agent.rawValue)) }
+    private var isRepository: Bool { repository?.root != nil }
+    private var usesWorktree: Bool { wantsWorktree && isRepository }
+
+    private func setWantsWorktree(_ on: Bool) {
+        var off = Set(noWorktree.split(separator: ",").map(String.init))
+        if on { off.remove(agent.rawValue) } else { off.insert(agent.rawValue) }
+        noWorktree = off.sorted().joined(separator: ",")
+    }
+
+    /// The name the worktree gets when none is typed.
+    private var worktreePlaceholder: String {
+        let slug = SessionWorktrees.slug(prompt)
+        return slug.isEmpty ? text.worktreeNamePlaceholder : slug
+    }
+
+    /// What the worktree switch means for the folder picked.
+    private var worktreeNote: String? {
+        switch repository {
+        case .none: return nil
+        case .notRepo?: return text.worktreeNotRepo
+        case .dirty?: return wantsWorktree ? text.worktreeFromHead : nil
+        case .clean?: return nil
+        }
+    }
+
     private var canStart: Bool { chosen != nil && !starting && !needsPrompt }
 
     /// Springs for things that move, a quick fade when motion is reduced.
@@ -258,6 +415,7 @@ struct NotchClaudeNewSessionView: View {
                     .id(message)
                     .transition(.opacity.combined(with: .offset(y: -3)))
             }
+            worktreeRow
             HStack(spacing: 6) {
                 if agents.count > 1 { agentPicker }
                 Spacer(minLength: 4)
@@ -281,6 +439,8 @@ struct NotchClaudeNewSessionView: View {
         .animation(motion, value: agent)
         .animation(motion, value: needsPrompt)
         .animation(motion, value: problem)
+        .animation(motion, value: usesWorktree)
+        .animation(motion, value: worktreeNote)
         .notchBand(leading: {
             NotchBandBackButton(title: text.newSession) { service.composingSession = false }
         })
@@ -289,9 +449,78 @@ struct NotchClaudeNewSessionView: View {
                 folders = found
                 if chosen == nil { chosen = found.first }
                 loadModels()
+                checkRepository()
             }
         }
         .onChange(of: chosen?.configHome) { _, _ in loadModels() }
+        .onChange(of: chosen?.path) { _, _ in checkRepository() }
+    }
+
+    private func checkRepository() {
+        guard let path = chosen?.path else { repository = nil; return }
+        repository = nil
+        service.repositoryState(of: path) { state in
+            // An answer for a folder no longer picked is old news.
+            if chosen?.path == path { repository = state }
+        }
+    }
+
+    /// The switch for a worktree of the session's own, its name, and what
+    /// it means for this folder.
+    private var worktreeRow: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Button {
+                    withAnimation(motion) { setWantsWorktree(!wantsWorktree) }
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: usesWorktree ? "checkmark.square.fill" : "square")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(usesWorktree ? agent.tint : .white.opacity(0.5))
+                            .contentTransition(reduceMotion ? .identity : .symbolEffect(.replace))
+                        Image(systemName: "arrow.triangle.branch")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.white.opacity(0.55))
+                        Text(text.ownWorktree)
+                            .font(.system(size: 11.5, weight: .medium))
+                            .foregroundStyle(.white.opacity(isRepository ? 0.9 : 0.45))
+                            .lineLimit(1)
+                            .fixedSize()
+                    }
+                    .padding(.horizontal, 8)
+                    .frame(height: 26)
+                    .background(.white.opacity(usesWorktree ? 0.1 : 0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(NotchButtonStyle(cornerRadius: 8))
+                .disabled(!isRepository)
+                .help("\(text.ownWorktreeHelp) \(text.worktreeIgnoredFiles)")
+                .accessibilityLabel(text.ownWorktree)
+                .accessibilityValue(usesWorktree ? "1" : "0")
+                .accessibilityAddTraits(usesWorktree ? .isSelected : [])
+                if usesWorktree {
+                    TextField(worktreePlaceholder, text: $worktreeName)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11.5, design: .monospaced))
+                        .padding(.horizontal, 8)
+                        .frame(height: 26)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .accessibilityLabel(text.worktreeNamePlaceholder)
+                        .transition(.opacity.combined(with: .offset(x: -6)))
+                } else {
+                    Spacer(minLength: 0)
+                }
+            }
+            if let note = worktreeNote {
+                Text(note)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.white.opacity(0.55))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .id(note)
+                    .transition(.opacity.combined(with: .offset(y: -3)))
+            }
+        }
     }
 
     private func loadModels() {
@@ -518,7 +747,8 @@ struct NotchClaudeNewSessionView: View {
         problem = nil
         let picked = model?.id
         service.startSession(in: chosen.path, configHome: chosen.configHome, prompt: prompt, background: background,
-                             provider: agent, model: picked) { failure in
+                             provider: agent, model: picked, worktree: usesWorktree,
+                             worktreeName: worktreeName) { failure in
             starting = false
             problem = failure
             if failure == nil { service.composingSession = false }

@@ -159,6 +159,22 @@ struct NotchClaudeSessionStrings {
     let backgroundOffHelp: String
     let startSession: String
     let folderNotTrusted: String
+    /// A session's own git worktree.
+    let ownWorktree: String
+    let ownWorktreeHelp: String
+    let worktreeNamePlaceholder: String
+    let worktreeNotRepo: String
+    let worktreeFromHead: String
+    let worktreeIgnoredFiles: String
+    let worktreeFailed: String
+    let worktreeMark: String
+    let openWorktree: String
+    let copyBranch: String
+    let branchCopied: String
+    let removeWorktree: String
+    let removeWorktreeConfirm: String
+    let worktreeUnsaved: String
+    let removeAnyway: String
     let agentPicker: String
     let modelPicker: String
     let defaultModel: String
@@ -428,6 +444,21 @@ extension NotchClaudeSessionStrings {
         backgroundOffHelp: "Agent View is off in Claude Code, so sessions can only start in a terminal.",
         startSession: "Start",
         folderNotTrusted: "Claude Code doesn’t trust this folder yet. Start it in a terminal once and say yes.",
+        ownWorktree: "Own worktree",
+        ownWorktreeHelp: "Runs the session in its own git worktree, so sessions on one project don’t change each other’s files.",
+        worktreeNamePlaceholder: "Worktree name",
+        worktreeNotRepo: "Not a git repo, so the session runs in the folder.",
+        worktreeFromHead: "Uncommitted changes stay here. The worktree starts from the last commit.",
+        worktreeIgnoredFiles: "Ignored files like .env aren’t copied into the worktree.",
+        worktreeFailed: "Couldn’t make a worktree",
+        worktreeMark: "Worktree",
+        openWorktree: "Open folder",
+        copyBranch: "Copy branch",
+        branchCopied: "Copied",
+        removeWorktree: "Remove worktree",
+        removeWorktreeConfirm: "Remove this worktree? Its branch stays, with any commits on it.",
+        worktreeUnsaved: "This worktree has unsaved changes. Remove anyway?",
+        removeAnyway: "Remove anyway",
         agentPicker: "Agent",
         modelPicker: "Model",
         defaultModel: "Default",

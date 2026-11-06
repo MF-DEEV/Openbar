@@ -589,9 +589,58 @@ final class ClaudeSessionService: ObservableObject {
         backgroundCommand("stop", session, completion: completion)
     }
 
-    /// Deletes a background session for good.
-    func removeBackground(_ session: ClaudeSession, completion: @escaping (String?) -> Void) {
-        backgroundCommand("rm", session, completion: completion)
+    /// Deletes a background session for good, and the worktree Claude Code
+    /// made for it. A worktree with changes found nowhere else is kept, and
+    /// the session with it, unless `anyway` says to lose them.
+    func removeBackground(_ session: ClaudeSession, anyway: Bool = false,
+                          completion: @escaping (WorktreeRemoval) -> Void) {
+        guard let details = session.background else { return completion(.done) }
+        let worktree = SessionWorktrees.worktreeFolder(session.cwd)
+        commands.async { [self] in
+            let remove = { (extra: [String]) in ClaudeCLI.claude(["rm", details.job] + extra, configHome: details.configHome) }
+            var output = remove([])
+            var kept = output.flatMap { $0.status == 0 ? nil : SessionWorktrees.claudeKept($0.error) }
+            if kept != nil, anyway {
+                // Uncommitted changes have no flag of their own; unpushed commits do.
+                if kept?.discard == nil, let worktree, SessionWorktrees.discardChanges(worktree) {
+                    output = remove([])
+                    kept = output.flatMap { $0.status == 0 ? nil : SessionWorktrees.claudeKept($0.error) }
+                }
+                if let discard = kept?.discard {
+                    output = remove(["--discard-unpushed", discard])
+                    kept = nil
+                }
+            }
+            let outcome: WorktreeRemoval = kept != nil ? .unsaved : failure(of: output).map(WorktreeRemoval.failed) ?? .done
+            queue.async { [self] in listBackgroundJobs(now: Date(), force: true) }
+            DispatchQueue.main.async { completion(outcome) }
+        }
+    }
+
+    /// Removes the worktree the island made for a session, keeping its
+    /// branch. One with changes stays unless `anyway` says to lose them.
+    func removeWorktree(_ session: ClaudeSession, anyway: Bool = false,
+                        completion: @escaping (WorktreeRemoval) -> Void) {
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
+        let cwd = session.cwd
+        commands.async {
+            let outcome: WorktreeRemoval
+            switch SessionWorktrees.remove(cwd, force: anyway) {
+            case .removed: outcome = .done
+            case .unsaved: outcome = .unsaved
+            case .failed(let said): outcome = .failed(said.isEmpty ? text.commandFailed : said)
+            }
+            DispatchQueue.main.async { completion(outcome) }
+        }
+    }
+
+    /// The branch a session's worktree is on, for Copy branch.
+    func worktreeBranch(_ session: ClaudeSession, completion: @escaping (String?) -> Void) {
+        guard let folder = SessionWorktrees.worktreeFolder(session.cwd) else { return completion(nil) }
+        commands.async {
+            let branch = FileManager.default.fileExists(atPath: folder) ? SessionWorktrees.branch(folder) : nil
+            DispatchQueue.main.async { completion(branch) }
+        }
     }
 
     /// Its recent output, read off the screen `claude logs` prints. With a
@@ -628,54 +677,61 @@ final class ClaudeSessionService: ObservableObject {
         }
     }
 
-    /// Starts Claude Code or Codex in a folder, in the background or in the
-    /// person's terminal, with a model or the agent's default. Calls back on
-    /// the main thread with what went wrong.
+    /// Starts Claude Code, Codex or another agent in a folder, in the
+    /// background or in the person's terminal, with a model or the agent's
+    /// default. With `worktree`, a folder in a git repository gets the
+    /// session its own worktree: Claude Code makes it with `--worktree`, the
+    /// island makes it for the rest. Calls back on the main thread with what
+    /// went wrong.
     func startSession(in folder: String, configHome: String?, prompt: String, background: Bool,
                       provider: ClaudeSessionProvider = .claude, model: String? = nil,
+                      worktree: Bool = false, worktreeName: String? = nil,
                       completion: @escaping (String?) -> Void) {
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let terminal = ClaudeTerminalLauncher.preferred(from: sessions)
-        if provider.reportsThroughHooks {
-            // In a terminal, where the agent's own UI runs and its hooks report it.
-            commands.async {
-                let shell = ClaudeCLI.shell()
-                var problem: String?
-                if let executable = AgentCLI.locate(provider, path: shell.environment["PATH"],
-                                                    home: FileManager.default.homeDirectoryForCurrentUser) {
-                    let line = CodexCLI.line(executable: executable,
-                                             arguments: AgentCLI.startArguments(provider, prompt: trimmed), folder: folder)
-                    if !ClaudeTerminalLauncher.open(line, terminal: terminal) { problem = text.commandFailed }
-                } else {
-                    problem = text.commandFailed
-                }
-                DispatchQueue.main.async { completion(problem) }
-            }
-            return
-        }
-        if provider == .codex {
-            commands.async { [self] in
-                if background {
-                    startCodexThread(in: folder, prompt: trimmed, model: model, text: text, completion: completion)
-                    return
-                }
-                var problem: String?
-                if let executable = CodexCLI.executable() {
-                    let line = CodexCLI.line(executable: executable,
-                                             arguments: CodexCLI.startArguments(prompt: trimmed, model: model), folder: folder)
-                    if !ClaudeTerminalLauncher.open(line, terminal: terminal) { problem = text.codexFailed }
-                } else {
-                    problem = text.codexFailed
-                }
-                DispatchQueue.main.async { completion(problem) }
-            }
-            return
-        }
         // A background session has nobody to type to it.
-        if background, trimmed.isEmpty { completion(text.backgroundNeedsPrompt); return }
-        let arguments = ClaudeCLI.startArguments(prompt: trimmed, background: background, model: model)
+        let inBackground = background && (provider == .claude || provider == .codex)
+        if inBackground, trimmed.isEmpty { completion(text.backgroundNeedsPrompt); return }
         commands.async { [self] in
+            let finish: (String?) -> Void = { problem in DispatchQueue.main.async { completion(problem) } }
+            var folder = folder
+            var claudeWorktree: String?
+            if worktree, let root = SessionWorktrees.state(of: folder).root {
+                let name = SessionWorktrees.reserveName(custom: worktreeName, prompt: trimmed, root: root)
+                if provider == .claude {
+                    claudeWorktree = name
+                } else {
+                    switch SessionWorktrees.create(root: root, name: name) {
+                    case .success(let path):
+                        folder = SessionWorktrees.inside(path, for: folder, root: root)
+                    case .failure(let failure):
+                        return finish(failure.message.isEmpty ? text.worktreeFailed : "\(text.worktreeFailed): \(failure.message)")
+                    }
+                }
+            }
+            if provider.reportsThroughHooks {
+                // In a terminal, where the agent's own UI runs and its hooks report it.
+                let shell = ClaudeCLI.shell()
+                guard let executable = AgentCLI.locate(provider, path: shell.environment["PATH"],
+                                                       home: FileManager.default.homeDirectoryForCurrentUser) else {
+                    return finish(text.commandFailed)
+                }
+                let line = CodexCLI.line(executable: executable,
+                                         arguments: AgentCLI.startArguments(provider, prompt: trimmed), folder: folder)
+                return finish(ClaudeTerminalLauncher.open(line, terminal: terminal) ? nil : text.commandFailed)
+            }
+            if provider == .codex {
+                if background {
+                    return startCodexThread(in: folder, prompt: trimmed, model: model, text: text, completion: completion)
+                }
+                guard let executable = CodexCLI.executable() else { return finish(text.codexFailed) }
+                let line = CodexCLI.line(executable: executable,
+                                         arguments: CodexCLI.startArguments(prompt: trimmed, model: model), folder: folder)
+                return finish(ClaudeTerminalLauncher.open(line, terminal: terminal) ? nil : text.codexFailed)
+            }
+            let arguments = ClaudeCLI.startArguments(prompt: trimmed, background: background, model: model,
+                                                     worktree: claudeWorktree)
             var problem: String?
             if background {
                 let output = ClaudeCLI.claude(arguments, configHome: configHome, in: folder, timeout: 30)
@@ -689,7 +745,16 @@ final class ClaudeSessionService: ObservableObject {
                 problem = text.commandFailed
             }
             queue.async { [self] in listBackgroundJobs(now: Date(), force: true) }
-            DispatchQueue.main.async { completion(problem) }
+            finish(problem)
+        }
+    }
+
+    /// Whether a folder is in a git repository, and whether its checkout has
+    /// changes a new worktree won't start with, for the New session page.
+    func repositoryState(of folder: String, completion: @escaping (SessionWorktrees.RepoState) -> Void) {
+        commands.async {
+            let state = SessionWorktrees.state(of: folder)
+            DispatchQueue.main.async { completion(state) }
         }
     }
 
