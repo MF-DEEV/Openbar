@@ -175,6 +175,11 @@ impl DisplaySettle {
 #[derive(Default)]
 pub struct IslandState {
     rects: Mutex<Vec<HitRect>>,
+    /// What is on screen now, when the page says it is less than `rects`: a
+    /// growing island answers to where it is going, but only what is drawn may
+    /// be cut out of the canvas, or a compositor that blurs behind the window
+    /// shows a frosted ghost of the final size.
+    drawn: Mutex<Option<Vec<HitRect>>>,
     /// While the page holds the pointer (a drag, a slider, an open menu) the
     /// window keeps mouse input even outside the shape.
     capture: Mutex<bool>,
@@ -202,6 +207,12 @@ impl IslandState {
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .iter()
             .any(|r| r.contains(x, y))
+    }
+
+    /// What the canvas is cut down to: what the page says is drawn, else all it answers to.
+    fn shape(&self) -> Vec<HitRect> {
+        let drawn = self.drawn.lock().unwrap().clone();
+        drawn.unwrap_or_else(|| self.rects.lock().unwrap().clone())
     }
 }
 
@@ -549,8 +560,10 @@ pub fn island_set_hit_rects<R: Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, IslandState>,
     rects: Vec<HitRect>,
+    drawn: Option<Vec<HitRect>>,
 ) {
     *state.rects.lock().unwrap() = rects;
+    *state.drawn.lock().unwrap() = drawn;
     reshape(&app, &state);
 }
 
@@ -567,8 +580,7 @@ pub fn island_set_capture<R: Runtime>(
 /// Where the platform cuts the canvas down to what is drawn (X11 only).
 fn reshape<R: Runtime>(app: &AppHandle<R>, state: &IslandState) {
     if let Some(window) = app.get_webview_window(LABEL) {
-        let rects = state.rects.lock().unwrap().clone();
-        platform::set_shape(&window, &rects, *state.capture.lock().unwrap());
+        platform::set_shape(&window, &state.shape(), *state.capture.lock().unwrap());
     }
 }
 
@@ -1208,7 +1220,9 @@ mod platform {
 
 #[cfg(test)]
 mod tests {
-    use super::{Display, DisplayChoice, DisplaySettle, HitRect, MirrorFrame, mirrored};
+    use super::{
+        Display, DisplayChoice, DisplaySettle, HitRect, IslandState, MirrorFrame, mirrored,
+    };
     use std::time::{Duration, Instant};
 
     fn display(x: i32, width: u32, scale: f64) -> Display {
@@ -1360,5 +1374,34 @@ mod tests {
         )
         .unwrap();
         assert_eq!(r.bottom_radius, 8.0);
+    }
+
+    #[test]
+    fn the_canvas_is_cut_to_what_is_drawn_not_to_where_the_pointer_is_answered() {
+        let state = IslandState::default();
+        let (small, large) = (
+            rect(0.0, 8.0),
+            HitRect {
+                width: 400.0,
+                ..rect(0.0, 8.0)
+            },
+        );
+        *state.rects.lock().unwrap() = vec![large];
+        assert_eq!(
+            state.shape(),
+            vec![large],
+            "a page that says nothing is drawn as it answers"
+        );
+        *state.drawn.lock().unwrap() = Some(vec![small]);
+        assert_eq!(state.shape(), vec![small]);
+        assert!(
+            state.contains(300.0, 10.0),
+            "hover still reaches the larger area"
+        );
+        *state.drawn.lock().unwrap() = Some(Vec::new());
+        assert!(
+            state.shape().is_empty(),
+            "an empty drawing is not the fallback"
+        );
     }
 }

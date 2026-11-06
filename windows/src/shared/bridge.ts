@@ -148,7 +148,8 @@ export const bridge = {
       return listen<AttentionContext>("island://attention-context", (event) => handler(event.payload));
     },
   },
-  setHitRects: (rects: HitRect[]) => call("island_set_hit_rects", { rects }),
+  /** `rects` take the pointer. `drawn` is what is on screen now when that is less (the window is cut to it on X11). */
+  setHitRects: (rects: HitRect[], drawn?: HitRect[]) => call("island_set_hit_rects", { rects, drawn: drawn ?? null }),
   setCapture: (capture: boolean) => call("island_set_capture", { capture }),
   /** What the other displays' mirrors draw; null draws nothing. */
   setMirrorFrame: (frame: MirrorFrame | null) => call("island_mirror_update", { frame }),

@@ -23,6 +23,7 @@ import {
 } from "./store";
 import { ContentStage } from "./surface/ContentStage";
 import { IslandSurface } from "./surface/IslandSurface";
+import { clearAreas } from "./surface/hits";
 import { NoticeView, noticeWidth, Peek, Resting } from "./views/Closed";
 import { NotificationPreview, previewSize } from "../notifications/NotificationPreview";
 import { Expanded } from "./views/Expanded";
@@ -182,7 +183,7 @@ function Disabled() {
   useLocale();
   useEffect(() => {
     useIsland.getState().collapse();
-    void bridge.setHitRects([]);
+    clearAreas();
     void bridge.setCapture(false);
   }, []);
   return null;
