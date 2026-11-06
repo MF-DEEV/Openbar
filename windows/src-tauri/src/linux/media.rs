@@ -1023,68 +1023,8 @@ mod tests {
     // The reader against a bus: a private `dbus-daemon` and players written
     // here, so the calls and the replies are the real ones.
 
-    use std::io::{BufRead, BufReader};
-    use std::process::{Child, Stdio};
+    use crate::linux::testbus::PrivateBus;
     use std::sync::Arc;
-
-    /// A bus of its own, gone with the value. `None` where `dbus-daemon` is
-    /// not installed.
-    struct PrivateBus {
-        child: Child,
-        address: String,
-    }
-
-    impl PrivateBus {
-        fn start() -> Option<Self> {
-            // Tests run side by side in one process: a folder for each bus.
-            static COUNT: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-            let dir = std::env::temp_dir().join(format!(
-                "openbar-bus-{}-{}",
-                std::process::id(),
-                COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
-            ));
-            std::fs::create_dir_all(&dir).ok()?;
-            let config = dir.join("bus.conf");
-            std::fs::write(
-                &config,
-                r#"<busconfig><type>session</type><listen>unix:tmpdir=/tmp</listen><auth>EXTERNAL</auth>
-                <policy context="default"><allow send_destination="*" eavesdrop="true"/><allow eavesdrop="true"/><allow own="*"/></policy></busconfig>"#,
-            )
-            .ok()?;
-            let mut child = std::process::Command::new("dbus-daemon")
-                .args(["--nofork", "--print-address=1", "--config-file"])
-                .arg(&config)
-                .stdout(Stdio::piped())
-                .spawn()
-                .ok()?;
-            let mut address = String::new();
-            BufReader::new(child.stdout.take()?)
-                .read_line(&mut address)
-                .ok()?;
-            std::fs::remove_dir_all(dir).ok();
-            Some(Self {
-                child,
-                address: address.trim().to_string(),
-            })
-        }
-
-        fn connect(&self) -> Connection {
-            Builder::address(self.address.as_str())
-                .unwrap()
-                .method_timeout(REPLY)
-                .build()
-                .unwrap()
-        }
-    }
-
-    impl Drop for PrivateBus {
-        fn drop(&mut self) {
-            // Asked to end, the daemon removes its socket; killed, it leaves it.
-            // SAFETY: a signal to a child this value started and has not reaped.
-            unsafe { libc::kill(self.child.id() as i32, libc::SIGTERM) };
-            let _ = self.child.wait();
-        }
-    }
 
     type Log = Arc<Mutex<Vec<String>>>;
 

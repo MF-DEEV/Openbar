@@ -21,7 +21,11 @@ pub fn battery_status() -> Option<Battery> {
             status.BatteryLifeTime,
         )
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        crate::linux::battery::read()
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     None
 }
 
@@ -57,5 +61,10 @@ pub fn start(app: tauri::AppHandle) {
     });
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+pub fn start(app: tauri::AppHandle) {
+    crate::linux::battery::start(app);
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn start(_app: tauri::AppHandle) {}

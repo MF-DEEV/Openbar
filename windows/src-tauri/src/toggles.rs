@@ -636,7 +636,12 @@ mod imp {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+mod imp {
+    pub use crate::linux::toggles::{run_action as run, state};
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 mod imp {
     use super::{Action, State};
 

@@ -92,7 +92,16 @@ pub fn start(app: AppHandle) {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+#[path = "linux/power_saver.rs"]
+mod imp;
+
+#[cfg(target_os = "linux")]
+pub fn start(app: AppHandle) {
+    imp::start(app);
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn start(_app: AppHandle) {}
 
 /// In WinNT.h since the 24H2 SDK; windows-rs 0.62 doesn't have it yet.
