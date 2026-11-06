@@ -26,7 +26,18 @@ pub fn now_ms() -> f64 {
             windows::Win32::System::WindowsProgramming::QueryInterruptTime() as f64 / 10_000.0
         }
     }
-    #[cfg(not(windows))]
+    // CLOCK_BOOTTIME keeps counting while the PC sleeps, as Windows' interrupt time does.
+    #[cfg(target_os = "linux")]
+    {
+        let mut now = libc::timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
+        // SAFETY: `clock_gettime` fills the struct it is given.
+        unsafe { libc::clock_gettime(libc::CLOCK_BOOTTIME, &mut now) };
+        now.tv_sec as f64 * 1000.0 + now.tv_nsec as f64 / 1_000_000.0
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         use std::sync::OnceLock;
         use std::time::Instant;
@@ -87,5 +98,26 @@ mod tests {
         assert_eq!(next_sleep(-50.0), None);
         assert_eq!(next_sleep(250.4), Some(Duration::from_millis(251)));
         assert_eq!(next_sleep(90_000.0), Some(Duration::from_secs(1)));
+    }
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod linux_clock {
+    #[test]
+    fn the_clock_counts_time_since_boot_and_never_goes_back() {
+        // Time since boot, sleep included, as /proc/uptime has it.
+        let up = std::fs::read_to_string("/proc/uptime")
+            .ok()
+            .and_then(|u| u.split_whitespace().next()?.parse::<f64>().ok())
+            .map(|s| s * 1000.0)
+            .unwrap();
+        let first = super::now_ms();
+        assert!((first - up).abs() < 2000.0, "{first} against uptime {up}");
+        std::thread::sleep(std::time::Duration::from_millis(60));
+        let second = super::now_ms();
+        assert!(
+            second >= first + 50.0 && second < first + 1000.0,
+            "{first} then {second}"
+        );
     }
 }

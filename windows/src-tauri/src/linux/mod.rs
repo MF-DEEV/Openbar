@@ -28,6 +28,7 @@ pub mod pulse;
 pub mod screen;
 pub mod session_lock;
 pub mod sessions;
+pub mod sound;
 #[cfg(test)]
 pub mod testbus;
 pub mod tmux;
