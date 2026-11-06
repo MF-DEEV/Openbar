@@ -19,6 +19,12 @@ pub struct Metadata {
     pub command_line: String,
 }
 
+#[cfg(target_os = "linux")]
+pub use super::process_linux::{
+    ancestors, environment_values, epoch_of_ticks, image_path, is_running, metadata, pids_named,
+    started_at,
+};
+
 #[cfg(windows)]
 pub fn metadata(pid: u32) -> Option<Metadata> {
     use windows::Wdk::System::Threading::{NtQueryInformationProcess, ProcessBasicInformation};
@@ -117,7 +123,7 @@ pub fn metadata(pid: u32) -> Option<Metadata> {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn metadata(_pid: u32) -> Option<Metadata> {
     None
 }
@@ -209,7 +215,7 @@ pub fn environment_values(pid: u32, names: &[&str]) -> std::collections::HashMap
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn environment_values(_pid: u32, _names: &[&str]) -> std::collections::HashMap<String, String> {
     Default::default()
 }
@@ -272,7 +278,7 @@ pub fn image_path(pid: u32) -> Option<std::path::PathBuf> {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn image_path(_pid: u32) -> Option<std::path::PathBuf> {
     None
 }
@@ -379,7 +385,7 @@ pub fn pids_named(image: &str) -> Vec<u32> {
     pids
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn pids_named(image: &str) -> Vec<u32> {
     let out = std::process::Command::new("pgrep")
         .args(["-x", image.trim_end_matches(".exe")])
@@ -439,7 +445,7 @@ pub fn is_running(pid: u32) -> bool {
 }
 
 /// The Mac build is only for designing; it reads processes with `ps`.
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn ancestors(pid: u32) -> Option<Vec<Entry>> {
     let mut chain = Vec::new();
     let mut current = pid;
@@ -463,13 +469,13 @@ pub fn ancestors(pid: u32) -> Option<Vec<Entry>> {
     (!chain.is_empty()).then_some(chain)
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 #[allow(dead_code)]
 pub fn started_at(_pid: u32) -> Option<f64> {
     None
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn is_running(pid: u32) -> bool {
     std::process::Command::new("kill")
         .args(["-0", &pid.to_string()])

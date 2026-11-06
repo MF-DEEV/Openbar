@@ -12,10 +12,17 @@ use serde::Serialize;
 
 pub mod bridge;
 pub mod bridge_installer;
+mod command;
 #[cfg(windows)]
 pub mod console;
+pub mod kitty;
 pub mod process;
+#[cfg(target_os = "linux")]
+mod process_linux;
+pub mod tmux;
 pub mod wezterm;
+#[cfg(target_os = "linux")]
+mod x11;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
@@ -35,6 +42,17 @@ pub enum Host {
         pane: u32,
         socket: String,
     },
+    /// A tmux pane, by the server socket and pane id tmux put in the
+    /// environment.
+    Tmux {
+        socket: String,
+        pane: String,
+    },
+    /// A kitty window with remote control on.
+    Kitty {
+        window: u32,
+        listen: String,
+    },
     /// Some other terminal owns the session (no replies, Open only raises
     /// it), named so the island can say which.
     App {
@@ -51,6 +69,8 @@ impl Host {
                 | Host::Vscode { .. }
                 | Host::Conhost
                 | Host::Wezterm { .. }
+                | Host::Tmux { .. }
+                | Host::Kitty { .. }
         )
     }
 
@@ -70,25 +90,46 @@ impl Host {
                 .into(),
             ),
             Host::Wezterm { .. } => Some("WezTerm".into()),
+            Host::Tmux { .. } => Some("tmux".into()),
+            Host::Kitty { .. } => Some("kitty".into()),
             Host::App { name } => Some(name.clone()),
             Host::Conhost | Host::Unknown => None,
         }
     }
 }
 
-/// Terminals the island can only bring forward, by their program's name.
-/// WezTerm is here too: without the variables of its pane it is one of them.
-const TERMINALS: [(&str, &str); 9] = [
-    ("wezterm-gui.exe", "WezTerm"),
-    ("mintty.exe", "Git Bash"),
-    ("alacritty.exe", "Alacritty"),
-    ("warp.exe", "Warp"),
-    ("tabby.exe", "Tabby"),
-    ("hyper.exe", "Hyper"),
-    ("conemu64.exe", "ConEmu"),
-    ("conemu.exe", "ConEmu"),
-    ("rio.exe", "Rio"),
+/// Terminals the island can only bring forward, by their program's name
+/// (lower case, without ".exe"). WezTerm is here too: without the variables
+/// of its pane it is one of them.
+const TERMINALS: &[(&str, &str)] = &[
+    ("wezterm-gui", "WezTerm"),
+    ("mintty", "Git Bash"),
+    ("alacritty", "Alacritty"),
+    ("warp", "Warp"),
+    ("warp-terminal", "Warp"),
+    ("tabby", "Tabby"),
+    ("hyper", "Hyper"),
+    ("conemu64", "ConEmu"),
+    ("conemu", "ConEmu"),
+    ("rio", "Rio"),
+    ("kitty", "kitty"),
+    ("ghostty", "Ghostty"),
+    ("gnome-terminal-server", "GNOME Terminal"),
+    ("konsole", "Konsole"),
+    ("xfce4-terminal", "Xfce Terminal"),
+    ("tilix", "Tilix"),
+    ("terminator", "Terminator"),
+    ("foot", "foot"),
 ];
+
+/// A program's name in lower case without Windows' ".exe".
+fn stem(name: &str) -> String {
+    let lowered = name.to_ascii_lowercase();
+    match lowered.strip_suffix(".exe") {
+        Some(stem) => stem.to_owned(),
+        None => lowered,
+    }
+}
 
 /// A WezTerm pane, when the session's own environment names one; WezTerm
 /// sets both variables in every pane it starts.
@@ -115,30 +156,26 @@ pub struct Located {
     pub ancestors: Vec<u32>,
 }
 
-const IDES: [(&str, &str); 6] = [
-    ("code.exe", "vscode"),
-    ("code - insiders.exe", "vscode"),
-    ("cursor.exe", "cursor"),
-    ("antigravity.exe", "antigravity"),
-    ("antigravity ide.exe", "antigravity"),
-    ("windsurf.exe", "windsurf"),
+const IDES: &[(&str, &str)] = &[
+    ("code", "vscode"),
+    ("code - insiders", "vscode"),
+    ("code-insiders", "vscode"),
+    ("cursor", "cursor"),
+    ("antigravity", "antigravity"),
+    ("antigravity ide", "antigravity"),
+    ("windsurf", "windsurf"),
 ];
 
 /// Classifies by the first ancestor whose image is a terminal or an IDE.
 pub fn classify(chain: &[process::Entry]) -> Located {
     let ancestors: Vec<u32> = chain
         .iter()
-        .take_while(|e| {
-            !matches!(
-                e.name.to_ascii_lowercase().as_str(),
-                "explorer.exe" | "services.exe" | "svchost.exe"
-            )
-        })
+        .take_while(|e| !is_shell_root(&stem(&e.name)))
         .map(|e| e.pid)
         .collect();
     for entry in chain.iter().skip(1) {
-        let name = entry.name.to_ascii_lowercase();
-        if name == "windowsterminal.exe" {
+        let name = stem(&entry.name);
+        if name == "windowsterminal" {
             return Located {
                 host: Host::WindowsTerminal {
                     terminal_pid: entry.pid,
@@ -146,7 +183,7 @@ pub fn classify(chain: &[process::Entry]) -> Located {
                 ancestors,
             };
         }
-        if let Some((_, ide)) = IDES.iter().find(|(exe, _)| *exe == name) {
+        if let Some((_, ide)) = IDES.iter().find(|(known, _)| *known == name) {
             return Located {
                 host: Host::Vscode {
                     ide: (*ide).into(),
@@ -155,7 +192,7 @@ pub fn classify(chain: &[process::Entry]) -> Located {
                 ancestors,
             };
         }
-        if let Some((_, terminal)) = TERMINALS.iter().find(|(exe, _)| *exe == name) {
+        if let Some((_, terminal)) = TERMINALS.iter().find(|(known, _)| *known == name) {
             return Located {
                 host: Host::App {
                     name: (*terminal).into(),
@@ -163,17 +200,22 @@ pub fn classify(chain: &[process::Entry]) -> Located {
                 ancestors,
             };
         }
-        if name == "explorer.exe" || name == "services.exe" || name == "svchost.exe" {
+        if is_shell_root(&name) {
             break;
         }
     }
     // A shell started from Explorer or Run owns a console window of its own.
-    let host = if chain.len() > 1 {
-        Host::Conhost
-    } else {
+    let host = if cfg!(target_os = "linux") || chain.len() <= 1 {
         Host::Unknown
+    } else {
+        Host::Conhost
     };
     Located { host, ancestors }
+}
+
+/// The Windows processes where a session's chain of parents ends.
+fn is_shell_root(name: &str) -> bool {
+    matches!(name, "explorer" | "services" | "svchost")
 }
 
 /// Finds the host of claude process `pid` (None when it is gone).
@@ -185,9 +227,7 @@ pub fn locate(pid: u32) -> Option<Located> {
         == (Host::App {
             name: "WezTerm".into(),
         })
-        && let Some(gui) = chain
-            .iter()
-            .find(|e| e.name.eq_ignore_ascii_case("wezterm-gui.exe"))
+        && let Some(gui) = chain.iter().find(|e| stem(&e.name) == "wezterm-gui")
         && let Some(host) = wezterm_host(
             gui.pid,
             &process::environment_values(pid, &[wezterm::PANE, wezterm::SOCKET]),
@@ -195,7 +235,49 @@ pub fn locate(pid: u32) -> Option<Located> {
     {
         located.host = host;
     }
+    // kitty is reached by the window its remote control names.
+    if located.host
+        == (Host::App {
+            name: "kitty".into(),
+        })
+        && let Some(host) = kitty_host(&process::environment_values(
+            pid,
+            &[kitty::WINDOW, kitty::LISTEN],
+        ))
+    {
+        located.host = host;
+    }
+    // A pane of tmux wins over the terminal around it: tmux is where the keys go.
+    #[cfg(unix)]
+    if let Some(host) = tmux_host(&process::environment_values(pid, &[tmux::TMUX, tmux::PANE])) {
+        located.host = host;
+    }
     Some(located)
+}
+
+/// A tmux pane, when the session's own environment names one.
+#[cfg_attr(windows, allow(dead_code))]
+pub fn tmux_host(environment: &std::collections::HashMap<String, String>) -> Option<Host> {
+    let socket = tmux::socket_of(environment.get(tmux::TMUX)?)?;
+    let pane = environment.get(tmux::PANE)?.trim();
+    pane.strip_prefix('%')?.parse::<u32>().ok()?;
+    Some(Host::Tmux {
+        socket,
+        pane: pane.to_owned(),
+    })
+}
+
+/// A kitty window, when remote control is on and the environment names it.
+pub fn kitty_host(environment: &std::collections::HashMap<String, String>) -> Option<Host> {
+    let window = environment.get(kitty::WINDOW)?.trim().parse().ok()?;
+    let listen = environment
+        .get(kitty::LISTEN)
+        .map(|l| l.trim())
+        .filter(|l| !l.is_empty())?;
+    Some(Host::Kitty {
+        window,
+        listen: listen.to_owned(),
+    })
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -221,6 +303,12 @@ pub fn deliver(
             socket,
         } => wezterm::send(*gui_pid, *pane, socket, text, images)
             .map_err(|_| DeliveryError::Unreachable),
+        Host::Tmux { socket, pane } => {
+            tmux::send(socket, pane, text, images).map_err(|_| DeliveryError::Unreachable)
+        }
+        Host::Kitty { window, listen } => {
+            kitty::send(listen, *window, text, images).map_err(|_| DeliveryError::Unreachable)
+        }
         _ => Err(DeliveryError::Unreachable),
     }
 }
@@ -243,6 +331,24 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
             socket,
         } => {
             let _ = wezterm::focus(*gui_pid, *pane, socket);
+            platform_raise_host(&located.ancestors, cwd)
+        }
+        Host::Tmux { socket, pane } => {
+            let mut pids = tmux::focus(socket, pane);
+            // The terminal around each attached client, nearest first.
+            let clients = pids.clone();
+            for client in clients {
+                pids.extend(
+                    process::ancestors(client)
+                        .into_iter()
+                        .flatten()
+                        .map(|entry| entry.pid),
+                );
+            }
+            !pids.is_empty() && platform_raise_host(&pids, cwd)
+        }
+        Host::Kitty { window, listen } => {
+            let _ = kitty::focus(listen, *window);
             platform_raise_host(&located.ancestors, cwd)
         }
         // A terminal the island can't type into still comes forward.
@@ -486,7 +592,12 @@ fn console_focus(_pid: u32) -> bool {
     false
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn platform_raise_host(pids: &[u32], cwd: &str) -> bool {
+    x11::raise(pids, cwd)
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn platform_raise_host(_pids: &[u32], _cwd: &str) -> bool {
     false
 }
@@ -769,10 +880,41 @@ mod tests {
     }
 
     #[test]
+    #[cfg(not(target_os = "linux"))]
     fn a_shell_from_explorer_is_a_console_window() {
         let l = classify(&chain(&["claude.exe", "cmd.exe", "explorer.exe"]));
         assert_eq!(l.host, Host::Conhost);
         assert!(l.host.accepts_replies());
         assert_eq!(classify(&chain(&["claude.exe"])).host, Host::Unknown);
+    }
+
+    #[test]
+    fn linux_program_names_are_recognized() {
+        let l = classify(&chain(&["claude", "bash", "kitty", "systemd"]));
+        assert_eq!(
+            l.host,
+            Host::App {
+                name: "kitty".into()
+            }
+        );
+        assert!(!l.host.accepts_replies());
+        let l = classify(&chain(&["claude", "zsh", "code", "systemd"]));
+        assert_eq!(
+            l.host,
+            Host::Vscode {
+                ide: "vscode".into(),
+                ide_pid: 102
+            }
+        );
+        let l = classify(&chain(&["claude", "bash", "gnome-terminal-server"]));
+        assert_eq!(l.host.display_name().as_deref(), Some("GNOME Terminal"));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn a_session_in_an_unknown_terminal_is_not_a_console_window() {
+        let l = classify(&chain(&["claude", "bash", "someterm"]));
+        assert_eq!(l.host, Host::Unknown);
+        assert!(!l.host.accepts_replies());
     }
 }

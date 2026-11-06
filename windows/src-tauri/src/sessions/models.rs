@@ -163,6 +163,10 @@ pub enum HostKind {
     Conhost,
     /// A WezTerm pane, reached through WezTerm's command line.
     Wezterm,
+    /// A tmux pane, reached through tmux's command line.
+    Tmux,
+    /// A kitty window with remote control on.
+    Kitty,
     App,
     /// No terminal at all: a whole session running in the background.
     Background,
