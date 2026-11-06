@@ -197,7 +197,9 @@ impl CodexClient {
             .spawn(move || {
                 loop {
                     if let Some(path) = socket_path().filter(|p| p.exists()) {
-                        let _ = session(&path, &shared, &*changed);
+                        if let Err(error) = session(&path, &shared, &*changed) {
+                            eprintln!("Codex session disconnected: {error}");
+                        }
                         shared.lock().unwrap().reset();
                         changed();
                     }

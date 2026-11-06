@@ -364,7 +364,25 @@ impl State {
                 ..Default::default()
             });
         entry.described = true;
-        if let Some(cwd) = str_at(thread, "cwd") {
+        // Codex 0.167 moved the working folder into an environment entry.
+        // Without it the snapshot drops the thread as having no project.
+        let cwd = str_at(thread, "cwd").or_else(|| {
+            thread
+                .get("environments")
+                .and_then(Value::as_array)
+                .and_then(|environments| {
+                    environments
+                        .iter()
+                        .find(|environment| str_at(environment, "environmentId") == Some("local"))
+                        .and_then(|environment| str_at(environment, "cwd"))
+                        .or_else(|| {
+                            environments
+                                .iter()
+                                .find_map(|environment| str_at(environment, "cwd"))
+                        })
+                })
+        });
+        if let Some(cwd) = cwd {
             entry.cwd = cwd.to_string();
         }
         entry.name = str_at(thread, "name")
@@ -1213,6 +1231,25 @@ mod tests {
             "gitInfo": {"branch": "feat/x"}, "createdAt": 100, "updatedAt": 200, "status": {"type": "idle"}
         }));
         state
+    }
+
+    #[test]
+    fn codex_0167_environment_folder_keeps_a_working_session_visible() {
+        let mut state = State::default();
+        state.upsert_thread(&json!({
+            "id": "t1",
+            "environments": [
+                {"environmentId": "remote", "cwd": "C:\\other"},
+                {"environmentId": "local", "cwd": "C:\\work\\project"}
+            ],
+            "status": {"type": "active", "activeFlags": []},
+            "createdAt": 100,
+            "updatedAt": 200
+        }));
+        let (sessions, _) = state.snapshot(300.0, ContentPolicy { previews: false });
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(state.threads["t1"].cwd, "C:\\work\\project");
+        assert_eq!(sessions[0].phase, SessionPhase::Generating);
     }
 
     /// As Codex 0.164 sent them on 2026-11-02: the item a millisecond before
