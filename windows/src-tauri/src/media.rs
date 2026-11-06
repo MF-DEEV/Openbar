@@ -152,7 +152,7 @@ pub use player::open_player;
 #[path = "linux/media.rs"]
 mod imp;
 #[cfg(target_os = "linux")]
-pub use imp::{command, open_player, probe, seek, set_shuffle, start};
+pub use imp::{command, offer, open_player, probe, seek, set_shuffle, start};
 
 #[cfg(not(any(windows, target_os = "linux")))]
 pub fn probe() -> String {

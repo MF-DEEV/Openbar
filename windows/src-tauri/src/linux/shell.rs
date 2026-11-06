@@ -126,7 +126,14 @@ fn render(path: &str, width: u32, height: u32, icon_only: bool) -> Option<Vec<u8
 
 pub fn image(path: &str, width: u32, height: u32, icon_only: bool) -> Option<Vec<u8>> {
     let path = path.to_string();
-    on_main(move || render(&path, width, height, icon_only)).flatten()
+    on_main(move || {
+        // Without GTK (no display) there are no icons, and nothing to panic over.
+        if !gtk::is_initialized_main_thread() {
+            return None;
+        }
+        render(&path, width, height, icon_only)
+    })
+    .flatten()
 }
 
 /// The program a command line starts, past an `env` and the variables it sets
