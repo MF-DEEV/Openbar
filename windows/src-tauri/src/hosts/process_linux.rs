@@ -140,6 +140,106 @@ pub fn is_running(pid: u32) -> bool {
     stat(pid).is_some_and(|(state, _, _)| state != 'Z' && state != 'X')
 }
 
+/// The pseudo-terminal the process is attached to (`/dev/pts/12`), None without one.
+pub fn terminal_of(pid: u32) -> Option<String> {
+    device_path(terminal_number(
+        &std::fs::read_to_string(proc(pid, "stat")).ok()?,
+    )?)
+}
+
+/// The terminal's device number, the fifth field after the name in `stat` (0 is none).
+fn terminal_number(text: &str) -> Option<u32> {
+    let rest = &text[text.rfind(')')? + 1..];
+    let number: u32 = rest.split_whitespace().nth(4)?.parse().ok()?;
+    (number != 0).then_some(number)
+}
+
+/// A pseudo-terminal's path from its device number: majors 136 to 143 are `/dev/pts`.
+fn device_path(number: u32) -> Option<String> {
+    let major = (number >> 8) & 0xfff;
+    let minor = (number & 0xff) | ((number >> 12) & 0xfff00);
+    (136..=143)
+        .contains(&major)
+        .then(|| format!("/dev/pts/{}", (major - 136) * 256 + minor))
+}
+
+/// A `sleep` on a pseudo-terminal of its own, with `environment` added, for tests.
+#[cfg(test)]
+pub(super) struct OnTerminal {
+    pub child: std::process::Child,
+    pub device: String,
+    _master: std::os::fd::OwnedFd,
+}
+
+#[cfg(test)]
+impl OnTerminal {
+    /// None where the system has no pseudo-terminals to give.
+    pub(super) fn start(environment: &[(&str, &str)]) -> Option<OnTerminal> {
+        use std::os::fd::{AsRawFd, FromRawFd, OwnedFd};
+        use std::os::unix::process::CommandExt;
+        use std::process::{Command, Stdio};
+        let master = unsafe { libc::posix_openpt(libc::O_RDWR | libc::O_NOCTTY) };
+        if master < 0 {
+            return None;
+        }
+        let master = unsafe { OwnedFd::from_raw_fd(master) };
+        let mut path = [0 as libc::c_char; 128];
+        let named = unsafe {
+            libc::grantpt(master.as_raw_fd()) == 0
+                && libc::unlockpt(master.as_raw_fd()) == 0
+                && libc::ptsname_r(master.as_raw_fd(), path.as_mut_ptr(), path.len()) == 0
+        };
+        if !named {
+            return None;
+        }
+        let device = unsafe { std::ffi::CStr::from_ptr(path.as_ptr()) }
+            .to_string_lossy()
+            .into_owned();
+        let slave = unsafe { libc::open(path.as_ptr(), libc::O_RDWR | libc::O_NOCTTY) };
+        if slave < 0 {
+            return None;
+        }
+        let slave = unsafe { OwnedFd::from_raw_fd(slave) };
+        let mut command = Command::new("sleep");
+        command
+            .arg("30")
+            .envs(environment.iter().copied())
+            .stdin(Stdio::from(slave))
+            .stdout(Stdio::null());
+        // Its own session, with the pseudo-terminal on stdin as the terminal.
+        unsafe {
+            command.pre_exec(|| {
+                libc::setsid();
+                libc::ioctl(0, libc::TIOCSCTTY as _, 0);
+                Ok(())
+            });
+        }
+        let child = command.spawn().ok()?;
+        // Until exec has finished /proc shows the program that forked it.
+        for _ in 0..1000 {
+            let ready = comm(child.id()).as_deref() == Some("sleep")
+                && std::fs::read(proc(child.id(), "environ")).is_ok();
+            if ready {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(5));
+        }
+        Some(OnTerminal {
+            child,
+            device,
+            _master: master,
+        })
+    }
+}
+
+#[cfg(test)]
+impl Drop for OnTerminal {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -238,6 +338,34 @@ mod tests {
             }
         );
         assert_eq!(chain[1].pid, std::process::id());
+    }
+
+    #[test]
+    fn a_device_number_names_its_pseudo_terminal() {
+        assert_eq!(device_path((136 << 8) | 12).as_deref(), Some("/dev/pts/12"));
+        assert_eq!(device_path((137 << 8) | 1).as_deref(), Some("/dev/pts/257"));
+        // A virtual console is not a pane.
+        assert_eq!(device_path((4 << 8) | 1), None);
+    }
+
+    #[test]
+    fn the_terminal_number_is_read_from_stat() {
+        let line = "42 (a (b) c) S 7 42 42 34828 42 4194560 100 0 0 0 1 2 0 0 20 0 1 0 9000";
+        assert_eq!(terminal_number(line), Some(34828));
+        assert_eq!(terminal_number("42 (a) S 7 42 42 0 -1 4194560"), None);
+        assert_eq!(terminal_number("42 (a) S 7"), None);
+    }
+
+    #[test]
+    fn a_process_names_the_pseudo_terminal_it_runs_on() {
+        let Some(session) = OnTerminal::start(&[]) else {
+            eprintln!("no pseudo-terminals here");
+            return;
+        };
+        assert_eq!(
+            terminal_of(session.child.id()).as_deref(),
+            Some(session.device.as_str())
+        );
     }
 
     #[test]

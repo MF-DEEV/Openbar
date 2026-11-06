@@ -22,8 +22,14 @@ pub struct Metadata {
 #[cfg(target_os = "linux")]
 pub use super::process_linux::{
     ancestors, environment_values, epoch_of_ticks, image_path, is_running, metadata, pids_named,
-    started_at,
+    started_at, terminal_of,
 };
+
+/// The terminal device the process is attached to; only Linux says.
+#[cfg(not(target_os = "linux"))]
+pub fn terminal_of(_pid: u32) -> Option<String> {
+    None
+}
 
 #[cfg(windows)]
 pub fn metadata(pid: u32) -> Option<Metadata> {

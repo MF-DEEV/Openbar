@@ -220,6 +220,11 @@ fn is_shell_root(name: &str) -> bool {
 
 /// Finds the host of claude process `pid` (None when it is gone).
 pub fn locate(pid: u32) -> Option<Located> {
+    locate_with(pid, "tmux", "kitten")
+}
+
+/// `locate` with the command lines of tmux and kitty named, for tests.
+fn locate_with(pid: u32, tmux_program: &str, kitten_program: &str) -> Option<Located> {
     let chain = process::ancestors(pid)?;
     let mut located = classify(&chain);
     // WezTerm is reached by the pane the session's environment names.
@@ -235,24 +240,59 @@ pub fn locate(pid: u32) -> Option<Located> {
     {
         located.host = host;
     }
-    // kitty is reached by the window its remote control names.
+    // kitty is reached by the window its remote control names, once it lists the session.
+    let window = process::environment_values(pid, &[kitty::WINDOW, kitty::LISTEN]);
+    if let Some(host) = kitty_in(&located, pid, &window, kitten_program) {
+        located.host = host;
+    }
+    // A pane of tmux wins over the terminal around it, once it is on the session's terminal.
+    #[cfg(unix)]
+    if let Some(host) = tmux_in(
+        process::terminal_of(pid).as_deref(),
+        &process::environment_values(pid, &[tmux::TMUX, tmux::PANE]),
+        tmux_program,
+    ) {
+        located.host = host;
+    }
+    #[cfg(not(unix))]
+    let _ = tmux_program;
+    Some(located)
+}
+
+/// The kitty window the session's environment names, once kitty lists the session in it.
+fn kitty_in(
+    located: &Located,
+    pid: u32,
+    environment: &std::collections::HashMap<String, String>,
+    program: &str,
+) -> Option<Host> {
     if located.host
-        == (Host::App {
+        != (Host::App {
             name: "kitty".into(),
         })
-        && let Some(host) = kitty_host(&process::environment_values(
-            pid,
-            &[kitty::WINDOW, kitty::LISTEN],
-        ))
     {
-        located.host = host;
+        return None;
     }
-    // A pane of tmux wins over the terminal around it: tmux is where the keys go.
-    #[cfg(unix)]
-    if let Some(host) = tmux_host(&process::environment_values(pid, &[tmux::TMUX, tmux::PANE])) {
-        located.host = host;
-    }
-    Some(located)
+    let host = kitty_host(environment)?;
+    let Host::Kitty { window, listen } = &host else {
+        return None;
+    };
+    kitty::holds_with(program, listen, *window, pid).then_some(host)
+}
+
+/// The tmux pane the session's environment names, once it is on the session's own terminal:
+/// an editor opened from a pane keeps `TMUX` and `TMUX_PANE` too.
+#[cfg(unix)]
+fn tmux_in(
+    terminal: Option<&str>,
+    environment: &std::collections::HashMap<String, String>,
+    program: &str,
+) -> Option<Host> {
+    let host = tmux_host(environment)?;
+    let Host::Tmux { socket, pane } = &host else {
+        return None;
+    };
+    tmux::holds_with(program, socket, pane, terminal).then_some(host)
 }
 
 /// A tmux pane, when the session's own environment names one.
@@ -303,11 +343,16 @@ pub fn deliver(
             socket,
         } => wezterm::send(*gui_pid, *pane, socket, text, images)
             .map_err(|_| DeliveryError::Unreachable),
-        Host::Tmux { socket, pane } => {
-            tmux::send(socket, pane, text, images).map_err(|_| DeliveryError::Unreachable)
-        }
+        Host::Tmux { socket, pane } => tmux::send(
+            socket,
+            pane,
+            process::terminal_of(pid).as_deref(),
+            text,
+            images,
+        )
+        .map_err(|_| DeliveryError::Unreachable),
         Host::Kitty { window, listen } => {
-            kitty::send(listen, *window, text, images).map_err(|_| DeliveryError::Unreachable)
+            kitty::send(listen, *window, pid, text, images).map_err(|_| DeliveryError::Unreachable)
         }
         _ => Err(DeliveryError::Unreachable),
     }
@@ -334,7 +379,7 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
             platform_raise_host(&located.ancestors, cwd)
         }
         Host::Tmux { socket, pane } => {
-            let mut pids = tmux::focus(socket, pane);
+            let mut pids = tmux::focus(socket, pane, process::terminal_of(pid).as_deref());
             // The terminal around each attached client, nearest first.
             let clients = pids.clone();
             for client in clients {
@@ -348,7 +393,7 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
             !pids.is_empty() && platform_raise_host(&pids, cwd)
         }
         Host::Kitty { window, listen } => {
-            let _ = kitty::focus(listen, *window);
+            let _ = kitty::focus(listen, *window, pid);
             platform_raise_host(&located.ancestors, cwd)
         }
         // A terminal the island can't type into still comes forward.
@@ -916,5 +961,106 @@ mod tests {
         let l = classify(&chain(&["claude", "bash", "someterm"]));
         assert_eq!(l.host, Host::Unknown);
         assert!(!l.host.accepts_replies());
+    }
+
+    /// A command line of a terminal in a folder of its own: its directory and path.
+    #[cfg(unix)]
+    fn scripted(name: &str, program: &str, body: &str) -> (std::path::PathBuf, String) {
+        let dir = std::env::temp_dir().join(format!("openbar-host-{name}-{}", std::process::id()));
+        let path = command::fake_program(&dir, program, body);
+        (dir, path.display().to_string())
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_tmux_pane_counts_only_on_the_sessions_own_terminal() {
+        let body = "case \"$*\" in *pane_tty*) echo /dev/pts/7;; *) exit 1;; esac\n";
+        let (dir, program) = scripted("pane", "tmux", body);
+        let mut environment = std::collections::HashMap::new();
+        environment.insert(
+            tmux::TMUX.to_owned(),
+            "/tmp/tmux-1000/default,1234,0".to_owned(),
+        );
+        environment.insert(tmux::PANE.to_owned(), "%3".to_owned());
+        let pane = Host::Tmux {
+            socket: "/tmp/tmux-1000/default".into(),
+            pane: "%3".into(),
+        };
+        assert_eq!(
+            tmux_in(Some("/dev/pts/7"), &environment, &program),
+            Some(pane)
+        );
+        // An editor opened from the pane has the variables, not the pane's terminal.
+        assert_eq!(tmux_in(Some("/dev/pts/9"), &environment, &program), None);
+        assert_eq!(tmux_in(None, &environment, &program), None);
+        let empty = std::collections::HashMap::new();
+        assert_eq!(tmux_in(Some("/dev/pts/7"), &empty, &program), None);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    #[cfg(unix)]
+    fn a_kitty_window_counts_only_when_it_lists_the_session() {
+        let body = r#"case "$*" in *' ls '*) echo '[{"tabs":[{"windows":[{"id":3,"pid":500,"foreground_processes":[{"pid":501}]}]}]}]';; *) exit 1;; esac
+"#;
+        let (dir, program) = scripted("window", "kitten", body);
+        let in_kitty = Located {
+            host: Host::App {
+                name: "kitty".into(),
+            },
+            ancestors: Vec::new(),
+        };
+        let mut environment = std::collections::HashMap::new();
+        environment.insert(kitty::WINDOW.to_owned(), "3".to_owned());
+        environment.insert(kitty::LISTEN.to_owned(), "unix:/tmp/k".to_owned());
+        let window = Host::Kitty {
+            window: 3,
+            listen: "unix:/tmp/k".into(),
+        };
+        assert_eq!(
+            kitty_in(&in_kitty, 501, &environment, &program),
+            Some(window)
+        );
+        // Another kitty can have a window with the same id.
+        assert_eq!(kitty_in(&in_kitty, 777, &environment, &program), None);
+        // A session that is not under a kitty at all got the variables from a parent shell.
+        let elsewhere = Located {
+            host: Host::Unknown,
+            ancestors: Vec::new(),
+        };
+        assert_eq!(kitty_in(&elsewhere, 501, &environment, &program), None);
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn a_session_in_a_pane_is_found_by_the_terminal_it_runs_on() {
+        let Some(session) = process_linux::OnTerminal::start(&[
+            (tmux::TMUX, "/tmp/openbar-no-such-socket,1,0"),
+            (tmux::PANE, "%3"),
+        ]) else {
+            eprintln!("no pseudo-terminals here");
+            return;
+        };
+        let own = format!(
+            "case \"$*\" in *pane_tty*) echo {};; *) exit 1;; esac\n",
+            session.device
+        );
+        let (dir, program) = scripted("own", "tmux", &own);
+        let found = locate_with(session.child.id(), &program, "kitten").unwrap();
+        assert_eq!(
+            found.host,
+            Host::Tmux {
+                socket: "/tmp/openbar-no-such-socket".into(),
+                pane: "%3".into()
+            }
+        );
+        // The same variables on another terminal: an editor opened from the pane.
+        let body = "case \"$*\" in *pane_tty*) echo /dev/pts/99999;; *) exit 1;; esac\n";
+        let (other_dir, other) = scripted("elsewhere", "tmux", body);
+        let found = locate_with(session.child.id(), &other, "kitten").unwrap();
+        assert!(!matches!(found.host, Host::Tmux { .. }));
+        let _ = std::fs::remove_dir_all(dir);
+        let _ = std::fs::remove_dir_all(other_dir);
     }
 }

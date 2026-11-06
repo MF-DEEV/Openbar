@@ -4,7 +4,9 @@
 //! A session inside tmux: tmux puts the server's socket and the pane id in
 //! the environment of everything started in a pane, and its command line
 //! pastes into that pane. The terminal window showing it is found through the
-//! tmux clients attached to the session.
+//! tmux clients attached to the session. The pane has to be on the session's
+//! own terminal before anything is typed: an editor or a terminal started from
+//! a pane keeps the variables too.
 
 use super::command::run;
 use super::wezterm::Step;
@@ -33,30 +35,40 @@ fn tmux_with(
     run(program, &[], &command, input)
 }
 
-/// Whether the server still has the pane.
-fn exists(program: &str, socket: &str, pane: &str) -> bool {
+/// The pane still runs the session: it is on `terminal`, the session's device (a pane id comes back on another pane after a server restart).
+pub(super) fn holds_with(program: &str, socket: &str, pane: &str, terminal: Option<&str>) -> bool {
+    let Some(terminal) = terminal else {
+        return false;
+    };
     tmux_with(
         program,
         socket,
-        &["display-message", "-p", "-t", pane, "#{pane_id}"],
+        &["display-message", "-p", "-t", pane, "#{pane_tty}"],
         None,
     )
-    .is_some_and(|id| id.trim() == pane)
+    .is_some_and(|device| device.trim() == terminal)
 }
 
-/// Types the reply into the pane. Err when tmux or the pane is gone.
-pub fn send(socket: &str, pane: &str, text: &str, images: &[String]) -> Result<(), ()> {
-    send_with("tmux", socket, pane, text, images)
+/// Types the reply into the pane. Err when tmux or the pane is gone, or the pane is not on `terminal`.
+pub fn send(
+    socket: &str,
+    pane: &str,
+    terminal: Option<&str>,
+    text: &str,
+    images: &[String],
+) -> Result<(), ()> {
+    send_with("tmux", socket, pane, terminal, text, images)
 }
 
 fn send_with(
     program: &str,
     socket: &str,
     pane: &str,
+    terminal: Option<&str>,
     text: &str,
     images: &[String],
 ) -> Result<(), ()> {
-    if !exists(program, socket, pane) {
+    if !holds_with(program, socket, pane, terminal) {
         return Err(());
     }
     for step in super::wezterm::steps(text, images) {
@@ -89,12 +101,12 @@ fn send_with(
 
 /// Shows the pane's window and pane inside tmux; the pids of the attached
 /// clients, whose terminal window the caller raises.
-pub fn focus(socket: &str, pane: &str) -> Vec<u32> {
-    focus_with("tmux", socket, pane)
+pub fn focus(socket: &str, pane: &str, terminal: Option<&str>) -> Vec<u32> {
+    focus_with("tmux", socket, pane, terminal)
 }
 
-fn focus_with(program: &str, socket: &str, pane: &str) -> Vec<u32> {
-    if !exists(program, socket, pane) {
+fn focus_with(program: &str, socket: &str, pane: &str, terminal: Option<&str>) -> Vec<u32> {
+    if !holds_with(program, socket, pane, terminal) {
         return Vec::new();
     }
     let _ = tmux_with(program, socket, &["select-window", "-t", pane], None);
@@ -124,7 +136,10 @@ mod tests {
         assert_eq!(socket_of(",1,0"), None);
     }
 
-    /// A `tmux` that records its arguments and stdin, and knows pane %3.
+    /// The device of pane %3 in the fake `tmux`.
+    const DEVICE: &str = "/dev/pts/7";
+
+    /// A `tmux` that records its arguments and stdin, and knows pane %3 on `DEVICE`.
     struct Fake(PathBuf);
 
     impl Fake {
@@ -136,7 +151,7 @@ mod tests {
                 &dir,
                 "tmux",
                 &format!(
-                    "echo \"$*\" >> {log}\ncase \"$*\" in\n*display-message*) echo %3;;\n*load-buffer*) echo \"stdin:$(cat)\" >> {log};;\n*list-clients*) printf '41\\n42\\n';;\nesac\n",
+                    "echo \"$*\" >> {log}\ncase \"$*\" in\n*'-t %3 #{{pane_tty}}'*) echo {DEVICE};;\n*display-message*) exit 1;;\n*load-buffer*) echo \"stdin:$(cat)\" >> {log};;\n*list-clients*) printf '41\\n42\\n';;\nesac\n",
                     log = log.display()
                 ),
             );
@@ -161,10 +176,18 @@ mod tests {
     #[test]
     fn a_reply_is_loaded_pasted_and_returned() {
         let fake = Fake::new("send");
-        send_with(&fake.program(), "/s", "%3", "hello\nthere", &[]).unwrap();
+        send_with(
+            &fake.program(),
+            "/s",
+            "%3",
+            Some(DEVICE),
+            "hello\nthere",
+            &[],
+        )
+        .unwrap();
         let log = fake.log();
         let lines: Vec<_> = log.lines().collect();
-        assert_eq!(lines[0], "-S /s display-message -p -t %3 #{pane_id}");
+        assert_eq!(lines[0], "-S /s display-message -p -t %3 #{pane_tty}");
         assert_eq!(lines[1], "-S /s load-buffer -b openbar -");
         assert_eq!(lines[2], "stdin:hello");
         assert_eq!(lines[3], "there");
@@ -175,16 +198,30 @@ mod tests {
     #[test]
     fn a_pane_that_is_gone_is_not_typed_into() {
         let fake = Fake::new("gone");
-        assert!(send_with(&fake.program(), "/s", "%9", "x", &[]).is_err());
+        assert!(send_with(&fake.program(), "/s", "%9", Some(DEVICE), "x", &[]).is_err());
         assert!(!fake.log().contains("load-buffer"));
+    }
+
+    #[test]
+    fn a_pane_on_another_terminal_is_not_typed_into() {
+        // An editor started from a pane keeps TMUX_PANE, but not the pane's terminal.
+        let fake = Fake::new("other");
+        assert!(send_with(&fake.program(), "/s", "%3", Some("/dev/pts/9"), "x", &[]).is_err());
+        assert!(send_with(&fake.program(), "/s", "%3", None, "x", &[]).is_err());
+        assert!(!fake.log().contains("load-buffer") && !fake.log().contains("send-keys"));
+        assert!(focus_with(&fake.program(), "/s", "%3", Some("/dev/pts/9")).is_empty());
+        assert!(!fake.log().contains("select-"));
     }
 
     #[test]
     fn focus_selects_the_pane_and_names_the_clients() {
         let fake = Fake::new("focus");
-        assert_eq!(focus_with(&fake.program(), "/s", "%3"), vec![41, 42]);
+        assert_eq!(
+            focus_with(&fake.program(), "/s", "%3", Some(DEVICE)),
+            vec![41, 42]
+        );
         let log = fake.log();
         assert!(log.contains("select-window -t %3") && log.contains("select-pane -t %3"));
-        assert!(focus_with(&fake.program(), "/s", "%9").is_empty());
+        assert!(focus_with(&fake.program(), "/s", "%9", Some(DEVICE)).is_empty());
     }
 }
