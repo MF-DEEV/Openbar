@@ -62,6 +62,8 @@ pub fn chime_wav() -> &'static [u8] {
 }
 
 pub fn play_once() {
+    #[cfg(target_os = "linux")]
+    crate::linux::sound::play(chime_wav());
     #[cfg(windows)]
     unsafe {
         use windows::Win32::Media::Audio::{PlaySoundA, SND_ASYNC, SND_MEMORY, SND_NODEFAULT};
