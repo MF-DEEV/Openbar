@@ -267,6 +267,7 @@
   "notchClaudeSessions.title": "세션",
   "notchClaudeSessions.emptyTitle": "실행 중인 세션 없음",
   "windows.sessions.emptyDetail": "Windows Terminal 또는 VS Code에서 Claude Code 또는 Codex를 시작하면 여기에 표시됩니다.",
+  "windows.sessions.emptyDetailLinux": "터미널 또는 편집기에서 Claude Code 또는 Codex를 시작하면 여기에 표시됩니다.",
   "notchClaudeSessions.runningTool": "실행 중",
   "notchClaudeSessions.permissionNotice": "권한 필요",
   "notchClaudeSessions.waitingInput": "당신이 필요합니다",

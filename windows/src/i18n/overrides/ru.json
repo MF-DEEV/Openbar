@@ -267,6 +267,7 @@
   "notchClaudeSessions.title": "Сессии",
   "notchClaudeSessions.emptyTitle": "Сессии не запущены",
   "windows.sessions.emptyDetail": "Запустите Claude Code или Codex в Windows Terminal или VS Code, и оно появится здесь.",
+  "windows.sessions.emptyDetailLinux": "Запустите Claude Code или Codex в терминале или редакторе, и оно появится здесь.",
   "notchClaudeSessions.runningTool": "Выполняется",
   "notchClaudeSessions.permissionNotice": "Требуется разрешение",
   "notchClaudeSessions.waitingInput": "Нуждается в вас",
