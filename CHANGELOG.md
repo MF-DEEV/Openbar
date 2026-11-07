@@ -6,7 +6,26 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.5.0-beta.2] - 2026-11-07
+
+### Summary
+Openbar under its own name, with Claude Code sessions on machines you reach over SSH, plans approved into auto mode or manual, and every New session in its own git worktree.
+
+### Added
+- Sessions on remote hosts: Claude Code sessions on a machine you reach over SSH show up in Dynamic Island with the host's name on them. Allow or deny their permission requests from the island, and reply to the ones running inside tmux. Openbar uses your own ssh config, keys and agent and never asks for a password. Set up adds the hooks to the host's Claude Code settings after asking, and Remove from host puts the file back as it was. Off until you turn it on. On Mac and Windows. Settings → Dynamic Island → Content → Sessions → Remote hosts.
+- A plan's card offers the same choices as Claude Code's own dialog: Keep planning, Manual, and Auto mode (or Accept edits, or Bypass for a session started with it), so a session in auto mode stays in it after a plan. On Mac and Windows.
+- Sessions started from New session run in their own git worktree by default, so agents working on one repo don't change each other's files. The Own worktree switch is remembered for each agent, and you can name the worktree. On Mac and Windows.
+
+### Fixed
+- Plan limits read the Claude account of the session that changed last, so a session started with `CLAUDE_CONFIG_DIR` shows its own limits. On Mac and Windows.
+- With many sessions at work, the counts beside the camera no longer slide under the notch.
+- Switches, sliders and pickers no longer blink or dim when you switch tabs in the menu bar panel.
+- After moving over from Vorssaint, Openbar asks for Accessibility and Screen Recording once, since macOS sees a new app.
+- Windows: Codex 0.167 sessions show up in the island again.
+
 ### Changed
+- Voice replies are on by default, so the microphone shows in a session's reply field. Anyone who turned them off keeps them off. On Mac and Windows.
+- Windows: the timer ruler follows the pointer and eases into the minute you let go on, and long menus get a slim scrollbar. Surprise me shows inside the wardrobe only.
 - The app is now Openbar everywhere: its name, menu bar, Settings, notifications and installers, on Mac and Windows. It has its own bundle ID (com.openbar.app on Mac, com.openbar.island on Windows) and signing identity, so it can no longer be mistaken for Vorssaint, the project it is built on.
 - Moving from a build that still ran as Vorssaint: your settings, saved data and the hooks for Claude Code, Gemini CLI, Copilot CLI, OpenCode and Cursor come along by themselves. On Mac, macOS sees a new app, so grant Accessibility, Screen Recording and the other permissions again, then delete the old Vorssaint app. On Windows, the installer removes the old app for you.
 - Report a bug and Suggest a feature open a GitHub issue form for Openbar, with your app and macOS versions filled in.
@@ -15,7 +34,7 @@ All notable changes to this project are documented here. The format follows
 
 ### Removed
 - Temporary links for screenshots and recordings are hidden until Openbar runs its own server. They went through Vorssaint's.
-- The Buy Me a Coffee and Discord buttons, which led to Vorssaint's pages. Follow on X now opens @Openbar99.
+- The Buy Me a Coffee and Discord buttons, which led to Vorssaint's pages. Follow on X now opens @_Openbar_.
 
 ## [3.5.0-beta.1] - 2026-11-03
 

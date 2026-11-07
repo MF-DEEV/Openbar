@@ -14,7 +14,7 @@ enum AppInfo {
     /// buttons that would open them stay hidden while these are nil.
     static let coffeeURL: URL? = nil
     static let discordURL: URL? = nil
-    static let socialURL = URL(string: "https://x.com/Openbar99")!
+    static let socialURL = URL(string: "https://x.com/_Openbar_")!
 
     /// The bundle version. The fallback only applies to the bare binary
     /// (e.g. `--selftest`), never the shipped app, which reads its Info.plist.

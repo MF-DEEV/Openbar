@@ -1,6 +1,6 @@
 [package]
 name = "openbar-windows"
-version = "0.2.0"
+version = "0.3.0"
 description = "Openbar Dynamic Island for Windows"
 authors = ["Openbar"]
 license = "GPL-3.0-or-later"
