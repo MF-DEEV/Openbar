@@ -267,6 +267,7 @@
   "notchClaudeSessions.title": "セッション",
   "notchClaudeSessions.emptyTitle": "実行中のセッションはありません",
   "windows.sessions.emptyDetail": "Windows TerminalまたはVS CodeでClaude CodeまたはCodexを開始すると、ここに表示されます。",
+  "windows.sessions.emptyDetailLinux": "ターミナルまたはエディタでClaude CodeまたはCodexを開始すると、ここに表示されます。",
   "notchClaudeSessions.runningTool": "実行中",
   "notchClaudeSessions.permissionNotice": "許可が必要です",
   "notchClaudeSessions.waitingInput": "があなたを必要としています",

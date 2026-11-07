@@ -267,6 +267,7 @@
   "notchClaudeSessions.title": "會話",
   "notchClaudeSessions.emptyTitle": "沒有正在運行的會話",
   "windows.sessions.emptyDetail": "在 Windows Terminal 或 VS Code 中啟動 Claude Code 或 Codex，它會顯示在這裡。",
+  "windows.sessions.emptyDetailLinux": "在終端機或編輯器中啟動 Claude Code 或 Codex，它會顯示在這裡。",
   "notchClaudeSessions.runningTool": "運行中",
   "notchClaudeSessions.permissionNotice": "需要權限",
   "notchClaudeSessions.waitingInput": "需要你",

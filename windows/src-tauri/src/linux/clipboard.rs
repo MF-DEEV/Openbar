@@ -10,13 +10,14 @@
 //! (`text/uri-list`), text, then a picture. A copy a program marks as secret
 //! (the `x-kde-passwordManagerHint` KeePassXC and others set) is left out.
 //! The app a copy came from is the program that owns the clipboard, else the
-//! one in front. Paste types Ctrl+V (Ctrl+Shift+V in a terminal) into the
-//! window in front through the X server's test extension.
+//! one in front. Paste brings the window the island took the keyboard from
+//! forward and types Ctrl+V (Ctrl+Shift+V in a terminal) into it through the
+//! X server's test extension.
 
 use std::ffi::CString;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::mpsc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use gtk::gdk::{self, Atom};
 use gtk::gdk_pixbuf::Pixbuf;
@@ -32,9 +33,12 @@ use x11rb::rust_connection::RustConnection;
 
 use super::history::{Content, MAX_FILES, MAX_IMAGE_BYTES};
 use crate::linux::gtk_main::on_main;
+use crate::linux::x11;
 
 /// How long a read waits for the program that owns the clipboard to answer.
 const ANSWER: Duration = Duration::from_secs(4);
+/// Between the keys of a shortcut: sent in one burst, a busy terminal loses the paste.
+const KEY_GAP: Duration = Duration::from_millis(10);
 const MAX_TEXT_BYTES: usize = 8 * 1024 * 1024;
 
 /// What KDE's password managers (KeePassXC, Bitwarden) put on a secret copy.
@@ -388,25 +392,29 @@ pub fn listen(on_update: impl Fn(Update) + Send + Sync + 'static) {
 
 // MARK: Pasting
 
-/// The window in front, which a paste goes to: not one of ours.
-pub fn paste_target(_island_previous: isize) -> Option<isize> {
+/// Where a paste goes: the window the island took the keyboard from, else the
+/// one in front. Never one of Openbar's own windows.
+pub fn paste_target(island_previous: isize) -> Option<isize> {
     let (connection, screen) = RustConnection::connect(None).ok()?;
     let root = connection.setup().roots.get(screen)?.root;
-    let active = connection
-        .intern_atom(false, b"_NET_ACTIVE_WINDOW")
-        .ok()?
-        .reply()
-        .ok()?
-        .atom;
-    let window = connection
-        .get_property(false, root, active, AtomEnum::WINDOW, 0, 1)
-        .ok()?
-        .reply()
-        .ok()?
-        .value32()?
-        .next()
-        .filter(|w| *w != 0)?;
-    Some(window as isize)
+    let active = x11::atom(&connection, "_NET_ACTIVE_WINDOW")?;
+    let pid = x11::atom(&connection, "_NET_WM_PID")?;
+    let front = x11::active_window(&connection, root, active).map_or(0, |w| w as isize);
+    let me = std::process::id();
+    first_target(&[island_previous, front], |window| {
+        let exists = connection
+            .get_window_attributes(window)
+            .is_ok_and(|cookie| cookie.reply().is_ok());
+        exists && x11::pid_of(&connection, window, pid) != Some(me)
+    })
+}
+
+/// The first of `candidates` that is a window `usable` accepts; 0 is none.
+fn first_target(candidates: &[isize], usable: impl Fn(Window) -> bool) -> Option<isize> {
+    candidates
+        .iter()
+        .copied()
+        .find(|&c| Window::try_from(c).is_ok_and(|window| window != 0 && usable(window)))
 }
 
 /// X has no elevated windows to refuse input.
@@ -456,7 +464,29 @@ fn keycode(connection: &RustConnection, keysym: u32) -> Option<u8> {
         .map(|i| min + i as u8)
 }
 
-/// Types the paste shortcut into the window in front, through XTEST.
+/// Brings `window` forward and waits until the window manager says it is.
+fn bring_forward(connection: &RustConnection, root: Window, window: Window) -> bool {
+    let Some(active) = x11::atom(connection, "_NET_ACTIVE_WINDOW") else {
+        return false;
+    };
+    let in_front = || x11::active_window(connection, root, active) == Some(window);
+    if !in_front() && !x11::activate(connection, root, active, window) {
+        return false;
+    }
+    let deadline = Instant::now() + Duration::from_millis(500);
+    while !in_front() {
+        if Instant::now() > deadline {
+            return false;
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    // The keyboard follows the window a moment after the manager reports it.
+    std::thread::sleep(Duration::from_millis(50));
+    true
+}
+
+/// Brings `target` forward, waits for it, then types the paste shortcut into
+/// it, through XTEST.
 pub fn send_paste(target: isize) -> bool {
     let Ok((connection, screen)) = RustConnection::connect(None) else {
         return false;
@@ -464,16 +494,15 @@ pub fn send_paste(target: isize) -> bool {
     let Some(root) = connection.setup().roots.get(screen).map(|s| s.root) else {
         return false;
     };
+    let Ok(target) = Window::try_from(target) else {
+        return false;
+    };
+    if !bring_forward(&connection, root, target) {
+        return false;
+    }
     // The class of the window decides whether Shift goes with it.
     let class = connection
-        .get_property(
-            false,
-            target as Window,
-            AtomEnum::WM_CLASS,
-            AtomEnum::STRING,
-            0,
-            256,
-        )
+        .get_property(false, target, AtomEnum::WM_CLASS, AtomEnum::STRING, 0, 256)
         .ok()
         .and_then(|c| c.reply().ok())
         .map(|r| String::from_utf8_lossy(&r.value).into_owned())
@@ -487,15 +516,18 @@ pub fn send_paste(target: isize) -> bool {
         .flatten();
     let mut keys = vec![control];
     keys.extend(shift);
-    let fake = |kind: u8, code: u8| {
+    let mut events: Vec<(u8, u8)> = keys.iter().map(|k| (KEY_PRESS_EVENT, *k)).collect();
+    events.extend([(KEY_PRESS_EVENT, v), (KEY_RELEASE_EVENT, v)]);
+    events.extend(keys.iter().rev().map(|k| (KEY_RELEASE_EVENT, *k)));
+    events.iter().enumerate().all(|(i, (kind, code))| {
+        if i > 0 {
+            std::thread::sleep(KEY_GAP);
+        }
+        // `check` waits for the server, so no key is still queued when the connection closes.
         connection
-            .xtest_fake_input(kind, code, 0, root, 0, 0, 0)
-            .is_ok()
-    };
-    let pressed = keys.iter().all(|k| fake(KEY_PRESS_EVENT, *k));
-    let typed = pressed && fake(KEY_PRESS_EVENT, v) && fake(KEY_RELEASE_EVENT, v);
-    let released = keys.iter().rev().all(|k| fake(KEY_RELEASE_EVENT, *k));
-    typed && released && connection.flush().is_ok()
+            .xtest_fake_input(*kind, *code, 0, root, 0, 0, 0)
+            .is_ok_and(|cookie| cookie.check().is_ok())
+    })
 }
 
 /// The X server's bell, for a paste that had nowhere to go.
@@ -512,6 +544,17 @@ mod tests {
 
     fn names(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn a_paste_goes_to_the_window_the_island_came_from_else_the_one_in_front() {
+        let theirs = |window: Window| window != 7;
+        assert_eq!(first_target(&[5, 9], theirs), Some(5));
+        assert_eq!(first_target(&[0, 9], theirs), Some(9));
+        assert_eq!(first_target(&[7, 9], theirs), Some(9));
+        assert_eq!(first_target(&[7, 7], theirs), None);
+        assert_eq!(first_target(&[0, 0], |_| true), None);
+        assert_eq!(first_target(&[-3, 9], |_| true), Some(9));
     }
 
     #[test]
@@ -589,6 +632,23 @@ mod tests {
             pump(10);
         }
         reader.join().unwrap()
+    }
+
+    /// By hand on a nested X server: OPENBAR_PASTE_TARGET=<window id> DISPLAY=:97 cargo test live_paste -- --ignored
+    #[test]
+    #[ignore = "types into a window of DISPLAY: only a nested X server, never the desktop's own"]
+    fn live_paste() {
+        let display = std::env::var("DISPLAY").unwrap_or_default();
+        assert!(
+            !display.is_empty() && !display.starts_with(":0"),
+            "refusing to type into {display:?}: use a nested server such as Xephyr on :97"
+        );
+        let target: isize = std::env::var("OPENBAR_PASTE_TARGET")
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(paste_target(target), Some(target));
+        assert!(send_paste(target));
     }
 
     #[test]

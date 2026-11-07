@@ -473,10 +473,8 @@ fn put_back<R: Runtime>(app: &AppHandle<R>, id: &str) -> bool {
 /// target is elevated (or gone) and the entry only went on the clipboard.
 #[tauri::command]
 pub async fn clipboard_paste<R: Runtime>(app: AppHandle<R>, id: String) -> &'static str {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     let previous = crate::island::previous_foreground(&app);
-    #[cfg(target_os = "linux")]
-    let previous = 0isize;
     tauri::async_runtime::spawn_blocking(move || {
         if !put_back(&app, &id) {
             return "failed";

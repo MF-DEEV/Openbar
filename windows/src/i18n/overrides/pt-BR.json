@@ -267,6 +267,7 @@
   "notchClaudeSessions.title": "Sessões",
   "notchClaudeSessions.emptyTitle": "Nenhuma sessão em andamento",
   "windows.sessions.emptyDetail": "Inicie Claude Code ou Codex em Windows Terminal ou VS Code e ela aparecerá aqui.",
+  "windows.sessions.emptyDetailLinux": "Inicie Claude Code ou Codex em um terminal ou editor e ela aparecerá aqui.",
   "notchClaudeSessions.runningTool": "Em execução",
   "notchClaudeSessions.permissionNotice": "Precisa de permissão",
   "notchClaudeSessions.waitingInput": "Precisa de você",
