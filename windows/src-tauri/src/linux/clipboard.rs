@@ -37,6 +37,8 @@ use crate::linux::x11;
 
 /// How long a read waits for the program that owns the clipboard to answer.
 const ANSWER: Duration = Duration::from_secs(4);
+/// Between the keys of a shortcut: sent in one burst, a busy terminal loses the paste.
+const KEY_GAP: Duration = Duration::from_millis(10);
 const MAX_TEXT_BYTES: usize = 8 * 1024 * 1024;
 
 /// What KDE's password managers (KeePassXC, Bitwarden) put on a secret copy.
@@ -514,15 +516,18 @@ pub fn send_paste(target: isize) -> bool {
         .flatten();
     let mut keys = vec![control];
     keys.extend(shift);
-    let fake = |kind: u8, code: u8| {
+    let mut events: Vec<(u8, u8)> = keys.iter().map(|k| (KEY_PRESS_EVENT, *k)).collect();
+    events.extend([(KEY_PRESS_EVENT, v), (KEY_RELEASE_EVENT, v)]);
+    events.extend(keys.iter().rev().map(|k| (KEY_RELEASE_EVENT, *k)));
+    events.iter().enumerate().all(|(i, (kind, code))| {
+        if i > 0 {
+            std::thread::sleep(KEY_GAP);
+        }
+        // `check` waits for the server, so no key is still queued when the connection closes.
         connection
-            .xtest_fake_input(kind, code, 0, root, 0, 0, 0)
-            .is_ok()
-    };
-    let pressed = keys.iter().all(|k| fake(KEY_PRESS_EVENT, *k));
-    let typed = pressed && fake(KEY_PRESS_EVENT, v) && fake(KEY_RELEASE_EVENT, v);
-    let released = keys.iter().rev().all(|k| fake(KEY_RELEASE_EVENT, *k));
-    typed && released && connection.flush().is_ok()
+            .xtest_fake_input(*kind, *code, 0, root, 0, 0, 0)
+            .is_ok_and(|cookie| cookie.check().is_ok())
+    })
 }
 
 /// The X server's bell, for a paste that had nowhere to go.
@@ -627,6 +632,23 @@ mod tests {
             pump(10);
         }
         reader.join().unwrap()
+    }
+
+    /// By hand on a nested X server: OPENBAR_PASTE_TARGET=<window id> DISPLAY=:97 cargo test live_paste -- --ignored
+    #[test]
+    #[ignore = "types into a window of DISPLAY: only a nested X server, never the desktop's own"]
+    fn live_paste() {
+        let display = std::env::var("DISPLAY").unwrap_or_default();
+        assert!(
+            !display.is_empty() && !display.starts_with(":0"),
+            "refusing to type into {display:?}: use a nested server such as Xephyr on :97"
+        );
+        let target: isize = std::env::var("OPENBAR_PASTE_TARGET")
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(paste_target(target), Some(target));
+        assert!(send_paste(target));
     }
 
     #[test]
