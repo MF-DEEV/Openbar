@@ -23,17 +23,24 @@ export interface Area {
  * must not fade in. This page runs in WebKitGTK only on Linux.
  */
 export const windowIsCut = typeof navigator !== "undefined" && /\bLinux\b/.test(navigator.userAgent);
+// The cut is exactly what is painted, so it clips an outline drawn outside a button: island.css moves it in.
+if (windowIsCut && typeof document !== "undefined") document.documentElement.classList.add("window-cut");
 
-/** The outline of an island of `size`, centred in a frame of the target's width that starts at `left`. */
-function outlineAt(geometry: Geometry, target: Size, left: number, size: Size): HitRect {
+/**
+ * The outline of an island of `size`, centred in a frame of the target's width that starts at `left`:
+ * where the pointer is answered, or what is painted.
+ */
+function outlineAt(geometry: Geometry, target: Size, left: number, size: Size, part: "reach" | "painted"): HitRect {
   const hit = hitShape(geometry, size);
+  const shape = part === "painted" ? hit.painted : hit;
   return {
-    x: left + (target.width - size.width) / 2 + hit.rect.x,
-    y: geometry.floatingDrop + hit.rect.y,
-    width: hit.rect.width,
-    height: hit.rect.height,
-    topRadius: hit.topRadius,
-    bottomRadius: hit.bottomRadius,
+    x: left + (target.width - size.width) / 2 + shape.rect.x,
+    y: geometry.floatingDrop + shape.rect.y,
+    width: shape.rect.width,
+    height: shape.rect.height,
+    topRadius: shape.topRadius,
+    bottomRadius: shape.bottomRadius,
+    ...(hit.ears ? { ears: hit.ears } : {}),
   };
 }
 
@@ -43,7 +50,10 @@ function outlineAt(geometry: Geometry, target: Size, left: number, size: Size): 
  */
 export function surfaceArea(geometry: Geometry, target: Size, size: Size, held: Size, left: number): Area {
   const reach = { width: Math.max(size.width, target.width), height: Math.max(size.height, target.height) };
-  return { reach: outlineAt(geometry, target, left, reach), drawn: outlineAt(geometry, target, left, held) };
+  return {
+    reach: outlineAt(geometry, target, left, reach, "reach"),
+    drawn: outlineAt(geometry, target, left, held, "painted"),
+  };
 }
 
 /** How long a frame takes to get from the page onto the screen, with some room (measured at two frames). */

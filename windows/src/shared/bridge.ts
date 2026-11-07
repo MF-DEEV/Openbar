@@ -55,6 +55,8 @@ export interface HitRect {
   height: number;
   topRadius: number;
   bottomRadius: number;
+  /** A notch's top corners flare out of the rect; only a window cut to the drawing (X11) needs them. */
+  ears?: { width: number; rise: number };
 }
 
 export interface PointerEvent {

@@ -10,6 +10,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use gtk::gdk::{Screen, WindowTypeHint};
 use gtk::prelude::{GtkWindowExt, WidgetExt};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+use serde::Deserialize;
 use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{AtomEnum, ClientMessageEvent, ConnectionExt, EventMask, KeyButMask};
@@ -132,26 +133,66 @@ pub fn style<R: Runtime>(window: &WebviewWindow<R>) {
     });
 }
 
-/// Room around a drawn shape for its outline and anti-aliased edge.
-const ROOM: f64 = 2.0;
+/// How a notch flares out of the top corners of its rect: `width` out at the very
+/// top, narrowing to nothing `rise` below it (the ears `notchPath` draws).
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
+pub struct Ears {
+    pub width: f64,
+    pub rise: f64,
+}
+
+/// A shape the page draws: its rect with the rounded corners, and the ears a notch has.
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct Drawn {
+    #[serde(flatten)]
+    pub rect: HitRect,
+    #[serde(default)]
+    pub ears: Option<Ears>,
+}
+
+impl From<HitRect> for Drawn {
+    fn from(rect: HitRect) -> Drawn {
+        Drawn { rect, ears: None }
+    }
+}
 
 /// How far a corner of radius `r` is cut in, `depth` from its centre line.
 fn cut(r: f64, depth: f64) -> f64 {
     r - (r * r - depth * depth).max(0.0).sqrt()
 }
 
-/// The rects as `(x, y, width, height)` strips, rounded corners included.
-fn shape_rows(rects: &[HitRect]) -> Vec<(i32, i32, i32, i32)> {
+/// How far an ear flares out of the rect `down` below its top: the quarter of an
+/// ellipse `notchPath` draws, all of `width` at the top and none from `rise` on.
+fn flare(ears: Ears, down: f64) -> f64 {
+    if !(ears.width > 0.0 && ears.rise > 0.0) || down < 0.0 || down >= ears.rise {
+        return 0.0;
+    }
+    let up = (ears.rise - down) / ears.rise;
+    ears.width * (1.0 - (1.0 - up * up).sqrt())
+}
+
+/// The shapes as `(x, y, width, height)` strips, rounded corners and ears included.
+/// They are cut to what is painted and no further: a compositor that blurs behind
+/// the window (picom) frosts every transparent pixel inside the cut, which shows as
+/// an outline around the island.
+fn shape_rows(shapes: &[Drawn]) -> Vec<(i32, i32, i32, i32)> {
     let mut strips = Vec::new();
-    for rect in rects {
-        if !(rect.width > 0.0 && rect.height > 0.0) {
+    for shape in shapes {
+        let HitRect {
+            x,
+            y,
+            width: w,
+            height: h,
+            top_radius,
+            bottom_radius,
+        } = shape.rect;
+        if !(w > 0.0 && h > 0.0) {
             continue;
         }
-        let (x, y) = (rect.x - ROOM, rect.y - ROOM);
-        let (w, h) = (rect.width + 2.0 * ROOM, rect.height + 2.0 * ROOM);
         let limit = (w / 2.0).min(h / 2.0);
-        let top = (rect.top_radius + ROOM).clamp(0.0, limit);
-        let bottom = (rect.bottom_radius + ROOM).clamp(0.0, limit);
+        let top = top_radius.clamp(0.0, limit);
+        let bottom = bottom_radius.clamp(0.0, limit);
         let (first, last) = (y.floor() as i32, (y + h).ceil() as i32);
         // Rows of the same extent are one strip.
         let mut run: Option<(i32, i32, i32)> = None;
@@ -164,7 +205,11 @@ fn shape_rows(rects: &[HitRect]) -> Vec<(i32, i32, i32, i32)> {
             } else {
                 0.0
             };
-            let (left, right) = ((x + inset).floor() as i32, (x + w - inset).ceil() as i32);
+            let out = shape.ears.map_or(0.0, |ears| flare(ears, py - y));
+            let (left, right) = (
+                (x + inset - out).floor() as i32,
+                (x + w - inset + out).ceil() as i32,
+            );
             match run {
                 Some((a, b, _)) if (a, b) == (left, right) => {}
                 Some((a, b, start)) => {
@@ -184,8 +229,8 @@ fn shape_rows(rects: &[HitRect]) -> Vec<(i32, i32, i32, i32)> {
 /// The window exists only where the island is drawn: the window manager
 /// gives its frame the same shape, so a click anywhere else reaches the
 /// window below. While the capture overlay is up it is the whole canvas.
-pub fn set_shape<R: Runtime>(window: &WebviewWindow<R>, rects: &[HitRect], capture: bool) {
-    let strips = shape_rows(rects);
+pub fn set_shape<R: Runtime>(window: &WebviewWindow<R>, shapes: &[Drawn], capture: bool) {
+    let strips = shape_rows(shapes);
     on_main_thread(window, move |native| {
         if capture {
             native.shape_combine_region(None);
@@ -200,9 +245,12 @@ pub fn set_shape<R: Runtime>(window: &WebviewWindow<R>, rects: &[HitRect], captu
 }
 
 /// What the canvas is cut down to: what the page says is drawn, else all it answers to.
-fn shape(state: &IslandState) -> Vec<HitRect> {
+fn shape(state: &IslandState) -> Vec<Drawn> {
     let drawn = state.drawn.lock().unwrap().clone();
-    drawn.unwrap_or_else(|| state.rects.lock().unwrap().clone())
+    drawn.unwrap_or_else(|| {
+        let rects = state.rects.lock().unwrap();
+        rects.iter().copied().map(Drawn::from).collect()
+    })
 }
 
 /// Cuts the island's window down to what is drawn.
@@ -219,7 +267,7 @@ pub fn set_hit_rects<R: Runtime>(
     app: &AppHandle<R>,
     state: &IslandState,
     rects: Vec<HitRect>,
-    drawn: Option<Vec<HitRect>>,
+    drawn: Option<Vec<Drawn>>,
 ) {
     *state.rects.lock().unwrap() = rects;
     *state.drawn.lock().unwrap() = drawn;
@@ -238,7 +286,7 @@ pub fn shape_mirrors<R: Runtime>(app: &AppHandle<R>, state: &IslandState, mirror
         let Some(window) = app.get_webview_window(&mirror.label) else {
             continue;
         };
-        let rects: Vec<HitRect> = frame
+        let shapes: Vec<Drawn> = frame
             .iter()
             .map(|frame: &MirrorFrame| {
                 let left = (mirror.display.width as f64 / mirror.display.scale - frame.width) / 2.0;
@@ -246,9 +294,10 @@ pub fn shape_mirrors<R: Runtime>(app: &AppHandle<R>, state: &IslandState, mirror
                     x: frame.hit.x + left,
                     ..frame.hit
                 }
+                .into()
             })
             .collect();
-        set_shape(&window, &rects, false);
+        set_shape(&window, &shapes, false);
     }
 }
 
@@ -308,11 +357,11 @@ mod tests {
         *state.rects.lock().unwrap() = vec![large];
         assert_eq!(
             shape(&state),
-            vec![large],
+            vec![Drawn::from(large)],
             "a page that says nothing is drawn as it answers"
         );
-        *state.drawn.lock().unwrap() = Some(vec![small]);
-        assert_eq!(shape(&state), vec![small]);
+        *state.drawn.lock().unwrap() = Some(vec![small.into()]);
+        assert_eq!(shape(&state), vec![Drawn::from(small)]);
         assert!(
             state.contains(300.0, 10.0),
             "hover still reaches the larger area"
@@ -342,14 +391,14 @@ mod tests {
     }
 
     #[test]
-    fn a_square_rect_is_one_strip_with_room_around_it() {
-        let strips = shape_rows(&[rect(100.0, 0.0, 200.0, 40.0, 0.0, 0.0)]);
-        assert_eq!(strips, vec![(98, -2, 204, 44)]);
+    fn a_square_rect_is_one_strip_cut_exactly_to_it() {
+        let strips = shape_rows(&[rect(100.0, 0.0, 200.0, 40.0, 0.0, 0.0).into()]);
+        assert_eq!(strips, vec![(100, 0, 200, 40)]);
     }
 
     #[test]
     fn rounded_corners_cut_the_strips_in() {
-        let strips = shape_rows(&[rect(100.0, 0.0, 200.0, 40.0, 0.0, 16.0)]);
+        let strips = shape_rows(&[rect(100.0, 0.0, 200.0, 40.0, 0.0, 16.0).into()]);
         assert!(strips.len() > 2, "the bottom corners need their own rows");
         assert!(
             covers(&strips, 200, 39),
@@ -358,21 +407,18 @@ mod tests {
         assert!(!covers(&strips, 101, 39), "the bottom corner is cut away");
         assert!(covers(&strips, 101, 5), "the top corners are square");
         for &(x, _, w, _) in &strips {
-            assert!(
-                x >= 98 && x + w <= 302,
-                "never wider than the rect with its room"
-            );
+            assert!(x >= 100 && x + w <= 300, "never wider than the rect");
         }
     }
 
     #[test]
     fn the_corners_are_symmetrical() {
-        let strips = shape_rows(&[rect(100.0, 0.0, 200.0, 40.0, 12.0, 12.0)]);
-        for y in -2..42 {
+        let strips = shape_rows(&[rect(100.0, 0.0, 200.0, 40.0, 12.0, 12.0).into()]);
+        for y in 0..40 {
             for dx in 0..30 {
                 assert_eq!(
-                    covers(&strips, 98 + dx, y),
-                    covers(&strips, 301 - dx, y),
+                    covers(&strips, 100 + dx, y),
+                    covers(&strips, 299 - dx, y),
                     "row {y}, {dx} in from the edge"
                 );
             }
@@ -381,10 +427,10 @@ mod tests {
 
     #[test]
     fn nothing_is_drawn_for_an_empty_rect_and_rects_add_up() {
-        assert!(shape_rows(&[rect(10.0, 10.0, 0.0, 30.0, 0.0, 0.0)]).is_empty());
+        assert!(shape_rows(&[rect(10.0, 10.0, 0.0, 30.0, 0.0, 0.0).into()]).is_empty());
         let two = shape_rows(&[
-            rect(100.0, 0.0, 50.0, 20.0, 0.0, 0.0),
-            rect(400.0, 100.0, 50.0, 20.0, 0.0, 0.0),
+            rect(100.0, 0.0, 50.0, 20.0, 0.0, 0.0).into(),
+            rect(400.0, 100.0, 50.0, 20.0, 0.0, 0.0).into(),
         ]);
         assert!(covers(&two, 120, 10) && covers(&two, 420, 110));
         assert!(!covers(&two, 250, 60), "nothing between them");
@@ -392,8 +438,118 @@ mod tests {
 
     #[test]
     fn radii_larger_than_the_rect_are_held_to_its_size() {
-        let strips = shape_rows(&[rect(0.0, 0.0, 20.0, 20.0, 500.0, 500.0)]);
+        let strips = shape_rows(&[rect(0.0, 0.0, 20.0, 20.0, 500.0, 500.0).into()]);
         assert!(covers(&strips, 10, 10));
         assert!(!covers(&strips, 0, 0), "a circle leaves the corners out");
+    }
+
+    fn notch(ears: Option<Ears>) -> Drawn {
+        Drawn {
+            rect: rect(100.0, 0.0, 200.0, 60.0, 0.0, 12.0),
+            ears,
+        }
+    }
+
+    /// The first and last pixel drawn in a row, None when the row is empty.
+    fn extent(strips: &[(i32, i32, i32, i32)], y: i32) -> Option<(i32, i32)> {
+        let drawn: Vec<i32> = (0..400).filter(|&x| covers(strips, x, y)).collect();
+        Some((*drawn.first()?, *drawn.last()?))
+    }
+
+    #[test]
+    fn an_ear_is_the_quarter_ellipse_the_page_draws() {
+        let ears = Ears {
+            width: 10.0,
+            rise: 10.0,
+        };
+        assert_eq!(flare(ears, 0.0), 10.0, "all the way out at the very top");
+        assert_eq!(flare(ears, 10.0), 0.0, "none where the notch's sides begin");
+        assert_eq!(flare(ears, 40.0), 0.0);
+        assert_eq!(flare(ears, -1.0), 0.0, "nothing above the notch");
+        // Halfway down a circle of radius 10 has gone 10 * (1 - sqrt(0.75)) out.
+        assert!((flare(ears, 5.0) - 10.0 * (1.0 - 0.75f64.sqrt())).abs() < 1e-9);
+        for none in [
+            Ears {
+                width: 0.0,
+                rise: 10.0,
+            },
+            Ears {
+                width: 10.0,
+                rise: 0.0,
+            },
+            Ears {
+                width: -3.0,
+                rise: 5.0,
+            },
+            Ears::default(),
+        ] {
+            assert_eq!(flare(none, 1.0), 0.0, "{none:?}");
+        }
+    }
+
+    #[test]
+    fn a_notch_flares_out_at_the_top_and_is_its_rect_from_the_rise_down() {
+        let strips = shape_rows(&[notch(Some(Ears {
+            width: 10.0,
+            rise: 10.0,
+        }))]);
+        let (first_left, first_right) = extent(&strips, 0).unwrap();
+        assert!(
+            first_left <= 94 && first_right >= 305,
+            "the top row reaches out"
+        );
+        let mut previous = first_left;
+        for y in 1..10 {
+            let (left, right) = extent(&strips, y).unwrap();
+            assert!(
+                left >= previous,
+                "each row is no wider than the one above: row {y}"
+            );
+            assert_eq!(left + right, 399, "and the two ears match: row {y}");
+            previous = left;
+        }
+        for y in 10..48 {
+            assert_eq!(extent(&strips, y), Some((100, 299)), "row {y} is the rect");
+        }
+        for &(x, _, w, _) in &strips {
+            assert!(x >= 90 && x + w <= 310, "never out further than the ears");
+        }
+    }
+
+    #[test]
+    fn a_notch_without_ears_is_its_rect_and_the_ears_leave_the_bottom_alone() {
+        let plain = shape_rows(&[notch(None)]);
+        let flat = shape_rows(&[notch(Some(Ears::default()))]);
+        assert_eq!(plain, flat);
+        assert_eq!(extent(&plain, 0), Some((100, 299)));
+        let with = shape_rows(&[notch(Some(Ears {
+            width: 8.0,
+            rise: 6.0,
+        }))]);
+        for y in 6..60 {
+            assert_eq!(extent(&with, y), extent(&plain, y), "row {y}");
+        }
+    }
+
+    #[test]
+    fn the_page_sends_the_ears_with_the_rect_or_leaves_them_out() {
+        let plain: Drawn = serde_json::from_str(
+            r#"{"x":1,"y":2,"width":3,"height":4,"topRadius":0,"bottomRadius":8}"#,
+        )
+        .unwrap();
+        assert_eq!(plain.rect.bottom_radius, 8.0);
+        assert_eq!(plain.ears, None);
+        let notch: Drawn = serde_json::from_str(
+            r#"{"x":14,"y":0,"width":532,"height":328,"topRadius":0,"bottomRadius":28,"ears":{"width":14,"rise":14}}"#,
+        )
+        .unwrap();
+        assert_eq!(notch.rect.width, 532.0);
+        assert_eq!(
+            notch.ears,
+            Some(Ears {
+                width: 14.0,
+                rise: 14.0
+            })
+        );
     }
 }

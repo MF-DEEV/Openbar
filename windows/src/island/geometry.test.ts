@@ -113,6 +113,29 @@ describe("outlines", () => {
     expect(cap.rect.y).toBe(0);
     expect(cap.rect.height).toBeCloseTo(21.5, 5);
   });
+
+  it("paint a notch where it hits, with the ears it flares out at the top", () => {
+    const hit = hitShape(notch, { width: 560, height: 328 });
+    expect(hit.painted).toEqual({ rect: hit.rect, topRadius: 0, bottomRadius: 28 });
+    expect(hit.ears).toEqual({ width: 14, rise: 14 });
+    // The ears are the ones the path draws: it comes up the side to `rise` and curves out to the corner.
+    expect(notchPath(560, 328, notch.input)).toContain("L14 14");
+    // A frame with no room for shoulders has no ears.
+    expect(hitShape(notch, { width: 0, height: 0 }).ears).toBeUndefined();
+  });
+
+  it("paint a capsule without the strip above it that only the pointer reaches", () => {
+    const cap = hitShape(capsule2x, { width: 106, height: 23.5 });
+    const gap = capsule2x.floatingGap as number;
+    expect(cap.painted.rect.y).toBe(gap);
+    expect(cap.painted.rect.y + cap.painted.rect.height).toBeCloseTo(cap.rect.y + cap.rect.height, 5);
+    expect(cap.painted.rect.x).toBe(cap.rect.x);
+    expect(cap.painted.rect.width).toBe(cap.rect.width);
+    // The painted capsule is round at the top too; the strip above it is square so a pointer pushed up still hits.
+    expect(cap.painted.topRadius).toBe(cap.painted.bottomRadius);
+    expect(cap.topRadius).toBe(0);
+    expect(cap.ears).toBeUndefined();
+  });
 });
 
 describe("custom island shape", () => {
@@ -130,6 +153,7 @@ describe("custom island shape", () => {
     expect(hit.bottomRadius).toBe(0);
     expect(notchPath(size.width, size.height, custom.input)).toContain("L532 328");
     expect(notchPath(size.width, size.height, custom.input)).toContain("L28 21");
+    expect(hit.ears).toEqual({ width: 28, rise: 21 });
   });
 
   it("bounds extreme curves even on a zero-sized animation frame", () => {

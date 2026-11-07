@@ -584,6 +584,11 @@ input:focus-visible {
   box-shadow: inset 0 0 0 0.75px rgba(255, 255, 255, 0.6);
 }
 
+/* A window cut to what is drawn clips the focus ring outside a round button: draw it inside. */
+.window-cut .n-bubble:focus-visible {
+  outline-offset: -4px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .n-gallery-grid,
   .n-tile,

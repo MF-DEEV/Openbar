@@ -34,6 +34,26 @@ describe("a growing island", () => {
     expect(arrived.reach).toEqual(arrived.drawn);
   });
 
+  it("is cut to the notch as painted, ears and all, and answers to the same", () => {
+    const area = surfaceArea(notch, open, open, open, 100);
+    expect(area.drawn.ears).toEqual({ width: 14, rise: 14 });
+    expect(area.reach.ears).toEqual(area.drawn.ears);
+    // The ears flare out of the body, which is where the island's rect is.
+    expect(area.drawn.x).toBe(100 + 14);
+    expect(area.drawn.y).toBe(0);
+  });
+
+  it("is cut to the capsule without the strip above it, though the pointer is answered up to the screen edge", () => {
+    const capsule = makeGeometry({ screen, devicePixelRatio: 1, silhouette: "capsule", layout: "spacious" });
+    const size = { width: 200, height: 32 };
+    const area = surfaceArea(capsule, size, size, size, 100);
+    expect(area.reach.y).toBe(0);
+    expect(area.drawn.y).toBeGreaterThan(0);
+    expect(area.drawn.y + area.drawn.height).toBeCloseTo(area.reach.y + area.reach.height, 5);
+    expect(area.drawn.topRadius).toBeGreaterThan(0);
+    expect(area.drawn.ears).toBeUndefined();
+  });
+
   it("is cut to the held size, which answers to nothing larger than what is drawn", () => {
     const middle = { width: 380, height: 180 };
     const area = surfaceArea(notch, open, middle, closed, 100);

@@ -177,7 +177,7 @@ pub struct IslandState {
     rects: Mutex<Vec<HitRect>>,
     /// What is on screen now (Linux), see `linux/island.rs`.
     #[cfg(target_os = "linux")]
-    drawn: Mutex<Option<Vec<HitRect>>>,
+    drawn: Mutex<Option<Vec<platform::Drawn>>>,
     /// While the page holds the pointer (a drag, a slider, an open menu) the
     /// window keeps mouse input even outside the shape.
     capture: Mutex<bool>,
@@ -565,7 +565,7 @@ pub fn island_set_hit_rects<R: Runtime>(
     app: AppHandle<R>,
     state: tauri::State<'_, IslandState>,
     rects: Vec<HitRect>,
-    drawn: Option<Vec<HitRect>>,
+    drawn: Option<Vec<platform::Drawn>>,
 ) {
     platform::set_hit_rects(&app, &state, rects, drawn)
 }
