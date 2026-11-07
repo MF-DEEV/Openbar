@@ -11,7 +11,6 @@
 //! so the work is handed there and waited for.
 
 use std::path::Path;
-use std::time::Duration;
 
 use gtk::gdk_pixbuf::Pixbuf;
 use gtk::gio::{self, prelude::*};
@@ -40,15 +39,6 @@ fn icon_name(name: &str) -> Option<&str> {
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-' | '+'));
     valid.then_some(name)
-}
-
-/// Runs `job` on the thread GTK may be used from, and waits for it.
-fn on_main<T: Send + 'static>(job: impl FnOnce() -> T + Send + 'static) -> Option<T> {
-    let (tx, rx) = std::sync::mpsc::channel();
-    glib::MainContext::default().invoke(move || {
-        let _ = tx.send(job());
-    });
-    rx.recv_timeout(Duration::from_secs(5)).ok()
 }
 
 fn themed(name: &str, size: u32) -> Option<Pixbuf> {
@@ -126,14 +116,7 @@ fn render(path: &str, width: u32, height: u32, icon_only: bool) -> Option<Vec<u8
 
 pub fn image(path: &str, width: u32, height: u32, icon_only: bool) -> Option<Vec<u8>> {
     let path = path.to_string();
-    on_main(move || {
-        // Without GTK (no display) there are no icons, and nothing to panic over.
-        if !gtk::is_initialized_main_thread() {
-            return None;
-        }
-        render(&path, width, height, icon_only)
-    })
-    .flatten()
+    crate::linux::gtk_main::on_main(move || render(&path, width, height, icon_only)).flatten()
 }
 
 /// The program a command line starts, past an `env` and the variables it sets
