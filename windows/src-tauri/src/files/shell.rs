@@ -24,7 +24,9 @@ fn worker() -> &'static Worker {
 pub fn open(paths: Vec<String>) {
     #[cfg(windows)]
     worker().run(move || imp::open(&paths));
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    crate::linux::files::open(&paths);
+    #[cfg(not(any(windows, target_os = "linux")))]
     let _ = paths;
 }
 
@@ -44,7 +46,18 @@ pub fn handlers(paths: Vec<String>) -> Vec<Handler> {
             })
             .collect()
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        crate::linux::files::handlers(&paths)
+            .into_iter()
+            .map(|(id, name, icon_source)| Handler {
+                icon: crate::shell::icon(&icon_source, 32),
+                id,
+                name,
+            })
+            .collect()
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = paths;
         Vec::new()
@@ -54,14 +67,18 @@ pub fn handlers(paths: Vec<String>) -> Vec<Handler> {
 pub fn open_with(paths: Vec<String>, handler: String) {
     #[cfg(windows)]
     worker().run(move || imp::open_with(&paths, &handler));
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    crate::linux::files::open_with(&paths, &handler);
+    #[cfg(not(any(windows, target_os = "linux")))]
     let _ = (paths, handler);
 }
 
 pub fn reveal(paths: Vec<String>) {
     #[cfg(windows)]
     worker().run(move || imp::reveal(&paths));
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    crate::linux::files::reveal(&paths);
+    #[cfg(not(any(windows, target_os = "linux")))]
     let _ = paths;
 }
 
@@ -73,7 +90,11 @@ pub(crate) fn recycle(path: String) -> Result<(), String> {
             .run(move || imp::recycle(&path).map_err(|e| e.to_string()))
             .ok_or_else(|| "The Windows file service stopped".to_string())?
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        crate::linux::files::recycle(&path)
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = path;
         Err("Recycle Bin is only available on Windows".into())
