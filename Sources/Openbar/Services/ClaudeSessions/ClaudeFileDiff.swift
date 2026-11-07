@@ -31,6 +31,30 @@ struct ClaudeFileDiff: Equatable {
         /// The line's number in the file: the new one, or the old one for a
         /// removed line. Nil when the file could not be read.
         var number: Int? = nil
+        /// What a gap leaves out of the file as read, for the card to show
+        /// on a click. Nil for a gap with no file behind it.
+        var gap: Gap? = nil
+    }
+
+    /// The unchanged lines a gap leaves out, taken from the file read for
+    /// context when the request came, so showing them reads nothing.
+    struct Gap: Equatable {
+        enum Edge: String, Equatable {
+            /// Above the first change: opens upward, from the change.
+            case top
+            /// Between two changes: opens from either side.
+            case middle
+            /// Below the last change: opens downward, from the change.
+            case bottom
+        }
+
+        var edge: Edge
+        /// How many lines it leaves out.
+        var count: Int
+        /// The lines kept from its start, right below the lines above it.
+        var head: [Line] = []
+        /// The lines kept from its end, right above the lines below it.
+        var tail: [Line] = []
     }
 
     var path: String
@@ -60,6 +84,8 @@ enum ClaudeFileDiffs {
     static let lineLimit = 400
     /// Characters kept of one line.
     static let textLimit = 300
+    /// Lines one click on a gap shows.
+    static let expandStep = 20
     /// Files larger than this are not read for context.
     static let fileLimit = 2_000_000
     /// Above this many cells the middle of a diff is shown as removed, then
@@ -123,6 +149,15 @@ enum ClaudeFileDiffs {
             if index > 0, !lines.isEmpty, !diff.lines.isEmpty { diff.lines.append(.init(kind: .gap, text: "")) }
             diff.lines += lines
         }
+        // Each edit is read against the file as the one before left it, so
+        // the file's ends open only above the first and below the last.
+        diff.lines = diff.lines.enumerated().filter { index, line in
+            switch line.gap?.edge {
+            case .top: return index == 0
+            case .bottom: return index == diff.lines.count - 1
+            default: return true
+            }
+        }.map(\.element)
         count(&diff)
         return diff
     }
@@ -443,7 +478,9 @@ enum ClaudeFileDiffs {
     }
 
     /// The changed lines with `context` unchanged ones around each, and a
-    /// gap where unchanged lines are left out.
+    /// gap where unchanged lines are left out. Numbered ops are the whole
+    /// file, so each gap keeps the lines it leaves out, the file's start
+    /// and end included, for the card to show on a click.
     static func hunks(_ ops: [Op], context: Int, numbered: Bool) -> [ClaudeFileDiff.Line] {
         let changes = ops.indices.filter { ops[$0].kind != .context }
         guard !changes.isEmpty else { return [] }
@@ -453,15 +490,26 @@ enum ClaudeFileDiffs {
                 for kept in max(0, index - context)...min(ops.count - 1, index + context) { keep[kept] = true }
             }
         }
-        var lines: [ClaudeFileDiff.Line] = []
-        var skipped = false
-        for (index, op) in ops.enumerated() {
-            guard keep[index] else { skipped = true; continue }
-            if skipped, !lines.isEmpty { lines.append(.init(kind: .gap, text: "")) }
-            skipped = false
-            let number = numbered ? (op.kind == .removed ? op.old : op.new) + 1 : nil
-            lines.append(.init(kind: op.kind, text: op.text, number: number))
+        func line(_ op: Op) -> ClaudeFileDiff.Line {
+            .init(kind: op.kind, text: op.text, number: numbered ? (op.kind == .removed ? op.old : op.new) + 1 : nil)
         }
+        var lines: [ClaudeFileDiff.Line] = []
+        var skipped: [ClaudeFileDiff.Line] = []
+        func gap(_ edge: ClaudeFileDiff.Gap.Edge) {
+            defer { skipped = [] }
+            guard !skipped.isEmpty else { return }
+            guard numbered else {
+                if edge == .middle { lines.append(.init(kind: .gap, text: "")) }
+                return
+            }
+            lines.append(.init(kind: .gap, text: "", gap: .init(edge: edge, count: skipped.count, head: skipped)))
+        }
+        for (index, op) in ops.enumerated() {
+            guard keep[index] else { skipped.append(line(op)); continue }
+            gap(lines.isEmpty ? .top : .middle)
+            lines.append(line(op))
+        }
+        gap(.bottom)
         return lines
     }
 
@@ -471,20 +519,145 @@ enum ClaudeFileDiffs {
     }
 
     /// At most `lineLimit` lines across the files, the rest counted, and
-    /// each line cut at `textLimit` characters.
+    /// each line cut at `textLimit` characters. What the limit leaves over
+    /// keeps lines inside the gaps, a click's worth at a time for each side
+    /// a gap opens from, nearest the changes first.
     static func limited(_ diffs: [ClaudeFileDiff]) -> [ClaudeFileDiff] {
         var left = lineLimit
-        return diffs.map { diff in
+        var diffs = diffs.map { diff in
             var diff = diff
             let shown = min(left, diff.lines.count)
+            let cutOff = shown < diff.lines.count
             diff.hidden += diff.lines.count - shown
-            diff.lines = diff.lines.prefix(shown).map { line in
-                guard line.text.count > textLimit else { return line }
-                return .init(kind: line.kind, text: String(line.text.prefix(textLimit)) + "…", number: line.number)
-            }
+            diff.lines = diff.lines.prefix(shown).map(cut)
+            // A gap the limit left last has no change below it any more.
+            if cutOff, diff.lines.last?.gap != nil { diff.lines[diff.lines.count - 1].gap = nil }
             left -= shown
             return diff
         }
+        // Every side a gap opens from, with the lines it could keep.
+        struct Side { let file: Int, line: Int, fromEnd: Bool; var kept = 0 }
+        var sides: [Side] = []
+        var all: [[Int: [ClaudeFileDiff.Line]]] = diffs.map { _ in [:] }
+        for (file, diff) in diffs.enumerated() {
+            for (index, line) in diff.lines.enumerated() {
+                guard let gap = line.gap else { continue }
+                all[file][index] = gap.head
+                if gap.edge != .top { sides.append(Side(file: file, line: index, fromEnd: false)) }
+                if gap.edge != .bottom { sides.append(Side(file: file, line: index, fromEnd: true)) }
+            }
+        }
+        var grew = true
+        while left > 0, grew {
+            grew = false
+            for index in sides.indices where left > 0 {
+                let side = sides[index]
+                let count = all[side.file][side.line]?.count ?? 0
+                // Both sides of one gap share its lines.
+                let other = sides.first { $0.file == side.file && $0.line == side.line && $0.fromEnd != side.fromEnd }
+                let more = min(expandStep, left, count - side.kept - (other?.kept ?? 0))
+                guard more > 0 else { continue }
+                sides[index].kept += more
+                left -= more
+                grew = true
+            }
+        }
+        for side in sides {
+            guard let lines = all[side.file][side.line], var gap = diffs[side.file].lines[side.line].gap else { continue }
+            if side.fromEnd {
+                gap.tail = lines.suffix(side.kept).map(cut)
+            } else {
+                gap.head = lines.prefix(side.kept).map(cut)
+            }
+            diffs[side.file].lines[side.line].gap = gap
+        }
+        // A side that opens from nowhere keeps nothing.
+        for file in diffs.indices {
+            for index in diffs[file].lines.indices where diffs[file].lines[index].gap != nil {
+                if diffs[file].lines[index].gap?.edge == .top { diffs[file].lines[index].gap?.head = [] }
+                if diffs[file].lines[index].gap?.edge == .bottom { diffs[file].lines[index].gap?.tail = [] }
+            }
+        }
+        return diffs
+    }
+
+    private static func cut(_ line: ClaudeFileDiff.Line) -> ClaudeFileDiff.Line {
+        guard line.text.count > textLimit else { return line }
+        return .init(kind: line.kind, text: String(line.text.prefix(textLimit)) + "…", number: line.number, gap: line.gap)
+    }
+
+    // MARK: Showing gaps
+
+    /// How far the card has opened one gap: lines shown from its start and
+    /// from its end.
+    struct Opened: Equatable {
+        var down = 0
+        var up = 0
+    }
+
+    enum Way: Equatable {
+        /// The next lines below the change above.
+        case down
+        /// The next lines above the change below.
+        case up
+        /// Everything kept.
+        case all
+    }
+
+    /// One row of a diff as the card shows it.
+    enum Row: Equatable {
+        /// A line, with a key that stays the same while gaps open around it.
+        case line(ClaudeFileDiff.Line, key: String)
+        /// A gap still holding lines back. `index` is the gap's place in the
+        /// diff's lines; `down`, `up` and `all` are the ways it opens now.
+        case gap(index: Int, edge: ClaudeFileDiff.Gap.Edge?, hidden: Int, down: Bool, up: Bool, all: Bool)
+    }
+
+    /// The diff's lines with each gap opened as far as `opened` says.
+    static func rows(_ lines: [ClaudeFileDiff.Line], opened: [Int: Opened]) -> [Row] {
+        var rows: [Row] = []
+        for (index, line) in lines.enumerated() {
+            guard line.kind == .gap else { rows.append(.line(line, key: "\(index)")); continue }
+            guard let gap = line.gap else {
+                rows.append(.gap(index: index, edge: nil, hidden: 0, down: false, up: false, all: false))
+                continue
+            }
+            let open = clamped(opened[index] ?? Opened(), gap)
+            rows += gap.head.prefix(open.down).enumerated().map { .line($1, key: "\(index)h\($0)") }
+            let hidden = gap.count - open.down - open.up
+            if hidden > 0 {
+                let down = gap.head.count > open.down, up = gap.tail.count > open.up
+                // The rest fits one click and is all kept: one way shows it.
+                let all = hidden <= expandStep && gap.head.count - open.down + gap.tail.count - open.up == hidden
+                // Nothing kept past the file's first or last change: no row,
+                // as before the card could open gaps.
+                if gap.edge == .middle || !gap.head.isEmpty || !gap.tail.isEmpty {
+                    rows.append(.gap(index: index, edge: gap.edge, hidden: hidden, down: down && !all,
+                                     up: up && !all, all: all))
+                }
+            }
+            let first = gap.tail.count - open.up
+            rows += gap.tail.suffix(open.up).enumerated().map { .line($1, key: "\(index)t\(first + $0)") }
+        }
+        return rows
+    }
+
+    /// `opened` one click further the given way.
+    static func open(_ gap: ClaudeFileDiff.Gap, _ opened: Opened, _ way: Way) -> Opened {
+        var next = clamped(opened, gap)
+        switch way {
+        case .down: next.down += expandStep
+        case .up: next.up += expandStep
+        case .all: next = Opened(down: gap.head.count, up: gap.tail.count)
+        }
+        return clamped(next, gap)
+    }
+
+    /// Never more than a gap keeps, nor lines shown twice.
+    private static func clamped(_ opened: Opened, _ gap: ClaudeFileDiff.Gap) -> Opened {
+        let down = min(max(0, opened.down), gap.head.count)
+        let up = min(max(0, opened.up), gap.tail.count, gap.count - down)
+        return Opened(down: down, up: up)
     }
 
     // MARK: Text

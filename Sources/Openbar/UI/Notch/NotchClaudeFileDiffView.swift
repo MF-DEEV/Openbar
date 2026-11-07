@@ -4,11 +4,15 @@
 import SwiftUI
 
 /// What a file change would do, file by file: removed lines in red, added
-/// ones in green, a few unchanged ones around them. Long diffs scroll.
+/// ones in green, a few unchanged ones around them, and a row to show more
+/// of the file where lines are left out. Long diffs scroll.
 struct NotchClaudeFileDiffView: View {
     let diffs: [ClaudeFileDiff]
     let text: NotchClaudeSessionStrings
     var maxHeight: CGFloat = 76
+    /// How far each gap is open, by file and by the gap's place in its lines.
+    /// Only for the diffs on screen: other diffs start closed.
+    @State private var opened: [Int: [Int: ClaudeFileDiffs.Opened]] = [:]
     /// One digit of the 10.5 pt monospaced numbers.
     static let digitWidth: CGFloat = 6.6
 
@@ -21,10 +25,10 @@ struct NotchClaudeFileDiffView: View {
             if diffs.count == 1, let diff = diffs.first { header(diff) }
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(diffs.enumerated()), id: \.offset) { _, diff in
+                    ForEach(Array(diffs.enumerated()), id: \.offset) { file, diff in
                         VStack(alignment: .leading, spacing: 0) {
                             if diffs.count > 1 { header(diff).padding(.bottom, 4) }
-                            lines(diff)
+                            lines(diff, file: file)
                         }
                     }
                 }
@@ -38,6 +42,7 @@ struct NotchClaudeFileDiffView: View {
             // colored line into a pill as well.
             .mask(RoundedRectangle(cornerRadius: 8, style: .continuous))
         }
+        .onChange(of: diffs) { opened = [:] }
     }
 
     // MARK: Header
@@ -98,11 +103,31 @@ struct NotchClaudeFileDiffView: View {
 
     // MARK: Lines
 
-    private func lines(_ diff: ClaudeFileDiff) -> some View {
-        let digits = String(diff.lines.compactMap(\.number).max() ?? 0).count
+    private func lines(_ diff: ClaudeFileDiff, file: Int) -> some View {
+        let open = opened[file] ?? [:]
+        let rows = ClaudeFileDiffs.rows(diff.lines, opened: open)
+        let shown = rows.compactMap { row -> Int? in
+            if case let .line(line, _) = row { return line.number }
+            return nil
+        }
+        let digits = String(shown.max() ?? 0).count
         return VStack(alignment: .leading, spacing: 0) {
-            ForEach(Array(diff.lines.enumerated()), id: \.offset) { _, line in
-                row(line, digits: digits)
+            ForEach(rows, id: \.key) { row in
+                switch row {
+                case let .line(line, key):
+                    self.row(line, digits: digits)
+                        // Lines a click brings in fade in where they land.
+                        .modifier(NotchClaudeDiffReveal(active: key.contains("h") || key.contains("t")))
+                case let .gap(index, edge, hidden, down, up, all):
+                    if edge == nil || !(down || up || all) {
+                        gapMark(digits: digits)
+                    } else if let gap = diff.lines[index].gap {
+                        NotchClaudeDiffGapRow(hidden: hidden, down: down, up: up, all: all,
+                                              edge: edge ?? .middle, digits: digits, text: text) { way in
+                            opened[file, default: [:]][index] = ClaudeFileDiffs.open(gap, open[index] ?? .init(), way)
+                        }
+                    }
+                }
             }
             if diff.hidden > 0 {
                 Text(text.diffMoreLines(diff.hidden))
@@ -115,15 +140,20 @@ struct NotchClaudeFileDiffView: View {
         .padding(.vertical, 4)
     }
 
+    /// Lines left out with nothing kept to show in their place.
+    private func gapMark(digits: Int) -> some View {
+        Text("⋯")
+            .font(.system(size: 10, design: .monospaced))
+            .foregroundStyle(.white.opacity(0.35))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, digits > 0 ? CGFloat(digits) * Self.digitWidth + 12 : 8)
+            .padding(.vertical, 1)
+            .accessibilityHidden(true)
+    }
+
     @ViewBuilder private func row(_ line: ClaudeFileDiff.Line, digits: Int) -> some View {
         if line.kind == .gap {
-            Text("⋯")
-                .font(.system(size: 10, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.35))
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.leading, digits > 0 ? CGFloat(digits) * Self.digitWidth + 12 : 8)
-                .padding(.vertical, 1)
-                .accessibilityHidden(true)
+            gapMark(digits: digits)
         } else {
             HStack(alignment: .firstTextBaseline, spacing: 0) {
                 if digits > 0 {
@@ -187,4 +217,79 @@ struct NotchClaudeFileDiffView: View {
     }
 
     static func name(_ path: String) -> String { (path as NSString).lastPathComponent }
+}
+
+private extension ClaudeFileDiffs.Row {
+    var key: String {
+        switch self {
+        case let .line(_, key): return key
+        case let .gap(index, _, _, _, _, _): return "gap\(index)"
+        }
+    }
+}
+
+/// A row in place of lines a diff leaves out: arrows that show the next
+/// lines from either side, or all of them when few are left.
+struct NotchClaudeDiffGapRow: View {
+    let hidden: Int
+    let down: Bool
+    let up: Bool
+    let all: Bool
+    let edge: ClaudeFileDiff.Gap.Edge
+    let digits: Int
+    let text: NotchClaudeSessionStrings
+    let open: (ClaudeFileDiffs.Way) -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            if all {
+                arrow(edge == .top ? "arrow.up" : edge == .bottom ? "arrow.down" : "arrow.up.and.down", .all,
+                      help: text.diffShowAll(hidden))
+            } else {
+                if down { arrow("arrow.down", .down, help: text.diffShowBelow) }
+                if up { arrow("arrow.up", .up, help: text.diffShowAbove) }
+            }
+            Text(text.diffHiddenLines(hidden))
+                .font(.system(size: 10, design: .monospaced))
+                .foregroundStyle(.white.opacity(0.5))
+                .lineLimit(1)
+                .padding(.leading, 4)
+                .accessibilityHidden(true)
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, 4)
+        .padding(.vertical, 1)
+        .background(.white.opacity(0.05), in: Rectangle())
+    }
+
+    private func arrow(_ symbol: String, _ way: ClaudeFileDiffs.Way, help: String) -> some View {
+        Button { open(way) } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.75))
+                .frame(width: 22, height: 15)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(NotchButtonStyle(cornerRadius: 4, lifts: false))
+        .help(help)
+        .accessibilityLabel(help)
+    }
+}
+
+/// A line a click brought in comes up from faint, once.
+private struct NotchClaudeDiffReveal: ViewModifier {
+    let active: Bool
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(!active || shown || reduceMotion ? 1 : 0.25)
+            .onAppear {
+                guard active, !shown else { return }
+                // Opacity only: animating layout inside the island's scroll
+                // view draws it shifted for a few frames.
+                withAnimation(.easeOut(duration: 0.22)) { shown = true }
+            }
+    }
 }

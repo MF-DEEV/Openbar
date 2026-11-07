@@ -391,6 +391,8 @@ struct NotchClaudeSessionPermissionCard: View {
         if let diffs = session.permission?.diffs, !diffs.isEmpty {
             // A file change shows what changes, not just where.
             NotchClaudeFileDiffView(diffs: diffs, text: text, maxHeight: diffHeight)
+                // Gaps opened for one request start closed on the next.
+                .id(session.permission?.requestID)
         } else if let detail = session.permission?.detail, !detail.isEmpty {
             // A plan is prose, read in the interface's font.
             let plan = session.permission?.tool == ClaudeToolSummary.planTool
