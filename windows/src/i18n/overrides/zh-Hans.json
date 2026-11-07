@@ -717,8 +717,6 @@
   "windows.settings.sessions.remoteNoClient": "已连接。主机需要 nc、socat 或 python3 才能使用钩子",
   "windows.settings.sessions.remoteConfirmSetUp": "要把 Openbar 的钩子加入 %@ 上的 ~/.claude/settings.json 吗？文件当前的副本会留在主机上。",
   "windows.settings.sessions.remoteConfirmRemove": "要从 %@ 上的 ~/.claude/settings.json 移除 Openbar 的钩子吗？如果没有其他改动，文件会恢复得和原来一模一样。",
-  "windows.settings.sessions.remoteConnected": "已连接",
-  "windows.settings.sessions.remoteOffline": "离线",
   "windows.settings.sessions.remoteSetUp": "设置",
   "windows.settings.sessions.remoteRemoveHooks": "从主机移除",
   "windows.settings.sessions.remoteCancel": "取消",

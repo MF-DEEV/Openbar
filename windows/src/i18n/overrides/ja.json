@@ -717,8 +717,6 @@
   "windows.settings.sessions.remoteNoClient": "接続済み。フックには nc、socat または python3 がホストに必要です",
   "windows.settings.sessions.remoteConfirmSetUp": "%@ の ~/.claude/settings.json に Openbar のフックを追加しますか？現在のファイルのコピーがホストに残ります。",
   "windows.settings.sessions.remoteConfirmRemove": "%@ の ~/.claude/settings.json から Openbar のフックを外しますか？ほかに変更がなければ、ファイルは元どおりに戻ります。",
-  "windows.settings.sessions.remoteConnected": "接続済み",
-  "windows.settings.sessions.remoteOffline": "オフライン",
   "windows.settings.sessions.remoteSetUp": "設定",
   "windows.settings.sessions.remoteRemoveHooks": "ホストから削除",
   "windows.settings.sessions.remoteCancel": "キャンセル",

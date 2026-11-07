@@ -717,8 +717,6 @@
   "windows.settings.sessions.remoteNoClient": "Verbunden. Der Host braucht nc, socat oder python3 für die Hooks",
   "windows.settings.sessions.remoteConfirmSetUp": "Openbars Hooks zu ~/.claude/settings.json auf %@ hinzufügen? Eine Kopie der Datei, wie sie jetzt ist, bleibt auf dem Host.",
   "windows.settings.sessions.remoteConfirmRemove": "Openbars Hooks aus ~/.claude/settings.json auf %@ entfernen? Wenn sich sonst nichts geändert hat, wird die Datei genau so wie vorher.",
-  "windows.settings.sessions.remoteConnected": "Verbunden",
-  "windows.settings.sessions.remoteOffline": "Offline",
   "windows.settings.sessions.remoteSetUp": "Einrichten",
   "windows.settings.sessions.remoteRemoveHooks": "Vom Host entfernen",
   "windows.settings.sessions.remoteCancel": "Abbrechen",

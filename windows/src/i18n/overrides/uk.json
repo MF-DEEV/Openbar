@@ -717,8 +717,6 @@
   "windows.settings.sessions.remoteNoClient": "Під’єднано. Для хуків на хості потрібен nc, socat або python3",
   "windows.settings.sessions.remoteConfirmSetUp": "Додати хуки Openbar до ~/.claude/settings.json на %@? Копія файлу в теперішньому вигляді залишиться на хості.",
   "windows.settings.sessions.remoteConfirmRemove": "Прибрати хуки Openbar з ~/.claude/settings.json на %@? Якщо більше нічого не змінювалося, файл стане точно таким, як був.",
-  "windows.settings.sessions.remoteConnected": "Під’єднано",
-  "windows.settings.sessions.remoteOffline": "Не в мережі",
   "windows.settings.sessions.remoteSetUp": "Налаштувати",
   "windows.settings.sessions.remoteRemoveHooks": "Прибрати з хоста",
   "windows.settings.sessions.remoteCancel": "Скасувати",

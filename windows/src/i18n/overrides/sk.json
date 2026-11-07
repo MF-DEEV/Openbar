@@ -717,8 +717,6 @@
   "windows.settings.sessions.remoteNoClient": "Pripojené. Hostiteľ potrebuje pre hooky nc, socat alebo python3",
   "windows.settings.sessions.remoteConfirmSetUp": "Pridať hooky Openbaru do ~/.claude/settings.json na %@? Kópia súboru v terajšom stave zostane na hostiteľovi.",
   "windows.settings.sessions.remoteConfirmRemove": "Odobrať hooky Openbaru z ~/.claude/settings.json na %@? Ak sa nič iné nezmenilo, súbor bude presne taký ako predtým.",
-  "windows.settings.sessions.remoteConnected": "Pripojené",
-  "windows.settings.sessions.remoteOffline": "Offline",
   "windows.settings.sessions.remoteSetUp": "Nastaviť",
   "windows.settings.sessions.remoteRemoveHooks": "Odobrať z hostiteľa",
   "windows.settings.sessions.remoteCancel": "Zrušiť",

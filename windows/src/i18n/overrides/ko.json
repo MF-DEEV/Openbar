@@ -717,8 +717,6 @@
   "windows.settings.sessions.remoteNoClient": "연결됨. 훅을 쓰려면 호스트에 nc, socat 또는 python3가 필요합니다",
   "windows.settings.sessions.remoteConfirmSetUp": "%@의 ~/.claude/settings.json에 Openbar 훅을 추가할까요? 지금 상태의 파일 사본이 호스트에 남습니다.",
   "windows.settings.sessions.remoteConfirmRemove": "%@의 ~/.claude/settings.json에서 Openbar 훅을 뺄까요? 다른 변경이 없으면 파일이 이전과 똑같이 돌아갑니다.",
-  "windows.settings.sessions.remoteConnected": "연결됨",
-  "windows.settings.sessions.remoteOffline": "오프라인",
   "windows.settings.sessions.remoteSetUp": "설정",
   "windows.settings.sessions.remoteRemoveHooks": "호스트에서 제거",
   "windows.settings.sessions.remoteCancel": "취소",

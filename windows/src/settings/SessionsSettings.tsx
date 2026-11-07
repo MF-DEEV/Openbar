@@ -389,11 +389,6 @@ function RemoteHosts() {
                   </>
                 }
               >
-                <Status tone={connected ? "ok" : state?.state === "disconnected" ? "warn" : "off"}>
-                  {connected
-                    ? t("windows.settings.sessions.remoteConnected")
-                    : t("windows.settings.sessions.remoteOffline")}
-                </Status>
                 {asking ? (
                   <>
                     <Button accent onClick={() => void change(alias, asking.install)}>

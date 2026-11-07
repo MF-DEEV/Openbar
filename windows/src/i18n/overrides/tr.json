@@ -717,8 +717,6 @@
   "windows.settings.sessions.remoteNoClient": "Bağlı. Kancalar için sunucuda nc, socat veya python3 gerekir",
   "windows.settings.sessions.remoteConfirmSetUp": "Openbar kancaları %@ üzerindeki ~/.claude/settings.json dosyasına eklensin mi? Dosyanın şu anki bir kopyası sunucuda kalır.",
   "windows.settings.sessions.remoteConfirmRemove": "Openbar kancaları %@ üzerindeki ~/.claude/settings.json dosyasından çıkarılsın mı? Başka bir şey değişmediyse dosya tam olarak eski haline döner.",
-  "windows.settings.sessions.remoteConnected": "Bağlı",
-  "windows.settings.sessions.remoteOffline": "Çevrimdışı",
   "windows.settings.sessions.remoteSetUp": "Kur",
   "windows.settings.sessions.remoteRemoveHooks": "Sunucudan kaldır",
   "windows.settings.sessions.remoteCancel": "İptal",
