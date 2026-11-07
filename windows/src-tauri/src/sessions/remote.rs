@@ -219,6 +219,10 @@ pub struct Chunk {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Snapshot {
+    /// The host's clock when it looked, in seconds.
+    pub host_time: Option<f64>,
+    /// What to add to the host's times to put them on this PC's clock.
+    pub clock_offset: f64,
     pub records: Vec<SessionRecord>,
     /// Session id to its transcript on the host.
     pub transcripts: HashMap<String, String>,
@@ -295,9 +299,58 @@ pub fn snapshot(lines: &[String], alias: &str) -> Snapshot {
                     out.gone.push(path);
                 }
             }
+            ["N", millis] => out.host_time = millis.parse::<f64>().ok().map(|m| m / 1000.0),
             _ => {}
         }
     }
+    out
+}
+
+// MARK: Clocks
+
+/// A host's clock is rarely this PC's: an hour off in a VM set to another
+/// zone, or seconds off without time sync. The registry's times decide
+/// whether a permission is still open against the hook's time here, so
+/// every time from the host is put on this PC's clock first. The offset is
+/// read against the middle of the request; under a tenth of a second it is
+/// the request's own time.
+pub fn clock_offset(sent: f64, received: f64, host: Option<f64>) -> f64 {
+    let Some(host) = host else { return 0.0 };
+    let offset = (sent + received) / 2.0 - host;
+    if offset.abs() < 0.1 { 0.0 } else { offset }
+}
+
+pub fn shifted(mut snapshot: Snapshot, offset: f64) -> Snapshot {
+    snapshot.clock_offset = offset;
+    if offset != 0.0 {
+        for record in &mut snapshot.records {
+            record.status_updated = record.status_updated.map(|t| t + offset);
+            record.started = record.started.map(|t| t + offset);
+        }
+    }
+    snapshot
+}
+
+/// A transcript line with its `timestamp` on this PC's clock; lines without
+/// one, and small offsets, pass unchanged.
+pub fn shift_line(line: &[u8], offset: f64) -> Vec<u8> {
+    if offset.abs() < 1.0 {
+        return line.to_vec();
+    }
+    let Ok(mut json) = serde_json::from_slice::<Value>(line) else {
+        return line.to_vec();
+    };
+    let Some(at) = super::transcript::timestamp(json.get("timestamp")) else {
+        return line.to_vec();
+    };
+    let moved = at + offset;
+    let Some(date) = chrono::DateTime::from_timestamp_millis((moved * 1000.0).round() as i64)
+    else {
+        return line.to_vec();
+    };
+    json["timestamp"] = json!(date.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string());
+    let mut out = serde_json::to_vec(&json).unwrap_or_else(|_| line.to_vec());
+    out.push(b'\n');
     out
 }
 
@@ -566,6 +619,13 @@ impl Drop for Ssh {
     }
 }
 
+fn epoch() -> f64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs_f64())
+        .unwrap_or(0.0)
+}
+
 fn ssh_binary() -> String {
     #[cfg(windows)]
     {
@@ -604,6 +664,8 @@ pub fn one_shot(alias: &str, mode: &str, input: &[String]) -> Result<Vec<String>
 #[serde(rename_all = "camelCase", tag = "state")]
 pub enum State {
     Connecting,
+    // rename_all on the enum names the variants only; the fields need their own.
+    #[serde(rename_all = "camelCase")]
     Connected {
         has_client: bool,
         hooks_installed: bool,
@@ -747,6 +809,7 @@ impl Link {
                 request.push(format!("t {offset} {}", encode(path)));
             }
             request.push("end".into());
+            let sent = epoch();
             let Some(lines) = self.request(&request, Duration::from_secs(15)) else {
                 return self
                     .ssh
@@ -756,7 +819,9 @@ impl Link {
                     .map(|s| s.reason())
                     .unwrap_or_else(|| "The connection ended".into());
             };
-            let snap = snapshot(&lines, &self.alias);
+            let read = snapshot(&lines, &self.alias);
+            let offset = clock_offset(sent, epoch(), read.host_time);
+            let snap = shifted(read, offset);
             {
                 let mut offsets = self.offsets.lock().unwrap();
                 for chunk in &snap.chunks {
@@ -1102,6 +1167,53 @@ mod tests {
 
     fn record_of_host(json: &str, tmux: bool) -> SessionRecord {
         record(json.as_bytes(), "box", tmux).unwrap()
+    }
+
+    #[test]
+    fn the_state_reads_as_settings_expects_it() {
+        let connected = serde_json::to_value(State::Connected {
+            has_client: true,
+            hooks_installed: false,
+        })
+        .unwrap();
+        assert_eq!(
+            connected,
+            json!({"state": "connected", "hasClient": true, "hooksInstalled": false})
+        );
+        let gone = serde_json::to_value(State::Disconnected { reason: "x".into() }).unwrap();
+        assert_eq!(gone, json!({"state": "disconnected", "reason": "x"}));
+        assert_eq!(
+            serde_json::to_value(State::Connecting).unwrap(),
+            json!({"state": "connecting"})
+        );
+    }
+
+    #[test]
+    fn host_times_move_to_this_clock() {
+        let sent = 1_794_045_700.0;
+        let offset = clock_offset(sent, sent + 0.2, Some(sent + 3600.1));
+        assert!((offset + 3600.0).abs() < 0.001);
+        assert_eq!(clock_offset(sent, sent + 0.2, Some(sent + 0.15)), 0.0);
+        assert_eq!(clock_offset(sent, sent + 0.2, None), 0.0);
+        let lines = vec![
+            format!("N {}", ((sent + 3600.1) * 1000.0) as i64),
+            format!(
+                "R 1128 {} {} - - -",
+                STANDARD.encode(LINUX),
+                b64("/home/dev/.claude")
+            ),
+        ];
+        let read = snapshot(&lines, "box");
+        assert!((read.host_time.unwrap() - (sent + 3600.1)).abs() < 0.01);
+        let before = read.records[0].status_updated.unwrap();
+        let moved = shifted(read, offset);
+        assert!((moved.records[0].status_updated.unwrap() - (before + offset)).abs() < 0.001);
+        let line = br#"{"type":"user","timestamp":"2026-11-07T10:00:00.500Z","sessionId":"s"}"#;
+        let out: Value = serde_json::from_slice(&shift_line(line, -3600.0)).unwrap();
+        assert_eq!(out["timestamp"], "2026-11-07T09:00:00.500Z");
+        assert_eq!(out["sessionId"], "s");
+        assert_eq!(shift_line(line, 0.4), line.to_vec());
+        assert_eq!(shift_line(b"not json", 60.0), b"not json".to_vec());
     }
 
     #[test]

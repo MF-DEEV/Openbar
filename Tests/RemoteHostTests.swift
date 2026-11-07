@@ -10,6 +10,7 @@ enum RemoteHostTests {
         suite.run("remote hosts aliases and ssh") { aliases(suite) }
         suite.run("remote hosts answers") { answers(suite) }
         suite.run("remote hosts transcripts") { transcripts(suite) }
+        suite.run("remote hosts clock") { clock(suite) }
         suite.run("remote hosts hook installer") { installer(suite) }
         suite.run("remote hosts script") { script(suite) }
     }
@@ -97,6 +98,32 @@ enum RemoteHostTests {
         let text = NotchClaudeSessionStrings.enUS
         suite.expect(text.replyUnavailable(for: .remote(alias: "box", tmux: false)) == RemoteHostStrings.replyNeedsTmux,
                      "the reply field says why")
+    }
+
+    static func clock(_ suite: TestSuite) {
+        let sent = Date(timeIntervalSince1970: 1_794_045_700)
+        let received = sent.addingTimeInterval(0.2)
+        let hostAhead = sent.addingTimeInterval(3600.1)
+        let offset = RemoteClock.offset(sent: sent, received: received, host: hostAhead)
+        suite.expect(abs(offset - -3600) < 0.001, "an hour ahead is an hour taken off, measured at the request's middle")
+        suite.expect(RemoteClock.offset(sent: sent, received: received, host: sent.addingTimeInterval(0.15)) == 0
+                     && RemoteClock.offset(sent: sent, received: received, host: nil) == 0,
+                     "the request's own time, or no host time, leaves times as they are")
+        let lines = ["N \(Int(hostAhead.timeIntervalSince1970 * 1000))",
+                     "R 1128 \(b64(linuxRecord)) \(b64("/home/dev/.claude")) - - -"]
+        let read = RemoteAnswer.snapshot(lines, alias: "box")
+        suite.expect(read.hostTime.map { abs($0.timeIntervalSince(hostAhead)) < 0.001 } == true, "the snapshot gives the host's clock")
+        let shifted = RemoteClock.shifted(read, by: offset)
+        let before = read.records.first?.statusUpdated ?? .distantPast
+        suite.expect(shifted.clockOffset == offset
+                     && abs((shifted.records.first?.statusUpdated ?? .distantPast).timeIntervalSince(before) - offset) < 0.001,
+                     "the registry's times move to this Mac's clock, so a hook's permission isn't taken for answered")
+        let line = Data(#"{"type":"user","timestamp":"2026-11-07T10:00:00.500Z","sessionId":"s"}"#.utf8)
+        let moved = (try? JSONSerialization.jsonObject(with: RemoteClock.line(line, by: -3600))) as? [String: Any]
+        suite.expect(moved?["timestamp"] as? String == "2026-11-07T09:00:00.500Z" && moved?["sessionId"] as? String == "s",
+                     "a transcript line's time moves the same way")
+        suite.expect(RemoteClock.line(line, by: 0.4) == line && RemoteClock.line(Data("not json".utf8), by: 60) == Data("not json".utf8),
+                     "a small offset or a line that isn't JSON passes unchanged")
     }
 
     static func transcripts(_ suite: TestSuite) {

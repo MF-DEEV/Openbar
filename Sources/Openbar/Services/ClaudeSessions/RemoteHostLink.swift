@@ -300,11 +300,13 @@ final class RemoteHostLink {
         var request = ["snap"]
         for (path, offset) in offsets { request.append("t \(offset) \(RemoteAnswer.encode(path))") }
         request.append("end")
+        let sent = Date()
         guard let lines = self.request(request, timeout: 15) else {
             let reason = lock.withLock { ssh.map { RemoteSSH.reason($0.stderr, status: $0.status) } }
             return retry(reason ?? "The connection ended", generation: current)
         }
-        let snapshot = RemoteAnswer.snapshot(lines, alias: alias)
+        let read = RemoteAnswer.snapshot(lines, alias: alias)
+        let snapshot = RemoteClock.shifted(read, by: RemoteClock.offset(sent: sent, received: Date(), host: read.hostTime))
         for chunk in snapshot.chunks { offsets[chunk.path] = chunk.offset + UInt64(chunk.bytes.count) }
         // Only live sessions' transcripts are followed.
         let live = Set(snapshot.transcripts.values)

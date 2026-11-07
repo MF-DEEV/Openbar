@@ -1167,7 +1167,9 @@ final class ClaudeSessionService: ObservableObject {
             let taken = entry.tail.take(chunk)
             if taken.restarted, chunk.offset == 0 { entry.reader = ClaudeTranscriptReader(policy: engine.policy, path: chunk.path) }
             var facts: [ClaudeTranscriptFact] = []
-            for line in taken.lines { facts.append(contentsOf: entry.reader.parse(line, now: now)) }
+            for line in taken.lines {
+                facts.append(contentsOf: entry.reader.parse(RemoteClock.line(line, by: snapshot.clockOffset), now: now))
+            }
             remoteTails[key] = entry
             if !facts.isEmpty { engine.ingest(sessionID: session, facts: facts, now: now) }
         }

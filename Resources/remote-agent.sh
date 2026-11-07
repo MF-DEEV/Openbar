@@ -18,6 +18,9 @@
 #   install               writes new settings, keeping the original once
 #   remove                takes the hooks out again
 #   agent                 answers requests until the connection ends
+#
+# Agent requests: snap (N host time, R records, J transcripts, T new bytes,
+# G gone), paste, enter, focus, ping.
 
 LC_ALL=C
 export LC_ALL
@@ -36,6 +39,16 @@ ob_settings() {
     fi
     ob_copy="$ob_file.openbar-remote.bak"
     ob_none="$ob_file.openbar-remote.none"
+}
+
+# The host's clock in milliseconds, so the island can put the registry's
+# times on its own clock. Without %N (busybox, macOS) to the second.
+ob_now() {
+    ob_t=$(date +%s%N 2>/dev/null)
+    case $ob_t in
+    *N | '' | *[!0-9]*) echo "$(date +%s)000" ;;
+    *) echo "${ob_t%??????}" ;;
+    esac
 }
 
 ob_sum() { if [ -f "$1" ]; then cksum < "$1" | tr -s ' ' '-'; else echo none; fi; }
@@ -147,6 +160,7 @@ ob_agent() {
         [ $# -gt 0 ] && shift
         case $ob_verb in
         snap)
+            echo "N $(ob_now)"
             ob_records
             while IFS= read -r ob_req && [ "$ob_req" != end ]; do
                 # shellcheck disable=SC2086

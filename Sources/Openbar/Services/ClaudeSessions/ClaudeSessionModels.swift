@@ -72,8 +72,8 @@ struct ClaudeSessionRecord: Equatable {
     /// Why a waiting session waits, like "permission prompt" or "input needed".
     let waitingFor: String?
     /// When `status` last changed.
-    let statusUpdated: Date?
-    let started: Date?
+    var statusUpdated: Date?
+    var started: Date?
     let version: String
     var host: ClaudeSessionHost = .unknown
     /// Where `name` came from: "user" for /rename, "auto" for one Claude

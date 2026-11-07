@@ -229,6 +229,8 @@ enum RemoteAnswer {
                 snapshot.chunks.append(RemoteChunk(path: path, offset: offset, bytes: bytes))
             case "G" where words.count >= 2:
                 if let path = decode(words[1]) { snapshot.gone.append(path) }
+            case "N" where words.count >= 2:
+                if let milliseconds = Double(words[1]) { snapshot.hostTime = Date(timeIntervalSince1970: milliseconds / 1000) }
             default: break
             }
         }
@@ -256,11 +258,58 @@ struct RemoteChunk: Equatable {
 }
 
 struct RemoteSnapshot: Equatable {
+    /// The host's clock when it looked.
+    var hostTime: Date? = nil
+    /// What to add to the host's times to put them on this Mac's clock.
+    var clockOffset: TimeInterval = 0
     var records: [ClaudeSessionRecord] = []
     /// Session ID to the transcript found for it.
     var transcripts: [String: String] = [:]
     var chunks: [RemoteChunk] = []
     var gone: [String] = []
+}
+
+/// A host's clock is rarely this Mac's: an hour off in a VM set to another
+/// zone, or seconds off without time sync. The registry's times decide
+/// whether a permission is still open against the hook's time on this Mac,
+/// so every time from the host is put on this Mac's clock first.
+enum RemoteClock {
+    /// The host's time against the middle of the request that read it.
+    static func offset(sent: Date, received: Date, host: Date?) -> TimeInterval {
+        guard let host else { return 0 }
+        let local = sent.addingTimeInterval(received.timeIntervalSince(sent) / 2)
+        let offset = local.timeIntervalSince(host)
+        // Under a tenth of a second is the request's own time, not the clock's.
+        return abs(offset) < 0.1 ? 0 : offset
+    }
+
+    static func shifted(_ snapshot: RemoteSnapshot, by offset: TimeInterval) -> RemoteSnapshot {
+        var snapshot = snapshot
+        snapshot.clockOffset = offset
+        guard offset != 0 else { return snapshot }
+        for index in snapshot.records.indices {
+            snapshot.records[index].statusUpdated = snapshot.records[index].statusUpdated?.addingTimeInterval(offset)
+            snapshot.records[index].started = snapshot.records[index].started?.addingTimeInterval(offset)
+        }
+        return snapshot
+    }
+
+    private static let iso: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    /// A transcript line with its `timestamp` on this Mac's clock; lines
+    /// without one, and small offsets, pass unchanged.
+    static func line(_ data: Data, by offset: TimeInterval) -> Data {
+        guard abs(offset) >= 1,
+              var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let stamp = json["timestamp"] as? String,
+              let date = AgentLogParser.timestamp(stamp) else { return data }
+        json["timestamp"] = iso.string(from: date.addingTimeInterval(offset))
+        return (try? JSONSerialization.data(withJSONObject: json, options: [.withoutEscapingSlashes])) ?? data
+    }
 }
 
 /// Reads a remote transcript in the pieces the agent sends: a piece may end

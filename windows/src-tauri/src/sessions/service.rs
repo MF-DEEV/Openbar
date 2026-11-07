@@ -1489,6 +1489,7 @@ impl Service {
             }
             let mut facts = Vec::new();
             for line in lines {
+                let line = remote::shift_line(&line, snapshot.clock_offset);
                 facts.extend(entry.1.parse(&line, t, &NoPricing));
             }
             if !facts.is_empty() {
