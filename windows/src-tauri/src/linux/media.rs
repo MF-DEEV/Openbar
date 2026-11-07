@@ -16,7 +16,6 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use base64::Engine;
 use gtk::gio::{self, prelude::*};
 use tauri::{AppHandle, Emitter, Manager as _, Runtime};
 use zbus::blocking::{Connection, Proxy, connection::Builder};
@@ -35,7 +34,7 @@ const REPLY: Duration = Duration::from_secs(2);
 /// A reading that differs from where the last one says the song should be by
 /// this much is a seek, and news.
 const JUMP: f64 = 1.0;
-const COVER_LIMIT: usize = 4 * 1024 * 1024;
+const COVER_LIMIT: usize = crate::linux::image::LIMIT;
 
 /// Players Windows' list does not know, by what their desktop entry or name
 /// contains.
@@ -89,7 +88,7 @@ fn categories_say_music(categories: &str) -> bool {
 /// bus name without the instance a browser appends (`chromium.instance42`).
 fn app_id(bus_name: &str, desktop_entry: Option<&str>) -> String {
     if let Some(entry) = desktop_entry.map(str::trim).filter(|e| !e.is_empty()) {
-        return entry.trim_end_matches(".desktop").to_string();
+        return crate::linux::desktop::entry_id(entry);
     }
     let name = bus_name.strip_prefix(PREFIX).unwrap_or(bus_name);
     match name.find(".instance") {
@@ -465,69 +464,17 @@ mod covers {
         None
     }
 
-    /// The image type of `bytes`, from what it starts with; nothing that is
-    /// not a picture is ever passed on.
-    pub fn image_type(bytes: &[u8]) -> Option<&'static str> {
-        match bytes {
-            [0x89, b'P', b'N', b'G', ..] => Some("image/png"),
-            [0xFF, 0xD8, 0xFF, ..] => Some("image/jpeg"),
-            [b'G', b'I', b'F', b'8', ..] => Some("image/gif"),
-            [b'B', b'M', ..] => Some("image/bmp"),
-            [
-                b'R',
-                b'I',
-                b'F',
-                b'F',
-                _,
-                _,
-                _,
-                _,
-                b'W',
-                b'E',
-                b'B',
-                b'P',
-                ..,
-            ] => Some("image/webp"),
-            _ => None,
-        }
-    }
-
-    pub fn data_url(bytes: &[u8]) -> Option<String> {
-        if bytes.is_empty() || bytes.len() > COVER_LIMIT {
-            return None;
-        }
-        Some(format!(
-            "data:{};base64,{}",
-            image_type(bytes)?,
-            base64::engine::general_purpose::STANDARD.encode(bytes)
-        ))
-    }
-
     pub fn fetch(url: &str) -> Option<String> {
         if url.starts_with("data:image/") && url.len() <= COVER_LIMIT * 2 {
             return Some(url.to_string());
         }
         if url.starts_with("file://") {
-            return from_file(url);
+            return crate::linux::image::from_path_or_uri(url);
         }
         if url.starts_with("https://") {
             return from_https(url);
         }
         None
-    }
-
-    fn from_file(url: &str) -> Option<String> {
-        use std::io::Read;
-        let path = gio::File::for_uri(url).path()?;
-        let file = std::fs::File::open(path).ok()?;
-        if !file.metadata().ok()?.is_file() {
-            return None;
-        }
-        let mut bytes = Vec::new();
-        file.take(COVER_LIMIT as u64 + 1)
-            .read_to_end(&mut bytes)
-            .ok()?;
-        data_url(&bytes)
     }
 
     /// One GET with no cookies kept and no redirect followed, as the Windows
@@ -557,7 +504,7 @@ mod covers {
                 return None;
             }
         }
-        data_url(&bytes)
+        crate::linux::image::data_url(&bytes)
     }
 }
 
@@ -739,7 +686,8 @@ pub fn installed(preferred: &str) -> Vec<Source> {
         if !info.should_show() {
             continue;
         }
-        let id = file.trim_end_matches(".desktop").to_string();
+        // The id of an entry file always ends in `.desktop`, and once.
+        let id = file.strip_suffix(".desktop").unwrap_or(&file).to_string();
         let name = info.name().to_string();
         let music = known_music_app(&id)
             || known_music_app(&name)
@@ -760,9 +708,23 @@ pub fn installed(preferred: &str) -> Vec<Source> {
     players.sort_by(|a, b| a.name.cmp(&b.name));
     players.dedup_by(|a, b| a.id == b.id);
     if let Ok(mut offered) = OFFERED.lock() {
-        *offered = Some(players.iter().map(|p| p.id.clone()).collect());
+        offered
+            .get_or_insert_with(HashSet::new)
+            .extend(players.iter().map(|p| p.id.clone()));
     }
     players
+}
+
+/// Lets `open_player` start `id` too: the island showed it to the person
+/// (the app of a notification).
+pub fn offer(id: &str) {
+    if valid_source(id)
+        && let Ok(mut offered) = OFFERED.lock()
+    {
+        offered
+            .get_or_insert_with(HashSet::new)
+            .insert(id.to_string());
+    }
 }
 
 fn valid_source(source: &str) -> bool {
@@ -867,9 +829,14 @@ mod tests {
     fn a_player_goes_by_its_desktop_entry_else_its_bus_name_without_the_instance() {
         let bus = |name: &str| format!("{PREFIX}{name}");
         assert_eq!(app_id(&bus("spotify"), Some("spotify")), "spotify");
+        // An entry that is not installed is taken as given, and never cut twice.
         assert_eq!(
-            app_id(&bus("x"), Some("org.gnome.Rhythmbox3.desktop")),
-            "org.gnome.Rhythmbox3"
+            app_id(&bus("x"), Some("org.example.Missing.desktop")),
+            "org.example.Missing.desktop"
+        );
+        assert_eq!(
+            app_id(&bus("x"), Some("org.telegram.desktop")),
+            "org.telegram.desktop"
         );
         assert_eq!(app_id(&bus("vlc"), None), "vlc");
         assert_eq!(app_id(&bus("vlc"), Some("")), "vlc");
@@ -952,24 +919,6 @@ mod tests {
         let state = state_of(&properties);
         assert!(!state.playing);
         assert_eq!(state.shuffle, Some(true));
-    }
-
-    #[test]
-    fn only_pictures_become_covers() {
-        let png = [0x89, b'P', b'N', b'G', 1, 2, 3];
-        let url = covers::data_url(&png).unwrap();
-        assert!(url.starts_with("data:image/png;base64,"));
-        assert_eq!(
-            covers::image_type(&[0xFF, 0xD8, 0xFF, 0xE0]),
-            Some("image/jpeg")
-        );
-        assert_eq!(
-            covers::image_type(b"RIFF\0\0\0\0WEBPVP8 "),
-            Some("image/webp")
-        );
-        assert!(covers::data_url(b"-----BEGIN OPENSSH PRIVATE KEY-----").is_none());
-        assert!(covers::data_url(&[]).is_none());
-        assert!(covers::data_url(&vec![0x89; COVER_LIMIT + 1]).is_none());
     }
 
     #[test]
