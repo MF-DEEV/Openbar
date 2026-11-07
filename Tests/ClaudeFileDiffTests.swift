@@ -10,6 +10,7 @@ enum ClaudeFileDiffTests {
         suite.run("file diffs: patches") { patches(suite) }
         suite.run("file diffs: limits") { limits(suite) }
         suite.run("file diffs: requests") { requests(suite) }
+        suite.run("file diffs: gaps") { gaps(suite) }
     }
 
     typealias Line = ClaudeFileDiff.Line
@@ -45,7 +46,7 @@ enum ClaudeFileDiffTests {
 
         // With the file: three lines around it, numbered as in the file.
         let placed = edit("line 10\n", "ten\n", file: file(20))
-        suite.expect(kinds(placed) == " line 7| line 8| line 9|-line 10|+ten| line 11| line 12| line 13",
+        suite.expect(kinds(placed) == "~| line 7| line 8| line 9|-line 10|+ten| line 11| line 12| line 13|~",
                      "the edit lands in the file with context: \(kinds(placed))")
         suite.expect(numbers(placed) == [7, 8, 9, 10, 10, 11, 12, 13], "numbered as in the file: \(numbers(placed))")
 
@@ -116,7 +117,7 @@ enum ClaudeFileDiffTests {
         suite.expect(fresh.change == .add && kinds(fresh) == "+a|+b" && numbers(fresh) == [1, 2], "a new file is all added")
         let over = ClaudeFileDiffs.write(path: "/p/old.txt", content: file(10).replacingOccurrences(of: "line 5\n", with: "five\n"),
                                          exists: true, file: file(10))
-        suite.expect(over.change == .update && kinds(over) == " line 2| line 3| line 4|-line 5|+five| line 6| line 7| line 8",
+        suite.expect(over.change == .update && kinds(over) == "~| line 2| line 3| line 4|-line 5|+five| line 6| line 7| line 8|~",
                      "a written file reads against the one on disk: \(kinds(over))")
         let unread = ClaudeFileDiffs.write(path: "/p/locked", content: "x", exists: true, file: nil)
         suite.expect(unread.change == .replace && kinds(unread) == "+x", "an unreadable file is written over, its text unknown")
@@ -307,5 +308,160 @@ enum ClaudeFileDiffTests {
                           params: ["threadId": "t1", "itemId": "unknown", "reason": "write outside"], now: CodexSessionTests.at(5))
         let bare = state.snapshot(now: CodexSessionTests.at(5), previews: false).sessions.first?.permission
         suite.expect(bare?.diffs.isEmpty == true, "an approval without its item has no diff")
+    }
+
+    // MARK: Gaps
+
+    typealias Opened = ClaudeFileDiffs.Opened
+
+    /// The rows a card shows: numbers for lines, `^` `v` `*` for the ways a
+    /// gap row opens, `~` for a gap with nothing to show.
+    static func shown(_ diff: ClaudeFileDiff?, _ opened: [Int: Opened] = [:]) -> String {
+        ClaudeFileDiffs.rows(diff?.lines ?? [], opened: opened).map { row -> String in
+            switch row {
+            case let .line(line, _): return line.number.map(String.init) ?? line.text
+            case let .gap(_, edge, hidden, down, up, all):
+                guard edge != nil, down || up || all else { return "~" }
+                return "[\(down ? "v" : "")\(up ? "^" : "")\(all ? "*" : "")\(hidden)]"
+            }
+        }.joined(separator: ",")
+    }
+
+    static func gapIndex(_ diff: ClaudeFileDiff?, _ edge: ClaudeFileDiff.Gap.Edge) -> Int? {
+        diff?.lines.firstIndex { $0.gap?.edge == edge }
+    }
+
+    /// `opened` after clicking the gap at `index` each way in turn.
+    static func click(_ diff: ClaudeFileDiff?, _ index: Int?, _ ways: [ClaudeFileDiffs.Way],
+                      _ opened: [Int: Opened] = [:]) -> [Int: Opened] {
+        guard let diff, let index, let gap = diff.lines[index].gap else { return opened }
+        var opened = opened
+        for way in ways { opened[index] = ClaudeFileDiffs.open(gap, opened[index] ?? Opened(), way) }
+        return opened
+    }
+
+    static func gaps(_ suite: TestSuite) {
+        // First and last hunk: the file's start opens upward, its end downward.
+        let mid = edit("line 10\n", "ten\n", file: file(20))
+        let top = mid?.lines.first?.gap, bottom = mid?.lines.last?.gap
+        suite.expect(top?.edge == .top && top?.count == 6 && top?.tail.map(\.number) == (1...6).map { $0 } && top?.head.isEmpty == true,
+                     "the lines above the first change are kept, numbered: \(String(describing: top?.tail.map(\.number)))")
+        suite.expect(bottom?.edge == .bottom && bottom?.count == 7 && bottom?.head.map(\.text) == (14...20).map { "line \($0)" },
+                     "the lines below the last change are kept")
+        suite.expect(shown(mid) == "[*6],7,8,9,10,10,11,12,13,[*7]", "short gaps open whole at once: \(shown(mid))")
+        let opened = click(mid, 0, [.all])
+        suite.expect(shown(mid, opened) == "1,2,3,4,5,6,7,8,9,10,10,11,12,13,[*7]",
+                     "the file's start shows above the change: \(shown(mid, opened))")
+        let both = click(mid, gapIndex(mid, .bottom), [.all], opened)
+        suite.expect(shown(mid, both) == (1...10).map(String.init).joined(separator: ",") + ",10," + (11...20).map(String.init).joined(separator: ","),
+                     "both ends open, every line once: \(shown(mid, both))")
+        // Lines shown from a gap are the file's unchanged lines.
+        let rows = ClaudeFileDiffs.rows(mid?.lines ?? [], opened: both)
+        suite.expect(rows.allSatisfy { row in
+            if case let .line(line, _) = row { return line.kind != .context || line.text == "line \(line.number ?? 0)" }
+            return false
+        }, "every shown line reads as in the file")
+        suite.expect(Set(rows.map { row -> String in if case let .line(_, key) = row { return key }; return "" }).count == rows.count,
+                     "every row keeps its own key")
+
+        // A long top gap opens a click at a time, nearest the change first.
+        let deep = edit("line 50\n", "fifty\n", file: file(100))
+        suite.expect(shown(deep).hasPrefix("[^46],47,"), "a long gap above opens upward: \(shown(deep))")
+        let once = click(deep, 0, [.up])
+        suite.expect(shown(deep, once).hasPrefix("[^26]," + (27...47).map(String.init).joined(separator: ",")),
+                     "one click shows the 20 lines above: \(shown(deep, once).prefix(80))")
+        let twice = click(deep, 0, [.up], once)
+        suite.expect(shown(deep, twice).hasPrefix("[*6],7,8,"), "the last few open at once: \(shown(deep, twice).prefix(30))")
+        let thrice = click(deep, 0, [.up, .up, .down], twice)
+        suite.expect(shown(deep, thrice).hasPrefix("1,2,3,") && !shown(deep, thrice).contains("[^"),
+                     "clicks past the end stop at line 1: \(shown(deep, thrice).prefix(30))")
+        suite.expect(click(deep, 0, [.down]) == [0: Opened()], "a gap above the file's first change doesn't open down")
+
+        // Between two changes: from either side, then all at once.
+        var rows100 = (1...100).map { "row \($0)" }
+        rows100[9] = "foo"; rows100[79] = "foo"
+        let apart = edit("foo", "bar", all: true, file: rows100.joined(separator: "\n"))
+        let middle = gapIndex(apart, .middle)
+        suite.expect(apart?.lines[middle ?? 0].gap?.count == 63 && shown(apart).contains(",13,[v^63],77,"),
+                     "a gap between changes opens both ways: \(shown(apart))")
+        let down = click(apart, middle, [.down])
+        suite.expect(shown(apart, down).contains(",13," + (14...33).map(String.init).joined(separator: ",") + ",[v^43],77,"),
+                     "down shows the lines below the change above")
+        let up = click(apart, middle, [.up], down)
+        suite.expect(shown(apart, up).contains(",33,[v^23],57,"), "up shows the lines above the change below: \(shown(apart, up))")
+        let near = click(apart, middle, [.down], up)
+        suite.expect(shown(apart, near).contains(",53,[*3],57,"), "a few left open whole: \(shown(apart, near))")
+        let whole = click(apart, middle, [.all], near)
+        suite.expect(shown(apart, whole).contains((7...83).map(String.init).joined(separator: ",").replacingOccurrences(of: ",10,", with: ",10,10,")
+                                                       .replacingOccurrences(of: ",80,", with: ",80,80,")),
+                     "line numbers run on without a break: \(shown(apart, whole))")
+
+        // Adjacent hunks: no gap between them, so no row.
+        var close = (1...20).map { "row \($0)" }
+        close[4] = "foo"; close[11] = "foo"
+        let touching = edit("foo", "bar", all: true, file: close.joined(separator: "\n"))
+        suite.expect(touching?.lines.filter { $0.kind == .gap }.allSatisfy { $0.gap?.edge != .middle } == true
+                         && shown(touching).contains(",8,9,"), "hunks that touch show no row between: \(shown(touching))")
+        let fileStart = edit("line 1\n", "one\n", file: file(4))
+        suite.expect(fileStart?.lines.contains { $0.kind == .gap } == false, "a change near both ends leaves no gap")
+
+        // CRLF: the kept lines carry no carriage return.
+        let crlfFile = (1...12).map { "r\($0)" }.joined(separator: "\r\n") + "\r\n"
+        let crlf = edit("r10", "ten", file: crlfFile)
+        suite.expect(crlf?.lines.first?.gap?.tail.map(\.text) == (1...6).map { "r\($0)" }, "CRLF lines are kept without \\r")
+
+        // The file changed on disk after the request: the card keeps what it read.
+        var disk = file(20)
+        let request = ClaudeFileDiffs.diffs(tool: "Edit", input: ["file_path": "/p/a", "old_string": "line 10\n",
+                                                                  "new_string": "ten\n"], read: { _ in disk }).first
+        disk = "changed\n"
+        suite.expect(request?.lines.first?.gap?.tail.first?.text == "line 1" && disk == "changed\n",
+                     "opening a gap reads nothing: it shows the file as it was read")
+        let stale = edit("line 10\n", "ten\n", file: "something else\n")
+        suite.expect(stale?.lines.contains { $0.gap != nil } == false, "an edit no longer in the file has no gaps to open")
+
+        // Nothing to show: new file, no file, a bare patch.
+        let fresh = ClaudeFileDiffs.write(path: "/p/n", content: file(30), exists: false, file: nil)
+        suite.expect(fresh.lines.allSatisfy { $0.kind == .added }, "a new file has no gap")
+        let blind = edit("line 10\n", "ten\n", file: nil)
+        suite.expect(blind?.lines.contains { $0.kind == .gap } == false, "an unread file has no gap")
+        let codex = ClaudeFileDiffs.codex([["path": "/w/x", "kind": ["type": "update"],
+                                            "diff": "@@ -1 +1 @@\n-a\n+b\n@@ -40 +40 @@\n-c\n+d\n"]]).first
+        suite.expect(shown(codex) == "1,1,~,40,40", "a bare patch's gap has nothing to open: \(shown(codex))")
+        let gemini = ClaudeFileDiffs.gemini(["type": "edit", "filePath": "/g", "originalContent": file(20),
+                                             "newContent": file(20).replacingOccurrences(of: "line 10\n", with: "ten\n"),
+                                             "isModifying": true]).first
+        suite.expect(shown(gemini).hasPrefix("[*6],"), "Gemini's whole file before and after opens: \(shown(gemini))")
+
+        // MultiEdit: the file's ends open only around the first and last edit.
+        let multi = ClaudeFileDiffs.diffs(tool: "MultiEdit", input: ["file_path": "/p/m", "edits": [
+            ["old_string": "line 10", "new_string": "ten"], ["old_string": "line 30", "new_string": "thirty"],
+        ]], read: { _ in file(40) }).first
+        let edges = multi?.lines.compactMap(\.gap?.edge)
+        suite.expect(edges == [.top, .bottom] && multi?.lines.first?.gap?.edge == .top && multi?.lines.last?.gap?.edge == .bottom,
+                     "between edits only a plain gap: \(String(describing: edges))")
+
+        // The line budget: what the diff leaves over is shared by the gap sides.
+        let large = edit("line 500\n", "five hundred\n", file: file(1000))
+        let kept = (large?.lines.first?.gap?.tail.count ?? 0) + (large?.lines.last?.gap?.head.count ?? 0)
+        suite.expect((large?.lines.count ?? 0) + kept == ClaudeFileDiffs.lineLimit && (large?.lines.first?.gap?.tail.count ?? 0) > 150
+                         && (large?.lines.last?.gap?.head.count ?? 0) > 150, "both ends share what the limit leaves: \(kept)")
+        suite.expect(large?.lines.first?.gap?.tail.last?.number == 496 && large?.lines.last?.gap?.head.first?.number == 504,
+                     "kept nearest the change")
+        let bigTop = click(large, 0, Array(repeating: .up, count: 30))
+        suite.expect(shown(large, bigTop).hasPrefix("~,"), "past what is kept the row shows no arrows: \(shown(large, bigTop).prefix(20))")
+        // Long gap lines are cut like any other.
+        let wide = edit("line 10\n", "ten\n", file: (1...20).map { $0 == 2 ? String(repeating: "w", count: 900) : "line \($0)" }
+            .joined(separator: "\n"))
+        suite.expect(wide?.lines.first?.gap?.tail[1].text.count == ClaudeFileDiffs.textLimit + 1, "a long kept line is cut")
+        // A diff cut by the limit: a gap left last has nothing below it to open from.
+        let cutWrite = ClaudeFileDiffs.diffs(tool: "Write", input: ["file_path": "/p/c", "content": file(2000).replacingOccurrences(of: "line 1000\n", with: "k\n")],
+                                             read: { _ in file(2000) }).first
+        suite.expect(cutWrite?.hidden == 0, "a small change in a big file fits")
+        let spread = (1...2000).map { $0 % 10 == 0 ? "changed \($0)" : "line \($0)" }.joined(separator: "\n") + "\n"
+        let cutOff = ClaudeFileDiffs.diffs(tool: "Write", input: ["file_path": "/p/c", "content": spread],
+                                           read: { _ in file(2000) }).first
+        suite.expect((cutOff?.hidden ?? 0) > 0 && cutOff?.lines.last.map { $0.kind != .gap || $0.gap == nil } == true,
+                     "the limit never leaves an open gap last")
     }
 }

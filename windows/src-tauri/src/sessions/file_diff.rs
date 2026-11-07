@@ -20,6 +20,8 @@ pub const CONTEXT: usize = 3;
 pub const LINE_LIMIT: usize = 400;
 /// Characters kept of one line.
 pub const TEXT_LIMIT: usize = 300;
+/// Lines one click on a gap shows (FileDiffView.tsx shows them).
+pub const EXPAND_STEP: usize = 20;
 /// Files larger than this are not read for context.
 pub const FILE_LIMIT: u64 = 2_000_000;
 /// Above this many cells the middle of a diff is shown as removed, then
@@ -58,6 +60,34 @@ pub struct Line {
     /// removed line. None when the file could not be read.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub number: Option<usize>,
+    /// What a gap leaves out of the file as read, for the card to show on a
+    /// click. None for a gap with no file behind it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gap: Option<Gap>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Edge {
+    /// Above the first change: opens upward, from the change.
+    Top,
+    /// Between two changes: opens from either side.
+    Middle,
+    /// Below the last change: opens downward, from the change.
+    Bottom,
+}
+
+/// The unchanged lines a gap leaves out, taken from the file read for
+/// context when the request came, so showing them reads nothing.
+#[derive(Clone, Debug, PartialEq, Serialize)]
+pub struct Gap {
+    pub edge: Edge,
+    /// How many lines it leaves out.
+    pub count: usize,
+    /// The lines kept from its start, right below the lines above it.
+    pub head: Vec<Line>,
+    /// The lines kept from its end, right above the lines below it.
+    pub tail: Vec<Line>,
 }
 
 impl Line {
@@ -66,7 +96,12 @@ impl Line {
             kind: LineKind::Gap,
             text: String::new(),
             number: None,
+            gap: None,
         }
+    }
+
+    fn edge(&self) -> Option<Edge> {
+        self.gap.as_ref().map(|g| g.edge)
     }
 }
 
@@ -236,6 +271,19 @@ pub fn edits(path: &str, list: &[(String, String, bool)], file: Option<&str>) ->
         }
         diff.lines.extend(lines);
     }
+    // Each edit is read against the file as the one before left it, so the
+    // file's ends open only above the first and below the last.
+    let last = diff.lines.len().saturating_sub(1);
+    let mut index = 0;
+    diff.lines.retain(|line| {
+        let keep = match line.edge() {
+            Some(Edge::Top) => index == 0,
+            Some(Edge::Bottom) => index == last,
+            _ => true,
+        };
+        index += 1;
+        keep
+    });
     diff.count();
     diff
 }
@@ -460,6 +508,7 @@ pub fn patch(path: &str, text: &str, whole: Option<Change>) -> Vec<FileDiff> {
                         kind: LineKind::Added,
                         text: body,
                         number: Some(new_line),
+                        gap: None,
                     });
                     new_line += 1;
                     new_left = new_left.saturating_sub(1);
@@ -469,6 +518,7 @@ pub fn patch(path: &str, text: &str, whole: Option<Change>) -> Vec<FileDiff> {
                         kind: LineKind::Removed,
                         text: body,
                         number: Some(old_line),
+                        gap: None,
                     });
                     old_line += 1;
                     old_left = old_left.saturating_sub(1);
@@ -478,6 +528,7 @@ pub fn patch(path: &str, text: &str, whole: Option<Change>) -> Vec<FileDiff> {
                         kind: LineKind::Context,
                         text: body,
                         number: Some(new_line),
+                        gap: None,
                     });
                     old_line += 1;
                     new_line += 1;
@@ -752,7 +803,9 @@ pub fn matched(old: &[String], new: &[String]) -> Vec<Op> {
 }
 
 /// The changed lines with `context` unchanged ones around each, and a gap
-/// where unchanged lines are left out.
+/// where unchanged lines are left out. Numbered ops are the whole file, so
+/// each gap keeps the lines it leaves out, the file's start and end
+/// included, for the card to show on a click.
 pub fn hunks(ops: &[Op], context: usize, numbered: bool) -> Vec<Line> {
     let changes: Vec<usize> = (0..ops.len())
         .filter(|&i| ops[i].kind != LineKind::Context)
@@ -770,46 +823,142 @@ pub fn hunks(ops: &[Op], context: usize, numbered: bool) -> Vec<Line> {
             }
         }
     }
+    let line = |op: &Op| {
+        Line {
+        kind: op.kind,
+        text: op.text.clone(),
+        number: numbered.then(|| if op.kind == LineKind::Removed { op.old } else { op.new } + 1),
+        gap: None,
+    }
+    };
+    let gap = |lines: &mut Vec<Line>, skipped: &mut Vec<Line>, edge: Edge| {
+        if skipped.is_empty() {
+            return;
+        }
+        let left = std::mem::take(skipped);
+        if !numbered {
+            if edge == Edge::Middle {
+                lines.push(Line::gap());
+            }
+            return;
+        }
+        lines.push(Line {
+            gap: Some(Gap {
+                edge,
+                count: left.len(),
+                head: left,
+                tail: Vec::new(),
+            }),
+            ..Line::gap()
+        });
+    };
     let mut lines = Vec::new();
-    let mut skipped = false;
+    let mut skipped = Vec::new();
     for (index, op) in ops.iter().enumerate() {
         if !keep[index] {
-            skipped = true;
+            skipped.push(line(op));
             continue;
         }
-        if skipped && !lines.is_empty() {
-            lines.push(Line::gap());
-        }
-        skipped = false;
-        let number = numbered.then(|| if op.kind == LineKind::Removed { op.old } else { op.new } + 1);
-        lines.push(Line {
-            kind: op.kind,
-            text: op.text.clone(),
-            number,
-        });
+        let edge = if lines.is_empty() {
+            Edge::Top
+        } else {
+            Edge::Middle
+        };
+        gap(&mut lines, &mut skipped, edge);
+        lines.push(line(op));
     }
+    gap(&mut lines, &mut skipped, Edge::Bottom);
     lines
 }
 
 /// At most `LINE_LIMIT` lines across the files, the rest counted, and each
-/// line cut at `TEXT_LIMIT` characters.
+/// line cut at `TEXT_LIMIT` characters. What the limit leaves over keeps
+/// lines inside the gaps, a click's worth at a time for each side a gap
+/// opens from, nearest the changes first.
 pub fn limited(diffs: Vec<FileDiff>) -> Vec<FileDiff> {
     let mut left = LINE_LIMIT;
-    diffs
+    let mut diffs: Vec<FileDiff> = diffs
         .into_iter()
         .map(|mut diff| {
             let shown = left.min(diff.lines.len());
+            let cut_off = shown < diff.lines.len();
             diff.hidden += diff.lines.len() - shown;
             diff.lines.truncate(shown);
-            for line in &mut diff.lines {
-                if char_count(&line.text) > TEXT_LIMIT {
-                    line.text = format!("{}…", prefix(&line.text, TEXT_LIMIT));
-                }
+            diff.lines.iter_mut().for_each(cut);
+            // A gap the limit left last has no change below it any more.
+            if let (true, Some(last)) = (cut_off, diff.lines.last_mut()) {
+                last.gap = None;
             }
             left -= shown;
             diff
         })
-        .collect()
+        .collect();
+    // Every side a gap opens from: (file, line, from its end, lines kept).
+    let mut sides: Vec<(usize, usize, bool, usize)> = Vec::new();
+    for (file, diff) in diffs.iter().enumerate() {
+        for (index, line) in diff.lines.iter().enumerate() {
+            match line.edge() {
+                Some(Edge::Top) => sides.push((file, index, true, 0)),
+                Some(Edge::Bottom) => sides.push((file, index, false, 0)),
+                Some(Edge::Middle) => {
+                    sides.push((file, index, false, 0));
+                    sides.push((file, index, true, 0));
+                }
+                None => {}
+            }
+        }
+    }
+    let mut grew = true;
+    while left > 0 && grew {
+        grew = false;
+        for i in 0..sides.len() {
+            if left == 0 {
+                break;
+            }
+            let (file, index, from_end, kept) = sides[i];
+            let count = diffs[file].lines[index]
+                .gap
+                .as_ref()
+                .map_or(0, |g| g.head.len());
+            // Both sides of one gap share its lines.
+            let other: usize = sides
+                .iter()
+                .filter(|s| s.0 == file && s.1 == index && s.2 != from_end)
+                .map(|s| s.3)
+                .sum();
+            let more = EXPAND_STEP.min(left).min(count - kept - other);
+            if more > 0 {
+                sides[i].3 += more;
+                left -= more;
+                grew = true;
+            }
+        }
+    }
+    let kept = |file: usize, index: usize, from_end: bool| {
+        sides
+            .iter()
+            .find(|s| s.0 == file && s.1 == index && s.2 == from_end)
+            .map_or(0, |s| s.3)
+    };
+    for (file, diff) in diffs.iter_mut().enumerate() {
+        for (index, line) in diff.lines.iter_mut().enumerate() {
+            let Some(gap) = line.gap.as_mut() else {
+                continue;
+            };
+            let all = std::mem::take(&mut gap.head);
+            let (down, up) = (kept(file, index, false), kept(file, index, true));
+            gap.head = all[..down].to_vec();
+            gap.tail = all[all.len() - up..].to_vec();
+            gap.head.iter_mut().chain(gap.tail.iter_mut()).for_each(cut);
+        }
+    }
+    diffs
+}
+
+fn cut(line: &mut Line) {
+    if char_count(&line.text) > TEXT_LIMIT {
+        line.text = format!("{}…", prefix(&line.text, TEXT_LIMIT));
+    }
 }
 
 // MARK: Text
@@ -921,7 +1070,7 @@ mod tests {
         let placed = edit("line 10\n", "ten\n", false, Some(&file(20)));
         assert_eq!(
             kinds(placed.as_ref()),
-            " line 7| line 8| line 9|-line 10|+ten| line 11| line 12| line 13"
+            "~| line 7| line 8| line 9|-line 10|+ten| line 11| line 12| line 13|~"
         );
         assert_eq!(
             numbers(placed.as_ref()),
@@ -1223,5 +1372,220 @@ mod tests {
         assert_eq!(value["everyMatch"], true);
         assert_eq!(value["lines"][0]["kind"], "removed");
         assert!(value.get("places").is_none() && value["lines"][0].get("number").is_none());
+    }
+
+    fn gap_at(diff: &FileDiff, edge: Edge) -> Option<&Gap> {
+        diff.lines
+            .iter()
+            .filter_map(|l| l.gap.as_ref())
+            .find(|g| g.edge == edge)
+    }
+
+    fn numbers_of(lines: &[Line]) -> Vec<usize> {
+        lines.iter().filter_map(|l| l.number).collect()
+    }
+
+    #[test]
+    fn gaps_keep_the_lines_they_leave_out() {
+        // First and last hunk: the file's start opens upward, its end downward.
+        let mid = edit("line 10\n", "ten\n", false, Some(&file(20))).unwrap();
+        let top = gap_at(&mid, Edge::Top).unwrap();
+        assert_eq!(
+            (top.count, numbers_of(&top.tail), top.head.len()),
+            (6, (1..=6).collect(), 0)
+        );
+        let bottom = gap_at(&mid, Edge::Bottom).unwrap();
+        assert_eq!(bottom.count, 7);
+        assert_eq!(
+            bottom
+                .head
+                .iter()
+                .map(|l| l.text.clone())
+                .collect::<Vec<_>>(),
+            (14..=20).map(|i| format!("line {i}")).collect::<Vec<_>>()
+        );
+        assert!(bottom.tail.is_empty());
+        assert!(top.tail.iter().all(
+            |l| l.kind == LineKind::Context && l.text == format!("line {}", l.number.unwrap())
+        ));
+
+        // Between two changes: lines from both sides, numbered as in the file.
+        let mut rows: Vec<String> = (1..=100).map(|i| format!("row {i}")).collect();
+        rows[9] = "foo".into();
+        rows[79] = "foo".into();
+        let apart = edit("foo", "bar", true, Some(&rows.join("\n"))).unwrap();
+        let middle = gap_at(&apart, Edge::Middle).unwrap();
+        assert_eq!(middle.count, 63);
+        let both: Vec<usize> = numbers_of(&middle.head)
+            .into_iter()
+            .chain(numbers_of(&middle.tail))
+            .collect();
+        assert_eq!(
+            both,
+            (14..=76).collect::<Vec<_>>(),
+            "the whole gap is kept, once"
+        );
+        assert!(!middle.head.is_empty() && !middle.tail.is_empty());
+
+        // Adjacent hunks: no gap between them.
+        let mut close: Vec<String> = (1..=20).map(|i| format!("row {i}")).collect();
+        close[4] = "foo".into();
+        close[11] = "foo".into();
+        let touching = edit("foo", "bar", true, Some(&close.join("\n"))).unwrap();
+        assert!(gap_at(&touching, Edge::Middle).is_none());
+        assert!(!kinds(Some(&touching)).contains("|~|"));
+        let ends = edit("line 1\n", "one\n", false, Some(&file(4))).unwrap();
+        assert!(ends.lines.iter().all(|l| l.kind != LineKind::Gap));
+
+        // CRLF: kept lines carry no carriage return.
+        let crlf: String = (1..=12).map(|i| format!("r{i}\r\n")).collect();
+        let crlf = edit("r10", "ten", false, Some(&crlf)).unwrap();
+        assert_eq!(
+            gap_at(&crlf, Edge::Top)
+                .unwrap()
+                .tail
+                .iter()
+                .map(|l| l.text.clone())
+                .collect::<Vec<_>>(),
+            (1..=6).map(|i| format!("r{i}")).collect::<Vec<_>>()
+        );
+
+        // The file changed on disk after the request: the diff keeps what it
+        // read, and an edit no longer in the file has nothing to open.
+        let disk = std::cell::RefCell::new(file(20));
+        let request = diffs_with(
+            "Edit",
+            &obj(
+                json!({"file_path": "C:\\p\\a.rs", "old_string": "line 10\n", "new_string": "ten\n"}),
+            ),
+            None,
+            &|_| Some(disk.borrow().clone()),
+            &|_| true,
+        );
+        *disk.borrow_mut() = "changed\n".into();
+        assert_eq!(
+            gap_at(&request[0], Edge::Top).unwrap().tail[0].text,
+            "line 1"
+        );
+        let stale = edit("line 10\n", "ten\n", false, Some("something else\n")).unwrap();
+        assert!(stale.lines.iter().all(|l| l.gap.is_none()));
+
+        // Nothing to show: no file, a new file, a bare patch.
+        assert!(
+            edit("line 10\n", "ten\n", false, None)
+                .unwrap()
+                .lines
+                .iter()
+                .all(|l| l.kind != LineKind::Gap)
+        );
+        let fresh = write("C:\\n", &file(30), false, None);
+        assert!(fresh.lines.iter().all(|l| l.kind == LineKind::Added));
+        let bare = codex(&[json!({"path": "/w/x", "kind": {"type": "update"},
+                                  "diff": "@@ -1 +1 @@\n-a\n+b\n@@ -40 +40 @@\n-c\n+d\n"})]);
+        assert!(bare[0].lines.iter().any(|l| l.kind == LineKind::Gap));
+        assert!(bare[0].lines.iter().all(|l| l.gap.is_none()));
+        let gem = gemini(&obj(
+            json!({"type": "edit", "filePath": "/g", "originalContent": file(20),
+                                     "newContent": file(20).replace("line 10\n", "ten\n"), "isModifying": true}),
+        ));
+        assert_eq!(gap_at(&gem[0], Edge::Top).unwrap().tail.len(), 6);
+
+        // MultiEdit: the file's ends open only around the first and last edit.
+        let multi = diffs_with(
+            "MultiEdit",
+            &obj(json!({"file_path": "C:\\m", "edits": [
+                {"old_string": "line 10", "new_string": "ten"},
+                {"old_string": "line 30", "new_string": "thirty"}]})),
+            None,
+            &|_| Some(file(40)),
+            &|_| true,
+        );
+        let edges: Vec<Edge> = multi[0].lines.iter().filter_map(Line::edge).collect();
+        assert_eq!(edges, [Edge::Top, Edge::Bottom]);
+        assert_eq!(multi[0].lines.first().unwrap().edge(), Some(Edge::Top));
+        assert_eq!(multi[0].lines.last().unwrap().edge(), Some(Edge::Bottom));
+    }
+
+    #[test]
+    fn gaps_share_what_the_line_limit_leaves() {
+        let large = edit("line 500\n", "five hundred\n", false, Some(&file(1000))).unwrap();
+        let (top, bottom) = (
+            gap_at(&large, Edge::Top).unwrap(),
+            gap_at(&large, Edge::Bottom).unwrap(),
+        );
+        assert_eq!(
+            large.lines.len() + top.tail.len() + bottom.head.len(),
+            LINE_LIMIT
+        );
+        assert!(top.tail.len() > 150 && bottom.head.len() > 150);
+        assert_eq!(
+            (top.tail.last().unwrap().number, bottom.head[0].number),
+            (Some(496), Some(504))
+        );
+        assert!(top.head.is_empty() && bottom.tail.is_empty());
+
+        // A long gap between changes keeps lines from both of its sides.
+        let mut rows: Vec<String> = (1..=2000).map(|i| format!("row {i}")).collect();
+        rows[9] = "foo".into();
+        rows[1989] = "foo".into();
+        let apart = edit("foo", "bar", true, Some(&rows.join("\n"))).unwrap();
+        let middle = gap_at(&apart, Edge::Middle).unwrap();
+        assert!(middle.head.len() > 50 && middle.tail.len() > 50);
+        assert_eq!(
+            (middle.head[0].number, middle.tail.last().unwrap().number),
+            (Some(14), Some(1986))
+        );
+
+        // Long kept lines are cut like any other.
+        let wide: String = (1..=20)
+            .map(|i| if i == 2 { "w".repeat(900) } else { format!("line {i}") } + "\n")
+            .collect();
+        let wide = edit("line 10\n", "ten\n", false, Some(&wide)).unwrap();
+        assert_eq!(
+            char_count(&gap_at(&wide, Edge::Top).unwrap().tail[1].text),
+            TEXT_LIMIT + 1
+        );
+
+        // A diff cut by the limit never leaves an open gap last.
+        let spread: String = (1..=2000)
+            .map(|i| {
+                if i % 10 == 0 {
+                    format!("changed {i}\n")
+                } else {
+                    format!("line {i}\n")
+                }
+            })
+            .collect();
+        let cut_off = diffs_with(
+            "Write",
+            &obj(json!({"file_path": "C:\\c", "content": spread})),
+            None,
+            &|_| Some(file(2000)),
+            &|_| true,
+        );
+        assert!(cut_off[0].hidden > 0);
+        assert!(cut_off[0].lines.last().unwrap().gap.is_none());
+        // Nothing left over: the gaps keep nothing.
+        assert!(
+            cut_off[0]
+                .lines
+                .iter()
+                .filter_map(|l| l.gap.as_ref())
+                .all(|g| g.head.is_empty() && g.tail.is_empty())
+        );
+    }
+
+    #[test]
+    fn gaps_serialize_for_the_card() {
+        let diff = edit("line 10\n", "ten\n", false, Some(&file(20))).unwrap();
+        let value = serde_json::to_value(&diff).unwrap();
+        assert_eq!(value["lines"][0]["gap"]["edge"], "top");
+        assert_eq!(value["lines"][0]["gap"]["count"], 6);
+        assert_eq!(value["lines"][0]["gap"]["tail"][0]["number"], 1);
+        assert!(value["lines"][1].get("gap").is_none());
+        assert_eq!(
+            value["lines"].as_array().unwrap().last().unwrap()["gap"]["edge"],
+            "bottom"
+        );
     }
 }

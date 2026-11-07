@@ -47,6 +47,20 @@ export interface DiffLine {
   text: string;
   /** In the file: the new number, or the old one for a removed line. */
   number?: number;
+  /** What a gap leaves out of the file as read; absent with no file behind it. */
+  gap?: DiffGap;
+}
+
+/** The unchanged lines a gap leaves out (file_diff.rs Gap). */
+export interface DiffGap {
+  /** top opens upward from the first change, bottom downward from the last. */
+  edge: "top" | "middle" | "bottom";
+  /** How many lines it leaves out. */
+  count: number;
+  /** Kept from its start, right below the lines above it. */
+  head: DiffLine[];
+  /** Kept from its end, right above the lines below it. */
+  tail: DiffLine[];
 }
 
 /** What a file change would do to one file (file_diff.rs). */

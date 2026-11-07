@@ -515,6 +515,10 @@ extension NotchClaudeSessionStrings {
     func diffPlaces(_ count: Int) -> String { "\(count) places" }
     func diffMovesTo(_ path: String) -> String { "Moves to \(path)" }
     func diffMoreLines(_ count: Int) -> String { count == 1 ? "… 1 more line" : "… \(count) more lines" }
+    func diffHiddenLines(_ count: Int) -> String { count == 1 ? "1 unchanged line" : "\(count) unchanged lines" }
+    func diffShowAll(_ count: Int) -> String { count == 1 ? "Show the line" : "Show all \(count) lines" }
+    var diffShowBelow: String { "Show \(ClaudeFileDiffs.expandStep) more lines below" }
+    var diffShowAbove: String { "Show \(ClaudeFileDiffs.expandStep) more lines above" }
     func diffCounts(added: Int, removed: Int) -> String { "\(added) added, \(removed) removed" }
     func diffLineLabel(added: Bool, removed: Bool, number: Int?, text: String) -> String {
         let kind = added ? "Added" : removed ? "Removed" : "Unchanged"

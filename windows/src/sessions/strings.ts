@@ -7,6 +7,7 @@
 
 import { isHookAgent, PROVIDER_NAMES, type PlanMode, type Provider } from "./types";
 import { t, tf } from "../i18n";
+import { EXPAND_STEP } from "./diffGaps";
 
 export const S = {
   get ownWorktree() {
@@ -79,6 +80,14 @@ export const S = {
   diffPlaces: (n: number) => tf("windows.sessions.diffPlaces", n),
   diffMovesTo: (path: string) => tf("windows.sessions.diffMovesTo", path),
   diffMoreLines: (n: number) => tf("windows.sessions.diffMoreLines", n),
+  diffHiddenLines: (n: number) => tf("windows.sessions.diffHiddenLines", n),
+  diffShowAll: (n: number) => tf("windows.sessions.diffShowAll", n),
+  get diffShowBelow() {
+    return tf("windows.sessions.diffShowBelow", EXPAND_STEP);
+  },
+  get diffShowAbove() {
+    return tf("windows.sessions.diffShowAbove", EXPAND_STEP);
+  },
   diffCounts: (added: number, removed: number) => tf("windows.sessions.diffCounts", added, removed),
   /** "Added, line 12: text", read out for one line of a diff. */
   diffLineLabel(line: { kind: string; number?: number; text: string }) {

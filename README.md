@@ -42,7 +42,7 @@ Every agent session on your machine, beside the camera. When one needs you, the 
     <td width="50%"><img src="docs/assets/readme/sessions/answer.gif" alt="A question from Claude answered by picking an option in the island"></td>
   </tr>
   <tr>
-    <td><b>Allow</b><br>Allow, Deny or Always, with the whole command or the file diff in view. <kbd>⌘Y</kbd> <kbd>⌘N</kbd> <kbd>⌘T</kbd> work from any app.</td>
+    <td><b>Allow</b><br>Allow, Deny or Always, with the whole command or the file diff in view, and more of the file a click away. <kbd>⌘Y</kbd> <kbd>⌘N</kbd> <kbd>⌘T</kbd> work from any app.</td>
     <td><b>Answer</b><br>Pick one option, several, or write your own.</td>
   </tr>
   <tr>
