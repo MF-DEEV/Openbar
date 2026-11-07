@@ -24,6 +24,7 @@ pub mod ics;
 pub mod image;
 pub mod kitty;
 pub mod locale;
+pub mod net;
 pub mod ocr;
 pub mod paths;
 pub mod process;
