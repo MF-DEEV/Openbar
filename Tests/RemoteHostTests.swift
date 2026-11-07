@@ -49,7 +49,9 @@ enum RemoteHostTests {
         suite.expect(RemoteHostPrefs.configAliases(home: folder) == ["box", "other", "eq", "fromInclude"],
                      "aliases come from the config and its includes, without patterns")
 
-        let defaults = UserDefaults(suiteName: "openbar-remote-tests-\(UUID().uuidString)")!
+        let defaults = UserDefaults(suiteName: "com.openbar.tests.remote-hosts")!
+        defaults.removePersistentDomain(forName: "com.openbar.tests.remote-hosts")
+        defer { defaults.removePersistentDomain(forName: "com.openbar.tests.remote-hosts") }
         suite.expect(RemoteHostPrefs.active(in: defaults).isEmpty && !RemoteHostPrefs.isEnabled(in: defaults), "off by default")
         RemoteHostPrefs.save([RemoteHost(alias: "box"), RemoteHost(alias: "box"), RemoteHost(alias: "-x")], in: defaults)
         suite.expect(RemoteHostPrefs.hosts(in: defaults).map(\.alias) == ["box"] && RemoteHostPrefs.active(in: defaults).isEmpty,
