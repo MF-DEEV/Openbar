@@ -32,6 +32,7 @@ pub mod recorder;
 pub mod screen;
 pub mod session_lock;
 pub mod sessions;
+pub mod shelf;
 pub mod sound;
 #[cfg(test)]
 pub mod testbus;
