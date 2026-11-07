@@ -22,6 +22,8 @@ use crate::capture::Rect;
 mod audio;
 #[cfg(windows)]
 mod engine;
+#[cfg(target_os = "linux")]
+use crate::linux::recorder as engine;
 
 pub const STARTED: &str = "recorder://started";
 pub const ENDED: &str = "recorder://ended";
@@ -198,7 +200,7 @@ pub fn start<R: Runtime>(
     Ok(())
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn run<R: Runtime>(
     app: AppHandle<R>,
     monitor: Rect,
@@ -228,7 +230,7 @@ fn run<R: Runtime>(
         .map_err(|_| "the recorder stopped".to_owned())?
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn run<R: Runtime>(
     _app: AppHandle<R>,
     _monitor: Rect,
@@ -256,7 +258,7 @@ pub fn recorder_running(shared: tauri::State<'_, Shared>) -> bool {
 /// recordings, so a page can't point this at anything else.
 #[tauri::command]
 pub fn recorder_reveal(path: String) -> Result<(), String> {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     {
         let folder = engine::videos_folder().ok_or("the Videos folder is unavailable")?;
         let target = PathBuf::from(&path);
@@ -268,7 +270,7 @@ pub fn recorder_reveal(path: String) -> Result<(), String> {
         crate::files::shell::reveal(vec![path]);
         Ok(())
     }
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = path;
         Err("needs Windows".into())
