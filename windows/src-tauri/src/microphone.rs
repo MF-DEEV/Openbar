@@ -32,6 +32,9 @@ pub fn microphone_snapshot(state: tauri::State<'_, Shared>) -> Snapshot {
 }
 
 pub fn probe_main(path: &str) -> ! {
+    #[cfg(target_os = "linux")]
+    let snapshot = imp::read_now();
+    #[cfg(not(target_os = "linux"))]
     #[cfg_attr(not(windows), allow(unused_mut))]
     let mut snapshot = Snapshot::default();
     #[cfg(windows)]
@@ -134,9 +137,15 @@ pub fn start(app: AppHandle, shared: Shared) {
             }
         }
     });
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    imp::start(app, shared);
+    #[cfg(not(any(windows, target_os = "linux")))]
     let _ = (app, shared);
 }
+
+#[cfg(target_os = "linux")]
+#[path = "linux/microphone.rs"]
+mod imp;
 
 #[cfg(windows)]
 mod imp {

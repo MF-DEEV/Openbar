@@ -354,7 +354,11 @@ mod imp {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+#[path = "linux/shell.rs"]
+mod imp;
+
+#[cfg(not(any(windows, target_os = "linux")))]
 mod imp {
     pub fn open_task_manager() -> bool {
         false
