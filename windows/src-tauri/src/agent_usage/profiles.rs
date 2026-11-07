@@ -303,8 +303,12 @@ pub fn interval(failure: Option<Failure>, renewed: bool) -> f64 {
 /// and certificate settings, and the telemetry opt-outs. Neither a sign-in,
 /// a provider nor a shared state folder the app was started with may point
 /// a check at another account.
-const ALLOWED: [&str; 35] = [
+const ALLOWED: [&str; 39] = [
     "HOME",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_STATE_HOME",
     "USER",
     "LOGNAME",
     "TMPDIR",

@@ -201,7 +201,12 @@ mod imp {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+mod imp {
+    pub use crate::linux::ocr::recognize;
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 mod imp {
     use super::{OcrError, OcrResult};
 

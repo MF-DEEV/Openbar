@@ -255,6 +255,12 @@ pub fn add_file<R: Runtime>(app: &AppHandle<R>, path: &str) -> bool {
     add(app, vec![Item::file(path, id)])
 }
 
+/// The id a file is found again by after a move, which a shelf item keeps.
+#[cfg(target_os = "linux")]
+pub(crate) fn file_id(path: &str) -> Option<String> {
+    identity::of(Path::new(path)).map(|i| i.encode())
+}
+
 /// Payloads written for a drop the shelf could not take. A tile already on
 /// the shelf may name the same file (one dragged out and back in): its
 /// folder stays.
@@ -517,7 +523,17 @@ async fn run_drag<R: Runtime>(
         .unwrap_or(false)
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+async fn run_drag<R: Runtime>(
+    app: &AppHandle<R>,
+    paths: Vec<String>,
+    texts: Vec<String>,
+    allow_move: bool,
+) -> bool {
+    crate::linux::shelf::drag_out(app, paths, texts, allow_move).await
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 async fn run_drag<R: Runtime>(
     _app: &AppHandle<R>,
     _paths: Vec<String>,
@@ -690,6 +706,8 @@ pub fn files_zip_cancel<R: Runtime>(app: AppHandle<R>) {
 pub fn install<R: Runtime>(app: &AppHandle<R>) {
     #[cfg(windows)]
     drop_target::install(app);
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    crate::linux::shelf::install(app);
+    #[cfg(not(any(windows, target_os = "linux")))]
     let _ = app;
 }

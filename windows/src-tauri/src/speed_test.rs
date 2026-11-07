@@ -466,18 +466,25 @@ impl Link for WinHttp {
     }
 }
 
+/// On Linux the connection is libsoup's (`linux/speed_test.rs`).
+#[cfg(target_os = "linux")]
+#[path = "linux/speed_test.rs"]
+mod imp;
+#[cfg(target_os = "linux")]
+use imp::Soup as WinHttp;
+
 /// Builds off Windows for the tests; it can never connect.
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 struct WinHttp;
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 impl WinHttp {
     fn open() -> Result<Self, Failure> {
         Err(Failure::Network("unsupported".into()))
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 impl Link for WinHttp {
     fn ping(&mut self) -> Result<(), Failure> {
         unreachable!()

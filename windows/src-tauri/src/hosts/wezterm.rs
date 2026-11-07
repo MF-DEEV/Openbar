@@ -63,10 +63,16 @@ pub fn lists_pane(json: &str, pane: u32) -> bool {
 
 /// `wezterm.exe` beside the `wezterm-gui.exe` that runs the pane, so the
 /// command line always matches that WezTerm.
+#[cfg(not(target_os = "linux"))]
 fn cli(gui_pid: u32) -> Option<PathBuf> {
     let gui = super::process::image_path(gui_pid)?;
     let cli = gui.parent()?.join("wezterm.exe");
     cli.is_file().then_some(cli)
+}
+
+#[cfg(target_os = "linux")]
+fn cli(gui_pid: u32) -> Option<PathBuf> {
+    crate::linux::wezterm::cli(gui_pid)
 }
 
 #[cfg(windows)]
@@ -117,9 +123,14 @@ fn run(cli: &PathBuf, socket: &str, arguments: &[&str], input: Option<&str>) -> 
     reader.join().ok().flatten()
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn run(_cli: &PathBuf, _socket: &str, _arguments: &[&str], _input: Option<&str>) -> Option<String> {
     None
+}
+
+#[cfg(target_os = "linux")]
+fn run(cli: &PathBuf, socket: &str, arguments: &[&str], input: Option<&str>) -> Option<String> {
+    crate::linux::wezterm::run(cli, socket, arguments, input)
 }
 
 fn listed(cli: &PathBuf, socket: &str, pane: u32) -> bool {

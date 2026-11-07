@@ -6,7 +6,7 @@
 //! audio capture running. Only normalized levels are emitted, at most 30 Hz.
 #[cfg(windows)]
 mod capture;
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "linux", test))]
 mod spectrum;
 
 use std::{
@@ -20,7 +20,7 @@ impl Demand {
     fn watch(&self, on: bool) {
         *self.0.lock().unwrap() = on.then(|| Instant::now() + Duration::from_secs(15));
     }
-    #[cfg(any(windows, test))]
+    #[cfg(any(windows, target_os = "linux", test))]
     fn active(&self) -> bool {
         self.0
             .lock()
@@ -34,7 +34,7 @@ pub fn music_watch_levels(on: bool, demand: tauri::State<'_, Demand>) {
     demand.watch(on);
 }
 
-#[cfg(any(windows, test))]
+#[cfg(any(windows, target_os = "linux", test))]
 fn playing_source(state: &Option<crate::media::NowPlaying>) -> Option<&str> {
     state
         .as_ref()?
@@ -200,7 +200,13 @@ pub fn start<R: tauri::Runtime>(app: tauri::AppHandle<R>, media: crate::media::S
         });
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+#[path = "linux/music_levels.rs"]
+mod imp;
+#[cfg(target_os = "linux")]
+pub use imp::start;
+
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn start<R: tauri::Runtime>(_app: tauri::AppHandle<R>, _media: crate::media::Shared) {}
 
 #[cfg(test)]

@@ -44,6 +44,15 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 icu_normalizer = { version = "2.4", default-features = false, features = ["compiled_data"] }
 icu_properties = { version = "2.4", default-features = false, features = ["compiled_data"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+libc = "0.2"
+raw-window-handle = "0.6"
+# Both already in the tree through tauri: the media players' bus, and the HTTPS client of the web view.
+soup3 = "0.5"
+x11rb = { version = "0.13", features = ["dpms", "randr", "xtest"] }
+zbus = "5"
+
 [target.'cfg(windows)'.dependencies]
 uds_windows = "1"
 # Voice replies: speech recognized on this PC (src/voice). Cross-builds from a

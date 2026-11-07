@@ -17,11 +17,19 @@ import { moduleInfo } from "../modules";
 import type { Size } from "../motion";
 import { placeButtons, QUICK_LAYOUT, type PlacedQuickButton as Placed } from "../quickAccessLayout";
 import { modulesOf, useIsland } from "../store";
-import { extraHits, surfaceHits } from "../surface/IslandSurface";
+import { setCircles, setCircleScale, windowIsCut } from "../surface/hits";
 
 const DIAMETER = QUICK_LAYOUT.diameter;
 /** Spring(0.38, 0.12) → stiffness (2π/0.38)², damping 2·0.88·(2π/0.38). */
 const REVEAL = { type: "spring", stiffness: 273.4, damping: 29.1, mass: 1 } as const;
+
+/** The circles grow in; where the window is cut to what is drawn they do not fade as well. */
+function reveal(delay: number) {
+  const transition = windowIsCut
+    ? { scale: { ...REVEAL, delay }, opacity: { duration: 0, delay } }
+    : { ...REVEAL, delay };
+  return { scale: 1, opacity: 1, transition };
+}
 
 export function QuickAccess(props: { geometry: Geometry; size: Size; visible: boolean; delay: number }) {
   useLocale();
@@ -33,23 +41,24 @@ export function QuickAccess(props: { geometry: Geometry; size: Size; visible: bo
   // The circles take the pointer while they show; the gaps between them do not.
   useEffect(() => {
     if (!props.visible) {
-      extraHits.current = [];
-      void bridge.setHitRects(surfaceHits.current);
+      setCircles([]);
       return;
     }
     const frameLeft = (window.innerWidth - props.size.width) / 2;
-    extraHits.current = placed.map((p) => ({
-      x: frameLeft + p.cx - DIAMETER / 2,
-      y: props.geometry.floatingDrop + p.cy - DIAMETER / 2,
-      width: DIAMETER,
-      height: DIAMETER,
-      topRadius: DIAMETER / 2,
-      bottomRadius: DIAMETER / 2,
-    }));
-    void bridge.setHitRects([...surfaceHits.current, ...extraHits.current]);
-    return () => {
-      extraHits.current = [];
-    };
+    setCircles(
+      placed.map((p) => ({
+        id: p.button.id,
+        reach: {
+          x: frameLeft + p.cx - DIAMETER / 2,
+          y: props.geometry.floatingDrop + p.cy - DIAMETER / 2,
+          width: DIAMETER,
+          height: DIAMETER,
+          topRadius: DIAMETER / 2,
+          bottomRadius: DIAMETER / 2,
+        },
+      })),
+    );
+    return () => setCircles([]);
   }, [
     props.visible,
     props.size.width,
@@ -118,10 +127,18 @@ function Bubble({ placed, visible, delay }: { placed: Placed; visible: boolean; 
   }
   const Icon = icon;
   const label = placed.button.label || title;
+  const id = placed.button.id;
+
+  // The window is cut to what is drawn, so the circle is only cut out at the size it has now.
+  useEffect(() => () => setCircleScale(id, 0), [id]);
 
   return (
     <motion.div
       layout="position"
+      onUpdate={(latest) => {
+        const scale = Number(latest.scale);
+        setCircleScale(id, Number(latest.opacity) > 0.01 && scale > 0 ? scale : 0);
+      }}
       exit={{ scale: 0.4, opacity: 0, transition: { duration: 0.16 } }}
       style={{
         position: "absolute",
@@ -131,11 +148,7 @@ function Bubble({ placed, visible, delay }: { placed: Placed; visible: boolean; 
         height: DIAMETER,
       }}
       initial={{ scale: 0.4, opacity: 0 }}
-      animate={
-        visible
-          ? { scale: 1, opacity: 1, transition: { ...REVEAL, delay } }
-          : { scale: 0.4, opacity: 0, transition: { duration: 0.16, ease: "easeIn" } }
-      }
+      animate={visible ? reveal(delay) : { scale: 0.4, opacity: 0, transition: { duration: 0.16, ease: "easeIn" } }}
     >
       <motion.button
         type="button"

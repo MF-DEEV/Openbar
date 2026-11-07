@@ -21,11 +21,11 @@ pub struct AttentionContext {
 /// Whether a mirror on `window`'s display should step aside for a fullscreen
 /// app there, under Settings › Behavior › Hide in fullscreen.
 pub fn hides_on<R: Runtime>(window: &tauri::WebviewWindow<R>) -> bool {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     {
         imp::hides() && imp::context(window).fullscreen
     }
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = window;
         false
@@ -41,14 +41,14 @@ fn desktop_or_own(class: &str, own: bool) -> bool {
 
 #[tauri::command]
 pub fn attention_context<R: Runtime>(app: AppHandle<R>) -> AttentionContext {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     {
         use tauri::Manager;
         app.get_webview_window(crate::island::LABEL)
             .map(|w| imp::context(&w))
             .unwrap_or_default()
     }
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = app;
         AttentionContext {
@@ -61,9 +61,9 @@ pub fn attention_context<R: Runtime>(app: AppHandle<R>) -> AttentionContext {
 
 #[tauri::command]
 pub fn attention_compact_sessions(on: bool) {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     imp::set_compact(on);
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     let _ = on;
 }
 
@@ -283,30 +283,34 @@ mod imp {
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 pub fn watch<R: Runtime>(app: &AppHandle<R>) {
     imp::watch(app)
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 pub fn stop<R: Runtime>(app: &AppHandle<R>) {
     imp::stop(app)
 }
 
 /// Settings › Behavior › Hide in full screen.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 pub fn set_hides(hides: bool) {
     imp::set_hides(hides)
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn set_hides(_hides: bool) {}
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn watch<R: Runtime>(_app: &AppHandle<R>) {}
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn stop<R: Runtime>(_app: &AppHandle<R>) {}
+
+#[cfg(target_os = "linux")]
+#[path = "linux/fullscreen.rs"]
+mod imp;
 
 #[cfg(test)]
 mod tests {

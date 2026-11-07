@@ -35,6 +35,10 @@ const VSIX_FILES: [(&str, &[u8]); 4] = [
 const INSTALL_TIMEOUT: Duration = Duration::from_secs(120);
 const UNINSTALL_TIMEOUT: Duration = Duration::from_secs(60);
 
+#[cfg(target_os = "linux")]
+#[path = "../linux/ide.rs"]
+mod linux_ide;
+
 /// One install at a time: Settings and the update at launch may overlap.
 static WORK: Mutex<()> = Mutex::new(());
 
@@ -171,6 +175,10 @@ fn extensions_folder(home: &Path, root: &Path, editor: &Editor) -> PathBuf {
 }
 
 fn find<'a>(editor: &'a Editor, places: &Places) -> Option<Found<'a>> {
+    #[cfg(target_os = "linux")]
+    if let Some(found) = linux_ide::find_on_path(editor, places) {
+        return Some(found);
+    }
     let installed = places.roots.iter().flat_map(|root| {
         editor.folders.iter().flat_map(move |folder| {
             editor.clis.iter().flat_map(move |cli| {
@@ -811,8 +819,24 @@ mod tests {
         fn script(pc: &Pc, body: &str) -> PathBuf {
             let root = pc.editor("Microsoft VS Code", "Code.exe", "bin/code.cmd");
             let cli = root.join("bin/code.cmd");
-            fs::write(&cli, format!("#!/bin/sh\n{body}\n")).unwrap();
+            fs::write(
+                &cli,
+                format!("#!/bin/sh\n[ \"$1\" = --openbar-probe ] && exit 0\n{body}\n"),
+            )
+            .unwrap();
             fs::set_permissions(&cli, fs::Permissions::from_mode(0o755)).unwrap();
+            // Another test's fork can hold the file open for a moment ("text file busy"):
+            // it is run once, doing nothing, before anything relies on it.
+            for _ in 0..200 {
+                if std::process::Command::new(&cli)
+                    .arg("--openbar-probe")
+                    .status()
+                    .is_ok()
+                {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
             cli
         }
 
@@ -874,5 +898,25 @@ mod tests {
             Failure::Other("disk full".into()).into_reason(),
             "disk full"
         );
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn an_editor_installed_system_wide_is_found_by_its_command_on_path() {
+        let pc = Pc::new("unix");
+        let bin = pc.base.join("usr/bin");
+        touch(&bin.join("code"));
+        touch(&bin.join("antigravity"));
+        let mut places = pc.places();
+        places.path = vec![PathBuf::from("relative"), bin.clone()];
+        let code = find(editor("vscode"), &places).unwrap();
+        assert_eq!(code.cli, bin.join("code"));
+        assert_eq!(code.extensions, places.home.join(".vscode/extensions"));
+        let antigravity = find(editor("antigravity"), &places).unwrap();
+        assert_eq!(
+            antigravity.extensions,
+            places.home.join(".antigravity/extensions")
+        );
+        assert!(find(editor("windsurf"), &places).is_none());
     }
 }

@@ -35,6 +35,19 @@ pub enum Host {
         pane: u32,
         socket: String,
     },
+    /// A tmux pane, by the server socket and pane id tmux put in the
+    /// environment (Linux).
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    Tmux {
+        socket: String,
+        pane: String,
+    },
+    /// A kitty window with remote control on (Linux).
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    Kitty {
+        window: u32,
+        listen: String,
+    },
     /// Some other terminal owns the session (no replies, Open only raises
     /// it), named so the island can say which.
     App {
@@ -51,6 +64,8 @@ impl Host {
                 | Host::Vscode { .. }
                 | Host::Conhost
                 | Host::Wezterm { .. }
+                | Host::Tmux { .. }
+                | Host::Kitty { .. }
         )
     }
 
@@ -70,6 +85,8 @@ impl Host {
                 .into(),
             ),
             Host::Wezterm { .. } => Some("WezTerm".into()),
+            Host::Tmux { .. } => Some("tmux".into()),
+            Host::Kitty { .. } => Some("kitty".into()),
             Host::App { name } => Some(name.clone()),
             Host::Conhost | Host::Unknown => None,
         }
@@ -177,6 +194,7 @@ pub fn classify(chain: &[process::Entry]) -> Located {
 }
 
 /// Finds the host of claude process `pid` (None when it is gone).
+#[cfg(not(target_os = "linux"))]
 pub fn locate(pid: u32) -> Option<Located> {
     let chain = process::ancestors(pid)?;
     let mut located = classify(&chain);
@@ -197,6 +215,9 @@ pub fn locate(pid: u32) -> Option<Located> {
     }
     Some(located)
 }
+
+#[cfg(target_os = "linux")]
+pub use crate::linux::hosts::locate;
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum DeliveryError {
@@ -221,6 +242,10 @@ pub fn deliver(
             socket,
         } => wezterm::send(*gui_pid, *pane, socket, text, images)
             .map_err(|_| DeliveryError::Unreachable),
+        #[cfg(target_os = "linux")]
+        Host::Tmux { .. } | Host::Kitty { .. } => {
+            crate::linux::hosts::deliver(pid, located, text, images)
+        }
         _ => Err(DeliveryError::Unreachable),
     }
 }
@@ -245,6 +270,10 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
             let _ = wezterm::focus(*gui_pid, *pane, socket);
             platform_raise_host(&located.ancestors, cwd)
         }
+        #[cfg(target_os = "linux")]
+        Host::Tmux { .. } | Host::Kitty { .. } => crate::linux::hosts::focus(pid, located, cwd),
+        #[cfg(not(target_os = "linux"))]
+        Host::Tmux { .. } | Host::Kitty { .. } => false,
         // A terminal the island can't type into still comes forward.
         Host::App { .. } => platform_raise_host(&located.ancestors, cwd),
         Host::Unknown => false,
@@ -486,7 +515,12 @@ fn console_focus(_pid: u32) -> bool {
     false
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+fn platform_raise_host(pids: &[u32], cwd: &str) -> bool {
+    crate::linux::x11::raise(pids, cwd)
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn platform_raise_host(_pids: &[u32], _cwd: &str) -> bool {
     false
 }

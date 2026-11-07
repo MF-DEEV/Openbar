@@ -16,12 +16,19 @@ pub const INTERVAL: f64 = 24.0 * 3600.0;
 pub const RETRY: f64 = 6.0 * 3600.0;
 
 /// `%APPDATA%\com.openbar.island\agent-prices.json`.
+#[cfg(not(target_os = "linux"))]
 pub fn cache_path() -> Option<PathBuf> {
     std::env::var_os("APPDATA").map(|a| {
         PathBuf::from(a)
             .join("com.openbar.island")
             .join("agent-prices.json")
     })
+}
+
+/// `~/.config/com.openbar.island/agent-prices.json`.
+#[cfg(target_os = "linux")]
+pub fn cache_path() -> Option<PathBuf> {
+    crate::linux::paths::roaming().map(|a| a.join("com.openbar.island").join("agent-prices.json"))
 }
 
 pub fn cached() -> Option<PriceList> {
@@ -141,7 +148,17 @@ fn get() -> Option<Vec<u8>> {
     }
 }
 
-#[cfg(not(windows))]
+/// On Linux the download is libsoup's (`linux/prices.rs`).
+#[cfg(target_os = "linux")]
+#[path = "../linux/prices.rs"]
+mod imp;
+
+#[cfg(target_os = "linux")]
+fn get() -> Option<Vec<u8>> {
+    imp::get()
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn get() -> Option<Vec<u8>> {
     None
 }

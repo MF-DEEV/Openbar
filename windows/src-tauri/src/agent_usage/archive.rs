@@ -26,12 +26,19 @@ pub struct Archive {
 }
 
 /// `%LOCALAPPDATA%\com.openbar.island\AgentUsage\`, a cache safe to delete.
+#[cfg(not(target_os = "linux"))]
 pub fn folder() -> Option<PathBuf> {
     std::env::var_os("LOCALAPPDATA").map(|l| {
         PathBuf::from(l)
             .join("com.openbar.island")
             .join("AgentUsage")
     })
+}
+
+/// `~/.cache/com.openbar.island/AgentUsage/`, a cache safe to delete.
+#[cfg(target_os = "linux")]
+pub fn folder() -> Option<PathBuf> {
+    crate::linux::paths::cache().map(|l| l.join("com.openbar.island").join("AgentUsage"))
 }
 
 /// The archive, only when saved by this parser for this provider set.

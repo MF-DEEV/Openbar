@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   LANGUAGES,
   applyLanguage,
@@ -106,4 +106,16 @@ describe("Swift formatting and count agreement", () => {
     }
     expect([1, 2, 4, 5, 21, 22].map((n) => pluralForm("sk", n))).toEqual(["one", "few", "few", "many", "many", "many"]);
   });
+});
+
+it("starts when the system reports a language tag Intl rejects, as a C locale does", async () => {
+  vi.stubGlobal("navigator", { language: "C" });
+  vi.resetModules();
+  try {
+    const fresh = await import("./index");
+    expect(fresh.getRegionalSettings().preferred).toEqual(["en-US"]);
+    expect(fresh.getRegionalSettings().region).toBe("US");
+  } finally {
+    vi.unstubAllGlobals();
+  }
 });

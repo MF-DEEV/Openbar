@@ -12,6 +12,9 @@
 
 #[cfg(windows)]
 mod engine;
+#[cfg(target_os = "linux")]
+#[path = "../linux/audio.rs"]
+mod engine;
 mod guard;
 mod mic;
 #[cfg(windows)]
@@ -304,11 +307,12 @@ fn saved_file(name: &str) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|dir| dir.join(name))
 }
 
+#[cfg_attr(not(windows), allow(clippy::needless_return))]
 pub fn start(app: AppHandle, shared: Shared) {
     if APP.set((app, shared)).is_err() {
         return;
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     engine::start();
 }
 
@@ -330,7 +334,7 @@ pub fn apply_prefs<R: Runtime>(app: &AppHandle<R>, value: &serde_json::Value) {
     {
         sync_switcher(app);
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     {
         // A new cycle, or the switcher turned off or on, starts without the
         // last press's error (SoundOutputSwitcher.unregisterHotkey).
@@ -396,7 +400,7 @@ pub(crate) fn switching_probed(can_switch: bool) {
         let handle = app.clone();
         tauri::async_runtime::spawn_blocking(move || {
             sync_switcher(&handle);
-            #[cfg(windows)]
+            #[cfg(any(windows, target_os = "linux"))]
             engine::post(|_| {});
         });
     }
@@ -411,14 +415,14 @@ pub fn recording_window_closed<R: Runtime>(app: &AppHandle<R>, owner: &str) {
     let _ = crate::island_shortcut::recording(app, owner, false);
     if RECORDING.swap(false, Ordering::SeqCst) {
         sync_switcher(app);
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         engine::post(|_| {});
     }
 }
 
 /// The app is quitting: what the Mixer options changed is handed back.
 pub fn stop() {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     engine::with_existing(|e| e.restore_lowered());
 }
 
@@ -432,7 +436,7 @@ pub fn is_switcher_shortcut(shortcut: &tauri_plugin_global_shortcut::Shortcut) -
 
 /// The switcher's shortcut was pressed: the next chosen output plays.
 pub fn switch_to_next_output() {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     engine::post(|e| e.switch_to_next(&options().cycle));
 }
 
@@ -506,11 +510,11 @@ fn roller_step(direction: roller::Direction) {
         .unwrap()
         .get_or_insert_with(roller::Gate::default)
         .accepts(direction, std::time::Instant::now());
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     if accepted {
         engine::post(move |e| e.step_output(direction));
     }
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     let _ = accepted;
 }
 
@@ -538,7 +542,7 @@ fn set_recording<R: Runtime>(app: &AppHandle<R>, owner: &str, on: bool) -> Resul
     }
     RECORDING.store(on, Ordering::SeqCst);
     sync_switcher(app);
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     engine::post(|_| {});
     result
 }
@@ -552,12 +556,12 @@ pub async fn audio_priority_set(
     ids: Option<Vec<String>>,
 ) -> Result<(), String> {
     blocking(move || {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         return with_engine(move |e| {
             e.set_priority(output, enabled, ids);
             Ok(())
         });
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "linux")))]
         {
             let _ = (output, enabled, ids);
             unavailable()
@@ -566,10 +570,10 @@ pub async fn audio_priority_set(
     .await
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 use engine::with_engine;
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn unavailable<T>() -> Result<T, String> {
     Err("System audio is available on Windows".into())
 }
@@ -587,6 +591,18 @@ pub(crate) fn player_processes(source: String) -> Result<Vec<u32>, String> {
     with_engine(move |e| Ok(e.player_processes(&source)))
 }
 
+/// The streams a player plays, each with the monitor of its output, for the
+/// music levels to record from.
+#[cfg(target_os = "linux")]
+pub(crate) fn player_streams(
+    matches: fn(&str, &str) -> bool,
+    source: String,
+) -> Result<Vec<(u32, String)>, String> {
+    with_engine(move |e| {
+        Ok(e.player_streams(&|exe| matches(&source, exe) || engine::same_player(&source, exe)))
+    })
+}
+
 /// A player's volume for the Music page (media_volume.rs): the loudest of
 /// the sessions whose own exe `matches`, set first when `level` is given.
 pub fn player_volume(
@@ -597,7 +613,14 @@ pub fn player_volume(
     let level = checked(level)?;
     #[cfg(windows)]
     return with_engine(move |e| e.player_volume(&|exe| matches(&source, exe), level));
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    return with_engine(move |e| {
+        e.player_volume(
+            &|exe| matches(&source, exe) || engine::same_player(&source, exe),
+            level,
+        )
+    });
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = (matches, source, level);
         unavailable()
@@ -608,7 +631,7 @@ pub fn player_volume(
 /// means it really failed, not that it hasn't started yet.
 #[tauri::command]
 pub async fn audio_state(state: tauri::State<'_, Shared>) -> Result<State, String> {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     let _ = blocking(|| with_engine(|_| Ok(()))).await;
     Ok(state.0.lock().unwrap().clone())
 }
@@ -617,9 +640,9 @@ pub async fn audio_state(state: tauri::State<'_, Shared>) -> Result<State, Strin
 pub async fn audio_set_output(volume: Option<f32>, muted: Option<bool>) -> Result<(), String> {
     let volume = checked(volume)?;
     blocking(move || {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         return with_engine(move |e| e.set_level(false, volume, muted));
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "linux")))]
         {
             let _ = (volume, muted);
             unavailable()
@@ -632,9 +655,9 @@ pub async fn audio_set_output(volume: Option<f32>, muted: Option<bool>) -> Resul
 pub async fn audio_set_input(volume: Option<f32>, muted: Option<bool>) -> Result<(), String> {
     let volume = checked(volume)?;
     blocking(move || {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         return with_engine(move |e| e.set_level(true, volume, muted));
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "linux")))]
         {
             let _ = (volume, muted);
             unavailable()
@@ -647,9 +670,9 @@ pub async fn audio_set_input(volume: Option<f32>, muted: Option<bool>) -> Result
 #[tauri::command]
 pub async fn audio_set_default(id: String) -> Result<(), String> {
     blocking(move || {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         return with_engine(move |e| e.set_default(&id));
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "linux")))]
         {
             let _ = id;
             unavailable()
@@ -666,9 +689,9 @@ pub async fn audio_set_app(
 ) -> Result<(), String> {
     let volume = checked(volume)?;
     blocking(move || {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         return with_engine(move |e| e.set_app(&key, volume, muted));
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "linux")))]
         {
             let _ = (key, volume, muted);
             unavailable()
@@ -682,12 +705,12 @@ pub async fn audio_set_app(
 #[tauri::command]
 pub async fn audio_watch_apps(on: bool) -> Result<(), String> {
     blocking(move || {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         return with_engine(move |e| {
             e.watch(on);
             Ok(())
         });
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "linux")))]
         {
             let _ = on;
             unavailable()
@@ -700,9 +723,9 @@ pub async fn audio_watch_apps(on: bool) -> Result<(), String> {
 #[tauri::command]
 pub async fn mic_mute_set(muted: Option<bool>) -> Result<bool, String> {
     blocking(move || {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         return with_engine(move |e| e.set_mic_mute(muted));
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "linux")))]
         {
             let _ = muted;
             unavailable()

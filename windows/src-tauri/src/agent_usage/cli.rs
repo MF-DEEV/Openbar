@@ -259,6 +259,7 @@ fn registry_string(
 }
 
 /// `PATHEXT`'s extensions, lowercase, the executable kinds first.
+#[cfg(not(target_os = "linux"))]
 pub fn extensions() -> Vec<String> {
     let mut out: Vec<String> = std::env::var("PATHEXT")
         .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into())
@@ -271,6 +272,12 @@ pub fn extensions() -> Vec<String> {
         out = vec![".exe".into(), ".cmd".into()];
     }
     out
+}
+
+/// Programs have no extension on Linux.
+#[cfg(target_os = "linux")]
+pub fn extensions() -> Vec<String> {
+    vec![String::new()]
 }
 
 /// The first existing file among `candidates`, never one inside `excluded`.
@@ -310,6 +317,14 @@ pub fn tool_dirs() -> Vec<PathBuf> {
         out.push(home.join(".bun").join("bin"));
         out.push(home.join("scoop").join("shims"));
         out.push(home.join(".volta").join("bin"));
+    }
+    // Where npm, pnpm and the agents' own installers put commands on Linux.
+    #[cfg(target_os = "linux")]
+    if let Some(home) = super::files::home() {
+        out.push(home.join(".local").join("bin"));
+        out.push(home.join(".npm-global").join("bin"));
+        out.push(home.join(".local").join("share").join("pnpm"));
+        out.push(home.join(".claude").join("local"));
     }
     if let Some(volta) = env("VOLTA_HOME") {
         out.push(volta.join("bin"));

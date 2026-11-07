@@ -173,6 +173,10 @@ pub fn is_current(recorded: Option<Time>, actual: Option<Time>) -> bool {
 /// with runs of spaces collapsed as the Mac does. [VERIFY] what Claude Code
 /// writes on Windows; `startedAt` is the fallback when this does not parse.
 pub fn proc_start(text: &str) -> Option<Time> {
+    #[cfg(target_os = "linux")]
+    if let Some(started) = crate::linux::sessions::proc_start_ticks(text) {
+        return Some(started);
+    }
     let words: Vec<&str> = text.split(' ').filter(|word| !word.is_empty()).collect();
     let [weekday, month, day, time, year] = words.as_slice() else {
         return None;

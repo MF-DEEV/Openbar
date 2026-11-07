@@ -43,7 +43,16 @@ pub fn set_text(text: &str) -> Result<(), String> {
             unsafe { std::slice::from_raw_parts(wide.as_ptr().cast::<u8>(), wide.len() * 2) };
         imp::put(&[(CF_UNICODETEXT, bytes)])
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        crate::clipboard::native::write(
+            &crate::clipboard::native::Payload::Text(text.into()),
+            false,
+        )
+        .then_some(())
+        .ok_or_else(|| "the clipboard is busy".into())
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = text;
         Err("clipboard needs Windows".into())
@@ -59,7 +68,17 @@ pub fn set_image(rgba: &[u8], width: u32, height: u32, png: &[u8]) -> Result<(),
         };
         imp::put(&[(CF_DIB, &dib), (png_format, png)])
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        let _ = (rgba, width, height);
+        crate::clipboard::native::write(
+            &crate::clipboard::native::Payload::Image(png.to_vec()),
+            false,
+        )
+        .then_some(())
+        .ok_or_else(|| "the clipboard is busy".into())
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = (rgba, width, height, png);
         Err("clipboard needs Windows".into())

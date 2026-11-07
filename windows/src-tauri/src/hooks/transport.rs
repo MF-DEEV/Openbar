@@ -34,12 +34,17 @@ pub fn endpoint(app: &str) -> String {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 fn private_dir() -> std::path::PathBuf {
     let base = std::env::var_os("HOME")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
     base.join(".openbar")
+}
+
+#[cfg(target_os = "linux")]
+fn private_dir() -> std::path::PathBuf {
+    crate::linux::hooks::private_dir()
 }
 
 /// True once `buf` holds one whole JSON object (ClaudeHookMessage.isComplete).
@@ -336,8 +341,15 @@ mod platform {
     }
 
     /// The socket is 0600 in a 0700 folder; only this user can reach it.
+    #[cfg(not(target_os = "linux"))]
     pub fn same_user(_stream: &Stream) -> bool {
         true
+    }
+
+    /// The socket is 0600 in a 0700 folder; on Linux the kernel also names the caller.
+    #[cfg(target_os = "linux")]
+    pub fn same_user(stream: &Stream) -> bool {
+        crate::linux::hooks::same_user(stream)
     }
 }
 

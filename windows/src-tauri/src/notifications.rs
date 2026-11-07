@@ -459,17 +459,23 @@ mod imp {
 #[cfg(windows)]
 pub use imp::start;
 
+#[cfg(target_os = "linux")]
+#[path = "linux/notifications.rs"]
+mod imp;
+#[cfg(target_os = "linux")]
+pub use imp::start;
+
 /// A content-free diagnostic, also usable before the main island is launched.
 pub fn probe_main(path: &str) -> ! {
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     let report = imp::probe();
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     let report = serde_json::json!({ "access": "unavailable" });
     let result = std::fs::write(path, report.to_string());
     std::process::exit(if result.is_ok() { 0 } else { 1 });
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn start<R: tauri::Runtime>(_app: tauri::AppHandle<R>, _shared: Shared) {}
 
 #[tauri::command]
@@ -500,7 +506,10 @@ pub async fn notifications_request_access(
         .await
         .unwrap_or(Access::Unavailable)
     };
-    #[cfg(not(windows))]
+    // No consent to ask for: the island may listen, or the bus does not let it.
+    #[cfg(target_os = "linux")]
+    let access = state.lock().unwrap().access;
+    #[cfg(not(any(windows, target_os = "linux")))]
     let access = Access::Unavailable;
     state.lock().unwrap().access = access;
     use tauri::Emitter;

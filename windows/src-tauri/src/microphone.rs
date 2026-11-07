@@ -4,6 +4,7 @@
 //! Read-only audio metering and Discord accessibility. Never opens a recording
 //! stream, changes Discord, reads messages, or assumes WASAPI mute = Discord mute.
 use std::sync::{Arc, Mutex};
+#[cfg_attr(not(windows), allow(unused_imports))]
 use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, serde::Serialize)]
@@ -31,6 +32,10 @@ pub fn microphone_snapshot(state: tauri::State<'_, Shared>) -> Snapshot {
 }
 
 pub fn probe_main(path: &str) -> ! {
+    #[cfg(target_os = "linux")]
+    let snapshot = imp::read_now();
+    #[cfg(not(target_os = "linux"))]
+    #[cfg_attr(not(windows), allow(unused_mut))]
     let mut snapshot = Snapshot::default();
     #[cfg(windows)]
     unsafe {
@@ -132,9 +137,15 @@ pub fn start(app: AppHandle, shared: Shared) {
             }
         }
     });
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    imp::start(app, shared);
+    #[cfg(not(any(windows, target_os = "linux")))]
     let _ = (app, shared);
 }
+
+#[cfg(target_os = "linux")]
+#[path = "linux/microphone.rs"]
+mod imp;
 
 #[cfg(windows)]
 mod imp {

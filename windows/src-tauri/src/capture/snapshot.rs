@@ -71,7 +71,12 @@ pub fn capture(monitor: isize, rect: Rect) -> Option<Frame> {
     {
         imp::duplicate(monitor, rect).or_else(|| imp::bitblt(rect))
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        let _ = monitor;
+        crate::linux::screen::grab(rect)
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         let _ = monitor;
         // Designing on the Mac: a grey test card the size of the display.

@@ -85,9 +85,25 @@ impl Request {
         }
     }
 
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    fn create() -> Result<Self, String> {
+        imp::acquire().map(Request)
+    }
+
+    #[cfg(not(any(windows, target_os = "linux")))]
     fn create() -> Result<Self, String> {
         Ok(Request(0))
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[path = "linux/keep_awake.rs"]
+mod imp;
+
+#[cfg(target_os = "linux")]
+impl Drop for Request {
+    fn drop(&mut self) {
+        imp::release(self.0);
     }
 }
 

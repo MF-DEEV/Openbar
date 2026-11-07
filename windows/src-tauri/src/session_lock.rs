@@ -8,7 +8,7 @@
 
 use tauri::AppHandle;
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 pub const EVENT: &str = "session://unlocked";
 
 #[cfg(windows)]
@@ -68,7 +68,12 @@ pub fn start(app: AppHandle) {
         });
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+pub fn start(app: AppHandle) {
+    crate::linux::session_lock::start(app);
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn start(_app: AppHandle) {}
 
 #[cfg(windows)]

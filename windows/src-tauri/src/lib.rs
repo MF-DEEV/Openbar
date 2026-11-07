@@ -21,6 +21,8 @@ mod island;
 mod island_shortcut;
 mod keep_awake;
 mod legacy;
+#[cfg(target_os = "linux")]
+mod linux;
 mod local_calendar;
 mod locale;
 mod media;
@@ -146,6 +148,8 @@ pub fn console_main(pid: u32) -> ! {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    #[cfg(target_os = "linux")]
+    linux::before_start();
     // Settings and hooks from the app's old name, before anything reads them.
     legacy::migrate_at_start();
     let app = tauri::Builder::default()

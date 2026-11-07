@@ -48,8 +48,16 @@ const CHUNK: usize = 4 * 1024 * 1024;
 
 #[cfg(windows)]
 const PID_DOMAINS: &[&str] = registry::WINDOWS_PID_DOMAINS;
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 const PID_DOMAINS: &[&str] = registry::MAC_PID_DOMAINS;
+
+/// The `pidDomain`s of records written on this machine.
+fn pid_domains() -> &'static [&'static str] {
+    #[cfg(target_os = "linux")]
+    return crate::linux::sessions::pid_domains();
+    #[cfg(not(target_os = "linux"))]
+    PID_DOMAINS
+}
 
 /// How often Agent View is asked: more often while it has sessions.
 const JOBS_EVERY: Time = 10.0;
@@ -308,7 +316,7 @@ impl Service {
             .unwrap_or_default();
         note_account_folder(&by_home);
         let files: Vec<RegistryFile> = by_home.into_iter().flat_map(|(_, files)| files).collect();
-        let scan = registry::scan(&files, PID_DOMAINS, process_start);
+        let scan = registry::scan(&files, pid_domains(), process_start);
         let mut inner = self.inner.lock().unwrap();
         inner.ticks += 1;
         let t = now();
@@ -651,7 +659,11 @@ impl Service {
                         models::Provider::Cursor => {
                             matches!(
                                 kind,
-                                HostKind::WindowsTerminal | HostKind::Conhost | HostKind::Wezterm
+                                HostKind::WindowsTerminal
+                                    | HostKind::Conhost
+                                    | HostKind::Wezterm
+                                    | HostKind::Tmux
+                                    | HostKind::Kitty
                             )
                         }
                         _ => host.is_some_and(|l| l.host.accepts_replies()),
@@ -1066,7 +1078,7 @@ impl Service {
         };
         if let Some(home) = hooks::installer::home_dir() {
             let files = registry_files(&home);
-            let fresh = registry::scan(&files, PID_DOMAINS, process_start);
+            let fresh = registry::scan(&files, pid_domains(), process_start);
             match fresh.records.iter().find(|r| r.pid == pid) {
                 Some(r) if r.session_id != session => return Some("unreachable"),
                 Some(r) if r.status == Some(models::RegistryStatus::Waiting) => {
@@ -1238,6 +1250,8 @@ fn host_kind(host: &hosts::Host) -> HostKind {
         hosts::Host::Vscode { .. } => HostKind::Vscode,
         hosts::Host::Conhost => HostKind::Conhost,
         hosts::Host::Wezterm { .. } => HostKind::Wezterm,
+        hosts::Host::Tmux { .. } => HostKind::Tmux,
+        hosts::Host::Kitty { .. } => HostKind::Kitty,
         hosts::Host::App { .. } => HostKind::App,
         hosts::Host::Unknown => HostKind::Unknown,
     }
@@ -1259,7 +1273,7 @@ fn note_account_folder(by_home: &[(PathBuf, Vec<RegistryFile>)]) {
         .map(|(claude, files)| {
             (
                 claude.clone(),
-                registry::scan(files, PID_DOMAINS, process_start).records,
+                registry::scan(files, pid_domains(), process_start).records,
             )
         })
         .collect();
@@ -1315,11 +1329,11 @@ fn process_start(pid: i32) -> Option<Time> {
     if pid <= 0 {
         return None;
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     {
         hosts::process::started_at(pid as u32)
     }
-    #[cfg(not(windows))]
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         // `ps -o lstart` in UTC is the format Claude Code records.
         let out = std::process::Command::new("ps")
@@ -1755,7 +1769,7 @@ static AGENT_HOOK_SYNC: Mutex<()> = Mutex::new(());
 /// (ClaudeSessionService.syncAgentHooks).
 fn sync_agent_hooks(hidden: &HashSet<models::Provider>) {
     let _one = AGENT_HOOK_SYNC.lock().unwrap();
-    let (Some(home), Ok(exe)) = (hooks::installer::home_dir(), std::env::current_exe()) else {
+    let (Some(home), Ok(exe)) = (hooks::installer::home_dir(), hooks::current_program()) else {
         return;
     };
     let endpoint = hooks::transport::endpoint(hooks::APP_ID);
@@ -1797,7 +1811,7 @@ pub struct AgentHooksStatus {
 
 #[tauri::command]
 pub fn sessions_agent_hooks_status() -> Vec<AgentHooksStatus> {
-    let (Some(home), Ok(exe)) = (hooks::installer::home_dir(), std::env::current_exe()) else {
+    let (Some(home), Ok(exe)) = (hooks::installer::home_dir(), hooks::current_program()) else {
         return Vec::new();
     };
     let endpoint = hooks::transport::endpoint(hooks::APP_ID);
@@ -1827,7 +1841,7 @@ pub fn sessions_agent_hooks_install(agent: String, install: bool) -> Result<(), 
         .ok_or("unknown agent")?;
     let home = hooks::installer::home_dir().ok_or("no home folder")?;
     let result = if install {
-        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        let exe = hooks::current_program()?;
         let endpoint = hooks::transport::endpoint(hooks::APP_ID);
         hook_agents::installer::install(provider, &home, &exe, &endpoint, hooks::APP_ID)
     } else {
