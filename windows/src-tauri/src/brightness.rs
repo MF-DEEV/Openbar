@@ -509,7 +509,12 @@ mod imp {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+mod imp {
+    pub use crate::linux::brightness::{displays, set};
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 mod imp {
     pub fn displays() -> Vec<super::Display> {
         Vec::new()

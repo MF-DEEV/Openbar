@@ -11,6 +11,8 @@
 //! what those modules keep private.
 
 pub mod autostart;
+pub mod battery;
+pub mod brightness;
 pub mod command;
 pub mod hooks;
 pub mod hosts;
@@ -18,8 +20,12 @@ pub mod kitty;
 pub mod paths;
 pub mod process;
 pub mod pulse;
+pub mod session_lock;
 pub mod sessions;
+#[cfg(test)]
+pub mod testbus;
 pub mod tmux;
+pub mod toggles;
 pub mod wezterm;
 pub mod x11;
 
