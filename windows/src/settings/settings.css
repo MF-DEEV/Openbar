@@ -1518,3 +1518,13 @@ select {
     transform: none;
   }
 }
+
+/* Remote hosts (SessionsSettings `RemoteHosts`). */
+.st-remote-confirm {
+  margin-top: 4px;
+  color: var(--st-text);
+}
+
+.st-remote-input {
+  width: 220px;
+}

@@ -13,7 +13,7 @@ import { EmptyState } from "../island/views/Controls";
 import { SessionAvatar } from "./SessionAvatar";
 import { activityText, displayName, dozing, phaseClock, phaseTint, projectColor, sessionPhaseLabel } from "./format";
 import { useNow } from "./useNow";
-import { BackgroundMark } from "./Background";
+import { BackgroundMark, RemoteHostMark } from "./Background";
 import { S } from "./strings";
 import { settled, useSessions } from "./store";
 import { isWaiting, type Session } from "./types";
@@ -114,6 +114,7 @@ function Row({ session, now }: { session: Session; now: number }) {
         <div className="s-row-line1">
           <span className="s-row-name">{name}</span>
           {session.background ? <BackgroundMark /> : null}
+          {session.remote ? <RemoteHostMark alias={session.remote} /> : null}
           {time ? (
             <span className="s-clock" style={{ color: tint }}>
               {time}

@@ -89,3 +89,14 @@ it("pins each row's Clawd with its agent's mark and names the agent", () => {
 it("leaves the mark off without Clawds, where the badge already shows the agent at work", () => {
   expect(rows([{ ...quiet, provider: "codex" }], false)).not.toContain("s-agent-mark");
 });
+
+it("names the SSH host of a remote session beside its name, and only then", () => {
+  const remote = rows([
+    { ...quiet, id: "far", host: "remote", remote: "openbar-linux", hostName: "tmux on openbar-linux" },
+  ]);
+  expect(remote).toContain('class="s-remote-mark"');
+  expect(remote).toContain("openbar-linux");
+  expect(rows([quiet])).not.toContain("s-remote-mark");
+  const long = rows([{ ...quiet, id: "far", host: "remote", remote: "a-very-long-host-alias.example.com" }]);
+  expect(long).toContain("a-very-long-host-alia…");
+});

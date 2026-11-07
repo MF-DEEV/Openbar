@@ -49,6 +49,27 @@ export function BackgroundMark() {
   );
 }
 
+/** The SSH host a session runs on, beside its name, so a remote session
+ * never passes for one on this PC (sessions/remote.rs). */
+export function RemoteHostMark({ alias }: { alias: string }) {
+  useLocale();
+  const shown = alias.length > 22 ? alias.slice(0, 21) + "…" : alias;
+  return (
+    <span className="s-remote-mark" title={S.remoteHelp(alias)} aria-label={S.remoteHelp(alias)}>
+      <svg viewBox="0 0 16 16" width="9" height="9" aria-hidden>
+        <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.6" />
+        <path
+          d="M1.8 8h12.4M8 1.8c2 2 2 10.4 0 12.4M8 1.8c-2 2-2 10.4 0 12.4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.3"
+        />
+      </svg>
+      {shown}
+    </span>
+  );
+}
+
 /** Logs, Stop, Remove. Stopping and removing ask first, in place. */
 export function BackgroundBar({
   session,
