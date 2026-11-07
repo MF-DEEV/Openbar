@@ -11,15 +11,10 @@ import { useLocale } from "../../i18n";
 
 import { type ReactNode, useId, useLayoutEffect, useRef, useState } from "react";
 import { useIsland, visibleActivity } from "../store";
-import { bridge, type HitRect } from "../../shared/bridge";
-import { type Geometry, hitShape, islandPath } from "../geometry";
+import { type Geometry, islandPath } from "../geometry";
 import { MotionTimeline, type Size } from "../motion";
 import { DrawnSize } from "./DrawnSize";
-
-/** Extra hit areas (floating bubbles), in window CSS pixels, written by their owners. */
-export const extraHits: { current: HitRect[] } = { current: [] };
-/** Latest island hit area, so editing shortcuts can publish their new hit areas immediately. */
-export const surfaceHits: { current: HitRect[] } = { current: [] };
+import { setSurface, surfaceArea, Trailing } from "./hits";
 
 const now = () => performance.now() / 1000;
 
@@ -55,7 +50,7 @@ export function IslandSurface(props: {
   const [contentSize, setContentSize] = useState<Size>(target);
   const timeline = useRef<MotionTimeline | null>(null);
   const raf = useRef(0);
-  const lastHits = useRef("");
+  const trailing = useRef(new Trailing());
   const onDrawn = useRef(props.onDrawn);
   onDrawn.current = props.onDrawn;
 
@@ -65,34 +60,18 @@ export function IslandSurface(props: {
       setContentSize((previous) =>
         previous.width === size.width && previous.height === size.height ? previous : size,
       );
-      reportHits(size);
+      reportHits(size, settled);
       onDrawn.current?.(size, settled);
     };
 
-    const reportHits = (size: Size) => {
+    const reportHits = (size: Size, settled: boolean) => {
       const frame = frameRef.current;
       if (!frame) return;
-      const left = frame.getBoundingClientRect().left;
-      // Hover and clicks answer to the larger of what is drawn and where it is going.
-      const reach = { width: Math.max(size.width, target.width), height: Math.max(size.height, target.height) };
-      const hit = hitShape(geometry, reach);
-      const rects: HitRect[] = [
-        {
-          x: left + (target.width - reach.width) / 2 + hit.rect.x,
-          y: geometry.floatingDrop + hit.rect.y,
-          width: hit.rect.width,
-          height: hit.rect.height,
-          topRadius: hit.topRadius,
-          bottomRadius: hit.bottomRadius,
-        },
-        ...extraHits.current,
-      ];
-      const key = JSON.stringify(rects);
-      surfaceHits.current = rects.slice(0, 1);
-      if (key !== lastHits.current) {
-        lastHits.current = key;
-        void bridge.setHitRects(rects);
-      }
+      // Hover and clicks answer to the larger of what is drawn and where it is going;
+      // the window is cut to what the screen has caught up with.
+      const held = settled ? size : trailing.current.push(size, now() * 1000);
+      if (settled) trailing.current.reset();
+      setSurface(surfaceArea(geometry, target, size, held, frame.getBoundingClientRect().left));
     };
 
     const t = now();

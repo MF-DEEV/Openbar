@@ -304,6 +304,7 @@ fn saved_file(name: &str) -> Option<std::path::PathBuf> {
     app.path().app_config_dir().ok().map(|dir| dir.join(name))
 }
 
+#[cfg_attr(not(windows), allow(clippy::needless_return))]
 pub fn start(app: AppHandle, shared: Shared) {
     if APP.set((app, shared)).is_err() {
         return;

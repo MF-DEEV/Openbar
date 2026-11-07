@@ -48,7 +48,16 @@ export interface RegionalSettings {
   hourCycle: "h12" | "h23";
   firstWeekday: number;
 }
-const browserLocale = typeof navigator === "undefined" ? "en-US" : navigator.language;
+const browserLocale = (() => {
+  const tag = typeof navigator === "undefined" ? "" : navigator.language;
+  try {
+    new Intl.Locale(tag);
+    return tag;
+  } catch {
+    // A C or POSIX locale reports a tag Intl rejects.
+    return "en-US";
+  }
+})();
 const browserFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric" }).resolvedOptions();
 let regional: RegionalSettings = {
   preferred: [browserLocale],

@@ -22,8 +22,19 @@ let server;
 let registration;
 
 function registryFolder() {
-  const base = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+  if (process.platform === "win32") {
+    const base = process.env.LOCALAPPDATA || path.join(os.homedir(), "AppData", "Local");
+    return path.join(base, "Openbar", "terminals");
+  }
+  const base = process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share");
   return path.join(base, "Openbar", "terminals");
+}
+
+// A named pipe on Windows, a socket in the user's runtime folder elsewhere.
+function listenAddress(user) {
+  if (process.platform === "win32") return `\\\\.\\pipe\\openbar-terminals-${user}-${process.pid}`;
+  const base = process.env.XDG_RUNTIME_DIR || os.tmpdir();
+  return path.join(base, `openbar-terminals-${user}-${process.pid}.sock`);
 }
 
 function ideName() {
@@ -35,8 +46,8 @@ function ideName() {
 }
 
 function activate(context) {
-  const user = (process.env.USERNAME || "user").replace(/[^A-Za-z0-9]/g, "");
-  const pipe = `\\\\.\\pipe\\openbar-terminals-${user}-${process.pid}`;
+  const user = (process.env.USERNAME || process.env.USER || "user").replace(/[^A-Za-z0-9]/g, "");
+  const pipe = listenAddress(user);
   const token = crypto.randomBytes(24).toString("hex");
   server = net.createServer({ allowHalfOpen: true }, (connection) => {
     let buffer = "";
@@ -58,10 +69,12 @@ function activate(context) {
   server.on("error", () => {});
   server.listen(pipe, () => {
     const folder = registryFolder();
-    fs.mkdirSync(folder, { recursive: true });
+    fs.mkdirSync(folder, { recursive: true, mode: 0o700 });
     registration = path.join(folder, `${process.pid}.json`);
     const body = { pipe, token, version: VERSION, ide: ideName(), pid: process.pid };
-    fs.writeFileSync(registration, JSON.stringify(body), { encoding: "utf8" });
+    // The token is the key: only this user may read it.
+    fs.writeFileSync(registration, JSON.stringify(body), { encoding: "utf8", mode: 0o600 });
+    if (process.platform !== "win32") fs.chmodSync(pipe, 0o600);
   });
   context.subscriptions.push({ dispose: deactivate });
 }

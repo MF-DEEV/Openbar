@@ -387,7 +387,10 @@ mod autostart {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+use crate::linux::autostart;
+
+#[cfg(not(any(windows, target_os = "linux")))]
 mod autostart {
     pub fn enabled() -> bool {
         false

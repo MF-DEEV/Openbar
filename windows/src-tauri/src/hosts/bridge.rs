@@ -27,9 +27,19 @@ pub enum BridgeError {
     Missing,
 }
 
+#[cfg(not(target_os = "linux"))]
 pub(super) fn folder() -> Option<PathBuf> {
     let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from)?;
     Some(base.join("Openbar").join("terminals"))
+}
+
+#[cfg(target_os = "linux")]
+pub(super) fn folder() -> Option<PathBuf> {
+    Some(
+        crate::linux::paths::data()?
+            .join("Openbar")
+            .join("terminals"),
+    )
 }
 
 fn registrations() -> Vec<Registration> {
@@ -98,4 +108,40 @@ pub fn focus(shell_pids: &[u32]) -> Result<(), BridgeError> {
         json!({ "command": "focus", "shellPids": shell_pids }),
         Duration::from_secs(4),
     )
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::*;
+    use std::os::unix::net::UnixListener;
+
+    #[test]
+    fn a_request_reaches_a_socket_and_its_reply_comes_back() {
+        let path = std::env::temp_dir().join(format!("openbar-bridge-{}.sock", std::process::id()));
+        let _ = std::fs::remove_file(&path);
+        let listener = UnixListener::bind(&path).unwrap();
+        let server = std::thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(&stream).read_line(&mut line).unwrap();
+            let request: Value = serde_json::from_str(&line).unwrap();
+            let reply = json!({ "ok": request["token"] == json!("t") });
+            (&stream)
+                .write_all(format!("{reply}\n").as_bytes())
+                .unwrap();
+        });
+        let registration = Registration {
+            pipe: path.display().to_string(),
+            token: "t".into(),
+            pid: std::process::id(),
+        };
+        let reply = ask(
+            &registration,
+            json!({ "command": "focus", "shellPids": [1] }),
+            Duration::from_secs(2),
+        );
+        server.join().unwrap();
+        let _ = std::fs::remove_file(&path);
+        assert_eq!(reply, Some(json!({ "ok": true })));
+    }
 }

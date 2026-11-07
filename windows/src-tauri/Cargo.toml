@@ -44,6 +44,12 @@ chrono = { version = "0.4", default-features = false, features = ["clock", "std"
 icu_normalizer = { version = "2.4", default-features = false, features = ["compiled_data"] }
 icu_properties = { version = "2.4", default-features = false, features = ["compiled_data"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+libc = "0.2"
+raw-window-handle = "0.6"
+x11rb = "0.13"
+
 [target.'cfg(windows)'.dependencies]
 uds_windows = "1"
 # Voice replies: speech recognized on this PC (src/voice). Cross-builds from a

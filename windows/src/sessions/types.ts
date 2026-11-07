@@ -16,7 +16,8 @@ export interface LimitStop {
   kind?: "session" | "weekly" | "other";
 }
 
-export type HostKind = "windowsTerminal" | "vscode" | "conhost" | "wezterm" | "app" | "background" | "unknown";
+export type HostKind =
+  "windowsTerminal" | "vscode" | "conhost" | "wezterm" | "tmux" | "kitty" | "app" | "background" | "unknown";
 
 export interface ToolUse {
   id: string;

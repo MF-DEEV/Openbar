@@ -16,12 +16,19 @@ pub const INTERVAL: f64 = 24.0 * 3600.0;
 pub const RETRY: f64 = 6.0 * 3600.0;
 
 /// `%APPDATA%\com.openbar.island\agent-prices.json`.
+#[cfg(not(target_os = "linux"))]
 pub fn cache_path() -> Option<PathBuf> {
     std::env::var_os("APPDATA").map(|a| {
         PathBuf::from(a)
             .join("com.openbar.island")
             .join("agent-prices.json")
     })
+}
+
+/// `~/.config/com.openbar.island/agent-prices.json`.
+#[cfg(target_os = "linux")]
+pub fn cache_path() -> Option<PathBuf> {
+    crate::linux::paths::roaming().map(|a| a.join("com.openbar.island").join("agent-prices.json"))
 }
 
 pub fn cached() -> Option<PriceList> {

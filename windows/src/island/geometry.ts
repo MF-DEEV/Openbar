@@ -171,12 +171,24 @@ export function islandPath(geometry: Geometry, size: Size): string {
     : notchPath(size.width, size.height, geometry.input);
 }
 
+export interface HitShape {
+  /** Where the pointer is answered. */
+  rect: Rect;
+  topRadius: number;
+  bottomRadius: number;
+  /** What is painted: a capsule's body without the strip above it that only the pointer reaches. */
+  painted: { rect: Rect; topRadius: number; bottomRadius: number };
+  /** A notch flares out of the top corners of its rect, `width` out and `rise` down (`notchPath`'s ears). */
+  ears?: { width: number; rise: number };
+}
+
 /**
  * The area that takes the pointer, as rounded rects for the pointer watcher:
  * the visible body plus, for a capsule, the strip above it up to the screen
- * edge, so a pointer pushed against the top still hits the island.
+ * edge, so a pointer pushed against the top still hits the island. `painted`
+ * is what is on screen, which a window cut to the drawing (X11) follows.
  */
-export function hitShape(geometry: Geometry, size: Size): { rect: Rect; topRadius: number; bottomRadius: number } {
+export function hitShape(geometry: Geometry, size: Size): HitShape {
   if (geometry.floatingGap !== null) {
     const body = capsuleBody(size.width, size.height, geometry.floatingGap);
     const c = Math.min(
@@ -188,13 +200,17 @@ export function hitShape(geometry: Geometry, size: Size): { rect: Rect; topRadiu
       rect: { x: body.x, y: 0, width: body.width, height: body.y + body.height },
       topRadius: 0,
       bottomRadius: c,
+      painted: { rect: body, topRadius: c, bottomRadius: c },
     };
   }
-  const { s, b } = notchMetrics(size.width, size.height, geometry.input);
+  const { s, rise, b } = notchMetrics(size.width, size.height, geometry.input);
+  const rect = { x: s, y: 0, width: Math.max(0, size.width - s * 2), height: size.height };
   return {
-    rect: { x: s, y: 0, width: Math.max(0, size.width - s * 2), height: size.height },
+    rect,
     topRadius: 0,
     bottomRadius: b,
+    painted: { rect, topRadius: 0, bottomRadius: b },
+    ...(s > 0 && rise > 0 ? { ears: { width: s, rise } } : {}),
   };
 }
 
