@@ -12,6 +12,7 @@ import { bridge, type VoiceProblem } from "../shared/bridge";
 import { isWaiting, type ReplyFailure, type Session } from "./types";
 import { useSessions } from "./store";
 import { getLanguage } from "../i18n";
+import { voiceHeard } from "../shared/platform";
 
 export type VoiceEnding = "stopped" | "silence" | "cap" | "cancelled" | "sessionGone" | "islandClosed";
 export type VoicePhase =
@@ -22,6 +23,9 @@ export const CAP = 60;
 /** Levels are 0…1, -60…-10 dBFS (voice/mod.rs level): above is a voice, below a quiet room. */
 export const SPEECH_LEVEL = 0.35;
 export const QUIET_LEVEL = 0.2;
+
+/** Whether voice replies are on: chosen in Settings, and heard on this PC. */
+export const voiceWanted = (prefs: { voiceReplies: boolean }) => voiceHeard() && prefs.voiceReplies;
 
 /** Whether "Send when I stop talking" may send what was heard. */
 export const sends = (ending: VoiceEnding) => ending === "stopped" || ending === "silence";
@@ -261,7 +265,7 @@ export const useVoice = create<VoiceState>()((set, get) => {
     },
     start(session) {
       const sessions = useSessions.getState();
-      if (!sessions.prefs.voiceReplies || !canSpeak(session)) return;
+      if (!voiceWanted(sessions.prefs) || !canSpeak(session)) return;
       const next = start(get().machine, session.id, sessions.drafts[session.id] ?? "", sessions.prefs.voiceSendOnStop);
       if (!next) return;
       generation += 1;
@@ -329,7 +333,7 @@ let heldByShortcut = false;
 export function voiceKeyPressed(island: { showing: () => string | null; openOn: (id: string) => void }) {
   const voice = useVoice.getState();
   const sessions = useSessions.getState();
-  if (!sessions.prefs.voiceReplies || isActive(voice.machine)) return;
+  if (!voiceWanted(sessions.prefs) || isActive(voice.machine)) return;
   const showing = island.showing();
   const target = shortcutTarget(sessions.snapshot.sessions, showing);
   if (!target) return;
@@ -353,7 +357,7 @@ export function subscribeVoiceShortcut(island: {
   let queue = Promise.resolve();
   const wanted = () => {
     const p = useSessions.getState().prefs;
-    return p.voiceReplies && p.voiceShortcutEnabled && p.voiceShortcut ? p.voiceShortcut : null;
+    return voiceWanted(p) && p.voiceShortcutEnabled && p.voiceShortcut ? p.voiceShortcut : null;
   };
   const sync = () => {
     const next = wanted();

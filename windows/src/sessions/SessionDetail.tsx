@@ -53,7 +53,7 @@ import { bridge } from "../shared/bridge";
 import { IMAGE_LIMIT, imageDataUrl, imageFiles, isImagePasteShortcut } from "./paste";
 import { isWaiting, isWorking, type ReplyFailure, type Session } from "./types";
 import { VoiceButton, VoiceProblem } from "./VoiceReply";
-import { isActive as voiceActive, showsMicrophone, useVoice } from "./voice";
+import { isActive as voiceActive, showsMicrophone, useVoice, voiceWanted } from "./voice";
 
 function storedNumber(key: string, fallback: number) {
   try {
@@ -648,7 +648,7 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
   const pastingNow = useRef(false);
   const [sending, setSending] = useState(false);
   const reason = unavailable(session);
-  const voiceOn = useSessions((s) => s.prefs.voiceReplies);
+  const voiceOn = useSessions((s) => voiceWanted(s.prefs));
   const mic = showsMicrophone(session, voiceOn);
   const recording = useVoice((s) => s.machine.sessionId === session.id && voiceActive(s.machine));
   const listening = useVoice((s) => s.machine.sessionId === session.id && s.machine.phase.kind === "recording");
