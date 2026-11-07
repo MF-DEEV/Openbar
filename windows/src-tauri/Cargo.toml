@@ -48,7 +48,10 @@ icu_properties = { version = "2.4", default-features = false, features = ["compi
 gtk = "0.18"
 libc = "0.2"
 raw-window-handle = "0.6"
+# Both already in the tree through tauri: the media players' bus, and the HTTPS client of the web view.
+soup3 = "0.5"
 x11rb = "0.13"
+zbus = "5"
 
 [target.'cfg(windows)'.dependencies]
 uds_windows = "1"

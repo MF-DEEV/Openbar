@@ -21,12 +21,13 @@ Packages: `bun run tauri build --bundles deb,rpm,appimage` (the config's own tar
 - Claude Code sessions, read from `~/.claude/sessions` through `/proc`. Hooks reach the island over a socket in `~/.openbar` (in the temp folder when the home folder's path is too long for a socket address).
 - Open and Reply (tmux, kitty and WezTerm are covered by tests against stand-in programs, not run against the real ones): Open raises the terminal's window through the window manager (`_NET_ACTIVE_WINDOW`). Replies go into tmux (`$TMUX`, `$TMUX_PANE`; the pane must be on the session's own terminal, since an editor opened from a pane keeps both), kitty (needs `allow_remote_control` and `listen_on`; the window must list the session's process), WezTerm (`wezterm cli`) and VS Code, Cursor, Antigravity and Windsurf through the bridge extension. Any other terminal is raised, not typed into.
 - The island hides while a fullscreen app is active (`_NET_WM_STATE_FULLSCREEN`), and "All displays" puts a mirror on each other monitor.
+- Now playing (`media.rs`): any player on the session bus that speaks MPRIS (Spotify, VLC, Rhythmbox, a browser tab, ...), with its cover, seek, shuffle, the source menu and Open player (raises the player, or starts it from the applications menu). The Spotify queue is read through Windows accessibility and has no Linux counterpart. Covers come from files and HTTPS, through the web view's own HTTP library (libsoup).
 - Global shortcuts, tray icon (its menu; a plain click does not open Settings, the tray protocol has no click event), launch at login (`~/.config/autostart/openbar.desktop`).
 - Settings and caches live in `~/.config/com.openbar.island` and `~/.cache/com.openbar.island`.
 
 ## Where the code is
 
-Everything Linux does differently is in `src-tauri/src/linux/`, a file for each piece of Windows code it stands in for: the window (`island.rs`), fullscreen (`fullscreen.rs`), launch at login (`autostart.rs`), processes from `/proc` (`process.rs`), terminals and editors (`hosts.rs`, `tmux.rs`, `kitty.rs`, `wezterm.rs`, `x11.rs`, `command.rs`, `ide.rs`), session records (`sessions.rs`), hooks (`hooks.rs`) and the XDG folders (`paths.rs`). The Windows modules only hand over to these with `cfg(target_os = "linux")`, and the code Windows compiles is otherwise as it was. A new Linux piece, media through MPRIS say, is a new file there and one hand-over where the Windows module has its own.
+Everything Linux does differently is in `src-tauri/src/linux/`, a file for each piece of Windows code it stands in for: the window (`island.rs`), fullscreen (`fullscreen.rs`), launch at login (`autostart.rs`), processes from `/proc` (`process.rs`), terminals and editors (`hosts.rs`, `tmux.rs`, `kitty.rs`, `wezterm.rs`, `x11.rs`, `command.rs`, `ide.rs`), session records (`sessions.rs`), hooks (`hooks.rs`), the XDG folders (`paths.rs`) and now playing (`media.rs`). The Windows modules only hand over to these with `cfg(target_os = "linux")`, and the code Windows compiles is otherwise as it was. A new Linux piece, media through MPRIS say, is a new file there and one hand-over where the Windows module has its own.
 
 ## NVIDIA
 
@@ -36,4 +37,4 @@ WebKitGTK cannot back its GBM buffers on the proprietary driver and leaves every
 
 - Wayland (needs a layer-shell window).
 - "Show in screenshots" and background sessions.
-- The toolkit sections that read Windows APIs (media, notifications, battery, ...) are not ported.
+- The toolkit sections that read Windows APIs (notifications, battery, ...) are not ported.

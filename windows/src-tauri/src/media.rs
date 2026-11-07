@@ -148,7 +148,13 @@ mod player;
 #[cfg(windows)]
 pub use player::open_player;
 
-#[cfg(not(windows))]
+#[cfg(target_os = "linux")]
+#[path = "linux/media.rs"]
+mod imp;
+#[cfg(target_os = "linux")]
+pub use imp::{command, open_player, probe, seek, set_shuffle, start};
+
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn probe() -> String {
     "SMTC is Windows only\n".into()
 }
@@ -549,21 +555,21 @@ mod imp {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn start<R: tauri::Runtime>(_app: tauri::AppHandle<R>, _shared: Shared) {}
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn command(_command: Command, _source: &str) -> bool {
     false
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn seek(_seconds: f64, _source: &str) -> bool {
     false
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn set_shuffle(_on: bool, _source: &str) -> bool {
     false
 }
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn open_player(_aumid: &str) -> bool {
     false
 }
@@ -591,7 +597,9 @@ pub async fn music_players<R: tauri::Runtime>(
     tauri::async_runtime::spawn_blocking(move || {
         #[cfg(windows)]
         let installed = apps::installed(&preferred);
-        #[cfg(not(windows))]
+        #[cfg(target_os = "linux")]
+        let installed = imp::installed(&preferred);
+        #[cfg(not(any(windows, target_os = "linux")))]
         let installed: Vec<Source> = vec![];
         let mut state = state.lock().unwrap();
         state.players = installed.clone();
