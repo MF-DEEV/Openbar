@@ -173,7 +173,7 @@ fn restart(cursor: &mut Cursor, announce: bool, line: &mut dyn FnMut(&mut Cursor
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 pub fn read_appended(
     cursor: &mut Cursor,
     horizon: Time,
@@ -277,7 +277,7 @@ pub fn read_appended(
     }
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn hand_over(
     stmt: &sqlite::Statement,
     cursor: &mut Cursor,
@@ -327,7 +327,7 @@ fn hand_over(
 }
 
 /// False when a revert replaced the rows read last.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn resumes(db: &sqlite::Db, cursor: &mut Cursor, table: &str) -> bool {
     if cursor.opencode.tail.is_empty() {
         return true;
@@ -349,7 +349,7 @@ fn resumes(db: &sqlite::Db, cursor: &mut Cursor, table: &str) -> bool {
 }
 
 /// The last row older than the horizon, by bisection over rowids.
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn first_row(db: &sqlite::Db, table: &str, floor: i64) -> i64 {
     if floor <= 0 {
         return 0;
@@ -381,7 +381,7 @@ fn first_row(db: &sqlite::Db, table: &str, floor: i64) -> i64 {
     low
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 fn first_indexed_row(db: &sqlite::Db, floor: i64) -> Option<i64> {
     if floor <= 0 {
         return Some(0);
@@ -398,7 +398,7 @@ fn first_indexed_row(db: &sqlite::Db, floor: i64) -> Option<i64> {
     })
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 pub fn read_appended(
     _cursor: &mut Cursor,
     _horizon: Time,
@@ -409,9 +409,18 @@ pub fn read_appended(
 }
 
 /// The few calls into Windows' `winsqlite3.dll`.
-#[cfg(windows)]
+/// On Linux they are the same calls into libsqlite3 (`linux/sqlite.rs`).
+#[cfg(any(windows, target_os = "linux"))]
 mod sqlite {
+    #[cfg(target_os = "linux")]
+    use crate::linux::sqlite::{
+        sqlite3_bind_int64, sqlite3_bind_text, sqlite3_busy_timeout, sqlite3_close,
+        sqlite3_column_int64, sqlite3_column_text, sqlite3_column_type, sqlite3_finalize,
+        sqlite3_open_v2, sqlite3_prepare_v2, sqlite3_reset, sqlite3_step,
+    };
+    #[cfg_attr(target_os = "linux", allow(unused_imports))]
     use std::ffi::{CStr, CString, c_char, c_int, c_void};
+    #[cfg(windows)]
     #[link(name = "winsqlite3")]
     unsafe extern "C" {
         fn sqlite3_open_v2(
@@ -577,5 +586,248 @@ mod tests {
         assert!(row("m", "s", 1, 1, "", "", cut_short, false, false, None, true).is_none());
         assert!(select(true, true, true, 1).contains("session_message m JOIN session_v2 s"));
         assert!(select(false, false, false, 0).contains("FROM message m JOIN session s"));
+    }
+
+    /// The reader against databases made here with the tables and columns its queries use,
+    /// through the SQLite the app loads on Linux.
+    #[cfg(target_os = "linux")]
+    mod database {
+        use super::*;
+        use crate::agent_usage::model::Provider;
+        use crate::agent_usage::parse::{self, Entry};
+        use crate::linux::sqlite::make;
+        use serde_json::{Value, json};
+        use std::path::PathBuf;
+
+        /// 2026-09-21 in milliseconds, as OpenCode stamps its rows.
+        const T: i64 = 1_790_000_000_000;
+        const DAY: i64 = 86_400_000;
+        const NOW: Time = (T / 1000) as f64 + 600.0;
+
+        fn scratch(name: &str) -> PathBuf {
+            let dir = std::env::temp_dir()
+                .join(format!("openbar-opencode-{name}-{}", std::process::id()));
+            let _ = std::fs::remove_dir_all(&dir);
+            std::fs::create_dir_all(&dir).unwrap();
+            dir
+        }
+
+        fn horizon() -> Time {
+            NOW - 7.0 * 86_400.0
+        }
+
+        /// What one reading hands over, as the parser would be given it.
+        fn read(cursor: &mut Cursor) -> Vec<Value> {
+            let mut lines = Vec::new();
+            read_appended(cursor, horizon(), NOW, &mut |_, line| {
+                lines.push(serde_json::from_slice(line).unwrap());
+            });
+            lines
+        }
+
+        fn names(lines: &[Value]) -> Vec<&str> {
+            lines
+                .iter()
+                .map(|line| line["id"].as_str().or(line["type"].as_str()).unwrap_or("?"))
+                .collect()
+        }
+
+        fn quote(value: &Value) -> String {
+            value.to_string().replace('\'', "''")
+        }
+
+        fn message(id: &str, created: i64, updated: i64, data: &Value) -> String {
+            format!(
+                "INSERT INTO message VALUES('{id}', 'ses_1', {created}, {updated}, '{}')",
+                quote(data)
+            )
+        }
+
+        fn finished_reply() -> Value {
+            json!({
+                "role": "assistant", "parentID": "m1", "modelID": "some-local-model",
+                "tokens": {"input": 100, "output": 10, "reasoning": 5, "cache": {"read": 0, "write": 0}},
+                "cost": 0.5, "finish": "stop", "path": {"cwd": "/home/me/tool"},
+                "time": {"created": T + 1000, "completed": T + 31_000}
+            })
+        }
+
+        fn usage_of(lines: &[Value]) -> Vec<Entry> {
+            let mut state = parse::LogState::default();
+            lines
+                .iter()
+                .flat_map(|line| {
+                    parse::parse(
+                        Provider::Opencode,
+                        line.to_string().as_bytes(),
+                        &mut state,
+                        NOW,
+                    )
+                })
+                .collect()
+        }
+
+        #[test]
+        fn a_version_1_database_is_read_row_by_row_and_a_reply_is_read_again_when_it_finishes() {
+            let dir = scratch("v1");
+            let file = dir.join("opencode.db");
+            let user = json!({"role": "user", "time": {"created": T}});
+            let setup = [
+                "CREATE TABLE session(id TEXT PRIMARY KEY, directory TEXT NOT NULL, parent_id TEXT)".to_string(),
+                "CREATE TABLE message(id TEXT PRIMARY KEY, session_id TEXT NOT NULL, time_created INTEGER NOT NULL, time_updated INTEGER NOT NULL, data TEXT NOT NULL)".to_string(),
+                "CREATE TABLE part(id TEXT PRIMARY KEY, message_id TEXT NOT NULL, data TEXT NOT NULL)".to_string(),
+                "INSERT INTO session VALUES('ses_1', '/home/me/tool', NULL)".to_string(),
+                // A row older than the horizon is never read.
+                message("m0", T - 40 * DAY, T - 40 * DAY, &json!({"role": "user", "time": {"created": T - 40 * DAY}})),
+                message("m1", T, T, &user),
+                message("m2", T + 1000, T + 31_000, &finished_reply()),
+                format!("INSERT INTO part VALUES('p1', 'm2', '{}')", quote(&json!({"type": "tool", "state": {"status": "completed"}}))),
+            ];
+            let Some(()) = make(&file, &setup) else {
+                eprintln!("skipped: no libsqlite3");
+                return;
+            };
+            let mut cursor = Cursor::new(file.to_str().unwrap(), Provider::Opencode);
+
+            let first = read(&mut cursor);
+            assert_eq!(names(&first), ["m1", "m2"]);
+            assert_eq!(first[0]["role"], "user");
+            assert_eq!(first[0]["session_id"], "ses_1");
+            assert_eq!(first[0]["directory"], "/home/me/tool");
+            assert_eq!(first[0]["time_created"], T);
+            let reply = &first[1];
+            assert_eq!(reply["modelID"], "some-local-model");
+            assert_eq!(reply["tokens"]["output"], 10);
+            assert_eq!(reply["cost"], 0.5);
+            assert_eq!(reply["path"]["cwd"], "/home/me/tool");
+            assert_eq!(reply["tool_calls"], true, "a tool part that nobody ran");
+            assert!(first[0].get("version").is_none());
+            let entries = usage_of(&first);
+            assert!(matches!(entries[0], Entry::TurnBegan(_)), "{entries:?}");
+            let usage: Vec<_> = entries
+                .iter()
+                .filter_map(|entry| match entry {
+                    Entry::Usage { record, .. } => Some((record.cost, record.reported_cost)),
+                    _ => None,
+                })
+                .collect();
+            assert_eq!(usage, [(Some(0.5), true)]);
+
+            // Nothing new, nothing handed over again.
+            assert!(read(&mut cursor).is_empty());
+
+            // A reply still being written is handed over and looked at again.
+            let writing = json!({"role": "assistant", "parentID": "m1", "modelID": "some-local-model", "time": {"created": T + 40_000}});
+            make(&file, &[message("m3", T + 40_000, T + 40_000, &writing)]).unwrap();
+            assert_eq!(names(&read(&mut cursor)), ["m3"]);
+            assert!(cursor.opencode.open.contains_key("m3"));
+            assert!(read(&mut cursor).is_empty(), "unchanged");
+            let mut done = finished_reply();
+            done["time"] = json!({"created": T + 40_000, "completed": T + 50_000});
+            make(
+                &file,
+                &[format!(
+                    "UPDATE message SET time_updated = {}, data = '{}' WHERE id = 'm3'",
+                    T + 50_000,
+                    quote(&done)
+                )],
+            )
+            .unwrap();
+            let again = read(&mut cursor);
+            assert_eq!(names(&again), ["m3"]);
+            assert_eq!(again[0]["finish"], "stop");
+            assert!(!cursor.opencode.open.contains_key("m3"));
+            assert!(read(&mut cursor).is_empty());
+
+            // A revert deletes the last rows and the next ones take their rowids:
+            // reading goes on from the last row that is still there.
+            make(
+                &file,
+                &[
+                    "DELETE FROM message WHERE id = 'm3'".to_string(),
+                    message("m4", T + 60_000, T + 60_000, &user),
+                ],
+            )
+            .unwrap();
+            assert_eq!(names(&read(&mut cursor)), ["m4"]);
+
+            // When every row read last was replaced, it starts over from the first.
+            make(
+                &file,
+                &[
+                    "DELETE FROM message".to_string(),
+                    message("n1", T + 70_000, T + 70_000, &user),
+                    message("n2", T + 71_000, T + 71_000, &user),
+                ],
+            )
+            .unwrap();
+            let replaced = read(&mut cursor);
+            assert_eq!(names(&replaced), ["reset", "n1", "n2"]);
+            let entries = usage_of(&replaced);
+            assert_eq!(entries[0], Entry::Reset);
+
+            let _ = std::fs::remove_dir_all(dir);
+        }
+
+        #[test]
+        fn a_version_2_database_is_read_from_the_index_and_a_step_cut_short_is_not_a_row() {
+            let dir = scratch("v2");
+            let file = dir.join("opencode.db");
+            let insert = |id: &str, kind: &str, created: i64, data: &Value| {
+                format!(
+                    "INSERT INTO session_message VALUES('{id}', 'ses_1', '{kind}', {created}, {created}, '{}')",
+                    quote(data)
+                )
+            };
+            let mut reply = finished_reply();
+            reply["content"] =
+                json!([{"type": "text", "text": "done"}, {"type": "tool", "executed": 0}]);
+            let setup = [
+                "CREATE TABLE session_v2(id TEXT PRIMARY KEY, directory TEXT NOT NULL, parent_id TEXT)".to_string(),
+                "CREATE TABLE session_message(id TEXT PRIMARY KEY, session_id TEXT NOT NULL, type TEXT NOT NULL, time_created INTEGER NOT NULL, time_updated INTEGER NOT NULL, data TEXT NOT NULL)".to_string(),
+                "CREATE INDEX session_message_time_created_idx ON session_message(time_created)".to_string(),
+                "INSERT INTO session_v2 VALUES('ses_1', '/home/me/tool', NULL)".to_string(),
+                insert("old", "user", T - 40 * DAY, &json!({})),
+                insert("u1", "user", T, &json!({})),
+                insert("a1", "assistant", T + 1000, &reply),
+                insert("a2", "assistant", T + 40_000, &json!({"time": {"created": T + 40_000, "completed": T + 41_000}})),
+            ];
+            let Some(()) = make(&file, &setup) else {
+                eprintln!("skipped: no libsqlite3");
+                return;
+            };
+            let mut cursor = Cursor::new(file.to_str().unwrap(), Provider::Opencode);
+            let lines = read(&mut cursor);
+            assert_eq!(
+                names(&lines),
+                ["u1", "a1"],
+                "the old row and the cut short step are no rows"
+            );
+            assert!(lines.iter().all(|line| line["version"] == 2));
+            assert_eq!(lines[0]["role"], "user");
+            assert_eq!(
+                lines[1]["tool_calls"], true,
+                "a tool in the reply that was not executed"
+            );
+            assert_eq!(
+                cursor.offset, 4,
+                "the cut short step was read, only not handed over"
+            );
+            assert!(read(&mut cursor).is_empty());
+            let _ = std::fs::remove_dir_all(dir);
+        }
+
+        #[test]
+        fn what_is_no_database_hands_over_nothing() {
+            let dir = scratch("none");
+            let text = dir.join("opencode.db");
+            std::fs::write(&text, "not a database at all").unwrap();
+            for path in [text, dir.join("missing.db")] {
+                let mut cursor = Cursor::new(path.to_str().unwrap(), Provider::Opencode);
+                assert!(read(&mut cursor).is_empty(), "{path:?}");
+                assert_eq!(cursor.offset, 0);
+            }
+            let _ = std::fs::remove_dir_all(dir);
+        }
     }
 }

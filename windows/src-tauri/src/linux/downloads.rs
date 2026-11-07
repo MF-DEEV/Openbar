@@ -2,25 +2,28 @@
 // Copyright (C) 2026 MF DEV, Adrian and the Openbar contributors
 
 //! The folders the downloads list watches on Linux: the desktop's Downloads
-//! folder and the one each browser is set to save in. Windows finds the same
-//! places through the Known Folders API and `%LOCALAPPDATA%`.
+//! folder and the one each browser is set to save in, and the History file of
+//! each Chromium profile, where the browser keeps what it is downloading.
+//! Windows finds the same places through the Known Folders API and
+//! `%LOCALAPPDATA%`.
 
 use std::path::{Path, PathBuf};
 
 use gtk::glib::{self, UserDirectory};
 
 /// Chromium based browsers keep one folder per profile under their config
-/// folder, each with a `Preferences` file.
-const CHROMIUM: [&str; 9] = [
-    "google-chrome",
-    "google-chrome-beta",
-    "google-chrome-unstable",
-    "chromium",
-    "BraveSoftware/Brave-Browser",
-    "microsoft-edge",
-    "vivaldi",
-    "opera",
-    "opera-gx",
+/// folder, each with a `Preferences` file; the second name is how the list
+/// says where a download comes from.
+const CHROMIUM: [(&str, &str); 9] = [
+    ("google-chrome", "Chrome"),
+    ("google-chrome-beta", "Chrome"),
+    ("google-chrome-unstable", "Chrome"),
+    ("chromium", "Chromium"),
+    ("BraveSoftware/Brave-Browser", "Brave"),
+    ("microsoft-edge", "Edge"),
+    ("vivaldi", "Vivaldi"),
+    ("opera", "Opera"),
+    ("opera-gx", "Opera GX"),
 ];
 
 /// The save folder a Chromium profile is set to, from its `Preferences` file.
@@ -66,8 +69,23 @@ fn profiles(root: &Path) -> Vec<PathBuf> {
 fn chromium_folders(config: &Path) -> Vec<PathBuf> {
     CHROMIUM
         .iter()
-        .flat_map(|name| profiles(&config.join(name)))
+        .flat_map(|(dir, _)| profiles(&config.join(dir)))
         .filter_map(|profile| chromium_folder(&std::fs::read(profile.join("Preferences")).ok()?))
+        .collect()
+}
+
+/// The History file of each Chromium profile under `config`, with its browser's name.
+fn chromium_histories(config: &Path) -> Vec<(PathBuf, String)> {
+    CHROMIUM
+        .iter()
+        .flat_map(|(dir, name)| {
+            profiles(&config.join(dir))
+                .into_iter()
+                .filter(|profile| profile.join("Preferences").is_file())
+                .map(|profile| profile.join("History"))
+                .filter(|history| history.is_file())
+                .map(move |history| (history, (*name).to_string()))
+        })
         .collect()
 }
 
@@ -99,6 +117,14 @@ pub fn folders() -> Vec<PathBuf> {
         found.extend(firefox_folders(&roots));
     }
     found
+}
+
+/// The databases the downloads of the Chromium browsers are read from, as Windows
+/// finds them under `%LOCALAPPDATA%`.
+pub fn histories() -> Vec<(PathBuf, String)> {
+    super::paths::roaming()
+        .map(|config| chromium_histories(&config))
+        .unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -168,6 +194,46 @@ mod tests {
             found,
             [PathBuf::from("/data/one"), PathBuf::from("/data/two")]
         );
+        let _ = std::fs::remove_dir_all(&config);
+    }
+
+    #[test]
+    fn the_history_of_every_chromium_profile_is_found_under_its_browsers_name() {
+        let config = scratch("histories");
+        for (dir, profile, history) in [
+            ("google-chrome", "Default", true),
+            ("google-chrome", "Profile 2", true),
+            // A profile that never had a download has no History yet.
+            ("google-chrome", "Profile 3", false),
+            ("BraveSoftware/Brave-Browser", "Default", true),
+            // Opera keeps its profile in its own folder.
+            ("opera", "", true),
+        ] {
+            let folder = config.join(dir).join(profile);
+            std::fs::create_dir_all(&folder).unwrap();
+            std::fs::write(folder.join("Preferences"), "{}").unwrap();
+            if history {
+                std::fs::write(folder.join("History"), "").unwrap();
+            }
+        }
+        // A History without Preferences is no profile of a browser, nor is a folder like ShaderCache.
+        std::fs::create_dir_all(config.join("chromium/Stray")).unwrap();
+        std::fs::write(config.join("chromium/Stray/History"), "").unwrap();
+        std::fs::create_dir_all(config.join("google-chrome/ShaderCache")).unwrap();
+
+        let mut found = chromium_histories(&config);
+        found.sort();
+        let at = |path: &str, name: &str| (config.join(path), name.to_string());
+        assert_eq!(
+            found,
+            [
+                at("BraveSoftware/Brave-Browser/Default/History", "Brave"),
+                at("google-chrome/Default/History", "Chrome"),
+                at("google-chrome/Profile 2/History", "Chrome"),
+                at("opera/History", "Opera"),
+            ]
+        );
+        assert!(chromium_histories(&config.join("none")).is_empty());
         let _ = std::fs::remove_dir_all(&config);
     }
 

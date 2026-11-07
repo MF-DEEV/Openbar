@@ -35,6 +35,7 @@ pub mod session_lock;
 pub mod sessions;
 pub mod shelf;
 pub mod sound;
+pub mod sqlite;
 #[cfg(test)]
 pub mod testbus;
 pub mod tmux;

@@ -244,6 +244,8 @@ fn locations(extra: &[PathBuf]) -> Locations {
     for folder in crate::linux::downloads::folders() {
         add_folder(&mut out.folders, folder);
     }
+    #[cfg(target_os = "linux")]
+    out.profiles.extend(crate::linux::downloads::histories());
     if out.folders.is_empty()
         && let Some(home) = std::env::var_os("USERPROFILE")
     {
@@ -331,7 +333,7 @@ fn scan(locations: &Locations) -> Vec<Sample> {
             }
         }
     }
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     for (path, source) in &locations.profiles {
         for s in browser::active(path, source) {
             found.insert(s.path.clone(), s);
@@ -501,10 +503,17 @@ pub fn start<R: Runtime>(app: AppHandle<R>, state: Shared) {
     });
 }
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 mod browser {
     use super::*;
+    #[cfg(target_os = "linux")]
+    use crate::linux::sqlite::{
+        sqlite3_busy_timeout, sqlite3_close, sqlite3_column_int64, sqlite3_column_text,
+        sqlite3_finalize, sqlite3_open_v2, sqlite3_prepare_v2, sqlite3_step,
+    };
+    #[cfg_attr(target_os = "linux", allow(unused_imports))]
     use std::ffi::{CStr, CString, c_char, c_int, c_void};
+    #[cfg(windows)]
     #[link(name = "winsqlite3")]
     unsafe extern "C" {
         fn sqlite3_open_v2(
