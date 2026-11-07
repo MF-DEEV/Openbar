@@ -8,8 +8,8 @@
 
 import { useLocale, t, dateTimeFormat } from "../i18n";
 
-import { AppWindow, Bell, Search, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AppWindow, Bell, Reply, Search, Send, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useIsland } from "../island/store";
 import { EmptyState } from "../island/views/Controls";
 import { bridge } from "../shared/bridge";
@@ -17,7 +17,7 @@ import { Sheet } from "../tools/Sheet";
 import { clock, NotificationIcon } from "./NotificationPreview";
 import { useNotifications } from "./store";
 import type { Item } from "./types";
-import { notificationPresentation } from "./presentation";
+import { isDiscordNotification, notificationPresentation } from "./presentation";
 
 const PRIVACY = () => t("windows.notifications.notificationsShowTheAppIconAppNameAnd");
 
@@ -156,6 +156,32 @@ function ClearConfirmation() {
 function Card({ item }: { item: Item }) {
   useLocale();
   const display = notificationPresentation(item);
+  const discord = isDiscordNotification(item);
+  const replying = useNotifications((s) => s.replyTo === item.id);
+  const draft = useNotifications((s) => s.replyDrafts[item.id] ?? "");
+  const status = useNotifications((s) => s.replyErrors[item.id] ?? "");
+  const [busy, setBusy] = useState(false);
+  const field = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (replying) {
+      field.current?.scrollIntoView({ block: "nearest" });
+      field.current?.focus();
+    }
+  }, [replying]);
+  const sendReply = async () => {
+    if (!draft.trim() || busy) return;
+    setBusy(true);
+    useNotifications.getState().setReplyError(item.id, "");
+    try {
+      await bridge.notifications.sendDiscord(item.id, draft.trim());
+      useNotifications.getState().setReplyDraft(item.id, "");
+      useNotifications.setState({ replyTo: null });
+    } catch (error) {
+      useNotifications.getState().setReplyError(item.id, String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <div className="nt-card">
       <div className="nt-card-head">
@@ -164,6 +190,17 @@ function Card({ item }: { item: Item }) {
           {display.app}
         </span>
         <span className="nt-time">{clock(item.time)}</span>
+        {discord ? (
+          <button
+            type="button"
+            className="nt-mini"
+            aria-label="Reply in Discord"
+            title="Reply in Discord"
+            onClick={() => useNotifications.setState({ replyTo: replying ? null : item.id })}
+          >
+            <Reply size={12} />
+          </button>
+        ) : null}
         <button
           type="button"
           className="nt-mini"
@@ -187,6 +224,32 @@ function Card({ item }: { item: Item }) {
         {display.sender || display.app}
       </div>
       {display.message ? <div className="nt-body">{display.message}</div> : null}
+      {display.image ? <img className="nt-card-image" src={display.image} alt="Image attached to the Discord message" /> : null}
+      {discord && replying ? (
+        <div className="nt-reply">
+          <div className="nt-reply-compose">
+            <textarea
+              ref={field}
+              value={draft}
+              onChange={(event) => useNotifications.getState().setReplyDraft(item.id, event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  void sendReply();
+                }
+              }}
+              placeholder="Reply to Discord…"
+              aria-label="Write a reply to send in Discord"
+              rows={1}
+            />
+            <button type="button" className="nt-reply-submit" disabled={!draft.trim() || busy} onClick={() => void sendReply()} title="Send reply in Discord" aria-label="Send reply in Discord">
+              <Send size={14} />
+              <span>Send</span>
+            </button>
+          </div>
+          <span className="nt-reply-hint" role="status">{status || "Enter to send · Shift+Enter for a new line"}</span>
+        </div>
+      ) : null}
     </div>
   );
 }

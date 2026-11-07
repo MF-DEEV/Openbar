@@ -26,6 +26,7 @@ import { IslandSurface } from "./surface/IslandSurface";
 import { clearAreas } from "./surface/hits";
 import { NoticeView, noticeWidth, Peek, Resting } from "./views/Closed";
 import { NotificationPreview, previewSize } from "../notifications/NotificationPreview";
+import { useNotifications } from "../notifications/store";
 import { Expanded } from "./views/Expanded";
 import { QuickAccess } from "./views/QuickAccess";
 import { ActivityPicker } from "./views/ActivityPicker";
@@ -204,9 +205,10 @@ export function Island() {
     () => geometryOf(state),
     [state.settings, state.screen.width, state.screen.height, state.devicePixelRatio],
   );
+  const replyTo = useNotifications((s) => s.replyTo);
   const measured: Size | undefined = state.notice
     ? state.noticeExpanded && state.notice.notification
-      ? previewSize(state.notice.notification, geometry)
+      ? previewSize(state.notice.notification, geometry, replyTo === state.notice.notification.id)
       : { width: noticeWidth(state.notice, geometry), height: geometry.stripHeight }
     : undefined;
   const battery = useBattery((s) => s.battery);
@@ -284,7 +286,7 @@ export function Island() {
 
   return (
     <div className={`island-root${hidden ? " is-hidden" : ""}`} ref={frame} onContextMenu={contextMenu.onContextMenu}>
-      <IslandSurface geometry={geometry} target={shown.size}>
+      <IslandSurface geometry={geometry} target={shown.size} animatePreview={shown.kind === "noticePreview"}>
         <ContentStage
           contentKey={shown.kind === "activity" || shown.kind === "picker" ? "compact:activity" : shown.key}
           transition={transition.current}

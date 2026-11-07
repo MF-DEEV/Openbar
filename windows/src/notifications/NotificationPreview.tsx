@@ -6,19 +6,23 @@
 
 import { useLocale, t, tf, dateTimeFormat } from "../i18n";
 
-import { AppWindow, Bell, Inbox, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AppWindow, Bell, Inbox, Reply, Send, X } from "lucide-react";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 import { contentInsets, type Geometry, notificationPreviewSize } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { type Notice, useIsland } from "../island/store";
 import { measureContext } from "../island/views/Closed";
 import { bridge } from "../shared/bridge";
 import { useNotifications } from "./store";
+import { isDiscordNotification } from "./presentation";
 
 const HEADER_HEIGHT = 28;
 const ACTION_HEIGHT = 28;
 const SPACING = 8;
 const TITLE_LINE = 18;
+const IMAGE_HEIGHT = 96;
+const REPLY_HEIGHT = 100;
 
 function messageLines(message: string, width: number) {
   const ctx = measureContext();
@@ -63,7 +67,7 @@ export function NotificationIcon(props: { src?: string; fallback?: string }) {
 }
 
 /** The sender takes one line or two, measured so the island fits it (NotchNotificationPreviewLayout). */
-export function previewSize(notification: NonNullable<Notice["notification"]>, geometry: Geometry): Size {
+export function previewSize(notification: NonNullable<Notice["notification"]>, geometry: Geometry, replying = false): Size {
   let height = HEADER_HEIGHT + SPACING + ACTION_HEIGHT;
   if (notification.sender) {
     const { width } = notificationPreviewSize(geometry, height);
@@ -78,6 +82,8 @@ export function previewSize(notification: NonNullable<Notice["notification"]>, g
     const available = width - 2 * contentInsets(geometry, { width, height }).horizontal;
     height += SPACING + messageLines(notification.body, available) * TITLE_LINE;
   }
+  if (notification.image) height += SPACING + IMAGE_HEIGHT;
+  if (replying) height += SPACING + REPLY_HEIGHT;
   return notificationPreviewSize(geometry, height);
 }
 
@@ -86,12 +92,48 @@ export function NotificationPreview(props: { notice: Notice; geometry: Geometry;
   const { notice, geometry, size } = props;
   const notification = notice.notification!;
   const count = useNotifications((s) => s.items.length);
+  const replying = useNotifications((s) => s.replyTo === notification.id);
   const insets = contentInsets(geometry, size);
+  const discord = isDiscordNotification(notification);
+  const reduceMotion = useReducedMotion();
+  const draft = useNotifications((s) => s.replyDrafts[notification.id] ?? "");
+  const status = useNotifications((s) => s.replyErrors[notification.id] ?? "");
+  const [busy, setBusy] = useState(false);
+  const field = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!replying) return;
+    void bridge.setFocusable(true, true);
+    const timer = setTimeout(() => field.current?.focus({ preventScroll: true }), reduceMotion ? 0 : 300);
+    return () => {
+      clearTimeout(timer);
+      if (!useIsland.getState().expanded) void bridge.setFocusable(false, false);
+    };
+  }, [replying, reduceMotion]);
+
+  const sendReply = async () => {
+    if (!draft.trim() || busy) return;
+    setBusy(true);
+    useNotifications.getState().setReplyError(notification.id, "");
+    try {
+      await bridge.notifications.sendDiscord(notification.id, draft.trim());
+      useNotifications.getState().setReplyDraft(notification.id, "");
+      useNotifications.setState({ replyTo: null });
+    } catch (error) {
+      useNotifications.getState().setReplyError(notification.id, String(error));
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const open = async () => {
-    useIsland.getState().settleNotice(notice.id);
-    const opened = await bridge.notifications.open(notification.aumid);
-    if (opened === false) useIsland.getState().open("notifications");
+    try {
+      const opened = await bridge.notifications.open(notification.aumid);
+      if (opened) useIsland.getState().settleNotice(notice.id);
+      else useIsland.getState().open("notifications");
+    } catch {
+      useIsland.getState().open("notifications");
+    }
   };
   const dismiss = () => {
     useIsland.getState().settleNotice(notice.id);
@@ -140,7 +182,21 @@ export function NotificationPreview(props: { notice: Notice; geometry: Geometry;
           {notification.body}
         </div>
       ) : null}
+      {notification.image ? <img className="nt-preview-image" src={notification.image} alt="Image attached to the Discord message" /> : null}
       <div className="nt-preview-actions" style={{ height: ACTION_HEIGHT }}>
+        {discord ? (
+          <button
+            type="button"
+            className="n-pill-button is-prominent"
+            aria-expanded={replying}
+            onClick={() => {
+              useNotifications.setState({ replyTo: replying ? null : notification.id });
+            }}
+          >
+            <Reply size={12} />
+            {replying ? "Cancel" : "Reply"}
+          </button>
+        ) : null}
         <button type="button" className="n-pill-button is-prominent" onClick={() => void open()}>
           <AppWindow size={12} />
           {t("notchNotifications.open")}
@@ -158,6 +214,44 @@ export function NotificationPreview(props: { notice: Notice; geometry: Geometry;
           </button>
         ) : null}
       </div>
+      <AnimatePresence initial={false}>
+        {discord && replying ? (
+          <motion.div
+            className="nt-preview-reply"
+            key="reply"
+            initial={{ height: 0, opacity: 0, y: -8 }}
+            animate={{ height: REPLY_HEIGHT, opacity: 1, y: 0 }}
+            exit={{ height: 0, opacity: 0, y: -8 }}
+            transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <span className="nt-preview-reply-label">Reply to {notification.sender || "Discord"}</span>
+            <div className="nt-preview-reply-field">
+              <textarea
+                ref={field}
+                value={draft}
+                onChange={(event) => useNotifications.getState().setReplyDraft(notification.id, event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    event.stopPropagation();
+                    useNotifications.setState({ replyTo: null });
+                  } else if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                    event.preventDefault();
+                    void sendReply();
+                  }
+                }}
+                placeholder="Write a reply…"
+                aria-label="Write a reply to send in Discord"
+                rows={1}
+              />
+              <button type="button" disabled={!draft.trim() || busy} onClick={() => void sendReply()} aria-label="Send reply in Discord" title="Send reply in Discord">
+                <Send size={14} />
+                <span>Send</span>
+              </button>
+            </div>
+            <span className="nt-preview-reply-status" role="status">{status || "Enter to send · Shift+Enter for a new line"}</span>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }

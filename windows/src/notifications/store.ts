@@ -17,6 +17,12 @@ interface NotificationsState {
   requesting: boolean;
   /** The Clear All question is up. */
   confirmingClear: boolean;
+  /** Open the reply draft for this Discord notification in the inbox. */
+  replyTo: number | null;
+  replyDrafts: Record<number, string>;
+  replyErrors: Record<number, string>;
+  setReplyDraft(id: number, text: string): void;
+  setReplyError(id: number, error: string): void;
   receive(inbox: Inbox): void;
   requestAccess(): Promise<void>;
   dismiss(id: number): Promise<void>;
@@ -29,6 +35,15 @@ export const useNotifications = create<NotificationsState>()((set) => ({
   error: null,
   requesting: false,
   confirmingClear: false,
+  replyTo: null,
+  replyDrafts: {},
+  replyErrors: {},
+  setReplyDraft(id, text) {
+    set((s) => ({ replyDrafts: { ...s.replyDrafts, [id]: text } }));
+  },
+  setReplyError(id, error) {
+    set((s) => ({ replyErrors: { ...s.replyErrors, [id]: error } }));
+  },
   receive(inbox) {
     updateNotificationDelivery(inbox);
     set((s) => ({
@@ -37,6 +52,9 @@ export const useNotifications = create<NotificationsState>()((set) => ({
       error: inbox.error ?? null,
       // Locking the PC empties the inbox under the question.
       confirmingClear: s.confirmingClear && inbox.items.length > 0,
+      replyTo: inbox.items.some((item) => item.id === s.replyTo) ? s.replyTo : null,
+      replyDrafts: Object.fromEntries(Object.entries(s.replyDrafts).filter(([id]) => inbox.items.some((item) => item.id === Number(id)))),
+      replyErrors: Object.fromEntries(Object.entries(s.replyErrors).filter(([id]) => inbox.items.some((item) => item.id === Number(id)))),
     }));
     const island = useIsland.getState();
     if (
@@ -63,10 +81,13 @@ export const useNotifications = create<NotificationsState>()((set) => ({
         items: inbox.items,
         error: inbox.error ?? null,
         confirmingClear: s.confirmingClear && inbox.items.length > 0,
+        replyTo: s.replyTo === id ? null : s.replyTo,
+        replyDrafts: Object.fromEntries(Object.entries(s.replyDrafts).filter(([key]) => Number(key) !== id)),
+        replyErrors: Object.fromEntries(Object.entries(s.replyErrors).filter(([key]) => Number(key) !== id)),
       }));
   },
   async clear() {
-    set({ confirmingClear: false });
+    set({ confirmingClear: false, replyTo: null, replyDrafts: {}, replyErrors: {} });
     const inbox = await bridge.notifications.clear();
     if (inbox) updateNotificationDelivery(inbox);
     if (inbox) set({ items: inbox.items, error: inbox.error ?? null });

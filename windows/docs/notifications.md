@@ -18,9 +18,14 @@ after restarting the app.
 
 Holding the pointer on a banner keeps it on screen, and after the hover delay it
 opens in place with the app, time and sender, Open, Dismiss and the inbox count.
-With opening set to click it only waits, and hidden until hover shows no banner to
-hold. Leaving closes the preview; the notification stays in the inbox. Clear All on
-the Notifications page asks first.
+Discord notifications also offer Reply. It smoothly grows a draft field inside
+the preview; Copy & open copies the draft and opens Discord, where the person
+pastes and sends it. Open launches the installed Discord through its registered
+`discord://` protocol. The Windows notification listener cannot activate another
+app's reply action or send a Discord message; no message is sent by Openbar.
+With opening set to click, ordinary sections still open on click while a held
+notification can expand on hover. Leaving closes the preview; the notification
+stays in the inbox. Clear All on the Notifications page asks first.
 
 An incoming notification waits for a currently visible session/timer notice
 instead of being dropped by its higher priority. The pending queue is bounded to
@@ -33,6 +38,9 @@ Content, and access allowed from the island's Notifications page. Desktop
 notifications must also be enabled in the source application. Browser-hosted
 services follow the browser's Windows notification identity and permissions;
 the island does not infer a service from message contents.
+The listener is created on Tauri's UI thread; its asynchronous read completes
+on the notifications worker. Some sparse-package installs return `E_INVALIDARG`
+when the worker calls the listener directly even after Windows grants consent.
 
 ## Package identity (notifications and calendar)
 
@@ -43,6 +51,8 @@ files of its own, whose manifest (`packaging/AppxManifest.xml`) names
 `Openbar.exe` in the install folder as its external location. The exe's own
 manifest (`src-tauri/windows-app.manifest`, `<msix … packageName="Openbar.Island"/>`)
 names the package back. No Developer Mode is needed for a signed package.
+Keep the app visible in the package manifest so Windows can list it in
+notification access settings (`AppListEntry="none"` must not be set).
 
 ### Building it
 
@@ -115,6 +125,18 @@ desktop notifications, or a muted conversation do not create island banners.
 Online, Idle, and Invisible retain Discord's normal desktop notification behavior.
 The island does not log into Discord or read its account token or message history,
 and it does not independently query the account's presence.
+
+The Discord card uses a branded icon and a compact reply field. Enter or Send
+opens the desktop Discord client, checks that its visible message editor belongs
+to the conversation named by the notification, types the reply, and presses
+Enter. Shift+Enter inserts a line break. If the conversation cannot be matched,
+no send key is pressed and OpenBar keeps the draft for another attempt. OpenBar
+does not read Discord account tokens. Windows' basic toast text lacks a channel
+identifier, so the matching conversation must already be selected in Discord.
+An image preview appears when the notification text includes a direct Discord CDN
+attachment URL. Windows' notification listener exposes text and the app icon, but
+not image elements from another app's toast, so an attachment omitted from the
+notification text cannot be displayed in the island.
 
 See [Discord's status documentation](https://support.discord.com/hc/en-us/articles/227779547-Changing-Online-Status)
 and [notification settings](https://support.discord.com/hc/en-us/articles/215253258-Notifications-Settings-101).

@@ -57,7 +57,7 @@ export interface Notice {
   /** The session a sessions notice is about: its Clawd stands in the symbol slot (NotchNotice.sessionID). */
   session?: { id: string; provider: Provider; event: SessionEvent["kind"] };
   /** What a mirrored notification preview shows: the pointer holds the banner and opens it (NotchNotice.notification). */
-  notification?: { id: number; app: string; sender?: string; body?: string; aumid: string; time: number };
+  notification?: { id: number; app: string; sender?: string; body?: string; image?: string; aumid: string; time: number };
   /** Runs once a tap has opened `opens`: a session notice focuses its session. */
   onOpen?: () => void;
   /** With the companion on, it stands in the symbol slot and plays this (NotchNotice.mascot). */
@@ -181,7 +181,7 @@ function holdNotification() {
   clearTimeout(noticeTimer);
   clearTimeout(hoverTimer);
   noticeTimer = hoverTimer = undefined;
-  if (s.noticeExpanded || s.hoverSuppressed || s.attentionFullscreen || !opensOnHover(s.settings)) return;
+  if (s.noticeExpanded || s.hoverSuppressed || s.attentionFullscreen) return;
   const id = s.notice?.id;
   hoverTimer = setTimeout(() => {
     const now = useIsland.getState();

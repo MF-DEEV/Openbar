@@ -34,11 +34,13 @@ function shifted(geometry: Geometry, size: Size, dx: number): string {
 export function IslandSurface(props: {
   geometry: Geometry;
   target: Size;
+  /** The notification reply explicitly requests a size transition. */
+  animatePreview?: boolean;
   onDrawn?: (size: Size, settled: boolean) => void;
   children: ReactNode;
 }) {
   useLocale();
-  const { geometry, target, children } = props;
+  const { geometry, target, children, animatePreview = false } = props;
   const outline = useIsland((s) => s.settings.outline);
   // The outline turns system orange while the timer has the closed island (NotchService.swift:2837-2838).
   const timerShown = useIsland(
@@ -79,7 +81,7 @@ export function IslandSurface(props: {
     // Sample the running spring at the retarget time instead of restarting
     // from the previous animation frame when the pointer changes direction.
     const from = current ? current.sizeAt(t) : drawn.current;
-    if (reducedMotion() || (from.width === target.width && from.height === target.height && !current)) {
+    if ((reducedMotion() && !animatePreview) || (from.width === target.width && from.height === target.height && !current)) {
       timeline.current = null;
       draw(target, true);
       return;
@@ -103,7 +105,7 @@ export function IslandSurface(props: {
     };
     step();
     return () => cancelAnimationFrame(raf.current);
-  }, [geometry, target.width, target.height]);
+  }, [geometry, target.width, target.height, animatePreview]);
 
   // Commit the outline, clip and content layout together. Imperatively
   // moving the outline ahead of React's content update causes visible jumps.
