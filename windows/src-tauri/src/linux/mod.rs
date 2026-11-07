@@ -23,6 +23,7 @@ pub mod hosts;
 pub mod ics;
 pub mod image;
 pub mod kitty;
+pub mod locale;
 pub mod ocr;
 pub mod paths;
 pub mod process;

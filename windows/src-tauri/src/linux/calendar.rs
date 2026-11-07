@@ -261,34 +261,6 @@ fn read(sources: &[Source], cache: &mut Cache, range: (i64, i64)) -> Vec<(Choice
         .collect()
 }
 
-/// The first day of the week and the days the first week of the year needs,
-/// by the region of the locale (Sunday first where the Americas, Japan and a few
-/// others have it, else Monday and the ISO week).
-fn week_rules_of(locale: &str) -> (u8, u8) {
-    let region = locale
-        .split(['.', '@'])
-        .next()
-        .and_then(|l| l.split_once('_'))
-        .map_or("", |(_, region)| region);
-    const SUNDAY_FIRST: [&str; 16] = [
-        "US", "CA", "MX", "BR", "JP", "IL", "SA", "IN", "PH", "KR", "TW", "HK", "ZA", "AU", "CO",
-        "VE",
-    ];
-    if SUNDAY_FIRST.contains(&region) {
-        (0, 1)
-    } else {
-        (1, 4)
-    }
-}
-
-fn week_rules() -> (u8, u8) {
-    let locale = ["LC_ALL", "LC_TIME", "LANG"]
-        .iter()
-        .find_map(|name| std::env::var(name).ok().filter(|v| !v.is_empty()))
-        .unwrap_or_default();
-    week_rules_of(&locale)
-}
-
 /// Wakes the reader when the clock jumps (the PC woke, or the time was set).
 fn watch_clock(tx: Sender<Message>) {
     let _ = std::thread::Builder::new()
@@ -345,7 +317,7 @@ pub fn run<R: tauri::Runtime>(
         }
 
         let prefs = app.state::<crate::prefs::Prefs>().get();
-        let (first_weekday, minimum_days) = week_rules();
+        let (first_weekday, minimum_days) = crate::linux::locale::week_rules();
         let mut next = Snapshot {
             first_weekday,
             minimum_days_in_first_week: minimum_days,
@@ -579,17 +551,6 @@ mod tests {
         }
         assert_eq!(palette("ics:/a"), palette("ics:/a"));
         assert!(PALETTE.contains(&palette("ics:/b").as_str()));
-    }
-
-    #[test]
-    fn the_week_starts_where_the_locale_starts_it() {
-        assert_eq!(week_rules_of("en_US.UTF-8"), (0, 1));
-        assert_eq!(week_rules_of("pt_BR"), (0, 1));
-        assert_eq!(week_rules_of("pl_PL.UTF-8"), (1, 4));
-        assert_eq!(week_rules_of("en_GB.UTF-8"), (1, 4));
-        assert_eq!(week_rules_of("de_DE@euro"), (1, 4));
-        assert_eq!(week_rules_of("C.UTF-8"), (1, 4));
-        assert_eq!(week_rules_of(""), (1, 4));
     }
 
     #[test]

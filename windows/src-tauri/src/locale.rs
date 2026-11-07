@@ -147,7 +147,17 @@ pub fn locale_settings() -> RegionalSettings {
                 .map_or(1, |n| (n + 1) % 7),
         };
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        let settings = crate::linux::locale::settings();
+        RegionalSettings {
+            preferred: settings.preferred,
+            region: settings.region,
+            hour_cycle: settings.hour_cycle.into(),
+            first_weekday: settings.first_weekday,
+        }
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     RegionalSettings {
         preferred: vec!["en-US".into()],
         region: "US".into(),
