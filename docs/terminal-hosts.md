@@ -29,6 +29,7 @@ first:
 | Terminal | tab | yes | AppleScript, tab by device | Automation |
 | iTerm2 | window, tab, split | yes | AppleScript, session by `tty` | Automation |
 | Ghostty 1.4+ | window, tab, split | yes | AppleScript, terminal by `tty` (`input text`, `send key "enter"`) | Automation |
+| tmux on a remote host over SSH ([remote hosts](remote-hosts.md)) | pane and window in the host's tmux | yes | the host's `tmux` through the island's `ssh` link: `paste-buffer -p`, `send-keys Enter` | the host set up in Settings |
 | tmux, in any of these | pane, window, and the terminal attached to it | yes | `tmux -S <socket>` of the pane's own server: `paste-buffer -p`, `send-keys Enter`, `select-window`, `select-pane`, `switch-client` | nothing |
 | WezTerm | tab and pane, then the window | yes | `wezterm cli` with the pane's socket: `send-text`, `activate-tab`, `activate-pane`, pane checked by `tty_name` | nothing (Accessibility to raise one window of several) |
 | kitty, remote control on | window | yes | `kitten @ --to $KITTY_LISTEN_ON`, window checked to list the session's pid | `allow_remote_control` and `listen_on` in kitty.conf |

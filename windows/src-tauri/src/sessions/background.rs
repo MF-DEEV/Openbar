@@ -192,6 +192,7 @@ pub fn ended_session(job: &Job, ended: Time, branch: Option<String>) -> Session 
         host: HostKind::Background,
         accepts_replies: false,
         host_name: None,
+        remote: None,
         phase: SessionPhase::Idle,
         phase_since: ended,
         turn_started: None,

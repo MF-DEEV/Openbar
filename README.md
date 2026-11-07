@@ -72,7 +72,7 @@ Every agent session on your machine, beside the camera. When one needs you, the 
 | Copilot CLI | ✓ | in Copilot CLI | ✓ |
 | Cursor | ✓ | in Cursor | `cursor-agent` only |
 
-Background sessions (`claude --bg`), plan limits and **New session** are there too. Each session started from New session gets [its own git worktree](docs/session-worktrees.md), so agents working on one repo don't change each other's files. See [what each agent allows](docs/more-session-agents.md) and [which terminals replies reach](docs/terminal-hosts.md).
+Background sessions (`claude --bg`), plan limits and **New session** are there too. Each session started from New session gets [its own git worktree](docs/session-worktrees.md), so agents working on one repo don't change each other's files. Sessions on [machines you reach over SSH](docs/remote-hosts.md) can show up too, with the host's name on them. See [what each agent allows](docs/more-session-agents.md) and [which terminals replies reach](docs/terminal-hosts.md).
 
 ## The rest of your Mac
 
@@ -169,6 +169,7 @@ Then, in Settings:
 | [Background sessions](docs/background-sessions.md) | `claude --bg`, Agent View and New session |
 | [Session worktrees](docs/session-worktrees.md) | A git worktree for each session started from New session |
 | [Terminals](docs/terminal-hosts.md) | Every terminal and editor replies reach |
+| [Remote hosts](docs/remote-hosts.md) | Sessions on machines reached over SSH |
 | [Windows](windows/README.md) | The Windows island, installer and build |
 
 ## Contributing

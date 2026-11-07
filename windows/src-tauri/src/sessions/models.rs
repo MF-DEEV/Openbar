@@ -170,6 +170,8 @@ pub enum HostKind {
     App,
     /// No terminal at all: a whole session running in the background.
     Background,
+    /// On a host reached over SSH; replies reach it inside tmux there.
+    Remote,
     #[default]
     Unknown,
 }
@@ -200,6 +202,8 @@ pub struct SessionRecord {
     pub name_source: Option<String>,
     /// The job a background session goes by; None for one in a terminal.
     pub job: Option<String>,
+    /// The SSH alias of the host it runs on, for one on another machine.
+    pub remote: Option<String>,
 }
 
 impl SessionRecord {
@@ -578,6 +582,9 @@ pub struct Session {
     pub accepts_replies: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub host_name: Option<String>,
+    /// The SSH host it runs on, shown as a badge beside its name.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remote: Option<String>,
     pub phase: SessionPhase,
     pub phase_since: Time,
     /// When the turn under way, or the last one, began.
@@ -1313,6 +1320,7 @@ mod tests {
             host: HostKind::WindowsTerminal,
             accepts_replies: true,
             host_name: None,
+            remote: None,
             phase,
             phase_since: since,
             turn_started: Some(since),

@@ -313,6 +313,9 @@ if (( TEST )); then
         Sources/Openbar/Services/ClaudeSessions/ClaudePlanModes.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeHookServer.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeHookInstaller.swift
+        Sources/Openbar/Services/ClaudeSessions/RemoteHosts.swift
+        Sources/Openbar/Services/ClaudeSessions/RemoteHostLink.swift
+        Sources/Openbar/Core/RemoteHostStrings.swift
         Sources/Openbar/Services/ClaudeSessions/ClawdCostume.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeAgentColors.swift
         Sources/Openbar/Services/ClaudeSessions/CodexSessionState.swift
@@ -718,6 +721,7 @@ mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
 cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
+cp Resources/remote-agent.sh "$STAGE/Contents/Resources/remote-agent.sh"
 # The Antigravity extension the Sessions page types replies through. A copy
 # also sits next to the bare binary, where `build/Openbar --selftest` looks.
 ditto Tools/AntigravityBridge "$STAGE/Contents/Resources/AntigravityBridge"

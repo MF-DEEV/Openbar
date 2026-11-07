@@ -616,6 +616,7 @@ fn session(
         host: record.host,
         accepts_replies: record.accepts_replies,
         host_name: record.host_name.clone(),
+        remote: record.remote.clone(),
         phase,
         phase_since: since,
         turn_started: entry.turn_started,
@@ -1135,6 +1136,7 @@ mod tests {
             host_name: None,
             name_source: None,
             job: None,
+            remote: None,
         }
     }
 

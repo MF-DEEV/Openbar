@@ -151,6 +151,7 @@ pub fn record(data: &[u8], accepted_domains: &[&str]) -> Option<SessionRecord> {
         host_name: None,
         name_source: str_of(json.get("nameSource")).map(str::to_owned),
         job: super::background::job_of_record(json, session),
+        remote: None,
     })
 }
 

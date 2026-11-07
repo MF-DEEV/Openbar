@@ -49,6 +49,10 @@ export interface SessionPrefs {
   /** Hold-to-talk, off until turned on, and its keys. */
   voiceShortcutEnabled: boolean;
   voiceShortcut: string;
+  /** Sessions on machines reached over SSH (sessions/remote.rs); off until turned on. */
+  remoteHostsEnabled: boolean;
+  /** The hosts, by their alias in ~/.ssh/config. */
+  remoteHosts: string[];
 }
 
 export const DEFAULT_SESSION_PREFS: SessionPrefs = {
@@ -66,6 +70,8 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   voiceSendOnStop: false,
   voiceShortcutEnabled: false,
   voiceShortcut: "Ctrl+Alt+V",
+  remoteHostsEnabled: false,
+  remoteHosts: [],
 };
 
 /** What is stored: only what differs from the defaults. */

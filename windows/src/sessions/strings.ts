@@ -335,6 +335,10 @@ export const S = {
   get backgroundMark() {
     return t("windows.sessions.backgroundMark");
   },
+  remoteHelp: (alias: string) => tf("windows.sessions.remoteHelp", alias),
+  get replyNeedsTmux() {
+    return t("windows.sessions.replyNeedsTmux");
+  },
   get backgroundHelp() {
     return t("windows.sessions.backgroundHelp");
   },

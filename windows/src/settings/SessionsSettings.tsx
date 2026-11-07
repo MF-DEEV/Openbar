@@ -265,6 +265,189 @@ function MoreAgents() {
   );
 }
 
+/** How a host stands (sessions/remote.rs `State`). */
+type RemoteState =
+  | { state: "connecting" }
+  | { state: "connected"; hasClient: boolean; hooksInstalled: boolean }
+  | { state: "disconnected"; reason: string };
+
+interface RemoteHostStatus {
+  alias: string;
+  state: RemoteState | null;
+  busy: boolean;
+  failure: string | null;
+}
+
+/** An alias ssh takes as a destination and never as an option (sessions/remote.rs). */
+export function isValidAlias(alias: string): boolean {
+  return alias.length > 0 && alias.length <= 255 && !alias.startsWith("-") && /^[A-Za-z0-9._\-@:[\]%]+$/.test(alias);
+}
+
+export function remoteStateText(state: RemoteState | null): string {
+  if (!state || state.state === "connecting") return t("windows.settings.sessions.remoteConnecting");
+  if (state.state === "disconnected") return tf("windows.settings.sessions.remoteDisconnected", state.reason);
+  if (state.hooksInstalled) return t("windows.settings.sessions.remoteReady");
+  return state.hasClient
+    ? t("windows.settings.sessions.remoteNotSetUp")
+    : t("windows.settings.sessions.remoteNoClient");
+}
+
+/** Sessions on machines reached over SSH: the switch, the hosts by their
+ * ssh config alias, and setting a host up or taking Openbar off it, each
+ * asked first, in place. */
+function RemoteHosts() {
+  useLocale();
+  const prefs = useSettings((s) => s.prefs.sessions);
+  const set = useSettings((s) => s.sessions);
+  const [statuses, setStatuses] = useState<RemoteHostStatus[]>([]);
+  const [draft, setDraft] = useState("");
+  const [invalid, setInvalid] = useState(false);
+  const [confirming, setConfirming] = useState<{ alias: string; install: boolean } | null>(null);
+  const hosts = prefs.remoteHosts;
+  const enabled = prefs.remoteHostsEnabled;
+  const refresh = useCallback(async () => {
+    if (!inTauri) {
+      setStatuses(
+        hosts.map((alias) => ({
+          alias,
+          state: { state: "connected", hasClient: true, hooksInstalled: false },
+          busy: false,
+          failure: null,
+        })),
+      );
+      return;
+    }
+    setStatuses(await invoke<RemoteHostStatus[]>("sessions_remote_hosts_status", { hosts }));
+  }, [hosts]);
+  useEffect(() => {
+    if (!enabled) return;
+    void refresh();
+    const timer = window.setInterval(() => void refresh(), 2000);
+    let off: (() => void) | undefined;
+    if (inTauri) {
+      void import("@tauri-apps/api/event").then(({ listen }) =>
+        listen("sessions-remote-hosts", () => void refresh()).then((f) => (off = f)),
+      );
+    }
+    return () => {
+      window.clearInterval(timer);
+      off?.();
+    };
+  }, [enabled, refresh]);
+  const add = () => {
+    const alias = draft.trim();
+    if (!isValidAlias(alias)) {
+      setInvalid(alias.length > 0);
+      return;
+    }
+    setInvalid(false);
+    setDraft("");
+    if (!hosts.includes(alias)) set("remoteHosts", [...hosts, alias]);
+  };
+  const change = async (alias: string, install: boolean) => {
+    setConfirming(null);
+    try {
+      if (inTauri) await invoke("sessions_remote_hosts_change", { alias, install });
+    } catch {
+      // The failure is shown with the host's status.
+    }
+    void refresh();
+  };
+  return (
+    <>
+      <SubRow title={t("windows.settings.sessions.remoteTitle")} caption={t("windows.settings.sessions.remoteCaption")}>
+        <Toggle
+          label={t("windows.settings.sessions.remoteTitle")}
+          checked={enabled}
+          onChange={(on) => set("remoteHostsEnabled", on)}
+        />
+      </SubRow>
+      {enabled
+        ? hosts.map((alias) => {
+            const status = statuses.find((s) => s.alias === alias);
+            const state = status?.state ?? null;
+            const connected = state?.state === "connected" ? state : null;
+            const asking = confirming?.alias === alias ? confirming : null;
+            return (
+              <SubRow
+                key={alias}
+                title={alias}
+                caption={
+                  <>
+                    {remoteStateText(state)}
+                    {status?.failure ? <div className="st-error">{status.failure}</div> : null}
+                    {asking ? (
+                      <div className="st-remote-confirm">
+                        {tf(
+                          asking.install
+                            ? "windows.settings.sessions.remoteConfirmSetUp"
+                            : "windows.settings.sessions.remoteConfirmRemove",
+                          alias,
+                        )}
+                      </div>
+                    ) : null}
+                  </>
+                }
+              >
+                {asking ? (
+                  <>
+                    <Button accent onClick={() => void change(alias, asking.install)}>
+                      {asking.install
+                        ? t("windows.settings.sessions.remoteSetUp")
+                        : t("windows.settings.sessions.remoteRemoveHooks")}
+                    </Button>
+                    <Button onClick={() => setConfirming(null)}>{t("windows.settings.sessions.remoteCancel")}</Button>
+                  </>
+                ) : connected && (connected.hooksInstalled || connected.hasClient) ? (
+                  <Button
+                    busy={status?.busy}
+                    onClick={() => setConfirming({ alias, install: !connected.hooksInstalled })}
+                  >
+                    {connected.hooksInstalled
+                      ? t("windows.settings.sessions.remoteRemoveHooks")
+                      : t("windows.settings.sessions.remoteSetUp")}
+                  </Button>
+                ) : null}
+                {asking ? null : (
+                  <Button
+                    onClick={() =>
+                      set(
+                        "remoteHosts",
+                        hosts.filter((h) => h !== alias),
+                      )
+                    }
+                  >
+                    {t("windows.settings.sessions.remoteDelete")}
+                  </Button>
+                )}
+              </SubRow>
+            );
+          })
+        : null}
+      {enabled ? (
+        <SubRow
+          title={t("windows.settings.sessions.remoteAdd")}
+          caption={invalid ? <div className="st-error">{t("windows.settings.sessions.remoteInvalid")}</div> : undefined}
+        >
+          <input
+            className="ag-st-input st-remote-input"
+            type="text"
+            value={draft}
+            placeholder={t("windows.settings.sessions.remotePlaceholder")}
+            aria-label={t("windows.settings.sessions.remotePlaceholder")}
+            spellCheck={false}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && add()}
+          />
+          <Button onClick={add} disabled={!draft.trim()}>
+            {t("windows.settings.sessions.remoteAddButton")}
+          </Button>
+        </SubRow>
+      ) : null}
+    </>
+  );
+}
+
 /** The speech model on this PC; a stand-in outside the app. */
 function useVoiceModel() {
   const [model, setModel] = useState<VoiceModel | null>(null);
@@ -523,6 +706,7 @@ export function SessionsOptions() {
         <Toggle label={T.sessions.limits} checked={prefs.limits} onChange={(on) => set("limits", on)} />
       </SubRow>
       <VoiceReplies prefs={prefs} set={set} />
+      <RemoteHosts />
     </>
   );
 }

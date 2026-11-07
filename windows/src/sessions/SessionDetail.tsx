@@ -45,7 +45,7 @@ import { answerMarks, messageTime } from "./conversation";
 import { RichText } from "./RichText";
 import { MessageImages } from "./MessageImages";
 import { useNow } from "./useNow";
-import { BackgroundBar, BackgroundLogs, WorktreeBar } from "./Background";
+import { BackgroundBar, BackgroundLogs, RemoteHostMark, WorktreeBar } from "./Background";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { setPrefs } from "../shared/prefs";
@@ -229,6 +229,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
               ) : null}
             </div>
             <div className="s-row-line2">
+              {session.remote ? <RemoteHostMark alias={session.remote} /> : null}
               <span className="s-tag" style={{ color, background: `color-mix(in srgb, ${color} 16%, transparent)` }}>
                 {session.project}
               </span>
@@ -631,6 +632,7 @@ function unavailable(session: Session): string | null {
   if (session.background?.ended) return S.replyEnded;
   if (!session.acceptsReplies) {
     if (session.provider === "cursor") return S.replyIn(session.provider);
+    if (session.remote) return S.replyNeedsTmux;
     return session.hostName ? S.replyUnavailableIn(session.hostName) : S.replyUnavailable;
   }
   return null;

@@ -57,6 +57,7 @@ extension ClaudeSessionHost {
         if case .tmux(let target) = self {
             return target.outer.map { "tmux in " + ClaudeTerminalApps.name(of: $0) } ?? "tmux"
         }
+        if case .remote(let alias, let tmux) = self { return tmux ? "tmux on " + alias : alias }
         return bundle.map(ClaudeTerminalApps.name(of:))
     }
 }

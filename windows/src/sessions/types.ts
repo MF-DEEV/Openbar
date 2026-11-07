@@ -17,7 +17,7 @@ export interface LimitStop {
 }
 
 export type HostKind =
-  "windowsTerminal" | "vscode" | "conhost" | "wezterm" | "tmux" | "kitty" | "app" | "background" | "unknown";
+  "windowsTerminal" | "vscode" | "conhost" | "wezterm" | "tmux" | "kitty" | "app" | "background" | "remote" | "unknown";
 
 export interface ToolUse {
   id: string;
@@ -164,6 +164,8 @@ export interface Session {
   acceptsReplies: boolean;
   /** The app holding the session as the person knows it, like "WezTerm" or "Git Bash". */
   hostName?: string;
+  /** The SSH alias of the host it runs on, for a session on another machine. */
+  remote?: string;
   phase: Phase;
   phaseSince: number;
   turnStarted?: number;
