@@ -113,7 +113,8 @@ function ToolRequest({ session }: { session: Session }) {
     <>
       {p.diffs?.length ? (
         // A file change shows what changes, not just where.
-        <FileDiffView diffs={p.diffs} />
+        // Gaps opened for one request start closed on the next.
+        <FileDiffView key={p.requestId} diffs={p.diffs} />
       ) : (
         <pre className={plan ? "s-detail is-plan" : "s-detail"}>{p.detail}</pre>
       )}

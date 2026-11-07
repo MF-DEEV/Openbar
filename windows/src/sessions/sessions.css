@@ -1245,6 +1245,79 @@
   color: rgba(255, 255, 255, 0.35);
 }
 
+/* In place of lines left out: arrows that open the gap, and how many it holds. */
+.s-diff-line.is-expand {
+  align-items: center;
+  gap: 2px;
+  padding-left: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+}
+
+.s-diff-expand {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 15px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.s-diff-expand:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.s-diff-expand:active {
+  transform: scale(0.92);
+}
+
+.s-diff-expand:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.7);
+  outline-offset: -1px;
+}
+
+.s-diff-hidden {
+  margin-left: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Lines a click brings in come up from faint, where they land. */
+.s-diff-line.is-revealed {
+  animation: s-diff-reveal 0.22s ease-out;
+}
+
+@keyframes s-diff-reveal {
+  from {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-diff-line.is-revealed {
+    animation: none;
+  }
+  .s-diff-expand {
+    transition: none;
+  }
+  .s-diff-expand:active {
+    transform: none;
+  }
+}
+
 .s-diff-number {
   flex: none;
   width: calc(var(--s-diff-digits, 0) * 1ch);

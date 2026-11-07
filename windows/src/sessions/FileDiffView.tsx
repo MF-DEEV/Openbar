@@ -3,10 +3,13 @@
 
 // What a file change would do, file by file (NotchClaudeFileDiffView.swift):
 // removed lines in red, added ones in green, a few unchanged ones around
-// them. Long diffs scroll; the service already cut very large ones.
+// them, and a row to show more of the file where lines are left out. Long
+// diffs scroll; the service already cut very large ones.
 
-import { FileMinus, FilePlus, FileText } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, FileMinus, FilePlus, FileText } from "lucide-react";
+import { useState } from "react";
 import { useLocale } from "../i18n";
+import { diffRows, openGap, type DiffRow, type Opened, type Way } from "./diffGaps";
 import { S } from "./strings";
 import type { DiffLine, FileDiff } from "./types";
 
@@ -60,23 +63,71 @@ function Header({ diff }: { diff: FileDiff }) {
 
 const SIGN: Record<DiffLine["kind"], string> = { added: "+", removed: "−", context: " ", gap: "" };
 
-function Lines({ diff }: { diff: FileDiff }) {
-  const digits = String(Math.max(0, ...diff.lines.map((l) => l.number ?? 0))).length;
+/** A row in place of lines a diff leaves out: arrows that show the next
+ *  lines from either side, or all of them when few are left. */
+function GapRow({ row, onOpen }: { row: Extract<DiffRow, { type: "gap" }>; onOpen: (way: Way) => void }) {
+  if (!row.edge || !(row.down || row.up || row.all)) {
+    return (
+      <div className="s-diff-line is-gap" aria-hidden>
+        ⋯
+      </div>
+    );
+  }
+  const AllIcon = row.edge === "top" ? ArrowUp : row.edge === "bottom" ? ArrowDown : ArrowUpDown;
+  const arrow = (way: Way, Icon: typeof ArrowUp, label: string) => (
+    <button type="button" className="s-diff-expand" title={label} aria-label={label} onClick={() => onOpen(way)}>
+      <Icon size={10} strokeWidth={2.6} aria-hidden />
+    </button>
+  );
+  return (
+    <div className="s-diff-line is-expand">
+      {row.all ? arrow("all", AllIcon, S.diffShowAll(row.hidden)) : null}
+      {row.down ? arrow("down", ArrowDown, S.diffShowBelow) : null}
+      {row.up ? arrow("up", ArrowUp, S.diffShowAbove) : null}
+      <span className="s-diff-hidden" aria-hidden>
+        {S.diffHiddenLines(row.hidden)}
+      </span>
+    </div>
+  );
+}
+
+function Lines({
+  diff,
+  opened,
+  onOpened,
+}: {
+  diff: FileDiff;
+  opened: Record<number, Opened>;
+  onOpened: (opened: Record<number, Opened>) => void;
+}) {
+  const rows = diffRows(diff.lines, opened);
+  const shown = rows.flatMap((r) => (r.type === "line" && r.line.number !== undefined ? [r.line.number] : []));
+  const digits = String(Math.max(0, ...shown)).length;
   const numbered = diff.lines.some((l) => l.number !== undefined);
   return (
     <div className="s-diff-lines" style={{ ["--s-diff-digits" as string]: numbered ? digits : 0 }}>
-      {diff.lines.map((line, i) =>
-        line.kind === "gap" ? (
-          <div key={i} className="s-diff-line is-gap" aria-hidden>
-            ⋯
-          </div>
+      {rows.map((row) =>
+        row.type === "gap" ? (
+          <GapRow
+            key={row.key}
+            row={row}
+            onOpen={(way) => {
+              const gap = diff.lines[row.index]?.gap;
+              if (gap) onOpened({ ...opened, [row.index]: openGap(gap, opened[row.index] ?? { down: 0, up: 0 }, way) });
+            }}
+          />
         ) : (
-          <div key={i} className={`s-diff-line is-${line.kind}`} aria-label={S.diffLineLabel(line)}>
-            {numbered ? <span className="s-diff-number">{line.number ?? ""}</span> : null}
+          <div
+            key={row.key}
+            // Lines a click brings in fade in where they land.
+            className={`s-diff-line is-${row.line.kind}${/\D/.test(row.key) ? " is-revealed" : ""}`}
+            aria-label={S.diffLineLabel(row.line)}
+          >
+            {numbered ? <span className="s-diff-number">{row.line.number ?? ""}</span> : null}
             <span className="s-diff-sign" aria-hidden>
-              {SIGN[line.kind]}
+              {SIGN[row.line.kind]}
             </span>
-            <span className="s-diff-text">{line.text || " "}</span>
+            <span className="s-diff-text">{row.line.text || " "}</span>
           </div>
         ),
       )}
@@ -85,8 +136,23 @@ function Lines({ diff }: { diff: FileDiff }) {
   );
 }
 
+/** What the diffs are, to tell a new request's from a fresh copy of the same. */
+function signature(diffs: FileDiff[]): string {
+  return diffs
+    .map((d) => [d.path, d.change, d.added, d.removed, d.hidden, d.lines.length, d.lines[0]?.number].join(":"))
+    .join("|");
+}
+
 export function FileDiffView({ diffs }: { diffs: FileDiff[] }) {
   useLocale();
+  // How far each gap is open, by file and by the gap's place in its lines.
+  // Other diffs start closed; a fresh snapshot of the same ones keeps them.
+  const sig = signature(diffs);
+  const [opened, setOpened] = useState<{ sig: string; files: Record<number, Record<number, Opened>> }>({
+    sig,
+    files: {},
+  });
+  const files = opened.sig === sig ? opened.files : {};
   const one = diffs.length === 1;
   return (
     <div className="s-diff">
@@ -95,7 +161,11 @@ export function FileDiffView({ diffs }: { diffs: FileDiff[] }) {
         {diffs.map((diff, i) => (
           <div key={i} className="s-diff-block">
             {one ? null : <Header diff={diff} />}
-            <Lines diff={diff} />
+            <Lines
+              diff={diff}
+              opened={files[i] ?? {}}
+              onOpened={(next) => setOpened({ sig, files: { ...files, [i]: next } })}
+            />
           </div>
         ))}
       </div>

@@ -111,3 +111,36 @@ it("shows an agent's file change above where to answer it", () => {
   expect(html).toContain("s-diff-scroll");
   expect(html.indexOf("s-diff-scroll")).toBeLessThan(html.indexOf("s-card-terminal"));
 });
+
+it("puts arrows where a gap keeps lines, and a plain mark where it keeps none", () => {
+  const kept: FileDiff = {
+    ...edit,
+    lines: [
+      {
+        kind: "gap",
+        text: "",
+        gap: { edge: "top", count: 30, head: [], tail: [{ kind: "context", text: "x", number: 10 }] },
+      },
+      ...edit.lines,
+      {
+        kind: "gap",
+        text: "",
+        gap: {
+          edge: "bottom",
+          count: 3,
+          head: [41, 42, 43].map((n) => ({ kind: "context" as const, text: `l${n}`, number: n })),
+          tail: [],
+        },
+      },
+    ],
+  };
+  const html = renderToStaticMarkup(<FileDiffView diffs={[kept]} />);
+  expect(html).toContain('class="s-diff-line is-expand"');
+  expect(html).toContain('aria-label="Show 20 more lines above"');
+  expect(html).toContain('aria-label="Show all 3 lines"');
+  expect(html).toContain("30 unchanged lines");
+  // The bare gap between hunks has nothing to open.
+  expect(html.match(/class="s-diff-line is-gap"/g)?.length).toBe(1);
+  // Nothing opened yet: the kept lines are not drawn.
+  expect(html).not.toContain("l41");
+});
