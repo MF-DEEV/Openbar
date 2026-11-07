@@ -151,7 +151,8 @@ enum RemoteSSH {
     static func reason(_ stderr: String, status: Int32) -> String {
         let line = stderr.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
             .last { !$0.isEmpty }
-        return line.map { String($0.prefix(160)) } ?? "ssh exited with \(status)"
+        // Windows' ssh says nothing when the host refuses the connection.
+        return line.map { String($0.prefix(160)) } ?? "The host can’t be reached (ssh exited with \(status))"
     }
 }
 

@@ -1610,6 +1610,11 @@ impl Service {
         };
         if result.is_ok() {
             link.mark_hooks(install);
+            // The hooks write to the socket the connection forwards; a fresh
+            // one is sure to have it.
+            if install {
+                link.reconnect();
+            }
         }
         {
             let mut inner = self.inner.lock().unwrap();

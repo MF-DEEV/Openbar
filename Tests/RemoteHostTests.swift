@@ -38,7 +38,7 @@ enum RemoteHostTests {
                      && RemoteBackoff.delay(attempt: 9) == 30, "tries again sooner first, then every half minute")
         suite.expect(RemoteSSH.reason("Warning: x\nssh: connect to host box port 22: Connection refused\n", status: 255)
                      == "ssh: connect to host box port 22: Connection refused"
-                     && RemoteSSH.reason("", status: 255) == "ssh exited with 255", "the reason is ssh's own last line")
+                     && RemoteSSH.reason("", status: 255) == "The host can’t be reached (ssh exited with 255)", "the reason is ssh's own last line")
 
         let folder = FileManager.default.temporaryDirectory.appending(path: "openbar-remote-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }

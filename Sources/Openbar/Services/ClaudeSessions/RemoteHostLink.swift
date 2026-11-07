@@ -229,6 +229,22 @@ final class RemoteHostLink {
         return ssh.answer(timeout: timeout)
     }
 
+    /// Connects again at once, without counting it as a failure: after a
+    /// setup, as Remove from host may have taken the forwarded socket with
+    /// it. On the link's queue.
+    func reconnectNow() {
+        let running = lock.withLock { () -> RemoteSSHProcess? in
+            guard !stopped else { return nil }
+            generation += 1
+            defer { ssh = nil }
+            return ssh
+        }
+        running?.stop()
+        guard lock.withLock({ !stopped }) else { return }
+        attempt = 0
+        connect()
+    }
+
     // MARK: Connecting
 
     private func connect() {

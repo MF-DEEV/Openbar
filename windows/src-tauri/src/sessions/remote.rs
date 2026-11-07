@@ -144,7 +144,8 @@ pub fn reason(stderr: &str, status: Option<i32>) -> String {
         .rfind(|l| !l.is_empty())
         .map(|l| l.chars().take(160).collect())
         .unwrap_or_else(|| match status {
-            Some(code) => format!("ssh exited with {code}"),
+            // Windows' ssh says nothing when the host refuses the connection.
+            Some(code) => format!("The host can’t be reached (ssh exited with {code})"),
             None => "The connection ended".into(),
         })
 }
@@ -534,11 +535,17 @@ impl Ssh {
         let _ = thread::Builder::new()
             .name("remote-ssh-err".into())
             .spawn(move || {
-                let mut text = String::new();
-                let _ = BufReader::new(stderr)
-                    .take(64 * 1024)
-                    .read_to_string(&mut text);
-                *sink.lock().unwrap() = text;
+                // Windows' ssh may print in the console's code page, not UTF-8.
+                let mut bytes = Vec::new();
+                let mut reader = BufReader::new(stderr).take(64 * 1024);
+                let mut chunk = [0u8; 4096];
+                while let Ok(n) = reader.read(&mut chunk) {
+                    if n == 0 {
+                        break;
+                    }
+                    bytes.extend_from_slice(&chunk[..n]);
+                    *sink.lock().unwrap() = String::from_utf8_lossy(&bytes).into_owned();
+                }
             });
         Some(Ssh {
             pid: child.id(),
@@ -685,6 +692,8 @@ pub struct Link {
     /// One request at a time on the connection.
     busy: Mutex<()>,
     stopped: Mutex<bool>,
+    /// Connect again at once, without counting a failure (`reconnect`).
+    restart: Mutex<bool>,
     pub state: Mutex<State>,
     pub info: Mutex<Option<HostInfo>>,
     offsets: Mutex<HashMap<String, u64>>,
@@ -707,6 +716,7 @@ impl Link {
             ssh: Mutex::new(None),
             busy: Mutex::new(()),
             stopped: Mutex::new(false),
+            restart: Mutex::new(false),
             state: Mutex::new(State::Connecting),
             info: Mutex::new(None),
             offsets: Mutex::new(HashMap::new()),
@@ -732,6 +742,15 @@ impl Link {
     /// The ssh behind the forwarded socket, to tell this host's hooks apart.
     pub fn peer(&self) -> Option<u32> {
         self.ssh.lock().unwrap().as_ref().map(|s| s.pid)
+    }
+
+    /// Connects again at once: after a setup, as Remove from host may have
+    /// taken the forwarded socket with it.
+    pub fn reconnect(&self) {
+        *self.restart.lock().unwrap() = true;
+        if let Some(ssh) = self.ssh.lock().unwrap().as_ref() {
+            ssh.stop();
+        }
     }
 
     pub fn reread_transcripts(&self) {
@@ -768,6 +787,10 @@ impl Link {
             }
             if self.stopped() {
                 break;
+            }
+            if std::mem::take(&mut *self.restart.lock().unwrap()) {
+                attempt = 0;
+                continue;
             }
             attempt += 1;
             self.set_state(State::Disconnected { reason: failure }, &on_state);
@@ -1086,6 +1109,17 @@ mod tests {
         assert_eq!(backoff(1), Duration::from_secs(2));
         assert_eq!(backoff(9), Duration::from_secs(30));
         assert!(!LOADER.contains('\\'));
+        assert_eq!(
+            reason(
+                "Warning: x\nssh: connect to host box port 22: Connection refused\n",
+                Some(255)
+            ),
+            "ssh: connect to host box port 22: Connection refused"
+        );
+        assert_eq!(
+            reason("", Some(255)),
+            "The host can’t be reached (ssh exited with 255)"
+        );
     }
 
     #[test]

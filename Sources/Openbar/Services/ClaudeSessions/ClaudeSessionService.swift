@@ -1205,7 +1205,12 @@ final class ClaudeSessionService: ObservableObject {
                 } else {
                     failure = RemoteHostSetup.remove(alias, bundle: bundle)
                 }
-                if failure == nil { link.markHooks(installed: install) }
+                if failure == nil {
+                    link.markHooks(installed: install)
+                    // The hooks write to the socket the connection forwards; a
+                    // fresh one is sure to have it.
+                    if install { link.reconnectNow() }
+                }
                 let state = link.state
                 DispatchQueue.main.async { [self] in
                     remoteBusy.remove(alias)
