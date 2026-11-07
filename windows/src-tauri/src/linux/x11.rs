@@ -37,7 +37,7 @@ pub fn pick(windows: &[Candidate], pids: &[u32], cwd: &str) -> Option<Window> {
     })
 }
 
-fn atom(connection: &RustConnection, name: &str) -> Option<Atom> {
+pub fn atom(connection: &RustConnection, name: &str) -> Option<Atom> {
     Some(
         connection
             .intern_atom(false, name.as_bytes())
@@ -71,6 +71,35 @@ fn title(connection: &RustConnection, window: Window, name: Atom, utf8: Atom) ->
         .unwrap_or_default()
 }
 
+/// The window the window manager calls active, if any.
+pub fn active_window(connection: &RustConnection, root: Window, active: Atom) -> Option<Window> {
+    cardinals(connection, root, active, AtomEnum::WINDOW)
+        .first()
+        .copied()
+        .filter(|window| *window != 0)
+}
+
+/// The pid of the program that owns `window`, if it says.
+pub fn pid_of(connection: &RustConnection, window: Window, pid: Atom) -> Option<u32> {
+    cardinals(connection, window, pid, AtomEnum::CARDINAL)
+        .first()
+        .copied()
+}
+
+/// Asks the window manager to activate `window`, as a taskbar does.
+pub fn activate(connection: &RustConnection, root: Window, active: Atom, window: Window) -> bool {
+    // Source 2 says a pager asked, which window managers honour without a user timestamp.
+    let event = ClientMessageEvent::new(32, window, active, [2, 0, 0, 0, 0]);
+    let sent = connection.send_event(
+        false,
+        root,
+        EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
+        event,
+    );
+    // `check` waits for the server to answer, so the request is handled before the connection closes.
+    sent.is_ok_and(|cookie| cookie.check().is_ok())
+}
+
 /// Raises the window of the nearest program in `pids` that has one.
 pub fn raise(pids: &[u32], cwd: &str) -> bool {
     let Ok((connection, screen)) = RustConnection::connect(None) else {
@@ -102,15 +131,7 @@ pub fn raise(pids: &[u32], cwd: &str) -> bool {
     let Some(window) = pick(&windows, pids, cwd) else {
         return false;
     };
-    // Source 2 says a pager asked, which window managers honour without a user timestamp.
-    let event = ClientMessageEvent::new(32, window, active, [2, 0, 0, 0, 0]);
-    let sent = connection.send_event(
-        false,
-        root,
-        EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY,
-        event,
-    );
-    sent.is_ok() && connection.flush().is_ok()
+    activate(&connection, root, active, window)
 }
 
 #[cfg(test)]

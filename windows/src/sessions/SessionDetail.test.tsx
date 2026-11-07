@@ -186,3 +186,13 @@ it("matches the Mac enlarged view with a summary, Markdown, details and multilin
   expect(html).toContain("<textarea");
   expect(html).toContain("Ctrl+Enter sends");
 });
+
+it("offers the microphone beside Reply where the PC can listen, and not on Linux", () => {
+  const session = { ...demoSnapshot().sessions[2]!, phase: "finished" as const, acceptsReplies: true };
+  expect(renderToStaticMarkup(<SessionDetail session={session} enlarged />)).toContain('aria-label="Speak a reply"');
+  vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko)" });
+  const html = renderToStaticMarkup(<SessionDetail session={session} enlarged />);
+  expect(html).toContain("<textarea");
+  expect(html).not.toContain("Speak a reply");
+  expect(html).not.toContain("s-mic");
+});

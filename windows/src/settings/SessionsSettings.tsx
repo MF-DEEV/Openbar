@@ -12,6 +12,7 @@ import { type StringKey, useLocale, t, tf } from "../i18n";
 import { HOOK_AGENTS, type HookAgent, PROVIDER_NAMES } from "../sessions/types";
 import { ProviderMark } from "../sessions/glyphs";
 import type { SessionPrefs } from "../shared/prefs";
+import { voiceHeard } from "../shared/platform";
 
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
@@ -705,7 +706,7 @@ export function SessionsOptions() {
       <SubRow title={T.sessions.limits} caption={T.sessions.limitsCaption}>
         <Toggle label={T.sessions.limits} checked={prefs.limits} onChange={(on) => set("limits", on)} />
       </SubRow>
-      <VoiceReplies prefs={prefs} set={set} />
+      {voiceHeard() ? <VoiceReplies prefs={prefs} set={set} /> : null}
       <RemoteHosts />
     </>
   );
