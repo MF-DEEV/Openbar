@@ -21,6 +21,7 @@ pub mod hook_message;
 pub mod models;
 pub mod plan_modes;
 pub mod registry;
+pub mod remote;
 pub mod service;
 pub mod transcript;
 pub mod worktree;

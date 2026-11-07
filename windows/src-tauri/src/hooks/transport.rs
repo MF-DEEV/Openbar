@@ -54,9 +54,33 @@ pub fn is_complete(buf: &[u8]) -> bool {
 pub struct HookConnection {
     pub payload: Vec<u8>,
     /// The hook process, to notice when Claude Code kills it after the
-    /// person answered in the terminal.
+    /// person answered in the terminal. For a hook on a remote host, the
+    /// `ssh` that forwarded it.
     pub peer_pid: Option<u32>,
-    stream: Stream,
+    stream: HookStream,
+}
+
+/// The pipe a local hook connects to, or the loopback connection a remote
+/// host's hook arrives on through its `ssh` (sessions::remote).
+#[cfg_attr(not(windows), allow(dead_code))]
+enum HookStream {
+    Local(Stream),
+    Tcp(std::net::TcpStream),
+}
+
+impl Write for HookStream {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        match self {
+            HookStream::Local(s) => s.write(buf),
+            HookStream::Tcp(s) => s.write(buf),
+        }
+    }
+    fn flush(&mut self) -> io::Result<()> {
+        match self {
+            HookStream::Local(s) => s.flush(),
+            HookStream::Tcp(s) => s.flush(),
+        }
+    }
 }
 
 impl HookConnection {
@@ -117,6 +141,31 @@ fn receive(mut stream: Stream) -> Option<HookConnection> {
     if !platform::same_user(&stream) {
         return None;
     }
+    let payload = read_message(&mut stream)?;
+    Some(HookConnection {
+        payload,
+        peer_pid,
+        stream: HookStream::Local(stream),
+    })
+}
+
+/// A hook forwarded from a remote host by the `ssh` numbered `owner`, which
+/// the caller has checked is one of the island's own.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn receive_tcp(mut stream: std::net::TcpStream, owner: u32) -> Option<HookConnection> {
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(10)));
+    let payload = read_message(&mut stream)?;
+    let _ = stream.set_read_timeout(None);
+    let _ = stream.set_write_timeout(Some(Duration::from_secs(2)));
+    Some(HookConnection {
+        payload,
+        peer_pid: Some(owner),
+        stream: HookStream::Tcp(stream),
+    })
+}
+
+/// One whole JSON object, read up to the size a hook can send.
+fn read_message(stream: &mut impl Read) -> Option<Vec<u8>> {
     let mut buf = Vec::new();
     let mut chunk = [0u8; 64 * 1024];
     loop {
@@ -135,11 +184,7 @@ fn receive(mut stream: Stream) -> Option<HookConnection> {
             Err(_) => return None,
         }
     }
-    is_complete(&buf).then_some(HookConnection {
-        payload: buf,
-        peer_pid,
-        stream,
-    })
+    is_complete(&buf).then_some(buf)
 }
 
 /// The `--hook` side: reads stdin, hands it to the island, prints the

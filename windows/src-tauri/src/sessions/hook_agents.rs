@@ -1285,6 +1285,7 @@ fn session(
         host: place.host,
         accepts_replies: place.accepts_replies,
         host_name: place.host_name,
+        remote: None,
         phase,
         phase_since: since,
         turn_started: entry.turn_started,

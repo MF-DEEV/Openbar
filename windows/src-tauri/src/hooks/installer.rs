@@ -129,7 +129,10 @@ pub fn is_installed(settings: &Value, command: &str) -> bool {
 }
 
 pub fn has_any(settings: &Value, app: &str) -> bool {
-    let marker = marker(app);
+    has_any_marked(settings, &marker(app))
+}
+
+pub fn has_any_marked(settings: &Value, marker: &str) -> bool {
     settings
         .get("hooks")
         .and_then(Value::as_object)
@@ -138,13 +141,17 @@ pub fn has_any(settings: &Value, app: &str) -> bool {
                 .values()
                 .filter_map(Value::as_array)
                 .flatten()
-                .any(|g| entry_commands(g).any(|c| c.contains(&marker)))
+                .any(|g| entry_commands(g).any(|c| c.contains(marker)))
         })
 }
 
 /// The settings without this app's hooks; groups and events left empty go too.
 pub fn removing(settings: &Value, app: &str) -> Value {
-    let marker = marker(app);
+    removing_marked(settings, &marker(app))
+}
+
+/// The settings without the hooks whose command carries `marker`.
+pub fn removing_marked(settings: &Value, marker: &str) -> Value {
     let mut settings = settings.clone();
     let Some(object) = settings.as_object_mut() else {
         return settings;
@@ -168,7 +175,7 @@ pub fn removing(settings: &Value, app: &str) -> Value {
                     .filter(|e| {
                         !e.get("command")
                             .and_then(Value::as_str)
-                            .is_some_and(|c| c.contains(&marker))
+                            .is_some_and(|c| c.contains(marker))
                     })
                     .cloned()
                     .collect();
@@ -196,7 +203,11 @@ pub fn removing(settings: &Value, app: &str) -> Value {
 }
 
 pub fn installing(settings: &Value, command: &str, app: &str) -> Value {
-    let mut settings = removing(settings, app);
+    installing_marked(settings, command, &marker(app))
+}
+
+pub fn installing_marked(settings: &Value, command: &str, marker: &str) -> Value {
+    let mut settings = removing_marked(settings, marker);
     if !settings.is_object() {
         settings = json!({});
     }
@@ -247,7 +258,7 @@ pub fn read(path: &Path) -> Result<Value, Failure> {
     parse(&data)
 }
 
-fn parse(data: &[u8]) -> Result<Value, Failure> {
+pub fn parse(data: &[u8]) -> Result<Value, Failure> {
     if data
         .iter()
         .all(|b| matches!(b, b' ' | b'\n' | b'\r' | b'\t'))
@@ -263,7 +274,7 @@ fn parse(data: &[u8]) -> Result<Value, Failure> {
 }
 
 /// Keys sorted at every level, like the Mac writes them, whatever map order serde_json was built with.
-fn sorted(value: &Value) -> Value {
+pub fn sorted(value: &Value) -> Value {
     match value {
         Value::Object(map) => {
             let mut keys: Vec<&String> = map.keys().collect();

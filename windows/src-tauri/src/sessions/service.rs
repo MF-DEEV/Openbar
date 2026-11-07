@@ -32,6 +32,7 @@ use super::models::{
 };
 use super::plan_modes::PlanMode;
 use super::registry::{self, RegistryFile};
+use super::remote;
 use super::transcript::{self, NoPricing, TranscriptReader};
 use crate::hooks::{self, transport::HookConnection};
 use crate::hosts::{self, Located};
@@ -189,6 +190,27 @@ struct Inner {
     can_start_codex: bool,
     startable_agents: Vec<&'static str>,
     background_available: bool,
+    remote: RemoteHosts,
+}
+
+/// The SSH hosts the person listed (sessions::remote), and what each last
+/// showed.
+#[derive(Default)]
+struct RemoteHosts {
+    links: HashMap<String, Arc<remote::Link>>,
+    snapshots: HashMap<String, remote::Snapshot>,
+    /// Remote transcripts being read, by alias and path on the host.
+    tails: HashMap<(String, String), (remote::Tail, TranscriptReader)>,
+    busy: HashSet<String>,
+    failures: HashMap<String, String>,
+    /// The loopback port forwarded hooks arrive on (Windows).
+    bridge: Option<u16>,
+}
+
+impl RemoteHosts {
+    fn is_peer(&self, pid: Option<u32>) -> bool {
+        pid.is_some_and(|pid| self.links.values().any(|l| l.peer() == Some(pid)))
+    }
 }
 
 pub struct Service {
@@ -230,6 +252,7 @@ impl Service {
                 can_start_codex: false,
                 startable_agents: Vec::new(),
                 background_available: false,
+                remote: RemoteHosts::default(),
             }),
             codex: Mutex::new(None),
             wake: Mutex::new(None),
@@ -323,9 +346,24 @@ impl Service {
             record.host_name = located.host.display_name();
         }
         inner.last_records = records.iter().map(|r| (r.pid, r.clone())).collect();
+        // Sessions on remote hosts, as their connections last saw them; their
+        // process numbers are the host's, so none of the lookups above apply.
+        let mut aliases: Vec<&String> = inner.remote.snapshots.keys().collect();
+        aliases.sort();
+        let remote: Vec<SessionRecord> = aliases
+            .into_iter()
+            .flat_map(|a| inner.remote.snapshots[a].records.clone())
+            .collect();
+        let remote_ids: HashSet<String> = remote.iter().map(|r| r.session_id.clone()).collect();
+        records.extend(remote);
         inner.engine.ingest_records(records, t);
 
-        let ids = inner.engine.session_ids();
+        let ids: Vec<String> = inner
+            .engine
+            .session_ids()
+            .into_iter()
+            .filter(|id| !remote_ids.contains(id))
+            .collect();
         for id in &ids {
             self.read_transcript(&mut inner, id, home.as_deref(), t);
         }
@@ -817,13 +855,15 @@ impl Service {
             return;
         };
         let permission = message.is_permission_request();
-        if let Some(path) = &message.transcript {
+        // A remote session's transcript is on its host, read through its connection.
+        let remote = inner.remote.is_peer(connection.peer_pid);
+        if !remote && let Some(path) = &message.transcript {
             inner
                 .transcripts
                 .insert(message.fact.session_id.clone(), PathBuf::from(path));
         }
         // A background job started in the same turn is seen before "Done".
-        if matches!(message.fact.event, HookEvent::Stopped { .. }) {
+        if !remote && matches!(message.fact.event, HookEvent::Stopped { .. }) {
             let id = message.fact.session_id.clone();
             let home = hooks::installer::home_dir();
             self.read_transcript(&mut inner, &id, home.as_deref(), now());
@@ -971,6 +1011,10 @@ impl Service {
             inner.tails.clear();
             inner.metas_read.clear();
             inner.task_stamps.clear();
+            inner.remote.tails.clear();
+            for link in inner.remote.links.values() {
+                link.reread_transcripts();
+            }
         }
         let t = now();
         self.publish(&mut inner, t);
@@ -979,6 +1023,9 @@ impl Service {
     /// Never types while the session waits on a prompt: the registry is read
     /// again right before, as a dialog may be open before it says so.
     fn reply(&self, session: &str, text: &str, images: &[String]) -> Option<&'static str> {
+        if let Some(refusal) = self.reply_remote(session, text) {
+            return refusal;
+        }
         if let Some(codex) = self.codex().filter(|c| c.owns(session)) {
             // Codex takes replies through its own server: no terminal typing, no Esc risk.
             if codex.reply(session, text, images) {
@@ -1108,6 +1155,14 @@ impl Service {
     }
 
     fn open(&self, session: &str) -> bool {
+        if let Some((link, pid)) = self.remote_target(session) {
+            // Its pane comes forward in the host's tmux; no window here shows it.
+            let ok = link.focus(pid, session);
+            if ok {
+                self.acknowledge(session);
+            }
+            return ok;
+        }
         if let Some(details) = self.background_of(session) {
             // Attaching also brings back a session that has stopped.
             let arguments = ["attach".to_owned(), details.job];
@@ -1300,6 +1355,306 @@ fn rand_id() -> u128 {
 }
 
 // MARK: Commands
+
+// MARK: Remote hosts
+
+impl Service {
+    /// Starts a connection for each host listed while the switch is on, and
+    /// ends the others (sessions::remote, docs/remote-hosts.md).
+    pub fn set_remote_hosts(self: &Arc<Self>, wanted: Vec<String>) {
+        let mut inner = self.inner.lock().unwrap();
+        let gone: Vec<String> = inner
+            .remote
+            .links
+            .keys()
+            .filter(|a| !wanted.contains(a))
+            .cloned()
+            .collect();
+        for alias in gone {
+            if let Some(link) = inner.remote.links.remove(&alias) {
+                link.stop();
+            }
+            inner.remote.snapshots.remove(&alias);
+            inner.remote.failures.remove(&alias);
+            inner.remote.tails.retain(|(a, _), _| a != &alias);
+        }
+        if wanted.is_empty() {
+            return;
+        }
+        let Some(target) = self.remote_target_address(&mut inner) else {
+            return;
+        };
+        for alias in wanted {
+            if inner.remote.links.contains_key(&alias) {
+                continue;
+            }
+            let snapshots = Arc::downgrade(self);
+            let states = Arc::downgrade(self);
+            let link = remote::Link::start(
+                &alias,
+                hooks::APP_ID,
+                target.clone(),
+                move |alias, snapshot| {
+                    if let Some(service) = snapshots.upgrade() {
+                        service.ingest_remote(alias, snapshot);
+                    }
+                },
+                move |alias, state| {
+                    // A host that went away takes its sessions with it, and
+                    // nothing else waits on it.
+                    if let Some(service) = states.upgrade() {
+                        if !matches!(state, remote::State::Connected { .. }) {
+                            let mut inner = service.inner.lock().unwrap();
+                            if inner.remote.snapshots.remove(alias).is_some() {
+                                drop(inner);
+                                service.tick();
+                            }
+                        }
+                        let _ = service.app.emit("sessions-remote-hosts", ());
+                    }
+                },
+            );
+            inner.remote.links.insert(alias, link);
+        }
+    }
+
+    /// Where the hosts' sockets are forwarded to: on Windows a loopback port
+    /// that takes only these links' connections; elsewhere the island's socket.
+    fn remote_target_address(self: &Arc<Self>, inner: &mut Inner) -> Option<String> {
+        #[cfg(windows)]
+        {
+            if inner.remote.bridge.is_none() {
+                let allowed = Arc::downgrade(self);
+                let handler = Arc::downgrade(self);
+                let port = remote::bridge::serve(
+                    move |pid| {
+                        allowed.upgrade().is_some_and(|service| {
+                            let inner = service.inner.lock().unwrap();
+                            inner.remote.is_peer(Some(pid))
+                        })
+                    },
+                    move |connection| {
+                        if let Some(service) = handler.upgrade() {
+                            service.on_hook(connection);
+                        }
+                    },
+                )
+                .ok()?;
+                inner.remote.bridge = Some(port);
+            }
+            inner.remote.bridge.map(|port| format!("127.0.0.1:{port}"))
+        }
+        #[cfg(not(windows))]
+        {
+            let _ = inner;
+            Some(hooks::transport::endpoint(hooks::APP_ID))
+        }
+    }
+
+    /// One look at a host: its sessions for the next tick, and the new lines
+    /// of their transcripts now.
+    fn ingest_remote(&self, alias: &str, snapshot: remote::Snapshot) {
+        let mut inner = self.inner.lock().unwrap();
+        if !inner.remote.links.contains_key(alias) {
+            return;
+        }
+        let t = now();
+        let changed = inner
+            .remote
+            .snapshots
+            .get(alias)
+            .map(|s| s.records.iter().map(|r| &r.session_id).collect::<Vec<_>>())
+            != Some(snapshot.records.iter().map(|r| &r.session_id).collect());
+        let owners: HashMap<&String, &String> = snapshot
+            .transcripts
+            .iter()
+            .map(|(id, path)| (path, id))
+            .collect();
+        let policy = inner.engine.policy();
+        let mut facts_by_session: Vec<(String, Vec<models::TranscriptFact>)> = Vec::new();
+        for chunk in &snapshot.chunks {
+            let Some(session) = owners.get(&chunk.path) else {
+                continue;
+            };
+            let key = (alias.to_string(), chunk.path.clone());
+            let entry = inner.remote.tails.entry(key).or_insert_with(|| {
+                (
+                    remote::Tail::default(),
+                    TranscriptReader::new(policy, &chunk.path),
+                )
+            });
+            let (lines, restarted) = entry.0.take(chunk);
+            if restarted && chunk.offset == 0 {
+                entry.1 = TranscriptReader::new(policy, &chunk.path);
+            }
+            let mut facts = Vec::new();
+            for line in lines {
+                facts.extend(entry.1.parse(&line, t, &NoPricing));
+            }
+            if !facts.is_empty() {
+                facts_by_session.push(((*session).clone(), facts));
+            }
+        }
+        let live: HashSet<String> = snapshot.transcripts.values().cloned().collect();
+        inner
+            .remote
+            .tails
+            .retain(|(a, path), _| a != alias || live.contains(path));
+        for (session, facts) in facts_by_session {
+            inner.engine.ingest_facts(&session, &facts, t);
+        }
+        inner.remote.snapshots.insert(alias.to_string(), snapshot);
+        drop(inner);
+        // A session that came or went shows at once, not at the next tick.
+        if changed {
+            self.tick();
+        }
+    }
+
+    /// The connection and the host's process number of a remote session.
+    fn remote_target(&self, session: &str) -> Option<(Arc<remote::Link>, i32)> {
+        let inner = self.inner.lock().unwrap();
+        let current = inner.sessions.iter().find(|s| s.id == session)?;
+        let alias = current.remote.as_ref()?;
+        Some((inner.remote.links.get(alias)?.clone(), current.pid))
+    }
+
+    /// None when the session is not on a remote host.
+    fn reply_remote(&self, session: &str, text: &str) -> Option<Option<&'static str>> {
+        let (link, pid) = {
+            let inner = self.inner.lock().unwrap();
+            let current = inner.sessions.iter().find(|s| s.id == session)?;
+            let alias = current.remote.clone()?;
+            if !models::can_reply(current) {
+                return Some(Some(
+                    if current.phase.is_waiting() || current.waiting_for.is_some() {
+                        "waiting"
+                    } else {
+                        "unreachable"
+                    },
+                ));
+            }
+            if inner.engine.permission(session).is_some()
+                || inner.pending.values().any(|p| p.session == session)
+            {
+                return Some(Some("waiting"));
+            }
+            match inner.remote.links.get(&alias) {
+                Some(link) => (link.clone(), current.pid),
+                None => return Some(Some("unreachable")),
+            }
+        };
+        if text.trim().is_empty() {
+            return Some(Some("unreachable"));
+        }
+        let refusal = link.type_reply(pid, session, text);
+        if refusal.is_none() {
+            self.acknowledge(session);
+        }
+        Some(refusal)
+    }
+
+    fn remote_statuses(&self, hosts: &[String]) -> Vec<RemoteHostStatus> {
+        let inner = self.inner.lock().unwrap();
+        hosts
+            .iter()
+            .map(|alias| {
+                let link = inner.remote.links.get(alias);
+                RemoteHostStatus {
+                    alias: alias.clone(),
+                    state: link.map(|l| l.state.lock().unwrap().clone()),
+                    busy: inner.remote.busy.contains(alias),
+                    failure: inner.remote.failures.get(alias).cloned(),
+                }
+            })
+            .collect()
+    }
+
+    fn change_remote_hooks(&self, alias: &str, install: bool) -> Result<(), String> {
+        let link = {
+            let mut inner = self.inner.lock().unwrap();
+            let link = inner
+                .remote
+                .links
+                .get(alias)
+                .cloned()
+                .ok_or("The host isn’t connected")?;
+            if !inner.remote.busy.insert(alias.to_string()) {
+                return Err("Already working on it".into());
+            }
+            inner.remote.failures.remove(alias);
+            link
+        };
+        let _ = self.app.emit("sessions-remote-hosts", ());
+        let result = if install {
+            let info = link.info.lock().unwrap().clone();
+            let info = match info {
+                Some(info) => Ok(info),
+                None => remote::one_shot(
+                    alias,
+                    &format!(
+                        "probe {} {}",
+                        remote::socket_name(hooks::APP_ID),
+                        hooks::APP_ID
+                    ),
+                    &[],
+                )
+                .and_then(|lines| {
+                    remote::probe(&lines).ok_or_else(|| "The host can’t be reached".to_string())
+                }),
+            };
+            info.and_then(|info| remote::install(alias, &info, hooks::APP_ID))
+        } else {
+            remote::remove(alias, hooks::APP_ID)
+        };
+        if result.is_ok() {
+            link.mark_hooks(install);
+        }
+        {
+            let mut inner = self.inner.lock().unwrap();
+            inner.remote.busy.remove(alias);
+            if let Err(reason) = &result {
+                inner
+                    .remote
+                    .failures
+                    .insert(alias.to_string(), reason.clone());
+            }
+        }
+        let _ = self.app.emit("sessions-remote-hosts", ());
+        result
+    }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteHostStatus {
+    alias: String,
+    /// None while the switch is off or the host was just added.
+    state: Option<remote::State>,
+    busy: bool,
+    failure: Option<String>,
+}
+
+#[tauri::command]
+pub fn sessions_remote_hosts_status(
+    service: tauri::State<'_, Shared>,
+    hosts: Vec<String>,
+) -> Vec<RemoteHostStatus> {
+    service.remote_statuses(&hosts)
+}
+
+/// Adds the island's hooks to a host's Claude Code settings, or takes them out.
+#[tauri::command]
+pub async fn sessions_remote_hosts_change(
+    service: tauri::State<'_, Shared>,
+    alias: String,
+    install: bool,
+) -> Result<(), String> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || service.change_remote_hooks(&alias, install))
+        .await
+        .map_err(|e| e.to_string())?
+}
 
 pub type Shared = Arc<Service>;
 

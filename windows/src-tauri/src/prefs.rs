@@ -179,6 +179,10 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
         service.set_previews(previews);
         // Gemini CLI, Copilot CLI, OpenCode and Cursor each have a switch.
         service.set_hidden_agents(hidden_agents(value));
+        // Hosts over SSH, off until the person turns them on.
+        service
+            .inner()
+            .set_remote_hosts(crate::sessions::remote::hosts_from_prefs(value));
     }
     crate::clipboard::apply_prefs(app, before, value);
     crate::audio::apply_prefs(app, value);
