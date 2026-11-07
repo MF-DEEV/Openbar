@@ -313,6 +313,9 @@ if (( TEST )); then
         Sources/Openbar/Services/ClaudeSessions/ClaudePlanModes.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeHookServer.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeHookInstaller.swift
+        Sources/Openbar/Services/ClaudeSessions/RemoteHosts.swift
+        Sources/Openbar/Services/ClaudeSessions/RemoteHostLink.swift
+        Sources/Openbar/Core/RemoteHostStrings.swift
         Sources/Openbar/Services/ClaudeSessions/ClawdCostume.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeAgentColors.swift
         Sources/Openbar/Services/ClaudeSessions/CodexSessionState.swift
