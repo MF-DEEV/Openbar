@@ -215,10 +215,16 @@ impl OnTerminal {
             });
         }
         let child = command.spawn().ok()?;
-        // Until exec has finished /proc shows the program that forked it.
+        // Until exec has finished /proc shows the program that forked it, and the
+        // environment can read as empty a moment after the name has changed.
         for _ in 0..1000 {
             let ready = comm(child.id()).as_deref() == Some("sleep")
-                && std::fs::read(proc(child.id(), "environ")).is_ok();
+                && std::fs::read(proc(child.id(), "environ")).is_ok_and(|bytes| {
+                    environment.iter().all(|(key, value)| {
+                        let entry = format!("{key}={value}");
+                        bytes.split(|b| *b == 0).any(|e| e == entry.as_bytes())
+                    })
+                });
             if ready {
                 break;
             }

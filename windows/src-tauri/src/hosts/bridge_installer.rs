@@ -819,8 +819,24 @@ mod tests {
         fn script(pc: &Pc, body: &str) -> PathBuf {
             let root = pc.editor("Microsoft VS Code", "Code.exe", "bin/code.cmd");
             let cli = root.join("bin/code.cmd");
-            fs::write(&cli, format!("#!/bin/sh\n{body}\n")).unwrap();
+            fs::write(
+                &cli,
+                format!("#!/bin/sh\n[ \"$1\" = --openbar-probe ] && exit 0\n{body}\n"),
+            )
+            .unwrap();
             fs::set_permissions(&cli, fs::Permissions::from_mode(0o755)).unwrap();
+            // Another test's fork can hold the file open for a moment ("text file busy"):
+            // it is run once, doing nothing, before anything relies on it.
+            for _ in 0..200 {
+                if std::process::Command::new(&cli)
+                    .arg("--openbar-probe")
+                    .status()
+                    .is_ok()
+                {
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
             cli
         }
 
