@@ -452,6 +452,15 @@ pub async fn drag_out<R: Runtime>(
     drag_from(&window, payload, actions).await
 }
 
+/// Drags one file out of a window of ours (a screenshot's preview), as a copy.
+pub async fn drag_file<R: Runtime>(window: &WebviewWindow<R>, path: &str) -> bool {
+    let payload = Payload {
+        uris: vec![gtk::gio::File::for_path(path).uri().to_string()],
+        text: None,
+    };
+    drag_from(window, payload, DragAction::COPY).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

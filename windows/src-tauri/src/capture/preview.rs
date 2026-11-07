@@ -535,7 +535,12 @@ pub async fn preview_drag<R: Runtime>(
             .await
             .map_err(|e| e.to_string())?
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        let path = p.temporary.to_string_lossy().into_owned();
+        Ok(crate::linux::shelf::drag_file(&window, &path).await)
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     Err("Native screenshot dragging is only available on Windows".into())
 }
 
