@@ -2080,7 +2080,7 @@ enum SwitcherModelFeatureTests {
                "support prompt never leaks into another release or a beta")
         suite.expect(AppInfo.discordURL == nil && AppInfo.coffeeURL == nil,
                "Openbar never sends people to Vorssaint's Discord or donation page")
-        suite.expect(AppInfo.socialURL.absoluteString == "https://x.com/Openbar99",
+        suite.expect(AppInfo.socialURL.absoluteString == "https://x.com/_Openbar_",
                "the follow button opens Openbar's own X profile")
         suite.expect(AppInfo.copyright.contains("Vorssaint"),
                "the About notice keeps Vorssaint's copyright beside Openbar's, as the GPL asks")
@@ -2090,10 +2090,10 @@ enum SwitcherModelFeatureTests {
         // decision above is made consciously, never by omission.
         let releasePlist = NSDictionary(contentsOfFile: "Resources/Info.plist")
         let plistVersion = (releasePlist?["CFBundleShortVersionString"] as? String) ?? ""
-        suite.expect(plistVersion == "3.5.0-beta.1",
+        suite.expect(plistVersion == "3.5.0-beta.2",
                "bumping the app version requires re-deciding the support prompt pin above")
         let plistBuild = (releasePlist?["CFBundleVersion"] as? String) ?? ""
-        suite.expect(plistBuild == "104",
+        suite.expect(plistBuild == "105",
                "every app version needs its own incremented bundle build")
         suite.expect(SupportUpdateIntroInfo.releaseVersion == "3.4.1",
                "the support prompt is prepared for the 3.4.1 stable release")
