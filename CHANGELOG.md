@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- A file change's diff on a permission card can show more of the file before you allow it. Click the arrow on a row of hidden lines to see 20 more, above or below the change, or all of them when only a few are left. The lines come from the file Openbar already read when the request came. On Mac and Windows.
+
 ## [3.5.0-beta.2] - 2026-11-07
 
 ### Summary
