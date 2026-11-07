@@ -168,13 +168,26 @@ enum RemoteHostTests {
                      "no file before setup: none after")
         var edited = (try? RemoteHookInstaller.parse(current)) ?? [:]
         edited["model"] = "opus"
-        if case .write(let data)? = try? RemoteHookInstaller.removal(current: try? RemoteHookInstaller.serialize(edited),
+        if case .write(let data, let keep)? = try? RemoteHookInstaller.removal(current: try? RemoteHookInstaller.serialize(edited),
                                                                      backup: .file(original), bundle: bundle) {
             let kept = (try? RemoteHookInstaller.parse(data)) ?? [:]
-            suite.expect(kept["model"] as? String == "opus" && !RemoteHookInstaller.hasAny(in: kept, bundle: bundle),
+            suite.expect(kept["model"] as? String == "opus" && !RemoteHookInstaller.hasAny(in: kept, bundle: bundle) && !keep,
                          "something else changed too: the hooks come out and the change stays")
         } else {
             suite.expect(false, "an edited file is written without the hooks")
+        }
+        // Two Openbars on one host (a Mac and a PC): the first one out keeps the
+        // copy, and the last one out puts the file back byte for byte.
+        let other = RemoteHookInstaller.command(client: .nc("/usr/bin/nc"), socket: "/h/b.sock", bundle: "com.openbar.island")
+        let both = RemoteHookInstaller.installing(into: RemoteHookInstaller.installing(into: (try? RemoteHookInstaller.parse(original)) ?? [:],
+                                                                                    command: nc, bundle: bundle),
+                                                  command: other, bundle: "com.openbar.island")
+        if case .write(let data, let keep)? = try? RemoteHookInstaller.removal(current: try? RemoteHookInstaller.serialize(both),
+                                                                               backup: .file(original), bundle: "com.openbar.island") {
+            suite.expect(keep && (try? RemoteHookInstaller.removal(current: data, backup: .file(original), bundle: bundle)) == .restore,
+                         "the first Openbar out keeps the copy for the last one")
+        } else {
+            suite.expect(false, "the first Openbar out writes the file without its hooks")
         }
         suite.expect((try? RemoteHookInstaller.removal(current: Data("not json".utf8), backup: nil, bundle: bundle)) == nil,
                      "a file that isn't JSON is left alone")
@@ -245,7 +258,16 @@ enum RemoteHostTests {
         suite.expect(backup == original && current == new, "read gives the copy back")
         suite.expect((try? RemoteHookInstaller.removal(current: current, backup: backup.map { .file($0) }, bundle: bundle)) == .restore,
                      "nothing else changed")
-        suite.expect(runScript("remove", input: ["x.sock", sum2, "restore"], home: home)?.first == "O"
+        // "keep" writes without these hooks and leaves the copy for another Openbar's removal.
+        let kept = (try? RemoteHookInstaller.serialize(RemoteHookInstaller.removing(from: (try? RemoteHookInstaller.parse(new)) ?? [:],
+                                                                                    bundle: bundle))) ?? Data()
+        suite.expect(runScript("remove", input: ["x.sock", sum2, "keep", kept.base64EncodedString()], home: home)?.first == "O"
+                     && manager.contents(atPath: settings.path + ".openbar-remote.bak") == original,
+                     "the first Openbar out keeps the copy")
+        _ = runScript("install", input: [(runScript("read", home: home) ?? []).first { $0.hasPrefix("S ") }.map { String($0.dropFirst(2)) } ?? "",
+                                         new.base64EncodedString()], home: home)
+        let sum4 = (runScript("read", home: home) ?? []).first { $0.hasPrefix("S ") }.map { String($0.dropFirst(2)) } ?? ""
+        suite.expect(runScript("remove", input: ["x.sock", sum4, "restore"], home: home)?.first == "O"
                      && manager.contents(atPath: settings.path) == original
                      && !manager.fileExists(atPath: settings.path + ".openbar-remote.bak")
                      && !manager.fileExists(atPath: home.appending(path: ".openbar").path),

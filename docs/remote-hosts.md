@@ -22,7 +22,9 @@ when they run inside tmux on the host. This works on the Mac and on Windows.
 4. **Remove from host** takes the hooks out again. If nothing else in the
    file changed since setup, the copy goes back byte for byte (or the file is
    deleted if there was none before). If something else changed, only
-   Openbar's entries come out.
+   Openbar's entries come out. When a Mac and a PC both set up the same
+   host, the copy stays until the last one is removed, and that removal puts
+   the file back.
 
 ## How it works
 
@@ -142,7 +144,18 @@ On the Mac, with the Developer build:
   setup, and removed `~/.openbar`.
 
 The same flow was then run from the Windows 11 ARM64 VM against the same
-host.
+host: Set up, the badge, Allow, a reply into the tmux pane, a disconnect and
+recovery, and Remove from host. That VM's clock was an hour behind the
+host's, which is how the clock correction below was found. Last, both
+islands set the host up at once (22 hooks). A permission reached both, the
+first answer won, and removing both left the file byte for byte as it was.
+
+### Clocks
+
+The engine drops a permission whose hook came before the registry's last
+change. The registry's times are on the host's clock, so with each snapshot
+the agent sends `N <host time in ms>`. Records and transcript timestamps are
+then moved by the offset, measured against the middle of the request.
 
 ## Not done (follow-ups)
 

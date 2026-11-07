@@ -424,7 +424,7 @@ enum RemoteHostSetup {
             var input = [RemoteSSH.socketName(bundle: bundle), settings.sum]
             switch removal {
             case .restore: input.append("restore")
-            case .write(let data): input += ["write", data.base64EncodedString()]
+            case .write(let data, let keep): input += [keep ? "keep" : "write", data.base64EncodedString()]
             }
             let result = RemoteOneShot.run(alias, mode: "remove", input: input)
             guard let lines = result.lines else { return .unreachable(result.reason) }

@@ -448,8 +448,13 @@ pub enum Removal {
     /// Only the hooks changed since setup: the kept copy goes back as it was.
     Restore,
     /// Something else changed too: the hooks come out and the rest stays.
-    Write(Vec<u8>),
+    /// The copy stays (`true`) while another Openbar's hooks are still there,
+    /// so the last one taken out can still put the file back as it was.
+    Write(Vec<u8>, bool),
 }
+
+/// Any Openbar's remote hooks, this build's or another's.
+const ANY_MARKER: &str = "# openbar-remote-hook ";
 
 pub fn removal(
     current: Option<&[u8]>,
@@ -466,7 +471,8 @@ pub fn removal(
             return Ok(Removal::Restore);
         }
     }
-    Ok(Removal::Write(serialize(&without)))
+    let keep = installer::has_any_marked(&without, ANY_MARKER);
+    Ok(Removal::Write(serialize(&without), keep))
 }
 
 // MARK: ssh
@@ -980,8 +986,8 @@ pub fn remove(alias: &str, app: &str) -> Result<(), String> {
         let mut input = vec![socket_name(app), settings.sum];
         match plan {
             Removal::Restore => input.push("restore".into()),
-            Removal::Write(data) => {
-                input.push("write".into());
+            Removal::Write(data, keep) => {
+                input.push(if keep { "keep" } else { "write" }.into());
                 input.push(STANDARD.encode(data));
             }
         }
@@ -1320,12 +1326,31 @@ mod tests {
         )
         .unwrap()
         {
-            Removal::Write(data) => {
+            Removal::Write(data, keep) => {
                 let kept: Value = serde_json::from_slice(&data).unwrap();
                 assert_eq!(kept["model"], "opus");
                 assert!(kept.get("hooks").is_none());
+                assert!(!keep);
             }
             Removal::Restore => panic!("an edited file keeps the edit"),
+        }
+        // Two Openbars on one host: the first out keeps the copy for the last.
+        let mac = hook_command(
+            &Client::Nc("/usr/bin/nc".into()),
+            "/h/b.sock",
+            "com.openbar.app",
+        );
+        let both = installer::installing_marked(&installed, &mac, &marker("com.openbar.app"));
+        let backup = Backup::File(b"{\n  \"theme\" :   \"dark\"\n}\n".to_vec());
+        match removal(Some(&serialize(&both)), Some(&backup), app).unwrap() {
+            Removal::Write(data, keep) => {
+                assert!(keep);
+                assert_eq!(
+                    removal(Some(&data), Some(&backup), "com.openbar.app").unwrap(),
+                    Removal::Restore
+                );
+            }
+            Removal::Restore => panic!("another Openbar's hooks are still there"),
         }
         assert!(removal(Some(b"not json"), None, app).is_err());
     }

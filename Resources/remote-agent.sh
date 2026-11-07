@@ -289,12 +289,13 @@ ob_remove() {
         # Nothing else changed: the file goes back byte for byte.
         if [ -f "$ob_copy" ]; then cp -p "$ob_copy" "$ob_file"; else rm -f "$ob_file"; fi
         ;;
-    write)
+    write | keep)
         IFS= read -r ob_new
         ob_put "$ob_new" || { echo "F write"; ob_end; return; }
         ;;
     esac
-    rm -f "$ob_copy" "$ob_none"
+    # Another Openbar's hooks still in the file keep the copy for its own removal.
+    [ "$ob_how" = keep ] || rm -f "$ob_copy" "$ob_none"
     case $ob_name in '' | */* | .*) ;; *) rm -f "$HOME/.openbar/$ob_name" ;; esac
     rmdir "$HOME/.openbar" 2>/dev/null
     echo O

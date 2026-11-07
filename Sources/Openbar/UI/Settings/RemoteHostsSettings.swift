@@ -62,29 +62,19 @@ struct RemoteHostsSettings: View {
     private func row(_ host: RemoteHost) -> some View {
         let state = service.remoteStates[host.alias]
         let busy = service.remoteBusy.contains(host.alias)
-        return VStack(alignment: .leading, spacing: 2) {
+        return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 8) {
                 Circle()
                     .fill(color(state))
                     .frame(width: 7, height: 7)
                     .accessibilityHidden(true)
+                // The alias keeps its whole name; the actions sit below it.
                 Text(host.alias)
                     .font(.callout)
                     .lineLimit(1)
+                    .truncationMode(.middle)
+                    .layoutPriority(1)
                 Spacer(minLength: 8)
-                if busy {
-                    ProgressView().controlSize(.small)
-                } else if case .connected(let info)? = state {
-                    if info.hooksInstalled == true {
-                        Button(RemoteHostStrings.removeHooks) { confirming = (host.alias, false) }
-                            .controlSize(.small)
-                            .fixedSize()
-                    } else if info.client != nil {
-                        Button(RemoteHostStrings.setUp) { confirming = (host.alias, true) }
-                            .controlSize(.small)
-                            .fixedSize()
-                    }
-                }
                 Button {
                     hosts.removeAll { $0 == host }
                     save()
@@ -95,17 +85,28 @@ struct RemoteHostsSettings: View {
                 .help(RemoteHostStrings.delete)
                 .accessibilityLabel(RemoteHostStrings.delete + " " + host.alias)
             }
-            Text(RemoteHostStrings.state(state))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(2)
-                .padding(.leading, 15)
-            if let failure = service.remoteFailures[host.alias] {
-                Label(failure, systemImage: "exclamationmark.triangle.fill")
+            Group {
+                Text(RemoteHostStrings.state(state))
                     .font(.caption)
-                    .foregroundStyle(.orange)
-                    .padding(.leading, 15)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let failure = service.remoteFailures[host.alias] {
+                    Label(failure, systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if busy {
+                    ProgressView().controlSize(.small)
+                } else if case .connected(let info)? = state, info.hooksInstalled == true || info.client != nil {
+                    Button(info.hooksInstalled == true ? RemoteHostStrings.removeHooks : RemoteHostStrings.setUp) {
+                        confirming = (host.alias, info.hooksInstalled != true)
+                    }
+                    .controlSize(.small)
+                    .fixedSize()
+                }
             }
+            .padding(.leading, 15)
         }
     }
 

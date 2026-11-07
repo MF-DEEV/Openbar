@@ -406,8 +406,13 @@ enum RemoteHookInstaller {
         /// Only the hooks changed since: the kept copy goes back as it was.
         case restore
         /// Something else changed too: the hooks come out and the rest stays.
-        case write(Data)
+        /// The copy stays while another Openbar's hooks are still there, so
+        /// the last one taken out can still put the file back as it was.
+        case write(Data, keepBackup: Bool)
     }
+
+    /// Any Openbar's remote hooks, this build's or another's.
+    static let anyMarker = "# openbar-remote-hook "
 
     static func removal(current: Data?, backup: Backup?, bundle: String) throws -> Removal {
         let without = removing(from: try parse(current), bundle: bundle)
@@ -419,6 +424,6 @@ enum RemoteHookInstaller {
             }
             if NSDictionary(dictionary: without).isEqual(to: before) { return .restore }
         }
-        return .write(try serialize(without))
+        return .write(try serialize(without), keepBackup: ClaudeHookInstaller.hasAny(in: without, marker: anyMarker))
     }
 }
