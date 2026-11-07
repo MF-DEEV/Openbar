@@ -111,7 +111,15 @@ final class RemoteSSHProcess {
         }
     }
 
-    var stderr: String { lock.withLock { String(decoding: errorText, as: UTF8.self) } }
+    var stderr: String {
+        // What ssh wrote just before it ended may not have been handed on yet.
+        if lock.withLock({ exited }) {
+            errors.fileHandleForReading.readabilityHandler = nil
+            let rest = (try? errors.fileHandleForReading.readToEnd()) ?? nil
+            if let rest, !rest.isEmpty { lock.withLock { errorText.append(rest) } }
+        }
+        return lock.withLock { String(decoding: errorText, as: UTF8.self) }
+    }
 
     var status: Int32 { process.isRunning ? 0 : process.terminationStatus }
 
@@ -119,7 +127,6 @@ final class RemoteSSHProcess {
         closeInput()
         if process.isRunning { process.terminate() }
         output.fileHandleForReading.readabilityHandler = nil
-        errors.fileHandleForReading.readabilityHandler = nil
     }
 
     /// Waits for `ssh` to end, a moment at most.
@@ -145,6 +152,7 @@ enum RemoteOneShot {
         _ = ssh.write(preamble + input.map { $0 + "\n" }.joined())
         ssh.closeInput()
         let lines = ssh.answer(timeout: timeout)
+        ssh.wait(lines == nil ? 2 : 0.2)
         ssh.stop()
         ssh.wait(1)
         return Result(lines: lines, reason: lines == nil ? RemoteSSH.reason(ssh.stderr, status: ssh.status) : "")

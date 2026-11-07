@@ -106,7 +106,7 @@ enum RemoteHookClient: Equatable {
 /// Waits between tries to reach a host that went away.
 enum RemoteBackoff {
     static func delay(attempt: Int) -> TimeInterval {
-        min(60, pow(2, Double(max(1, min(attempt, 6)))))
+        min(30, pow(2, Double(max(1, min(attempt, 5)))))
     }
 }
 

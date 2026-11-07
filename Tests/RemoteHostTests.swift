@@ -34,7 +34,7 @@ enum RemoteHostTests {
         suite.expect(RemoteSSH.socketName(bundle: bundle) == "com.openbar.app.dev.sock"
                      && RemoteSSH.socketName(bundle: "a/../b c") == "a..bc.sock", "the socket name has no path in it")
         suite.expect(RemoteBackoff.delay(attempt: 1) == 2 && RemoteBackoff.delay(attempt: 3) == 8
-                     && RemoteBackoff.delay(attempt: 9) == 60, "tries again sooner first, then once a minute")
+                     && RemoteBackoff.delay(attempt: 9) == 30, "tries again sooner first, then every half minute")
         suite.expect(RemoteSSH.reason("Warning: x\nssh: connect to host box port 22: Connection refused\n", status: 255)
                      == "ssh: connect to host box port 22: Connection refused"
                      && RemoteSSH.reason("", status: 255) == "ssh exited with 255", "the reason is ssh's own last line")
