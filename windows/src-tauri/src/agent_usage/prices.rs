@@ -148,7 +148,17 @@ fn get() -> Option<Vec<u8>> {
     }
 }
 
-#[cfg(not(windows))]
+/// On Linux the download is libsoup's (`linux/prices.rs`).
+#[cfg(target_os = "linux")]
+#[path = "../linux/prices.rs"]
+mod imp;
+
+#[cfg(target_os = "linux")]
+fn get() -> Option<Vec<u8>> {
+    imp::get()
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn get() -> Option<Vec<u8>> {
     None
 }
