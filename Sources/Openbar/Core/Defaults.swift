@@ -919,6 +919,10 @@ enum DefaultsKey {
     static let notchSessionsLimits = "notchSessionsLimits"
     /// Replies spoken into a session's reply field, recognized on this Mac only.
     static let notchSessionsVoiceReplies = "notchSessionsVoiceReplies"
+    /// Sessions on machines reached over SSH (issue #189); off until turned on.
+    static let notchSessionsRemoteHostsEnabled = "notchSessionsRemoteHostsEnabled"
+    /// The hosts, as JSON: `[{"alias": "<ssh config alias>"}]`.
+    static let notchSessionsRemoteHosts = "notchSessionsRemoteHosts"
     /// The language voice replies are recognized in; empty follows the app's.
     static let notchSessionsVoiceLanguage = "notchSessionsVoiceLanguage"
     /// A voice reply goes to the session by itself once the person stops talking.

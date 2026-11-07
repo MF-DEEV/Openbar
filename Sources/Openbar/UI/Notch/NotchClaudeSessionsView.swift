@@ -229,6 +229,7 @@ struct NotchClaudeSessionRow: View {
                     .lineLimit(1)
                     .truncationMode(.tail)
                 if session.background != nil { NotchClaudeBackgroundMark(text: text) }
+                if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
                 Spacer(minLength: 4)
                 if let clock = NotchClaudeSessionFormat.clock(session, now: now) {
                     Text(clock)

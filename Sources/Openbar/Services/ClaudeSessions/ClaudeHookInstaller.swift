@@ -56,7 +56,10 @@ enum ClaudeHookInstaller {
     }
 
     static func hasAny(in settings: [String: Any], bundle: String) -> Bool {
-        let marker = marker(bundle: bundle)
+        hasAny(in: settings, marker: marker(bundle: bundle))
+    }
+
+    static func hasAny(in settings: [String: Any], marker: String) -> Bool {
         let hooks = settings["hooks"] as? [String: Any] ?? [:]
         return hooks.values.contains { value in
             (value as? [[String: Any]] ?? []).contains { group in
@@ -67,7 +70,11 @@ enum ClaudeHookInstaller {
 
     /// The settings without this app's hooks; groups left empty go too.
     static func removing(from settings: [String: Any], bundle: String) -> [String: Any] {
-        let marker = marker(bundle: bundle)
+        removing(from: settings, marker: marker(bundle: bundle))
+    }
+
+    /// The settings without the hooks whose command carries `marker`.
+    static func removing(from settings: [String: Any], marker: String) -> [String: Any] {
         var settings = settings
         guard var hooks = settings["hooks"] as? [String: Any] else { return settings }
         for (event, value) in hooks {
@@ -88,7 +95,11 @@ enum ClaudeHookInstaller {
     }
 
     static func installing(into settings: [String: Any], command: String, bundle: String) -> [String: Any] {
-        var settings = removing(from: settings, bundle: bundle)
+        installing(into: settings, command: command, marker: marker(bundle: bundle))
+    }
+
+    static func installing(into settings: [String: Any], command: String, marker: String) -> [String: Any] {
+        var settings = removing(from: settings, marker: marker)
         var hooks = settings["hooks"] as? [String: Any] ?? [:]
         for event in events {
             let entry: [String: Any] = ["type": "command", "command": command,

@@ -190,13 +190,20 @@ enum ClaudeSessionHost: Equatable {
     case app(String)
     /// No terminal at all: a background session, known by its job.
     case background(job: String)
+    /// A session on a host Openbar reaches over SSH, by the host's alias.
+    /// Replies reach it only inside tmux there, through the same connection.
+    case remote(alias: String, tmux: Bool)
     case unknown
+
+    /// The SSH alias of a session on another machine.
+    var remoteAlias: String? { if case .remote(let alias, _) = self { return alias } else { return nil } }
 
     var acceptsReplies: Bool {
         switch self {
         case .terminal, .iterm, .ghostty, .tmux, .wezterm, .ide, .background: return true
         // kitty only takes keys from outside with remote control on.
         case .kitty(_, let socket): return socket != nil
+        case .remote(_, let tmux): return tmux
         case .app, .unknown: return false
         }
     }
@@ -210,7 +217,7 @@ enum ClaudeSessionHost: Equatable {
         case .wezterm: return ClaudeTerminalApps.wezterm
         case .kitty: return ClaudeTerminalApps.kitty
         case .ide(let bundle, _), .app(let bundle): return bundle
-        case .tmux, .background, .unknown: return nil
+        case .tmux, .background, .remote, .unknown: return nil
         }
     }
 }

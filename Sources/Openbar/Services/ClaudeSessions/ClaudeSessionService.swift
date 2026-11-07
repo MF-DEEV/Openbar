@@ -66,6 +66,11 @@ final class ClaudeSessionService: ObservableObject {
     /// Gemini CLI, Copilot CLI, OpenCode and `cursor-agent` found on this Mac,
     /// which New session can start in a terminal.
     @Published private(set) var startableAgents: Set<ClaudeSessionProvider> = []
+    /// How each remote host stands, by alias (docs/remote-hosts.md).
+    @Published private(set) var remoteStates: [String: RemoteHostState] = [:]
+    /// Hosts being set up or cleaned up right now.
+    @Published private(set) var remoteBusy: Set<String> = []
+    @Published private(set) var remoteFailures: [String: String] = [:]
     /// The agents shown when the settings were last read. Main thread.
     private var lastShownAgents: Set<ClaudeSessionProvider>?
     /// The page that starts a new session is open.
@@ -142,6 +147,12 @@ final class ClaudeSessionService: ObservableObject {
     /// How often Agent View is asked: more often while it has sessions.
     private static let jobsEvery: TimeInterval = 10
     private static let jobsEveryQuietly: TimeInterval = 60
+    /// The SSH connections to remote hosts, by alias, and what each last
+    /// saw there. Queue.
+    private var remoteLinks: [String: RemoteHostLink] = [:]
+    private var remoteSnapshots: [String: RemoteSnapshot] = [:]
+    /// Remote transcripts being read, by alias and path on the host.
+    private var remoteTails: [String: (tail: RemoteTranscriptTail, reader: ClaudeTranscriptReader)] = [:]
     /// Permission requests whose hook waits for the island's answer.
     private var pending: [String: (connection: ClaudeHookServer.Connection, session: String, suggestions: Any?,
                                    question: [String: Any]?, approved: [String: Any]?, planModes: [ClaudePlanMode],
@@ -171,17 +182,24 @@ final class ClaudeSessionService: ObservableObject {
             if engine.policy != policy {
                 engine.policy = policy
                 // Reading again with previews on fills in what was skipped.
-                if policy.previews { readers = [:]; subagentMeta = []; taskStamps = [:] } else {
+                if policy.previews {
+                    readers = [:]; subagentMeta = []; taskStamps = [:]
+                    remoteTails = [:]
+                    remoteLinks.values.forEach { $0.rereadTranscripts() }
+                } else {
                     ClaudeChatImage.forget()
                     hookAgents.purgeContent()
                 }
                 for key in readers.keys { readers[key]?.reader.policy = policy }
+                for key in remoteTails.keys { remoteTails[key]?.reader.policy = policy }
                 // What was cleared leaves the island now, not at the next read.
                 publish(now: Date())
             }
         }
         // A switch turned on or off puts its agent's hooks in or takes them out.
         if running, agents != lastShownAgents { syncAgentHooks() }
+        let remote = RemoteHostPrefs.active()
+        if running { queue.async { [self] in syncRemote(remote) } }
         lastShownAgents = agents
         guard !running else { return }
         running = true
@@ -198,6 +216,7 @@ final class ClaudeSessionService: ObservableObject {
             client.start { [weak self] in self?.queue.async { self?.publish(now: Date()) } }
             schedule(Self.activeTick)
             refresh()
+            syncRemote(remote)
         }
         let home = home
         actions.async {
@@ -220,6 +239,7 @@ final class ClaudeSessionService: ObservableObject {
         dressingID = nil
         permissionWatch = nil
         sessions = []
+        remoteStates = [:]
         counts = ClaudeSessionCounts()
         autoAllowed = []
         composingSession = false
@@ -251,6 +271,7 @@ final class ClaudeSessionService: ObservableObject {
             listeners.values.forEach { $0.finish() }
             listeners = [:]
             hookAgents.prune(now: Date()) { _ in false }
+            syncRemote([])
             server?.stop()
             server = nil
             codex?.stop()
@@ -410,6 +431,20 @@ final class ClaudeSessionService: ObservableObject {
         let reply = NotchClaudeSessionsSupport.reply(text) ?? ""
         guard !reply.isEmpty || !images.isEmpty, NotchClaudeSessionsSupport.canReply(session) else {
             return completion(session.phase.isWaiting || session.waitingFor != nil ? .waiting : .unreachable)
+        }
+        if let alias = session.host.remoteAlias {
+            // Typed into its tmux pane on the host, through the host's connection.
+            let steps = ClaudeTyping.steps(reply)
+            queue.async { [self] in
+                let asking = engine.permission(of: session.id) != nil || pending.values.contains { $0.session == session.id }
+                guard !reply.isEmpty, !asking, let link = remoteLinks[alias] else {
+                    return finishSend(asking ? .waiting : .unreachable, session: session, completion: completion)
+                }
+                link.perform { [self] link in
+                    finishSend(link.type(steps, pid: session.pid, session: session.id), session: session, completion: completion)
+                }
+            }
+            return
         }
         if session.provider == .opencode {
             // OpenCode's plugin sends the reply from inside OpenCode.
@@ -917,7 +952,9 @@ final class ClaudeSessionService: ObservableObject {
         guard let message = ClaudeHookMessage.decode(payload, requestID: request, now: now, policy: engine.policy) else {
             return connection.finish()
         }
-        if let transcript = message.transcript, !transcript.isEmpty { transcripts[message.fact.sessionID] = transcript }
+        // A remote session's transcript is on its host, read through its connection.
+        let remote = isRemotePeer(connection.peer)
+        if !remote, let transcript = message.transcript, !transcript.isEmpty { transcripts[message.fact.sessionID] = transcript }
         if message.isPermissionRequest {
             pending[request] = (connection, message.fact.sessionID, message.suggestions, message.questionInput,
                                 message.approvalInput, message.planModes, now)
@@ -927,7 +964,7 @@ final class ClaudeSessionService: ObservableObject {
         // A turn's lines are written before its Stop hook runs; reading them
         // first tells whether it left work in the background, before a notice
         // calls it done.
-        if case .stopped = message.fact.event, let path = transcripts[message.fact.sessionID] {
+        if !remote, case .stopped = message.fact.event, let path = transcripts[message.fact.sessionID] {
             read(path, session: message.fact.sessionID, now: now)
         }
         engine.ingest(hook: message.fact, now: now)
@@ -1041,6 +1078,17 @@ final class ClaudeSessionService: ObservableObject {
     /// with whether the window was found.
     func openHost(_ session: ClaudeSession, completion: @escaping (Bool) -> Void = { _ in }) {
         acknowledge(session.id)
+        if let alias = session.host.remoteAlias {
+            // Its pane comes forward in the host's tmux; no window here shows it.
+            queue.async { [self] in
+                guard let link = remoteLinks[alias] else { return DispatchQueue.main.async { completion(false) } }
+                link.perform { link in
+                    let found = link.focus(pid: session.pid, session: session.id)
+                    DispatchQueue.main.async { completion(found) }
+                }
+            }
+            return
+        }
         let homes = ClaudeSessionRegistryReader.homes(home)
         let terminal = ClaudeTerminalLauncher.preferred(from: sessions)
         actions.async {
@@ -1048,6 +1096,121 @@ final class ClaudeSessionService: ObservableObject {
                 ? ClaudeHostFocus.attach(session, terminal: terminal)
                 : ClaudeHostFocus.focus(session, homes: homes)
             DispatchQueue.main.async { completion(found) }
+        }
+    }
+
+    // MARK: Remote hosts
+
+    /// Starts a connection for each host turned on and ends the others. On the queue.
+    private func syncRemote(_ wanted: [RemoteHost]) {
+        let aliases = Set(wanted.map(\.alias))
+        for (alias, link) in remoteLinks where !aliases.contains(alias) {
+            link.stop()
+            remoteLinks[alias] = nil
+            remoteSnapshots[alias] = nil
+            remoteTails = remoteTails.filter { !$0.key.hasPrefix(alias + "\n") }
+        }
+        // Connections reach the island through its socket, so they wait for it.
+        guard let socket = server?.path else { return publishRemoteStates() }
+        for host in wanted where remoteLinks[host.alias] == nil {
+            let link = RemoteHostLink(alias: host.alias, bundle: Self.bundleID, localSocket: socket)
+            let alias = host.alias
+            link.onState = { [weak self, weak link] state in
+                guard let self, let link else { return }
+                if !state.isConnected {
+                    // A host that went away takes its sessions with it, and
+                    // nothing else waits on it.
+                    queue.async { [self] in
+                        guard self.remoteLinks[alias] === link, self.remoteSnapshots.removeValue(forKey: alias) != nil else { return }
+                        self.refresh()
+                    }
+                }
+                DispatchQueue.main.async { [self] in
+                    guard self.running else { return }
+                    self.remoteStates[alias] = state
+                }
+            }
+            link.onSnapshot = { [weak self, weak link] snapshot in
+                self?.queue.async { [weak self] in
+                    guard let self, let link, remoteLinks[alias] === link else { return }
+                    ingestRemote(alias, snapshot)
+                }
+            }
+            remoteLinks[alias] = link
+            link.start()
+        }
+        publishRemoteStates()
+    }
+
+    /// Settings forgets hosts that are no longer listed.
+    private func publishRemoteStates() {
+        let aliases = Set(remoteLinks.keys)
+        DispatchQueue.main.async { [self] in
+            remoteStates = remoteStates.filter { aliases.contains($0.key) }
+            remoteFailures = remoteFailures.filter { aliases.contains($0.key) }
+        }
+    }
+
+    /// What one look at a host found: its sessions for the next reading of
+    /// the registry, and the new lines of their transcripts now. On the queue.
+    private func ingestRemote(_ alias: String, _ snapshot: RemoteSnapshot) {
+        guard timer != nil else { return }
+        let now = Date()
+        let isNew = remoteSnapshots[alias]?.records.map(\.sessionID) != snapshot.records.map(\.sessionID)
+        remoteSnapshots[alias] = snapshot
+        let owners = Dictionary(snapshot.transcripts.map { ($0.value, $0.key) }, uniquingKeysWith: { first, _ in first })
+        let prefix = alias + "\n"
+        for chunk in snapshot.chunks {
+            guard let session = owners[chunk.path] else { continue }
+            let key = prefix + chunk.path
+            var entry = remoteTails[key] ?? (RemoteTranscriptTail(), ClaudeTranscriptReader(policy: engine.policy, path: chunk.path))
+            let taken = entry.tail.take(chunk)
+            if taken.restarted, chunk.offset == 0 { entry.reader = ClaudeTranscriptReader(policy: engine.policy, path: chunk.path) }
+            var facts: [ClaudeTranscriptFact] = []
+            for line in taken.lines { facts.append(contentsOf: entry.reader.parse(line, now: now)) }
+            remoteTails[key] = entry
+            if !facts.isEmpty { engine.ingest(sessionID: session, facts: facts, now: now) }
+        }
+        remoteTails = remoteTails.filter { !$0.key.hasPrefix(prefix) || owners[String($0.key.dropFirst(prefix.count))] != nil }
+        // A session that came or went shows at once, not at the next tick.
+        if isNew { refresh() }
+    }
+
+    /// Whether a hook came through a remote host's connection. On the queue.
+    private func isRemotePeer(_ pid: pid_t) -> Bool {
+        pid > 0 && remoteLinks.values.contains { $0.peer == pid }
+    }
+
+    /// Adds the island's hooks to the host's Claude Code settings, or takes
+    /// them out again, putting back the file as it was before.
+    func changeRemoteHooks(_ alias: String, install: Bool) {
+        guard !remoteBusy.contains(alias) else { return }
+        remoteBusy.insert(alias)
+        remoteFailures[alias] = nil
+        let bundle = Self.bundleID
+        queue.async { [self] in
+            guard let link = remoteLinks[alias] else {
+                return DispatchQueue.main.async { [self] in remoteBusy.remove(alias) }
+            }
+            link.perform { [self] link in
+                var info = link.info
+                if info == nil, let probe = RemoteOneShot.run(alias, mode: "probe \(RemoteSSH.socketName(bundle: bundle)) \(bundle)").lines {
+                    info = RemoteAnswer.probe(probe)
+                }
+                let failure: RemoteHostSetup.Failure?
+                if install {
+                    failure = info.map { RemoteHostSetup.install(alias, info: $0, bundle: bundle) } ?? .unreachable("")
+                } else {
+                    failure = RemoteHostSetup.remove(alias, bundle: bundle)
+                }
+                if failure == nil { link.markHooks(installed: install) }
+                let state = link.state
+                DispatchQueue.main.async { [self] in
+                    remoteBusy.remove(alias)
+                    remoteFailures[alias] = failure.map(RemoteHostStrings.describe)
+                    if let state, running { remoteStates[alias] = state }
+                }
+            }
         }
     }
 
@@ -1093,13 +1256,16 @@ final class ClaudeSessionService: ObservableObject {
             if hosts[pid] == nil { hosts[pid] = ClaudeSessionHosts.host(of: pid) }
             records[index].host = hosts[pid] ?? .unknown
         }
+        // Sessions on remote hosts, as their connections last saw them. Their
+        // process numbers are the host's, so none of the lookups above apply.
+        records += remoteSnapshots.keys.sorted().flatMap { remoteSnapshots[$0]?.records ?? [] }
         engine.ingest(records: records, now: now)
         listBackgroundJobs(now: now)
         ticks += 1
         let sideFiles = ticks % Self.sideFilesEvery == 1
         let ids = Set(records.map(\.sessionID))
         readers = readers.filter { ids.contains(sessionID(ofReader: $0.key)) }
-        for record in records {
+        for record in records where record.host.remoteAlias == nil {
             guard let transcript = transcript(for: record) else { continue }
             read(transcript, session: record.sessionID, now: now)
             if sideFiles {
@@ -1358,8 +1524,8 @@ enum ClaudeHostFocus {
             return activated || raised
         case .app(let bundle):
             return activate(bundle, window: nil)
-        case .background:
-            // The service's openHost attaches these; Open has no window to raise.
+        case .background, .remote:
+            // The service's openHost attaches these, or reaches them over SSH.
             return false
         case .unknown:
             return false
@@ -1453,7 +1619,7 @@ enum ClaudeTerminalReply {
                                              shell: shell, folder: bridge)
         case .background(let job):
             return ClaudeBackgroundReply.send(text, images: paths, job: job, configHome: session.background?.configHome)
-        case .kitty, .app, .unknown:
+        case .kitty, .app, .remote, .unknown:
             return .unreachable
         }
     }

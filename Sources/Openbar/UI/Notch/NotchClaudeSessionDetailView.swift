@@ -110,6 +110,7 @@ struct NotchClaudeSessionDetailView: View {
                     }
                 }
                 HStack(spacing: 6) {
+                    if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
                     NotchClaudeProjectTag(project: session.project)
                     Text(details)
                         .font(.system(size: 10.5))

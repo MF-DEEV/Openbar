@@ -56,12 +56,15 @@ enum ClaudeSessionRegistryReader {
 
     /// One record, or nil when it is being written or describes a process
     /// this Mac cannot see, as one in a container sharing the folder.
-    static func record(_ data: Data) -> ClaudeSessionRecord? {
+    /// A `remote` record comes from a host Openbar reaches over SSH, which
+    /// checked its process itself: Linux and macOS hosts count there.
+    static func record(_ data: Data, remote: Bool = false) -> ClaudeSessionRecord? {
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let pid = json["pid"] as? Int, pid > 0, pid <= Int(Int32.max),
               let session = json["sessionId"] as? String, !session.isEmpty,
               let cwd = json["cwd"] as? String, !cwd.isEmpty else { return nil }
-        if let domain = json["pidDomain"] as? String, domain != "darwin" { return nil }
+        if let domain = json["pidDomain"] as? String,
+           remote ? !(domain.hasPrefix("linux") || domain.hasPrefix("darwin")) : domain != "darwin" { return nil }
         let status = (json["status"] as? String).flatMap(ClaudeRegistryStatus.init(rawValue:))
         var record = ClaudeSessionRecord(
             pid: Int32(pid), sessionID: session, cwd: cwd,

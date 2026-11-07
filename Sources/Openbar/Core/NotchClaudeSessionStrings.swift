@@ -276,6 +276,7 @@ struct NotchClaudeSessionStrings {
     /// terminal, naming that terminal when the island knows it.
     func replyUnavailable(for host: ClaudeSessionHost) -> String {
         if case .kitty = host { return replyKittyRemote }
+        if case .remote = host { return RemoteHostStrings.replyNeedsTmux }
         guard let bundle = host.bundle else { return replyUnavailable }
         return String(format: replyUnavailableFormat, ClaudeTerminalApps.name(of: bundle))
     }

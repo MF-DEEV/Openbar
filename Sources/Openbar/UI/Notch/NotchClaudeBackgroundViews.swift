@@ -772,3 +772,25 @@ struct NotchClaudeNewSessionView: View {
         problem = nil
     }
 }
+
+/// The SSH host a session runs on, beside its name, so a remote session
+/// never passes for one on this Mac (issue #189).
+struct NotchRemoteHostBadge: View {
+    let alias: String
+    var size: CGFloat = 9.5
+
+    var body: some View {
+        // A long alias is cut, so the session's own name keeps its room.
+        Label(alias.count > 22 ? alias.prefix(21) + "…" : alias, systemImage: "network")
+            .labelStyle(NotchClaudeSessionInlineLabel())
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.78))
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(.white.opacity(0.1), in: Capsule())
+            .help("On " + alias + ", over SSH")
+            .accessibilityLabel("On remote host " + alias)
+    }
+}
