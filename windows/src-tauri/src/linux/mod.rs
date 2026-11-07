@@ -18,6 +18,7 @@ pub mod desktop;
 pub mod gtk_main;
 pub mod hooks;
 pub mod hosts;
+pub mod ics;
 pub mod image;
 pub mod kitty;
 pub mod paths;

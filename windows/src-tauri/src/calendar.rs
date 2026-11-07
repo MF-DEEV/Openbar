@@ -655,6 +655,10 @@ mod imp {
     }
 }
 
+#[cfg(target_os = "linux")]
+#[path = "linux/calendar.rs"]
+mod imp;
+
 /// Starts the reader thread.
 pub fn start<R: tauri::Runtime>(app: tauri::AppHandle<R>, shared: Shared) {
     let (tx, rx) = channel();
@@ -666,7 +670,13 @@ pub fn start<R: tauri::Runtime>(app: tauri::AppHandle<R>, shared: Shared) {
             .name("calendar".into())
             .spawn(move || run(app, shared, tx, rx));
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        let _ = std::thread::Builder::new()
+            .name("calendar".into())
+            .spawn(move || imp::run(app, shared, tx, rx));
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         // Answers every request with what it has: nothing to read here.
         let _ = (app, tx);
@@ -893,7 +903,10 @@ pub async fn calendar_request_access(state: tauri::State<'_, Shared>) -> Result<
     })
     .await
     .unwrap_or(Access::Unavailable);
-    #[cfg(not(windows))]
+    // No consent to ask for: local events and the calendar files are read as they are.
+    #[cfg(target_os = "linux")]
+    let access = Access::Allowed;
+    #[cfg(not(any(windows, target_os = "linux")))]
     let access = Access::Unavailable;
     state.poke();
     Ok(access)
