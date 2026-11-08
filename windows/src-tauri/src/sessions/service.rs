@@ -167,6 +167,8 @@ struct AgentPending {
 }
 
 struct Inner {
+    #[cfg(windows)]
+    local_codex: Vec<super::codex::local::LocalSession>,
     /// Gemini CLI's, Copilot CLI's, OpenCode's and Cursor's sessions.
     hook_agents: HookAgents,
     agent_pending: HashMap<String, AgentPending>,
@@ -234,6 +236,8 @@ impl Service {
         let service = Arc::new(Service {
             app,
             inner: Mutex::new(Inner {
+                #[cfg(windows)]
+                local_codex: Vec::new(),
                 hook_agents: HookAgents::default(),
                 agent_pending: HashMap::new(),
                 listeners: HashMap::new(),
@@ -309,6 +313,8 @@ impl Service {
 
     /// One scan; true while any session works or waits, so the next comes sooner.
     fn tick(&self) -> bool {
+        #[cfg(windows)]
+        let local_codex = super::codex::local::discover();
         let home = hooks::installer::home_dir();
         let by_home = home
             .as_deref()
@@ -318,6 +324,10 @@ impl Service {
         let files: Vec<RegistryFile> = by_home.into_iter().flat_map(|(_, files)| files).collect();
         let scan = registry::scan(&files, pid_domains(), process_start);
         let mut inner = self.inner.lock().unwrap();
+        #[cfg(windows)]
+        {
+            inner.local_codex = local_codex;
+        }
         inner.ticks += 1;
         let t = now();
 
@@ -618,6 +628,17 @@ impl Service {
             let (sessions, events) = codex.snapshot(t, inner.engine.policy());
             snapshot.sessions.extend(sessions);
             snapshot.events.extend(events);
+        }
+        #[cfg(windows)]
+        for local in &inner.local_codex {
+            if !snapshot.sessions.iter().any(|s| s.id == local.id) {
+                let mut session = super::codex::local::as_session(local, inner.engine.policy());
+                if let Some(located) = hosts::locate(local.pid) {
+                    session.host = host_kind(&located.host);
+                    session.host_name = located.host.display_name();
+                }
+                snapshot.sessions.push(session);
+            }
         }
         {
             let Inner {

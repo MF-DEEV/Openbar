@@ -7,4 +7,6 @@
 //! replies into the thread, without typing into any terminal.
 
 pub mod client;
+#[cfg(windows)]
+pub mod local;
 pub mod state;
