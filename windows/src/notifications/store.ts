@@ -53,8 +53,12 @@ export const useNotifications = create<NotificationsState>()((set) => ({
       // Locking the PC empties the inbox under the question.
       confirmingClear: s.confirmingClear && inbox.items.length > 0,
       replyTo: inbox.items.some((item) => item.id === s.replyTo) ? s.replyTo : null,
-      replyDrafts: Object.fromEntries(Object.entries(s.replyDrafts).filter(([id]) => inbox.items.some((item) => item.id === Number(id)))),
-      replyErrors: Object.fromEntries(Object.entries(s.replyErrors).filter(([id]) => inbox.items.some((item) => item.id === Number(id)))),
+      replyDrafts: Object.fromEntries(
+        Object.entries(s.replyDrafts).filter(([id]) => inbox.items.some((item) => item.id === Number(id))),
+      ),
+      replyErrors: Object.fromEntries(
+        Object.entries(s.replyErrors).filter(([id]) => inbox.items.some((item) => item.id === Number(id))),
+      ),
     }));
     const island = useIsland.getState();
     if (

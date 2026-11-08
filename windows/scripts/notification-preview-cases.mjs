@@ -105,7 +105,11 @@ export async function checkNotificationPreview({ send, evaluate, base }) {
     const point = await center(selector);
     await mouse(point.x, point.y);
     await wait(190);
-    assert.notEqual(await evaluate(`getComputedStyle(document.querySelector(${JSON.stringify(selector)})).boxShadow`), "none", selector);
+    assert.notEqual(
+      await evaluate(`getComputedStyle(document.querySelector(${JSON.stringify(selector)})).boxShadow`),
+      "none",
+      selector,
+    );
   }
 
   // Reply grows inside the same preview, then returns to the original size.
@@ -227,7 +231,9 @@ export async function checkNotificationPreview({ send, evaluate, base }) {
   );
   assert.equal(await evaluate(`!!document.querySelector('.nt-card .nt-icon')`), true);
   await shoot("notification-history-search");
-  await evaluate(`(()=>{const e=document.querySelector('.nt-search input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'');e.dispatchEvent(new Event('input',{bubbles:true}))})()`);
+  await evaluate(
+    `(()=>{const e=document.querySelector('.nt-search input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'');e.dispatchEvent(new Event('input',{bubbles:true}))})()`,
+  );
   await wait(100);
   await click(await center(".nt-card .nt-mini"));
   await wait(100);

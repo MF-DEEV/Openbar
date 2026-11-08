@@ -17,7 +17,8 @@ import { Sheet } from "../tools/Sheet";
 import { clock, NotificationIcon } from "./NotificationPreview";
 import { useNotifications } from "./store";
 import type { Item } from "./types";
-import { isDiscordNotification, notificationPresentation } from "./presentation";
+import { useDiscordReply } from "./reply";
+import { canReplyInDiscord, notificationPresentation } from "./presentation";
 
 const PRIVACY = () => t("windows.notifications.notificationsShowTheAppIconAppNameAnd");
 
@@ -156,11 +157,9 @@ function ClearConfirmation() {
 function Card({ item }: { item: Item }) {
   useLocale();
   const display = notificationPresentation(item);
-  const discord = isDiscordNotification(item);
-  const replying = useNotifications((s) => s.replyTo === item.id);
-  const draft = useNotifications((s) => s.replyDrafts[item.id] ?? "");
-  const status = useNotifications((s) => s.replyErrors[item.id] ?? "");
-  const [busy, setBusy] = useState(false);
+  const discord = canReplyInDiscord(item);
+  const reply = useDiscordReply(item.id);
+  const { replying } = reply;
   const field = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     if (replying) {
@@ -168,20 +167,6 @@ function Card({ item }: { item: Item }) {
       field.current?.focus();
     }
   }, [replying]);
-  const sendReply = async () => {
-    if (!draft.trim() || busy) return;
-    setBusy(true);
-    useNotifications.getState().setReplyError(item.id, "");
-    try {
-      await bridge.notifications.sendDiscord(item.id, draft.trim());
-      useNotifications.getState().setReplyDraft(item.id, "");
-      useNotifications.setState({ replyTo: null });
-    } catch (error) {
-      useNotifications.getState().setReplyError(item.id, String(error));
-    } finally {
-      setBusy(false);
-    }
-  };
   return (
     <div className="nt-card">
       <div className="nt-card-head">
@@ -194,9 +179,10 @@ function Card({ item }: { item: Item }) {
           <button
             type="button"
             className="nt-mini"
-            aria-label="Reply in Discord"
-            title="Reply in Discord"
-            onClick={() => useNotifications.setState({ replyTo: replying ? null : item.id })}
+            aria-label={t("windows.notifications.replyInDiscord")}
+            aria-expanded={replying}
+            title={t("windows.notifications.replyInDiscord")}
+            onClick={reply.toggle}
           >
             <Reply size={12} />
           </button>
@@ -224,30 +210,41 @@ function Card({ item }: { item: Item }) {
         {display.sender || display.app}
       </div>
       {display.message ? <div className="nt-body">{display.message}</div> : null}
-      {display.image ? <img className="nt-card-image" src={display.image} alt="Image attached to the Discord message" /> : null}
+      {display.image ? (
+        <img className="nt-card-image" src={display.image} alt={t("windows.notifications.discordImageAlt")} />
+      ) : null}
       {discord && replying ? (
         <div className="nt-reply">
           <div className="nt-reply-compose">
             <textarea
               ref={field}
-              value={draft}
-              onChange={(event) => useNotifications.getState().setReplyDraft(item.id, event.target.value)}
+              value={reply.draft}
+              onChange={(event) => reply.setDraft(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
                   event.preventDefault();
-                  void sendReply();
+                  void reply.send();
                 }
               }}
-              placeholder="Reply to Discord…"
-              aria-label="Write a reply to send in Discord"
+              placeholder={t("windows.notifications.writeReply")}
+              aria-label={t("windows.notifications.writeReplyLabel")}
               rows={1}
             />
-            <button type="button" className="nt-reply-submit" disabled={!draft.trim() || busy} onClick={() => void sendReply()} title="Send reply in Discord" aria-label="Send reply in Discord">
+            <button
+              type="button"
+              className="nt-reply-submit"
+              disabled={!reply.draft.trim() || reply.busy}
+              onClick={() => void reply.send()}
+              title={t("windows.notifications.sendReplyLabel")}
+              aria-label={t("windows.notifications.sendReplyLabel")}
+            >
               <Send size={14} />
-              <span>Send</span>
+              <span>{t("windows.notifications.sendReply")}</span>
             </button>
           </div>
-          <span className="nt-reply-hint" role="status">{status || "Enter to send · Shift+Enter for a new line"}</span>
+          <span className="nt-reply-hint" role="status">
+            {reply.status}
+          </span>
         </div>
       ) : null}
     </div>

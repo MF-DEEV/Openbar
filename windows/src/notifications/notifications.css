@@ -62,7 +62,11 @@
   height: 20px;
   border-radius: 6px;
   color: rgba(255, 255, 255, 0.6);
-  transition: background 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease;
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
 }
 
 .nt-mini:hover,
@@ -242,7 +246,10 @@
   align-items: center;
   gap: 5px;
   font-variant-numeric: tabular-nums;
-  transition: background 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 .nt-preview-actions .n-pill-button:hover,
 .nt-preview-actions .n-pill-button:focus-visible {
@@ -329,7 +336,7 @@
   background: #444;
 }
 .nt-reply-submit:disabled {
-  opacity: .38;
+  opacity: 0.38;
 }
 .nt-reply-hint {
   color: rgba(255, 255, 255, 0.43);

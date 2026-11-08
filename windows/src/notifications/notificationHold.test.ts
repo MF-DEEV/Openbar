@@ -77,14 +77,14 @@ describe("holding a notification banner", () => {
     expect(island().notice).toBeNull();
   });
 
-  it("with opening on click only the notification preview expands on hover", () => {
+  it("with opening on click the banner only waits", () => {
     configure({ opening: "click" });
     island().showNotice(notificationNotice(item(1)));
     island().pointerEnter();
-    vi.advanceTimersByTime(200);
-    expect(island()).toMatchObject({ noticeExpanded: true, expanded: false, notice: { id: "notification:1" } });
+    vi.advanceTimersByTime(60_000);
+    expect(island()).toMatchObject({ noticeExpanded: false, notice: { id: "notification:1" } });
     island().pointerExit();
-    vi.advanceTimersByTime(300);
+    vi.advanceTimersByTime(5_120);
     expect(island().notice).toBeNull();
   });
 

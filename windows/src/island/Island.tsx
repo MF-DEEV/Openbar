@@ -286,7 +286,7 @@ export function Island() {
 
   return (
     <div className={`island-root${hidden ? " is-hidden" : ""}`} ref={frame} onContextMenu={contextMenu.onContextMenu}>
-      <IslandSurface geometry={geometry} target={shown.size} animatePreview={shown.kind === "noticePreview"}>
+      <IslandSurface geometry={geometry} target={shown.size}>
         <ContentStage
           contentKey={shown.kind === "activity" || shown.kind === "picker" ? "compact:activity" : shown.key}
           transition={transition.current}

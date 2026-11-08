@@ -18,14 +18,9 @@ after restarting the app.
 
 Holding the pointer on a banner keeps it on screen, and after the hover delay it
 opens in place with the app, time and sender, Open, Dismiss and the inbox count.
-Discord notifications also offer Reply. It smoothly grows a draft field inside
-the preview; Copy & open copies the draft and opens Discord, where the person
-pastes and sends it. Open launches the installed Discord through its registered
-`discord://` protocol. The Windows notification listener cannot activate another
-app's reply action or send a Discord message; no message is sent by Openbar.
-With opening set to click, ordinary sections still open on click while a held
-notification can expand on hover. Leaving closes the preview; the notification
-stays in the inbox. Clear All on the Notifications page asks first.
+With opening set to click it only waits, and hidden until hover shows no banner to
+hold. Discord notifications also offer Reply (see Discord below). Leaving closes the
+preview; the notification stays in the inbox. Clear All on the Notifications page asks first.
 
 An incoming notification waits for a currently visible session/timer notice
 instead of being dropped by its higher priority. The pending queue is bounded to
@@ -126,13 +121,16 @@ Online, Idle, and Invisible retain Discord's normal desktop notification behavio
 The island does not log into Discord or read its account token or message history,
 and it does not independently query the account's presence.
 
-The Discord card uses a branded icon and a compact reply field. Enter or Send
-opens the desktop Discord client, checks that its visible message editor belongs
-to the conversation named by the notification, types the reply, and presses
-Enter. Shift+Enter inserts a line break. If the conversation cannot be matched,
-no send key is pressed and OpenBar keeps the draft for another attempt. OpenBar
-does not read Discord account tokens. Windows' basic toast text lacks a channel
-identifier, so the matching conversation must already be selected in Discord.
+The Discord card uses a branded icon and a compact reply field, in the held preview
+and on the Notifications page. Enter or Send brings the desktop Discord client
+forward, checks that its message box belongs to the conversation named by the
+notification and is empty, types the reply, and presses Enter. Shift+Enter inserts a
+line break. Openbar presses nothing and keeps the draft when the conversation does
+not match, when Discord's box already holds unsent text, or when Discord loses focus
+while the reply is typed. Openbar does not read Discord account tokens. Windows'
+basic toast text lacks a channel identifier, so the matching conversation must
+already be selected in Discord. Reply is offered for the stable Discord client only;
+Canary, PTB and Development show their notifications without it.
 An image preview appears when the notification text includes a direct Discord CDN
 attachment URL. Windows' notification listener exposes text and the app icon, but
 not image elements from another app's toast, so an attachment omitted from the

@@ -219,10 +219,12 @@ mod imp {
 
     /// WinRT's listener must be asked from the app's UI apartment on some
     /// Windows installations. Awaiting the operation stays on this worker.
+    /// None when the UI thread could not answer in time: that says nothing
+    /// about access, so the caller keeps what it knew.
     fn snapshot_on_ui<R: Runtime>(
         app: &AppHandle<R>,
         read: bool,
-    ) -> (Access, Option<Vec<UserNotification>>) {
+    ) -> Option<(Access, Option<Vec<UserNotification>>)> {
         let (reply, answer) = std::sync::mpsc::channel();
         if app
             .run_on_main_thread(move || {
@@ -236,10 +238,12 @@ mod imp {
             })
             .is_err()
         {
-            return (Access::Unavailable, None);
+            return None;
         }
-        let Ok(Ok((status, operation))) = answer.recv_timeout(Duration::from_secs(3)) else {
-            return (Access::Unavailable, None);
+        // A listener that cannot be created at all is a real answer.
+        let (status, operation) = match answer.recv_timeout(Duration::from_secs(3)).ok()? {
+            Ok(pair) => pair,
+            Err(_) => return Some((Access::Unavailable, None)),
         };
         let notes = operation
             .and_then(Result::ok)
@@ -261,7 +265,7 @@ mod imp {
                 );
             });
         }
-        (access, notes)
+        Some((access, notes))
     }
 
     /// Start consent on the UI thread; wait elsewhere so Windows can show its dialog.
@@ -449,6 +453,7 @@ mod imp {
                     let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
                 }
                 let mut last_access = None;
+                let mut idle_polls: u32 = 0;
                 loop {
                     let shell = unsafe { SHQueryUserNotificationState() }.ok();
                     let locked = shell == Some(QUNS_NOT_PRESENT);
@@ -461,7 +466,22 @@ mod imp {
                         }
                         state.enabled
                     };
-                    let (access, notes) = snapshot_on_ui(&app, enabled && !locked);
+                    let reading = enabled && !locked;
+                    // Off or locked, nothing is read or shown: ask Windows about
+                    // access every tenth poll instead of hopping to the UI thread
+                    // every second.
+                    let due = reading || idle_polls.is_multiple_of(10);
+                    idle_polls = if reading {
+                        0
+                    } else {
+                        idle_polls.wrapping_add(1)
+                    };
+                    let Some((access, notes)) =
+                        due.then(|| snapshot_on_ui(&app, reading)).flatten()
+                    else {
+                        thread::sleep(Duration::from_secs(1));
+                        continue;
+                    };
                     if last_access != Some(access) {
                         last_access = Some(access);
                         let mut state = shared.lock().unwrap();
@@ -626,6 +646,7 @@ pub fn notifications_open(aumid: String) -> bool {
 }
 
 /// Types into the matching Discord conversation and presses Send on the user's click.
+/// Errors are codes the island translates (notifications/reply.ts).
 #[tauri::command]
 pub async fn notifications_send_discord(
     state: tauri::State<'_, Shared>,
@@ -633,30 +654,28 @@ pub async fn notifications_send_discord(
     text: String,
 ) -> Result<(), String> {
     let title = {
-        let state = state
-            .lock()
-            .map_err(|_| "Notification list is unavailable.")?;
+        let state = state.lock().map_err(|_| "unavailable")?;
         let item = state
             .items
             .iter()
             .find(|item| item.id == id)
-            .ok_or("This notification is no longer available.")?;
+            .ok_or("gone")?;
         if !item
             .aumid
             .eq_ignore_ascii_case("com.squirrel.Discord.Discord")
         {
-            return Err("This is not a Discord notification.".into());
+            return Err("notDiscord".into());
         }
         item.title.clone()
     };
     #[cfg(windows)]
     return tauri::async_runtime::spawn_blocking(move || crate::discord_reply::send(&title, &text))
         .await
-        .map_err(|_| "Could not contact Discord. Your draft is still here.".to_string())?;
+        .map_err(|_| "unavailable".to_string())?;
     #[cfg(not(windows))]
     {
         let _ = (title, text);
-        Err("Discord desktop replies are available on Windows.".into())
+        Err("unavailable".into())
     }
 }
 

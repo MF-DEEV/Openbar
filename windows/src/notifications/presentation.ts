@@ -28,6 +28,11 @@ export function isDiscordNotification(item: Pick<Item, "app" | "aumid">): boolea
   );
 }
 
+/** The backend types into the stable client only (discord_reply.rs); Canary, PTB and Development get no Reply. */
+export function canReplyInDiscord(item: Pick<Item, "aumid">): boolean {
+  return item.aumid.toLowerCase() === "com.squirrel.discord.discord";
+}
+
 export function notificationPresentation(item: Item) {
   const source = notificationSource(item);
   const discord = isDiscordNotification(item);
@@ -56,8 +61,11 @@ export function discordImageUrl(body: string): string | undefined {
         ["cdn.discordapp.com", "media.discordapp.net"].includes(url.hostname) &&
         url.pathname.startsWith("/attachments/") &&
         /\.(?:png|jpe?g|gif|webp|avif)$/i.test(url.pathname)
-      ) return url.href;
-    } catch { /* A malformed link is ordinary notification text. */ }
+      )
+        return url.href;
+    } catch {
+      /* A malformed link is ordinary notification text. */
+    }
   }
   return undefined;
 }

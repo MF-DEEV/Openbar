@@ -6,7 +6,13 @@ import { afterEach, expect, it, vi } from "vitest";
 import { geometryOf, useIsland } from "../island/store";
 import { NoticeView } from "../island/views/Closed";
 import { NotificationsPage } from "./NotificationsPage";
-import { discordImageUrl, notificationNotice, notificationPresentation, notificationSource } from "./presentation";
+import {
+  canReplyInDiscord,
+  discordImageUrl,
+  notificationNotice,
+  notificationPresentation,
+  notificationSource,
+} from "./presentation";
 import { useNotifications } from "./store";
 import type { Item } from "./types";
 
@@ -104,4 +110,11 @@ it("removes a visible message when the native inbox is cleared on lock or disabl
   useIsland.setState({ notice: notificationNotice(discord) });
   useNotifications.getState().receive({ access: "allowed", items: [] });
   expect(useIsland.getState().notice).toBeNull();
+});
+
+it("offers Reply for the stable Discord client only, which is all the backend types into", () => {
+  expect(canReplyInDiscord({ aumid: "com.squirrel.Discord.Discord" })).toBe(true);
+  for (const build of ["DiscordCanary", "DiscordPTB", "DiscordDevelopment"])
+    expect(canReplyInDiscord({ aumid: `com.squirrel.${build}.${build}` })).toBe(false);
+  expect(canReplyInDiscord({ aumid: "com.slack" })).toBe(false);
 });

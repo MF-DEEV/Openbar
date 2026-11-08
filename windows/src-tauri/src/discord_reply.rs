@@ -2,13 +2,17 @@
 // Copyright (C) 2026 Vorssaint
 
 //! Send through the user's running Discord client. Never use an account token.
-//! A reply is sent only when the visible composer matches the notification.
+//! A reply is sent only when the visible composer matches the notification and
+//! holds no unsent text of its own. Errors are codes the island translates
+//! (notifications/reply.ts).
 
 use std::{mem::size_of, thread, time::Duration};
+use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance};
 use windows::Win32::UI::Accessibility::{
-    CUIAutomation8, IUIAutomation, IUIAutomationElement, TreeScope_Descendants,
-    UIA_ControlTypePropertyId, UIA_EditControlTypeId,
+    CUIAutomation8, IUIAutomation, IUIAutomationElement, IUIAutomationTextPattern,
+    IUIAutomationValuePattern, TreeScope_Descendants, UIA_ControlTypePropertyId,
+    UIA_EditControlTypeId, UIA_TextPatternId, UIA_ValuePatternId,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     INPUT, INPUT_0, INPUT_KEYBOARD, KEYBDINPUT, KEYEVENTF_KEYUP, KEYEVENTF_UNICODE, SendInput,
@@ -69,6 +73,41 @@ fn contains_name(haystack: &str, name: &str) -> bool {
     })
 }
 
+/// Chromium's empty editor can report a zero-width placeholder character, and some
+/// builds report the placeholder ("Message #general", the editor's name) as text.
+fn is_blank(value: &str, editor_name: &str) -> bool {
+    let normalize = |text: &str| {
+        text.chars()
+            .filter(|ch| {
+                !ch.is_whitespace()
+                    && !matches!(
+                        ch,
+                        '\u{200b}' | '\u{200c}' | '\u{200d}' | '\u{2060}' | '\u{feff}'
+                    )
+            })
+            .collect::<String>()
+            .to_lowercase()
+    };
+    let value = normalize(value);
+    value.is_empty() || (!editor_name.trim().is_empty() && value == normalize(editor_name))
+}
+
+/// What the editor holds now, through ValuePattern or else TextPattern.
+fn editor_text(editor: &IUIAutomationElement) -> Option<String> {
+    unsafe {
+        if let Ok(pattern) =
+            editor.GetCurrentPatternAs::<IUIAutomationValuePattern>(UIA_ValuePatternId)
+            && let Ok(value) = pattern.CurrentValue()
+        {
+            return Some(value.to_string());
+        }
+        let pattern = editor
+            .GetCurrentPatternAs::<IUIAutomationTextPattern>(UIA_TextPatternId)
+            .ok()?;
+        Some(pattern.DocumentRange().ok()?.GetText(-1).ok()?.to_string())
+    }
+}
+
 fn key(vk: VIRTUAL_KEY, up: bool) -> INPUT {
     INPUT {
         r#type: INPUT_KEYBOARD,
@@ -111,10 +150,27 @@ fn inject(inputs: &[INPUT]) -> Result<(), String> {
     let sent = unsafe { SendInput(inputs, size_of::<INPUT>() as i32) } as usize;
     (sent == inputs.len())
         .then_some(())
-        .ok_or_else(|| "Discord did not accept input. Draft saved.".into())
+        .ok_or_else(|| "inputRefused".into())
 }
 
-fn type_text(text: &str) -> Result<(), String> {
+/// Types in chunks and checks before each one that Discord still has the
+/// foreground, so a switch to another app mid-reply stops the rest going there.
+fn type_text(window: HWND, text: &str) -> Result<(), String> {
+    let mut typed = false;
+    let mut flush = |inputs: &mut Vec<INPUT>| -> Result<(), String> {
+        if unsafe { GetForegroundWindow() } != window {
+            return Err(if typed {
+                "typingInterrupted"
+            } else {
+                "focusLost"
+            }
+            .into());
+        }
+        inject(inputs)?;
+        typed = true;
+        inputs.clear();
+        Ok(())
+    };
     let mut inputs = Vec::with_capacity(128);
     for ch in text.chars() {
         if ch == '\n' {
@@ -130,20 +186,16 @@ fn type_text(text: &str) -> Result<(), String> {
             }
         }
         if inputs.len() >= 128 {
-            inject(&inputs)?;
-            inputs.clear();
+            flush(&mut inputs)?;
         }
     }
     if !inputs.is_empty() {
-        inject(&inputs)?;
+        flush(&mut inputs)?;
     }
     Ok(())
 }
 
-fn composer(
-    automation: &IUIAutomation,
-    window: windows::Win32::Foundation::HWND,
-) -> Option<IUIAutomationElement> {
+fn composer(automation: &IUIAutomation, window: HWND) -> Option<IUIAutomationElement> {
     unsafe {
         let root = automation.ElementFromHandle(window).ok()?;
         let condition = automation
@@ -162,19 +214,18 @@ fn composer(
 }
 
 pub fn send(title: &str, text: &str) -> Result<(), String> {
-    let target = target(title).ok_or("Cannot identify this chat. Draft saved.")?;
+    let target = target(title).ok_or("noChat")?;
     let text = text.trim();
     if text.is_empty() || text.chars().count() > 2000 {
-        return Err("Enter up to 2000 characters.".into());
+        return Err("tooLong".into());
     }
     if !crate::notifications::notifications_open("com.squirrel.Discord.Discord".into()) {
-        return Err("Could not open Discord. Draft saved.".into());
+        return Err("openFailed".into());
     }
-    let _apartment =
-        crate::com::Apartment::mta().map_err(|_| "Could not access Discord. Draft saved.")?;
+    let _apartment = crate::com::Apartment::mta().map_err(|_| "inspectFailed")?;
     let automation: IUIAutomation =
         unsafe { CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER) }
-            .map_err(|_| "Could not inspect Discord. Draft saved.")?;
+            .map_err(|_| "inspectFailed")?;
 
     for _ in 0..16 {
         let window = unsafe { GetForegroundWindow() };
@@ -194,23 +245,26 @@ pub fn send(title: &str, text: &str) -> Result<(), String> {
                     .map(|s| s.to_string())
                     .unwrap_or_default();
                 if !matches_target(&target, &editor_name, &window_title) {
-                    return Err("Open this chat in Discord, then retry. Draft saved.".into());
+                    return Err("wrongChat".into());
                 }
-                unsafe { editor.SetFocus() }
-                    .map_err(|_| "Could not focus Discord's editor. Draft saved.")?;
+                // Enter would send a half-written message there together with the reply.
+                let existing = editor_text(&editor).ok_or("inspectFailed")?;
+                if !is_blank(&existing, &editor_name) {
+                    return Err("draftInDiscord".into());
+                }
+                unsafe { editor.SetFocus() }.map_err(|_| "focusLost")?;
                 thread::sleep(Duration::from_millis(80));
-                let focused = unsafe { automation.GetFocusedElement() }
-                    .map_err(|_| "Could not confirm Discord's editor. Draft saved.")?;
+                let focused = unsafe { automation.GetFocusedElement() }.map_err(|_| "focusLost")?;
                 if !unsafe { automation.CompareElements(&editor, &focused) }
                     .is_ok_and(|same| same.as_bool())
                     || unsafe { GetForegroundWindow() } != window
                 {
-                    return Err("Discord lost focus. Draft saved.".into());
+                    return Err("focusLost".into());
                 }
-                type_text(text)?;
+                type_text(window, text)?;
                 thread::sleep(Duration::from_millis(120));
                 if unsafe { GetForegroundWindow() } != window {
-                    return Err("Discord lost focus before sending. Check its draft.".into());
+                    return Err("typingInterrupted".into());
                 }
                 inject(&[key(VK_RETURN, false), key(VK_RETURN, true)])?;
                 return Ok(());
@@ -218,7 +272,7 @@ pub fn send(title: &str, text: &str) -> Result<(), String> {
         }
         thread::sleep(Duration::from_millis(200));
     }
-    Err("Open this chat in Discord, then retry. Draft saved.".into())
+    Err("wrongChat".into())
 }
 
 #[cfg(test)]
@@ -239,6 +293,18 @@ mod tests {
             Some(Target::DirectMessage("alicja".into()))
         );
         assert_eq!(target("Discord"), None);
+    }
+
+    #[test]
+    fn treats_only_an_empty_editor_as_blank() {
+        assert!(is_blank("", "Message #general"));
+        assert!(is_blank("\u{feff}", "Message #general"));
+        assert!(is_blank(" \n\u{200b}", "Message #general"));
+        assert!(is_blank("Message #general", "Message #general"));
+        assert!(!is_blank("half written", "Message #general"));
+        assert!(!is_blank("Message", "Message #general"));
+        assert!(!is_blank("x", ""));
+        assert!(is_blank("", ""));
     }
 
     #[test]
