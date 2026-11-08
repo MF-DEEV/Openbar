@@ -44,9 +44,10 @@ export async function checkNotificationPreview({ send, evaluate, base }) {
     window.island=(await import('/src/island/store.ts')).useIsland;
     window.inbox=(await import('/src/notifications/store.ts')).useNotifications;
     window.present=(await import('/src/notifications/presentation.ts')).notificationNotice;
-    window.calls={open:[],dismiss:[],clear:0};
+    window.calls={open:[],send:[],dismiss:[],clear:0};
     const {bridge}=await import('/src/shared/bridge.ts');
     bridge.notifications.open=async a=>{calls.open.push(a);return true};
+    bridge.notifications.sendDiscord=async(id,text)=>{calls.send.push([id,text])};
     bridge.notifications.dismiss=async id=>{calls.dismiss.push(id);
       return {access:'allowed',items:inbox.getState().items.filter(i=>i.id!==id)}};
     bridge.notifications.clear=async()=>{calls.clear++;return {access:'allowed',items:[]}};
@@ -94,6 +95,37 @@ export async function checkNotificationPreview({ send, evaluate, base }) {
   assert(shown.fits && !shown.overflow, `The preview must fit its content: ${JSON.stringify(shown)}`);
   await shoot("notification-preview");
 
+  // Every preview action, including dismiss, gets the same visible hover outline.
+  for (const selector of [
+    ".nt-preview-actions .n-pill-button:first-child",
+    ".nt-preview-actions .n-pill-button:nth-child(2)",
+    ".nt-preview-actions .n-pill-button:nth-child(3)",
+    ".nt-preview-head .nt-mini",
+  ]) {
+    const point = await center(selector);
+    await mouse(point.x, point.y);
+    await wait(190);
+    assert.notEqual(
+      await evaluate(`getComputedStyle(document.querySelector(${JSON.stringify(selector)})).boxShadow`),
+      "none",
+      selector,
+    );
+  }
+
+  // Reply grows inside the same preview, then returns to the original size.
+  const compactHeight = await evaluate(`document.querySelector('.island-frame').getBoundingClientRect().height`);
+  await click(await center(".nt-preview-actions .n-pill-button:first-child"));
+  await wait(550);
+  const reply = await evaluate(`(()=>{const frame=document.querySelector('.island-frame').getBoundingClientRect();
+    const composer=document.querySelector('.nt-preview-reply').getBoundingClientRect();
+    return {visible:!!document.querySelector('.nt-preview-reply-field textarea'),height:frame.height,
+      fits:composer.bottom<=frame.bottom+1,expanded:window.island.getState().expanded}})()`);
+  assert(reply.visible && reply.fits && !reply.expanded && reply.height > compactHeight + 70, JSON.stringify(reply));
+  await shoot("notification-reply");
+  await click(await center(".nt-preview-actions .n-pill-button:first-child"));
+  await wait(850);
+  assert.equal(await evaluate(`!!document.querySelector('.nt-preview-reply')`), false);
+
   // A long sender wraps to two lines and the island grows to fit, in both silhouettes.
   const long = item(1, "Bardzo długa nazwa nadawcy, która nie mieści się w jednej linii podglądu (#general, Friends)");
   for (const silhouette of ["notch", "capsule"]) {
@@ -116,7 +148,7 @@ export async function checkNotificationPreview({ send, evaluate, base }) {
   assert.match(await evaluate(`document.querySelector('.nt-preview-title').innerText`), /Bartek/);
 
   // Open launches the source app and leaves the island closed.
-  await click(await center(".nt-preview-actions .is-prominent"));
+  await click(await center(".nt-preview-actions .is-prominent:nth-child(2)"));
   await wait(50);
   assert.deepEqual(await state(), { notice: null, expanded: false, open: false });
   assert.deepEqual(await evaluate(`calls.open`), ["com.squirrel.Discord.Discord"]);
@@ -199,6 +231,18 @@ export async function checkNotificationPreview({ send, evaluate, base }) {
   );
   assert.equal(await evaluate(`!!document.querySelector('.nt-card .nt-icon')`), true);
   await shoot("notification-history-search");
+  await evaluate(
+    `(()=>{const e=document.querySelector('.nt-search input');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(e,'');e.dispatchEvent(new Event('input',{bubbles:true}))})()`,
+  );
+  await wait(100);
+  await click(await center(".nt-card .nt-mini"));
+  await wait(100);
+  await click(await center(".nt-card .nt-reply textarea"));
+  await send("Input.insertText", { text: "Test reply" });
+  await click(await center(".nt-card .nt-reply-submit"));
+  await wait(100);
+  assert.deepEqual(await evaluate(`calls.send`), [[1, "Test reply"]]);
+  assert.equal(await evaluate(`inbox.getState().replyDrafts[1]`), "");
   console.log(
     "Notification preview passed. Screenshots: build/notification-preview.png, build/notification-clear-all.png",
   );

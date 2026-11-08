@@ -8,8 +8,8 @@
 
 import { useLocale, t, dateTimeFormat } from "../i18n";
 
-import { AppWindow, Bell, Search, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { AppWindow, Bell, Reply, Search, Send, Trash2, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { useIsland } from "../island/store";
 import { EmptyState } from "../island/views/Controls";
 import { bridge } from "../shared/bridge";
@@ -17,7 +17,8 @@ import { Sheet } from "../tools/Sheet";
 import { clock, NotificationIcon } from "./NotificationPreview";
 import { useNotifications } from "./store";
 import type { Item } from "./types";
-import { notificationPresentation } from "./presentation";
+import { useDiscordReply } from "./reply";
+import { canReplyInDiscord, notificationPresentation } from "./presentation";
 
 const PRIVACY = () => t("windows.notifications.notificationsShowTheAppIconAppNameAnd");
 
@@ -156,6 +157,16 @@ function ClearConfirmation() {
 function Card({ item }: { item: Item }) {
   useLocale();
   const display = notificationPresentation(item);
+  const discord = canReplyInDiscord(item);
+  const reply = useDiscordReply(item.id);
+  const { replying } = reply;
+  const field = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    if (replying) {
+      field.current?.scrollIntoView({ block: "nearest" });
+      field.current?.focus();
+    }
+  }, [replying]);
   return (
     <div className="nt-card">
       <div className="nt-card-head">
@@ -164,6 +175,18 @@ function Card({ item }: { item: Item }) {
           {display.app}
         </span>
         <span className="nt-time">{clock(item.time)}</span>
+        {discord ? (
+          <button
+            type="button"
+            className="nt-mini"
+            aria-label={t("windows.notifications.replyInDiscord")}
+            aria-expanded={replying}
+            title={t("windows.notifications.replyInDiscord")}
+            onClick={reply.toggle}
+          >
+            <Reply size={12} />
+          </button>
+        ) : null}
         <button
           type="button"
           className="nt-mini"
@@ -187,6 +210,43 @@ function Card({ item }: { item: Item }) {
         {display.sender || display.app}
       </div>
       {display.message ? <div className="nt-body">{display.message}</div> : null}
+      {display.image ? (
+        <img className="nt-card-image" src={display.image} alt={t("windows.notifications.discordImageAlt")} />
+      ) : null}
+      {discord && replying ? (
+        <div className="nt-reply">
+          <div className="nt-reply-compose">
+            <textarea
+              ref={field}
+              value={reply.draft}
+              onChange={(event) => reply.setDraft(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+                  event.preventDefault();
+                  void reply.send();
+                }
+              }}
+              placeholder={t("windows.notifications.writeReply")}
+              aria-label={t("windows.notifications.writeReplyLabel")}
+              rows={1}
+            />
+            <button
+              type="button"
+              className="nt-reply-submit"
+              disabled={!reply.draft.trim() || reply.busy}
+              onClick={() => void reply.send()}
+              title={t("windows.notifications.sendReplyLabel")}
+              aria-label={t("windows.notifications.sendReplyLabel")}
+            >
+              <Send size={14} />
+              <span>{t("windows.notifications.sendReply")}</span>
+            </button>
+          </div>
+          <span className="nt-reply-hint" role="status">
+            {reply.status}
+          </span>
+        </div>
+      ) : null}
     </div>
   );
 }

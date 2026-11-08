@@ -11,6 +11,8 @@ mod capture;
 mod clipboard;
 mod com;
 mod discord_keys;
+#[cfg(windows)]
+mod discord_reply;
 mod discord_storage;
 mod downloads;
 mod files;
@@ -256,6 +258,7 @@ pub fn run() {
             notifications::notifications_dismiss,
             notifications::notifications_clear,
             notifications::notifications_open,
+            notifications::notifications_send_discord,
             notifications::notifications_open_privacy_settings,
             prefs::prefs_get,
             prefs::prefs_set,

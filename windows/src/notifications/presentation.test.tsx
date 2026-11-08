@@ -6,7 +6,13 @@ import { afterEach, expect, it, vi } from "vitest";
 import { geometryOf, useIsland } from "../island/store";
 import { NoticeView } from "../island/views/Closed";
 import { NotificationsPage } from "./NotificationsPage";
-import { notificationNotice, notificationPresentation, notificationSource } from "./presentation";
+import {
+  canReplyInDiscord,
+  discordImageUrl,
+  notificationNotice,
+  notificationPresentation,
+  notificationSource,
+} from "./presentation";
 import { useNotifications } from "./store";
 import type { Item } from "./types";
 
@@ -50,10 +56,21 @@ it("shows Discord and the sender without message text anywhere in the compact is
   expect(html).not.toContain("Druga linia");
 });
 
-it("uses the real app icon when Windows supplies one", () => {
+it("uses the branded Discord icon and keeps native icons for other apps", () => {
   const icon = "data:image/png;base64,native";
-  expect(notificationPresentation({ ...discord, icon }).icon).toBe(icon);
+  expect(notificationPresentation({ ...discord, icon }).icon).not.toBe(icon);
+  expect(notificationPresentation({ ...discord, app: "Slack", aumid: "com.slack", icon }).icon).toBe(icon);
   expect(notificationNotice({ ...discord, icon }).imageFallback).toBeTruthy();
+});
+
+it("shows only direct Discord CDN image links included in notification text", () => {
+  const image = "https://cdn.discordapp.com/attachments/123/456/photo.png?ex=abc";
+  expect(discordImageUrl(`Photo: ${image}`)).toBe(image);
+  expect(notificationNotice({ ...discord, body: `Photo: ${image}` }).notification?.image).toBe(image);
+  expect(discordImageUrl("https://evil.example/attachments/123/photo.png")).toBeUndefined();
+  expect(discordImageUrl("https://cdn.discordapp.com.evil.example/attachments/123/photo.png")).toBeUndefined();
+  expect(discordImageUrl("https://cdn.discordapp.com/attachments/123/456/secret.txt")).toBeUndefined();
+  expect(discordImageUrl("sent an image")).toBeUndefined();
 });
 
 it.each([
@@ -93,4 +110,11 @@ it("removes a visible message when the native inbox is cleared on lock or disabl
   useIsland.setState({ notice: notificationNotice(discord) });
   useNotifications.getState().receive({ access: "allowed", items: [] });
   expect(useIsland.getState().notice).toBeNull();
+});
+
+it("offers Reply for the stable Discord client only, which is all the backend types into", () => {
+  expect(canReplyInDiscord({ aumid: "com.squirrel.Discord.Discord" })).toBe(true);
+  for (const build of ["DiscordCanary", "DiscordPTB", "DiscordDevelopment"])
+    expect(canReplyInDiscord({ aumid: `com.squirrel.${build}.${build}` })).toBe(false);
+  expect(canReplyInDiscord({ aumid: "com.slack" })).toBe(false);
 });

@@ -277,6 +277,7 @@ export const bridge = {
     dismiss: (id: number) => call<Inbox>("notifications_dismiss", { id }),
     clear: () => call<Inbox>("notifications_clear"),
     open: (aumid: string) => call<boolean>("notifications_open", { aumid }),
+    sendDiscord: (id: number, text: string) => call<void>("notifications_send_discord", { id, text }),
   },
   downloads: {
     snapshot: () => call<DownloadSnapshot>("downloads_snapshot"),

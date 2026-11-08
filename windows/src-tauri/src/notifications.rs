@@ -193,12 +193,79 @@ mod imp {
         if !has_identity() {
             return Access::Unavailable;
         }
-        match UserNotificationListener::Current().and_then(|l| l.GetAccessStatus()) {
+        let Ok(listener) = UserNotificationListener::Current() else {
+            return Access::Unavailable;
+        };
+        match listener.GetAccessStatus() {
             Ok(UserNotificationListenerAccessStatus::Allowed) => Access::Allowed,
             Ok(UserNotificationListenerAccessStatus::Denied) => Access::Denied,
             Ok(_) => Access::NotAsked,
-            Err(_) => Access::Unavailable,
+            // Some sparse-package installations return E_INVALIDARG for the
+            // status even after RequestAccessAsync grants consent. The read
+            // operation itself is authoritative in that case.
+            Err(_) => {
+                if listener
+                    .GetNotificationsAsync(NotificationKinds::Toast)
+                    .and_then(|operation| operation.join())
+                    .is_ok()
+                {
+                    Access::Allowed
+                } else {
+                    Access::Unavailable
+                }
+            }
         }
+    }
+
+    /// WinRT's listener must be asked from the app's UI apartment on some
+    /// Windows installations. Awaiting the operation stays on this worker.
+    /// None when the UI thread could not answer in time: that says nothing
+    /// about access, so the caller keeps what it knew.
+    fn snapshot_on_ui<R: Runtime>(
+        app: &AppHandle<R>,
+        read: bool,
+    ) -> Option<(Access, Option<Vec<UserNotification>>)> {
+        let (reply, answer) = std::sync::mpsc::channel();
+        if app
+            .run_on_main_thread(move || {
+                let result = UserNotificationListener::Current().map(|listener| {
+                    let status = listener.GetAccessStatus();
+                    let operation =
+                        read.then(|| listener.GetNotificationsAsync(NotificationKinds::Toast));
+                    (status, operation)
+                });
+                let _ = reply.send(result);
+            })
+            .is_err()
+        {
+            return None;
+        }
+        // A listener that cannot be created at all is a real answer.
+        let (status, operation) = match answer.recv_timeout(Duration::from_secs(3)).ok()? {
+            Ok(pair) => pair,
+            Err(_) => return Some((Access::Unavailable, None)),
+        };
+        let notes = operation
+            .and_then(Result::ok)
+            .and_then(|operation| operation.join().ok())
+            .map(|list| list.into_iter().collect::<Vec<_>>());
+        let access = match status {
+            Ok(UserNotificationListenerAccessStatus::Allowed) => Access::Allowed,
+            Ok(UserNotificationListenerAccessStatus::Denied) => Access::Denied,
+            Ok(_) => Access::NotAsked,
+            Err(_) if notes.is_some() => Access::Allowed,
+            Err(_) => Access::Unavailable,
+        };
+        if let Some(path) = std::env::var_os("OPENBAR_NOTIFICATION_UI_PROBE") {
+            static PROBE: std::sync::Once = std::sync::Once::new();
+            PROBE.call_once(|| {
+                let _ = std::fs::write(
+                    path,
+                    format!("{access:?} {}", notes.as_ref().map_or(0, Vec::len)),
+                );
+            });
+        }
+        Some((access, notes))
     }
 
     /// Start consent on the UI thread; wait elsewhere so Windows can show its dialog.
@@ -226,28 +293,37 @@ mod imp {
     }
 
     pub fn probe() -> serde_json::Value {
-        unsafe {
-            let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
-        }
+        let apartment_error = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }
+            .ok()
+            .err()
+            .map(|error| error.to_string());
         let identity = Package::Current()
             .ok()
             .and_then(|p| p.Id().ok())
             .and_then(|id| id.Name().ok())
             .map(|name| name.to_string());
         let status = access();
-        let (count, error) = if status == Access::Allowed {
-            match UserNotificationListener::Current()
-                .and_then(|l| l.GetNotificationsAsync(NotificationKinds::Toast))
-                .and_then(|op| op.join())
-            {
-                Ok(list) => (list.Size().ok(), None),
-                Err(error) => (None, Some(format!("{}", error))),
-            }
-        } else {
-            (None, None)
+        let (listener_error, status_error) = match UserNotificationListener::Current() {
+            Ok(listener) => (
+                None,
+                listener
+                    .GetAccessStatus()
+                    .err()
+                    .map(|error| error.to_string()),
+            ),
+            Err(error) => (Some(error.to_string()), None),
+        };
+        let (count, error) = match UserNotificationListener::Current()
+            .and_then(|listener| listener.GetNotificationsAsync(NotificationKinds::Toast))
+            .and_then(|operation| operation.join())
+        {
+            Ok(list) => (list.Size().ok(), None),
+            Err(error) => (None, Some(error.to_string())),
         };
         serde_json::json!({ "identity": identity, "access": status,
-            "notificationCount": count, "error": error })
+            "notificationCount": count, "error": error,
+            "apartmentError": apartment_error, "listenerError": listener_error,
+            "statusError": status_error })
     }
 
     fn icon(n: &UserNotification) -> Option<String> {
@@ -377,17 +453,8 @@ mod imp {
                     let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
                 }
                 let mut last_access = None;
+                let mut idle_polls: u32 = 0;
                 loop {
-                    let access = access();
-                    if last_access != Some(access) {
-                        last_access = Some(access);
-                        let mut state = shared.lock().unwrap();
-                        state.access = access;
-                        if access != Access::Allowed {
-                            state.clear_private();
-                        }
-                        let _ = app.emit("notifications://inbox", state.inbox());
-                    }
                     let shell = unsafe { SHQueryUserNotificationState() }.ok();
                     let locked = shell == Some(QUNS_NOT_PRESENT);
                     let enabled = {
@@ -399,17 +466,39 @@ mod imp {
                         }
                         state.enabled
                     };
+                    let reading = enabled && !locked;
+                    // Off or locked, nothing is read or shown: ask Windows about
+                    // access every tenth poll instead of hopping to the UI thread
+                    // every second.
+                    let due = reading || idle_polls.is_multiple_of(10);
+                    idle_polls = if reading {
+                        0
+                    } else {
+                        idle_polls.wrapping_add(1)
+                    };
+                    let Some((access, notes)) =
+                        due.then(|| snapshot_on_ui(&app, reading)).flatten()
+                    else {
+                        thread::sleep(Duration::from_secs(1));
+                        continue;
+                    };
+                    if last_access != Some(access) {
+                        last_access = Some(access);
+                        let mut state = shared.lock().unwrap();
+                        state.access = access;
+                        if access != Access::Allowed {
+                            state.clear_private();
+                        }
+                        let _ = app.emit("notifications://inbox", state.inbox());
+                    }
                     // Receive only native desktop notifications: Discord's own
                     // DND and channel mutes suppress their creation upstream.
                     // Also avoid interrupting presentations and inactive sessions.
                     if access == Access::Allowed
                         && enabled
                         && !locked
-                        && let Ok(list) = UserNotificationListener::Current()
-                            .and_then(|l| l.GetNotificationsAsync(NotificationKinds::Toast))
-                            .and_then(|op| op.join())
+                        && let Some(notes) = notes
                     {
-                        let notes: Vec<UserNotification> = list.into_iter().collect();
                         let ids: Vec<u32> = notes.iter().filter_map(|n| n.Id().ok()).collect();
                         let (collect, fresh, seen_changed) = {
                             let mut state = shared.lock().unwrap();
@@ -547,7 +636,47 @@ pub fn notifications_clear(app: tauri::AppHandle, state: tauri::State<'_, Shared
 /// Opens the app a notification came from (the listener cannot run the banner's own action).
 #[tauri::command]
 pub fn notifications_open(aumid: String) -> bool {
+    if aumid.eq_ignore_ascii_case("com.squirrel.Discord.Discord") {
+        // The protocol can succeed while Discord stays hidden in the tray.
+        // Restore its existing window, or launch its running executable.
+        return crate::media::open_player("Discord.exe")
+            || tauri_plugin_opener::open_url("discord://", None::<&str>).is_ok();
+    }
     crate::media::open_player(&aumid)
+}
+
+/// Types into the matching Discord conversation and presses Send on the user's click.
+/// Errors are codes the island translates (notifications/reply.ts).
+#[tauri::command]
+pub async fn notifications_send_discord(
+    state: tauri::State<'_, Shared>,
+    id: u32,
+    text: String,
+) -> Result<(), String> {
+    let title = {
+        let state = state.lock().map_err(|_| "unavailable")?;
+        let item = state
+            .items
+            .iter()
+            .find(|item| item.id == id)
+            .ok_or("gone")?;
+        if !item
+            .aumid
+            .eq_ignore_ascii_case("com.squirrel.Discord.Discord")
+        {
+            return Err("notDiscord".into());
+        }
+        item.title.clone()
+    };
+    #[cfg(windows)]
+    return tauri::async_runtime::spawn_blocking(move || crate::discord_reply::send(&title, &text))
+        .await
+        .map_err(|_| "unavailable".to_string())?;
+    #[cfg(not(windows))]
+    {
+        let _ = (title, text);
+        Err("unavailable".into())
+    }
 }
 
 #[tauri::command]

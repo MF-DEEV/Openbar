@@ -35,7 +35,7 @@
   <Applications>
     <Application Id="Openbar" Executable="Openbar.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
       <uap:VisualElements DisplayName="Openbar" Description="Openbar Dynamic Island" BackgroundColor="transparent"
-        Square150x150Logo="icon.png" Square44x44Logo="icon.png" AppListEntry="none" />
+        Square150x150Logo="icon.png" Square44x44Logo="icon.png" />
     </Application>
   </Applications>
   <Capabilities>
