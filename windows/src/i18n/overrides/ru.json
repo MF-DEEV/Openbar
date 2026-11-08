@@ -737,7 +737,7 @@
   "windows.notifications.writeReplyLabel": "Ответ для отправки в Discord",
   "windows.notifications.sendReply": "Отправить",
   "windows.notifications.sendReplyLabel": "Отправить ответ в Discord",
-  "windows.notifications.replyHint": "Enter отправляет · Shift+Enter — новая строка",
+  "windows.notifications.replyHint": "Enter отправляет · Shift+Enter добавляет строку",
   "windows.notifications.replyInDiscord": "Ответить в Discord",
   "windows.notifications.discordImageAlt": "Изображение из сообщения Discord",
   "windows.notifications.replyErrorNoChat": "Не удалось понять, из какого чата это уведомление. Черновик сохранён.",
@@ -750,5 +750,6 @@
   "windows.notifications.replyErrorTypingInterrupted": "Discord потерял фокус во время ввода. Проверьте поле сообщения; ничего не отправлено.",
   "windows.notifications.replyErrorInputRefused": "Discord не принял текст. Проверьте поле сообщения; ничего не отправлено.",
   "windows.notifications.replyErrorGone": "Этого уведомления больше нет.",
-  "windows.notifications.replyErrorGeneric": "Не удалось отправить ответ. Черновик сохранён."
+  "windows.notifications.replyErrorGeneric": "Не удалось отправить ответ. Черновик сохранён.",
+  "windows.notifications.replyErrorAccessibilityOff": "Discord не открывает доступ к полю сообщения. Включите специальные возможности в настройках рабочего стола и перезапустите Discord."
 }

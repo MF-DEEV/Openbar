@@ -750,5 +750,6 @@
   "windows.notifications.replyErrorTypingInterrupted": "入力中に Discord のフォーカスが外れました。メッセージ欄を確認してください。何も送信されていません。",
   "windows.notifications.replyErrorInputRefused": "Discord がテキストを受け付けませんでした。メッセージ欄を確認してください。何も送信されていません。",
   "windows.notifications.replyErrorGone": "この通知はもうありません。",
-  "windows.notifications.replyErrorGeneric": "返信を送信できませんでした。下書きは残っています。"
+  "windows.notifications.replyErrorGeneric": "返信を送信できませんでした。下書きは残っています。",
+  "windows.notifications.replyErrorAccessibilityOff": "Discord がメッセージ欄を公開していません。デスクトップの設定でアクセシビリティをオンにして、Discord を再起動してください。"
 }

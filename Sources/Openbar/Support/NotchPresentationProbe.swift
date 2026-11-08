@@ -413,6 +413,8 @@ enum NotchPresentationProbe {
         case mediaLayout = "--media-layout"
         case missionControl = "--mission-control"
         case previewNotice = "--preview-notice"
+        case discordReplyPreview = "--discord-reply-preview"
+        case discordReplySend = "--discord-reply-send"
         case profileOnly = "--profile-only"
         case quickAccessClicks = "--quick-access-clicks"
     }
@@ -437,6 +439,12 @@ enum NotchPresentationProbe {
                     print("NOTCH PREVIEW FAILED: --preview-notice needs a title"); exit(1)
                 }
                 previewNoticeAndExit(title: arguments[index + 1])
+            case .discordReplyPreview: DiscordReplyProbe.previewAndExit(arguments: arguments)
+            case .discordReplySend:
+                guard arguments.indices.contains(index + 2) else {
+                    print("DISCORD REPLY FAILED: --discord-reply-send needs a notification title and a reply"); exit(1)
+                }
+                DiscordReplyProbe.sendAndExit(title: arguments[index + 1], text: arguments[index + 2])
             case .profileOnly: runProfileAndExit()
             case .quickAccessClicks: runQuickAccessClicksAndExit()
             }

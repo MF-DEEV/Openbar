@@ -79,19 +79,25 @@ impl Display {
     /// Discord's main window, topmost first, with its title and pid.
     fn discord(&self) -> Option<(Window, String, Option<u32>)> {
         let c = &self.connection;
-        let list = x11::atom(c, "_NET_CLIENT_LIST_STACKING")?;
         let (name, utf8, pid) = (
             x11::atom(c, "_NET_WM_NAME")?,
             x11::atom(c, "UTF8_STRING")?,
             x11::atom(c, "_NET_WM_PID")?,
         );
-        let windows: Vec<Window> = c
-            .get_property(false, self.root, list, AtomEnum::WINDOW, 0, 4096)
-            .ok()?
-            .reply()
-            .ok()?
-            .value32()?
-            .collect();
+        // Bottom to top where the window manager keeps a stacking list; some
+        // (xfwm4 among them) only keep the list in mapping order.
+        let windows: Vec<Window> = ["_NET_CLIENT_LIST_STACKING", "_NET_CLIENT_LIST"]
+            .into_iter()
+            .find_map(|list| {
+                let list = x11::atom(c, list)?;
+                let reply = c
+                    .get_property(false, self.root, list, AtomEnum::WINDOW, 0, 4096)
+                    .ok()?
+                    .reply()
+                    .ok()?;
+                let windows: Vec<Window> = reply.value32()?.collect();
+                (!windows.is_empty()).then_some(windows)
+            })?;
         let class = discord_class();
         windows.into_iter().rev().find_map(|window| {
             let classes = self.text(window, AtomEnum::WM_CLASS.into(), AtomEnum::STRING.into());
@@ -397,9 +403,11 @@ pub fn send(app_id: &str, title: &str, text: &str) -> Result<(), String> {
         .map(|(_, title, _)| title)
         .unwrap_or_default();
     let accessibility = Accessibility::open().ok_or("inspectFailed")?;
+    // Discord joins the accessibility bus only when it starts with assistive
+    // technologies on; turning them on later does not bring it.
     let app = pid
         .and_then(|pid| accessibility.application(pid))
-        .ok_or("inspectFailed")?;
+        .ok_or("accessibilityOff")?;
     let (editor, editor_name) = accessibility
         .composer(&app, |name| matches_target(&target, name, &window_title))
         .ok_or("wrongChat")?;

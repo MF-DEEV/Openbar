@@ -750,5 +750,6 @@
   "windows.notifications.replyErrorTypingInterrupted": "输入时 Discord 失去了焦点。请检查它的消息框；没有发送任何内容。",
   "windows.notifications.replyErrorInputRefused": "Discord 没有接收文字。请检查它的消息框；没有发送任何内容。",
   "windows.notifications.replyErrorGone": "这条通知已不存在。",
-  "windows.notifications.replyErrorGeneric": "无法发送回复。草稿已保留。"
+  "windows.notifications.replyErrorGeneric": "无法发送回复。草稿已保留。",
+  "windows.notifications.replyErrorAccessibilityOff": "Discord 没有公开它的消息框。请在桌面设置中打开辅助功能，然后重新启动 Discord。"
 }

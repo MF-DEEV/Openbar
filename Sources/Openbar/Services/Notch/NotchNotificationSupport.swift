@@ -219,12 +219,26 @@ enum NotchNotificationPreviewLayout {
     static let titleLines = 2
     static let subtitleLines = 1
     static let bodyLines = 6
+    /// A Discord attachment the message text links to, and the reply field.
+    static let imageHeight: CGFloat = 96
+    static let replyHeight: CGFloat = 100
+    /// The message whose held preview has its reply field open, so the island
+    /// measures the preview with it. Set by NotchNotificationService.
+    nonisolated(unsafe) static var replyingID: UUID?
 
-    static func contentHeight(for content: NotchNotificationContent, width: CGFloat) -> CGFloat {
+    static func contentHeight(for content: NotchNotificationContent, width: CGFloat, replying: Bool = false) -> CGFloat {
         let blocks = [textHeight(content.title, font: titleFont, lines: titleLines, width: width),
                       textHeight(content.subtitle, font: subtitleFont, lines: subtitleLines, width: width),
-                      textHeight(content.body, font: bodyFont, lines: bodyLines, width: width)].filter { $0 > 0 }
+                      textHeight(content.body, font: bodyFont, lines: bodyLines, width: width),
+                      image(for: content) == nil ? 0 : imageHeight,
+                      replying ? replyHeight : 0].filter { $0 > 0 }
         return headerHeight + (blocks + [actionHeight]).reduce(0) { $0 + spacing + $1 }
+    }
+
+    /// Only Discord's own attachment links are shown as pictures.
+    static func image(for content: NotchNotificationContent) -> URL? {
+        guard content.app.lowercased().hasPrefix("discord") else { return nil }
+        return DiscordReplySupport.imageURL(in: content.body)
     }
 
     static func textHeight(_ text: String, font: NSFont, lines: Int, width: CGFloat) -> CGFloat {

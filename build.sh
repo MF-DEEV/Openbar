@@ -350,6 +350,8 @@ if (( TEST )); then
         Sources/Openbar/Services/Notch/NotchSectionPaging.swift
         Sources/Openbar/Services/Notch/NotchSliderEditing.swift
         Sources/Openbar/Services/Notch/NotchNotificationSupport.swift
+        Sources/Openbar/Services/Discord/DiscordReplySupport.swift
+        Sources/Openbar/Core/DiscordReplyStrings.swift
         Sources/Openbar/Services/Notch/NotchNotificationReaderCore.swift
         Sources/Openbar/Services/Notch/NotchCalendarSupport.swift
         Sources/Openbar/Services/Notch/NotchKeepAwakeSupport.swift

@@ -3772,6 +3772,7 @@ export type CatalogKey =
   | "windows.notifications.cancelReply"
   | "windows.notifications.discordImageAlt"
   | "windows.notifications.reply"
+  | "windows.notifications.replyErrorAccessibilityOff"
   | "windows.notifications.replyErrorDraftInDiscord"
   | "windows.notifications.replyErrorFocusLost"
   | "windows.notifications.replyErrorGeneric"

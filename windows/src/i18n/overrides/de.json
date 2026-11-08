@@ -750,5 +750,6 @@
   "windows.notifications.replyErrorTypingInterrupted": "Discord hat beim Tippen den Fokus verloren. Prüfe das Nachrichtenfeld; nichts wurde gesendet.",
   "windows.notifications.replyErrorInputRefused": "Discord hat den Text nicht angenommen. Prüfe das Nachrichtenfeld; nichts wurde gesendet.",
   "windows.notifications.replyErrorGone": "Diese Benachrichtigung ist nicht mehr da.",
-  "windows.notifications.replyErrorGeneric": "Die Antwort konnte nicht gesendet werden. Dein Entwurf bleibt erhalten."
+  "windows.notifications.replyErrorGeneric": "Die Antwort konnte nicht gesendet werden. Dein Entwurf bleibt erhalten.",
+  "windows.notifications.replyErrorAccessibilityOff": "Discord gibt sein Nachrichtenfeld nicht frei. Schalte die Barrierefreiheit in den Desktop-Einstellungen ein und starte Discord neu."
 }

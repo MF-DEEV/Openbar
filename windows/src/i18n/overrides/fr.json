@@ -741,14 +741,15 @@
   "windows.notifications.replyInDiscord": "Répondre dans Discord",
   "windows.notifications.discordImageAlt": "Image du message Discord",
   "windows.notifications.replyErrorNoChat": "Impossible de savoir de quel salon cela vient. Ton brouillon est conservé.",
-  "windows.notifications.replyErrorTooLong": "Discord accepte jusqu'à 2000 caractères.",
-  "windows.notifications.replyErrorOpenFailed": "Impossible d'ouvrir Discord. Ton brouillon est conservé.",
+  "windows.notifications.replyErrorTooLong": "Discord accepte jusqu’à 2000 caractères.",
+  "windows.notifications.replyErrorOpenFailed": "Impossible d’ouvrir Discord. Ton brouillon est conservé.",
   "windows.notifications.replyErrorInspectFailed": "Champ de message de Discord introuvable. Ton brouillon est conservé.",
   "windows.notifications.replyErrorWrongChat": "Ouvre cette discussion dans Discord, puis réessaie. Ton brouillon est conservé.",
-  "windows.notifications.replyErrorDraftInDiscord": "Cette discussion Discord contient déjà du texte non envoyé. Envoie-le ou efface-le d'abord.",
+  "windows.notifications.replyErrorDraftInDiscord": "Cette discussion Discord contient déjà du texte non envoyé. Envoie-le ou efface-le d’abord.",
   "windows.notifications.replyErrorFocusLost": "Discord a perdu le focus. Ton brouillon est conservé.",
-  "windows.notifications.replyErrorTypingInterrupted": "Discord a perdu le focus pendant la saisie. Vérifie son champ de message ; rien n'a été envoyé.",
-  "windows.notifications.replyErrorInputRefused": "Discord n'a pas accepté le texte. Vérifie son champ de message ; rien n'a été envoyé.",
-  "windows.notifications.replyErrorGone": "Cette notification n'existe plus.",
-  "windows.notifications.replyErrorGeneric": "Impossible d'envoyer la réponse. Ton brouillon est conservé."
+  "windows.notifications.replyErrorTypingInterrupted": "Discord a perdu le focus pendant la saisie. Vérifie son champ de message ; rien n’a été envoyé.",
+  "windows.notifications.replyErrorInputRefused": "Discord n’a pas accepté le texte. Vérifie son champ de message ; rien n’a été envoyé.",
+  "windows.notifications.replyErrorGone": "Cette notification n’existe plus.",
+  "windows.notifications.replyErrorGeneric": "Impossible d’envoyer la réponse. Ton brouillon est conservé.",
+  "windows.notifications.replyErrorAccessibilityOff": "Discord ne partage pas son champ de message. Active l’accessibilité dans les réglages du bureau, puis relance Discord."
 }

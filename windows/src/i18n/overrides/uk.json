@@ -737,7 +737,7 @@
   "windows.notifications.writeReplyLabel": "Відповідь для надсилання в Discord",
   "windows.notifications.sendReply": "Надіслати",
   "windows.notifications.sendReplyLabel": "Надіслати відповідь у Discord",
-  "windows.notifications.replyHint": "Enter надсилає · Shift+Enter — новий рядок",
+  "windows.notifications.replyHint": "Enter надсилає · Shift+Enter додає рядок",
   "windows.notifications.replyInDiscord": "Відповісти в Discord",
   "windows.notifications.discordImageAlt": "Зображення з повідомлення Discord",
   "windows.notifications.replyErrorNoChat": "Не вдалося зрозуміти, з якого чату це сповіщення. Чернетку збережено.",
@@ -750,5 +750,6 @@
   "windows.notifications.replyErrorTypingInterrupted": "Discord втратив фокус під час введення. Перевірте поле повідомлення; нічого не надіслано.",
   "windows.notifications.replyErrorInputRefused": "Discord не прийняв текст. Перевірте поле повідомлення; нічого не надіслано.",
   "windows.notifications.replyErrorGone": "Цього сповіщення більше немає.",
-  "windows.notifications.replyErrorGeneric": "Не вдалося надіслати відповідь. Чернетку збережено."
+  "windows.notifications.replyErrorGeneric": "Не вдалося надіслати відповідь. Чернетку збережено.",
+  "windows.notifications.replyErrorAccessibilityOff": "Discord не надає доступ до поля повідомлення. Увімкніть спеціальні можливості в налаштуваннях робочого столу й перезапустіть Discord."
 }

@@ -12,6 +12,7 @@ const REPLY_ERRORS = {
   tooLong: "windows.notifications.replyErrorTooLong",
   openFailed: "windows.notifications.replyErrorOpenFailed",
   inspectFailed: "windows.notifications.replyErrorInspectFailed",
+  accessibilityOff: "windows.notifications.replyErrorAccessibilityOff",
   wrongChat: "windows.notifications.replyErrorWrongChat",
   draftInDiscord: "windows.notifications.replyErrorDraftInDiscord",
   focusLost: "windows.notifications.replyErrorFocusLost",
