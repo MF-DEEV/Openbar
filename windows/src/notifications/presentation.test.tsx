@@ -113,8 +113,10 @@ it("removes a visible message when the native inbox is cleared on lock or disabl
 });
 
 it("offers Reply for the stable Discord client only, which is all the backend types into", () => {
-  expect(canReplyInDiscord({ aumid: "com.squirrel.Discord.Discord" })).toBe(true);
+  for (const aumid of ["com.squirrel.Discord.Discord", "discord", "com.discordapp.Discord"])
+    expect(canReplyInDiscord({ aumid })).toBe(true);
   for (const build of ["DiscordCanary", "DiscordPTB", "DiscordDevelopment"])
     expect(canReplyInDiscord({ aumid: `com.squirrel.${build}.${build}` })).toBe(false);
-  expect(canReplyInDiscord({ aumid: "com.slack" })).toBe(false);
+  for (const aumid of ["discord-canary", "discord-ptb", "com.discordapp.DiscordCanary", "com.slack"])
+    expect(canReplyInDiscord({ aumid })).toBe(false);
 });

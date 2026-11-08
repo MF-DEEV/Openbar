@@ -119,9 +119,11 @@ struct NotchNotice: Equatable {
         return -(geometry.noticeCameraGap / 2 + wing) + inset(wing: wing, geometry: geometry) + NotchMascotSupport.noticeSize / 2
     }
 
+    /// With a reply field open for this message, the preview grows by it.
     func previewContentHeight(width: CGFloat) -> CGFloat {
         guard let notification else { return 0 }
-        return NotchNotificationPreviewLayout.contentHeight(for: notification, width: width)
+        let replying = notificationID != nil && NotchNotificationPreviewLayout.replyingID == notificationID
+        return NotchNotificationPreviewLayout.contentHeight(for: notification, width: width, replying: replying)
     }
 }
 
@@ -2659,6 +2661,43 @@ final class NotchService: ObservableObject {
 
     /// The close button of a held preview also takes the message out of the
     /// inbox, like the close button of the inbox row.
+    /// The held preview of a Discord message grows a reply field. The island
+    /// takes the keyboard for it and gives it back once the field closes.
+    func toggleNotificationReply(_ selectedNotice: NotchNotice) {
+        guard notice == selectedNotice, noticeExpanded, let id = selectedNotice.notificationID else { return }
+        let notifications = NotchNotificationService.shared
+        let opening = notifications.replyingID != id
+        mutatePresentation { notifications.setReplying(opening ? id : nil) }
+        if opening {
+            panel?.acceptsKeyFocus = true
+            panel?.makeKey()
+        } else {
+            releaseReplyKeyboard()
+        }
+    }
+
+    /// A reply on a card of the Notifications page types into the open island.
+    func takeKeyboardForReply() {
+        guard expanded else { return }
+        panel?.acceptsKeyFocus = true
+        panel?.makeKey()
+    }
+
+    /// The held preview closed with its reply field open: the field goes and
+    /// the keyboard returns to the app in front, the draft stays.
+    func endNotificationReply(_ id: UUID) {
+        let notifications = NotchNotificationService.shared
+        guard notifications.replyingID == id else { return }
+        notifications.setReplying(nil)
+        releaseReplyKeyboard()
+    }
+
+    private func releaseReplyKeyboard() {
+        guard !expanded, captureControls == nil else { return }
+        panel?.acceptsKeyFocus = false
+        resignPanelKey()
+    }
+
     func dismissNotification(_ selectedNotice: NotchNotice) {
         guard notice == selectedNotice, let id = selectedNotice.notificationID else { return }
         settleNotificationHover()

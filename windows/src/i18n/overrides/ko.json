@@ -750,5 +750,6 @@
   "windows.notifications.replyErrorTypingInterrupted": "입력 중에 Discord의 포커스가 사라졌습니다. 메시지 입력란을 확인하세요. 아무것도 보내지 않았습니다.",
   "windows.notifications.replyErrorInputRefused": "Discord가 텍스트를 받지 않았습니다. 메시지 입력란을 확인하세요. 아무것도 보내지 않았습니다.",
   "windows.notifications.replyErrorGone": "이 알림은 더 이상 없습니다.",
-  "windows.notifications.replyErrorGeneric": "답장을 보낼 수 없습니다. 초안은 그대로 있습니다."
+  "windows.notifications.replyErrorGeneric": "답장을 보낼 수 없습니다. 초안은 그대로 있습니다.",
+  "windows.notifications.replyErrorAccessibilityOff": "Discord가 메시지 입력란을 공개하지 않습니다. 데스크톱 설정에서 접근성을 켠 뒤 Discord를 다시 시작하세요."
 }

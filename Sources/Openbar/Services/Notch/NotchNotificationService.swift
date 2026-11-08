@@ -18,6 +18,12 @@ final class NotchNotificationService: ObservableObject {
     private var appIcons: [String: NSImage] = [:]
     private var sourceApplications: [UUID: String] = [:]
     @Published private(set) var unavailableID: UUID?
+    /// The Discord message a reply field is open for, its drafts, and why the
+    /// last try did not send.
+    @Published private(set) var replyingID: UUID?
+    @Published private(set) var replyDrafts: [UUID: String] = [:]
+    @Published private(set) var replyFailures: [UUID: DiscordReplySupport.Failure] = [:]
+    @Published private(set) var sendingReplyID: UUID?
     private var observer: AXObserver?
     private var application: AXUIElement?
     private var pid: pid_t?
@@ -150,6 +156,59 @@ final class NotchNotificationService: ObservableObject {
         appIcons = appIcons.filter { sources.contains($0.key) }
         let ids = Set(items.map(\.id))
         sourceApplications = sourceApplications.filter { ids.contains($0.key) }
+        replyDrafts = replyDrafts.filter { ids.contains($0.key) }
+        replyFailures = replyFailures.filter { ids.contains($0.key) }
+        if let replyingID, !ids.contains(replyingID) { setReplying(nil) }
+    }
+
+    #if OPENBAR_DEVELOPMENT
+    /// A message as if Notification Center had shown it, for the reply probe.
+    func receiveForProbe(_ item: NotchSystemNotification, bundleIdentifier: String) {
+        sourceApplications[item.id] = bundleIdentifier
+        _ = inbox.update([])
+        _ = inbox.update([item])
+    }
+    #endif
+
+    // MARK: Discord replies
+
+    /// Messages from the stable Discord app can be answered from the island.
+    func canReply(_ item: NotchSystemNotification) -> Bool {
+        sourceApplications[item.id] == DiscordReplyService.bundleIdentifier
+    }
+
+    func setReplying(_ id: UUID?) {
+        replyingID = id
+        NotchNotificationPreviewLayout.replyingID = id
+        if let id { replyFailures[id] = nil }
+    }
+
+    func setReplyDraft(_ text: String, for id: UUID) {
+        replyDrafts[id] = text
+    }
+
+    /// Types the draft into Discord's matching conversation and presses
+    /// Return. The draft stays when anything does not check out.
+    func sendReply(_ id: UUID) {
+        let draft = (replyDrafts[id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard sendingReplyID == nil, !draft.isEmpty else { return }
+        guard let item = items.first(where: { $0.id == id }), canReply(item) else {
+            replyFailures[id] = .gone
+            return
+        }
+        sendingReplyID = id
+        replyFailures[id] = nil
+        let requested = generation
+        DiscordReplyService.send(title: item.content.title, text: draft) { [weak self] failure in
+            guard let self, self.generation == requested else { return }
+            self.sendingReplyID = nil
+            if let failure {
+                self.replyFailures[id] = failure
+            } else {
+                self.replyDrafts[id] = nil
+                if self.replyingID == id { self.setReplying(nil) }
+            }
+        }
     }
 
     func dismiss(_ id: UUID) {
@@ -163,6 +222,7 @@ final class NotchNotificationService: ObservableObject {
         guard openingID == nil else { return }
         inbox.clear()
         unavailableID = nil
+        setReplying(nil)
         trimIcons()
     }
 
@@ -273,6 +333,7 @@ final class NotchNotificationService: ObservableObject {
         appIcons.removeAll()
         sourceApplications.removeAll()
         unavailableID = nil
+        setReplying(nil); replyDrafts.removeAll(); replyFailures.removeAll(); sendingReplyID = nil
         inbox = NotchNotificationInbox()
     }
 

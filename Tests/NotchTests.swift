@@ -1763,6 +1763,7 @@ enum NotchTests {
         NotchAudioLevelTests.run { suite.expect($0, $1) }
         calendarContracts(suite)
         NotchNotificationTests.run(suite)
+        DiscordReplyTests.run(suite)
         NotchNotificationReaderTests.run(suite)
         NotchGestureTests.run(suite)
         NotchSectionPagingTests.run(suite)

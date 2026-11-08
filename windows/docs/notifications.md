@@ -131,6 +131,18 @@ while the reply is typed. Openbar does not read Discord account tokens. Windows'
 basic toast text lacks a channel identifier, so the matching conversation must
 already be selected in Discord. Reply is offered for the stable Discord client only;
 Canary, PTB and Development show their notifications without it.
+The checks follow what Discord's own client code shows (2026-11-08): the window
+title `#channel | Server` (`@Name` for a direct message) and a message box labelled
+with its placeholder, `Message #channel` in the client's language. They live in
+`src-tauri/src/discord_reply.rs`, shared with Linux, and in
+`Sources/Openbar/Services/Discord/DiscordReplySupport.swift` on the Mac.
+
+On Linux the window is found by its class over X11, the message box is read through
+AT-SPI, the desktop's accessibility bus, and the reply is typed through XTEST.
+Discord, like every Chromium app, joins that bus only when it starts with assistive
+technologies on (GNOME's accessibility setting, or `ACCESSIBILITY_ENABLED=1` in
+Discord's environment); turning them on later needs a Discord restart. Without it
+Reply says so and sends nothing. Wayland sessions are not supported.
 An image preview appears when the notification text includes a direct Discord CDN
 attachment URL. Windows' notification listener exposes text and the app icon, but
 not image elements from another app's toast, so an attachment omitted from the

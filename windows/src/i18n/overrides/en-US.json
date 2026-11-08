@@ -740,15 +740,16 @@
   "windows.notifications.replyHint": "Enter sends · Shift+Enter adds a line",
   "windows.notifications.replyInDiscord": "Reply in Discord",
   "windows.notifications.discordImageAlt": "Image from the Discord message",
-  "windows.notifications.replyErrorNoChat": "Can't tell which chat this came from. Your draft is kept.",
+  "windows.notifications.replyErrorNoChat": "Can’t tell which chat this came from. Your draft is kept.",
   "windows.notifications.replyErrorTooLong": "Discord takes up to 2000 characters.",
-  "windows.notifications.replyErrorOpenFailed": "Couldn't open Discord. Your draft is kept.",
-  "windows.notifications.replyErrorInspectFailed": "Couldn't find Discord's message box. Your draft is kept.",
+  "windows.notifications.replyErrorOpenFailed": "Couldn’t open Discord. Your draft is kept.",
+  "windows.notifications.replyErrorInspectFailed": "Couldn’t find Discord’s message box. Your draft is kept.",
   "windows.notifications.replyErrorWrongChat": "Open this chat in Discord, then try again. Your draft is kept.",
   "windows.notifications.replyErrorDraftInDiscord": "This chat in Discord already has unsent text. Send or clear it there first.",
   "windows.notifications.replyErrorFocusLost": "Discord lost focus. Your draft is kept.",
   "windows.notifications.replyErrorTypingInterrupted": "Discord lost focus while typing. Check its message box; nothing was sent.",
-  "windows.notifications.replyErrorInputRefused": "Discord didn't take the text. Check its message box; nothing was sent.",
+  "windows.notifications.replyErrorInputRefused": "Discord didn’t take the text. Check its message box; nothing was sent.",
   "windows.notifications.replyErrorGone": "This notification is gone.",
-  "windows.notifications.replyErrorGeneric": "Couldn't send the reply. Your draft is kept."
+  "windows.notifications.replyErrorGeneric": "Couldn’t send the reply. Your draft is kept.",
+  "windows.notifications.replyErrorAccessibilityOff": "Discord isn’t sharing its message box. Turn on accessibility in your desktop settings, then restart Discord."
 }

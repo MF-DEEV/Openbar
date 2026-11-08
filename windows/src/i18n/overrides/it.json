@@ -745,10 +745,11 @@
   "windows.notifications.replyErrorOpenFailed": "Impossibile aprire Discord. La bozza resta salvata.",
   "windows.notifications.replyErrorInspectFailed": "Casella dei messaggi di Discord non trovata. La bozza resta salvata.",
   "windows.notifications.replyErrorWrongChat": "Apri questa chat su Discord e riprova. La bozza resta salvata.",
-  "windows.notifications.replyErrorDraftInDiscord": "In questa chat di Discord c'è già testo non inviato. Invialo o cancellalo prima lì.",
+  "windows.notifications.replyErrorDraftInDiscord": "In questa chat di Discord c’è già testo non inviato. Invialo o cancellalo prima lì.",
   "windows.notifications.replyErrorFocusLost": "Discord ha perso il focus. La bozza resta salvata.",
   "windows.notifications.replyErrorTypingInterrupted": "Discord ha perso il focus durante la digitazione. Controlla la casella dei messaggi; non è stato inviato nulla.",
   "windows.notifications.replyErrorInputRefused": "Discord non ha accettato il testo. Controlla la casella dei messaggi; non è stato inviato nulla.",
-  "windows.notifications.replyErrorGone": "Questa notifica non c'è più.",
-  "windows.notifications.replyErrorGeneric": "Impossibile inviare la risposta. La bozza resta salvata."
+  "windows.notifications.replyErrorGone": "Questa notifica non c’è più.",
+  "windows.notifications.replyErrorGeneric": "Impossibile inviare la risposta. La bozza resta salvata.",
+  "windows.notifications.replyErrorAccessibilityOff": "Discord non espone la casella dei messaggi. Attiva l’accessibilità nelle impostazioni del desktop, poi riavvia Discord."
 }

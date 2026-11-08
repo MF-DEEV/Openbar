@@ -81,6 +81,8 @@ private struct NotchNotificationRow: View {
     @ObservedObject var service: NotchNotificationService
     let text: NotchNotificationStrings
     @State private var feedback: String?
+    @ObservedObject private var l10n = L10n.shared
+    private var replying: Bool { service.replyingID == item.id }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -101,17 +103,34 @@ private struct NotchNotificationRow: View {
                     }
                     .disabled(service.openingID != nil)
                 }
+                if service.canReply(item) {
+                    NotchIconButton(symbol: "arrowshape.turn.up.left",
+                                    title: FeatureStrings.discordReply(l10n.language).replyInDiscord,
+                                    selected: replying) {
+                        service.setReplying(replying ? nil : item.id)
+                        if !replying { NotchService.shared.takeKeyboardForReply() }
+                    }
+                }
                 NotchIconButton(symbol: "xmark", title: text.dismiss) { service.dismiss(item.id) }
                     .disabled(service.openingID == item.id)
             }
             .font(.system(size: 11)).foregroundStyle(.white.opacity(0.6))
             .frame(height: 22)
-            Text(item.content.title).font(.system(size: 13, weight: .semibold)).lineLimit(2)
+            Text(item.content.title).font(.system(size: 13, weight: .semibold)).lineLimit(replying ? 1 : 2)
+            if replying {
+                // The card keeps its size, so the field takes the message's place.
+                NotchDiscordReplyField(id: item.id, title: item.content.title, service: service, compact: true)
+            } else {
             if !item.content.subtitle.isEmpty { Text(item.content.subtitle).font(.system(size: 12)).lineLimit(1) }
+            if let url = NotchNotificationPreviewLayout.image(for: item.content) {
+                NotchDiscordImage(url: url, label: FeatureStrings.discordReply(l10n.language).imageLabel)
+                    .frame(maxHeight: 60)
+            }
             if !item.content.body.isEmpty {
                 Text(item.content.body).font(.system(size: 12)).foregroundStyle(.white.opacity(0.8))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
             }
             if let message = feedback ?? (service.unavailableID == item.id ? text.unavailable : nil) {
                 Text(message).font(.caption).foregroundStyle(.orange).lineLimit(1)
@@ -131,12 +150,15 @@ struct NotchNotificationPreviewView: View {
     let notice: NotchNotice
     let content: NotchNotificationContent
     @ObservedObject var service: NotchService
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ObservedObject private var notifications = NotchNotificationService.shared
     @ObservedObject private var l10n = L10n.shared
     private var text: NotchNotificationStrings { FeatureStrings.notchNotifications(l10n.language) }
     private var item: NotchSystemNotification? {
         notifications.items.first { $0.id == notice.notificationID }
     }
+    private var reply: DiscordReplyStrings { FeatureStrings.discordReply(l10n.language) }
+    private var replying: Bool { notice.notificationID != nil && notifications.replyingID == notice.notificationID }
 
     var body: some View {
         VStack(alignment: .leading, spacing: NotchNotificationPreviewLayout.spacing) {
@@ -173,7 +195,18 @@ struct NotchNotificationPreviewView: View {
                     .lineLimit(NotchNotificationPreviewLayout.bodyLines)
                     .textSelection(.enabled)
             }
+            if let url = NotchNotificationPreviewLayout.image(for: content) {
+                NotchDiscordImage(url: url, label: reply.imageLabel)
+                    .frame(height: NotchNotificationPreviewLayout.imageHeight)
+            }
             HStack(spacing: 8) {
+                if let item, notifications.canReply(item) {
+                    Button { service.toggleNotificationReply(notice) } label: {
+                        Label(replying ? reply.cancel : reply.reply, systemImage: "arrowshape.turn.up.left")
+                    }
+                    .buttonStyle(.bordered).controlSize(.small)
+                    .accessibilityAddTraits(replying ? .isSelected : [])
+                }
                 if let item, notifications.canOpen(item) {
                     Button(text.open) { service.activateNotice(notice) }
                         .buttonStyle(.bordered).controlSize(.small)
@@ -201,7 +234,14 @@ struct NotchNotificationPreviewView: View {
                 }
             }
             .frame(height: NotchNotificationPreviewLayout.actionHeight)
+            if replying, let id = notice.notificationID {
+                NotchDiscordReplyField(id: id, title: content.title, service: notifications, compact: false)
+                    .frame(height: NotchNotificationPreviewLayout.replyHeight)
+                    .transition(reduceMotion ? .identity : .opacity.combined(with: .move(edge: .top)))
+            }
         }
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.25), value: replying)
+        .onDisappear { if let id = notice.notificationID { service.endNotificationReply(id) } }
         .frame(maxWidth: .infinity, alignment: .leading)
         .fixedSize(horizontal: false, vertical: true)
         .frame(maxHeight: .infinity, alignment: .top)
@@ -231,5 +271,106 @@ struct NotchNotificationAppIcon: View {
         }
         .frame(width: size, height: size)
         .accessibilityHidden(true)
+    }
+}
+
+/// The reply to a Discord message: a field, Send, and a line that says what
+/// Return does or why the last try did not send.
+struct NotchDiscordReplyField: View {
+    let id: UUID
+    let title: String
+    @ObservedObject var service: NotchNotificationService
+    /// A card on the Notifications page has room for the field only.
+    let compact: Bool
+    @ObservedObject private var l10n = L10n.shared
+    @FocusState private var focused: Bool
+    private var text: DiscordReplyStrings { FeatureStrings.discordReply(l10n.language) }
+    private var draft: Binding<String> {
+        Binding(get: { service.replyDrafts[id] ?? "" }, set: { service.setReplyDraft($0, for: id) })
+    }
+    private var sending: Bool { service.sendingReplyID == id }
+    private var canSend: Bool {
+        !sending && !(service.replyDrafts[id] ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+    private var sender: String {
+        switch DiscordReplySupport.target(title) {
+        case let .some(.channel(name, _)): return title.components(separatedBy: " (#").first.map { "\($0) · #\(name)" } ?? title
+        default: return title
+        }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: compact ? 4 : 6) {
+            if !compact {
+                Text(text.replyTo(sender))
+                    .font(.system(size: 11, weight: .semibold)).foregroundStyle(.white.opacity(0.8))
+                    .lineLimit(1)
+            }
+            HStack(alignment: .center, spacing: 6) {
+                TextField(text.placeholder, text: draft, axis: .vertical)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .lineLimit(1...2)
+                    .focused($focused)
+                    .accessibilityLabel(text.fieldLabel)
+                    .onKeyPress(.return, phases: .down) { press in
+                        if press.modifiers.contains(.shift) {
+                            draft.wrappedValue += "\n"
+                        } else {
+                            service.sendReply(id)
+                        }
+                        return .handled
+                    }
+                    .onExitCommand { service.setReplying(nil) }
+                Button { service.sendReply(id) } label: {
+                    if sending {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Label(text.send, systemImage: "paperplane.fill").labelStyle(.titleAndIcon)
+                    }
+                }
+                .buttonStyle(.bordered).controlSize(.small)
+                .disabled(!canSend)
+                .help(text.sendLabel)
+                .accessibilityLabel(text.sendLabel)
+            }
+            .padding(.horizontal, 8).padding(.vertical, 5)
+            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
+            Text(service.replyFailures[id].map(text.failure) ?? text.hint)
+                .font(.system(size: 10))
+                .foregroundStyle(service.replyFailures[id] == nil ? Color.white.opacity(0.5) : .orange)
+                .lineLimit(compact ? 2 : 1)
+                .accessibilityAddTraits(.updatesFrequently)
+        }
+        .padding(compact ? 0 : 10)
+        .frame(maxWidth: .infinity, alignment: .topLeading)
+        .background {
+            if !compact {
+                RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Color(white: 0.11))
+                    .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .strokeBorder(.white.opacity(focused ? 0.38 : 0.2), lineWidth: 1))
+            }
+        }
+        .onAppear { DispatchQueue.main.async { focused = true } }
+    }
+}
+
+/// An image a Discord message links to on Discord's own attachment hosts.
+struct NotchDiscordImage: View {
+    let url: URL
+    let label: String
+
+    var body: some View {
+        AsyncImage(url: url) { phase in
+            if let image = phase.image {
+                image.resizable().scaledToFill()
+            } else {
+                Color.white.opacity(0.06)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(.white.opacity(0.08)))
+        .accessibilityLabel(label)
     }
 }

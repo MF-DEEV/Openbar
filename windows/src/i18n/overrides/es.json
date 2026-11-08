@@ -750,5 +750,6 @@
   "windows.notifications.replyErrorTypingInterrupted": "Discord perdió el foco mientras escribía. Revisa su cuadro de mensaje; no se envió nada.",
   "windows.notifications.replyErrorInputRefused": "Discord no aceptó el texto. Revisa su cuadro de mensaje; no se envió nada.",
   "windows.notifications.replyErrorGone": "Esta notificación ya no está.",
-  "windows.notifications.replyErrorGeneric": "No se pudo enviar la respuesta. Tu borrador se conserva."
+  "windows.notifications.replyErrorGeneric": "No se pudo enviar la respuesta. Tu borrador se conserva.",
+  "windows.notifications.replyErrorAccessibilityOff": "Discord no expone su cuadro de mensaje. Activa la accesibilidad en los ajustes del escritorio y reinicia Discord."
 }

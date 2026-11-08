@@ -16,6 +16,11 @@ fn main() {
             .unwrap_or_else(|| "microphone-probe.json".into());
         openbar_windows_lib::microphone_probe_main(&path);
     }
+    #[cfg(target_os = "linux")]
+    if std::env::args().nth(1).as_deref() == Some("--discord-reply-probe") {
+        let arg = |n: usize| std::env::args().nth(n).unwrap_or_default();
+        openbar_windows_lib::discord_reply_probe_main(&arg(2), &arg(3), &arg(4), &arg(5));
+    }
     if std::env::args().nth(1).as_deref() == Some("--notifications-probe") {
         let path = std::env::args()
             .nth(2)

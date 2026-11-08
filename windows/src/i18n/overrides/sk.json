@@ -750,5 +750,6 @@
   "windows.notifications.replyErrorTypingInterrupted": "Discord stratil fokus počas písania. Skontrolujte pole na správu; nič sa neodoslalo.",
   "windows.notifications.replyErrorInputRefused": "Discord text neprijal. Skontrolujte pole na správu; nič sa neodoslalo.",
   "windows.notifications.replyErrorGone": "Toto upozornenie už nie je k dispozícii.",
-  "windows.notifications.replyErrorGeneric": "Odpoveď sa nepodarilo odoslať. Koncept zostáva."
+  "windows.notifications.replyErrorGeneric": "Odpoveď sa nepodarilo odoslať. Koncept zostáva.",
+  "windows.notifications.replyErrorAccessibilityOff": "Discord nesprístupňuje pole na správu. Zapnite prístupnosť v nastaveniach pracovného prostredia a reštartujte Discord."
 }

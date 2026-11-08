@@ -11,7 +11,6 @@ mod capture;
 mod clipboard;
 mod com;
 mod discord_keys;
-#[cfg(windows)]
 mod discord_reply;
 mod discord_storage;
 mod downloads;
@@ -90,6 +89,27 @@ pub fn watch_probe_main(path: &str, title: &str) -> ! {
 /// `Openbar.exe --agents-probe <file> [--limits]`: what the AI page would read.
 pub fn agents_probe_main(path: &str, limits: bool) -> ! {
     agent_usage::probe_main(path, limits)
+}
+
+/// `--discord-reply-probe <out> <app id> <title> <text>`: the whole send path
+/// against a stand-in window, which OPENBAR_DISCORD_WINDOW_CLASS must name;
+/// the probe never drives the person's Discord.
+#[cfg(target_os = "linux")]
+pub fn discord_reply_probe_main(path: &str, app_id: &str, title: &str, text: &str) -> ! {
+    let result = if std::env::var_os("OPENBAR_DISCORD_WINDOW_CLASS").is_none() {
+        "refused: set OPENBAR_DISCORD_WINDOW_CLASS to a stand-in".to_string()
+    } else {
+        match discord_reply::send(app_id, title, text) {
+            Ok(()) => "OK".into(),
+            Err(code) => code,
+        }
+    };
+    let written = std::fs::write(path, &result);
+    std::process::exit(if written.is_ok() && result == "OK" {
+        0
+    } else {
+        1
+    });
 }
 
 pub fn notifications_probe_main(path: &str) -> ! {
