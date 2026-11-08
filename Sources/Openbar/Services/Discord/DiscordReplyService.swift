@@ -47,8 +47,8 @@ enum DiscordReplyService {
         // when asked; this asks without changing anything it shows.
         AXUIElementSetAttributeValue(application, "AXManualAccessibility" as CFString, kCFBooleanTrue)
 
-        // Chromium fills in a window's page a moment after it is first asked,
-        // and can keep more than one window under the same title, so every
+        // Chromium fills in a page's tree a moment after it is first asked,
+        // and only for a window in front, so the search waits for it; every
         // window is searched, the focused one first.
         var found: (editor: AXUIElement, label: String, window: String)?
         for _ in 0..<24 where found == nil {
@@ -89,15 +89,17 @@ enum DiscordReplyService {
             _ = launched.wait(timeout: .now() + 10)
         }
         guard let app else { throw Failure.openFailed }
-        // A window hidden to the tray comes back the way the Dock brings it.
-        if let url = app.bundleURL {
-            let configuration = NSWorkspace.OpenConfiguration()
-            configuration.activates = true
-            NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, _ in }
-        }
         app.activate(options: [.activateAllWindows])
-        for _ in 0..<40 {
-            if isFrontmost(app.processIdentifier) { return app }
+        for attempt in 0..<40 {
+            if isFrontmost(app.processIdentifier), hasWindow(app.processIdentifier) { return app }
+            // Discord closed to the tray has no window to activate; asking the
+            // running app to open, as the Dock does, brings its window back.
+            if attempt == 8, !hasWindow(app.processIdentifier), let url = app.bundleURL {
+                let configuration = NSWorkspace.OpenConfiguration()
+                configuration.activates = true
+                configuration.createsNewApplicationInstance = false
+                NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, _ in }
+            }
             Thread.sleep(forTimeInterval: 0.1)
         }
         throw Failure.focusLost
@@ -121,6 +123,10 @@ enum DiscordReplyService {
             if let children = attribute(element, kAXChildrenAttribute) as? [AXUIElement] { queue.append(contentsOf: children) }
         }
         return nil
+    }
+
+    private static func hasWindow(_ pid: pid_t) -> Bool {
+        !((attribute(AXUIElementCreateApplication(pid), kAXWindowsAttribute) as? [AXUIElement]) ?? []).isEmpty
     }
 
     private static func windows(of application: AXUIElement) -> [AXUIElement] {
