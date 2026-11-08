@@ -653,28 +653,27 @@ pub async fn notifications_send_discord(
     id: u32,
     text: String,
 ) -> Result<(), String> {
-    let title = {
+    let (app_id, title) = {
         let state = state.lock().map_err(|_| "unavailable")?;
         let item = state
             .items
             .iter()
             .find(|item| item.id == id)
             .ok_or("gone")?;
-        if !item
-            .aumid
-            .eq_ignore_ascii_case("com.squirrel.Discord.Discord")
-        {
+        if !crate::discord_reply::is_stable_client(&item.aumid) {
             return Err("notDiscord".into());
         }
-        item.title.clone()
+        (item.aumid.clone(), item.title.clone())
     };
-    #[cfg(windows)]
-    return tauri::async_runtime::spawn_blocking(move || crate::discord_reply::send(&title, &text))
-        .await
-        .map_err(|_| "unavailable".to_string())?;
-    #[cfg(not(windows))]
+    #[cfg(any(windows, target_os = "linux"))]
+    return tauri::async_runtime::spawn_blocking(move || {
+        crate::discord_reply::send(&app_id, &title, &text)
+    })
+    .await
+    .map_err(|_| "unavailable".to_string())?;
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
-        let _ = (title, text);
+        let _ = (app_id, title, text);
         Err("unavailable".into())
     }
 }

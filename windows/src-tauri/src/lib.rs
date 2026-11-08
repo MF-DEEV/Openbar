@@ -11,7 +11,6 @@ mod capture;
 mod clipboard;
 mod com;
 mod discord_keys;
-#[cfg(windows)]
 mod discord_reply;
 mod discord_storage;
 mod downloads;

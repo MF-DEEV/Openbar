@@ -28,9 +28,13 @@ export function isDiscordNotification(item: Pick<Item, "app" | "aumid">): boolea
   );
 }
 
-/** The backend types into the stable client only (discord_reply.rs); Canary, PTB and Development get no Reply. */
+/** The stable client's Windows AUMID and Linux desktop entries (package, Flatpak),
+ * the only ones the backend types into (discord_reply.rs is_stable_client).
+ * Canary, PTB and Development get no Reply. */
+const REPLYABLE_DISCORD = new Set(["com.squirrel.discord.discord", "discord", "com.discordapp.discord"]);
+
 export function canReplyInDiscord(item: Pick<Item, "aumid">): boolean {
-  return item.aumid.toLowerCase() === "com.squirrel.discord.discord";
+  return REPLYABLE_DISCORD.has(item.aumid.toLowerCase());
 }
 
 export function notificationPresentation(item: Item) {
