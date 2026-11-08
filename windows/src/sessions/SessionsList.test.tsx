@@ -5,7 +5,7 @@
 
 import { readFileSync } from "node:fs";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { SessionsList } from "./SessionsList";
 import { DOZING_OPACITY } from "./clawd/sprite";
 import { demoSnapshot } from "./demo";
@@ -46,6 +46,7 @@ function rows(sessions: Session[], buddies = true): string {
 }
 
 beforeEach(() => useSessions.setState({ lookedAt: {} }));
+afterEach(() => vi.unstubAllGlobals());
 
 it("dims the whole row of a sleeping session, not its avatar alone", () => {
   const html = rows([quiet]);
@@ -99,4 +100,12 @@ it("names the SSH host of a remote session beside its name, and only then", () =
   expect(rows([quiet])).not.toContain("s-remote-mark");
   const long = rows([{ ...quiet, id: "far", host: "remote", remote: "a-very-long-host-alias.example.com" }]);
   expect(long).toContain("a-very-long-host-alia…");
+});
+
+it("names the terminals and editors of the platform in the empty list", () => {
+  expect(rows([])).toContain("Windows Terminal or VS Code");
+  vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko)" });
+  const html = rows([]);
+  expect(html).toContain("in a terminal or an editor");
+  expect(html).not.toContain("Windows Terminal");
 });

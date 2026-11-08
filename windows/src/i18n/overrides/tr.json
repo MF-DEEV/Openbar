@@ -267,6 +267,7 @@
   "notchClaudeSessions.title": "Oturumlar",
   "notchClaudeSessions.emptyTitle": "Çalışan oturum yok",
   "windows.sessions.emptyDetail": "Windows Terminal veya VS Code'te Claude Code veya Codex başlatın ve burada gösterilir.",
+  "windows.sessions.emptyDetailLinux": "Bir terminalde veya düzenleyicide Claude Code veya Codex başlatın ve burada gösterilir.",
   "notchClaudeSessions.runningTool": "Çalışıyor",
   "notchClaudeSessions.permissionNotice": "İzin gerekiyor",
   "notchClaudeSessions.waitingInput": "Sana ihtiyaç duyuyor",

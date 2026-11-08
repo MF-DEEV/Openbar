@@ -3869,6 +3869,7 @@ export type CatalogKey =
   | "windows.sessions.diffReplacesFile"
   | "windows.sessions.diffUnchanged"
   | "windows.sessions.emptyDetail"
+  | "windows.sessions.emptyDetailLinux"
   | "windows.sessions.enablePreviews"
   | "windows.sessions.firstPrompt"
   | "windows.sessions.firstPromptRequired"

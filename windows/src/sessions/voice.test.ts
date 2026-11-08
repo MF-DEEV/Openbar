@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   began,
   CAP,
@@ -15,11 +15,14 @@ import {
   showsMicrophone,
   start,
   tick,
+  voiceWanted,
   type Machine,
 } from "./voice";
 import type { Session } from "./types";
 
 const recording = (draft = "", sendOnStop = false): Machine => began(start(IDLE, "s", draft, sendOnStop)!, 100);
+
+afterEach(() => vi.unstubAllGlobals());
 
 describe("voice replies", () => {
   it("starts, fills the field and keeps the last words on stop", () => {
@@ -185,5 +188,15 @@ describe("voice replies", () => {
     expect(showsMicrophone(ended, true)).toBe(false);
     expect(showsMicrophone(recent, true)).toBe(true);
     expect(showsMicrophone(recent, false)).toBe(false);
+  });
+
+  it("is off on Linux, which cannot listen yet, whatever Settings says", () => {
+    vi.stubGlobal("navigator", {
+      userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+    });
+    expect(voiceWanted({ voiceReplies: true })).toBe(false);
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Edg/140.0.0.0" });
+    expect(voiceWanted({ voiceReplies: true })).toBe(true);
+    expect(voiceWanted({ voiceReplies: false })).toBe(false);
   });
 });

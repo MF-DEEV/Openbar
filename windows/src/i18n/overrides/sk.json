@@ -267,6 +267,7 @@
   "notchClaudeSessions.title": "Relácie",
   "notchClaudeSessions.emptyTitle": "Žiadne relácie sa nespúšťajú",
   "windows.sessions.emptyDetail": "Spustite Claude Code alebo Codex v Windows Terminal alebo VS Code a zobrazí sa tu.",
+  "windows.sessions.emptyDetailLinux": "Spustite Claude Code alebo Codex v termináli alebo editore a zobrazí sa tu.",
   "notchClaudeSessions.runningTool": "Beží",
   "notchClaudeSessions.permissionNotice": "Vyžaduje povolenie",
   "notchClaudeSessions.waitingInput": "ťa potrebuje",
