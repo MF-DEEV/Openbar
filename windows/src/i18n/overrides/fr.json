@@ -419,6 +419,8 @@
   "windows.settings.behavior.reopeningCaption": "L'endroit où l'île s'ouvrira la prochaine fois.",
   "windows.settings.behavior.hideFullscreen": "Masquer en plein écran",
   "windows.settings.behavior.hideFullscreenCaption": "Se cache pendant qu'une application occupe tout l'écran, comme un jeu ou un film, et revient après.",
+  "windows.settings.behavior.makeRoom": "Garder les fenêtres sous l'île",
+  "windows.settings.behavior.makeRoomCaption": "Les fenêtres agrandies commencent sous l'île fermée au lieu d'être cachées par elle, ainsi les onglets du navigateur restent visibles.",
   "windows.settings.behavior.whereCaption": "Avec plusieurs affichages, lequel possède l'île.",
   "windows.settings.behavior.capturesCaption": "Désactivé laisse l'île en dehors des captures d'écran, enregistrements et partage d'écran.",
   "windows.settings.sessions.lead": "Lit l'état que Claude Code et Codex gardent pour chaque session en cours sur ce PC. Les invites et réponses restent non lues à moins que vous n'activiez les aperçus, et rien ne quitte votre PC.",

@@ -419,6 +419,8 @@
   "windows.settings.behavior.reopeningCaption": "下一次岛屿打开的位置。",
   "windows.settings.behavior.hideFullscreen": "全屏隐藏",
   "windows.settings.behavior.hideFullscreenCaption": "当应用占满整个屏幕（如游戏或电影）时隐藏，之后会恢复。",
+  "windows.settings.behavior.makeRoom": "让窗口位于岛屿下方",
+  "windows.settings.behavior.makeRoomCaption": "最大化的窗口从收起的岛屿下方开始，不会被它遮住，浏览器的标签页始终可见。",
   "windows.settings.behavior.whereCaption": "使用多个显示器时，哪个显示器有岛屿。",
   "windows.settings.behavior.capturesCaption": "关闭会让岛屿不会出现在截图、录屏和屏幕共享中。",
   "windows.settings.sessions.lead": "读取 Claude Code 和 Codex 在此 PC 上每个运行会话保存的状态。提示和回复会保持未读状态，除非你打开预览，而且不会离开你的 PC。",

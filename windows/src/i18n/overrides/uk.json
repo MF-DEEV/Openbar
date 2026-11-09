@@ -419,6 +419,8 @@
   "windows.settings.behavior.reopeningCaption": "Де острів відкриється наступного разу.",
   "windows.settings.behavior.hideFullscreen": "Приховати у повноекранному режимі",
   "windows.settings.behavior.hideFullscreenCaption": "Приховується, коли програма займає весь екран, як гра або фільм, і повертається після.",
+  "windows.settings.behavior.makeRoom": "Розміщувати вікна під островом",
+  "windows.settings.behavior.makeRoomCaption": "Розгорнуті вікна починаються під закритим островом, а не ховаються за ним, тож вкладки браузера лишаються видимими.",
   "windows.settings.behavior.whereCaption": "З кількома дисплеями, на якому з них буде острів.",
   "windows.settings.behavior.capturesCaption": "Вимкнено залишає острів поза скріншотами, записами та спільним використанням екрану.",
   "windows.settings.sessions.lead": "Читає стан Claude Code і Codex, що зберігаються для кожної запущеної сесії на цьому ПК. Запити та відповіді залишаються непрочитаними, якщо не увімкнути попередній перегляд, і нічого не виходить з вашого ПК.",

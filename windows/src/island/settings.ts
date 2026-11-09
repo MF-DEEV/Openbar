@@ -64,6 +64,8 @@ export interface IslandSettings {
   homeModule: HomeDestination;
   opensActivity: boolean;
   hideInFullscreen: boolean;
+  /** Linux: maximized windows start below the closed island (room.ts). */
+  makeRoom: boolean;
   display: DisplayChoice;
   showInCaptures: boolean;
   hiddenModules: ModuleId[];
@@ -271,6 +273,7 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   homeModule: "sessions",
   opensActivity: true,
   hideInFullscreen: true,
+  makeRoom: true,
   display: "primary",
   showInCaptures: true,
   hiddenModules: [],

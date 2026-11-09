@@ -419,6 +419,8 @@
   "windows.settings.behavior.reopeningCaption": "Dónde se abre la isla la próxima vez.",
   "windows.settings.behavior.hideFullscreen": "Ocultar en pantalla completa",
   "windows.settings.behavior.hideFullscreenCaption": "Se oculta mientras una aplicación ocupa toda la pantalla, como un juego o una película, y vuelve después.",
+  "windows.settings.behavior.makeRoom": "Mantener las ventanas debajo de la isla",
+  "windows.settings.behavior.makeRoomCaption": "Las ventanas maximizadas empiezan debajo de la isla cerrada en lugar de quedar tapadas por ella, así las pestañas del navegador siguen a la vista.",
   "windows.settings.behavior.whereCaption": "Con varias pantallas, cuál tiene la isla.",
   "windows.settings.behavior.capturesCaption": "Apagado deja la isla fuera de capturas de pantalla, grabaciones y compartición de pantalla.",
   "windows.settings.sessions.lead": "Lee el estado que Claude Code y Codex mantienen para cada sesión activa en este PC. Los avisos y respuestas permanecen sin leer a menos que actives vistas previas, y nada sale de tu PC.",

@@ -8,6 +8,7 @@ import { useLocale } from "../i18n";
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { bridge, inTauri } from "../shared/bridge";
+import { roomHeight } from "./room";
 import { arrivalTime, type Size } from "./motion";
 import { MODULES } from "./modules";
 import { closeTopLayer } from "./pageLayer";
@@ -240,6 +241,12 @@ export function Island() {
     if (shown.kind !== "expanded") closedSize.current = shown.size;
     else setBubbleDelay(arrivalTime(closedSize.current, shown.size));
   }, [shown.kind, shown.size.width, shown.size.height]);
+
+  // Maximized windows start below the closed island (Settings › Behavior, Linux).
+  const room = roomHeight(state.settings, geometry);
+  useEffect(() => {
+    void bridge.setRoom(room);
+  }, [room]);
 
   if (!state.settings.enabled) return <Disabled />;
 
