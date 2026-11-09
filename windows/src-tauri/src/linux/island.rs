@@ -301,6 +301,45 @@ pub fn shape_mirrors<R: Runtime>(app: &AppHandle<R>, state: &IslandState, mirror
     }
 }
 
+/// A display as the strips count it.
+fn area(monitor: &tauri::Monitor) -> crate::linux::room::Area {
+    crate::linux::room::Area {
+        x: monitor.position().x,
+        y: monitor.position().y,
+        width: monitor.size().width,
+        height: monitor.size().height,
+        scale: monitor.scale_factor(),
+    }
+}
+
+/// Keeps a strip the closed island's height at the top of each display it may
+/// stand on (only its own with Primary; all of them when it follows the pointer
+/// or every display shows it), or gives them back.
+pub fn set_room<R: Runtime>(window: &WebviewWindow<R>, state: &IslandState) {
+    use crate::linux::room;
+    let Some(height) = *state.room.lock().unwrap() else {
+        room::reserve(&[]);
+        return;
+    };
+    let all: Vec<room::Area> = window
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .map(area)
+        .collect();
+    let wanted: Vec<room::Area> = match *state.display.lock().unwrap() {
+        super::DisplayChoice::Primary => {
+            let at = *state.placed_on.lock().unwrap();
+            all.iter()
+                .filter(|a| Some((a.x, a.y)) == at)
+                .copied()
+                .collect()
+        }
+        super::DisplayChoice::Cursor | super::DisplayChoice::All => all.clone(),
+    };
+    room::reserve(&room::bands(&wanted, &all, height));
+}
+
 pub fn show_in_captures<R: Runtime>(window: &WebviewWindow<R>, show: bool) {
     let _ = window.set_content_protected(!show);
 }

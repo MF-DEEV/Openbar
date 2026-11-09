@@ -242,6 +242,7 @@ pub fn run() {
             island::island_set_hit_rects,
             island::island_set_capture,
             island::island_set_focusable,
+            island::island_set_room,
             island::island_mirror_update,
             island::island_mirror_frame,
             island::island_mirroring,

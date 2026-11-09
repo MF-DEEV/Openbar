@@ -33,6 +33,7 @@ pub mod paths;
 pub mod process;
 pub mod pulse;
 pub mod recorder;
+pub mod room;
 pub mod screen;
 pub mod session_lock;
 pub mod sessions;
