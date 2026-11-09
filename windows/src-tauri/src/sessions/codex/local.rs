@@ -19,7 +19,7 @@ use serde_json::{Value, json};
 use super::state::State;
 use crate::hooks::installer;
 use crate::hosts::process;
-use crate::sessions::models::{ChatMessage, ChatRole, ContentPolicy, Session, Time};
+use crate::sessions::models::{ChatMessage, ChatRole, ContentPolicy, Session, SessionPhase, Time};
 
 /// Rollout names keep whole seconds; process start times do not.
 const SLACK: f64 = 3.0;
@@ -230,20 +230,31 @@ pub fn discover() -> Vec<LocalSession> {
     assign(&tuis)
 }
 
-fn chat(path: &Path) -> Vec<ChatMessage> {
+struct Transcript {
+    chat: Vec<ChatMessage>,
+    working_since: Option<Time>,
+    last_active: Option<Time>,
+}
+
+fn transcript(path: &Path, previews: bool) -> Transcript {
+    let empty = || Transcript {
+        chat: Vec::new(),
+        working_since: None,
+        last_active: None,
+    };
     let Ok(mut file) = File::open(path) else {
-        return Vec::new();
+        return empty();
     };
     let Ok(size) = file.metadata().map(|m| m.len()) else {
-        return Vec::new();
+        return empty();
     };
     let skip = size.saturating_sub(MAX_CHAT);
     if file.seek(SeekFrom::Start(skip)).is_err() {
-        return Vec::new();
+        return empty();
     }
     let mut data = Vec::new();
     if file.read_to_end(&mut data).is_err() {
-        return Vec::new();
+        return empty();
     }
     let text = String::from_utf8_lossy(&data);
     let text = if skip > 0 {
@@ -253,11 +264,28 @@ fn chat(path: &Path) -> Vec<ChatMessage> {
     };
     let mut messages = Vec::new();
     let mut next_id = 0;
+    let mut working_since = None;
+    let mut last_active = None;
     for line in text.lines() {
         let Ok(item) = serde_json::from_str::<Value>(line) else {
             continue;
         };
-        if item.get("type").and_then(Value::as_str) != Some("response_item") {
+        let at = item
+            .get("timestamp")
+            .and_then(Value::as_str)
+            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
+            .map_or(0.0, |d| d.timestamp_millis() as f64 / 1000.0);
+        if at > 0.0 {
+            last_active = Some(at);
+        }
+        if item.get("type").and_then(Value::as_str) == Some("event_msg") {
+            match item.pointer("/payload/type").and_then(Value::as_str) {
+                Some("task_started") => working_since = Some(at),
+                Some("task_complete" | "turn_aborted") => working_since = None,
+                _ => {}
+            }
+        }
+        if !previews || item.get("type").and_then(Value::as_str) != Some("response_item") {
             continue;
         }
         let Some(payload) = item.get("payload") else {
@@ -288,11 +316,6 @@ fn chat(path: &Path) -> Vec<ChatMessage> {
         if body.trim().is_empty() {
             continue;
         }
-        let at = item
-            .get("timestamp")
-            .and_then(Value::as_str)
-            .and_then(|s| chrono::DateTime::parse_from_rfc3339(s).ok())
-            .map_or(0.0, |d| d.timestamp_millis() as f64 / 1000.0);
         next_id += 1;
         messages.push(ChatMessage {
             id: next_id,
@@ -306,7 +329,11 @@ fn chat(path: &Path) -> Vec<ChatMessage> {
             messages.remove(0);
         }
     }
-    messages
+    Transcript {
+        chat: messages,
+        working_since,
+        last_active,
+    }
 }
 
 /// The daemon's session takes precedence. This row cannot answer approvals
@@ -316,11 +343,20 @@ pub fn as_session(local: &LocalSession, policy: ContentPolicy) -> Session {
     state.upsert_thread(&json!({"id":local.id,"cwd":local.cwd,"status":{"type":"idle"}}));
     let mut session = state.snapshot(local.started, policy).0.remove(0);
     session.pid = local.pid as i32;
+    // The service enables terminal delivery only after locating a supported
+    // host. A local turn in progress may be waiting at an approval prompt,
+    // which rollout files cannot distinguish from generation.
     session.accepts_replies = false;
     session.hooked = false;
-    session.last_active = Some(local.started);
+    let transcript = transcript(&local.path, policy.previews);
+    session.last_active = transcript.last_active.or(Some(local.started));
+    if let Some(since) = transcript.working_since {
+        session.phase = SessionPhase::Generating;
+        session.phase_since = since;
+        session.turn_started = Some(since);
+    }
     if policy.previews {
-        session.chat = chat(&local.path);
+        session.chat = transcript.chat;
         session.title = session
             .chat
             .iter()
@@ -388,6 +424,31 @@ mod tests {
 
     fn ids(found: &[LocalSession]) -> Vec<(u32, &str)> {
         found.iter().map(|s| (s.pid, s.id.as_str())).collect()
+    }
+
+    #[test]
+    fn local_cli_turn_changes_phase_and_keeps_chat() {
+        let dir = temp("turn");
+        let path = dir.join("rollout.jsonl");
+        let started = json!({"timestamp":"2026-11-09T19:30:00Z","type":"event_msg","payload":{"type":"task_started"}});
+        let message = json!({"timestamp":"2026-11-09T19:30:01Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Working on it"}]}});
+        fs::write(&path, format!("{started}\n{message}\n")).unwrap();
+        let local = LocalSession {
+            pid: 42,
+            id: "t1".into(),
+            cwd: "C:\\code".into(),
+            started: 1.0,
+            path: path.clone(),
+        };
+        let active = as_session(&local, ContentPolicy { previews: true });
+        assert_eq!(active.phase, SessionPhase::Generating);
+        assert_eq!(active.chat[0].text, "Working on it");
+        assert!(!active.accepts_replies);
+        fs::write(&path, format!("{started}\n{message}\n{}\n", json!({"timestamp":"2026-11-09T19:31:00Z","type":"event_msg","payload":{"type":"task_complete"}}))).unwrap();
+        let done = as_session(&local, ContentPolicy { previews: false });
+        assert_eq!(done.phase, SessionPhase::Idle);
+        assert!(done.chat.is_empty());
+        let _ = fs::remove_dir_all(dir);
     }
 
     #[test]
