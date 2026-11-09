@@ -17,7 +17,7 @@
 </p>
 
 <p align="center">
-  <a href="#get-started"><b>Build for Mac</b></a>
+  <a href="https://github.com/MF-DEEV/Openbar/releases?q=dmg&expanded=true"><b>Download for Mac</b></a>
   &nbsp;&nbsp;&nbsp;
   <a href="https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true"><b>Download for Windows</b></a>
   &nbsp;&nbsp;&nbsp;
@@ -32,36 +32,14 @@
   <img src="docs/assets/readme/sessions/demo.gif" width="820" alt="Five Claude Code sessions in the Dynamic Island: a permission allowed, a question answered, a reply sent, a conversation enlarged, subagents at work and a Clawd dressed up">
 </p>
 
-## Sessions
+## What it does
 
-Every agent session on your machine, beside the camera. When one needs you, the island opens with the request in full.
+Every agent session on your machine sits beside the camera. When one needs you, the island opens with the request in full.
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/assets/readme/sessions/allow.gif" alt="A permission request opens in the island and is allowed with one click"></td>
-    <td width="50%"><img src="docs/assets/readme/sessions/answer.gif" alt="A question from Claude answered by picking an option in the island"></td>
-  </tr>
-  <tr>
-    <td><b>Allow</b><br>Allow, Deny or Always, with the whole command or the file diff in view, and more of the file a click away. <kbd>⌘Y</kbd> <kbd>⌘N</kbd> <kbd>⌘T</kbd> work from any app.</td>
-    <td><b>Answer</b><br>Pick one option, several, or write your own.</td>
-  </tr>
-  <tr>
-    <td><img src="docs/assets/readme/sessions/reply.gif" alt="A reply typed in the island arriving in the session's terminal"></td>
-    <td><img src="docs/assets/readme/sessions/watch.gif" alt="A session's page enlarged to read the conversation as it grows"></td>
-  </tr>
-  <tr>
-    <td><b>Reply</b><br>Type or speak in the island and it lands in the session's own terminal or editor. Images too. Speech is recognized on your machine.</td>
-    <td><b>Watch</b><br>Enlarge a session to read the conversation live, with tools, tasks, cost and model.</td>
-  </tr>
-  <tr>
-    <td><img src="docs/assets/readme/sessions/subagents.gif" alt="Three subagents listed under the session that started them"></td>
-    <td><img src="docs/assets/readme/sessions/wardrobe.gif" alt="The wardrobe changing a Clawd's shell color, hat and glasses"></td>
-  </tr>
-  <tr>
-    <td><b>Subagents</b><br>Agents a session starts get rows of their own, background ones included.</td>
-    <td><b>A Clawd each</b><br>Every session gets a pixel buddy in a random costume. Dress it up.</td>
-  </tr>
-</table>
+- **Allow** a permission with the whole command or the file diff in view. <kbd>⌘Y</kbd> <kbd>⌘N</kbd> <kbd>⌘T</kbd> work from any app.
+- **Answer** a question by picking an option, several, or writing your own.
+- **Reply** by typing or speaking, and it lands in the session's own terminal or editor. Speech is recognized on your machine.
+- **Watch** a conversation grow, with its tools, tasks, cost and model, and see the subagents a session starts.
 
 | Agent | In the list | Approve in the island | Reply from the island |
 |---|:-:|:-:|:-:|
@@ -74,65 +52,30 @@ Every agent session on your machine, beside the camera. When one needs you, the 
 
 Background sessions (`claude --bg`), plan limits and **New session** are there too. Each session started from New session gets [its own git worktree](docs/session-worktrees.md), so agents working on one repo don't change each other's files. Sessions on [machines you reach over SSH](docs/remote-hosts.md) can show up too, with the host's name on them. See [what each agent allows](docs/more-session-agents.md) and [which terminals replies reach](docs/terminal-hosts.md).
 
-## The rest of your Mac
-
-Openbar grew out of a full menu bar toolkit, and all of it is still here. Install only the features you use.
-
-<table>
-  <tr>
-    <td width="50%"><img src="docs/assets/readme/window-switcher.gif" alt="Switching between windows with live previews"></td>
-    <td width="50%"><img src="docs/assets/readme/shelf-demonstration.gif" alt="Files dropped on the shelf and dragged out again"></td>
-  </tr>
-  <tr>
-    <td><b>App switcher</b><br>Windows, not just apps, with live previews.</td>
-    <td><b>Shelf</b><br>Park files on the way from one app to another.</td>
-  </tr>
-  <tr>
-    <td><img src="docs/assets/readme/cut-and-paste.gif" alt="A folder cut with Command-X and pasted with Command-V in Finder"></td>
-    <td><img src="docs/assets/readme/quit-on-close.gif" alt="Closing an app's last window quits the app"></td>
-  </tr>
-  <tr>
-    <td><b>Cut and paste</b><br><kbd>⌘X</kbd> and <kbd>⌘V</kbd> move files in Finder.</td>
-    <td><b>Quit on close</b><br>Closing the last window quits the app.</td>
-  </tr>
-</table>
-
-A volume mixer, a system monitor, clipboard history, window layouts, keep awake, Now Playing, a timer, a calendar, downloads and more are each one switch away in the Features hub.
-
-## On Windows 11
-
-The same island, built with Tauri, hangs from the top of a Windows 11 screen. It's a beta with its own installer for x64 and arm64.
-
-<p align="center">
-  <img src="windows/docs/assets/readme/sessions.gif" width="820" alt="The Windows island: the Sessions list, a permission allowed, the session back at work, and a question answered">
-</p>
-
-<table>
-  <tr>
-    <td width="50%"><img src="windows/docs/assets/readme/music.gif" alt="The island opening on Now Playing with the song, progress and playback controls"></td>
-    <td width="50%"><img src="windows/docs/assets/readme/controls.gif" alt="The Controls page, then the volume mixer with an app's level dragged down and up"></td>
-  </tr>
-  <tr>
-    <td><b>Now Playing</b><br>Spotify, a browser or Media Player, with synced lyrics and what's up next.</td>
-    <td><b>Controls and mixer</b><br>Volume, outputs and a level for every app playing sound.</td>
-  </tr>
-  <tr>
-    <td><img src="windows/docs/assets/readme/system.gif" alt="System cards for processor, graphics, memory, battery, network, disk and power updating live"></td>
-    <td><img src="windows/docs/assets/readme/clipboard.gif" alt="Clipboard history, then files kept on the island's shelf"></td>
-  </tr>
-  <tr>
-    <td><b>System</b><br>Processor, memory, battery, network and disk, live, with history a click away.</td>
-    <td><b>Clipboard and Files</b><br>A searchable clipboard history and a shelf for files on the move.</td>
-  </tr>
-</table>
-
-<p align="center"><sub>Recorded from the Windows island's own interface with sample data.</sub></p>
-
-[Download the installer](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true) or [read the Windows notes](windows/README.md) for timers, calendar, downloads, screen capture, Watch and the rest.
+The Mac app also keeps the full menu bar toolkit Openbar grew out of (app switcher, shelf, volume mixer, system monitor, clipboard history and more), and the same island hangs from the top of a Windows 11 screen. [See every feature as a short recording](docs/features.md).
 
 ## Get started
 
-**Mac**: Apple Silicon, macOS 14 or later and the Xcode Command Line Tools.
+**Mac** (Apple silicon, macOS 14 or later):
+
+1. Download the DMG from the [latest Mac release](https://github.com/MF-DEEV/Openbar/releases?q=dmg&expanded=true), open it and drag **Openbar** to **Applications**.
+2. This build isn't notarized by Apple yet, so macOS refuses to open it the first time. Go to **System Settings › Privacy & Security**, scroll down and choose **Open Anyway**. Or run this once in Terminal:
+   ```sh
+   xattr -dr com.apple.quarantine /Applications/Openbar.app
+   ```
+3. Grant the permissions it asks for (Accessibility and the others each feature needs). Then, in Settings:
+   - Install **AI Agents** from the Features hub and turn on **Sessions** under Dynamic Island.
+   - Press **Install Hooks** for Claude Code. Your `~/.claude/settings.json` is backed up first, and **Remove Hooks** takes them out. Codex needs nothing.
+   - Start `claude` or `codex`. The session appears in the island.
+
+**Windows 11**: run the installer from the [latest Windows release](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true) (x64 or arm64). It installs for your account only. The installer isn't signed yet, so Windows may say **Windows protected your PC**: choose **More info**, then **Run anyway**. Click the island or press <kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>Space</kbd>. The [Windows notes](windows/README.md) cover the rest.
+
+<details>
+<summary>Build the Mac app from source</summary>
+
+<br>
+
+You need Apple silicon, macOS 14 or later and the Xcode Command Line Tools.
 
 ```sh
 git clone https://github.com/MF-DEEV/Openbar.git
@@ -140,16 +83,9 @@ cd Openbar
 ./build.sh --dev --install
 ```
 
-Then, in Settings:
+This builds **Openbar (Developer)**. It has its own bundle ID, so it can sit beside an installed Openbar, but run only one of them at a time or you get two islands. [CONTRIBUTING.md](CONTRIBUTING.md) covers the layout and the checks.
 
-1. Install **AI Agents** from the Features hub and turn on **Sessions** under Dynamic Island.
-2. Press **Install Hooks** for Claude Code. Your `~/.claude/settings.json` is backed up first, and **Remove Hooks** takes them out. Codex needs nothing.
-3. Start `claude` or `codex`. The session appears in the island.
-
-> [!NOTE]
-> This builds **Openbar (Developer)**. It has its own bundle ID, so it can sit beside an installed Openbar, but run only one of them at a time or you get two islands.
-
-**Windows**: run the installer from the [latest Windows release](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true). It installs for your account only.
+</details>
 
 ## Private by default
 
@@ -170,6 +106,7 @@ Then, in Settings:
 | [Session worktrees](docs/session-worktrees.md) | A git worktree for each session started from New session |
 | [Terminals](docs/terminal-hosts.md) | Every terminal and editor replies reach |
 | [Remote hosts](docs/remote-hosts.md) | Sessions on machines reached over SSH |
+| [Features in pictures](docs/features.md) | Every feature as a short recording |
 | [Windows](windows/README.md) | The Windows island, installer and build |
 
 ## Contributing
