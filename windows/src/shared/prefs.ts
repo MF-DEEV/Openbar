@@ -28,6 +28,10 @@ export interface SessionPrefs {
   previews: boolean;
   /** A session that needs the person opens the island on its page. */
   autoExpand: boolean;
+  /** A sound once when a session starts waiting for the person (sessions/waitingSound.ts). */
+  waitingSound: boolean;
+  /** The system sound it plays, an id from `sound_list`; empty is Openbar's chime. */
+  waitingSoundChoice: string;
   /** Sessions show beside the camera while they work. */
   live: boolean;
   /** Each session's pixel buddy; off shows a round phase badge. */
@@ -58,6 +62,8 @@ export interface SessionPrefs {
 export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   previews: false,
   autoExpand: true,
+  waitingSound: true,
+  waitingSoundChoice: "",
   live: true,
   buddies: true,
   limits: true,

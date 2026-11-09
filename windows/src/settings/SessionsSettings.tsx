@@ -16,7 +16,7 @@ import { voiceHeard } from "../shared/platform";
 
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useState } from "react";
-import { bridge, inTauri, type VoiceModel } from "../shared/bridge";
+import { bridge, inTauri, type SoundChoice, type VoiceModel } from "../shared/bridge";
 import { ShortcutField } from "../shared/ui/ShortcutField";
 import { formatAccelerator } from "../shared/shortcut";
 import { getLanguage } from "../i18n";
@@ -492,6 +492,55 @@ const VOICE_LANGUAGES = [
 ];
 
 /** Speaking a reply: the switch, then the model, language, shortcut and sending by itself. */
+/** A sound when a session starts waiting, and which one (#167). */
+function WaitingSoundRows({
+  prefs,
+  set,
+}: {
+  prefs: SessionPrefs;
+  set: <K extends keyof SessionPrefs>(key: K, value: SessionPrefs[K]) => void;
+}) {
+  useLocale();
+  const [sounds, setSounds] = useState<SoundChoice[]>([]);
+  useEffect(() => {
+    void bridge.sound.list().then((list) => setSounds(list ?? []));
+  }, []);
+  const options = [
+    { value: "", label: t("windows.settings.sessions.waitingSoundChime") },
+    ...sounds.map((sound) => ({ value: sound.id, label: sound.name })),
+  ];
+  // A sound that is gone from the system plays the chime, so it reads as the chime.
+  const choice = options.some((o) => o.value === prefs.waitingSoundChoice) ? prefs.waitingSoundChoice : "";
+  return (
+    <>
+      <SubRow
+        title={t("windows.settings.sessions.waitingSound")}
+        caption={t("windows.settings.sessions.waitingSoundCaption")}
+      >
+        <Toggle
+          label={t("windows.settings.sessions.waitingSound")}
+          checked={prefs.waitingSound}
+          onChange={(on) => set("waitingSound", on)}
+        />
+      </SubRow>
+      {prefs.waitingSound ? (
+        <SubRow title={t("windows.settings.sessions.waitingSoundChoice")}>
+          <Select
+            label={t("windows.settings.sessions.waitingSoundChoice")}
+            value={choice}
+            options={options}
+            onChange={(value) => {
+              set("waitingSoundChoice", value);
+              void bridge.sound.play(value);
+            }}
+          />
+          <Button onClick={() => void bridge.sound.play(choice)}>{t("s.actionPlay")}</Button>
+        </SubRow>
+      ) : null}
+    </>
+  );
+}
+
 function VoiceReplies({
   prefs,
   set,
@@ -697,6 +746,7 @@ export function SessionsOptions() {
       <SubRow title={T.sessions.autoExpand} caption={T.sessions.autoExpandCaption}>
         <Toggle label={T.sessions.autoExpand} checked={prefs.autoExpand} onChange={(on) => set("autoExpand", on)} />
       </SubRow>
+      <WaitingSoundRows prefs={prefs} set={set} />
       <SubRow title={T.sessions.previews} caption={T.sessions.previewsCaption}>
         <Toggle label={T.sessions.previews} checked={prefs.previews} onChange={(on) => set("previews", on)} />
       </SubRow>

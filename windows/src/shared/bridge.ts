@@ -90,6 +90,12 @@ export interface RecordingEnded {
   error: string | null;
 }
 
+/** A system sound that can stand in for the chime (sound.rs). */
+export interface SoundChoice {
+  id: string;
+  name: string;
+}
+
 export const bridge = {
   /** Voice replies: speech recognized on this PC (src-tauri/src/voice). */
   voice: {
@@ -401,7 +407,10 @@ export const bridge = {
     openTaskManager: () => call<boolean>("shell_open_task_manager"),
   },
   sound: {
-    play: () => call("sound_play"),
+    /** Plays a system sound from `list`, or Openbar's chime. */
+    play: (sound?: string) => call("sound_play", { sound: sound || null }),
+    /** The system's sounds that can stand in for the chime. */
+    list: () => call<SoundChoice[]>("sound_list"),
     /** The chime every 2 s for up to 5 min, until turned off (timer, watch). */
     alarm: (key: string, on: boolean) => call("sound_alarm", { key, on }),
   },
