@@ -79,6 +79,59 @@ pub fn play(wav: &[u8]) {
     }
 }
 
+/// The players that can play `file`: ALSA's only takes WAV, and sound themes
+/// ship Ogg.
+fn players_for(file: &Path) -> Vec<(&'static str, &'static [&'static str])> {
+    let wav = file
+        .extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("wav"));
+    PLAYERS
+        .iter()
+        .copied()
+        .filter(|(program, _)| wav || *program != "aplay")
+        .collect()
+}
+
+/// Plays a sound theme's file once, in the background.
+pub fn play_file(file: &Path) {
+    let path = std::env::var("PATH").ok();
+    play_with(&players_for(file), path.as_deref(), file, &[]);
+}
+
+/// The sound themes' folders of sounds, by theme, the person's own first
+/// (`$XDG_DATA_HOME`, then `$XDG_DATA_DIRS`, as the sound theme spec has it).
+pub fn themes() -> Vec<(String, PathBuf)> {
+    let home = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .filter(|d| d.is_absolute())
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")));
+    let system = std::env::var("XDG_DATA_DIRS")
+        .ok()
+        .filter(|d| !d.is_empty())
+        .unwrap_or_else(|| "/usr/local/share:/usr/share".into());
+    themes_in(home.into_iter().chain(system.split(':').map(PathBuf::from)))
+}
+
+fn themes_in(roots: impl Iterator<Item = PathBuf>) -> Vec<(String, PathBuf)> {
+    let mut themes = Vec::new();
+    for root in roots.filter(|r| r.is_absolute()) {
+        let Ok(entries) = std::fs::read_dir(root.join("sounds")) else {
+            continue;
+        };
+        let mut found: Vec<(String, PathBuf)> = entries
+            .flatten()
+            .filter_map(|entry| {
+                let stereo = entry.path().join("stereo");
+                let theme = entry.file_name().to_str()?.to_string();
+                stereo.is_dir().then_some((theme, stereo))
+            })
+            .collect();
+        found.sort();
+        themes.extend(found);
+    }
+    themes
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -129,6 +182,55 @@ mod tests {
             &[]
         ));
         assert!(!play_with(&PLAYERS, None, Path::new("/x/chime.wav"), &[]));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn an_ogg_sound_skips_the_wav_only_player() {
+        let names = |file: &str| -> Vec<&str> {
+            players_for(Path::new(file))
+                .into_iter()
+                .map(|(program, _)| program)
+                .collect()
+        };
+        assert_eq!(names("/x/bell.oga"), ["paplay", "pw-play", "ffplay"]);
+        assert_eq!(names("/x/Bell.OGG"), ["paplay", "pw-play", "ffplay"]);
+        assert_eq!(
+            names("/x/chime.WAV"),
+            ["paplay", "pw-play", "aplay", "ffplay"]
+        );
+    }
+
+    #[test]
+    fn themes_are_found_in_every_data_folder_in_order() {
+        let dir = temp("themes");
+        let own = dir.join("own");
+        let system = dir.join("system");
+        for (root, theme) in [
+            (&own, "freedesktop"),
+            (&system, "freedesktop"),
+            (&system, "Yaru"),
+        ] {
+            std::fs::create_dir_all(root.join("sounds").join(theme).join("stereo")).unwrap();
+        }
+        // A theme without a stereo folder has nothing to play.
+        std::fs::create_dir_all(system.join("sounds/empty")).unwrap();
+        let found = themes_in([own.clone(), system.clone(), PathBuf::from("relative")].into_iter());
+        // The person's own folder first; a relative one is ignored.
+        assert_eq!(
+            found,
+            [
+                (
+                    "freedesktop".to_string(),
+                    own.join("sounds/freedesktop/stereo")
+                ),
+                ("Yaru".to_string(), system.join("sounds/Yaru/stereo")),
+                (
+                    "freedesktop".to_string(),
+                    system.join("sounds/freedesktop/stereo")
+                ),
+            ]
+        );
         std::fs::remove_dir_all(dir).unwrap();
     }
 
