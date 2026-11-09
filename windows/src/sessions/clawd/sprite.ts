@@ -533,6 +533,35 @@ export function hatStamps(hat: ClawdHat, tick: number): Stamp[] {
       ];
     case "wonderTiara":
       return [s(0, -2, ["Y.....Y.....Y", "YYYYYYYYYYYYY", ".YYYYRYYYYYY."])];
+    case "mouseEars":
+      return [s(-2, -6, [
+        ".KKK.........KKK.",
+        "KKKKK.......KKKKK",
+        "KKKKK.......KKKKK",
+        ".KKK.........KKK.",
+        "...KKKKKKKKKKK...",
+        "....KKKKKKKKK....",
+      ])];
+    case "bowEars":
+      return [s(-2, -6, [
+        ".KKK.........KKK.",
+        "KKKKK..RR.RR..KKKKK",
+        "KKKKK..RRRRR..KKKKK",
+        ".KKK...RRYRR...KKK.",
+        "...KKKKKKKKKKK...",
+        "....KKKKKKKKK....",
+      ])];
+    case "sorcererHat":
+      return [s(0, -6, [
+        "......Y......",
+        ".....BBB.....",
+        ".....BYB.....",
+        "....BBBBB....",
+        "...BBYBBBB...",
+        "..BBBBBBYBB..",
+        ".BBBBBBBBBBB.",
+        "YYYYYYYYYYYYY",
+      ])];
   }
 }
 
@@ -644,6 +673,14 @@ export function extraStamps(extra: ClawdExtra, arms: Arms, tick: number, charact
       const [x, y] = rightHand(arms, character);
       const steam = tick === 0 ? [".w.", "w.."] : ["w..", ".w."];
       return [s(x, y - 2, [...steam, "NNN", "WWW", "WWW"])];
+    }
+    case "fairyWand": {
+      const [x, y] = rightHand(arms, character);
+      return [s(x - 2, y - 3, ["..Y..", ".YYY.", "YYYYY", ".YYY.", "..Y..", "..W..", "..W..", "..W..", "..W.."] )];
+    }
+    case "magicLamp": {
+      const [x, y] = rightHand(arms, character);
+      return [s(x - 8, y - 3, ["....YY....", "...YYYY...", "YYYYYYYYY.", "Y.YYYYYYYY", "..YYYYYY..", "...YYYY...", "....YY...."] )];
     }
     case "doomCape":
       return [s(0, 0, ["QQY.......YQQ"])];

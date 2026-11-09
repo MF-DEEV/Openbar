@@ -115,6 +115,15 @@ export const clawdStrings = {
     get wonderTiara() {
       return t("notchClaudeSessions.hats.wonderTiara");
     },
+    get mouseEars() {
+      return t("notchClaudeSessions.hats.mouseEars");
+    },
+    get bowEars() {
+      return t("notchClaudeSessions.hats.bowEars");
+    },
+    get sorcererHat() {
+      return t("notchClaudeSessions.hats.sorcererHat");
+    },
   } as Record<Exclude<ClawdHat, "none">, string>,
   eyewears: {
     get glasses() {
@@ -247,6 +256,12 @@ export const clawdStrings = {
     },
     get lanternEmblem() {
       return t("notchClaudeSessions.extras.lanternEmblem");
+    },
+    get fairyWand() {
+      return t("notchClaudeSessions.extras.fairyWand");
+    },
+    get magicLamp() {
+      return t("notchClaudeSessions.extras.magicLamp");
     },
   } as Record<Exclude<ClawdExtra, "none">, string>,
 };
