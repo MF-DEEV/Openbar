@@ -12,6 +12,7 @@ use std::fs::{self, File};
 use std::io::{BufRead, BufReader, Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
 use std::sync::{LazyLock, Mutex};
+use std::time::UNIX_EPOCH;
 
 use chrono::{Days, Local, NaiveDate, NaiveDateTime, TimeZone};
 use serde_json::{Value, json};
@@ -23,7 +24,7 @@ use crate::sessions::models::{ChatMessage, ChatRole, ContentPolicy, Session, Ses
 
 /// Rollout names keep whole seconds; process start times do not.
 const SLACK: f64 = 3.0;
-/// How far back a long-running TUI's day folders are read.
+/// How far back a live TUI's day folders are read, including resumed threads.
 const MAX_DAYS: u64 = 31;
 const MAX_META: u64 = 64 * 1024;
 const MAX_CHAT: u64 = 2 * 1024 * 1024;
@@ -42,6 +43,7 @@ struct Tui {
     started: Time,
     home: PathBuf,
     cwd: String,
+    resume: Option<String>,
 }
 
 /// A rollout's first line, which never changes once written.
@@ -59,6 +61,28 @@ fn same_folder(a: &str, b: &str) -> bool {
     a.trim_end_matches(['/', '\\'])
         .replace('/', "\\")
         .eq_ignore_ascii_case(&b.trim_end_matches(['/', '\\']).replace('/', "\\"))
+}
+
+/// `codex resume <thread-id>` names an older rollout explicitly. A picker or
+/// `--last` has no id; those can be matched only after the rollout is written.
+fn resumed_thread(command: &str) -> Option<String> {
+    let mut words = command.split_whitespace();
+    while let Some(word) = words.next() {
+        if word.eq_ignore_ascii_case("resume") {
+            return words.find(|next| !next.starts_with('-')).and_then(|id| {
+                (id.len() == 36
+                    && id.bytes().enumerate().all(|(i, byte)| {
+                        if [8, 13, 18, 23].contains(&i) {
+                            byte == b'-'
+                        } else {
+                            byte.is_ascii_hexdigit()
+                        }
+                    }))
+                .then(|| id.to_ascii_lowercase())
+            });
+        }
+    }
+    None
 }
 
 /// The first line only, as bytes: a cap that splits a multi-byte character
@@ -106,14 +130,23 @@ fn named_start(name: &str) -> Option<Time> {
     Some(Local.from_local_datetime(&naive).earliest()?.timestamp() as Time)
 }
 
-/// Day folders from the earliest TUI's start to today.
-fn days_since(started: Time) -> Vec<NaiveDate> {
+fn modified_at(path: &Path) -> Option<Time> {
+    Some(
+        fs::metadata(path)
+            .ok()?
+            .modified()
+            .ok()?
+            .duration_since(UNIX_EPOCH)
+            .ok()?
+            .as_secs_f64(),
+    )
+}
+
+/// Day folders from the oldest supported rollout to today. A resumed thread
+/// may have started before the current process, even on a previous day.
+fn scan_days() -> Vec<NaiveDate> {
     let today = Local::now().date_naive();
-    let first = Local
-        .timestamp_opt(started as i64 - 60, 0)
-        .single()
-        .map_or(today, |d| d.date_naive())
-        .max(today - Days::new(MAX_DAYS));
+    let first = today - Days::new(MAX_DAYS);
     first.iter_days().take_while(|d| *d <= today).collect()
 }
 
@@ -135,7 +168,7 @@ fn assign(tuis: &[Tui]) -> Vec<LocalSession> {
             .filter(|t| t.home == home)
             .map(|t| t.started)
             .fold(f64::INFINITY, f64::min);
-        for day in days_since(earliest) {
+        for day in scan_days() {
             let folder = home
                 .join("sessions")
                 .join(day.format("%Y/%m/%d").to_string());
@@ -154,22 +187,54 @@ fn assign(tuis: &[Tui]) -> Vec<LocalSession> {
                     continue;
                 };
                 if begun < earliest - SLACK {
-                    continue;
+                    let id_in_name = path
+                        .file_stem()
+                        .and_then(|n| n.to_str())
+                        .and_then(|n| n.get(n.len().saturating_sub(36)..));
+                    let explicit = tuis.iter().any(|t| {
+                        t.home == home
+                            && t.resume.as_deref().is_some_and(|id| Some(id) == id_in_name)
+                    });
+                    if !explicit && modified_at(&path).is_none_or(|at| at < earliest - SLACK) {
+                        continue;
+                    }
                 }
                 seen.insert(path.clone());
                 let Some(meta) = cached_meta(&path).filter(|m| m.tui) else {
                     continue;
                 };
-                let owner = tuis
+                // A resumed process can be newer than its original rollout.
+                // The explicit thread id is reliable before any new turn;
+                // otherwise require activity written after it started, and
+                // avoid guessing between two terminals in the same folder.
+                let matching: Vec<_> = tuis
                     .iter()
                     .enumerate()
-                    .filter(|(_, t)| {
-                        t.home == home
-                            && t.started - SLACK <= begun
-                            && same_folder(&t.cwd, &meta.cwd)
-                    })
+                    .filter(|(_, t)| t.home == home && same_folder(&t.cwd, &meta.cwd))
+                    .collect();
+                let explicit = matching
+                    .iter()
+                    .filter(|(_, t)| t.resume.as_deref() == Some(meta.id.as_str()))
                     .max_by(|a, b| a.1.started.total_cmp(&b.1.started))
-                    .map(|(i, _)| i);
+                    .map(|(i, _)| *i);
+                let owner = if let Some(i) = explicit {
+                    Some(i)
+                } else if begun >= earliest - SLACK {
+                    matching
+                        .iter()
+                        .filter(|(_, t)| t.started - SLACK <= begun)
+                        .max_by(|a, b| a.1.started.total_cmp(&b.1.started))
+                        .map(|(i, _)| *i)
+                } else if matching.len() == 1
+                    && modified_at(&path).is_some_and(|at| at >= matching[0].1.started - SLACK)
+                    && transcript(&path, false)
+                        .last_active
+                        .is_some_and(|at| at >= matching[0].1.started - SLACK)
+                {
+                    Some(matching[0].0)
+                } else {
+                    None
+                };
                 if let Some(i) = owner
                     && best[i].as_ref().is_none_or(|(old, ..)| begun > *old)
                 {
@@ -221,6 +286,7 @@ pub fn discover() -> Vec<LocalSession> {
             started,
             home,
             cwd: info.cwd,
+            resume: resumed_thread(&info.command_line),
         });
     }
     if tuis.is_empty() {
@@ -434,6 +500,7 @@ mod tests {
             started,
             home: home.to_path_buf(),
             cwd: cwd.to_owned(),
+            resume: None,
         }
     }
 
@@ -581,6 +648,50 @@ mod tests {
         rollout(&home, b + 10.0, "b1", "C:\\x", "cli");
         let found = assign(&[tui(1, a, &home, "C:\\x"), tui(2, b, &home, "C:\\x")]);
         assert_eq!(ids(&found), [(1, "a2"), (2, "b1")]);
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn explicitly_resumed_thread_keeps_its_old_rollout() {
+        let home = temp("resume-id");
+        let started = Local::now().timestamp() as Time - 120.0;
+        let id = "019a674b-57cc-7000-8000-121212121212";
+        rollout(&home, started - 3600.0, id, "C:\\x", "cli");
+        let mut resumed = tui(1, started, &home, "C:\\x");
+        resumed.resume = resumed_thread(&format!("codex.exe resume {id}"));
+        assert_eq!(ids(&assign(&[resumed])), [(1, id)]);
+        assert_eq!(resumed_thread("codex.exe resume --last"), None);
+        let _ = fs::remove_dir_all(home);
+    }
+
+    #[test]
+    fn resumed_picker_matches_only_a_rollout_with_new_activity() {
+        let home = temp("resume-picker");
+        let started = Local::now().timestamp() as Time - 120.0;
+        let path = rollout(&home, started - 3600.0, "old", "C:\\x", "cli");
+        let runner = tui(1, started, &home, "C:\\x");
+        assert!(assign(&[runner]).is_empty());
+        let at = Local
+            .timestamp_opt(started as i64 + 10, 0)
+            .single()
+            .unwrap();
+        let event = json!({"timestamp":at.to_rfc3339(),"type":"event_msg","payload":{"type":"task_started"}});
+        fs::write(
+            &path,
+            format!("{}{event}\n", meta_line("old", "C:\\x", "cli")),
+        )
+        .unwrap();
+        assert_eq!(
+            ids(&assign(&[tui(1, started, &home, "C:\\x")])),
+            [(1, "old")]
+        );
+        assert!(
+            assign(&[
+                tui(1, started, &home, "C:\\x"),
+                tui(2, started + 1.0, &home, "C:\\x")
+            ])
+            .is_empty()
+        );
         let _ = fs::remove_dir_all(home);
     }
 }
