@@ -32,7 +32,7 @@ https://github.com/user-attachments/assets/e6782d65-7822-4d9a-9ad4-3f31c8c35df4
 
 ## What it does
 
-- Permission requests, questions and plans open in the island with the full command or diff, and you answer them there.
+- Permission requests, questions and plans open in the island with the full command or diff.
 - A reply you type or speak lands in the session's own terminal or editor.
 - Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI and Cursor share one list.
 - Each session you start from the island gets its own git worktree.
