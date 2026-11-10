@@ -37,6 +37,12 @@ pub enum Action {
     Type {
         text: String,
         images: Vec<String>,
+        /// Plain keys and a later Return, for a program that reads key
+        /// events rather than a terminal's byte stream (Codex's TUI): it
+        /// shows a bracketed paste's markers as text, and takes a Return that
+        /// follows typing closely as part of a paste.
+        #[serde(default)]
+        plain: bool,
     },
     /// Prints the window that shows the console.
     Window,
@@ -112,7 +118,16 @@ fn helper(pid: u32, action: Action) -> windows::core::Result<String> {
                 let window = if root.0.is_null() { console } else { root };
                 Ok((window.0 as isize).to_string())
             }
-            Action::Type { text, images } => type_reply(&text, &images).map(|_| String::new()),
+            Action::Type {
+                text,
+                images,
+                plain,
+            } => if plain {
+                type_plain(&text, &images)
+            } else {
+                type_reply(&text, &images)
+            }
+            .map(|_| String::new()),
         };
         let _ = FreeConsole();
         result
@@ -193,6 +208,69 @@ fn host_windows(pids: &[u32]) -> Vec<(isize, String)> {
     search.windows
 }
 
+/// How long Codex's TUI keeps treating keys as one paste after the last;
+/// a Return within it becomes a line break (its paste burst, 120 ms).
+const PLAIN_SETTLE: Duration = Duration::from_millis(400);
+
+unsafe fn console_input() -> windows::core::Result<windows::Win32::Foundation::HANDLE> {
+    unsafe {
+        CreateFileW(
+            w!("CONIN$"),
+            (GENERIC_READ | GENERIC_WRITE).0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            None,
+            OPEN_EXISTING,
+            Default::default(),
+            None,
+        )
+    }
+}
+
+fn write_records(
+    input: windows::Win32::Foundation::HANDLE,
+    records: &[INPUT_RECORD],
+) -> windows::core::Result<()> {
+    let mut written = 0u32;
+    let mut offset = 0;
+    while offset < records.len() {
+        unsafe { WriteConsoleInputW(input, &records[offset..], &mut written)? };
+        if written == 0 {
+            break;
+        }
+        offset += written as usize;
+    }
+    Ok(())
+}
+
+/// The reply as plain keys, its line breaks kept inside the paste Codex sees
+/// in a quick run of keys, then Return once that run has ended. Images go in
+/// as their paths, ahead of the text.
+unsafe fn type_plain(text: &str, images: &[String]) -> windows::core::Result<()> {
+    let input = unsafe { console_input()? };
+    let mut body: Vec<&str> = images.iter().map(String::as_str).collect();
+    if !text.is_empty() {
+        body.push(text);
+    }
+    let body = body.join(" ").replace("\r\n", "\n");
+    // A line break is Ctrl+J, Codex's own key for one; a bare line feed is dropped.
+    let mut keys = Vec::new();
+    for (i, line) in body.split('\n').enumerate() {
+        if i > 0 {
+            keys.extend(ctrl_j());
+        }
+        keys.extend(records(line));
+    }
+    let result = (|| {
+        write_records(input, &keys)?;
+        std::thread::sleep(PLAIN_SETTLE);
+        write_records(input, &key(VK_RETURN.0, '\r'))
+    })();
+    unsafe {
+        let _ = CloseHandle(input);
+    }
+    result
+}
+
 unsafe fn type_reply(text: &str, images: &[String]) -> windows::core::Result<()> {
     let input = unsafe {
         CreateFileW(
@@ -248,6 +326,15 @@ fn records(text: &str) -> Vec<INPUT_RECORD> {
 
 fn key(virtual_key: u16, ch: char) -> Vec<INPUT_RECORD> {
     key_unit(virtual_key, ch as u16).to_vec()
+}
+
+fn ctrl_j() -> [INPUT_RECORD; 2] {
+    let mut keys = key_unit(u16::from(b'J'), 0x0a);
+    for key in &mut keys {
+        // LEFT_CTRL_PRESSED
+        key.Event.KeyEvent.dwControlKeyState = 0x0008;
+    }
+    keys
 }
 
 fn key_unit(virtual_key: u16, unit: u16) -> [INPUT_RECORD; 2] {

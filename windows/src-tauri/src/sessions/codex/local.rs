@@ -266,6 +266,11 @@ fn transcript(path: &Path, previews: bool) -> Transcript {
     let mut next_id = 0;
     let mut working_since = None;
     let mut last_active = None;
+    let mut first_at = None;
+    // A turn's start can lie before the tail read here: a long turn writes
+    // several megabytes. Without any start or end in the tail, the turn that
+    // began before it has not ended, so the session is still working.
+    let mut boundary = false;
     for line in text.lines() {
         let Ok(item) = serde_json::from_str::<Value>(line) else {
             continue;
@@ -277,11 +282,18 @@ fn transcript(path: &Path, previews: bool) -> Transcript {
             .map_or(0.0, |d| d.timestamp_millis() as f64 / 1000.0);
         if at > 0.0 {
             last_active = Some(at);
+            first_at.get_or_insert(at);
         }
         if item.get("type").and_then(Value::as_str) == Some("event_msg") {
             match item.pointer("/payload/type").and_then(Value::as_str) {
-                Some("task_started") => working_since = Some(at),
-                Some("task_complete" | "turn_aborted") => working_since = None,
+                Some("task_started") => {
+                    working_since = Some(at);
+                    boundary = true;
+                }
+                Some("task_complete" | "turn_aborted") => {
+                    working_since = None;
+                    boundary = true;
+                }
                 _ => {}
             }
         }
@@ -328,6 +340,9 @@ fn transcript(path: &Path, previews: bool) -> Transcript {
         if messages.len() > 100 {
             messages.remove(0);
         }
+    }
+    if skip > 0 && !boundary {
+        working_since = Some(first_at.unwrap_or(0.0));
     }
     Transcript {
         chat: messages,
@@ -448,6 +463,37 @@ mod tests {
         let done = as_session(&local, ContentPolicy { previews: false });
         assert_eq!(done.phase, SessionPhase::Idle);
         assert!(done.chat.is_empty());
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn a_turn_longer_than_the_tail_still_counts_as_working() {
+        let dir = temp("long-turn");
+        let path = dir.join("rollout.jsonl");
+        let started = json!({"timestamp":"2026-11-09T19:30:00Z","type":"event_msg","payload":{"type":"task_started"}});
+        let output = json!({"timestamp":"2026-11-09T19:30:01Z","type":"response_item","payload":{"type":"function_call_output","output":"x".repeat(64 * 1024)}});
+        let mut body = format!("{started}\n");
+        while (body.len() as u64) < MAX_CHAT + 256 * 1024 {
+            body.push_str(&format!("{output}\n"));
+        }
+        fs::write(&path, &body).unwrap();
+        let local = LocalSession {
+            pid: 42,
+            id: "t2".into(),
+            cwd: "C:\\code".into(),
+            started: 1.0,
+            path: path.clone(),
+        };
+        assert_eq!(
+            as_session(&local, ContentPolicy::default()).phase,
+            SessionPhase::Generating
+        );
+        let done = json!({"timestamp":"2026-11-09T19:40:00Z","type":"event_msg","payload":{"type":"task_complete"}});
+        fs::write(&path, format!("{body}{done}\n")).unwrap();
+        assert_eq!(
+            as_session(&local, ContentPolicy::default()).phase,
+            SessionPhase::Idle
+        );
         let _ = fs::remove_dir_all(dir);
     }
 

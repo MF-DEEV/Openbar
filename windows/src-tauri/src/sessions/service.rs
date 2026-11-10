@@ -1106,7 +1106,7 @@ impl Service {
                 ) {
                     return Some("unreachable");
                 }
-                if hosts::deliver(pid, &located, text, images).is_ok() {
+                if hosts::deliver_codex(pid, &located, text, images).is_ok() {
                     self.acknowledge(session);
                     return None;
                 }
