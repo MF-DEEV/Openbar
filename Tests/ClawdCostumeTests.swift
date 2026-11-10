@@ -34,10 +34,17 @@ enum ClawdCostumeTests {
 
         let costumes = (0..<600).map { ClawdCostume.seeded("session-\($0)") }
         suite.expect(Set(costumes.map(\.shell)) == Set(ClawdShell.allCases), "every shell comes up")
-        suite.expect(Set(costumes.map(\.hat)) == Set(ClawdHat.allCases)
+        suite.expect(Set(costumes.map(\.hat)) == Set(ClawdCostume.seededHats)
                      && Set(costumes.map(\.eyewear)) == Set(ClawdEyewear.allCases)
-                     && Set(costumes.map(\.extra)) == Set(ClawdExtra.allCases),
-                     "every hat, pair of eyewear and extra comes up, and so does nothing")
+                     && Set(costumes.map(\.extra)) == Set(ClawdCostume.seededExtras),
+                     "every hat, pair of eyewear and extra of a session's lot comes up, and so does nothing")
+        suite.expect(!ClawdCostume.seededHats.contains(.mouseEars) && !ClawdCostume.seededExtras.contains(.magicLamp)
+                     && ClawdCostume.seededHats.last == .wonderTiara && ClawdCostume.seededExtras.last == .lanternEmblem,
+                     "a session's own lot keeps the first wardrobe, so no existing outfit changes")
+        let surprises = (0..<3000).map { _ in ClawdCostume.random(excluding: nil) }
+        suite.expect(Set(surprises.map(\.hat)) == Set(ClawdHat.allCases)
+                     && Set(surprises.map(\.extra)) == Set(ClawdExtra.allCases),
+                     "Surprise me draws from the whole wardrobe, the new parts too")
         func share(_ count: Int) -> Double { Double(count) / Double(costumes.count) }
         let bare = (hat: share(costumes.filter { $0.hat == .none }.count),
                     eyewear: share(costumes.filter { $0.eyewear == .none }.count),

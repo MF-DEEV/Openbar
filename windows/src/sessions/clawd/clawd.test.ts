@@ -335,9 +335,9 @@ describe("clawd drawing", () => {
     let fingerprint = 0x811c9dc5;
     for (const character of ["clawd", "codex", "gemini", "copilot", "opencode", "cursor"] as const) {
       const parts: ClawdCostume[] = [
-        ...HATS.slice(0, 13).map((hat) => ({ ...CLASSIC, hat })),
+        ...HATS.map((hat) => ({ ...CLASSIC, hat })),
         ...EYEWEAR.map((eyewear) => ({ ...CLASSIC, eyewear })),
-        ...EXTRAS.slice(0, 25).map((extra) => ({ ...CLASSIC, extra })),
+        ...EXTRAS.map((extra) => ({ ...CLASSIC, extra })),
       ];
       for (const costume of parts) {
         for (const letter of letters(costume, basePose(), character)) {
@@ -345,7 +345,7 @@ describe("clawd drawing", () => {
         }
       }
     }
-    expect(fingerprint.toString(16)).toBe("db05147a");
+    expect(fingerprint.toString(16)).toBe("7b741a52");
   });
 
   it("covers the eyes with opaque glasses and hero masks", () => {

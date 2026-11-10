@@ -89,7 +89,8 @@ enum ClawdShell: String, CaseIterable, Identifiable {
 }
 
 enum ClawdHat: String, CaseIterable, Identifiable {
-    case none, beanie, cap, beret, topHat, crown, party, propeller, chef, doomHood, thorHelmet, lokiHorns, wonderTiara
+    case none, beanie, cap, beret, topHat, crown, party, propeller, chef, doomHood, thorHelmet, lokiHorns, wonderTiara,
+         mouseEars, bowEars, sorcererHat
 
     var id: String { rawValue }
 }
@@ -101,7 +102,8 @@ enum ClawdEyewear: String, CaseIterable, Identifiable {
 }
 
 enum ClawdExtra: String, CaseIterable, Identifiable {
-    case none, bow, scarf, bowTie, flower, headphones, coffee, doomCape, strangeCape, thorCape, supermanCape, batmanCape, captainShield, mjolnir, aquamanTrident, lanternRing, wolverineClaws, batarang, hawkeyeBow, strangeSpell, webShooter, ironReactor, supermanEmblem, flashEmblem, lanternEmblem
+    case none, bow, scarf, bowTie, flower, headphones, coffee, doomCape, strangeCape, thorCape, supermanCape, batmanCape, captainShield, mjolnir, aquamanTrident, lanternRing, wolverineClaws, batarang, hawkeyeBow, strangeSpell, webShooter, ironReactor, supermanEmblem, flashEmblem, lanternEmblem,
+         fairyWand, magicLamp
 
     var id: String { rawValue }
 }
@@ -152,16 +154,26 @@ struct ClawdCostume: Hashable {
     /// A costume by lot, other than `current`, for "Surprise me".
     static func random(excluding current: ClawdCostume?, character: ClawdCharacter = .clawd) -> ClawdCostume {
         var generator = SystemRandomNumberGenerator()
-        var costume = drawn(using: &generator, character: character)
+        var costume = drawn(using: &generator, character: character, fullWardrobe: true)
         // Ten draws alike in a row are as good as impossible; give up then.
-        for _ in 0..<10 where costume == current { costume = drawn(using: &generator, character: character) }
+        for _ in 0..<10 where costume == current {
+            costume = drawn(using: &generator, character: character, fullWardrobe: true)
+        }
         return costume
     }
 
+    /// The hats and extras a session's own lot draws from. Parts added after
+    /// these would change the outfit every existing session was given, so
+    /// they come only by hand and through Surprise me (as on Windows).
+    static let seededHats = Array(ClawdHat.allCases.prefix(13))
+    static let seededExtras = Array(ClawdExtra.allCases.prefix(25))
+
     /// One part after another from the same lot, so each is its own draw.
-    /// New sessions and Surprise me both include the full wardrobe.
+    /// A session's own lot leaves out the parts added since the first
+    /// wardrobe; Surprise me draws from all of it.
     static func drawn<Generator: RandomNumberGenerator>(using generator: inout Generator,
-                                                        character: ClawdCharacter = .clawd) -> ClawdCostume {
+                                                        character: ClawdCharacter = .clawd,
+                                                        fullWardrobe: Bool = false) -> ClawdCostume {
         let favoured = character.favouredShell
         let shells = ClawdShell.allCases
         let weights = shells.map { $0 == favoured ? clayWeight : 1 }
@@ -172,9 +184,11 @@ struct ClawdCostume: Hashable {
             ticket -= weight
         }
         return ClawdCostume(shell: shell,
-                            hat: pick(ClawdHat.allCases, chance: hatChance, using: &generator),
+                            hat: pick(fullWardrobe ? ClawdHat.allCases : seededHats, chance: hatChance,
+                                      using: &generator),
                             eyewear: pick(ClawdEyewear.allCases, chance: eyewearChance, using: &generator),
-                            extra: pick(ClawdExtra.allCases, chance: extraChance, using: &generator))
+                            extra: pick(fullWardrobe ? ClawdExtra.allCases : seededExtras, chance: extraChance,
+                                        using: &generator))
     }
 
     /// Nothing, the first case, with the chance left over; otherwise one of

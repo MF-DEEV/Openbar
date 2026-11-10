@@ -653,6 +653,29 @@ enum NotchClawdSprite {
             return [Stamp(x: 0, y: -2, rows: ["Y.....Y.....Y",
                                             "YYYYYYYYYYYYY",
                                             ".YYYYRYYYYYY."])]
+        case .mouseEars:
+            return [Stamp(x: -2, y: -6, rows: [".HHH.........HHH.",
+                                             "HKKKH.......HKKKH",
+                                             "HKKKH.......HKKKH",
+                                             ".HKH.........HKH.",
+                                             "...HKKKKKKKKKH...",
+                                             "....KKKKKKKKK...."])]
+        case .bowEars:
+            return [Stamp(x: -2, y: -6, rows: [".HHH.........HHH.",
+                                             "HKKKH.RR.RR.HKKKH",
+                                             "HKKKH.RRYRR.HKKKH",
+                                             ".HKH..RR.RR..HKH.",
+                                             "...HKKKKKKKKKH...",
+                                             "....KKKKKKKKK...."])]
+        case .sorcererHat:
+            return [Stamp(x: 0, y: -6, rows: ["......Y......",
+                                            ".....BBB.....",
+                                            ".....BYB.....",
+                                            "....BBBBB....",
+                                            "...BBYBBBB...",
+                                            "..BBBBBBYBB..",
+                                            ".BBBBBBBBBBB.",
+                                            "YYYYYYYYYYYYY"])]
         }
     }
 
@@ -860,6 +883,13 @@ enum NotchClawdSprite {
                                              "WQWQW",
                                              "WQQQW",
                                              ".WWW."])]
+        case .fairyWand:
+            let hand = rightHand(arms, character: character)
+            return [Stamp(x: hand.x - 2, y: hand.y - 3, rows: ["..Y..", ".YYY.", "YYYYY", ".YYY.", "..Y..",
+                                                               "..W..", "..W..", "..W..", "..W.."])]
+        case .magicLamp:
+            let hand = rightHand(arms, character: character)
+            return [Stamp(x: hand.x - 3, y: hand.y - 2, rows: ["...Y..", "..YYY.", "yYYYYY", "y.YYY.", "..yy.."])]
         }
     }
 

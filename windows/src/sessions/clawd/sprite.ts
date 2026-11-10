@@ -534,34 +534,40 @@ export function hatStamps(hat: ClawdHat, tick: number): Stamp[] {
     case "wonderTiara":
       return [s(0, -2, ["Y.....Y.....Y", "YYYYYYYYYYYYY", ".YYYYRYYYYYY."])];
     case "mouseEars":
-      return [s(-2, -6, [
-        ".KKK.........KKK.",
-        "KKKKK.......KKKKK",
-        "KKKKK.......KKKKK",
-        ".KKK.........KKK.",
-        "...KKKKKKKKKKK...",
-        "....KKKKKKKKK....",
-      ])];
+      return [
+        s(-2, -6, [
+          ".HHH.........HHH.",
+          "HKKKH.......HKKKH",
+          "HKKKH.......HKKKH",
+          ".HKH.........HKH.",
+          "...HKKKKKKKKKH...",
+          "....KKKKKKKKK....",
+        ]),
+      ];
     case "bowEars":
-      return [s(-2, -6, [
-        ".KKK.........KKK.",
-        "KKKKK..RR.RR..KKKKK",
-        "KKKKK..RRRRR..KKKKK",
-        ".KKK...RRYRR...KKK.",
-        "...KKKKKKKKKKK...",
-        "....KKKKKKKKK....",
-      ])];
+      return [
+        s(-2, -6, [
+          ".HHH.........HHH.",
+          "HKKKH.RR.RR.HKKKH",
+          "HKKKH.RRYRR.HKKKH",
+          ".HKH..RR.RR..HKH.",
+          "...HKKKKKKKKKH...",
+          "....KKKKKKKKK....",
+        ]),
+      ];
     case "sorcererHat":
-      return [s(0, -6, [
-        "......Y......",
-        ".....BBB.....",
-        ".....BYB.....",
-        "....BBBBB....",
-        "...BBYBBBB...",
-        "..BBBBBBYBB..",
-        ".BBBBBBBBBBB.",
-        "YYYYYYYYYYYYY",
-      ])];
+      return [
+        s(0, -6, [
+          "......Y......",
+          ".....BBB.....",
+          ".....BYB.....",
+          "....BBBBB....",
+          "...BBYBBBB...",
+          "..BBBBBBYBB..",
+          ".BBBBBBBBBBB.",
+          "YYYYYYYYYYYYY",
+        ]),
+      ];
   }
 }
 
@@ -676,11 +682,11 @@ export function extraStamps(extra: ClawdExtra, arms: Arms, tick: number, charact
     }
     case "fairyWand": {
       const [x, y] = rightHand(arms, character);
-      return [s(x - 2, y - 3, ["..Y..", ".YYY.", "YYYYY", ".YYY.", "..Y..", "..W..", "..W..", "..W..", "..W.."] )];
+      return [s(x - 2, y - 3, ["..Y..", ".YYY.", "YYYYY", ".YYY.", "..Y..", "..W..", "..W..", "..W..", "..W.."])];
     }
     case "magicLamp": {
       const [x, y] = rightHand(arms, character);
-      return [s(x - 8, y - 3, ["....YY....", "...YYYY...", "YYYYYYYYY.", "Y.YYYYYYYY", "..YYYYYY..", "...YYYY...", "....YY...."] )];
+      return [s(x - 3, y - 2, ["...Y..", "..YYY.", "yYYYYY", "y.YYY.", "..yy.."])];
     }
     case "doomCape":
       return [s(0, 0, ["QQY.......YQQ"])];
