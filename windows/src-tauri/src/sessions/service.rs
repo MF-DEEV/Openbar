@@ -636,6 +636,11 @@ impl Service {
                 if let Some(located) = hosts::locate(local.pid) {
                     session.host = host_kind(&located.host);
                     session.host_name = located.host.display_name();
+                    session.accepts_replies = session.phase == models::SessionPhase::Idle
+                        && matches!(
+                            located.host,
+                            hosts::Host::Conhost | hosts::Host::WindowsTerminal { .. }
+                        );
                 }
                 snapshot.sessions.push(session);
             }
@@ -1067,6 +1072,46 @@ impl Service {
             }
             let inner = self.inner.lock().unwrap();
             return Some(codex_refusal(&inner.sessions, session));
+        }
+        #[cfg(windows)]
+        {
+            let pid = self
+                .inner
+                .lock()
+                .unwrap()
+                .local_codex
+                .iter()
+                .find(|s| s.id == session)
+                .map(|s| s.pid);
+            if let Some(pid) = pid {
+                // Re-read the rollout and process just before typing. A turn may
+                // have started since the last published snapshot.
+                let current = super::codex::local::discover()
+                    .into_iter()
+                    .find(|s| s.id == session && s.pid == pid);
+                let Some(current) = current else {
+                    return Some("unreachable");
+                };
+                if super::codex::local::as_session(&current, ContentPolicy::default()).phase
+                    != models::SessionPhase::Idle
+                {
+                    return Some("waiting");
+                }
+                let Some(located) = hosts::locate(pid) else {
+                    return Some("unreachable");
+                };
+                if !matches!(
+                    located.host,
+                    hosts::Host::Conhost | hosts::Host::WindowsTerminal { .. }
+                ) {
+                    return Some("unreachable");
+                }
+                if hosts::deliver_codex(pid, &located, text, images).is_ok() {
+                    self.acknowledge(session);
+                    return None;
+                }
+                return Some("unreachable");
+            }
         }
         if let Some(refusal) = self.reply_to_agent(session, text) {
             return refusal;
