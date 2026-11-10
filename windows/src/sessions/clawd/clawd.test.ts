@@ -83,6 +83,14 @@ describe("clawd costume lot", () => {
     expect(costumeCode(seeded("s/a1"))).toBe("v1:coral.beret.none.strangeCape");
   });
 
+  it("keeps seeded outfits stable while Surprise me can pick the new accessories", () => {
+    const values = [0n, 0n, 12n, 0n, 0n, 0n, 25n];
+    const next = randomCostume(CLASSIC, { next: () => values.shift() ?? 0n });
+    expect(next.hat).toBe("mouseEars");
+    expect(next.extra).toBe("magicLamp");
+    expect(costumeCode(seeded("s/a1"))).toBe("v1:coral.beret.none.strangeCape");
+  });
+
   it("hashes non-ASCII ids as UTF-8", () => {
     // é is two bytes, c3 a9; by hand: ((basis ^ 0xc3) * p ^ 0xa9) * p.
     const p = 0x100000001b3n;
@@ -93,17 +101,17 @@ describe("clawd costume lot", () => {
 
   it("draws every accessory for new Codex chats too", () => {
     const costumes = Array.from({ length: 600 }, (_, i) => seeded(`new-codex-${i}`, null, "codex"));
-    expect(new Set(costumes.map((c) => c.hat))).toEqual(new Set(HATS));
+    expect(new Set(costumes.map((c) => c.hat))).toEqual(new Set(HATS.slice(0, 13)));
     expect(new Set(costumes.map((c) => c.eyewear))).toEqual(new Set(EYEWEAR));
-    expect(new Set(costumes.map((c) => c.extra))).toEqual(new Set(EXTRAS));
+    expect(new Set(costumes.map((c) => c.extra))).toEqual(new Set(EXTRAS.slice(0, 25)));
   });
 
   it("gives new sessions every part about as often as meant", () => {
     const costumes = Array.from({ length: 600 }, (_, i) => seeded(`session-${i}`));
     expect(new Set(costumes.map((c) => c.shell))).toEqual(new Set(SHELLS));
-    expect(new Set(costumes.map((c) => c.hat))).toEqual(new Set(HATS));
+    expect(new Set(costumes.map((c) => c.hat))).toEqual(new Set(HATS.slice(0, 13)));
     expect(new Set(costumes.map((c) => c.eyewear))).toEqual(new Set(EYEWEAR));
-    expect(new Set(costumes.map((c) => c.extra))).toEqual(new Set(EXTRAS));
+    expect(new Set(costumes.map((c) => c.extra))).toEqual(new Set(EXTRAS.slice(0, 25)));
     const share = (n: number) => n / costumes.length;
     expect(Math.abs(share(costumes.filter((c) => c.hat === "none").length) - (1 - HAT_CHANCE))).toBeLessThan(0.08);
     expect(Math.abs(share(costumes.filter((c) => c.eyewear === "none").length) - (1 - EYEWEAR_CHANCE))).toBeLessThan(
@@ -307,7 +315,7 @@ describe("clawd drawing", () => {
   });
 
   it("can be dressed with the expanded hero catalog", () => {
-    expect(SHELLS.length * HATS.length * EYEWEAR.length * EXTRAS.length).toBe(11 * 13 * 20 * 25);
+    expect(SHELLS.length * HATS.length * EYEWEAR.length * EXTRAS.length).toBe(11 * 16 * 20 * 27);
   });
 
   const at = (c: ClawdCostume, column: number, row: number) =>
@@ -337,7 +345,7 @@ describe("clawd drawing", () => {
         }
       }
     }
-    expect(fingerprint.toString(16)).toBe("db05147a");
+    expect(fingerprint.toString(16)).toBe("7b741a52");
   });
 
   it("covers the eyes with opaque glasses and hero masks", () => {

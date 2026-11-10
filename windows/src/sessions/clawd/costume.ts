@@ -34,6 +34,9 @@ export const HATS = [
   "thorHelmet",
   "lokiHorns",
   "wonderTiara",
+  "mouseEars",
+  "bowEars",
+  "sorcererHat",
 ] as const;
 export const EYEWEAR = [
   "none",
@@ -83,6 +86,8 @@ export const EXTRAS = [
   "supermanEmblem",
   "flashEmblem",
   "lanternEmblem",
+  "fairyWand",
+  "magicLamp",
 ] as const;
 
 export type ClawdShell = (typeof SHELLS)[number];
@@ -152,6 +157,11 @@ export const EXTRA_CHANCE = 0.45;
 /** Claude's own color comes up this many times as often as any other. */
 export const CLAY_WEIGHT = 3;
 
+// Preserve the seeded outfits chosen before these additions. New pieces are
+// available by hand and through Surprise me without changing an old session.
+const ORIGINAL_HATS = HATS.slice(0, 13);
+const ORIGINAL_EXTRAS = EXTRAS.slice(0, 25);
+
 const MASK = 0xffff_ffff_ffff_ffffn;
 
 /** FNV-1a 64 over the key's UTF-8 bytes: the same number on every launch and platform. */
@@ -206,7 +216,7 @@ function pick<T>(parts: readonly T[], chance: number, random: RandomSource): T {
 }
 
 /** One part after another from the same lot: seven numbers in all. */
-export function drawn(random: RandomSource, character: Character = "clawd"): ClawdCostume {
+export function drawn(random: RandomSource, character: Character = "clawd", fullWardrobe = false): ClawdCostume {
   const favoured = FAVOURED_SHELL[character];
   const shells = SHELLS;
   const weights = shells.map((shell) => (shell === favoured ? CLAY_WEIGHT : 1));
@@ -222,9 +232,9 @@ export function drawn(random: RandomSource, character: Character = "clawd"): Cla
   }
   return {
     shell,
-    hat: pick(HATS, HAT_CHANCE, random),
+    hat: pick(fullWardrobe ? HATS : ORIGINAL_HATS, HAT_CHANCE, random),
     eyewear: pick(EYEWEAR, EYEWEAR_CHANCE, random),
-    extra: pick(EXTRAS, EXTRA_CHANCE, random),
+    extra: pick(fullWardrobe ? EXTRAS : ORIGINAL_EXTRAS, EXTRA_CHANCE, random),
   };
 }
 
@@ -275,9 +285,9 @@ export function sameCostume(a: ClawdCostume | null | undefined, b: ClawdCostume 
 
 /** A costume by lot other than `current`, for "Surprise me". */
 export function randomCostume(current: ClawdCostume | null | undefined, random: RandomSource = systemRandom) {
-  let costume = drawn(random);
+  let costume = drawn(random, "clawd", true);
   // Ten draws alike in a row are as good as impossible; give up then.
-  for (let i = 0; i < 10 && sameCostume(costume, current); i++) costume = drawn(random);
+  for (let i = 0; i < 10 && sameCostume(costume, current); i++) costume = drawn(random, "clawd", true);
   return costume;
 }
 

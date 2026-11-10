@@ -485,7 +485,8 @@ extension NotchClaudeSessionStrings {
         hats: [.beanie: "Beanie", .cap: "Cap", .beret: "Beret", .topHat: "Top hat", .crown: "Crown",
                  .party: "Party hat", .propeller: "Propeller cap", .chef: "Chef’s hat",
                  .doomHood: "Doctor Doom hood", .thorHelmet: "Thor helmet", .lokiHorns: "Loki horns",
-                 .wonderTiara: "Wonder Woman tiara"],
+                 .wonderTiara: "Wonder Woman tiara", .mouseEars: "Mouse ears", .bowEars: "Mouse ears with bow",
+                 .sorcererHat: "Sorcerer’s hat"],
         eyewears: [.glasses: "Glasses", .shades: "Sunglasses", .round: "Round glasses", .monocle: "Monocle",
                  .anaglyph: "3D glasses", .batmanMask: "Batman mask", .ironManMask: "Iron Man mask",
                  .spiderManMask: "Spider-Man mask", .doomMask: "Doctor Doom mask", .wolverineMask: "Wolverine mask",
@@ -500,7 +501,8 @@ extension NotchClaudeSessionStrings {
                  .wolverineClaws: "Wolverine claws", .batarang: "Batman batarang", .hawkeyeBow: "Hawkeye bow",
                  .strangeSpell: "Doctor Strange spell", .webShooter: "Spider-Man web",
                  .ironReactor: "Iron Man arc reactor", .supermanEmblem: "Superman emblem",
-                 .flashEmblem: "Flash lightning", .lanternEmblem: "Green Lantern emblem"])
+                 .flashEmblem: "Flash lightning", .lanternEmblem: "Green Lantern emblem",
+                 .fairyWand: "Fairy wand", .magicLamp: "Magic lamp"])
 }
 
 extension NotchClaudeSessionStrings {

@@ -40,7 +40,7 @@ enum NotchClawdSpriteTests {
     }
 
     static func drawing(_ suite: TestSuite) {
-        suite.expect(everyCostume.count == 11 * 13 * 20 * 25, "a Clawd can be dressed \(everyCostume.count) ways")
+        suite.expect(everyCostume.count == 11 * 16 * 20 * 27, "a Clawd can be dressed \(everyCostume.count) ways")
         // Each part is drawn on its own, so each part checked on its own
         // stands for every costume it is part of; the tallest hat with the
         // widest extra checks that they fit together too.
@@ -88,7 +88,7 @@ enum NotchClawdSpriteTests {
                 }
             }
         }
-        suite.expect(fingerprint == 0xdb05_147a, "every part is drawn as on Windows: \(String(fingerprint, radix: 16))")
+        suite.expect(fingerprint == 0x7b74_1a52, "every part is drawn as on Windows: \(String(fingerprint, radix: 16))")
         for shell in ClawdShell.allCases {
             suite.expect(NotchClawdSprite.accent(for: shell) != shell, "a hat on \(shell) is told from the shell")
         }
