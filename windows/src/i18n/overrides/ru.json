@@ -419,6 +419,8 @@
   "windows.settings.behavior.reopeningCaption": "Где остров откроется в следующий раз.",
   "windows.settings.behavior.hideFullscreen": "Скрыть на полном экране",
   "windows.settings.behavior.hideFullscreenCaption": "Скрывается, когда приложение занимает весь экран, например игра или фильм, и возвращается позже.",
+  "windows.settings.behavior.makeRoom": "Размещать окна под островом",
+  "windows.settings.behavior.makeRoomCaption": "Развёрнутые окна начинаются под закрытым островом, а не заслоняются им, поэтому вкладки браузера остаются видны.",
   "windows.settings.behavior.whereCaption": "При нескольких дисплеях, на каком из них будет остров.",
   "windows.settings.behavior.capturesCaption": "Off оставляет остров вне скриншотов, записей и совместного использования экрана.",
   "windows.settings.sessions.lead": "Читает состояние, которое Claude Code и Codex сохраняют для каждой запущенной сессии на этом ПК. Подсказки и ответы остаются непрочитанными, если не включить просмотр предварительного просмотра, и ничего не покидает ваш ПК.",

@@ -419,6 +419,8 @@
   "windows.settings.behavior.reopeningCaption": "Wo die Insel beim nächsten Mal geöffnet wird.",
   "windows.settings.behavior.hideFullscreen": "Im Vollbildmodus ausblenden",
   "windows.settings.behavior.hideFullscreenCaption": "Wird ausgeblendet, während eine App den ganzen Bildschirm ausfüllt, wie ein Spiel oder ein Film, und kehrt danach zurück.",
+  "windows.settings.behavior.makeRoom": "Fenster unter der Insel beginnen lassen",
+  "windows.settings.behavior.makeRoomCaption": "Maximierte Fenster beginnen unterhalb der geschlossenen Insel, statt von ihr verdeckt zu werden, sodass die Tabs im Browser sichtbar bleiben.",
   "windows.settings.behavior.whereCaption": "Bei mehreren Displays, welches die Insel hat.",
   "windows.settings.behavior.capturesCaption": "Aus lässt die Insel bei Screenshots, Aufnahmen und Bildschirmfreigaben weg.",
   "windows.settings.sessions.lead": "Liest den Zustand Claude Code und Codex, den jede laufende Sitzung auf diesem PC behält. Eingabeaufforderungen und Antworten bleiben ungelesen, es sei denn, Sie aktivieren Vorschauen, und nichts verlässt Ihren PC.",

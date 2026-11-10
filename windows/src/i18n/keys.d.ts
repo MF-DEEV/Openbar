@@ -3962,6 +3962,8 @@ export type CatalogKey =
   | "windows.settings.behavior.capturesCaption"
   | "windows.settings.behavior.hideFullscreen"
   | "windows.settings.behavior.hideFullscreenCaption"
+  | "windows.settings.behavior.makeRoom"
+  | "windows.settings.behavior.makeRoomCaption"
   | "windows.settings.behavior.openingCaption"
   | "windows.settings.behavior.reopeningCaption"
   | "windows.settings.behavior.shortcutCaption"

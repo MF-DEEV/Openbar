@@ -419,6 +419,8 @@
   "windows.settings.behavior.reopeningCaption": "Adanın bir sonraki açıldığında nerede olacağı.",
   "windows.settings.behavior.hideFullscreen": "Tam ekranda gizle",
   "windows.settings.behavior.hideFullscreenCaption": "Bir uygulama tüm ekranı doldurduğunda, örneğin bir oyun veya film sırasında gizler ve sonra geri gelir.",
+  "windows.settings.behavior.makeRoom": "Pencereleri adanın altında tut",
+  "windows.settings.behavior.makeRoomCaption": "Büyütülmüş pencereler kapalı adanın arkasında kalmak yerine onun altından başlar, böylece tarayıcı sekmeleri görünür kalır.",
   "windows.settings.behavior.whereCaption": "Birden fazla ekran varsa, hangisinde adanın olacağı.",
   "windows.settings.behavior.capturesCaption": "Kapalı olması, adanın ekran görüntülerine, kayıtlara ve ekran paylaşımına dahil olmamasını sağlar.",
   "windows.settings.sessions.lead": "Bu PC'de her çalışan oturum için Claude Code ve Codex tarafından tutulan durumu okur. Önizlemeleri açmadığınız sürece istemler ve yanıtlar okunmamış kalır ve hiçbir şey PC'nizden ayrılmaz.",

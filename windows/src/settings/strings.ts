@@ -801,6 +801,12 @@ export const T = {
     get hideFullscreenCaption() {
       return t("windows.settings.behavior.hideFullscreenCaption");
     },
+    get makeRoom() {
+      return t("windows.settings.behavior.makeRoom");
+    },
+    get makeRoomCaption() {
+      return t("windows.settings.behavior.makeRoomCaption");
+    },
     get where() {
       return t("s.switcherScreenPlacementLabel");
     },

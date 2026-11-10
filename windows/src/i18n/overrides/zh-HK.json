@@ -419,6 +419,8 @@
   "windows.settings.behavior.reopeningCaption": "下次島嶼開啟的位置。",
   "windows.settings.behavior.hideFullscreen": "全螢幕時隱藏",
   "windows.settings.behavior.hideFullscreenCaption": "當應用程式佔滿整個螢幕時隱藏，如遊戲或影片，之後再回來。",
+  "windows.settings.behavior.makeRoom": "讓視窗位於島嶼下方",
+  "windows.settings.behavior.makeRoomCaption": "最大化的視窗會從收起的島嶼下方開始，不會被它遮住，瀏覽器的分頁始終可見。",
   "windows.settings.behavior.whereCaption": "有多個顯示器時，哪一個顯示島嶼。",
   "windows.settings.behavior.capturesCaption": "關閉會使島嶼不出現在截圖、錄影和螢幕共享中。",
   "windows.settings.sessions.lead": "讀取 Claude Code 和 Codex 在這台電腦上每個執行階段的狀態。提示和回覆保持未讀，除非你開啟預覽，並且不會將任何資料離開你的電腦。",

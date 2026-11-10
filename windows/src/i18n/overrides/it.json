@@ -419,6 +419,8 @@
   "windows.settings.behavior.reopeningCaption": "Dove l'isola si aprirà la prossima volta.",
   "windows.settings.behavior.hideFullscreen": "Nascondi a schermo intero",
   "windows.settings.behavior.hideFullscreenCaption": "Si nasconde mentre un'app riempie tutto lo schermo, come un gioco o un film, e torna dopo.",
+  "windows.settings.behavior.makeRoom": "Tieni le finestre sotto l'isola",
+  "windows.settings.behavior.makeRoomCaption": "Le finestre ingrandite iniziano sotto l'isola chiusa invece di esserne coperte, così le schede del browser restano visibili.",
   "windows.settings.behavior.whereCaption": "Con più display, quale ha l'isola.",
   "windows.settings.behavior.capturesCaption": "Disattivato lascia l'isola fuori da screenshot, registrazioni e condivisione dello schermo.",
   "windows.settings.sessions.lead": "Legge lo stato che Claude Code e Codex mantengono per ogni sessione in esecuzione su questo PC. Prompt e risposte restano non letti a meno che tu non attivi le anteprime, e nulla esce dal tuo PC.",

@@ -418,6 +418,8 @@
   "windows.settings.behavior.reopeningCaption": "Where the island opens the next time.",
   "windows.settings.behavior.hideFullscreen": "Hide in full screen",
   "windows.settings.behavior.hideFullscreenCaption": "Hides while an app fills the whole screen, like a game or a film, and comes back after.",
+  "windows.settings.behavior.makeRoom": "Keep windows below the island",
+  "windows.settings.behavior.makeRoomCaption": "Maximized windows start below the closed island instead of under it, so a browser's tabs stay in view.",
   "windows.settings.behavior.whereCaption": "With several displays, which one has the island.",
   "windows.settings.behavior.capturesCaption": "Off leaves the island out of screenshots, recordings and screen sharing.",
   "windows.settings.sessions.lead": "Reads the state Claude Code and Codex keep for each running session on this PC. Prompts and replies stay unread unless you turn on previews, and nothing leaves your PC.",

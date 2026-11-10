@@ -194,6 +194,10 @@ pub struct IslandState {
     /// The window that had the keyboard before the island took it.
     #[cfg(any(windows, target_os = "linux"))]
     previous_foreground: Mutex<isize>,
+    /// The closed island's height in CSS pixels while maximized windows keep
+    /// below it (Settings › Behavior), see `linux/room.rs`.
+    #[cfg(target_os = "linux")]
+    room: Mutex<Option<f64>>,
 }
 
 impl IslandState {
@@ -273,7 +277,13 @@ pub fn place<R: Runtime>(window: &WebviewWindow<R>, choice: DisplayChoice) -> ta
     let Some(monitor) = monitor.or(window.current_monitor()?) else {
         return Ok(());
     };
-    move_to(window, &monitor)
+    move_to(window, &monitor)?;
+    // The choice decides which displays keep a strip for the island.
+    #[cfg(target_os = "linux")]
+    if let Some(state) = window.try_state::<IslandState>() {
+        platform::set_room(window, &state);
+    }
+    Ok(())
 }
 
 /// Sizes and moves the window onto `monitor`; never changes the choice.
@@ -584,6 +594,25 @@ pub fn island_set_capture<R: Runtime>(
     capture: bool,
 ) {
     platform::set_capture(&app, &state, capture)
+}
+
+/// Settings › Behavior › Keep windows below the island: the closed island's
+/// height in CSS pixels, or None to give the strip back. Linux only so far.
+#[tauri::command]
+pub fn island_set_room<R: Runtime>(
+    app: AppHandle<R>,
+    state: tauri::State<'_, IslandState>,
+    height: Option<f64>,
+) {
+    #[cfg(target_os = "linux")]
+    {
+        let changed = std::mem::replace(&mut *state.room.lock().unwrap(), height) != height;
+        if let (true, Some(window)) = (changed, app.get_webview_window(LABEL)) {
+            platform::set_room(&window, &state);
+        }
+    }
+    #[cfg(not(target_os = "linux"))]
+    let _ = (app, state, height);
 }
 
 /// What the mirrors draw; None draws nothing (the island is off or hidden).

@@ -419,6 +419,8 @@
   "windows.settings.behavior.reopeningCaption": "Kde sa ostrov otvorí nabudúce.",
   "windows.settings.behavior.hideFullscreen": "Skryť na celej obrazovke",
   "windows.settings.behavior.hideFullscreenCaption": "Skryje sa, keď aplikácia vyplní celú obrazovku, ako hra alebo film, a potom sa vráti.",
+  "windows.settings.behavior.makeRoom": "Umiestniť okná pod ostrov",
+  "windows.settings.behavior.makeRoomCaption": "Maximalizované okná začínajú pod zatvoreným ostrovom, namiesto toho aby ich zakrýval, takže karty prehliadača zostanú viditeľné.",
   "windows.settings.behavior.whereCaption": "Pri viacerých displejoch, ktorý má ostrov.",
   "windows.settings.behavior.capturesCaption": "Vypnuté necháva ostrov mimo snímok obrazovky, záznamov a zdieľania obrazovky.",
   "windows.settings.sessions.lead": "Číta stav, ktorý si Claude Code a Codex uchovávajú pre každú bežiacu reláciu na tomto počítači. Výzvy a odpovede zostávajú neprečítané, pokiaľ nezapnete náhľady, a nič neodchádza z vášho počítača.",

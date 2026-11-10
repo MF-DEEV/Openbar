@@ -419,6 +419,8 @@
   "windows.settings.behavior.reopeningCaption": "次回アイランドが開く場所。",
   "windows.settings.behavior.hideFullscreen": "フルスクリーンで非表示",
   "windows.settings.behavior.hideFullscreenCaption": "アプリが画面全体を占めているとき（ゲームや映画など）に非表示になり、その後戻ります。",
+  "windows.settings.behavior.makeRoom": "ウィンドウを島の下から表示",
+  "windows.settings.behavior.makeRoomCaption": "最大化したウィンドウは閉じた島に隠れず、その下から始まるため、ブラウザのタブが見えたままになります。",
   "windows.settings.behavior.whereCaption": "複数のディスプレイがある場合、どれがアイランドを表示するか。",
   "windows.settings.behavior.capturesCaption": "オフにすると、スクリーンショット、録画、画面共有にアイランドが含まれません。",
   "windows.settings.sessions.lead": "この PC 上の実行中の各セッションに対して Claude Code と Codex が保持する状態を読み取ります。プレビューをオンにしない限り、プロンプトや返信は未読のままで、PC から何も出ません。",

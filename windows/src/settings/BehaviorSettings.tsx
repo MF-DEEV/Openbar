@@ -6,9 +6,21 @@
 
 import { useLocale, t, type StringKey } from "../i18n";
 
-import { Camera, Eye, Hand, Maximize, Monitor, MousePointerClick, Timer, TimerReset, Undo2 } from "lucide-react";
+import {
+  Camera,
+  Eye,
+  Hand,
+  Maximize,
+  Monitor,
+  MousePointerClick,
+  PanelTop,
+  Timer,
+  TimerReset,
+  Undo2,
+} from "lucide-react";
 
 import { visibleModules } from "../island/modules";
+import { onLinux } from "../shared/platform";
 import { type DisplayChoice, type HomeDestination, type OpeningMode, sectionEnabled } from "../island/settings";
 import { useSettings } from "./state";
 import { IslandShortcut } from "./IslandShortcut";
@@ -126,6 +138,11 @@ export function BehaviorSettings() {
             onChange={(on) => set("hideInFullscreen", on)}
           />
         </Row>
+        {onLinux() ? (
+          <Row icon={PanelTop} title={T.behavior.makeRoom} caption={T.behavior.makeRoomCaption}>
+            <Toggle label={T.behavior.makeRoom} checked={island.makeRoom} onChange={(on) => set("makeRoom", on)} />
+          </Row>
+        ) : null}
       </Group>
 
       <Group title={T.behavior.privacy}>

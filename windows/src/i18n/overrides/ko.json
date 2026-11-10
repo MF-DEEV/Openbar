@@ -419,6 +419,8 @@
   "windows.settings.behavior.reopeningCaption": "다음에 섬이 열릴 위치.",
   "windows.settings.behavior.hideFullscreen": "전체 화면에서 숨기기",
   "windows.settings.behavior.hideFullscreenCaption": "게임이나 영화처럼 앱이 전체 화면을 차지할 때 숨겨지고, 이후 다시 나타납니다.",
+  "windows.settings.behavior.makeRoom": "창을 섬 아래에 두기",
+  "windows.settings.behavior.makeRoomCaption": "최대화된 창이 닫힌 섬에 가려지지 않고 그 아래에서 시작하므로 브라우저 탭이 계속 보입니다.",
   "windows.settings.behavior.whereCaption": "여러 디스플레이가 있을 때, 어느 디스플레이에 섬이 있는지.",
   "windows.settings.behavior.capturesCaption": "끄기로 설정하면 스크린샷, 녹화, 화면 공유에서 섬이 제외됩니다.",
   "windows.settings.sessions.lead": "현재 PC에서 실행 중인 각 세션에 대해 Claude Code와 Codex이 유지하는 상태를 읽습니다. 미리보기를 켜지 않으면 프롬프트와 응답은 읽지 않은 상태로 남으며, 아무 것도 PC를 떠나지 않습니다.",
