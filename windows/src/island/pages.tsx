@@ -43,6 +43,7 @@ import "../tools/register";
 import "../clipboard/register";
 import "../captures/register";
 import "../camera/register";
+import "../updates/register";
 import "../files/register";
 import "../agents/register";
 import "../watch/register";

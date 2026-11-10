@@ -3,18 +3,21 @@
 
 import { t } from "../i18n";
 
-import { ChevronUp, LayoutGrid, Pin, PinOff, Settings } from "lucide-react";
+import { ChevronUp, Download, LayoutGrid, Pin, PinOff, Settings } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 
 import { bridge } from "../shared/bridge";
 import { Menu, type MenuAnchor, type MenuEntry } from "../shared/ui/Menu";
+import { openRelease } from "../updates/open";
+import { useUpdates } from "../updates/store";
 import { modulesOf, useIsland } from "./store";
 
 /** Matches NotchView.islandMenu: Sections opens the gallery, rather than a submenu.
- * Windows has no updater/available-update offer, so the Mac's conditional Update action is absent.
+ * The Mac's conditional Update action opens the release page here, as Openbar's builds are not signed to install themselves.
  */
 export function islandMenuEntries(): MenuEntry[] {
   const state = useIsland.getState();
+  const update = useUpdates.getState().latest;
   return [
     ...(modulesOf(state).length
       ? [
@@ -41,6 +44,15 @@ export function islandMenuEntries(): MenuEntry[] {
         void bridge.openSettings();
       },
     },
+    ...(update
+      ? [
+          {
+            label: `${t("s.updateAvailablePrefix")} ${update.version}`,
+            icon: Download,
+            onSelect: () => openRelease(update),
+          },
+        ]
+      : []),
     { kind: "separator" },
     { label: t("island.collapse"), icon: ChevronUp, onSelect: () => useIsland.getState().collapse() },
   ];
@@ -55,6 +67,7 @@ export function useIslandContextMenu() {
   useIsland((s) => s.pinned);
   useIsland((s) => s.showingSections);
   useIsland((s) => s.settings);
+  useUpdates((s) => s.latest);
 
   const close = () => {
     if (opened.current) useIsland.getState().setHeld(previousHeld.current);

@@ -166,6 +166,21 @@ describe("state machine", () => {
     expect(seen).toEqual([]);
   });
 
+  it("a notice with its own tap action does that and leaves the island closed", () => {
+    const taps: string[] = [];
+    useIsland.getState().showNotice({
+      id: "update:0.4.0",
+      kind: "update",
+      title: "Openbar update",
+      priority: 1,
+      duration: 8,
+      onTap: () => taps.push("tapped"),
+    });
+    useIsland.getState().clickClosed();
+    expect(useIsland.getState()).toMatchObject({ notice: null, expanded: false });
+    expect(taps).toEqual(["tapped"]);
+  });
+
   it("closing with the pointer inside suppresses hover until it leaves", () => {
     const s = useIsland.getState();
     s.pointerEnter();

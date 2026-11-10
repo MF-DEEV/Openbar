@@ -282,11 +282,37 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
 
 #[cfg(windows)]
 fn console_type(pid: u32, text: &str, images: &[String]) -> Result<(), DeliveryError> {
+    console_type_as(pid, text, images, false)
+}
+
+/// Types into a local Codex CLI's console (CMD or Windows Terminal) the way
+/// its TUI reads keys: plain, without bracketed paste.
+#[cfg(windows)]
+pub fn deliver_codex(
+    pid: u32,
+    located: &Located,
+    text: &str,
+    images: &[String],
+) -> Result<(), DeliveryError> {
+    match &located.host {
+        Host::WindowsTerminal { .. } | Host::Conhost => console_type_as(pid, text, images, true),
+        _ => Err(DeliveryError::Unreachable),
+    }
+}
+
+#[cfg(windows)]
+fn console_type_as(
+    pid: u32,
+    text: &str,
+    images: &[String],
+    plain: bool,
+) -> Result<(), DeliveryError> {
     console::run_helper(
         pid,
         console::Action::Type {
             text: text.into(),
             images: images.to_vec(),
+            plain,
         },
     )
     .map(|_| ())
