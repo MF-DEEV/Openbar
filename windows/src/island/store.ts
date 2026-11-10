@@ -68,6 +68,8 @@ export interface Notice {
   };
   /** Runs once a tap has opened `opens`: a session notice focuses its session. */
   onOpen?: () => void;
+  /** A tap does this and leaves the island closed (an update opens its release page). */
+  onTap?: () => void;
   /** With the companion on, it stands in the symbol slot and plays this (NotchNotice.mascot). */
   mascot?: MascotReaction;
 }
@@ -333,8 +335,12 @@ export const useIsland = create<IslandState>()((set, get) => ({
       return;
     }
     if (s.notice) {
-      const { opens, onOpen } = s.notice;
+      const { opens, onOpen, onTap } = s.notice;
       s.dismissNotice();
+      if (onTap) {
+        onTap();
+        return;
+      }
       get().open(opens);
       // Only once its section is really shown: a hidden one opens another.
       if (get().expanded && get().selected === opens) onOpen?.();

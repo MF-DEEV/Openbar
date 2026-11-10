@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-// The island on or off (the Mac's header switch) and starting with Windows.
+// The island on or off (the Mac's header switch), starting with Windows and update checks.
 
 import { useLocale, t, LANGUAGES, applyLanguage, type LanguagePreference } from "../i18n";
 
@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { launchAtLogin } from "../shared/prefs";
 import { useSettings } from "./state";
 import { T } from "./strings";
+import { UpdateRows } from "./UpdateRows";
 import { Group, Page, Row, Toggle, Select } from "./ui";
 
 export function GeneralSettings() {
@@ -65,6 +66,10 @@ export function GeneralSettings() {
             }}
           />
         </Row>
+      </Group>
+
+      <Group title={t("s.updatesSection")}>
+        <UpdateRows />
       </Group>
     </Page>
   );

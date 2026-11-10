@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Openbar for Windows tells you when a newer version exists. It checks GitHub's releases a little after the island starts and every six hours, raises a notice the first time it finds one (a tap opens the release page), and adds Update available to the island's right-click menu and to Settings → General → Updates, where Check for updates automatically turns it off and Check for updates… asks now. It never downloads or installs anything, since the installer isn't signed. Linux builds use the same check.
 - A file change's diff on a permission card can show more of the file before you allow it. Click the arrow on a row of hidden lines to see 20 more, above or below the change, or all of them when only a few are left. The lines come from the file Openbar already read when the request came. On Mac and Windows.
 
 ## [3.5.0-beta.2] - 2026-11-07

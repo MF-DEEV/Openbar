@@ -72,6 +72,8 @@ export interface IslandSettings {
   /** Per-section switches the Mac keeps as notch*Enabled. */
   sections: Partial<Record<ModuleId, boolean>>;
   language: LanguagePreference;
+  /** Ask GitHub now and then whether a newer version exists (updates/). */
+  checkUpdates: boolean;
   /** Music takes the closed island while it plays (notchShowPlayingMusic). */
   showPlayingMusic: boolean;
   /** Idle player to open; empty chooses the last music app, then an installed player. */
@@ -278,6 +280,7 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   quickAccess: DEFAULT_QUICK_ACCESS,
   sections: { agents: true, sessions: true },
   language: "auto",
+  checkUpdates: true,
   showPlayingMusic: true,
   preferredPlayer: "",
   includeOtherPlayers: true,

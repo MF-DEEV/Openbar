@@ -107,7 +107,7 @@ The closed island can also rest with **Battery**, **Music**, **AI Agents**, or *
 - The camera mirror shows "Coming to Windows soon".
 - The mixer stops at 100% (Windows can't boost one app) and doesn't send apps to separate outputs. Keyboard backlight, screen recording and the Mac's media tools have no Windows version.
 - Notifications and Calendar need the signed identity package. Only installers built with it (see below) carry it; without it their pages say so.
-- There are no automatic updates. To update, run the newer installer over the old one; your settings stay.
+- Openbar tells you when a newer version exists, but doesn't install it: its installer isn't signed, so an update opens the release page. Run the newer installer over the old one; your settings stay. The check asks GitHub's releases list once after start and every six hours, and **Settings › General › Check for updates automatically** turns it off.
 - The settings window is in English.
 - Codex sessions are tested end to end on Windows. Claude Code sessions use the same island, but their hooks and replies typed into Windows Terminal haven't been tested end to end on Windows yet.
 
