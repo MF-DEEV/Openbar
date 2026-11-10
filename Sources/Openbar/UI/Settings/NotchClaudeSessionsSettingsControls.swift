@@ -16,6 +16,8 @@ struct NotchClaudeSessionsSettingsControls: View {
     @AppStorage(DefaultsKey.notchSessionsVoiceLanguage) private var voiceLanguage = ""
     @AppStorage(DefaultsKey.notchSessionsVoiceSendOnStop) private var voiceSendOnStop = false
     @AppStorage(DefaultsKey.notchSessionsVoiceShortcutEnabled) private var voiceShortcut = false
+    @AppStorage(DefaultsKey.notchSessionsWaitingSound) private var waitingSound = true
+    @AppStorage(DefaultsKey.notchSessionsWaitingSoundName) private var waitingSoundName = NotchSessionWaitingSound.defaultSound
     @State private var voiceLanguages: [VoiceReplyLanguage] = []
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
@@ -28,6 +30,7 @@ struct NotchClaudeSessionsSettingsControls: View {
                 .fixedSize(horizontal: false, vertical: true)
             switchRow("waveform.path.ecg", text.liveActivity, isOn: $liveActivity)
             switchRow("rectangle.expand.vertical", text.autoExpand, caption: text.autoExpandHint, isOn: $autoExpand)
+            sound
             switchRow("text.bubble", text.contentPreview, caption: text.contentPreviewHint, isOn: $previews)
             switchRow("gauge.with.dots.needle.50percent", text.limitsSetting, caption: text.limitsSettingHint, isOn: $limits)
             buddiesRow
@@ -45,6 +48,35 @@ struct NotchClaudeSessionsSettingsControls: View {
             service.checkAgentHooks()
             service.checkBridge()
         }
+    }
+
+    /// A sound when a session starts waiting, and which of the system's (#167).
+    private var sound: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            switchRow("bell", text.waitingSound, caption: text.waitingSoundHint, isOn: $waitingSound)
+            if waitingSound {
+                SettingsRow(symbol: "speaker.wave.2", title: text.waitingSoundChoice) {
+                    HStack(spacing: 8) {
+                        Picker(text.waitingSoundChoice, selection: soundChoice) {
+                            ForEach(TextSnippetSupport.alertSoundNames, id: \.self) { Text($0).tag($0) }
+                        }
+                        .labelsHidden()
+                        .frame(maxWidth: 160)
+                        Button(text.playSound) { NotchSessionWaitingSound.play(NotchSessionWaitingSound.soundName()) }
+                    }
+                }
+            }
+        }
+    }
+
+    /// A sound this Mac no longer has reads as the chime it falls back to;
+    /// picking one plays it.
+    private var soundChoice: Binding<String> {
+        Binding(get: { NotchSessionWaitingSound.soundName() ?? NotchSessionWaitingSound.defaultSound },
+                set: { name in
+                    waitingSoundName = name
+                    NotchSessionWaitingSound.play(name)
+                })
     }
 
     /// Speaking a reply: the switch, then the language, the hold-to-talk

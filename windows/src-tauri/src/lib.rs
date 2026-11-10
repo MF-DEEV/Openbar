@@ -314,6 +314,7 @@ pub fn run() {
             shell::shell_icon,
             shell::shell_open_task_manager,
             sound::sound_play,
+            sound::sound_list,
             sound::sound_alarm,
             timer::timer_now_ms,
             timer::timer_wake,

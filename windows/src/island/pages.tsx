@@ -31,6 +31,7 @@ import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
 import { DownloadsLeading, DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
 import { bridge, type AttentionContext } from "../shared/bridge";
 import { DeferredSessionAttention, noticeLeavesWhenBusy } from "../sessions/attention";
+import { inView, waitingRequests, WaitingSound } from "../sessions/waitingSound";
 import { subscribeAutoAllow } from "../sessions/autoAllow";
 import { hidesAutoApproval, presentedSnapshot } from "../sessions/presentation";
 import { MicrophoneStrip, subscribeMicrophone } from "../microphone/Microphone";
@@ -240,6 +241,21 @@ function applyAttention(context: AttentionContext) {
   syncPendingSessions();
 }
 void bridge.attention.onContext(applyAttention).then(() => bridge.attention.current().then(applyAttention));
+
+// A sound once for each new request, unless its page is already in front (#167).
+const waitingSound = new WaitingSound();
+useSessions.subscribe((s, prev) => {
+  if (s.snapshot === prev.snapshot && s.autoAllow === prev.autoAllow) return;
+  const arrived = waitingSound.arrived(waitingRequests(s.snapshot.sessions, s.autoAllow));
+  const island = useIsland.getState();
+  if (
+    s.prefs.waitingSound &&
+    island.settings.enabled &&
+    shown("sessions") &&
+    arrived.some((request) => !inView(island, s.focused, request.session))
+  )
+    void bridge.sound.play(s.prefs.waitingSoundChoice);
+});
 subscribeSessions((event) => {
   void sessionAttention.handle(event);
 });
