@@ -28,38 +28,30 @@
 
 https://github.com/user-attachments/assets/e6782d65-7822-4d9a-9ad4-3f31c8c35df4
 
-<p align="center"><sub>Three agents on one repo, each in its own git worktree. The edit skips the waiting.<br>Laptop model: "2021 Macbook Pro 14" (M1 Pro / M1 Max)" by akshatmittal on Sketchfab, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</sub></p>
+<p align="center"><sub>Laptop model: "2021 Macbook Pro 14" (M1 Pro / M1 Max)" by akshatmittal on Sketchfab, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</sub></p>
 
 ## What it does
 
-- A permission request, a question or a plan opens in the island with the whole command or the file diff. You allow, deny or answer it without leaving the app you're in.
-- A reply you type or speak in the island lands in the session's own terminal or editor.
-- Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI and Cursor share one list, along with their subagents and background sessions.
-- A session you start from the island gets its own git worktree, so agents on one repo don't change each other's files.
-- Nothing leaves your machine. [Privacy](docs/PRIVACY.md) lists everything the app reads and writes.
-- The menu bar toolkit Openbar grew out of is still here: a volume mixer, a system monitor, clipboard history, a window switcher and more.
-
-[Features and guides](docs/README.md) shows all of it, with recordings.
+- Permission requests, questions and plans open in the island with the full command or diff, and you answer them there.
+- A reply you type or speak lands in the session's own terminal or editor.
+- Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI and Cursor share one list.
+- Each session you start from the island gets its own git worktree.
+- Nothing leaves your machine ([privacy](docs/PRIVACY.md)).
+- A menu bar toolkit comes with it: a volume mixer, a system monitor, clipboard history and more.
 
 ## Install
 
-**Mac**: Apple Silicon and macOS 14 or later. Download the DMG from the [latest Mac release](https://github.com/MF-DEEV/Openbar/releases?q=Mac&expanded=true) and drag Openbar to Applications. The build isn't notarized yet, so the first time choose **Open Anyway** in System Settings › Privacy & Security. Then, in Openbar's Settings:
+**Mac** (Apple Silicon, macOS 14 or later): get the DMG from the [latest Mac release](https://github.com/MF-DEEV/Openbar/releases?q=Mac&expanded=true) and drag Openbar to Applications. It isn't notarized yet, so the first time choose **Open Anyway** in System Settings › Privacy & Security.
 
-1. Install **AI Agents** from the Features hub and turn on **Sessions** under Dynamic Island.
-2. Press **Install Hooks** for Claude Code. Your `~/.claude/settings.json` is backed up first. Codex needs nothing.
-3. Start `claude` or `codex`. The session appears in the island.
+**Windows 11** (beta): run the installer from the [latest Windows release](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true).
 
-**Windows 11**: run the installer from the [latest Windows release](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true). It's a beta for x64 and arm64, and it installs for your account only.
+**Linux** (X11): build it from source with the [Linux notes](windows/docs/linux.md).
 
-**Linux**: X11 only, built from source. See the [Linux notes](windows/docs/linux.md).
-
-To build the Mac app yourself, see [CONTRIBUTING.md](CONTRIBUTING.md).
+On the Mac, turn sessions on in Openbar's Settings: install **AI Agents** in the Features hub, turn on **Sessions** under Dynamic Island and press **Install Hooks** for Claude Code. Then start `claude` or `codex`.
 
 ## Docs
 
-[Features and guides](docs/README.md) · [Privacy](docs/PRIVACY.md) · [Permissions](docs/PERMISSIONS.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Windows](windows/README.md)
-
-Issues and pull requests are welcome, and [CONTRIBUTING.md](CONTRIBUTING.md) covers the build and the checks every PR runs. Questions go to [Discussions](https://github.com/MF-DEEV/Openbar/discussions), security reports follow [SECURITY.md](SECURITY.md), and everyone taking part follows the [code of conduct](CODE_OF_CONDUCT.md).
+[Features and guides](docs/README.md) · [Privacy](docs/PRIVACY.md) · [Permissions](docs/PERMISSIONS.md) · [Troubleshooting](docs/TROUBLESHOOTING.md) · [Windows](windows/README.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Code of conduct](CODE_OF_CONDUCT.md)
 
 ## License
 
