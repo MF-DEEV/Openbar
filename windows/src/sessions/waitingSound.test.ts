@@ -13,7 +13,7 @@ const permission = (requestId: string) =>
   ({ requestId, tool: "Bash", summary: "ls", questions: [] }) as unknown as Session["permission"];
 
 describe("waitingRequests", () => {
-  it("lists permissions by request and questions by when they started", () => {
+  it("lists each wait with the hook's request when it has one", () => {
     const sessions = [
       session("a", "waitingPermission", { permission: permission("r1") }),
       session("b", "waitingInput", { phaseSince: 250 }),
@@ -21,22 +21,23 @@ describe("waitingRequests", () => {
       session("d", "finished"),
     ];
     expect(waitingRequests(sessions, {})).toEqual([
-      { session: "a", request: "r1" },
-      { session: "b", request: "b:waitingInput:250" },
+      { session: "a", wait: "waitingPermission:100", id: "r1" },
+      { session: "b", wait: "waitingInput:250", id: null },
     ]);
   });
 
   it("leaves out a Codex request it answers by itself", () => {
     const codex = session("x", "waitingPermission", { provider: "codex", permission: permission("r9") });
     expect(waitingRequests([codex], { x: true })).toEqual([]);
-    expect(waitingRequests([codex], {})).toEqual([{ session: "x", request: "r9" }]);
+    expect(waitingRequests([codex], {})).toEqual([{ session: "x", wait: "waitingPermission:100", id: "r9" }]);
   });
 });
 
 describe("WaitingSound", () => {
-  const a1 = { session: "a", request: "r1" };
-  const a2 = { session: "a", request: "r2" };
-  const b1 = { session: "b", request: "b:waitingInput:5" };
+  const request = (session: string, id: string | null, wait = "waitingPermission:5") => ({ session, wait, id });
+  const a1 = request("a", "r1");
+  const a2 = request("a", "r2");
+  const b1 = request("b", null, "waitingInput:5");
 
   it("stays quiet for what was already waiting at start", () => {
     const sound = new WaitingSound();
@@ -60,6 +61,17 @@ describe("WaitingSound", () => {
     const sound = new WaitingSound();
     sound.arrived([]);
     expect(sound.arrived([a1, b1])).toEqual([a1, b1]);
+  });
+
+  it("plays once for a prompt the record tells of before the hook names it", () => {
+    const sound = new WaitingSound();
+    sound.arrived([]);
+    const unnamed = request("a", null);
+    expect(sound.arrived([unnamed])).toEqual([unnamed]);
+    expect(sound.arrived([a1])).toEqual([]);
+    expect(sound.arrived([unnamed])).toEqual([]);
+    // The next prompt of the same wait still plays.
+    expect(sound.arrived([a2])).toEqual([a2]);
   });
 });
 

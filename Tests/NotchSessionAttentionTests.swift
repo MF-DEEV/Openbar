@@ -14,6 +14,44 @@ enum NotchSessionAttentionTests {
         suite.run("session attention names one prompt once") { naming(suite) }
         suite.run("session attention context") { context(suite) }
         suite.run("session answer keys follow the layout") { keys(suite) }
+        suite.run("session waiting sound") { waitingSound(suite) }
+    }
+
+    static func waitingSound(_ suite: TestSuite) {
+        var sound = NotchSessionWaitingSound()
+        let first = NotchSessionAttention.Request(wait: "waitingPermission:1", id: nil)
+        suite.expect(sound.arrived(["a": first]).isEmpty, "a request already waiting at launch stays quiet")
+        suite.expect(sound.arrived(["a": first]).isEmpty, "the same reading again plays nothing")
+        let named = NotchSessionAttention.Request(wait: "waitingPermission:1", id: "r1")
+        suite.expect(sound.arrived(["a": named]).isEmpty, "the hook naming the prompt the record told of is not a new one")
+        let second = NotchSessionAttention.Request(wait: "waitingPermission:1", id: "r2")
+        suite.expect(sound.arrived(["a": second]) == ["a"], "the next prompt in the same wait plays")
+        suite.expect(sound.arrived(["a": NotchSessionAttention.Request(wait: "waitingPermission:1", id: nil)]).isEmpty,
+                     "a reading that lost the name is still the same prompt")
+        suite.expect(sound.arrived([:]).isEmpty, "a turn that ends plays nothing")
+        let question = NotchSessionAttention.Request(wait: "waitingInput:9", id: nil)
+        suite.expect(sound.arrived(["a": question, "b": first]) == ["a", "b"], "each new request plays, once")
+        suite.expect(sound.arrived(["a": question, "b": first]).isEmpty, "and not again while it waits")
+
+        suite.expect(NotchSessionWaitingSound.inView(expanded: true, selected: .sessions, focused: nil, session: "a"),
+                     "the open list shows every session")
+        suite.expect(NotchSessionWaitingSound.inView(expanded: true, selected: .sessions, focused: "a", session: "a")
+                     && !NotchSessionWaitingSound.inView(expanded: true, selected: .sessions, focused: "b", session: "a"),
+                     "another session's page does not show this one")
+        suite.expect(!NotchSessionWaitingSound.inView(expanded: false, selected: .sessions, focused: nil, session: "a")
+                     && !NotchSessionWaitingSound.inView(expanded: true, selected: .music, focused: nil, session: "a"),
+                     "a closed island or another section shows nothing")
+
+        let defaults = UserDefaults(suiteName: "com.openbar.tests.waitingSound")!
+        defaults.removePersistentDomain(forName: "com.openbar.tests.waitingSound")
+        defer { defaults.removePersistentDomain(forName: "com.openbar.tests.waitingSound") }
+        suite.expect(NotchSessionWaitingSound.isEnabled(in: defaults), "the sound is on by default")
+        defaults.set("Nope", forKey: DefaultsKey.notchSessionsWaitingSoundName)
+        suite.expect(NotchSessionWaitingSound.soundName(in: defaults, available: ["Glass", "Ping"]) == "Glass",
+                     "a sound this Mac lacks falls back to the chime")
+        defaults.set("Ping", forKey: DefaultsKey.notchSessionsWaitingSoundName)
+        suite.expect(NotchSessionWaitingSound.soundName(in: defaults, available: ["Glass", "Ping"]) == "Ping",
+                     "the chosen sound plays")
     }
 
     static func session(_ id: String, _ phase: ClaudeSessionPhase, request: String? = nil,

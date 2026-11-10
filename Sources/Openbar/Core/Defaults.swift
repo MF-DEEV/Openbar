@@ -927,6 +927,10 @@ enum DefaultsKey {
     static let notchSessionsVoiceLanguage = "notchSessionsVoiceLanguage"
     /// A voice reply goes to the session by itself once the person stops talking.
     static let notchSessionsVoiceSendOnStop = "notchSessionsVoiceSendOnStop"
+    /// A sound once when a session starts waiting for the person (#167).
+    static let notchSessionsWaitingSound = "notchSessionsWaitingSound"
+    /// The system alert sound it plays, by name.
+    static let notchSessionsWaitingSoundName = "notchSessionsWaitingSoundName"
     /// The hold-to-talk shortcut, off until the person turns it on.
     static let notchSessionsVoiceShortcutEnabled = "notchSessionsVoiceShortcutEnabled"
     static let notchSessionsVoiceShortcut = "notchSessionsVoiceShortcut" // GlobalShortcut storage value
@@ -1557,6 +1561,8 @@ enum Defaults {
         DefaultsKey.notchSessionsVoiceReplies: true,
         DefaultsKey.notchSessionsVoiceLanguage: "",
         DefaultsKey.notchSessionsVoiceSendOnStop: false,
+        DefaultsKey.notchSessionsWaitingSound: true,
+        DefaultsKey.notchSessionsWaitingSoundName: NotchSessionWaitingSound.defaultSound,
         DefaultsKey.notchSessionsVoiceShortcutEnabled: false,
         DefaultsKey.notchSessionsVoiceShortcut: GlobalShortcut.sessionVoiceDefault.storageValue,
         DefaultsKey.notchLyricsEnabled: true,

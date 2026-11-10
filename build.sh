@@ -298,6 +298,7 @@ if (( TEST )); then
         Sources/Openbar/Core/NotchVoiceReplyStrings.swift
         Sources/Openbar/Services/Notch/NotchSessionLimitsSupport.swift
         Sources/Openbar/Services/Notch/NotchSessionAttention.swift
+        Sources/Openbar/Services/Notch/NotchSessionWaitingSound.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeSessionModels.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeFileDiff.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeSessionEngine.swift

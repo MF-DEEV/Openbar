@@ -97,6 +97,10 @@ struct NotchClaudeSessionStrings {
     let liveActivity: String
     let autoExpand: String
     let autoExpandHint: String
+    let waitingSound: String
+    let waitingSoundHint: String
+    let waitingSoundChoice: String
+    let playSound: String
     let contentPreview: String
     let contentPreviewHint: String
     let hooksTitle: String
@@ -387,6 +391,10 @@ extension NotchClaudeSessionStrings {
         liveActivity: "Show sessions beside the camera",
         autoExpand: "Open the island when a session needs you",
         autoExpandHint: "It won’t replace a page you already have open.",
+        waitingSound: "Sound when a session waits",
+        waitingSoundHint: "Plays a short sound when a session asks for permission, asks a question or waits for you to approve a plan. It stays quiet when a turn simply ends, and when the island already shows the session.",
+        waitingSoundChoice: "Sound",
+        playSound: "Play",
         contentPreview: "Show previews",
         contentPreviewHint: "Shows titles, commands, file names and the conversation. They stay in memory and are cleared when you turn this off.",
         hooksTitle: "Claude Code hooks",

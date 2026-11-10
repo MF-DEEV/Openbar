@@ -153,6 +153,7 @@ final class NotchService: ObservableObject {
     private var sessionPresentingAllowed = false
     private var sessionPresentingWork: DispatchWorkItem?
     private var sessionAttention = NotchSessionAttention()
+    private var waitingSound = NotchSessionWaitingSound()
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
     @Published private(set) var choosingFileDropDestination = false
@@ -4321,6 +4322,7 @@ final class NotchService: ObservableObject {
             ClaudeSessionService.shared.$sessions
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
+                    self?.playWaitingSound()
                     self?.syncPendingSessions()
                     self?.scheduleSessionKeysSync()
                 }.store(in: &subscriptions)
@@ -4499,6 +4501,22 @@ final class NotchService: ObservableObject {
         }
         sessionPresentingWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + NotchClaudeSessionsSupport.presentingDelay, execute: work)
+    }
+
+    /// A sound once for each new request, unless its page or the list is
+    /// already open (#167). Unlike the notice it does not wait for the
+    /// person to come back from another app: that is when it helps most.
+    private func playWaitingSound() {
+        let service = ClaudeSessionService.shared
+        let waiting = Dictionary(service.sessions.compactMap { session in
+            NotchSessionAttention.request(of: session).map { (session.id, $0) }
+        }, uniquingKeysWith: { first, _ in first })
+        let arrived = waitingSound.arrived(waiting)
+        guard !arrived.isEmpty, NotchSessionWaitingSound.isEnabled(),
+              arrived.contains(where: { !NotchSessionWaitingSound.inView(expanded: expanded, selected: selected,
+                                                                         focused: service.focusedID, session: $0) })
+        else { return }
+        NotchSessionWaitingSound.play(NotchSessionWaitingSound.soundName())
     }
 
     /// Presents what the sessions wait on now that was not presented yet,
