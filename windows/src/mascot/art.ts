@@ -18,7 +18,7 @@ export const ART = {
   ],
   headroom: {
     helmet: 0.0971,
-    beanie: 0.0686,
+    beanie: 0.0829,
     cap: 0.0,
     crown: 0.0936,
     headphones: 0.0,

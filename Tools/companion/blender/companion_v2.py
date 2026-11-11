@@ -1,8 +1,7 @@
-"""Board v2: louder textures (needle felt with flyaways, chunky knit, sugared
-gummy, fingerprinted clay), real stitched/felted eyes, varied colours and head
-items (helmet, beanie, cap, crown, headphones) that can be put on and off.
-
-Shapes and the studio come from companion_lib.
+"""The companion's materials as the app shows them: needle felt with flyaway
+fibres, chunky knit, sugared gummy and fingerprinted clay; the eye fabrics; and
+the head items (helmet, beanie, cap, crown, headphones) it can put on and take
+off. Shapes and the studio come from companion_lib.
 """
 from __future__ import annotations
 
@@ -447,42 +446,7 @@ ITEMS = {
 }
 
 
-# ---------------------------------------------------------------- characters
-
-def build(sil, item="none"):
-    """-> parts, eyes [(loc, normal, w, h)], eye_style"""
-    if sil == "bean":
-        r = 0.03
-        body = L.mesh_object("body", L.bean_bm(r))
-        feet = [L.nub("foot_l", (-0.011, -0.012, -0.026), 0.0068), L.nub("foot_r", (0.011, -0.012, -0.026), 0.0068)]
-        parts = {"body": [body], "feet": feet}
-        parts.update(ITEMS[item](r))
-        eyes = []
-        for sx in (-1, 1):
-            loc, nrm = front_hit(body, sx * 0.0085, 0.006)
-            eyes.append((loc, nrm, 0.0052, 0.0080))
-        return parts, eyes, "solid"
-    if sil == "critter":
-        return build("bean", "helmet")
-    if sil == "capsule":
-        parts, raw = L.build_capsule()
-        body = parts["body"][0]
-        eyes = [(*front_hit(body, c[0], c[2]), w, h) for c, (w, h) in raw]
-        return parts, eyes, "solid"
-    if sil == "helmet":
-        parts, raw = L.build_helmet()
-        void = parts["void"][0]
-        eyes = []
-        for c, (w, h) in raw:
-            loc, nrm = front_hit(void, c[0], c[2])
-            eyes.append((loc, nrm, w, h))
-        return parts, eyes, "glow"
-    if sil == "voxel":
-        parts, raw = L.build_voxel(rounded=False)
-        eyes = [(Vector(c) + Vector((0, 0.0002, 0)), Vector((0, -1, 0)), w, h) for c, (w, h) in raw]
-        return parts, eyes, "solid"
-    raise KeyError(sil)
-
+# ---------------------------------------------------------------- dressing
 
 def dress(parts, eyes, eye_style, texture, colors):
     make = TEXTURES[texture]

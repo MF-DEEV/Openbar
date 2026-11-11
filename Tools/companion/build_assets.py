@@ -19,6 +19,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import subprocess
 import sys
 
 from PIL import Image
@@ -234,6 +235,10 @@ def write_ts(m):
     lines.append(f"  creamEyes: {json.dumps(m['creamEyes'])} as string[],")
     lines.append("} as const;")
     open(TS, "w").write("\n".join(lines) + "\n")
+    # The Windows app's own formatter, so the generated file passes its check.
+    windows = os.path.join(ROOT, "windows")
+    subprocess.run(["npx", "prettier", "--write", os.path.relpath(TS, windows)], cwd=windows, check=False,
+                   stdout=subprocess.DEVNULL)
 
 
 if __name__ == "__main__":

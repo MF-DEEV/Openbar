@@ -29,7 +29,7 @@ enum NotchMascotArt {
     /// How far above the box each item reaches.
     static let headroom: [NotchMascotItem: CGFloat] = [
         .helmet: 0.0971,
-        .beanie: 0.0686,
+        .beanie: 0.0829,
         .cap: 0.0000,
         .crown: 0.0936,
         .headphones: 0.0000,

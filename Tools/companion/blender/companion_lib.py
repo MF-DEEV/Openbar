@@ -4,12 +4,10 @@ Everything is built from code so the art can be rebuilt. Units are metres; the
 figures are toy sized (about 6 cm), which keeps the fur, stitch and fingerprint
 scales physical.
 
-Silhouettes: critter, capsule, helmet, voxel.
-Textures:    plush, knit, gummy, clay.
-
-Eyes are not rendered. Each build returns eye anchors (centre and size in world
-space); the board and the app draw the eyes on top, the same way the island rig
-draws its vector eyes today.
+This file holds the shapes (the bean, its feet, the helmet and its crest), the
+base materials and the studio. companion_v2.py adds the louder materials, the
+eyes and the head items; render_sprites.py renders the app's sprites. Eyes are
+not in the sprites: the app draws them as outlines filled with their fabric.
 """
 from __future__ import annotations
 
@@ -214,173 +212,6 @@ def nub(name, loc, r):
     obj = mesh_object(name, bm)
     obj.location = loc
     return obj
-
-
-# ---------------------------------------------------------------- silhouettes
-# Each returns {part: [objects]} and eyes [(centre, (w, h))] in world space.
-# Parts: body, face, helmet, crest, void, feet.
-
-def build_critter():
-    r = 0.03
-    body = mesh_object("body", bean_bm(r))
-    eye_z = 0.006
-    helmet = helmet_object(
-        "helmet", scaled_bm(lambda: bean_bm(r), 1.06, 1.08, 1.06, 0.001),
-        thickness=0.0028, eye_z=eye_z, slit_w=0.036, slit_h=0.012, mouth_w=0.010,
-        bottom_z=-0.012, back_z=-0.004)
-    crest = crest_object("crest", scale=0.85, width=0.0055, origin=(0, 0.0, 0.0285), tilt=0.12)
-    feet = [nub("foot_l", (-0.011, -0.012, -0.026), 0.0068), nub("foot_r", (0.011, -0.012, -0.026), 0.0068)]
-    eyes = []
-    for sx in (-1, 1):
-        x = sx * 0.0085
-        y = -surface_y(body, x, eye_z)
-        eyes.append(((x, y, eye_z), (0.0052, 0.0080)))
-    return {"body": [body], "helmet": [helmet], "crest": [crest], "feet": feet}, eyes
-
-
-def build_capsule():
-    r = 0.024
-    body = mesh_object("body", capsule_bm(r))
-    crest = crest_object("crest", scale=0.72, width=0.0055, origin=(0, 0.0, 0.0195))
-    feet = [nub("foot_l", (-0.016, -0.008, -0.020), 0.0064), nub("foot_r", (0.016, -0.008, -0.020), 0.0064)]
-    eyes = []
-    for sx in (-1, 1):
-        x, z = sx * 0.011, 0.003
-        eyes.append(((x, -surface_y(body, x, z), z), (0.0058, 0.0092)))
-    return {"body": [body], "crest": [crest], "feet": feet}, eyes
-
-
-def build_helmet():
-    r = 0.031
-    shell = lambda: scaled_bm(lambda: bean_bm(r, depth=0.95, base=-2.0, pear=0.0), 0.92, 1.0, 1.12)
-    eye_z = 0.004
-    helmet = helmet_object(
-        "helmet", shell(), thickness=0.0036, eye_z=eye_z, slit_w=0.040, slit_h=0.011,
-        mouth_w=0.009, bottom_z=-0.030, back_z=-0.012)
-    void = mesh_object("void", scaled_bm(lambda: sphere_bm(r * 0.93, 64, 32), 0.92, 1.0, 1.12))
-    crest = crest_object("crest", scale=1.0, width=0.006, origin=(0, 0.0, 0.0365), tilt=0.1)
-    eyes = []
-    for sx in (-1, 1):
-        x = sx * 0.009
-        eyes.append(((x, -surface_y(void, x, eye_z) - 0.0005, eye_z), (0.0060, 0.0062)))
-    return {"helmet": [helmet], "void": [void], "crest": [crest]}, eyes
-
-
-VOX = 0.0048
-
-
-def voxel_cells():
-    """A small Spartan on the session Clawds' grid. (x, y, z) -> part.
-
-    x 0..11 (12 wide), y = depth (0 is the front), z up.
-    """
-    cells = {}
-
-    def fill(part, xs, ys, zs):
-        for x in xs:
-            for y in ys:
-                for z in zs:
-                    cells[(x, y, z)] = part
-
-    # legs, torso, arms
-    fill("feet", range(3, 5), range(2, 6), range(0, 1))
-    fill("feet", range(7, 9), range(2, 6), range(0, 1))
-    fill("body", range(2, 10), range(1, 7), range(1, 5))
-    fill("body", range(0, 2), range(3, 5), range(2, 4))
-    fill("body", range(10, 12), range(3, 5), range(2, 4))
-    # head (face shows through the T)
-    fill("face", range(2, 10), range(1, 7), range(5, 11))
-    # helmet shell around the head
-    for x in range(1, 11):
-        for y in range(0, 8):
-            for z in range(5, 13):
-                inner = 2 <= x <= 9 and 1 <= y <= 6 and z <= 10
-                if inner:
-                    continue
-                front = y == 0
-                eye_slit = front and 8 <= z <= 9 and 2 <= x <= 9
-                mouth = front and 5 <= z <= 7 and 5 <= x <= 6
-                if eye_slit or mouth:
-                    continue
-                if z == 5 and y >= 2:
-                    continue  # open neck
-                cells[(x, y, z)] = "helmet"
-    # crest: a transverse fan of steps, rising to the right like the logo's flames
-    tops = {2: 14, 3: 15, 4: 14, 5: 16, 6: 15, 7: 17, 8: 16, 9: 15}
-    for x, top in tops.items():
-        for z in range(13, top + 1):
-            for y in (3, 4):
-                cells[(x, y, z)] = "crest"
-    return cells
-
-
-NEIGHBOURS = [
-    ((1, 0, 0), [(1, 0, 0), (1, 1, 0), (1, 1, 1), (1, 0, 1)]),
-    ((-1, 0, 0), [(0, 0, 0), (0, 0, 1), (0, 1, 1), (0, 1, 0)]),
-    ((0, 1, 0), [(0, 1, 0), (0, 1, 1), (1, 1, 1), (1, 1, 0)]),
-    ((0, -1, 0), [(0, 0, 0), (1, 0, 0), (1, 0, 1), (0, 0, 1)]),
-    ((0, 0, 1), [(0, 0, 1), (1, 0, 1), (1, 1, 1), (0, 1, 1)]),
-    ((0, 0, -1), [(0, 0, 0), (0, 1, 0), (1, 1, 0), (1, 0, 0)]),
-]
-
-
-def voxel_part(name, cells, part, cx, cz, rounded):
-    occ = {k for k, v in cells.items() if v == part}
-    bm = bmesh.new()
-    index = {}
-
-    def vid(p):
-        if p not in index:
-            gx, gy, gz = p
-            index[p] = bm.verts.new(((gx - cx) * VOX, gy * VOX - 3.5 * VOX, (gz - cz) * VOX))
-        return index[p]
-
-    for (gx, gy, gz) in occ:
-        for (dx, dy, dz), corners in NEIGHBOURS:
-            if (gx + dx, gy + dy, gz + dz) in occ:
-                continue
-            bm.faces.new([vid((gx + a, gy + b, gz + c)) for a, b, c in corners])
-    bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=1e-7)
-    obj = mesh_object(name, bm)
-    if rounded:
-        m = obj.modifiers.new("rm", "REMESH")
-        m.mode = "VOXEL"
-        m.voxel_size = VOX / 5
-        apply_modifiers(obj)
-        sm = obj.modifiers.new("sm", "SMOOTH")
-        sm.factor = 1.0
-        sm.iterations = 10
-        apply_modifiers(obj)
-    else:
-        bv = obj.modifiers.new("b", "BEVEL")
-        bv.width = VOX * 0.22
-        bv.segments = 4
-        bv.limit_method = "ANGLE"
-        bv.use_clamp_overlap = True
-        apply_modifiers(obj)
-    return obj
-
-
-def build_voxel(rounded=False):
-    cells = voxel_cells()
-    cx, cz = 6.0, 7.5
-    parts = {}
-    for part in ("feet", "body", "face", "helmet", "crest"):
-        parts[part] = [voxel_part(part, cells, part, cx, cz, rounded)]
-    eyes = []
-    for x0 in (3.5, 7.5):
-        x = (x0 + 0.5 - cx) * VOX
-        z = (9.0 - cz) * VOX
-        eyes.append(((x, 1 * VOX - 3.5 * VOX - 0.0002, z), (0.0054, 0.0078)))
-    return parts, eyes
-
-
-SILHOUETTES = {
-    "critter": build_critter,
-    "capsule": build_capsule,
-    "helmet": build_helmet,
-    "voxel": build_voxel,
-}
 
 
 def surface_y(obj, x, z):
@@ -747,34 +578,6 @@ def add_fuzz(obj, mat, kind):
     set_mod_input(mod, "Material", mat)
     set_mod_input(mod, "Surface", obj)
     return hair
-
-
-# ---------------------------------------------------------------- dressing
-
-def dress(parts, texture, colors):
-    """Give each part its material; returns the list of objects that carry mass."""
-    make = TEXTURES[texture]
-    mats = {}
-    objs = []
-    for part, items in parts.items():
-        for obj in items:
-            if part == "void":
-                mat = void_material()
-            else:
-                if part not in mats:
-                    if texture == "knit" and part in ("crest", "feet"):
-                        mats[part] = knit_material(f"knit_{part}", colors[part], stitch=0.0026, displace=False)
-                    else:
-                        mats[part] = make(f"{texture}_{part}", colors[part])
-                mat = mats[part]
-            obj.data.materials.clear()
-            obj.data.materials.append(mat)
-            if mat.get("subdiv"):
-                subsurf(obj, 2)
-            if part != "void" and mat.get("fuzz"):
-                add_fuzz(obj, mat, int(mat["fuzz"]))
-            objs.append(obj)
-    return objs
 
 
 # ---------------------------------------------------------------- studio
