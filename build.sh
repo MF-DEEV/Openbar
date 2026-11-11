@@ -280,6 +280,7 @@ if (( TEST )); then
         Sources/Openbar/Services/Notch/NotchWatchSupport.swift
         Sources/Openbar/Core/NotchMascotStrings.swift
         Sources/Openbar/Services/Notch/NotchMascotSupport.swift
+        Sources/Openbar/Services/Notch/NotchMascotArt.swift
         Sources/Openbar/Services/CommandBar/CommandBarDropletMotion.swift
         Sources/Openbar/Services/Notch/NotchFileToolsSupport.swift
         Sources/Openbar/Services/Notch/NotchDownloadSupport.swift
@@ -784,6 +785,11 @@ fi
 if [[ -d Resources/Images ]]; then
     mkdir -p "$STAGE/Contents/Resources/Images"
     cp Resources/Images/* "$STAGE/Contents/Resources/Images/"
+fi
+# The companion's sprites, rendered by Tools/companion.
+if [[ -d Resources/Companion ]]; then
+    mkdir -p "$STAGE/Contents/Resources/Companion"
+    cp Resources/Companion/*.webp "$STAGE/Contents/Resources/Companion/"
 fi
 xattr -c -r "$STAGE" 2>/dev/null || true
 

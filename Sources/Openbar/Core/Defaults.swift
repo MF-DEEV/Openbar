@@ -1001,8 +1001,11 @@ enum DefaultsKey {
     static let notchMascotEnabled = "notchMascotEnabled"
     static let notchMascotVisits = "notchMascotVisits" // passes through the island now and then
     static let notchMascotReactions = "notchMascotReactions" // comes out to react to what the island sees
-    static let notchMascotStyle = "notchMascotStyle" // NotchMascotStyle.rawValue
-    static let notchMascotShape = "notchMascotShape" // NotchMascotShape.rawValue
+    static let notchMascotTexture = "notchMascotTexture" // NotchMascotTexture.rawValue, what it is made of
+    static let notchMascotItem = "notchMascotItem" // NotchMascotItem.rawValue, what it wears on its head
+    // Its look before it was Openbar's own, read once to pick the closest new one.
+    static let notchMascotLegacyStyle = "notchMascotStyle"
+    static let notchMascotLegacyShape = "notchMascotShape"
     static let notchMascotPalette = "notchMascotPalette" // NotchMascotPalette.rawValue
     static let notchMascotSide = "notchMascotSide" // NotchMascotSide.rawValue, beside the camera
     static let notchMascotVisitFrequency = "notchMascotVisitFrequency" // NotchMascotVisitFrequency.rawValue
@@ -1618,9 +1621,9 @@ enum Defaults {
         DefaultsKey.notchMascotEnabled: false,
         DefaultsKey.notchMascotVisits: true,
         DefaultsKey.notchMascotReactions: true,
-        DefaultsKey.notchMascotStyle: NotchMascotStyle.minimal.rawValue,
-        DefaultsKey.notchMascotShape: NotchMascotShape.ball.rawValue,
-        DefaultsKey.notchMascotPalette: NotchMascotPalette.pearl.rawValue,
+        DefaultsKey.notchMascotTexture: NotchMascotLook.standard.texture.rawValue,
+        DefaultsKey.notchMascotItem: NotchMascotLook.standard.item.rawValue,
+        DefaultsKey.notchMascotPalette: NotchMascotLook.standard.palette.rawValue,
         DefaultsKey.notchMascotSide: NotchMascotSide.left.rawValue,
         DefaultsKey.notchMascotVisitFrequency: NotchMascotVisitFrequency.normal.rawValue,
         DefaultsKey.notchMascotHidesWhenIdle: true,
@@ -2076,6 +2079,7 @@ enum Defaults {
         defaults.register(defaults: AppFeature.availabilityDefaults)
         activateBetaChannelIfRunningBeta(in: defaults)
         installCompanionForBetaCommandBar(in: defaults)
+        migrateCompanionLook(in: defaults)
         migrateLegacyMenuBarTemperatureMetric(in: defaults)
         migrateLegacySwitcherWindowShortcut(in: defaults)
         migrateLegacyKeyboardDebounceWindow(in: defaults)
@@ -2285,6 +2289,22 @@ enum Defaults {
             && !defaults.bool(forKey: DefaultsKey.notchMascotBetaInstalled)
             && AppFeature.commandBar.isAvailable(in: defaults)
             && AppFeature.notch.isAvailable(in: defaults)
+    }
+
+    /// The companion used to be a pearl ball, egg, rounded square or pill, or
+    /// a robot. Someone who picked one of those gets the closest of Openbar's
+    /// own looks, once; the color keeps its name, and where it rests and how
+    /// often it visits stay as they were.
+    static func migrateCompanionLook(in defaults: UserDefaults) {
+        let style = defaults.string(forKey: DefaultsKey.notchMascotLegacyStyle)
+        let shape = defaults.string(forKey: DefaultsKey.notchMascotLegacyShape)
+        guard style != nil || shape != nil else { return }
+        if let look = NotchMascotSupport.migratedLook(style: style, shape: shape) {
+            defaults.set(look.texture.rawValue, forKey: DefaultsKey.notchMascotTexture)
+            defaults.set(look.item.rawValue, forKey: DefaultsKey.notchMascotItem)
+        }
+        defaults.removeObject(forKey: DefaultsKey.notchMascotLegacyStyle)
+        defaults.removeObject(forKey: DefaultsKey.notchMascotLegacyShape)
     }
 
     static func installCompanionForBetaCommandBar(in defaults: UserDefaults, isBeta: Bool = AppInfo.isBeta) {

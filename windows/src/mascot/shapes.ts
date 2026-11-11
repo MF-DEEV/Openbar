@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-// The companion's outlines in a square of `size` pixels, from its top left
+// The companion's eye outlines in a square of `size` pixels, from its top left
 // corner, as SVG paths (NotchMascotGeometry). Every eye is drawn with the same
 // number of curves, so any eye can turn into any other one point at a time.
+// Its body and what it wears are sprites (art.ts).
 
-import type { MascotEye, MascotFace, MascotLook, MascotShape } from "./model";
+import { ART } from "./art";
+import type { MascotEye } from "./model";
 
 export const EYE_CURVES = 24;
 
@@ -16,91 +18,22 @@ interface Point {
 
 const n = (value: number) => Number(value.toFixed(3));
 
-function roundedRect(x: number, y: number, width: number, height: number, radius: number): string {
-  const r = Math.min(radius, width / 2, height / 2);
-  return (
-    `M${n(x + r)} ${n(y)}H${n(x + width - r)}A${n(r)} ${n(r)} 0 0 1 ${n(x + width)} ${n(y + r)}` +
-    `V${n(y + height - r)}A${n(r)} ${n(r)} 0 0 1 ${n(x + width - r)} ${n(y + height)}` +
-    `H${n(x + r)}A${n(r)} ${n(r)} 0 0 1 ${n(x)} ${n(y + height - r)}` +
-    `V${n(y + r)}A${n(r)} ${n(r)} 0 0 1 ${n(x + r)} ${n(y)}Z`
-  );
-}
-
-function ellipse(x: number, y: number, width: number, height: number): string {
-  const rx = width / 2;
-  const ry = height / 2;
-  return (
-    `M${n(x)} ${n(y + ry)}A${n(rx)} ${n(ry)} 0 1 1 ${n(x + width)} ${n(y + ry)}` +
-    `A${n(rx)} ${n(ry)} 0 1 1 ${n(x)} ${n(y + ry)}Z`
-  );
-}
-
-export function bodyPath(shape: MascotShape, size: number): string {
-  const p = (x: number, y: number) => `${n(x * size)} ${n(y * size)}`;
-  switch (shape) {
-    case "ball":
-      return ellipse(0.08 * size, 0.12 * size, 0.84 * size, 0.84 * size);
-    case "egg":
-      return (
-        `M${p(0.5, 0.1)}C${p(0.71, 0.1)} ${p(0.86, 0.36)} ${p(0.86, 0.6)}` +
-        `C${p(0.86, 0.8)} ${p(0.7, 0.96)} ${p(0.5, 0.96)}` +
-        `C${p(0.3, 0.96)} ${p(0.14, 0.8)} ${p(0.14, 0.6)}` +
-        `C${p(0.14, 0.36)} ${p(0.29, 0.1)} ${p(0.5, 0.1)}Z`
-      );
-    case "squircle": {
-      // A superellipse: flatter sides than a rounded rectangle, no corner seam.
-      const count = 72;
-      const exponent = 2 / 3.4;
-      const points: string[] = [];
-      for (let index = 0; index < count; index++) {
-        const angle = (index / count) * 2 * Math.PI;
-        const cosine = Math.cos(angle);
-        const sine = Math.sin(angle);
-        const x = 0.5 + 0.43 * (cosine < 0 ? -1 : 1) * Math.abs(cosine) ** exponent;
-        const y = 0.55 + 0.4 * (sine < 0 ? -1 : 1) * Math.abs(sine) ** exponent;
-        points.push(p(x, y));
-      }
-      return `M${points.join("L")}Z`;
-    }
-    case "pill":
-      return roundedRect(0.05 * size, 0.28 * size, 0.9 * size, 0.6 * size, 0.3 * size);
-  }
-}
-
-export interface RobotPaths {
-  head: string;
-  ears: string;
-  antenna: string;
-  bulb: string;
-  visor: string;
-}
-
-export function robotPaths(size: number): RobotPaths {
-  const rect = (x: number, y: number, width: number, height: number, radius: number) =>
-    roundedRect(x * size, y * size, width * size, height * size, radius * size);
-  return {
-    head: rect(0.12, 0.26, 0.76, 0.68, 0.2),
-    ears: rect(0.05, 0.5, 0.08, 0.2, 0.035) + rect(0.87, 0.5, 0.08, 0.2, 0.035),
-    antenna: rect(0.475, 0.12, 0.05, 0.16, 0.025),
-    bulb: ellipse(0.43 * size, 0.04 * size, 0.14 * size, 0.14 * size),
-    visor: rect(0.2, 0.44, 0.6, 0.38, 0.15),
-  };
-}
-
-/** The highlight, an ellipse leaning with the body's curve. */
-export function shineTransform(face: MascotFace, size: number): string {
-  return `translate(${n(face.shine.x * size)} ${n(face.shine.y * size)}) rotate(${n((face.shine.angle * 180) / Math.PI)})`;
-}
-
-const FIGURE_MIDDLE: Record<MascotShape, number> = { ball: 0.54, egg: 0.53, squircle: 0.55, pill: 0.58 };
+/** An sRGB colour, 0–255 a channel, for CSS. */
+export const cssRgb = ([r, g, b]: readonly [number, number, number]) => `rgb(${r} ${g} ${b})`;
 
 /**
- * How far below the middle of its box the figure's own middle sits, as a share
- * of the box. The box keeps room above a minimal body for the robot's antenna,
- * so a body placed by its box would sit a little low.
+ * How far below the middle of its box the body's own middle sits, as a share
+ * of the box. The box keeps room above the body for what it wears, so a body
+ * placed by its box would sit a little low.
  */
-export function figureOffset(look: Pick<MascotLook, "style" | "shape">): number {
-  return (look.style === "robot" ? 0.49 : FIGURE_MIDDLE[look.shape]) - 0.5;
+export function figureOffset(): number {
+  return ART.bodyBounds.y + ART.bodyBounds.height / 2 - 0.5;
+}
+
+/** Where the sprites are drawn around a box of `size` pixels. */
+export function spriteFrame(size: number) {
+  const rect = ART.spriteRect;
+  return { x: rect.x * size, y: rect.y * size, width: rect.width * size, height: rect.height * size };
 }
 
 // MARK: Eyes

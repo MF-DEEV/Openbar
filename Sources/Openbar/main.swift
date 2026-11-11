@@ -4,6 +4,13 @@
 import AppKit
 
 SuperKeyMappingGuard.runIfRequestedAndExit()
+#if OPENBAR_DEVELOPMENT
+// Before Defaults.register(), whose migrations write to the running build's
+// preferences: the companion probe must leave them as they are.
+if NotchCompanionProbe.isRequested(by: CommandLine.arguments) {
+    NotchCompanionProbe.runAndExit()
+}
+#endif
 Defaults.register()
 NotchControlItem.keyboardLightIsSupported = { BrightnessService.keyboardLightIsSupported }
 MouseAccelerationGuard.runIfRequestedAndExit()

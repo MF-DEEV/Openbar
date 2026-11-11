@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import AppKit
+import ImageIO
 import QuartzCore
 import SwiftUI
 
@@ -10,6 +11,24 @@ extension Notification.Name {
     static let notchMascotDragMoved = Notification.Name("NotchMascotDragMoved")
     /// An activity takes the place of the companion resting in the closed island.
     static let notchMascotRestYields = Notification.Name("NotchMascotRestYields")
+}
+
+/// The companion's sprites, read once each from the app's Companion folder
+/// (Resources/Companion, rendered by Tools/companion). Only the main thread
+/// draws the companion, so the cache needs no lock of its own.
+enum NotchMascotSprites {
+    private static let cache = NSCache<NSString, CGImage>()
+
+    static func image(_ name: String) -> CGImage? {
+        if let hit = cache.object(forKey: name as NSString) { return hit }
+        guard let url = Bundle.main.url(forResource: name, withExtension: "webp", subdirectory: "Companion"),
+              let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+              let image = CGImageSourceCreateImageAtIndex(source, 0,
+                                                          [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
+        else { return nil }
+        cache.setObject(image, forKey: name as NSString)
+        return image
+    }
 }
 
 /// A one-off motion the companion plays over its face.
@@ -23,7 +42,9 @@ enum NotchMascotCue: Equatable {
     case look(CGPoint?)
 }
 
-/// The companion, drawn with shape layers. Every motion is a Core Animation
+/// The companion: its body and what it wears are sprites rendered in Blender,
+/// one per turn of its head, and its eyes are shape layers filled with the
+/// fabric they are stitched from. Every motion is a Core Animation
 /// animation: the app says where it goes once and the render server draws
 /// the way there, with no timer or redraw in the app. Even the blinks chain
 /// through Core Animation, each one starting from the end of the last.
@@ -44,16 +65,24 @@ final class NotchMascotRig: NSObject {
     /// Where the eyes are drawn to beyond the face it keeps: the text being
     /// typed, or the pointer over the island.
     private let attention = CALayer()
-    private let ears = CAShapeLayer()
-    private let antenna = CAShapeLayer()
-    private let bulb = CAShapeLayer()
-    private let fill = CAGradientLayer()
-    private let fillMask = CAShapeLayer()
-    private let visor = CAShapeLayer()
-    private let shine = CAShapeLayer()
+    /// The body and what it wears, as sprites for the way its head is turned.
+    private let body = CALayer()
+    private let item = CALayer()
+    /// Where the eyes may show: what it wears covers them as the head turns.
+    private let faceWindow = CALayer()
+    private let faceMask = CALayer()
+    /// Moves the eyes with the head as it turns.
+    private let turner = CALayer()
     private let face = CALayer()
+    /// The eyes: outlines that mask the fabric they are stitched from.
     private let leftEye = CAShapeLayer()
     private let rightEye = CAShapeLayer()
+    private let leftEyeFill = CALayer()
+    private let rightEyeFill = CALayer()
+    /// Which way its head is turned, an index into `NotchMascotArt.yaws`.
+    private(set) var yaw = NotchMascotArt.frontYaw
+    /// Where the eyes look beyond the face it keeps, held until told otherwise.
+    private var heldAttention: CGFloat = 0
     private var blinks = 0
     /// It grew sleepy on its own after a long rest, rather than being shown
     /// so, and anything that happens wakes it.
@@ -72,18 +101,27 @@ final class NotchMascotRig: NSObject {
         root.addSublayer(hopper)
         hopper.addSublayer(squasher)
         squasher.addSublayer(tilter)
-        for layer in [ears, antenna, bulb, fill, visor, shine] { tilter.addSublayer(layer) }
-        tilter.addSublayer(attention)
-        attention.addSublayer(face)
-        face.addSublayer(leftEye)
-        face.addSublayer(rightEye)
-        fill.mask = fillMask
-        for layer in [root, hopper, squasher, tilter, attention, face, ears, antenna, bulb, fill, fillMask, visor, shine,
-                      leftEye, rightEye] {
+        tilter.addSublayer(body)
+        tilter.addSublayer(item)
+        tilter.addSublayer(faceWindow)
+        faceWindow.addSublayer(attention)
+        attention.addSublayer(turner)
+        turner.addSublayer(face)
+        face.addSublayer(leftEyeFill)
+        face.addSublayer(rightEyeFill)
+        leftEyeFill.mask = leftEye
+        rightEyeFill.mask = rightEye
+        for layer in [root, hopper, squasher, tilter, body, item, faceWindow, faceMask, attention, turner, face,
+                      leftEye, rightEye, leftEyeFill, rightEyeFill] {
             layer.actions = Self.noActions
         }
-        shine.fillColor = NotchMascotColor.shine.cgColor
-        visor.fillColor = NotchMascotColor.visor.cgColor
+        for layer in [body, item, faceMask, leftEyeFill, rightEyeFill] {
+            layer.contentsGravity = .resize
+            layer.minificationFilter = .trilinear
+            layer.magnificationFilter = .linear
+        }
+        leftEye.fillColor = CGColor(gray: 0, alpha: 1)
+        rightEye.fillColor = CGColor(gray: 0, alpha: 1)
     }
 
     private static let noActions: [String: CAAction] = [
@@ -115,53 +153,112 @@ final class NotchMascotRig: NSObject {
         }
         let box = CGRect(x: 0, y: 0, width: size, height: size)
         root.bounds = box
-        for layer in [hopper, squasher, tilter, attention, face, ears, antenna, bulb, fill, fillMask, visor, shine] {
+        for layer in [hopper, squasher, tilter, faceWindow, attention, turner, face] {
             layer.frame = box
             layer.contentsScale = scale
         }
-        root.contentsScale = scale
-        let robot = look.style == .robot
-        let palette = look.palette
-        fill.colors = [palette.light.cgColor, palette.shade.cgColor]
-        fill.startPoint = CGPoint(x: 0.5, y: 0)
-        fill.endPoint = CGPoint(x: 0.5, y: 1)
-        if robot {
-            let parts = NotchMascotGeometry.robot(size: size)
-            fillMask.path = parts.head
-            ears.path = parts.ears
-            antenna.path = parts.antenna
-            bulb.path = parts.bulb
-            visor.path = parts.visor
-            ears.fillColor = palette.shade.cgColor
-            antenna.fillColor = palette.shade.cgColor
-            bulb.fillColor = (mood == .sleepy ? palette.shade : palette.light).cgColor
-            bulb.shadowColor = palette.light.cgColor
-            bulb.shadowRadius = max(0.8, size * 0.09)
-            bulb.shadowOffset = .zero
-            for eye in [leftEye, rightEye] {
-                eye.fillColor = palette.light.cgColor
-                eye.shadowColor = palette.light.cgColor
-                eye.shadowOpacity = 0.9
-                eye.shadowRadius = max(0.6, size * 0.04)
-                eye.shadowOffset = .zero
-            }
-        } else {
-            fillMask.path = NotchMascotGeometry.body(look.shape, size: size)
-            for eye in [leftEye, rightEye] {
-                eye.fillColor = NotchMascotColor.ink.cgColor
-                eye.shadowOpacity = 0
-            }
+        let sprite = NotchMascotGeometry.spriteFrame(size: size)
+        for layer in [body, item, faceMask] {
+            layer.frame = sprite
+            layer.contentsScale = scale
         }
-        for layer in [ears, antenna, bulb, visor] { layer.isHidden = !robot }
-        shine.path = NotchMascotGeometry.shine(look.face, size: size)
-        shine.isHidden = robot
-        let face = look.face
+        root.contentsScale = scale
+        let fabric = NotchMascotSprites.image(look.eyeSprite)
         let side = size * 0.4
-        leftEye.frame = CGRect(x: face.leftEye.x * size - side / 2, y: face.leftEye.y * size - side / 2, width: side, height: side)
-        rightEye.frame = CGRect(x: face.rightEye.x * size - side / 2, y: face.rightEye.y * size - side / 2, width: side, height: side)
-        leftEye.contentsScale = scale
-        rightEye.contentsScale = scale
+        let face = look.face
+        leftEyeFill.frame = CGRect(x: face.leftEye.x * size - side / 2, y: face.leftEye.y * size - side / 2,
+                                   width: side, height: side)
+        rightEyeFill.frame = CGRect(x: face.rightEye.x * size - side / 2, y: face.rightEye.y * size - side / 2,
+                                    width: side, height: side)
+        for (fill, eye) in [(leftEyeFill, leftEye), (rightEyeFill, rightEye)] {
+            fill.contents = fabric
+            fill.contentsScale = scale
+            // The mask may grow past the fill as a heart or a smile does.
+            eye.frame = fill.bounds
+            eye.contentsScale = scale
+        }
+        if fabric == nil {
+            // Without its sprites, as in a build missing them, it still has eyes.
+            leftEyeFill.backgroundColor = eyeColor(look).cgColor
+            rightEyeFill.backgroundColor = eyeColor(look).cgColor
+        } else {
+            leftEyeFill.backgroundColor = nil
+            rightEyeFill.backgroundColor = nil
+        }
+        showYaw(yaw)
         apply(mood.expression, animated: false)
+    }
+
+    private func eyeColor(_ look: NotchMascotLook) -> NotchMascotColor {
+        look.palette.creamEyes ? .cream : .ink
+    }
+
+    // MARK: Turning
+
+    /// The sprites and the eyes for the head turned to `yaw`, at once.
+    func showYaw(_ yaw: Int) {
+        self.yaw = yaw
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        body.contents = NotchMascotSprites.image(look.bodySprite(yaw: yaw))
+        item.contents = look.itemSprite(yaw: yaw).flatMap(NotchMascotSprites.image)
+        if let window = look.eyeWindow(yaw: yaw).flatMap(NotchMascotSprites.image) {
+            faceMask.contents = window
+            faceWindow.mask = faceMask
+        } else {
+            faceWindow.mask = nil
+        }
+        turner.transform = turnTransform(yaw)
+        CATransaction.commit()
+    }
+
+    private func turnTransform(_ yaw: Int) -> CATransform3D {
+        let shift = NotchMascotGeometry.turnOffset(yaw: yaw)
+        return CATransform3DMakeTranslation(shift.x * size, shift.y * size, 0)
+    }
+
+    /// Turns the head through `yaws` over `duration`, the sprites fading
+    /// from one turn into the next as the eyes move with it. A single turn
+    /// is where it stays; a run of them plays and leaves it where it was.
+    private func turnHead(_ yaws: [Int], keyTimes: [NSNumber]? = nil, duration: CFTimeInterval,
+                          beginTime: CFTimeInterval? = nil, timing: [CAMediaTimingFunction]? = nil,
+                          key: String = "turn") {
+        guard size > 0, let last = yaws.last else { return }
+        let from = yaw
+        let steady = keyTimes == nil
+        let values = steady ? [from, last] : yaws
+        if steady, from == last { return }
+        func contents(_ sprite: (Int) -> String?) -> [Any] {
+            values.map { sprite($0).flatMap(NotchMascotSprites.image) as Any? ?? NSNull() }
+        }
+        let times = keyTimes ?? [0, 1]
+        let layers: [(CALayer, (Int) -> String?)] = [
+            (body, { self.look.bodySprite(yaw: $0) }),
+            (item, { self.look.itemSprite(yaw: $0) }),
+            (faceMask, { self.look.eyeWindow(yaw: $0) }),
+        ]
+        for (layer, sprite) in layers {
+            let fade = CAKeyframeAnimation(keyPath: "contents")
+            fade.values = contents(sprite)
+            fade.keyTimes = times
+            fade.duration = duration
+            if let beginTime { fade.beginTime = beginTime; fade.fillMode = .backwards }
+            layer.add(fade, forKey: key)
+        }
+        let move = CAKeyframeAnimation(keyPath: "transform")
+        move.values = values.map { NSValue(caTransform3D: turnTransform($0)) }
+        move.keyTimes = times
+        if let timing { move.timingFunctions = timing }
+        move.duration = duration
+        if let beginTime { move.beginTime = beginTime; move.fillMode = .backwards }
+        turner.add(move, forKey: key)
+        // Where it ends is where it stays once the motion is over.
+        showYaw(last)
+    }
+
+    /// Where the head turns for the face it keeps and what holds its eyes.
+    private func restingYaw() -> Int {
+        NotchMascotGeometry.yaw(forGaze: mood.expression.gaze.x + heldAttention)
     }
 
     // MARK: Faces
@@ -173,7 +270,6 @@ final class NotchMascotRig: NSObject {
         dozed = false
         if mood != .sleepy { blinks = 0 }
         apply(mood.expression, animated: animated && !reduceMotion)
-        lightBulb(mood != .sleepy, animated: animated && !reduceMotion)
         guard animated, !reduceMotion, size > 0 else { syncBlinking(); return }
         switch mood {
         case .surprised: pop()
@@ -233,6 +329,8 @@ final class NotchMascotRig: NSObject {
         face.transform = gaze
         tilter.transform = tilt
         CATransaction.commit()
+        let turn = NotchMascotGeometry.yaw(forGaze: expression.gaze.x + heldAttention)
+        if animated { turnHead([turn], duration: 0.22) } else { showYaw(turn) }
     }
 
     /// Turns to `mood` at `time` on the media clock and keeps it there, for
@@ -268,8 +366,11 @@ final class NotchMascotRig: NSObject {
     /// Back to its own face at rest, with every motion taken off.
     func reset(to mood: NotchMascotMood) {
         stopBlinking()
-        for layer in [root, hopper, squasher, tilter, attention, face, leftEye, rightEye] { layer.removeAllAnimations() }
+        for layer in [root, hopper, squasher, tilter, attention, turner, face, body, item, faceMask, leftEye, rightEye] {
+            layer.removeAllAnimations()
+        }
         attention.transform = CATransform3DIdentity
+        heldAttention = 0
         self.mood = mood
         blinks = 0
         dozed = false
@@ -290,7 +391,7 @@ final class NotchMascotRig: NSObject {
 
     /// Ends a visit under way where it stands, and it blinks again.
     func endVisit() {
-        for layer in [root, squasher, face] { layer.removeAnimation(forKey: "visit") }
+        for layer in [root, squasher, face, turner, body, item, faceMask] { layer.removeAnimation(forKey: "visit") }
         root.removeAnimation(forKey: "visitFade")
         blinksResume = CACurrentMediaTime()
         stopBlinking()
@@ -301,7 +402,7 @@ final class NotchMascotRig: NSObject {
     /// the island has nothing more for it.
     func clearFinishedVisit() {
         guard root.animation(forKey: "visit") != nil, CACurrentMediaTime() >= visitEnds else { return }
-        for layer in [root, squasher, face] { layer.removeAnimation(forKey: "visit") }
+        for layer in [root, squasher, face, turner, body, item, faceMask] { layer.removeAnimation(forKey: "visit") }
         root.removeAnimation(forKey: "visitFade")
     }
     /// It grew sleepy on its own after a long rest.
@@ -336,6 +437,18 @@ final class NotchMascotRig: NSObject {
         attention.transform = hold == nil ? to : CATransform3DIdentity
         attention.add(look, forKey: "attention")
         CATransaction.commit()
+        // The head turns with the eyes, toward what they look at.
+        let own = mood.expression.gaze.x
+        let toward = NotchMascotGeometry.yaw(forGaze: own + target.x)
+        if let hold {
+            heldAttention = 0
+            let back = NotchMascotGeometry.yaw(forGaze: own)
+            turnHead([yaw, toward, toward, back], keyTimes: look.keyTimes, duration: look.duration,
+                     key: "turnAttention")
+        } else {
+            heldAttention = target.x
+            turnHead([toward], duration: 0.2)
+        }
     }
 
     /// Its eyes come back to the face it keeps, after `delay`.
@@ -357,6 +470,19 @@ final class NotchMascotRig: NSObject {
             attention.removeAnimation(forKey: "attention")
         }
         CATransaction.commit()
+        heldAttention = 0
+        let rest = restingYaw()
+        if reduceMotion || rest == yaw {
+            showYaw(rest)
+        } else if delay > 0 {
+            let total = delay + 0.34
+            let from = yaw
+            showYaw(rest)
+            turnHead([from, from, rest], keyTimes: [0, NSNumber(value: delay / total), 1], duration: total,
+                     key: "turnAttention")
+        } else {
+            turnHead([rest], duration: 0.34)
+        }
     }
 
     // MARK: Cues
@@ -398,45 +524,6 @@ final class NotchMascotRig: NSObject {
         squash.keyTimes = [0, 0.12, 0.3, 0.62, 0.72, 0.84, 1]
         squash.duration = 0.62
         squasher.add(squash, forKey: "squash")
-    }
-
-    /// The robot's antenna bulb goes dark while it sleeps and lights again as
-    /// it wakes.
-    private func lightBulb(_ lit: Bool, animated: Bool) {
-        guard look.style == .robot else { return }
-        let color = (lit ? look.palette.light : look.palette.shade).cgColor
-        if animated {
-            let fade = CABasicAnimation(keyPath: "fillColor")
-            fade.fromValue = bulb.presentation()?.fillColor ?? bulb.fillColor
-            fade.toValue = color
-            fade.duration = lit ? 0.25 : 0.6
-            bulb.add(fade, forKey: "light")
-        }
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        bulb.fillColor = color
-        CATransaction.commit()
-    }
-
-    /// Lit already, the bulb shows dark a moment longer, then lights.
-    private func relightBulb(after delay: TimeInterval) {
-        guard look.style == .robot else { return }
-        let dark = look.palette.shade.cgColor
-        let light = CAKeyframeAnimation(keyPath: "fillColor")
-        light.values = [dark, dark, look.palette.light.cgColor]
-        light.keyTimes = [0, NSNumber(value: delay / (delay + 0.3)), 1]
-        light.duration = delay + 0.3
-        bulb.add(light, forKey: "light")
-    }
-
-    /// A reaction lights the robot's bulb up with a soft glow for as long as it plays.
-    private func glowBulb(for duration: TimeInterval) {
-        guard look.style == .robot else { return }
-        let glow = CAKeyframeAnimation(keyPath: "shadowOpacity")
-        glow.values = [0, 1, 1, 0]
-        glow.keyTimes = [0, 0.12, 0.7, 1]
-        glow.duration = duration
-        bulb.add(glow, forKey: "glow")
     }
 
     /// Positive flattens it on the ground, negative stretches it up, and its
@@ -500,7 +587,6 @@ final class NotchMascotRig: NSObject {
         if dozed, reaction != .wakeUp { setMood(.idle, animated: !reduceMotion) }
         blinks = 0
         let now = CACurrentMediaTime()
-        glowBulb(for: reaction.length)
         guard !reduceMotion else {
             switch reaction {
             case .celebrate, .wakeUp: flashFace(.happy, duration: 1)
@@ -537,12 +623,8 @@ final class NotchMascotRig: NSObject {
             flashFace(.confused, duration: 1.2)
             wobble()
         case .wakeUp:
-            // Heavy eyes, a stretch, and a glad face. A robot's bulb lights
-            // up again as it stretches.
-            if dozed {
-                setMood(.idle, animated: false)
-                relightBulb(after: 0.35)
-            }
+            // Heavy eyes, a stretch, and a glad face.
+            if dozed { setMood(.idle, animated: false) }
             flashFace(.sleepy, duration: 0.7)
             stretch(beginTime: now + 0.35, duration: 0.6)
             flashFace(.happy, duration: 0.9, beginTime: now + 0.7, key: "flashAfter")
@@ -719,6 +801,11 @@ final class NotchMascotRig: NSObject {
         look.beginTime = start
         look.isAdditive = true
         face.add(look, forKey: "visit")
+        // The head turns the way it walks.
+        let resting = yaw
+        turnHead(path.gaze.map { NotchMascotGeometry.yaw(forGaze: $0) }, keyTimes: walk.keyTimes,
+                 duration: path.duration, beginTime: start, key: "visit")
+        showYaw(resting)
         // Its eyes are for the way ahead while it walks.
         lookAhead()
         if path.greeting.upperBound > path.greeting.lowerBound {
@@ -803,6 +890,10 @@ final class NotchMascotRig: NSObject {
             glance.isAdditive = true
             glance.beginTime = blink.beginTime - 1.1
             attention.add(glance, forKey: "idleGlance")
+            let rest = yaw
+            let aside = NotchMascotGeometry.yaw(forGaze: mood.expression.gaze.x + away.m41 / max(1, size))
+            turnHead([rest, aside, aside, rest], keyTimes: glance.keyTimes, duration: glance.duration,
+                     beginTime: glance.beginTime, timing: glance.timingFunctions, key: "turnGlance")
         }
         let relay = NotchMascotAnimationRelay(target: self)
         blinkRelay = relay

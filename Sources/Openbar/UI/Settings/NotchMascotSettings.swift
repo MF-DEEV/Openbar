@@ -18,9 +18,9 @@ struct NotchMascotSettings: View {
     @AppStorage(DefaultsKey.notchMascotVisits) private var visits = true
     @AppStorage(DefaultsKey.notchMascotReactions) private var reactions = true
     @AppStorage(DefaultsKey.notchMascotHidesWhenIdle) private var hidesWhenIdle = true
-    @AppStorage(DefaultsKey.notchMascotStyle) private var style = NotchMascotStyle.minimal.rawValue
-    @AppStorage(DefaultsKey.notchMascotShape) private var shape = NotchMascotShape.ball.rawValue
-    @AppStorage(DefaultsKey.notchMascotPalette) private var palette = NotchMascotPalette.pearl.rawValue
+    @AppStorage(DefaultsKey.notchMascotTexture) private var texture = NotchMascotLook.standard.texture.rawValue
+    @AppStorage(DefaultsKey.notchMascotItem) private var headwear = NotchMascotLook.standard.item.rawValue
+    @AppStorage(DefaultsKey.notchMascotPalette) private var palette = NotchMascotLook.standard.palette.rawValue
     @AppStorage(DefaultsKey.notchMascotSide) private var side = NotchMascotSide.left.rawValue
     @AppStorage(DefaultsKey.notchMascotVisitFrequency) private var frequency = NotchMascotVisitFrequency.normal.rawValue
     @AppStorage(DefaultsKey.notchCommandBar) private var commandBar = true
@@ -31,9 +31,9 @@ struct NotchMascotSettings: View {
     private var editor: NotchEditorStrings { FeatureStrings.notchEditor(l10n.language) }
 
     private var look: NotchMascotLook {
-        NotchMascotLook(style: NotchMascotStyle(rawValue: style) ?? .minimal,
-                        shape: NotchMascotShape(rawValue: shape) ?? .ball,
-                        palette: NotchMascotPalette(rawValue: palette) ?? .pearl)
+        NotchMascotLook(texture: NotchMascotTexture(rawValue: texture) ?? NotchMascotLook.standard.texture,
+                        palette: NotchMascotPalette(rawValue: palette) ?? NotchMascotLook.standard.palette,
+                        item: NotchMascotItem(rawValue: headwear) ?? NotchMascotLook.standard.item)
     }
 
     private var restingSide: NotchMascotSide { NotchMascotSide(rawValue: side) ?? .left }
@@ -113,46 +113,45 @@ struct NotchMascotSettings: View {
 
     private var appearance: some View {
         SettingsCard(title: text.appearance) {
-            SettingsRow(symbol: "paintpalette", title: text.style) { EmptyView() }
+            SettingsRow(symbol: "hand.raised.fingers.spread", title: text.material) {
+                Text(text.texture(look.texture)).foregroundStyle(.secondary)
+            }
             HStack(spacing: 10) {
-                ForEach(NotchMascotStyle.allCases) { item in
-                    NotchMascotChoiceTile(title: text.style(item), selected: look.style == item) {
-                        style = item.rawValue
+                ForEach(NotchMascotTexture.allCases) { item in
+                    NotchMascotChoiceTile(title: text.texture(item), selected: look.texture == item) {
+                        texture = item.rawValue
                     } preview: {
-                        NotchMascotView(look: NotchMascotLook(style: item, shape: look.shape, palette: look.palette),
+                        NotchMascotView(look: NotchMascotLook(texture: item, palette: look.palette, item: look.item),
                                         size: 30, idles: false)
                             .frame(width: 30, height: 30)
-                            .frame(width: 64, height: 42)
+                            .frame(width: 64, height: 46)
                             .background(Color.black, in: Capsule())
                     }
                 }
             }
             .padding(.leading, settingsRowTextInset)
-            if look.style == .minimal {
-                SettingsRow(symbol: "circle.square", title: text.shape) {
-                    Text(text.shape(look.shape)).foregroundStyle(.secondary)
-                }
-                .transition(.opacity)
-                shapes
-                    .transition(.opacity)
+            SettingsRow(symbol: "crown", title: text.headwear) {
+                Text(text.item(look.item)).foregroundStyle(.secondary)
             }
+            headwearTiles
             SettingsRow(symbol: "swatchpalette", title: text.color) {
                 Text(text.palette(look.palette)).foregroundStyle(.secondary)
             }
             swatches
         }
-        .animation(animation, value: look.style)
     }
 
-    private var shapes: some View {
+    /// What it wears, each tried on it.
+    private var headwearTiles: some View {
         HStack(spacing: 8) {
-            ForEach(NotchMascotShape.allCases) { item in
-                let selected = look.shape == item
-                Button { shape = item.rawValue } label: {
-                    NotchMascotView(look: NotchMascotLook(style: .minimal, shape: item, palette: look.palette),
+            ForEach(NotchMascotItem.allCases) { item in
+                let selected = look.item == item
+                Button { headwear = item.rawValue } label: {
+                    NotchMascotView(look: NotchMascotLook(texture: look.texture, palette: look.palette, item: item),
                                     size: 24, idles: false)
                         .frame(width: 24, height: 24)
-                        .frame(width: 58, height: 40)
+                        .offset(y: 2)
+                        .frame(width: 50, height: 42)
                         .background(Color.black, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                         .padding(2)
                         .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
@@ -160,8 +159,8 @@ struct NotchMascotSettings: View {
                         .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 .buttonStyle(.plain)
-                .help(text.shape(item))
-                .accessibilityLabel(text.shape(item))
+                .help(text.item(item))
+                .accessibilityLabel(text.item(item))
                 .accessibilityAddTraits(selected ? .isSelected : [])
                 .animation(reduceMotion ? nil : .easeOut(duration: 0.15), value: selected)
             }
@@ -170,13 +169,12 @@ struct NotchMascotSettings: View {
     }
 
     private var swatches: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             ForEach(NotchMascotPalette.allCases) { item in
                 let selected = look.palette == item
                 Button { palette = item.rawValue } label: {
                     Circle()
-                        .fill(LinearGradient(colors: [Color(cgColor: item.light.cgColor), Color(cgColor: item.shade.cgColor)],
-                                             startPoint: .top, endPoint: .bottom))
+                        .fill(Color(cgColor: item.swatch.cgColor))
                         .frame(width: 22, height: 22)
                         .overlay(Circle().strokeBorder(Color.primary.opacity(0.15), lineWidth: 0.5))
                         .padding(3)

@@ -495,7 +495,7 @@ Source: `NSPV:14-333`, model `SPSup:9-130`, `505-545`.
 
 ## 12. Mascot (the companion)
 
-The mascot is **not a sprite sheet**. It is drawn procedurally from vector shapes and animated with Core Animation keyframes, so the port is data plus a few pure functions, rendered as SVG in the webview with the Web Animations API. (The pixel-art "Clawd" buddies are a separate feature in the sessions spec.) Source: `NMS` (model, geometry, motion), `NMasV` (rig and animation), settings `UI/Settings/NotchMascotSettings.swift`, scheduling `NSvc:4434-5060`.
+The mascot is Openbar's own companion: a soft bean made of plush, knit, gummy or clay, with an optional head item. Its **body and head items are sprites** rendered in Blender (`Tools/companion`), one per turn of its head; its **eyes are vector outlines** filled with the fabric they are stitched from, so every face still morphs into any other. Motion is Core Animation keyframes on the Mac and the Web Animations API in the webview. (The pixel-art "Clawd" buddies are a separate feature in the sessions spec.) Source: `NMS` (model, geometry, motion), `NMasV` (rig and animation), settings `UI/Settings/NotchMascotSettings.swift`, scheduling `NSvc:4434-5060`.
 
 ### 12.1 Preferences (`DEF:956-964`, `1554-1562`)
 
@@ -504,9 +504,9 @@ The mascot is **not a sprite sheet**. It is drawn procedurally from vector shape
 | `notchMascotEnabled` | bool | false (a one-time beta migration turns it on, `DEF:2220-2229`) |
 | `notchMascotVisits` | bool, strolls now and then | true |
 | `notchMascotReactions` | bool, reacts to island events | true |
-| `notchMascotStyle` | `minimal` \| `robot` | minimal |
-| `notchMascotShape` | `ball` \| `egg` \| `squircle` \| `pill` (minimal only) | ball |
-| `notchMascotPalette` | `pearl, lemon, peach, rose, lilac, sky, mint` | pearl |
+| `notchMascotTexture` | `plush` \| `knit` \| `gummy` \| `clay` | plush |
+| `notchMascotItem` | `none` \| `helmet` \| `beanie` \| `cap` \| `crown` \| `headphones` | helmet |
+| `notchMascotPalette` | `pearl, lemon, peach, rose, berry, lilac, sky, navy, mint, grass` | pearl |
 | `notchMascotSide` | `left` \| `right` (beside the camera; a capsule rests in the middle) | left |
 | `notchMascotVisitFrequency` | `rare` (600–1200 s), `normal` (240–540 s), `frequent` (90–180 s) | normal |
 | `notchMascotHidesWhenIdle` | bool, tucks away after 30 s idle | true |
@@ -514,56 +514,22 @@ The mascot is **not a sprite sheet**. It is drawn procedurally from vector shape
 
 Enabled = feature available, island on, and `notchMascotEnabled` (`NMS:1233-1236`).
 
-### 12.2 Look: a data format proposal (`mascot.json`)
-All coordinates are **shares of the mascot's square** (0…1), y pointing down, origin top-left. This is the exact data from the Swift source:
+### 12.2 Look: sprites and art tables
 
-```jsonc
-{
-  "colors": {                        // sRGB 0..1 (NMS:27-40)
-    "ink":   [0.07, 0.07, 0.08, 1],  // minimal style's eyes
-    "visor": [0.09, 0.09, 0.11, 1],  // robot face plate
-    "shine": [1, 1, 1, 0.55]         // body highlight (minimal only)
-  },
-  "palettes": {                      // body gradient top (light) -> bottom (shade), (NMS:44-74)
-    "pearl": {"light": [0.99,0.98,0.96], "shade": [0.84,0.85,0.90]},
-    "lemon": {"light": [1.00,0.96,0.64], "shade": [0.97,0.83,0.30]},
-    "peach": {"light": [1.00,0.86,0.74], "shade": [0.98,0.64,0.50]},
-    "rose":  {"light": [1.00,0.80,0.87], "shade": [0.95,0.54,0.68]},
-    "lilac": {"light": [0.88,0.83,1.00], "shade": [0.69,0.59,0.96]},
-    "sky":   {"light": [0.77,0.90,1.00], "shade": [0.43,0.67,0.97]},
-    "mint":  {"light": [0.72,0.97,0.86], "shade": [0.40,0.83,0.66]}
-  },
-  "bodies": {                        // NotchMascotGeometry.body (NMS:356-387)
-    "ball":     {"ellipse": [0.08, 0.12, 0.84, 0.84]},
-    "egg":      {"path": "M.5 .10 C.71 .10 .86 .36 .86 .60 C.86 .80 .70 .96 .5 .96 C.30 .96 .14 .80 .14 .60 C.14 .36 .29 .10 .5 .10 Z"},
-    "squircle": {"superellipse": {"cx": 0.5, "cy": 0.55, "rx": 0.43, "ry": 0.40, "exponent": 3.4, "samples": 72}},
-                 // x = cx + rx·sign(cosθ)·|cosθ|^(2/3.4), y = cy + ry·sign(sinθ)·|sinθ|^(2/3.4), polyline closed
-    "pill":     {"roundedRect": [0.05, 0.28, 0.90, 0.60], "radius": 0.30}
-  },
-  "robot": {                         // NMS:413-429; fill = palette gradient on head, ears/antenna = shade
-    "head":    {"roundedRect": [0.12, 0.26, 0.76, 0.68], "radius": 0.20},
-    "ears":    [{"roundedRect": [0.05, 0.50, 0.08, 0.20], "radius": 0.035},
-                {"roundedRect": [0.87, 0.50, 0.08, 0.20], "radius": 0.035}],
-    "antenna": {"roundedRect": [0.475, 0.12, 0.05, 0.16], "radius": 0.025},
-    "bulb":    {"ellipse": [0.43, 0.04, 0.14, 0.14], "glowRadius": 0.09},  // lit = palette.light, asleep = shade
-    "visor":   {"roundedRect": [0.20, 0.44, 0.60, 0.38], "radius": 0.15},
-    "eyeFill": "palette.light", "eyeGlow": {"opacity": 0.9, "radius": 0.04}
-  },
-  "faces": {                         // NotchMascotLook.face (NMS:317-347)
-    //            leftEye        rightEye       eyeSize(w,h)    shineCenter    shineRadii      shineAngle(rad)
-    "robot":    {"l":[0.36,0.63],"r":[0.64,0.63],"eye":[0.085,0.16],"shine":[0.27,0.34],"shineR":[0.07,0.04],"angle":-0.3},
-    "ball":     {"l":[0.36,0.50],"r":[0.64,0.50],"eye":[0.10,0.20], "shine":[0.31,0.29],"shineR":[0.085,0.055],"angle":-0.5},
-    "egg":      {"l":[0.375,0.55],"r":[0.625,0.55],"eye":[0.095,0.19],"shine":[0.33,0.31],"shineR":[0.075,0.05],"angle":-0.6},
-    "squircle": {"l":[0.35,0.53],"r":[0.65,0.53],"eye":[0.10,0.20], "shine":[0.24,0.28],"shineR":[0.08,0.05],"angle":-0.55},
-    "pill":     {"l":[0.37,0.57],"r":[0.63,0.57],"eye":[0.09,0.19], "shine":[0.20,0.42],"shineR":[0.07,0.045],"angle":-0.45}
-  }
-}
-```
+Everything is measured in **shares of the mascot's square** (its box), y pointing down, origin top-left. The bare body facing front is 0.84 of the box high and stands 0.04 above its bottom, so placement keeps the old numbers.
 
-Rendering rules (`NMasV:100-165`):
-* Layer order: `ears, antenna, bulb, body fill (gradient masked by body or head path), visor, shine`, then a face group with both eyes.
-* The gradient runs vertically from `light` at the top to `shade` at the bottom.
-* Each eye layer is a box 0.4·size wide centered on its eye point. The eye outline is computed around that center.
+* **Sprites** (`Resources/Companion/*.webp`, shared by both apps, 256 px):
+  * `body-<texture>-<palette>-<yaw>`: the bean with its feet, no eyes;
+  * `item-<texture>-<item>-<yaw>`: a head item alone, rendered with the body as a shadow catcher, so it keeps its shadow on the body and is hidden where the body is in front;
+  * `mask-<item>-<yaw>`: where the eyes may show past an item that covers them (white where they show);
+  * `eye-<texture>-<ink|cream>`: a square swatch of the eye fabric. Dark palettes (rose, berry, navy) get cream eyes.
+* **Yaws**: −24°, −12°, 0, 12°, 24°. The head turns with the gaze: a gaze under 0.03 of the box keeps the front, under 0.075 turns one step, more turns two. A turn fades from one sprite into the next while the eyes move with the head.
+* **Art tables**: `NotchMascotArt.swift` and `windows/src/mascot/art.ts`, generated together by `Tools/companion/build_assets.py`: the sprite rectangle around the box, the body's bounds, the eyes' centres per yaw, the open eye's size, each item's headroom above the box, which items have an eye window, and each palette's swatch.
+* **Rebuilding**: `Tools/companion/render_all.sh` (Blender 5.2) renders the PNGs; `build_assets.py` turns them into the sprites and both tables.
+
+Rendering rules:
+* Layer order: `root › hopper › squasher › tilter › [body sprite, item sprite, face window (masked by the item's eye window) › attention › turner › face › eyes]`.
+* Each eye is a box 0.4·size wide centred on its eye point; its outline masks the eye fabric.
 * A look change at the same size crossfades for 0.24 s.
 * No implicit animations: every motion is explicit.
 
@@ -628,7 +594,7 @@ The layers nest as `root (position) › hopper (translateY) › squasher (squash
 | surprised | 0.9 | flash surprised 0.9 + hop(0.7·lift) |
 | flash | 0.5 | eyes scaleY 1, .06, .06, 1.18, 1 @ 0, .18, .42, .7, 1 (0.45 s) + pop |
 | confused | 1.2 | flash confused 1.2 + wobble |
-| wakeUp | 1.6 | flash sleepy 0.7; stretch at +0.35 for 0.6; flash happy 0.9 at +0.7; a dozing robot relights its bulb after 0.35 |
+| wakeUp | 1.6 | flash sleepy 0.7; stretch at +0.35 for 0.6; flash happy 0.9 at +0.7 |
 | yawn | 1.2 | flash sleepy 1.2 + stretch at +0.1 for 0.9 |
 | perk | 1.0 | flash alert 1.0 + hop(0.55·lift) |
 | bounce | 1.0 | flash alert; translateY 0, −h, 0, −.7h, 0, −.15h, 0 @ 0, .14, .32, .46, .63, .75, .88 (h=max(1, 0.6·lift)); squash sq 0, −.12, 0, .14, −.1, 0, .12, 0, .04, 0 @ 0, .04, .14, .32, .36, .46, .63, .7, .8, .88; 0.95 s |
@@ -636,7 +602,7 @@ The layers nest as `root (position) › hopper (translateY) › squasher (squash
 | ready | 1.0 | flash determined 1.0; nod sq 0, .1, −.06, 0 @ 0, .3, .65, 1, 0.5 s at +0.12 |
 | groove | 1.6 | flash happy; 4 beats: bob −h on odd steps (h = max(1, 0.45·lift)), lean ±0.11 rad alternating, squash −.05 up / .07 down; keyTimes step/8 |
 
-Every reaction also makes the robot's bulb glow (shadow opacity 0, 1, 1, 0 @ 0, .12, .7, 1) for its length. With Reduce Motion only the face changes (`NMasV:504-516`).
+With Reduce Motion only the face changes (`NMasV:504-516`).
 
 **Reaction sources** (`NSvc`, `TimerService`, etc.):
 * screenshot → flash (patience 1)

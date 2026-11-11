@@ -13,14 +13,27 @@ import {
   MASCOT_MOMENTS,
   moodBlinks,
   MOMENT_REACTION,
+  bodySprite,
+  creamEyes,
+  eyeSprite,
+  eyeWindow,
+  itemSprite,
+  MASCOT_ITEMS,
+  MASCOT_PALETTES,
+  MASCOT_TEXTURES,
+  migratedLook,
   nextVisitDelay,
-  paletteColors,
+  paletteSwatch,
   pointerGaze,
   powerReaction,
   randomGreeting,
   ReactionGate,
   timerReaction,
+  turnOffset,
+  yawForGaze,
 } from "./model";
+import { ART } from "./art";
+import { spriteNames } from "./sprites";
 import {
   activityTrack,
   CAMEO_ARRIVAL,
@@ -42,16 +55,7 @@ import {
   visitReaction,
   watchesTimer,
 } from "./motion";
-import {
-  bodyPath,
-  EYE_CURVES,
-  eyePath,
-  eyePoints,
-  figureOffset,
-  resample,
-  robotPaths,
-  smoothClosedPath,
-} from "./shapes";
+import { EYE_CURVES, eyePath, eyePoints, figureOffset, resample, smoothClosedPath, spriteFrame } from "./shapes";
 
 const EYES: MascotEye[] = ["open", "closed", "happy", "heart", "sleepy", "wide", "squint", "determined"];
 const capsule = makeTrack({ stripWidth: 80, stripHeight: 24, wing: 0, cameraWidth: 0, floats: true, bodyHeight: 20 });
@@ -82,34 +86,130 @@ describe("preferences", () => {
     expect(island.mascotVisits).toBe(true);
     expect(island.mascotReactions).toBe(true);
     expect(island.mascotHidesWhenIdle).toBe(true);
-    expect([island.mascotStyle, island.mascotShape, island.mascotPalette]).toEqual(["minimal", "ball", "pearl"]);
+    expect([island.mascotTexture, island.mascotPalette, island.mascotItem]).toEqual(["plush", "pearl", "helmet"]);
     expect(island.mascotSide).toBe("left");
     expect(island.mascotVisitFrequency).toBe("normal");
   });
 
   it("reads a hand-edited file's unknown choices as the default", () => {
     const stored = {
-      mascotStyle: "cat",
-      mascotShape: "cube",
+      mascotTexture: "cat",
+      mascotItem: "cube",
       mascotPalette: "ochre",
       mascotSide: "up",
       mascotVisitFrequency: "always",
       mascotEnabled: "yes",
     };
     const { island } = resolve({ island: stored as never });
-    expect([island.mascotStyle, island.mascotShape, island.mascotPalette]).toEqual(["minimal", "ball", "pearl"]);
+    expect([island.mascotTexture, island.mascotPalette, island.mascotItem]).toEqual(["plush", "pearl", "helmet"]);
     expect(island.mascotSide).toBe("left");
     expect(island.mascotVisitFrequency).toBe("normal");
     expect(island.mascotEnabled).toBe(false);
   });
 });
 
-describe("model", () => {
-  it("draws sRGB palette colours", () => {
-    expect(paletteColors("pearl").light).toBe("rgb(252 250 245)");
-    expect(paletteColors("mint").shade).toBe("rgb(102 212 168)");
+describe("migration", () => {
+  const migrate = (island: Record<string, unknown>) => resolve({ island: island as never }).island;
+
+  it("gives the robot clay and the helmet, in its own colour", () => {
+    const island = migrate({ mascotStyle: "robot", mascotShape: "pill", mascotPalette: "mint" });
+    expect([island.mascotTexture, island.mascotPalette, island.mascotItem]).toEqual(["clay", "mint", "helmet"]);
   });
 
+  it("turns each old shape into what it is made of, with nothing on its head", () => {
+    expect(migrate({ mascotStyle: "minimal", mascotShape: "ball", mascotPalette: "lilac" })).toMatchObject({
+      mascotTexture: "plush",
+      mascotPalette: "lilac",
+      mascotItem: "none",
+    });
+    expect(migrate({ mascotShape: "egg" }).mascotTexture).toBe("gummy");
+    expect(migrate({ mascotShape: "squircle" }).mascotTexture).toBe("clay");
+    expect(migrate({ mascotShape: "pill" }).mascotTexture).toBe("knit");
+  });
+
+  it("keeps its side and visits as they were", () => {
+    const island = migrate({ mascotShape: "ball", mascotSide: "right", mascotVisitFrequency: "frequent" });
+    expect([island.mascotSide, island.mascotVisitFrequency]).toEqual(["right", "frequent"]);
+  });
+
+  it("starts unknown or missing old values with the new companion", () => {
+    expect(migrate({ mascotStyle: "dragon", mascotShape: "cube" })).toMatchObject({
+      mascotTexture: "plush",
+      mascotItem: "helmet",
+    });
+    expect(migratedLook(undefined, undefined)).toBeNull();
+    expect(migratedLook(42, null)).toBeNull();
+  });
+
+  it("leaves a look picked after the change alone", () => {
+    expect(migrate({ mascotShape: "ball", mascotTexture: "knit", mascotItem: "crown" })).toMatchObject({
+      mascotTexture: "knit",
+      mascotItem: "crown",
+    });
+  });
+});
+
+describe("art", () => {
+  it("has every sprite a look needs", () => {
+    const names = new Set(spriteNames());
+    const missing: string[] = [];
+    for (const texture of MASCOT_TEXTURES)
+      for (const palette of MASCOT_PALETTES)
+        for (const item of MASCOT_ITEMS) {
+          const look = { texture, palette, item };
+          ART.yaws.forEach((_, yaw) => {
+            for (const name of [bodySprite(look, yaw), itemSprite(look, yaw), eyeWindow(look, yaw)])
+              if (name && !names.has(name)) missing.push(name);
+          });
+          if (!names.has(eyeSprite(look))) missing.push(eyeSprite(look));
+        }
+    expect([...new Set(missing)]).toEqual([]);
+  });
+
+  it("matches the Mac's tables", async () => {
+    const { readFileSync } = await import("node:fs");
+    const swift = readFileSync(
+      new URL("../../../Sources/Openbar/Services/Notch/NotchMascotArt.swift", import.meta.url),
+      "utf8",
+    );
+    const number = (value: number) => value.toFixed(4);
+    for (const value of Object.values(ART.spriteRect)) expect(swift).toContain(number(value));
+    for (const eyes of ART.eyes)
+      for (const at of [eyes.left, eyes.right])
+        expect(swift).toContain(`CGPoint(x: ${number(at.x)}, y: ${number(at.y)})`);
+  });
+
+  it("turns the head the way the eyes look, no further than drawn", () => {
+    expect(yawForGaze(0)).toBe(ART.frontYaw);
+    expect(yawForGaze(0.05)).toBeGreaterThan(ART.frontYaw);
+    expect(yawForGaze(0.08)).toBeGreaterThan(yawForGaze(0.05));
+    expect(yawForGaze(-0.08)).toBe(0);
+    expect(yawForGaze(5)).toBe(ART.yaws.length - 1);
+    expect(turnOffset(ART.frontYaw)).toEqual({ x: 0, y: 0 });
+    expect(turnOffset(ART.yaws.length - 1).x).toBeGreaterThan(0);
+    expect(turnOffset(0).x).toBeLessThan(0);
+  });
+
+  it("covers its eyes only with something on its head, and gives dark felt cream eyes", () => {
+    const bare = { texture: "plush", palette: "pearl", item: "none" } as const;
+    expect(itemSprite(bare, 0)).toBeNull();
+    expect(eyeWindow(bare, 0)).toBeNull();
+    expect(eyeSprite({ ...bare, palette: "navy" })).toBe("eye-plush-cream");
+    expect(eyeSprite(bare)).toBe("eye-plush-ink");
+    expect(creamEyes("navy")).toBe(true);
+    expect(paletteSwatch("pearl")).toBe("rgb(240 232 214)");
+  });
+
+  it("draws the sprites around its box, the body inside", () => {
+    const frame = spriteFrame(20);
+    expect(frame.x).toBeLessThan(0);
+    expect(frame.y).toBeLessThan(0);
+    expect(frame.x + frame.width).toBeGreaterThan(20);
+    expect(figureOffset()).toBeGreaterThan(0.03);
+  });
+});
+
+describe("model", () => {
   it("blinks only with eyes that can", () => {
     expect(moodBlinks("idle")).toBe(true);
     expect(moodBlinks("alert")).toBe(true);
@@ -119,9 +219,12 @@ describe("model", () => {
     expect(moodBlinks("love")).toBe(false);
   });
 
-  it("lays the face out per body, the robot's whatever its shape", () => {
-    expect(faceOf({ style: "minimal", shape: "egg" }).leftEye.x).toBe(0.375);
-    expect(faceOf({ style: "robot", shape: "egg" })).toEqual(faceOf({ style: "robot", shape: "pill" }));
+  it("lays the face out on its body, eyes either side of its middle", () => {
+    const face = faceOf();
+    expect(face.leftEye.x).toBeLessThan(0.5);
+    expect(face.rightEye.x).toBeGreaterThan(0.5);
+    expect(face.eye.height).toBeGreaterThan(face.eye.width);
+    expect(faceOf(99)).toEqual(faceOf(ART.yaws.length - 1));
   });
 
   it("spaces reactions and keeps the same one from coming back soon", () => {
@@ -213,15 +316,6 @@ describe("shapes", () => {
     ];
     expect(resample(short, 24)).toEqual(short);
     expect(smoothClosedPath(short)).toBe("");
-  });
-
-  it("draws every body and part, and centres each figure", () => {
-    for (const shape of ["ball", "egg", "squircle", "pill"] as const) {
-      expect(bodyPath(shape, 18)).toMatch(/^M.*Z$/);
-      expect(figureOffset({ style: "minimal", shape })).toBeGreaterThan(0);
-    }
-    expect(figureOffset({ style: "robot", shape: "ball" })).toBeCloseTo(-0.01);
-    for (const part of Object.values(robotPaths(18))) expect(part).toMatch(/^M.*Z$/);
   });
 });
 

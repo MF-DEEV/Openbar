@@ -13,7 +13,7 @@ import type { MonitorMetric, NetworkSpeedUnit } from "../system/types";
 import { DEFAULT_HIDDEN_CONTROLS, type ControlItem } from "../controls/types";
 import type { AgentCard, AgentPeriod, AgentReadout, CodexProfile, LimitDisplay, LimitFocus } from "../agents/types";
 import type { WatchCondition } from "../watch/types";
-import type { MascotFrequency, MascotPalette, MascotShape, MascotSide, MascotStyle } from "../mascot/model";
+import type { MascotFrequency, MascotPalette, MascotSide, MascotTexture, MascotItem } from "../mascot/model";
 
 export type QuickSide = "left" | "right" | "bottom";
 export type QuickAction =
@@ -222,9 +222,10 @@ export interface IslandSettings {
   mascotVisits: boolean;
   /** Comes out to react to what the island sees. */
   mascotReactions: boolean;
-  mascotStyle: MascotStyle;
-  /** The minimal style's body. */
-  mascotShape: MascotShape;
+  /** What it is made of. */
+  mascotTexture: MascotTexture;
+  /** What it wears on its head. */
+  mascotItem: MascotItem;
   mascotPalette: MascotPalette;
   /** Beside the notch; a capsule holds it in the middle. */
   mascotSide: MascotSide;
@@ -375,8 +376,8 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   mascotEnabled: false,
   mascotVisits: true,
   mascotReactions: true,
-  mascotStyle: "minimal",
-  mascotShape: "ball",
+  mascotTexture: "plush",
+  mascotItem: "helmet",
   mascotPalette: "pearl",
   mascotSide: "left",
   mascotVisitFrequency: "normal",

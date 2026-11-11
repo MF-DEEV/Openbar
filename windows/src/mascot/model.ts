@@ -1,61 +1,102 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-// The companion is a small friend who lives in the island: a coloured shape
-// with two ink eyes and no mouth, or a little robot (NotchMascotSupport.swift;
-// spec 05 §12). The code calls it the mascot, because "companion" already
-// names the second activity sharing the closed island on the Mac.
+// The companion is Openbar's own little friend who lives in the island: a
+// soft bean with two stitched eyes, made of felt, knit, gummy or clay, with
+// something on its head if it likes (NotchMascotSupport.swift; spec 05 §12).
+// Its body and what it wears are sprites rendered in Blender
+// (Tools/companion), one per turn of its head; the eyes stay outlines, so
+// every face can turn into any other. `ART` (art.ts) says where they all sit.
+// The code calls it the mascot, because "companion" already names the second
+// activity sharing the closed island on the Mac.
 
-export type MascotStyle = "minimal" | "robot";
-export type MascotShape = "ball" | "egg" | "squircle" | "pill";
-export type MascotPalette = "pearl" | "lemon" | "peach" | "rose" | "lilac" | "sky" | "mint";
+import { ART } from "./art";
+import { cssRgb } from "./shapes";
+
+export type MascotTexture = "plush" | "knit" | "gummy" | "clay";
+export type MascotItem = "none" | "helmet" | "beanie" | "cap" | "crown" | "headphones";
+export type MascotPalette =
+  "pearl" | "lemon" | "peach" | "rose" | "berry" | "lilac" | "sky" | "navy" | "mint" | "grass";
 export type MascotSide = "left" | "right";
 export type MascotFrequency = "rare" | "normal" | "frequent";
 
-export const MASCOT_STYLES: readonly MascotStyle[] = ["minimal", "robot"];
-export const MASCOT_SHAPES: readonly MascotShape[] = ["ball", "egg", "squircle", "pill"];
-/** In the order of the rainbow after white, so the swatches read as one row. */
-export const MASCOT_PALETTES: readonly MascotPalette[] = ["pearl", "lemon", "peach", "rose", "lilac", "sky", "mint"];
+export const MASCOT_TEXTURES: readonly MascotTexture[] = ["plush", "knit", "gummy", "clay"];
+export const MASCOT_ITEMS: readonly MascotItem[] = ["none", "helmet", "beanie", "cap", "crown", "headphones"];
+/** Warm to cool, so the swatches read as one row. The first seven are the ones it came in before it was Openbar's. */
+export const MASCOT_PALETTES: readonly MascotPalette[] = [
+  "pearl",
+  "lemon",
+  "peach",
+  "rose",
+  "berry",
+  "lilac",
+  "sky",
+  "navy",
+  "mint",
+  "grass",
+];
 export const MASCOT_SIDES: readonly MascotSide[] = ["left", "right"];
 export const MASCOT_FREQUENCIES: readonly MascotFrequency[] = ["rare", "normal", "frequent"];
 
-type Rgb = readonly [number, number, number];
+/** Its body's colour, for the swatch. */
+export const paletteSwatch = (palette: MascotPalette) => cssRgb(ART.swatches[palette] ?? [240, 232, 214]);
 
-const css = ([r, g, b]: Rgb, alpha = 1) =>
-  `rgb(${Math.round(r * 255)} ${Math.round(g * 255)} ${Math.round(b * 255)}${alpha < 1 ? ` / ${alpha}` : ""})`;
+/** Dark bodies get cream eyes, as stitched felt toys do. */
+export const creamEyes = (palette: MascotPalette) => ART.creamEyes.includes(palette);
 
-const PALETTES: Record<MascotPalette, { light: Rgb; shade: Rgb }> = {
-  pearl: { light: [0.99, 0.98, 0.96], shade: [0.84, 0.85, 0.9] },
-  lemon: { light: [1.0, 0.96, 0.64], shade: [0.97, 0.83, 0.3] },
-  peach: { light: [1.0, 0.86, 0.74], shade: [0.98, 0.64, 0.5] },
-  rose: { light: [1.0, 0.8, 0.87], shade: [0.95, 0.54, 0.68] },
-  lilac: { light: [0.88, 0.83, 1.0], shade: [0.69, 0.59, 0.96] },
-  sky: { light: [0.77, 0.9, 1.0], shade: [0.43, 0.67, 0.97] },
-  mint: { light: [0.72, 0.97, 0.86], shade: [0.4, 0.83, 0.66] },
-};
-
-/** The body's lit top and shaded bottom; the shade also colours the robot's antenna and ears. */
-export const paletteColors = (palette: MascotPalette) => ({
-  light: css(PALETTES[palette].light),
-  shade: css(PALETTES[palette].shade),
-});
-
-/** The eyes, a soft black that still reads on the black island's edge. */
-export const INK = css([0.07, 0.07, 0.08]);
-/** The robot's face plate, where its lit eyes sit. */
-export const VISOR = css([0.09, 0.09, 0.11]);
-export const SHINE = css([1, 1, 1], 0.55);
+/** The eyes, a soft black that still reads on the black island's edge, or cream on dark felt. */
+export const INK = "rgb(31 26 31)";
+export const CREAM = "rgb(242 230 202)";
 
 export interface MascotLook {
-  style: MascotStyle;
-  shape: MascotShape;
+  texture: MascotTexture;
   palette: MascotPalette;
+  item: MascotItem;
 }
 
-export const STANDARD_LOOK: MascotLook = { style: "minimal", shape: "ball", palette: "pearl" };
+/** Pearl felt in the helmet from the logo. */
+export const STANDARD_LOOK: MascotLook = { texture: "plush", palette: "pearl", item: "helmet" };
 
 export const sameLook = (a: MascotLook, b: MascotLook) =>
-  a.style === b.style && a.shape === b.shape && a.palette === b.palette;
+  a.texture === b.texture && a.palette === b.palette && a.item === b.item;
+
+/** The sprite of its body turned to `yaw`, an index into `ART.yaws`. */
+export const bodySprite = (look: MascotLook, yaw: number) => `body-${look.texture}-${look.palette}-${yaw}`;
+
+/** What it wears, turned to `yaw`, or null with nothing on its head. */
+export const itemSprite = (look: MascotLook, yaw: number) =>
+  look.item === "none" ? null : `item-${look.texture}-${look.item}-${yaw}`;
+
+/** Where its eyes may show past what it wears, or null where nothing covers them. */
+export const eyeWindow = (look: MascotLook, yaw: number) =>
+  ART.maskedItems.includes(look.item) ? `mask-${look.item}-${yaw}` : null;
+
+/** The fabric its eyes are stitched from. */
+export const eyeSprite = (look: MascotLook) => `eye-${look.texture}-${creamEyes(look.palette) ? "cream" : "ink"}`;
+
+/** How far above its box what it wears reaches, in shares of its size. */
+export const headroom = (look: MascotLook) => ART.headroom[look.item] ?? 0;
+
+/**
+ * The closest new look to one picked before the companion was Openbar's: its
+ * shapes become what it is made of, the robot wears the helmet, and its
+ * colours keep their names. Null for nothing picked, or nothing known.
+ */
+export function migratedLook(style: unknown, shape: unknown): Pick<MascotLook, "texture" | "item"> | null {
+  if (style === "robot") return { texture: "clay", item: "helmet" };
+  switch (shape) {
+    case "ball":
+      return { texture: "plush", item: "none" };
+    case "egg":
+      return { texture: "gummy", item: "none" };
+    case "squircle":
+      return { texture: "clay", item: "none" };
+    case "pill":
+      return { texture: "knit", item: "none" };
+    default:
+      return style === "minimal" ? { texture: "plush", item: "none" } : null;
+  }
+}
 
 export type MascotEye = "open" | "closed" | "happy" | "heart" | "sleepy" | "wide" | "squint" | "determined";
 
@@ -113,41 +154,34 @@ export interface MascotFace {
   rightEye: { x: number; y: number };
   /** An open eye's width and height. */
   eye: { width: number; height: number };
-  /** The soft highlight on the body: its centre, radii and lean. */
-  shine: { x: number; y: number; rx: number; ry: number; angle: number };
 }
 
-const face = (
-  lx: number,
-  rx: number,
-  y: number,
-  width: number,
-  height: number,
-  sx: number,
-  sy: number,
-  srx: number,
-  sry: number,
-  angle: number,
-): MascotFace => ({
-  leftEye: { x: lx, y },
-  rightEye: { x: rx, y },
-  eye: { width, height },
-  shine: { x: sx, y: sy, rx: srx, ry: sry, angle },
-});
+const clampYaw = (yaw: number) => Math.max(0, Math.min(ART.eyes.length - 1, yaw));
 
-/** Where the face sits on each body, in shares of its size from the top left corner. */
-export function faceOf(look: Pick<MascotLook, "style" | "shape">): MascotFace {
-  if (look.style === "robot") return face(0.36, 0.64, 0.63, 0.085, 0.16, 0.27, 0.34, 0.07, 0.04, -0.3);
-  switch (look.shape) {
-    case "ball":
-      return face(0.36, 0.64, 0.5, 0.1, 0.2, 0.31, 0.29, 0.085, 0.055, -0.5);
-    case "egg":
-      return face(0.375, 0.625, 0.55, 0.095, 0.19, 0.33, 0.31, 0.075, 0.05, -0.6);
-    case "squircle":
-      return face(0.35, 0.65, 0.53, 0.1, 0.2, 0.24, 0.28, 0.08, 0.05, -0.55);
-    case "pill":
-      return face(0.37, 0.63, 0.57, 0.09, 0.19, 0.2, 0.42, 0.07, 0.045, -0.45);
-  }
+/**
+ * Where the face sits with the head turned to `yaw`, in shares of its size
+ * from the top left corner. Every look shares the same body.
+ */
+export function faceOf(yaw: number = ART.frontYaw): MascotFace {
+  const eyes = ART.eyes[clampYaw(yaw)]!;
+  return { leftEye: eyes.left, rightEye: eyes.right, eye: ART.eyeSize };
+}
+
+/** The head's turn for eyes looking `gaze` to the side: an index into `ART.yaws`, the front in the middle. */
+export function yawForGaze(gaze: number): number {
+  const magnitude = Math.abs(gaze);
+  const step = magnitude < 0.03 ? 0 : magnitude < 0.075 ? 1 : 2;
+  return clampYaw(ART.frontYaw + (gaze < 0 ? -step : step));
+}
+
+/** How far the eyes move as the head turns to `yaw`, in shares of its size. */
+export function turnOffset(yaw: number) {
+  const front = ART.eyes[ART.frontYaw]!;
+  const eyes = ART.eyes[clampYaw(yaw)]!;
+  return {
+    x: (eyes.left.x + eyes.right.x - front.left.x - front.right.x) / 2,
+    y: (eyes.left.y + eyes.right.y - front.left.y - front.right.y) / 2,
+  };
 }
 
 // MARK: Reactions

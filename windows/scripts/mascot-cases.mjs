@@ -27,7 +27,7 @@ export async function checkMascot({ send, evaluate, base }) {
     const box=e=>{const b=e.getBoundingClientRect();return {left:b.left,right:b.right,top:b.top,bottom:b.bottom,width:b.width}};
     const root=document.querySelector('.mr-root');
     return {frame:box(document.querySelector('.island-frame')),rig:root?box(root):null,
-      attention:root?getComputedStyle(root.querySelectorAll('.mr-layer')[3]).transform:null};
+      attention:root?getComputedStyle(root.querySelectorAll('.mr-layer')[4]).transform:null};
   })()`);
 
   await wait(700);

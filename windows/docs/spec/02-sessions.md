@@ -17,7 +17,7 @@ This document says what the Mac app does. Proposed Windows behavior is in §6 an
 | Antigravity companion extension | `Tools/AntigravityBridge/extension/extension.js`, `package.json`, `extension.vsixmanifest` |
 | Tests that pin behavior | `Tests/ClaudeHookTests.swift`, `ClaudeSessionEngineTests.swift`, `ClaudeSessionReaderTests.swift`, `ClawdCostumeTests.swift`, `NotchClawdSpriteTests.swift`, `ClaudeAgentColorTests.swift` |
 
-`NotchMascotView.swift` is **not** part of this section. It draws the island's general robot companion, not Clawd. Leave it to the island/companion spec.
+`NotchMascotView.swift` is **not** part of this section. It draws the island's own companion (the felt bean), not Clawd. Leave it to the island/companion spec.
 
 ---
 
