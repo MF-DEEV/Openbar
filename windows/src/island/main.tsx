@@ -92,13 +92,20 @@ if (!inTauri && new URLSearchParams(location.search).has("watch")) {
   void import("../watch/demo").then((demo) => demo.startWatchDemo(new URLSearchParams(location.search).get("watch")));
 }
 
-// ?mascot switches the companion on, out of the island; ?mascot=robot in its other style.
+// ?mascot switches the companion on, out of the island; ?mascot=knit (or gummy, clay) in another material.
 if (!inTauri && new URLSearchParams(location.search).has("mascot")) {
-  const style = new URLSearchParams(location.search).get("mascot") === "robot" ? "robot" : "minimal";
-  void import("../shared/prefs").then((prefs) =>
-    prefs.setPrefs({
-      island: { mascotEnabled: true, mascotHidesWhenIdle: false, mascotStyle: style, idleContent: "none" },
-    }),
+  const asked = new URLSearchParams(location.search).get("mascot");
+  void import("../mascot/model").then(({ MASCOT_TEXTURES }) =>
+    import("../shared/prefs").then((prefs) =>
+      prefs.setPrefs({
+        island: {
+          mascotEnabled: true,
+          mascotHidesWhenIdle: false,
+          mascotTexture: MASCOT_TEXTURES.find((texture) => texture === asked) ?? "plush",
+          idleContent: "none",
+        },
+      }),
+    ),
   );
 }
 

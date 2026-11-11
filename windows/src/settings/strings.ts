@@ -31,32 +31,44 @@ export const T = {
     get behavior() {
       return t("notchEditor.behavior");
     },
-    get style() {
-      return t("notchMascot.style");
+    get material() {
+      return t("notchMascot.material");
     },
-    styles: {
-      get minimal() {
-        return t("notchMascot.minimal");
+    textures: {
+      get plush() {
+        return t("notchMascot.plush");
       },
-      get robot() {
-        return t("notchMascot.robot");
+      get knit() {
+        return t("notchMascot.knit");
+      },
+      get gummy() {
+        return t("notchMascot.gummy");
+      },
+      get clay() {
+        return t("notchMascot.clay");
       },
     },
-    get shape() {
-      return t("notchMascot.shape");
+    get headwear() {
+      return t("notchMascot.headwear");
     },
-    shapes: {
-      get ball() {
-        return t("notchMascot.ball");
+    items: {
+      get none() {
+        return t("notchMascot.bare");
       },
-      get egg() {
-        return t("notchMascot.egg");
+      get helmet() {
+        return t("notchMascot.helmet");
       },
-      get squircle() {
-        return t("notchMascot.squircle");
+      get beanie() {
+        return t("notchMascot.beanie");
       },
-      get pill() {
-        return t("notchMascot.pill");
+      get cap() {
+        return t("notchMascot.cap");
+      },
+      get crown() {
+        return t("notchMascot.crown");
+      },
+      get headphones() {
+        return t("notchMascot.headphones");
       },
     },
     get color() {
@@ -83,6 +95,15 @@ export const T = {
       },
       get mint() {
         return t("notchMascot.mint");
+      },
+      get berry() {
+        return t("notchMascot.berry");
+      },
+      get navy() {
+        return t("notchMascot.navy");
+      },
+      get grass() {
+        return t("notchMascot.grass");
       },
     },
     get side() {
@@ -290,7 +311,7 @@ export const T = {
       return t("windows.settings.layout.resetShape");
     },
     get shape() {
-      return t("notchMascot.shape");
+      return t("recorder.shapeLabel");
     },
     get shapeCaption() {
       return t("windows.settings.layout.shapeCaption");

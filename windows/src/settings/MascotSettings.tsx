@@ -18,6 +18,7 @@ import {
   Coffee,
   EyeOff,
   Footprints,
+  Crown,
   Hand,
   Hourglass,
   LockOpen,
@@ -26,7 +27,6 @@ import {
   Music,
   Palette,
   PersonStanding,
-  Shapes,
   Smile,
   Sparkles,
   TriangleAlert,
@@ -42,16 +42,16 @@ import {
   type MascotMoment,
   MASCOT_FREQUENCIES,
   MASCOT_MOMENTS,
+  MASCOT_ITEMS,
   MASCOT_PALETTES,
-  MASCOT_SHAPES,
   MASCOT_SIDES,
-  MASCOT_STYLES,
+  MASCOT_TEXTURES,
   type MascotReaction,
   type MascotReactionEvent,
   type MascotSide,
   MOMENT_REACTION,
   momentFollowUp,
-  paletteColors,
+  paletteSwatch,
   REACTION_LENGTH,
 } from "../mascot/model";
 import {
@@ -95,7 +95,7 @@ export function MascotSettings() {
   useLocale();
   const island = useSettings((s) => s.prefs.island);
   const set = useSettings((s) => s.island);
-  const look: MascotLook = { style: island.mascotStyle, shape: island.mascotShape, palette: island.mascotPalette };
+  const look: MascotLook = { texture: island.mascotTexture, palette: island.mascotPalette, item: island.mascotItem };
   const notch = island.silhouette === "notch";
   return (
     <Page title={S.title} lead={S.hint}>
@@ -113,48 +113,45 @@ export function MascotSettings() {
       <Group title={S.appearance}>
         <div className="st-card st-mascot-card">
           <div className="st-mascot-heading">
-            <Palette className="st-card-icon" size={18} strokeWidth={1.75} aria-hidden />
-            <span className="st-card-title">{S.style}</span>
+            <Hand className="st-card-icon" size={18} strokeWidth={1.75} aria-hidden />
+            <span className="st-card-title">{S.material}</span>
+            <span className="st-mascot-value">{S.textures[island.mascotTexture]}</span>
           </div>
-          <div className="st-mascot-tiles" role="radiogroup" aria-label={S.style}>
-            {MASCOT_STYLES.map((style) => (
+          <div className="st-mascot-tiles" role="radiogroup" aria-label={S.material}>
+            {MASCOT_TEXTURES.map((texture) => (
               <Tile
-                key={style}
-                title={S.styles[style]}
-                selected={island.mascotStyle === style}
-                onSelect={() => set("mascotStyle", style)}
+                key={texture}
+                title={S.textures[texture]}
+                selected={island.mascotTexture === texture}
+                onSelect={() => set("mascotTexture", texture)}
               >
                 <span className="st-mascot-sample">
-                  <MascotFace look={{ ...look, style }} size={30} />
+                  <MascotFace look={{ ...look, texture }} size={30} />
                 </span>
               </Tile>
             ))}
           </div>
-          {island.mascotStyle === "minimal" ? (
-            <>
-              <div className="st-mascot-heading">
-                <Shapes className="st-card-icon" size={18} strokeWidth={1.75} aria-hidden />
-                <span className="st-card-title">{S.shape}</span>
-                <span className="st-mascot-value">{S.shapes[island.mascotShape]}</span>
-              </div>
-              <div className="st-mascot-shapes" role="radiogroup" aria-label={S.shape}>
-                {MASCOT_SHAPES.map((shape) => (
-                  <button
-                    key={shape}
-                    type="button"
-                    role="radio"
-                    className="st-mascot-shape"
-                    aria-checked={island.mascotShape === shape}
-                    aria-label={S.shapes[shape]}
-                    title={S.shapes[shape]}
-                    onClick={() => set("mascotShape", shape)}
-                  >
-                    <MascotFace look={{ ...look, style: "minimal", shape }} size={24} />
-                  </button>
-                ))}
-              </div>
-            </>
-          ) : null}
+          <div className="st-mascot-heading">
+            <Crown className="st-card-icon" size={18} strokeWidth={1.75} aria-hidden />
+            <span className="st-card-title">{S.headwear}</span>
+            <span className="st-mascot-value">{S.items[island.mascotItem]}</span>
+          </div>
+          <div className="st-mascot-shapes" role="radiogroup" aria-label={S.headwear}>
+            {MASCOT_ITEMS.map((item) => (
+              <button
+                key={item}
+                type="button"
+                role="radio"
+                className="st-mascot-shape st-mascot-item"
+                aria-checked={island.mascotItem === item}
+                aria-label={S.items[item]}
+                title={S.items[item]}
+                onClick={() => set("mascotItem", item)}
+              >
+                <MascotFace look={{ ...look, item }} size={24} />
+              </button>
+            ))}
+          </div>
           <div className="st-mascot-heading">
             <Palette className="st-card-icon" size={18} strokeWidth={1.75} aria-hidden />
             <span className="st-card-title">{S.color}</span>
@@ -162,7 +159,6 @@ export function MascotSettings() {
           </div>
           <div className="st-mascot-swatches" role="radiogroup" aria-label={S.color}>
             {MASCOT_PALETTES.map((palette) => {
-              const colors = paletteColors(palette);
               return (
                 <button
                   key={palette}
@@ -174,7 +170,7 @@ export function MascotSettings() {
                   title={S.palettes[palette]}
                   onClick={() => set("mascotPalette", palette)}
                 >
-                  <span style={{ background: `linear-gradient(${colors.light}, ${colors.shade})` }} />
+                  <span style={{ background: paletteSwatch(palette) }} />
                 </button>
               );
             })}

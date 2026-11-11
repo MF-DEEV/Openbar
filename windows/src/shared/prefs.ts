@@ -20,7 +20,14 @@ import { MONITOR_METRICS, type MonitorMetric } from "../system/types";
 import { CONTROL_ITEMS, type ControlItem } from "../controls/types";
 import { LANGUAGES } from "../i18n/languages";
 import { AGENT_CARDS, type AgentCard, type CodexProfile } from "../agents/types";
-import { MASCOT_FREQUENCIES, MASCOT_PALETTES, MASCOT_SHAPES, MASCOT_SIDES, MASCOT_STYLES } from "../mascot/model";
+import {
+  MASCOT_FREQUENCIES,
+  MASCOT_ITEMS,
+  MASCOT_PALETTES,
+  MASCOT_SIDES,
+  MASCOT_TEXTURES,
+  migratedLook,
+} from "../mascot/model";
 
 /** The Sessions section's own preferences (spec 01-shell §7.2, sessions). */
 export interface SessionPrefs {
@@ -115,8 +122,8 @@ const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
   agentsLimitFocus: ["mostUsed", "session", "weekly"],
   agentsReadout: ["elapsed", "tokens", "cost", "limit"],
   watchCondition: ["changes", "settles", "contains", "reaches"],
-  mascotStyle: MASCOT_STYLES,
-  mascotShape: MASCOT_SHAPES,
+  mascotTexture: MASCOT_TEXTURES,
+  mascotItem: MASCOT_ITEMS,
   mascotPalette: MASCOT_PALETTES,
   mascotSide: MASCOT_SIDES,
   mascotVisitFrequency: MASCOT_FREQUENCIES,
@@ -234,6 +241,17 @@ function hiddenApps(value: unknown): Record<string, string> {
 export function resolve(stored: StoredPrefs | null | undefined): Prefs {
   const island = checked(DEFAULT_SETTINGS, stored?.island);
   const raw = isObject(stored?.island) ? stored.island : {};
+  // A companion picked before it was Openbar's own (a pearl ball, egg, rounded
+  // square or pill, or the robot) starts as the closest new look. Its colour
+  // keeps its name, and its side and visits stay as they were.
+  if (raw.mascotTexture === undefined && raw.mascotItem === undefined) {
+    const legacy = raw as { mascotStyle?: unknown; mascotShape?: unknown };
+    const migrated = migratedLook(legacy.mascotStyle, legacy.mascotShape);
+    if (migrated) {
+      island.mascotTexture = migrated.texture;
+      island.mascotItem = migrated.item;
+    }
+  }
   if (
     island.preferredPlayer !== undefined &&
     (island.preferredPlayer.length > 256 || /[\x00-\x1f]/.test(island.preferredPlayer))

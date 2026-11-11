@@ -27,6 +27,9 @@ if CommandLine.arguments.contains("--uninstall") {
 if NotchPresentationProbe.isRequested(by: CommandLine.arguments) {
     NotchPresentationProbe.runAndExit()
 }
+if NotchCompanionProbe.isRequested(by: CommandLine.arguments) {
+    NotchCompanionProbe.runAndExit()
+}
 #endif
 
 // Bring settings, data and agent hooks over from the bundle ID this build had

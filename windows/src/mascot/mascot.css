@@ -27,7 +27,20 @@
   transform-origin: 50% 50%;
 }
 
-.mr-body,
+/* The body and what it wears: a sprite per turn of the head, stacked. */
+.mr-sprites {
+  position: absolute;
+}
+
+.mr-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  user-select: none;
+}
+
 .mr-eye svg {
   position: absolute;
   left: 0;

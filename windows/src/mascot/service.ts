@@ -44,9 +44,9 @@ import {
 /** The island is on and the companion switched on. */
 export const mascotEnabled = (s: IslandSettings) => s.enabled && s.mascotEnabled;
 export const mascotLook = (s: IslandSettings): MascotLook => ({
-  style: s.mascotStyle,
-  shape: s.mascotShape,
+  texture: s.mascotTexture,
   palette: s.mascotPalette,
+  item: s.mascotItem,
 });
 
 export interface MascotState {

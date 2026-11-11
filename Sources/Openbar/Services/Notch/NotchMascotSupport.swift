@@ -4,21 +4,28 @@
 import CoreGraphics
 import Foundation
 
-// The companion is a small friend who lives in the Dynamic Island: a colored
-// shape with two ink eyes and no mouth, or a little robot. It rests beside
-// the camera when the closed island has nothing else to show, passes by now
-// and then, and is the Command Bar's face when the bar comes out of the
-// island. The code calls it the mascot, because "companion" already names
-// the second activity sharing the closed island.
+// The companion is Openbar's own little friend who lives in the Dynamic
+// Island: a soft bean with two stitched eyes, made of felt, knit, gummy or
+// clay, with something on its head if it likes. It rests beside the camera
+// when the closed island has nothing else to show, passes by now and then,
+// and is the Command Bar's face when the bar comes out of the island. The
+// code calls it the mascot, because "companion" already names the second
+// activity sharing the closed island.
+//
+// Its body and what it wears are rendered in Blender (Tools/companion) as
+// sprites, one per turn of its head; the eyes stay outlines here, so every
+// face can turn into any other. `NotchMascotArt` says where they all sit.
 
-enum NotchMascotStyle: String, CaseIterable, Identifiable {
-    case minimal, robot
+/// What it is made of.
+enum NotchMascotTexture: String, CaseIterable, Identifiable {
+    case plush, knit, gummy, clay
 
     var id: String { rawValue }
 }
 
-enum NotchMascotShape: String, CaseIterable, Identifiable {
-    case ball, egg, squircle, pill
+/// What it wears on its head.
+enum NotchMascotItem: String, CaseIterable, Identifiable {
+    case none, helmet, beanie, cap, crown, headphones
 
     var id: String { rawValue }
 }
@@ -33,52 +40,51 @@ struct NotchMascotColor: Equatable {
     var cgColor: CGColor { CGColor(srgbRed: red, green: green, blue: blue, alpha: alpha) }
 
     /// The eyes, a soft black that still reads on the black island's edge.
-    static let ink = NotchMascotColor(red: 0.07, green: 0.07, blue: 0.08)
-    /// The robot's face plate, where its lit eyes sit.
-    static let visor = NotchMascotColor(red: 0.09, green: 0.09, blue: 0.11)
-    static let shine = NotchMascotColor(red: 1, green: 1, blue: 1, alpha: 0.55)
+    static let ink = NotchMascotColor(red: 0.12, green: 0.10, blue: 0.12)
+    /// Eyes stitched in cream, on dark felt.
+    static let cream = NotchMascotColor(red: 0.95, green: 0.90, blue: 0.79)
 }
 
-/// The colors it comes in, in the order of the rainbow after white, so the
-/// swatches in Settings read as one row.
+/// The colors it comes in, warm to cool, so the swatches in Settings read as
+/// one row. The first seven are the ones it came in before it was Openbar's.
 enum NotchMascotPalette: String, CaseIterable, Identifiable {
-    case pearl, lemon, peach, rose, lilac, sky, mint
+    case pearl, lemon, peach, rose, berry, lilac, sky, navy, mint, grass
 
     var id: String { rawValue }
 
-    /// The body's lit top.
-    var light: NotchMascotColor {
-        switch self {
-        case .pearl: return NotchMascotColor(red: 0.99, green: 0.98, blue: 0.96)
-        case .lemon: return NotchMascotColor(red: 1.00, green: 0.96, blue: 0.64)
-        case .peach: return NotchMascotColor(red: 1.00, green: 0.86, blue: 0.74)
-        case .rose: return NotchMascotColor(red: 1.00, green: 0.80, blue: 0.87)
-        case .lilac: return NotchMascotColor(red: 0.88, green: 0.83, blue: 1.00)
-        case .sky: return NotchMascotColor(red: 0.77, green: 0.90, blue: 1.00)
-        case .mint: return NotchMascotColor(red: 0.72, green: 0.97, blue: 0.86)
-        }
+    /// Its body's color, for the swatch.
+    var swatch: NotchMascotColor {
+        let rgb = NotchMascotArt.swatches[self] ?? (240, 232, 214)
+        return NotchMascotColor(red: CGFloat(rgb.0) / 255, green: CGFloat(rgb.1) / 255, blue: CGFloat(rgb.2) / 255)
     }
 
-    /// The body's shaded bottom, and the robot's antenna and bolts.
-    var shade: NotchMascotColor {
-        switch self {
-        case .pearl: return NotchMascotColor(red: 0.84, green: 0.85, blue: 0.90)
-        case .lemon: return NotchMascotColor(red: 0.97, green: 0.83, blue: 0.30)
-        case .peach: return NotchMascotColor(red: 0.98, green: 0.64, blue: 0.50)
-        case .rose: return NotchMascotColor(red: 0.95, green: 0.54, blue: 0.68)
-        case .lilac: return NotchMascotColor(red: 0.69, green: 0.59, blue: 0.96)
-        case .sky: return NotchMascotColor(red: 0.43, green: 0.67, blue: 0.97)
-        case .mint: return NotchMascotColor(red: 0.40, green: 0.83, blue: 0.66)
-        }
-    }
+    /// Dark bodies get cream eyes, as stitched felt toys do.
+    var creamEyes: Bool { NotchMascotArt.creamEyes.contains(self) }
 }
 
 struct NotchMascotLook: Equatable {
-    var style: NotchMascotStyle
-    var shape: NotchMascotShape
+    var texture: NotchMascotTexture
     var palette: NotchMascotPalette
+    var item: NotchMascotItem
 
-    static let standard = NotchMascotLook(style: .minimal, shape: .ball, palette: .pearl)
+    /// Pearl felt in the helmet from the logo.
+    static let standard = NotchMascotLook(texture: .plush, palette: .pearl, item: .helmet)
+
+    /// The sprite of its body turned to `yaw`, an index into `NotchMascotArt.yaws`.
+    func bodySprite(yaw: Int) -> String { "body-\(texture.rawValue)-\(palette.rawValue)-\(yaw)" }
+
+    /// What it wears, turned to `yaw`, or nil with nothing on its head.
+    func itemSprite(yaw: Int) -> String? {
+        item == .none ? nil : "item-\(texture.rawValue)-\(item.rawValue)-\(yaw)"
+    }
+
+    /// Where its eyes may show past what it wears, or nil where nothing covers them.
+    func eyeWindow(yaw: Int) -> String? {
+        NotchMascotArt.maskedItems.contains(item) ? "mask-\(item.rawValue)-\(yaw)" : nil
+    }
+
+    /// The fabric its eyes are stitched from.
+    var eyeSprite: String { "eye-\(texture.rawValue)-\(palette.creamEyes ? "cream" : "ink")" }
 }
 
 enum NotchMascotMood: String, CaseIterable, Identifiable {
@@ -301,50 +307,27 @@ extension NotchMascotMood {
     }
 }
 
-/// Where the face sits on each body, in shares of the companion's size from
-/// its top left corner.
+/// Where the face sits, in shares of the companion's size from its top left
+/// corner.
 struct NotchMascotFaceLayout: Equatable {
     let leftEye: CGPoint
     let rightEye: CGPoint
     /// An open eye's width and height.
     let eyeSize: CGSize
-    /// The soft highlight on the body: its center, radii and lean.
-    let shineCenter: CGPoint
-    let shineRadii: CGSize
-    let shineAngle: CGFloat
 }
 
 extension NotchMascotLook {
-    var face: NotchMascotFaceLayout {
-        if style == .robot {
-            return NotchMascotFaceLayout(leftEye: CGPoint(x: 0.36, y: 0.63), rightEye: CGPoint(x: 0.64, y: 0.63),
-                                         eyeSize: CGSize(width: 0.085, height: 0.16),
-                                         shineCenter: CGPoint(x: 0.27, y: 0.34), shineRadii: CGSize(width: 0.07, height: 0.04),
-                                         shineAngle: -0.3)
-        }
-        switch shape {
-        case .ball:
-            return NotchMascotFaceLayout(leftEye: CGPoint(x: 0.36, y: 0.50), rightEye: CGPoint(x: 0.64, y: 0.50),
-                                         eyeSize: CGSize(width: 0.10, height: 0.20),
-                                         shineCenter: CGPoint(x: 0.31, y: 0.29), shineRadii: CGSize(width: 0.085, height: 0.055),
-                                         shineAngle: -0.5)
-        case .egg:
-            return NotchMascotFaceLayout(leftEye: CGPoint(x: 0.375, y: 0.55), rightEye: CGPoint(x: 0.625, y: 0.55),
-                                         eyeSize: CGSize(width: 0.095, height: 0.19),
-                                         shineCenter: CGPoint(x: 0.33, y: 0.31), shineRadii: CGSize(width: 0.075, height: 0.05),
-                                         shineAngle: -0.6)
-        case .squircle:
-            return NotchMascotFaceLayout(leftEye: CGPoint(x: 0.35, y: 0.53), rightEye: CGPoint(x: 0.65, y: 0.53),
-                                         eyeSize: CGSize(width: 0.10, height: 0.20),
-                                         shineCenter: CGPoint(x: 0.24, y: 0.28), shineRadii: CGSize(width: 0.08, height: 0.05),
-                                         shineAngle: -0.55)
-        case .pill:
-            return NotchMascotFaceLayout(leftEye: CGPoint(x: 0.37, y: 0.57), rightEye: CGPoint(x: 0.63, y: 0.57),
-                                         eyeSize: CGSize(width: 0.09, height: 0.19),
-                                         shineCenter: CGPoint(x: 0.20, y: 0.42), shineRadii: CGSize(width: 0.07, height: 0.045),
-                                         shineAngle: -0.45)
-        }
+    /// The face with its head turned to `yaw`. Every look shares the same body,
+    /// so the eyes sit in the same place whatever it is made of or wears.
+    func face(yaw: Int = NotchMascotArt.frontYaw) -> NotchMascotFaceLayout {
+        let eyes = NotchMascotArt.eyes[max(0, min(NotchMascotArt.eyes.count - 1, yaw))]
+        return NotchMascotFaceLayout(leftEye: eyes.left, rightEye: eyes.right, eyeSize: NotchMascotArt.eyeSize)
     }
+
+    var face: NotchMascotFaceLayout { face() }
+
+    /// How far above its box what it wears reaches, in shares of its size.
+    var headroom: CGFloat { NotchMascotArt.headroom[item] ?? 0 }
 }
 
 /// Outlines in a square of `size` points, from its top left corner.
@@ -353,87 +336,39 @@ enum NotchMascotGeometry {
     /// any other one point at a time.
     static let eyeCurveCount = 24
 
-    static func body(_ shape: NotchMascotShape, size: CGFloat) -> CGPath {
-        let path = CGMutablePath()
-        func point(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x * size, y: y * size) }
-        switch shape {
-        case .ball:
-            path.addEllipse(in: CGRect(x: 0.08 * size, y: 0.12 * size, width: 0.84 * size, height: 0.84 * size))
-        case .egg:
-            path.move(to: point(0.5, 0.10))
-            path.addCurve(to: point(0.86, 0.60), control1: point(0.71, 0.10), control2: point(0.86, 0.36))
-            path.addCurve(to: point(0.5, 0.96), control1: point(0.86, 0.80), control2: point(0.70, 0.96))
-            path.addCurve(to: point(0.14, 0.60), control1: point(0.30, 0.96), control2: point(0.14, 0.80))
-            path.addCurve(to: point(0.5, 0.10), control1: point(0.14, 0.36), control2: point(0.29, 0.10))
-            path.closeSubpath()
-        case .squircle:
-            // A superellipse: flatter sides than a rounded rectangle, no corner seam.
-            let count = 72
-            for index in 0..<count {
-                let angle = CGFloat(index) / CGFloat(count) * 2 * .pi
-                let cosine = cos(angle), sine = sin(angle)
-                let exponent: CGFloat = 2 / 3.4
-                let x = 0.5 + 0.43 * (cosine < 0 ? -1 : 1) * pow(abs(cosine), exponent)
-                let y = 0.55 + 0.40 * (sine < 0 ? -1 : 1) * pow(abs(sine), exponent)
-                if index == 0 { path.move(to: point(x, y)) } else { path.addLine(to: point(x, y)) }
-            }
-            path.closeSubpath()
-        case .pill:
-            path.addRoundedRect(in: CGRect(x: 0.05 * size, y: 0.28 * size, width: 0.90 * size, height: 0.60 * size),
-                                cornerWidth: 0.30 * size, cornerHeight: 0.30 * size)
-        }
-        return path
-    }
-
-    /// The robot's head, ears, antenna and face plate.
-    struct Robot {
-        let head: CGPath
-        let ears: CGPath
-        let antenna: CGPath
-        let bulb: CGPath
-        let visor: CGPath
-    }
-
-    /// How far below the middle of its box the figure's own middle sits, as
-    /// a share of the box. The box keeps room above a minimal body for the
-    /// robot's antenna, so a body placed by its box would sit a little low
-    /// wherever it is meant to be centred.
+    /// How far below the middle of its box the body's own middle sits, as a
+    /// share of the box. The box keeps room above the body for what it
+    /// wears, so a body placed by its box would sit a little low wherever it
+    /// is meant to be centred.
     static func figureOffset(_ look: NotchMascotLook) -> CGFloat {
-        let bounds: CGRect
-        if look.style == .robot {
-            let parts = robot(size: 1)
-            bounds = [parts.ears, parts.antenna, parts.bulb]
-                .reduce(parts.head.boundingBoxOfPath) { $0.union($1.boundingBoxOfPath) }
-        } else {
-            bounds = body(look.shape, size: 1).boundingBoxOfPath
-        }
-        return bounds.midY - 0.5
+        NotchMascotArt.bodyBounds.midY - 0.5
     }
 
-    static func robot(size: CGFloat) -> Robot {
-        func rect(_ x: CGFloat, _ y: CGFloat, _ width: CGFloat, _ height: CGFloat) -> CGRect {
-            CGRect(x: x * size, y: y * size, width: width * size, height: height * size)
-        }
-        func rounded(_ rect: CGRect, _ radius: CGFloat) -> CGPath {
-            CGPath(roundedRect: rect, cornerWidth: radius * size, cornerHeight: radius * size, transform: nil)
-        }
-        let ears = CGMutablePath()
-        ears.addPath(rounded(rect(0.05, 0.50, 0.08, 0.20), 0.035))
-        ears.addPath(rounded(rect(0.87, 0.50, 0.08, 0.20), 0.035))
-        return Robot(head: rounded(rect(0.12, 0.26, 0.76, 0.68), 0.20),
-                     ears: ears,
-                     antenna: rounded(rect(0.475, 0.12, 0.05, 0.16), 0.025),
-                     bulb: CGPath(ellipseIn: rect(0.43, 0.04, 0.14, 0.14), transform: nil),
-                     visor: rounded(rect(0.20, 0.44, 0.60, 0.38), 0.15))
+    /// Where the sprites are drawn, around a box of `size` points.
+    static func spriteFrame(size: CGFloat) -> CGRect {
+        let rect = NotchMascotArt.spriteRect
+        return CGRect(x: rect.minX * size, y: rect.minY * size, width: rect.width * size, height: rect.height * size)
     }
 
-    /// The highlight, an ellipse leaning with the body's curve.
-    static func shine(_ face: NotchMascotFaceLayout, size: CGFloat) -> CGPath {
-        var transform = CGAffineTransform(translationX: face.shineCenter.x * size, y: face.shineCenter.y * size)
-            .rotated(by: face.shineAngle)
-        let radii = CGSize(width: face.shineRadii.width * size, height: face.shineRadii.height * size)
-        return CGPath(ellipseIn: CGRect(x: -radii.width, y: -radii.height, width: radii.width * 2, height: radii.height * 2),
-                      transform: &transform)
+    /// The head's turn for eyes looking `gaze` to the side, in shares of its
+    /// size: an index into `NotchMascotArt.yaws`, the front in the middle.
+    static func yaw(forGaze gaze: CGFloat) -> Int {
+        let front = NotchMascotArt.frontYaw
+        let step: Int
+        switch abs(gaze) {
+        case ..<0.03: step = 0
+        case ..<0.075: step = 1
+        default: step = 2
+        }
+        return max(0, min(NotchMascotArt.yaws.count - 1, front + (gaze < 0 ? -step : step)))
+    }
+
+    /// How far the eyes move as the head turns to `yaw`, in shares of its size.
+    static func turnOffset(yaw: Int) -> CGPoint {
+        let front = NotchMascotArt.eyes[NotchMascotArt.frontYaw]
+        let eyes = NotchMascotArt.eyes[max(0, min(NotchMascotArt.eyes.count - 1, yaw))]
+        return CGPoint(x: (eyes.left.x + eyes.right.x - front.left.x - front.right.x) / 2,
+                       y: (eyes.left.y + eyes.right.y - front.left.y - front.right.y) / 2)
     }
 
     /// An eye's outline around `center`. `size` is an open eye's width and
@@ -1261,9 +1196,26 @@ enum NotchMascotSupport {
 
     static func look(in defaults: UserDefaults = .standard) -> NotchMascotLook {
         NotchMascotLook(
-            style: NotchMascotStyle(rawValue: defaults.string(forKey: DefaultsKey.notchMascotStyle) ?? "") ?? .minimal,
-            shape: NotchMascotShape(rawValue: defaults.string(forKey: DefaultsKey.notchMascotShape) ?? "") ?? .ball,
-            palette: NotchMascotPalette(rawValue: defaults.string(forKey: DefaultsKey.notchMascotPalette) ?? "") ?? .pearl)
+            texture: NotchMascotTexture(rawValue: defaults.string(forKey: DefaultsKey.notchMascotTexture) ?? "")
+                ?? NotchMascotLook.standard.texture,
+            palette: NotchMascotPalette(rawValue: defaults.string(forKey: DefaultsKey.notchMascotPalette) ?? "")
+                ?? NotchMascotLook.standard.palette,
+            item: NotchMascotItem(rawValue: defaults.string(forKey: DefaultsKey.notchMascotItem) ?? "")
+                ?? NotchMascotLook.standard.item)
+    }
+
+    /// The closest new look to one picked before the companion was Openbar's:
+    /// its shapes become what it is made of, the robot wears the helmet, and
+    /// its colors keep their names. Nil for nothing picked, or nothing known.
+    static func migratedLook(style: String?, shape: String?) -> (texture: NotchMascotTexture, item: NotchMascotItem)? {
+        if style == "robot" { return (.clay, .helmet) }
+        switch shape {
+        case "ball": return (.plush, .none)
+        case "egg": return (.gummy, .none)
+        case "squircle": return (.clay, .none)
+        case "pill": return (.knit, .none)
+        default: return style == "minimal" ? (.plush, .none) : nil
+        }
     }
 
     /// How the Command Bar comes out of the island, or nil when it opens in

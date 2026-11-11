@@ -76,7 +76,7 @@ export function MascotFace(props: {
     rig.reduceMotion = reducedMotion();
     rig.lowPower = lowPower;
     rig.configure(look, size);
-    rig.root.style.transform = `translate(0px, ${-figureOffset(look) * size}px)`;
+    rig.root.style.transform = `translate(0px, ${-figureOffset() * size}px)`;
     rig.setMood(mood, !first.current);
     rig.setIdles(idles);
   });
@@ -120,7 +120,7 @@ export function MascotTrackView(props: {
     mounted: false,
   });
 
-  const shift = figureOffset(look) * track.size;
+  const shift = figureOffset() * track.size;
   const offstage = track.mirrored ? -track.size * 2 : track.width + track.size * 2;
   const x = rests ? track.rest : offstage;
   const y = track.baseline - shift;

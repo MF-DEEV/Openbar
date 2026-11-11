@@ -8,14 +8,20 @@ struct NotchMascotStrings {
     let hint: String
     let visits: String
     let visitsHint: String
-    let style: String
-    let minimal: String
-    let robot: String
-    let shape: String
-    let ball: String
-    let egg: String
-    let squircle: String
-    let pill: String
+    /// What it is made of.
+    let material: String
+    let plush: String
+    let knit: String
+    let gummy: String
+    let clay: String
+    /// What it wears on its head.
+    let headwear: String
+    let bare: String
+    let helmet: String
+    let beanie: String
+    let cap: String
+    let crown: String
+    let headphones: String
     let color: String
     let pearl: String
     let mint: String
@@ -41,6 +47,9 @@ struct NotchMascotStrings {
     let normal: String
     let frequent: String
     let sky: String
+    let berry: String
+    let navy: String
+    let grass: String
     /// One line for the Features page.
     let hubDescription: String
     let appearance: String
@@ -67,16 +76,23 @@ struct NotchMascotStrings {
     /// More words a search finds its page by.
     let keywords: String
 
-    func style(_ style: NotchMascotStyle) -> String {
-        style == .robot ? robot : minimal
+    func texture(_ texture: NotchMascotTexture) -> String {
+        switch texture {
+        case .plush: return plush
+        case .knit: return knit
+        case .gummy: return gummy
+        case .clay: return clay
+        }
     }
 
-    func shape(_ shape: NotchMascotShape) -> String {
-        switch shape {
-        case .ball: return ball
-        case .egg: return egg
-        case .squircle: return squircle
-        case .pill: return pill
+    func item(_ item: NotchMascotItem) -> String {
+        switch item {
+        case .none: return bare
+        case .helmet: return helmet
+        case .beanie: return beanie
+        case .cap: return cap
+        case .crown: return crown
+        case .headphones: return headphones
         }
     }
 
@@ -89,6 +105,9 @@ struct NotchMascotStrings {
         case .lemon: return lemon
         case .rose: return rose
         case .sky: return sky
+        case .berry: return berry
+        case .navy: return navy
+        case .grass: return grass
         }
     }
 
@@ -123,7 +142,7 @@ struct NotchMascotStrings {
 
     /// What a search finds its page by, besides its name.
     var searchKeywords: [String] {
-        [hint, visits, reactions, hidesWhenIdle, style, robot, shape, color, side, frequency, commandBar, keywords]
+        [hint, visits, reactions, hidesWhenIdle, material, headwear, color, side, frequency, commandBar, keywords]
     }
 
     func frequency(_ frequency: NotchMascotVisitFrequency) -> String {
@@ -143,8 +162,8 @@ extension FeatureStrings {
             hint: "A little friend who lives in the Dynamic Island. It rests there when nothing else is showing, and comes out over music and activities to say hello and react to what happens.",
             visits: "Appear now and then",
             visitsHint: "Every few minutes it passes through the island with a short animation.",
-            style: "Style", minimal: "Minimal", robot: "Robot",
-            shape: "Shape", ball: "Ball", egg: "Egg", squircle: "Rounded square", pill: "Pill",
+            material: "Material", plush: "Plush", knit: "Knit", gummy: "Gummy", clay: "Clay",
+            headwear: "On its head", bare: "Nothing", helmet: "Helmet", beanie: "Beanie", cap: "Cap", crown: "Crown", headphones: "Headphones",
             color: "Color", pearl: "Pearl", mint: "Mint", peach: "Peach", lilac: "Lilac", lemon: "Lemon", rose: "Rose",
             commandBar: "Command Bar in the island",
             commandBarHint: "With the shortcut, the Command Bar comes out of the island with the companion as its face. It reacts while you search.",
@@ -152,7 +171,7 @@ extension FeatureStrings {
             preview: "Companion preview", previewHint: "Click to see it react.",
             side: "Side of the camera", left: "Left", right: "Right",
             frequency: "How often", rare: "Rarely", normal: "Sometimes", frequent: "Often",
-            sky: "Sky",
+            sky: "Sky", berry: "Berry", navy: "Navy", grass: "Grass",
             hubDescription: "A little friend in the Dynamic Island who says hello now and then and reacts to what happens on your Mac.",
             appearance: "Appearance", behavior: "Behavior",
             reactions: "React to what happens",
@@ -170,8 +189,8 @@ extension FeatureStrings {
             hint: "Um amiguinho que mora no Dynamic Island. Descansa ali quando não há mais nada aparecendo e sai por cima de músicas e atividades para dar oi e reagir ao que acontece.",
             visits: "Aparecer de vez em quando",
             visitsHint: "A cada poucos minutos ele passa pela ilha com uma animação curta.",
-            style: "Estilo", minimal: "Minimalista", robot: "Robô",
-            shape: "Forma", ball: "Bolinha", egg: "Ovo", squircle: "Quadrado arredondado", pill: "Pílula",
+            material: "Material", plush: "Pelúcia", knit: "Tricô", gummy: "Goma", clay: "Massinha",
+            headwear: "Na cabeça", bare: "Nada", helmet: "Capacete", beanie: "Gorro", cap: "Boné", crown: "Coroa", headphones: "Fones",
             color: "Cor", pearl: "Pérola", mint: "Menta", peach: "Pêssego", lilac: "Lilás", lemon: "Limão", rose: "Rosa",
             commandBar: "Barra de comando na ilha",
             commandBarHint: "Com o atalho, a Barra de comando sai da ilha com o companheiro como ícone. Ele reage enquanto você pesquisa.",
@@ -179,7 +198,7 @@ extension FeatureStrings {
             preview: "Prévia do companheiro", previewHint: "Clique para ver ele reagir.",
             side: "Lado da câmera", left: "Esquerda", right: "Direita",
             frequency: "Frequência", rare: "Rara", normal: "Normal", frequent: "Frequente",
-            sky: "Céu",
+            sky: "Céu", berry: "Amora", navy: "Marinho", grass: "Grama",
             hubDescription: "Um amiguinho no Dynamic Island que dá oi de vez em quando e reage ao que acontece no seu Mac.",
             appearance: "Aparência", behavior: "Comportamento",
             reactions: "Reagir ao que acontece",
@@ -197,8 +216,8 @@ extension FeatureStrings {
             hint: "Un amiguito que vive en el Dynamic Island. Descansa allí cuando no se muestra nada más y sale sobre la música y las actividades para saludar y reaccionar a lo que pasa.",
             visits: "Aparecer de vez en cuando",
             visitsHint: "Cada pocos minutos pasa por la isla con una animación corta.",
-            style: "Estilo", minimal: "Minimalista", robot: "Robot",
-            shape: "Forma", ball: "Bolita", egg: "Huevo", squircle: "Cuadrado redondeado", pill: "Píldora",
+            material: "Material", plush: "Peluche", knit: "Punto", gummy: "Gominola", clay: "Plastilina",
+            headwear: "En la cabeza", bare: "Nada", helmet: "Casco", beanie: "Gorro", cap: "Gorra", crown: "Corona", headphones: "Auriculares",
             color: "Color", pearl: "Perla", mint: "Menta", peach: "Melocotón", lilac: "Lila", lemon: "Limón", rose: "Rosa",
             commandBar: "Barra de comandos en la isla",
             commandBarHint: "Con el atajo, la Barra de comandos sale de la isla con el compañero como icono. Reacciona mientras buscas.",
@@ -206,7 +225,7 @@ extension FeatureStrings {
             preview: "Vista previa del compañero", previewHint: "Haz clic para verlo reaccionar.",
             side: "Lado de la cámara", left: "Izquierda", right: "Derecha",
             frequency: "Frecuencia", rare: "Rara", normal: "Normal", frequent: "Frecuente",
-            sky: "Cielo",
+            sky: "Cielo", berry: "Mora", navy: "Marino", grass: "Hierba",
             hubDescription: "Un amiguito en el Dynamic Island que saluda de vez en cuando y reacciona a lo que pasa en tu Mac.",
             appearance: "Apariencia", behavior: "Comportamiento",
             reactions: "Reaccionar a lo que pasa",
@@ -224,8 +243,8 @@ extension FeatureStrings {
             hint: "Malý kamarát, ktorý býva v Dynamic Island. Odpočíva tam, keď sa nič iné nezobrazuje, a ponad hudbu a aktivity sa ukáže, aby pozdravil a zareagoval na to, čo sa deje.",
             visits: "Občas sa ukázať",
             visitsHint: "Každých pár minút prejde ostrovom s krátkou animáciou.",
-            style: "Štýl", minimal: "Minimalistický", robot: "Robot",
-            shape: "Tvar", ball: "Guľôčka", egg: "Vajíčko", squircle: "Zaoblený štvorec", pill: "Pilulka",
+            material: "Materiál", plush: "Plyš", knit: "Pletenie", gummy: "Želé", clay: "Plastelína",
+            headwear: "Na hlave", bare: "Nič", helmet: "Prilba", beanie: "Čiapka", cap: "Šiltovka", crown: "Koruna", headphones: "Slúchadlá",
             color: "Farba", pearl: "Perleťová", mint: "Mätová", peach: "Broskyňová", lilac: "Orgovánová", lemon: "Citrónová", rose: "Ružová",
             commandBar: "Príkazová lišta na ostrove",
             commandBarHint: "Po stlačení skratky vyjde príkazová lišta z ostrova so spoločníkom ako tvárou. Reaguje, kým hľadáte.",
@@ -233,7 +252,7 @@ extension FeatureStrings {
             preview: "Ukážka spoločníka", previewHint: "Kliknutím uvidíte, ako reaguje.",
             side: "Strana kamery", left: "Vľavo", right: "Vpravo",
             frequency: "Ako často", rare: "Zriedka", normal: "Občas", frequent: "Často",
-            sky: "Nebeská",
+            sky: "Nebeská", berry: "Černicová", navy: "Námornícka", grass: "Trávová",
             hubDescription: "Malý kamarát v Dynamic Island, ktorý občas pozdraví a reaguje na to, čo sa deje na vašom Macu.",
             appearance: "Vzhľad", behavior: "Správanie",
             reactions: "Reagovať na to, čo sa deje",
@@ -251,8 +270,8 @@ extension FeatureStrings {
             hint: "Ein kleiner Freund, der im Dynamic Island wohnt. Er ruht dort, wenn sonst nichts angezeigt wird, und kommt über Musik und Aktivitäten hervor, um Hallo zu sagen und auf das Geschehen zu reagieren.",
             visits: "Ab und zu vorbeischauen",
             visitsHint: "Alle paar Minuten läuft er mit einer kurzen Animation durch die Insel.",
-            style: "Stil", minimal: "Minimal", robot: "Roboter",
-            shape: "Form", ball: "Kugel", egg: "Ei", squircle: "Abgerundetes Quadrat", pill: "Pille",
+            material: "Material", plush: "Plüsch", knit: "Strick", gummy: "Gummi", clay: "Knete",
+            headwear: "Auf dem Kopf", bare: "Nichts", helmet: "Helm", beanie: "Mütze", cap: "Kappe", crown: "Krone", headphones: "Kopfhörer",
             color: "Farbe", pearl: "Perle", mint: "Minze", peach: "Pfirsich", lilac: "Flieder", lemon: "Zitrone", rose: "Rosa",
             commandBar: "Befehlsleiste in der Insel",
             commandBarHint: "Mit dem Kurzbefehl kommt die Befehlsleiste aus der Insel, mit dem Begleiter als Gesicht. Er reagiert, während du suchst.",
@@ -260,7 +279,7 @@ extension FeatureStrings {
             preview: "Vorschau des Begleiters", previewHint: "Klicken, um ihn reagieren zu sehen.",
             side: "Seite der Kamera", left: "Links", right: "Rechts",
             frequency: "Wie oft", rare: "Selten", normal: "Manchmal", frequent: "Oft",
-            sky: "Himmel",
+            sky: "Himmel", berry: "Beere", navy: "Marine", grass: "Gras",
             hubDescription: "Ein kleiner Freund im Dynamic Island, der ab und zu Hallo sagt und auf das reagiert, was auf deinem Mac passiert.",
             appearance: "Aussehen", behavior: "Verhalten",
             reactions: "Auf das Geschehen reagieren",
@@ -278,8 +297,8 @@ extension FeatureStrings {
             hint: "Un petit ami qui vit dans le Dynamic Island. Il s’y repose quand rien d’autre n’est affiché, et sort par-dessus la musique et les activités pour dire bonjour et réagir à ce qui se passe.",
             visits: "Passer de temps en temps",
             visitsHint: "Toutes les quelques minutes, il traverse l’île avec une courte animation.",
-            style: "Style", minimal: "Minimaliste", robot: "Robot",
-            shape: "Forme", ball: "Boule", egg: "Œuf", squircle: "Carré arrondi", pill: "Pilule",
+            material: "Matière", plush: "Peluche", knit: "Tricot", gummy: "Bonbon", clay: "Pâte à modeler",
+            headwear: "Sur la tête", bare: "Rien", helmet: "Casque", beanie: "Bonnet", cap: "Casquette", crown: "Couronne", headphones: "Écouteurs",
             color: "Couleur", pearl: "Perle", mint: "Menthe", peach: "Pêche", lilac: "Lilas", lemon: "Citron", rose: "Rose",
             commandBar: "Barre de commande dans l’île",
             commandBarHint: "Avec le raccourci, la Barre de commande sort de l’île avec le compagnon comme visage. Il réagit pendant que vous cherchez.",
@@ -287,7 +306,7 @@ extension FeatureStrings {
             preview: "Aperçu du compagnon", previewHint: "Cliquez pour le voir réagir.",
             side: "Côté de la caméra", left: "Gauche", right: "Droite",
             frequency: "Fréquence", rare: "Rare", normal: "Normale", frequent: "Fréquente",
-            sky: "Ciel",
+            sky: "Ciel", berry: "Mûre", navy: "Marine", grass: "Herbe",
             hubDescription: "Un petit ami dans le Dynamic Island qui dit bonjour de temps en temps et réagit à ce qui se passe sur votre Mac.",
             appearance: "Apparence", behavior: "Comportement",
             reactions: "Réagir à ce qui se passe",
@@ -305,8 +324,8 @@ extension FeatureStrings {
             hint: "Un piccolo amico che vive nel Dynamic Island. Riposa lì quando non viene mostrato nient’altro ed esce sopra musica e attività per salutare e reagire a ciò che succede.",
             visits: "Comparire ogni tanto",
             visitsHint: "Ogni pochi minuti attraversa l’isola con una breve animazione.",
-            style: "Stile", minimal: "Minimale", robot: "Robot",
-            shape: "Forma", ball: "Pallina", egg: "Uovo", squircle: "Quadrato arrotondato", pill: "Pillola",
+            material: "Materiale", plush: "Peluche", knit: "Maglia", gummy: "Gommosa", clay: "Plastilina",
+            headwear: "In testa", bare: "Niente", helmet: "Elmo", beanie: "Berretto", cap: "Cappellino", crown: "Corona", headphones: "Cuffie",
             color: "Colore", pearl: "Perla", mint: "Menta", peach: "Pesca", lilac: "Lilla", lemon: "Limone", rose: "Rosa",
             commandBar: "Barra dei comandi nell’isola",
             commandBarHint: "Con la scorciatoia, la Barra dei comandi esce dall’isola con il compagno come volto. Reagisce mentre cerchi.",
@@ -314,7 +333,7 @@ extension FeatureStrings {
             preview: "Anteprima del compagno", previewHint: "Fai clic per vederlo reagire.",
             side: "Lato della fotocamera", left: "Sinistra", right: "Destra",
             frequency: "Frequenza", rare: "Rara", normal: "Normale", frequent: "Frequente",
-            sky: "Cielo",
+            sky: "Cielo", berry: "Mora", navy: "Blu navy", grass: "Erba",
             hubDescription: "Un piccolo amico nel Dynamic Island che ogni tanto saluta e reagisce a ciò che succede sul tuo Mac.",
             appearance: "Aspetto", behavior: "Comportamento",
             reactions: "Reagire a ciò che succede",
@@ -332,8 +351,8 @@ extension FeatureStrings {
             hint: "Маленький друг, который живёт в Dynamic Island. Он отдыхает там, когда больше ничего не показано, и выходит поверх музыки и активностей, чтобы поздороваться и отреагировать на происходящее.",
             visits: "Появляться время от времени",
             visitsHint: "Раз в несколько минут он пробегает по острову с короткой анимацией.",
-            style: "Стиль", minimal: "Минимализм", robot: "Робот",
-            shape: "Форма", ball: "Шарик", egg: "Яйцо", squircle: "Скруглённый квадрат", pill: "Пилюля",
+            material: "Материал", plush: "Плюш", knit: "Вязание", gummy: "Мармелад", clay: "Пластилин",
+            headwear: "На голове", bare: "Ничего", helmet: "Шлем", beanie: "Шапка", cap: "Кепка", crown: "Корона", headphones: "Наушники",
             color: "Цвет", pearl: "Жемчуг", mint: "Мята", peach: "Персик", lilac: "Сирень", lemon: "Лимон", rose: "Роза",
             commandBar: "Командная панель на острове",
             commandBarHint: "По сочетанию клавиш Командная панель выходит из острова, а компаньон становится её лицом. Он реагирует, пока вы ищете.",
@@ -341,7 +360,7 @@ extension FeatureStrings {
             preview: "Предпросмотр компаньона", previewHint: "Нажмите, чтобы увидеть его реакцию.",
             side: "Сторона камеры", left: "Слева", right: "Справа",
             frequency: "Как часто", rare: "Редко", normal: "Иногда", frequent: "Часто",
-            sky: "Небо",
+            sky: "Небо", berry: "Ягода", navy: "Тёмно-синий", grass: "Трава",
             hubDescription: "Маленький друг в Dynamic Island, который иногда здоровается и реагирует на то, что происходит на вашем Mac.",
             appearance: "Внешний вид", behavior: "Поведение",
             reactions: "Реагировать на происходящее",
@@ -359,8 +378,8 @@ extension FeatureStrings {
             hint: "Dynamic Island’da yaşayan küçük bir dost. Başka bir şey görünmediğinde orada dinlenir, merhaba demek ve olanlara tepki vermek için müziğin ve etkinliklerin üzerine çıkar.",
             visits: "Arada bir görün",
             visitsHint: "Birkaç dakikada bir kısa bir animasyonla adadan geçer.",
-            style: "Stil", minimal: "Sade", robot: "Robot",
-            shape: "Şekil", ball: "Top", egg: "Yumurta", squircle: "Yuvarlak kare", pill: "Hap",
+            material: "Malzeme", plush: "Peluş", knit: "Örgü", gummy: "Jelibon", clay: "Oyun hamuru",
+            headwear: "Başında", bare: "Hiçbir şey", helmet: "Miğfer", beanie: "Bere", cap: "Şapka", crown: "Taç", headphones: "Kulaklık",
             color: "Renk", pearl: "İnci", mint: "Nane", peach: "Şeftali", lilac: "Leylak", lemon: "Limon", rose: "Gül",
             commandBar: "Komut çubuğu adada",
             commandBarHint: "Kısayolla Komut çubuğu adadan çıkar ve arkadaş onun yüzü olur. Siz ararken tepki verir.",
@@ -368,7 +387,7 @@ extension FeatureStrings {
             preview: "Arkadaş önizlemesi", previewHint: "Tepkisini görmek için tıklayın.",
             side: "Kameranın tarafı", left: "Sol", right: "Sağ",
             frequency: "Sıklık", rare: "Seyrek", normal: "Normal", frequent: "Sık",
-            sky: "Gök",
+            sky: "Gök", berry: "Böğürtlen", navy: "Lacivert", grass: "Çimen",
             hubDescription: "Dynamic Island’da arada bir merhaba diyen ve Mac’inizde olanlara tepki veren küçük bir dost.",
             appearance: "Görünüm", behavior: "Davranış",
             reactions: "Olanlara tepki ver",
@@ -386,8 +405,8 @@ extension FeatureStrings {
             hint: "Dynamic Island に住む小さな友だちです。ほかに何も表示されていないときはそこで休み、音楽やアクティビティの上にも出てきて、あいさつしたり出来事に反応したりします。",
             visits: "ときどき現れる",
             visitsHint: "数分ごとに、短いアニメーションでアイランドを通り抜けます。",
-            style: "スタイル", minimal: "ミニマル", robot: "ロボット",
-            shape: "形", ball: "まる", egg: "たまご", squircle: "角丸の四角", pill: "カプセル",
+            material: "素材", plush: "ぬいぐるみ", knit: "ニット", gummy: "グミ", clay: "ねんど",
+            headwear: "頭に", bare: "なし", helmet: "かぶと", beanie: "ニット帽", cap: "キャップ", crown: "王冠", headphones: "ヘッドホン",
             color: "色", pearl: "パール", mint: "ミント", peach: "ピーチ", lilac: "ライラック", lemon: "レモン", rose: "ローズ",
             commandBar: "アイランドのコマンドバー",
             commandBarHint: "ショートカットでコマンドバーがアイランドから現れ、コンパニオンがその顔になります。検索中は反応します。",
@@ -395,7 +414,7 @@ extension FeatureStrings {
             preview: "コンパニオンのプレビュー", previewHint: "クリックすると反応が見られます。",
             side: "カメラのどちら側", left: "左", right: "右",
             frequency: "頻度", rare: "少なめ", normal: "ふつう", frequent: "多め",
-            sky: "スカイ",
+            sky: "スカイ", berry: "ベリー", navy: "ネイビー", grass: "若草",
             hubDescription: "Dynamic Island に住む小さな友だち。ときどきあいさつし、Mac で起きたことに反応します。",
             appearance: "外観", behavior: "動作",
             reactions: "出来事に反応する",
@@ -413,8 +432,8 @@ extension FeatureStrings {
             hint: "Dynamic Island에 사는 작은 친구입니다. 다른 것이 표시되지 않을 때는 그곳에서 쉬고, 음악과 활동 위로도 나와 인사하고 일어난 일에 반응합니다.",
             visits: "가끔 나타나기",
             visitsHint: "몇 분마다 짧은 애니메이션으로 아일랜드를 지나갑니다.",
-            style: "스타일", minimal: "미니멀", robot: "로봇",
-            shape: "모양", ball: "공", egg: "달걀", squircle: "둥근 사각형", pill: "알약",
+            material: "소재", plush: "봉제", knit: "니트", gummy: "젤리", clay: "점토",
+            headwear: "머리에", bare: "없음", helmet: "투구", beanie: "비니", cap: "모자", crown: "왕관", headphones: "헤드폰",
             color: "색상", pearl: "펄", mint: "민트", peach: "피치", lilac: "라일락", lemon: "레몬", rose: "로즈",
             commandBar: "아일랜드의 명령 막대",
             commandBarHint: "단축키를 누르면 명령 막대가 아일랜드에서 나오고 컴패니언이 그 얼굴이 됩니다. 검색하는 동안 반응합니다.",
@@ -422,7 +441,7 @@ extension FeatureStrings {
             preview: "컴패니언 미리 보기", previewHint: "클릭하면 반응을 볼 수 있습니다.",
             side: "카메라 옆 위치", left: "왼쪽", right: "오른쪽",
             frequency: "빈도", rare: "가끔", normal: "보통", frequent: "자주",
-            sky: "스카이",
+            sky: "스카이", berry: "베리", navy: "네이비", grass: "풀잎",
             hubDescription: "가끔 인사하고 Mac에서 일어나는 일에 반응하는 Dynamic Island의 작은 친구입니다.",
             appearance: "외관", behavior: "동작",
             reactions: "일어나는 일에 반응",
@@ -440,8 +459,8 @@ extension FeatureStrings {
             hint: "住在Dynamic Island里的小伙伴。没有其他内容显示时，它就在那里休息，也会出现在音乐和活动上方打招呼，并对发生的事做出反应。",
             visits: "偶尔出现",
             visitsHint: "每隔几分钟，它会以简短的动画从岛上经过。",
-            style: "风格", minimal: "极简", robot: "机器人",
-            shape: "形状", ball: "圆球", egg: "鸡蛋", squircle: "圆角方形", pill: "药丸",
+            material: "材质", plush: "毛绒", knit: "针织", gummy: "软糖", clay: "黏土",
+            headwear: "头上", bare: "无", helmet: "头盔", beanie: "毛线帽", cap: "鸭舌帽", crown: "王冠", headphones: "耳机",
             color: "颜色", pearl: "珍珠", mint: "薄荷", peach: "蜜桃", lilac: "丁香", lemon: "柠檬", rose: "玫瑰",
             commandBar: "在岛中使用命令栏",
             commandBarHint: "按下快捷键，命令栏会从岛中出现，小伙伴就是它的脸。你搜索时它会做出反应。",
@@ -449,7 +468,7 @@ extension FeatureStrings {
             preview: "小伙伴预览", previewHint: "点击查看它的反应。",
             side: "在摄像头哪一侧", left: "左侧", right: "右侧",
             frequency: "频率", rare: "偶尔", normal: "适中", frequent: "经常",
-            sky: "天空",
+            sky: "天空", berry: "莓果", navy: "海军蓝", grass: "草绿",
             hubDescription: "Dynamic Island里的小伙伴，会不时打个招呼，并对 Mac 上发生的事做出反应。",
             appearance: "外观", behavior: "行为",
             reactions: "对发生的事做出反应",
@@ -467,8 +486,8 @@ extension FeatureStrings {
             hint: "住在Dynamic Island裡的小夥伴。沒有其他內容顯示時，它就在那裡休息，也會出現在音樂和活動上方打招呼，並對發生的事做出反應。",
             visits: "偶爾出現",
             visitsHint: "每隔幾分鐘，它會以簡短的動畫從動態島經過。",
-            style: "風格", minimal: "極簡", robot: "機器人",
-            shape: "形狀", ball: "圓球", egg: "雞蛋", squircle: "圓角方形", pill: "藥丸",
+            material: "材質", plush: "毛絨", knit: "針織", gummy: "軟糖", clay: "黏土",
+            headwear: "頭上", bare: "無", helmet: "頭盔", beanie: "毛帽", cap: "棒球帽", crown: "王冠", headphones: "耳機",
             color: "顏色", pearl: "珍珠", mint: "薄荷", peach: "蜜桃", lilac: "丁香", lemon: "檸檬", rose: "玫瑰",
             commandBar: "在動態島中使用指令列",
             commandBarHint: "按下快速鍵，指令列會從動態島出現，小夥伴就是它的臉。你搜尋時它會做出反應。",
@@ -476,7 +495,7 @@ extension FeatureStrings {
             preview: "小夥伴預覽", previewHint: "按一下即可查看它的反應。",
             side: "在相機哪一側", left: "左側", right: "右側",
             frequency: "頻率", rare: "偶爾", normal: "適中", frequent: "經常",
-            sky: "天空",
+            sky: "天空", berry: "莓果", navy: "海軍藍", grass: "草綠",
             hubDescription: "Dynamic Island裡的小夥伴，會不時打招呼，並對 Mac 上發生的事做出反應。",
             appearance: "外觀", behavior: "行為",
             reactions: "對發生的事做出反應",
@@ -494,8 +513,8 @@ extension FeatureStrings {
             hint: "住在Dynamic Island裡的小夥伴。沒有其他內容顯示時，它就在那裡休息，也會出現在音樂和活動上方打招呼，並對發生的事作出反應。",
             visits: "間中出現",
             visitsHint: "每隔幾分鐘，它會以簡短的動畫從動態島經過。",
-            style: "風格", minimal: "極簡", robot: "機械人",
-            shape: "形狀", ball: "圓球", egg: "雞蛋", squircle: "圓角方形", pill: "藥丸",
+            material: "材質", plush: "毛公仔", knit: "針織", gummy: "軟糖", clay: "黏土",
+            headwear: "頭上", bare: "無", helmet: "頭盔", beanie: "冷帽", cap: "鴨舌帽", crown: "皇冠", headphones: "耳筒",
             color: "顏色", pearl: "珍珠", mint: "薄荷", peach: "蜜桃", lilac: "丁香", lemon: "檸檬", rose: "玫瑰",
             commandBar: "在動態島中使用指令列",
             commandBarHint: "按下快捷鍵，指令列會從動態島出現，小夥伴就是它的臉。你搜尋時它會作出反應。",
@@ -503,7 +522,7 @@ extension FeatureStrings {
             preview: "小夥伴預覽", previewHint: "按一下即可查看它的反應。",
             side: "在相機哪一側", left: "左側", right: "右側",
             frequency: "頻率", rare: "偶爾", normal: "適中", frequent: "經常",
-            sky: "天空",
+            sky: "天空", berry: "莓果", navy: "海軍藍", grass: "草綠",
             hubDescription: "Dynamic Island裡的小夥伴，會不時打招呼，並對 Mac 上發生的事作出反應。",
             appearance: "外觀", behavior: "行為",
             reactions: "對發生的事作出反應",
@@ -521,8 +540,8 @@ extension FeatureStrings {
             hint: "Маленький друг, який живе в Dynamic Island. Він відпочиває там, коли більше нічого не показано, і виходить поверх музики й активностей, щоб привітатися та відреагувати на те, що відбувається.",
             visits: "З’являтися час від часу",
             visitsHint: "Раз на кілька хвилин він пробігає острівцем із короткою анімацією.",
-            style: "Стиль", minimal: "Мінімалізм", robot: "Робот",
-            shape: "Форма", ball: "Кулька", egg: "Яйце", squircle: "Заокруглений квадрат", pill: "Пігулка",
+            material: "Матеріал", plush: "Плюш", knit: "В’язання", gummy: "Мармелад", clay: "Пластилін",
+            headwear: "На голові", bare: "Нічого", helmet: "Шолом", beanie: "Шапка", cap: "Кепка", crown: "Корона", headphones: "Навушники",
             color: "Колір", pearl: "Перлина", mint: "М’ята", peach: "Персик", lilac: "Бузок", lemon: "Лимон", rose: "Троянда",
             commandBar: "Панель команд в острівці",
             commandBarHint: "За поєднанням клавіш Панель команд виходить з острівця, а компаньйон стає її обличчям. Він реагує, поки ви шукаєте.",
@@ -530,7 +549,7 @@ extension FeatureStrings {
             preview: "Попередній перегляд компаньйона", previewHint: "Натисніть, щоб побачити його реакцію.",
             side: "Сторона камери", left: "Ліворуч", right: "Праворуч",
             frequency: "Як часто", rare: "Рідко", normal: "Іноді", frequent: "Часто",
-            sky: "Небо",
+            sky: "Небо", berry: "Ягідний", navy: "Темно-синій", grass: "Трав’яний",
             hubDescription: "Маленький друг у Dynamic Island, який час від часу вітається й реагує на те, що відбувається на вашому Mac.",
             appearance: "Вигляд", behavior: "Поведінка",
             reactions: "Реагувати на те, що відбувається",

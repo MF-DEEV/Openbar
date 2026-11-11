@@ -9,6 +9,7 @@ import Foundation
 enum NotchMascotTests {
     static func run(_ suite: TestSuite) {
         preferenceContracts(suite)
+        artContracts(suite)
         faceContracts(suite)
         outlineContracts(suite)
         trackContracts(suite)
@@ -31,31 +32,22 @@ enum NotchMascotTests {
         centeringContracts(suite)
     }
 
-    /// Placed by its box, a minimal body sat below the middle it was given,
-    /// a capsule's included: the box keeps room above it for the robot's
-    /// antenna. Every look now meets the line it is centred on.
+    /// Placed by its box, the body sat below the middle it was given: the
+    /// box keeps room above it for what it wears. Every look meets the line
+    /// it is centred on.
     private static func centeringContracts(_ suite: TestSuite) {
-        for style in NotchMascotStyle.allCases {
-            for shape in NotchMascotShape.allCases {
-                let look = NotchMascotLook(style: style, shape: shape, palette: .pearl)
-                for size: CGFloat in [10, 16, 18, 20] {
-                    let middle: CGFloat = 15
-                    let boxTop = middle - NotchMascotGeometry.figureOffset(look) * size - size / 2
-                    let figure: CGRect
-                    if style == .robot {
-                        let parts = NotchMascotGeometry.robot(size: size)
-                        figure = [parts.ears, parts.antenna, parts.bulb]
-                            .reduce(parts.head.boundingBoxOfPath) { $0.union($1.boundingBoxOfPath) }
-                    } else {
-                        figure = NotchMascotGeometry.body(shape, size: size).boundingBoxOfPath
-                    }
-                    suite.expect(abs(boxTop + figure.midY - middle) < 0.001,
-                                 "a \(style.rawValue) \(shape.rawValue) companion of \(size) points is centred on its line")
-                }
+        for item in NotchMascotItem.allCases {
+            let look = NotchMascotLook(texture: .plush, palette: .pearl, item: item)
+            for size: CGFloat in [10, 16, 18, 20] {
+                let middle: CGFloat = 15
+                let boxTop = middle - NotchMascotGeometry.figureOffset(look) * size - size / 2
+                let body = NotchMascotArt.bodyBounds
+                suite.expect(abs(boxTop + body.midY * size - middle) < 0.001,
+                             "a companion of \(size) points wearing \(item.rawValue) is centred on its line")
             }
         }
         suite.expect(NotchMascotGeometry.figureOffset(.standard) > 0.03,
-                     "a minimal ball sits low in its box, which the placement makes up for")
+                     "the body sits low in its box, which the placement makes up for")
     }
 
     private static func calendarContracts(_ suite: TestSuite) {
@@ -109,8 +101,8 @@ enum NotchMascotTests {
         suite.expect(!NotchMascotSupport.isEnabled(in: defaults),
                      "installed, it still waits for its switch")
         suite.expect(NotchMascotSupport.look(in: defaults) == .standard
-                     && NotchMascotLook.standard == NotchMascotLook(style: .minimal, shape: .ball, palette: .pearl),
-                     "it starts as a pearl ball with two ink eyes")
+                     && NotchMascotLook.standard == NotchMascotLook(texture: .plush, palette: .pearl, item: .helmet),
+                     "it starts as pearl felt in the helmet from the logo")
         defaults.set(true, forKey: DefaultsKey.notchMascotEnabled)
         suite.expect(NotchMascotSupport.isEnabled(in: defaults) && NotchMascotSupport.visits(in: defaults)
                      && NotchMascotSupport.reacts(in: defaults)
@@ -146,32 +138,32 @@ enum NotchMascotTests {
                      && NotchMascotSupport.commandBarStyle(in: defaults) == nil,
                      "without the island there is no companion and no bar from it")
         defaults.set(true, forKey: DefaultsKey.notchEnabled)
-        defaults.set(NotchMascotStyle.robot.rawValue, forKey: DefaultsKey.notchMascotStyle)
-        defaults.set(NotchMascotShape.pill.rawValue, forKey: DefaultsKey.notchMascotShape)
+        defaults.set(NotchMascotTexture.knit.rawValue, forKey: DefaultsKey.notchMascotTexture)
+        defaults.set(NotchMascotItem.crown.rawValue, forKey: DefaultsKey.notchMascotItem)
         defaults.set(NotchMascotPalette.lilac.rawValue, forKey: DefaultsKey.notchMascotPalette)
-        suite.expect(NotchMascotSupport.look(in: defaults) == NotchMascotLook(style: .robot, shape: .pill, palette: .lilac),
-                     "style, shape and color are read as chosen")
-        defaults.set("cube", forKey: DefaultsKey.notchMascotShape)
+        suite.expect(NotchMascotSupport.look(in: defaults) == NotchMascotLook(texture: .knit, palette: .lilac, item: .crown),
+                     "what it is made of, its color and what it wears are read as chosen")
+        defaults.set("cube", forKey: DefaultsKey.notchMascotTexture)
         defaults.set("neon", forKey: DefaultsKey.notchMascotPalette)
-        defaults.set("dragon", forKey: DefaultsKey.notchMascotStyle)
+        defaults.set("dragon", forKey: DefaultsKey.notchMascotItem)
         suite.expect(NotchMascotSupport.look(in: defaults) == .standard, "unknown values from a newer backup fall back")
 
         let keys = [DefaultsKey.notchMascotEnabled, DefaultsKey.notchMascotVisits, DefaultsKey.notchMascotReactions,
-                    DefaultsKey.notchMascotStyle,
-                    DefaultsKey.notchMascotShape, DefaultsKey.notchMascotPalette, DefaultsKey.notchCommandBar,
+                    DefaultsKey.notchMascotTexture, DefaultsKey.notchMascotItem,
+                    DefaultsKey.notchMascotPalette, DefaultsKey.notchCommandBar,
                     DefaultsKey.notchCommandBarStyle, DefaultsKey.notchMascotSide, DefaultsKey.notchMascotVisitFrequency,
                     DefaultsKey.notchMascotHidesWhenIdle]
         suite.expect(keys.allSatisfy { Defaults.registeredDefaults[$0] != nil && $0.hasPrefix("notch") }
                      && SettingsBackupSupport.exportKeys().isSuperset(of: keys),
                      "every companion preference travels in a settings backup with the island's")
-        suite.expect(Set(NotchMascotShape.allCases.map(\.rawValue)).count == 4
-                     && Set(NotchMascotPalette.allCases.map(\.rawValue)).count == 7
-                     && Set(NotchMascotPalette.allCases.map { "\($0.light)" }).count == 7
-                     && Set(NotchMascotPalette.allCases.map { "\($0.shade)" }).count == 7,
-                     "four shapes and seven distinct colors")
+        suite.expect(Set(NotchMascotPalette.allCases.map(\.rawValue)).count == 10
+                     && Set(NotchMascotPalette.allCases.map { "\($0.swatch)" }).count == 10
+                     && NotchMascotPalette.allCases.allSatisfy { NotchMascotArt.swatches[$0] != nil },
+                     "ten distinct colors, each with its felt")
         suite.expect(NotchMascotPalette.allCases.first == .pearl
-                     && ["pearl", "mint", "peach", "lilac", "lemon", "rose"].allSatisfy { NotchMascotPalette(rawValue: $0) != nil },
+                     && ["pearl", "mint", "peach", "lilac", "lemon", "rose", "sky"].allSatisfy { NotchMascotPalette(rawValue: $0) != nil },
                      "every color saved before keeps its name, white first")
+        migrationContracts(suite)
         let normal = NotchMascotVisitFrequency.normal.delay
         suite.expect(NotchMascotSupport.nextVisitDelay(.normal, random: 0) == normal.lowerBound
                      && NotchMascotSupport.nextVisitDelay(.normal, random: 1) == normal.upperBound
@@ -197,6 +189,97 @@ enum NotchMascotTests {
         suite.expect(NotchMascotSupport.greeting(random: 0) == .happy && NotchMascotSupport.greeting(random: 0.5) == .wink
                      && NotchMascotSupport.greeting(random: 0.99) == .love && NotchMascotSupport.greeting(random: 3) == .love,
                      "a visit says hello happy, with a wink or in love")
+    }
+
+    /// Someone who picked the old pearl ball family or the robot starts with
+    /// the closest new look; where it rests and how often it visits stay.
+    private static func migrationContracts(_ suite: TestSuite) {
+        let domain = "com.openbar.tests.notch-mascot-migration"
+        let defaults = UserDefaults(suiteName: domain)!
+        defer { defaults.removePersistentDomain(forName: domain) }
+        func migrate(style: String?, shape: String?, palette: String? = nil) -> NotchMascotLook {
+            defaults.removePersistentDomain(forName: domain)
+            if let style { defaults.set(style, forKey: DefaultsKey.notchMascotLegacyStyle) }
+            if let shape { defaults.set(shape, forKey: DefaultsKey.notchMascotLegacyShape) }
+            if let palette { defaults.set(palette, forKey: DefaultsKey.notchMascotPalette) }
+            defaults.set(NotchMascotSide.right.rawValue, forKey: DefaultsKey.notchMascotSide)
+            defaults.set(NotchMascotVisitFrequency.frequent.rawValue, forKey: DefaultsKey.notchMascotVisitFrequency)
+            Defaults.migrateCompanionLook(in: defaults)
+            return NotchMascotSupport.look(in: defaults)
+        }
+        suite.expect(migrate(style: "robot", shape: "pill", palette: "mint")
+                     == NotchMascotLook(texture: .clay, palette: .mint, item: .helmet),
+                     "the robot becomes clay in the helmet, in its own color")
+        suite.expect(migrate(style: "minimal", shape: "ball", palette: "lilac")
+                     == NotchMascotLook(texture: .plush, palette: .lilac, item: .none)
+                     && migrate(style: nil, shape: "egg")
+                     == NotchMascotLook(texture: .gummy, palette: NotchMascotLook.standard.palette, item: .none)
+                     && migrate(style: "minimal", shape: "pill").texture == .knit
+                     && migrate(style: "minimal", shape: "squircle").texture == .clay,
+                     "each old shape becomes what it is made of now, with nothing on its head")
+        suite.expect(NotchMascotSupport.side(in: defaults) == .right
+                     && NotchMascotSupport.visitFrequency(in: defaults) == .frequent,
+                     "its side and how often it visits stay as they were")
+        suite.expect(defaults.string(forKey: DefaultsKey.notchMascotLegacyStyle) == nil
+                     && defaults.string(forKey: DefaultsKey.notchMascotLegacyShape) == nil,
+                     "the old keys go once read, so a later choice is never undone")
+        suite.expect(migrate(style: "dragon", shape: "cube", palette: "neon") == .standard
+                     && migrate(style: nil, shape: nil) == .standard,
+                     "unknown old values, or none, start with the new companion and nothing crashes")
+        defaults.removePersistentDomain(forName: domain)
+        defaults.set(NotchMascotTexture.gummy.rawValue, forKey: DefaultsKey.notchMascotTexture)
+        Defaults.migrateCompanionLook(in: defaults)
+        suite.expect(NotchMascotSupport.look(in: defaults).texture == .gummy,
+                     "a look picked after the change is left alone")
+    }
+
+    /// The art tables and the sprites on disk agree: every look has a body
+    /// for every turn of its head, what it wears, eyes and their window.
+    private static func artContracts(_ suite: TestSuite) {
+        let folder = ((#filePath as NSString).deletingLastPathComponent as NSString)
+            .appendingPathComponent("../Resources/Companion")
+        func exists(_ name: String) -> Bool {
+            FileManager.default.fileExists(atPath: (folder as NSString).appendingPathComponent(name + ".webp"))
+        }
+        var missing: [String] = []
+        for texture in NotchMascotTexture.allCases {
+            for palette in NotchMascotPalette.allCases {
+                for item in NotchMascotItem.allCases {
+                    let look = NotchMascotLook(texture: texture, palette: palette, item: item)
+                    for yaw in NotchMascotArt.yaws.indices {
+                        let names = [look.bodySprite(yaw: yaw), look.itemSprite(yaw: yaw), look.eyeWindow(yaw: yaw)]
+                        missing += names.compactMap { $0 }.filter { !exists($0) }
+                    }
+                    if !exists(look.eyeSprite) { missing.append(look.eyeSprite) }
+                }
+            }
+        }
+        suite.expect(missing.isEmpty, "every sprite a look needs is in Resources/Companion (missing: \(Set(missing).sorted().prefix(5)))")
+        suite.expect(NotchMascotArt.eyes.count == NotchMascotArt.yaws.count
+                     && NotchMascotArt.yaws[NotchMascotArt.frontYaw] == 0,
+                     "every turn of the head has its eyes, the front in the middle")
+        let front = NotchMascotArt.eyes[NotchMascotArt.frontYaw]
+        suite.expect(abs(front.left.x + front.right.x - 1) < 0.02 && abs(front.left.y - front.right.y) < 0.01
+                     && NotchMascotArt.bodyBounds.contains(front.left) && NotchMascotArt.bodyBounds.contains(front.right),
+                     "facing front, its eyes sit level on the body, either side of its middle")
+        suite.expect(NotchMascotArt.spriteRect.contains(NotchMascotArt.bodyBounds)
+                     && NotchMascotItem.allCases.allSatisfy { NotchMascotArt.spriteRect.minY <= -NotchMascotArt.headroom[$0, default: 0] },
+                     "the sprites hold the body and whatever it wears")
+        suite.expect(NotchMascotGeometry.yaw(forGaze: 0) == NotchMascotArt.frontYaw
+                     && NotchMascotGeometry.yaw(forGaze: 0.08) > NotchMascotGeometry.yaw(forGaze: 0.05)
+                     && NotchMascotGeometry.yaw(forGaze: 0.05) > NotchMascotArt.frontYaw
+                     && NotchMascotGeometry.yaw(forGaze: -0.08) == 0
+                     && NotchMascotGeometry.yaw(forGaze: 5) == NotchMascotArt.yaws.count - 1,
+                     "the head turns the way the eyes look, further for a longer look, and no further than drawn")
+        suite.expect(NotchMascotGeometry.turnOffset(yaw: NotchMascotArt.frontYaw) == .zero
+                     && NotchMascotGeometry.turnOffset(yaw: NotchMascotArt.yaws.count - 1).x > 0
+                     && NotchMascotGeometry.turnOffset(yaw: 0).x < 0,
+                     "the eyes move with the head as it turns")
+        suite.expect(NotchMascotLook(texture: .plush, palette: .pearl, item: .none).itemSprite(yaw: 0) == nil
+                     && NotchMascotLook(texture: .plush, palette: .pearl, item: .none).eyeWindow(yaw: 0) == nil
+                     && NotchMascotLook(texture: .plush, palette: .navy, item: .none).eyeSprite == "eye-plush-cream"
+                     && NotchMascotLook.standard.eyeSprite == "eye-plush-ink",
+                     "with nothing on its head nothing covers its eyes, and dark felt gets cream eyes")
     }
 
     private static func faceContracts(_ suite: TestSuite) {
@@ -242,26 +325,10 @@ enum NotchMascotTests {
                      && abs((left.map(\.x).max() ?? 0) + (mirrored.map(\.x).min() ?? 0)) < 0.05,
                      "the right eye mirrors the left")
 
-        for shape in NotchMascotShape.allCases {
-            let box = NotchMascotGeometry.body(shape, size: 20).boundingBoxOfPath
-            suite.expect(box.minX >= 0 && box.minY >= 0 && box.maxX <= 20 && box.maxY <= 20 && box.width > 8 && box.height > 8,
-                         "the \(shape.rawValue) body fits its square")
-            let face = NotchMascotLook(style: .minimal, shape: shape, palette: .pearl).face
-            let body = NotchMascotGeometry.body(shape, size: 20)
-            suite.expect(body.contains(CGPoint(x: face.leftEye.x * 20, y: face.leftEye.y * 20))
-                         && body.contains(CGPoint(x: face.rightEye.x * 20, y: face.rightEye.y * 20))
-                         && body.contains(CGPoint(x: face.shineCenter.x * 20, y: face.shineCenter.y * 20)),
-                         "the \(shape.rawValue) face and its highlight sit on the body")
-        }
-        let robot = NotchMascotGeometry.robot(size: 20)
-        let face = NotchMascotLook(style: .robot, shape: .ball, palette: .mint).face
-        suite.expect(robot.visor.contains(CGPoint(x: face.leftEye.x * 20, y: face.leftEye.y * 20))
-                     && robot.visor.contains(CGPoint(x: face.rightEye.x * 20, y: face.rightEye.y * 20))
-                     && [robot.head, robot.ears, robot.antenna, robot.bulb].allSatisfy {
-                         let box = $0.boundingBoxOfPath
-                         return box.minX >= 0 && box.minY >= 0 && box.maxX <= 20 && box.maxY <= 20
-                     },
-                     "the robot's eyes light its visor, and all of it fits its square")
+        let face = NotchMascotLook.standard.face
+        suite.expect(face.eyeSize.width > 0.06 && face.eyeSize.height > face.eyeSize.width
+                     && face.leftEye.x < 0.5 && face.rightEye.x > 0.5,
+                     "the eyes are taller than wide, one either side of its middle")
     }
 
     private static func trackContracts(_ suite: TestSuite) {

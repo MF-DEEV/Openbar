@@ -7,8 +7,11 @@
 // through their animations, each starting from the end of the last.
 //
 // The layers nest as the Mac's do: root (where it stands) › hopper › squasher
-// › tilter › body, attention (what its eyes are drawn to) › face (the look its
-// mood keeps) › eyes. What the Mac adds to a layer's transform goes in the
+// › tilter › body and item sprites, face window (what it wears covers the eyes
+// through) › attention (what its eyes are drawn to) › turner (the eyes move
+// with the head) › face (the look its mood keeps) › eyes. The body and what it
+// wears are sprites rendered in Blender, one per turn of its head, stacked so
+// a turn fades from one into the next. What the Mac adds to a layer's transform goes in the
 // separate translate, rotate and scale properties here, which stack on top of
 // `transform` by themselves.
 
@@ -18,22 +21,29 @@ import {
   EXPRESSIONS,
   faceOf,
   GLANCE_CHANCE,
+  bodySprite,
+  CREAM,
+  creamEyes,
+  eyeSprite,
+  eyeWindow,
   INK,
+  itemSprite,
   type MascotEye,
   type MascotExpression,
   type MascotLook,
   type MascotMood,
   type MascotReaction,
   moodBlinks,
-  paletteColors,
   REACTION_LENGTH,
   sameLook,
-  SHINE,
   STANDARD_LOOK,
-  VISOR,
+  turnOffset,
+  yawForGaze,
 } from "./model";
+import { ART } from "./art";
 import type { MascotPath } from "./motion";
-import { bodyPath, eyePath, robotPaths, shineTransform } from "./shapes";
+import { eyePath, spriteFrame } from "./shapes";
+import { spriteUrl } from "./sprites";
 
 const SVG = "http://www.w3.org/2000/svg";
 const SETTLE = "cubic-bezier(0.2, 0.8, 0.3, 1)";
@@ -102,16 +112,19 @@ export class MascotRig {
   private readonly tilter = div("mr-layer");
   private readonly attention = div("mr-layer");
   private readonly faceLayer = div("mr-layer");
-  private readonly body = document.createElementNS(SVG, "svg");
-  private readonly stopTop = document.createElementNS(SVG, "stop");
-  private readonly stopBottom = document.createElementNS(SVG, "stop");
-  private readonly gradient = document.createElementNS(SVG, "linearGradient");
-  private readonly ears = svgPath();
-  private readonly antenna = svgPath();
-  private readonly bulb = svgPath();
-  private readonly fill = svgPath();
-  private readonly visor = svgPath();
-  private readonly shine = document.createElementNS(SVG, "ellipse");
+  /** The body and what it wears: one image per turn of the head, the one showing at full opacity. */
+  private readonly body = div("mr-sprites");
+  private readonly item = div("mr-sprites");
+  private readonly bodyFrames = ART.yaws.map(() => this.makeFrame());
+  private readonly itemFrames = ART.yaws.map(() => this.makeFrame());
+  /** Where the eyes may show: what it wears covers them as the head turns. */
+  private readonly faceWindow = div("mr-layer");
+  /** Moves the eyes with the head as it turns. */
+  private readonly turner = div("mr-layer");
+  /** Which way its head is turned, an index into `ART.yaws`. */
+  yaw: number = ART.frontYaw;
+  /** Where the eyes look beyond the face it keeps, held until told otherwise. */
+  private heldAttention = 0;
   private readonly leftEye = this.makeEye();
   private readonly rightEye = this.makeEye();
   private readonly running = new Map<Element, Map<string, Animation>>();
@@ -124,42 +137,47 @@ export class MascotRig {
   private blinksResume = 0;
   private blinkAnimation: Animation | null = null;
   private configured = false;
-  private static nextGradient = 0;
+  private static nextPattern = 0;
 
   constructor() {
-    const gradientId = `mascot-gradient-${MascotRig.nextGradient++}`;
-    this.gradient.id = gradientId;
-    this.gradient.setAttribute("x1", "0");
-    this.gradient.setAttribute("y1", "0");
-    this.gradient.setAttribute("x2", "0");
-    this.gradient.setAttribute("y2", "1");
-    this.stopTop.setAttribute("offset", "0");
-    this.stopBottom.setAttribute("offset", "1");
-    this.gradient.append(this.stopTop, this.stopBottom);
-    const defs = document.createElementNS(SVG, "defs");
-    defs.append(this.gradient);
-    this.body.classList.add("mr-body");
-    this.body.setAttribute("aria-hidden", "true");
-    this.fill.setAttribute("fill", `url(#${gradientId})`);
-    this.visor.setAttribute("fill", VISOR);
-    this.shine.setAttribute("fill", SHINE);
-    this.body.append(defs, this.ears, this.antenna, this.bulb, this.fill, this.visor, this.shine);
+    this.body.append(...this.bodyFrames);
+    this.item.append(...this.itemFrames);
     this.root.append(this.hopper);
     this.hopper.append(this.squasher);
     this.squasher.append(this.tilter);
-    this.tilter.append(this.body, this.attention);
-    this.attention.append(this.faceLayer);
+    this.tilter.append(this.body, this.item, this.faceWindow);
+    this.faceWindow.append(this.attention);
+    this.attention.append(this.turner);
+    this.turner.append(this.faceLayer);
     this.faceLayer.append(this.leftEye.box, this.rightEye.box);
   }
 
+  private makeFrame() {
+    const image = document.createElement("img");
+    image.className = "mr-frame";
+    image.alt = "";
+    image.decoding = "async";
+    image.draggable = false;
+    return image;
+  }
+
+  /** An eye: its outline, filled with the fabric it is stitched from. */
   private makeEye() {
     const box = div("mr-eye");
     const svg = document.createElementNS(SVG, "svg");
     svg.setAttribute("aria-hidden", "true");
+    const defs = document.createElementNS(SVG, "defs");
+    const pattern = document.createElementNS(SVG, "pattern");
+    pattern.id = `mascot-eye-${MascotRig.nextPattern++}`;
+    pattern.setAttribute("patternUnits", "userSpaceOnUse");
+    const fabric = document.createElementNS(SVG, "image");
+    fabric.setAttribute("preserveAspectRatio", "none");
+    pattern.append(fabric);
+    defs.append(pattern);
     const path = svgPath();
-    svg.append(path);
+    svg.append(defs, path);
     box.append(svg);
-    return { box, svg, path };
+    return { box, svg, path, pattern, fabric };
   }
 
   // MARK: Animations
@@ -211,48 +229,44 @@ export class MascotRig {
     for (const layer of [this.root, this.hopper, this.squasher, this.tilter, this.attention, this.faceLayer]) {
       layer.style.width = layer.style.height = `${size}px`;
     }
-    this.body.setAttribute("width", String(size));
-    this.body.setAttribute("height", String(size));
-    this.body.setAttribute("viewBox", `0 0 ${size} ${size}`);
-    const robot = look.style === "robot";
-    const palette = paletteColors(look.palette);
-    this.stopTop.setAttribute("stop-color", palette.light);
-    this.stopBottom.setAttribute("stop-color", palette.shade);
-    const face = faceOf(look);
-    if (robot) {
-      const parts = robotPaths(size);
-      this.fill.setAttribute("d", parts.head);
-      this.ears.setAttribute("d", parts.ears);
-      this.antenna.setAttribute("d", parts.antenna);
-      this.bulb.setAttribute("d", parts.bulb);
-      this.visor.setAttribute("d", parts.visor);
-      this.ears.setAttribute("fill", palette.shade);
-      this.antenna.setAttribute("fill", palette.shade);
-      this.bulb.style.fill = this.mood === "sleepy" ? palette.shade : palette.light;
-    } else {
-      this.fill.setAttribute("d", bodyPath(look.shape, size));
+    for (const layer of [this.faceWindow, this.turner]) layer.style.width = layer.style.height = `${size}px`;
+    const frame = spriteFrame(size);
+    for (const layer of [this.body, this.item]) {
+      layer.style.left = `${frame.x}px`;
+      layer.style.top = `${frame.y}px`;
+      layer.style.width = layer.style.height = `${frame.width}px`;
     }
-    for (const part of [this.ears, this.antenna, this.bulb, this.visor]) part.style.display = robot ? "" : "none";
-    this.shine.style.display = robot ? "none" : "";
-    this.shine.setAttribute("rx", String(face.shine.rx * size));
-    this.shine.setAttribute("ry", String(face.shine.ry * size));
-    this.shine.setAttribute("transform", shineTransform(face, size));
+    ART.yaws.forEach((_, yaw) => {
+      this.bodyFrames[yaw]!.src = spriteUrl(bodySprite(look, yaw)) ?? "";
+      const item = spriteUrl(itemSprite(look, yaw));
+      const frame = this.itemFrames[yaw]!;
+      if (item) frame.src = item;
+      else frame.removeAttribute("src");
+      // Nothing on its head: no image, not even a broken one.
+      frame.style.display = item ? "" : "none";
+    });
+    const face = faceOf();
     const side = size * 0.4;
-    const place = (
-      eye: { box: HTMLElement; svg: SVGSVGElement; path: SVGPathElement },
-      at: { x: number; y: number },
-    ) => {
+    const fabric = spriteUrl(eyeSprite(look));
+    const ink = creamEyes(look.palette) ? CREAM : INK;
+    const place = (eye: ReturnType<MascotRig["makeEye"]>, at: { x: number; y: number }) => {
       eye.box.style.left = `${at.x * size - side / 2}px`;
       eye.box.style.top = `${at.y * size - side / 2}px`;
       eye.box.style.width = eye.box.style.height = `${side}px`;
       eye.svg.setAttribute("width", String(side));
       eye.svg.setAttribute("height", String(side));
       eye.svg.setAttribute("viewBox", `0 0 ${side} ${side}`);
-      eye.path.setAttribute("fill", robot ? palette.light : INK);
-      eye.box.style.filter = robot ? `drop-shadow(0 0 ${Math.max(0.6, size * 0.04)}px ${palette.light})` : "";
+      for (const node of [eye.pattern, eye.fabric]) {
+        node.setAttribute("width", String(side));
+        node.setAttribute("height", String(side));
+      }
+      if (fabric) eye.fabric.setAttribute("href", fabric);
+      // Without its sprites it still has eyes.
+      eye.path.setAttribute("fill", fabric ? `url(#${eye.pattern.id})` : ink);
     };
     place(this.leftEye, face.leftEye);
     place(this.rightEye, face.rightEye);
+    this.showYaw(this.yaw);
     if (restyled) this.play(this.tilter, [{ opacity: 0.2 }, { opacity: 1 }], { key: "look", duration: 0.24 });
     this.apply(EXPRESSIONS[this.mood], false);
   }
@@ -267,7 +281,6 @@ export class MascotRig {
     if (mood !== "sleepy") this.blinks = 0;
     const moving = animated && !this.reduceMotion;
     this.apply(EXPRESSIONS[mood], moving);
-    this.lightBulb(mood !== "sleepy", moving);
     if (animated && !this.reduceMotion && this.size > 0) {
       if (mood === "surprised") this.pop();
       else if (mood === "confused") this.wobble();
@@ -278,7 +291,7 @@ export class MascotRig {
   }
 
   private eyeD(eye: MascotEye, right: boolean): string {
-    const face = faceOf(this.look);
+    const face = faceOf();
     const side = this.size * 0.4;
     return eyePath(eye, face.eye.width * this.size, face.eye.height * this.size, { x: side / 2, y: side / 2 }, right);
   }
@@ -319,6 +332,65 @@ export class MascotRig {
     this.rightEye.path.setAttribute("d", right);
     this.faceLayer.style.transform = gaze;
     this.tilter.style.transform = tilt;
+    const turn = yawForGaze(expression.gaze.x + this.heldAttention);
+    if (animated) this.turnHead([turn], 0.22);
+    else this.showYaw(turn);
+  }
+
+  // MARK: Turning
+
+  /** The sprites and the eyes for the head turned to `yaw`, at once. */
+  private showYaw(yaw: number) {
+    this.yaw = yaw;
+    ART.yaws.forEach((_, index) => {
+      this.bodyFrames[index]!.style.opacity = index === yaw ? "1" : "0";
+      this.itemFrames[index]!.style.opacity = index === yaw ? "1" : "0";
+    });
+    const window = spriteUrl(eyeWindow(this.look, yaw));
+    this.faceWindow.style.maskImage = window ? `url("${window}")` : "";
+    this.faceWindow.style.webkitMaskImage = this.faceWindow.style.maskImage;
+    const frame = spriteFrame(this.size);
+    const maskBox = `${frame.width}px ${frame.height}px`;
+    this.faceWindow.style.maskSize = this.faceWindow.style.webkitMaskSize = maskBox;
+    this.faceWindow.style.maskPosition = this.faceWindow.style.webkitMaskPosition = `${frame.x}px ${frame.y}px`;
+    this.faceWindow.style.maskRepeat = this.faceWindow.style.webkitMaskRepeat = "no-repeat";
+    this.turner.style.translate = this.turnTranslate(yaw);
+  }
+
+  private turnTranslate(yaw: number) {
+    const shift = turnOffset(yaw);
+    return `${shift.x * this.size}px ${shift.y * this.size}px`;
+  }
+
+  /**
+   * Turns the head through `yaws` over `duration`, each sprite fading into the
+   * next as the eyes move with it. A single turn is where it stays; a run of
+   * them (with `offsets`) plays and leaves it where it was.
+   */
+  private turnHead(yaws: number[], duration: number, offsets?: number[], begin?: number, key = "turn") {
+    if (this.size <= 0 || yaws.length === 0) return;
+    const steady = offsets === undefined;
+    const last = yaws[yaws.length - 1]!;
+    if (steady && last === this.yaw) return;
+    const values = steady ? [this.yaw, last] : yaws;
+    const at = offsets ?? [0, 1];
+    ART.yaws.forEach((_, index) => {
+      const frames = values.map((yaw, step): Keyframe => ({ opacity: yaw === index ? 1 : 0, offset: at[step]! }));
+      for (const frame of [this.bodyFrames[index]!, this.itemFrames[index]!]) {
+        this.play(frame, frames, { key, duration, begin, fill: begin === undefined ? "none" : "backwards" });
+      }
+    });
+    this.play(
+      this.turner,
+      values.map((yaw, step): Keyframe => ({ translate: this.turnTranslate(yaw), offset: at[step]! })),
+      { key, duration, begin, fill: begin === undefined ? "none" : "backwards" },
+    );
+    this.showYaw(last);
+  }
+
+  /** Where the head turns for the face it keeps and what holds its eyes. */
+  private restingYaw() {
+    return yawForGaze(EXPRESSIONS[this.mood].gaze.x + this.heldAttention);
   }
 
   /** The eye as drawn now, heavy from a doze or partway through a morph. */
@@ -336,7 +408,10 @@ export class MascotRig {
       this.squasher,
       this.tilter,
       this.attention,
+      this.turner,
       this.faceLayer,
+      ...this.bodyFrames,
+      ...this.itemFrames,
       this.leftEye.box,
       this.rightEye.box,
       this.leftEye.path,
@@ -345,6 +420,7 @@ export class MascotRig {
       this.stopAll(layer);
     }
     this.attention.style.transform = "";
+    this.heldAttention = 0;
     this.mood = mood;
     this.blinks = 0;
     this.dozed = false;
@@ -378,7 +454,16 @@ export class MascotRig {
 
   /** Ends a visit under way where it stands, and it blinks again. */
   endVisit() {
-    for (const layer of [this.root, this.squasher, this.faceLayer]) this.stop(layer, "visit");
+    for (const layer of [
+      this.root,
+      this.squasher,
+      this.faceLayer,
+      this.turner,
+      ...this.bodyFrames,
+      ...this.itemFrames,
+    ]) {
+      this.stop(layer, "visit");
+    }
     this.stop(this.root, "visitFade");
     this.blinksResume = mediaTime();
     this.stopBlinking();
@@ -388,7 +473,16 @@ export class MascotRig {
   /** Lets go of the last frame a visit that ended out of sight held. */
   clearFinishedVisit() {
     if (!this.running.get(this.root)?.has("visit") || mediaTime() < this.visitEnds) return;
-    for (const layer of [this.root, this.squasher, this.faceLayer]) this.stop(layer, "visit");
+    for (const layer of [
+      this.root,
+      this.squasher,
+      this.faceLayer,
+      this.turner,
+      ...this.bodyFrames,
+      ...this.itemFrames,
+    ]) {
+      this.stop(layer, "visit");
+    }
     this.stop(this.root, "visitFade");
   }
 
@@ -417,6 +511,18 @@ export class MascotRig {
         ],
         { key: "attention", duration: total },
       );
+      // The head turns toward it with the eyes, and back.
+      this.heldAttention = 0;
+      const own = EXPRESSIONS[this.mood].gaze.x;
+      const toward = yawForGaze(own + target.x);
+      const ahead = yawForGaze(own);
+      this.turnHead(
+        [this.yaw, toward, toward, ahead],
+        total,
+        [0, move / total, (total - back) / total, 1],
+        undefined,
+        "turnAttention",
+      );
     } else {
       this.attention.style.transform = to;
       this.play(this.attention, [{ transform: from }, { transform: to }], {
@@ -424,6 +530,8 @@ export class MascotRig {
         duration: 0.2,
         easing: SETTLE,
       });
+      this.heldAttention = target.x;
+      this.turnHead([yawForGaze(EXPRESSIONS[this.mood].gaze.x + target.x)], 0.2);
     }
   }
 
@@ -432,9 +540,18 @@ export class MascotRig {
     if (this.size <= 0) return;
     const from = this.current(this.attention, "transform");
     this.attention.style.transform = "";
+    this.heldAttention = 0;
+    const rest = this.restingYaw();
     if (this.reduceMotion || from === "none") {
       this.stop(this.attention, "attention");
+      this.showYaw(rest);
       return;
+    }
+    if (rest !== this.yaw) {
+      const turnFrom = this.yaw;
+      const wait = Math.max(0, delay) + 0.34;
+      this.showYaw(rest);
+      this.turnHead([turnFrom, turnFrom, rest], wait, [0, Math.max(0, delay) / wait, 1], undefined, "turnAttention");
     }
     const total = Math.max(0, delay) + 0.34;
     this.play(
@@ -503,53 +620,6 @@ export class MascotRig {
     });
   }
 
-  /** The robot's antenna bulb goes dark while it sleeps and lights again as it wakes. */
-  private lightBulb(lit: boolean, animated: boolean) {
-    if (this.look.style !== "robot") return;
-    const palette = paletteColors(this.look.palette);
-    const color = lit ? palette.light : palette.shade;
-    if (animated) {
-      this.play(this.bulb, [{ fill: this.current(this.bulb, "fill") }, { fill: color }], {
-        key: "light",
-        duration: lit ? 0.25 : 0.6,
-      });
-    }
-    this.bulb.style.fill = color;
-  }
-
-  /** Lit already, the bulb shows dark a moment longer, then lights. */
-  private relightBulb(delay: number) {
-    if (this.look.style !== "robot") return;
-    const palette = paletteColors(this.look.palette);
-    this.play(
-      this.bulb,
-      [
-        { fill: palette.shade, offset: 0 },
-        { fill: palette.shade, offset: delay / (delay + 0.3) },
-        { fill: palette.light, offset: 1 },
-      ],
-      { key: "light", duration: delay + 0.3 },
-    );
-  }
-
-  /** A reaction lights the robot's bulb up with a soft glow for as long as it plays. */
-  private glowBulb(duration: number) {
-    if (this.look.style !== "robot") return;
-    const light = paletteColors(this.look.palette).light;
-    const shadow = `drop-shadow(0 0 ${Math.max(0.8, this.size * 0.09)}px ${light})`;
-    const none = `drop-shadow(0 0 0px transparent)`;
-    this.play(
-      this.bulb,
-      [
-        { filter: none, offset: 0 },
-        { filter: shadow, offset: 0.12 },
-        { filter: shadow, offset: 0.7 },
-        { filter: none, offset: 1 },
-      ],
-      { key: "glow", duration },
-    );
-  }
-
   private pop() {
     this.play(this.squasher, this.squashFrames([0, -0.14, 0.06, 0], [0, 0.35, 0.7, 1]), { key: "pop", duration: 0.34 });
   }
@@ -616,7 +686,6 @@ export class MascotRig {
     if (this.dozed && reaction !== "wakeUp") this.setMood("idle", !this.reduceMotion);
     this.blinks = 0;
     const now = mediaTime();
-    this.glowBulb(REACTION_LENGTH[reaction]);
     if (this.reduceMotion) {
       if (reaction === "celebrate" || reaction === "wakeUp") this.flashFace("happy", 1);
       else if (reaction === "love") this.flashFace("love", 1.2);
@@ -652,11 +721,8 @@ export class MascotRig {
         this.wobble();
         break;
       case "wakeUp":
-        // Heavy eyes, a stretch, and a glad face. A robot's bulb lights up again as it stretches.
-        if (this.dozed) {
-          this.setMood("idle", false);
-          this.relightBulb(0.35);
-        }
+        // Heavy eyes, a stretch, and a glad face.
+        if (this.dozed) this.setMood("idle", false);
         this.flashFace("sleepy", 0.7);
         this.stretch(now + 0.35, 0.6);
         this.flashFace("happy", 0.9, now + 0.7, "flashAfter");
@@ -839,6 +905,16 @@ export class MascotRig {
       path.gaze.map((gaze, index) => ({ translate: `${gaze * this.size}px`, offset: path.keyTimes[index]! })),
       { key: "visit", duration: path.duration, begin: start },
     );
+    // The head turns the way it walks.
+    const resting = this.yaw;
+    this.turnHead(
+      path.gaze.map((gaze) => yawForGaze(gaze)),
+      path.duration,
+      path.keyTimes,
+      start,
+      "visit",
+    );
+    this.showYaw(resting);
     // Its eyes are for the way ahead while it walks.
     this.lookAhead();
     if (greet > 0) this.flashFace(greeting, greet, start + path.greeting[0]);
@@ -916,6 +992,9 @@ export class MascotRig {
         ],
         { key: "idleGlance", duration: 1.3, begin: begin - 1.1 },
       );
+      const rest = this.yaw;
+      const aside = yawForGaze(EXPRESSIONS[this.mood].gaze.x + away / Math.max(1, this.size));
+      this.turnHead([rest, aside, aside, rest], 1.3, [0, 0.2, 0.8, 1], begin - 1.1, "turnGlance");
     }
     const blink = this.play(this.leftEye.box, frames, { key: "blink", duration, begin });
     this.play(this.rightEye.box, frames, { key: "blink", duration, begin });
