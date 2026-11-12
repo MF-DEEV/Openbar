@@ -49,6 +49,20 @@ then Return, as `ClaudeTyping.steps` lays out, so line breaks stay text.
 | WezTerm | tab and pane, then the window | yes | `wezterm.exe` beside the session's `wezterm-gui.exe`, by `WEZTERM_PANE` and `WEZTERM_UNIX_SOCKET`; only those two variables are read from the session's environment block (`process::environment_values`) |
 | Git Bash (mintty), Alacritty, Warp, Tabby, Hyper, ConEmu, Rio | window | no, says so | named from the process tree |
 
+## Which tab is in front (#210)
+
+The sound when a session waits stays quiet when the session's own tab or pane is in front and on screen. Each host is asked as below; anything else, a slow answer (over 1.5 s) or an error plays the sound.
+
+| Host | How it tells |
+|---|---|
+| Terminal, iTerm2, Ghostty 1.4+ (Mac) | the app is frontmost with its window the front ordinary window on screen, then AppleScript gives the device of the front window's selected tab (`selected tab`, `current session`, `focused terminal of selected tab`); never asks for Automation |
+| WezTerm | `wezterm cli list-clients`: the focused pane of the client used last, with WezTerm's window in front |
+| kitty, remote control on | `kitten @ ls`: `is_focused` on the OS window, the tab and the window |
+| tmux | `#{pane_active}#{window_active}` is `11`, then the terminal of the client used last on that session is asked the same (Linux: kitty or WezTerm only) |
+| Classic console (Windows) | its window is the foreground window and not minimised |
+| Windows Terminal | its window is in front, and the selected tab (UI Automation) bears the console's title (`GetConsoleTitleW`) and no other tab does |
+| Editors, Warp, Alacritty, GNOME Terminal, Konsole, remote and background sessions | can't tell: the sound plays |
+
 ## What was checked, and how
 
 A stand-in session (a Node program that registers itself in

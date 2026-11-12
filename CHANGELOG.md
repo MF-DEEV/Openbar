@@ -12,7 +12,11 @@ All notable changes to this project are documented here. The format follows
 - A file change's diff on a permission card can show more of the file before you allow it. Click the arrow on a row of hidden lines to see 20 more, above or below the change, or all of them when only a few are left. The lines come from the file Openbar already read when the request came. On Mac and Windows.
 
 ### Changed
+- The sound when a session waits stays quiet when you're already looking at that session in its own terminal: its app in front and its own tab or pane selected. It still plays when the terminal is behind another app, shows another tab, or can't say which tab is in front (editors, Warp and other apps). Terminal, iTerm2, Ghostty, WezTerm, kitty with remote control and tmux on the Mac; the console window, Windows Terminal and WezTerm on Windows; kitty, WezTerm and tmux in either on Linux.
 - The companion is Openbar's own now: a little bean made of plush, knit, gummy or clay, in ten colors, wearing the helmet from the logo, a beanie, a cap, a crown, headphones or nothing. It turns its head toward the pointer and what you type, and every face and reaction it had is still there. A companion picked before gets the closest new look and keeps its side and visits. On the Mac, Windows and Linux. Settings → Dynamic Island → Companion.
+
+### Fixed
+- A session in kitty 0.32, the version Ubuntu 24.04 ships, is found in its own window again, so replies and Open reach it. kitty 0.32 answered the window lookup with whichever window was active.
 
 ## [3.5.0-beta.2] - 2026-11-07
 
