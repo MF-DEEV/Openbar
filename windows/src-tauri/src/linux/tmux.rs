@@ -99,6 +99,71 @@ fn send_with(
     Ok(())
 }
 
+/// Whether the pane is the one its tmux shows (#210): the active pane of the
+/// active window, in a session a terminal is attached to. Ok gives the pid
+/// of that terminal's tmux client, used last, whose own terminal decides the
+/// rest; Err that tmux shows something else. None when tmux can't say or the
+/// pane isn't the session's.
+pub fn shown(socket: &str, pane: &str, terminal: Option<&str>) -> Option<Result<u32, ()>> {
+    shown_with("tmux", socket, pane, terminal)
+}
+
+fn shown_with(
+    program: &str,
+    socket: &str,
+    pane: &str,
+    terminal: Option<&str>,
+) -> Option<Result<u32, ()>> {
+    if !holds_with(program, socket, pane, terminal) {
+        return None;
+    }
+    let state = tmux_with(
+        program,
+        socket,
+        &[
+            "display-message",
+            "-p",
+            "-t",
+            pane,
+            "#{pane_active}#{window_active}\t#{session_id}",
+        ],
+        None,
+    )?;
+    let (flags, session) = state.trim().split_once('\t')?;
+    if flags != "11" {
+        return Some(Err(()));
+    }
+    let clients = tmux_with(
+        program,
+        socket,
+        &[
+            "list-clients",
+            "-F",
+            "#{client_pid}\t#{session_id}\t#{client_activity}",
+        ],
+        None,
+    )?;
+    Some(client_on(&clients, session).ok_or(()))
+}
+
+/// The client showing `session` that was used last.
+fn client_on(listed: &str, session: &str) -> Option<u32> {
+    listed
+        .lines()
+        .filter_map(|line| {
+            let mut fields = line.split('\t');
+            let pid = fields.next()?.trim().parse::<u32>().ok()?;
+            (fields.next()? == session).then_some(())?;
+            let activity = fields
+                .next()
+                .and_then(|a| a.trim().parse::<u64>().ok())
+                .unwrap_or(0);
+            Some((pid, activity))
+        })
+        .max_by_key(|(_, activity)| *activity)
+        .map(|(pid, _)| pid)
+}
+
 /// Shows the pane's window and pane inside tmux; the pids of the attached
 /// clients, whose terminal window the caller raises.
 pub fn focus(socket: &str, pane: &str, terminal: Option<&str>) -> Vec<u32> {
@@ -125,6 +190,14 @@ fn focus_with(program: &str, socket: &str, pane: &str, terminal: Option<&str>) -
 mod tests {
     use super::*;
     use std::path::PathBuf;
+
+    #[test]
+    fn the_client_is_the_one_on_the_pane_session_used_last() {
+        let listed = "41\t$1\t100\n42\t$1\t300\n43\t$2\t900\nnope\n";
+        assert_eq!(client_on(listed, "$1"), Some(42));
+        assert_eq!(client_on(listed, "$2"), Some(43));
+        assert_eq!(client_on(listed, "$3"), None);
+    }
 
     #[test]
     fn the_socket_is_the_first_field() {

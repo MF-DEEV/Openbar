@@ -1477,6 +1477,14 @@ extension ClaudeSessionHosts {
     }
 }
 
+extension ClaudeTerminalFocus {
+    /// Whether the session's own tab or pane is in front (#210).
+    static func state(of session: ClaudeSession) -> State {
+        guard session.pid > 1 else { return .unknown }
+        return state(session.host, pid: session.pid, hostOf: ClaudeSessionHosts.host(of:))
+    }
+}
+
 /// Brings a session's terminal forward: its own tab, pane or window in a
 /// terminal that can be asked for one, the window holding its folder in an
 /// editor, or just the app elsewhere.

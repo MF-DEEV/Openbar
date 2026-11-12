@@ -738,7 +738,7 @@
   "windows.settings.sessions.remotePlaceholder": "Аліас з ~/.ssh/config",
   "windows.settings.sessions.remoteInvalid": "Вкажіть аліас Host з вашого конфігу ssh.",
   "windows.settings.sessions.waitingSound": "Звук, коли сесія чекає",
-  "windows.settings.sessions.waitingSoundCaption": "Відтворює короткий звук, коли сесія просить дозволу, ставить запитання або чекає схвалення плану. Звуку немає, коли хід просто завершився або острів уже показує цю сесію.",
+  "windows.settings.sessions.waitingSoundCaption": "Відтворює короткий звук, коли сесія просить дозволу, ставить запитання або чекає схвалення плану. Звуку немає, коли хід просто завершився, коли острів уже показує цю сесію або коли попереду її власна вкладка термінала.",
   "windows.settings.sessions.waitingSoundChoice": "Звук",
   "windows.settings.sessions.waitingSoundChime": "Сигнал Openbar",
   "windows.notifications.reply": "Відповісти",

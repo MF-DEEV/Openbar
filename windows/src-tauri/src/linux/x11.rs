@@ -100,6 +100,14 @@ pub fn activate(connection: &RustConnection, root: Window, active: Atom, window:
     sent.is_ok_and(|cookie| cookie.check().is_ok())
 }
 
+/// The program owning the window the window manager calls active (#210).
+pub fn active_pid() -> Option<u32> {
+    let (connection, screen) = RustConnection::connect(None).ok()?;
+    let root = connection.setup().roots.get(screen)?.root;
+    let window = active_window(&connection, root, atom(&connection, "_NET_ACTIVE_WINDOW")?)?;
+    pid_of(&connection, window, atom(&connection, "_NET_WM_PID")?)
+}
+
 /// Raises the window of the nearest program in `pids` that has one.
 pub fn raise(pids: &[u32], cwd: &str) -> bool {
     let Ok((connection, screen)) = RustConnection::connect(None) else {

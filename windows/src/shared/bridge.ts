@@ -210,6 +210,8 @@ export const bridge = {
     attachImage: (dataUrl: string) => call<ReplyAttachment>("sessions_attach_image", { dataUrl }),
     clipboardImages: () => call<ReplyAttachment[]>("sessions_clipboard_images"),
     open: (sessionId: string) => call<boolean>("sessions_open", { sessionId }),
+    /** Whether every one of these sessions shows in front in its own terminal tab (#210). */
+    terminalShown: (sessionIds: string[]) => call<boolean>("sessions_terminal_shown", { sessionIds }),
     /** What went wrong, or null. */
     stopBackground: (sessionId: string) => call<string | null>("sessions_background_stop", { sessionId }),
     removeBackground: (sessionId: string, anyway = false) =>

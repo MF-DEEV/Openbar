@@ -280,6 +280,71 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
     }
 }
 
+/// Whether the session's own tab or pane is in front and on screen (#210),
+/// for the waiting sound to keep quiet. None when the host can't tell which
+/// tab is in front (editors, terminals it only knows by name), so it plays.
+pub fn shown(pid: u32, located: &Located) -> Option<bool> {
+    match &located.host {
+        Host::Conhost | Host::WindowsTerminal { .. } => console_shown(pid),
+        Host::Wezterm {
+            gui_pid,
+            pane,
+            socket,
+        } => {
+            if !in_front(*gui_pid) {
+                return Some(false);
+            }
+            wezterm::shows(*gui_pid, *pane, socket)
+        }
+        #[cfg(target_os = "linux")]
+        Host::Tmux { .. } | Host::Kitty { .. } => crate::linux::hosts::shown(pid, located),
+        _ => None,
+    }
+}
+
+/// Whether the tab named `title` is the selected one among a terminal
+/// window's tabs, given as (name, selected). A title another tab shares, or
+/// no title, can't tell them apart: None.
+#[cfg_attr(not(windows), allow(dead_code))]
+pub fn tab_shown(tabs: &[(String, bool)], title: &str) -> Option<bool> {
+    let title = title.trim();
+    if title.is_empty() {
+        return None;
+    }
+    let selected = tabs.iter().find(|(_, selected)| *selected)?;
+    if selected.0.trim() != title {
+        return Some(false);
+    }
+    let same = tabs.iter().filter(|(name, _)| name.trim() == title).count();
+    (same == 1).then_some(true)
+}
+
+#[cfg(windows)]
+fn console_shown(pid: u32) -> Option<bool> {
+    console::shown(pid)
+}
+
+#[cfg(not(windows))]
+fn console_shown(_pid: u32) -> Option<bool> {
+    None
+}
+
+/// A window of process `pid` is the one in front, and not minimised.
+#[cfg(windows)]
+fn in_front(pid: u32) -> bool {
+    console::in_front(pid)
+}
+
+#[cfg(target_os = "linux")]
+fn in_front(pid: u32) -> bool {
+    crate::linux::x11::active_pid() == Some(pid)
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
+fn in_front(_pid: u32) -> bool {
+    false
+}
+
 #[cfg(windows)]
 fn console_type(pid: u32, text: &str, images: &[String]) -> Result<(), DeliveryError> {
     console_type_as(pid, text, images, false)
@@ -555,6 +620,51 @@ fn platform_raise_host(_pids: &[u32], _cwd: &str) -> bool {
 mod tests {
     use super::process::Entry;
     use super::*;
+
+    fn tabs(list: &[(&str, bool)]) -> Vec<(String, bool)> {
+        list.iter().map(|(n, s)| ((*n).to_owned(), *s)).collect()
+    }
+
+    #[test]
+    fn a_tab_shows_only_when_it_is_selected_and_its_title_is_its_own() {
+        let window = tabs(&[("✳ Fix sound", true), ("PowerShell", false)]);
+        assert_eq!(tab_shown(&window, "✳ Fix sound"), Some(true));
+        assert_eq!(tab_shown(&window, "✳ Other task"), Some(false));
+        // Two tabs with one title can't be told apart.
+        let twins = tabs(&[("Claude Code", true), ("Claude Code", false)]);
+        assert_eq!(tab_shown(&twins, "Claude Code"), None);
+        assert_eq!(tab_shown(&window, "  "), None);
+        assert_eq!(tab_shown(&[], "✳ Fix sound"), None);
+        assert_eq!(tab_shown(&tabs(&[("a", false)]), "a"), None);
+    }
+
+    #[test]
+    fn hosts_that_cant_tell_have_no_answer() {
+        let located = |host| Located {
+            host,
+            ancestors: vec![],
+        };
+        assert_eq!(shown(1, &located(Host::Unknown)), None);
+        assert_eq!(
+            shown(
+                1,
+                &located(Host::App {
+                    name: "Warp".into()
+                })
+            ),
+            None
+        );
+        assert_eq!(
+            shown(
+                1,
+                &located(Host::Vscode {
+                    ide: "vscode".into(),
+                    ide_pid: 2
+                })
+            ),
+            None
+        );
+    }
 
     fn terminal(pid: u32, cwd: &str, thread: Option<&str>) -> CodexTerminal {
         CodexTerminal {

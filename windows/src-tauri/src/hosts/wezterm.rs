@@ -206,9 +206,55 @@ pub fn focus(gui_pid: u32, pane: u32, socket: &str) -> bool {
     .is_some()
 }
 
+/// The pane WezTerm's window has focus on, from `wezterm cli list-clients`
+/// (#210). The command line asking is listed as a client with no pane; the
+/// client used last wins among the rest, as on the Mac.
+pub fn focused_pane(json: &str) -> Option<u32> {
+    serde_json::from_str::<Vec<serde_json::Value>>(json)
+        .ok()?
+        .iter()
+        .filter_map(|client| {
+            let pane = u32::try_from(client.get("focused_pane_id")?.as_u64()?).ok()?;
+            let idle = client.get("idle_time");
+            let seconds = idle
+                .and_then(|i| i.get("secs"))
+                .and_then(|s| s.as_f64())
+                .unwrap_or(f64::INFINITY)
+                + idle
+                    .and_then(|i| i.get("nanos"))
+                    .and_then(|n| n.as_f64())
+                    .unwrap_or(0.0)
+                    / 1e9;
+            Some((pane, seconds))
+        })
+        .min_by(|a, b| a.1.total_cmp(&b.1))
+        .map(|(pane, _)| pane)
+}
+
+/// Whether WezTerm has focus on the pane inside its window; the caller
+/// checks that the window itself is in front. None when WezTerm can't say.
+pub fn shows(gui_pid: u32, pane: u32, socket: &str) -> Option<bool> {
+    let cli = cli(gui_pid)?;
+    if !listed(&cli, socket, pane) {
+        return None;
+    }
+    let clients = run(&cli, socket, &["list-clients", "--format", "json"], None)?;
+    focused_pane(&clients).map(|focused| focused == pane)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_focused_pane_is_the_one_of_the_client_used_last() {
+        let json = r#"[{"pid":10,"idle_time":{"secs":0,"nanos":1000},"focused_pane_id":null},
+            {"pid":11,"idle_time":{"secs":40,"nanos":0},"focused_pane_id":7},
+            {"pid":12,"idle_time":{"secs":2,"nanos":0},"focused_pane_id":3}]"#;
+        assert_eq!(focused_pane(json), Some(3));
+        assert_eq!(focused_pane("[]"), None);
+        assert_eq!(focused_pane("nope"), None);
+    }
 
     #[test]
     fn a_reply_is_one_paste_and_a_return() {

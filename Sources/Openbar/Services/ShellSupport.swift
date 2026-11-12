@@ -248,16 +248,17 @@ enum Sudoers {
 enum AppleScriptRunner {
     /// True when this app may script `bundleID`. Undetermined → shows the system
     /// prompt (attributed to this app); granted → returns at once; denied →
-    /// false without nagging.
+    /// false without nagging. With `ask` off an undetermined consent is false
+    /// too, for a check that must never put a prompt in front of the person.
     @discardableResult
-    static func consentToAutomate(bundleID: String) -> Bool {
+    static func consentToAutomate(bundleID: String, ask: Bool = true) -> Bool {
         var target = AEAddressDesc()
         let created = bundleID.withCString { ptr in
             AECreateDesc(typeApplicationBundleID, ptr, bundleID.utf8.count, &target)
         }
         guard created == noErr else { return false }
         defer { AEDisposeDesc(&target) }
-        return AEDeterminePermissionToAutomateTarget(&target, typeWildCard, typeWildCard, true) == noErr
+        return AEDeterminePermissionToAutomateTarget(&target, typeWildCard, typeWildCard, ask) == noErr
     }
 
     /// Runs the AppleScript in this process. Returns whether it succeeded and the

@@ -2,7 +2,9 @@
 // Copyright (C) 2026 MF DEV, Adrian and the Openbar contributors
 
 // A sound when a session starts waiting for the person (#167): once for each
-// permission, question or plan, and never for a turn that just ended.
+// permission, question or plan, and never for a turn that just ended. It
+// stays quiet when the island shows the session, or when its own terminal
+// tab is in front (#210).
 
 import { hidesAutoApproval } from "./presentation";
 import { isWaiting, type Session } from "./types";
@@ -71,4 +73,32 @@ export function inView(
   session: string,
 ): boolean {
   return island.expanded && island.selected === "sessions" && (focused === null || focused === session);
+}
+
+/** How long the terminals are asked before the sound plays anyway. */
+export const TERMINAL_CHECK_LIMIT_MS = 1500;
+
+/**
+ * Whether to play for the requests the island doesn't show (#210): quiet only
+ * when their terminals say every one of them is in front in its own tab or
+ * pane. A terminal that can't tell, fails or is slow to answer plays, as the
+ * Mac's NotchSessionWaitingSound.shouldPlay.
+ */
+export async function shouldPlay(
+  unseen: readonly string[],
+  terminalShown: (sessionIds: string[]) => Promise<boolean | undefined>,
+  limitMs = TERMINAL_CHECK_LIMIT_MS,
+): Promise<boolean> {
+  if (unseen.length === 0) return false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const late = new Promise<false>((resolve) => {
+    timer = setTimeout(() => resolve(false), limitMs);
+  });
+  try {
+    return !(await Promise.race([terminalShown([...unseen]), late]));
+  } catch {
+    return true;
+  } finally {
+    clearTimeout(timer);
+  }
 }

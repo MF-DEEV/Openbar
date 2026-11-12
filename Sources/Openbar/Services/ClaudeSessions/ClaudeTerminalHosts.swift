@@ -500,9 +500,11 @@ enum ClaudeKitty {
         return ClaudeHostCommand.run(cli, ["@", "--to", socket] + arguments, input: input)
     }
 
-    /// The window still runs the session's process.
+    /// The window still runs the session's process. The whole listing is
+    /// read: kitty 0.32 answers `ls --match id:N` with the active window
+    /// rather than window N.
     static func holds(window: Int, pid: Int32, socket: String) -> Bool {
-        guard let listed = run(["ls", "--match", "id:\(window)"], socket: socket) else { return false }
+        guard let listed = run(["ls"], socket: socket) else { return false }
         return pids(in: Data(listed.utf8), window: window).contains(pid)
     }
 
