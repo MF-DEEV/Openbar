@@ -4,6 +4,7 @@
 import AppKit
 import Combine
 import IOKit.ps
+import os
 import SwiftUI
 
 struct NotchNotice: Equatable {
@@ -4504,20 +4505,43 @@ final class NotchService: ObservableObject {
     }
 
     /// A sound once for each new request, unless its page or the list is
-    /// already open (#167). Unlike the notice it does not wait for the
-    /// person to come back from another app: that is when it helps most.
+    /// already open (#167), or its own tab is in front in its terminal (#210).
+    /// Unlike the notice it does not wait for the person to come back from
+    /// another app: that is when it helps most.
     private func playWaitingSound() {
         let service = ClaudeSessionService.shared
         let waiting = Dictionary(service.sessions.compactMap { session in
             NotchSessionAttention.request(of: session).map { (session.id, $0) }
         }, uniquingKeysWith: { first, _ in first })
         let arrived = waitingSound.arrived(waiting)
-        guard !arrived.isEmpty, NotchSessionWaitingSound.isEnabled(),
-              arrived.contains(where: { !NotchSessionWaitingSound.inView(expanded: expanded, selected: selected,
-                                                                         focused: service.focusedID, session: $0) })
-        else { return }
-        NotchSessionWaitingSound.play(NotchSessionWaitingSound.soundName())
+        guard !arrived.isEmpty, NotchSessionWaitingSound.isEnabled() else { return }
+        let unseen = Set(arrived.filter {
+            !NotchSessionWaitingSound.inView(expanded: expanded, selected: selected, focused: service.focusedID, session: $0)
+        })
+        guard !unseen.isEmpty else { return }
+        let sessions = service.sessions.filter { unseen.contains($0.id) }
+        let sound = NotchSessionWaitingSound.soundName()
+        // The terminals are asked off the main thread; one that is slow to
+        // answer doesn't hold the sound back for long.
+        var decided = false
+        let decide = { (play: Bool, why: String) in
+            guard !decided else { return }
+            decided = true
+            Self.waitingSoundLog.info("waiting sound \(play ? "played" : "quiet", privacy: .public): \(why, privacy: .public)")
+            if play { NotchSessionWaitingSound.play(sound) }
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + NotchSessionWaitingSound.terminalCheckLimit) {
+            decide(true, "terminal check timed out")
+        }
+        waitingSoundChecks.async {
+            let states = sessions.map(ClaudeTerminalFocus.state(of:))
+            let play = NotchSessionWaitingSound.shouldPlay(states)
+            DispatchQueue.main.async { decide(play, "terminals \(states)") }
+        }
     }
+
+    private let waitingSoundChecks = DispatchQueue(label: "com.openbar.waiting-sound", qos: .userInitiated)
+    private static let waitingSoundLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "openbar", category: "waiting-sound")
 
     /// Presents what the sessions wait on now that was not presented yet,
     /// including requests from before launch or whose event never came.

@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Carbon.HIToolbox
+import CoreGraphics
 import Foundation
 
 /// A request waits while another app is in front and takes the island once
@@ -15,6 +16,71 @@ enum NotchSessionAttentionTests {
         suite.run("session attention context") { context(suite) }
         suite.run("session answer keys follow the layout") { keys(suite) }
         suite.run("session waiting sound") { waitingSound(suite) }
+        suite.run("session waiting sound reads the terminal") { terminalFocus(suite) }
+    }
+
+    /// #210: quiet only when the session's own tab or pane is in front.
+    static func terminalFocus(_ suite: TestSuite) {
+        suite.expect(!NotchSessionWaitingSound.shouldPlay([.shown]), "the session's own tab in front stays quiet")
+        suite.expect(NotchSessionWaitingSound.shouldPlay([.hidden]), "another tab or app plays")
+        suite.expect(NotchSessionWaitingSound.shouldPlay([.unknown]), "a terminal that can't tell plays")
+        suite.expect(NotchSessionWaitingSound.shouldPlay([.shown, .hidden]), "one unseen request among several plays")
+
+        suite.expect(ClaudeTerminalFocus.sameTTY("/dev/ttys004\n", "ttys004")
+                     && ClaudeTerminalFocus.sameTTY("ttys004", "/dev/ttys004"), "a device matches written either way")
+        suite.expect(!ClaudeTerminalFocus.sameTTY("/dev/ttys004", "/dev/ttys040")
+                     && !ClaudeTerminalFocus.sameTTY("", "/dev/"), "another device, or none, never matches")
+
+        suite.expect(ClaudeTerminalFocus.tmuxActive("11\n"), "the active pane of the active window")
+        suite.expect(!ClaudeTerminalFocus.tmuxActive("10") && !ClaudeTerminalFocus.tmuxActive("01")
+                     && !ClaudeTerminalFocus.tmuxActive(""), "another pane or window is not in front")
+
+        let clients = Data("""
+            [{"pid":10,"idle_time":{"secs":0,"nanos":1000},"focused_pane_id":null},
+             {"pid":11,"idle_time":{"secs":40,"nanos":0},"focused_pane_id":7},
+             {"pid":12,"idle_time":{"secs":2,"nanos":0},"focused_pane_id":3}]
+            """.utf8)
+        suite.expect(ClaudeTerminalFocus.wezTermFocusedPane(clients) == 3,
+                     "WezTerm's pane is the one of the client used last, the command line aside")
+        suite.expect(ClaudeTerminalFocus.wezTermFocusedPane(Data("[]".utf8)) == nil
+                     && ClaudeTerminalFocus.wezTermFocusedPane(Data("nope".utf8)) == nil, "no client, no pane")
+
+        let kitty = Data("""
+            [{"is_focused":true,"tabs":[
+                {"is_focused":true,"windows":[{"id":1,"is_focused":true},{"id":2,"is_focused":false}]},
+                {"is_focused":false,"windows":[{"id":3,"is_focused":false}]}]},
+             {"is_focused":false,"tabs":[{"is_focused":true,"windows":[{"id":4,"is_focused":true}]}]}]
+            """.utf8)
+        suite.expect(ClaudeTerminalFocus.kittyFocused(kitty, window: 1) == true, "kitty's focused window shows")
+        suite.expect(ClaudeTerminalFocus.kittyFocused(kitty, window: 2) == false
+                     && ClaudeTerminalFocus.kittyFocused(kitty, window: 3) == false,
+                     "another window or tab of the focused OS window doesn't")
+        suite.expect(ClaudeTerminalFocus.kittyFocused(kitty, window: 4) == false,
+                     "the active window of an OS window in the back doesn't")
+        suite.expect(ClaudeTerminalFocus.kittyFocused(kitty, window: 9) == nil, "a window kitty doesn't list is unknown")
+
+        let windows: [[String: Any]] = [
+            [kCGWindowLayer as String: 25, kCGWindowOwnerPID as String: 1,
+             kCGWindowBounds as String: ["Width": 200.0, "Height": 30.0]],
+            [kCGWindowLayer as String: 0, kCGWindowOwnerPID as String: 2,
+             kCGWindowBounds as String: ["Width": 1.0, "Height": 1.0]],
+            [kCGWindowLayer as String: 0, kCGWindowOwnerPID as String: 3,
+             kCGWindowBounds as String: ["Width": 800.0, "Height": 600.0]],
+        ]
+        suite.expect(ClaudeTerminalFocus.frontWindowOwner(windows) == 3,
+                     "the front window is the first ordinary one with a size, not a panel or a sliver")
+
+        for host in [ClaudeSessionHost.terminal(tty: "/dev/ttys001"), .iterm(tty: "/dev/ttys001"), .ghostty(tty: "/dev/ttys001")] {
+            let script = ClaudeTerminalFocus.frontTTYScript(host) ?? ""
+            suite.expect(script.contains("with timeout of 1 seconds") && script.contains("tty of"),
+                         "\(host) is asked for its front tab's device, briefly")
+        }
+        suite.expect(ClaudeTerminalFocus.frontTTYScript(.app("dev.warp.Warp-Stable")) == nil,
+                     "an app with no way to tell has no script")
+        suite.expect(ClaudeTerminalFocus.state(.app("dev.warp.Warp-Stable"), pid: 1, hostOf: { _ in .unknown }) == .unknown
+                     && ClaudeTerminalFocus.state(.ide(bundle: "com.microsoft.VSCode", port: nil), pid: 1, hostOf: { _ in .unknown }) == .unknown
+                     && ClaudeTerminalFocus.state(.remote(alias: "box", tmux: true), pid: 1, hostOf: { _ in .unknown }) == .unknown,
+                     "editors, other apps and remote hosts can't tell")
     }
 
     static func waitingSound(_ suite: TestSuite) {
