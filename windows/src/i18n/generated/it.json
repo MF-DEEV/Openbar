@@ -1541,7 +1541,7 @@
     "waitingPermission": "Needs permission",
     "waitingSound": "Sound when a session waits",
     "waitingSoundChoice": "Sound",
-    "waitingSoundHint": "Plays a short sound when a session asks for permission, asks a question or waits for you to approve a plan. It stays quiet when a turn simply ends, and when the island already shows the session.",
+    "waitingSoundHint": "Plays a short sound when a session asks for permission, asks a question or waits for you to approve a plan. It stays quiet when a turn simply ends, when the island already shows the session, and when the session's own terminal tab is in front.",
     "wardrobe": "Wardrobe",
     "worktreeFailed": "Couldn’t make a worktree",
     "worktreeFromHead": "Uncommitted changes stay here. The worktree starts from the last commit.",

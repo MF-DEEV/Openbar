@@ -738,7 +738,7 @@
   "windows.settings.sessions.remotePlaceholder": "Alias from ~/.ssh/config",
   "windows.settings.sessions.remoteInvalid": "Use the alias of a Host in your ssh config.",
   "windows.settings.sessions.waitingSound": "Sound when a session waits",
-  "windows.settings.sessions.waitingSoundCaption": "Plays a short sound when a session asks for permission, asks a question or waits for you to approve a plan. It stays quiet when a turn simply ends, and when the island already shows the session.",
+  "windows.settings.sessions.waitingSoundCaption": "Plays a short sound when a session asks for permission, asks a question or waits for you to approve a plan. It stays quiet when a turn simply ends, when the island already shows the session, and when the session's own terminal tab is in front.",
   "windows.settings.sessions.waitingSoundChoice": "Sound",
   "windows.settings.sessions.waitingSoundChime": "Openbar chime",
   "windows.notifications.reply": "Reply",

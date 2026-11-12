@@ -738,7 +738,7 @@
   "windows.settings.sessions.remotePlaceholder": "~/.ssh/config のエイリアス",
   "windows.settings.sessions.remoteInvalid": "ssh 設定の Host のエイリアスを使ってください。",
   "windows.settings.sessions.waitingSound": "セッションが待っているときの音",
-  "windows.settings.sessions.waitingSoundCaption": "セッションが許可を求めたとき、質問したとき、プランの承認を待っているときに短い音を鳴らします。ターンが終わっただけのときや、島がすでにそのセッションを表示しているときは鳴りません。",
+  "windows.settings.sessions.waitingSoundCaption": "セッションが許可を求めたとき、質問したとき、プランの承認を待っているときに短い音を鳴らします。ターンが終わっただけのとき、島がすでにそのセッションを表示しているとき、またはそのセッション自身のターミナルのタブが前面にあるときは鳴りません。",
   "windows.settings.sessions.waitingSoundChoice": "サウンド",
   "windows.settings.sessions.waitingSoundChime": "Openbar のチャイム",
   "windows.notifications.reply": "返信",

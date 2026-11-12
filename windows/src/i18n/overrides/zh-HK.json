@@ -738,7 +738,7 @@
   "windows.settings.sessions.remotePlaceholder": "~/.ssh/config 中的別名",
   "windows.settings.sessions.remoteInvalid": "請使用 ssh 設定中某個 Host 的別名。",
   "windows.settings.sessions.waitingSound": "工作階段等待時嘅提示音",
-  "windows.settings.sessions.waitingSoundCaption": "當工作階段要求權限、提出問題或者等你批准計劃時，會播放一段簡短嘅提示音。淨係完結一輪，或者島嶼已經顯示緊呢個工作階段時，唔會響。",
+  "windows.settings.sessions.waitingSoundCaption": "當工作階段要求權限、提出問題或者等你批准計劃時，會播放一段簡短嘅提示音。淨係完結一輪、島嶼已經顯示緊呢個工作階段，或者佢自己嘅終端機分頁喺最前面時，唔會響。",
   "windows.settings.sessions.waitingSoundChoice": "聲音",
   "windows.settings.sessions.waitingSoundChime": "Openbar 提示音",
   "windows.notifications.reply": "回覆",

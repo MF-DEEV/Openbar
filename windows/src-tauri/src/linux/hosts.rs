@@ -225,6 +225,28 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
     }
 }
 
+/// Whether the session's tmux pane or kitty window is in front (#210). A
+/// pane of tmux is when tmux shows it and the terminal of its client shows
+/// that client, in kitty or WezTerm, which can say so. Any other terminal
+/// (GNOME Terminal, Konsole …) hides its tabs from outside: None.
+pub fn shown(pid: u32, located: &Located) -> Option<bool> {
+    match &located.host {
+        Host::Kitty { window, listen } => kitty::focused(listen, *window, pid),
+        Host::Tmux { socket, pane } => {
+            let client = match tmux::shown(socket, pane, process::terminal_of(pid).as_deref())? {
+                Ok(client) => client,
+                Err(()) => return Some(false),
+            };
+            let outer = locate(client)?;
+            match &outer.host {
+                Host::Kitty { .. } | Host::Wezterm { .. } => crate::hosts::shown(client, &outer),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

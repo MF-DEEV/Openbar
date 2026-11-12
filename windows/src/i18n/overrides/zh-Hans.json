@@ -738,7 +738,7 @@
   "windows.settings.sessions.remotePlaceholder": "~/.ssh/config 中的别名",
   "windows.settings.sessions.remoteInvalid": "请使用 ssh 配置中某个 Host 的别名。",
   "windows.settings.sessions.waitingSound": "会话等待时的提示音",
-  "windows.settings.sessions.waitingSoundCaption": "当会话请求权限、提出问题或等待你批准计划时，播放一段简短的提示音。只是结束一轮，或小岛已经显示该会话时，不会响。",
+  "windows.settings.sessions.waitingSoundCaption": "当会话请求权限、提出问题或等待你批准计划时，播放一段简短的提示音。只是结束一轮、小岛已经显示该会话，或该会话自己的终端标签页在最前面时，不会响。",
   "windows.settings.sessions.waitingSoundChoice": "声音",
   "windows.settings.sessions.waitingSoundChime": "Openbar 提示音",
   "windows.notifications.reply": "回复",

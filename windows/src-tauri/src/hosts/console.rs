@@ -18,8 +18,8 @@ use windows::Win32::Storage::FileSystem::{
     CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING,
 };
 use windows::Win32::System::Console::{
-    AttachConsole, FreeConsole, GetConsoleWindow, INPUT_RECORD, INPUT_RECORD_0, KEY_EVENT,
-    KEY_EVENT_RECORD, KEY_EVENT_RECORD_0, WriteConsoleInputW,
+    AttachConsole, FreeConsole, GetConsoleTitleW, GetConsoleWindow, INPUT_RECORD, INPUT_RECORD_0,
+    KEY_EVENT, KEY_EVENT_RECORD, KEY_EVENT_RECORD_0, WriteConsoleInputW,
 };
 use windows::Win32::UI::Input::KeyboardAndMouse::VK_RETURN;
 use windows::Win32::UI::WindowsAndMessaging::{
@@ -46,6 +46,8 @@ pub enum Action {
     },
     /// Prints the window that shows the console.
     Window,
+    /// Prints that window, then the console's title on the next line (#210).
+    Tab,
 }
 
 /// Runs the helper for claude process `pid` and returns what it printed.
@@ -64,7 +66,7 @@ pub fn run_helper(pid: u32, action: Action) -> Result<String, String> {
     }
     let images = match &action {
         Action::Type { images, .. } => images.len(),
-        Action::Window => 0,
+        Action::Window | Action::Tab => 0,
     };
     let deadline = Instant::now() + Duration::from_secs_f64(6.0 + 1.5 * images as f64);
     loop {
@@ -110,13 +112,15 @@ fn helper(pid: u32, action: Action) -> windows::core::Result<String> {
         let _ = FreeConsole();
         AttachConsole(pid)?;
         let result = match action {
-            Action::Window => {
-                let console = GetConsoleWindow();
-                // Under Windows Terminal the console's window is a hidden
-                // pseudo-window owned by the terminal's own window.
-                let root = GetAncestor(console, GA_ROOTOWNER);
-                let window = if root.0.is_null() { console } else { root };
-                Ok((window.0 as isize).to_string())
+            Action::Window => Ok((console_window().0 as isize).to_string()),
+            Action::Tab => {
+                let mut title = [0u16; 1024];
+                let len = GetConsoleTitleW(&mut title) as usize;
+                Ok(format!(
+                    "{}\n{}",
+                    console_window().0 as isize,
+                    String::from_utf16_lossy(&title[..len.min(title.len())])
+                ))
             }
             Action::Type {
                 text,
@@ -131,6 +135,92 @@ fn helper(pid: u32, action: Action) -> windows::core::Result<String> {
         };
         let _ = FreeConsole();
         result
+    }
+}
+
+/// The window that shows the attached console. Under Windows Terminal the
+/// console's window is a hidden pseudo-window owned by the terminal's own.
+unsafe fn console_window() -> HWND {
+    unsafe {
+        let console = GetConsoleWindow();
+        let root = GetAncestor(console, GA_ROOTOWNER);
+        if root.0.is_null() { console } else { root }
+    }
+}
+
+/// A window of process `pid` is the one in front, and not minimised.
+pub fn in_front(pid: u32) -> bool {
+    use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
+    unsafe {
+        let window = GetForegroundWindow();
+        if window.0.is_null() || IsIconic(window).as_bool() {
+            return false;
+        }
+        let mut owner = 0;
+        GetWindowThreadProcessId(window, Some(&mut owner));
+        owner == pid
+    }
+}
+
+/// Whether the session's own console is in front (#210): a console window
+/// of its own when it is the foreground window, a tab of Windows Terminal
+/// when its window is and the selected tab bears the console's title, and no
+/// other tab does. Windows Terminal is told by its window, not by the
+/// processes: as the default terminal it takes over a console started from
+/// Explorer without being its parent. None when it can't tell.
+pub fn shown(pid: u32) -> Option<bool> {
+    use windows::Win32::UI::WindowsAndMessaging::{GetClassNameW, GetForegroundWindow};
+    let out = run_helper(pid, Action::Tab).ok()?;
+    let (window, title) = out.split_once('\n')?;
+    let window = HWND(window.trim().parse::<isize>().ok()? as _);
+    if window.0.is_null() {
+        return None;
+    }
+    let mut class = [0u16; 128];
+    let len = unsafe { GetClassNameW(window, &mut class) }.max(0) as usize;
+    let class = String::from_utf16_lossy(&class[..len]);
+    let front = unsafe { GetForegroundWindow() == window && !IsIconic(window).as_bool() };
+    match class.as_str() {
+        "ConsoleWindowClass" => Some(front),
+        "CASCADIA_HOSTING_WINDOW_CLASS" if !front => Some(false),
+        "CASCADIA_HOSTING_WINDOW_CLASS" => super::tab_shown(&terminal_tabs(window)?, title),
+        _ => None,
+    }
+}
+
+/// The tabs of a Windows Terminal window, as (name, selected), read through
+/// UI Automation.
+fn terminal_tabs(window: HWND) -> Option<Vec<(String, bool)>> {
+    use windows::Win32::System::Com::{CLSCTX_INPROC_SERVER, CoCreateInstance};
+    use windows::Win32::UI::Accessibility::{
+        CUIAutomation8, IUIAutomation, IUIAutomationSelectionItemPattern, TreeScope_Descendants,
+        UIA_ControlTypePropertyId, UIA_SelectionItemPatternId, UIA_TabItemControlTypeId,
+    };
+    let _apartment = crate::com::Apartment::mta().ok()?;
+    unsafe {
+        let automation: IUIAutomation =
+            CoCreateInstance(&CUIAutomation8, None, CLSCTX_INPROC_SERVER).ok()?;
+        let root = automation.ElementFromHandle(window).ok()?;
+        let condition = automation
+            .CreatePropertyCondition(
+                UIA_ControlTypePropertyId,
+                &UIA_TabItemControlTypeId.0.into(),
+            )
+            .ok()?;
+        let found = root.FindAll(TreeScope_Descendants, &condition).ok()?;
+        let mut tabs = Vec::new();
+        for index in 0..found.Length().ok()? {
+            let tab = found.GetElement(index).ok()?;
+            let name = tab.CurrentName().map(|n| n.to_string()).unwrap_or_default();
+            let selected = tab
+                .GetCurrentPatternAs::<IUIAutomationSelectionItemPattern>(
+                    UIA_SelectionItemPatternId,
+                )
+                .and_then(|pattern| pattern.CurrentIsSelected())
+                .is_ok_and(|selected| selected.as_bool());
+            tabs.push((name, selected));
+        }
+        Some(tabs)
     }
 }
 

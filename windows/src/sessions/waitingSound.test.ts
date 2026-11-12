@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Session } from "./types";
-import { inView, waitingRequests, WaitingSound } from "./waitingSound";
+import { inView, shouldPlay, waitingRequests, WaitingSound } from "./waitingSound";
 
 function session(id: string, phase: Session["phase"], extra: Partial<Session> = {}): Session {
   return { id, phase, phaseSince: 100, provider: "claude", ...extra } as Session;
@@ -83,5 +83,38 @@ describe("inView", () => {
     expect(inView(open, "b", "a")).toBe(false);
     expect(inView({ expanded: true, selected: "music" }, null, "a")).toBe(false);
     expect(inView({ expanded: false, selected: "sessions" }, null, "a")).toBe(false);
+  });
+});
+
+describe("shouldPlay (#210)", () => {
+  it("stays quiet when every unseen request's own terminal tab is in front", async () => {
+    const asked: string[][] = [];
+    const play = await shouldPlay(["a", "b"], async (ids) => {
+      asked.push(ids);
+      return true;
+    });
+    expect(play).toBe(false);
+    expect(asked).toEqual([["a", "b"]]);
+  });
+
+  it("plays when a terminal shows something else or can't tell", async () => {
+    expect(await shouldPlay(["a"], async () => false)).toBe(true);
+    // Outside the app, the bridge answers nothing.
+    expect(await shouldPlay(["a"], async () => undefined)).toBe(true);
+  });
+
+  it("plays when the terminals fail or are slow to answer", async () => {
+    expect(await shouldPlay(["a"], () => Promise.reject(new Error("gone")))).toBe(true);
+    expect(await shouldPlay(["a"], () => new Promise(() => {}), 10)).toBe(true);
+  });
+
+  it("asks nothing and plays nothing when the island shows every request (#167)", async () => {
+    let asked = false;
+    const play = await shouldPlay([], async () => {
+      asked = true;
+      return false;
+    });
+    expect(play).toBe(false);
+    expect(asked).toBe(false);
   });
 });

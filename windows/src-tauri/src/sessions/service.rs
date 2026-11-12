@@ -1232,6 +1232,24 @@ impl Service {
         thread::spawn(move || sync_agent_hooks(&hidden));
     }
 
+    /// Whether the session's own tab or pane is in front in its terminal
+    /// (#210). None for a session no local terminal shows, or one whose
+    /// terminal can't tell: Codex found by folder, remote and background ones.
+    fn terminal_shown(&self, session: &str) -> Option<bool> {
+        let (pid, located) = {
+            let inner = self.inner.lock().unwrap();
+            let found = inner.sessions.iter().find(|s| s.id == session)?;
+            if found.pid <= 1 {
+                return None;
+            }
+            (found.pid, inner.hosts.get(&found.pid).cloned()?)
+        };
+        if self.remote_target(session).is_some() || self.background_of(session).is_some() {
+            return None;
+        }
+        hosts::shown(pid as u32, &located)
+    }
+
     fn open(&self, session: &str) -> bool {
         if let Some((link, pid)) = self.remote_target(session) {
             // Its pane comes forward in the host's tmux; no window here shows it.
@@ -2356,6 +2374,26 @@ pub async fn sessions_reply(
     tauri::async_runtime::spawn_blocking(move || service.reply(&session_id, &text, &images))
         .await
         .map_err(|_| ())
+}
+
+/// Whether every one of these sessions shows in front in its own terminal
+/// tab or pane, so the waiting sound keeps quiet (#210). It asks the
+/// terminals, which takes a moment, so it runs off the main thread.
+#[tauri::command]
+pub async fn sessions_terminal_shown(
+    service: tauri::State<'_, Shared>,
+    session_ids: Vec<String>,
+) -> Result<bool, ()> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        // A burst of many requests at once is not worth asking every terminal for.
+        (1..=16).contains(&session_ids.len())
+            && session_ids
+                .iter()
+                .all(|id| service.terminal_shown(id) == Some(true))
+    })
+    .await
+    .map_err(|_| ())
 }
 
 #[tauri::command]

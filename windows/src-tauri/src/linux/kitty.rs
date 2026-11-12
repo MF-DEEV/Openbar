@@ -57,6 +57,40 @@ fn pids(json: &str, window: u32) -> Vec<u64> {
     found
 }
 
+/// Whether kitty says the window has focus: its OS window, its tab and the
+/// window itself (#210). None when kitty doesn't list it with `pid` in it.
+pub fn focused(listen: &str, window: u32, pid: u32) -> Option<bool> {
+    focused_with("kitten", listen, window, pid)
+}
+
+pub(super) fn focused_with(program: &str, listen: &str, window: u32, pid: u32) -> Option<bool> {
+    let json = kitten(program, listen, &["ls"], None)?;
+    if !pids(&json, window).contains(&u64::from(pid)) {
+        return None;
+    }
+    is_focused(&json, window)
+}
+
+fn is_focused(json: &str, window: u32) -> Option<bool> {
+    let serde_json::Value::Array(instances) = serde_json::from_str(json).ok()? else {
+        return None;
+    };
+    for instance in &instances {
+        for tab in instance["tabs"].as_array().into_iter().flatten() {
+            for entry in tab["windows"].as_array().into_iter().flatten() {
+                if entry["id"].as_u64() == Some(u64::from(window)) {
+                    return Some(
+                        instance["is_focused"].as_bool() == Some(true)
+                            && tab["is_focused"].as_bool() == Some(true)
+                            && entry["is_focused"].as_bool() == Some(true),
+                    );
+                }
+            }
+        }
+    }
+    None
+}
+
 /// Types the reply into the window. Err when kitty or the window is gone, or the window does not list `pid`.
 pub fn send(listen: &str, window: u32, pid: u32, text: &str, images: &[String]) -> Result<(), ()> {
     send_with("kitten", listen, window, pid, text, images)
@@ -134,6 +168,20 @@ mod tests {
             .replace("LISTING", LISTING);
         let program = super::super::command::fake_program(&dir, "kitten", &body);
         (dir, program)
+    }
+
+    #[test]
+    fn a_window_has_focus_only_in_the_focused_tab_of_the_focused_os_window() {
+        let json = r#"[{"is_focused":true,"tabs":[
+            {"is_focused":true,"windows":[{"id":1,"is_focused":true},{"id":2,"is_focused":false}]},
+            {"is_focused":false,"windows":[{"id":3,"is_focused":false}]}]},
+          {"is_focused":false,"tabs":[{"is_focused":true,"windows":[{"id":4,"is_focused":true}]}]}]"#;
+        assert_eq!(is_focused(json, 1), Some(true));
+        assert_eq!(is_focused(json, 2), Some(false));
+        assert_eq!(is_focused(json, 3), Some(false));
+        assert_eq!(is_focused(json, 4), Some(false));
+        assert_eq!(is_focused(json, 9), None);
+        assert_eq!(is_focused("nope", 1), None);
     }
 
     #[test]
