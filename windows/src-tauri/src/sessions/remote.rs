@@ -181,6 +181,8 @@ pub struct HostInfo {
     pub tmux: bool,
     pub claude: bool,
     pub hooks_installed: bool,
+    /// Where Codex's app-server socket is on the host, there or not yet.
+    pub codex_socket: Option<String>,
 }
 
 pub fn probe(lines: &[String]) -> Option<HostInfo> {
@@ -201,6 +203,7 @@ pub fn probe(lines: &[String]) -> Option<HostInfo> {
                     _ => None,
                 };
             }
+            ["X", path] => info.codex_socket = decode(path).filter(|p| p.starts_with('/')),
             ["M", yes] => info.tmux = *yes == "yes",
             ["A", yes] => info.claude = *yes == "yes",
             ["I", yes] => info.hooks_installed = *yes == "yes",
@@ -229,6 +232,8 @@ pub struct Snapshot {
     pub transcripts: HashMap<String, String>,
     pub chunks: Vec<Chunk>,
     pub gone: Vec<String>,
+    /// Codex's app-server socket is on the host: its daemon runs.
+    pub codex_live: bool,
 }
 
 /// A record from the host, which checked its process itself: Linux and
@@ -301,6 +306,7 @@ pub fn snapshot(lines: &[String], alias: &str) -> Snapshot {
                 }
             }
             ["N", millis] => out.host_time = millis.parse::<f64>().ok().map(|m| m / 1000.0),
+            ["X", yes] => out.codex_live = *yes == "yes",
             _ => {}
         }
     }
@@ -671,6 +677,104 @@ pub fn one_shot(alias: &str, mode: &str, input: &[String]) -> Result<Vec<String>
     }
 }
 
+// MARK: Codex on the host
+
+/// Standard input and output of an `ssh` running the script's `codex` mode,
+/// which joins them to Codex's app-server socket on the host (issue #200).
+/// Windows' OpenSSH can't forward to a local Unix socket, and a loopback
+/// port would take any local process's connection, so the island talks to
+/// the host's Codex through this pipe instead. Reads time out like the
+/// local socket's, so the client sends between them.
+pub struct CodexPipe {
+    child: Child,
+    stdin: ChildStdin,
+    chunks: std::sync::mpsc::Receiver<Vec<u8>>,
+    pending: Vec<u8>,
+}
+
+impl CodexPipe {
+    pub fn open(alias: &str) -> Result<CodexPipe, String> {
+        let mut command = Command::new(ssh_binary());
+        command
+            .args(one_shot_args(alias))
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .env("SSH_ASKPASS_REQUIRE", "never");
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            command.creation_flags(0x0800_0000);
+        }
+        let mut child = command.spawn().map_err(|e| e.to_string())?;
+        let (Some(mut stdin), Some(mut stdout)) = (child.stdin.take(), child.stdout.take()) else {
+            let _ = child.kill();
+            return Err("ssh has no pipes".into());
+        };
+        let (feed, chunks) = std::sync::mpsc::channel();
+        thread::Builder::new()
+            .name("remote-codex-out".into())
+            .spawn(move || {
+                let mut buffer = [0u8; 64 * 1024];
+                while let Ok(n) = stdout.read(&mut buffer) {
+                    if n == 0 || feed.send(buffer[..n].to_vec()).is_err() {
+                        break;
+                    }
+                }
+            })
+            .map_err(|e| e.to_string())?;
+        if stdin
+            .write_all(preamble("codex").as_bytes())
+            .and_then(|_| stdin.flush())
+            .is_err()
+        {
+            let _ = child.kill();
+            return Err("ssh ended".into());
+        }
+        Ok(CodexPipe {
+            child,
+            stdin,
+            chunks,
+            pending: Vec::new(),
+        })
+    }
+}
+
+impl Read for CodexPipe {
+    fn read(&mut self, out: &mut [u8]) -> std::io::Result<usize> {
+        if self.pending.is_empty() {
+            match self.chunks.recv_timeout(Duration::from_millis(100)) {
+                Ok(chunk) => self.pending = chunk,
+                Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {
+                    return Err(std::io::ErrorKind::WouldBlock.into());
+                }
+                Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => return Ok(0),
+            }
+        }
+        let n = out.len().min(self.pending.len());
+        out[..n].copy_from_slice(&self.pending[..n]);
+        self.pending.drain(..n);
+        Ok(n)
+    }
+}
+
+impl Write for CodexPipe {
+    fn write(&mut self, data: &[u8]) -> std::io::Result<usize> {
+        self.stdin.write(data)
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        self.stdin.flush()
+    }
+}
+
+impl Drop for CodexPipe {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
 // MARK: The connection
 
 #[derive(Clone, Debug, PartialEq, Serialize)]
@@ -703,6 +807,8 @@ pub struct Link {
     pub state: Mutex<State>,
     pub info: Mutex<Option<HostInfo>>,
     offsets: Mutex<HashMap<String, u64>>,
+    /// The last look found Codex's daemon on the host.
+    codex_live: Mutex<bool>,
 }
 
 impl Link {
@@ -726,6 +832,7 @@ impl Link {
             state: Mutex::new(State::Connecting),
             info: Mutex::new(None),
             offsets: Mutex::new(HashMap::new()),
+            codex_live: Mutex::new(false),
         });
         let worker = link.clone();
         let _ = thread::Builder::new()
@@ -743,6 +850,19 @@ impl Link {
 
     fn stopped(&self) -> bool {
         *self.stopped.lock().unwrap()
+    }
+
+    /// Whether the host's Codex can be joined now: connected, the last look
+    /// found its daemon, and the host has a program to bridge to its socket.
+    pub fn codex_ready(&self) -> bool {
+        self.ssh.lock().unwrap().is_some()
+            && *self.codex_live.lock().unwrap()
+            && self
+                .info
+                .lock()
+                .unwrap()
+                .as_ref()
+                .is_some_and(|i| i.client.is_some() && i.codex_socket.is_some())
     }
 
     /// The ssh behind the forwarded socket, to tell this host's hooks apart.
@@ -791,6 +911,7 @@ impl Link {
             if let Some(ssh) = self.ssh.lock().unwrap().take() {
                 ssh.stop();
             }
+            *self.codex_live.lock().unwrap() = false;
             if self.stopped() {
                 break;
             }
@@ -862,6 +983,7 @@ impl Link {
                     offsets.entry(path.clone()).or_insert(0);
                 }
             }
+            *self.codex_live.lock().unwrap() = snap.codex_live;
             on_snapshot(&self.alias, snap);
             thread::sleep(Duration::from_millis(1500));
         }
@@ -1365,6 +1487,88 @@ mod tests {
     }
 
     #[cfg(unix)]
+    #[test]
+    fn the_probe_and_each_look_say_where_codex_is() {
+        let socket = "/home/dev/.codex/app-server-control/app-server-control.sock";
+        let info = probe(&[
+            format!("H {}", b64("/home/dev")),
+            format!("X {}", b64(socket)),
+        ])
+        .unwrap();
+        assert_eq!(info.codex_socket.as_deref(), Some(socket));
+        let relative = probe(&[
+            format!("H {}", b64("/home/dev")),
+            format!("X {}", b64("rel")),
+        ])
+        .unwrap();
+        assert_eq!(relative.codex_socket, None);
+        assert!(snapshot(&["X yes".into()], "box").codex_live);
+        assert!(!snapshot(&["X no".into()], "box").codex_live);
+        assert!(!snapshot(&[], "box").codex_live);
+    }
+
+    /// The host script's Codex parts, run by this machine's sh.
+    #[cfg(unix)]
+    #[test]
+    fn the_script_finds_codex_and_bridges_to_it() {
+        use std::io::BufRead;
+        let home =
+            std::env::temp_dir().join(format!("openbar-remote-codex-rs-{}", std::process::id()));
+        // A socket's path must be short: CODEX_HOME goes under /tmp.
+        let codex = std::path::PathBuf::from(format!("/tmp/obcx-rs-{}", std::process::id()));
+        std::fs::create_dir_all(&home).unwrap();
+        std::fs::create_dir_all(codex.join("app-server-control")).unwrap();
+        let run = |mode: &str, input: &[u8]| -> Vec<String> {
+            let mut child = Command::new("/bin/sh")
+                .args([
+                    "-c",
+                    r#"IFS= read -r s; eval "$(printf %s "$s" | base64 -d)""#,
+                ])
+                .env("HOME", &home)
+                .env("CODEX_HOME", &codex)
+                .env("PATH", "/usr/bin:/bin:/usr/sbin:/sbin")
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::null())
+                .spawn()
+                .unwrap();
+            let mut stdin = child.stdin.take().unwrap();
+            stdin.write_all(preamble(mode).as_bytes()).unwrap();
+            stdin.write_all(input).unwrap();
+            drop(stdin);
+            let out = child.wait_with_output().unwrap();
+            String::from_utf8_lossy(&out.stdout)
+                .lines()
+                .map(String::from)
+                .collect()
+        };
+        let path = codex.join("app-server-control/app-server-control.sock");
+        let info = probe(&run("probe x.sock com.openbar.island", b"")).unwrap();
+        assert_eq!(info.codex_socket.as_deref(), path.to_str());
+        assert_eq!(
+            run("codex", b""),
+            ["E codex", "."],
+            "no daemon: nothing to join"
+        );
+        assert!(run("agent", b"snap\nend\n").contains(&"X no".to_string()));
+        let listener = std::os::unix::net::UnixListener::bind(&path).unwrap();
+        assert!(run("agent", b"snap\nend\n").contains(&"X yes".to_string()));
+        // The bridge carries a line there and the answer back.
+        let echo = thread::spawn(move || {
+            let (stream, _) = listener.accept().unwrap();
+            let mut line = String::new();
+            BufReader::new(&stream).read_line(&mut line).unwrap();
+            (&stream)
+                .write_all(format!("echo {line}").as_bytes())
+                .unwrap();
+        });
+        let answer = run("codex", b"hello\n");
+        echo.join().unwrap();
+        assert_eq!(answer, ["echo hello"]);
+        let _ = std::fs::remove_dir_all(&home);
+        let _ = std::fs::remove_dir_all(&codex);
+    }
+
     #[test]
     fn the_script_runs_under_sh() {
         let home = std::env::temp_dir().join(format!("openbar-remote-rs-{}", std::process::id()));

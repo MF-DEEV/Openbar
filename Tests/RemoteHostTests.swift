@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import Darwin
 import Foundation
 
 /// Remote hosts over SSH (issue #189): the pure parts, and the host script
@@ -32,6 +33,28 @@ enum RemoteHostTests {
                      "the alias comes after --, and the host only runs the loader")
         suite.expect(!RemoteSSH.loader.contains("\\") && RemoteSSH.loader.hasPrefix("exec sh -c '"),
                      "the loader reads the same in fish, zsh, bash and sh")
+        suite.expect(!args.contains("-L") && !args.contains("StreamLocalBindUnlink=yes"), "no Codex forward unless asked")
+        let codex = RemoteSSH.link("box", remoteSocket: "/home/dev/.openbar/a.sock", localSocket: "/tmp/i.sock",
+                                   codex: ("/Users/me/.openbar/codex-1.sock", "/home/dev/.codex/app-server-control/app-server-control.sock"))
+        let forward = codex.firstIndex(of: "-L") ?? -1
+        suite.expect(forward > 0 && forward < (codex.firstIndex(of: "--") ?? 0)
+                     && codex[forward + 1] == "/Users/me/.openbar/codex-1.sock:/home/dev/.codex/app-server-control/app-server-control.sock"
+                     && codex.contains("StreamLocalBindUnlink=yes") && codex.contains("/home/dev/.openbar/a.sock:/tmp/i.sock"),
+                     "Codex's socket comes the other way on the same connection, over a socket left from the last one")
+        let home = URL(fileURLWithPath: "/Users/me", isDirectory: true)
+        let local = RemoteSSH.codexSocket(alias: "box", bundle: bundle, home: home)
+        suite.expect(local.hasPrefix("/Users/me/.openbar/codex-") && local.hasSuffix(".sock") && ClaudeHookServer.fits(local)
+                     && local == RemoteSSH.codexSocket(alias: "box", bundle: bundle, home: home)
+                     && local != RemoteSSH.codexSocket(alias: "other", bundle: bundle, home: home)
+                     && local != RemoteSSH.codexSocket(alias: "box", bundle: "com.openbar.app", home: home)
+                     && local != RemoteSSH.codexSocket(alias: String(repeating: "a", count: 255), bundle: bundle, home: home)
+                     && ClaudeHookServer.fits(RemoteSSH.codexSocket(alias: String(repeating: "a", count: 255), bundle: bundle, home: home)),
+                     "each host and build has its own short socket in the app's folder")
+        suite.expect(RemoteSSH.canForward(local: local, remote: "/home/dev/.codex/app-server-control/app-server-control.sock")
+                     && !RemoteSSH.canForward(local: local, remote: "/home/a:b/.codex/s.sock")
+                     && !RemoteSSH.canForward(local: local, remote: "relative/s.sock")
+                     && !RemoteSSH.canForward(local: "/" + String(repeating: "x", count: 120), remote: "/s.sock"),
+                     "a path ssh would split, a relative one, or one too long for a socket isn't forwarded")
         suite.expect(RemoteSSH.socketName(bundle: bundle) == "com.openbar.app.dev.sock"
                      && RemoteSSH.socketName(bundle: "a/../b c") == "a..bc.sock", "the socket name has no path in it")
         suite.expect(RemoteBackoff.delay(attempt: 1) == 2 && RemoteBackoff.delay(attempt: 3) == 8
@@ -68,6 +91,12 @@ enum RemoteHostTests {
         let info = RemoteAnswer.probe(["H \(b64("/home/dev"))", "U Linux", "C nc \(b64("/usr/bin/nc"))", "M yes", "A yes", "I no"])
         suite.expect(info == RemoteHostInfo(home: "/home/dev", system: "Linux", client: .nc("/usr/bin/nc"), tmux: true,
                                             claude: true, hooksInstalled: false), "the probe says what the host has")
+        let codexSocket = "/home/dev/.codex/app-server-control/app-server-control.sock"
+        suite.expect(RemoteAnswer.probe(["H \(b64("/home/dev"))", "X \(b64(codexSocket))"])?.codexSocket == codexSocket
+                     && RemoteAnswer.probe(["H \(b64("/home/dev"))", "X \(b64("rel"))"])?.codexSocket == nil
+                     && info?.codexSocket == nil, "the probe says where Codex's socket is, when it's a full path")
+        suite.expect(RemoteAnswer.snapshot(["X yes"], alias: "box").codexLive && !RemoteAnswer.snapshot(["X no"], alias: "box").codexLive
+                     && !RemoteAnswer.snapshot([], alias: "box").codexLive, "each look says whether Codex's daemon runs")
         suite.expect(RemoteAnswer.probe(["H \(b64("/home/dev"))", "C none", "M no"])?.client == nil,
                      "a host with no client still connects, without hooks")
         suite.expect(RemoteAnswer.probe(["E name"]) == nil && RemoteAnswer.probe(["U Linux"]) == nil,
@@ -198,12 +227,12 @@ enum RemoteHostTests {
     // MARK: The script itself
 
     /// Runs one mode of the script with `sh`, as the loader on a host would.
-    static func runScript(_ mode: String, input: [String] = [], home: URL) -> [String]? {
+    static func runScript(_ mode: String, input: [String] = [], home: URL, environment: [String: String] = [:]) -> [String]? {
         guard let preamble = RemoteSSH.preamble(mode) else { return nil }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = ["-c", #"IFS= read -r s; eval "$(printf %s "$s" | base64 -d)""#]
-        process.environment = ["HOME": home.path, "PATH": "/usr/bin:/bin:/usr/sbin:/sbin"]
+        process.environment = ["HOME": home.path, "PATH": "/usr/bin:/bin:/usr/sbin:/sbin"].merging(environment) { _, new in new }
         let feed = Pipe()
         let output = Pipe()
         process.standardInput = feed
@@ -233,6 +262,30 @@ enum RemoteHostTests {
         suite.expect(!manager.fileExists(atPath: home.appending(path: ".openbar/x.sock").path),
                      "a socket left from the last connection is cleared before the next one")
         suite.expect(runScript("probe ../x.sock \(bundle)", home: home)?.first == "E name", "a socket name can't leave ~/.openbar")
+        suite.expect(info?.codexSocket == home.path + "/.codex/app-server-control/app-server-control.sock",
+                     "without CODEX_HOME, Codex's socket is in ~/.codex")
+        suite.expect(runScript("codex", home: home) == ["E codex", "."], "no daemon on the host: nothing to join, and it says so")
+        // A live socket where CODEX_HOME says, short enough for a socket's path.
+        var template = Array("/tmp/obrc.XXXXXX".utf8CString)
+        guard let made = mkdtemp(&template) else { return suite.expect(false, "a short CODEX_HOME") }
+        let codexHome = URL(fileURLWithPath: String(cString: made), isDirectory: true)
+        defer { try? manager.removeItem(at: codexHome) }
+        let codexEnv = ["CODEX_HOME": codexHome.path]
+        suite.expect(RemoteAnswer.probe((runScript("probe x.sock \(bundle)", home: home, environment: codexEnv) ?? []).dropLast())?
+                     .codexSocket == codexHome.path + "/app-server-control/app-server-control.sock", "CODEX_HOME moves it")
+        let control = codexHome.appending(path: "app-server-control")
+        try? manager.createDirectory(at: control, withIntermediateDirectories: true)
+        let listener = socket(AF_UNIX, SOCK_STREAM, 0)
+        var address = CodexSocket.address(control.appending(path: "app-server-control.sock").path)
+        let bound = withUnsafePointer(to: &address) {
+            $0.withMemoryRebound(to: sockaddr.self, capacity: 1) { bind(listener, $0, socklen_t(MemoryLayout<sockaddr_un>.size)) }
+        }
+        defer { close(listener) }
+        let live = runScript("agent", input: ["snap", "end"], home: home, environment: codexEnv) ?? []
+        suite.expect(bound == 0 && live.contains("X yes"), "a look says when Codex's daemon is there")
+        try? manager.removeItem(at: control.appending(path: "app-server-control.sock"))
+        suite.expect((runScript("agent", input: ["snap", "end"], home: home, environment: codexEnv) ?? []).contains("X no"),
+                     "and when it's gone")
 
         // Setup then removal leave the file byte for byte as it was.
         let settings = home.appending(path: ".claude/settings.json")

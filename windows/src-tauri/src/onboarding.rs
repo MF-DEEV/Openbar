@@ -86,7 +86,10 @@ mod tests {
     fn opens_only_on_a_clean_install() {
         assert!(due(false, false));
         assert!(!due(true, false));
-        assert!(!due(false, true), "an update keeps the person's settings and skips the tour");
+        assert!(
+            !due(false, true),
+            "an update keeps the person's settings and skips the tour"
+        );
         assert!(!due(true, true));
     }
 }
