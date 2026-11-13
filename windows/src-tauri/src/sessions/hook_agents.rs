@@ -743,9 +743,8 @@ pub fn is_devin_payload(data: &[u8]) -> bool {
     if !contains(data, b"\"prompt_id\"") {
         return false;
     }
-    serde_json::from_slice::<Value>(data).is_ok_and(|json| {
-        json.get("prompt_id").is_some() && json.get("transcript_path").is_none()
-    })
+    serde_json::from_slice::<Value>(data)
+        .is_ok_and(|json| json.get("prompt_id").is_some() && json.get("transcript_path").is_none())
 }
 
 pub fn is_devin_process(name: &str) -> bool {
@@ -759,15 +758,16 @@ pub fn is_devin_process(name: &str) -> bool {
 /// history ends on the latest messages (AgentVibeLog in AgentHookSupport.swift).
 pub fn vibe_last_reply(folder: &Path) -> Option<String> {
     const CHUNK_LIMIT: u64 = 4 * 1024 * 1024;
-    let mut files: Vec<(std::time::SystemTime, PathBuf, u64)> = std::fs::read_dir(folder.join("chunks"))
-        .ok()?
-        .filter_map(Result::ok)
-        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
-        .filter_map(|e| {
-            let meta = e.metadata().ok()?;
-            Some((meta.modified().ok()?, e.path(), meta.len()))
-        })
-        .collect();
+    let mut files: Vec<(std::time::SystemTime, PathBuf, u64)> =
+        std::fs::read_dir(folder.join("chunks"))
+            .ok()?
+            .filter_map(Result::ok)
+            .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+            .filter_map(|e| {
+                let meta = e.metadata().ok()?;
+                Some((meta.modified().ok()?, e.path(), meta.len()))
+            })
+            .collect();
     files.sort_by_key(|a| std::cmp::Reverse(a.0));
     files
         .into_iter()
@@ -1990,7 +1990,8 @@ pub mod installer {
             use windows::core::PCWSTR;
             let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
             let mut buffer = vec![0u16; 1024];
-            let length = unsafe { GetShortPathNameW(PCWSTR(wide.as_ptr()), Some(&mut buffer)) } as usize;
+            let length =
+                unsafe { GetShortPathNameW(PCWSTR(wide.as_ptr()), Some(&mut buffer)) } as usize;
             if length > 0 && length < buffer.len() {
                 return PathBuf::from(std::ffi::OsString::from_wide(&buffer[..length]));
             }
@@ -2043,7 +2044,10 @@ pub mod installer {
     /// The lines that open and close the island's entries are TOML comments;
     /// on Windows the marker is the hook's arguments, so `#` starts them.
     pub fn vibe_start(app: &str) -> String {
-        format!("# {} start: added by the island, removed by it", claude::marker(app))
+        format!(
+            "# {} start: added by the island, removed by it",
+            claude::marker(app)
+        )
     }
 
     pub fn vibe_end(app: &str) -> String {
@@ -2056,7 +2060,10 @@ pub mod installer {
         let mut lines = vec![vibe_start(app)];
         for event in VIBE_EVENTS {
             lines.push("[[hooks]]".into());
-            lines.push(format!("name = {}", toml_string(&format!("{}-{event}", own_name(app)))));
+            lines.push(format!(
+                "name = {}",
+                toml_string(&format!("{}-{event}", own_name(app)))
+            ));
             lines.push(format!("type = {}", toml_string(event)));
             lines.push(format!(
                 "command = {}",
@@ -2110,7 +2117,11 @@ pub mod installer {
         while result.ends_with("\n\n") {
             result.pop();
         }
-        Some(if result.trim().is_empty() { String::new() } else { result })
+        Some(if result.trim().is_empty() {
+            String::new()
+        } else {
+            result
+        })
     }
 
     /// The file with the island's entries at its end, after the person's own.
@@ -2965,8 +2976,14 @@ mod tests {
             feed(tracker, &envelope("pi", "", event), ON);
         };
         send(&mut tracker, json!({ "kind": "created" }));
-        send(&mut tracker, json!({ "kind": "model", "model": "claude-sonnet-4-5" }));
-        send(&mut tracker, json!({ "kind": "prompt", "text": "list the files" }));
+        send(
+            &mut tracker,
+            json!({ "kind": "model", "model": "claude-sonnet-4-5" }),
+        );
+        send(
+            &mut tracker,
+            json!({ "kind": "prompt", "text": "list the files" }),
+        );
         send(&mut tracker, json!({ "kind": "status", "status": "busy" }));
         send(
             &mut tracker,
@@ -2978,8 +2995,14 @@ mod tests {
         assert_eq!(listed[0].id, "pi:p1");
         assert_eq!(listed[0].phase, SessionPhase::RunningTool);
         assert_eq!(listed[0].model.as_deref(), Some("claude-sonnet-4-5"));
-        send(&mut tracker, json!({ "kind": "tool", "call": "c1", "tool": "bash", "status": "completed" }));
-        send(&mut tracker, json!({ "kind": "reply", "text": "Here they are." }));
+        send(
+            &mut tracker,
+            json!({ "kind": "tool", "call": "c1", "tool": "bash", "status": "completed" }),
+        );
+        send(
+            &mut tracker,
+            json!({ "kind": "reply", "text": "Here they are." }),
+        );
         send(&mut tracker, json!({ "kind": "question" }));
         let (listed, _) = snap(&mut tracker, NOW, true);
         assert_eq!(listed[0].phase, SessionPhase::WaitingInput);
@@ -2990,11 +3013,22 @@ mod tests {
         assert_eq!(listed[0].phase, SessionPhase::Finished);
         assert_eq!(listed[0].last_text.as_deref(), Some("Here they are."));
         // Pi asks no permission of its own; only OpenCode's plugin waits on one.
-        send(&mut tracker, json!({ "kind": "permission", "id": "x", "permission": "bash" }));
+        send(
+            &mut tracker,
+            json!({ "kind": "permission", "id": "x", "permission": "bash" }),
+        );
         assert!(snap(&mut tracker, NOW, true).0[0].permission.is_none());
         assert!(waits(&envelope("pi", "", json!({ "kind": "listen" }))));
-        assert!(!waits(&envelope("pi", "", json!({ "kind": "permission", "session": "p1", "id": "x" }))));
-        assert!(decode(&envelope("pi", "", json!({ "kind": "listen" })), NOW, ON).unwrap().listens);
+        assert!(!waits(&envelope(
+            "pi",
+            "",
+            json!({ "kind": "permission", "session": "p1", "id": "x" })
+        )));
+        assert!(
+            decode(&envelope("pi", "", json!({ "kind": "listen" })), NOW, ON)
+                .unwrap()
+                .listens
+        );
         assert!(Provider::Pi.reports_through_plugin() && !Provider::Pi.answers_permissions());
         send(&mut tracker, json!({ "kind": "deleted" }));
         assert!(snap(&mut tracker, NOW, true).0.is_empty());
@@ -3011,8 +3045,16 @@ mod tests {
             }
             feed(tracker, &envelope("vibe", hook, event), ON);
         };
-        send(&mut tracker, "session_start", json!({ "model": "mistral-medium-3.5" }));
-        send(&mut tracker, "pre_agent", json!({ "prompt": "fix the tests" }));
+        send(
+            &mut tracker,
+            "session_start",
+            json!({ "model": "mistral-medium-3.5" }),
+        );
+        send(
+            &mut tracker,
+            "pre_agent",
+            json!({ "prompt": "fix the tests" }),
+        );
         send(
             &mut tracker,
             "pre_tool",
@@ -3052,10 +3094,21 @@ mod tests {
             ON,
         );
         assert_eq!(snap(&mut tracker, NOW, true).0.len(), 1);
-        send(&mut tracker, "notification", json!({ "notification_type": "turn_completed" }));
-        assert_eq!(snap(&mut tracker, NOW, true).0[0].phase, SessionPhase::Finished);
+        send(
+            &mut tracker,
+            "notification",
+            json!({ "notification_type": "turn_completed" }),
+        );
+        assert_eq!(
+            snap(&mut tracker, NOW, true).0[0].phase,
+            SessionPhase::Finished
+        );
         let decoded = decode(
-            &envelope("vibe", "notification", json!({ "session_id": "v1", "transcript_path": "C:/x" })),
+            &envelope(
+                "vibe",
+                "notification",
+                json!({ "session_id": "v1", "transcript_path": "C:/x" }),
+            ),
             NOW,
             ON,
         )
@@ -3069,19 +3122,32 @@ mod tests {
     fn a_devin_session_is_told_by_its_hooks_and_its_claude_hooks_are_not() {
         let mut tracker = Tracker::default();
         let send = |tracker: &mut Tracker, hook: &str, fields: Value| {
-            let mut event = json!({ "session_id": "d1", "prompt_id": "t1", "hook_event_name": hook });
+            let mut event =
+                json!({ "session_id": "d1", "prompt_id": "t1", "hook_event_name": hook });
             for (k, v) in fields.as_object().unwrap() {
                 event[k] = v.clone();
             }
             feed(tracker, &envelope("devin", hook, event), ON);
         };
         send(&mut tracker, "SessionStart", json!({ "source": "startup" }));
-        send(&mut tracker, "UserPromptSubmit", json!({ "prompt": "add a test" }));
-        send(&mut tracker, "PreToolUse", json!({ "tool_name": "exec", "tool_input": { "command": "cargo test" } }));
+        send(
+            &mut tracker,
+            "UserPromptSubmit",
+            json!({ "prompt": "add a test" }),
+        );
+        send(
+            &mut tracker,
+            "PreToolUse",
+            json!({ "tool_name": "exec", "tool_input": { "command": "cargo test" } }),
+        );
         let (listed, _) = snap(&mut tracker, NOW, true);
         assert_eq!(listed[0].provider, Provider::Devin);
         assert_eq!(listed[0].current_tool.as_ref().unwrap().name, "Bash");
-        send(&mut tracker, "PermissionRequest", json!({ "tool_name": "exec", "tool_input": { "command": "git push" } }));
+        send(
+            &mut tracker,
+            "PermissionRequest",
+            json!({ "tool_name": "exec", "tool_input": { "command": "git push" } }),
+        );
         let (listed, _) = snap(&mut tracker, NOW, true);
         assert_eq!(listed[0].phase, SessionPhase::WaitingPermission);
         assert!(listed[0].permission.is_none());
@@ -3093,20 +3159,48 @@ mod tests {
         let (listed, _) = snap(&mut tracker, NOW, true);
         assert_eq!(listed[0].phase, SessionPhase::Generating);
         assert!(listed[0].timeline[0].failed);
-        send(&mut tracker, "PreToolUse", json!({ "tool_name": "ask_user_question", "tool_input": {} }));
-        assert_eq!(snap(&mut tracker, NOW, true).0[0].phase, SessionPhase::WaitingInput);
-        send(&mut tracker, "PostToolUse", json!({ "tool_name": "ask_user_question", "tool_input": {} }));
-        assert_eq!(snap(&mut tracker, NOW, true).0[0].phase, SessionPhase::Generating);
+        send(
+            &mut tracker,
+            "PreToolUse",
+            json!({ "tool_name": "ask_user_question", "tool_input": {} }),
+        );
+        assert_eq!(
+            snap(&mut tracker, NOW, true).0[0].phase,
+            SessionPhase::WaitingInput
+        );
+        send(
+            &mut tracker,
+            "PostToolUse",
+            json!({ "tool_name": "ask_user_question", "tool_input": {} }),
+        );
+        assert_eq!(
+            snap(&mut tracker, NOW, true).0[0].phase,
+            SessionPhase::Generating
+        );
         send(&mut tracker, "Stop", json!({}));
-        assert_eq!(snap(&mut tracker, NOW, true).0[0].phase, SessionPhase::Finished);
+        assert_eq!(
+            snap(&mut tracker, NOW, true).0[0].phase,
+            SessionPhase::Finished
+        );
         send(&mut tracker, "SessionEnd", json!({}));
         assert!(snap(&mut tracker, NOW, true).0.is_empty());
-        assert!(!waits(&envelope("devin", "PermissionRequest", json!({ "session_id": "d1" }))));
+        assert!(!waits(&envelope(
+            "devin",
+            "PermissionRequest",
+            json!({ "session_id": "d1" })
+        )));
 
-        let devin = serde_json::to_vec(&json!({ "hook_event_name": "PreToolUse", "session_id": "d", "prompt_id": "t" })).unwrap();
+        let devin = serde_json::to_vec(
+            &json!({ "hook_event_name": "PreToolUse", "session_id": "d", "prompt_id": "t" }),
+        )
+        .unwrap();
         let claude = serde_json::to_vec(&json!({ "hook_event_name": "PreToolUse", "session_id": "c", "prompt_id": "t", "transcript_path": "C:/t.jsonl" })).unwrap();
         assert!(is_devin_payload(&devin) && !is_devin_payload(&claude));
-        assert!(is_devin_process("devin.exe") && is_devin_process("Devin") && !is_devin_process("claude.exe"));
+        assert!(
+            is_devin_process("devin.exe")
+                && is_devin_process("Devin")
+                && !is_devin_process("claude.exe")
+        );
         assert!(!is_devin_process("devinci.exe"));
     }
 
@@ -3116,31 +3210,53 @@ mod tests {
         let own = "[[hooks]]\nname = \"lint\"\ntype = \"post_agent\"\ncommand = \"eslint .\"\n";
         let installed = installer::vibe_installing(Some(own), exe, "app");
         assert!(installed.starts_with(own));
-        assert_eq!(installed.matches("[[hooks]]").count(), 1 + installer::VIBE_EVENTS.len());
+        assert_eq!(
+            installed.matches("[[hooks]]").count(),
+            1 + installer::VIBE_EVENTS.len()
+        );
         assert!(installed.contains("name = \"openbar-app-pre_tool\""));
         // Every line the island adds is a TOML table, key or comment, never a bare word.
         for line in installed.lines().skip(own.lines().count()) {
             let line = line.trim();
             assert!(
-                line.is_empty() || line.starts_with('#') || line.starts_with("[[hooks]]") || line.contains(" = "),
+                line.is_empty()
+                    || line.starts_with('#')
+                    || line.starts_with("[[hooks]]")
+                    || line.contains(" = "),
                 "not TOML: {line}"
             );
         }
         let again = installer::vibe_installing(Some(&installed), exe, "app");
         assert_eq!(again, installed);
-        assert_eq!(installer::vibe_removing(&installed, "app").as_deref(), Some(own));
+        assert_eq!(
+            installer::vibe_removing(&installed, "app").as_deref(),
+            Some(own)
+        );
         assert_eq!(installer::vibe_removing(own, "app"), None);
         let both = installer::vibe_installing(Some(&installed), exe, "other");
-        assert_eq!(installer::vibe_removing(&both, "app").unwrap().matches("[[hooks]]").count(), 1 + installer::VIBE_EVENTS.len());
+        assert_eq!(
+            installer::vibe_removing(&both, "app")
+                .unwrap()
+                .matches("[[hooks]]")
+                .count(),
+            1 + installer::VIBE_EVENTS.len()
+        );
         assert!(installer::vibe_inline("hooks = [{ name = \"x\" }]\n"));
         assert!(!installer::vibe_inline(own));
         assert_eq!(installer::toml_string("a\"b\\c\nd"), r#""a\"b\\c\nd""#);
         // A path with no space runs as it is in Git Bash, PowerShell and cmd.
         let command = installer::portable_command(Provider::Vibe, "pre_tool", exe, "app");
-        assert!(command.starts_with("C:/Users/me/AppData/Local/Openbar/Openbar.exe --hook --agent vibe --event pre_tool "));
+        assert!(command.starts_with(
+            "C:/Users/me/AppData/Local/Openbar/Openbar.exe --hook --agent vibe --event pre_tool "
+        ));
         assert!(!command.contains('"') && !command.starts_with('&'));
         // One that keeps a space falls back to PowerShell's form.
-        let spaced = installer::portable_command(Provider::Vibe, "pre_tool", Path::new("Z:/No Such Folder/Openbar.exe"), "app");
+        let spaced = installer::portable_command(
+            Provider::Vibe,
+            "pre_tool",
+            Path::new("Z:/No Such Folder/Openbar.exe"),
+            "app",
+        );
         assert!(spaced.starts_with("& \""));
     }
 
@@ -3150,27 +3266,51 @@ mod tests {
         let own = json!({ "version": 1, "permission_mode": "auto",
                           "hooks": { "PreToolUse": [{ "matcher": "exec", "hooks": [{ "type": "command", "command": "guard.ps1" }] }] } });
         let installed = installer::devin_installing(&own, exe, "app");
-        let pre = installed.pointer("/hooks/PreToolUse").unwrap().as_array().unwrap();
+        let pre = installed
+            .pointer("/hooks/PreToolUse")
+            .unwrap()
+            .as_array()
+            .unwrap();
         assert_eq!(pre.len(), 2);
         assert_eq!(pre[0], own.pointer("/hooks/PreToolUse/0").unwrap().clone());
         assert_eq!(installed["permission_mode"], "auto");
-        assert_eq!(installed["hooks"].as_object().unwrap().len(), installer::DEVIN_EVENTS.len());
+        assert_eq!(
+            installed["hooks"].as_object().unwrap().len(),
+            installer::DEVIN_EVENTS.len()
+        );
         assert_eq!(crate::hooks::installer::removing(&installed, "app"), own);
-        assert_eq!(installer::devin_installing(&json!({}), exe, "app")["version"], 1);
+        assert_eq!(
+            installer::devin_installing(&json!({}), exe, "app")["version"],
+            1
+        );
         let devin = installer::portable_command(Provider::Devin, "PermissionRequest", exe, "app");
-        assert!(devin.starts_with("C:/Openbar/Openbar.exe --hook --agent devin --event PermissionRequest"));
+        assert!(
+            devin.starts_with(
+                "C:/Openbar/Openbar.exe --hook --agent devin --event PermissionRequest"
+            )
+        );
     }
 
     #[test]
     fn a_vibe_log_ends_on_its_last_reply() {
         let history = br#"[{"message":{"content":[{"text":"list","type":"text"}],"role":"user"},"source":"history"},{"message":{"content":[{"type":"tool_call","name":"bash"}],"role":"assistant"},"source":"history"},{"message":{"content":[{"text":"Done: the folder holds the files. ","type":"text"}],"role":"assistant"},"source":"history"}]"#;
-        assert_eq!(vibe_chunk_reply(history).as_deref(), Some("Done: the folder holds the files."));
+        assert_eq!(
+            vibe_chunk_reply(history).as_deref(),
+            Some("Done: the folder holds the files.")
+        );
         assert_eq!(vibe_chunk_reply(b"not json"), None);
         let folder = std::env::temp_dir().join(format!("ob-vibe-{}", std::process::id()));
         std::fs::create_dir_all(folder.join("chunks")).unwrap();
         std::fs::write(folder.join("chunks").join("b.json"), history).unwrap();
-        std::fs::write(folder.join("chunks").join("c.json"), br#"[{"type":"notice"}]"#).unwrap();
-        assert_eq!(vibe_last_reply(&folder).as_deref(), Some("Done: the folder holds the files."));
+        std::fs::write(
+            folder.join("chunks").join("c.json"),
+            br#"[{"type":"notice"}]"#,
+        )
+        .unwrap();
+        assert_eq!(
+            vibe_last_reply(&folder).as_deref(),
+            Some("Done: the folder holds the files.")
+        );
         assert_eq!(vibe_last_reply(&folder.join("missing")), None);
         let _ = std::fs::remove_dir_all(&folder);
     }
@@ -3182,7 +3322,10 @@ mod tests {
         assert_eq!(start_arguments(Provider::Vibe, " "), Vec::<String>::new());
         assert_eq!(command_name(Provider::Vibe), Some("vibe"));
         assert_eq!(name(Provider::Vibe, "file_system.search_replace"), "Edit");
-        assert_eq!(name(Provider::Devin, "mcp__github__create_issue"), "github__create_issue");
+        assert_eq!(
+            name(Provider::Devin, "mcp__github__create_issue"),
+            "github__create_issue"
+        );
         assert_eq!(Provider::from_key("devin"), Some(Provider::Devin));
     }
 

@@ -1010,9 +1010,9 @@ impl Service {
                     let chain: Vec<(u32, String)> =
                         chain.into_iter().map(|e| (e.pid, e.name)).collect();
                     let agent = hook_agents::agent_process(&chain, 0);
-                    chain
-                        .iter()
-                        .any(|(pid, name)| *pid as i32 == agent && hook_agents::is_devin_process(name))
+                    chain.iter().any(|(pid, name)| {
+                        *pid as i32 == agent && hook_agents::is_devin_process(name)
+                    })
                 })
         {
             return;
@@ -1343,10 +1343,27 @@ impl Service {
             return Some(Some("unreachable"));
         };
         drop(inner);
-        let typed = hosts::deliver(entry.pid as u32, &located, text, &[]).is_ok() && {
-            std::thread::sleep(Duration::from_millis(450));
-            hosts::deliver(entry.pid as u32, &located, "", &[]).is_ok()
-        };
+        // Mistral Vibe's and Devin CLI's terminal UIs read a console's keys,
+        // as Codex's does, so a paste's markers would reach them as text:
+        // their reply goes in as plain keys and one Return.
+        let plain = matches!(
+            entry.provider,
+            models::Provider::Vibe | models::Provider::Devin
+        ) && matches!(
+            located.host,
+            hosts::Host::WindowsTerminal { .. } | hosts::Host::Conhost
+        );
+        #[cfg(windows)]
+        let plain_typed =
+            plain.then(|| hosts::deliver_codex(entry.pid as u32, &located, text, &[]).is_ok());
+        #[cfg(not(windows))]
+        let plain_typed: Option<bool> = plain.then_some(false);
+        let typed = plain_typed.unwrap_or_else(|| {
+            hosts::deliver(entry.pid as u32, &located, text, &[]).is_ok() && {
+                std::thread::sleep(Duration::from_millis(450));
+                hosts::deliver(entry.pid as u32, &located, "", &[]).is_ok()
+            }
+        });
         if typed {
             self.acknowledge(session);
         }
