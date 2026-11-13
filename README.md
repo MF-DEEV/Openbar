@@ -43,9 +43,23 @@ https://github.com/user-attachments/assets/e6782d65-7822-4d9a-9ad4-3f31c8c35df4
 
 ## Install
 
-**Mac** (Apple Silicon, macOS 14 or later): get the DMG from the [latest Mac release](https://github.com/MF-DEEV/Openbar/releases?q=Mac&expanded=true) and drag Openbar to Applications. It isn't notarized yet, so the first time choose **Open Anyway** in System Settings › Privacy & Security.
+**Mac** (Apple Silicon, macOS 14 or later), with Homebrew:
 
-**Windows 11** (beta): run the installer from the [latest Windows release](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true).
+```sh
+brew install --cask mf-deev/openbar/openbar
+```
+
+Or get the DMG from the [latest Mac release](https://github.com/MF-DEEV/Openbar/releases?q=Mac&expanded=true) and drag Openbar to Applications. It isn't notarized yet, so the first time choose **Open Anyway** in System Settings › Privacy & Security.
+
+**Windows 11** (beta), with winget:
+
+```powershell
+winget install MFDEV.Openbar
+```
+
+Or run the installer from the [latest Windows release](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true).
+
+On the Mac and on Windows, Openbar then updates itself: it checks once a day and asks before installing. `brew upgrade` and `winget upgrade` work too.
 
 **Linux** (X11, beta): get the `.deb`, `.rpm` or AppImage from the [latest Linux release](https://github.com/MF-DEEV/Openbar/releases?q=linux&expanded=true), for x86_64 or Arm64. Wayland isn't supported yet; see the [Linux notes](windows/docs/linux.md).
 
