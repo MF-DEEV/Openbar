@@ -9,6 +9,7 @@ const TEXT = Q.get('text') ?? 'Openbar';
 const FONT = Q.get('font') ?? 'Saira';
 const STRETCH = +(Q.get('stretch') ?? 1.4);
 const HELMET = Q.get('helmet') !== '0';
+const MARK = Q.get('mark') ?? 'helmet.svg';
 const TAG = Q.get('tag') ?? '';
 const PERIOD = +(Q.get('period') ?? 6);
 const cw = W * DPR, ch = H * DPR;
@@ -18,6 +19,8 @@ function mk() { const k = document.createElement('canvas'); k.width = cw; k.heig
 async function buildMask() {
   await document.fonts.load(`900 extra-expanded 100px "${FONT}"`); await document.fonts.load(`900 100px "${FONT}"`);
   await document.fonts.ready;
+  const img = new Image(); img.src = MARK; await img.decode();
+  const ASPECT = img.naturalWidth / img.naturalHeight;
   const m = mk(), g = m.getContext('2d');
   g.fillStyle = '#000'; g.fillRect(0, 0, cw, ch); g.fillStyle = '#fff';
   const tagSpace = TAG ? 0.16 : 0;
@@ -26,11 +29,11 @@ async function buildMask() {
   let size = ch * capFrac * (TAG ? 0.8 : 1);
   g.font = `900 ${size}px "${FONT}"`; g.fontStretch = 'extra-expanded';
   let tw = g.measureText(TEXT).width * STRETCH;
-  const helmetH = size * 0.98, helmetW = helmetH * 523 / 720, gap = HELMET ? size * 0.42 : 0;
+  const helmetH = size * 0.98, helmetW = helmetH * ASPECT, gap = HELMET ? size * 0.42 : 0;
   let total = (HELMET ? helmetW + gap : 0) + tw;
   const maxW = cw * +(Q.get('fill') ?? 0.84);
   if (total > maxW) { const s = maxW / total; size *= s; g.font = `900 ${size}px "${FONT}"`; g.fontStretch = 'extra-expanded'; tw = g.measureText(TEXT).width * STRETCH; }
-  const hH = size * 0.98, hW = hH * 523 / 720, gp = HELMET ? size * 0.42 : 0;
+  const hH = size * 0.98, hW = hH * ASPECT, gp = HELMET ? size * 0.42 : 0;
   total = (HELMET ? hW + gp : 0) + tw;
   const x0 = (cw - total) / 2, cy = ch * (0.5 - tagSpace / 2);
   const mt = g.measureText(TEXT); const asc = mt.actualBoundingBoxAscent, desc = mt.actualBoundingBoxDescent;
@@ -38,7 +41,6 @@ async function buildMask() {
   const capAsc = g.measureText('O').actualBoundingBoxAscent;
   const baseline = cy + capAsc / 2;
   if (HELMET) {
-    const img = new Image(); img.src = 'helmet.svg'; await img.decode();
     // white helmet: draw via composite
     const t = document.createElement('canvas'); t.width = Math.ceil(hW); t.height = Math.ceil(hH);
     const tg = t.getContext('2d'); tg.drawImage(img, 0, 0, hW, hH); tg.globalCompositeOperation = 'source-in'; tg.fillStyle = '#fff'; tg.fillRect(0, 0, t.width, t.height);

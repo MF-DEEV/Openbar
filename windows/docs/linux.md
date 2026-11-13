@@ -2,6 +2,18 @@
 
 The island runs on Linux under X11 (tested on XFCE with xfwm4 and picom). Wayland is not supported yet.
 
+## Install
+
+The [Linux releases](https://github.com/MF-DEEV/Openbar/releases?q=linux&expanded=true) carry a `.deb` (Debian, Ubuntu, Mint), an `.rpm` (Fedora, openSUSE) and an AppImage (anything else), each for x86_64 and Arm64. They are built on Ubuntu 22.04, so they need glibc 2.35 or later.
+
+```sh
+sudo apt install ./Openbar_<version>_amd64.deb      # Debian, Ubuntu
+sudo dnf install ./Openbar-<version>-1.x86_64.rpm   # Fedora
+chmod +x Openbar_<version>_amd64.AppImage && ./Openbar_<version>_amd64.AppImage
+```
+
+The packages pull in WebKitGTK and GTK and recommend what the extras use (`pactl`, `tesseract`, `ffmpeg`); the AppImage expects them on the system. Start Openbar from the applications menu, then start `claude` in a terminal.
+
 ## Build
 
 You need [Bun](https://bun.sh), [Rust](https://rustup.rs) and the Tauri system libraries (`webkit2gtk-4.1`, `gtk3`, `libayatana-appindicator`, `librsvg`, `openssl`, `xdotool`). To run it, reading text from the screen needs `tesseract` (with the data of your languages) and sound also needs `pactl` and `parec` (the `libpulse` package on Arch and Fedora, `pulseaudio-utils` on Debian and Ubuntu, with PulseAudio 16 or later or PipeWire's pulse server)), and the screen recorder needs `ffmpeg` (built with x11grab, libx264, AAC and PulseAudio input, as distributions build it). Then, in `windows`:
@@ -13,7 +25,14 @@ cd src-tauri
 cargo build --features tauri/custom-protocol   # embeds ../dist; without it the app loads the dev server
 ```
 
-Packages: `bun run tauri build --bundles deb,rpm,appimage` (the config's own target list is the Windows installer).
+Packages: `bun run tauri build` makes the `.deb`, `.rpm` and AppImage (`tauri.linux.conf.json` sets them in place of the Windows installer). The released ones come from `tools/linux-packages.sh`, which builds them in a clean Ubuntu 22.04 container, once per architecture, from the repository root:
+
+```sh
+docker run --rm --platform linux/amd64 -v "$PWD:/src:ro" -v "$PWD/dist-linux:/out" \
+  ubuntu:22.04 bash /src/windows/tools/linux-packages.sh
+```
+
+`linux/arm64` builds the Arm packages; on an Apple silicon Mac, a Linux VM with Rosetta (Lima's `--rosetta`) runs the x86_64 container at near native speed. Linux releases are tagged `linux-v<version>`.
 
 ## What works
 
@@ -28,7 +47,7 @@ Packages: `bun run tauri build --bundles deb,rpm,appimage` (the config's own tar
 - Power (`battery.rs`, `power_saver.rs`, `session_lock.rs`, `keep_awake.rs`): the machine's own batteries from `/sys/class/power_supply` (charge, charger, rate, time left, wear and cycles; a mouse's battery or a UPS is left out), the energy saver as power-profiles-daemon's `power-saver` profile, the unlock of the session (from systemd-logind, a screensaver service, or a screen locker program such as `xsecurelock` or `i3lock` that was running and ended), and Keep Awake through logind's inhibitor and the desktop's power manager.
 - Brightness (`brightness.rs`): a panel's backlight, written through logind, and external displays over DDC/CI with `ddcutil` (which needs the `i2c` group).
 - Quick toggles (`toggles.rs`): lock the screen, turn the display off (X11 power management), start the screensaver, empty the trash, and dark mode on GNOME-family desktops. Hidden files, desktop icons and ejecting disks differ too much between desktops and are not offered.
-- Update check (`src/updates/`, the same page code as on Windows): the web view asks GitHub's releases list for a newer `windows-v<version>` tag, once after start and every six hours, and a newer one is offered in a notice, in the island's menu and in Settings › General. Nothing is downloaded, so it only opens the release page; Linux packages are not published there yet, so a build from source is told about the Windows release of the same version number.
+- Update check (`src/updates/`, the same page code as on Windows): the web view asks GitHub's releases list for a newer `linux-v<version>` tag (the Linux packages' own; Windows reads `windows-v`), once after start and every six hours, and a newer one is offered in a notice, in the island's menu and in Settings › General. Nothing is downloaded, so it only opens the release page.
 - Notifications (`notifications.rs`): there is no list of other apps' notifications to read on Linux, so the island listens to the calls apps make to the notification service (a monitor connection to the session bus, as `dbus-monitor` does; the desktop's own popup still shows). It keeps the title, text and icon of what arrives while it runs, folds an app's updates of one notification into one entry, and leaves out transient ones and the volume and brightness displays. Open starts the app the notification came from. Discord messages can be answered from the island (`discord_reply.rs`, see [notifications](notifications.md)); Discord must have started with desktop accessibility on.
 - System (`system_monitor.rs`): CPU, memory (with swap, cache and zram), network, disk space and activity, the GPU (`nvidia-smi`, or an AMD card's busy file), battery, uptime and connected USB and Bluetooth devices, read from `/proc`, `/sys` and BlueZ, with the CPU, memory and GPU (NVIDIA) process lists grouped by program. Network traffic and power by process need privileges or a trace, so those lists say they are unavailable.
 - Clipboard (`clipboard/`): the history of copies (text, files and pictures, in that order of preference) through GTK's clipboard, which tells when its owner changes. A copy a password manager marks as secret (`x-kde-passwordManagerHint`) is left out, the app a copy came from is the clipboard's owner or else the window in front, and Paste brings forward the window the island took the keyboard from (else the one in front) and types Ctrl+V (Ctrl+Shift+V in a terminal) into it through the X server's test extension, the keys 10 ms apart so a busy terminal takes them. Needs a window manager that keeps `_NET_ACTIVE_WINDOW`, as every desktop one does.

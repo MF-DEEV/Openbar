@@ -2,12 +2,15 @@
 // Copyright (C) 2026 MF DEV, Adrian and the Openbar contributors
 
 // Which of the project's GitHub releases is newer than the running build. The
-// Windows app's releases are tagged `windows-v<version>`; every other tag
-// belongs to the Mac app or to a demo, and drafts are not public.
+// Windows app's releases are tagged `windows-v<version>` and the Linux
+// packages' `linux-v<version>`; every other tag belongs to the Mac app or to a
+// demo, and drafts are not public.
 
 export const FEED_URL = "https://api.github.com/repos/MF-DEEV/Openbar/releases?per_page=30";
 const PAGE = "https://github.com/MF-DEEV/Openbar/releases/tag/";
-const PREFIX = "windows-v";
+
+/** The tag prefix of this platform's releases. */
+export const releasePrefix = (linux: boolean) => (linux ? "linux-v" : "windows-v");
 
 export interface Release {
   version: string;
@@ -61,15 +64,15 @@ function compare(a: Parsed, b: Parsed): number {
  * pre-release (a version with a hyphen) is offered only to a build that is
  * one too; anything the feed gets wrong is skipped.
  */
-export function newestRelease(feed: unknown, current: string): Release | null {
+export function newestRelease(feed: unknown, current: string, prefix = releasePrefix(false)): Release | null {
   const running = parseVersion(current);
   if (!running || !Array.isArray(feed)) return null;
   let best: { parsed: Parsed; release: Release } | null = null;
   for (const entry of feed as unknown[]) {
     if (!entry || typeof entry !== "object") continue;
     const { tag_name: tag, draft } = entry as Record<string, unknown>;
-    if (draft === true || typeof tag !== "string" || !tag.startsWith(PREFIX)) continue;
-    const version = tag.slice(PREFIX.length);
+    if (draft === true || typeof tag !== "string" || !tag.startsWith(prefix)) continue;
+    const version = tag.slice(prefix.length);
     const parsed = parseVersion(version);
     if (!parsed || (parsed.pre.length && !running.pre.length)) continue;
     if (compare(parsed, running) <= 0) continue;

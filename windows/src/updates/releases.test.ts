@@ -2,7 +2,7 @@
 // Copyright (C) 2026 MF DEV, Adrian and the Openbar contributors
 
 import { describe, expect, it } from "vitest";
-import { newestRelease, parseVersion } from "./releases";
+import { newestRelease, parseVersion, releasePrefix } from "./releases";
 
 const release = (tag: string, extra: Record<string, unknown> = {}) => ({ tag_name: tag, ...extra });
 
@@ -52,6 +52,13 @@ describe("newestRelease", () => {
     ];
     expect(newestRelease(feed, "0.3.0")).toBeNull();
     expect(newestRelease([...feed, release("windows-v0.4.0")], "0.3.0")?.version).toBe("0.4.0");
+  });
+
+  it("reads the Linux packages' own tags on Linux, and only those", () => {
+    const feed = [release("windows-v0.9.0"), release("linux-v0.4.0"), release("v9.0.0")];
+    expect(newestRelease(feed, "0.3.0", releasePrefix(true))).toEqual({ version: "0.4.0", url: url("linux-v0.4.0") });
+    expect(newestRelease(feed, "0.3.0", releasePrefix(false))?.version).toBe("0.9.0");
+    expect(newestRelease([release("windows-v0.9.0")], "0.3.0", releasePrefix(true))).toBeNull();
   });
 
   it("does not trust the release page address the feed gives", () => {
