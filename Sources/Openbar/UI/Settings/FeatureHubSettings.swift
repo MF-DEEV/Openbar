@@ -323,6 +323,7 @@ struct FeatureHubSettings: View {
 
     private func presetName(_ preset: FeaturePreset) -> String {
         switch preset {
+        case .agents: return FeatureStrings.onboarding(l10n.language).setupAgentsName
         case .essential: return hub.presetEssentialName
         case .windows: return hub.presetWindowsName
         case .battery: return hub.presetBatteryName
@@ -331,6 +332,7 @@ struct FeatureHubSettings: View {
 
     private func presetDescription(_ preset: FeaturePreset) -> String {
         switch preset {
+        case .agents: return FeatureStrings.onboarding(l10n.language).setupAgentsDesc
         case .essential: return hub.presetEssentialDesc
         case .windows: return hub.presetWindowsDesc
         case .battery: return hub.presetBatteryDesc
