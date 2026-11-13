@@ -166,6 +166,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
             MaxCapacityProbe.shared.refreshIfStale()
         }
         UpdateService.shared.startAutomaticChecks()
+        if UserDefaults.standard.bool(forKey: DefaultsKey.updateReopenSettings) {
+            // An update quit the app while Settings was open: bring it back.
+            UserDefaults.standard.removeObject(forKey: DefaultsKey.updateReopenSettings)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [weak self] in
+                self?.openSettingsWindow()
+            }
+        }
         NotificationCenter.default.addObserver(self, selector: #selector(appBecameActive),
                                                name: NSApplication.didBecomeActiveNotification, object: nil)
 
@@ -1696,6 +1703,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     // MARK: - Windows
 
+    /// Read when an update is about to quit the app, so Settings can come back.
+    var settingsWindowIsVisible: Bool { settingsWindow?.isVisible == true }
+
     func openSettingsWindow() {
         // Intentionally does NOT close the panel: the panel uses applicationDefined
         // dismissal, so it stays open beside Settings for a live preview.
@@ -2461,7 +2471,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
                 self?.updatePreviewWindow?.close()
                 UpdateService.shared.downloadAndInstall()
             },
-            onCancel: { [weak self] in
+            onLater: { [weak self] in
+                UpdateService.shared.remindLater()
+                self?.updatePreviewWindow?.close()
+            },
+            onSkip: { [weak self] in
+                UpdateService.shared.skipOfferedVersion()
                 self?.updatePreviewWindow?.close()
             }
         ).brandControlTint())
@@ -2647,6 +2662,9 @@ extension AppDelegate: UNUserNotificationCenterDelegate {
     func userNotificationCenter(_ center: UNUserNotificationCenter,
                                 didReceive response: UNNotificationResponse,
                                 withCompletionHandler completionHandler: @escaping () -> Void) {
+        if Notifier.isUpdateOffer(response) {
+            DispatchQueue.main.async { [weak self] in self?.showUpdatePreview() }
+        }
         if let transactionID = Notifier.whatsAppOrganizerTransactionID(from: response) {
             DispatchQueue.main.async {
                 WhatsAppDownloadOrganizer.shared.undoLastRun(transactionID: transactionID)

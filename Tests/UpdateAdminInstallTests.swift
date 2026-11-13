@@ -43,6 +43,15 @@ enum UpdateAdminInstallContract {
         static let shared = L10n()
         let s = Text()
     }
+    struct InstallerArguments {
+        let appPath: String
+        let dmgPath: String
+        let pid: Int32
+        let resultPath: String
+        let expectedVersion: String
+        let requirement: String
+        let appleRequirement: String
+    }
     class Fixture {
         func abortInstall(dmgPath: String, offered: String?) { events.append("offer \(offered ?? "")") }
     }
@@ -53,8 +62,11 @@ enum UpdateAdminInstallContract {
             ExtraBrightnessService.shared.onScreen = true
             AdminShell.answer = nil
             let service = Service()
-            service.launchAdminInstaller(appPath: "/Applications/Openbar.app", dmgPath: "/tmp/update.dmg",
-                                         pid: 42, resultPath: "/tmp/update-result", expectedVersion: "9.9.9")
+            service.launchAdminInstaller(InstallerArguments(
+                appPath: "/Applications/Openbar.app", dmgPath: "/tmp/update.dmg", pid: 42,
+                resultPath: "/tmp/update-result", expectedVersion: "9.9.9",
+                requirement: "identifier \"com.openbar.app\"",
+                appleRequirement: "identifier \"com.openbar.app\" and anchor apple generic"))
             suite.expect(events == ["prompt"],
                          "the brightness overlay leaves the screen before the prompt holds the main thread")
             AdminShell.answer?(granted)

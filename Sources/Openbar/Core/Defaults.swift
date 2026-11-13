@@ -498,6 +498,12 @@ enum DefaultsKey {
     static let panelPowerOrder = "panelPowerOrder"
     static let panelNavigationEnabled = "panelNavigationEnabled" // legacy: the panel always navigates by sections since 3.1.8
     static let updateLastInstallFailure = "updateLastInstallFailure" // last installer step that failed (fail-copy etc.)
+    static let updateSkippedVersion = "updateSkippedVersion"     // "Skip this version": prompts stay quiet until a newer one
+    static let updateSnoozedUntil = "updateSnoozedUntil"         // "Remind me later": Date the prompts come back
+    static let updateReopenSettings = "updateReopenSettings"     // Settings was open when an update quit the app
+    /// Testing only: a releases feed to read instead of GitHub's. Signatures
+    /// are still required, so it cannot get an unsigned build installed.
+    static let updateFeedURL = "OpenbarUpdateFeedURL"
     static let windowLayoutHiddenActions = "windowLayoutHiddenActions" // comma-separated action ids hidden from the grid
     static let windowLayoutWindowGap = "windowLayoutWindowGap" // px between adjacent snapped windows
     static let windowLayoutScreenGap = "windowLayoutScreenGap" // px between a snapped window and the visible frame edge

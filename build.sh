@@ -464,6 +464,7 @@ if (( TEST )); then
         Sources/Openbar/Core/ReleaseDigest.swift
         Sources/Openbar/Core/ReleaseChangeAliases.swift
         Sources/Openbar/Core/WhatsNewStrings.swift
+        Sources/Openbar/Core/UpdatePromptStrings.swift
         Sources/Openbar/Core/URLCleaning.swift
         Sources/Openbar/Services/GeneralPasteboardAccess.swift
         Sources/Openbar/Services/Clipboard/ClipboardHistoryWrite.swift
@@ -497,6 +498,7 @@ if (( TEST )); then
         Sources/Openbar/Services/Finder/FinderRenameSupport.swift
         Sources/Openbar/Services/Update/UpdateInstallerSupport.swift
         Sources/Openbar/Services/Update/UpdateServiceSupport.swift
+        Sources/Openbar/Services/Update/UpdateSignature.swift
         Sources/Openbar/Services/InstalledApps.swift
         Sources/Openbar/Services/LaunchAtLoginSupport.swift
         Sources/Openbar/UI/Settings/SettingsSearchSupport.swift
