@@ -7,12 +7,59 @@ import Combine
 import CoreAudio
 import CoreGraphics
 import Darwin
+import CryptoKit
 import Foundation
 import ImageIO
 import VMStatisticsCompat
 
 enum UpdateFeatureTests {
+    static func runSignatureAndMuting(_ suite: TestSuite) {
+        let key = Curve25519.Signing.PrivateKey()
+        let publicKey = key.publicKey.rawRepresentation.base64EncodedString()
+        let payload = Data("Openbar-3.6.0.dmg bytes".utf8)
+        let signature = (try? key.signature(for: payload))?.base64EncodedString() ?? ""
+        suite.expect(UpdateSignature.verify(data: payload, signatureText: signature + "\n", publicKeyBase64: publicKey),
+               "a signature from the update key verifies, trailing newline and all")
+        var tampered = payload
+        tampered[0] ^= 0x01
+        suite.expect(!UpdateSignature.verify(data: tampered, signatureText: signature, publicKeyBase64: publicKey),
+               "a single changed byte fails the signature")
+        let otherKey = Curve25519.Signing.PrivateKey()
+        let foreign = (try? otherKey.signature(for: payload))?.base64EncodedString() ?? ""
+        suite.expect(!UpdateSignature.verify(data: payload, signatureText: foreign, publicKeyBase64: publicKey),
+               "a signature from another key is refused")
+        for junk in ["", "not base64!", Data(repeating: 0, count: 64).base64EncodedString(),
+                     Data(repeating: 1, count: 63).base64EncodedString()] {
+            suite.expect(!UpdateSignature.verify(data: payload, signatureText: junk, publicKeyBase64: publicKey),
+                   "a malformed signature is refused: \(junk.prefix(12))")
+        }
+        suite.expect(!UpdateSignature.verify(data: payload, signatureText: signature, publicKeyBase64: "bad"),
+               "a malformed public key refuses everything")
+        suite.expect(Data(base64Encoded: UpdateSignature.publicKeyBase64)?.count == 32,
+               "the shipped public key is a 32-byte Ed25519 key")
+        suite.expect(UpdateServiceSupport.signatureAssetName(forDMG: "Openbar-3.6.0.dmg") == "Openbar-3.6.0.dmg.sig",
+               "the signature asset sits beside its DMG")
+
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        suite.expect(UpdateServiceSupport.promptAllowed(version: "3.6.0", skippedVersion: nil, snoozedUntil: nil, now: now),
+               "an offer nobody muted prompts")
+        suite.expect(!UpdateServiceSupport.promptAllowed(version: "3.6.0", skippedVersion: "3.6.0", snoozedUntil: nil, now: now),
+               "a skipped version stays quiet")
+        suite.expect(UpdateServiceSupport.promptAllowed(version: "3.6.1", skippedVersion: "3.6.0", snoozedUntil: nil, now: now),
+               "a newer release than the skipped one prompts again")
+        suite.expect(!UpdateServiceSupport.promptAllowed(version: "3.6.0-beta.1", skippedVersion: "3.6.0", snoozedUntil: nil, now: now),
+               "an older pre-release than the skipped version stays quiet")
+        suite.expect(!UpdateServiceSupport.promptAllowed(version: "3.6.0", skippedVersion: nil,
+                                                         snoozedUntil: now.addingTimeInterval(60), now: now),
+               "remind me later keeps the offer quiet until the snooze ends")
+        suite.expect(UpdateServiceSupport.promptAllowed(version: "3.6.0", skippedVersion: nil,
+                                                        snoozedUntil: now.addingTimeInterval(-1), now: now),
+               "the offer comes back once the snooze has passed")
+    }
+
+
     static func run(_ suite: TestSuite) {
+        runSignatureAndMuting(suite)
         suite.expect(UpdateServiceSupport.releaseRepository == "MF-DEEV/Openbar",
                      "updates are looked up in Openbar's releases, not upstream Openbar's")
         suite.expect(UpdateServiceSupport.selectUpdate(
@@ -971,18 +1018,23 @@ enum UpdateFeatureTests {
                                                                  volumeIsReadOnly: { _ in false }),
                "apps on a writable external volume stay updatable in place")
         let installerScript = UpdateInstallerSupport.installerScript()
-        for step in ["fail-dmg-verify", "fail-tempdir", "fail-mount", "fail-no-app-in-dmg",
+        for step in ["fail-requirement", "fail-tempdir", "fail-mount", "fail-no-app-in-dmg",
                      "fail-copy", "fail-version", "fail-verify", "fail-swap", "note ok"] {
             suite.expect(installerScript.contains(step),
                    "installer script reports the \(step) step")
         }
-        suite.expect(installerScript.contains("spctl --status"),
-               "installer script skips Gatekeeper assessment when the user disabled it")
-        let dmgVerification = installerScript.range(of: "DMG_VERIFY_REQ")
+        suite.expect(!installerScript.contains("3D485NHW29"),
+               "installer no longer trusts upstream Vorssaint's Apple team")
+        suite.expect(installerScript.contains("-R=\"$REQUIREMENT\" \"$STAGE\""),
+               "installer requires the new bundle to meet the running app's designated requirement")
+        suite.expect(installerScript.contains("-R=\"$APPLE_REQUIREMENT\" \"$STAGE\"")
+               && installerScript.contains("spctl -a -t exec \"$STAGE\""),
+               "a Developer ID build is accepted only when Gatekeeper also accepts it")
+        let requirementGuard = installerScript.range(of: "note fail-requirement")
         let dmgMount = installerScript.range(of: "/usr/bin/hdiutil attach")
-        suite.expect(dmgVerification != nil && dmgMount != nil
-               && dmgVerification!.lowerBound < dmgMount!.lowerBound,
-               "installer verifies the release signer before mounting the DMG")
+        suite.expect(requirementGuard != nil && dmgMount != nil
+               && requirementGuard!.lowerBound < dmgMount!.lowerBound,
+               "installer refuses to mount anything without a requirement to check against")
         suite.expect(installerScript.contains("BUNDLE_VERSION=")
                && installerScript.contains("\"$BUNDLE_VERSION\" = \"$EXPECTED_VERSION\""),
                "installer requires the signed app to match the offered release version")
@@ -1009,7 +1061,9 @@ enum UpdateFeatureTests {
             pid: 123,
             resultPath: "/tmp/result",
             uid: 501,
-            expectedVersion: "3.3.3")
+            expectedVersion: "3.3.3",
+            requirement: "identifier \"com.openbar.app\" and certificate leaf = H\"abc\"",
+            appleRequirement: UpdateInstallerSupport.appleRequirement(bundleIdentifier: "com.openbar.app"))
         suite.expect(elevated.contains("POSIX::setsid()") && elevated.hasSuffix("&"),
                "elevated installer leaves this app's session so it outlives the app it replaces")
         suite.expect(elevated.contains("nohup"),
@@ -1020,7 +1074,16 @@ enum UpdateFeatureTests {
                "elevated installer passes the expected version quoted for the shell")
         // The script travels inline and is long; it must be spelled once, with
         // both the setsid attempt and the fallback reusing the same "$@".
-        suite.expect(elevated.components(separatedBy: "DMG_VERIFY_REQ=").count == 2
+        suite.expect(elevated.contains("'identifier \"com.openbar.app\" and certificate leaf = H\"abc\"'"),
+               "elevated installer passes the designated requirement quoted for the shell")
+        suite.expect(UpdateInstallerSupport.appleRequirement(bundleIdentifier: "com.openbar.app")
+               == "identifier \"com.openbar.app\" and anchor apple generic",
+               "the Developer ID fallback names the same identifier")
+        suite.expect(UpdateInstallerSupport.isTrustFailure("fail-verify")
+               && UpdateInstallerSupport.isTrustFailure("fail-version")
+               && !UpdateInstallerSupport.isTrustFailure("fail-copy"),
+               "only identity and version failures are reported as refused updates")
+        suite.expect(elevated.components(separatedBy: "APPLE_REQUIREMENT=").count == 2
                && elevated.components(separatedBy: "\"$@\"").count == 3,
                "elevated installer names its arguments once and reuses them for the fallback")
 

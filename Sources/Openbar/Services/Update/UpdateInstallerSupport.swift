@@ -22,11 +22,20 @@ enum UpdateInstallerSupport {
     /// Arguments: $1 app path, $2 dmg path, $3 pid to wait for,
     /// $4 result marker path, $5 uid to relaunch as (used when running as
     /// root, where a plain `open` could launch the app as root), $6 expected
-    /// version from the trusted release tag.
+    /// version from the trusted release tag, $7 the running app's designated
+    /// requirement, $8 the Developer ID fallback requirement
+    /// (`appleRequirement(bundleIdentifier:)`).
+    ///
+    /// The app has already checked the DMG's Ed25519 signature. The script
+    /// then accepts the new bundle only if it satisfies the running app's
+    /// designated requirement (same signing identity, so privacy grants
+    /// carry over), or, for a later move to an Apple Developer ID, if it is
+    /// the same identifier and Gatekeeper accepts it as notarized.
     static func installerScript() -> String {
         """
         #!/bin/sh
         APP="$1"; DMG="$2"; PID="$3"; RESULT="$4"; ASUSER="$5"; EXPECTED_VERSION="$6"
+        REQUIREMENT="$7"; APPLE_REQUIREMENT="$8"
         SCRIPT="$0"
         # Write-ahead markers go to a progress file; only a FINISHED run
         # promotes it to the real marker. The app may relaunch while this
@@ -62,9 +71,8 @@ enum UpdateInstallerSupport {
             /usr/bin/open "$1"
         }
         while kill -0 "$PID" 2>/dev/null; do sleep 0.3; done
-        note fail-dmg-verify
-        DMG_VERIFY_REQ='anchor apple generic and certificate leaf[subject.OU] = "3D485NHW29"'
-        if ! /usr/bin/codesign -v --strict -R="$DMG_VERIFY_REQ" "$DMG" 2>/dev/null; then
+        note fail-requirement
+        if [ -z "$REQUIREMENT" ] || [ -z "$APPLE_REQUIREMENT" ]; then
             /bin/rm -f "$DMG"
             finalize
             relaunch "$APP"
@@ -111,19 +119,16 @@ enum UpdateInstallerSupport {
                 note fail-version
                 BUNDLE_VERSION="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$STAGE/Contents/Info.plist" 2>/dev/null)"
                 if [ "$BUNDLE_VERSION" = "$EXPECTED_VERSION" ]; then
-                    # When the user disabled Gatekeeper, spctl cannot assess anything
-                    # and rejects even a healthy bundle; the codesign identity check
-                    # below stays as the gate in that case.
-                    GATEKEEPER_OK=0
-                    if /usr/sbin/spctl --status 2>/dev/null | /usr/bin/grep -q disabled; then
-                        GATEKEEPER_OK=1
-                    elif /usr/sbin/spctl -a -t exec "$STAGE" >/dev/null 2>&1; then
-                        GATEKEEPER_OK=1
-                    fi
-                    VERIFY_REQ='identifier "com.openbar.app" and anchor apple generic and certificate leaf[subject.OU] = "3D485NHW29"'
+                    VERIFY_OK=0
                     note fail-verify
-                    if /usr/bin/codesign -v --deep --strict -R="$VERIFY_REQ" "$STAGE" 2>/dev/null \
-                        && [ "$GATEKEEPER_OK" = 1 ]; then
+                    if /usr/bin/codesign -v --deep --strict -R="$REQUIREMENT" "$STAGE" 2>/dev/null; then
+                        VERIFY_OK=1
+                    elif /usr/bin/codesign -v --deep --strict \
+                            -R="$APPLE_REQUIREMENT" "$STAGE" 2>/dev/null \
+                        && /usr/sbin/spctl -a -t exec "$STAGE" >/dev/null 2>&1; then
+                        VERIFY_OK=1
+                    fi
+                    if [ "$VERIFY_OK" = 1 ]; then
                         note fail-swap
                         # The backup name is unique per run: after an elevated
                         # install the old bundle is root-owned, a later user-run
@@ -182,9 +187,12 @@ enum UpdateInstallerSupport {
                                        pid: Int32,
                                        resultPath: String,
                                        uid: uid_t,
-                                       expectedVersion: String) -> String {
+                                       expectedVersion: String,
+                                       requirement: String,
+                                       appleRequirement: String) -> String {
         let script = shellSingleQuoted(installerScript())
-        let args = [appPath, dmgPath, "\(pid)", resultPath, "\(uid)", expectedVersion]
+        let args = [appPath, dmgPath, "\(pid)", resultPath, "\(uid)", expectedVersion,
+                    requirement, appleRequirement]
             .map(shellSingleQuoted)
             .joined(separator: " ")
         return DetachedProcess.detachedShellCommand(
@@ -198,6 +206,22 @@ enum UpdateInstallerSupport {
     /// elevating would just add a password prompt to the same failure.
     static func shouldForceAdminInstall(afterFailureCode code: String?) -> Bool {
         code == "fail-copy" || code == "fail-swap"
+    }
+
+    /// The requirement a future Apple-signed (Developer ID) build of the
+    /// same app meets; the script pairs it with a Gatekeeper check.
+    static func appleRequirement(bundleIdentifier: String) -> String {
+        let escaped = bundleIdentifier
+            .replacingOccurrences(of: "\\", with: "\\\\")
+            .replacingOccurrences(of: "\"", with: "\\\"")
+        return "identifier \"\(escaped)\" and anchor apple generic"
+    }
+
+    /// Failure codes that mean the new bundle was not Openbar's: its version
+    /// or signing identity did not match. Reported as a refused update, not
+    /// as a broken install.
+    static func isTrustFailure(_ code: String) -> Bool {
+        code == "fail-verify" || code == "fail-version" || code == "fail-requirement"
     }
 
     /// Whether a new download fraction crossed into the next whole percent,

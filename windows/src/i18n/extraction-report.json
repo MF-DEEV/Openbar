@@ -1,12 +1,12 @@
 {
-  "files": 93,
-  "structs": 85,
-  "accessors": 84,
-  "fields": 3617,
-  "values": 53855,
+  "files": 94,
+  "structs": 86,
+  "accessors": 85,
+  "fields": 3630,
+  "values": 54050,
   "unresolved": 0,
   "format_specifiers": {
-    "%@": 2115,
+    "%@": 2145,
     "%d": 1208,
     "%1$d": 81,
     "%2$d": 66,

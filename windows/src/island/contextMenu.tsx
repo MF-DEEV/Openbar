@@ -8,7 +8,7 @@ import { useEffect, useRef, useState, type MouseEvent } from "react";
 
 import { bridge } from "../shared/bridge";
 import { Menu, type MenuAnchor, type MenuEntry } from "../shared/ui/Menu";
-import { openRelease } from "../updates/open";
+import { openPrompt } from "../updates/open";
 import { useUpdates } from "../updates/store";
 import { modulesOf, useIsland } from "./store";
 
@@ -49,7 +49,7 @@ export function islandMenuEntries(): MenuEntry[] {
           {
             label: `${t("s.updateAvailablePrefix")} ${update.version}`,
             icon: Download,
-            onSelect: () => openRelease(update),
+            onSelect: () => openPrompt(update),
           },
         ]
       : []),

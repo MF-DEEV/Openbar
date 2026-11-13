@@ -178,6 +178,10 @@ final class StatusItemController {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in self?.updateIconAppearance() }
             .store(in: &cancellables)
+        UpdateService.shared.$offerMuted
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in self?.updateIconAppearance() }
+            .store(in: &cancellables)
 
         MicMuteService.shared.$isMuted
             .receive(on: DispatchQueue.main)
@@ -355,11 +359,7 @@ final class StatusItemController {
         guard let button = statusItem?.button else { return }
         let defaults = UserDefaults.standard
         let updateAvailable: Bool
-        if case .available = UpdateService.shared.state {
-            updateAvailable = true
-        } else {
-            updateAvailable = false
-        }
+        updateAvailable = UpdateService.shared.promptsOffer
         let micBadgeActive = renderedMicBadgeActive
         let optionEnabled = defaults.bool(forKey: DefaultsKey.menuBarHideIconWithMetrics)
         let separateMetrics = defaults.bool(forKey: DefaultsKey.menuBarSeparateMetrics)
@@ -521,11 +521,7 @@ final class StatusItemController {
             // decision inputs as updateIconAppearance, with a sentinel length:
             // the title is known non-empty on this branch.
             let updateAvailable: Bool
-            if case .available = UpdateService.shared.state {
-                updateAvailable = true
-            } else {
-                updateAvailable = false
-            }
+            updateAvailable = UpdateService.shared.promptsOffer
             let signal = updateAvailable || renderedMicBadgeActive
             let glyphHidden = (MenuBarSpacingSupport.islandHidesStatusIcon(
                 in: defaults, hiddenInFullscreen: islandHiddenInFullscreen) && !signal)

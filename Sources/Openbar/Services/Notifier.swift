@@ -32,6 +32,18 @@ enum Notifier {
         post(title: title, body: body, categoryIdentifier: nil, userInfo: [:])
     }
 
+    private static let updateOfferKey = "com.openbar.notification.update-offer"
+
+    /// The "update available" notification; tapping it opens the update prompt.
+    static func postUpdateOffer(title: String, body: String) {
+        post(title: title, body: body, categoryIdentifier: nil, userInfo: [updateOfferKey: true])
+    }
+
+    static func isUpdateOffer(_ response: UNNotificationResponse) -> Bool {
+        response.actionIdentifier == UNNotificationDefaultActionIdentifier
+            && response.notification.request.content.userInfo[updateOfferKey] as? Bool == true
+    }
+
     static func postWhatsAppOrganization(title: String,
                                          body: String,
                                          undoTitle: String,

@@ -92,6 +92,22 @@ describe("automaticCheck", () => {
     expect(useIsland.getState().notice).toBeNull();
   });
 
+  it("stays quiet for a skipped version, or while remind me later holds, and not after", async () => {
+    serve("windows-v0.4.0");
+    useIsland.setState({ settings: { ...islandInitial.settings, updateSkipped: "0.4.0" } });
+    await automaticCheck();
+    expect(useIsland.getState().notice).toBeNull();
+    useIsland.setState({
+      settings: { ...islandInitial.settings, updateSnoozedUntil: Date.now() + 60_000 },
+    });
+    await automaticCheck();
+    expect(useIsland.getState().notice).toBeNull();
+    serve("windows-v0.4.0", "windows-v0.4.1");
+    useIsland.setState({ settings: { ...islandInitial.settings, updateSkipped: "0.4.0" } });
+    await automaticCheck();
+    expect(useIsland.getState().notice?.id).toBe("update:0.4.1");
+  });
+
   it("is on by default", () => {
     expect(islandInitial.settings.checkUpdates).toBe(true);
   });

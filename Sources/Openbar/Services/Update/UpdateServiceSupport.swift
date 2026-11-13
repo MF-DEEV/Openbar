@@ -146,7 +146,33 @@ enum UpdateServiceSupport {
         let dmgURL: URL?
         let dmgExpectedBytes: Int64?
         let body: String?
+        /// The `<dmg>.sig` asset beside the DMG: Openbar's Ed25519 signature
+        /// of it. A release without one cannot be installed from the app.
+        var signatureURL: URL? = nil
     }
+
+    /// The asset that carries the signature of `dmgName`, if the release has one.
+    static func signatureAssetName(forDMG dmgName: String) -> String {
+        dmgName + ".sig"
+    }
+
+    // MARK: - Prompt muting
+
+    /// Whether the automatic prompts (notification, menu bar badge, panel
+    /// banner, island button) may offer `version`. Skipping a version mutes
+    /// it until a newer one comes out; "remind me later" mutes every offer
+    /// until the snooze ends. Settings always shows the offer.
+    static func promptAllowed(version: String,
+                              skippedVersion: String?,
+                              snoozedUntil: Date?,
+                              now: Date = Date()) -> Bool {
+        if let skippedVersion, !isNewer(version, than: skippedVersion) { return false }
+        if let snoozedUntil, now < snoozedUntil { return false }
+        return true
+    }
+
+    /// How long "Remind me later" keeps the offer quiet.
+    static let snoozeInterval: TimeInterval = 24 * 60 * 60
 
     /// Selects the best update candidate from a list of releases based on channel preferences.
     static func selectUpdate(from candidates: [ReleaseCandidate],

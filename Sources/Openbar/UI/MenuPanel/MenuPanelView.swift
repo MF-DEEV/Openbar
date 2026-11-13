@@ -2645,7 +2645,7 @@ struct UpdateBanner: View {
 
     var body: some View {
         switch updates.state {
-        case let .available(version):
+        case let .available(version) where !updates.offerMuted:
             let isBeta = UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease ?? false
             let tintColor: Color = isBeta ? .orange : .brandAccent
             let inkColor: Color = isBeta ? .white : .brandOnAccent

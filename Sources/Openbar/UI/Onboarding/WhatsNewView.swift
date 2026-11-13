@@ -5,69 +5,86 @@ import AppKit
 import AVKit
 import SwiftUI
 
-/// Pre-install preview window content: shows the next version's full changelog —
-/// the same notes that ship with the release — so the user can decide before any
-/// download starts. Opened from both the Settings install button and the menu
-/// panel's update banner. Reuses `ReleaseNotesContent`.
+/// The update prompt: the new version, a short look at what changed (the
+/// release's own notes) and three ways out — install now, be reminded later,
+/// or skip this version. Opened from the notification, the menu panel's
+/// banner, the island's button and Settings. Reuses `ReleaseNotesContent`.
 struct UpdatePreviewView: View {
     let version: String
     let notes: String?
     var onUpdate: () -> Void
-    var onCancel: () -> Void
+    var onLater: () -> Void
+    var onSkip: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
-    @State private var skipNextTime = false
+
+    private var strings: UpdatePromptStrings { FeatureStrings.updatePrompt(l10n.language) }
+
+    private var body_: String? {
+        ReleaseNotes.inAppUpdateNotes(from: notes)
+    }
 
     private var release: ReleaseNotes {
         // The release body is the changelog section without its `## [..]` header;
         // synthesize one so the existing parser can structure it.
-        let body = ReleaseNotes.inAppUpdateNotes(from: notes) ?? ""
-        return ReleaseNotes.notes(for: version, changelog: "## [\(version)]\n\n" + body)
+        ReleaseNotes.notes(for: version, changelog: "## [\(version)]\n\n" + (body_ ?? ""))
     }
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack {
-                Text(l10n.s.tabReleaseNotes)
-                    .font(.system(size: 22, weight: .bold))
-                Spacer()
+            HStack(spacing: 14) {
+                BrandBadge(size: 48)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(String(format: strings.titleFormat, version))
+                        .font(.system(size: 17, weight: .bold))
+                    Text(String(format: strings.currentFormat, AppInfo.version))
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer(minLength: 0)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 24)
-            .padding(.bottom, 16)
+            .padding(.horizontal, 22)
+            .padding(.top, 22)
+            .padding(.bottom, 14)
 
             Divider()
 
             ScrollView {
-                ReleaseNotesContent(releases: [release])
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 28)
-                    .padding(.vertical, 22)
+                Group {
+                    if body_ == nil {
+                        Text(strings.noNotes)
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        ReleaseNotesContent(releases: [release])
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 22)
+                .padding(.vertical, 16)
             }
 
             Divider()
 
-            HStack(spacing: 12) {
-                Toggle(FeatureStrings.whatsNew(l10n.language).skipPreviewCheckbox, isOn: $skipNextTime)
-                    .toggleStyle(.checkbox)
+            VStack(alignment: .leading, spacing: 10) {
+                Text(strings.relaunchNote)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Spacer(minLength: 8)
-                Button(l10n.s.uninstallerCancel) { onCancel() }
-                    .keyboardShortcut(.cancelAction)
-                Button(l10n.s.updateInstallButton) {
-                    // Saved only on Update: ticking the box and then cancelling
-                    // must not turn the next update into a silent install.
-                    if skipNextTime {
-                        UserDefaults.standard.set(false, forKey: DefaultsKey.showReleaseNotesBeforeUpdate)
-                    }
-                    onUpdate()
+                HStack(spacing: 10) {
+                    Button(strings.skip) { onSkip() }
+                        .buttonStyle(.link)
+                    Spacer(minLength: 8)
+                    Button(strings.later) { onLater() }
+                        .keyboardShortcut(.cancelAction)
+                    Button(strings.install) { onUpdate() }
+                        .keyboardShortcut(.defaultAction)
+                        .buttonStyle(.borderedProminent)
                 }
-                .keyboardShortcut(.defaultAction)
-                .buttonStyle(.borderedProminent)
             }
             .padding(16)
         }
-        .frame(width: 640, height: 600)
+        .frame(width: 520, height: 480)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 }
