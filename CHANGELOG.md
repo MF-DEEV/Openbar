@@ -6,9 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.5.0-beta.3] - 2026-11-13
+
 ### Added
 - A sound when a session starts waiting for you: a permission request, a question or a plan to approve. Pick Openbar's chime or one of the system's sounds and press Play to hear it. It stays quiet when a turn just ends, for a request that was already waiting when Openbar started, and while the island already shows that session. On the Mac, Windows and Linux. Settings → Dynamic Island → Content → Sessions → Sound when a session waits (on the Mac, under the Sessions section's options).
-- Openbar for Windows tells you when a newer version exists. It checks GitHub's releases a little after the island starts and every six hours, raises a notice the first time it finds one (a tap opens the release page), and adds Update available to the island's right-click menu and to Settings → General → Updates, where Check for updates automatically turns it off and Check for updates… asks now. It never downloads or installs anything, since the installer isn't signed. Linux builds use the same check.
+- Openbar updates itself on the Mac and on Windows. It checks GitHub's releases at launch and then once a day, and a new version gets a small prompt with its notes: Install and relaunch, Remind me later (quiet for a day) or Skip this version (quiet until a newer one). Install downloads the update, checks that it is signed with Openbar's update key and refuses it with a clear message when it isn't, then swaps the app and starts it again, with Settings reopened if it was open. Settings, hooks and permissions stay as they were. Beta releases reach only people with beta updates on, a new switch in Windows Settings → General → Updates. Linux builds tell you about a new version and open its release page.
+- Install with Homebrew: `brew install --cask mf-deev/openbar/openbar`, and `brew upgrade` keeps it current.
 - A file change's diff on a permission card can show more of the file before you allow it. Click the arrow on a row of hidden lines to see 20 more, above or below the change, or all of them when only a few are left. The lines come from the file Openbar already read when the request came. On Mac and Windows.
 
 ### Changed
