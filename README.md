@@ -17,9 +17,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MF-DEEV/Openbar/releases?q=Mac&expanded=true"><img src="docs/assets/readme/download/mac.png" width="270" alt="Download for Mac: Apple Silicon, macOS 14 or later"></a>
-  <a href="https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true"><img src="docs/assets/readme/download/windows.png" width="270" alt="Download for Windows 11, x64 and Arm64"></a>
-  <a href="https://github.com/MF-DEEV/Openbar/releases?q=linux&expanded=true"><img src="docs/assets/readme/download/linux.png" width="270" alt="Download for Linux: X11, deb, rpm and AppImage"></a>
+  <a href="https://github.com/MF-DEEV/Openbar/releases?q=Mac&expanded=true"><img src="docs/assets/readme/download/mac.png" width="270" alt="Download for Mac, macOS 14 or later"></a>
+  <a href="https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true"><img src="docs/assets/readme/download/windows.png" width="270" alt="Download for Windows 11"></a>
+  <a href="https://github.com/MF-DEEV/Openbar/releases?q=linux&expanded=true"><img src="docs/assets/readme/download/linux.png" width="270" alt="Download for Linux: deb, rpm, AppImage"></a>
 </p>
 
 <p align="center">

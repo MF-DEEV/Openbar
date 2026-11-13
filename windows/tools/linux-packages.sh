@@ -9,7 +9,8 @@
 #   docker run --rm --platform linux/amd64 -v "$PWD:/src:ro" -v "$PWD/dist-linux:/out" \
 #     ubuntu:22.04 bash /src/windows/tools/linux-packages.sh
 #
-# (linux/arm64 for the ARM packages). The packages land in ./dist-linux.
+# (linux/arm64 for the ARM packages). The packages land in ./dist-linux. Mount a
+# folder and set CARGO_TARGET_DIR to it to keep Rust's build between runs.
 set -euo pipefail
 
 RUST_TOOLCHAIN="${RUST_TOOLCHAIN:-1.99.1}"
@@ -29,9 +30,12 @@ command -v cargo >/dev/null ||
   curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain "$RUST_TOOLCHAIN" >/dev/null
 command -v bun >/dev/null || curl -fsSL https://bun.sh/install | bash >/dev/null
 
-# A copy, so the source can stay read-only and Windows' node_modules stay out.
+# A copy, so the source can stay read-only and the host's node_modules stay
+# out. The app also embeds files from Resources (the price list, the remote
+# agent script).
 rm -rf "$WORK" && mkdir -p "$WORK"
-tar -C "$SRC" --exclude=node_modules --exclude=target --exclude=dist --exclude=dist-linux -cf - windows | tar -C "$WORK" -xf -
+tar -C "$SRC" --exclude=node_modules --exclude=target --exclude=dist --exclude=dist-linux -cf - windows Resources |
+  tar -C "$WORK" -xf -
 cd "$WORK/windows"
 bun install --frozen-lockfile
 
@@ -40,5 +44,5 @@ export APPIMAGE_EXTRACT_AND_RUN=1
 bun run tauri build --bundles deb,rpm,appimage
 
 mkdir -p "$OUT"
-bundle=src-tauri/target/release/bundle
+bundle="${CARGO_TARGET_DIR:-src-tauri/target}/release/bundle"
 cp -v "$bundle"/deb/*.deb "$bundle"/rpm/*.rpm "$bundle"/appimage/*.AppImage "$OUT"/

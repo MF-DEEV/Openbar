@@ -12,12 +12,12 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 BUTTONS = {
-    "mac": "Download · Apple Silicon, macOS 14+",
-    "windows": "Download · Windows 11, x64 and Arm64",
-    "linux": "Download · X11, deb, rpm and AppImage",
+    "mac": "Download · macOS 14+",
+    "windows": "Download · Windows 11",
+    "linux": "Download · deb, rpm, AppImage",
 }
 SCALE = 2
-W, H = 560 * SCALE, 152 * SCALE
+W, H = 560 * SCALE, 160 * SCALE
 RADIUS = 30 * SCALE
 BACKGROUND = (5, 5, 7, 255)  # the glass shader's own background
 BORDER = (139, 124, 246, 110)  # the accent, faint
@@ -29,14 +29,14 @@ def button(glass: Image.Image, caption: str) -> Image.Image:
     shape = Image.new("L", (W, H), 0)
     ImageDraw.Draw(shape).rounded_rectangle((0, 0, W - 1, H - 1), RADIUS, fill=255)
     fill = Image.new("RGBA", (W, H), BACKGROUND)
-    fill.paste(glass.convert("RGBA"), ((W - glass.width) // 2, 4 * SCALE))
+    fill.paste(glass.convert("RGBA"), ((W - glass.width) // 2, 2 * SCALE))
     card.paste(fill, (0, 0), shape)
     draw = ImageDraw.Draw(card)
     draw.rounded_rectangle((1, 1, W - 2, H - 2), RADIUS, outline=BORDER, width=SCALE)
-    font = ImageFont.truetype("/System/Library/Fonts/SFNS.ttf", 17 * SCALE)
+    font = ImageFont.truetype("/System/Library/Fonts/SFNS.ttf", 26 * SCALE)
     # Axes: width, optical size, grade, weight.
     font.set_variation_by_axes([100, 17, 400, 510])
-    draw.text((W / 2, H - 27 * SCALE), caption, font=font, fill=CAPTION, anchor="mm")
+    draw.text((W / 2, H - 32 * SCALE), caption, font=font, fill=CAPTION, anchor="mm")
     return card
 
 

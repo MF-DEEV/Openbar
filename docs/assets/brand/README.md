@@ -5,7 +5,7 @@
 | `openbar-hero.gif` | The README banner, a six-second loop at 1600 × 450. |
 | `openbar-hero.png` | A still frame of the banner. |
 | `social-preview.png` | The repository's social preview, 1280 × 640. |
-| `../readme/download/*.png` | The README's download buttons for Mac, Windows and Linux, 1120 × 304. |
+| `../readme/download/*.png` | The README's download buttons for Mac, Windows and Linux, 1120 × 320. |
 
 ## How the banner is made
 
