@@ -88,7 +88,7 @@ function Refused({ reason }: { reason: string }) {
 
 function App() {
   useLocale();
-  const { status, latest, progress, installError } = useUpdates();
+  const { status, latest, progress, installError, failure } = useUpdates();
   const [current, setCurrent] = useState("");
   const reduced = useReducedMotion();
 
@@ -119,7 +119,13 @@ function App() {
       <div className="up-app">
         <div className="up-plain">
           <img className="up-icon" src={appIcon} alt="" />
-          <p>{status === "checking" || status === "idle" ? t("s.updateChecking") : t("s.updateUpToDate")}</p>
+          <p>
+            {status === "checking" || status === "idle"
+              ? t("s.updateChecking")
+              : status === "failed"
+                ? `${t("s.updateFailedPrefix")} ${failure ?? ""}`.trim()
+                : t("s.updateUpToDate")}
+          </p>
           <button type="button" className="st-button" onClick={close}>
             {t("updatePrompt.close")}
           </button>
