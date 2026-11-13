@@ -2040,13 +2040,14 @@ pub mod installer {
 
     // MARK: Vibe's hooks.toml
 
-    /// The lines that open and close the island's entries in hooks.toml.
+    /// The lines that open and close the island's entries are TOML comments;
+    /// on Windows the marker is the hook's arguments, so `#` starts them.
     pub fn vibe_start(app: &str) -> String {
-        format!("{} start: added by the island, removed by it", claude::marker(app))
+        format!("# {} start: added by the island, removed by it", claude::marker(app))
     }
 
     pub fn vibe_end(app: &str) -> String {
-        format!("{} end", claude::marker(app))
+        format!("# {} end", claude::marker(app))
     }
 
     /// The island's `[[hooks]]` entries between its two marker lines; names
@@ -3117,6 +3118,14 @@ mod tests {
         assert!(installed.starts_with(own));
         assert_eq!(installed.matches("[[hooks]]").count(), 1 + installer::VIBE_EVENTS.len());
         assert!(installed.contains("name = \"openbar-app-pre_tool\""));
+        // Every line the island adds is a TOML table, key or comment, never a bare word.
+        for line in installed.lines().skip(own.lines().count()) {
+            let line = line.trim();
+            assert!(
+                line.is_empty() || line.starts_with('#') || line.starts_with("[[hooks]]") || line.contains(" = "),
+                "not TOML: {line}"
+            );
+        }
         let again = installer::vibe_installing(Some(&installed), exe, "app");
         assert_eq!(again, installed);
         assert_eq!(installer::vibe_removing(&installed, "app").as_deref(), Some(own));

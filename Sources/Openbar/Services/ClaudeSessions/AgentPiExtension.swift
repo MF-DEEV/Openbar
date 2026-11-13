@@ -55,7 +55,10 @@ export default function openbarIsland(pi) {
       socket.unref();
       socket.on("error", () => finish(null));
       socket.on("connect", () => {
-        socket.end(JSON.stringify({ openbar: "pi", pid, event: { at: Date.now(), ...event } }));
+        const data = JSON.stringify({ openbar: "pi", pid, event: { at: Date.now(), ...event } });
+        // A Windows pipe closes as a whole on end(), so one that waits for an answer only writes.
+        if (wait) socket.write(data);
+        else socket.end(data);
       });
       socket.on("data", (chunk) => {
         reply += chunk;
