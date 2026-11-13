@@ -917,6 +917,11 @@ enum DefaultsKey {
     /// The plan limits show beside the sessions, read by the AI section's
     /// reader, which then runs for them even with that section off.
     static let notchSessionsLimits = "notchSessionsLimits"
+    /// Claude Code accounts (config folders) the person named, hid or added
+    /// by hand (issue #216), as JSON: `[{"path", "name"?, "hidden"?, "manual"?}]`.
+    static let notchSessionsClaudeAccounts = "notchSessionsClaudeAccounts"
+    /// The config folder the last session started from the island used.
+    static let notchSessionsLastAccount = "notchSessionsLastAccount"
     /// Replies spoken into a session's reply field, recognized on this Mac only.
     static let notchSessionsVoiceReplies = "notchSessionsVoiceReplies"
     /// Sessions on machines reached over SSH (issue #189); off until turned on.

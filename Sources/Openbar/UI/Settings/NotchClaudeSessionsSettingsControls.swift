@@ -37,6 +37,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             voice
             Divider()
             hooks
+            ClaudeAccountsSettings()
             codex
             agents
             bridge
@@ -230,8 +231,7 @@ struct NotchClaudeSessionsSettingsControls: View {
     private var hooks: some View {
         VStack(alignment: .leading, spacing: 6) {
             // The state reads under the title, so the button keeps its whole name.
-            SettingsRow(symbol: "link", title: text.hooksTitle,
-                        caption: service.hooksInstalled.map { $0 ? text.hooksInstalled : text.hooksMissing }) {
+            SettingsRow(symbol: "link", title: text.hooksTitle, caption: hooksCaption) {
                 if let installed = service.hooksInstalled {
                     Button(installed ? text.removeHooks : text.installHooks) { service.installHooks(!installed) }
                         .controlSize(.small)
@@ -252,6 +252,15 @@ struct NotchClaudeSessionsSettingsControls: View {
                     .padding(.leading, settingsRowTextInset)
             }
         }
+    }
+
+    /// With more than one account, how many of them hold the hooks.
+    private var hooksCaption: String? {
+        guard let installed = service.hooksInstalled else { return nil }
+        let shown = service.accounts.filter { !$0.hidden }
+        guard shown.count > 1 else { return installed ? text.hooksInstalled : text.hooksMissing }
+        let count = shown.filter { service.accountHooks[$0.id] == .installed }.count
+        return count == 0 ? text.hooksMissing : ClaudeAccountStrings.installedIn(count, of: shown.count)
     }
 
     private func switchRow(_ symbol: String, _ title: String, caption: String? = nil, isOn: Binding<Bool>) -> some View {

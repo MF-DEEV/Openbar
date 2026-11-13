@@ -14,7 +14,9 @@ enum ClaudeSessionRegistryReader {
     /// moved it to.
     static func homes(_ home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [URL] {
         let standard = [".claude", ".config/claude"].map { home.appending(path: $0, directoryHint: .isDirectory) }
-        return ClaudeConfigHomes.merge(standard, ClaudeConfigHomes.extra(home: home))
+        // Folders the person added in Settings count only for their own home.
+        let own = home.standardizedFileURL.path == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        return ClaudeConfigHomes.merge(standard, ClaudeConfigHomes.extra(home: home) + (own ? ClaudeAccounts.manualFolders() : []))
     }
 
     static func folders(_ home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [URL] {

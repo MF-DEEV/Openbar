@@ -42,9 +42,14 @@ final class ClaudeSessionService: ObservableObject {
     /// Codex sessions whose requests Always allows until their turn ends.
     @Published private(set) var autoAllowed: Set<String> = []
     let events = PassthroughSubject<ClaudeSessionEvent, Never>()
-    /// Whether Claude Code's settings hold this app's hooks; nil until checked.
+    /// Whether Claude Code's settings hold this app's hooks, in every account
+    /// shown; nil until checked.
     @Published private(set) var hooksInstalled: Bool?
     @Published private(set) var hookFailure: String?
+    /// The Claude Code accounts on this Mac, hidden ones too (issue #216).
+    @Published private(set) var accounts: [ClaudeAccount] = []
+    /// Whether each account's settings hold this app's hooks, by account id.
+    @Published private(set) var accountHooks: [String: ClaudeAccountHooks] = [:]
     /// The editors on this Mac and whether each has the extension replies
     /// are typed through; nil until checked.
     @Published private(set) var bridges: [ClaudeBridgeStatus]?
@@ -1046,42 +1051,105 @@ final class ClaudeSessionService: ObservableObject {
         }
     }
 
+    /// Reads the accounts again and whether each holds the hooks.
     func checkHooks() {
-        let url = ClaudeHookInstaller.settingsURL(home: home)
+        let home = home
         let command = ClaudeHookInstaller.command(socket: Self.socketPath(home: home), bundle: Self.bundleID)
+        let bundle = Self.bundleID
         actions.async {
-            let installed = (try? ClaudeHookInstaller.read(url)).map { ClaudeHookInstaller.isInstalled(in: $0, command: command) }
-            DispatchQueue.main.async { self.hooksInstalled = installed ?? false }
+            let accounts = ClaudeAccounts.all(home: home)
+            var states: [String: ClaudeAccountHooks] = [:]
+            for account in accounts {
+                states[account.id] = Self.hookState(account.settingsURL, command: command, bundle: bundle)
+            }
+            DispatchQueue.main.async {
+                if self.accounts != accounts { self.accounts = accounts }
+                if self.accountHooks != states { self.accountHooks = states }
+                let shown = accounts.filter { !$0.hidden }
+                self.hooksInstalled = shown.isEmpty ? false : shown.allSatisfy { states[$0.id] == .installed }
+            }
         }
     }
 
-    func installHooks(_ install: Bool) {
-        let url = ClaudeHookInstaller.settingsURL(home: home)
+    static func hookState(_ url: URL, command: String, bundle: String) -> ClaudeAccountHooks {
+        guard let settings = try? ClaudeHookInstaller.read(url) else { return .unreadable }
+        if ClaudeHookInstaller.isInstalled(in: settings, command: command) { return .installed }
+        return ClaudeHookInstaller.hasAny(in: settings, bundle: bundle) ? .outdated : .missing
+    }
+
+    /// Puts the hooks into every account shown, or takes them out of every
+    /// account, hidden ones too. With `only`, into or out of that one.
+    func installHooks(_ install: Bool, only: ClaudeAccount? = nil) {
+        let home = home
         let bundle = Self.bundleID
         let command = ClaudeHookInstaller.command(socket: Self.socketPath(home: home), bundle: bundle)
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
         actions.async {
-            var failure: String?
-            do {
-                try ClaudeHookInstaller.update(url) { settings in
-                    install ? ClaudeHookInstaller.installing(into: settings, command: command, bundle: bundle)
-                        : ClaudeHookInstaller.removing(from: settings, bundle: bundle)
+            let accounts = only.map { [$0] } ?? ClaudeAccounts.all(home: home).filter { !install || !$0.hidden }
+            var failures: [String: String] = [:]
+            // Two folders whose settings are one linked file change it once.
+            var done = Set<String>()
+            for account in accounts {
+                let file = account.settingsURL.resolvingSymlinksInPath().path
+                guard done.insert(file).inserted else { continue }
+                // Taking out never makes a settings file that was not there.
+                if !install, (try? ClaudeHookInstaller.contents(account.settingsURL)) == nil { continue }
+                if let failure = Self.changeHooks(account.settingsURL, install: install, command: command,
+                                                  bundle: bundle, text: text) {
+                    failures[account.id] = failure
                 }
-            } catch let error as ClaudeHookInstaller.Failure {
-                switch error {
-                case .unreadable: failure = text.settingsUnreadable
-                case .unwritable(let reason): failure = reason
-                case .busy: failure = text.settingsBusy
-                case .noBackup: failure = text.settingsNoBackup
-                }
-            } catch {
-                failure = error.localizedDescription
             }
             DispatchQueue.main.async {
-                self.hookFailure = failure
+                let names = Dictionary(uniqueKeysWithValues: accounts.map { ($0.id, $0.name) })
+                self.hookFailure = failures.isEmpty ? nil
+                    : failures.count == 1 && accounts.count == 1 ? failures.values.first
+                    : failures.sorted { $0.key < $1.key }.map { "\(names[$0.key] ?? $0.key): \($0.value)" }.joined(separator: "; ")
                 self.checkHooks()
             }
         }
+    }
+
+    private static func changeHooks(_ url: URL, install: Bool, command: String, bundle: String,
+                                    text: NotchClaudeSessionStrings) -> String? {
+        do {
+            try ClaudeHookInstaller.update(url) { settings in
+                install ? ClaudeHookInstaller.installing(into: settings, command: command, bundle: bundle)
+                    : ClaudeHookInstaller.removing(from: settings, bundle: bundle)
+            }
+            return nil
+        } catch let error as ClaudeHookInstaller.Failure {
+            switch error {
+            case .unreadable: return text.settingsUnreadable
+            case .unwritable(let reason): return reason
+            case .busy: return text.settingsBusy
+            case .noBackup: return text.settingsNoBackup
+            }
+        } catch {
+            return error.localizedDescription
+        }
+    }
+
+    // MARK: Accounts (#216)
+
+    func renameAccount(_ account: ClaudeAccount, to name: String) {
+        ClaudeAccounts.rename(account, to: name)
+        checkHooks()
+    }
+
+    func setAccountHidden(_ account: ClaudeAccount, _ hidden: Bool) {
+        ClaudeAccounts.setHidden(account, hidden)
+        checkHooks()
+    }
+
+    @discardableResult
+    func addAccount(_ folder: URL) -> Bool {
+        defer { checkHooks() }
+        return ClaudeAccounts.add(folder, home: home) != nil
+    }
+
+    func removeAccount(_ account: ClaudeAccount) {
+        ClaudeAccounts.remove(account)
+        checkHooks()
     }
 
     /// Brings the session's terminal forward. Calls back on the main thread
@@ -1398,6 +1466,9 @@ final class ClaudeSessionService: ObservableObject {
             guard running else { return }
             if changed {
                 sessions = shown
+                // A session in a folder not listed yet brings its account in.
+                let known = Set(accounts.map(\.id))
+                if ClaudeAccounts.inUse(shown).contains(where: { !known.contains($0) }) { checkHooks() }
                 counts = ClaudeSessionCounts(shown)
                 if autoAllowed != allowed { autoAllowed = allowed }
                 for session in shown {
@@ -1777,8 +1848,18 @@ enum ClaudeSessionCleanup {
         -> (hooks: Bool, shared: Bool) {
         let settings = ClaudeHookInstaller.settingsURL(home: home)
         var hooks = false
-        if let current = try? ClaudeHookInstaller.read(settings), ClaudeHookInstaller.hasAny(in: current, bundle: bundle) {
-            hooks = (try? ClaudeHookInstaller.update(settings) { ClaudeHookInstaller.removing(from: $0, bundle: bundle) }) != nil
+        // Every account's settings, each file once (#216).
+        var files: [URL] = []
+        for url in [settings] + ClaudeAccounts.all(home: home).map(\.settingsURL)
+        where !files.contains(where: { $0.resolvingSymlinksInPath() == url.resolvingSymlinksInPath() }) {
+            files.append(url)
+        }
+        for file in files {
+            guard let current = try? ClaudeHookInstaller.read(file), ClaudeHookInstaller.hasAny(in: current, bundle: bundle)
+            else { continue }
+            if (try? ClaudeHookInstaller.update(file) { ClaudeHookInstaller.removing(from: $0, bundle: bundle) }) != nil {
+                hooks = true
+            }
         }
         // Gemini CLI's, Copilot CLI's, Cursor's and OpenCode's go with them.
         AgentHookInstaller.removeAll(home: home, bundle: bundle)

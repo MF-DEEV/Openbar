@@ -88,7 +88,8 @@ enum ClaudeBackgroundJobs {
                       host: .background(job: job.id), phase: .idle, phaseSince: ended, turnStarted: nil,
                       lastActive: ended, waitingFor: nil, currentTool: nil, permission: nil, timeline: [],
                       subagents: [], tasks: nil, tokens: AgentTokens(), cost: 0, title: nil, lastText: nil, hooked: false,
-                      background: ClaudeBackgroundDetails(job: job.id, state: job.state, ended: true, configHome: job.configHome))
+                      background: ClaudeBackgroundDetails(job: job.id, state: job.state, ended: true, configHome: job.configHome),
+                      account: job.configHome)
     }
 
     /// Whether settings turn Agent View off, as `disableAgentView` or the

@@ -398,7 +398,7 @@ extension NotchClaudeSessionStrings {
         contentPreview: "Show previews",
         contentPreviewHint: "Shows titles, commands, file names and the conversation. They stay in memory and are cleared when you turn this off.",
         hooksTitle: "Claude Code hooks",
-        hooksHint: "Hooks let the island show which tool runs, answer permission prompts and answer Claude’s questions. They’re added to ~/.claude/settings.json next to your own, with a backup first. Without the app running, Claude Code asks in the terminal as usual.",
+        hooksHint: "Hooks let the island show which tool runs, answer permission prompts and answer Claude’s questions. They’re added to the settings.json of each Claude account below, next to your own hooks, with a backup first. Without the app running, Claude Code asks in the terminal as usual.",
         hooksInstalled: "Installed",
         hooksMissing: "Not installed",
         installHooks: "Install Hooks",
