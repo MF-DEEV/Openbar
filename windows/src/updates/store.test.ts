@@ -27,6 +27,18 @@ afterEach(() => {
 });
 
 describe("check", () => {
+  it("looks for the Linux packages' releases in WebKitGTK on Linux", async () => {
+    vi.stubGlobal("navigator", {
+      userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+    });
+    vi.stubGlobal("fetch", answer(feed("windows-v0.5.0", "linux-v0.4.0")));
+    expect(await useUpdates.getState().check()).toBe("available");
+    expect(useUpdates.getState().latest).toEqual({
+      version: "0.4.0",
+      url: "https://github.com/MF-DEEV/Openbar/releases/tag/linux-v0.4.0",
+    });
+  });
+
   it("finds a newer windows release", async () => {
     const fetch = answer(feed("v3.5.0", "windows-v0.3.0", "windows-v0.4.0"));
     vi.stubGlobal("fetch", fetch);

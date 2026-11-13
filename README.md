@@ -17,10 +17,12 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/MF-DEEV/Openbar/releases?q=Mac&expanded=true"><b>Download for Mac</b></a>
-  &nbsp;&nbsp;&nbsp;
-  <a href="https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true"><b>Download for Windows</b></a>
-  &nbsp;&nbsp;&nbsp;
+  <a href="https://github.com/MF-DEEV/Openbar/releases?q=Mac&expanded=true"><img src="docs/assets/readme/download/mac.png" width="270" alt="Download for Mac: Apple Silicon, macOS 14 or later"></a>
+  <a href="https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true"><img src="docs/assets/readme/download/windows.png" width="270" alt="Download for Windows 11, x64 and Arm64"></a>
+  <a href="https://github.com/MF-DEEV/Openbar/releases?q=linux&expanded=true"><img src="docs/assets/readme/download/linux.png" width="270" alt="Download for Linux: X11, deb, rpm and AppImage"></a>
+</p>
+
+<p align="center">
   <a href="docs/README.md">Features and guides</a>
   &nbsp;&nbsp;&nbsp;
   <a href="https://github.com/MF-DEEV/Openbar/discussions">Discussions</a>
@@ -45,7 +47,7 @@ https://github.com/user-attachments/assets/e6782d65-7822-4d9a-9ad4-3f31c8c35df4
 
 **Windows 11** (beta): run the installer from the [latest Windows release](https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true).
 
-**Linux** (X11): build it from source with the [Linux notes](windows/docs/linux.md).
+**Linux** (X11, beta): get the `.deb`, `.rpm` or AppImage from the [latest Linux release](https://github.com/MF-DEEV/Openbar/releases?q=linux&expanded=true), for x86_64 or Arm64. Wayland isn't supported yet; see the [Linux notes](windows/docs/linux.md).
 
 On the Mac, turn sessions on in Openbar's Settings: install **AI Agents** in the Features hub, turn on **Sessions** under Dynamic Island and press **Install Hooks** for Claude Code. Then start `claude` or `codex`.
 
