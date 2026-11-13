@@ -15,7 +15,7 @@ enum ClaudeAccountStrings {
     static let hide = "Hide"
     static let show = "Show"
     static let remove = "Remove"
-    static let hiddenNote = "Hidden: no hooks, limits or place in New session"
+    static let hiddenNote = "Hidden: left out of Install Hooks, limits and New session"
     static let installHere = "Install here too"
     static let update = "Update"
     static let account = "Account"

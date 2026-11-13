@@ -27,17 +27,31 @@ struct ClaudeAccountsSettings: View {
                 .padding(.leading, settingsRowTextInset)
             ForEach(service.accounts) { account in
                 ClaudeAccountSettingsRow(account: account, state: service.accountHooks[account.id],
-                                         showsHooks: service.hooksInstalled != nil, home: home)
+                                         othersHaveHooks: othersHaveHooks(account), home: home)
                     .padding(.leading, settingsRowTextInset)
                     .transition(.opacity)
             }
         }
         .animation(.easeOut(duration: 0.2), value: service.accounts)
+        // A folder made while the page shows, as by a first session with a
+        // new CLAUDE_CONFIG_DIR, joins the list.
+        .task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                guard !Task.isCancelled else { return }
+                service.checkHooks()
+            }
+        }
         .alert(ClaudeAccountStrings.chooseFolder, isPresented: $notAdded) {
             Button("OK", role: .cancel) {}
         } message: {
             Text(ClaudeAccountStrings.notAdded)
         }
+    }
+
+    /// Another account shown holds the hooks, so this one can join it.
+    private func othersHaveHooks(_ account: ClaudeAccount) -> Bool {
+        service.accounts.contains { $0.id != account.id && !$0.hidden && service.accountHooks[$0.id] == .installed }
     }
 
     private func addFolder() {
@@ -57,7 +71,9 @@ struct ClaudeAccountsSettings: View {
 struct ClaudeAccountSettingsRow: View {
     let account: ClaudeAccount
     let state: ClaudeAccountHooks?
-    let showsHooks: Bool
+    /// Some other account holds the hooks: one without them gets its own
+    /// button, while "Install Hooks" above covers them all otherwise.
+    let othersHaveHooks: Bool
     let home: String
     @ObservedObject private var service = ClaudeSessionService.shared
     @State private var name = ""
@@ -93,7 +109,7 @@ struct ClaudeAccountSettingsRow: View {
             }
             .opacity(account.hidden ? 0.55 : 1)
             Spacer(minLength: 8)
-            if showsHooks, !account.hidden, state == .missing || state == .outdated {
+            if !account.hidden, state == .outdated || (state == .missing && othersHaveHooks) {
                 Button(state == .outdated ? ClaudeAccountStrings.update : ClaudeAccountStrings.installHere) {
                     service.installHooks(true, only: account)
                 }

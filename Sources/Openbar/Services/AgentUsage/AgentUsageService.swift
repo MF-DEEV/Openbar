@@ -741,8 +741,11 @@ final class AgentUsageService: ObservableObject {
         // Claude Code started with CLAUDE_CONFIG_DIR signs in to the account
         // kept in that folder, so the limits follow the sessions in use.
         let records = ClaudeSessionRegistryReader.read(ClaudeSessionRegistryReader.folders(home))
-        let config = AgentClaudeServer.accountFolder(records, previous: claudeConfig)
-        if config?.standardizedFileURL.path != claudeConfig?.standardizedFileURL.path {
+        // Before any is chosen the reading is ~/.claude's, which then stays
+        // while it runs a session.
+        let standard = home.appending(path: ".claude", directoryHint: .isDirectory)
+        let config = AgentClaudeServer.accountFolder(records, previous: claudeConfig ?? standard)
+        if (config ?? standard).standardizedFileURL.path != (claudeConfig ?? standard).standardizedFileURL.path {
             claudeConfig = config
             claudeProfileModified = nil
             claudeAccountLimits = nil
@@ -890,9 +893,9 @@ final class AgentUsageService: ObservableObject {
             let id = ClaudeAccounts.canonical(path)
             if !hidden.contains(id), folders[id] == nil { folders[id] = path }
         }
-        let primary = claudeAccountID
-        // Until the reading names its own account, none is known to be another.
-        let others: Set<String> = folders.count > 1 ? primary.map { Set(folders.keys).subtracting([$0]) } ?? [] : []
+        // Before the reading names its account, it reads the one in ~/.claude.
+        let primary = claudeAccountID ?? ClaudeAccounts.canonical(home.appending(path: ".claude").path)
+        let others: Set<String> = folders.count > 1 ? Set(folders.keys).subtracting([primary]) : []
         if Set(claudeAccounts.keys) != others {
             claudeAccounts = claudeAccounts.filter { others.contains($0.key) }
             for id in others where claudeAccounts[id] == nil { claudeAccounts[id] = ClaudeAccountLimits() }

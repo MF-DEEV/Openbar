@@ -34,13 +34,16 @@ struct NotchAgentsView: View {
     /// added, get cards.
     private var providers: [AgentProvider] {
         [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
-            .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty) }
+            .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
+                || ($0 == .claude && !claudeAccounts.isEmpty) }
     }
 
     /// The Claude accounts with cards of their own: the one the reading
     /// follows, then the others in use, only while there is more than one.
     private var claudeAccounts: [String] {
-        guard let primary = usage.claudeAccountID, !usage.claudeAccounts.isEmpty else { return [] }
+        guard !usage.claudeAccounts.isEmpty else { return [] }
+        let primary = usage.claudeAccountID
+            ?? ClaudeAccounts.canonical(FileManager.default.homeDirectoryForCurrentUser.appending(path: ".claude").path)
         return [primary] + usage.claudeAccounts.keys.sorted { name(of: $0) < name(of: $1) }
     }
 
@@ -60,7 +63,7 @@ struct NotchAgentsView: View {
 
     var body: some View {
         Group {
-            if !usage.snapshot.loaded && codexAccounts.isEmpty {
+            if !usage.snapshot.loaded && codexAccounts.isEmpty && claudeAccounts.isEmpty {
                 VStack(spacing: 10) {
                     ProgressView().controlSize(.small)
                     Text(text.loading).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -153,7 +156,7 @@ struct NotchAgentsView: View {
     /// Another Claude account's card; the one the reading follows keeps the
     /// usual card under its name.
     private func claudeAccount(_ tile: NotchAgentTile, now: Date) -> NotchAgentAccount? {
-        guard let id = tile.accountID, id != usage.claudeAccountID, let state = usage.claudeAccounts[id] else { return nil }
+        guard let id = tile.accountID, let state = usage.claudeAccounts[id] else { return nil }
         let failure = state.failure.map { failure -> String in
             switch failure {
             case .missing: return ClaudeAccountStrings.needsClaude

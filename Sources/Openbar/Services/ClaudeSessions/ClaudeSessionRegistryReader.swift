@@ -145,7 +145,11 @@ enum ClaudeConfigHomes {
             return cached.homes
         }
         lock.unlock()
-        let own = home.standardizedFileURL.path == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        var own = home.standardizedFileURL.path == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        #if OPENBAR_DEVELOPMENT
+        // A run in a throwaway home looks at nothing of the person's outside it.
+        if ProcessInfo.processInfo.environment["OPENBAR_SESSIONS_HOME_ONLY"] == "1" { own = false }
+        #endif
         let named = own ? [ProcessInfo.processInfo.environment[variable]].compactMap { $0 } + running() : []
         let found = folders(named: named, home: home) + siblings(of: home)
         lock.lock()
