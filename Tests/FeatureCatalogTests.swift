@@ -1817,8 +1817,8 @@ enum FeatureCatalogTests {
                 case .zhHK: return .zhHK
                 }
             }()
-            suite.expect(!strings.obPurposeTitle.isEmpty && !strings.obPurposeBody.isEmpty
-                    && !strings.obPurposeSkip.isEmpty,
+            suite.expect(!FeatureStrings.onboarding(language).setupTitle.isEmpty
+                    && !FeatureStrings.onboarding(language).setupToolkit.isEmpty,
                    "the purpose step speaks \(language.rawValue)")
             suite.expect(!strings.urlCleanerRulesTitle.isEmpty
                     && !strings.urlCleanerRulesAllSites.isEmpty
@@ -1835,8 +1835,8 @@ enum FeatureCatalogTests {
 
         // MARK: Hub presets and energy badges
 
-        suite.expect(FeaturePreset.allCases.count == 3,
-               "three starting points, not another wall of decisions")
+        suite.expect(FeaturePreset.allCases.count == 4,
+               "the AI agents setup and three toolkit starting points, not another wall of decisions")
         suite.expect(FeaturePreset.allCases.allSatisfy { !$0.features.isEmpty },
                "every preset installs something")
         suite.expect(FeaturePreset.essential.features.contains(.mixer)
@@ -1861,8 +1861,8 @@ enum FeatureCatalogTests {
             FeaturePreset.prepareFirstRunAvailability(in: firstRunDefaults)
             suite.expect(Set(AppFeature.allCases.filter {
                 firstRunDefaults.bool(forKey: $0.availabilityKey)
-            }) == FeaturePreset.essential.features,
-            "a clean install loads only the essential feature set before onboarding")
+            }) == FeaturePreset.recommended.features,
+            "a clean install loads only the recommended feature set before onboarding")
 
             for feature in AppFeature.allCases {
                 firstRunDefaults.set(true, forKey: feature.availabilityKey)
@@ -1877,8 +1877,11 @@ enum FeatureCatalogTests {
             suite.expect(false, "first-run defaults suite can be created")
         }
         for preset in FeaturePreset.allCases {
+            // The Sessions page has its own switch beside the AI page's, under
+            // the same feature.
             suite.expect(preset.enableKeys.allSatisfy { key in
                        preset.features.contains { $0.enabledKeys.contains(key) }
+                           || (key == DefaultsKey.notchSessionsEnabled && preset.features.contains(.notchAgents))
                    },
                    "preset enable keys belong to its own features (\(preset.rawValue))")
         }

@@ -448,8 +448,12 @@ final class Permissions: ObservableObject {
     /// cannot be checked and reads as notDeterminable. Call off the main
     /// thread; the check can block briefly.
     static func automationStatus(for target: AutomationTarget) -> AutomationStatus {
+        automationStatus(bundleID: target.rawValue)
+    }
+
+    /// The same for any app, as the terminals sessions reply into.
+    static func automationStatus(bundleID: String) -> AutomationStatus {
         var descriptor = AEAddressDesc()
-        let bundleID = target.rawValue
         let created = bundleID.withCString { pointer in
             AECreateDesc(typeApplicationBundleID, pointer, bundleID.utf8.count, &descriptor)
         }

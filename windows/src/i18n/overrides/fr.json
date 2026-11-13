@@ -762,5 +762,10 @@
   "windows.notifications.replyErrorInputRefused": "Discord n’a pas accepté le texte. Vérifie son champ de message ; rien n’a été envoyé.",
   "windows.notifications.replyErrorGone": "Cette notification n’existe plus.",
   "windows.notifications.replyErrorGeneric": "Impossible d’envoyer la réponse. Ton brouillon est conservé.",
-  "windows.notifications.replyErrorAccessibilityOff": "Discord ne partage pas son champ de message. Active l’accessibilité dans les réglages du bureau, puis relance Discord."
+  "windows.notifications.replyErrorAccessibilityOff": "Discord ne partage pas son champ de message. Active l’accessibilité dans les réglages du bureau, puis relance Discord.",
+  "windows.onboarding.welcomeTitle": "Vos agents, en haut de l’écran",
+  "windows.onboarding.welcomeToolkit": "La Dynamic Island a aussi la musique, un mixeur, un calendrier et plus.",
+  "windows.onboarding.doneBody": "Les sessions apparaissent en haut de l’écran. Le casque dans la zone de notification ouvre les paramètres.",
+  "windows.onboarding.doneTray": "Zone de notification",
+  "windows.onboarding.doneIsland": "Dynamic Island"
 }

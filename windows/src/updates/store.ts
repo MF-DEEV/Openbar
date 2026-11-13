@@ -7,7 +7,8 @@
 
 import { getVersion } from "@tauri-apps/api/app";
 import { create } from "zustand";
-import { FEED_URL, newestRelease, type Release } from "./releases";
+import { onLinux } from "../shared/platform";
+import { FEED_URL, newestRelease, releasePrefix, type Release } from "./releases";
 
 /** The feed is a few dozen releases; a body this large is not it. */
 const LIMIT = 1 << 20;
@@ -67,7 +68,7 @@ export const useUpdates = create<UpdatesState>()((set) => ({
     set({ status: "checking" });
     running = (async (): Promise<UpdateStatus> => {
       try {
-        const latest = newestRelease(await load(), await getVersion());
+        const latest = newestRelease(await load(), await getVersion(), releasePrefix(onLinux()));
         const status = latest ? "available" : "upToDate";
         set({ status, latest, checkedAt: Date.now(), failure: null });
         return status;

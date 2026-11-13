@@ -15,7 +15,7 @@ enum OnboardingMode {
 }
 
 enum OnboardingStep {
-    case welcome, purpose, permissions, done
+    case welcome, purpose, agents, sessionPermissions, permissions, tryIt, done
 }
 
 struct OnboardingView: View {
@@ -23,11 +23,13 @@ struct OnboardingView: View {
     var onFinish: () -> Void
 
     @ObservedObject private var l10n = L10n.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Persisted so the flow resumes where it stopped — macOS relaunches the
     /// app when Screen Recording is granted mid-onboarding.
     @AppStorage(DefaultsKey.onboardingStep) private var index = 0
     @State private var selectedFeatures: Set<AppFeature>
     @State private var selectedPreset: FeaturePreset?
+    @State private var forward = true
 
     init(mode: OnboardingMode = .full, onFinish: @escaping () -> Void) {
         self.mode = mode
@@ -37,19 +39,29 @@ struct OnboardingView: View {
             || defaults.integer(forKey: DefaultsKey.onboardingStep) >= 2
         let features = selectionWasApplied
             ? Set(AppFeature.allCases.filter(\.isAvailable))
-            : FeaturePreset.essential.features
+            : FeaturePreset.recommended.features
         _selectedFeatures = State(initialValue: features)
-        _selectedPreset = State(initialValue: selectionWasApplied ? nil : .essential)
+        _selectedPreset = State(initialValue: selectionWasApplied ? nil : .recommended)
     }
 
+    /// The island's own Accessibility serves its volume, brightness and
+    /// clipboard extras, not sessions, so the agents flow leaves it to when
+    /// one of those is used; sessions get their own step.
     private var setupPermissions: [AppPermission] {
-        let permissions = Set(selectedFeatures.flatMap(\.onboardingPermissions))
+        let features = agentsChosen ? selectedFeatures.subtracting([.notch, .notchAgents]) : selectedFeatures
+        let permissions = Set(features.flatMap(\.onboardingPermissions))
         return [.accessibility, .screenRecording].filter { permissions.contains($0) }
     }
+    /// Coding agents chosen: the flow is about sessions (#168). The toolkit's
+    /// own permissions follow only when something chosen asks for them.
+    private var agentsChosen: Bool { selectedFeatures.contains(.notchAgents) && selectedFeatures.contains(.notch) }
     private var steps: [OnboardingStep] {
-        [.welcome, .purpose, .permissions, .done]
+        guard agentsChosen else { return [.welcome, .purpose, .permissions, .done] }
+        return [.welcome, .purpose, .agents, .sessionPermissions]
+            + (setupPermissions.isEmpty ? [] : [.permissions]) + [.tryIt, .done]
     }
     private var current: OnboardingStep { steps[min(max(0, index), steps.count - 1)] }
+    private var centered: Bool { [.agents, .sessionPermissions, .tryIt].contains(current) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -59,13 +71,21 @@ struct OnboardingView: View {
             // footer was clipped away and the flow looked stuck.
             ScrollView {
                 content
+                    .frame(minHeight: 566, alignment: centered ? .center : .top)
+                    .id(current)
+                    .transition(reduceMotion ? .opacity : .asymmetric(
+                        insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
+                        removal: .opacity))
                     .frame(maxWidth: .infinity, alignment: .top)
             }
+            .scrollBounceBehavior(.basedOnSize)
+            // The heroes run under the transparent title bar, to the window's edge.
+            .ignoresSafeArea(.container, edges: .top)
 
             Divider()
             navigationBar
         }
-        .frame(width: 540, height: 600)
+        .frame(width: 560, height: 640)
         .onAppear {
             if !steps.indices.contains(index) { index = 0 }
             // Onboarding narrates the permission trip itself; the floating
@@ -74,6 +94,7 @@ struct OnboardingView: View {
         }
         .onDisappear {
             PermissionGuideOverlay.suppressed = false
+            ClaudeSessionService.shared.dismissSample()
         }
     }
 
@@ -83,18 +104,26 @@ struct OnboardingView: View {
         case .welcome: WelcomeStep()
         case .purpose: PurposeStep(selectedFeatures: $selectedFeatures,
                                    selectedPreset: $selectedPreset)
+        case .agents: OnboardingAgentsStep()
+        case .sessionPermissions: OnboardingSessionPermissionsStep()
         case .permissions: SelectedPermissionsStep(features: selectedFeatures,
                                                    permissions: setupPermissions)
-        case .done: DoneStep()
+        case .tryIt: OnboardingTryStep()
+        case .done: DoneStep(agents: agentsChosen)
+        }
+    }
+
+    private func go(_ step: Int) {
+        forward = step > index
+        withAnimation(reduceMotion ? .easeInOut(duration: 0.15) : .spring(response: 0.45, dampingFraction: 0.86)) {
+            index = step
         }
     }
 
     private var navigationBar: some View {
         HStack {
-            Button(l10n.s.obBack) {
-                withAnimation(.easeInOut(duration: 0.2)) { index = max(0, index - 1) }
-            }
-            .disabled(index == 0)
+            Button(l10n.s.obBack) { go(max(0, index - 1)) }
+                .disabled(index == 0)
 
             Spacer()
 
@@ -106,6 +135,7 @@ struct OnboardingView: View {
                         .animation(.spring(response: 0.3, dampingFraction: 0.8), value: index)
                 }
             }
+            .accessibilityHidden(true)
 
             Spacer()
 
@@ -117,9 +147,9 @@ struct OnboardingView: View {
                     if current == .purpose {
                         FeatureRuntime.shared.replaceAvailable(
                             with: selectedFeatures,
-                            enabling: selectedPreset?.enableKeys ?? [])
+                            enabling: selectedPreset?.enableKeys ?? Self.agentKeys(selectedFeatures))
                     }
-                    withAnimation(.easeInOut(duration: 0.2)) { index += 1 }
+                    go(index + 1)
                 }
             }
             .keyboardShortcut(.defaultAction)
@@ -127,6 +157,12 @@ struct OnboardingView: View {
             .buttonStyle(.borderedProminent)
         }
         .padding(16)
+    }
+
+    /// Agents picked one by one switch the island and its sessions on too,
+    /// as the preset would.
+    private static func agentKeys(_ features: Set<AppFeature>) -> [String] {
+        features.contains(.notchAgents) && features.contains(.notch) ? FeaturePreset.agents.enableKeys : []
     }
 
     private var primaryButtonTitle: String {
@@ -139,68 +175,44 @@ struct OnboardingView: View {
 
 private struct WelcomeStep: View {
     @ObservedObject private var l10n = L10n.shared
+    private var text: OnboardingStrings { FeatureStrings.onboarding(l10n.language) }
 
     var body: some View {
         VStack(spacing: 0) {
-            ZStack {
-                Theme.spaceGradient
-                VStack(spacing: 10) {
-                    BrandMark(width: 130)
-                    Text(AppInfo.name)
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundStyle(.white)
-                    Text(l10n.s.obStepWelcomeBody)
-                        .font(.system(size: 12))
-                        .foregroundStyle(.white.opacity(0.85))
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 40)
-                }
-                .padding(.top, 12)
-            }
-            .frame(height: 220)
+            OnboardingIslandDemo(height: 330)
 
-            VStack(alignment: .leading, spacing: 16) {
-                Picker(l10n.s.obLanguageLabel, selection: $l10n.language) {
-                    ForEach(AppLanguage.allCases) { language in
-                        Text(language.displayName).tag(language)
-                    }
-                }
-                // A menu (not segmented): with nine languages a segmented control
-                // would overflow, and several names are in their own script.
-                .pickerStyle(.menu)
-
-                featureRow(icon: "bolt.fill",
-                           title: l10n.s.obWelcomeBullet1Title,
-                           text: l10n.s.obWelcomeBullet1Body)
-                featureRow(icon: "gauge.with.dots.needle.50percent",
-                           title: l10n.s.obWelcomeBullet2Title,
-                           text: l10n.s.obWelcomeBullet2Body)
-                featureRow(icon: "rectangle.on.rectangle",
-                           title: l10n.s.obWelcomeBullet3Title,
-                           text: l10n.s.obWelcomeBullet3Body)
-            }
-            .padding(24)
-        }
-    }
-
-    private func featureRow(icon: String, title: String, text: String) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Theme.spaceGradient)
-                    .frame(width: 30, height: 30)
-                Image(systemName: icon)
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 13, weight: .semibold))
-                Text(text)
-                    .font(.system(size: 11.5))
+            VStack(spacing: 10) {
+                Text(text.welcomeTitle)
+                    .font(.system(size: 26, weight: .bold))
+                    .multilineTextAlignment(.center)
+                Text(text.welcomeBody)
+                    .font(.system(size: 13.5))
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 30)
+                Text(text.welcomeToolkit)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+                    .multilineTextAlignment(.center)
             }
+            .padding(.top, 26)
+            .padding(.horizontal, 30)
+
+            Picker(selection: $l10n.language) {
+                ForEach(AppLanguage.allCases) { language in
+                    Text(language.displayName).tag(language)
+                }
+            } label: {
+                Image(systemName: "globe")
+                    .accessibilityLabel(l10n.s.obLanguageLabel)
+            }
+            // A menu (not segmented): with fifteen languages a segmented control
+            // would overflow, and several names are in their own script.
+            .pickerStyle(.menu)
+            .fixedSize()
+            .padding(.top, 22)
+            .padding(.bottom, 16)
         }
     }
 }
@@ -217,59 +229,155 @@ private struct PurposeStep: View {
 
     private var hub: FeatureHubStrings { FeatureStrings.hub(l10n.language) }
 
+    @State private var showsCatalog = false
+    private var text: OnboardingStrings { FeatureStrings.onboarding(l10n.language) }
+    private var toolkit: [FeaturePreset] { FeaturePreset.allCases.filter { $0 != .agents } }
+
     var body: some View {
         VStack(spacing: 16) {
-            StepHeader(icon: "sparkles.rectangle.stack",
-                       title: l10n.s.obPurposeTitle,
-                       subtitle: l10n.s.obPurposeBody)
+            Text(text.setupTitle)
+                .font(.system(size: 22, weight: .bold))
+                .padding(.top, 30)
 
-            VStack(spacing: 8) {
-                ForEach(FeaturePreset.allCases) { preset in
-                    bundleCard(preset)
+            agentsCard
+                .padding(.horizontal, 28)
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(text.setupToolkit)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    ForEach(toolkit) { toolkitCard($0) }
                 }
             }
             .padding(.horizontal, 28)
 
-            HStack {
-                Text(hub.tabFeatures.uppercased())
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(.secondary)
-                    .tracking(1)
-                Spacer()
-                Text(String(format: hub.activeCountFormat,
-                            selectedFeatures.count, FeatureRuntime.shared.installableCount))
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
+            DisclosureGroup(isExpanded: $showsCatalog) {
+                catalog.padding(.top, 10)
+            } label: {
+                HStack {
+                    Text(text.setupOneByOne)
+                        .font(.system(size: 12.5, weight: .medium))
+                    Spacer()
+                    Text(String(format: hub.activeCountFormat,
+                                selectedFeatures.count, FeatureRuntime.shared.installableCount))
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                }
+                .contentShape(Rectangle())
+                .onTapGesture { withAnimation(.easeInOut(duration: 0.2)) { showsCatalog.toggle() } }
             }
             .padding(.horizontal, 28)
+            .padding(.bottom, 16)
+        }
+    }
 
-            LazyVStack(spacing: 14) {
-                ForEach(FeatureGroup.allCases, id: \.self) { group in
-                    VStack(alignment: .leading, spacing: 7) {
-                        Text(groupTitle(group))
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        ForEach(AppFeature.features(in: group), id: \.self) { feature in
-                            featureCard(feature)
-                        }
+    private var catalog: some View {
+        LazyVStack(spacing: 14) {
+            ForEach(FeatureGroup.allCases, id: \.self) { group in
+                VStack(alignment: .leading, spacing: 7) {
+                    Text(groupTitle(group))
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                    ForEach(AppFeature.features(in: group), id: \.self) { feature in
+                        featureCard(feature)
                     }
                 }
             }
-            .padding(.horizontal, 28)
-
-            Text(l10n.s.obPurposeSkip)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 36)
-                .padding(.bottom, 12)
-
-            Spacer()
         }
+    }
+
+    private func pick(_ preset: FeaturePreset) {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            selectedPreset = preset
+            selectedFeatures = preset.features
+        }
+    }
+
+    /// The setup most people came for, first and largest, with the agents it
+    /// covers drawn in a row.
+    private var agentsCard: some View {
+        let selected = selectedPreset == .agents
+        return Button { pick(.agents) } label: {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 8) {
+                    ForEach(ClaudeSessionProvider.allCases, id: \.self) { provider in
+                        Circle()
+                            .fill(Color.black)
+                            .frame(width: 34, height: 34)
+                            .overlay(NotchSessionAgentGlyph(provider: provider, size: 13, working: false))
+                    }
+                    Spacer()
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(selected ? Color.brandAccent : Color.secondary.opacity(0.4))
+                        .contentTransition(.symbolEffect(.replace))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(text.setupAgentsName)
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(.primary)
+                    Text(text.setupAgentsDesc)
+                        .font(.system(size: 12.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(16)
+            .background(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .fill(selected ? Color.brandAccent.opacity(0.12) : Color.primary.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .strokeBorder(selected ? Color.brandAccent.opacity(0.55) : Color.primary.opacity(0.06),
+                                  lineWidth: selected ? 1.5 : 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(OnboardingPressStyle())
+        .accessibilityLabel("\(text.setupAgentsName). \(text.setupAgentsDesc)")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    private func toolkitCard(_ preset: FeaturePreset) -> some View {
+        let selected = selectedPreset == preset
+        return Button { pick(preset) } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                Image(systemName: preset.symbolName)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(selected ? Color.brandAccent : Color.secondary)
+                    .frame(height: 18)
+                    .accessibilityHidden(true)
+                Text(name(preset))
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundStyle(.primary)
+                Text(caption(preset))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 104, alignment: .topLeading)
+            .padding(12)
+            .background(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(selected ? Color.brandAccent.opacity(0.12) : Color.primary.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(selected ? Color.brandAccent.opacity(0.5) : .clear, lineWidth: 1)
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(OnboardingPressStyle())
+        .accessibilityLabel("\(name(preset)). \(caption(preset))")
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 
     private func name(_ preset: FeaturePreset) -> String {
         switch preset {
+        case .agents: return text.setupAgentsName
         case .essential: return hub.presetEssentialName
         case .windows: return hub.presetWindowsName
         case .battery: return hub.presetBatteryName
@@ -278,57 +386,11 @@ private struct PurposeStep: View {
 
     private func caption(_ preset: FeaturePreset) -> String {
         switch preset {
+        case .agents: return text.setupAgentsDesc
         case .essential: return hub.presetEssentialDesc
         case .windows: return hub.presetWindowsDesc
         case .battery: return hub.presetBatteryDesc
         }
-    }
-
-    private func bundleCard(_ preset: FeaturePreset) -> some View {
-        let selected = selectedPreset == preset
-        return Button {
-            selectedPreset = preset
-            selectedFeatures = preset.features
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: preset.symbolName)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.brandAccent)
-                    .frame(width: 26)
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(name(preset))
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.primary)
-                    Text(caption(preset))
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer()
-                if selected {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(Color.brandAccent)
-                        .accessibilityHidden(true)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(selected ? Color.brandAccent.opacity(0.12) : Color.primary.opacity(0.05))
-            )
-            .overlay {
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(selected ? Color.brandAccent.opacity(0.45) : .clear,
-                                  lineWidth: 1)
-            }
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(name(preset)). \(caption(preset))")
-        .accessibilityAddTraits(selected ? .isSelected : [])
-        .animation(.easeOut(duration: 0.15), value: selectedPreset)
     }
 
     private func featureCard(_ feature: AppFeature) -> some View {
@@ -509,38 +571,46 @@ private struct SelectedPermissionsStep: View {
 // MARK: - Done
 
 private struct DoneStep: View {
+    var agents: Bool
     @ObservedObject private var l10n = L10n.shared
+    private var text: OnboardingStrings { FeatureStrings.onboarding(l10n.language) }
 
     var body: some View {
         VStack(spacing: 0) {
-            ZStack {
-                Theme.spaceGradient
-                VStack(spacing: 14) {
-                    BrandMark(width: 150)
-                    Text(l10n.s.obStepDoneTitle)
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundStyle(.white)
-                    Text(l10n.s.obStepDoneBody)
-                        .font(.system(size: 12.5))
-                        .foregroundStyle(.white.opacity(0.85))
-                }
-            }
-            .frame(height: 300)
+            OnboardingMenuBarScene(showsNotch: agents)
+                .frame(height: 200)
 
             VStack(spacing: 10) {
-                Image(systemName: "menubar.arrow.up.rectangle")
-                    .font(.system(size: 26))
-                    .foregroundStyle(.secondary)
-                Text(l10n.s.obDoneHint)
-                    .font(.system(size: 12))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 60)
+                Text(text.doneTitle)
+                    .font(.system(size: 26, weight: .bold))
+                if agents {
+                    Text(text.doneBody)
+                        .font(.system(size: 13.5))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 50)
+                }
             }
-            .padding(.top, 36)
+            .padding(.top, 30)
 
-            Spacer()
+            if agents {
+                OnboardingSessionKeys()
+                    .padding(.top, 30)
+            }
+            Spacer(minLength: 0)
         }
+    }
+}
+
+/// Cards that sink a little under the pointer's press.
+struct OnboardingPressStyle: ButtonStyle {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.97 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
     }
 }
 

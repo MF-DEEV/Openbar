@@ -33,6 +33,7 @@ mod music_levels;
 mod music_queue;
 mod notification_history;
 mod notifications;
+mod onboarding;
 mod ocr;
 mod power_saver;
 mod prefs;
@@ -250,6 +251,9 @@ pub fn run() {
             fullscreen::attention_context,
             fullscreen::attention_compact_sessions,
             settings::open_settings,
+            onboarding::onboarding_open,
+            onboarding::onboarding_finish,
+            onboarding::onboarding_claude_present,
             hosts::bridge_installer::ide_bridge_status,
             hosts::bridge_installer::ide_bridge_install,
             hooks::claude_hooks_status,
@@ -286,6 +290,8 @@ pub fn run() {
             prefs::launch_at_login_get,
             prefs::launch_at_login_set,
             sessions::service::sessions_decide,
+            sessions::service::sessions_show_sample,
+            sessions::service::sessions_dismiss_sample,
             sessions::service::sessions_answer,
             sessions::service::sessions_acknowledge,
             sessions::service::sessions_focus,
@@ -476,6 +482,7 @@ pub fn run() {
             let prefs = app.state::<prefs::Prefs>().get();
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;
+            onboarding::start(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())
