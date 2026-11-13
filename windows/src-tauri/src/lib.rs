@@ -49,6 +49,8 @@ mod system_monitor;
 mod timer;
 mod toggles;
 mod tray;
+mod update_window;
+mod updater;
 mod voice;
 mod watch;
 
@@ -187,7 +189,11 @@ pub fn run() {
     linux::before_start();
     // Settings and hooks from the app's old name, before anything reads them.
     legacy::migrate_at_start();
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // In-app updates are Windows only; the Linux packages open the release page.
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    let app = builder
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             settings::open(app)
         }))
@@ -264,6 +270,9 @@ pub fn run() {
             fullscreen::attention_compact_sessions,
             settings::open_settings,
             onboarding::onboarding_open,
+            updater::updates_endpoints,
+            updater::updates_install,
+            update_window::update_window_open,
             onboarding::onboarding_finish,
             onboarding::onboarding_claude_present,
             hosts::bridge_installer::ide_bridge_status,
@@ -499,6 +508,7 @@ pub fn run() {
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;
             onboarding::start(app.handle());
+            updater::restore_windows(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())

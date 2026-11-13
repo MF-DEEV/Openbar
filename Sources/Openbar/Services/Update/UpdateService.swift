@@ -27,11 +27,16 @@ final class UpdateService: ObservableObject {
     /// preview. Set alongside `.available`; cleared otherwise.
     @Published private(set) var availableNotes: String?
 
-    /// Openbar's releases. Its DMGs are not signed by the Openbar team the
-    /// in-place installer requires, so an update opens its release page instead.
+    /// True while the offer on hand is skipped or snoozed: the notification,
+    /// menu bar badge, panel banner and island button stay quiet. Settings
+    /// still offers it.
+    @Published private(set) var offerMuted = false
+
     private var repository: String { UpdateServiceSupport.releaseRepository }
     private var downloadURL: URL?
-    /// The release page of the update on offer, opened in place of installing it.
+    /// The `.sig` asset of the update on offer; without one it is not installed.
+    private var signatureURL: URL?
+    /// The release page of the update on offer, for when it cannot be installed here.
     private var releasePageURL: URL?
     /// Size the release advertises for the asset, used to bound the download.
     private var downloadExpectedBytes: Int64?
@@ -91,12 +96,12 @@ final class UpdateService: ObservableObject {
         refreshTimer?.invalidate()
         refreshTimer = nil
         guard autoCheckEnabled else { return }
-        // Hourly (was daily). Combined with the activate / panel-open checks, a new
-        // release surfaces within the hour instead of up to a day later.
-        let timer = Timer(timeInterval: 60 * 60, repeats: true) { [weak self] _ in
+        // About once a day; the activate / panel-open checks catch up after
+        // the Mac slept through the timer.
+        let timer = Timer(timeInterval: Self.checkInterval, repeats: true) { [weak self] _ in
             self?.check(manual: false)
         }
-        timer.tolerance = 60 * 5
+        timer.tolerance = 60 * 30
         RunLoop.main.add(timer, forMode: .common)
         refreshTimer = timer
     }
@@ -122,9 +127,11 @@ final class UpdateService: ObservableObject {
         if case .installing = state { return }
         state = .checking
 
-        let endpoint = includeBetaUpdates
+        let override = UserDefaults.standard.string(forKey: DefaultsKey.updateFeedURL)
+            .flatMap(URL.init(string:))
+        let endpoint = override?.absoluteString ?? (includeBetaUpdates
             ? "https://api.github.com/repos/\(repository)/releases?per_page=10"
-            : "https://api.github.com/repos/\(repository)/releases/latest"
+            : "https://api.github.com/repos/\(repository)/releases/latest")
 
         var request = URLRequest(url: URL(string: endpoint)!)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
@@ -142,8 +149,8 @@ final class UpdateService: ObservableObject {
                 }
 
                 let releases: [GitHubRelease]
-                if self.includeBetaUpdates {
-                    releases = (try? JSONDecoder().decode([GitHubRelease].self, from: data)) ?? []
+                if let list = try? JSONDecoder().decode([GitHubRelease].self, from: data) {
+                    releases = list
                 } else if let single = try? JSONDecoder().decode(GitHubRelease.self, from: data) {
                     releases = [single]
                 } else {
@@ -158,13 +165,19 @@ final class UpdateService: ObservableObject {
 
                 let candidates = releases.map { rel -> UpdateServiceSupport.ReleaseCandidate in
                     let asset = rel.assets.first { $0.name.hasSuffix(".dmg") }
+                    let signature = asset.flatMap { dmg in
+                        rel.assets.first {
+                            $0.name == UpdateServiceSupport.signatureAssetName(forDMG: dmg.name)
+                        }
+                    }
                     return UpdateServiceSupport.ReleaseCandidate(
                         tagName: rel.tagName,
                         isPrerelease: rel.prerelease ?? false,
                         isDraft: rel.draft ?? false,
                         dmgURL: asset?.browserDownloadURL,
                         dmgExpectedBytes: asset?.size,
-                        body: rel.body
+                        body: rel.body,
+                        signatureURL: signature?.browserDownloadURL
                     )
                 }
 
@@ -175,16 +188,19 @@ final class UpdateService: ObservableObject {
                 ) {
                     let versionClean = chosen.tagName.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
                     self.downloadURL = chosen.dmgURL
+                    self.signatureURL = chosen.signatureURL
                     self.releasePageURL = URL(string: "https://github.com/\(self.repository)/releases/tag/\(chosen.tagName)")
                     self.downloadExpectedBytes = chosen.dmgExpectedBytes
                     self.availableNotes = ReleaseNotes.inAppUpdateNotes(from: chosen.body)
                     self.state = .available(version: versionClean)
-                    // Notify once per distinct release, not on every hourly re-check.
-                    if !manual, versionClean != self.notifiedVersion {
+                    self.refreshOfferMuted()
+                    // Notify once per distinct release, not on every re-check,
+                    // and not at all while the person skipped or snoozed it.
+                    if !manual, !self.offerMuted, versionClean != self.notifiedVersion {
                         self.notifiedVersion = versionClean
                         let s = L10n.shared.s
-                        Notifier.post(title: s.updateNotifyTitle,
-                                      body: "\(s.updateAvailablePrefix) \(versionClean)")
+                        Notifier.postUpdateOffer(title: s.updateNotifyTitle,
+                                                 body: "\(s.updateAvailablePrefix) \(versionClean)")
                     }
                 } else {
                     self.availableNotes = nil
@@ -197,7 +213,7 @@ final class UpdateService: ObservableObject {
     /// Re-checks only if the last check is stale — called when the app reactivates
     /// or the panel opens, so a new release surfaces promptly without hammering the
     /// API. The hourly timer is the floor; this makes it feel immediate.
-    func checkIfStale(maxAge: TimeInterval = 15 * 60) {
+    func checkIfStale(maxAge: TimeInterval = checkInterval) {
         if AppInfo.isDeveloperBuild { return }
         guard autoCheckEnabled else { return }
         switch state {
@@ -208,15 +224,52 @@ final class UpdateService: ObservableObject {
         check(manual: false)
     }
 
+    static let checkInterval: TimeInterval = 24 * 60 * 60
+
+    // MARK: - Skip / remind later
+
+    /// "Skip this version": no prompts for it; a newer release brings them back.
+    func skipOfferedVersion() {
+        guard case let .available(version) = state else { return }
+        UserDefaults.standard.set(version, forKey: DefaultsKey.updateSkippedVersion)
+        refreshOfferMuted()
+    }
+
+    /// "Remind me later": every prompt stays quiet for a day.
+    func remindLater() {
+        UserDefaults.standard.set(Date().addingTimeInterval(UpdateServiceSupport.snoozeInterval),
+                                  forKey: DefaultsKey.updateSnoozedUntil)
+        refreshOfferMuted()
+    }
+
+    private func refreshOfferMuted() {
+        guard case let .available(version) = state else {
+            offerMuted = false
+            return
+        }
+        let defaults = UserDefaults.standard
+        offerMuted = !UpdateServiceSupport.promptAllowed(
+            version: version,
+            skippedVersion: defaults.string(forKey: DefaultsKey.updateSkippedVersion),
+            snoozedUntil: defaults.object(forKey: DefaultsKey.updateSnoozedUntil) as? Date)
+    }
+
+    /// Whether the automatic surfaces may show the offer right now.
+    var promptsOffer: Bool {
+        if case .available = state { return !offerMuted }
+        return false
+    }
+
     // MARK: - Download & install
 
     func downloadAndInstall() {
         if AppInfo.isDeveloperBuild { return }  // never replace the local dev build over itself
-        if let releasePageURL {
-            NSWorkspace.shared.open(releasePageURL)
+        guard let downloadURL else { return }
+        // A release without Openbar's signature is never installed from here.
+        guard let signatureURL else {
+            refuseUnsigned(deletePath: nil, offered: offeredVersion)
             return
         }
-        guard let downloadURL else { return }
         // Pre-flight BEFORE spending the download: a translocated app or one
         // running from a read-only volume (the mounted DMG) can never be
         // replaced in place, so say so now instead of after the download.
@@ -233,9 +286,40 @@ final class UpdateService: ObservableObject {
         // Remember the offer so a failed download restores it (the user can retry)
         // instead of dropping to a dead .failed state that hides the update and
         // blocks checkIfStale for 15 min.
-        let offered: String?
-        if case let .available(version) = state { offered = version } else { offered = nil }
+        let offered = offeredVersion
         state = .downloading(progress: nil)
+        fetchSignature(signatureURL) { [weak self] signatureText in
+            guard let self else { return }
+            guard let signatureText else {
+                self.state = offered.map { State.available(version: $0) } ?? .failed("signature")
+                return
+            }
+            self.download(downloadURL, signatureText: signatureText, offered: offered)
+        }
+    }
+
+    private var offeredVersion: String? {
+        if case let .available(version) = state { return version }
+        return nil
+    }
+
+    /// Fetches the small `.sig` asset; nil when it cannot be had (network, or
+    /// something that is not a signature file). Calls back on the main queue.
+    private func fetchSignature(_ url: URL, completion: @escaping (String?) -> Void) {
+        var request = URLRequest(url: url)
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        request.setValue("Openbar/\(AppInfo.version)", forHTTPHeaderField: "User-Agent")
+        URLSession.shared.dataTask(with: request) { data, response, _ in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let text = data.flatMap { body -> String? in
+                guard status == 200, body.count <= UpdateSignature.maxSignatureBytes else { return nil }
+                return String(data: body, encoding: .utf8)
+            }
+            DispatchQueue.main.async { completion(text) }
+        }.resume()
+    }
+
+    private func download(_ downloadURL: URL, signatureText: String, offered: String?) {
 
         let expectedBytes = downloadExpectedBytes
         let byteLimit = UpdateInstallerSupport.downloadByteLimit(expectedBytes: expectedBytes)
@@ -284,6 +368,15 @@ final class UpdateService: ObservableObject {
                         }
                         return
                     }
+                    // The signature is checked before anything else touches the
+                    // file: a DMG changed on the way is deleted, never mounted.
+                    guard UpdateSignature.verify(fileAt: tempURL, signatureText: signatureText) else {
+                        try? FileManager.default.removeItem(at: tempURL)
+                        DispatchQueue.main.async {
+                            self.refuseUnsigned(deletePath: nil, offered: offered)
+                        }
+                        return
+                    }
                     // Move out of the session's scratch space before handing off.
                     let dmgURL = FileManager.default.temporaryDirectory
                         .appendingPathComponent("Openbar-update.dmg")
@@ -326,10 +419,14 @@ final class UpdateService: ObservableObject {
         let pid = ProcessInfo.processInfo.processIdentifier
         let fm = FileManager.default
 
-        guard let resultURL = Self.installResultURL, let expectedVersion = offered else {
+        guard let resultURL = Self.installResultURL, let expectedVersion = offered,
+              let requirement = UpdateSignature.runningDesignatedRequirement(),
+              let bundleIdentifier = Bundle.main.bundleIdentifier else {
             abortInstall(dmgPath: dmgPath, offered: offered)
             return
         }
+        let appleRequirement = UpdateInstallerSupport.appleRequirement(bundleIdentifier: bundleIdentifier)
+        rememberOpenWindows()
         try? fm.createDirectory(at: resultURL.deletingLastPathComponent(),
                                 withIntermediateDirectories: true)
         try? fm.removeItem(at: resultURL)
@@ -337,23 +434,60 @@ final class UpdateService: ObservableObject {
 
         let appDirectory = (appPath as NSString).deletingLastPathComponent
         let lastFailure = UserDefaults.standard.string(forKey: DefaultsKey.updateLastInstallFailure)
+        let arguments = InstallerArguments(appPath: appPath, dmgPath: dmgPath, pid: pid,
+                                           resultPath: resultURL.path, expectedVersion: expectedVersion,
+                                           requirement: requirement, appleRequirement: appleRequirement)
         if fm.isWritableFile(atPath: appDirectory),
            !UpdateInstallerSupport.shouldForceAdminInstall(afterFailureCode: lastFailure) {
-            launchUserInstaller(appPath: appPath, dmgPath: dmgPath, pid: pid,
-                                resultPath: resultURL.path, expectedVersion: expectedVersion)
+            launchUserInstaller(arguments)
         } else {
             // Either the folder is not writable, or the last attempt died at
             // the copy/swap step: retry with admin rights instead of failing
             // the same way twice.
-            launchAdminInstaller(appPath: appPath, dmgPath: dmgPath, pid: pid,
-                                 resultPath: resultURL.path, expectedVersion: expectedVersion)
+            launchAdminInstaller(arguments)
         }
     }
 
-    private func launchUserInstaller(appPath: String, dmgPath: String, pid: Int32,
-                                     resultPath: String, expectedVersion: String) {
+    private struct InstallerArguments {
+        let appPath: String
+        let dmgPath: String
+        let pid: Int32
+        let resultPath: String
+        let expectedVersion: String
+        let requirement: String
+        let appleRequirement: String
+    }
+
+    /// Settings comes back after the relaunch if it was open when the update
+    /// quit the app. Sessions, hooks and preferences live outside the bundle
+    /// and need nothing.
+    private func rememberOpenWindows() {
+        UserDefaults.standard.set(appDelegate()?.settingsWindowIsVisible == true,
+                                  forKey: DefaultsKey.updateReopenSettings)
+    }
+
+    /// The download or the release is not signed with Openbar's update key:
+    /// nothing is installed, and the person is told why.
+    private func refuseUnsigned(deletePath: String?, offered: String?) {
+        if let deletePath { try? FileManager.default.removeItem(atPath: deletePath) }
+        let strings = FeatureStrings.updatePrompt(L10n.shared.language)
+        state = .failed(strings.signatureRefusedShort)
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = strings.signatureRefusedTitle
+        alert.informativeText = strings.signatureRefusedBody
+        alert.addButton(withTitle: strings.close)
+        if releasePageURL != nil { alert.addButton(withTitle: strings.openReleasePage) }
+        if alert.runModal() == .alertSecondButtonReturn, let releasePageURL {
+            NSWorkspace.shared.open(releasePageURL)
+        }
+    }
+
+    private func launchUserInstaller(_ a: InstallerArguments) {
+        let dmgPath = a.dmgPath
         let scriptURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("openbar-update-\(pid)-\(UUID().uuidString).sh")
+            .appendingPathComponent("openbar-update-\(a.pid)-\(UUID().uuidString).sh")
         do {
             try UpdateInstallerSupport.installerScript()
                 .write(to: scriptURL, atomically: true, encoding: .utf8)
@@ -366,8 +500,8 @@ final class UpdateService: ObservableObject {
             // Its own session: a plain child would be swept away with this
             // app's session and launchd job, before the swap it is here for.
             try DetachedProcess.spawn("/bin/sh",
-                                      [scriptURL.path, appPath, dmgPath, "\(pid)", resultPath,
-                                       "\(getuid())", expectedVersion])
+                                      [scriptURL.path, a.appPath, dmgPath, "\(a.pid)", a.resultPath,
+                                       "\(getuid())", a.expectedVersion, a.requirement, a.appleRequirement])
         } catch {
             try? FileManager.default.removeItem(at: scriptURL)
             failInstall(dmgPath: dmgPath, message: error.localizedDescription)
@@ -385,14 +519,17 @@ final class UpdateService: ObservableObject {
     /// elevated command (never a user-writable file run as root), started in
     /// its own session so the prompt returns while the installer waits for our
     /// exit — and so it survives that exit.
-    private func launchAdminInstaller(appPath: String, dmgPath: String, pid: Int32,
-                                      resultPath: String, expectedVersion: String) {
-        let command = UpdateInstallerSupport.elevatedInstallCommand(appPath: appPath,
+    private func launchAdminInstaller(_ a: InstallerArguments) {
+        let dmgPath = a.dmgPath
+        let expectedVersion = a.expectedVersion
+        let command = UpdateInstallerSupport.elevatedInstallCommand(appPath: a.appPath,
                                                                     dmgPath: dmgPath,
-                                                                    pid: pid,
-                                                                    resultPath: resultPath,
+                                                                    pid: a.pid,
+                                                                    resultPath: a.resultPath,
                                                                     uid: getuid(),
-                                                                    expectedVersion: expectedVersion)
+                                                                    expectedVersion: expectedVersion,
+                                                                    requirement: a.requirement,
+                                                                    appleRequirement: a.appleRequirement)
         // The in-process authorization holds the main thread until it is
         // answered, and the system dialog never appears while the Extra
         // Brightness overlay is on screen (#1917). Once the request waits,
@@ -474,8 +611,14 @@ final class UpdateService: ObservableObject {
         // looking silently dropped.
         UserDefaults.standard.set(code, forKey: DefaultsKey.updateLastInstallFailure)
         let s = L10n.shared.s
-        Notifier.post(title: s.updateNotifyTitle,
-                      body: "\(s.updateInstallFailedBody) (\(code))")
+        if UpdateInstallerSupport.isTrustFailure(code) {
+            let strings = FeatureStrings.updatePrompt(L10n.shared.language)
+            Notifier.post(title: strings.signatureRefusedTitle,
+                          body: "\(strings.signatureRefusedBody) (\(code))")
+        } else {
+            Notifier.post(title: s.updateNotifyTitle,
+                          body: "\(s.updateInstallFailedBody) (\(code))")
+        }
         if !AppInfo.isDeveloperBuild {
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
                 self?.check(manual: false)

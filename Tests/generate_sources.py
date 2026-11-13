@@ -975,7 +975,7 @@ def main():
     write("NotchUpdate.swift", "import AppKit\nimport SwiftUI\nimport Combine\nextension NotchUpdateTests {\n"
           + "final class UpdateService: ObservableObject {\nstatic let shared = UpdateService()\n"
           + declaration(update, "    enum State:")
-          + "@Published var state: State = .idle\n}\n"
+          + "@Published var state: State = .idle\n@Published var offerMuted = false\n}\n"
           + "final class L10n: ObservableObject {\nstatic let shared = L10n()\n@Published var language = AppLanguage.enUS\n"
           + declaration("Sources/Openbar/Core/Localization.swift", "    var s: Strings")
           + "}\nfinal class Service: State {\n"

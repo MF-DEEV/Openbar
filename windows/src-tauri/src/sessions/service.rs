@@ -237,6 +237,8 @@ pub struct Service {
     app: AppHandle<Wry>,
     inner: Mutex<Inner>,
     codex: Mutex<Option<Arc<CodexClient>>>,
+    /// Each remote host's Codex, by alias (issue #200).
+    remote_codex: Mutex<HashMap<String, Arc<CodexClient>>>,
     /// Wakes the ticker for an early publish (Codex says something changed).
     wake: Mutex<Option<std::sync::mpsc::Sender<()>>>,
 }
@@ -282,6 +284,7 @@ impl Service {
                 sample_round: 0,
             }),
             codex: Mutex::new(None),
+            remote_codex: Mutex::new(HashMap::new()),
             wake: Mutex::new(None),
         });
         let (wake_tx, wake_rx) = std::sync::mpsc::channel::<()>();
@@ -658,6 +661,21 @@ impl Service {
         self.codex.lock().unwrap().clone()
     }
 
+    /// This PC's Codex and every host's.
+    fn codex_clients(&self) -> Vec<Arc<CodexClient>> {
+        let mut clients: Vec<Arc<CodexClient>> = self.codex().into_iter().collect();
+        let remote = self.remote_codex.lock().unwrap();
+        let mut aliases: Vec<&String> = remote.keys().collect();
+        aliases.sort();
+        clients.extend(aliases.into_iter().map(|a| remote[a].clone()));
+        clients
+    }
+
+    /// The Codex client a session's thread belongs to.
+    fn codex_owner(&self, session: &str) -> Option<Arc<CodexClient>> {
+        self.codex_clients().into_iter().find(|c| c.owns(session))
+    }
+
     fn publish(&self, inner: &mut Inner, t: Time) -> bool {
         let mut snapshot = inner.engine.snapshot(t);
         if let Some(home) = hooks::installer::home_dir() {
@@ -665,7 +683,7 @@ impl Service {
                 inner.agent_colors.decorate(session, &home, t);
             }
         }
-        if let Some(codex) = self.codex() {
+        for codex in self.codex_clients() {
             let (sessions, events) = codex.snapshot(t, inner.engine.policy());
             snapshot.sessions.extend(sessions);
             snapshot.events.extend(events);
@@ -1028,7 +1046,7 @@ impl Service {
                 return sent;
             }
         }
-        if let Some(codex) = self.codex().filter(|c| c.owns(session)) {
+        if let Some(codex) = self.codex_owner(session) {
             let answer = match decision {
                 Decision::Allow | Decision::ApprovePlan(_) => CodexAnswer::Allow,
                 Decision::AllowAlways => CodexAnswer::AllowForSession,
@@ -1096,7 +1114,7 @@ impl Service {
     fn acknowledge(&self, session: &str) {
         let mut inner = self.inner.lock().unwrap();
         let t = now();
-        if let Some(codex) = self.codex() {
+        for codex in self.codex_clients() {
             codex.acknowledge(session, t);
         }
         inner.hook_agents.acknowledge(session, t);
@@ -1131,10 +1149,9 @@ impl Service {
     /// Never types while the session waits on a prompt: the registry is read
     /// again right before, as a dialog may be open before it says so.
     fn reply(&self, session: &str, text: &str, images: &[String]) -> Option<&'static str> {
-        if let Some(refusal) = self.reply_remote(session, text) {
-            return refusal;
-        }
-        if let Some(codex) = self.codex().filter(|c| c.owns(session)) {
+        // A host's Codex takes replies through its own server too, before
+        // the host's tmux is looked at.
+        if let Some(codex) = self.codex_owner(session) {
             // Codex takes replies through its own server: no terminal typing, no Esc risk.
             if codex.reply(session, text, images) {
                 self.acknowledge(session);
@@ -1142,6 +1159,9 @@ impl Service {
             }
             let inner = self.inner.lock().unwrap();
             return Some(codex_refusal(&inner.sessions, session));
+        }
+        if let Some(refusal) = self.reply_remote(session, text) {
+            return refusal;
         }
         #[cfg(windows)]
         {
@@ -1549,6 +1569,9 @@ impl Service {
             if let Some(link) = inner.remote.links.remove(&alias) {
                 link.stop();
             }
+            if let Some(codex) = self.remote_codex.lock().unwrap().remove(&alias) {
+                codex.stop();
+            }
             inner.remote.snapshots.remove(&alias);
             inner.remote.failures.remove(&alias);
             inner.remote.tails.retain(|(a, _), _| a != &alias);
@@ -1589,6 +1612,30 @@ impl Service {
                     }
                 },
             );
+            // The host's Codex, joined through a pipe to its socket while
+            // the link says its daemon runs (issue #200).
+            let ready = Arc::downgrade(&link);
+            let host = alias.clone();
+            let connector: super::codex::client::Connector = Box::new(move || {
+                let link = ready.upgrade()?;
+                if !link.codex_ready() {
+                    return None;
+                }
+                Some(
+                    remote::CodexPipe::open(&host)
+                        .map(|pipe| Box::new(pipe) as Box<dyn super::codex::client::Duplex>),
+                )
+            });
+            let wake = self.wake.lock().unwrap().clone();
+            let codex = CodexClient::start_remote(&alias, connector, move || {
+                if let Some(wake) = &wake {
+                    let _ = wake.send(());
+                }
+            });
+            self.remote_codex
+                .lock()
+                .unwrap()
+                .insert(alias.clone(), codex);
             inner.remote.links.insert(alias, link);
         }
     }
@@ -2017,7 +2064,7 @@ fn codex_refusal(sessions: &[Session], session: &str) -> &'static str {
 /// The session page the island shows (None for the list), so Codex keeps that thread joined.
 #[tauri::command]
 pub fn sessions_focus(service: tauri::State<'_, Shared>, session_id: Option<String>) {
-    if let Some(codex) = service.codex() {
+    for codex in service.codex_clients() {
         codex.focus(session_id.as_deref());
     }
 }

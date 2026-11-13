@@ -13,7 +13,7 @@ struct NotchUpdateControl: View {
 
     @ViewBuilder var body: some View {
         switch updates.state {
-        case let .available(version):
+        case let .available(version) where !updates.offerMuted:
             let tint: Color = UpdateServiceSupport.SemanticVersion(raw: version)?.isPrerelease == true ? .orange : .blue
             let title = "\(l10n.s.updateBannerTitle), \(l10n.s.versionPrefix) \(version)"
             Button(action: action) {

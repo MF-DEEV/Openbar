@@ -3678,6 +3678,21 @@
     "showWithoutWindows": "Show without windows",
     "windowsOnly": "Windows only"
   },
+  "updatePrompt": {
+    "close": "Close",
+    "currentFormat": "You have %@.",
+    "install": "Install and relaunch",
+    "later": "Remind me later",
+    "noNotes": "This release has no notes.",
+    "openReleasePage": "Open release page",
+    "relaunchNote": "Openbar closes for a moment and comes back with your settings.",
+    "signatureRefusedBody": "The download isn’t signed by Openbar, or it changed on the way. It was deleted and nothing was installed.",
+    "signatureRefusedShort": "the signature doesn’t match",
+    "signatureRefusedTitle": "Update not installed",
+    "skip": "Skip this version",
+    "titleFormat": "Openbar %@ is available",
+    "whatsNew": "What’s new"
+  },
   "wallpaper": {
     "addFolder": "Add folder",
     "addFolderPrompt": "Choose a folder of images to keep in Openbar’s wallpaper list",

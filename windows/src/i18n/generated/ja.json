@@ -3678,6 +3678,21 @@
     "showWithoutWindows": "ウインドウなしでも表示",
     "windowsOnly": "ウインドウがある時のみ"
   },
+  "updatePrompt": {
+    "close": "閉じる",
+    "currentFormat": "現在のバージョンは %@ です。",
+    "install": "インストールして再起動",
+    "later": "後で通知",
+    "noNotes": "このリリースにはノートがありません。",
+    "openReleasePage": "リリースページを開く",
+    "relaunchNote": "Openbar は一時的に終了し、設定はそのままで戻ります。",
+    "signatureRefusedBody": "ダウンロードしたファイルは Openbar の署名がないか、途中で改ざんされています。削除され、何もインストールされていません。",
+    "signatureRefusedShort": "署名が一致しません",
+    "signatureRefusedTitle": "アップデートはインストールされませんでした",
+    "skip": "このバージョンをスキップ",
+    "titleFormat": "Openbar %@ が利用できます",
+    "whatsNew": "新機能"
+  },
   "wallpaper": {
     "addFolder": "フォルダを追加",
     "addFolderPrompt": "Openbarの一覧に残す画像フォルダを選んでください",

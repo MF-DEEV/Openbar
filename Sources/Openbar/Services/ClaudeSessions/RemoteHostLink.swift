@@ -175,6 +175,12 @@ final class RemoteHostLink {
     private var generation = 0
     /// Transcripts read so far, by their path on the host.
     private var offsets: [String: UInt64] = [:]
+    /// The socket on this Mac that `ssh -L` leads to the host's Codex.
+    let codexSocket: String
+    /// Codex's socket is forwarded on the running connection, and the last
+    /// look found Codex's daemon on the host. Guarded by `lock`.
+    private var codexForwarded = false
+    private var codexLive = false
     private(set) var info: RemoteHostInfo?
     /// The last state handed on. On the link's queue.
     private(set) var state: RemoteHostState?
@@ -190,7 +196,21 @@ final class RemoteHostLink {
         self.alias = alias
         self.bundle = bundle
         self.localSocket = localSocket
+        codexSocket = RemoteSSH.codexSocket(alias: alias, bundle: bundle)
         queue = DispatchQueue(label: "openbar.remote-host.\(alias)")
+    }
+
+    /// Whether the host's Codex can be reached through `codexSocket` now.
+    /// Any thread.
+    var codexReady: Bool { lock.withLock { ssh != nil && codexForwarded && codexLive } }
+
+    /// Forgets the Codex forward of a connection that ended; its socket goes too.
+    private func dropCodex() {
+        lock.withLock {
+            codexForwarded = false
+            codexLive = false
+        }
+        try? FileManager.default.removeItem(atPath: codexSocket)
     }
 
     /// The `ssh` behind the forwarded socket: hooks from this host reach the
@@ -209,6 +229,7 @@ final class RemoteHostLink {
             return ssh
         }
         running?.stop()
+        dropCodex()
     }
 
     /// Reads every transcript from the start again, as when content
@@ -240,6 +261,7 @@ final class RemoteHostLink {
             return ssh
         }
         running?.stop()
+        dropCodex()
         guard lock.withLock({ !stopped }) else { return }
         attempt = 0
         connect()
@@ -258,7 +280,19 @@ final class RemoteHostLink {
         }
         info = found
         let remoteSocket = found.home + "/.openbar/" + name
-        let started = RemoteSSHProcess(arguments: RemoteSSH.link(alias, remoteSocket: remoteSocket, localSocket: localSocket))
+        // Codex's socket comes the other way on the same connection. Its
+        // folder is the app's own, readable by this user only.
+        var codex: (local: String, remote: String)?
+        if let remote = found.codexSocket, RemoteSSH.canForward(local: codexSocket, remote: remote) {
+            let folder = (codexSocket as NSString).deletingLastPathComponent
+            if (try? FileManager.default.createDirectory(atPath: folder, withIntermediateDirectories: true,
+                                                         attributes: [.posixPermissions: 0o700])) != nil {
+                try? FileManager.default.removeItem(atPath: codexSocket)
+                codex = (codexSocket, remote)
+            }
+        }
+        let started = RemoteSSHProcess(arguments: RemoteSSH.link(alias, remoteSocket: remoteSocket, localSocket: localSocket,
+                                                                 codex: codex))
         guard started.start(), let preamble = RemoteSSH.preamble("agent"), started.write(preamble) else {
             started.stop()
             return retry("ssh could not start", generation: current)
@@ -271,6 +305,8 @@ final class RemoteHostLink {
         let kept = lock.withLock { () -> Bool in
             guard !stopped, generation == current else { return false }
             ssh = started
+            codexForwarded = codex != nil
+            codexLive = false
             return true
         }
         guard kept else { return started.stop() }
@@ -300,6 +336,7 @@ final class RemoteHostLink {
             return ssh
         }
         gone?.stop()
+        dropCodex()
         guard lock.withLock({ !stopped && generation == current }) else { return }
         attempt += 1
         let delay = RemoteBackoff.delay(attempt: attempt)
@@ -328,6 +365,7 @@ final class RemoteHostLink {
         let live = Set(snapshot.transcripts.values)
         offsets = offsets.filter { live.contains($0.key) }
         for path in live where offsets[path] == nil { offsets[path] = 0 }
+        lock.withLock { codexLive = snapshot.codexLive }
         onSnapshot(snapshot)
         queue.asyncAfter(deadline: .now() + interval()) { [weak self] in self?.poll(generation: current) }
     }

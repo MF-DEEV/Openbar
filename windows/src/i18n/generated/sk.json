@@ -3678,6 +3678,21 @@
     "showWithoutWindows": "Zobraziť aj bez okien",
     "windowsOnly": "Len s oknami"
   },
+  "updatePrompt": {
+    "close": "Zavrieť",
+    "currentFormat": "Máte verziu %@.",
+    "install": "Nainštalovať a znova otvoriť",
+    "later": "Pripomenúť neskôr",
+    "noNotes": "Táto verzia nemá poznámky.",
+    "openReleasePage": "Otvoriť stránku verzie",
+    "relaunchNote": "Openbar sa na chvíľu zavrie a vráti sa s vašimi nastaveniami.",
+    "signatureRefusedBody": "Stiahnutý súbor nie je podpísaný Openbarom alebo sa cestou zmenil. Bol vymazaný a nič sa nenainštalovalo.",
+    "signatureRefusedShort": "podpis nesúhlasí",
+    "signatureRefusedTitle": "Aktualizácia nebola nainštalovaná",
+    "skip": "Preskočiť túto verziu",
+    "titleFormat": "Openbar %@ je k dispozícii",
+    "whatsNew": "Čo je nové"
+  },
   "wallpaper": {
     "addFolder": "Pridať priečinok",
     "addFolderPrompt": "Vyberte priečinok s obrázkami, ktorý sa má ponechať v zozname pozadí Openbaru",

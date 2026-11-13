@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CryptoKit
 import Foundation
 
 /// A machine the person reaches over SSH, named by its alias in their own
@@ -95,6 +96,8 @@ struct RemoteHostInfo: Equatable {
     var claude: Bool
     /// The hooks are in the host's Claude Code settings.
     var hooksInstalled: Bool? = nil
+    /// Where Codex's app-server socket is on the host, there or not yet.
+    var codexSocket: String? = nil
 }
 
 enum RemoteHookClient: Equatable {
@@ -130,10 +133,34 @@ enum RemoteSSH {
     }
 
     /// The connection that stays: the host's hook socket forwarded to the
-    /// island's, and the agent answering on standard input and output.
-    static func link(_ alias: String, remoteSocket: String, localSocket: String) -> [String] {
-        options() + ["-o", "ExitOnForwardFailure=yes", "-o", "ControlMaster=no", "-o", "ControlPath=none",
-                     "-R", "\(remoteSocket):\(localSocket)", "--", alias, loader]
+    /// island's, and the agent answering on standard input and output. With
+    /// `codex`, Codex's app-server socket on the host is forwarded the other
+    /// way, to a socket of this Mac's (issue #200).
+    static func link(_ alias: String, remoteSocket: String, localSocket: String,
+                     codex: (local: String, remote: String)? = nil) -> [String] {
+        var arguments = options() + ["-o", "ExitOnForwardFailure=yes", "-o", "ControlMaster=no", "-o", "ControlPath=none",
+                                     "-R", "\(remoteSocket):\(localSocket)"]
+        if let codex {
+            // A socket left by the last connection would make the forward fail.
+            arguments += ["-o", "StreamLocalBindUnlink=yes", "-L", "\(codex.local):\(codex.remote)"]
+        }
+        return arguments + ["--", alias, loader]
+    }
+
+    /// The socket on this Mac that leads to a host's Codex: short, so it fits
+    /// a socket's path, and its own for each build of the app and each host.
+    static func codexSocket(alias: String, bundle: String,
+                            home: URL = FileManager.default.homeDirectoryForCurrentUser) -> String {
+        let digest = SHA256.hash(data: Data((bundle + "\n" + alias).utf8))
+        let name = digest.prefix(6).map { String(format: "%02x", $0) }.joined()
+        return home.appending(path: ".openbar/codex-\(name).sock").path
+    }
+
+    /// Whether `ssh -L` can take the two paths: a colon would split the
+    /// argument, and the local one has to fit a socket's address.
+    static func canForward(local: String, remote: String) -> Bool {
+        remote.hasPrefix("/") && !remote.contains(":") && !local.contains(":")
+            && !remote.contains(where: \.isNewline) && ClaudeHookServer.fits(local)
     }
 
     /// The name of the host's socket for this build of the app.
@@ -195,6 +222,8 @@ enum RemoteAnswer {
                 case "python3": info.client = .python3(path)
                 default: break
                 }
+            case "X" where words.count > 1:
+                if let path = decode(words[1]), path.hasPrefix("/") { info.codexSocket = path }
             case "M": info.tmux = words.count > 1 && words[1] == "yes"
             case "A": info.claude = words.count > 1 && words[1] == "yes"
             case "I": info.hooksInstalled = words.count > 1 && words[1] == "yes"
@@ -230,6 +259,8 @@ enum RemoteAnswer {
                 snapshot.chunks.append(RemoteChunk(path: path, offset: offset, bytes: bytes))
             case "G" where words.count >= 2:
                 if let path = decode(words[1]) { snapshot.gone.append(path) }
+            case "X" where words.count >= 2:
+                snapshot.codexLive = words[1] == "yes"
             case "N" where words.count >= 2:
                 if let milliseconds = Double(words[1]) { snapshot.hostTime = Date(timeIntervalSince1970: milliseconds / 1000) }
             default: break
@@ -268,6 +299,8 @@ struct RemoteSnapshot: Equatable {
     var transcripts: [String: String] = [:]
     var chunks: [RemoteChunk] = []
     var gone: [String] = []
+    /// Codex's app-server socket is on the host: its daemon runs.
+    var codexLive = false
 }
 
 /// A host's clock is rarely this Mac's: an hour off in a VM set to another

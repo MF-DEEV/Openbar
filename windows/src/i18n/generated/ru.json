@@ -3678,6 +3678,21 @@
     "showWithoutWindows": "Показывать без окон",
     "windowsOnly": "Только с окнами"
   },
+  "updatePrompt": {
+    "close": "Закрыть",
+    "currentFormat": "У вас версия %@.",
+    "install": "Установить и перезапустить",
+    "later": "Напомнить позже",
+    "noNotes": "У этой версии нет заметок.",
+    "openReleasePage": "Открыть страницу выпуска",
+    "relaunchNote": "Openbar ненадолго закроется и вернётся с вашими настройками.",
+    "signatureRefusedBody": "Загруженный файл не подписан Openbar или был изменён по пути. Он удалён, ничего не установлено.",
+    "signatureRefusedShort": "подпись не совпадает",
+    "signatureRefusedTitle": "Обновление не установлено",
+    "skip": "Пропустить эту версию",
+    "titleFormat": "Доступен Openbar %@",
+    "whatsNew": "Что нового"
+  },
   "wallpaper": {
     "addFolder": "Добавить папку",
     "addFolderPrompt": "Выберите папку с изображениями для списка Openbar",

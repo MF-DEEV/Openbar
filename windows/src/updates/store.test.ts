@@ -33,8 +33,9 @@ describe("check", () => {
     });
     vi.stubGlobal("fetch", answer(feed("windows-v0.5.0", "linux-v0.4.0")));
     expect(await useUpdates.getState().check()).toBe("available");
-    expect(useUpdates.getState().latest).toEqual({
+    expect(useUpdates.getState().latest).toMatchObject({
       version: "0.4.0",
+      tag: "linux-v0.4.0",
       url: "https://github.com/MF-DEEV/Openbar/releases/tag/linux-v0.4.0",
     });
   });

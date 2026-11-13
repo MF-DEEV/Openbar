@@ -3678,6 +3678,21 @@
     "showWithoutWindows": "Показувати без вікон",
     "windowsOnly": "Лише вікна"
   },
+  "updatePrompt": {
+    "close": "Закрити",
+    "currentFormat": "У вас версія %@.",
+    "install": "Встановити й перезапустити",
+    "later": "Нагадати пізніше",
+    "noNotes": "Цей випуск не має нотаток.",
+    "openReleasePage": "Відкрити сторінку випуску",
+    "relaunchNote": "Openbar ненадовго закриється й повернеться з вашими налаштуваннями.",
+    "signatureRefusedBody": "Завантажений файл не підписаний Openbar або змінився дорогою. Його видалено, нічого не встановлено.",
+    "signatureRefusedShort": "підпис не збігається",
+    "signatureRefusedTitle": "Оновлення не встановлено",
+    "skip": "Пропустити цю версію",
+    "titleFormat": "Доступний Openbar %@",
+    "whatsNew": "Що нового"
+  },
   "wallpaper": {
     "addFolder": "Додати папку",
     "addFolderPrompt": "Виберіть папку із зображеннями для списку шпалер Openbar",

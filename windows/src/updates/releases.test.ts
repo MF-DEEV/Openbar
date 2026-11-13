@@ -2,7 +2,7 @@
 // Copyright (C) 2026 MF DEV, Adrian and the Openbar contributors
 
 import { describe, expect, it } from "vitest";
-import { newestRelease, parseVersion, releasePrefix } from "./releases";
+import { isNewer, newestRelease, parseVersion, promptAllowed, releasePrefix, SNOOZE } from "./releases";
 
 const release = (tag: string, extra: Record<string, unknown> = {}) => ({ tag_name: tag, ...extra });
 
@@ -24,7 +24,12 @@ describe("newestRelease", () => {
 
   it("offers the newest windows release that is newer than this build", () => {
     const feed = [release("windows-v0.3.0"), release("windows-v0.5.1"), release("windows-v0.4.9")];
-    expect(newestRelease(feed, "0.3.0")).toEqual({ version: "0.5.1", url: url("windows-v0.5.1") });
+    expect(newestRelease(feed, "0.3.0")).toEqual({
+      version: "0.5.1",
+      tag: "windows-v0.5.1",
+      url: url("windows-v0.5.1"),
+      notes: "",
+    });
   });
 
   it("compares numbers, not text", () => {
@@ -56,7 +61,10 @@ describe("newestRelease", () => {
 
   it("reads the Linux packages' own tags on Linux, and only those", () => {
     const feed = [release("windows-v0.9.0"), release("linux-v0.4.0"), release("v9.0.0")];
-    expect(newestRelease(feed, "0.3.0", releasePrefix(true))).toEqual({ version: "0.4.0", url: url("linux-v0.4.0") });
+    expect(newestRelease(feed, "0.3.0", releasePrefix(true))).toMatchObject({
+      version: "0.4.0",
+      url: url("linux-v0.4.0"),
+    });
     expect(newestRelease(feed, "0.3.0", releasePrefix(false))?.version).toBe("0.9.0");
     expect(newestRelease([release("windows-v0.9.0")], "0.3.0", releasePrefix(true))).toBeNull();
   });
@@ -102,5 +110,54 @@ describe("newestRelease", () => {
   it("gives nothing for a feed that is not a list or a build with no version", () => {
     expect(newestRelease({ message: "Not Found" }, "0.3.0")).toBeNull();
     expect(newestRelease([release("windows-v0.4.0")], "dev")).toBeNull();
+  });
+});
+
+describe("the beta channel", () => {
+  it("offers betas, by hyphen or by GitHub's pre-release mark, only when it is on", () => {
+    const feed = [release("windows-v0.4.0", { prerelease: true }), release("windows-v0.5.0-beta.1")];
+    expect(newestRelease(feed, "0.3.0", releasePrefix(false), false)).toBeNull();
+    expect(newestRelease(feed, "0.3.0", releasePrefix(false), true)?.version).toBe("0.5.0-beta.1");
+    expect(newestRelease([...feed, release("windows-v0.4.1")], "0.3.0", releasePrefix(false), false)?.version).toBe(
+      "0.4.1",
+    );
+  });
+
+  it("follows the running build when nobody chose", () => {
+    const feed = [release("windows-v0.4.0-beta.1")];
+    expect(newestRelease(feed, "0.3.0")).toBeNull();
+    expect(newestRelease(feed, "0.3.0-beta.1")?.version).toBe("0.4.0-beta.1");
+  });
+});
+
+describe("notes", () => {
+  it("carries the release body, trimmed and cut to a sane length", () => {
+    const found = newestRelease([release("windows-v0.4.0", { body: "  ## Fixed\n- a thing\n " })], "0.3.0");
+    expect(found?.notes).toBe("## Fixed\n- a thing");
+    const long = newestRelease([release("windows-v0.4.0", { body: "x".repeat(20_000) })], "0.3.0");
+    expect(long?.notes.length).toBe(8000);
+    expect(newestRelease([release("windows-v0.4.0", { body: 7 })], "0.3.0")?.notes).toBe("");
+  });
+});
+
+describe("promptAllowed", () => {
+  const now = 1_000_000;
+  it("keeps a skipped version and anything older quiet, and lets a newer one through", () => {
+    expect(promptAllowed("0.4.0", "", 0, now)).toBe(true);
+    expect(promptAllowed("0.4.0", "0.4.0", 0, now)).toBe(false);
+    expect(promptAllowed("0.4.0-beta.2", "0.4.0", 0, now)).toBe(false);
+    expect(promptAllowed("0.4.1", "0.4.0", 0, now)).toBe(true);
+  });
+
+  it("stays quiet while remind me later holds", () => {
+    expect(promptAllowed("0.4.0", "", now + 1, now)).toBe(false);
+    expect(promptAllowed("0.4.0", "", now, now)).toBe(true);
+    expect(SNOOZE).toBe(24 * 60 * 60_000);
+  });
+
+  it("compares versions it can read", () => {
+    expect(isNewer("0.10.0", "0.9.9")).toBe(true);
+    expect(isNewer("0.4.0", "0.4.0")).toBe(false);
+    expect(isNewer("garbage", "0.1.0")).toBe(false);
   });
 });

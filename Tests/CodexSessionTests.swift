@@ -19,6 +19,7 @@ enum CodexSessionTests {
         suite.run("codex sessions websocket") { websocket(suite) }
         suite.run("codex sessions home") { home(suite) }
         suite.run("codex sessions client") { client(suite) }
+        suite.run("codex sessions on a remote host") { remote(suite) }
         suite.run("codex sessions review findings") { findings(suite) }
     }
 
@@ -832,6 +833,51 @@ enum CodexSessionTests {
         private var value = 0
         func add() { lock.withLock { value += 1 } }
         var count: Int { lock.withLock { value } }
+    }
+
+    /// A host's Codex (issue #200): joined only while its connection says
+    /// so, its threads wear the host's name, and images stay on this Mac.
+    static func remote(_ suite: TestSuite) {
+        guard let daemon = FakeDaemon() else { return suite.expect(false, "temporary home made") }
+        defer { daemon.finish() }
+        suite.expect(daemon.listen(), "the fake daemon listens")
+        let ready = Flag()
+        let client = CodexSessionClient(socket: URL(fileURLWithPath: daemon.path), remoteAlias: "box",
+                                        ready: { ready.value }, clientVersion: "t", retry: 0.05)
+        client.start {}
+        defer { client.stop() }
+        suite.expect(!daemon.accept(timeout: 0.4) && !client.connected,
+                     "while the host's connection doesn't forward a live Codex, its socket is left alone")
+        ready.value = true
+        guard daemon.accept() else { return suite.expect(false, "the island joins once the host's Codex is there") }
+        let initialize = daemon.message()
+        daemon.send(["id": initialize?["id"] ?? 0, "result": [:]])
+        _ = daemon.message() // initialized
+        let list = daemon.message()
+        daemon.send(["id": list?["id"] ?? 0, "result": ["data": ["r1"]]])
+        let read = daemon.message()
+        daemon.send(["id": read?["id"] ?? 0, "result": ["thread": ["id": "r1", "cwd": "/home/dev/project",
+                                                                    "status": ["type": "idle"]]]])
+        suite.expect(eventually { client.snapshot(now: Date(), previews: false).sessions.count == 1 }, "the host's thread shows")
+        let session = client.snapshot(now: Date(), previews: false).sessions.first
+        suite.expect(session?.host == .remote(alias: "box", tmux: false) && session?.provider == .codex
+                     && client.remoteAlias == "box", "it wears the host's name")
+        let image = URL(fileURLWithPath: "/Users/me/shot.png")
+        suite.expect(client.reply("r1", text: "go on", images: [image]), "a reply goes to the host's Codex")
+        let turn = daemon.message()
+        let input = (turn?["params"] as? [String: Any])?["input"] as? [[String: Any]] ?? []
+        suite.expect(turn?["method"] as? String == "turn/start" && input.count == 1 && input.first?["type"] as? String == "text",
+                     "with its text only: the images are files on this Mac")
+        suite.expect(!client.reply("r1", text: " ", images: [image]), "a reply of images alone has nothing to send to a host")
+    }
+
+    final class Flag {
+        private let lock = NSLock()
+        private var stored = false
+        var value: Bool {
+            get { lock.withLock { stored } }
+            set { lock.withLock { stored = newValue } }
+        }
     }
 
     static func client(_ suite: TestSuite) {
