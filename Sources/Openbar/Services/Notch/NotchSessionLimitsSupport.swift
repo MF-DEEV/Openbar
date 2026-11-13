@@ -46,6 +46,24 @@ enum NotchSessionLimitsSupport {
         return [chosen, binding].compactMap { $0 }.first { $0.window.usedPercent >= threshold }
     }
 
+    /// The strip's limit among every Claude account in use, not only the one
+    /// the reading follows: the fullest past the threshold (#216).
+    static func stripLimit(_ snapshot: AgentUsageSnapshot, accounts: [AgentLimits], agents: Set<AgentProvider>,
+                           focus: NotchAgentLimitFocus, threshold: Double, now: Date)
+        -> (provider: AgentProvider, window: AgentLimitWindow)? {
+        var found = [stripLimit(snapshot, agents: agents, focus: focus, threshold: threshold, now: now)].compactMap { $0 }
+        if agents.contains(.claude) {
+            for reading in accounts {
+                var single = AgentUsageSnapshot()
+                single.limits = [.claude: reading]
+                if let limit = stripLimit(single, agents: [.claude], focus: focus, threshold: threshold, now: now) {
+                    found.append(limit)
+                }
+            }
+        }
+        return found.max { $0.window.usedPercent < $1.window.usedPercent }
+    }
+
     /// The share the strip writes for it, as the person reads limits.
     static func stripShare(_ window: AgentLimitWindow, display: NotchAgentLimitDisplay,
                            locale: Locale = .autoupdatingCurrent) -> String {
@@ -61,10 +79,15 @@ enum NotchSessionLimitsSupport {
     /// else the latest reset among its agent's spent windows of that kind,
     /// since the work waits for all of them. Nil once that time has passed
     /// or while nothing tells it.
-    static func reset(of session: ClaudeSession, snapshot: AgentUsageSnapshot, now: Date) -> Date? {
+    /// A Claude session of another account than the reading follows counts
+    /// that account's windows (#216).
+    static func reset(of session: ClaudeSession, snapshot: AgentUsageSnapshot, now: Date,
+                      accounts: [String: ClaudeAccountLimits] = [:]) -> Date? {
         guard let stop = session.limitStop else { return nil }
         if let resets = stop.resetsAt { return resets > now ? resets : nil }
-        let windows = session.provider.agent.flatMap { snapshot.limits[$0]?.windows } ?? []
+        let other = session.provider == .claude ? session.account.flatMap { accounts[ClaudeAccounts.canonical($0)] } : nil
+        let windows = other.map { $0.current(at: now)?.windows ?? [] }
+            ?? session.provider.agent.flatMap { snapshot.limits[$0]?.windows } ?? []
         return windows.filter { $0.usedPercent >= spentPercent && (stop.kind == nil || $0.kind == stop.kind) }
             .compactMap { AgentLimitSupport.displayedReset($0, now: now) }.max()
     }

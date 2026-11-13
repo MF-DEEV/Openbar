@@ -126,9 +126,25 @@ enum AgentClaudeServer {
         (isStandard(config, home: home) ? home.appending(path: ".claude") : config!).appending(path: "settings.json")
     }
 
+    /// The plan of the account kept in `config`, from its cached profile.
+    static func plan(home: URL, config: URL?) -> AgentPlan? {
+        guard let data = try? Data(contentsOf: profileFile(home: home, config: config)),
+              let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let account = json["oauthAccount"] as? [String: Any] else { return nil }
+        return AgentPlans.claude(organizationType: account["organizationType"] as? String,
+                                 rateLimitTier: account["organizationRateLimitTier"] as? String
+                                    ?? account["userRateLimitTier"] as? String)
+    }
+
     /// The config folder of the session that changed last, so the limits
     /// follow the account in use; with no session running, the one before.
+    /// While the account before still runs a session it stays: with two
+    /// accounts at work the reading would otherwise swap at every change,
+    /// and each other account has a reading of its own (#216).
     static func accountFolder(_ records: [ClaudeSessionRecord], previous: URL?) -> URL? {
+        if let previous, records.contains(where: { record in
+            record.configHome.map { ClaudeAccounts.canonical($0) == ClaudeAccounts.canonical(previous.path) } ?? false
+        }) { return previous }
         let latest = records.compactMap { record -> (URL, Date)? in
             guard let folder = record.configHome else { return nil }
             return (URL(fileURLWithPath: folder, isDirectory: true),

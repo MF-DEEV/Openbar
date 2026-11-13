@@ -50,6 +50,9 @@ final class ClaudeSessionService: ObservableObject {
     @Published private(set) var accounts: [ClaudeAccount] = []
     /// Whether each account's settings hold this app's hooks, by account id.
     @Published private(set) var accountHooks: [String: ClaudeAccountHooks] = [:]
+    /// The account each session runs under, by session id, only while
+    /// sessions of more than one account are listed.
+    @Published private(set) var accountLabels: [String: String] = [:]
     /// The editors on this Mac and whether each has the extension replies
     /// are typed through; nil until checked.
     @Published private(set) var bridges: [ClaudeBridgeStatus]?
@@ -252,6 +255,7 @@ final class ClaudeSessionService: ObservableObject {
         dressingID = nil
         permissionWatch = nil
         sessions = []
+        accountLabels = [:]
         remoteStates = [:]
         counts = ClaudeSessionCounts()
         autoAllowed = []
@@ -1063,7 +1067,10 @@ final class ClaudeSessionService: ObservableObject {
                 states[account.id] = Self.hookState(account.settingsURL, command: command, bundle: bundle)
             }
             DispatchQueue.main.async {
-                if self.accounts != accounts { self.accounts = accounts }
+                if self.accounts != accounts {
+                    self.accounts = accounts
+                    self.updateAccountLabels()
+                }
                 if self.accountHooks != states { self.accountHooks = states }
                 let shown = accounts.filter { !$0.hidden }
                 self.hooksInstalled = shown.isEmpty ? false : shown.allSatisfy { states[$0.id] == .installed }
@@ -1130,6 +1137,11 @@ final class ClaudeSessionService: ObservableObject {
     }
 
     // MARK: Accounts (#216)
+
+    private func updateAccountLabels() {
+        let labels = ClaudeAccounts.labels(sessions, accounts: accounts, home: home)
+        if labels != accountLabels { accountLabels = labels }
+    }
 
     func renameAccount(_ account: ClaudeAccount, to name: String) {
         ClaudeAccounts.rename(account, to: name)
@@ -1469,6 +1481,7 @@ final class ClaudeSessionService: ObservableObject {
                 // A session in a folder not listed yet brings its account in.
                 let known = Set(accounts.map(\.id))
                 if ClaudeAccounts.inUse(shown).contains(where: { !known.contains($0) }) { checkHooks() }
+                updateAccountLabels()
                 counts = ClaudeSessionCounts(shown)
                 if autoAllowed != allowed { autoAllowed = allowed }
                 for session in shown {

@@ -232,3 +232,20 @@ enum ClaudeAccountHooks: Equatable {
     /// The settings are not JSON Claude Code could read either; left alone.
     case unreadable
 }
+
+/// The plan limits of a Claude account in use beside the one the AI
+/// section's reading follows (#216).
+struct ClaudeAccountLimits: Equatable {
+    var limits: AgentLimits?
+    var plan: AgentPlan?
+    /// Waiting its turn or being checked.
+    var checking = false
+    var failure: AgentClaudeServer.Failure?
+    /// When the last check began; nil until one has.
+    var attempted: Date?
+    /// Checks in a row that Claude Code did not answer.
+    var unreachable = 0
+
+    /// The reading without windows that renewed since.
+    func current(at now: Date) -> AgentLimits? { AgentClaudeServer.current(limits, now: now) }
+}

@@ -20,6 +20,12 @@ enum ClaudeAccountStrings {
     static let update = "Update"
     static let account = "Account"
     static let unreadable = "Settings aren’t valid JSON"
+    static let needsClaude = "Needs Claude Code"
+    static let signIn = "Sign in with Claude Code in this account"
+    static let updateClaude = "Update Claude Code to read limits"
+    static let unreachable = "Couldn’t reach the account"
+    static let refreshHint = "Limits show once Claude Code answers"
+    static let check = "Check limits"
 
     static func hooksState(_ state: ClaudeAccountHooks?) -> String {
         switch state {
