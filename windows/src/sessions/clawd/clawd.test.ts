@@ -302,7 +302,17 @@ describe("clawd drawing", () => {
     const poses = reachingPoses();
     const clipped: string[] = [];
     const unpainted = new Set<string>();
-    for (const character of ["clawd", "codex", "gemini", "copilot", "opencode", "cursor"] as const) {
+    for (const character of [
+      "clawd",
+      "codex",
+      "gemini",
+      "copilot",
+      "opencode",
+      "cursor",
+      "pi",
+      "vibe",
+      "devin",
+    ] as const) {
       for (const c of costumes) {
         for (const p of poses) {
           if (clippedPixels(c, p, character) > 0) clipped.push(`${character} ${costumeCode(c)} ${poseKey(p)}`);
@@ -333,7 +343,17 @@ describe("clawd drawing", () => {
     // (NotchClawdSprite.swift); the same fingerprint on both keeps the
     // copies alike pixel for pixel.
     let fingerprint = 0x811c9dc5;
-    for (const character of ["clawd", "codex", "gemini", "copilot", "opencode", "cursor"] as const) {
+    for (const character of [
+      "clawd",
+      "codex",
+      "gemini",
+      "copilot",
+      "opencode",
+      "cursor",
+      "pi",
+      "vibe",
+      "devin",
+    ] as const) {
       const parts: ClawdCostume[] = [
         ...HATS.map((hat) => ({ ...CLASSIC, hat })),
         ...EYEWEAR.map((eyewear) => ({ ...CLASSIC, eyewear })),
@@ -345,7 +365,7 @@ describe("clawd drawing", () => {
         }
       }
     }
-    expect(fingerprint.toString(16)).toBe("7b741a52");
+    expect(fingerprint.toString(16)).toBe("83577cb7");
   });
 
   it("covers the eyes with opaque glasses and hero masks", () => {

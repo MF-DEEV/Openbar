@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Pi, Mistral Vibe and Devin CLI join the Sessions list, each with its own mark, color, pixel figure and switch, and their marks join the closed island's stack. Each one installed connects by itself. Pi's replies go from the island straight into the session; Mistral Vibe's approvals and questions and Devin CLI's permission prompts are answered in their terminal, and Open takes you there. On Mac and Windows. Settings → Dynamic Island → Content → Sessions → More agents.
+
 ## [3.5.0-beta.3] - 2026-11-13
 
 ### Added

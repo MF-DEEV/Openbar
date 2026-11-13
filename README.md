@@ -36,7 +36,7 @@ https://github.com/user-attachments/assets/e6782d65-7822-4d9a-9ad4-3f31c8c35df4
 
 - Permission requests, questions and plans open in the island with the full command or diff.
 - A reply you type or speak lands in the session's own terminal or editor.
-- Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI and Cursor share one list.
+- Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Cursor, Pi, Mistral Vibe and Devin CLI share one list.
 - Each session you start from the island gets its own git worktree.
 - Nothing leaves your machine ([privacy](docs/PRIVACY.md)).
 - A menu bar toolkit comes with it: a volume mixer, a system monitor, clipboard history and more.

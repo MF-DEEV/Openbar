@@ -129,14 +129,24 @@ export interface ChatMessage {
   endsTurn: boolean;
 }
 
-export type Provider = "claude" | "codex" | "gemini" | "copilot" | "opencode" | "cursor";
+export type Provider = "claude" | "codex" | "gemini" | "copilot" | "opencode" | "cursor" | "pi" | "vibe" | "devin";
 
 /** Every agent, in the order the strip and lists take them. */
-export const PROVIDERS: readonly Provider[] = ["claude", "codex", "gemini", "copilot", "opencode", "cursor"];
+export const PROVIDERS: readonly Provider[] = [
+  "claude",
+  "codex",
+  "gemini",
+  "copilot",
+  "opencode",
+  "cursor",
+  "pi",
+  "vibe",
+  "devin",
+];
 
 /** The agents that report through the island's hooks or plugin
  * (sessions/hook_agents.rs, docs/more-session-agents.md). */
-export const HOOK_AGENTS = ["gemini", "copilot", "opencode", "cursor"] as const;
+export const HOOK_AGENTS = ["gemini", "copilot", "opencode", "cursor", "pi", "vibe", "devin"] as const;
 export type HookAgent = (typeof HOOK_AGENTS)[number];
 
 /** The agent's name where room is short, as New session's picker. */
@@ -147,6 +157,9 @@ export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
   copilot: "Copilot",
   opencode: "OpenCode",
   cursor: "Cursor",
+  pi: "Pi",
+  vibe: "Vibe",
+  devin: "Devin",
 };
 
 export const isHookAgent = (provider: Provider): provider is HookAgent =>
@@ -160,6 +173,9 @@ export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
   copilot: "Copilot CLI",
   opencode: "OpenCode",
   cursor: "Cursor",
+  pi: "Pi",
+  vibe: "Mistral Vibe",
+  devin: "Devin CLI",
 };
 
 export interface Session {
@@ -252,6 +268,9 @@ export interface Counts {
   workingCopilot?: number;
   workingOpencode?: number;
   workingCursor?: number;
+  workingPi?: number;
+  workingVibe?: number;
+  workingDevin?: number;
   waiting: number;
   /** Stopped by the plan's usage limit; absent from an older service. */
   limited?: number;
@@ -313,6 +332,9 @@ export function workingOf(counts: Counts, provider: Provider): number {
     copilot: counts.workingCopilot ?? 0,
     opencode: counts.workingOpencode ?? 0,
     cursor: counts.workingCursor ?? 0,
+    pi: counts.workingPi ?? 0,
+    vibe: counts.workingVibe ?? 0,
+    devin: counts.workingDevin ?? 0,
   };
   if (provider === "claude") {
     return Math.max(0, total - Object.values(others).reduce((sum, n) => sum + Math.max(0, n), 0));

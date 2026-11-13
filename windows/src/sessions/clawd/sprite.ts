@@ -574,7 +574,7 @@ export function hatStamps(hat: ClawdHat, tick: number): Stamp[] {
 /** Where the right hand is in each pose, for what it holds. */
 function rightHand(arms: Arms, character: Character = "clawd"): [number, number] {
   // The thin arms of the robot and the others sit a pixel closer.
-  if (character !== "clawd" && character !== "opencode") {
+  if (character !== "clawd" && character !== "opencode" && character !== "vibe") {
     switch (arms) {
       case "down":
       case "typeLeft":
@@ -875,6 +875,25 @@ const LEGS: Readonly<Record<Character, readonly (readonly [number, boolean])[]>>
     [7, false],
     [8, false],
   ],
+  // The P's stem stands on two legs; the i beside it on one of its own.
+  pi: [
+    [1, true],
+    [3, true],
+    [7, false],
+    [11, false],
+  ],
+  vibe: [
+    [0, true],
+    [2, true],
+    [10, false],
+    [12, false],
+  ],
+  devin: [
+    [3, true],
+    [4, true],
+    [8, false],
+    [9, false],
+  ],
 };
 
 // MARK: The other agents' figures (NotchClawdSprite.swift)
@@ -926,6 +945,42 @@ export const CURSOR_BODY = [
   "CCCCCCccccccc",
   "..CCCCcccc...",
   "....CCcc.....",
+];
+
+/** Pi's figure: the blocky P of its mark, with the i (Y, in its yellow) beside the bowl. */
+export const PI_BODY = [
+  "CCCCCCCCCC...",
+  "CCCCCCCCCC...",
+  "CCCCCCCCCC...",
+  "CCCCCCCCCC.YY",
+  "CCCCCCCCCC.YY",
+  "CCCCCCCCCC.YY",
+  "CCCCCCCCCC.YY",
+  "cccccccccc.yy",
+];
+
+/** Mistral Vibe's figure: the stepped M of Mistral's mark. */
+export const VIBE_BODY = [
+  "CCC.......CCC",
+  "CCCCC...CCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCC..CCC..CCC",
+  "CCC..CCC..CCC",
+  "ccc..ccc..ccc",
+];
+
+/** Devin CLI's figure: a hexagon, shaded on its lower faces, under two antennae with a light (A) on each. */
+export const DEVIN_BODY = [
+  "...CCCCCCC...",
+  ".CCCCCCCCCCC.",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "cCCCCCCCCCCCc",
+  ".ccCCCCCCCcc.",
+  "...ccccccc...",
 ];
 
 function compose(
@@ -981,6 +1036,18 @@ function compose(
   } else if (character === "opencode") {
     put(s(0, 0, OPENCODE_BODY));
     ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "pi") {
+    put(s(0, 0, PI_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "vibe") {
+    put(s(0, 0, VIBE_BODY));
+    ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "devin") {
+    // The antennae go first, so a hat simply covers them.
+    put(s(3, -2, ["A", "c"]));
+    put(s(9, -2, ["A", "c"]));
+    put(s(0, 0, DEVIN_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else {
     put(s(0, 0, BODY_ROWS));
     ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
@@ -1063,6 +1130,8 @@ const GEMINI_STAR_LIGHT: Rgb = [186, 214, 255];
 const COPILOT_GOGGLES: Rgb = [30, 26, 58];
 const COPILOT_GLOW: Rgb = [160, 232, 255];
 const CURSOR_EYES: Rgb = [236, 238, 246];
+/** The yellow of the i in Pi's mark. */
+const PI_YELLOW: Rgb = [241, 190, 88];
 
 /** sRGB out of 255 for a letter on this costume, or null for one with no color. */
 export function color(letter: string, costume: ClawdCostume, character: Character = "clawd"): Rgb | null {
@@ -1079,6 +1148,9 @@ export function color(letter: string, costume: ClawdCostume, character: Characte
   if (character === "opencode" && letter === "V") return CODEX_SCREEN;
   // Dark eyes would sink into the dark cube.
   if (character === "cursor" && letter === "E") return CURSOR_EYES;
+  // The i keeps Pi's yellow whatever the costume.
+  if (character === "pi" && letter === "Y") return PI_YELLOW;
+  if (character === "pi" && letter === "y") return shaded(PI_YELLOW);
   const shell = SHELL_RGB[costume.shell];
   const accent = SHELL_RGB[ACCENT[costume.shell]];
   switch (letter) {

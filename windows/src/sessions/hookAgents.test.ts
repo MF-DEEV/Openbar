@@ -20,7 +20,7 @@ const counts = (working: number, others: Partial<Counts> = {}): Counts => ({
 describe("Gemini CLI, Copilot CLI, OpenCode and Cursor in Sessions", () => {
   it("counts each agent's work apart, Claude's being what no other claims", () => {
     const c = counts(4, { workingGemini: 1, workingOpencode: 2 });
-    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0]);
+    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0]);
     expect(workingOf(counts(1, { workingCursor: 5 }), "cursor")).toBe(1);
     expect(workingOf(counts(-1, { workingGemini: -3 }), "gemini")).toBe(0);
   });
@@ -51,5 +51,24 @@ describe("Gemini CLI, Copilot CLI, OpenCode and Cursor in Sessions", () => {
     expect(S.replyPlaceholderFor("copilot")).toBe("Reply to Copilot CLI…");
     expect(S.replyPlaceholderFor("codex")).toBe(S.replyPlaceholderCodex);
     expect(S.replyIn("cursor")).toBe("Reply in Cursor");
+  });
+});
+
+describe("Pi, Mistral Vibe and Devin CLI in Sessions (#220)", () => {
+  it("counts, names and draws each of the three as itself", () => {
+    const c = counts(5, { workingPi: 1, workingVibe: 2, workingDevin: 1 });
+    expect(["pi", "vibe", "devin"].map((p) => workingOf(c, p as never))).toEqual([1, 2, 1]);
+    expect(workingOf(c, "claude")).toBe(1);
+    expect(HOOK_AGENTS.slice(-3)).toEqual(["pi", "vibe", "devin"]);
+    expect(stripAgents(counts(2, { workingVibe: 1, workingDevin: 1 }))).toEqual(["vibe", "devin"]);
+    expect(characterOf("pi")).toBe("pi");
+    expect(characterOf("devin")).toBe("devin");
+  });
+
+  it("says where each one's requests and replies go", () => {
+    expect(S.answerIn("pi")).toBe("Answer this one in Pi.");
+    expect(S.answerIn("vibe")).toBe("Answer this one in Mistral Vibe.");
+    expect(S.answerIn("devin")).toBe("Answer this one in Devin CLI.");
+    expect(S.replyPlaceholderFor("vibe")).toBe("Reply to Mistral Vibe…");
   });
 });

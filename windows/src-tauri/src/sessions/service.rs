@@ -572,7 +572,7 @@ impl Service {
             .retain(|pid, _| hosts::process::is_running(*pid as u32));
     }
 
-    /// One event of Gemini CLI, Copilot CLI, Cursor or OpenCode.
+    /// One event of Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi, Mistral Vibe or Devin CLI.
     fn on_agent(&self, connection: HookConnection) {
         let t = now();
         let mut inner = self.inner.lock().unwrap();
@@ -614,8 +614,35 @@ impl Service {
             );
         }
         drop(connection);
+        let previews = inner.engine.policy().previews;
         for mut event in decoded.events {
             event.pid = if pid > 0 { pid } else { event.pid };
+            // Devin CLI names no folder: the agent's own is the session's.
+            if event.cwd.is_none()
+                && event.pid > 0
+                && inner
+                    .hook_agents
+                    .entry(&event.id())
+                    .is_none_or(|e| e.cwd.is_empty())
+            {
+                event.cwd = hosts::process::metadata(event.pid as u32)
+                    .map(|m| m.cwd)
+                    .filter(|c| !c.is_empty());
+            }
+            // Vibe's hooks carry no reply: with previews on, its session's log tells the last one.
+            if provider == models::Provider::Vibe
+                && previews
+                && let hook_agents::Kind::Stopped {
+                    last_text: None,
+                    failed,
+                } = event.kind
+                && let Some(folder) = &decoded.transcript
+            {
+                event.kind = hook_agents::Kind::Stopped {
+                    last_text: hook_agents::vibe_last_reply(Path::new(folder)),
+                    failed,
+                };
+            }
             if let hook_agents::Kind::PermissionSettled(request) = &event.kind {
                 // Answered in OpenCode itself: its plugin stops waiting too.
                 let id = event.id();
@@ -738,9 +765,9 @@ impl Service {
                     let kind = host
                         .map(|l| host_kind(&l.host))
                         .unwrap_or(HostKind::Unknown);
-                    // OpenCode takes replies through its plugin; Cursor's app keeps its own chat.
+                    // OpenCode and Pi take replies through their plugin; Cursor's app keeps its own chat.
                     let accepts = match entry.provider {
-                        models::Provider::Opencode => true,
+                        models::Provider::Opencode | models::Provider::Pi => true,
                         models::Provider::Cursor => {
                             matches!(
                                 kind,
@@ -972,6 +999,23 @@ impl Service {
     fn on_hook(&self, connection: HookConnection) {
         if hook_agents::is_envelope(&connection.payload) {
             return self.on_agent(connection);
+        }
+        // Devin CLI runs the hooks in Claude Code's settings too; its sessions
+        // are heard through hooks of their own, so these are let go unanswered.
+        if hook_agents::is_devin_payload(&connection.payload)
+            || connection
+                .peer_pid
+                .and_then(hosts::process::ancestors)
+                .is_some_and(|chain| {
+                    let chain: Vec<(u32, String)> =
+                        chain.into_iter().map(|e| (e.pid, e.name)).collect();
+                    let agent = hook_agents::agent_process(&chain, 0);
+                    chain
+                        .iter()
+                        .any(|(pid, name)| *pid as i32 == agent && hook_agents::is_devin_process(name))
+                })
+        {
+            return;
         }
         let request_id = format!("{:032x}", rand_id());
         let mut inner = self.inner.lock().unwrap();
@@ -1263,8 +1307,9 @@ impl Service {
         }
     }
 
-    /// A reply to OpenCode goes to its listening plugin; one to Gemini CLI,
-    /// Copilot CLI or `cursor-agent` is typed into its terminal and sent by
+    /// A reply to OpenCode or Pi goes to its listening plugin; one to Gemini
+    /// CLI, Copilot CLI, `cursor-agent`, Mistral Vibe or Devin CLI is typed
+    /// into its terminal and sent by
     /// a return of its own a moment later, as their prompts take a return
     /// that comes with a paste as a line break. None when the session is
     /// not one of theirs.
@@ -1281,7 +1326,7 @@ impl Service {
                 },
             ));
         }
-        if entry.provider == models::Provider::Opencode {
+        if entry.provider.reports_through_plugin() {
             let Some(listener) = inner.listeners.remove(&entry.pid) else {
                 return Some(Some("unreachable"));
             };
