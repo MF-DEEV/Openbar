@@ -65,7 +65,7 @@ if (( WIN )); then
     pub="$(python3 -c 'import json;print(json.load(open("windows/src-tauri/tauri.conf.json"))["plugins"]["updater"]["pubkey"])')"
     [[ "$pub" == "$(cat "$KEY.pub")" ]] || { echo "✗ $KEY.pub doesn't match tauri.conf.json's updater pubkey" >&2; exit 1; }
     export TAURI_SIGNING_PRIVATE_KEY_PASSWORD="$(security find-generic-password -s openbar-tauri-updater -a key-password -w)"
-    export PATH="/opt/homebrew/opt/rustup/bin:/opt/homebrew/opt/llvm/bin:$PATH" XWIN_ACCEPT_LICENSE=1
+    export PATH="/opt/homebrew/opt/rustup/bin:/opt/homebrew/opt/llvm/bin:$HOME/.cargo/bin:$PATH" XWIN_ACCEPT_LICENSE=1
     typeset -A ARCH=(x86_64-pc-windows-msvc x64 aarch64-pc-windows-msvc arm64)
     typeset -A PLATFORM=(x64 windows-x86_64 arm64 windows-aarch64)
     platforms=()
