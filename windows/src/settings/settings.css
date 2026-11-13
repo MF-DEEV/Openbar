@@ -1528,3 +1528,74 @@ select {
 .st-remote-input {
   width: 220px;
 }
+
+/* Claude accounts (SessionsSettings `ClaudeAccounts`, #216). */
+.st-account-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px 8px 50px;
+  border-top: 1px solid var(--st-divider);
+  transition: opacity 0.2s ease;
+}
+
+.st-account-row.is-hidden .st-account-main {
+  opacity: 0.55;
+}
+
+.st-account-main {
+  flex: 1;
+  min-width: 0;
+}
+
+.st-account-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.st-account-name {
+  width: 150px;
+}
+
+.st-account-path {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--st-text-3);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.st-account-state {
+  margin-top: 3px;
+  color: var(--st-text-3);
+  font-size: 12px;
+}
+
+.st-account-state.is-warn {
+  color: var(--st-warn);
+}
+
+.st-account-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--st-text-2);
+  cursor: pointer;
+}
+
+.st-account-icon:hover {
+  background: var(--st-card-hover, rgba(127, 127, 127, 0.12));
+}
+
+.st-account-icon:focus-visible {
+  outline: 2px solid var(--st-accent, #4cc2ff);
+  outline-offset: 1px;
+}

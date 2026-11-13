@@ -64,6 +64,17 @@ export interface SessionPrefs {
   remoteHostsEnabled: boolean;
   /** The hosts, by their alias in ~/.ssh/config. */
   remoteHosts: string[];
+  /** Claude Code accounts (config folders) the person named, hid or added by
+   * hand (#216; sessions/accounts.rs). */
+  claudeAccounts: ClaudeAccountSetting[];
+}
+
+/** What the person changed about one Claude account. */
+export interface ClaudeAccountSetting {
+  path: string;
+  name?: string;
+  hidden?: boolean;
+  manual?: boolean;
 }
 
 export const DEFAULT_SESSION_PREFS: SessionPrefs = {
@@ -85,6 +96,7 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   voiceShortcut: "Ctrl+Alt+V",
   remoteHostsEnabled: false,
   remoteHosts: [],
+  claudeAccounts: [],
 };
 
 /** What is stored: only what differs from the defaults. */

@@ -226,8 +226,9 @@ pub struct Snapshot {
     /// The other Claude accounts in use beside the one `limits` reads, while
     /// sessions of more than one run (#216); empty otherwise.
     pub claude_accounts: Vec<AccountOut>,
-    /// The account `limits` reads for Claude, by its id.
+    /// The account `limits` reads for Claude, by its id, and its name.
     pub claude_account_id: Option<String>,
+    pub claude_account_name: Option<String>,
     pub price_day: String,
 }
 

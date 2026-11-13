@@ -348,7 +348,8 @@ impl Service {
         let accounts = home
             .as_deref()
             .map(|home| {
-                let found: Vec<PathBuf> = by_home.iter().map(|(folder, _)| folder.clone()).collect();
+                let found: Vec<PathBuf> =
+                    by_home.iter().map(|(folder, _)| folder.clone()).collect();
                 super::accounts::all(&found, &super::accounts::settings(), home)
             })
             .unwrap_or_default();
@@ -397,7 +398,11 @@ impl Service {
         inner.last_records = records.iter().map(|r| (r.pid, r.clone())).collect();
         inner.session_homes = records
             .iter()
-            .filter_map(|r| home_of.get(&r.pid).map(|h| (r.session_id.clone(), h.clone())))
+            .filter_map(|r| {
+                home_of
+                    .get(&r.pid)
+                    .map(|h| (r.session_id.clone(), h.clone()))
+            })
             .collect();
         inner.accounts = accounts;
         // Sessions on remote hosts, as their connections last saw them; their
@@ -758,7 +763,10 @@ impl Service {
         for session in &mut sessions {
             if session.provider == models::Provider::Claude && session.remote.is_none() {
                 session.account = inner.session_homes.get(&session.id).cloned().or_else(|| {
-                    session.background.as_ref().and_then(|b| b.config_home.clone())
+                    session
+                        .background
+                        .as_ref()
+                        .and_then(|b| b.config_home.clone())
                 });
             }
         }
@@ -767,6 +775,12 @@ impl Service {
             for session in &mut sessions {
                 session.account_label = labels.get(&session.id).cloned();
             }
+        }
+        for session in &mut sessions {
+            session.account_id = session
+                .account
+                .as_deref()
+                .map(|a| super::accounts::canonical(Path::new(a)));
         }
         super::accounts::note_in_use(&sessions, &inner.accounts);
         let counts = SessionCounts::of(&sessions);
@@ -1855,7 +1869,11 @@ pub fn sessions_decide(
         (UiDecision::Deny, _) => Decision::Deny,
     };
     if session_id == sample::ID {
-        return Service::answer_sample(service.inner(), &request_id, !matches!(decision, Decision::Deny));
+        return Service::answer_sample(
+            service.inner(),
+            &request_id,
+            !matches!(decision, Decision::Deny),
+        );
     }
     service.answer(&session_id, &request_id, decision)
 }
@@ -1895,11 +1913,11 @@ impl Service {
     fn answer_sample(service: &Shared, request: &str, allowed: bool) -> bool {
         let round = {
             let mut inner = service.inner.lock().unwrap();
-            let Some(session) = inner
-                .sample
-                .take()
-                .filter(|s| s.permission.as_ref().is_some_and(|p| p.request_id == request))
-            else {
+            let Some(session) = inner.sample.take().filter(|s| {
+                s.permission
+                    .as_ref()
+                    .is_some_and(|p| p.request_id == request)
+            }) else {
                 return false;
             };
             let t = now();
@@ -1932,9 +1950,13 @@ impl Service {
                 }
             });
         }
-        later(if allowed { 7.0 } else { 2.5 }, service.clone(), |inner, _| {
-            inner.sample = None;
-        });
+        later(
+            if allowed { 7.0 } else { 2.5 },
+            service.clone(),
+            |inner, _| {
+                inner.sample = None;
+            },
+        );
         true
     }
 }

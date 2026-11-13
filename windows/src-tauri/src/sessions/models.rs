@@ -640,6 +640,9 @@ pub struct Session {
     /// That account's name, only while sessions of more than one are listed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account_label: Option<String>,
+    /// That account's identity, as the limits name it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_id: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -1352,6 +1355,7 @@ mod tests {
             limit_stop: None,
             account: None,
             account_label: None,
+            account_id: None,
         }
     }
 

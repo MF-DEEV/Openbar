@@ -206,6 +206,23 @@ export interface Session {
   background?: BackgroundDetails;
   /** Why the session stopped, while `phase` is "limited". */
   limitStop?: LimitStop;
+  /** The config folder of the Claude Code account it runs under, on this PC (#216). */
+  account?: string;
+  /** That account's identity, as the limits name it. */
+  accountId?: string;
+  /** That account's name, only while sessions of more than one account are listed. */
+  accountLabel?: string;
+}
+
+/** A Claude Code account: a config folder with its own sign-in (#216; hooks/mod.rs AccountStatus). */
+export interface ClaudeAccount {
+  id: string;
+  path: string;
+  name: string;
+  named: boolean;
+  manual: boolean;
+  hidden: boolean;
+  hooks: "installed" | "outdated" | "missing" | "unreadable";
 }
 
 export type BackgroundState = "working" | "blocked" | "done" | "failed" | "stopped";

@@ -135,8 +135,14 @@ pub fn name_for(folder: &Path, home: &Path) -> String {
         return DEFAULT_NAME.to_string();
     }
     let mut chars = base.chars();
-    let first = chars.next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_default();
-    (first + chars.as_str()).chars().take(LONGEST_NAME).collect()
+    let first = chars
+        .next()
+        .map(|c| c.to_uppercase().collect::<String>())
+        .unwrap_or_default();
+    (first + chars.as_str())
+        .chars()
+        .take(LONGEST_NAME)
+        .collect()
 }
 
 /// Every account, hidden ones too: each config folder the session list reads
@@ -157,7 +163,9 @@ pub fn all(found: &[PathBuf], settings: &[Setting], home: &Path) -> Vec<Account>
             if !seen.insert(id.clone()) {
                 return None;
             }
-            let setting = settings.iter().find(|s| canonical(Path::new(&s.path)) == id);
+            let setting = settings
+                .iter()
+                .find(|s| canonical(Path::new(&s.path)) == id);
             Some(Account {
                 id,
                 path: folder.to_string_lossy().into_owned(),
@@ -222,7 +230,11 @@ pub fn labels(sessions: &[Session], accounts: &[Account], home: &Path) -> HashMa
 static IN_USE: Mutex<BTreeMap<String, PathBuf>> = Mutex::new(BTreeMap::new());
 
 pub fn note_in_use(sessions: &[Session], accounts: &[Account]) {
-    let hidden: HashSet<&str> = accounts.iter().filter(|a| a.hidden).map(|a| a.id.as_str()).collect();
+    let hidden: HashSet<&str> = accounts
+        .iter()
+        .filter(|a| a.hidden)
+        .map(|a| a.id.as_str())
+        .collect();
     let mut found = BTreeMap::new();
     for session in sessions
         .iter()
@@ -283,10 +295,21 @@ mod tests {
             "garbage"
         ]}});
         let settings = settings_from_prefs(&value);
-        assert_eq!(settings.len(), 2, "one per folder, absolute paths only: {settings:?}");
-        assert_eq!(settings[0].name.as_deref(), Some("Work"), "names are trimmed");
+        assert_eq!(
+            settings.len(),
+            2,
+            "one per folder, absolute paths only: {settings:?}"
+        );
+        assert_eq!(
+            settings[0].name.as_deref(),
+            Some("Work"),
+            "names are trimmed"
+        );
         assert!(settings[1].hidden && settings[1].manual);
-        assert_eq!(settings[1].name.as_ref().map(|n| n.chars().count()), Some(LONGEST_NAME));
+        assert_eq!(
+            settings[1].name.as_ref().map(|n| n.chars().count()),
+            Some(LONGEST_NAME)
+        );
         assert!(settings_from_prefs(&json!({})).is_empty());
     }
 
@@ -296,8 +319,14 @@ mod tests {
         assert_eq!(name_for(&home.join(".claude"), home), DEFAULT_NAME);
         assert_eq!(name_for(&home.join(".claude-work"), home), "Work");
         assert_eq!(name_for(&home.join(".claude-2"), home), "2");
-        assert_eq!(name_for(&home.join(".config").join("claude"), home), "Config");
-        assert_eq!(name_for(Path::new("/v/claude-personal"), home), "Claude-personal");
+        assert_eq!(
+            name_for(&home.join(".config").join("claude"), home),
+            "Config"
+        );
+        assert_eq!(
+            name_for(Path::new("/v/claude-personal"), home),
+            "Claude-personal"
+        );
     }
 
     #[test]
@@ -334,7 +363,12 @@ mod tests {
         let _ = std::fs::remove_dir_all(&home);
     }
 
-    fn session(id: &str, account: Option<&str>, provider: Provider, remote: Option<&str>) -> Session {
+    fn session(
+        id: &str,
+        account: Option<&str>,
+        provider: Provider,
+        remote: Option<&str>,
+    ) -> Session {
         let mut s = super::super::sample::waiting(0, "/u", 0.0);
         s.id = id.to_string();
         s.provider = provider;
@@ -358,11 +392,24 @@ mod tests {
             session("a", Some("/u/.claude"), Provider::Claude, None),
             session("b", Some("/u/.claude"), Provider::Claude, None),
             session("c", None, Provider::Codex, None),
-            session("r", Some("/home/dev/.claude-x"), Provider::Claude, Some("box")),
+            session(
+                "r",
+                Some("/home/dev/.claude-x"),
+                Provider::Claude,
+                Some("box"),
+            ),
         ];
-        assert!(labels(&one, &accounts, home).is_empty(), "one account here, a host's folder is not another");
+        assert!(
+            labels(&one, &accounts, home).is_empty(),
+            "one account here, a host's folder is not another"
+        );
         let mut two = one.clone();
-        two.push(session("w", Some("/u/.claude-work"), Provider::Claude, None));
+        two.push(session(
+            "w",
+            Some("/u/.claude-work"),
+            Provider::Claude,
+            None,
+        ));
         let found = labels(&two, &accounts, home);
         assert_eq!(found.get("a").map(String::as_str), Some("Personal"));
         assert_eq!(found.get("w").map(String::as_str), Some("Work"));

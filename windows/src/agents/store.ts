@@ -35,6 +35,9 @@ export function emptySnapshot(): AgentSnapshot {
     claude: { accountAt: null, appAt: null, appInstalled: false, failure: null },
     resets: { checking: false, count: null, credits: [], failure: null, checkedAt: null },
     codexAccounts: [],
+    claudeAccounts: [],
+    claudeAccountId: null,
+    claudeAccountName: null,
     priceDay: "",
   };
 }

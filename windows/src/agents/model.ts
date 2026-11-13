@@ -47,7 +47,7 @@ export interface Tile {
   card: AgentCard;
   /** The agent a limits card belongs to. */
   provider: Provider | null;
-  /** The added Codex home a limits card belongs to. */
+  /** The added Codex home, or the Claude account (#216), a limits card belongs to. */
   account?: string;
   /** The Resets card beside added Codex homes, which says whose resets they are. */
   namesDefaultAccount?: boolean;
@@ -73,16 +73,18 @@ export function tiles(
   cards: readonly AgentCard[],
   providers: readonly Provider[],
   accounts: readonly string[] = [],
+  claudeAccounts: readonly string[] = [],
 ): Tile[] {
   return cards.flatMap((card): Tile[] => {
     if (card === "limits")
-      return providers
-        .filter(reportsLimits)
-        .flatMap((provider): Tile[] =>
-          provider === "codex" && accounts.length > 0
-            ? accounts.map((account) => ({ card, provider, account, id: `limits.codex.${account}` }))
+      return providers.filter(reportsLimits).flatMap((provider): Tile[] =>
+        provider === "codex" && accounts.length > 0
+          ? accounts.map((account) => ({ card, provider, account, id: `limits.codex.${account}` }))
+          : // Claude accounts in use side by side each get a card, the one the reading follows first (#216).
+            provider === "claude" && claudeAccounts.length > 1
+            ? claudeAccounts.map((account) => ({ card, provider, account, id: `limits.claude.${account}` }))
             : [{ card, provider, id: `limits.${provider}` }],
-        );
+      );
     if (card === "resets")
       return providers.includes("codex")
         ? [{ card, provider: "codex", namesDefaultAccount: accounts.length > 0, id: "resets.codex" }]
@@ -126,7 +128,20 @@ export function pageProviders(
   enabled: Record<Provider, boolean>,
   hasAccounts = false,
 ): Provider[] {
-  return PROVIDERS.filter((p) => enabled[p] && (snapshot.seen.includes(p) || (p === "codex" && hasAccounts)));
+  return PROVIDERS.filter(
+    (p) =>
+      enabled[p] &&
+      (snapshot.seen.includes(p) ||
+        (p === "codex" && hasAccounts) ||
+        (p === "claude" && (snapshot.claudeAccounts?.length ?? 0) > 0)),
+  );
+}
+
+/** The Claude accounts with cards: the one the reading follows, then the others in use (#216). */
+export function claudeAccountTiles(snapshot: AgentSnapshot): string[] {
+  const others = snapshot.claudeAccounts ?? [];
+  if (others.length === 0) return [];
+  return [snapshot.claudeAccountId ?? "", ...others.map((a) => a.id)];
 }
 
 /** Added Codex homes have cards only in the Limits card's place (NotchAgentSupport.showsCodexAccounts). */
@@ -202,6 +217,7 @@ export function restingLimit(snapshot: AgentSnapshot, focus: LimitFocus, now: nu
   const limits = [
     ...Object.values(snapshot.limits),
     ...snapshot.codexAccounts.flatMap((account) => (account.limits ? [account.limits] : [])),
+    ...(snapshot.claudeAccounts ?? []).flatMap((account) => (account.limits ? [account.limits] : [])),
   ];
   const mostSpent = (chosen: boolean) =>
     limits

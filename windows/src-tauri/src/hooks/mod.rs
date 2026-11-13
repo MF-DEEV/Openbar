@@ -49,7 +49,9 @@ fn account_files(shown: bool) -> Vec<(crate::sessions::accounts::Account, PathBu
     // The app's own CLAUDE_CONFIG_DIR, or ~/.claude, even before it exists.
     if let Some(path) = installer::settings_path()
         && let Some(folder) = path.parent()
-        && !accounts.iter().any(|a| a.id == crate::sessions::accounts::canonical(folder))
+        && !accounts
+            .iter()
+            .any(|a| a.id == crate::sessions::accounts::canonical(folder))
     {
         accounts.insert(
             0,
@@ -135,8 +137,14 @@ pub fn claude_hooks_status() -> HooksStatus {
             installed_in: 0,
         };
     }
-    let states: Vec<AccountHooks> = files.iter().map(|(_, p)| account_hooks(p, &command)).collect();
-    let installed_in = states.iter().filter(|s| **s == AccountHooks::Installed).count();
+    let states: Vec<AccountHooks> = files
+        .iter()
+        .map(|(_, p)| account_hooks(p, &command))
+        .collect();
+    let installed_in = states
+        .iter()
+        .filter(|s| **s == AccountHooks::Installed)
+        .count();
     let unreadable = states.iter().any(|s| *s == AccountHooks::Unreadable);
     HooksStatus {
         installed: installed_in == states.len(),
@@ -163,7 +171,11 @@ pub fn claude_hooks_install() -> Result<(), String> {
                 .map(|e| format!("{}: {e}", account.name))
         })
         .collect();
-    if failures.is_empty() { Ok(()) } else { Err(failures.join("; ")) }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(failures.join("; "))
+    }
 }
 
 /// Out of every account, hidden ones too; a settings file that is not there
@@ -179,7 +191,11 @@ pub fn claude_hooks_remove() -> Result<(), String> {
                 .map(|e| format!("{}: {e}", account.name))
         })
         .collect();
-    if failures.is_empty() { Ok(()) } else { Err(failures.join("; ")) }
+    if failures.is_empty() {
+        Ok(())
+    } else {
+        Err(failures.join("; "))
+    }
 }
 
 #[derive(Serialize)]

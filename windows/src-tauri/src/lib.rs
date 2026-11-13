@@ -33,8 +33,8 @@ mod music_levels;
 mod music_queue;
 mod notification_history;
 mod notifications;
-mod onboarding;
 mod ocr;
+mod onboarding;
 mod power_saver;
 mod prefs;
 mod recorder;
@@ -146,7 +146,11 @@ pub fn migrate_legacy_main() -> ! {
 pub fn remove_hooks_main() -> ! {
     // The accounts the person added by hand are in the app's prefs (#216).
     if let Some(prefs) = std::env::var_os("APPDATA")
-        .map(|d| std::path::PathBuf::from(d).join("com.openbar.island").join("settings.json"))
+        .map(|d| {
+            std::path::PathBuf::from(d)
+                .join("com.openbar.island")
+                .join("settings.json")
+        })
         .and_then(|p| std::fs::read(p).ok())
         .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
     {

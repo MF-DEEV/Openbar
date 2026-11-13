@@ -54,10 +54,18 @@ pub fn homes(home: &Path) -> Vec<PathBuf> {
         .map(PathBuf::from)
         .filter(|path| path.is_absolute() && path.is_dir());
     // Folders the person added in Settings (#216) count for their own home only.
-    let manual = if own { super::accounts::manual_folders() } else { vec![] };
+    let manual = if own {
+        super::accounts::manual_folders()
+    } else {
+        vec![]
+    };
     merge_homes(
         vec![home.join(".claude"), home.join(".config").join("claude")],
-        named.into_iter().chain(sibling_homes(home)).chain(manual).collect(),
+        named
+            .into_iter()
+            .chain(sibling_homes(home))
+            .chain(manual)
+            .collect(),
     )
 }
 
@@ -710,11 +718,24 @@ mod tests {
             (standard.clone(), vec![rec(1, 100.0)]),
             (moved.clone(), vec![rec(2, 200.0)]),
         ];
-        assert_eq!(account_home(&both, Some(&standard)), Some(standard.clone()),
-            "two accounts at work do not swap the reading at every change (#216)");
-        assert_eq!(account_home(&both, None), Some(moved.clone()), "with none before, the latest");
         assert_eq!(
-            account_home(&[(standard.clone(), vec![]), (moved.clone(), vec![rec(2, 50.0)])], Some(&standard)),
+            account_home(&both, Some(&standard)),
+            Some(standard.clone()),
+            "two accounts at work do not swap the reading at every change (#216)"
+        );
+        assert_eq!(
+            account_home(&both, None),
+            Some(moved.clone()),
+            "with none before, the latest"
+        );
+        assert_eq!(
+            account_home(
+                &[
+                    (standard.clone(), vec![]),
+                    (moved.clone(), vec![rec(2, 50.0)])
+                ],
+                Some(&standard)
+            ),
             Some(moved),
             "once it runs none, the reading follows the account in use"
         );

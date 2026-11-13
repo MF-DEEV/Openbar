@@ -934,7 +934,13 @@ impl Service {
 
     /// The other Claude accounts in use, as often as the main one and one at
     /// a time, only while sessions of more than one account are listed.
-    fn schedule_other_claude(&mut self, settings: &Settings, page: bool, asked: Vec<String>, now: Time) {
+    fn schedule_other_claude(
+        &mut self,
+        settings: &Settings,
+        page: bool,
+        asked: Vec<String>,
+        now: Time,
+    ) {
         let folders = crate::sessions::accounts::in_use_folders();
         let primary = claude::account_id(claude::account_dir().as_deref());
         let others: BTreeMap<String, PathBuf> = if folders.len() > 1 {
@@ -948,15 +954,17 @@ impl Service {
         let before = self.claude_others.len();
         self.claude_others.retain(|id, _| others.contains_key(id));
         for (id, folder) in &others {
-            self.claude_others.entry(id.clone()).or_insert_with(|| OtherClaude {
-                folder: folder.clone(),
-                limits: None,
-                plan: None,
-                failure: None,
-                streak: 0,
-                attempted: f64::NEG_INFINITY,
-                checking: false,
-            });
+            self.claude_others
+                .entry(id.clone())
+                .or_insert_with(|| OtherClaude {
+                    folder: folder.clone(),
+                    limits: None,
+                    plan: None,
+                    failure: None,
+                    streak: 0,
+                    attempted: f64::NEG_INFINITY,
+                    checking: false,
+                });
         }
         if self.claude_others.len() != before {
             self.dirty = true;
@@ -967,7 +975,8 @@ impl Service {
             }
         }
         let in_use = settings.limits_without_page || (page && settings.limits_card);
-        if !self.on(Provider::Claude) || !in_use || self.claude_others.values().any(|o| o.checking) {
+        if !self.on(Provider::Claude) || !in_use || self.claude_others.values().any(|o| o.checking)
+        {
             return;
         }
         let due = self
@@ -1490,6 +1499,12 @@ impl Service {
         others.sort_by(|a, b| a.name.cmp(&b.name));
         s.claude_accounts = others;
         s.claude_account_id = claude::account_id(claude::account_dir().as_deref());
+        s.claude_account_name = match (&s.claude_account_id, &home) {
+            (Some(id), Some(home)) if !s.claude_accounts.is_empty() => {
+                Some(crate::sessions::accounts::display_name(id, home))
+            }
+            _ => None,
+        };
         s.price_day = pricing::list().updated.clone();
         s
     }

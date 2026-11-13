@@ -60,6 +60,7 @@ pub fn waiting(round: u64, home: &str, t: Time) -> Session {
         limit_stop: None,
         account: None,
         account_label: None,
+        account_id: None,
     }
 }
 

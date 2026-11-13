@@ -35,6 +35,8 @@ export function stripLimit(
       ),
     ),
     codexAccounts: [],
+    // Every Claude account in use counts, not only the one the reading follows (#216).
+    claudeAccounts: agents.has("claude") ? (snapshot.claudeAccounts ?? []) : [],
   };
   const chosen = restingLimit(scoped, focus, now);
   const most = restingLimit(scoped, "mostUsed", now);
@@ -59,8 +61,16 @@ export function limitReset(session: Session, snapshot: AgentSnapshot, nowSeconds
   if (!stop) return null;
   if (stop.resetsAt !== undefined) return stop.resetsAt > nowSeconds ? stop.resetsAt : null;
   const agent = session.provider as AgentProvider;
+  // A Claude session of another account than the reading follows counts
+  // that account's windows (#216).
+  const other =
+    agent === "claude" && session.accountId
+      ? (snapshot.claudeAccounts ?? []).find((account) => account.id === session.accountId)
+      : undefined;
   // Gemini CLI and Cursor have no limits the AI section reads.
-  const windows = (agent in snapshot.limits ? snapshot.limits[agent]?.windows : undefined) ?? [];
+  const windows = other
+    ? (other.limits?.windows ?? [])
+    : ((agent in snapshot.limits ? snapshot.limits[agent]?.windows : undefined) ?? []);
   const resets = windows
     .filter((w) => w.usedPercent >= SPENT_PERCENT && (stop.kind === undefined || w.kind === stop.kind))
     .map((w) => displayedReset(w, nowSeconds * 1000))

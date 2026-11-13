@@ -145,6 +145,19 @@ export interface CodexProfile {
 export type CodexAccountFailure =
   "invalidProfile" | "missing" | "needsSignIn" | "outdated" | "unavailable" | "cancelled";
 
+/** Why another Claude account's check failed (agent_usage/claude.rs Failure). */
+export type ClaudeAccountFailure = "missing" | "needsSignIn" | "outdated" | "unreachable";
+
+/** Another Claude account in use beside the one `limits` reads (#216). */
+export interface ClaudeAccountLimits {
+  id: string;
+  name: string;
+  limits: Limits | null;
+  plan: string | null;
+  checking: boolean;
+  failure: ClaudeAccountFailure | null;
+}
+
 /** An added Codex home's checks, kept apart from the reading the logs give (CodexProfileLimitsState). */
 export interface CodexAccount {
   id: string;
@@ -183,6 +196,11 @@ export interface AgentSnapshot {
   resets: ResetsState;
   /** The Codex homes added in Settings, in their order. */
   codexAccounts: CodexAccount[];
+  /** The other Claude accounts in use, while sessions of more than one run (#216). */
+  claudeAccounts: ClaudeAccountLimits[];
+  /** The account `limits` reads for Claude, and its name while others have cards. */
+  claudeAccountId: string | null;
+  claudeAccountName: string | null;
   /** The price list's `updated` day, "YYYY-MM-DD". */
   priceDay: string;
 }
