@@ -33,8 +33,8 @@ mod music_levels;
 mod music_queue;
 mod notification_history;
 mod notifications;
-mod onboarding;
 mod ocr;
+mod onboarding;
 mod power_saver;
 mod prefs;
 mod recorder;
@@ -49,6 +49,8 @@ mod system_monitor;
 mod timer;
 mod toggles;
 mod tray;
+mod update_window;
+mod updater;
 mod voice;
 mod watch;
 
@@ -181,6 +183,7 @@ pub fn run() {
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
@@ -252,6 +255,9 @@ pub fn run() {
             fullscreen::attention_compact_sessions,
             settings::open_settings,
             onboarding::onboarding_open,
+            updater::updates_endpoints,
+            updater::updates_install,
+            update_window::update_window_open,
             onboarding::onboarding_finish,
             onboarding::onboarding_claude_present,
             hosts::bridge_installer::ide_bridge_status,
@@ -483,6 +489,7 @@ pub fn run() {
             prefs::apply(app.handle(), None, &prefs);
             tray::create(app.handle())?;
             onboarding::start(app.handle());
+            updater::restore_windows(app.handle());
             Ok(())
         })
         .build(tauri::generate_context!())

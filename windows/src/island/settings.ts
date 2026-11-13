@@ -76,6 +76,12 @@ export interface IslandSettings {
   language: LanguagePreference;
   /** Ask GitHub now and then whether a newer version exists (updates/). */
   checkUpdates: boolean;
+  /** Offer beta releases too (the Mac's includeBetaUpdates); on while the Windows app is itself a beta. */
+  betaUpdates: boolean;
+  /** "Skip this version": the version whose prompts stay quiet; a newer one prompts again. */
+  updateSkipped: string;
+  /** "Remind me later": prompts stay quiet until this time, in milliseconds. */
+  updateSnoozedUntil: number;
   /** Music takes the closed island while it plays (notchShowPlayingMusic). */
   showPlayingMusic: boolean;
   /** Idle player to open; empty chooses the last music app, then an installed player. */
@@ -285,6 +291,9 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   sections: { agents: true, sessions: true },
   language: "auto",
   checkUpdates: true,
+  betaUpdates: true,
+  updateSkipped: "",
+  updateSnoozedUntil: 0,
   showPlayingMusic: true,
   preferredPlayer: "",
   includeOtherPlayers: true,

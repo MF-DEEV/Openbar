@@ -17,6 +17,7 @@ export default defineConfig(() => ({
         mirror: resolve(import.meta.dirname, "mirror.html"),
         settings: resolve(import.meta.dirname, "settings.html"),
         onboarding: resolve(import.meta.dirname, "onboarding.html"),
+        update: resolve(import.meta.dirname, "update.html"),
         bar: resolve(import.meta.dirname, "bar.html"),
         capture: resolve(import.meta.dirname, "capture.html"),
         screenshotPreview: resolve(import.meta.dirname, "screenshot-preview.html"),

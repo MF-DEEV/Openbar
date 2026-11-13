@@ -78,14 +78,19 @@ it("holds the current surface while a menu cancels pending hover and exit timers
   expect(useIsland.getState()).toMatchObject({ expanded: true, selected: "music" });
 });
 
-it("offers an available update, which opens its release page", () => {
+it("offers an available update; outside the app it opens the release page", () => {
   const open = vi.fn();
   vi.stubGlobal("window", { open });
   const labels = () => islandMenuEntries().flatMap((item) => ("label" in item ? [item.label] : []));
   expect(labels().some((label) => label.startsWith("Update available"))).toBe(false);
   useUpdates.setState({
     status: "available",
-    latest: { version: "0.4.0", url: "https://github.com/MF-DEEV/Openbar/releases/tag/windows-v0.4.0" },
+    latest: {
+      version: "0.4.0",
+      tag: "windows-v0.4.0",
+      url: "https://github.com/MF-DEEV/Openbar/releases/tag/windows-v0.4.0",
+      notes: "",
+    },
   });
   select("Update available: 0.4.0");
   expect(open).toHaveBeenCalledWith("https://github.com/MF-DEEV/Openbar/releases/tag/windows-v0.4.0");

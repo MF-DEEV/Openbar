@@ -3678,6 +3678,21 @@
     "showWithoutWindows": "Pencere olmadan göster",
     "windowsOnly": "Yalnızca pencereler"
   },
+  "updatePrompt": {
+    "close": "Kapat",
+    "currentFormat": "Sizdeki sürüm: %@.",
+    "install": "Yükle ve yeniden aç",
+    "later": "Daha sonra hatırlat",
+    "noNotes": "Bu sürümün notu yok.",
+    "openReleasePage": "Sürüm sayfasını aç",
+    "relaunchNote": "Openbar kısa bir süre kapanır ve ayarlarınızla geri gelir.",
+    "signatureRefusedBody": "İndirilen dosya Openbar tarafından imzalanmamış ya da yolda değiştirilmiş. Silindi ve hiçbir şey yüklenmedi.",
+    "signatureRefusedShort": "imza eşleşmiyor",
+    "signatureRefusedTitle": "Güncelleme yüklenmedi",
+    "skip": "Bu sürümü atla",
+    "titleFormat": "Openbar %@ hazır",
+    "whatsNew": "Yenilikler"
+  },
   "wallpaper": {
     "addFolder": "Klasör ekle",
     "addFolderPrompt": "Openbar listesinde tutulacak bir görüntü klasörü seçin",

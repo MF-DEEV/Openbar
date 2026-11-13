@@ -37,6 +37,7 @@ image = { version = "0.25", default-features = false, features = ["png", "bmp"] 
 rqrr = { version = "0.10.1", default-features = false }
 sha2 = "0.10"
 tauri-plugin-dialog = "2"
+tauri-plugin-updater = "2"
 zip = { version = "8.6", default-features = false, features = ["deflate-flate2-zlib-rs", "time"] }
 time = { version = "0.3", features = ["local-offset"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }

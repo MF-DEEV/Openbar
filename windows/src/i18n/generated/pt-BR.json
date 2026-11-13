@@ -3678,6 +3678,21 @@
     "showWithoutWindows": "Mostrar sem janelas",
     "windowsOnly": "Só com janelas"
   },
+  "updatePrompt": {
+    "close": "Fechar",
+    "currentFormat": "Você tem a versão %@.",
+    "install": "Instalar e reabrir",
+    "later": "Lembrar depois",
+    "noNotes": "Esta versão não tem notas.",
+    "openReleasePage": "Abrir página da versão",
+    "relaunchNote": "O Openbar fecha por um instante e volta com seus ajustes.",
+    "signatureRefusedBody": "O download não tem a assinatura do Openbar ou foi alterado no caminho. Ele foi apagado e nada foi instalado.",
+    "signatureRefusedShort": "a assinatura não confere",
+    "signatureRefusedTitle": "Atualização não instalada",
+    "skip": "Pular esta versão",
+    "titleFormat": "Openbar %@ disponível",
+    "whatsNew": "Novidades"
+  },
   "wallpaper": {
     "addFolder": "Adicionar pasta",
     "addFolderPrompt": "Escolha uma pasta de imagens para manter na lista do Openbar",
