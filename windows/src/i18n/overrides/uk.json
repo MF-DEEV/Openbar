@@ -762,5 +762,10 @@
   "windows.notifications.replyErrorInputRefused": "Discord не прийняв текст. Перевірте поле повідомлення; нічого не надіслано.",
   "windows.notifications.replyErrorGone": "Цього сповіщення більше немає.",
   "windows.notifications.replyErrorGeneric": "Не вдалося надіслати відповідь. Чернетку збережено.",
-  "windows.notifications.replyErrorAccessibilityOff": "Discord не надає доступ до поля повідомлення. Увімкніть спеціальні можливості в налаштуваннях робочого столу й перезапустіть Discord."
+  "windows.notifications.replyErrorAccessibilityOff": "Discord не надає доступ до поля повідомлення. Увімкніть спеціальні можливості в налаштуваннях робочого столу й перезапустіть Discord.",
+  "windows.onboarding.welcomeTitle": "Ваші агенти вгорі екрана",
+  "windows.onboarding.welcomeToolkit": "У Dynamic Island є ще музика, мікшер, календар і багато іншого.",
+  "windows.onboarding.doneBody": "Сесії з’являються вгорі екрана. Шолом в області сповіщень відкриває параметри.",
+  "windows.onboarding.doneTray": "Область сповіщень",
+  "windows.onboarding.doneIsland": "Dynamic Island"
 }

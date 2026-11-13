@@ -26,6 +26,8 @@ pub struct Prefs {
     /// The file exists but couldn't be read or moved aside: saving would
     /// overwrite what the person had, so changes are refused instead.
     blocked: bool,
+    /// The file was there at launch: this install has been used before.
+    existed: bool,
 }
 
 impl Prefs {
@@ -39,6 +41,7 @@ impl Prefs {
     }
 
     fn at(path: Option<PathBuf>) -> Self {
+        let existed = path.as_deref().is_some_and(Path::exists);
         let (value, blocked) = match path.as_deref().map(read) {
             Some(Ok(v)) => (v, false),
             Some(Err(_)) => (empty(), true),
@@ -48,7 +51,13 @@ impl Prefs {
             path,
             value: Mutex::new(value),
             blocked,
+            existed,
         }
+    }
+
+    /// Whether settings.json was there at launch.
+    pub fn existed(&self) -> bool {
+        self.existed
     }
 
     pub fn get(&self) -> Value {
@@ -495,6 +504,7 @@ mod tests {
             path: Some(path.clone()),
             value: Mutex::new(empty()),
             blocked: false,
+            existed: false,
         };
         prefs
             .set(&json!({"island": {"outline": true, "display": "cursor"}}))
@@ -517,6 +527,7 @@ mod tests {
             path: Some(blocker.join("settings.json")),
             value: Mutex::new(json!({"island": {"outline": true}})),
             blocked: false,
+            existed: false,
         };
         assert!(prefs.set(&json!({"island": {"outline": false}})).is_err());
         assert_eq!(prefs.get(), json!({"island": {"outline": true}}));
@@ -554,6 +565,7 @@ mod tests {
             path: Some(PathBuf::from("unused")),
             value: Mutex::new(empty()),
             blocked: true,
+            existed: false,
         };
         assert!(prefs.set(&json!({"island": {"outline": true}})).is_err());
         assert_eq!(prefs.get(), json!({}));

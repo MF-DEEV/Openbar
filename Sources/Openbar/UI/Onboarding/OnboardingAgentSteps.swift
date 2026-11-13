@@ -642,6 +642,13 @@ struct OnboardingTryStep: View {
                 .padding(.top, 8)
         }
         .padding(.vertical, 28)
+        .task {
+            // The island shows the sample by itself once the step has
+            // settled: the point is to see a session working, not to find a
+            // button first.
+            try? await Task.sleep(for: .milliseconds(700))
+            if !Task.isCancelled && !shown { shown = service.showSample() }
+        }
         .onDisappear { if shown && service.sampleAnswer == nil { service.dismissSample() } }
     }
 }

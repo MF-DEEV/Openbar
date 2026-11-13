@@ -762,5 +762,10 @@
   "windows.notifications.replyErrorInputRefused": "Discord 沒有接收文字。請檢查它的訊息框；沒有傳送任何內容。",
   "windows.notifications.replyErrorGone": "這則通知已不存在。",
   "windows.notifications.replyErrorGeneric": "無法傳送回覆。草稿已保留。",
-  "windows.notifications.replyErrorAccessibilityOff": "Discord 沒有公開它的訊息框。請在桌面設定中開啟輔助使用，然後重新啟動 Discord。"
+  "windows.notifications.replyErrorAccessibilityOff": "Discord 沒有公開它的訊息框。請在桌面設定中開啟輔助使用，然後重新啟動 Discord。",
+  "windows.onboarding.welcomeTitle": "你的代理程式，就在螢幕頂端",
+  "windows.onboarding.welcomeToolkit": "Dynamic Island 還有音樂、混音器、行事曆等。",
+  "windows.onboarding.doneBody": "工作階段會出現在螢幕頂端。通知區的頭盔可打開設定。",
+  "windows.onboarding.doneTray": "通知區",
+  "windows.onboarding.doneIsland": "Dynamic Island"
 }

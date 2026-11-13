@@ -762,5 +762,10 @@
   "windows.notifications.replyErrorInputRefused": "Discord no aceptó el texto. Revisa su cuadro de mensaje; no se envió nada.",
   "windows.notifications.replyErrorGone": "Esta notificación ya no está.",
   "windows.notifications.replyErrorGeneric": "No se pudo enviar la respuesta. Tu borrador se conserva.",
-  "windows.notifications.replyErrorAccessibilityOff": "Discord no expone su cuadro de mensaje. Activa la accesibilidad en los ajustes del escritorio y reinicia Discord."
+  "windows.notifications.replyErrorAccessibilityOff": "Discord no expone su cuadro de mensaje. Activa la accesibilidad en los ajustes del escritorio y reinicia Discord.",
+  "windows.onboarding.welcomeTitle": "Tus agentes, en lo alto de la pantalla",
+  "windows.onboarding.welcomeToolkit": "La Dynamic Island también tiene música, mezclador, calendario y más.",
+  "windows.onboarding.doneBody": "Las sesiones aparecen en lo alto de la pantalla. El casco del área de notificaciones abre la configuración.",
+  "windows.onboarding.doneTray": "Área de notificaciones",
+  "windows.onboarding.doneIsland": "Dynamic Island"
 }

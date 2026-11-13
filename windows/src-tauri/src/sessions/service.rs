@@ -33,6 +33,7 @@ use super::models::{
 use super::plan_modes::PlanMode;
 use super::registry::{self, RegistryFile};
 use super::remote;
+use super::sample;
 use super::transcript::{self, NoPricing, TranscriptReader};
 use crate::hooks::{self, transport::HookConnection};
 use crate::hosts::{self, Located};
@@ -201,6 +202,11 @@ struct Inner {
     startable_agents: Vec<&'static str>,
     background_available: bool,
     remote: RemoteHosts,
+    /// The sample request onboarding shows (#168), which no agent asked, and
+    /// what it has to tell the island next.
+    sample: Option<Session>,
+    sample_events: Vec<SessionEvent>,
+    sample_round: u64,
 }
 
 /// The SSH hosts the person listed (sessions::remote), and what each last
@@ -265,6 +271,9 @@ impl Service {
                 startable_agents: Vec::new(),
                 background_available: false,
                 remote: RemoteHosts::default(),
+                sample: None,
+                sample_events: Vec::new(),
+                sample_round: 0,
             }),
             codex: Mutex::new(None),
             wake: Mutex::new(None),
@@ -712,6 +721,10 @@ impl Service {
             );
             snapshot.events.extend(events);
         }
+        if let Some(sample) = &inner.sample {
+            snapshot.sessions.push(sample.clone());
+        }
+        snapshot.events.append(&mut inner.sample_events);
         let sessions = models::sorted(self.with_background(inner, snapshot.sessions, t));
         let counts = SessionCounts::of(&sessions);
         let busy = sessions
@@ -1791,7 +1804,100 @@ pub fn sessions_decide(
         (UiDecision::Always, _) => Decision::AllowAlways,
         (UiDecision::Deny, _) => Decision::Deny,
     };
+    if session_id == sample::ID {
+        return Service::answer_sample(service.inner(), &request_id, !matches!(decision, Decision::Deny));
+    }
     service.answer(&session_id, &request_id, decision)
+}
+
+// MARK: Sample request (#168)
+
+impl Service {
+    /// Shows a made-up permission request in the island, the way a real
+    /// one arrives, so onboarding can show what will happen before any
+    /// agent asks. Answering it goes nowhere.
+    fn show_sample(&self) {
+        let mut inner = self.inner.lock().unwrap();
+        let t = now();
+        inner.sample_round += 1;
+        let home = hooks::installer::home_dir()
+            .map(|h| h.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let session = sample::waiting(inner.sample_round, &home, t);
+        inner.sample_events.push(SessionEvent::NeedsPermission {
+            id: session.id.clone(),
+            tool: "Bash".to_owned(),
+        });
+        inner.sample = Some(session);
+        self.publish(&mut inner, t);
+    }
+
+    fn dismiss_sample(&self) {
+        let mut inner = self.inner.lock().unwrap();
+        if inner.sample.take().is_some() {
+            inner.sample_round += 1;
+            self.publish(&mut inner, now());
+        }
+    }
+
+    /// The sample plays out the answer: an allowed command runs a moment
+    /// and finishes, a denied one stops, then the sample leaves.
+    fn answer_sample(service: &Shared, request: &str, allowed: bool) -> bool {
+        let round = {
+            let mut inner = service.inner.lock().unwrap();
+            let Some(session) = inner
+                .sample
+                .take()
+                .filter(|s| s.permission.as_ref().is_some_and(|p| p.request_id == request))
+            else {
+                return false;
+            };
+            let t = now();
+            inner.sample = Some(sample::answered(session, allowed, t));
+            service.publish(&mut inner, t);
+            inner.sample_round
+        };
+        let _ = service.app.emit("sessions://sample-answered", allowed);
+        let later = move |delay: f64, service: Shared, change: fn(&mut Inner, Time)| {
+            thread::spawn(move || {
+                thread::sleep(Duration::from_secs_f64(delay));
+                let mut inner = service.inner.lock().unwrap();
+                if inner.sample_round != round || inner.sample.is_none() {
+                    return;
+                }
+                let t = now();
+                change(&mut inner, t);
+                service.publish(&mut inner, t);
+            });
+        };
+        if allowed {
+            later(1.6, service.clone(), |inner, t| {
+                if let Some(running) = inner.sample.take() {
+                    let done = sample::finished(running, t);
+                    inner.sample_events.push(SessionEvent::Finished {
+                        id: done.id.clone(),
+                        duration: Some(2.0),
+                    });
+                    inner.sample = Some(done);
+                }
+            });
+        }
+        later(if allowed { 7.0 } else { 2.5 }, service.clone(), |inner, _| {
+            inner.sample = None;
+        });
+        true
+    }
+}
+
+#[tauri::command]
+pub fn sessions_show_sample(service: tauri::State<'_, Shared>) -> bool {
+    service.show_sample();
+    true
+}
+
+#[tauri::command]
+pub fn sessions_dismiss_sample(service: tauri::State<'_, Shared>) {
+    service.dismiss_sample();
 }
 
 #[tauri::command]
