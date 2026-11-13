@@ -762,5 +762,10 @@
   "windows.notifications.replyErrorInputRefused": "Discord metni almadı. Mesaj kutusunu kontrol edin; hiçbir şey gönderilmedi.",
   "windows.notifications.replyErrorGone": "Bu bildirim artık yok.",
   "windows.notifications.replyErrorGeneric": "Yanıt gönderilemedi. Taslağınız duruyor.",
-  "windows.notifications.replyErrorAccessibilityOff": "Discord mesaj kutusunu paylaşmıyor. Masaüstü ayarlarından erişilebilirliği açın ve Discord’u yeniden başlatın."
+  "windows.notifications.replyErrorAccessibilityOff": "Discord mesaj kutusunu paylaşmıyor. Masaüstü ayarlarından erişilebilirliği açın ve Discord’u yeniden başlatın.",
+  "windows.onboarding.welcomeTitle": "Ajanların ekranın üstünde",
+  "windows.onboarding.welcomeToolkit": "Dynamic Island’da müzik, mikser, takvim ve daha fazlası da var.",
+  "windows.onboarding.doneBody": "Oturumlar ekranın üstünde görünür. Bildirim alanındaki kask ayarları açar.",
+  "windows.onboarding.doneTray": "Bildirim alanı",
+  "windows.onboarding.doneIsland": "Dynamic Island"
 }

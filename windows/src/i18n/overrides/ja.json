@@ -762,5 +762,10 @@
   "windows.notifications.replyErrorInputRefused": "Discord がテキストを受け付けませんでした。メッセージ欄を確認してください。何も送信されていません。",
   "windows.notifications.replyErrorGone": "この通知はもうありません。",
   "windows.notifications.replyErrorGeneric": "返信を送信できませんでした。下書きは残っています。",
-  "windows.notifications.replyErrorAccessibilityOff": "Discord がメッセージ欄を公開していません。デスクトップの設定でアクセシビリティをオンにして、Discord を再起動してください。"
+  "windows.notifications.replyErrorAccessibilityOff": "Discord がメッセージ欄を公開していません。デスクトップの設定でアクセシビリティをオンにして、Discord を再起動してください。",
+  "windows.onboarding.welcomeTitle": "エージェントを画面の上に",
+  "windows.onboarding.welcomeToolkit": "Dynamic Island には音楽、ミキサー、カレンダーなどもあります。",
+  "windows.onboarding.doneBody": "セッションは画面の上に表示されます。通知領域のヘルメットから設定を開けます。",
+  "windows.onboarding.doneTray": "通知領域",
+  "windows.onboarding.doneIsland": "Dynamic Island"
 }

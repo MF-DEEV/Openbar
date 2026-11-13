@@ -75,6 +75,9 @@ final class ClaudeSessionService: ObservableObject {
     private var lastShownAgents: Set<ClaudeSessionProvider>?
     /// The page that starts a new session is open.
     @Published var composingSession = false
+    /// How the person answered the sample request onboarding showed, once
+    /// they have (#168); nil while it waits or none was shown.
+    @Published private(set) var sampleAnswer: ClaudeHookMessage.Decision?
 
     enum CodexStatus: Equatable {
         case connected
@@ -116,6 +119,11 @@ final class ClaudeSessionService: ObservableObject {
     private var server: ClaudeHookServer?
     /// The sessions as they came, before Always hid the waits it answers.
     private var latest: [ClaudeSession] = []
+    /// The sample request onboarding shows, which no agent asked, and what
+    /// it has to tell the island next. Queue.
+    private var sample: ClaudeSession?
+    private var sampleEvents: [ClaudeSessionEvent] = []
+    private var sampleRound = 0
     /// Codex sessions given Always, and the answers it has on their way.
     private var autoAllow = NotchSessionAutoAllow()
     private var autoAllowWork: [String: DispatchWorkItem] = [:]
@@ -363,6 +371,7 @@ final class ClaudeSessionService: ObservableObject {
     func decide(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision) {
         guard settled(id, request: request) else { return }
         queue.async { [self] in
+            if id == ClaudeSessionSample.id { return answerSample(request: request, decision) }
             // Codex takes its answer through its own server; the first answer wins there.
             if let codex, codex.owns(id) {
                 if codex.answer(id, requestID: request, answer: CodexAnswer(decision)) {
@@ -427,6 +436,7 @@ final class ClaudeSessionService: ObservableObject {
     /// Types a reply into the session's terminal, as if the person typed it
     /// there. Calls back on the main thread.
     func send(_ text: String, to session: ClaudeSession, completion: @escaping (SendFailure?) -> Void) {
+        if session.id == ClaudeSessionSample.id { return completion(nil) }
         let images = attachments[session.id] ?? []
         let reply = NotchClaudeSessionsSupport.reply(text) ?? ""
         guard !reply.isEmpty || !images.isEmpty, NotchClaudeSessionsSupport.canReply(session) else {
@@ -1078,6 +1088,7 @@ final class ClaudeSessionService: ObservableObject {
     /// with whether the window was found.
     func openHost(_ session: ClaudeSession, completion: @escaping (Bool) -> Void = { _ in }) {
         acknowledge(session.id)
+        if session.id == ClaudeSessionSample.id { return completion(false) }
         if let alias = session.host.remoteAlias {
             // Its pane comes forward in the host's tmux; no window here shows it.
             queue.async { [self] in
@@ -1370,13 +1381,15 @@ final class ClaudeSessionService: ObservableObject {
             return hosts[pid] ?? .unknown
         }, branch: { [self] folder in branches.branch(of: folder, now: now) })
         let agentSessions = fromAgents.sessions.filter { shownAgents.contains($0.provider) }
-        let sorted = NotchClaudeSessionsSupport.sorted(withBackground(claude, now: now) + codexSessions + agentSessions)
+        let sorted = NotchClaudeSessionsSupport.sorted(withBackground(claude, now: now) + codexSessions + agentSessions
+            + (sample.map { [$0] } ?? []))
         let shown = autoAllowing(sorted, now: now)
         let allowed = autoAllow.sessions
         let hidden = Set(sorted.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed, now: now) }
             .map(\.id))
         let events = (snapshot.events + fromCodex.events + fromAgents.events)
-            .filter { NotchClaudeSessionsSupport.shows($0, hidden: hidden) }
+            .filter { NotchClaudeSessionsSupport.shows($0, hidden: hidden) } + sampleEvents
+        sampleEvents = []
         let changed = shown != published || allowed != publishedAutoAllow
         published = shown
         publishedAutoAllow = allowed
@@ -1779,5 +1792,69 @@ enum ClaudeSessionCleanup {
         ClaudeBridgeInstaller.uninstall(home: home)
         try? FileManager.default.removeItem(at: folder)
         return (hooks, true)
+    }
+}
+
+// MARK: - Sample request (#168)
+
+extension ClaudeSessionService {
+    /// Shows a made-up permission request in the island, the way a real one
+    /// arrives, so onboarding can show what will happen before any agent
+    /// asks. Answering it goes nowhere. False when sessions are off.
+    @discardableResult
+    func showSample(at now: Date = Date()) -> Bool {
+        guard NotchClaudeSessionsSupport.isEnabled() else { return false }
+        sampleAnswer = nil
+        queue.async { [self] in
+            sampleRound += 1
+            let session = ClaudeSessionSample.waiting(round: sampleRound, home: home, now: now)
+            sample = session
+            sampleEvents.append(.needsPermission(id: session.id, tool: session.permission?.tool ?? ""))
+            publish(now: now)
+        }
+        return true
+    }
+
+    /// Takes the sample out, as when onboarding closes before it was answered.
+    func dismissSample() {
+        queue.async { [self] in
+            guard sample != nil else { return }
+            sampleRound += 1
+            sample = nil
+            publish(now: Date())
+        }
+    }
+
+    /// Queue. The sample plays out the answer: an allowed command runs a
+    /// moment and finishes, a denied one stops, then the sample leaves.
+    fileprivate func answerSample(request: String, _ decision: ClaudeHookMessage.Decision) {
+        guard var session = sample, session.permission?.requestID == request else { return }
+        let round = sampleRound
+        let now = Date()
+        let allowed: Bool
+        switch decision {
+        case .deny: allowed = false
+        default: allowed = true
+        }
+        session = ClaudeSessionSample.answered(session, allowed: allowed, now: now)
+        sample = session
+        publish(now: now)
+        DispatchQueue.main.async { self.sampleAnswer = decision }
+        let after = { (delay: TimeInterval, change: @escaping () -> Void) in
+            self.queue.asyncAfter(deadline: .now() + delay) { [self] in
+                guard sampleRound == round, sample != nil else { return }
+                change()
+                publish(now: Date())
+            }
+        }
+        if allowed {
+            after(1.6) { [self] in
+                guard let running = sample else { return }
+                let finished = ClaudeSessionSample.finished(running, now: Date())
+                sample = finished
+                sampleEvents.append(.finished(id: finished.id, duration: 2))
+            }
+        }
+        after(allowed ? 7 : 2.5) { [self] in sample = nil }
     }
 }

@@ -1,9 +1,9 @@
 {
-  "files": 92,
-  "structs": 84,
-  "accessors": 83,
-  "fields": 3590,
-  "values": 53450,
+  "files": 93,
+  "structs": 85,
+  "accessors": 84,
+  "fields": 3617,
+  "values": 53855,
   "unresolved": 0,
   "format_specifiers": {
     "%@": 2115,

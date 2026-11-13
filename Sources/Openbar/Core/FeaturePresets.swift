@@ -8,11 +8,13 @@ import Foundation
 /// rest, but nothing is deleted — every feature keeps its settings and comes
 /// back with one click, exactly like any hub install.
 enum FeaturePreset: String, CaseIterable, Identifiable {
-    case essential, windows, battery
+    /// Coding agents' sessions in the island, the reason most people come
+    /// (#168), so it leads and starts selected.
+    case agents, essential, windows, battery
 
     var id: String { rawValue }
 
-    /// A clean install starts from the small Essential set before any feature
+    /// A clean install starts from the recommended set before any feature
     /// binding runs. Updates keep every existing availability choice, and an
     /// interrupted setup keeps the selection already applied on its purpose
     /// step.
@@ -20,15 +22,20 @@ enum FeaturePreset: String, CaseIterable, Identifiable {
         guard !defaults.bool(forKey: DefaultsKey.hasOnboarded),
               defaults.integer(forKey: DefaultsKey.onboardingStep) == 0
         else { return }
-        let selected = FeaturePreset.essential.features
+        let selected = FeaturePreset.recommended.features
         for feature in AppFeature.allCases {
             defaults.set(selected.contains(feature), forKey: feature.availabilityKey)
         }
     }
 
+    /// The setup a clean install starts from.
+    static let recommended = FeaturePreset.agents
+
     /// The features the preset keeps installed.
     var features: Set<AppFeature> {
         switch self {
+        case .agents:
+            return [.notch, .notchAgents]
         case .essential:
             return [.mixer, .keepAwake,
                     .monitorCPU, .monitorGPU, .monitorMemory,
@@ -47,6 +54,10 @@ enum FeaturePreset: String, CaseIterable, Identifiable {
     /// Presets whose features are on-demand need none.
     var enableKeys: [String] {
         switch self {
+        case .agents:
+            return [DefaultsKey.notchEnabled,
+                    DefaultsKey.notchSessionsEnabled,
+                    DefaultsKey.notchAgentsEnabled]
         case .essential, .battery:
             return []
         case .windows:
@@ -59,6 +70,7 @@ enum FeaturePreset: String, CaseIterable, Identifiable {
 
     var symbolName: String {
         switch self {
+        case .agents: return "sparkles"
         case .essential: return "star.fill"
         case .windows: return "macwindow.on.rectangle"
         case .battery: return "battery.75percent"

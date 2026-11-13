@@ -762,5 +762,10 @@
   "windows.notifications.replyErrorInputRefused": "Discord didn’t take the text. Check its message box; nothing was sent.",
   "windows.notifications.replyErrorGone": "This notification is gone.",
   "windows.notifications.replyErrorGeneric": "Couldn’t send the reply. Your draft is kept.",
-  "windows.notifications.replyErrorAccessibilityOff": "Discord isn’t sharing its message box. Turn on accessibility in your desktop settings, then restart Discord."
+  "windows.notifications.replyErrorAccessibilityOff": "Discord isn’t sharing its message box. Turn on accessibility in your desktop settings, then restart Discord.",
+  "windows.onboarding.welcomeTitle": "Your agents, at the top of the screen",
+  "windows.onboarding.welcomeToolkit": "The Dynamic Island also has music, a mixer, a calendar and more.",
+  "windows.onboarding.doneBody": "Sessions show up at the top of the screen. The helmet in the notification area opens the settings.",
+  "windows.onboarding.doneTray": "Notification area",
+  "windows.onboarding.doneIsland": "Dynamic Island"
 }
