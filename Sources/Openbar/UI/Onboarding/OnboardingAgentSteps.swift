@@ -106,7 +106,7 @@ struct OnboardingIslandDemo: View {
                     .transition(.opacity.combined(with: .scale(scale: 0.92, anchor: .top)))
             } else {
                 HStack {
-                    NotchSessionAgentGlyph(provider: current.provider, size: 11, working: true)
+                    NotchSessionAgentGlyph(provider: current.provider, size: 11, working: false)
                     Spacer()
                     if phase == .closing {
                         Image(systemName: "checkmark")
@@ -126,7 +126,7 @@ struct OnboardingIslandDemo: View {
     private var card: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 8) {
-                NotchSessionAgentGlyph(provider: current.provider, size: 15, working: phase == .allowed)
+                NotchSessionAgentGlyph(provider: current.provider, size: 15, working: false)
                 VStack(alignment: .leading, spacing: 1) {
                     Text(current.project)
                         .font(.system(size: 12.5, weight: .semibold))
@@ -360,7 +360,7 @@ struct OnboardingAgentsStep: View {
                     .fill(Color.black)
                     .frame(width: 52, height: 52)
                     .overlay(NotchSessionAgentGlyph(provider: provider, size: 20,
-                                                    working: state == .connecting || state == .checking))
+                                                    working: false))
                 if state == .connected || state == .ready {
                     Image(systemName: "checkmark.circle.fill")
                         .font(.system(size: 17, weight: .semibold))
@@ -701,7 +701,7 @@ struct OnboardingMenuBarScene: View {
                     .fill(Color.black)
                     .frame(width: 130, height: 26)
                     .overlay(alignment: .leading) {
-                        NotchSessionAgentGlyph(provider: .claude, size: 10, working: true).padding(.leading, 9)
+                        NotchSessionAgentGlyph(provider: .claude, size: 10, working: false).padding(.leading, 9)
                     }
                     .overlay(ring(width: 150, height: 40).offset(y: -2))
                     .overlay(alignment: .bottom) { callout(text.doneNotch).offset(y: 44) }

@@ -130,7 +130,7 @@ function IslandDemo() {
               transition={{ duration: 0.22 }}
             >
               <div className="ob-card-row">
-                <ProviderMark provider={current.provider} size={17} working={phase === "allowed"} />
+                <ProviderMark provider={current.provider} size={17} />
                 <div className="ob-card-name">
                   <b>{current.project}</b>
                   <span className={phase === "allowed" ? "" : "ob-waiting"}>
@@ -174,7 +174,7 @@ function IslandDemo() {
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
             >
-              <ProviderMark provider={current.provider} size={12} working />
+              <ProviderMark provider={current.provider} size={12} />
               {phase === "closing" ? (
                 <motion.span
                   initial={{ scale: 0.3, opacity: 0 }}
@@ -333,7 +333,7 @@ function Agents() {
               transition={{ ...SPRING, delay: reduce ? 0 : i * 0.07 }}
             >
               <div className="ob-tile-mark">
-                <ProviderMark provider={provider} size={22} working={s === "connecting" || s === "checking"} />
+                <ProviderMark provider={provider} size={22} />
                 <AnimatePresence>
                   {s === "connected" || s === "ready" ? (
                     <motion.span
@@ -470,7 +470,7 @@ function Done() {
     <div className="ob-step ob-done">
       <div className="ob-screen" aria-hidden>
         <div className="ob-screen-island">
-          <ProviderMark provider="claude" size={11} working />
+          <ProviderMark provider="claude" size={11} />
           <span className="ob-ring" />
           <span className="ob-callout">
             <ArrowUp size={12} strokeWidth={2.8} />

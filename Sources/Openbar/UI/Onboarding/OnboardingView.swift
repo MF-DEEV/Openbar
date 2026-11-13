@@ -305,7 +305,7 @@ private struct PurposeStep: View {
                         Circle()
                             .fill(Color.black)
                             .frame(width: 34, height: 34)
-                            .overlay(NotchSessionAgentGlyph(provider: provider, size: 13, working: selected))
+                            .overlay(NotchSessionAgentGlyph(provider: provider, size: 13, working: false))
                     }
                     Spacer()
                     Image(systemName: selected ? "checkmark.circle.fill" : "circle")
