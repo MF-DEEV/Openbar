@@ -1599,3 +1599,7 @@ select {
   outline: 2px solid var(--st-accent, #4cc2ff);
   outline-offset: 1px;
 }
+
+.st-account-row + .st-subrow {
+  border-top: 1px solid var(--st-divider);
+}

@@ -199,6 +199,45 @@ export function demoSnapshot(now = Date.now(), accounts = false): AgentSnapshot 
   };
   snapshot.priceDay = "2026-10-09";
   if (accounts) snapshot.codexAccounts = demoAccounts(now);
+  // ?agents&accounts=claude: a second Claude account in use beside the main one (#216).
+  if (typeof location !== "undefined" && new URLSearchParams(location.search).get("accounts") === "claude") {
+    snapshot.claudeAccountId = "c:\\users\\vors\\.claude";
+    snapshot.claudeAccountName = "Personal";
+    snapshot.claudeAccounts = [
+      {
+        id: "c:\\users\\vors\\.claude-work",
+        name: "Work",
+        plan: "Max 5×",
+        checking: false,
+        failure: null,
+        limits: {
+          provider: "claude",
+          observedAt: now - 45_000,
+          source: "account",
+          windows: [
+            {
+              id: "claude.fh",
+              kind: "session",
+              minutes: 300,
+              scope: null,
+              usedPercent: 63,
+              resetsAt: now + 2.4 * 3_600_000,
+              estimatedResetsAt: null,
+            },
+            {
+              id: "claude.sd",
+              kind: "weekly",
+              minutes: 10080,
+              scope: null,
+              usedPercent: 28,
+              resetsAt: now + 4 * 86_400_000,
+              estimatedResetsAt: null,
+            },
+          ],
+        },
+      },
+    ];
+  }
   return snapshot;
 }
 
