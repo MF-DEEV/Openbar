@@ -318,7 +318,8 @@ ob_codex() {
         exec socat - "UNIX-CONNECT:$ob_sock"
     elif command -v nc > /dev/null 2>&1 && nc -h 2>&1 | grep -q -- '-U'; then
         # -N lets the daemon go once the island's side ends.
-        if nc -h 2>&1 | grep -q -- '-N'; then exec nc -N -U "$ob_sock"; fi
+        # (macOS's nc has a -N of its own, for something else.)
+        if nc -h 2>&1 | grep -- '-N' | grep -qi 'shutdown'; then exec nc -N -U "$ob_sock"; fi
         exec nc -U "$ob_sock"
     elif command -v python3 > /dev/null 2>&1; then
         exec python3 -c 'import os,select,socket,sys

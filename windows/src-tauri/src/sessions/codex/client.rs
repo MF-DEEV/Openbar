@@ -10,6 +10,7 @@
 use std::collections::{HashMap, HashSet};
 use std::io::{Read, Write};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -19,7 +20,7 @@ use serde_json::{Value, json};
 use tungstenite::Message;
 
 use super::state::{Answer, State};
-use crate::sessions::models::{ContentPolicy, Session, SessionEvent, Time};
+use crate::sessions::models::{ContentPolicy, HostKind, Session, SessionEvent, Time};
 
 const RETRY: Duration = Duration::from_secs(3);
 const POLL: Duration = Duration::from_millis(100);
@@ -89,6 +90,8 @@ pub fn thread_start_params(cwd: &str, model: Option<&str>) -> Value {
 }
 
 struct Shared {
+    /// The SSH alias of the host whose Codex this is; None for this PC's.
+    remote: Option<String>,
     state: State,
     next_id: i64,
     waiting: HashMap<i64, Waiting>,
@@ -102,6 +105,7 @@ struct Shared {
 impl Shared {
     fn new() -> Shared {
         Shared {
+            remote: None,
             state: State::default(),
             next_id: 0,
             waiting: HashMap::new(),
@@ -180,34 +184,86 @@ impl Shared {
     }
 }
 
+/// A connection to a daemon, read with a short timeout so what the island
+/// queues goes out between reads.
+pub trait Duplex: Read + Write + Send {}
+impl<T: Read + Write + Send> Duplex for T {}
+
+/// Opens a connection to a daemon; None while there is none to open.
+pub type Connector = Box<dyn Fn() -> Option<Result<Box<dyn Duplex>, String>> + Send>;
+
 pub struct CodexClient {
     shared: Arc<Mutex<Shared>>,
+    stopped: Arc<AtomicBool>,
 }
 
 impl CodexClient {
-    /// Starts looking for the daemon; `changed` runs whenever sessions may have changed.
+    /// Starts looking for this PC's daemon; `changed` runs whenever sessions may have changed.
     pub fn start(changed: impl Fn() + Send + Sync + 'static) -> Arc<CodexClient> {
+        let connector: Connector = Box::new(|| {
+            let path = socket_path().filter(|p| p.exists())?;
+            Some(connect(&path).map(|stream| Box::new(stream) as Box<dyn Duplex>))
+        });
+        Self::start_with(None, connector, changed)
+    }
+
+    /// Codex on a remote host (issue #200): `connector` opens a connection
+    /// to its daemon while the host's link says it runs there. Its threads
+    /// wear the host's name, and it never logs a host that went away.
+    pub fn start_remote(
+        alias: &str,
+        connector: Connector,
+        changed: impl Fn() + Send + Sync + 'static,
+    ) -> Arc<CodexClient> {
+        Self::start_with(Some(alias.to_owned()), connector, changed)
+    }
+
+    fn start_with(
+        remote: Option<String>,
+        connector: Connector,
+        changed: impl Fn() + Send + Sync + 'static,
+    ) -> Arc<CodexClient> {
+        let mut shared = Shared::new();
+        shared.remote = remote.clone();
         let client = Arc::new(CodexClient {
-            shared: Arc::new(Mutex::new(Shared::new())),
+            shared: Arc::new(Mutex::new(shared)),
+            stopped: Arc::new(AtomicBool::new(false)),
         });
         let shared = client.shared.clone();
+        let stopped = client.stopped.clone();
         let changed = Arc::new(changed);
+        let name = match &remote {
+            Some(alias) => format!("codex-{alias}"),
+            None => "codex-app-server".into(),
+        };
         thread::Builder::new()
-            .name("codex-app-server".into())
+            .name(name)
             .spawn(move || {
-                loop {
-                    if let Some(path) = socket_path().filter(|p| p.exists()) {
-                        if let Err(error) = session(&path, &shared, &*changed) {
+                while !stopped.load(Ordering::Relaxed) {
+                    if let Some(opened) = connector() {
+                        let result =
+                            opened.and_then(|stream| session(stream, &shared, &*changed, &stopped));
+                        if let Err(error) = result
+                            && remote.is_none()
+                        {
                             eprintln!("Codex session disconnected: {error}");
                         }
                         shared.lock().unwrap().reset();
                         changed();
                     }
-                    thread::sleep(RETRY);
+                    let until = std::time::Instant::now() + RETRY;
+                    while std::time::Instant::now() < until && !stopped.load(Ordering::Relaxed) {
+                        thread::sleep(Duration::from_millis(100));
+                    }
                 }
             })
             .expect("codex thread");
         client
+    }
+
+    /// Leaves the daemon and stops looking for it.
+    pub fn stop(&self) {
+        self.stopped.store(true, Ordering::Relaxed);
     }
 
     pub fn snapshot(&self, now: Time, policy: ContentPolicy) -> (Vec<Session>, Vec<SessionEvent>) {
@@ -229,7 +285,16 @@ impl CodexClient {
                 }
             }
         }
-        shared.state.snapshot(now, policy)
+        let (mut sessions, events) = shared.state.snapshot(now, policy);
+        // A host's threads wear its name, as its Claude Code sessions do.
+        if let Some(alias) = &shared.remote {
+            for session in &mut sessions {
+                session.host = HostKind::Remote;
+                session.host_name = Some(alias.clone());
+                session.remote = Some(alias.clone());
+            }
+        }
+        (sessions, events)
     }
 
     pub fn owns(&self, session: &str) -> bool {
@@ -336,6 +401,12 @@ impl Shared {
         if !text.trim().is_empty() {
             input.push(json!({"type": "text", "text": text, "text_elements": []}));
         }
+        // Images are files on this PC, which a host's Codex can't open.
+        let images = if self.remote.is_some() {
+            &[][..]
+        } else {
+            images
+        };
         input.extend(
             images
                 .iter()
@@ -365,13 +436,12 @@ impl Shared {
 
 /// One connection, from handshake to the daemon going away.
 fn session(
-    path: &PathBuf,
+    stream: Box<dyn Duplex>,
     shared: &Arc<Mutex<Shared>>,
     changed: &(dyn Fn() + Send + Sync),
+    stopped: &AtomicBool,
 ) -> Result<(), String> {
-    let stream = connect(path)?;
-    let (mut socket, _) =
-        tungstenite::client::client("ws://localhost/rpc", stream).map_err(|e| e.to_string())?;
+    let mut socket = upgrade(stream)?;
     let (tx, rx): (Sender<Value>, Receiver<Value>) = channel();
     {
         let mut s = shared.lock().unwrap();
@@ -379,7 +449,7 @@ fn session(
         s.connected = true;
         s.call("initialize", initialize_params(), Waiting::Initialize);
     }
-    loop {
+    while !stopped.load(Ordering::Relaxed) {
         // Everything queued for the daemon goes out between reads.
         while let Ok(message) = rx.try_recv() {
             socket
@@ -400,6 +470,27 @@ fn session(
                     std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
                 ) => {}
             Err(e) => return Err(e.to_string()),
+        }
+    }
+    Ok(())
+}
+
+/// The WebSocket upgrade over a stream read with a timeout: a host's answer
+/// takes a round trip, so a read that times out is waited on, ten seconds at most.
+fn upgrade(stream: Box<dyn Duplex>) -> Result<tungstenite::WebSocket<Box<dyn Duplex>>, String> {
+    use tungstenite::HandshakeError;
+    let deadline = std::time::Instant::now() + Duration::from_secs(10);
+    let mut attempt = tungstenite::client::client("ws://localhost/rpc", stream);
+    loop {
+        match attempt {
+            Ok((socket, _)) => return Ok(socket),
+            Err(HandshakeError::Failure(e)) => return Err(e.to_string()),
+            Err(HandshakeError::Interrupted(mid)) => {
+                if std::time::Instant::now() > deadline {
+                    return Err("no upgrade answer".into());
+                }
+                attempt = mid.handshake();
+            }
         }
     }
 }
@@ -542,7 +633,7 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
 }
 
 #[cfg(windows)]
-fn connect(path: &PathBuf) -> Result<impl Read + Write, String> {
+fn connect(path: &PathBuf) -> Result<impl Read + Write + Send + use<>, String> {
     let stream = uds_windows::UnixStream::connect(path).map_err(|e| e.to_string())?;
     stream
         .set_read_timeout(Some(POLL))
@@ -551,7 +642,7 @@ fn connect(path: &PathBuf) -> Result<impl Read + Write, String> {
 }
 
 #[cfg(unix)]
-fn connect(path: &PathBuf) -> Result<impl Read + Write, String> {
+fn connect(path: &PathBuf) -> Result<impl Read + Write + Send + use<>, String> {
     let stream = std::os::unix::net::UnixStream::connect(path).map_err(|e| e.to_string())?;
     stream
         .set_read_timeout(Some(POLL))
@@ -664,6 +755,96 @@ mod tests {
         rx.try_iter().collect()
     }
 
+    /// A host's Codex (issue #200): joined only once its link says so, its
+    /// threads wear the host's name, and images stay on this PC.
+    #[cfg(unix)]
+    #[test]
+    fn a_hosts_codex_wears_its_name_and_keeps_images_here() {
+        use std::os::unix::net::UnixStream;
+        use std::sync::atomic::AtomicBool;
+        let (ours, theirs) = UnixStream::pair().unwrap();
+        ours.set_read_timeout(Some(POLL)).unwrap();
+        let ours = Mutex::new(Some(ours));
+        let ready = Arc::new(AtomicBool::new(false));
+        let gate = ready.clone();
+        let connector: Connector = Box::new(move || {
+            if !gate.load(Ordering::Relaxed) {
+                return None;
+            }
+            let stream = ours.lock().unwrap().take()?;
+            Some(Ok(Box::new(stream) as Box<dyn Duplex>))
+        });
+        let client = CodexClient::start_remote("box", connector, || {});
+        thread::sleep(Duration::from_millis(300));
+        assert!(
+            !client.connected(),
+            "not joined before the link says Codex runs there"
+        );
+        let (turns, received) = channel();
+        thread::spawn(move || {
+            let mut ws = tungstenite::accept(theirs).unwrap();
+            let next = |ws: &mut tungstenite::WebSocket<UnixStream>| loop {
+                if let Message::Text(text) = ws.read().unwrap() {
+                    return serde_json::from_str::<Value>(&text).unwrap();
+                }
+            };
+            let init = next(&mut ws);
+            ws.send(Message::text(
+                json!({"id": init["id"], "result": {}}).to_string(),
+            ))
+            .unwrap();
+            let _initialized = next(&mut ws);
+            let list = next(&mut ws);
+            ws.send(Message::text(
+                json!({"id": list["id"], "result": {"data": ["r1"]}}).to_string(),
+            ))
+            .unwrap();
+            let read = next(&mut ws);
+            let thread =
+                json!({"id": "r1", "cwd": "/home/dev/project", "status": {"type": "idle"}});
+            ws.send(Message::text(
+                json!({"id": read["id"], "result": {"thread": thread}}).to_string(),
+            ))
+            .unwrap();
+            loop {
+                let message = next(&mut ws);
+                {
+                    if message["method"] == "turn/start" {
+                        let _ = turns.send(message);
+                        break;
+                    }
+                }
+            }
+        });
+        ready.store(true, Ordering::Relaxed);
+        let deadline = std::time::Instant::now() + Duration::from_secs(10);
+        let session = loop {
+            let (sessions, _) = client.snapshot(0.0, ContentPolicy::default());
+            if let Some(session) = sessions.into_iter().next() {
+                break session;
+            }
+            assert!(
+                std::time::Instant::now() < deadline,
+                "the host's thread shows"
+            );
+            thread::sleep(Duration::from_millis(20));
+        };
+        assert_eq!(session.host, HostKind::Remote);
+        assert_eq!(session.remote.as_deref(), Some("box"));
+        assert_eq!(session.host_name.as_deref(), Some("box"));
+        assert!(
+            session.accepts_replies,
+            "replies go through Codex's server, not the host's tmux"
+        );
+        assert!(client.reply("r1", "go on", &["C:\\shot.png".to_owned()]));
+        let turn = received.recv_timeout(Duration::from_secs(5)).unwrap();
+        let input = turn["params"]["input"].as_array().unwrap();
+        assert_eq!(input.len(), 1, "the image is a file on this PC: {input:?}");
+        assert_eq!(input[0]["type"], "text");
+        assert!(!client.reply("r1", " ", &["C:\\shot.png".to_owned()]));
+        client.stop();
+    }
+
     #[test]
     fn enabling_previews_loads_history_and_disabling_discards_it() {
         let (mut shared, rx) = joined();
@@ -672,6 +853,7 @@ mod tests {
             .upsert_thread(&json!({"id": "t1", "cwd": "C:\\code", "status": {"type": "idle"}}));
         let client = CodexClient {
             shared: Arc::new(Mutex::new(shared)),
+            stopped: Arc::new(AtomicBool::new(false)),
         };
         client.snapshot(1.0, ContentPolicy { previews: true });
         let reads = sent(&rx);

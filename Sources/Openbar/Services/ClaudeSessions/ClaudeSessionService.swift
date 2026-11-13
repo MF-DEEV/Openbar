@@ -300,16 +300,21 @@ final class ClaudeSessionService: ObservableObject {
     /// none, so the paste goes to the text instead.
     @discardableResult
     func attachImages(from pasteboard: NSPasteboard, to id: String) -> Bool {
-        guard ClaudeImageAttachments.holdsImages(pasteboard) else { return false }
+        guard ClaudeImageAttachments.holdsImages(pasteboard), !isRemote(id) else { return false }
         attach(ClaudeImageAttachments.images(from: pasteboard), to: id)
         return true
     }
 
     func attach(_ images: [URL], to id: String) {
-        guard !images.isEmpty else { return }
+        guard !images.isEmpty, !isRemote(id) else { return }
         var list = attachments[id] ?? []
         for image in images where !list.contains(image) { list.append(image) }
         attachments[id] = Array(list.prefix(ClaudeImageAttachments.limit))
+    }
+
+    /// A host's session takes text only: it can't open this Mac's files.
+    private func isRemote(_ id: String) -> Bool {
+        sessions.first { $0.id == id }?.host.remoteAlias != nil
     }
 
     func detach(_ image: URL, from id: String) {

@@ -713,22 +713,25 @@ function ReplyField({ session, enlarged = false }: { session: Session; enlarged?
       className="s-reply"
       onPaste={(event) => {
         const files = imageFiles(event.clipboardData);
-        if (!files.length) return; // Plain text keeps the input's normal Ctrl+V behavior.
+        // Plain text keeps the input's normal Ctrl+V behavior. A host can't
+        // open this PC's files, so its sessions take text only.
+        if (!files.length || session.remote) return;
         event.preventDefault();
         void paste(files);
       }}
       onKeyDown={(event) => {
-        if (!isImagePasteShortcut(event.nativeEvent)) return;
+        if (!isImagePasteShortcut(event.nativeEvent) || session.remote) return;
         event.preventDefault();
         event.stopPropagation();
         void paste();
       }}
       onDragOver={(event) => {
+        if (session.remote) return;
         if (Array.from(event.dataTransfer.items).some((item) => item.type.startsWith("image/"))) event.preventDefault();
       }}
       onDrop={(event) => {
         const files = imageFiles(event.dataTransfer);
-        if (!files.length) return;
+        if (!files.length || session.remote) return;
         event.preventDefault();
         void paste(files);
       }}
