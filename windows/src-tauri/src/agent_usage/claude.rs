@@ -301,10 +301,38 @@ fn config_args(executable: &Path) -> Option<(String, String)> {
 
 /// One account check (§2.2).
 pub fn check(now: &dyn Fn() -> Time) -> Result<Limits, Failure> {
+    // One folder for the whole check, even if the sessions move meanwhile.
+    check_in(account_dir(), now)
+}
+
+/// The config folder of an account the limits read beside the main one;
+/// None for `%USERPROFILE%\.claude` (#216).
+pub fn dir_of(folder: &Path) -> Option<PathBuf> {
+    moved(Some(folder.to_path_buf()), super::files::home().as_deref())
+}
+
+/// The plan of the account kept in `dir`, as its card names it.
+pub fn plan_in(dir: Option<&Path>) -> Option<String> {
+    let profile = read_profile_in(dir);
+    super::pricing::claude_plan(
+        profile.organization_type.as_deref(),
+        profile.rate_limit_tier.as_deref(),
+        &super::pricing::list(),
+    )
+    .map(|plan| plan.name)
+}
+
+/// The id the account in `dir` goes by, as the sessions name it.
+pub fn account_id(dir: Option<&Path>) -> Option<String> {
+    let folder = dir
+        .map(Path::to_path_buf)
+        .or_else(|| super::files::home().map(|h| h.join(".claude")))?;
+    Some(crate::sessions::accounts::canonical(&folder))
+}
+
+pub fn check_in(dir: Option<PathBuf>, now: &dyn Fn() -> Time) -> Result<Limits, Failure> {
     let executable = executable().ok_or(Failure::Missing)?;
     let started = now();
-    // One folder for the whole check, even if the sessions move meanwhile.
-    let dir = account_dir();
     let organization = read_profile_in(dir.as_deref()).organization;
     let settings_dir = dir
         .clone()

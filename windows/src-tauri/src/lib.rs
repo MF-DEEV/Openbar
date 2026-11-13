@@ -421,6 +421,7 @@ pub fn run() {
             agent_usage::agents_resets_refresh,
             agent_usage::agents_resets_redeem,
             agent_usage::agents_codex_refresh,
+            agent_usage::agents_claude_account_refresh,
             agent_usage::agents_codex_discover,
             agent_usage::agents_codex_choose_folder,
             watch::watch_snapshot,
