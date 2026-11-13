@@ -6,7 +6,8 @@
 #   Tools/bump-packages.sh mac <version>       Homebrew cask in MF-DEEV/homebrew-openbar
 #   Tools/bump-packages.sh windows <version>   winget manifest, as a PR to microsoft/winget-pkgs
 # Both read the files GitHub serves for the release, so run it after the
-# release is published. --dry-run prints what would change and pushes nothing.
+# release is published. --dry-run shows what would change and pushes nothing
+# (the winget manifests stay in dist/winget/<version> for a local test).
 # Tools/release.sh calls it; it can also be run by hand to retry.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -62,8 +63,10 @@ windows)
             -e "s/@DATE@/$(date -u +%Y-%m-%d)/" "$template" > "$OUT/${template:t}"
     done
     if (( DRY )); then
-        cat "$OUT"/*.yaml
-        echo "(dry run: not submitted)"
+        # Kept for a local test: winget validate / winget install --manifest <dir>.
+        mkdir -p "dist/winget/$VERSION"
+        cp "$OUT"/*.yaml "dist/winget/$VERSION/"
+        echo "(dry run: not submitted; manifests in dist/winget/$VERSION)"
         exit 0
     fi
     command -v komac >/dev/null || { echo "✗ komac is missing: brew install komac" >&2; exit 1; }
