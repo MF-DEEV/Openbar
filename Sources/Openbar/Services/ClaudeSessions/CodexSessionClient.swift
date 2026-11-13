@@ -54,7 +54,13 @@ final class CodexSessionClient {
         case started(input: [[String: Any]], done: (String?) -> Void)
     }
 
-    private let home: URL?
+    /// The daemon's socket: Codex's own, or one `ssh` forwards from a host.
+    private let socket: URL?
+    /// The SSH alias of the host whose Codex this is; nil for this Mac's.
+    let remoteAlias: String?
+    /// Whether to look for the daemon now: a host's only while its
+    /// connection forwards the socket and Codex runs there.
+    private let ready: () -> Bool
     private let clientVersion: String
     private let retryInterval: TimeInterval
 
@@ -79,9 +85,19 @@ final class CodexSessionClient {
     private let finished = DispatchSemaphore(value: 0)
 
     /// `home` nil means no Codex to look for; tests pass a temporary one.
-    init(home: URL? = CodexSessionClient.home(), clientVersion: String = CodexSessionClient.appVersion,
-         retry: TimeInterval = CodexSessionClient.retry) {
-        self.home = home
+    convenience init(home: URL? = CodexSessionClient.home(), clientVersion: String = CodexSessionClient.appVersion,
+                     retry: TimeInterval = CodexSessionClient.retry) {
+        self.init(socket: home.map(Self.socketPath), remoteAlias: nil, ready: { true }, clientVersion: clientVersion,
+                  retry: retry)
+    }
+
+    /// Codex on a remote host, through the socket its connection forwards
+    /// (docs/remote-hosts.md).
+    init(socket: URL?, remoteAlias: String?, ready: @escaping () -> Bool,
+         clientVersion: String = CodexSessionClient.appVersion, retry: TimeInterval = CodexSessionClient.retry) {
+        self.socket = socket
+        self.remoteAlias = remoteAlias
+        self.ready = ready
         self.clientVersion = clientVersion
         self.retryInterval = retry
         var fds: [Int32] = [-1, -1]
@@ -141,7 +157,14 @@ final class CodexSessionClient {
                     }
                 }
             }
-            return state.snapshot(now: now, previews: previews)
+            var snapshot = state.snapshot(now: now, previews: previews)
+            // A host's threads wear its name, as its Claude Code sessions do.
+            if let remoteAlias {
+                for index in snapshot.sessions.indices {
+                    snapshot.sessions[index].host = .remote(alias: remoteAlias, tmux: false)
+                }
+            }
+            return snapshot
         }
     }
 
@@ -182,8 +205,9 @@ final class CodexSessionClient {
     /// A prompt for an idle thread, or one queued after the current turn of a working one.
     func reply(_ session: String, text: String, images: [URL] = []) -> Bool {
         lock.withLock {
+            // Images are files on this Mac, which a host's Codex can't open.
             guard isConnected, let thread = state.threads[session], state.pending(session: session).isEmpty,
-                  let input = Self.input(text: text, images: images)
+                  let input = Self.input(text: text, images: remoteAlias == nil ? images : [])
             else { return false }
             if thread.isActive {
                 call("thread/queue/add", ["threadId": session, "input": input, "clientUserMessageId": Self.uuidV7()],
@@ -347,8 +371,8 @@ final class CodexSessionClient {
 
     private func run(changed: @escaping () -> Void) {
         while !isStopped {
-            if let home, FileManager.default.fileExists(atPath: Self.socketPath(home: home).path) {
-                try? session(path: Self.socketPath(home: home), changed: changed)
+            if let socket, ready(), FileManager.default.fileExists(atPath: socket.path) {
+                try? session(path: socket, changed: changed)
                 let unanswered = lock.withLock { () -> [(String?) -> Void] in
                     let starts = waiting.values.compactMap { kind -> ((String?) -> Void)? in
                         if case .started(_, let done) = kind { return done }

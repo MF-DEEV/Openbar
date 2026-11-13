@@ -123,6 +123,16 @@ final class ClaudeSessionService: ObservableObject {
     /// Codex's sessions, from the app-server its terminal UIs share. They join
     /// the same list as Claude Code's (docs/codex-sessions.md).
     private var codex: CodexSessionClient?
+
+    /// This Mac's Codex and every host's. Queue.
+    private var codexClients: [CodexSessionClient] {
+        (codex.map { [$0] } ?? []) + remoteCodex.keys.sorted().compactMap { remoteCodex[$0] }
+    }
+
+    /// The Codex client a session's thread belongs to. Queue.
+    private func codexOwner(_ id: String) -> CodexSessionClient? {
+        codexClients.first { $0.owns(id) }
+    }
     /// Codex's terminal UIs by working folder, refreshed each tick, so Open
     /// and the host of a Codex session find its terminal.
     private var codexTerminals: [(pid: Int32, cwd: String)] = []
@@ -151,6 +161,8 @@ final class ClaudeSessionService: ObservableObject {
     /// saw there. Queue.
     private var remoteLinks: [String: RemoteHostLink] = [:]
     private var remoteSnapshots: [String: RemoteSnapshot] = [:]
+    /// Each host's Codex, through the socket its connection forwards. Queue.
+    private var remoteCodex: [String: CodexSessionClient] = [:]
     /// Remote transcripts being read, by alias and path on the host.
     private var remoteTails: [String: (tail: RemoteTranscriptTail, reader: ClaudeTranscriptReader)] = [:]
     /// Permission requests whose hook waits for the island's answer.
@@ -322,7 +334,7 @@ final class ClaudeSessionService: ObservableObject {
         if let id { acknowledge(id) }
         // An open Codex page keeps its thread joined, so its replies and
         // approvals reach the island while it is shown.
-        queue.async { [self] in codex?.focus(id.map { [$0] } ?? []) }
+        queue.async { [self] in codexClients.forEach { $0.focus(id.map { [$0] } ?? []) } }
     }
 
     /// What a subagent's Clawd wears: its own lot, in the color its
@@ -351,7 +363,7 @@ final class ClaudeSessionService: ObservableObject {
     func acknowledge(_ id: String) {
         queue.async { [self] in
             hookAgents.acknowledge(id, now: Date())
-            codex?.acknowledge(id, now: Date())
+            codexClients.forEach { $0.acknowledge(id, now: Date()) }
             engine.acknowledge(id, now: Date())
             publish(now: Date())
         }
@@ -364,7 +376,7 @@ final class ClaudeSessionService: ObservableObject {
         guard settled(id, request: request) else { return }
         queue.async { [self] in
             // Codex takes its answer through its own server; the first answer wins there.
-            if let codex, codex.owns(id) {
+            if let codex = codexOwner(id) {
                 if codex.answer(id, requestID: request, answer: CodexAnswer(decision)) {
                     codex.acknowledge(id, now: Date())
                 }
@@ -432,7 +444,7 @@ final class ClaudeSessionService: ObservableObject {
         guard !reply.isEmpty || !images.isEmpty, NotchClaudeSessionsSupport.canReply(session) else {
             return completion(session.phase.isWaiting || session.waitingFor != nil ? .waiting : .unreachable)
         }
-        if let alias = session.host.remoteAlias {
+        if let alias = session.host.remoteAlias, session.provider != .codex {
             // Typed into its tmux pane on the host, through the host's connection.
             let steps = ClaudeTyping.steps(reply)
             queue.async { [self] in
@@ -476,8 +488,9 @@ final class ClaudeSessionService: ObservableObject {
             // Codex takes replies through its server: nothing is typed into
             // the terminal, and images go as the files they are.
             queue.async { [self] in
-                let sent = codex?.reply(session.id, text: reply, images: images) ?? false
-                if sent { codex?.acknowledge(session.id, now: Date()) }
+                let owner = codexOwner(session.id)
+                let sent = owner?.reply(session.id, text: reply, images: images) ?? false
+                if sent { owner?.acknowledge(session.id, now: Date()) }
                 // Refused while it waits on a prompt, one Always answers too;
                 // otherwise Codex couldn't be reached.
                 let waiting = latest.first { $0.id == session.id }.map { $0.phase.isWaiting || $0.waitingFor != nil } ?? false
@@ -1078,6 +1091,10 @@ final class ClaudeSessionService: ObservableObject {
     /// with whether the window was found.
     func openHost(_ session: ClaudeSession, completion: @escaping (Bool) -> Void = { _ in }) {
         acknowledge(session.id)
+        if session.provider == .codex, session.host.remoteAlias != nil {
+            // A host's Codex runs in a terminal there, which nothing here shows.
+            return DispatchQueue.main.async { completion(false) }
+        }
         if let alias = session.host.remoteAlias {
             // Its pane comes forward in the host's tmux; no window here shows it.
             queue.async { [self] in
@@ -1106,6 +1123,11 @@ final class ClaudeSessionService: ObservableObject {
         let aliases = Set(wanted.map(\.alias))
         for (alias, link) in remoteLinks where !aliases.contains(alias) {
             link.stop()
+            if let client = remoteCodex.removeValue(forKey: alias) {
+                // Waits a moment for its thread, so not on the queue.
+                DispatchQueue.global(qos: .utility).async { client.stop() }
+                publish(now: Date())
+            }
             remoteLinks[alias] = nil
             remoteSnapshots[alias] = nil
             remoteTails = remoteTails.filter { !$0.key.hasPrefix(alias + "\n") }
@@ -1137,6 +1159,12 @@ final class ClaudeSessionService: ObservableObject {
                 }
             }
             remoteLinks[alias] = link
+            // The host's Codex, joined like this Mac's once its socket is
+            // forwarded and its daemon runs (issue #200).
+            let client = CodexSessionClient(socket: URL(fileURLWithPath: link.codexSocket), remoteAlias: alias,
+                                            ready: { [weak link] in link?.codexReady ?? false })
+            remoteCodex[alias] = client
+            client.start { [weak self] in self?.queue.async { self?.publish(now: Date()) } }
             link.start()
         }
         publishRemoteStates()
@@ -1361,8 +1389,15 @@ final class ClaudeSessionService: ObservableObject {
         let snapshot = engine.snapshot(now: now)
         let claude = snapshot.sessions.map { agentColors.decorate($0, now: now) }
         let fromCodex = codex?.snapshot(now: now, previews: engine.policy.previews) ?? (sessions: [], events: [])
-        let codexSessions = fromCodex.sessions.map { session in
+        var codexSessions = fromCodex.sessions.map { session in
             placed(session, others: fromCodex.sessions.filter { $0.id != session.id }.map(\.cwd))
+        }
+        var codexEvents = fromCodex.events
+        // Hosts' threads keep their host: no terminal here shows them.
+        for alias in remoteCodex.keys.sorted() {
+            guard let remote = remoteCodex[alias]?.snapshot(now: now, previews: engine.policy.previews) else { continue }
+            codexSessions += remote.sessions
+            codexEvents += remote.events
         }
         let fromAgents = hookAgents.snapshot(now: now, previews: engine.policy.previews, host: { [self] pid in
             guard pid > 0 else { return .unknown }
@@ -1375,7 +1410,7 @@ final class ClaudeSessionService: ObservableObject {
         let allowed = autoAllow.sessions
         let hidden = Set(sorted.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed, now: now) }
             .map(\.id))
-        let events = (snapshot.events + fromCodex.events + fromAgents.events)
+        let events = (snapshot.events + codexEvents + fromAgents.events)
             .filter { NotchClaudeSessionsSupport.shows($0, hidden: hidden) }
         let changed = shown != published || allowed != publishedAutoAllow
         published = shown
@@ -1402,7 +1437,7 @@ final class ClaudeSessionService: ObservableObject {
                     self.focusedID = nil
                     dressingID = nil
                     // Its Codex thread is let go too, so it can unload.
-                    queue.async { [self] in codex?.focus([]) }
+                    queue.async { [self] in codexClients.forEach { $0.focus([]) } }
                 }
             }
             events.forEach(self.events.send)
@@ -1426,7 +1461,8 @@ final class ClaudeSessionService: ObservableObject {
     /// Allows a request Always covers, if it still waits and Always still holds.
     private func autoAllowNow(_ id: String, request: String) {
         autoAllowWork[id] = nil
-        guard timer != nil, let codex, autoAllow.fire(id, request: request, in: latest, now: Date()) else { return }
+        guard timer != nil, let codex = codexOwner(id), autoAllow.fire(id, request: request, in: latest, now: Date())
+        else { return }
         // One answered in the terminal meanwhile is no failure; one Codex refused ends Always.
         if !codex.answer(id, requestID: request, answer: .allow), codex.waits(id, requestID: request) {
             autoAllow.failed(id)

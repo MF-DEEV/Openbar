@@ -18,9 +18,11 @@
 #   install               writes new settings, keeping the original once
 #   remove                takes the hooks out again
 #   agent                 answers requests until the connection ends
+#   codex                 joins standard input and output to Codex's
+#                         app-server socket (issue #200, Windows islands)
 #
-# Agent requests: snap (N host time, R records, J transcripts, T new bytes,
-# G gone), paste, enter, focus, ping.
+# Agent requests: snap (N host time, X Codex's socket is there, R records,
+# J transcripts, T new bytes, G gone), paste, enter, focus, ping.
 
 LC_ALL=C
 export LC_ALL
@@ -50,6 +52,9 @@ ob_now() {
     *) echo "${ob_t%??????}" ;;
     esac
 }
+
+# Codex's app-server socket, which its terminal UIs share (docs/codex-sessions.md).
+ob_codex_socket() { printf '%s\n' "${CODEX_HOME:-$HOME/.codex}/app-server-control/app-server-control.sock"; }
 
 ob_sum() { if [ -f "$1" ]; then cksum < "$1" | tr -s ' ' '-'; else echo none; fi; }
 
@@ -161,6 +166,7 @@ ob_agent() {
         case $ob_verb in
         snap)
             echo "N $(ob_now)"
+            if [ -S "$(ob_codex_socket)" ]; then echo "X yes"; else echo "X no"; fi
             ob_records
             while IFS= read -r ob_req && [ "$ob_req" != end ]; do
                 # shellcheck disable=SC2086
@@ -224,6 +230,7 @@ ob_probe() {
         ob_client="python3 $(ob_field "$(command -v python3)")"
     fi
     echo "C $ob_client"
+    echo "X $(ob_field "$(ob_codex_socket)")"
     if command -v tmux > /dev/null 2>&1; then echo "M yes"; else echo "M no"; fi
     if command -v claude > /dev/null 2>&1 || [ -x "$HOME/.local/bin/claude" ] || [ -d "$HOME/.claude" ]; then
         echo "A yes"
@@ -302,6 +309,36 @@ ob_remove() {
     ob_end
 }
 
+# Standard input and output joined to Codex's socket, both ways, with what
+# the host has. Nothing is installed for it.
+ob_codex() {
+    ob_sock=$(ob_codex_socket)
+    [ -S "$ob_sock" ] || { echo "E codex"; ob_end; return; }
+    if command -v socat > /dev/null 2>&1; then
+        exec socat - "UNIX-CONNECT:$ob_sock"
+    elif command -v nc > /dev/null 2>&1 && nc -h 2>&1 | grep -q -- '-U'; then
+        # -N lets the daemon go once the island's side ends.
+        if nc -h 2>&1 | grep -q -- '-N'; then exec nc -N -U "$ob_sock"; fi
+        exec nc -U "$ob_sock"
+    elif command -v python3 > /dev/null 2>&1; then
+        exec python3 -c 'import os,select,socket,sys
+s=socket.socket(socket.AF_UNIX);s.connect(sys.argv[1])
+i=sys.stdin.fileno();o=sys.stdout.fileno()
+while True:
+    r=select.select([i,s],[],[])[0]
+    if i in r:
+        d=os.read(i,65536)
+        if not d:break
+        s.sendall(d)
+    if s in r:
+        d=s.recv(65536)
+        if not d:break
+        while d:d=d[os.write(o,d):]' "$ob_sock"
+    fi
+    echo "E client"
+    ob_end
+}
+
 IFS= read -r ob_mode_line
 # shellcheck disable=SC2086
 set -- $ob_mode_line
@@ -311,5 +348,6 @@ read) ob_read ;;
 install) ob_install ;;
 remove) ob_remove ;;
 agent) ob_agent ;;
+codex) ob_codex ;;
 *) echo "E mode"; ob_end ;;
 esac
