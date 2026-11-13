@@ -41,6 +41,18 @@ bun install --frozen-lockfile
 
 # linuxdeploy is an AppImage itself; a container has no FUSE to mount it with.
 export APPIMAGE_EXTRACT_AND_RUN=1
+# Its AppImage plugin, fetched ahead of Tauri with the AppImage mark (bytes 8
+# to 10 of the ELF header) cleared: an emulated architecture's binfmt handler
+# (Rosetta, QEMU) refuses an ELF file with them set. Tauri does the same to
+# linuxdeploy itself.
+plugin="$HOME/.cache/tauri/linuxdeploy-plugin-appimage.AppImage"
+if [ ! -f "$plugin" ]; then
+  mkdir -p "$(dirname "$plugin")"
+  curl -fsSL -o "$plugin" \
+    "https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-$(uname -m).AppImage"
+  chmod +x "$plugin"
+fi
+printf '\0\0\0' | dd of="$plugin" bs=1 seek=8 count=3 conv=notrunc status=none
 bun run tauri build --bundles deb,rpm,appimage
 
 mkdir -p "$OUT"

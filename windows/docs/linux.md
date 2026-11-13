@@ -12,7 +12,7 @@ sudo dnf install ./Openbar-<version>-1.x86_64.rpm   # Fedora
 chmod +x Openbar_<version>_amd64.AppImage && ./Openbar_<version>_amd64.AppImage
 ```
 
-The packages pull in WebKitGTK and GTK and recommend what the extras use (`pactl`, `tesseract`, `ffmpeg`); the AppImage expects them on the system. Start Openbar from the applications menu, then start `claude` or `codex` in a terminal.
+The packages pull in WebKitGTK and GTK and recommend what the extras use (`pactl`, `tesseract`, `ffmpeg`); the AppImage expects them on the system. Start Openbar from the applications menu, then start `claude` in a terminal.
 
 ## Build
 
