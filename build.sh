@@ -330,6 +330,8 @@ if (( TEST )); then
         Sources/Openbar/Services/ClaudeSessions/AgentHookSessions.swift
         Sources/Openbar/Services/ClaudeSessions/AgentHookInstaller.swift
         Sources/Openbar/Services/ClaudeSessions/AgentOpenCodePlugin.swift
+        Sources/Openbar/Services/ClaudeSessions/AgentPiExtension.swift
+        Sources/Openbar/Services/ClaudeSessions/AgentHookSupport.swift
         Sources/Openbar/Core/LegacyIdentity.swift
         Sources/Openbar/Core/NotchLockScreenStrings.swift
         Sources/Openbar/Services/Notch/NotchLockScreenSupport.swift

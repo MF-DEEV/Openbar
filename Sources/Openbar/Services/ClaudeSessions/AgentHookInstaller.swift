@@ -3,13 +3,15 @@
 
 import Foundation
 
-/// Puts the island's hooks into Gemini CLI, Copilot CLI and Cursor, and its
-/// plugin into OpenCode, and takes them out again, only when the person
-/// presses Install or Remove. Where the agent keeps every hook in one file
-/// (Gemini's settings, Cursor's hooks.json) the island's entries go beside
-/// the person's own, carry its marker, and the file is copied aside first,
-/// as for Claude Code. Where the agent reads a folder of files (Copilot's
-/// hooks, OpenCode's plugins) the island writes a file of its own.
+/// Puts the island's hooks into Gemini CLI, Copilot CLI, Cursor, Mistral
+/// Vibe and Devin CLI, and its plugin into OpenCode and Pi, and takes them
+/// out again, only when the person presses Install or Remove. Where the
+/// agent keeps every hook in one file (Gemini's settings, Cursor's
+/// hooks.json, Vibe's hooks.toml, Devin's config.json) the island's entries
+/// go beside the person's own, carry its marker, and the file is copied
+/// aside first, as for Claude Code. Where the agent reads a folder of files
+/// (Copilot's hooks, OpenCode's plugins, Pi's extensions) the island writes
+/// a file of its own.
 ///
 /// Each hook is the system's `nc` writing the event, wrapped in an envelope
 /// naming the agent and the hook, to the island's socket. When the app is
@@ -29,6 +31,13 @@ enum AgentHookInstaller {
     static let cursorEvents = ["sessionStart", "sessionEnd", "beforeSubmitPrompt", "afterAgentThought", "afterAgentResponse",
                                "postToolUse", "postToolUseFailure", "stop"]
     static let cursorContinues: Set<String> = ["beforeSubmitPrompt"]
+    /// Mistral Vibe's hook types. `post_agent` runs after subagents' turns
+    /// too, so the end of the person's turn is heard from `notification`.
+    static let vibeEvents = ["session_start", "session_end", "pre_agent", "pre_tool", "post_tool", "notification"]
+    /// Devin CLI's events, in Claude Code's format. `PermissionRequest` is
+    /// only heard: the hook answers nothing, so Devin asks in its terminal.
+    static let devinEvents = ["SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse",
+                              "PermissionRequest", "Stop"]
 
     typealias Failure = ClaudeHookInstaller.Failure
 
@@ -67,6 +76,30 @@ enum AgentHookInstaller {
         opencodeFolder(home: home, environment: environment).appending(path: "plugins/\(ownName(bundle)).js")
     }
 
+    static func piFolder(home: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        environment["PI_CODING_AGENT_DIR"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+            ?? home.appending(path: ".pi/agent")
+    }
+
+    static func piExtension(home: URL, bundle: String,
+                            environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        piFolder(home: home, environment: environment).appending(path: "extensions/\(ownName(bundle)).js")
+    }
+
+    static func vibeFolder(home: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        environment["VIBE_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) } ?? home.appending(path: ".vibe")
+    }
+
+    static func vibeHooks(home: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        vibeFolder(home: home, environment: environment).appending(path: "hooks.toml")
+    }
+
+    static func devinConfig(home: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        let config = environment["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+            ?? home.appending(path: ".config")
+        return config.appending(path: "devin/config.json")
+    }
+
     /// The folder whose presence says the agent was used on this Mac.
     static func agentFolder(_ provider: ClaudeSessionProvider, home: URL,
                             environment: [String: String] = ProcessInfo.processInfo.environment) -> URL? {
@@ -75,18 +108,25 @@ enum AgentHookInstaller {
         case .copilot: return copilotFolder(home: home, environment: environment)
         case .cursor: return cursorHooks(home: home).deletingLastPathComponent()
         case .opencode: return opencodeFolder(home: home, environment: environment)
+        case .pi: return piFolder(home: home, environment: environment)
+        case .vibe: return vibeFolder(home: home, environment: environment)
+        case .devin: return devinConfig(home: home, environment: environment).deletingLastPathComponent()
         case .claude, .codex: return nil
         }
     }
 
     /// Whether the agent is installed: its command on the login shell's
     /// `PATH` or where its installers put it, or, for Cursor and OpenCode,
-    /// their app. A folder like `~/.gemini` or `~/.copilot` is not enough:
-    /// other apps (Antigravity, VS Code) make those too.
+    /// their app; for Pi, its command and the folder Pi makes on first run.
+    /// A folder like `~/.gemini` or `~/.copilot` is not enough: other apps
+    /// (Antigravity, VS Code) make those too.
     static func isPresent(_ provider: ClaudeSessionProvider, home: URL, path: String?,
                           isExecutable: (String) -> Bool = FileManager.default.isExecutableFile(atPath:),
                           exists: (String) -> Bool = FileManager.default.fileExists(atPath:)) -> Bool {
-        if AgentCLI.locate(provider, path: path, home: home, isExecutable: isExecutable) != nil { return true }
+        if AgentCLI.locate(provider, path: path, home: home, isExecutable: isExecutable) != nil {
+            // Pi's command has a name other tools take too; Pi's own folder says it is Pi's.
+            return provider != .pi || exists(home.appending(path: ".pi/agent").path)
+        }
         let apps: [String]
         switch provider {
         case .cursor: apps = ["Cursor.app"]
@@ -129,6 +169,102 @@ enum AgentHookInstaller {
         return command + "; exit 0 \(marker(bundle: bundle))"
     }
 
+    // MARK: Vibe's hooks.toml
+
+    /// The lines that open and close the island's entries in hooks.toml.
+    static func vibeStart(bundle: String) -> String { "\(marker(bundle: bundle)) start: added by the island, removed by it" }
+    static func vibeEnd(bundle: String) -> String { "\(marker(bundle: bundle)) end" }
+
+    /// The island's `[[hooks]]` entries, between its two marker lines. Names
+    /// carry the app's own, so the Developer build's never clash with them.
+    static func vibeBlock(socket: String, bundle: String) -> String {
+        var lines = [vibeStart(bundle: bundle)]
+        for event in vibeEvents {
+            lines += ["[[hooks]]",
+                      "name = \(tomlString("\(ownName(bundle))-\(event)"))",
+                      "type = \(tomlString(event))",
+                      "command = \(tomlString(command(.vibe, event: event, socket: socket, bundle: bundle)))",
+                      "timeout = \(eventTimeout).0"]
+        }
+        lines.append(vibeEnd(bundle: bundle))
+        return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// A TOML basic string.
+    static func tomlString(_ text: String) -> String {
+        var out = "\""
+        for scalar in text.unicodeScalars {
+            switch scalar {
+            case "\"": out += "\\\""
+            case "\\": out += "\\\\"
+            case "\n": out += "\\n"
+            case "\t": out += "\\t"
+            case "\r": out += "\\r"
+            default:
+                if scalar.value < 0x20 || scalar.value == 0x7F { out += String(format: "\\u%04X", scalar.value) }
+                else { out.unicodeScalars.append(scalar) }
+            }
+        }
+        return out + "\""
+    }
+
+    /// The file without the island's entries; nil when it had none.
+    static func vibeRemoving(_ text: String, bundle: String) -> String? {
+        let start = vibeStart(bundle: bundle), end = vibeEnd(bundle: bundle)
+        var lines = text.components(separatedBy: "\n")
+        var changed = false
+        while let first = lines.firstIndex(of: start) {
+            let last = lines[first...].firstIndex(of: end) ?? lines.index(before: lines.endIndex)
+            lines.removeSubrange(first...last)
+            changed = true
+        }
+        guard changed else { return nil }
+        var result = lines.joined(separator: "\n")
+        while result.hasSuffix("\n\n") { result.removeLast() }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : result
+    }
+
+    /// The file with the island's entries at its end, after the person's own.
+    static func vibeInstalling(_ text: String?, socket: String, bundle: String) -> String {
+        var base = text.map { vibeRemoving($0, bundle: bundle) ?? $0 } ?? ""
+        if !base.isEmpty, !base.hasSuffix("\n") { base += "\n" }
+        if !base.isEmpty { base += "\n" }
+        return base + vibeBlock(socket: socket, bundle: bundle)
+    }
+
+    /// Whether hooks.toml keeps its hooks in a form the island's tables
+    /// can't sit beside (`hooks = [...]`), so it is left alone.
+    static func vibeInline(_ text: String) -> Bool {
+        text.components(separatedBy: "\n").contains { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("hooks") else { return false }
+            return trimmed.dropFirst("hooks".count).trimmingCharacters(in: .whitespaces).hasPrefix("=")
+        }
+    }
+
+    static func vibeText(_ url: URL) throws -> String? {
+        guard let data = try ClaudeHookInstaller.contents(url) else { return nil }
+        guard let text = String(data: data, encoding: .utf8) else { throw Failure.unreadable }
+        return text
+    }
+
+    /// Changes hooks.toml in one step, copying it aside first.
+    static func updateVibe(_ link: URL, _ change: (String?) -> String?) throws {
+        let url = link.resolvingSymlinksInPath()
+        for _ in 0..<3 {
+            let manager = FileManager.default
+            let before = (try? manager.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+            let original = try ClaudeHookInstaller.contents(url)
+            let text = try vibeText(url)
+            guard let changed = change(text), changed != text else { return }
+            let after = (try? manager.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+            guard before == after, (try? ClaudeHookInstaller.contents(url)) == original else { continue }
+            try ClaudeHookInstaller.replace(url, original: original, with: Data(changed.utf8), now: Date())
+            return
+        }
+        throw Failure.busy
+    }
+
     // MARK: State
 
     enum State: Equatable {
@@ -167,6 +303,21 @@ enum AgentHookInstaller {
                 let url = opencodePlugin(home: home, bundle: bundle)
                 guard let data = try ClaudeHookInstaller.contents(url) else { return .missing }
                 return data == opencodeFile(socket: socket, bundle: bundle) ? .installed : .outdated
+            case .pi:
+                let url = piExtension(home: home, bundle: bundle)
+                guard let data = try ClaudeHookInstaller.contents(url) else { return .missing }
+                return data == piFile(socket: socket, bundle: bundle) ? .installed : .outdated
+            case .vibe:
+                guard let text = try vibeText(vibeHooks(home: home)) else { return .missing }
+                if text.contains(vibeBlock(socket: socket, bundle: bundle)) { return .installed }
+                if text.contains(marker(bundle: bundle)) { return .outdated }
+                return vibeInline(text) ? .unreadable : .missing
+            case .devin:
+                let settings = try ClaudeHookInstaller.read(devinConfig(home: home))
+                if groupsHold(settings, events: devinEvents, command: { command(.devin, event: $0, socket: socket, bundle: bundle) }) {
+                    return .installed
+                }
+                return ClaudeHookInstaller.hasAny(in: settings, bundle: bundle) ? .outdated : .missing
             case .claude, .codex:
                 return .missing
             }
@@ -203,6 +354,22 @@ enum AgentHookInstaller {
             try writeOwn(copilotFile(socket: socket, bundle: bundle), to: copilotHooks(home: home, bundle: bundle), bundle: bundle)
         case .opencode:
             try writeOwn(opencodeFile(socket: socket, bundle: bundle), to: opencodePlugin(home: home, bundle: bundle), bundle: bundle)
+        case .pi:
+            try writeOwn(piFile(socket: socket, bundle: bundle), to: piExtension(home: home, bundle: bundle), bundle: bundle)
+        case .vibe:
+            let url = vibeHooks(home: home)
+            if let text = try vibeText(url), vibeInline(text) { throw Failure.unreadable }
+            try updateVibe(url) { vibeInstalling($0, socket: socket, bundle: bundle) }
+        case .devin:
+            try ClaudeHookInstaller.update(devinConfig(home: home)) { settings in
+                var settings = installingGroups(into: settings, events: devinEvents, bundle: bundle) { event in
+                    ["type": "command", "timeout": eventTimeout,
+                     "command": command(.devin, event: event, socket: socket, bundle: bundle)]
+                }
+                // Devin writes its own file with a version; a new one gets the same.
+                if settings["version"] == nil { settings["version"] = 1 }
+                return settings
+            }
         case .claude, .codex:
             break
         }
@@ -222,6 +389,16 @@ enum AgentHookInstaller {
             try removeOwn(copilotHooks(home: home, bundle: bundle), bundle: bundle)
         case .opencode:
             try removeOwn(opencodePlugin(home: home, bundle: bundle), bundle: bundle)
+        case .pi:
+            try removeOwn(piExtension(home: home, bundle: bundle), bundle: bundle)
+        case .vibe:
+            let url = vibeHooks(home: home)
+            guard try ClaudeHookInstaller.contents(url) != nil else { return }
+            try updateVibe(url) { text in text.flatMap { vibeRemoving($0, bundle: bundle) } }
+        case .devin:
+            let url = devinConfig(home: home)
+            guard try ClaudeHookInstaller.contents(url) != nil else { return }
+            try ClaudeHookInstaller.update(url) { ClaudeHookInstaller.removing(from: $0, bundle: bundle) }
         case .claude, .codex:
             break
         }
@@ -291,6 +468,11 @@ enum AgentHookInstaller {
             ?? Data()
         data.append(0x0A)
         return data
+    }
+
+    /// Pi's extension, with the socket written in.
+    static func piFile(socket: String, bundle: String) -> Data {
+        Data(opencodeSource(AgentPiExtension.source, socket: socket, bundle: bundle).utf8)
     }
 
     /// The plugin, with the socket written in.

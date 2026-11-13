@@ -176,7 +176,7 @@ struct NotchSessionAgentGlyph: View {
                 .frame(width: size * 1.45 + 1, height: size * 1.45 + 1)
                 .accessibilityHidden(true)
                 .allowsHitTesting(false)
-        case .gemini, .copilot, .opencode, .cursor:
+        case .gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin:
             NotchHookAgentMark(provider: provider, size: size * 1.15, working: working)
                 .frame(width: size * 1.45 + 1, height: size * 1.45 + 1)
         }

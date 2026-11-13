@@ -15,8 +15,9 @@ import Foundation
 enum ClawdCharacter: String, CaseIterable {
     case clawd, codex
     /// Gemini CLI's star sprite, Copilot CLI's goggled pilot, OpenCode's
-    /// block and Cursor's cube.
-    case gemini, copilot, opencode, cursor
+    /// block, Cursor's cube, Pi's blocky P beside its i, Mistral Vibe's
+    /// stepped M and Devin CLI's hexagon with two antennae.
+    case gemini, copilot, opencode, cursor, pi, vibe, devin
 
     /// The shell this character's lots come up in most: Claude's clay, for
     /// Codex the iris closest to its violet-blue, and for the others the
@@ -29,6 +30,9 @@ enum ClawdCharacter: String, CaseIterable {
         case .copilot: return .teal
         case .opencode: return .mint
         case .cursor: return .midnight
+        case .pi: return .rose
+        case .vibe: return .amber
+        case .devin: return .orchid
         }
     }
 }
@@ -43,6 +47,9 @@ extension ClaudeSessionProvider {
         case .copilot: return .copilot
         case .opencode: return .opencode
         case .cursor: return .cursor
+        case .pi: return .pi
+        case .vibe: return .vibe
+        case .devin: return .devin
         }
     }
 }

@@ -286,6 +286,17 @@ enum NotchClawdSprite {
         case .cursor:
             put(Stamp(x: 0, y: 0, rows: cursorBody))
             codexArms(pose.arms).forEach { put($0) }
+        case .pi:
+            put(Stamp(x: 0, y: 0, rows: piBody))
+            codexArms(pose.arms).forEach { put($0) }
+        case .vibe:
+            put(Stamp(x: 0, y: 0, rows: vibeBody))
+            arms(pose.arms).forEach { put($0) }
+        case .devin:
+            // The antennae go first, so a hat simply covers them.
+            devinAntennae.forEach { put($0) }
+            put(Stamp(x: 0, y: 0, rows: devinBody))
+            codexArms(pose.arms).forEach { put($0) }
         }
         put(eyes(pose.eyes, column: 3))
         put(eyes(pose.eyes, column: 9))
@@ -319,6 +330,10 @@ enum NotchClawdSprite {
         case .codex, .gemini, .copilot: return [(3, true), (4, true), (8, false), (9, false)]
         case .opencode: return [(0, true), (2, true), (10, false), (12, false)]
         case .cursor: return [(4, true), (5, true), (7, false), (8, false)]
+        // The P's stem stands on two legs; the i beside it on one of its own.
+        case .pi: return [(1, true), (3, true), (7, false), (11, false)]
+        case .vibe: return [(0, true), (2, true), (10, false), (12, false)]
+        case .devin: return [(3, true), (4, true), (8, false), (9, false)]
         }
     }
 
@@ -373,6 +388,46 @@ enum NotchClawdSprite {
         "..CCCCcccc...",
         "....CCcc.....",
     ]
+
+    /// Pi's figure: the blocky P of its mark, with the i (Y, in its yellow)
+    /// standing beside the bowl.
+    static let piBody = [
+        "CCCCCCCCCC...",
+        "CCCCCCCCCC...",
+        "CCCCCCCCCC...",
+        "CCCCCCCCCC.YY",
+        "CCCCCCCCCC.YY",
+        "CCCCCCCCCC.YY",
+        "CCCCCCCCCC.YY",
+        "cccccccccc.yy",
+    ]
+
+    /// Mistral Vibe's figure: the stepped M of Mistral's mark, two blocks
+    /// rising at the top and three feet of it at the bottom.
+    static let vibeBody = [
+        "CCC.......CCC",
+        "CCCCC...CCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCC..CCC..CCC",
+        "CCC..CCC..CCC",
+        "ccc..ccc..ccc",
+    ]
+
+    /// Devin CLI's figure: a hexagon, shaded on its lower faces, under two
+    /// antennae with a light (A) on each, after the hexagons of its mark.
+    static let devinBody = [
+        "...CCCCCCC...",
+        ".CCCCCCCCCCC.",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "cCCCCCCCCCCCc",
+        ".ccCCCCCCCcc.",
+        "...ccccccc...",
+    ]
+    private static let devinAntennae = [Stamp(x: 3, y: -2, rows: ["A", "c"]), Stamp(x: 9, y: -2, rows: ["A", "c"])]
 
     // MARK: Codex's robot
 
@@ -681,7 +736,7 @@ enum NotchClawdSprite {
 
     /// Where the right hand is in each pose, for what it holds.
     private static func rightHand(_ arms: NotchClawdPose.Arms, character: ClawdCharacter) -> (x: Int, y: Int) {
-        if character != .clawd && character != .opencode {
+        if character != .clawd && character != .opencode && character != .vibe {
             // The thin arms of the robot and the others sit a pixel closer.
             switch arms {
             case .down, .typeLeft: return (14, 3)
@@ -918,6 +973,8 @@ enum NotchClawdSprite {
     static let copilotGoggles = (red: 30, green: 26, blue: 58)
     static let copilotGlow = (red: 160, green: 232, blue: 255)
     static let cursorEyes = (red: 236, green: 238, blue: 246)
+    /// The yellow of the i in Pi's mark.
+    static let piYellow = (red: 241, green: 190, blue: 88)
 
     /// sRGB out of 255 for each letter; the shell and accent letters come
     /// from the costume.
@@ -944,6 +1001,15 @@ enum NotchClawdSprite {
         case .cursor:
             // Dark eyes would sink into the dark cube.
             if letter == "E" { return cursorEyes }
+        case .pi:
+            // The i keeps Pi's yellow whatever the costume.
+            switch letter {
+            case "Y": return piYellow
+            case "y": return shaded(piYellow)
+            default: break
+            }
+        case .vibe, .devin:
+            break
         case .clawd:
             break
         }

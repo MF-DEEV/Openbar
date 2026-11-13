@@ -158,34 +158,41 @@ enum ClaudeHookInstaller {
             data.append(0x0A)
             let after = (try? manager.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
             guard before == after, (try? contents(url)) == original else { continue }
-            let folder = url.deletingLastPathComponent()
-            do {
-                try manager.createDirectory(at: folder, withIntermediateDirectories: true)
-                if let original {
-                    // Settings can hold tokens: the copy is the owner's alone.
-                    let stamp = Int(now.timeIntervalSince1970)
-                    let backup = folder.appending(path: "\(url.lastPathComponent).openbar-\(stamp).bak")
-                    guard manager.createFile(atPath: backup.path, contents: original, attributes: [.posixPermissions: 0o600]) else {
-                        throw Failure.noBackup
-                    }
-                    prune(folder: folder, name: url.lastPathComponent)
-                }
-                let permissions = (try? manager.attributesOfItem(atPath: url.path))?[.posixPermissions] as? NSNumber
-                let temporary = folder.appending(path: ".\(url.lastPathComponent).openbar-\(UUID().uuidString)")
-                try data.write(to: temporary)
-                if let permissions { try? manager.setAttributes([.posixPermissions: permissions], ofItemAtPath: temporary.path) }
-                if rename(temporary.path, url.path) != 0 {
-                    try? manager.removeItem(at: temporary)
-                    throw Failure.unwritable(String(cString: strerror(errno)))
-                }
-            } catch let failure as Failure {
-                throw failure
-            } catch {
-                throw Failure.unwritable(error.localizedDescription)
-            }
+            try replace(url, original: original, with: data, now: now)
             return
         }
         throw Failure.busy
+    }
+
+    /// Writes `data` over the file in one step, keeping a copy of `original`
+    /// beside it first; no copy, no change.
+    static func replace(_ url: URL, original: Data?, with data: Data, now: Date) throws {
+        let manager = FileManager.default
+        let folder = url.deletingLastPathComponent()
+        do {
+            try manager.createDirectory(at: folder, withIntermediateDirectories: true)
+            if let original {
+                // Settings can hold tokens: the copy is the owner's alone.
+                let stamp = Int(now.timeIntervalSince1970)
+                let backup = folder.appending(path: "\(url.lastPathComponent).openbar-\(stamp).bak")
+                guard manager.createFile(atPath: backup.path, contents: original, attributes: [.posixPermissions: 0o600]) else {
+                    throw Failure.noBackup
+                }
+                prune(folder: folder, name: url.lastPathComponent)
+            }
+            let permissions = (try? manager.attributesOfItem(atPath: url.path))?[.posixPermissions] as? NSNumber
+            let temporary = folder.appending(path: ".\(url.lastPathComponent).openbar-\(UUID().uuidString)")
+            try data.write(to: temporary)
+            if let permissions { try? manager.setAttributes([.posixPermissions: permissions], ofItemAtPath: temporary.path) }
+            if rename(temporary.path, url.path) != 0 {
+                try? manager.removeItem(at: temporary)
+                throw Failure.unwritable(String(cString: strerror(errno)))
+            }
+        } catch let failure as Failure {
+            throw failure
+        } catch {
+            throw Failure.unwritable(error.localizedDescription)
+        }
     }
 
     /// Keeps the newest copies only.

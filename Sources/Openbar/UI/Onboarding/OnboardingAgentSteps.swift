@@ -343,7 +343,7 @@ struct OnboardingAgentsStep: View {
             case .notRunning?: return .ready
             case .notFound?: return .missing
             }
-        case .gemini, .copilot, .opencode, .cursor:
+        case .gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin:
             guard let hooks = service.agentHooks?[provider] else { return .checking }
             if service.agentHookFailures[provider] != nil || hooks.state == .unreadable { return .failed }
             if hooks.state == .installed { return .connected }

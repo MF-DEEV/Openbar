@@ -32,6 +32,9 @@ enum NotchClaudeSessionsSupport {
         case .copilot: return DefaultsKey.notchSessionsAgentCopilot
         case .opencode: return DefaultsKey.notchSessionsAgentOpenCode
         case .cursor: return DefaultsKey.notchSessionsAgentCursor
+        case .pi: return DefaultsKey.notchSessionsAgentPi
+        case .vibe: return DefaultsKey.notchSessionsAgentVibe
+        case .devin: return DefaultsKey.notchSessionsAgentDevin
         case .claude, .codex: return nil
         }
     }
@@ -175,7 +178,7 @@ enum NotchClaudeSessionsSupport {
 
     /// Whose marks the strip shows while sessions work, front first, in the
     /// agents' own order: Claude, Codex, Gemini CLI, Copilot CLI, OpenCode,
-    /// Cursor. Two agents at work stack; past two, the first two show and
+    /// Cursor, Pi, Mistral Vibe, Devin CLI. Two agents at work stack; past two, the first two show and
     /// the counts tell the rest. Empty when none work.
     static func stripAgents(_ counts: ClaudeSessionCounts) -> [ClaudeSessionProvider] {
         Array(ClaudeSessionProvider.allCases.filter { counts.working($0) > 0 }.prefix(2))
