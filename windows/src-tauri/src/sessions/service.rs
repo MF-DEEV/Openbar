@@ -1852,7 +1852,11 @@ pub fn sessions_decide(
         (UiDecision::Deny, _) => Decision::Deny,
     };
     if session_id == sample::ID {
-        return Service::answer_sample(service.inner(), &request_id, !matches!(decision, Decision::Deny));
+        return Service::answer_sample(
+            service.inner(),
+            &request_id,
+            !matches!(decision, Decision::Deny),
+        );
     }
     service.answer(&session_id, &request_id, decision)
 }
@@ -1892,11 +1896,11 @@ impl Service {
     fn answer_sample(service: &Shared, request: &str, allowed: bool) -> bool {
         let round = {
             let mut inner = service.inner.lock().unwrap();
-            let Some(session) = inner
-                .sample
-                .take()
-                .filter(|s| s.permission.as_ref().is_some_and(|p| p.request_id == request))
-            else {
+            let Some(session) = inner.sample.take().filter(|s| {
+                s.permission
+                    .as_ref()
+                    .is_some_and(|p| p.request_id == request)
+            }) else {
                 return false;
             };
             let t = now();
@@ -1929,9 +1933,13 @@ impl Service {
                 }
             });
         }
-        later(if allowed { 7.0 } else { 2.5 }, service.clone(), |inner, _| {
-            inner.sample = None;
-        });
+        later(
+            if allowed { 7.0 } else { 2.5 },
+            service.clone(),
+            |inner, _| {
+                inner.sample = None;
+            },
+        );
         true
     }
 }
