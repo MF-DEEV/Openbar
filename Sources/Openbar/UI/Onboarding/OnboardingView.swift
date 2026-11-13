@@ -44,8 +44,12 @@ struct OnboardingView: View {
         _selectedPreset = State(initialValue: selectionWasApplied ? nil : .recommended)
     }
 
+    /// The island's own Accessibility serves its volume, brightness and
+    /// clipboard extras, not sessions, so the agents flow leaves it to when
+    /// one of those is used; sessions get their own step.
     private var setupPermissions: [AppPermission] {
-        let permissions = Set(selectedFeatures.flatMap(\.onboardingPermissions))
+        let features = agentsChosen ? selectedFeatures.subtracting([.notch, .notchAgents]) : selectedFeatures
+        let permissions = Set(features.flatMap(\.onboardingPermissions))
         return [.accessibility, .screenRecording].filter { permissions.contains($0) }
     }
     /// Coding agents chosen: the flow is about sessions (#168). The toolkit's
@@ -57,6 +61,7 @@ struct OnboardingView: View {
             + (setupPermissions.isEmpty ? [] : [.permissions]) + [.tryIt, .done]
     }
     private var current: OnboardingStep { steps[min(max(0, index), steps.count - 1)] }
+    private var centered: Bool { [.agents, .sessionPermissions, .tryIt].contains(current) }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -66,6 +71,7 @@ struct OnboardingView: View {
             // footer was clipped away and the flow looked stuck.
             ScrollView {
                 content
+                    .frame(minHeight: 566, alignment: centered ? .center : .top)
                     .id(current)
                     .transition(reduceMotion ? .opacity : .asymmetric(
                         insertion: .move(edge: forward ? .trailing : .leading).combined(with: .opacity),
@@ -73,6 +79,8 @@ struct OnboardingView: View {
                     .frame(maxWidth: .infinity, alignment: .top)
             }
             .scrollBounceBehavior(.basedOnSize)
+            // The heroes run under the transparent title bar, to the window's edge.
+            .ignoresSafeArea(.container, edges: .top)
 
             Divider()
             navigationBar
@@ -171,7 +179,7 @@ private struct WelcomeStep: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            OnboardingIslandDemo(height: 290)
+            OnboardingIslandDemo(height: 330)
 
             VStack(spacing: 10) {
                 Text(text.welcomeTitle)

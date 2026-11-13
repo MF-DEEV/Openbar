@@ -884,13 +884,6 @@ struct Strings {
     let obSkipStep: String
     let obStart: String
     let obStepWelcomeTitle: String
-    let obStepWelcomeBody: String
-    let obWelcomeBullet1Title: String
-    let obWelcomeBullet1Body: String
-    let obWelcomeBullet2Title: String
-    let obWelcomeBullet2Body: String
-    let obWelcomeBullet3Title: String
-    let obWelcomeBullet3Body: String
     let obLanguageLabel: String
     let obStepAccessibilityTitle: String
     let obStepAccessibilityBody: String
@@ -906,16 +899,10 @@ struct Strings {
     let obStepStatusTitle: String
     let obStepStatusBody: String
     let obStatusRecheck: String
-    let obStepDoneTitle: String
-    let obStepDoneBody: String
-    let obDoneHint: String
     let obWhatsNewTitle: String
     let obWhatsNewFallback: String
     let obLanguageUpdateTitle: String
     let obLanguageUpdateBody: String
-    let obPurposeTitle: String
-    let obPurposeBody: String
-    let obPurposeSkip: String
 
     // MARK: Settings — monitor / menu bar metrics
     let tabMonitor: String
@@ -2011,13 +1998,6 @@ extension Strings {
         obSkipStep: "Pular esta etapa",
         obStart: "Abrir o Openbar",
         obStepWelcomeTitle: "Bem-vindo ao Openbar",
-        obStepWelcomeBody: "Um utilitário discreto na barra de menus que deixa o macOS mais prático no dia a dia.",
-        obWelcomeBullet1Title: "Energia sob controle",
-        obWelcomeBullet1Body: "Mantenha o Mac acordado por quanto tempo quiser, até com a tampa fechada.",
-        obWelcomeBullet2Title: "Visão clara do sistema",
-        obWelcomeBullet2Body: "Temperaturas, uso de CPU e GPU e pressão de memória em tempo real.",
-        obWelcomeBullet3Title: "Mouse e janelas do seu jeito",
-        obWelcomeBullet3Body: "Rolagem invertida no mouse e um alternador de janelas com miniaturas.",
         obLanguageLabel: "Idioma",
         obStepAccessibilityTitle: "Acessibilidade",
         obStepAccessibilityBody: "Necessária para inverter a rolagem do mouse e para o alternador de janelas responder ao teclado.",
@@ -2033,16 +2013,10 @@ extension Strings {
         obStepStatusTitle: "Verificação",
         obStepStatusBody: "Confira se está tudo pronto para os recursos que você quer usar.",
         obStatusRecheck: "Verificar novamente",
-        obStepDoneTitle: "Tudo pronto!",
-        obStepDoneBody: "O Openbar já está cuidando do seu Mac.",
-        obDoneHint: "Procure o buraco negro na barra de menus, no canto superior direito da tela.",
         obWhatsNewTitle: "Novidades nesta versão",
         obWhatsNewFallback: "Esta atualização inclui as correções e melhorias mais recentes.",
         obLanguageUpdateTitle: "Agora no seu idioma",
         obLanguageUpdateBody: "O Openbar agora fala vários idiomas. Escolha o que você prefere usar; dá para mudar quando quiser nos Ajustes.",
-        obPurposeTitle: "O que te trouxe aqui?",
-        obPurposeBody: "Escolha uma configuração pronta ou marque exatamente o que quer usar.",
-        obPurposeSkip: "Você pode adicionar ou remover recursos depois nos Ajustes.",
 
         tabMonitor: "Monitor",
         monitorMenuBarSection: "Na barra de menus",
@@ -3123,13 +3097,6 @@ extension Strings {
         obSkipStep: "Skip this step",
         obStart: "Open Openbar",
         obStepWelcomeTitle: "Welcome to Openbar",
-        obStepWelcomeBody: "A discreet menu bar utility that makes everyday macOS more practical.",
-        obWelcomeBullet1Title: "Energy under control",
-        obWelcomeBullet1Body: "Keep the Mac awake for as long as you want, even with the lid closed.",
-        obWelcomeBullet2Title: "A clear view of the system",
-        obWelcomeBullet2Body: "CPU, GPU and battery temperatures, hardware usage and memory pressure in real time.",
-        obWelcomeBullet3Title: "Mouse and windows, your way",
-        obWelcomeBullet3Body: "Reversed mouse scrolling and a window switcher with thumbnails.",
         obLanguageLabel: "Language",
         obStepAccessibilityTitle: "Accessibility",
         obStepAccessibilityBody: "Needed to invert mouse scrolling and for the window switcher to respond to the keyboard.",
@@ -3145,16 +3112,10 @@ extension Strings {
         obStepStatusTitle: "Checkup",
         obStepStatusBody: "Make sure everything is ready for the features you want.",
         obStatusRecheck: "Check again",
-        obStepDoneTitle: "All set!",
-        obStepDoneBody: "Openbar is already looking after your Mac.",
-        obDoneHint: "Look for the black hole in the menu bar, at the top right of the screen.",
         obWhatsNewTitle: "What’s new in this version",
         obWhatsNewFallback: "This update includes the latest fixes and improvements.",
         obLanguageUpdateTitle: "Now in your language",
         obLanguageUpdateBody: "Openbar now speaks several languages. Choose the one you’d like to use; you can change it anytime in Settings.",
-        obPurposeTitle: "What brought you here?",
-        obPurposeBody: "Choose a ready setup or select exactly what you want to use.",
-        obPurposeSkip: "You can add or remove features later in Settings.",
 
         tabMonitor: "Monitor",
         monitorMenuBarSection: "In the menu bar",

@@ -63,20 +63,34 @@ struct OnboardingIslandDemo: View {
             Theme.spaceGradient
             RadialGradient(colors: [Color.white.opacity(0.10), .clear],
                            center: .top, startRadius: 4, endRadius: height * 0.95)
-            // A faint window behind, so the island reads as above the work.
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.white.opacity(0.045))
-                .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.06)))
-                .frame(width: 360, height: 150)
-                .offset(y: height * 0.32)
-                .overlay(alignment: .topLeading) {
-                    HStack(spacing: 5) {
-                        ForEach(0..<3, id: \.self) { _ in Circle().fill(Color.white.opacity(0.12)).frame(width: 7) }
-                    }
-                    .offset(x: -165, y: height * 0.32 - 66)
-                }
+            // The terminal the person no longer has to switch to, behind.
+            terminal
+                .offset(y: height * 0.30)
         }
+    }
+
+    private var terminal: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                ForEach(0..<3, id: \.self) { _ in Circle().fill(Color.white.opacity(0.14)).frame(width: 7) }
+            }
+            .padding(.bottom, 4)
+            Group {
+                Text("$ \(current.provider.shortName.lowercased())").foregroundStyle(.white.opacity(0.5))
+                Text("● Reading \(current.project)/src …")
+                Text("● Editing 3 files").opacity(phase == .resting ? 0 : 1)
+                Text("● \(current.command)").opacity(phase == .allowed || phase == .closing ? 1 : 0)
+            }
+            .font(.system(size: 10.5, design: .monospaced))
+            .foregroundStyle(.white.opacity(0.32))
+            Spacer(minLength: 0)
+        }
+        .padding(12)
+        .frame(width: 330, height: 132, alignment: .topLeading)
+        .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(Color.white.opacity(0.045)))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).strokeBorder(Color.white.opacity(0.07)))
+        .animation(.easeOut(duration: 0.3), value: phase)
+        .accessibilityHidden(true)
     }
 
     private var island: some View {
@@ -257,7 +271,6 @@ struct OnboardingAgentsStep: View {
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
             }
-            .padding(.top, 34)
             .padding(.horizontal, 40)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
@@ -270,8 +283,8 @@ struct OnboardingAgentsStep: View {
                 }
             }
             .padding(.horizontal, 32)
-            Spacer(minLength: 0)
         }
+        .padding(.vertical, 28)
         .onAppear {
             appeared = true
             refresh()
@@ -445,7 +458,6 @@ struct OnboardingSessionPermissionsStep: View {
                 .foregroundStyle(.white)
                 .frame(width: 58, height: 58)
                 .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(Theme.spaceGradient))
-                .padding(.top, 34)
             Text(text.permissionsTitle)
                 .font(.system(size: 22, weight: .bold))
 
@@ -461,8 +473,8 @@ struct OnboardingSessionPermissionsStep: View {
                 }
             }
             .padding(.horizontal, 32)
-            Spacer(minLength: 0)
         }
+        .padding(.vertical, 28)
         .onAppear(perform: refresh)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in refresh() }
     }
@@ -602,7 +614,6 @@ struct OnboardingTryStep: View {
                     .offset(y: answered == nil && bounce ? -6 : 0)
                     .contentTransition(.symbolEffect(.replace))
             }
-            .padding(.top, 40)
             .animation(reduceMotion ? nil : .easeInOut(duration: 0.9).repeatForever(autoreverses: true), value: bounce)
             .onAppear { bounce = !reduceMotion }
 
@@ -629,8 +640,8 @@ struct OnboardingTryStep: View {
 
             OnboardingSessionKeys()
                 .padding(.top, 8)
-            Spacer(minLength: 0)
         }
+        .padding(.vertical, 28)
         .onDisappear { if shown && service.sampleAnswer == nil { service.dismissSample() } }
     }
 }
