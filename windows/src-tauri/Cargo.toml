@@ -37,7 +37,6 @@ image = { version = "0.25", default-features = false, features = ["png", "bmp"] 
 rqrr = { version = "0.10.1", default-features = false }
 sha2 = "0.10"
 tauri-plugin-dialog = "2"
-tauri-plugin-updater = "2"
 zip = { version = "8.6", default-features = false, features = ["deflate-flate2-zlib-rs", "time"] }
 time = { version = "0.3", features = ["local-offset"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
@@ -55,6 +54,9 @@ x11rb = { version = "0.13", features = ["dpms", "randr", "shape", "xtest"] }
 zbus = "5"
 
 [target.'cfg(windows)'.dependencies]
+# In-app updates (#213). Windows' own TLS (schannel): rustls pulls in ring,
+# which doesn't cross-build for Arm64 Windows from a Mac.
+tauri-plugin-updater = { version = "2", default-features = false, features = ["native-tls", "system-proxy"] }
 uds_windows = "1"
 # Voice replies: speech recognized on this PC (src/voice). Cross-builds from a
 # Mac need cmake/xwin-toolchain.cmake; see docs/voice-replies.md.

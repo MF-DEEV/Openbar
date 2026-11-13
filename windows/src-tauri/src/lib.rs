@@ -177,13 +177,16 @@ pub fn run() {
     linux::before_start();
     // Settings and hooks from the app's old name, before anything reads them.
     legacy::migrate_at_start();
-    let app = tauri::Builder::default()
+    let builder = tauri::Builder::default();
+    // In-app updates are Windows only; the Linux packages open the release page.
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    let app = builder
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             settings::open(app)
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {

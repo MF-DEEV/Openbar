@@ -15,7 +15,9 @@
 
 use serde::Serialize;
 use serde_json::json;
-use tauri::{AppHandle, Emitter, Manager, Runtime};
+#[cfg(windows)]
+use tauri::Emitter;
+use tauri::{AppHandle, Manager, Runtime};
 
 use crate::prefs::Prefs;
 
@@ -51,6 +53,7 @@ fn endpoints_for(server: Option<&str>) -> Endpoints {
     }
 }
 
+#[cfg_attr(not(windows), allow(dead_code))]
 fn test_server() -> Option<String> {
     std::env::var(TEST_SERVER)
         .ok()
@@ -64,6 +67,7 @@ pub fn updates_endpoints() -> Endpoints {
 
 /// The `latest.json` of the release tagged `tag`. Only tags this platform
 /// publishes are accepted, so the page cannot be steered to any URL.
+#[cfg_attr(not(windows), allow(dead_code))]
 fn manifest_url(downloads: &str, tag: &str) -> Result<String, String> {
     let version = tag
         .strip_prefix("windows-v")
@@ -79,6 +83,7 @@ fn manifest_url(downloads: &str, tag: &str) -> Result<String, String> {
     Ok(format!("{downloads}/{tag}/latest.json"))
 }
 
+#[cfg(windows)]
 #[derive(Serialize, Clone)]
 struct Progress {
     received: u64,
@@ -87,6 +92,7 @@ struct Progress {
 
 /// Short, untranslated reasons the page maps to its own words; "signature"
 /// is the refused-download message.
+#[cfg(windows)]
 fn reason(error: &tauri_plugin_updater::Error) -> String {
     use tauri_plugin_updater::Error;
     match error {
@@ -99,13 +105,17 @@ fn reason(error: &tauri_plugin_updater::Error) -> String {
 /// Downloads, verifies and installs the release tagged `tag`, emitting
 /// `updates://progress` on the way. On success the process exits while the
 /// installer runs, so this only ever returns an error.
+#[cfg(not(windows))]
+#[tauri::command]
+pub async fn updates_install<R: Runtime>(_app: AppHandle<R>, _tag: String) -> Result<(), String> {
+    Err("unsupported".into())
+}
+
+#[cfg(windows)]
 #[tauri::command]
 pub async fn updates_install<R: Runtime>(app: AppHandle<R>, tag: String) -> Result<(), String> {
     use tauri_plugin_updater::UpdaterExt;
 
-    if !cfg!(windows) {
-        return Err("unsupported".into());
-    }
     let server = test_server();
     let url = manifest_url(&updates_endpoints().downloads, &tag)?;
     let url = url.parse().map_err(|_| "bad url".to_string())?;
@@ -140,6 +150,7 @@ pub async fn updates_install<R: Runtime>(app: AppHandle<R>, tag: String) -> Resu
         .map_err(|e| reason(&e))
 }
 
+#[cfg(windows)]
 fn remember_open_windows<R: Runtime>(app: &AppHandle<R>) {
     let open = app
         .get_webview_window(crate::settings::LABEL)
