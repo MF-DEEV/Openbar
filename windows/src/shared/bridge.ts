@@ -224,6 +224,8 @@ export const bridge = {
     /** null when a stopped session keeps no output. */
     backgroundLogs: (sessionId: string) => call<string | null>("sessions_background_logs", { sessionId }),
     recentFolders: () => call<RecentFolder[]>("sessions_recent_folders"),
+    /** The Claude accounts on this PC and whether each holds the hooks (#216). */
+    accounts: () => call<import("../sessions/types").ClaudeAccount[]>("claude_accounts_status"),
     pickFolder: () => call<string | null>("sessions_pick_folder"),
     /** What went wrong, or null. */
     start: (
@@ -394,6 +396,7 @@ export const bridge = {
     redeemReset: () => call<RedeemOutcome>("agents_resets_redeem"),
     /** Checks an added Codex home now, or every one. */
     refreshCodexAccount: (id: string | null) => call("agents_codex_refresh", { id }),
+    refreshClaudeAccount: (id: string) => call("agents_claude_account_refresh", { id }),
     /** The usual Codex home and the `.codex-<name>` homes beside it, with new ids. */
     discoverCodexHomes: (defaultName: string) => call<CodexProfile[]>("agents_codex_discover", { defaultName }),
     /** A folder the person picks; null when they cancel. */

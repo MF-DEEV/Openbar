@@ -146,6 +146,18 @@ pub fn migrate_legacy_main() -> ! {
 }
 
 pub fn remove_hooks_main() -> ! {
+    // The accounts the person added by hand are in the app's prefs (#216).
+    if let Some(prefs) = std::env::var_os("APPDATA")
+        .map(|d| {
+            std::path::PathBuf::from(d)
+                .join("com.openbar.island")
+                .join("settings.json")
+        })
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+    {
+        sessions::accounts::set_settings(sessions::accounts::settings_from_prefs(&prefs));
+    }
     std::process::exit(if hooks::claude_hooks_remove().is_ok() {
         0
     } else {
@@ -268,6 +280,9 @@ pub fn run() {
             hooks::claude_hooks_status,
             hooks::claude_hooks_install,
             hooks::claude_hooks_remove,
+            hooks::claude_accounts_status,
+            hooks::claude_hooks_install_account,
+            hooks::claude_accounts_can_add,
             media::music_now,
             media::music_select_source,
             media::music_players,
@@ -419,6 +434,7 @@ pub fn run() {
             agent_usage::agents_resets_refresh,
             agent_usage::agents_resets_redeem,
             agent_usage::agents_codex_refresh,
+            agent_usage::agents_claude_account_refresh,
             agent_usage::agents_codex_discover,
             agent_usage::agents_codex_choose_folder,
             watch::watch_snapshot,

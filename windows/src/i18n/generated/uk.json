@@ -1418,7 +1418,7 @@
     },
     "hideDetails": "Hide details",
     "hooksFailedFormat": "Couldn’t change the settings: %@",
-    "hooksHint": "Hooks let the island show which tool runs, answer permission prompts and answer Claude’s questions. They’re added to ~/.claude/settings.json next to your own, with a backup first. Without the app running, Claude Code asks in the terminal as usual.",
+    "hooksHint": "Hooks let the island show which tool runs, answer permission prompts and answer Claude’s questions. They’re added to the settings.json of each Claude account below, next to your own hooks, with a backup first. Without the app running, Claude Code asks in the terminal as usual.",
     "hooksInstalled": "Installed",
     "hooksMissing": "Not installed",
     "hooksTitle": "Claude Code hooks",

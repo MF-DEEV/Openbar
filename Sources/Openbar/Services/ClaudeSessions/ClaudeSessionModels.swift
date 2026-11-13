@@ -393,6 +393,9 @@ struct ClaudeSession: Equatable, Identifiable {
     var background: ClaudeBackgroundDetails? = nil
     /// Why the session stopped, while `phase == .limited`.
     var limitStop: ClaudeLimitStop? = nil
+    /// The config folder of the Claude Code account it runs under, for a
+    /// session on this Mac (issue #216).
+    var account: String? = nil
 }
 
 /// Tells a background command that is meant to keep running, like a dev

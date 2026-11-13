@@ -5,7 +5,7 @@
 // limits per agent, spending, the turns at work, the trend, models,
 // projects and thirteen weeks of activity.
 
-import { dateTimeFormat, useLocale } from "../i18n";
+import { dateTimeFormat, t, useLocale } from "../i18n";
 
 import {
   ArrowUpRight,
@@ -62,6 +62,8 @@ import type {
   AgentPeriod,
   AgentSnapshot,
   Bucket,
+  ClaudeAccountFailure,
+  ClaudeAccountLimits,
   CodexAccount,
   CodexAccountFailure,
   LimitDisplay,
@@ -81,10 +83,25 @@ export function LimitsCard(props: {
   now: number;
   display: LimitDisplay;
   account?: CodexAccount;
+  /** Another Claude account in use, with its own card (#216). */
+  claudeAccount?: ClaudeAccountLimits;
+  /** The Claude account the usual card reads, while others have cards. */
+  accountName?: string;
 }) {
   useLocale();
-  const { provider, snapshot, now, display, account } = props;
+  const { provider, snapshot, now, display, account, claudeAccount, accountName } = props;
   if (account) return <AccountLimitsCard account={account} now={now} display={display} />;
+  if (claudeAccount)
+    return (
+      <AccountLimitsCard
+        provider="claude"
+        account={claudeAccount}
+        now={now}
+        display={display}
+        failureText={claudeFailureText}
+        refresh={() => void bridge.agents.refreshClaudeAccount(claudeAccount.id)}
+      />
+    );
   const limits = snapshot.limits[provider];
   const windows = cardWindows(limits, now);
   const stale = limitsAreStale(limits, provider, now);
@@ -94,7 +111,11 @@ export function LimitsCard(props: {
   const old = limits && now - limits.observedAt > 600_000 ? A.updated(relative(limits.observedAt, now)) : null;
   return (
     <Card>
-      <CardHeader title={PROVIDER_NAMES[provider]} provider={provider} tint={tint}>
+      <CardHeader
+        title={accountName ? `${PROVIDER_NAMES[provider]} · ${accountName}` : PROVIDER_NAMES[provider]}
+        provider={provider}
+        tint={tint}
+      >
         {plan ? <Chip tint={tint}>{plan.name}</Chip> : null}
         {working ? <Pulse tint={tint} /> : null}
       </CardHeader>
@@ -134,10 +155,39 @@ function accountFailureText(failure: CodexAccountFailure): string {
  * An added Codex home's card: only its own checks, never the reading the
  * logs give the provider's other account, even when its check failed.
  */
-function AccountLimitsCard(props: { account: CodexAccount; now: number; display: LimitDisplay }) {
+/** Why another Claude account's check failed, on its card (#216). */
+function claudeFailureText(failure: ClaudeAccountFailure): string {
+  switch (failure) {
+    case "missing":
+      return t("windows.claudeAccounts.needsClaude");
+    case "needsSignIn":
+      return t("windows.claudeAccounts.signIn");
+    case "outdated":
+      return t("windows.claudeAccounts.updateClaude");
+    case "unreachable":
+      return t("windows.claudeAccounts.unreachable");
+  }
+}
+
+/** An account's own card: an added Codex home, or another Claude account in use. */
+function AccountLimitsCard<F extends string>(props: {
+  account: {
+    id: string;
+    name: string;
+    limits: CodexAccount["limits"];
+    plan: string | null;
+    checking: boolean;
+    failure: F | null;
+  };
+  now: number;
+  display: LimitDisplay;
+  provider?: Provider;
+  failureText?: (failure: F) => string;
+  refresh?: () => void;
+}) {
   useLocale();
   const { account, now, display } = props;
-  const provider = "codex";
+  const provider = props.provider ?? "codex";
   const tint = PROVIDER_TINTS[provider];
   // An expired window is unknown until the account is checked again, not a full allowance.
   const limits = account.limits && {
@@ -146,7 +196,9 @@ function AccountLimitsCard(props: { account: CodexAccount; now: number; display:
   };
   const windows = cardWindows(limits ?? undefined, now);
   const stale = limitsAreStale(limits, provider, now, true);
-  const failure = account.failure ? accountFailureText(account.failure) : null;
+  const failure = account.failure
+    ? (props.failureText ?? (accountFailureText as unknown as (f: F) => string))(account.failure)
+    : null;
   const notes = accountNotes(
     windows.length > 0,
     account.checking,
@@ -166,7 +218,7 @@ function AccountLimitsCard(props: { account: CodexAccount; now: number; display:
             className="ag-account-refresh"
             aria-label={`${A.accountCheck}: ${account.name}`}
             title={A.accountCheck}
-            onClick={() => void bridge.agents.refreshCodexAccount(account.id)}
+            onClick={() => (props.refresh ? props.refresh() : void bridge.agents.refreshCodexAccount(account.id))}
           >
             <RotateCw size={10} strokeWidth={2.25} aria-hidden />
           </button>

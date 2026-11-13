@@ -14,7 +14,9 @@ enum ClaudeSessionRegistryReader {
     /// moved it to.
     static func homes(_ home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [URL] {
         let standard = [".claude", ".config/claude"].map { home.appending(path: $0, directoryHint: .isDirectory) }
-        return ClaudeConfigHomes.merge(standard, ClaudeConfigHomes.extra(home: home))
+        // Folders the person added in Settings count only for their own home.
+        let own = home.standardizedFileURL.path == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        return ClaudeConfigHomes.merge(standard, ClaudeConfigHomes.extra(home: home) + (own ? ClaudeAccounts.manualFolders() : []))
     }
 
     static func folders(_ home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [URL] {
@@ -143,7 +145,11 @@ enum ClaudeConfigHomes {
             return cached.homes
         }
         lock.unlock()
-        let own = home.standardizedFileURL.path == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        var own = home.standardizedFileURL.path == FileManager.default.homeDirectoryForCurrentUser.standardizedFileURL.path
+        #if OPENBAR_DEVELOPMENT
+        // A run in a throwaway home looks at nothing of the person's outside it.
+        if ProcessInfo.processInfo.environment["OPENBAR_SESSIONS_HOME_ONLY"] == "1" { own = false }
+        #endif
         let named = own ? [ProcessInfo.processInfo.environment[variable]].compactMap { $0 } + running() : []
         let found = folders(named: named, home: home) + siblings(of: home)
         lock.lock()

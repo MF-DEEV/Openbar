@@ -1166,6 +1166,9 @@ fn session(
         } else {
             None
         },
+        account: None,
+        account_label: None,
+        account_id: None,
     }
 }
 

@@ -9,9 +9,10 @@
 // (docs/more-session-agents.md).
 
 import { type StringKey, useLocale, t, tf } from "../i18n";
-import { HOOK_AGENTS, type HookAgent, PROVIDER_NAMES } from "../sessions/types";
+import { type ClaudeAccount, HOOK_AGENTS, type HookAgent, PROVIDER_NAMES } from "../sessions/types";
 import { ProviderMark } from "../sessions/glyphs";
-import type { SessionPrefs } from "../shared/prefs";
+import type { ClaudeAccountSetting, SessionPrefs } from "../shared/prefs";
+import { Eye, EyeOff, MinusCircle } from "lucide-react";
 import { voiceHeard } from "../shared/platform";
 
 import { invoke } from "@tauri-apps/api/core";
@@ -29,6 +30,9 @@ interface HooksStatus {
   installed: boolean;
   stale: boolean;
   error: string | null;
+  /** How many Claude accounts are shown, and how many hold the hooks (#216). */
+  accounts?: number;
+  installedIn?: number;
 }
 
 function useHooks() {
@@ -62,7 +66,223 @@ function useHooks() {
       setBusy(false);
     }
   };
-  return { status, busy, error, install: () => run("claude_hooks_install"), remove: () => run("claude_hooks_remove") };
+  return {
+    status,
+    busy,
+    error,
+    refresh,
+    install: () => run("claude_hooks_install"),
+    remove: () => run("claude_hooks_remove"),
+  };
+}
+
+/** Accounts for designing the page in a plain browser. */
+const DEMO_ACCOUNTS: ClaudeAccount[] = [
+  {
+    id: "c:\\users\\vors\\.claude",
+    path: "C:\\Users\\vors\\.claude",
+    name: "Default",
+    named: false,
+    manual: false,
+    hidden: false,
+    hooks: "installed",
+  },
+  {
+    id: "c:\\users\\vors\\.claude-side",
+    path: "C:\\Users\\vors\\.claude-side",
+    name: "Side",
+    named: false,
+    manual: false,
+    hidden: false,
+    hooks: "missing",
+  },
+  {
+    id: "c:\\users\\vors\\.claude-work",
+    path: "C:\\Users\\vors\\.claude-work",
+    name: "Work",
+    named: false,
+    manual: false,
+    hidden: false,
+    hooks: "installed",
+  },
+];
+
+/** `~\…` for a folder in the user's home. */
+function shortPath(path: string): string {
+  const match = /^[A-Za-z]:\\Users\\[^\\]+(\\.*)$/.exec(path);
+  return match ? "~" + match[1] : path;
+}
+
+const samePath = (a: string, b: string) =>
+  a.toLowerCase().replace(/[\\/]+$/, "") === b.toLowerCase().replace(/[\\/]+$/, "");
+
+/** The Claude Code accounts on this PC (#216): each config folder with its
+ * name, whether its settings hold the hooks, and a way to hide it; a folder
+ * Openbar did not find can be added by hand. */
+function ClaudeAccounts({ onHooks }: { onHooks: () => void }) {
+  useLocale();
+  const saved = useSettings((s) => s.prefs.sessions.claudeAccounts);
+  const set = useSettings((s) => s.sessions);
+  const [accounts, setAccounts] = useState<ClaudeAccount[] | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [failure, setFailure] = useState<{ id: string; reason: string } | null>(null);
+  const [notAdded, setNotAdded] = useState(false);
+  const refresh = useCallback(async () => {
+    if (!inTauri) {
+      setAccounts(
+        DEMO_ACCOUNTS.map((a) => {
+          const setting = saved.find((s) => samePath(s.path, a.path));
+          return { ...a, name: setting?.name ?? a.name, named: !!setting?.name, hidden: !!setting?.hidden };
+        }),
+      );
+      return;
+    }
+    setAccounts((await invoke<ClaudeAccount[]>("claude_accounts_status")) ?? []);
+  }, [saved]);
+  useEffect(() => {
+    void refresh();
+    // A folder made while the page shows, as by a first session with a new CLAUDE_CONFIG_DIR, joins the list.
+    const timer = window.setInterval(() => void refresh(), 5000);
+    const onFocus = () => void refresh();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
+  }, [refresh]);
+
+  const change = (account: ClaudeAccount, patch: Partial<ClaudeAccountSetting>) => {
+    const list = [...saved];
+    const index = list.findIndex((s) => samePath(s.path, account.path));
+    const next = {
+      ...(index >= 0 ? list[index] : { path: account.path, ...(account.manual ? { manual: true } : {}) }),
+      ...patch,
+    };
+    if (next.name !== undefined && !next.name.trim()) delete next.name;
+    if (!next.hidden) delete next.hidden;
+    if (index >= 0) list[index] = next;
+    else list.push(next);
+    set(
+      "claudeAccounts",
+      list.filter((s) => s.name || s.hidden || s.manual),
+    );
+  };
+  const add = async () => {
+    const path = await bridge.sessions.pickFolder();
+    if (!path) return;
+    const ok = inTauri ? await invoke<boolean>("claude_accounts_can_add", { path }) : true;
+    if (!ok) {
+      const hidden = saved.find((s) => samePath(s.path, path) && s.hidden);
+      if (hidden)
+        set(
+          "claudeAccounts",
+          saved.map((s) => (s === hidden ? { ...s, hidden: undefined } : s)),
+        );
+      else setNotAdded(true);
+      return;
+    }
+    setNotAdded(false);
+    set("claudeAccounts", [...saved, { path, manual: true }]);
+  };
+  const install = async (account: ClaudeAccount) => {
+    setBusy(account.id);
+    setFailure(null);
+    try {
+      if (inTauri) await invoke("claude_hooks_install_account", { path: account.path });
+    } catch (e) {
+      setFailure({ id: account.id, reason: String(e) });
+    }
+    await refresh();
+    onHooks();
+    setBusy(null);
+  };
+  const othersHaveHooks = (account: ClaudeAccount) =>
+    (accounts ?? []).some((a) => a.id !== account.id && !a.hidden && a.hooks === "installed");
+  const hooksText = (state: ClaudeAccount["hooks"]) =>
+    state === "installed"
+      ? t("windows.claudeAccounts.hooksInstalled")
+      : state === "outdated"
+        ? t("windows.claudeAccounts.hooksOutdated")
+        : state === "unreadable"
+          ? t("windows.claudeAccounts.unreadable")
+          : t("windows.claudeAccounts.hooksMissing");
+
+  return (
+    <>
+      <SubRow
+        title={t("windows.claudeAccounts.title")}
+        caption={
+          <>
+            {t("windows.claudeAccounts.hint")}
+            {notAdded ? <div className="st-error">{t("windows.claudeAccounts.notAdded")}</div> : null}
+          </>
+        }
+      >
+        <Button onClick={() => void add()}>{t("windows.claudeAccounts.add")}</Button>
+      </SubRow>
+      {(accounts ?? []).map((account) => (
+        <div key={account.id} className={`st-account-row${account.hidden ? " is-hidden" : ""}`}>
+          <div className="st-account-main">
+            <div className="st-account-line">
+              <input
+                key={account.name}
+                className="ag-st-input st-account-name"
+                defaultValue={account.name}
+                placeholder={t("windows.claudeAccounts.namePlaceholder")}
+                aria-label={`${t("windows.claudeAccounts.account")} ${account.name}`}
+                maxLength={32}
+                onBlur={(event) => {
+                  const value = event.currentTarget.value.trim();
+                  if (value !== account.name) change(account, { name: value || undefined });
+                }}
+                onKeyDown={(event) => event.key === "Enter" && event.currentTarget.blur()}
+              />
+              <span className="st-account-path" title={account.path}>
+                {shortPath(account.path)}
+              </span>
+            </div>
+            <div className={`st-account-state${account.hooks === "unreadable" && !account.hidden ? " is-warn" : ""}`}>
+              {account.hidden ? t("windows.claudeAccounts.hiddenNote") : hooksText(account.hooks)}
+            </div>
+            {failure?.id === account.id ? <div className="st-error">{failure.reason}</div> : null}
+          </div>
+          {!account.hidden &&
+          (account.hooks === "outdated" || (account.hooks === "missing" && othersHaveHooks(account))) ? (
+            <Button accent onClick={() => void install(account)} busy={busy === account.id} disabled={busy !== null}>
+              {account.hooks === "outdated" ? T.sessions.update : t("windows.claudeAccounts.installHere")}
+            </Button>
+          ) : null}
+          {account.manual ? (
+            <button
+              type="button"
+              className="st-account-icon"
+              title={t("windows.claudeAccounts.remove")}
+              aria-label={`${t("windows.claudeAccounts.remove")} ${account.name}`}
+              onClick={() =>
+                set(
+                  "claudeAccounts",
+                  saved.filter((s) => !samePath(s.path, account.path)),
+                )
+              }
+            >
+              <MinusCircle size={14} />
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="st-account-icon"
+              title={account.hidden ? t("windows.claudeAccounts.show") : t("windows.claudeAccounts.hide")}
+              aria-label={`${account.hidden ? t("windows.claudeAccounts.show") : t("windows.claudeAccounts.hide")} ${account.name}`}
+              aria-pressed={account.hidden}
+              onClick={() => change(account, { hidden: !account.hidden })}
+            >
+              {account.hidden ? <Eye size={14} /> : <EyeOff size={14} />}
+            </button>
+          )}
+        </div>
+      ))}
+    </>
+  );
 }
 
 interface EditorStatus {
@@ -712,6 +932,17 @@ export function SessionsOptions() {
         title={t("windows.settings.claudeCode")}
         caption={
           <>
+            {(hooks.status?.accounts ?? 1) > 1 && (hooks.status?.installedIn ?? 0) > 0 ? (
+              <div>
+                {hooks.status?.installed
+                  ? tf("windows.claudeAccounts.installedAll", hooks.status.accounts ?? 0)
+                  : tf(
+                      "windows.claudeAccounts.installedIn",
+                      hooks.status?.installedIn ?? 0,
+                      hooks.status?.accounts ?? 0,
+                    )}
+              </div>
+            ) : null}
             {hooks.status?.installed ? T.sessions.claudeOnCaption : T.sessions.claudeOffCaption}
             {hooks.error ? <div className="st-error">{hooks.error}</div> : null}
             {hooks.status?.error ? <div className="st-error">{hooks.status.error}</div> : null}
@@ -729,6 +960,7 @@ export function SessionsOptions() {
           </Button>
         )}
       </SubRow>
+      <ClaudeAccounts onHooks={() => void hooks.refresh()} />
       <EditorExtensions />
       <SubRow title={t("windows.settings.codex")} caption={T.sessions.codexCaption}>
         {codex === "connected" ? (

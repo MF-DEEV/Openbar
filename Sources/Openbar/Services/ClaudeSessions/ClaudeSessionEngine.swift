@@ -343,7 +343,8 @@ final class ClaudeSessionEngine {
                 ? entry.runningBackground.last { !$0.service }?.label ?? entry.runningSubagents.last?.description : nil,
             services: record.status == .shell || phase == .background ? entry.runningBackground.filter(\.service).count : 0,
             background: record.job.map { ClaudeBackgroundDetails(job: $0, configHome: record.configHome) },
-            limitStop: phase == .limited ? entry.limit : nil)
+            limitStop: phase == .limited ? entry.limit : nil,
+            account: record.host.remoteAlias == nil ? record.configHome : nil)
     }
 
     // MARK: Rules

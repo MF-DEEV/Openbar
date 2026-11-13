@@ -19,16 +19,18 @@ import {
   GitBranch,
   Square,
   Trash2,
+  UserRound,
 } from "lucide-react";
 import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
-import { tf, useLocale } from "../i18n";
+import { t, tf, useLocale } from "../i18n";
 import { useIsland } from "../island/store";
-import { bridge } from "../shared/bridge";
+import { bridge, inTauri } from "../shared/bridge";
 import { canRemoveBackground, canStopBackground, problemText } from "./format";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { ProviderMark } from "./glyphs";
 import type {
+  ClaudeAccount,
   NewSessionModel,
   NewSessionModels,
   Provider,
@@ -64,6 +66,23 @@ export function RemoteHostMark({ alias }: { alias: string }) {
           stroke="currentColor"
           strokeWidth="1.3"
         />
+      </svg>
+      {shown}
+    </span>
+  );
+}
+
+/** The Claude account a session runs under, while more than one is in use (#216). */
+export function AccountMark({ name }: { name: string }) {
+  useLocale();
+  const shown = name.length > 16 ? name.slice(0, 15) + "…" : name;
+  const label = tf("windows.claudeAccounts.sessionAccount", name);
+  return (
+    <span className="s-remote-mark s-account-mark" title={label} aria-label={label}>
+      <svg viewBox="0 0 16 16" width="9" height="9" aria-hidden>
+        <circle cx="8" cy="8" r="6.4" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <circle cx="8" cy="6.6" r="2.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
+        <path d="M4.2 12.6c1-1.7 2.3-2.4 3.8-2.4s2.8.7 3.8 2.4" fill="none" stroke="currentColor" strokeWidth="1.4" />
       </svg>
       {shown}
     </span>
@@ -308,7 +327,126 @@ const REMEMBER = {
   codex: "openbar.newSession.codexModel",
   /** The agents that start without a worktree of their own, comma-separated. */
   noWorktree: "openbar.newSession.noWorktree",
+  /** The Claude account (config folder) the last session started with (#216). */
+  account: "openbar.newSession.claudeAccount",
 } as const;
+
+/** Accounts for designing the picker in a plain browser (?sessions&accounts). */
+const DEMO_ACCOUNTS: ClaudeAccount[] = [
+  {
+    id: "c:\\users\\vors\\.claude",
+    path: "C:\\Users\\vors\\.claude",
+    name: "Personal",
+    named: true,
+    manual: false,
+    hidden: false,
+    hooks: "installed",
+  },
+  {
+    id: "c:\\users\\vors\\.claude-work",
+    path: "C:\\Users\\vors\\.claude-work",
+    name: "Work",
+    named: false,
+    manual: false,
+    hidden: false,
+    hooks: "installed",
+  },
+];
+
+/** The account a new session starts with: the last one used while it is
+ * still shown, else the folder's own, else the first (ClaudeAccounts.preferred). */
+export function preferredAccount(
+  accounts: readonly ClaudeAccount[],
+  last: string,
+  folder: string | undefined,
+): ClaudeAccount | null {
+  const shown = accounts.filter((a) => !a.hidden);
+  const same = (a: ClaudeAccount, path: string) =>
+    a.path.toLowerCase().replace(/[\\/]+$/, "") === path.toLowerCase().replace(/[\\/]+$/, "");
+  return (
+    (last ? shown.find((a) => same(a, last)) : undefined) ??
+    (folder ? shown.find((a) => same(a, folder)) : undefined) ??
+    shown[0] ??
+    null
+  );
+}
+
+/** Which Claude account a session starts with (#216). */
+function AccountMenu({
+  accounts,
+  value,
+  onPick,
+}: {
+  accounts: readonly ClaudeAccount[];
+  value: ClaudeAccount | null;
+  onPick: (account: ClaudeAccount) => void;
+}) {
+  useLocale();
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const label = t("windows.claudeAccounts.account");
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    window.addEventListener("pointerdown", away, true);
+    return () => window.removeEventListener("pointerdown", away, true);
+  }, [open]);
+  return (
+    <div
+      ref={root}
+      className="s-model-menu s-account-menu"
+      onKeyDown={(event) => {
+        if (open && event.key === "Escape") {
+          event.stopPropagation();
+          event.nativeEvent.stopImmediatePropagation();
+          setOpen(false);
+        }
+      }}
+    >
+      <button
+        type="button"
+        className={`s-model-button${open ? " is-open" : ""}`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        aria-label={`${label}: ${value?.name ?? ""}`}
+        title={value ? tf("windows.claudeAccounts.startsWith", value.name) : label}
+        onClick={() => setOpen(!open)}
+      >
+        <UserRound size={11} className="s-model-icon" />
+        <span className="s-model-label">
+          <span key={value?.id ?? "none"} className="s-model-text">
+            {value?.name ?? label}
+          </span>
+        </span>
+        <ChevronsUpDown size={10} className="s-model-chevron" />
+      </button>
+      <div className={`s-model-list${open ? " is-open" : ""}`} role="listbox" aria-label={label} hidden={!open}>
+        {accounts.map((account, index) => {
+          const selected = account.id === value?.id;
+          return (
+            <button
+              key={account.id}
+              type="button"
+              role="option"
+              aria-selected={selected}
+              className="s-model-option"
+              style={{ "--i": index } as CSSProperties}
+              onClick={() => {
+                onPick(account);
+                setOpen(false);
+              }}
+            >
+              <Check size={11} className="s-model-check" style={{ opacity: selected ? 1 : 0 }} />
+              <span>{account.name}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
 
 function remembered(key: string): string {
   try {
@@ -536,6 +674,9 @@ export function NewSession() {
   const [claudeModel, setClaudeModel] = useState(() => remembered(REMEMBER.claude));
   const [codexModel, setCodexModel] = useState(() => remembered(REMEMBER.codex));
   const [noWorktree, setNoWorktree] = useState(() => remembered(REMEMBER.noWorktree));
+  const [accounts, setAccounts] = useState<ClaudeAccount[]>([]);
+  const [accountChoice, setAccountChoice] = useState<string | null>(null);
+  const [lastAccount, setLastAccount] = useState(() => remembered(REMEMBER.account));
   const [worktreeNameText, setWorktreeNameText] = useState("");
   /** What the folder picked is to git; null while it's being asked. */
   const [repository, setRepository] = useState<RepoState | null>(null);
@@ -608,10 +749,22 @@ export function NewSession() {
   };
 
   useEffect(() => {
-    void bridge.sessions.newModels(chosen?.configHome).then((found) => {
+    const demo = !inTauri && new URLSearchParams(location.search).has("accounts");
+    void bridge.sessions.accounts().then((found) => setAccounts(found ?? (demo ? DEMO_ACCOUNTS : [])));
+  }, []);
+
+  // A choice while more than one account is shown; else the folder's own, as before (#216).
+  const shownAccounts = accounts.filter((a) => !a.hidden);
+  const picksAccount = agent === "claude" && shownAccounts.length > 1;
+  const account =
+    shownAccounts.find((a) => a.id === accountChoice) ?? preferredAccount(accounts, lastAccount, chosen?.configHome);
+  const configHome = shownAccounts.length > 1 ? (account?.path ?? chosen?.configHome) : chosen?.configHome;
+
+  useEffect(() => {
+    void bridge.sessions.newModels(configHome).then((found) => {
       if (found) setModels(found);
     });
-  }, [chosen?.configHome]);
+  }, [configHome]);
 
   // Escape steps back to the list before it reaches the island.
   useEffect(() => {
@@ -661,9 +814,13 @@ export function NewSession() {
     if (!chosen || !canStart) return;
     setStarting(true);
     setProblem(null);
+    if (picksAccount && account) {
+      setLastAccount(account.path);
+      remember(REMEMBER.account, account.path);
+    }
     const failure = await bridge.sessions.start(
       chosen.path,
-      chosen.configHome,
+      agent === "claude" ? configHome : chosen.configHome,
       prompt.trim(),
       background,
       agent,
@@ -769,10 +926,13 @@ export function NewSession() {
           </span>
         ) : null}
       </div>
-      {agents.length > 1 || list.length > 0 ? (
+      {agents.length > 1 || list.length > 0 || picksAccount ? (
         <div className="s-background-row">
           {agents.length > 1 ? <AgentPicker agents={agents} agent={agent} onPick={pickAgent} /> : null}
           <span className="s-background-gap" />
+          {picksAccount ? (
+            <AccountMenu accounts={shownAccounts} value={account} onPick={(a) => setAccountChoice(a.id)} />
+          ) : null}
           {list.length > 0 ? <ModelMenu models={list} value={model} agent={agent} onPick={pickModel} /> : null}
         </div>
       ) : null}

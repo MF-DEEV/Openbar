@@ -45,7 +45,7 @@ import { answerMarks, messageTime } from "./conversation";
 import { RichText } from "./RichText";
 import { MessageImages } from "./MessageImages";
 import { useNow } from "./useNow";
-import { BackgroundBar, BackgroundLogs, RemoteHostMark, WorktreeBar } from "./Background";
+import { AccountMark, BackgroundBar, BackgroundLogs, RemoteHostMark, WorktreeBar } from "./Background";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { setPrefs } from "../shared/prefs";
@@ -230,6 +230,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
             </div>
             <div className="s-row-line2">
               {session.remote ? <RemoteHostMark alias={session.remote} /> : null}
+              {session.accountLabel ? <AccountMark name={session.accountLabel} /> : null}
               <span className="s-tag" style={{ color, background: `color-mix(in srgb, ${color} 16%, transparent)` }}>
                 {session.project}
               </span>

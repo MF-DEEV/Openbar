@@ -220,6 +220,9 @@ pub fn ended_session(job: &Job, ended: Time, branch: Option<String>) -> Session 
             config_home: job.config_home.clone(),
         }),
         limit_stop: None,
+        account: None,
+        account_label: None,
+        account_id: None,
     }
 }
 

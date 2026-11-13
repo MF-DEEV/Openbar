@@ -31,6 +31,7 @@ import {
   SPACING,
   type Tile,
   tiles,
+  claudeAccountTiles,
 } from "./model";
 import { ResetsCard } from "./ResetsCard";
 import { useAgents } from "./store";
@@ -57,7 +58,10 @@ function usePageTiles(): { providers: Provider[]; tiles: Tile[] } {
     // Added Codex homes have cards in the Limits card's place, so none while it is hidden.
     const accounts = showsCodexAccounts(enabled.codex, hidden) ? snapshot.codexAccounts.map((a) => a.id) : [];
     const providers = pageProviders(snapshot, enabled, accounts.length > 0);
-    return { providers, tiles: tiles(shownCards(order, hidden), providers, accounts) };
+    return {
+      providers,
+      tiles: tiles(shownCards(order, hidden), providers, accounts, claudeAccountTiles(snapshot)),
+    };
   }, [snapshot, enabled, order, hidden]);
 }
 
@@ -141,7 +145,21 @@ function TileView(props: {
           snapshot={snapshot}
           now={now}
           display={props.display}
-          account={tile.account ? snapshot.codexAccounts.find((a) => a.id === tile.account) : undefined}
+          account={
+            tile.account && tile.provider === "codex"
+              ? snapshot.codexAccounts.find((a) => a.id === tile.account)
+              : undefined
+          }
+          claudeAccount={
+            tile.account && tile.provider === "claude"
+              ? (snapshot.claudeAccounts ?? []).find((a) => a.id === tile.account)
+              : undefined
+          }
+          accountName={
+            tile.account && tile.provider === "claude" && tile.account === (snapshot.claudeAccountId ?? "")
+              ? (snapshot.claudeAccountName ?? undefined)
+              : undefined
+          }
         />
       );
     case "spend":

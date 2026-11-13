@@ -85,7 +85,8 @@ struct NotchClaudeSessionsView: View {
             ScrollView {
                 LazyVStack(spacing: 6) {
                     ForEach(service.sessions) { session in
-                        NotchClaudeSessionRow(session: session, name: service.displayName(session), now: context.date, text: text) {
+                        NotchClaudeSessionRow(session: session, name: service.displayName(session), now: context.date, text: text,
+                                              account: service.accountLabels[session.id]) {
                             guard !preview else { return }
                             service.focus(session.id)
                         }
@@ -155,6 +156,8 @@ struct NotchClaudeSessionRow: View {
     let name: String
     let now: Date
     let text: NotchClaudeSessionStrings
+    /// The Claude account it runs under, while more than one is in use.
+    var account: String? = nil
     let open: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var contrast
@@ -230,6 +233,7 @@ struct NotchClaudeSessionRow: View {
                     .truncationMode(.tail)
                 if session.background != nil { NotchClaudeBackgroundMark(text: text) }
                 if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
+                if let account { NotchClaudeAccountBadge(name: account) }
                 Spacer(minLength: 4)
                 if let clock = NotchClaudeSessionFormat.clock(session, now: now) {
                     Text(clock)
@@ -435,7 +439,8 @@ enum NotchClaudeSessionFormat {
         switch session.phase {
         case .limited:
             // When it goes on: as the agent said, or as the limits reading has it.
-            if let resets = NotchSessionLimitsSupport.reset(of: session, snapshot: AgentUsageService.shared.snapshot, now: now) {
+            if let resets = NotchSessionLimitsSupport.reset(of: session, snapshot: AgentUsageService.shared.snapshot, now: now,
+                                                                accounts: AgentUsageService.shared.claudeAccounts) {
                 parts.append(text.resumes(NotchSessionLimitsSupport.resetText(
                     resets, now: now, locale: L10n.shared.language.formattingLocale())))
             }

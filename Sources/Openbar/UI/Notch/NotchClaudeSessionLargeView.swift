@@ -193,6 +193,7 @@ struct NotchClaudeSessionLargeView: View {
                 }
                 HStack(spacing: 8) {
                     if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias, size: 11) }
+                    if let account = ClaudeSessionService.shared.accountLabels[session.id] { NotchClaudeAccountBadge(name: account, size: 11) }
                     NotchClaudeProjectTag(project: session.project, size: 12)
                     Text([session.branch.map { "⎇ \($0)" }, session.model.map(AgentPricing.displayName),
                           session.tokens.total > 0 ? AgentFormat.tokens(session.tokens.total) : nil,

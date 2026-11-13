@@ -303,6 +303,9 @@ struct NotchClaudeNewSessionView: View {
     @AppStorage(DefaultsKey.notchNewSessionClaudeModel) private var claudeModel = ""
     @AppStorage(DefaultsKey.notchNewSessionCodexModel) private var codexModel = ""
     @AppStorage(DefaultsKey.notchNewSessionNoWorktree) private var noWorktree = ""
+    @AppStorage(DefaultsKey.notchSessionsLastAccount) private var lastAccount = ""
+    /// The Claude account picked for this session; nil follows the last one used.
+    @State private var accountChoice: String?
     @State private var worktreeName = ""
     /// What the folder picked is to git; nil while it's being asked.
     @State private var repository: SessionWorktrees.RepoState?
@@ -334,6 +337,22 @@ struct NotchClaudeNewSessionView: View {
         agent == .codex || (agent == .claude && service.backgroundAvailable)
     }
     private var background: Bool { inBackground && canRunInBackground }
+
+    /// The Claude accounts a session can start with (#216).
+    private var shownAccounts: [ClaudeAccount] { service.accounts.filter { !$0.hidden } }
+    private var picksAccount: Bool { agent == .claude && shownAccounts.count > 1 }
+
+    private var account: ClaudeAccount? {
+        if let accountChoice, let picked = shownAccounts.first(where: { $0.id == accountChoice }) { return picked }
+        return ClaudeAccounts.preferred(service.accounts, last: lastAccount.isEmpty ? nil : lastAccount,
+                                        folder: chosen?.configHome)
+    }
+
+    /// The config folder the session starts with: the account picked while
+    /// there is a choice, else the folder's own, as before accounts.
+    private var configHome: String? {
+        shownAccounts.count > 1 ? account?.path : chosen?.configHome
+    }
 
     private var models: [NewSessionModel] {
         switch agent {
@@ -419,6 +438,7 @@ struct NotchClaudeNewSessionView: View {
             HStack(spacing: 6) {
                 if agents.count > 1 { agentPicker }
                 Spacer(minLength: 4)
+                if picksAccount { accountMenu.transition(.opacity) }
                 if !models.isEmpty { modelMenu }
             }
             HStack(spacing: 6) {
@@ -445,6 +465,8 @@ struct NotchClaudeNewSessionView: View {
             NotchBandBackButton(title: text.newSession) { service.composingSession = false }
         })
         .onAppear {
+            // An account added since the island opened is offered too.
+            service.checkHooks()
             service.recentFolders { found in
                 folders = found
                 if chosen == nil { chosen = found.first }
@@ -452,7 +474,7 @@ struct NotchClaudeNewSessionView: View {
                 checkRepository()
             }
         }
-        .onChange(of: chosen?.configHome) { _, _ in loadModels() }
+        .onChange(of: configHome) { _, _ in loadModels() }
         .onChange(of: chosen?.path) { _, _ in checkRepository() }
     }
 
@@ -524,7 +546,7 @@ struct NotchClaudeNewSessionView: View {
     }
 
     private func loadModels() {
-        service.newSessionModels(configHome: chosen?.configHome) { claude, codex in
+        service.newSessionModels(configHome: configHome) { claude, codex in
             claudeModels = claude
             codexModels = codex
         }
@@ -581,6 +603,46 @@ struct NotchClaudeNewSessionView: View {
     }
 
     /// The model, picked from a menu: Codex lists more than fit as chips.
+    /// Which Claude account the session starts with, the last one used first.
+    private var accountMenu: some View {
+        Menu {
+            Picker(ClaudeAccountStrings.account, selection: Binding(
+                get: { account?.id ?? "" },
+                set: { id in withAnimation(motion) { accountChoice = id } })) {
+                ForEach(shownAccounts) { option in Text(option.name).tag(option.id) }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: "person.crop.circle")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.5))
+                Text(account?.name ?? ClaudeAccounts.defaultName)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.9))
+                    .lineLimit(1)
+                    .id(account?.id)
+                    .transition(.asymmetric(insertion: .opacity.combined(with: .offset(y: 5)),
+                                            removal: .opacity.combined(with: .offset(y: -5))))
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 8.5, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.45))
+            }
+            .padding(.horizontal, 9)
+            .frame(height: 28)
+            .background(.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .menuStyle(.button)
+        .buttonStyle(NotchButtonStyle(cornerRadius: 8))
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(account.map { ClaudeAccountStrings.startsWith($0.name) } ?? ClaudeAccountStrings.account)
+        .accessibilityLabel(ClaudeAccountStrings.account)
+        .accessibilityValue(account?.name ?? "")
+    }
+
     private var modelMenu: some View {
         Menu {
             Picker(text.modelPicker, selection: modelKey) {
@@ -746,7 +808,9 @@ struct NotchClaudeNewSessionView: View {
         starting = true
         problem = nil
         let picked = model?.id
-        service.startSession(in: chosen.path, configHome: chosen.configHome, prompt: prompt, background: background,
+        let configHome = agent == .claude ? self.configHome : chosen.configHome
+        if picksAccount, let path = account?.path { lastAccount = path }
+        service.startSession(in: chosen.path, configHome: configHome, prompt: prompt, background: background,
                              provider: agent, model: picked, worktree: usesWorktree,
                              worktreeName: worktreeName) { failure in
             starting = false
@@ -770,6 +834,26 @@ struct NotchClaudeNewSessionView: View {
         if existing == nil { folders.insert(folder, at: 0) }
         withAnimation(motion) { chosen = folder }
         problem = nil
+    }
+}
+
+/// The Claude account a session runs under, while more than one is in use (#216).
+struct NotchClaudeAccountBadge: View {
+    let name: String
+    var size: CGFloat = 9.5
+
+    var body: some View {
+        Label(name.count > 16 ? name.prefix(15) + "…" : name, systemImage: "person.crop.circle")
+            .labelStyle(NotchClaudeSessionInlineLabel())
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.78))
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(.white.opacity(0.1), in: Capsule())
+            .help(ClaudeAccountStrings.sessionAccount(name))
+            .accessibilityLabel(ClaudeAccountStrings.sessionAccount(name))
     }
 }
 

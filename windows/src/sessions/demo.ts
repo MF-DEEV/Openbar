@@ -122,6 +122,16 @@ export function demoSnapshot(): Snapshot {
       cost: 0.17,
     }),
   ];
+  // ?sessions&accounts: Claude sessions under two accounts carry their names (#216).
+  if (typeof location !== "undefined" && new URLSearchParams(location.search).has("accounts")) {
+    for (const session of sessions) {
+      if (session.provider !== "claude") continue;
+      const work = session.id === "b2" || session.id === "d4";
+      session.account = work ? "C:\\Users\\vors\\.claude-work" : "C:\\Users\\vors\\.claude";
+      session.accountId = work ? "c:\\users\\vors\\.claude-work" : "c:\\users\\vors\\.claude";
+      session.accountLabel = work ? "Work" : "Personal";
+    }
+  }
   return {
     sessions,
     counts: { waiting: 2, working: 2, workingCodex: 1, limited: 1, finished: 1 },

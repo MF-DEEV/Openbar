@@ -189,7 +189,9 @@ extension NotchSessionLimitsSupport {
         guard isEnabled() else { return nil }
         let agents = Set(ClaudeSessionService.shared.sessions.compactMap(\.provider.agent))
         let threshold = NotchAgentSupport.limitThreshold() ?? NotchAgentSupport.defaultLimitThreshold
-        guard let limit = stripLimit(AgentUsageService.shared.snapshot, agents: agents, focus: NotchAgentSupport.limitFocus(),
+        let usage = AgentUsageService.shared
+        guard let limit = stripLimit(usage.snapshot, accounts: usage.claudeAccounts.values.compactMap { $0.current(at: now) },
+                                     agents: agents, focus: NotchAgentSupport.limitFocus(),
                                      threshold: threshold, now: now) else { return nil }
         return (limit.provider, limit.window,
                 stripShare(limit.window, display: NotchAgentSupport.limitDisplay(), locale: L10n.shared.language.formattingLocale()))

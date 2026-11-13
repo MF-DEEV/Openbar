@@ -26,6 +26,12 @@ final class AgentUsageService: ObservableObject {
     @Published private(set) var claudeAppChecked: Date?
     @Published private(set) var claudeAccountChecking = false
     @Published private(set) var claudeAccountFailure: AgentClaudeServer.Failure?
+    /// The Claude account `snapshot`'s Claude limits belong to, by account id
+    /// (`ClaudeAccounts.canonical`).
+    @Published private(set) var claudeAccountID: String?
+    /// The limits of every other Claude account in use while sessions of more
+    /// than one run, by account id (issue #216). Empty with one account.
+    @Published private(set) var claudeAccounts: [String: ClaudeAccountLimits] = [:]
     /// The day of the price list in use.
     @Published private(set) var pricesUpdated: Date?
     let events = PassthroughSubject<AgentUsageEvent, Never>()
@@ -71,6 +77,8 @@ final class AgentUsageService: ObservableObject {
     private let claudeAccountQueue = DispatchQueue(label: "com.openbar.claude-limits", qos: .utility)
     private var claudeAccountRequest: AgentClaudeServer.Request?
     private var claudeAccountAttempted = Date.distantPast
+    /// The other accounts' check under way, one at a time.
+    private var otherClaudeRequest: (id: String, request: AgentClaudeServer.Request)?
     /// Checks in a row that Claude Code did not answer, counted again from
     /// zero once the Mac is back online.
     private var claudeAccountUnreachable = 0
@@ -210,6 +218,8 @@ final class AgentUsageService: ObservableObject {
         claudeAccountAttempted = .distantPast
         claudeAccountFailure = nil
         claudeAccountUnreachable = 0
+        claudeAccounts = [:]
+        claudeAccountID = nil
         online = true
         paused = false
         session += 1
@@ -731,13 +741,20 @@ final class AgentUsageService: ObservableObject {
         // Claude Code started with CLAUDE_CONFIG_DIR signs in to the account
         // kept in that folder, so the limits follow the sessions in use.
         let records = ClaudeSessionRegistryReader.read(ClaudeSessionRegistryReader.folders(home))
-        let config = AgentClaudeServer.accountFolder(records, previous: claudeConfig)
-        if config?.standardizedFileURL.path != claudeConfig?.standardizedFileURL.path {
+        // Before any is chosen the reading is ~/.claude's, which then stays
+        // while it runs a session.
+        let standard = home.appending(path: ".claude", directoryHint: .isDirectory)
+        let config = AgentClaudeServer.accountFolder(records, previous: claudeConfig ?? standard)
+        if (config ?? standard).standardizedFileURL.path != (claudeConfig ?? standard).standardizedFileURL.path {
             claudeConfig = config
             claudeProfileModified = nil
             claudeAccountLimits = nil
             store.clearLimits(.claude)
             DispatchQueue.main.async { [weak self] in self?.claudeAccountAttempted = .distantPast }
+        }
+        let id = ClaudeAccounts.canonical((config ?? home.appending(path: ".claude")).path)
+        DispatchQueue.main.async { [weak self] in
+            if self?.claudeAccountID != id { self?.claudeAccountID = id }
         }
         let url = AgentClaudeServer.profileFile(home: home, config: config)
         let modified = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
@@ -802,6 +819,7 @@ final class AgentUsageService: ObservableObject {
     // Main thread. Every minute only while the page shows; failures back
     // off, and looking at the page does not bypass that.
     func refreshClaudeLimits(now: Date = Date(), pageShows: Bool = false) {
+        refreshOtherClaudeAccounts(now: now, pageShows: pageShows)
         guard claudeLimitsDue(at: now, pageShows: pageShows) else { return }
         claudeAccountAttempted = now
         claudeAccountChecking = true
@@ -841,6 +859,7 @@ final class AgentUsageService: ObservableObject {
     }
 
     private func cancelClaudeLimits() {
+        cancelOtherClaudeAccounts()
         guard let request = claudeAccountRequest else { return }
         request.cancel()
         claudeAccountRequest = nil
@@ -857,6 +876,92 @@ final class AgentUsageService: ObservableObject {
               NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return false }
         return now.timeIntervalSince(claudeAccountAttempted) >= AgentClaudeServer.interval(
             after: claudeAccountFailure, repeated: claudeAccountUnreachable, pageVisible: pageVisible)
+    }
+
+    // MARK: Other accounts (#216)
+
+    /// Checks the other Claude accounts in use, one at a time, as often as
+    /// the one the limits follow, and only while sessions of more than one
+    /// account are listed. Main thread.
+    private func refreshOtherClaudeAccounts(now: Date, pageShows: Bool) {
+        let sessions = ClaudeSessionService.shared.sessions
+        let hidden = Set(ClaudeSessionService.shared.accounts.filter(\.hidden).map(\.id))
+        // The folder each account is started with, as its sessions name it.
+        var folders: [String: String] = [:]
+        for session in sessions where session.provider == .claude && session.host.remoteAlias == nil {
+            guard let path = session.account else { continue }
+            let id = ClaudeAccounts.canonical(path)
+            if !hidden.contains(id), folders[id] == nil { folders[id] = path }
+        }
+        // Before the reading names its account, it reads the one in ~/.claude.
+        let primary = claudeAccountID ?? ClaudeAccounts.canonical(home.appending(path: ".claude").path)
+        let others: Set<String> = folders.count > 1 ? Set(folders.keys).subtracting([primary]) : []
+        if Set(claudeAccounts.keys) != others {
+            claudeAccounts = claudeAccounts.filter { others.contains($0.key) }
+            for id in others where claudeAccounts[id] == nil { claudeAccounts[id] = ClaudeAccountLimits() }
+        }
+        if let running = otherClaudeRequest, !others.contains(running.id) { cancelOtherClaudeAccounts() }
+        guard running, !paused, online, providers.contains(.claude), otherClaudeRequest == nil,
+              NotchAgentSupport.limitsInUse(pageShown: pageVisible || pageShows) else { return }
+        let due = others.sorted().first { id in
+            guard let state = claudeAccounts[id] else { return false }
+            guard let attempted = state.attempted else { return true }
+            return now.timeIntervalSince(attempted) >= AgentClaudeServer.interval(
+                after: state.failure, repeated: state.unreachable, pageVisible: pageVisible)
+        }
+        guard let id = due, let folder = folders[id] else { return }
+        claudeAccounts[id]?.attempted = now
+        claudeAccounts[id]?.checking = true
+        let request = AgentClaudeServer.Request()
+        otherClaudeRequest = (id, request)
+        let session = self.session
+        let home = self.home
+        let config = URL(fileURLWithPath: folder, isDirectory: true)
+        claudeAccountQueue.async { [weak self] in
+            let result: Result<AgentClaudeServer.Summary, AgentClaudeServer.Failure>
+            if let executable = AgentClaudeServer.executable(home: home, searchPath: ProcessInfo.processInfo.environment["PATH"]) {
+                var environment = AgentCodexServer.environment(for: executable, searchPath: nil)
+                environment["PATH"] = AgentClaudeServer.searchPath(after: environment["PATH"] ?? "", home: home)
+                result = request.run(executable, home: home, config: config, environment: environment)
+            } else { result = .failure(.missing) }
+            let plan = AgentClaudeServer.plan(home: home, config: config)
+            DispatchQueue.main.async {
+                guard let self, self.session == session, self.otherClaudeRequest?.request === request else { return }
+                self.otherClaudeRequest = nil
+                guard var state = self.claudeAccounts[id] else { return }
+                state.checking = false
+                state.plan = plan
+                switch result {
+                case .success(let summary):
+                    state.limits = summary.limits
+                    state.failure = nil
+                    state.unreachable = 0
+                case .failure(let failure):
+                    if failure == .needsSignIn { state.limits = nil }
+                    state.failure = failure
+                    state.unreachable = failure == .unreachable ? state.unreachable + 1 : 0
+                }
+                self.claudeAccounts[id] = state
+                // The next account due goes now rather than at the next tick.
+                self.refreshOtherClaudeAccounts(now: Date(), pageShows: false)
+            }
+        }
+    }
+
+    /// Asks one other account again, as from its card. Main thread.
+    func checkClaudeAccount(_ id: String) {
+        guard claudeAccounts[id] != nil, otherClaudeRequest?.id != id else { return }
+        claudeAccounts[id]?.attempted = nil
+        refreshOtherClaudeAccounts(now: Date(), pageShows: pageVisible)
+    }
+
+    private func cancelOtherClaudeAccounts() {
+        guard let running = otherClaudeRequest else { return }
+        running.request.cancel()
+        otherClaudeRequest = nil
+        // Asked again once checks can run.
+        claudeAccounts[running.id]?.checking = false
+        claudeAccounts[running.id]?.attempted = nil
     }
 
     /// Main thread.

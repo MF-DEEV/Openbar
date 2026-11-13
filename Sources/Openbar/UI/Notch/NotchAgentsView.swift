@@ -8,6 +8,7 @@ struct NotchAgentsView: View {
     let size: CGSize
     @ObservedObject private var usage = AgentUsageService.shared
     @ObservedObject private var accounts = CodexProfileLimitsService.shared
+    @ObservedObject private var sessions = ClaudeSessionService.shared
     @ObservedObject private var l10n = L10n.shared
     @Environment(\.notchSettingsPreview) private var preview
     @AppStorage(DefaultsKey.notchAgentsPeriod) private var period = AgentPeriod.today.rawValue
@@ -33,20 +34,36 @@ struct NotchAgentsView: View {
     /// added, get cards.
     private var providers: [AgentProvider] {
         [claude ? AgentProvider.claude : nil, codex ? .codex : nil, opencode ? .opencode : nil, copilot ? .copilot : nil].compactMap { $0 }
-            .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty) }
+            .filter { usage.snapshot.seen.contains($0) || ($0 == .codex && !codexAccounts.isEmpty)
+                || ($0 == .claude && !claudeAccounts.isEmpty) }
+    }
+
+    /// The Claude accounts with cards of their own: the one the reading
+    /// follows, then the others in use, only while there is more than one.
+    private var claudeAccounts: [String] {
+        guard !usage.claudeAccounts.isEmpty else { return [] }
+        let primary = usage.claudeAccountID
+            ?? ClaudeAccounts.canonical(FileManager.default.homeDirectoryForCurrentUser.appending(path: ".claude").path)
+        return [primary] + usage.claudeAccounts.keys.sorted { name(of: $0) < name(of: $1) }
+    }
+
+    private func name(of account: String) -> String {
+        sessions.accounts.first { $0.id == account }?.name
+            ?? ClaudeAccounts.name(for: account, home: FileManager.default.homeDirectoryForCurrentUser)
     }
 
     private var rows: [[NotchAgentTile]] {
         // The strings are read here so a change in Settings redraws the page.
         _ = (cardOrder, hiddenCards)
         return NotchAgentSupport.rows(NotchAgentSupport.tiles(cards: NotchAgentSupport.cards(), providers: providers,
-                                                              codexAccounts: codexAccounts.map(\.id)),
+                                                              codexAccounts: codexAccounts.map(\.id),
+                                                              claudeAccounts: claudeAccounts),
                                       width: size.width)
     }
 
     var body: some View {
         Group {
-            if !usage.snapshot.loaded && codexAccounts.isEmpty {
+            if !usage.snapshot.loaded && codexAccounts.isEmpty && claudeAccounts.isEmpty {
                 VStack(spacing: 10) {
                     ProgressView().controlSize(.small)
                     Text(text.loading).font(.system(size: 11)).foregroundStyle(.secondary)
@@ -114,7 +131,8 @@ struct NotchAgentsView: View {
             if let provider = tile.provider {
                 NotchAgentLimitsCard(provider: provider, snapshot: snapshot, now: now,
                                      display: NotchAgentLimitDisplay(rawValue: display) ?? .remaining, text: text,
-                                     account: account(tile, now: now))
+                                     account: provider == .claude ? claudeAccount(tile, now: now) : account(tile, now: now),
+                                     accountName: provider == .claude ? tile.accountID.map(name(of:)) : nil)
             }
         case .spend:
             NotchAgentSpendCard(snapshot: snapshot, providers: providers, period: shown, text: text)
@@ -133,6 +151,23 @@ struct NotchAgentsView: View {
         case .resets:
             NotchAgentResetsCard(now: now, text: text, showsDefaultAccount: tile.namesDefaultAccount)
         }
+    }
+
+    /// Another Claude account's card; the one the reading follows keeps the
+    /// usual card under its name.
+    private func claudeAccount(_ tile: NotchAgentTile, now: Date) -> NotchAgentAccount? {
+        guard let id = tile.accountID, let state = usage.claudeAccounts[id] else { return nil }
+        let failure = state.failure.map { failure -> String in
+            switch failure {
+            case .missing: return ClaudeAccountStrings.needsClaude
+            case .needsSignIn: return ClaudeAccountStrings.signIn
+            case .outdated: return ClaudeAccountStrings.updateClaude
+            case .unreachable: return ClaudeAccountStrings.unreachable
+            }
+        }
+        return NotchAgentAccount(name: name(of: id), limits: state.current(at: now), plan: state.plan?.name,
+                                 checking: state.checking, failure: failure, refreshHint: ClaudeAccountStrings.refreshHint,
+                                 checkLabel: ClaudeAccountStrings.check) { usage.checkClaudeAccount(id) }
     }
 
     private func account(_ tile: NotchAgentTile, now: Date) -> NotchAgentAccount? {
@@ -190,6 +225,8 @@ private struct NotchAgentLimitsCard: View {
     let display: NotchAgentLimitDisplay
     let text: NotchAgentStrings
     var account: NotchAgentAccount? = nil
+    /// The Claude account the usual card reads, while others have cards.
+    var accountName: String? = nil
     @Environment(\.locale) private var locale
 
     private var limits: AgentLimits? {
@@ -215,7 +252,8 @@ private struct NotchAgentLimitsCard: View {
         let windows = windows
         NotchAgentCardChrome {
             VStack(alignment: .leading, spacing: 6) {
-                NotchAgentCardHeader(title: account.map { provider.displayName + " · " + $0.name } ?? provider.displayName,
+                NotchAgentCardHeader(title: (account?.name ?? accountName).map { provider.displayName + " · " + $0 }
+                                        ?? provider.displayName,
                                      symbol: provider.symbol, tint: provider.tint, provider: provider) {
                     HStack(spacing: 4) {
                         if let account {

@@ -48,8 +48,8 @@ mod summary;
 use files::{Cursor, Root};
 use model::{Event, LimitWindow, Limits, Plan, Provider, Time};
 use serde_json::{Value, json};
-use std::collections::{HashMap, HashSet};
-use std::path::Path;
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::path::{Path, PathBuf};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, SystemTime};
@@ -82,6 +82,8 @@ struct Control {
     redeem: Option<Sender<String>>,
     /// Codex homes a card or Settings asked to check: one, or None for all.
     accounts: Vec<Option<String>>,
+    /// Other Claude accounts a card asked to check, by id (#216).
+    claude_accounts: Vec<String>,
 }
 
 pub type State = Arc<Shared>;
@@ -132,6 +134,12 @@ pub fn agents_resets_refresh(state: tauri::State<'_, State>, force: bool) {
 #[tauri::command]
 pub fn agents_codex_refresh(state: tauri::State<'_, State>, id: Option<String>) {
     poke(&state, |c| c.accounts.push(id));
+}
+
+/// Checks another Claude account in use now, as from its card (#216).
+#[tauri::command]
+pub fn agents_claude_account_refresh(state: tauri::State<'_, State>, id: String) {
+    poke(&state, |c| c.claude_accounts.push(id));
 }
 
 /// The usual Codex home and the `.codex-<name>` homes beside it that pass
@@ -388,6 +396,8 @@ fn settings(prefs: &Value) -> Settings {
 /// What finished in the background.
 enum Job {
     Claude(Result<Limits, claude::Failure>),
+    /// Another Claude account's check, by its id, with its plan (#216).
+    OtherClaude(String, Result<Limits, claude::Failure>, Option<String>),
     /// A check's answer, with the redeems that had begun when it started.
     Resets(Result<codex::Summary, codex::Failure>, u32),
     Redeem(
@@ -415,7 +425,21 @@ struct Resets {
     redeems: u32,
 }
 
+/// A Claude account in use beside the one the limits follow (#216).
+#[derive(Clone, Debug)]
+struct OtherClaude {
+    folder: PathBuf,
+    limits: Option<Limits>,
+    plan: Option<String>,
+    failure: Option<claude::Failure>,
+    streak: u32,
+    attempted: Time,
+    checking: bool,
+}
+
 struct Service {
+    /// The other Claude accounts in use, by id, checked one at a time.
+    claude_others: BTreeMap<String, OtherClaude>,
     state: State,
     prefs: ReadPrefs,
     emit: Emit,
@@ -458,6 +482,7 @@ struct Service {
 impl Service {
     fn new(state: State, prefs: ReadPrefs, emit: Emit) -> Service {
         Service {
+            claude_others: BTreeMap::new(),
             state,
             prefs,
             emit,
@@ -839,19 +864,21 @@ impl Service {
 
     /// Starts background checks that are due.
     fn schedule(&mut self, now: Time) {
-        let (page, resets_request, redeem, asked) = {
+        let (page, resets_request, redeem, asked, asked_claude) = {
             let mut c = self.state.control.lock().unwrap();
             (
                 c.page_visible,
                 c.resets.take(),
                 c.redeem.take(),
                 std::mem::take(&mut c.accounts),
+                std::mem::take(&mut c.claude_accounts),
             )
         };
         let Some(settings) = self.settings.clone() else {
             return;
         };
         self.schedule_accounts(&settings, page, asked, now);
+        self.schedule_other_claude(&settings, page, asked_claude, now);
         // Claude's account check (§2.2).
         let in_use = settings.limits_without_page || (page && settings.limits_card);
         // Measured from the last attempt with the page as it is now, so opening
@@ -903,6 +930,75 @@ impl Service {
                 let _ = tx.send(Job::Prices(prices::download()));
             });
         }
+    }
+
+    /// The other Claude accounts in use, as often as the main one and one at
+    /// a time, only while sessions of more than one account are listed.
+    fn schedule_other_claude(
+        &mut self,
+        settings: &Settings,
+        page: bool,
+        asked: Vec<String>,
+        now: Time,
+    ) {
+        let folders = crate::sessions::accounts::in_use_folders();
+        let primary = claude::account_id(claude::account_dir().as_deref());
+        let others: BTreeMap<String, PathBuf> = if folders.len() > 1 {
+            folders
+                .into_iter()
+                .filter(|(id, _)| Some(id) != primary.as_ref())
+                .collect()
+        } else {
+            BTreeMap::new()
+        };
+        let before = self.claude_others.len();
+        self.claude_others.retain(|id, _| others.contains_key(id));
+        for (id, folder) in &others {
+            self.claude_others
+                .entry(id.clone())
+                .or_insert_with(|| OtherClaude {
+                    folder: folder.clone(),
+                    limits: None,
+                    plan: None,
+                    failure: None,
+                    streak: 0,
+                    attempted: f64::NEG_INFINITY,
+                    checking: false,
+                });
+        }
+        if self.claude_others.len() != before {
+            self.dirty = true;
+        }
+        for id in asked {
+            if let Some(other) = self.claude_others.get_mut(&id).filter(|o| !o.checking) {
+                other.attempted = f64::NEG_INFINITY;
+            }
+        }
+        let in_use = settings.limits_without_page || (page && settings.limits_card);
+        if !self.on(Provider::Claude) || !in_use || self.claude_others.values().any(|o| o.checking)
+        {
+            return;
+        }
+        let due = self
+            .claude_others
+            .iter()
+            .find(|(_, o)| now >= o.attempted + claude::interval(o.failure, o.streak, page))
+            .map(|(id, o)| (id.clone(), o.folder.clone()));
+        let Some((id, folder)) = due else {
+            return;
+        };
+        if let Some(other) = self.claude_others.get_mut(&id) {
+            other.attempted = now;
+            other.checking = true;
+        }
+        self.dirty = true;
+        let tx = self.jobs.0.clone();
+        std::thread::spawn(move || {
+            let dir = claude::dir_of(&folder);
+            let result = claude::check_in(dir.clone(), &model::now);
+            let plan = claude::plan_in(dir.as_deref());
+            let _ = tx.send(Job::OtherClaude(id, result, plan));
+        });
     }
 
     /// Added Codex homes: those due while the page shows, and those asked for.
@@ -974,6 +1070,31 @@ impl Service {
 
     fn finish(&mut self, job: Job, now: Time) {
         match job {
+            Job::OtherClaude(id, result, plan) => {
+                if let Some(other) = self.claude_others.get_mut(&id) {
+                    other.checking = false;
+                    other.plan = plan;
+                    match result {
+                        Ok(limits) => {
+                            other.limits = Some(limits);
+                            other.failure = None;
+                            other.streak = 0;
+                        }
+                        Err(failure) => {
+                            if failure == claude::Failure::NeedsSignIn {
+                                other.limits = None;
+                            }
+                            other.streak = if failure == claude::Failure::Unreachable {
+                                other.streak + 1
+                            } else {
+                                0
+                            };
+                            other.failure = Some(failure);
+                        }
+                    }
+                }
+                self.dirty = true;
+            }
             Job::Claude(result) => {
                 self.claude_checking = false;
                 match result {
@@ -1357,6 +1478,33 @@ impl Service {
                 failure: a.failure.map(profiles::Failure::key),
             })
             .collect();
+        let home = files::home();
+        let mut others: Vec<summary::AccountOut> = self
+            .claude_others
+            .iter()
+            .map(|(id, o)| summary::AccountOut {
+                id: id.clone(),
+                name: home
+                    .as_deref()
+                    .map(|h| crate::sessions::accounts::display_name(id, h))
+                    .unwrap_or_else(|| id.clone()),
+                limits: claude::current(o.limits.as_ref(), now)
+                    .as_ref()
+                    .map(summary::LimitsOut::from),
+                plan: o.plan.clone(),
+                checking: o.checking,
+                failure: o.failure.map(claude::Failure::key),
+            })
+            .collect();
+        others.sort_by(|a, b| a.name.cmp(&b.name));
+        s.claude_accounts = others;
+        s.claude_account_id = claude::account_id(claude::account_dir().as_deref());
+        s.claude_account_name = match (&s.claude_account_id, &home) {
+            (Some(id), Some(home)) if !s.claude_accounts.is_empty() => {
+                Some(crate::sessions::accounts::display_name(id, home))
+            }
+            _ => None,
+        };
         s.price_day = pricing::list().updated.clone();
         s
     }
