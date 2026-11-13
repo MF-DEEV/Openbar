@@ -53,9 +53,11 @@ pub fn homes(home: &Path) -> Vec<PathBuf> {
         .filter(|value| !value.is_empty())
         .map(PathBuf::from)
         .filter(|path| path.is_absolute() && path.is_dir());
+    // Folders the person added in Settings (#216) count for their own home only.
+    let manual = if own { super::accounts::manual_folders() } else { vec![] };
     merge_homes(
         vec![home.join(".claude"), home.join(".config").join("claude")],
-        named.into_iter().chain(sibling_homes(home)).collect(),
+        named.into_iter().chain(sibling_homes(home)).chain(manual).collect(),
     )
 }
 
@@ -91,7 +93,7 @@ pub fn merge_homes(standard: Vec<PathBuf>, extra: Vec<PathBuf>) -> Vec<PathBuf> 
 
 /// A folder's identity: through links, without case or a trailing separator
 /// (Windows paths ignore case).
-fn canonical_home(folder: &Path) -> String {
+pub fn canonical_home(folder: &Path) -> String {
     let resolved = std::fs::canonicalize(folder).unwrap_or_else(|_| folder.to_path_buf());
     let text = resolved.to_string_lossy().to_lowercase();
     let trimmed = text.trim_end_matches(['/', '\\']);
@@ -292,6 +294,25 @@ pub fn scan(
         records: records.into_values().collect(),
         unreadable: unreadable.into_iter().collect(),
     }
+}
+
+/// The config folder Claude's account limits are read for: the one before
+/// while it still runs a session, so two accounts at work do not swap it at
+/// every change (#216), else the one of the session that changed last.
+pub fn account_home(
+    by_home: &[(PathBuf, Vec<SessionRecord>)],
+    previous: Option<&Path>,
+) -> Option<PathBuf> {
+    if let Some(previous) = previous {
+        let id = canonical_home(previous);
+        if by_home
+            .iter()
+            .any(|(home, records)| !records.is_empty() && canonical_home(home) == id)
+        {
+            return Some(previous.to_path_buf());
+        }
+    }
+    latest_home(by_home)
 }
 
 /// The config folder of the running session that changed last, so Claude's
@@ -673,5 +694,29 @@ mod tests {
             Some(standard)
         );
         assert_eq!(latest_home(&[]), None, "no session keeps the folder in use");
+    }
+
+    #[test]
+    fn limits_stay_with_an_account_still_at_work() {
+        let rec = |pid: i32, changed: Time| {
+            let mut r = record(WAITING.as_bytes(), MAC_PID_DOMAINS).unwrap();
+            r.pid = pid;
+            r.status_updated = Some(changed);
+            r
+        };
+        let standard = PathBuf::from("/Users/me/.claude");
+        let moved = PathBuf::from("/Users/me/.claude-2");
+        let both = [
+            (standard.clone(), vec![rec(1, 100.0)]),
+            (moved.clone(), vec![rec(2, 200.0)]),
+        ];
+        assert_eq!(account_home(&both, Some(&standard)), Some(standard.clone()),
+            "two accounts at work do not swap the reading at every change (#216)");
+        assert_eq!(account_home(&both, None), Some(moved.clone()), "with none before, the latest");
+        assert_eq!(
+            account_home(&[(standard.clone(), vec![]), (moved.clone(), vec![rec(2, 50.0)])], Some(&standard)),
+            Some(moved),
+            "once it runs none, the reading follows the account in use"
+        );
     }
 }

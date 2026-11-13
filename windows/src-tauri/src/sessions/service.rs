@@ -168,6 +168,10 @@ struct AgentPending {
 }
 
 struct Inner {
+    /// The config folder each local Claude session's record lives in, by
+    /// session id, and the accounts on this PC (#216).
+    session_homes: HashMap<String, String>,
+    accounts: Vec<super::accounts::Account>,
     #[cfg(windows)]
     local_codex: Vec<super::codex::local::LocalSession>,
     /// Gemini CLI's, Copilot CLI's, OpenCode's and Cursor's sessions.
@@ -242,6 +246,8 @@ impl Service {
         let service = Arc::new(Service {
             app,
             inner: Mutex::new(Inner {
+                session_homes: HashMap::new(),
+                accounts: Vec::new(),
                 #[cfg(windows)]
                 local_codex: Vec::new(),
                 hook_agents: HookAgents::default(),
@@ -329,7 +335,23 @@ impl Service {
             .as_deref()
             .map(registry_files_by_home)
             .unwrap_or_default();
-        note_account_folder(&by_home);
+        let per_home = records_by_home(&by_home);
+        note_account_folder(&per_home, home.as_deref());
+        let home_of: HashMap<i32, String> = per_home
+            .iter()
+            .flat_map(|(folder, records)| {
+                records
+                    .iter()
+                    .map(move |r| (r.pid, folder.to_string_lossy().into_owned()))
+            })
+            .collect();
+        let accounts = home
+            .as_deref()
+            .map(|home| {
+                let found: Vec<PathBuf> = by_home.iter().map(|(folder, _)| folder.clone()).collect();
+                super::accounts::all(&found, &super::accounts::settings(), home)
+            })
+            .unwrap_or_default();
         let files: Vec<RegistryFile> = by_home.into_iter().flat_map(|(_, files)| files).collect();
         let scan = registry::scan(&files, pid_domains(), process_start);
         let mut inner = self.inner.lock().unwrap();
@@ -373,6 +395,11 @@ impl Service {
             record.host_name = located.host.display_name();
         }
         inner.last_records = records.iter().map(|r| (r.pid, r.clone())).collect();
+        inner.session_homes = records
+            .iter()
+            .filter_map(|r| home_of.get(&r.pid).map(|h| (r.session_id.clone(), h.clone())))
+            .collect();
+        inner.accounts = accounts;
         // Sessions on remote hosts, as their connections last saw them; their
         // process numbers are the host's, so none of the lookups above apply.
         let mut aliases: Vec<&String> = inner.remote.snapshots.keys().collect();
@@ -725,7 +752,23 @@ impl Service {
             snapshot.sessions.push(sample.clone());
         }
         snapshot.events.append(&mut inner.sample_events);
-        let sessions = models::sorted(self.with_background(inner, snapshot.sessions, t));
+        let mut sessions = models::sorted(self.with_background(inner, snapshot.sessions, t));
+        // The account each Claude session runs under, and its name while
+        // more than one is in use (#216).
+        for session in &mut sessions {
+            if session.provider == models::Provider::Claude && session.remote.is_none() {
+                session.account = inner.session_homes.get(&session.id).cloned().or_else(|| {
+                    session.background.as_ref().and_then(|b| b.config_home.clone())
+                });
+            }
+        }
+        if let Some(home) = hooks::installer::home_dir() {
+            let labels = super::accounts::labels(&sessions, &inner.accounts, &home);
+            for session in &mut sessions {
+                session.account_label = labels.get(&session.id).cloned();
+            }
+        }
+        super::accounts::note_in_use(&sessions, &inner.accounts);
         let counts = SessionCounts::of(&sessions);
         let busy = sessions
             .iter()
@@ -1362,10 +1405,9 @@ pub fn account_folder() -> Option<PathBuf> {
     ACCOUNT_FOLDER.lock().ok().and_then(|folder| folder.clone())
 }
 
-/// Follows the account of the session that changed last; with none running,
-/// the one before stays.
-fn note_account_folder(by_home: &[(PathBuf, Vec<RegistryFile>)]) {
-    let records: Vec<_> = by_home
+/// Each config folder's running sessions.
+fn records_by_home(by_home: &[(PathBuf, Vec<RegistryFile>)]) -> Vec<(PathBuf, Vec<SessionRecord>)> {
+    by_home
         .iter()
         .map(|(claude, files)| {
             (
@@ -1373,10 +1415,18 @@ fn note_account_folder(by_home: &[(PathBuf, Vec<RegistryFile>)]) {
                 registry::scan(files, pid_domains(), process_start).records,
             )
         })
-        .collect();
-    if let (Some(folder), Ok(mut current)) =
-        (registry::latest_home(&records), ACCOUNT_FOLDER.lock())
-    {
+        .collect()
+}
+
+/// Stays with the account in use while it runs a session, else follows the
+/// session that changed last; with none running, the one before stays.
+fn note_account_folder(records: &[(PathBuf, Vec<SessionRecord>)], home: Option<&Path>) {
+    let Ok(mut current) = ACCOUNT_FOLDER.lock() else {
+        return;
+    };
+    // Before any is chosen the limits read ~/.claude's account.
+    let previous = current.clone().or_else(|| home.map(|h| h.join(".claude")));
+    if let Some(folder) = registry::account_home(records, previous.as_deref()) {
         *current = Some(folder);
     }
 }

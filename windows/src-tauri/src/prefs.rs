@@ -188,6 +188,8 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
         service.set_previews(previews);
         // Gemini CLI, Copilot CLI, OpenCode and Cursor each have a switch.
         service.set_hidden_agents(hidden_agents(value));
+        // Claude accounts the person named, hid or added (#216).
+        crate::sessions::accounts::set_settings(crate::sessions::accounts::settings_from_prefs(value));
         // Hosts over SSH, off until the person turns them on.
         service
             .inner()

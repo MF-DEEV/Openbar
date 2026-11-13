@@ -633,6 +633,13 @@ pub struct Session {
     /// Why the session stopped, while `phase` is `Limited`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub limit_stop: Option<LimitStop>,
+    /// The config folder of the Claude Code account it runs under, for a
+    /// session on this PC (issue #216).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account: Option<String>,
+    /// That account's name, only while sessions of more than one are listed.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub account_label: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -1343,6 +1350,8 @@ mod tests {
             services: 0,
             background: None,
             limit_stop: None,
+            account: None,
+            account_label: None,
         }
     }
 
