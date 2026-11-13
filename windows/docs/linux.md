@@ -4,7 +4,7 @@ The island runs on Linux under X11 (tested on XFCE with xfwm4 and picom). Waylan
 
 ## Install
 
-The [Linux releases](https://github.com/MF-DEEV/Openbar/releases?q=linux&expanded=true) carry a `.deb` (Debian, Ubuntu, Mint), an `.rpm` (Fedora, openSUSE) and an AppImage (anything else), each for x86_64 and Arm64. They are built on Ubuntu 22.04, so they need glibc 2.35 or later.
+The [Linux releases](https://github.com/MF-DEEV/Openbar/releases?q=%22for+Linux%22&expanded=true) carry a `.deb` (Debian, Ubuntu, Mint), an `.rpm` (Fedora, openSUSE) and an AppImage (anything else), each for x86_64 and Arm64. They are built on Ubuntu 22.04, so they need glibc 2.35 or later.
 
 ```sh
 sudo apt install ./Openbar_<version>_amd64.deb      # Debian, Ubuntu
