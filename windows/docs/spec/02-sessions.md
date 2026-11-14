@@ -170,6 +170,8 @@ Read every 3rd tick, and only when the newest mtime among the files has changed.
 
 `status == "deleted"` is skipped. `total` = the rest, `done` = count of `completed`, `current` = `activeForm ?? subject` of the first `in_progress` (previews only). `total == 0` → no tasks row (`ClaudeTranscriptReader.swift:224-236`). If the folder disappears, the tasks are cleared.
 
+Since #215 the tasks are also kept as `items` (`{title: subject, state: done|current|pending}`, in id order; previews only). A `TodoWrite` tool call in the transcript gives the same from its `todos: [{content, status, activeForm}]`, the whole list each time; Codex's `turn/plan/updated` `{plan: [{step, status: pending|inProgress|completed}]}` gives a Codex session's list. A list whose every task is done is dropped when the next turn begins. Alongside, each assistant line's `perTurnEffort ?? effort` is the session's reasoning level (Codex: `Thread.reasoningEffort`, `thread/settings/updated`, `turn_context.effort`), and a successful Edit or Write result's `toolUseResult.structuredPatch` (`+`/`-` lines; a `type: "create"` result counts its `content` lines) adds to `edits {added, removed, touched}` for the away card.
+
 ### 1.7 IDE lock files: `<home>/ide/<port>.lock`
 
 Used only to jump to Antigravity windows. `<port>` comes from the session's `CLAUDE_CODE_SSE_PORT` environment variable. Real shape (token redacted):
