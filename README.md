@@ -32,7 +32,7 @@ https://github.com/user-attachments/assets/e6782d65-7822-4d9a-9ad4-3f31c8c35df4
 
 <p align="center"><sub>Laptop model: "2021 Macbook Pro 14" (M1 Pro / M1 Max)" by akshatmittal on Sketchfab, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</sub></p>
 
-## What it does
+## What Openbar does
 
 - Permission requests, questions and plans open in the island with the full command or diff.
 - A reply you type or speak lands in the session's own terminal or editor.
