@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/brand/openbar-hero.gif" width="100%" alt="Openbar, written in violet glass beside a helmet logo, with a beam of light crossing the letters">
+  <img src="docs/assets/brand/openbar-hero.gif" width="100%" alt="Openbar in iron blackletter beside the helmet logo, before a castle at night under a moon that carries the helmet">
 </p>
 
 <h3 align="center">Your coding agents, in the notch.</h3>
@@ -10,10 +10,10 @@
 </p>
 
 <p align="center">
-  <a href="#install"><img alt="macOS 14 or later" src="https://img.shields.io/badge/macOS-14%2B-16151d?style=flat-square&logo=apple&logoColor=white"></a>
-  <a href="windows/README.md"><img alt="Windows 11 beta" src="https://img.shields.io/badge/Windows%2011-beta-16151d?style=flat-square"></a>
-  <a href="windows/docs/linux.md"><img alt="Linux under X11" src="https://img.shields.io/badge/Linux-X11-16151d?style=flat-square&logo=linux&logoColor=white"></a>
-  <a href="LICENSE"><img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-8b7cf6?style=flat-square&labelColor=16151d"></a>
+  <a href="#install"><img alt="macOS 14 or later" src="https://img.shields.io/badge/macOS-14%2B-2A1660?style=flat-square&labelColor=0B0718&logo=apple&logoColor=white"></a>
+  <a href="windows/README.md"><img alt="Windows 11 beta" src="https://img.shields.io/badge/Windows%2011-beta-2A1660?style=flat-square&labelColor=0B0718"></a>
+  <a href="windows/docs/linux.md"><img alt="Linux under X11" src="https://img.shields.io/badge/Linux-X11-2A1660?style=flat-square&labelColor=0B0718&logo=linux&logoColor=white"></a>
+  <a href="LICENSE"><img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-C8962E?style=flat-square&labelColor=0B0718"></a>
 </p>
 
 <p align="center">
@@ -28,9 +28,11 @@
   <a href="https://github.com/MF-DEEV/Openbar/discussions">Discussions</a>
 </p>
 
-https://github.com/user-attachments/assets/e6782d65-7822-4d9a-9ad4-3f31c8c35df4
+<p align="center">
+  <img src="docs/assets/readme/openbar-demo.gif" width="100%" alt="A laptop on a stone table by a campfire with knights around it; the camera moves in to the notch, where Openbar lists Claude Code, Codex, Gemini CLI and OpenCode sessions, and a reply typed in the island lands in the session's terminal">
+</p>
 
-<p align="center"><sub>Laptop model: "2021 Macbook Pro 14" (M1 Pro / M1 Max)" by akshatmittal on Sketchfab, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.</sub></p>
+<p align="center"><sub>Models: knights by mp4967qwp, JakeHoughton and best3deu, trees by Yag1z and evolveduk, laptop "2021 Macbook Pro 14" (M1 Pro / M1 Max)" by akshatmittal, all on Sketchfab under <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>; scans from Poly Haven (CC0). <a href="docs/assets/brand/source/fantasy/MODELS.md">Sources</a>.</sub></p>
 
 ## What Openbar does
 

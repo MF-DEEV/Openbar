@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="../docs/assets/brand/openbar-hero.gif" width="100%" alt="Openbar, written in violet glass beside a helmet logo">
+  <img src="../docs/assets/brand/openbar-hero.gif" width="100%" alt="Openbar in iron blackletter beside the helmet logo, before a castle at night">
 </p>
 
 <h3 align="center">Openbar for Windows</h3>

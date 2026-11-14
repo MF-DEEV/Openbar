@@ -2,12 +2,17 @@
 
 | File | Use |
 | --- | --- |
-| `openbar-hero.gif` | The README banner, a six-second loop at 1600 × 450. |
+| `openbar-hero.gif` | The README banner, a five-second loop at 1600 × 450: a castle at night under a moon carrying the helmet. |
 | `openbar-hero.png` | A still frame of the banner. |
 | `social-preview.png` | The repository's social preview, 1280 × 640. |
-| `../readme/download/*.png` | The README's download buttons for Mac, Windows and Linux, 1120 × 320. |
+| `../readme/download/*.png` | The README's download buttons for Mac, Windows and Linux, 1120 × 320, on a transparent background. |
+| `../readme/openbar-demo.gif` | The README demo: the island on a laptop by a campfire. |
 
-## How the banner is made
+## The dark fantasy set
+
+The banner, the buttons, the social preview and the demo are rendered in Blender (5.2, Cycles) from the scripts in `source/fantasy/`: `banner.py` (scene `A2-moon-castle`), `buttons.py` (style `stone`), `product.py` (the laptop scene) and `rpost.py` (bloom, star flares, grading). `klib.py` and `rlib.py` hold the shared materials and geometry. The demo's screen is a real recording of the island with stand-in sessions (`claude_standin.py`, `agent_standin.py`, `codex_fake.py`), cleaned by `clean_screen.py` so only the island and the session window show. Third-party models and fonts are listed in `source/fantasy/MODELS.md`.
+
+## The earlier glass banner
 
 `source/glass.html` draws the helmet and the word into a mask, turns the mask into a rounded bevel with a distance field, and lights it in a WebGL shader: smoky violet glass, a lavender rim and a beam that crosses the word once per loop. The lettering is [Saira](https://fonts.google.com/specimen/Saira) Black, stretched wide, under the SIL Open Font License.
 
