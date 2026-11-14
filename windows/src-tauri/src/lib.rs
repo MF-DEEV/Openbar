@@ -381,6 +381,7 @@ pub fn run() {
             keep_awake::keep_awake_set,
             keep_awake::keep_awake_toggle,
             power_saver::power_saver_on,
+            session_lock::session_idle_seconds,
             battery::battery_status,
             brightness::brightness_displays,
             brightness::brightness_set,

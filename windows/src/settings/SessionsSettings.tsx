@@ -11,7 +11,7 @@
 import { type StringKey, useLocale, t, tf } from "../i18n";
 import { type ClaudeAccount, HOOK_AGENTS, type HookAgent, PROVIDER_NAMES } from "../sessions/types";
 import { ProviderMark } from "../sessions/glyphs";
-import type { ClaudeAccountSetting, SessionPrefs } from "../shared/prefs";
+import type { ClaudeAccountSetting, ProgressStyle, SessionPrefs } from "../shared/prefs";
 import { Eye, EyeOff, MinusCircle } from "lucide-react";
 import { voiceHeard } from "../shared/platform";
 
@@ -23,7 +23,10 @@ import { formatAccelerator } from "../shared/shortcut";
 import { getLanguage } from "../i18n";
 import { Select } from "./Select";
 import { useSettings } from "./state";
-import { Button, Status, SubRow, Toggle } from "./ui";
+import { Button, Segmented, Status, SubRow, Toggle } from "./ui";
+
+/** Minutes without input the away card counts as a break (#215). */
+const AWAY_MINUTES = [5, 10, 15, 30, 60];
 import { T } from "./strings";
 
 interface HooksStatus {
@@ -994,6 +997,31 @@ export function SessionsOptions() {
       <SubRow title={T.sessions.limits} caption={T.sessions.limitsCaption}>
         <Toggle label={T.sessions.limits} checked={prefs.limits} onChange={(on) => set("limits", on)} />
       </SubRow>
+      <SubRow title={T.sessions.progressStyle} caption={T.sessions.progressStyleCaption}>
+        <Segmented<ProgressStyle>
+          label={T.sessions.progressStyle}
+          value={prefs.progressStyle}
+          options={[
+            { value: "ring", label: T.sessions.progressRing },
+            { value: "dots", label: T.sessions.progressDots },
+            { value: "bar", label: T.sessions.progressBar },
+          ]}
+          onChange={(v) => set("progressStyle", v)}
+        />
+      </SubRow>
+      <SubRow title={T.sessions.awayCard} caption={T.sessions.awayCardCaption}>
+        <Toggle label={T.sessions.awayCard} checked={prefs.awayCard} onChange={(on) => set("awayCard", on)} />
+      </SubRow>
+      {prefs.awayCard ? (
+        <SubRow title={T.sessions.awayMinutes}>
+          <Select<string>
+            label={T.sessions.awayMinutes}
+            value={String(prefs.awayMinutes)}
+            options={AWAY_MINUTES.map((n) => ({ value: String(n), label: T.sessions.awayMinutesValue(n) }))}
+            onChange={(v) => set("awayMinutes", Number(v))}
+          />
+        </SubRow>
+      ) : null}
       {voiceHeard() ? <VoiceReplies prefs={prefs} set={set} /> : null}
       <RemoteHosts />
     </>

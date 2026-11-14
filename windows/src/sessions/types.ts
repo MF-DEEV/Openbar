@@ -111,6 +111,20 @@ export interface Tasks {
   done: number;
   total: number;
   current?: string;
+  /** The list itself, in the agent's order (with previews on). */
+  items?: TaskItem[];
+}
+
+export interface EditStats {
+  added: number;
+  removed: number;
+  /** When each file it changed was last changed, oldest first. */
+  touched: number[];
+}
+
+export interface TaskItem {
+  title: string;
+  state: "done" | "current" | "pending";
 }
 
 export interface Tokens {
@@ -190,6 +204,8 @@ export interface Session {
   branch?: string;
   model?: string;
   modelName?: string;
+  /** The reasoning level the agent reports: low, medium, high, xhigh, max. */
+  effort?: string;
   host: HostKind;
   acceptsReplies: boolean;
   /** The app holding the session as the person knows it, like "WezTerm" or "Git Bash". */
@@ -210,6 +226,10 @@ export interface Session {
   timeline: ToolUse[];
   subagents: Subagent[];
   tasks?: Tasks;
+  /** Lines and files it changed so far (#215). */
+  edits?: EditStats;
+  /** When its last turn stopped on an error. */
+  failedAt?: number;
   tokens: Tokens;
   cost: number;
   title?: string;

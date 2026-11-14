@@ -494,6 +494,13 @@ export const bridge = {
       if (!inTauri) return Promise.resolve(() => {});
       return listen("session://unlocked", () => handler());
     },
+    /** The session was locked (WTS_SESSION_LOCK). */
+    onLock(handler: () => void): Promise<UnlistenFn> {
+      if (!inTauri) return Promise.resolve(() => {});
+      return listen("session://locked", () => handler());
+    },
+    /** Seconds since the last keyboard or mouse input; null where unknown. */
+    idleSeconds: () => call<number | null>("session_idle_seconds"),
   },
   mascot: {
     /** Settings asks the island's companion to say hello; answers whether it had room to. */

@@ -4,6 +4,8 @@
 // The Sessions page: one row per running Claude Code session, the ones
 // waiting on the person first (NotchClaudeSessionsView.swift; spec §4.3).
 
+import { ModelLabel } from "./progress/ModelLabel";
+import { RowBar, TaskCount } from "./progress/TaskProgress";
 import { worktreeName } from "./worktree";
 import { useLocale } from "../i18n";
 
@@ -109,13 +111,15 @@ function Row({ session, now }: { session: Session; now: number }) {
       onClick={() => useSessions.getState().focus(session.id)}
       onKeyDown={(e) => e.key === "Enter" && useSessions.getState().focus(session.id)}
     >
-      <SessionAvatar session={session} now={now} lookedAt={lookedAt} size="row" agentMark />
+      <SessionAvatar session={session} now={now} lookedAt={lookedAt} size="row" agentMark ring />
       <div className="s-row-text">
         <div className="s-row-line1">
           <span className="s-row-name">{name}</span>
           {session.background ? <BackgroundMark /> : null}
           {session.remote ? <RemoteHostMark alias={session.remote} /> : null}
           {session.accountLabel ? <AccountMark name={session.accountLabel} /> : null}
+          <ModelLabel session={session} />
+          <TaskCount session={session} />
           {time ? (
             <span className="s-clock" style={{ color: tint }}>
               {time}
@@ -135,6 +139,7 @@ function Row({ session, now }: { session: Session; now: number }) {
           ) : null}
         </div>
       </div>
+      <RowBar session={session} />
       {quick ? <QuickDecision session={session} /> : <ChevronRight className="s-chevron" size={11} strokeWidth={2.5} />}
     </div>
   );

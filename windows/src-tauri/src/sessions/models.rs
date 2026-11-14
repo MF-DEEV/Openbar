@@ -474,6 +474,79 @@ pub struct TaskProgress {
     /// The task under way; nil unless content previews are on.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub current: Option<String>,
+    /// The list itself, in the agent's order; empty unless content previews
+    /// are on (#215).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub items: Vec<TaskItem>,
+}
+
+/// One task of an agent's list.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct TaskItem {
+    pub title: String,
+    pub state: TaskState,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TaskState {
+    Done,
+    Current,
+    Pending,
+}
+
+impl TaskProgress {
+    /// A list from its items as the agent states them, `current` from the
+    /// first one under way.
+    pub fn from_items(items: Vec<(String, String, TaskState)>, previews: bool) -> Option<Self> {
+        if items.is_empty() {
+            return None;
+        }
+        let total = items.len() as i64;
+        let done = items.iter().filter(|i| i.2 == TaskState::Done).count() as i64;
+        let current = if previews {
+            items.iter().find(|i| i.2 == TaskState::Current).map(|i| {
+                if i.1.is_empty() {
+                    i.0.clone()
+                } else {
+                    i.1.clone()
+                }
+            })
+        } else {
+            None
+        };
+        let items = if previews {
+            items
+                .into_iter()
+                .map(|(title, _, state)| TaskItem { title, state })
+                .collect()
+        } else {
+            Vec::new()
+        };
+        Some(Self {
+            done,
+            total,
+            current,
+            items,
+        })
+    }
+
+    /// Every task done: the list has run its course.
+    pub fn finished(&self) -> bool {
+        self.total > 0 && self.done >= self.total
+    }
+}
+
+/// What a session changed in files: lines in all, and when each file it
+/// touched was last touched, which is all the away card needs (#215).
+#[derive(Clone, Debug, Default, PartialEq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EditStats {
+    pub added: i64,
+    pub removed: i64,
+    /// The last edit of each file, one entry a file, oldest first.
+    pub touched: Vec<Time>,
 }
 
 impl TaskProgress {
@@ -578,6 +651,9 @@ pub struct Session {
     /// has the pricing table.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model_name: Option<String>,
+    /// The reasoning level the agent reports: low, medium, high, xhigh, max.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort: Option<String>,
     pub host: HostKind,
     pub accepts_replies: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -611,6 +687,12 @@ pub struct Session {
     pub subagents: Vec<Subagent>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub tasks: Option<TaskProgress>,
+    /// Lines and files the session changed so far.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub edits: Option<EditStats>,
+    /// When the last turn stopped on an error rather than ending.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub failed_at: Option<Time>,
     pub tokens: Tokens,
     pub cost: f64,
     /// Gated by content previews.
@@ -777,6 +859,17 @@ pub enum TranscriptFact {
     Title(String),
     Branch(String),
     Model(String),
+    /// The reasoning level the line was made at.
+    Effort(String),
+    /// A file the agent wrote, with the lines it added and took out.
+    Edited {
+        path: String,
+        added: i64,
+        removed: i64,
+        at: Time,
+    },
+    /// The turn stopped on an API error.
+    TurnFailed(Time),
     /// Streamed replies repeat their usage per block; the key merges them.
     Usage {
         key: String,
@@ -1337,6 +1430,9 @@ mod tests {
             branch: None,
             model: None,
             model_name: None,
+            effort: None,
+            edits: None,
+            failed_at: None,
             host: HostKind::WindowsTerminal,
             accepts_replies: true,
             host_name: None,

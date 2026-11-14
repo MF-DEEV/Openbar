@@ -1,0 +1,635 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Task progress, model label and the away card (#215). */
+
+/* ---------- Row: ring round the Clawd ---------- */
+.s-avatar .p-avatar-ring {
+  position: absolute;
+  inset: -6px -5px;
+  width: calc(100% + 10px);
+  height: calc(100% + 12px);
+  overflow: visible;
+  pointer-events: none;
+}
+.p-ring-track {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.13);
+  stroke-width: 2;
+}
+.p-ring-fill {
+  fill: none;
+  stroke: var(--p-tint);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.p-avatar-ring.is-done .p-ring-fill {
+  stroke: #5cd685;
+  animation: p-ring-done 0.7s cubic-bezier(0.2, 0.9, 0.3, 1.3);
+}
+@keyframes p-ring-done {
+  40% {
+    stroke-width: 3.4;
+    filter: drop-shadow(0 0 4px rgba(92, 214, 133, 0.7));
+  }
+}
+
+/* ---------- Row: count ---------- */
+.p-count {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.82);
+}
+.p-count-roll {
+  display: inline-grid;
+  overflow: hidden;
+  height: 1.2em;
+  line-height: 1.2em;
+}
+.p-count-roll > * {
+  grid-area: 1 / 1;
+}
+.p-count-total {
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 500;
+}
+.p-count.is-done {
+  align-self: center;
+  color: #5cd685;
+}
+.p-check {
+  display: block;
+}
+.p-check path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  animation: p-draw 0.45s 0.05s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+@keyframes p-draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
+
+/* ---------- Row: dots ---------- */
+.p-dots {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2.5px;
+  align-self: center;
+}
+.p-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  transition:
+    background-color 0.35s,
+    transform 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.4);
+}
+.p-dot.is-done {
+  background: var(--p-tint);
+}
+.p-dot.is-current {
+  background: var(--p-tint);
+  transform: scale(1.25);
+  animation: p-breathe 1.4s ease-in-out infinite;
+}
+.p-dots-more {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.45);
+  margin-left: 2px;
+}
+@keyframes p-breathe {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+/* ---------- Row: bar ---------- */
+.s-row {
+  position: relative;
+}
+.p-row-bar {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  bottom: 0;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.p-row-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--p-tint);
+  box-shadow: 0 0 6px var(--p-tint);
+  transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ---------- Model label ---------- */
+.p-model {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 5px 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  align-self: center;
+}
+.p-model-roll {
+  display: inline-grid;
+  overflow: hidden;
+}
+.p-model-roll > * {
+  grid-area: 1 / 1;
+}
+.p-effort rect {
+  fill: currentColor;
+  opacity: 0.22;
+  transition: opacity 0.3s;
+}
+.p-effort rect.is-on {
+  opacity: 0.9;
+}
+
+/* ---------- Strip ring ---------- */
+.p-strip-ring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+}
+.p-strip-ring > svg.p-strip-arc {
+  position: absolute;
+  inset: -4px;
+  width: calc(100% + 8px);
+  height: calc(100% + 8px);
+  overflow: visible;
+}
+
+/* ---------- Session page checklist ---------- */
+.p-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.p-list-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.p-segments {
+  flex: 1;
+  display: flex;
+  gap: 3px;
+}
+.p-segment {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+  position: relative;
+}
+.p-segment::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--p-tint);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.p-segment.is-done::after {
+  transform: scaleX(1);
+}
+.p-segment.is-current::after {
+  transform: scaleX(1);
+  background: linear-gradient(90deg, transparent, var(--p-tint), transparent);
+  background-size: 200% 100%;
+  animation: p-shimmer 1.6s linear infinite;
+  opacity: 0.9;
+}
+.p-list.is-done .p-segment::after {
+  background: #5cd685;
+}
+@keyframes p-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+.p-list-count {
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.8);
+}
+.p-list.is-done .p-list-count {
+  color: #5cd685;
+}
+.p-items {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.p-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 6px;
+  border-radius: 7px;
+  font-size: 11px;
+  transition:
+    background-color 0.3s,
+    color 0.3s;
+}
+.p-item-mark {
+  flex: none;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.2);
+  transition:
+    background-color 0.3s,
+    box-shadow 0.3s;
+}
+.p-item.is-done {
+  color: rgba(255, 255, 255, 0.42);
+}
+.p-item.is-done .p-item-title {
+  text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, 0.25);
+}
+.p-item.is-done .p-item-mark {
+  background: var(--p-tint);
+  box-shadow: none;
+  color: #000;
+}
+.p-item.is-done .p-item-mark .p-check {
+  width: 9px;
+  height: 9px;
+}
+.p-item.is-done .p-item-mark .p-check path {
+  stroke-width: 2.2;
+}
+.p-item.is-current {
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 500;
+}
+.p-item.is-current .p-item-mark {
+  box-shadow: none;
+}
+.p-item.is-pending {
+  color: rgba(255, 255, 255, 0.3);
+}
+.p-spin {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1.5px solid color-mix(in srgb, var(--p-tint) 25%, transparent);
+  border-top-color: var(--p-tint);
+  animation: p-spin 0.9s linear infinite;
+}
+@keyframes p-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.p-item-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------- Away card ---------- */
+.p-away-layer {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 50;
+}
+.p-away {
+  width: 400px;
+  box-sizing: border-box;
+  padding: 12px 12px 12px;
+  background: #000;
+  border-radius: 0 0 26px 26px;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-family: "Inter Variable", system-ui, sans-serif;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transform-origin: top center;
+}
+.p-away-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 2px 2px 2px 6px;
+}
+.p-away-moon {
+  color: rgba(255, 255, 255, 0.55);
+}
+.p-away-time {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.92);
+  font-variant-numeric: tabular-nums;
+}
+.p-away-tally {
+  flex: 1;
+  display: flex;
+  gap: 8px;
+  margin-left: 4px;
+}
+.p-away-tally-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.p-away-close {
+  all: unset;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  transition: transform 0.15s;
+}
+.p-away-close:hover {
+  transform: scale(1.08);
+}
+.p-away-close:active {
+  transform: scale(0.94);
+}
+.p-away-close:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+}
+.p-away-close-track {
+  fill: rgba(255, 255, 255, 0.08);
+  stroke: none;
+}
+.p-away-close-ring {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.1s linear;
+}
+.p-away-close-x {
+  stroke: rgba(255, 255, 255, 0.8);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+.p-away-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.p-away-line {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 46px;
+  padding: 6px 10px 6px 9px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.065);
+  transition:
+    background-color 0.15s,
+    transform 0.15s;
+}
+.p-away-line:hover {
+  background: rgba(255, 255, 255, 0.11);
+}
+.p-away-line:active {
+  transform: scale(0.985);
+}
+.p-away-line:focus-visible,
+.p-away-tile:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 1px;
+}
+.p-away-face,
+.p-away-tile-face {
+  position: relative;
+  flex: none;
+}
+.p-away-badge {
+  position: absolute;
+  right: -4px;
+  bottom: -3px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: #000;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 0 0 1.5px rgb(17, 17, 17);
+  animation: p-pop 0.45s 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.5) both;
+}
+.p-away-badge.is-tile {
+  width: 19px;
+  height: 19px;
+  right: -6px;
+  bottom: -4px;
+}
+@keyframes p-pop {
+  from {
+    transform: scale(0);
+  }
+}
+.p-away-working {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  border-top-color: #fff;
+  animation: p-spin 0.9s linear infinite;
+}
+.p-away-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.p-away-line1 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.p-away-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.p-away-last {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.5);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.p-away-stats {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.p-away-files {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.p-plus {
+  color: #5cd685;
+}
+.p-minus {
+  color: #ff756b;
+}
+.p-away-tasks {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.7);
+}
+.p-away-tasks-bar {
+  display: inline-flex;
+  gap: 1.5px;
+}
+.p-away-tasks-bar > span {
+  width: 3px;
+  height: 9px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.14);
+}
+.p-away-tasks-bar > span.is-before {
+  background: color-mix(in srgb, var(--p-tint) 45%, transparent);
+}
+.p-away-tasks-bar > span.is-new {
+  background: var(--p-tint);
+  animation: p-grow 0.4s cubic-bezier(0.2, 0.9, 0.3, 1.4) both;
+}
+.p-away-tasks-bar > span.is-new:nth-child(2) {
+  animation-delay: 0.45s;
+}
+.p-away-tasks-bar > span.is-new:nth-child(3) {
+  animation-delay: 0.5s;
+}
+.p-away-tasks-bar > span.is-new:nth-child(4) {
+  animation-delay: 0.55s;
+}
+.p-away-tasks-bar > span.is-new:nth-child(5) {
+  animation-delay: 0.6s;
+}
+.p-away-tasks-bar > span.is-new:nth-child(6) {
+  animation-delay: 0.65s;
+}
+@keyframes p-grow {
+  from {
+    transform: scaleY(0.2);
+    opacity: 0.3;
+  }
+}
+.p-away-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.p-away-tile {
+  all: unset;
+  box-sizing: border-box;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 6px 9px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.065);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--p-outcome) 22%, transparent);
+  transition:
+    background-color 0.15s,
+    transform 0.15s;
+}
+.p-away-tile:hover {
+  background: rgba(255, 255, 255, 0.11);
+  transform: translateY(-1px);
+}
+.p-away-tile:active {
+  transform: scale(0.97);
+}
+.p-away-tile .p-away-name {
+  flex: none;
+  max-width: 100%;
+  text-align: center;
+  font-size: 11px;
+}
+.p-away-tile .p-away-stats {
+  flex-wrap: wrap;
+  justify-content: center;
+  row-gap: 4px;
+  gap: 4px;
+  font-size: 10px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .p-ring-fill,
+  .p-row-bar > span,
+  .p-segment::after,
+  .p-dot {
+    transition: none;
+  }
+  .p-dot.is-current,
+  .p-segment.is-current::after,
+  .p-spin,
+  .p-away-working,
+  .p-away-badge,
+  .p-away-tasks-bar > span.is-new,
+  .p-avatar-ring.is-done .p-ring-fill,
+  .p-check path {
+    animation: none;
+  }
+}

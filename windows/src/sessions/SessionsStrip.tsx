@@ -18,6 +18,7 @@ import { FINISHED_TINT, LIMITED_TINT, providerTint, WAITING_TINT } from "./forma
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { presentedSnapshot } from "./presentation";
+import { StripTasksRing } from "./progress/TaskProgress";
 import { currentStripLimit, type StripLimit } from "./stripLimit";
 import { type Counts, PROVIDERS, type Provider, workingOf } from "./types";
 
@@ -157,12 +158,14 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
         {stacked ? (
           <StackedMarks front={agents[0]!} behind={agents[1]!} />
         ) : (
-          <Mark
-            size={Math.round(MARK * markScale)}
-            strokeWidth={2.5}
-            style={markTint ? { color: markTint } : undefined}
-            working={working}
-          />
+          <StripTasksRing off={counts.waiting > 0 || !working}>
+            <Mark
+              size={Math.round(MARK * markScale)}
+              strokeWidth={2.5}
+              style={markTint ? { color: markTint } : undefined}
+              working={working}
+            />
+          </StripTasksRing>
         )}
       </span>
       {capsule ? null : <span style={{ width: geometry.cameraWidth, flex: "none" }} />}

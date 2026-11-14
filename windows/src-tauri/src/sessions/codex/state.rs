@@ -11,8 +11,9 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use serde_json::{Value, json};
 
 use crate::sessions::models::{
-    ChatMessage, ChatRole, ContentPolicy, HostKind, LimitStop, Permission, Provider, Question,
-    QuestionOption, Session, SessionEvent, SessionPhase, Time, Tokens, ToolUse, project_name,
+    ChatMessage, ChatRole, ContentPolicy, EditStats, HostKind, LimitStop, Permission, Provider,
+    Question, QuestionOption, Session, SessionEvent, SessionPhase, TaskProgress, TaskState, Time,
+    Tokens, ToolUse, project_name,
 };
 
 /// How long an unread finished turn stays marked, as for Claude.
@@ -130,6 +131,17 @@ pub struct Thread {
     pub name: Option<String>,
     pub preview: Option<String>,
     pub model: Option<String>,
+    /// The reasoning level, from the thread or its settings (#215).
+    pub effort: Option<String>,
+    /// The turn's plan, from `turn/plan/updated`.
+    pub plan: Option<TaskProgress>,
+    /// Lines its file changes added and took out, and when each file was
+    /// last changed.
+    pub added: i64,
+    pub removed: i64,
+    pub touched: HashMap<String, Time>,
+    /// When a turn last ended failed.
+    pub failed_at: Option<Time>,
     pub branch: Option<String>,
     pub created: Time,
     pub updated: Time,
@@ -161,6 +173,40 @@ pub struct Thread {
 pub struct State {
     pub threads: BTreeMap<String, Thread>,
     pub previews: bool,
+}
+
+impl Thread {
+    /// Counts the lines a finished file change wrote: an added file's every
+    /// line, an update's `+` and `-` lines (#215).
+    fn count_changes(&mut self, changes: &[Value], at: Time) {
+        for change in changes {
+            let Some(path) = str_at(change, "path") else {
+                continue;
+            };
+            let diff = str_at(change, "diff").unwrap_or("");
+            let kind = change
+                .get("kind")
+                .and_then(|k| str_at(k, "type"))
+                .unwrap_or("");
+            let (added, removed) = match kind {
+                "add" => (diff.lines().count() as i64, 0),
+                "delete" => (0, diff.lines().count() as i64),
+                _ => diff.lines().fold((0, 0), |(a, r), line| {
+                    if line.starts_with('+') && !line.starts_with("+++") {
+                        (a + 1, r)
+                    } else if line.starts_with('-') && !line.starts_with("---") {
+                        (a, r + 1)
+                    } else {
+                        (a, r)
+                    }
+                }),
+            };
+            self.added += added;
+            self.removed += removed;
+            let last = self.touched.entry(path.to_owned()).or_insert(at);
+            *last = last.max(at);
+        }
+    }
 }
 
 impl Thread {
@@ -394,6 +440,9 @@ impl State {
         entry.model = str_at(thread, "model")
             .map(str::to_owned)
             .or(entry.model.take());
+        entry.effort = str_at(thread, "reasoningEffort")
+            .map(str::to_owned)
+            .or(entry.effort.take());
         entry.branch = thread
             .get("gitInfo")
             .and_then(|g| str_at(g, "branch"))
@@ -573,6 +622,51 @@ impl State {
                     return None;
                 }
                 thread.turn_started = started;
+                // A plan run to its end belongs to the turns before.
+                if thread.plan.as_ref().is_some_and(TaskProgress::finished) {
+                    thread.plan = None;
+                }
+                Some(Notified::CHANGED)
+            }
+            "turn/plan/updated" => {
+                let thread = self.threads.get_mut(&thread_id?)?;
+                let steps = params.get("plan").and_then(Value::as_array)?;
+                let items = steps
+                    .iter()
+                    .filter_map(|step| {
+                        let state = match str_at(step, "status")? {
+                            "completed" => TaskState::Done,
+                            "inProgress" | "in_progress" => TaskState::Current,
+                            _ => TaskState::Pending,
+                        };
+                        Some((
+                            str_at(step, "step").unwrap_or("").to_owned(),
+                            String::new(),
+                            state,
+                        ))
+                    })
+                    .collect();
+                let plan = TaskProgress::from_items(items, self.previews);
+                if thread.plan == plan {
+                    return None;
+                }
+                thread.plan = plan;
+                Some(Notified::CHANGED)
+            }
+            "thread/settings/updated" => {
+                let thread = self.threads.get_mut(&thread_id?)?;
+                let settings = params.get("threadSettings")?;
+                let model = str_at(settings, "model")
+                    .map(str::to_owned)
+                    .or(thread.model.clone());
+                let effort = str_at(settings, "effort")
+                    .map(str::to_owned)
+                    .or(thread.effort.clone());
+                if thread.model == model && thread.effort == effort {
+                    return None;
+                }
+                thread.model = model;
+                thread.effort = effort;
                 Some(Notified::CHANGED)
             }
             "turn/completed" => {
@@ -582,6 +676,9 @@ impl State {
                     matches!(str_at(turn, "status"), Some("completed") | Some("failed"));
                 let at = time_at(turn, "completedAt").unwrap_or(now);
                 thread.turn_ended = Some((at, completed));
+                if str_at(turn, "status") == Some("failed") && turn_limit_stop(turn, at).is_none() {
+                    thread.failed_at = Some(at);
+                }
                 if let Some(stop) = turn_limit_stop(turn, at) {
                     thread.limit = Some(stop);
                 }
@@ -611,8 +708,13 @@ impl State {
                             thread.file_changes.insert(id.clone(), changes.clone());
                             thread.attach(changes, &id);
                         }
-                        ("item/completed", _) => {
+                        ("item/completed", changes) => {
                             thread.file_changes.remove(&id);
+                            if str_at(item, "status") == Some("completed")
+                                && let Some(changes) = changes.and_then(Value::as_array)
+                            {
+                                thread.count_changes(changes, now);
+                            }
                         }
                         _ => {}
                     }
@@ -1111,6 +1213,17 @@ fn session(
         branch: thread.branch.clone(),
         model: thread.model.clone(),
         model_name: thread.model.clone(),
+        effort: thread.effort.clone(),
+        edits: (!thread.touched.is_empty()).then(|| {
+            let mut touched: Vec<Time> = thread.touched.values().copied().collect();
+            touched.sort_by(f64::total_cmp);
+            EditStats {
+                added: thread.added,
+                removed: thread.removed,
+                touched,
+            }
+        }),
+        failed_at: thread.failed_at,
         // Its terminal is found when Open is pressed (no pid ties it to one).
         host: HostKind::App,
         // Replies go through Codex's own server, whatever terminal shows the session.
@@ -1137,7 +1250,13 @@ fn session(
         waiting_diffs: Vec::new(),
         timeline,
         subagents: Vec::new(),
-        tasks: None,
+        tasks: thread.plan.clone().map(|mut plan| {
+            if !previews {
+                plan.current = None;
+                plan.items.clear();
+            }
+            plan
+        }),
         tokens: thread.tokens,
         cost: 0.0,
         title: if previews {
@@ -2127,5 +2246,60 @@ mod tests {
             SessionPhase::Limited,
             "read after the stop"
         );
+    }
+
+    /// Codex 0.164's `turn/plan/updated`, `thread/settings/updated` and a
+    /// finished file change, as its generated schema states them (#215).
+    #[test]
+    fn plan_model_and_changes_reach_the_session() {
+        let mut state = state_with_thread();
+        state.previews = true;
+        state.notify(
+            "turn/plan/updated",
+            &json!({"threadId": "t1", "turnId": "u", "explanation": null, "plan": [
+                {"step": "Find the retries", "status": "completed"},
+                {"step": "Add backoff", "status": "inProgress"},
+                {"step": "Test it", "status": "pending"}
+            ]}),
+            1.0,
+        );
+        state.notify(
+            "thread/settings/updated",
+            &json!({"threadId": "t1", "threadSettings": {"model": "gpt-5.5", "effort": "high"}}),
+            2.0,
+        );
+        let item = json!({"type": "fileChange", "id": "f1", "status": "completed", "changes": [
+            {"path": "/w/a.rs", "kind": {"type": "add"}, "diff": "a\nb\n"},
+            {"path": "/w/b.rs", "kind": {"type": "update"}, "diff": "@@ -1,2 +1,2 @@\n-old\n+new\n keep\n"}
+        ]});
+        state.notify(
+            "item/started",
+            &json!({"threadId": "t1", "turnId": "u", "item": item}),
+            3.0,
+        );
+        state.notify(
+            "item/completed",
+            &json!({"threadId": "t1", "turnId": "u", "item": item}),
+            4.0,
+        );
+        let (sessions, _) = state.snapshot(5.0, ContentPolicy { previews: true });
+        let s = &sessions[0];
+        let tasks = s.tasks.clone().unwrap();
+        assert_eq!((tasks.done, tasks.total), (1, 3));
+        assert_eq!(tasks.current.as_deref(), Some("Add backoff"));
+        assert_eq!(tasks.items[2].state, TaskState::Pending);
+        assert_eq!(s.model.as_deref(), Some("gpt-5.5"));
+        assert_eq!(s.effort.as_deref(), Some("high"));
+        let edits = s.edits.clone().unwrap();
+        assert_eq!((edits.added, edits.removed, edits.touched.len()), (3, 1, 2));
+        let (quiet, _) = state.snapshot(5.0, ContentPolicy { previews: false });
+        assert!(quiet[0].tasks.as_ref().unwrap().items.is_empty());
+        state.notify(
+            "turn/completed",
+            &json!({"threadId": "t1", "turn": {"id": "u", "status": "failed", "completedAt": 6}}),
+            6.0,
+        );
+        let (failed, _) = state.snapshot(7.0, ContentPolicy { previews: true });
+        assert_eq!(failed[0].failed_at, Some(6.0));
     }
 }

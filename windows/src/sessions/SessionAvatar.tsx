@@ -15,6 +15,7 @@ import { resolvedCostume, subagentKey } from "./clawd/costume";
 import { CLAWD_SIZES, motionForNotice, motionForPhase, motionForSubagent } from "./clawd/sprite";
 import { dozing, phaseTint } from "./format";
 import { useSessions } from "./store";
+import { AvatarRing } from "./progress/TaskProgress";
 import type { Provider, Session, SessionEvent, Subagent } from "./types";
 
 const SIZES = {
@@ -30,6 +31,8 @@ export function SessionAvatar(props: {
   size: keyof typeof SIZES;
   /** The agent's mark pinned to the Clawd's foot; the list asks for it. */
   agentMark?: boolean;
+  /** The task list's ring round the face (#215). */
+  ring?: boolean;
 }) {
   useLocale();
   const { session } = props;
@@ -54,6 +57,7 @@ export function SessionAvatar(props: {
         width={s.width}
         height={s.height}
       />
+      {props.ring ? <AvatarRing session={session} /> : null}
       {props.agentMark ? <AgentMarkBadge provider={session.provider} /> : null}
     </span>
   );

@@ -11,9 +11,9 @@
 use serde_json::{Map, Value};
 
 use super::models::{
-    ContentPolicy, LimitKind, LimitStop, TaskProgress, Time, Tokens, ToolUse, TranscriptFact,
-    background_kind, char_count, days_from_civil, dicts, is_true, last_path_component, preview,
-    str_of, tool_summary, trim,
+    ContentPolicy, LimitKind, LimitStop, TaskProgress, TaskState, Time, Tokens, ToolUse,
+    TranscriptFact, background_kind, char_count, days_from_civil, dicts, is_true,
+    last_path_component, preview, str_of, tool_summary, trim,
 };
 
 pub const PREVIEW_LIMIT: usize = 280;
@@ -174,6 +174,13 @@ impl TranscriptReader {
                 let model = str_of(message.get("model")).unwrap_or("");
                 if !model.is_empty() && !model.starts_with('<') {
                     facts.push(TranscriptFact::Model(model.to_owned()));
+                    // The level this turn thinks at, a /effort switch included.
+                    if let Some(effort) = str_of(json.get("perTurnEffort"))
+                        .or_else(|| str_of(json.get("effort")))
+                        .filter(|e| !e.is_empty())
+                    {
+                        facts.push(TranscriptFact::Effort(effort.to_owned()));
+                    }
                 }
                 let empty = Map::new();
                 for block in dicts(message.get("content")) {
@@ -196,6 +203,12 @@ impl TranscriptReader {
                             let mut tool = ToolUse::new(id, name, summary, date);
                             tool.input_key = Some(tool_summary::input_key(name, input));
                             facts.push(TranscriptFact::ToolStarted(tool));
+                            // The whole list each time, so the newest one stands (#215).
+                            if name == "TodoWrite"
+                                && let Some(tasks) = todo_list(input, previews)
+                            {
+                                facts.push(TranscriptFact::Tasks(tasks));
+                            }
                             if name == "Bash" && is_true(input.get("run_in_background")) {
                                 let command = str_of(input.get("command")).unwrap_or("");
                                 let description = str_of(input.get("description"));
@@ -245,6 +258,9 @@ impl TranscriptReader {
                 let stop = str_of(message.get("stop_reason"));
                 if let Some(stop) = stop.filter(|s| TURN_ENDS.contains(s)) {
                     let failed = is_true(json.get("isApiErrorMessage")) || model.starts_with('<');
+                    if is_true(json.get("isApiErrorMessage")) {
+                        facts.push(TranscriptFact::TurnFailed(date));
+                    }
                     // The last text of a turn that ended as it should sums it
                     // up; a refusal or a cut-off reply stops short of that.
                     if !failed
@@ -283,6 +299,11 @@ impl TranscriptReader {
                             at: date,
                             failed: is_true(result.get("is_error")),
                         });
+                        if !is_true(result.get("is_error"))
+                            && let Some(edit) = outcome.and_then(|o| edited(o, date))
+                        {
+                            facts.push(edit);
+                        }
                         let field = |key: &str| outcome.and_then(|o| str_of(o.get(key)));
                         if let Some(task) = field("backgroundTaskId").filter(|t| !t.is_empty()) {
                             facts.push(TranscriptFact::BackgroundTask {
@@ -589,9 +610,9 @@ pub fn subagent_info(data: &[u8], id: &str, policy: ContentPolicy) -> Option<Tra
 }
 
 /// Progress of the task list Claude Code keeps in `tasks/<session>/`, one
-/// file per task.
+/// file per task, in the order the tasks were made (their ids count up).
 pub fn tasks<D: AsRef<[u8]>>(files: &[D], policy: ContentPolicy) -> Option<TaskProgress> {
-    let mut progress = TaskProgress::default();
+    let mut found: Vec<(f64, String, (String, String, TaskState))> = Vec::new();
     for data in files {
         let Ok(Value::Object(json)) = serde_json::from_slice::<Value>(data.as_ref()) else {
             continue;
@@ -599,17 +620,76 @@ pub fn tasks<D: AsRef<[u8]>>(files: &[D], policy: ContentPolicy) -> Option<TaskP
         let Some(status) = str_of(json.get("status")).filter(|s| *s != "deleted") else {
             continue;
         };
-        progress.total += 1;
-        if status == "completed" {
-            progress.done += 1;
-        }
-        if status == "in_progress" && policy.previews && progress.current.is_none() {
-            progress.current = str_of(json.get("activeForm"))
-                .or_else(|| str_of(json.get("subject")))
-                .map(str::to_owned);
-        }
+        let id = match json.get("id") {
+            Some(Value::String(id)) => id.clone(),
+            Some(Value::Number(n)) => n.to_string(),
+            _ => String::new(),
+        };
+        let order = id.parse::<f64>().unwrap_or(f64::MAX);
+        let subject = str_of(json.get("subject")).unwrap_or("").to_owned();
+        let active = str_of(json.get("activeForm")).unwrap_or("").to_owned();
+        found.push((order, id, (subject, active, task_state(status))));
     }
-    (progress.total > 0).then_some(progress)
+    found.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+    TaskProgress::from_items(found.into_iter().map(|f| f.2).collect(), policy.previews)
+}
+
+/// A TodoWrite call's list: `todos: [{content, status, activeForm}]`.
+fn todo_list(input: &Map<String, Value>, previews: bool) -> Option<TaskProgress> {
+    let todos = input.get("todos")?.as_array()?;
+    let items: Vec<_> = todos
+        .iter()
+        .filter_map(Value::as_object)
+        .filter_map(|todo| {
+            let status = str_of(todo.get("status"))?;
+            let content = str_of(todo.get("content")).unwrap_or("").to_owned();
+            let active = str_of(todo.get("activeForm")).unwrap_or("").to_owned();
+            Some((content, active, task_state(status)))
+        })
+        .collect();
+    // An emptied list clears the one before.
+    Some(TaskProgress::from_items(items, previews).unwrap_or_default())
+}
+
+fn task_state(status: &str) -> TaskState {
+    match status {
+        "completed" | "done" => TaskState::Done,
+        "in_progress" | "inProgress" => TaskState::Current,
+        _ => TaskState::Pending,
+    }
+}
+
+/// The lines a successful Edit or Write changed, from its result's patch;
+/// a new file counts every line it was written with.
+fn edited(outcome: &Map<String, Value>, at: Time) -> Option<TranscriptFact> {
+    let path = str_of(outcome.get("filePath")).filter(|p| !p.is_empty())?;
+    let (mut added, mut removed) = (0, 0);
+    match outcome.get("structuredPatch").and_then(Value::as_array) {
+        Some(hunks) if !hunks.is_empty() => {
+            for line in hunks
+                .iter()
+                .filter_map(|h| h.get("lines").and_then(Value::as_array))
+                .flatten()
+                .filter_map(Value::as_str)
+            {
+                if line.starts_with('+') {
+                    added += 1;
+                } else if line.starts_with('-') {
+                    removed += 1;
+                }
+            }
+        }
+        _ if str_of(outcome.get("type")) == Some("create") => {
+            added = str_of(outcome.get("content")).map_or(0, |c| c.lines().count() as i64);
+        }
+        _ => return None,
+    }
+    Some(TranscriptFact::Edited {
+        path: path.to_owned(),
+        added,
+        removed,
+        at,
+    })
 }
 
 // MARK: Times
@@ -692,6 +772,7 @@ pub fn parse_iso(text: &str) -> Option<Time> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sessions::models::TaskItem;
     use crate::sessions::models::tool_summary::input_key;
     use serde_json::json;
 
@@ -1083,7 +1164,21 @@ mod tests {
             Some(TaskProgress {
                 done: 1,
                 total: 3,
-                current: Some("Doing B".into())
+                current: Some("Doing B".into()),
+                items: vec![
+                    TaskItem {
+                        title: "A".into(),
+                        state: TaskState::Done
+                    },
+                    TaskItem {
+                        title: "B".into(),
+                        state: TaskState::Current
+                    },
+                    TaskItem {
+                        title: "C".into(),
+                        state: TaskState::Pending
+                    },
+                ],
             }),
             "task progress counts finished tasks and names the one under way"
         );
@@ -1101,7 +1196,8 @@ mod tests {
             Some(TaskProgress {
                 done: 0,
                 total: 1,
-                current: None
+                current: None,
+                items: Vec::new(),
             })
         );
     }
@@ -1372,5 +1468,106 @@ mod tests {
             Some(LimitKind::Other)
         );
         assert_eq!(LimitKind::of_claude(None), None);
+    }
+
+    fn read_all(lines: &[&str], previews: bool) -> Vec<TranscriptFact> {
+        struct Free;
+        impl Pricing for Free {
+            fn cost(&self, _: &str, _: &Billable) -> f64 {
+                0.0
+            }
+        }
+        let mut reader = TranscriptReader::new(ContentPolicy { previews }, "/p/s.jsonl");
+        lines
+            .iter()
+            .flat_map(|line| reader.parse(line.as_bytes(), 0.0, &Free))
+            .collect()
+    }
+
+    #[test]
+    fn effort_follows_each_turn() {
+        let line = r#"{"type":"assistant","isSidechain":false,"effort":"high","perTurnEffort":"xhigh","timestamp":"2026-11-14T10:00:00Z","message":{"model":"claude-opus-5-5","content":[],"stop_reason":"tool_use"}}"#;
+        let facts = read_all(&[line], false);
+        assert!(facts.contains(&TranscriptFact::Model("claude-opus-5-5".into())));
+        assert!(
+            facts.contains(&TranscriptFact::Effort("xhigh".into())),
+            "the turn's own level wins over the session's"
+        );
+        let plain = r#"{"type":"assistant","effort":"medium","timestamp":"2026-11-14T10:00:00Z","message":{"model":"claude-sonnet-5-5","content":[]}}"#;
+        assert!(read_all(&[plain], false).contains(&TranscriptFact::Effort("medium".into())));
+        let synthetic = r#"{"type":"assistant","effort":"high","timestamp":"2026-11-14T10:00:00Z","message":{"model":"<synthetic>","content":[]}}"#;
+        assert!(
+            !read_all(&[synthetic], false)
+                .iter()
+                .any(|f| matches!(f, TranscriptFact::Effort(_))),
+            "a line no model wrote says nothing of its level"
+        );
+    }
+
+    #[test]
+    fn todo_write_lists_every_task() {
+        let line = r#"{"type":"assistant","timestamp":"2026-11-14T10:00:00Z","message":{"model":"claude-opus-5-5","content":[{"type":"tool_use","id":"t1","name":"TodoWrite","input":{"todos":[{"content":"Read","status":"completed","activeForm":"Reading"},{"content":"Write","status":"in_progress","activeForm":"Writing"},{"content":"Test","status":"pending","activeForm":"Testing"}]}}]}}"#;
+        let tasks = read_all(&[line], true)
+            .into_iter()
+            .find_map(|f| match f {
+                TranscriptFact::Tasks(t) => Some(t),
+                _ => None,
+            })
+            .expect("a TodoWrite call is a task list");
+        assert_eq!((tasks.done, tasks.total), (1, 3));
+        assert_eq!(tasks.current.as_deref(), Some("Writing"));
+        assert_eq!(
+            tasks.items.iter().map(|i| i.state).collect::<Vec<_>>(),
+            vec![TaskState::Done, TaskState::Current, TaskState::Pending]
+        );
+        assert_eq!(tasks.items[1].title, "Write");
+        let quiet = read_all(&[line], false)
+            .into_iter()
+            .find_map(|f| match f {
+                TranscriptFact::Tasks(t) => Some(t),
+                _ => None,
+            })
+            .unwrap();
+        assert!(
+            quiet.items.is_empty() && quiet.current.is_none() && quiet.total == 3,
+            "without previews only the counts are kept"
+        );
+        let emptied = r#"{"type":"assistant","timestamp":"2026-11-14T10:00:00Z","message":{"model":"claude-opus-5-5","content":[{"type":"tool_use","id":"t2","name":"TodoWrite","input":{"todos":[]}}]}}"#;
+        assert!(
+            read_all(&[emptied], true).contains(&TranscriptFact::Tasks(TaskProgress::default()))
+        );
+    }
+
+    #[test]
+    fn edits_count_patch_lines() {
+        let edit = r#"{"type":"user","timestamp":"2026-11-14T10:00:05Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]},"toolUseResult":{"filePath":"/p/a.ts","oldString":"x","newString":"y","structuredPatch":[{"oldStart":1,"oldLines":2,"newStart":1,"newLines":3,"lines":[" keep","-old","+new","+more"]}]}}"#;
+        let facts = read_all(&[edit], false);
+        assert!(facts.iter().any(|f| matches!(f, TranscriptFact::Edited { path, added: 2, removed: 1, .. } if path == "/p/a.ts")));
+        let create = r#"{"type":"user","timestamp":"2026-11-14T10:00:05Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":"ok"}]},"toolUseResult":{"type":"create","filePath":"/p/b.ts","content":"a\nb\nc","structuredPatch":[]}}"#;
+        assert!(read_all(&[create], false).iter().any(|f| matches!(
+            f,
+            TranscriptFact::Edited {
+                added: 3,
+                removed: 0,
+                ..
+            }
+        )));
+        let refused = r#"{"type":"user","timestamp":"2026-11-14T10:00:05Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t3","content":"no","is_error":true}]},"toolUseResult":{"filePath":"/p/c.ts","structuredPatch":[{"lines":["+x"]}]}}"#;
+        assert!(
+            !read_all(&[refused], false)
+                .iter()
+                .any(|f| matches!(f, TranscriptFact::Edited { .. })),
+            "a refused edit changed nothing"
+        );
+    }
+
+    #[test]
+    fn api_error_fails_the_turn() {
+        let line = r#"{"type":"assistant","isApiErrorMessage":true,"timestamp":"2026-11-14T10:00:00Z","message":{"model":"<synthetic>","content":[{"type":"text","text":"API Error: overloaded"}],"stop_reason":"stop_sequence"}}"#;
+        assert!(
+            read_all(&[line], false)
+                .iter()
+                .any(|f| matches!(f, TranscriptFact::TurnFailed(_)))
+        );
     }
 }

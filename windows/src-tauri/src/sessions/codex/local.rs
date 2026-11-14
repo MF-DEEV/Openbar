@@ -300,6 +300,9 @@ struct Transcript {
     chat: Vec<ChatMessage>,
     working_since: Option<Time>,
     last_active: Option<Time>,
+    /// The newest turn's model and reasoning level (#215).
+    model: Option<String>,
+    effort: Option<String>,
 }
 
 fn transcript(path: &Path, previews: bool) -> Transcript {
@@ -307,6 +310,8 @@ fn transcript(path: &Path, previews: bool) -> Transcript {
         chat: Vec::new(),
         working_since: None,
         last_active: None,
+        model: None,
+        effort: None,
     };
     let Ok(mut file) = File::open(path) else {
         return empty();
@@ -337,6 +342,7 @@ fn transcript(path: &Path, previews: bool) -> Transcript {
     // several megabytes. Without any start or end in the tail, the turn that
     // began before it has not ended, so the session is still working.
     let mut boundary = false;
+    let (mut model, mut effort) = (None, None);
     for line in text.lines() {
         let Ok(item) = serde_json::from_str::<Value>(line) else {
             continue;
@@ -349,6 +355,17 @@ fn transcript(path: &Path, previews: bool) -> Transcript {
         if at > 0.0 {
             last_active = Some(at);
             first_at.get_or_insert(at);
+        }
+        // Each turn states its model and level; a switch shows in the next.
+        if item.get("type").and_then(Value::as_str) == Some("turn_context") {
+            let text = |key: &str| {
+                item.pointer(&format!("/payload/{key}"))
+                    .and_then(Value::as_str)
+                    .filter(|t| !t.is_empty())
+                    .map(str::to_owned)
+            };
+            model = text("model").or(model);
+            effort = text("effort").or(effort);
         }
         if item.get("type").and_then(Value::as_str) == Some("event_msg") {
             match item.pointer("/payload/type").and_then(Value::as_str) {
@@ -414,6 +431,8 @@ fn transcript(path: &Path, previews: bool) -> Transcript {
         chat: messages,
         working_since,
         last_active,
+        model,
+        effort,
     }
 }
 
@@ -431,6 +450,9 @@ pub fn as_session(local: &LocalSession, policy: ContentPolicy) -> Session {
     session.hooked = false;
     let transcript = transcript(&local.path, policy.previews);
     session.last_active = transcript.last_active.or(Some(local.started));
+    session.model = transcript.model.clone();
+    session.model_name = transcript.model;
+    session.effort = transcript.effort;
     if let Some(since) = transcript.working_since {
         session.phase = SessionPhase::Generating;
         session.phase_since = since;

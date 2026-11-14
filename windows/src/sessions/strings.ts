@@ -455,4 +455,31 @@ export const S = {
   get back() {
     return t("radialMenu.backButton");
   },
+  // While you were away (#215).
+  get awayTitle() {
+    return t("windows.sessions.awayTitle");
+  },
+  awayFor: (minutes: number) =>
+    minutes >= 60
+      ? tf("windows.sessions.valueHValueM", Math.floor(minutes / 60), minutes % 60)
+      : tf("windows.sessions.awayMinutesFormat", minutes),
+  awayFiles: (n: number) => tf("windows.sessions.awayFilesFormat", n),
+  get awayWaiting() {
+    return t("windows.sessions.awayWaiting");
+  },
+  get awayError() {
+    return t("windows.sessions.awayError");
+  },
+  get awayLimited() {
+    return t("windows.sessions.awayLimited");
+  },
+  get awayFinished() {
+    return t("windows.sessions.awayFinished");
+  },
+  get awayWorking() {
+    return t("windows.sessions.awayWorking");
+  },
+  get awayClose() {
+    return t("windows.sessions.awayClose");
+  },
 } as const;

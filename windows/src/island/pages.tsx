@@ -33,6 +33,7 @@ import { bridge, type AttentionContext } from "../shared/bridge";
 import { DeferredSessionAttention, noticeLeavesWhenBusy } from "../sessions/attention";
 import { inView, shouldPlay, waitingRequests, WaitingSound } from "../sessions/waitingSound";
 import { subscribeAutoAllow } from "../sessions/autoAllow";
+import { startAwayWatcher } from "../sessions/awayWatcher";
 import { hidesAutoApproval, presentedSnapshot } from "../sessions/presentation";
 import { MicrophoneStrip, subscribeMicrophone } from "../microphone/Microphone";
 import "../timer/register";
@@ -104,6 +105,7 @@ activityViews.downloads = DownloadStrip;
 void subscribeDownloads();
 activityViews.sessions = SessionsStrip;
 subscribeAutoAllow();
+startAwayWatcher();
 
 /** The share the strip was last measured with. */
 let lastLimitShare: string | null = null;
