@@ -939,16 +939,50 @@ pub fn readable_command(command: &str) -> String {
     trimmed.to_string()
 }
 
+/// The script a permission card shows for a wrapped command, only when the
+/// wrapper hides nothing else: the whole line is `powershell -Command '<script>'`
+/// or `cmd /c <script>`. Anything else is shown as it came (#224).
+pub fn approval_script(command: &str) -> Option<String> {
+    static POWERSHELL: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(
+            r#"(?is)\A(?:"(?:[^"]*[\\/])?(?:powershell|pwsh)(?:\.exe)?"|(?:[^\s"']*[\\/])?(?:powershell|pwsh)(?:\.exe)?)\s+(?:-NoProfile\s+)?-Command\s+('(?:[^']|'')*'|"[^"]*")\z"#,
+        )
+        .expect("pattern")
+    });
+    static CMD: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"(?is)\Acmd(?:\.exe)?\s+/c\s+(.+)\z").expect("pattern")
+    });
+    let trimmed = command.trim();
+    if let Some(inner) = POWERSHELL.captures(trimmed).and_then(|c| c.get(1)) {
+        let inner = inner.as_str();
+        let body = &inner[1..inner.len() - 1];
+        return Some(if inner.starts_with('\'') {
+            body.replace("''", "'")
+        } else {
+            body.to_owned()
+        });
+    }
+    CMD.captures(trimmed)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_owned())
+}
+
 /// The card the island shows for the oldest request Codex waits on.
 pub fn permission(pending: &Pending) -> Permission {
     let p = &pending.params;
     let (tool, summary, detail, always) = match pending.method.as_str() {
         "item/commandExecution/requestApproval" => {
             let command = str_at(p, "command").unwrap_or("");
+            let script = approval_script(command);
             (
                 "Command",
                 Some(crate::sessions::models::tool_summary::clip(
-                    command.lines().next().unwrap_or(""),
+                    script
+                        .as_deref()
+                        .unwrap_or(command)
+                        .lines()
+                        .next()
+                        .unwrap_or(""),
                 )),
                 String::new(),
                 true,
@@ -1005,11 +1039,12 @@ pub fn permission(pending: &Pending) -> Permission {
         always,
         pending.since,
     );
-    let complete =
-        pending.method != "item/commandExecution/requestApproval" || str_at(p, "command").is_some();
+    let complete = pending.method != "item/commandExecution/requestApproval"
+        || str_at(p, "command").is_some_and(|c| !c.is_empty());
     if pending.method == "item/commandExecution/requestApproval" {
-        let raw = str_at(p, "command").unwrap_or("");
-        card.set_content(raw, complete, Some(raw.chars().count()));
+        let command = str_at(p, "command").unwrap_or("");
+        let raw = approval_script(command).unwrap_or_else(|| command.to_owned());
+        card.set_content(&raw, complete, Some(raw.chars().count()));
         if let Some(cwd) = str_at(p, "cwd") {
             card.detail.push_str(&format!(
                 "\n\nin {}",

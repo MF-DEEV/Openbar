@@ -18,9 +18,13 @@ struct PermissionContent: Equatable {
     var count: Int { full.unicodeScalars.count }
     var truncated: Bool { count > Self.previewLimit || !complete }
     var remaining: Int? { originalLength.map { max(0, $0 - min(count, Self.previewLimit)) } }
-    var requiresInspection: Bool { !complete || full.isEmpty || count > Self.previewLimit || full.unicodeScalars.contains(where: Self.control) }
-    var available: Bool { complete && !full.isEmpty && full.utf8.count <= Self.viewerBytes
-        && full.unicodeScalars.reduce(0, { $0 + (Self.control($1) ? 16 : String($1).utf8.count) }) <= Self.viewerBytes }
+    // An empty request (a tool with no arguments) hides nothing; an empty
+    // command is marked incomplete by its reader instead.
+    var requiresInspection: Bool { !complete || count > Self.previewLimit || Self.hidden(full).contains(true) }
+    var available: Bool {
+        guard complete, full.utf8.count <= Self.viewerBytes else { return false }
+        return zip(full.unicodeScalars, Self.hidden(full)).reduce(0, { $0 + ($1.1 ? 16 : String($1.0).utf8.count) }) <= Self.viewerBytes
+    }
     var preview: String {
         let raw = String(String.UnicodeScalarView(full.unicodeScalars.prefix(Self.previewLimit)))
         let left = max(0, (originalLength ?? count) - min(count, Self.previewLimit))
@@ -33,10 +37,25 @@ struct PermissionContent: Equatable {
             || (0x200b...0x200f).contains(n) || (0x2028...0x202e).contains(n)
             || (0x2060...0x206f).contains(n) || n == 0xfeff
     }
+    /// Which scalars are shown as annotations. A zero-width joiner between two
+    /// emoji is part of one picture (🧑‍💻), not hidden text.
+    static func hidden(_ text: String) -> [Bool] {
+        let scalars = Array(text.unicodeScalars)
+        return scalars.indices.map { i in
+            if scalars[i].value == 0x200d, i > 0, i + 1 < scalars.count,
+               pictograph(scalars[i - 1]), pictograph(scalars[i + 1]) { return false }
+            return control(scalars[i])
+        }
+    }
+    /// Emoji, their skin tones and the variation selector that ends a flag or symbol.
+    static func pictograph(_ c: Unicode.Scalar) -> Bool {
+        let n = c.value
+        return (0x1f000...0x1faff).contains(n) || (0x2600...0x27bf).contains(n) || (0x2b00...0x2bff).contains(n) || n == 0xfe0f
+    }
     /// Visible annotations for ANSI, bidi and other invisible controls; never interpreted.
     /// Full retains every original scalar, including controls and whitespace.
     static func display(_ raw: String) -> String {
-        raw.unicodeScalars.map { control($0) ? String(format: "⟦U+%04X⟧", $0.value) : String($0) }.joined()
+        zip(raw.unicodeScalars, hidden(raw)).map { $1 ? String(format: "⟦U+%04X⟧", $0.value) : String($0) }.joined()
     }
     func revision(_ permission: ClaudePermission) -> String {
         var hash = SHA256()
@@ -69,7 +88,7 @@ final class PermissionInspectionGate {
     func allows(_ session: String, _ permission: ClaudePermission, revision: String?, token: String?) -> Bool {
         guard let content = permission.content else { return false }
         let current = content.revision(permission)
-        guard content.complete, !content.full.isEmpty, revision == current else { return false }
+        guard content.complete, revision == current else { return false }
         if !content.requiresInspection { return true }
         guard content.available, let token, let grant = grants[token] else { return false }
         return grant.session == session && grant.revision == current

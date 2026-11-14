@@ -1022,7 +1022,7 @@ enum CodexSessionTests {
         suite.expect(eventually { client.snapshot(now: Date(), previews: false).sessions.first?.permission?.requestID == "codex:7" },
                      "the approval reaches the island")
         let card = client.snapshot(now: Date(), previews: false).sessions.first
-        suite.expect(card?.phase == .waitingPermission && card?.permission?.detail.hasPrefix("/bin/zsh -lc 'rm -rf build'") == true,
+        suite.expect(card?.phase == .waitingPermission && card?.permission?.detail.hasPrefix("rm -rf build") == true,
                      "and reads as its command")
         suite.expect(!client.reply("t1", text: "hi"), "no reply while a request waits")
         suite.expect(!client.answer("t1", requestID: "codex:8", answer: .allow), "an unknown request is not answered")

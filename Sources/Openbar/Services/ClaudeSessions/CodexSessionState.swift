@@ -673,6 +673,37 @@ final class CodexSessionState {
         return trimmed
     }
 
+    /// The script a permission card shows for a wrapped command, only when the
+    /// wrapper hides nothing else: the whole line is `<shell> [-l] -c '<script>'`
+    /// with a system shell and no words after the script, `powershell -Command
+    /// '<script>'`, or `cmd /c <script>`. Anything else is shown as it came (#224).
+    static func approvalScript(_ command: String) -> String? {
+        let trimmed = command.trimmingCharacters(in: .whitespacesAndNewlines)
+        // `$'…'` and `$"…"` are read by the shell, not by shellWords, so they stay raw.
+        if !trimmed.contains("$'"), !trimmed.contains("$\""), let words = shellWords(trimmed), words.count == 3 || words.count == 4,
+           let shell = words.first, posixShells.contains((shell as NSString).lastPathComponent),
+           !shell.contains("/") || ["/bin/", "/usr/bin/", "/usr/local/bin/", "/opt/homebrew/bin/"].contains(where: { shell.hasPrefix($0) && !shell.dropFirst($0.count).contains("/") }) {
+            let options = words.dropFirst().dropLast()
+            let allowed: Set<String> = ["-c", "-lc", "-cl", "-l", "--login"]
+            if options.allSatisfy(allowed.contains), options.last == "-c" || options.last == "-lc" || options.last == "-cl" {
+                return words.last
+            }
+        }
+        let shellPath = #"(?:"(?:[^"]*[\\/])?(?:powershell|pwsh)(?:\.exe)?"|(?:[^\s"']*[\\/])?(?:powershell|pwsh)(?:\.exe)?)"#
+        if let inner = firstGroup(#"^"# + shellPath + #"\s+(?:-NoProfile\s+)?-Command\s+('(?:[^']|'')*'|"[^"]*")$"#, trimmed) {
+            let body = String(inner.dropFirst().dropLast())
+            return inner.hasPrefix("'") ? body.replacingOccurrences(of: "''", with: "'") : body
+        }
+        return firstGroup(#"^cmd(?:\.exe)?\s+/c\s+([\s\S]+)$"#, trimmed)
+    }
+
+    private static func firstGroup(_ pattern: String, _ text: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let range = Range(match.range(at: 1), in: text) else { return nil }
+        return String(text[range])
+    }
+
     /// The script of `<shell> [-l] -c '<script>'`, or nil when the command is
     /// not wrapped that way.
     static func posixInner(_ command: String) -> String? {
@@ -749,7 +780,7 @@ final class CodexSessionState {
         switch pending.method {
         case "item/commandExecution/requestApproval":
             let command = string(params, "command") ?? ""
-            (tool, summary, detail, always) = ("Command", ClaudeToolSummary.clip(firstLine(command)), "", true)
+            (tool, summary, detail, always) = ("Command", ClaudeToolSummary.clip(firstLine(approvalScript(command) ?? command)), "", true)
         case "item/fileChange/requestApproval":
             let paths = (params["changes"] as? [Any] ?? []).compactMap { ($0 as? [String: Any]).flatMap { string($0, "path") } }
             let reason = string(params, "reason")
@@ -773,8 +804,9 @@ final class CodexSessionState {
         var card = ClaudePermission(requestID: pending.requestID, tool: tool, summary: summary,
                                     offersAlways: always, since: pending.since)
         let commandRequest = pending.method == "item/commandExecution/requestApproval"
-        let raw = commandRequest ? (string(params, "command") ?? "") : detail
-        let content = PermissionContent(full: raw, complete: !commandRequest || string(params, "command") != nil,
+        let command = string(params, "command") ?? ""
+        let raw = commandRequest ? (approvalScript(command) ?? command) : detail
+        let content = PermissionContent(full: raw, complete: !commandRequest || !command.isEmpty,
                                         originalLength: raw.unicodeScalars.count)
         card.content = content
         card.detail = content.preview

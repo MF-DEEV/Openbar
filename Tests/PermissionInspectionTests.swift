@@ -15,7 +15,7 @@ enum PermissionInspectionTests {
                 let p = permission(raw)
                 let gate = PermissionInspectionGate()
                 suite.expect(p.content?.full == raw, "authoritative text preserves all \(n) characters")
-                suite.expect(gate.allows("s", p, revision: p.content!.revision(p), token: nil) == (n > 0 && n <= 8000), "preview boundary \(n)")
+                suite.expect(gate.allows("s", p, revision: p.content!.revision(p), token: nil) == (n <= 8000), "preview boundary \(n)")
             }
             let raw = String(repeating: "# harmless\n", count: 1000) + "\nprintf 'HIDDEN_SUFFIX_FIXTURE'"
             let p = permission(raw)
@@ -38,6 +38,40 @@ enum PermissionInspectionTests {
                          && gate.allows("b", p, revision: revision, token: b.token), "simultaneous sessions remain independent")
             gate.retain([])
             suite.expect(!gate.allows("b", p, revision: revision, token: b.token), "expiry/disconnection clears inspection")
+        }
+        suite.run("permission security: empty requests, emoji and wrapped Codex commands") {
+            let base = #""session_id":"s1","transcript_path":"/x/s1.jsonl","cwd":"/a""#
+            func asked(_ tool: String, _ input: String) -> ClaudePermission? {
+                let json = #"{\#(base),"hook_event_name":"PermissionRequest","tool_name":"\#(tool)","tool_input":\#(input)}"#
+                let message = ClaudeHookMessage.decode(Data(json.utf8), requestID: "r1", now: now, policy: ClaudeContentPolicy(previews: false))
+                guard case .permissionRequested(let ask)? = message?.fact.event else { return nil }
+                return ask
+            }
+            let gate = PermissionInspectionGate()
+            if let tool = asked("mcp__notes__list", "{}"), let content = tool.content {
+                suite.expect(!content.requiresInspection && gate.allows("s", tool, revision: content.revision(tool), token: nil),
+                             "a tool with no arguments is allowed as it stands")
+            } else { suite.expect(false, "a tool with no arguments decodes") }
+            if let bash = asked("Bash", #"{"command":""}"#), let content = bash.content {
+                suite.expect(content.requiresInspection && !gate.allows("s", bash, revision: content.revision(bash), token: nil),
+                             "an empty command stays blocked")
+            } else { suite.expect(false, "an empty command decodes") }
+            let emoji = permission("echo 'dev 🧑‍💻 👩🏽‍🚀 🏳️‍🌈'")
+            suite.expect(!emoji.content!.requiresInspection && !emoji.detail.contains("⟦"), "a joiner inside an emoji is not hidden text")
+            for raw in ["echo a\u{200D}b", "echo 🧑\u{200D}", "\u{200D}💻", "echo 🧑\u{200D}x"] {
+                suite.expect(permission(raw).content!.requiresInspection, "a joiner outside an emoji is annotated: \(raw.debugDescription)")
+            }
+            let script = CodexSessionState.approvalScript
+            suite.expect(script("/bin/zsh -lc 'npm test'") == "npm test" && script("bash -l -c 'a\nb'") == "a\nb",
+                         "a system shell's script is shown alone")
+            suite.expect(script(#""C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" -Command 'echo ''hi'''"#) == "echo 'hi'"
+                         && script(#"pwsh.exe -NoProfile -Command "dir""#) == "dir" && script("cmd.exe /c dir") == "dir",
+                         "PowerShell and cmd scripts are shown alone")
+            for hiding in [#"/bin/bash -c 'eval "$1"' _ 'rm -rf ~'"#, "/tmp/x/bash -lc 'ls'", "bash --rcfile=/tmp/x -c 'ls'",
+                           #"zsh -lc $'\x72m -rf ~'"#, "evil; powershell.exe -Command 'ls'", "powershell.exe -Command 'a' ; 'b'",
+                           "powershell.exe -Command 'ls'; rm x", "echo cmd /c dir", "ls"] {
+                suite.expect(script(hiding) == nil, "a wrapper that could hide something is shown whole: \(hiding)")
+            }
         }
         suite.run("permission security: whitespace Unicode controls and resource limits") {
             let raw = "  printf '%s\\n' 'zażółć 🦀'\r\n\t echo \"quoted\"\u{1b}[2J\u{202e}  "

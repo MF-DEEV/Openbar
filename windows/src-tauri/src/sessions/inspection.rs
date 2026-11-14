@@ -65,7 +65,10 @@ impl Content {
             hash.update(part.len().to_le_bytes());
             hash.update(part);
         }
-        let complete = self.complete && !self.full.is_empty();
+        // An empty request (a tool with no arguments) hides nothing; an empty
+        // command is marked incomplete by its reader instead.
+        let complete = self.complete;
+        let hidden = hidden(&self.full);
         Metadata {
             revision: format!("{:x}", hash.finalize()),
             complete,
@@ -73,15 +76,14 @@ impl Content {
             remaining: self
                 .original_length
                 .map(|n| n.saturating_sub(count.min(PREVIEW_LIMIT))),
-            requires_inspection: !complete
-                || count > PREVIEW_LIMIT
-                || self.full.chars().any(visible_control),
+            requires_inspection: !complete || count > PREVIEW_LIMIT || hidden.iter().any(|&h| h),
             available: complete
                 && self.full.len() <= VIEWER_BYTES
                 && self
                     .full
                     .chars()
-                    .map(|c| if visible_control(c) { 16 } else { c.len_utf8() })
+                    .zip(&hidden)
+                    .map(|(c, &h)| if h { 16 } else { c.len_utf8() })
                     .sum::<usize>()
                     <= VIEWER_BYTES,
         }
@@ -94,12 +96,36 @@ fn visible_control(c: char) -> bool {
         || matches!(c, '\u{061c}' | '\u{200b}'..='\u{200f}' | '\u{2028}'..='\u{202e}' | '\u{2060}'..='\u{206f}' | '\u{feff}')
 }
 
+/// Emoji, their skin tones and the variation selector that ends a flag or symbol.
+fn pictograph(c: char) -> bool {
+    matches!(c, '\u{1f000}'..='\u{1faff}' | '\u{2600}'..='\u{27bf}' | '\u{2b00}'..='\u{2bff}' | '\u{fe0f}')
+}
+
+/// Which characters are shown as annotations. A zero-width joiner between two
+/// emoji is part of one picture (🧑‍💻), not hidden text.
+pub fn hidden(text: &str) -> Vec<bool> {
+    let chars: Vec<char> = text.chars().collect();
+    (0..chars.len())
+        .map(|i| {
+            if chars[i] == '\u{200d}'
+                && i > 0
+                && i + 1 < chars.len()
+                && pictograph(chars[i - 1])
+                && pictograph(chars[i + 1])
+            {
+                return false;
+            }
+            visible_control(chars[i])
+        })
+        .collect()
+}
+
 /// Annotate otherwise invisible controls without interpreting ANSI or bidi commands.
 /// The original remains byte-for-byte intact in Content.full.
 pub fn display(raw: &str) -> String {
     let mut out = String::new();
-    for c in raw.chars() {
-        if visible_control(c) {
+    for (c, h) in raw.chars().zip(hidden(raw)) {
+        if h {
             out.push_str(&format!("⟦U+{:04X}⟧", c as u32));
         } else {
             out.push(c);
@@ -279,10 +305,10 @@ mod tests {
             let c = p.content.as_ref().unwrap();
             let meta = c.metadata(&p);
             assert_eq!(c.full.as_ref(), raw);
-            assert_eq!(meta.requires_inspection, length == 0 || length > 8000);
+            assert_eq!(meta.requires_inspection, length > 8000);
             assert_eq!(
                 Gate::default().allows("s", &p, Some(&meta.revision), None),
-                (1..=8000).contains(&length)
+                length <= 8000
             );
         }
         let raw = format!(
@@ -339,6 +365,85 @@ mod tests {
             clipped.detail.contains("8993 more characters")
                 && clipped.detail.contains("full command unavailable")
         );
+    }
+
+    #[test]
+    fn empty_requests_and_emoji_joiners() {
+        let decode = |tool: &str, input: serde_json::Value| {
+            let payload = json!({"session_id":"s", "hook_event_name":"PermissionRequest", "tool_name":tool, "tool_input":input});
+            let msg = HookMessage::decode(
+                &serde_json::to_vec(&payload).unwrap(),
+                "r",
+                1.0,
+                ContentPolicy::default(),
+            )
+            .unwrap();
+            let HookEvent::PermissionRequested(p) = msg.fact.event else {
+                panic!("permission");
+            };
+            p
+        };
+        let tool = decode("mcp__notes__list", json!({}));
+        let meta = tool.content.as_ref().unwrap().metadata(&tool);
+        assert!(
+            !meta.requires_inspection,
+            "a tool with no arguments hides nothing"
+        );
+        assert!(Gate::default().allows("s", &tool, Some(&meta.revision), None));
+        let bash = decode("Bash", json!({"command":""}));
+        let meta = bash.content.as_ref().unwrap().metadata(&bash);
+        assert!(
+            meta.requires_inspection
+                && !Gate::default().allows("s", &bash, Some(&meta.revision), None)
+        );
+        let emoji = card(
+            "echo 'dev 🧑\u{200d}💻 👩🏽\u{200d}🚀 🏳\u{fe0f}\u{200d}🌈'",
+            true,
+        );
+        assert!(
+            !emoji
+                .content
+                .as_ref()
+                .unwrap()
+                .metadata(&emoji)
+                .requires_inspection
+        );
+        assert!(!emoji.detail.contains('⟦'));
+        for raw in [
+            "echo a\u{200d}b",
+            "echo 🧑\u{200d}",
+            "\u{200d}💻",
+            "echo 🧑\u{200d}x",
+        ] {
+            let p = card(raw, true);
+            assert!(
+                p.content.as_ref().unwrap().metadata(&p).requires_inspection,
+                "{raw:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn codex_scripts_unwrap_only_when_nothing_hides() {
+        use crate::sessions::codex::state::approval_script as script;
+        assert_eq!(
+            script(r#""C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" -Command 'echo ''hi'''"#).as_deref(),
+            Some("echo 'hi'")
+        );
+        assert_eq!(
+            script(r#"pwsh.exe -NoProfile -Command "dir""#).as_deref(),
+            Some("dir")
+        );
+        assert_eq!(script("cmd.exe /c dir").as_deref(), Some("dir"));
+        for hiding in [
+            "evil; powershell.exe -Command 'ls'",
+            "powershell.exe -Command 'a' ; 'b'",
+            "powershell.exe -Command 'ls'; rm x",
+            "echo cmd /c dir",
+            "ls",
+        ] {
+            assert_eq!(script(hiding), None, "{hiding}");
+        }
     }
 
     #[test]
