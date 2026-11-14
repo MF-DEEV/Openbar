@@ -926,6 +926,12 @@ enum DefaultsKey {
     /// The plan limits show beside the sessions, read by the AI section's
     /// reader, which then runs for them even with that section off.
     static let notchSessionsLimits = "notchSessionsLimits"
+    /// How a session's task list shows on its row: ring, dots or bar (#215).
+    static let notchSessionsProgressStyle = "notchSessionsProgressStyle"
+    /// A card of what sessions did, on return after the lock screen or a break.
+    static let notchSessionsAwayCard = "notchSessionsAwayCard"
+    /// Minutes without input that count as a break.
+    static let notchSessionsAwayMinutes = "notchSessionsAwayMinutes"
     /// Claude Code accounts (config folders) the person named, hid or added
     /// by hand (issue #216), as JSON: `[{"path", "name"?, "hidden"?, "manual"?}]`.
     static let notchSessionsClaudeAccounts = "notchSessionsClaudeAccounts"
@@ -1578,6 +1584,9 @@ enum Defaults {
         DefaultsKey.notchSessionsSidebarHidden: false,
         DefaultsKey.notchSessionsBuddies: true,
         DefaultsKey.notchSessionsLimits: true,
+        DefaultsKey.notchSessionsProgressStyle: "ring",
+        DefaultsKey.notchSessionsAwayCard: true,
+        DefaultsKey.notchSessionsAwayMinutes: 10,
         DefaultsKey.notchSessionsVoiceReplies: true,
         DefaultsKey.notchSessionsVoiceLanguage: "",
         DefaultsKey.notchSessionsVoiceSendOnStop: false,

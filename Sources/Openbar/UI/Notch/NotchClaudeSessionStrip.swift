@@ -82,6 +82,14 @@ struct NotchClaudeSessionStripMark: View {
     let counts: ClaudeSessionCounts
     let size: CGFloat
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @ObservedObject private var sessions = ClaudeSessionService.shared
+
+    /// How far the task lists of the sessions at work are, together (#215).
+    private var lists: ClaudeTaskProgress? {
+        let open = sessions.sessions.compactMap(\.tasks).filter { $0.total > 0 && !$0.finished }
+        guard !open.isEmpty else { return nil }
+        return ClaudeTaskProgress(done: open.map(\.done).reduce(0, +), total: open.map(\.total).reduce(0, +))
+    }
 
     var body: some View {
         let agents = NotchClaudeSessionsSupport.stripAgents(counts)
@@ -121,6 +129,13 @@ struct NotchClaudeSessionStripMark: View {
                         Circle().fill(.black)
                             .frame(width: size * 1.1, height: size * 1.1)
                             .transition(.opacity)
+                    }
+                }
+                .overlay {
+                    if let lists {
+                        NotchTaskRing(tasks: lists, tint: front.tint, lineWidth: 1.5)
+                            .frame(width: size * 1.55, height: size * 1.55)
+                            .transition(.scale.combined(with: .opacity))
                     }
                 }
         }

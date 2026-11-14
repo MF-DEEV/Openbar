@@ -3833,6 +3833,8 @@ final class NotchService: ObservableObject {
             self?.updateSession { $0.onConsole = true }
         }
         let distributed = DistributedNotificationCenter.default()
+        // The away card notes the lock and the return on its own (#215).
+        Task { @MainActor in NotchAwayWatcher.shared.start() }
         observe(distributed, Notification.Name("com.apple.screenIsLocked")) { [weak self] in
             self?.updateSession { $0.locked = true }
         }
