@@ -18,7 +18,7 @@ use crate::capture::snapshot::Frame;
 /// Rows asked for at a time, so no one reply is more than a few megabytes.
 const ROWS: u16 = 256;
 
-fn connect() -> Option<(RustConnection, Window)> {
+pub fn connect() -> Option<(RustConnection, Window)> {
     let (connection, screen) = RustConnection::connect(None).ok()?;
     let root = connection.setup().roots.get(screen)?.root;
     Some((connection, root))
@@ -38,6 +38,12 @@ fn rgba_from_bgrx(data: &[u8], width: usize, rows: usize, stride: usize, out: &m
 /// give it (the area is off the screen, or its pixels are not 32 bits).
 pub fn grab(rect: Rect) -> Option<Frame> {
     let (connection, root) = connect()?;
+    grab_from(&connection, root, rect)
+}
+
+/// The picture of `rect` of `drawable` (a window or a pixmap, `rect` from its
+/// top-left corner), as `grab` has it.
+pub fn grab_from(connection: &RustConnection, drawable: u32, rect: Rect) -> Option<Frame> {
     let setup = connection.setup();
     let depth_ok = setup
         .pixmap_formats
@@ -55,7 +61,7 @@ pub fn grab(rect: Rect) -> Option<Frame> {
         let reply = connection
             .get_image(
                 ImageFormat::Z_PIXMAP,
-                root,
+                drawable,
                 i16::try_from(rect.x).ok()?,
                 i16::try_from(rect.y + y as i32).ok()?,
                 u16::try_from(width).ok()?,
