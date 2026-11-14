@@ -172,7 +172,7 @@ struct Inner {
     /// session id, and the accounts on this PC (#216).
     session_homes: HashMap<String, String>,
     accounts: Vec<super::accounts::Account>,
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     local_codex: Vec<super::codex::local::LocalSession>,
     /// Gemini CLI's, Copilot CLI's, OpenCode's and Cursor's sessions.
     hook_agents: HookAgents,
@@ -251,7 +251,7 @@ impl Service {
             inner: Mutex::new(Inner {
                 session_homes: HashMap::new(),
                 accounts: Vec::new(),
-                #[cfg(windows)]
+                #[cfg(any(windows, target_os = "linux"))]
                 local_codex: Vec::new(),
                 hook_agents: HookAgents::default(),
                 agent_pending: HashMap::new(),
@@ -333,7 +333,7 @@ impl Service {
 
     /// One scan; true while any session works or waits, so the next comes sooner.
     fn tick(&self) -> bool {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         let local_codex = super::codex::local::discover();
         let home = hooks::installer::home_dir();
         let by_home = home
@@ -361,7 +361,7 @@ impl Service {
         let files: Vec<RegistryFile> = by_home.into_iter().flat_map(|(_, files)| files).collect();
         let scan = registry::scan(&files, pid_domains(), process_start);
         let mut inner = self.inner.lock().unwrap();
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         {
             inner.local_codex = local_codex;
         }
@@ -720,7 +720,7 @@ impl Service {
             snapshot.sessions.extend(sessions);
             snapshot.events.extend(events);
         }
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         for local in &inner.local_codex {
             if !snapshot.sessions.iter().any(|s| s.id == local.id) {
                 let mut session = super::codex::local::as_session(local, inner.engine.policy());
@@ -728,10 +728,7 @@ impl Service {
                     session.host = host_kind(&located.host);
                     session.host_name = located.host.display_name();
                     session.accepts_replies = session.phase == models::SessionPhase::Idle
-                        && matches!(
-                            located.host,
-                            hosts::Host::Conhost | hosts::Host::WindowsTerminal { .. }
-                        );
+                        && hosts::types_codex(&located.host);
                 }
                 snapshot.sessions.push(session);
             }
@@ -1272,7 +1269,7 @@ impl Service {
         if let Some(refusal) = self.reply_remote(session, text) {
             return refusal;
         }
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "linux"))]
         {
             let pid = self
                 .inner
@@ -1299,10 +1296,7 @@ impl Service {
                 let Some(located) = hosts::locate(pid) else {
                     return Some("unreachable");
                 };
-                if !matches!(
-                    located.host,
-                    hosts::Host::Conhost | hosts::Host::WindowsTerminal { .. }
-                ) {
+                if !hosts::types_codex(&located.host) {
                     return Some("unreachable");
                 }
                 if hosts::deliver_codex(pid, &located, text, images).is_ok() {

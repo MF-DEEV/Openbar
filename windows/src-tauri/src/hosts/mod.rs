@@ -350,6 +350,32 @@ fn console_type(pid: u32, text: &str, images: &[String]) -> Result<(), DeliveryE
     console_type_as(pid, text, images, false)
 }
 
+/// Whether a reply can be typed into a local Codex TUI running in `host`: the
+/// console or Windows Terminal, or a terminal Linux types into.
+#[cfg(any(windows, target_os = "linux"))]
+pub fn types_codex(host: &Host) -> bool {
+    if cfg!(windows) {
+        matches!(host, Host::Conhost | Host::WindowsTerminal { .. })
+    } else {
+        matches!(
+            host,
+            Host::Tmux { .. } | Host::Kitty { .. } | Host::Wezterm { .. }
+        )
+    }
+}
+
+/// Types into a local Codex TUI. Linux terminals pass a paste's markers on
+/// to the TUI, which takes them, so it is the same paste as for Claude Code.
+#[cfg(target_os = "linux")]
+pub fn deliver_codex(
+    pid: u32,
+    located: &Located,
+    text: &str,
+    images: &[String],
+) -> Result<(), DeliveryError> {
+    deliver(pid, located, text, images)
+}
+
 /// Types into a local Codex CLI's console (CMD or Windows Terminal) the way
 /// its TUI reads keys: plain, without bracketed paste.
 #[cfg(windows)]
@@ -623,6 +649,37 @@ mod tests {
 
     fn tabs(list: &[(&str, bool)]) -> Vec<(String, bool)> {
         list.iter().map(|(n, s)| ((*n).to_owned(), *s)).collect()
+    }
+
+    #[cfg(any(windows, target_os = "linux"))]
+    #[test]
+    fn a_codex_reply_goes_only_into_a_host_that_takes_keys() {
+        let app = Host::App {
+            name: "xterm".into(),
+        };
+        assert!(!types_codex(&Host::Unknown));
+        assert!(!types_codex(&app));
+        assert!(!types_codex(&Host::Vscode {
+            ide: "Code".into(),
+            ide_pid: 1,
+        }));
+        #[cfg(target_os = "linux")]
+        {
+            assert!(types_codex(&Host::Tmux {
+                socket: "/tmp/tmux-1000/default".into(),
+                pane: "%1".into(),
+            }));
+            assert!(types_codex(&Host::Kitty {
+                window: 1,
+                listen: "unix:/tmp/kitty".into(),
+            }));
+            assert!(!types_codex(&Host::Conhost));
+        }
+        #[cfg(windows)]
+        {
+            assert!(types_codex(&Host::Conhost));
+            assert!(types_codex(&Host::WindowsTerminal { terminal_pid: 1 }));
+        }
     }
 
     #[test]
