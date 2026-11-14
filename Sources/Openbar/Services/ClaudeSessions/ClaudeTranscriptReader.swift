@@ -76,7 +76,13 @@ struct ClaudeTranscriptReader {
         case "assistant":
             guard json["isSidechain"] as? Bool != true, let message = json["message"] as? [String: Any] else { break }
             let model = AgentLogParser.native(message["model"] as? String ?? "")
-            if !model.isEmpty, !model.hasPrefix("<") { facts.append(.model(model)) }
+            if !model.isEmpty, !model.hasPrefix("<") {
+                facts.append(.model(model))
+                // The level this turn thinks at, an /effort switch included (#215).
+                if let effort = (json["perTurnEffort"] as? String) ?? (json["effort"] as? String), !effort.isEmpty {
+                    facts.append(.effort(effort))
+                }
+            }
             for block in message["content"] as? [[String: Any]] ?? [] {
                 switch block["type"] as? String {
                 case "tool_use":
@@ -85,6 +91,10 @@ struct ClaudeTranscriptReader {
                     let summary = policy.previews ? ClaudeToolSummary.summary(name: name, input: input) : nil
                     facts.append(.toolStarted(ClaudeToolUse(id: id, name: name, summary: summary, started: date,
                                                             inputKey: ClaudeToolSummary.inputKey(name: name, input: input))))
+                    // The whole list each time, so the newest one stands (#215).
+                    if name == "TodoWrite", let tasks = Self.todoList(input, previews: policy.previews) {
+                        facts.append(.tasks(tasks))
+                    }
                     if name == "Bash", input["run_in_background"] as? Bool == true {
                         let command = input["command"] as? String ?? ""
                         let description = input["description"] as? String
@@ -108,6 +118,7 @@ struct ClaudeTranscriptReader {
             switch message["stop_reason"] as? String {
             case "end_turn", "stop_sequence", "max_tokens", "refusal":
                 let failed = json["isApiErrorMessage"] as? Bool == true || model.hasPrefix("<")
+                if json["isApiErrorMessage"] as? Bool == true { facts.append(.turnFailed(date)) }
                 // The last text of a turn that ended as it should sums it up;
                 // a refusal or a cut-off reply stops short of that.
                 if !failed, ["end_turn", "stop_sequence"].contains(message["stop_reason"] as? String),
@@ -128,6 +139,9 @@ struct ClaudeTranscriptReader {
                     guard let id = result["tool_use_id"] as? String else { continue }
                     facts.append(.toolFinished(id: id, at: date, failed: result["is_error"] as? Bool == true))
                     let outcome = json["toolUseResult"] as? [String: Any]
+                    if result["is_error"] as? Bool != true, let outcome, let edit = Self.edited(outcome, at: date) {
+                        facts.append(edit)
+                    }
                     if let task = outcome?["backgroundTaskId"] as? String, !task.isEmpty {
                         facts.append(.backgroundTask(toolID: id, task: task))
                     }
@@ -246,18 +260,48 @@ struct ClaudeTranscriptReader {
         return .subagentInfo(id: id, type: type.isEmpty ? "Agent" : type, description: description)
     }
 
-    /// Progress of the task list Claude Code keeps in `tasks/<session>/`.
+    /// Progress of the task list Claude Code keeps in `tasks/<session>/`, one
+    /// file per task, in the order the tasks were made (their ids count up).
     static func tasks(_ files: [Data], policy: ClaudeContentPolicy) -> ClaudeTaskProgress? {
-        var progress = ClaudeTaskProgress()
+        var found: [(order: Double, id: String, item: (String, String, ClaudeTaskItem.State))] = []
         for data in files {
             guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
                   let status = json["status"] as? String, status != "deleted" else { continue }
-            progress.total += 1
-            if status == "completed" { progress.done += 1 }
-            if status == "in_progress", policy.previews, progress.current == nil {
-                progress.current = (json["activeForm"] as? String) ?? (json["subject"] as? String)
-            }
+            let id = (json["id"] as? String) ?? (json["id"] as? NSNumber)?.stringValue ?? ""
+            found.append((Double(id) ?? .greatestFiniteMagnitude, id,
+                          (json["subject"] as? String ?? "", json["activeForm"] as? String ?? "", ClaudeTaskItem.state(status))))
         }
-        return progress.total > 0 ? progress : nil
+        found.sort { $0.order != $1.order ? $0.order < $1.order : $0.id < $1.id }
+        return ClaudeTaskProgress.from(found.map(\.item), previews: policy.previews)
+    }
+
+    /// A TodoWrite call's list: `todos: [{content, status, activeForm}]`; an
+    /// emptied list clears the one before.
+    static func todoList(_ input: [String: Any], previews: Bool) -> ClaudeTaskProgress? {
+        guard let todos = input["todos"] as? [[String: Any]] else { return nil }
+        let items = todos.compactMap { todo -> (String, String, ClaudeTaskItem.State)? in
+            guard let status = todo["status"] as? String else { return nil }
+            return (todo["content"] as? String ?? "", todo["activeForm"] as? String ?? "", ClaudeTaskItem.state(status))
+        }
+        return ClaudeTaskProgress.from(items, previews: previews) ?? ClaudeTaskProgress()
+    }
+
+    /// The lines a successful Edit or Write changed, from its result's patch;
+    /// a new file counts every line it was written with.
+    static func edited(_ outcome: [String: Any], at date: Date) -> ClaudeTranscriptFact? {
+        guard let path = outcome["filePath"] as? String, !path.isEmpty else { return nil }
+        var added = 0, removed = 0
+        if let hunks = outcome["structuredPatch"] as? [[String: Any]], !hunks.isEmpty {
+            for line in hunks.flatMap({ $0["lines"] as? [String] ?? [] }) {
+                if line.hasPrefix("+") { added += 1 } else if line.hasPrefix("-") { removed += 1 }
+            }
+        } else if outcome["type"] as? String == "create" {
+            let content = outcome["content"] as? String ?? ""
+            added = content.isEmpty ? 0 : content.split(separator: "\n", omittingEmptySubsequences: false).count
+                - (content.hasSuffix("\n") ? 1 : 0)
+        } else {
+            return nil
+        }
+        return .edited(path: path, added: added, removed: removed, at: date)
     }
 }

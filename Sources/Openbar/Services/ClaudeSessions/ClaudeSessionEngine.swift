@@ -42,6 +42,13 @@ final class ClaudeSessionEngine {
         /// that started them.
         var background: [String: Background] = [:]
         var tasks: ClaudeTaskProgress?
+        /// The reasoning level, lines changed so far, when each file was last
+        /// touched, and when a turn last failed (#215).
+        var effort: String?
+        var added = 0
+        var removed = 0
+        var touched: [String: Date] = [:]
+        var failedAt: Date?
         var usage: [String: (tokens: AgentTokens, cost: Double)] = [:]
         var title: String?
         var lastText: String?
@@ -210,6 +217,7 @@ final class ClaudeSessionEngine {
                 activity[id]?.background = background.mapValues { var job = $0; job.label = nil; return job }
             }
             activity[id]?.tasks?.current = nil
+            activity[id]?.tasks?.items = []
             if let tools = activity[id]?.tools {
                 activity[id]?.tools = tools.map { var tool = $0; tool.summary = nil; return tool }
             }
@@ -325,10 +333,12 @@ final class ClaudeSessionEngine {
             return agent
         }
         var tasks = entry.tasks
-        if !previews { tasks?.current = nil }
+        if !previews { tasks = tasks?.stripped() }
+        let edits = entry.touched.isEmpty ? nil
+            : ClaudeEditStats(added: entry.added, removed: entry.removed, touched: entry.touched.values.sorted())
         return ClaudeSession(
             id: id, pid: record.pid, cwd: record.cwd, project: AgentLogParser.projectName(record.cwd),
-            name: record.name, nameSource: record.nameSource, branch: entry.branch, model: entry.model, host: record.host,
+            name: record.name, nameSource: record.nameSource, branch: entry.branch, model: entry.model, effort: entry.effort, host: record.host,
             phase: phase, phaseSince: since, turnStarted: entry.turnStarted,
             lastActive: [entry.turnEnded, entry.lastFact, record.statusUpdated].compactMap { $0 }.max(),
             lookedAt: entry.acknowledged,
@@ -336,6 +346,7 @@ final class ClaudeSessionEngine {
             currentTool: phase == .runningTool || phase == .waitingPermission ? entry.openTool.map(gated) : nil,
             permission: entry.permissions.first,
             timeline: entry.tools.suffix(Self.timelineLength).map(gated), subagents: subagents, tasks: tasks,
+            edits: edits, failedAt: entry.failedAt,
             tokens: tokens, cost: cost,
             title: previews ? entry.title : nil, lastText: previews ? entry.lastText : nil,
             hooked: entry.hooked, chat: previews ? entry.chat : [],
@@ -364,6 +375,12 @@ final class ClaudeSessionEngine {
         case .title(let title): if policy.previews { entry.title = title }
         case .branch(let branch): entry.branch = branch
         case .model(let model): entry.model = model
+        case .effort(let effort): entry.effort = effort
+        case .edited(let path, let added, let removed, let at):
+            entry.added += added
+            entry.removed += removed
+            entry.touched[path] = max(entry.touched[path] ?? at, at)
+        case .turnFailed(let at): entry.failedAt = at
         case .usage(let key, let tokens, let cost):
             let known = entry.usage[key]
             entry.usage[key] = (known?.tokens.merged(with: tokens) ?? tokens, max(known?.cost ?? 0, cost))
@@ -400,7 +417,7 @@ final class ClaudeSessionEngine {
             entry.subagents[id]?.type = type
             if policy.previews { entry.subagents[id]?.description = description }
         case .tasks(var tasks):
-            if !policy.previews { tasks.current = nil }
+            if !policy.previews { tasks = tasks.stripped() }
             entry.tasks = tasks.total > 0 ? tasks : nil
         case .limitReached(let stop):
             // A stop read late never replaces a newer one.
@@ -531,6 +548,8 @@ final class ClaudeSessionEngine {
             closeTools(at: date, in: &entry)
             entry.turnOpen = true
             entry.turnStarted = date
+            // A list run to its end belongs to the turns before (#215).
+            if entry.tasks?.finished == true { entry.tasks = nil }
         }
         // A prompt can only be typed once the dialogs before it closed.
         entry.permissions.removeAll { $0.since < date }

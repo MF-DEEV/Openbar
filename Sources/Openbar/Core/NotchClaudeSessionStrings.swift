@@ -21,6 +21,26 @@ struct NotchClaudeSessionStrings {
     /// The plan limits on the island, and their setting.
     let limitsSetting: String
     let limitsSettingHint: String
+    // #215: task progress and the away card.
+    var progressStyle = "Task progress"
+    var progressStyleHint = "How a session’s task list shows on its row."
+    var progressRing = "Ring"
+    var progressDots = "Dots"
+    var progressBar = "Bar"
+    var awayCard = "While you were away"
+    var awayCardHint = "Back from the lock screen or a break, one card shows what your sessions did."
+    var awayMinutes = "Break after"
+    var awayWaiting = "waiting for you"
+    var awayError = "stopped on an error"
+    var awayLimited = "hit a limit"
+    var awayFinished = "finished"
+    var awayWorking = "still working"
+    var awayClose = "Close"
+    func awayFor(minutes: Int) -> String {
+        minutes >= 60 ? "\(minutes / 60)h \(minutes % 60)m" : "\(minutes) min"
+    }
+    func minutes(_ n: Int) -> String { "\(n) min" }
+    func awayFiles(_ n: Int) -> String { "\(n) files changed" }
     let allow: String
     let alwaysAllow: String
     /// Always while it allows every request of a Codex turn.

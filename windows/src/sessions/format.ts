@@ -222,9 +222,7 @@ export function activityText(session: Session, name: string, resumes?: string | 
       break;
   }
   if (session.services > 0 && !isWorking(session.phase)) parts.push(S.leftRunning(session.services));
-  if (session.tasks && session.tasks.total > 0 && isWorking(session.phase)) {
-    parts.push(`${session.tasks.done}/${session.tasks.total}`);
-  }
+  // The row draws the list's reading itself (#215), so the words leave it out.
   return parts.filter((x): x is string => !!x && x.length > 0).join(" · ");
 }
 

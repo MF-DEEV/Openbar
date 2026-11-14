@@ -12,6 +12,9 @@ struct NotchClaudeSessionsSettingsControls: View {
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
     @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
     @AppStorage(DefaultsKey.notchSessionsLimits) private var limits = true
+    @AppStorage(DefaultsKey.notchSessionsProgressStyle) private var progressStyle = NotchSessionProgressStyle.ring.rawValue
+    @AppStorage(DefaultsKey.notchSessionsAwayCard) private var awayCard = true
+    @AppStorage(DefaultsKey.notchSessionsAwayMinutes) private var awayMinutes = 10
     @AppStorage(DefaultsKey.notchSessionsVoiceReplies) private var voiceReplies = true
     @AppStorage(DefaultsKey.notchSessionsVoiceLanguage) private var voiceLanguage = ""
     @AppStorage(DefaultsKey.notchSessionsVoiceSendOnStop) private var voiceSendOnStop = false
@@ -34,6 +37,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             switchRow("text.bubble", text.contentPreview, caption: text.contentPreviewHint, isOn: $previews)
             switchRow("gauge.with.dots.needle.50percent", text.limitsSetting, caption: text.limitsSettingHint, isOn: $limits)
             buddiesRow
+            progress
             voice
             Divider()
             hooks
@@ -48,6 +52,32 @@ struct NotchClaudeSessionsSettingsControls: View {
             service.checkCodex()
             service.checkAgentHooks()
             service.checkBridge()
+        }
+    }
+
+    /// How a task list shows on a row, and the card on return (#215).
+    private var progress: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsRow(symbol: "circle.dashed", title: text.progressStyle, caption: text.progressStyleHint) {
+                Picker(text.progressStyle, selection: $progressStyle) {
+                    Text(text.progressRing).tag(NotchSessionProgressStyle.ring.rawValue)
+                    Text(text.progressDots).tag(NotchSessionProgressStyle.dots.rawValue)
+                    Text(text.progressBar).tag(NotchSessionProgressStyle.bar.rawValue)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 200)
+            }
+            switchRow("moon.stars", text.awayCard, caption: text.awayCardHint, isOn: $awayCard)
+            if awayCard {
+                SettingsRow(symbol: "timer", title: text.awayMinutes) {
+                    Picker(text.awayMinutes, selection: $awayMinutes) {
+                        ForEach([5, 10, 15, 30, 60], id: \.self) { Text(text.minutes($0)).tag($0) }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 120)
+                }
+            }
         }
     }
 

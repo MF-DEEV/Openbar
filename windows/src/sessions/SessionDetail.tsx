@@ -5,6 +5,8 @@
 // it is and what it does, what it asks, its recent tools, subagents and
 // last reply, and a field that types a reply into its terminal.
 
+import { ModelLabel, shortModel } from "./progress/ModelLabel";
+import { Checklist } from "./progress/TaskProgress";
 import { characterOf } from "./clawd/costume";
 import { useLocale, t, tf } from "../i18n";
 
@@ -165,7 +167,8 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
 
   const meta = [
     session.branch ? `⎇ ${session.branch}` : undefined,
-    session.modelName ?? session.model,
+    // The chip beside the tag names the model (#215).
+    shortModel(session) ? undefined : (session.modelName ?? session.model),
     totalTokens(session.tokens) > 0 ? compactNumber(totalTokens(session.tokens)) : undefined,
     session.cost > 0 ? cost(session.cost) : undefined,
     enlarged ? session.cwd : undefined,
@@ -234,6 +237,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
               <span className="s-tag" style={{ color, background: `color-mix(in srgb, ${color} 16%, transparent)` }}>
                 {session.project}
               </span>
+              <ModelLabel session={session} />
               <span className="s-secondary">{meta.join(" · ")}</span>
             </div>
           </div>
@@ -327,7 +331,9 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
                 </div>
               ) : null}
 
-              {session.tasks && session.tasks.total > 0 ? (
+              {session.tasks?.items?.length ? (
+                <Checklist session={session} />
+              ) : session.tasks && session.tasks.total > 0 ? (
                 <div className="s-tasks">
                   <div>
                     <span className="s-tasks-count">{S.tasks(session.tasks.done, session.tasks.total)}</span>

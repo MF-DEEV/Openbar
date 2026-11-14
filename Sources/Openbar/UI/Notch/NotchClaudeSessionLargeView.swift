@@ -195,7 +195,9 @@ struct NotchClaudeSessionLargeView: View {
                     if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias, size: 11) }
                     if let account = ClaudeSessionService.shared.accountLabels[session.id] { NotchClaudeAccountBadge(name: account, size: 11) }
                     NotchClaudeProjectTag(project: session.project, size: 12)
-                    Text([session.branch.map { "⎇ \($0)" }, session.model.map(AgentPricing.displayName),
+                    NotchModelChip(session: session)
+                    Text([session.branch.map { "⎇ \($0)" },
+                          NotchSessionProgress.shortModel(session) == nil ? session.model.map(AgentPricing.displayName) : nil,
                           session.tokens.total > 0 ? AgentFormat.tokens(session.tokens.total) : nil,
                           session.cost > 0 ? AgentFormat.cost(session.cost) : nil, session.cwd]
                             .compactMap { $0 }.joined(separator: " · "))
@@ -402,13 +404,7 @@ struct NotchClaudeSessionLargeView: View {
     }
 
     private func tasksRow(_ tasks: ClaudeTaskProgress) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(text.tasks(done: tasks.done, total: tasks.total)).font(.system(size: 12, weight: .medium))
-            if let current = tasks.current {
-                Text(current).font(.system(size: 12)).foregroundStyle(.secondary).lineLimit(2)
-            }
-            ProgressView(value: tasks.fraction).tint(session.provider.tint)
-        }
+        NotchTaskChecklist(tasks: tasks, tint: session.provider.tint, text: text, rows: 12)
     }
 
     private func toolRow(_ tool: ClaudeToolUse) -> some View {

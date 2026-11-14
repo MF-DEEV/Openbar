@@ -18,6 +18,7 @@ import { FINISHED_TINT, LIMITED_TINT, providerTint, WAITING_TINT } from "./forma
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { presentedSnapshot } from "./presentation";
+import { StripTasksRing } from "./progress/TaskProgress";
 import { currentStripLimit, type StripLimit } from "./stripLimit";
 import { type Counts, PROVIDERS, type Provider, workingOf } from "./types";
 
@@ -105,7 +106,9 @@ function StackedMarks({ front, behind }: { front: Provider; behind: Provider }) 
         <Behind size={behindSize} working />
       </span>
       <span className="s-strip-front" style={{ width: disc, height: disc, marginTop: -disc / 2, left: -1 }}>
-        <Front size={frontSize} working />
+        <StripTasksRing>
+          <Front size={frontSize} working />
+        </StripTasksRing>
       </span>
     </span>
   );
@@ -153,16 +156,21 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
       aria-label={S.title}
       onClick={open}
     >
-      <span className="s-strip-wing" style={{ width: wing, paddingLeft: iconInset, justifyContent: "flex-start" }}>
+      <span
+        className="s-strip-wing"
+        style={{ width: wing, paddingLeft: Math.round(iconInset), justifyContent: "flex-start" }}
+      >
         {stacked ? (
           <StackedMarks front={agents[0]!} behind={agents[1]!} />
         ) : (
-          <Mark
-            size={Math.round(MARK * markScale)}
-            strokeWidth={2.5}
-            style={markTint ? { color: markTint } : undefined}
-            working={working}
-          />
+          <StripTasksRing off={counts.waiting > 0 || !working}>
+            <Mark
+              size={Math.round(MARK * markScale)}
+              strokeWidth={2.5}
+              style={markTint ? { color: markTint } : undefined}
+              working={working}
+            />
+          </StripTasksRing>
         )}
       </span>
       {capsule ? null : <span style={{ width: geometry.cameraWidth, flex: "none" }} />}

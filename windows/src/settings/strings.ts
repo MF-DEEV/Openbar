@@ -970,6 +970,31 @@ export const T = {
     get buddiesCaption() {
       return t("windows.settings.sessions.buddiesCaption");
     },
+    get progressStyle() {
+      return t("windows.settings.sessions.progressStyle");
+    },
+    get progressStyleCaption() {
+      return t("windows.settings.sessions.progressStyleCaption");
+    },
+    get progressRing() {
+      return t("windows.settings.sessions.progressRing");
+    },
+    get progressDots() {
+      return t("windows.settings.sessions.progressDots");
+    },
+    get progressBar() {
+      return t("windows.settings.sessions.progressBar");
+    },
+    get awayCard() {
+      return t("windows.settings.sessions.awayCard");
+    },
+    get awayCardCaption() {
+      return t("windows.settings.sessions.awayCardCaption");
+    },
+    get awayMinutes() {
+      return t("windows.settings.sessions.awayMinutes");
+    },
+    awayMinutesValue: (n: number) => tf("windows.settings.sessions.awayMinutesValue", n),
   },
   calendar: {
     get permission() {

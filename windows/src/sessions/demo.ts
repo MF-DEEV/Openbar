@@ -3,6 +3,7 @@
 
 // Sample sessions for designing the section in a plain browser (?sessions).
 
+import type { AwayLine } from "./away";
 import type { Session, Snapshot } from "./types";
 
 function base(over: Partial<Session> & Pick<Session, "id" | "project" | "phase">): Session {
@@ -88,7 +89,21 @@ export function demoSnapshot(): Snapshot {
         { id: "t2", name: "Edit", summary: "quickstart.md", started: t - 3, failed: false },
       ],
       subagents: [{ id: "s1", type: "Explore", description: "Find every install snippet", started: t - 70 }],
-      tasks: { done: 2, total: 5, current: "Rewrite the install section" },
+      model: "claude-opus-5-5",
+      effort: "high",
+      tasks: {
+        done: 2,
+        total: 5,
+        current: "Rewrite the install section",
+        items: [
+          { title: "Read the current quickstart", state: "done" },
+          { title: "List every install snippet", state: "done" },
+          { title: "Rewrite the install section", state: "current" },
+          { title: "Add the Windows steps", state: "pending" },
+          { title: "Check the code blocks build", state: "pending" },
+        ],
+      },
+      edits: { added: 42, removed: 7, touched: [t - 60, t - 30, t - 3] },
     }),
     base({
       id: "e5",
@@ -99,6 +114,9 @@ export function demoSnapshot(): Snapshot {
       turnStarted: t - 31,
       host: "unknown",
       title: "Retry failed webhooks",
+      model: "gpt-5.5-codex",
+      effort: "medium",
+      tasks: { done: 1, total: 4 },
     }),
     base({
       id: "d5",
@@ -118,6 +136,10 @@ export function demoSnapshot(): Snapshot {
       phase: "finished",
       branch: "feat/dark-mode",
       title: "SettingsView.swift overview",
+      model: "claude-sonnet-5-5",
+      effort: "medium",
+      lastText: "Dark mode is in, every screen follows the system setting.",
+      edits: { added: 128, removed: 34, touched: [t - 900, t - 700, t - 400, t - 260, t - 230] },
       phaseSince: t - 200,
       cost: 0.17,
     }),
@@ -132,10 +154,35 @@ export function demoSnapshot(): Snapshot {
       session.accountLabel = work ? "Work" : "Personal";
     }
   }
+  // ?sessions&calm: only sessions at work and done, so the strip shows the agent's mark (#215).
+  // ?sessions&calm=claude leaves Claude's alone at work.
+  const calm = typeof location !== "undefined" ? new URLSearchParams(location.search).get("calm") : null;
+  if (calm !== null) {
+    const claudeOnly = calm === "claude";
+    return {
+      sessions: sessions.filter(
+        (s) => !s.phase.startsWith("waiting") && s.phase !== "limited" && (!claudeOnly || s.provider === "claude"),
+      ),
+      counts: { waiting: 0, working: claudeOnly ? 1 : 2, workingCodex: claudeOnly ? 0 : 1, limited: 0, finished: 1 },
+      previews: true,
+      hooksInstalled: true,
+    };
+  }
   return {
     sessions,
     counts: { waiting: 2, working: 2, workingCodex: 1, limited: 1, finished: 1 },
     previews: true,
     hooksInstalled: true,
   };
+}
+
+/** The away card's tiles for the samples (?sessions&away). */
+export function demoAwayLines(): AwayLine[] {
+  return [
+    { id: "a1", outcome: "waiting", files: 2, added: 18, removed: 3 },
+    { id: "d5", outcome: "limited", files: 1, added: 9, removed: 0 },
+    { id: "d4", outcome: "finished", files: 5, added: 128, removed: 34 },
+    { id: "c3", outcome: "working", files: 3, added: 42, removed: 7, tasks: { from: 0, to: 2, total: 5 } },
+    { id: "e5", outcome: "working", files: 0, added: 0, removed: 0, tasks: { from: 0, to: 1, total: 4 } },
+  ];
 }

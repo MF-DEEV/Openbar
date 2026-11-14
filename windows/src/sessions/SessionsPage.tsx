@@ -20,6 +20,8 @@ import { S } from "./strings";
 import { useSessions } from "./store";
 import { presentedSnapshot } from "./presentation";
 import "./sessions.css";
+import "./progress/progress.css";
+import { AwayLeading, AwayPage, AwayTrailing } from "./progress/AwayCard";
 
 function useFocusedSession() {
   const focused = useSessions((s) => s.focused);
@@ -32,10 +34,12 @@ function Page() {
   const session = useFocusedSession();
   const focused = useSessions((s) => s.focused);
   const composing = useSessions((s) => s.composing);
+  const away = useSessions((s) => s.away !== null);
   // A session that ends while its page is open goes back to the list.
   useEffect(() => {
     if (focused && !session) useSessions.getState().focus(null);
   }, [focused, session]);
+  if (away) return <AwayPage />;
   if (composing) return <NewSession />;
   return session ? <SessionDetail session={session} enlarged={enlarged} /> : <SessionsList />;
 }
@@ -64,6 +68,8 @@ function Leading() {
   const session = useFocusedSession();
   const custom = useSessions((s) => (session ? s.names[session.id] : undefined));
   const composing = useSessions((s) => s.composing);
+  const away = useSessions((s) => s.away !== null);
+  if (away) return <AwayLeading />;
   if (composing) {
     return (
       <button type="button" className="s-back" onClick={() => useSessions.setState({ composing: false })}>
@@ -89,6 +95,7 @@ function Trailing() {
   const renaming = useSessions((s) => s.renaming);
   const composing = useSessions((s) => s.composing);
   const canStart = useSessions((s) => s.snapshot.canStart === true || s.snapshot.canStartCodex === true);
+  const away = useSessions((s) => s.away !== null);
   const [, tick] = useState(0);
   useEffect(() => {
     const wait = failedUntil * 1000 - Date.now();
@@ -96,6 +103,7 @@ function Trailing() {
     const t = setTimeout(() => tick((n) => n + 1), wait + 20);
     return () => clearTimeout(t);
   }, [failedUntil]);
+  if (away) return <AwayTrailing />;
   if (composing) return null;
   if (!session) {
     return canStart ? (

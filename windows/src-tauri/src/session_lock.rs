@@ -11,6 +11,33 @@ use tauri::AppHandle;
 #[cfg(any(windows, target_os = "linux"))]
 pub const EVENT: &str = "session://unlocked";
 
+/// The session was locked (WTS_SESSION_LOCK): the person stepped away, and
+/// the island notes how its sessions stand for the card on return (#215).
+#[cfg(windows)]
+pub const LOCKED: &str = "session://locked";
+
+/// Seconds since the last keyboard or mouse input in this session, for the
+/// away card's idle threshold; none where the system does not say.
+#[tauri::command]
+pub fn session_idle_seconds() -> Option<f64> {
+    #[cfg(windows)]
+    unsafe {
+        use windows::Win32::System::SystemInformation::GetTickCount;
+        use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+        let mut info = LASTINPUTINFO {
+            cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
+            dwTime: 0,
+        };
+        if !GetLastInputInfo(&mut info).as_bool() {
+            return None;
+        }
+        // Both count milliseconds since boot and wrap together after 49 days.
+        Some(GetTickCount().wrapping_sub(info.dwTime) as f64 / 1000.0)
+    }
+    #[cfg(not(windows))]
+    None
+}
+
 #[cfg(windows)]
 static APP: std::sync::OnceLock<AppHandle> = std::sync::OnceLock::new();
 
@@ -85,13 +112,16 @@ unsafe extern "system" fn window_proc(
 ) -> windows::Win32::Foundation::LRESULT {
     use tauri::Emitter;
     use windows::Win32::UI::WindowsAndMessaging::{
-        DefWindowProcW, WM_WTSSESSION_CHANGE, WTS_SESSION_UNLOCK,
+        DefWindowProcW, WM_WTSSESSION_CHANGE, WTS_SESSION_LOCK, WTS_SESSION_UNLOCK,
     };
     if message == WM_WTSSESSION_CHANGE
-        && wparam.0 == WTS_SESSION_UNLOCK as usize
         && let Some(app) = APP.get()
     {
-        let _ = app.emit(EVENT, ());
+        if wparam.0 == WTS_SESSION_UNLOCK as usize {
+            let _ = app.emit(EVENT, ());
+        } else if wparam.0 == WTS_SESSION_LOCK as usize {
+            let _ = app.emit(LOCKED, ());
+        }
     }
     unsafe { DefWindowProcW(window, message, wparam, lparam) }
 }

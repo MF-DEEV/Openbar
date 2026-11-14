@@ -11,6 +11,7 @@ import { localCostumeStore } from "./clawd/costume";
 import { autoAllowConsent } from "./autoAllowConsent";
 import type { Decision, PlanMode, ReplyAttachment, ReplyFailure, Session, SessionEvent, Snapshot } from "./types";
 import { DEFAULT_SESSION_PREFS, type SessionPrefs } from "../shared/prefs";
+import type { AwayLine } from "./away";
 
 /** A permission must be on screen this long before a click or Ctrl+Y can answer it. */
 export const SETTLE_DELAY = 0.8;
@@ -34,6 +35,8 @@ interface SessionsState {
   logsFor: string | null;
   /** The wardrobe is open on the focused session's page. */
   wardrobe: boolean;
+  /** The "while you were away" card the island shows on return (#215). */
+  away: { lines: AwayLine[]; since: number } | null;
   /** Explicit opt-in for the current Codex turn; cleared when it ends. */
   autoAllow: Record<string, boolean>;
   toggleAutoAllow(id: string): void;
@@ -96,6 +99,7 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   composing: false,
   logsFor: null,
   wardrobe: false,
+  away: null,
   autoAllow: {},
   toggleAutoAllow(id) {
     if (
@@ -154,6 +158,7 @@ export const useSessions = create<SessionsState>()((set, get) => ({
       renaming: false,
       logsFor: null,
       wardrobe: false,
+      away: null,
       lookedAt: id ? { ...s.lookedAt, [id]: now() } : s.lookedAt,
     }));
     if (id) void bridge.sessions.acknowledge(id);

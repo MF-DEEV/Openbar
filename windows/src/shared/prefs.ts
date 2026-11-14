@@ -70,7 +70,16 @@ export interface SessionPrefs {
   /** Claude Code accounts (config folders) the person named, hid or added by
    * hand (#216; sessions/accounts.rs). */
   claudeAccounts: ClaudeAccountSetting[];
+  /** How a session's task list shows on its row (#215). */
+  progressStyle: ProgressStyle;
+  /** A card of what sessions did, on return after the lock screen or a break. */
+  awayCard: boolean;
+  /** Minutes without input that count as a break. */
+  awayMinutes: number;
 }
+
+export const PROGRESS_STYLES = ["ring", "dots", "bar"] as const;
+export type ProgressStyle = (typeof PROGRESS_STYLES)[number];
 
 /** What the person changed about one Claude account. */
 export interface ClaudeAccountSetting {
@@ -103,6 +112,9 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   remoteHostsEnabled: false,
   remoteHosts: [],
   claudeAccounts: [],
+  progressStyle: "ring",
+  awayCard: true,
+  awayMinutes: 10,
 };
 
 /** What is stored: only what differs from the defaults. */
@@ -123,7 +135,8 @@ export type PrefsPatch = {
 };
 
 /** Values settings.json may hold for the enumerated keys; anything else reads as the default. */
-const CHOICES: Partial<Record<keyof IslandSettings, readonly string[]>> = {
+const CHOICES: Partial<Record<keyof IslandSettings | keyof SessionPrefs, readonly string[]>> = {
+  progressStyle: PROGRESS_STYLES,
   language: ["auto", ...LANGUAGES.map((language) => language.value)],
   silhouette: ["notch", "capsule"],
   layout: ["compact", "spacious", "custom"],
@@ -177,7 +190,7 @@ function checked<T extends object>(defaults: T, stored: unknown): Partial<T> {
     if (value === undefined || value === null) continue;
     if (Array.isArray(fallback) ? !Array.isArray(value) : typeof value !== typeof fallback) continue;
     if (typeof value === "number" && !Number.isFinite(value)) continue;
-    const choices = CHOICES[key as keyof IslandSettings];
+    const choices = CHOICES[key as keyof IslandSettings | keyof SessionPrefs];
     if (choices && !choices.includes(value as string)) continue;
     out[key] = value as T[keyof T & string];
   }

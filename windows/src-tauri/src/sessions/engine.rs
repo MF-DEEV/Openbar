@@ -16,9 +16,9 @@
 use std::collections::{BTreeMap, HashMap};
 
 use super::models::{
-    ChatMessage, ChatRole, ContentPolicy, DISTANT_PAST, HookEvent, HookFact, LimitStop, Permission,
-    Provider, RegistryStatus, Session, SessionEvent, SessionPhase, SessionRecord, Subagent,
-    TaskProgress, Time, Tokens, ToolUse, TranscriptFact, project_name,
+    ChatMessage, ChatRole, ContentPolicy, DISTANT_PAST, EditStats, HookEvent, HookFact, LimitStop,
+    Permission, Provider, RegistryStatus, Session, SessionEvent, SessionPhase, SessionRecord,
+    Subagent, TaskProgress, Time, Tokens, ToolUse, TranscriptFact, project_name,
 };
 
 /// How long an unread finished turn stays marked before it reads as idle.
@@ -94,6 +94,12 @@ struct Activity {
     said: i64,
     branch: Option<String>,
     model: Option<String>,
+    effort: Option<String>,
+    /// Lines changed so far, and when each file was last touched (#215).
+    added: i64,
+    removed: i64,
+    touched: HashMap<String, Time>,
+    failed_at: Option<Time>,
     /// Permissions the hooks hold, oldest first: subagents can ask at once.
     permissions: Vec<Permission>,
     hooked: bool,
@@ -128,6 +134,11 @@ impl Activity {
             said: 0,
             branch: None,
             model: None,
+            effort: None,
+            added: 0,
+            removed: 0,
+            touched: HashMap::new(),
+            failed_at: None,
             permissions: Vec::new(),
             hooked: false,
             asked: None,
@@ -399,6 +410,7 @@ impl Engine {
             }
             if let Some(tasks) = &mut entry.tasks {
                 tasks.current = None;
+                tasks.items.clear();
             }
             for tool in &mut entry.tools {
                 tool.summary = None;
@@ -599,7 +611,17 @@ fn session(
     let mut tasks = entry.tasks.clone();
     if !previews && let Some(tasks) = &mut tasks {
         tasks.current = None;
+        tasks.items.clear();
     }
+    let edits = (!entry.touched.is_empty()).then(|| {
+        let mut touched: Vec<Time> = entry.touched.values().copied().collect();
+        touched.sort_by(f64::total_cmp);
+        EditStats {
+            added: entry.added,
+            removed: entry.removed,
+            touched,
+        }
+    });
     let running = entry.running_background();
     let start = entry.tools.len().saturating_sub(TIMELINE_LENGTH);
     Session {
@@ -613,6 +635,9 @@ fn session(
         branch: entry.branch.clone(),
         model: entry.model.clone(),
         model_name: None,
+        effort: entry.effort.clone(),
+        edits,
+        failed_at: entry.failed_at,
         host: record.host,
         accepts_replies: record.accepts_replies,
         host_name: record.host_name.clone(),
@@ -754,6 +779,19 @@ fn apply_fact(fact: &TranscriptFact, previews: bool, entry: &mut Activity) {
         }
         TranscriptFact::Branch(branch) => entry.branch = Some(branch.clone()),
         TranscriptFact::Model(model) => entry.model = Some(model.clone()),
+        TranscriptFact::Effort(effort) => entry.effort = Some(effort.clone()),
+        TranscriptFact::Edited {
+            path,
+            added,
+            removed,
+            at,
+        } => {
+            entry.added += added;
+            entry.removed += removed;
+            let last = entry.touched.entry(path.clone()).or_insert(*at);
+            *last = last.max(*at);
+        }
+        TranscriptFact::TurnFailed(at) => entry.failed_at = Some(*at),
         TranscriptFact::Usage { key, tokens, cost } => {
             let merged = match entry.usage.get(key) {
                 Some((known, priced)) => (known.merged(tokens), priced.max(*cost)),
@@ -851,6 +889,7 @@ fn apply_fact(fact: &TranscriptFact, previews: bool, entry: &mut Activity) {
             let mut tasks = tasks.clone();
             if !previews {
                 tasks.current = None;
+                tasks.items.clear();
             }
             entry.tasks = (tasks.total > 0).then_some(tasks);
         }
@@ -1023,6 +1062,10 @@ fn begin(date: Time, entry: &mut Activity) {
         close_tools(date, entry);
         entry.turn_open = true;
         entry.turn_started = Some(date);
+        // A list run to its end belongs to the turns before (#215).
+        if entry.tasks.as_ref().is_some_and(TaskProgress::finished) {
+            entry.tasks = None;
+        }
     }
     // A prompt can only be typed once the dialogs before it closed.
     entry.permissions.retain(|p| p.since >= date);
@@ -2149,6 +2192,7 @@ mod tests {
                     done: 1,
                     total: 3,
                     current: Some(secret.into()),
+                    items: Vec::new(),
                 }),
                 TranscriptFact::Prompt {
                     text: secret.into(),
@@ -2231,6 +2275,7 @@ mod tests {
                     done: 0,
                     total: 1,
                     current: Some("Doing".into()),
+                    items: Vec::new(),
                 }),
                 job("b1", false, Some("Render"), 3.0),
             ],
@@ -2570,6 +2615,7 @@ mod tests {
                 done: 1,
                 total: 2,
                 current: None,
+                items: Vec::new(),
             })],
             at(52.0),
         );

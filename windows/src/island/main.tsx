@@ -23,6 +23,13 @@ if (!inTauri && new URLSearchParams(location.search).has("sessions")) {
   });
 }
 
+// ?sessions&away opens the "while you were away" card on the samples (#215).
+if (!inTauri && new URLSearchParams(location.search).has("away")) {
+  void Promise.all([import("../sessions/demo"), import("../sessions/progress/AwayCard")]).then(([demo, card]) => {
+    setTimeout(() => card.presentAway(demo.demoAwayLines(), Date.now() / 1000 - 47 * 60), 600);
+  });
+}
+
 if (!inTauri && new URLSearchParams(location.search).has("music")) {
   void Promise.all([import("../music/demo"), import("../music/store")]).then(([demo, store]) => {
     store.useMusic.getState().receive(demo.demoNowPlaying());
