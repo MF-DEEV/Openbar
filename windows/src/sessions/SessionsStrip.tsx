@@ -156,7 +156,10 @@ export function SessionsStrip({ geometry, size }: { geometry: Geometry; size: Si
       aria-label={S.title}
       onClick={open}
     >
-      <span className="s-strip-wing" style={{ width: wing, paddingLeft: iconInset, justifyContent: "flex-start" }}>
+      <span
+        className="s-strip-wing"
+        style={{ width: wing, paddingLeft: Math.round(iconInset), justifyContent: "flex-start" }}
+      >
         {stacked ? (
           <StackedMarks front={agents[0]!} behind={agents[1]!} />
         ) : (

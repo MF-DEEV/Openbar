@@ -5,7 +5,10 @@
 // on its page. Sessions without a list draw nothing here.
 
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import type { CSSProperties, ReactNode } from "react";
+import { cloneElement, type CSSProperties, isValidElement, type ReactNode } from "react";
+
+/** The mark's size inside the strip's ring: even, like the ring's 18 px. */
+const STRIP_RING_MARK = 10;
 import { presentedSnapshot } from "../presentation";
 import { S } from "../strings";
 import { useSessions } from "../store";
@@ -205,7 +208,9 @@ export function StripTasksRing({ children, off }: { children: ReactNode; off?: b
   const tint = providerTint(provider as Session["provider"]);
   return (
     <span className="p-strip-ring" style={{ "--p-tint": tint } as CSSProperties}>
-      <span className="p-strip-mark">{children}</span>
+      <span className="p-strip-mark">
+        {isValidElement<{ size?: number }>(children) ? cloneElement(children, { size: STRIP_RING_MARK }) : children}
+      </span>
       <svg className="p-strip-arc" viewBox="0 0 24 24" aria-hidden>
         <circle cx="12" cy="12" r="10.5" className="p-ring-track" style={{ strokeWidth: 2.2 }} />
         <circle

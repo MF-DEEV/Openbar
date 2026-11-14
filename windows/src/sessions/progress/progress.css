@@ -170,24 +170,21 @@
 }
 
 /* ---------- Strip ring ---------- */
+/* The ring keeps the Mac's share of the strip (18 px of 24), with room
+   above, below and at the corner. The mark inside is drawn at its own
+   smaller size, not scaled, and both sizes are even, so the two share one
+   centre to the pixel. */
 .p-strip-ring {
   position: relative;
-  display: inline-grid;
+  display: grid;
   place-items: center;
-  width: 17px;
-  height: 17px;
+  width: 18px;
+  height: 18px;
   line-height: 0;
 }
 .p-strip-ring > .p-strip-mark {
-  position: absolute;
-  left: 50%;
-  top: 50%;
   display: grid;
   place-items: center;
-  /* The mark steps back so the ring keeps the Mac's share of the strip
-     (about 60 % of its height), the mark about two thirds of the ring as
-     there, with room above, below and at the corner. */
-  transform: translate(-50%, -50%) scale(0.6);
 }
 .p-strip-ring > svg.p-strip-arc {
   position: absolute;
