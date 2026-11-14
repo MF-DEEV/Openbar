@@ -190,13 +190,13 @@ export function StripTasksRing({ children, off }: { children: ReactNode; off?: b
     <span className="p-strip-ring" style={{ "--p-tint": tint } as CSSProperties}>
       {children}
       <svg className="p-strip-arc" viewBox="0 0 24 24" aria-hidden>
-        <circle cx="12" cy="12" r="11" className="p-ring-track" strokeWidth="1.6" />
+        <circle cx="12" cy="12" r="10.5" className="p-ring-track" style={{ strokeWidth: 2.2 }} />
         <circle
           cx="12"
           cy="12"
-          r="11"
+          r="10.5"
           className="p-ring-fill"
-          style={{ strokeWidth: 1.6 }}
+          style={{ strokeWidth: 2.2 }}
           pathLength="1"
           strokeDasharray={`${done / total} 1`}
           transform="rotate(-90 12 12)"

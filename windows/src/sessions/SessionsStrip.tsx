@@ -106,7 +106,9 @@ function StackedMarks({ front, behind }: { front: Provider; behind: Provider }) 
         <Behind size={behindSize} working />
       </span>
       <span className="s-strip-front" style={{ width: disc, height: disc, marginTop: -disc / 2, left: -1 }}>
-        <Front size={frontSize} working />
+        <StripTasksRing>
+          <Front size={frontSize} working />
+        </StripTasksRing>
       </span>
     </span>
   );

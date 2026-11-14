@@ -154,6 +154,20 @@ export function demoSnapshot(): Snapshot {
       session.accountLabel = work ? "Work" : "Personal";
     }
   }
+  // ?sessions&calm: only sessions at work and done, so the strip shows the agent's mark (#215).
+  // ?sessions&calm=claude leaves Claude's alone at work.
+  const calm = typeof location !== "undefined" ? new URLSearchParams(location.search).get("calm") : null;
+  if (calm !== null) {
+    const claudeOnly = calm === "claude";
+    return {
+      sessions: sessions.filter(
+        (s) => !s.phase.startsWith("waiting") && s.phase !== "limited" && (!claudeOnly || s.provider === "claude"),
+      ),
+      counts: { waiting: 0, working: claudeOnly ? 1 : 2, workingCodex: claudeOnly ? 0 : 1, limited: 0, finished: 1 },
+      previews: true,
+      hooksInstalled: true,
+    };
+  }
   return {
     sessions,
     counts: { waiting: 2, working: 2, workingCodex: 1, limited: 1, finished: 1 },
