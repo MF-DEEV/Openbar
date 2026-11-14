@@ -890,8 +890,7 @@ struct NotchActivityPicker: View {
                 Menu {
                     ForEach(combinations) { pair in
                         Button { combine(pair) } label: {
-                            Label(pair.title(language),
-                                  systemImage: combination == pair ? "checkmark" : pair.companion.symbol)
+                            Label { Text(pair.title(language)) } icon: { OpenbarSymbol.menuImage(combination == pair ? "checkmark" : pair.companion.symbol) }
                         }
                     }
                 } label: {
@@ -915,7 +914,7 @@ struct NotchActivityPicker: View {
                 let chosen = activity == selected && combination == nil
                 Button { select(activity) } label: {
                     HStack(spacing: 6) {
-                        Image(systemName: activity.symbol)
+                        SymbolImage(activity.symbol)
                         Text(activity.title(language)).lineLimit(1).minimumScaleFactor(0.8)
                     }
                     .font(.system(size: 12, weight: .medium))

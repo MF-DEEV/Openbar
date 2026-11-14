@@ -11,7 +11,6 @@ import {
   ClipboardList,
   Eye,
   Gauge,
-  GalleryVerticalEnd,
   Inbox,
   type LucideIcon,
   Music,
@@ -24,6 +23,7 @@ import {
   WandSparkles,
   Webcam,
 } from "lucide-react";
+import { AgentFace } from "../shared/ui/AgentFace";
 
 export type ModuleId =
   | "controls"
@@ -75,7 +75,7 @@ export const MODULES: readonly ModuleInfo[] = [
   { id: "downloads", icon: CircleArrowDown, shortcutKey: "d", pageTop: "row" },
   { id: "scratchpad", icon: NotebookText, shortcutKey: "p", pageTop: "row" },
   { id: "agents", icon: Sparkles, shortcutKey: "g", pageTop: "row" },
-  { id: "sessions", icon: GalleryVerticalEnd, shortcutKey: "l", pageTop: "row" },
+  { id: "sessions", icon: AgentFace, shortcutKey: "l", pageTop: "row" },
   { id: "watch", icon: Eye, shortcutKey: "o", pageTop: "row" },
 ];
 

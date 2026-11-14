@@ -30,7 +30,7 @@ enum NotchModule: String, CaseIterable, Identifiable {
         case .tools: return AppFeature.quickLauncher.symbolName
         case .scratchpad: return "note.text"
         case .agents: return "sparkles"
-        case .sessions: return "rectangle.stack"
+        case .sessions: return OpenbarSymbol.agentFace
         case .watch: return "eye"
         }
     }
@@ -1076,7 +1076,7 @@ enum NotchCapsuleLayout {
 
     private static func measuredSymbolDrop(_ name: String, size: CGFloat, weight: NSFont.Weight) -> CGFloat {
         let scale: CGFloat = 4
-        guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+        guard let image = NSImage(systemSymbolName: OpenbarSymbol.standIn(for: name), accessibilityDescription: nil)?
                 .withSymbolConfiguration(NSImage.SymbolConfiguration(pointSize: size, weight: weight)),
               image.size.width > 0, image.size.height > 0,
               let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: Int((image.size.width * scale).rounded(.up)),

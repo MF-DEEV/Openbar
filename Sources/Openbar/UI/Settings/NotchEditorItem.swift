@@ -21,7 +21,7 @@ struct NotchEditorItem: View {
                 if available { select() } else { unavailableAction?() }
             } label: {
                 VStack(spacing: 8) {
-                    Image(systemName: symbol).font(.system(size: 20, weight: .medium))
+                    SymbolImage(symbol).font(.system(size: 20, weight: .medium))
                         .foregroundStyle(included && available ? Color.brandAccent : .secondary)
                     Text(title).font(.system(size: 11, weight: .medium)).lineLimit(2)
                         .multilineTextAlignment(.center).frame(height: 28)
