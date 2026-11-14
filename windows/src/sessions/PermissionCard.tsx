@@ -10,7 +10,21 @@
 import { PROVIDER_NAMES } from "./types";
 import { useLocale, t } from "../i18n";
 
-import { ArrowUp, BadgeCheck, Check, CheckSquare, Circle, CircleDot, FastForward, Square, X } from "lucide-react";
+import {
+  ArrowUp,
+  BadgeCheck,
+  Check,
+  CheckSquare,
+  ChevronUp,
+  Circle,
+  CircleDot,
+  Eye,
+  FastForward,
+  ShieldAlert,
+  Square,
+  TextSearch,
+  X,
+} from "lucide-react";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { bridge } from "../shared/bridge";
 import { phaseIcon } from "./Avatar";
@@ -182,37 +196,47 @@ function ToolRequest({ session }: { session: Session }) {
   return (
     <>
       {restricted ? (
-        <div className="s-command-notice" role="status">
-          {inspected
-            ? "Full command — invisible control characters are annotated as ⟦U+XXXX⟧."
-            : !command?.complete
-              ? "Full command unavailable. Approval is blocked; deny or inspect it in the agent."
-              : !command.available
-                ? "This command exceeds the inspection viewer's resource limit. Approval is blocked."
-                : command.truncated
-                  ? "Command shortened. Inspect the full command before allowing it."
-                  : "Command contains invisible control characters. Inspect their annotations before allowing it."}
-          {command?.available && (
-            <button
-              ref={expandButton}
-              type="button"
-              className="s-button is-secondary"
-              aria-expanded={inspected}
-              disabled={loading}
-              onClick={() => (inspected ? collapse() : void expand())}
-            >
-              {loading ? "Loading full command…" : inspected ? "Close full command" : "Inspect full command"}
-            </button>
+        <>
+          <div className={`s-command-notice${inspected ? " is-open" : ""}`} role="status">
+            {inspected ? <Eye size={12} strokeWidth={2.25} /> : <ShieldAlert size={12} strokeWidth={2.25} />}
+            <span>
+              {inspected
+                ? S.commandOpen
+                : !command?.complete
+                  ? S.commandIncomplete
+                  : !command.available
+                    ? S.commandTooLarge
+                    : command.truncated
+                      ? S.commandCut
+                      : S.commandControls}
+            </span>
+            {command?.available && (
+              <button
+                ref={expandButton}
+                type="button"
+                className="s-button is-secondary"
+                aria-expanded={inspected}
+                disabled={loading}
+                onClick={() => (inspected ? collapse() : void expand())}
+              >
+                {inspected ? <ChevronUp size={10} strokeWidth={3} /> : <TextSearch size={10} strokeWidth={2.75} />}
+                {loading ? S.openingCommand : inspected ? S.hideCommand : S.showCommand}
+              </button>
+            )}
+          </div>
+          {failed && (
+            <span className="s-command-failed" role="alert">
+              {S.commandOpenFailed}
+            </span>
           )}
-          {failed && <span role="alert">Could not load this request. Approval remains blocked.</span>}
-        </div>
+        </>
       ) : null}
       {inspected ? (
         <pre
           ref={viewer}
           tabIndex={0}
           role="region"
-          aria-label="Full command"
+          aria-label={S.commandOpen}
           className="s-detail s-full-command"
           onKeyDown={(event) => {
             if (event.key === "Escape") {
@@ -237,6 +261,7 @@ function ToolRequest({ session }: { session: Session }) {
           className="s-button is-deny"
           aria-keyshortcuts="Control+n"
           title={t("windows.sessions.ctrlN")}
+          disabled={!ready}
           onClick={() => void decide(session, "deny")}
         >
           <X size={10} strokeWidth={3.5} />
@@ -255,6 +280,7 @@ function ToolRequest({ session }: { session: Session }) {
                 })
               }
             >
+              <BadgeCheck size={10} strokeWidth={3} />
               {S.alwaysAllow}
             </button>
           ) : (
@@ -302,7 +328,9 @@ function ToolRequest({ session }: { session: Session }) {
       </div>
       <div className="s-hint">
         {restricted
-          ? "Use the full command viewer buttons to allow this request."
+          ? command?.available
+            ? S.shortcutsHintInspect
+            : S.shortcutsHintDenyOnly
           : firstMode
             ? S.shortcutsHintPlan(S.planMode(firstMode))
             : S.shortcutsHint}

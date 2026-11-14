@@ -396,7 +396,8 @@ final class ClaudeSessionService: ObservableObject {
     /// Answers the request the person saw, and only that one: a newer request
     /// for the same session, or one already settled, is left alone.
     func decide(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision, revision: String? = nil, inspectionToken: String? = nil, autoAllowTurn: Bool = false) {
-        if case .deny = decision {} else { guard settled(id, request: request) else { return } }
+        // Deny waits the same moment, so a ⌘N meant for the request before cannot deny this one.
+        guard settled(id, request: request) else { return }
         let revision = revision ?? sessions.first(where: { $0.id == id && $0.permission?.requestID == request })
             .flatMap { $0.permission }.flatMap { p in p.content.map { $0.revision(p) } }
         queue.async { [self] in

@@ -336,6 +336,40 @@ export const S = {
   get shortcutsHint() {
     return t("windows.sessions.shortcutsHint");
   },
+  // #224: a request whose text didn't fit or holds invisible characters.
+  get shortcutsHintInspect() {
+    return t("windows.sessions.shortcutsHintInspect");
+  },
+  get shortcutsHintDenyOnly() {
+    return t("windows.sessions.shortcutsHintDenyOnly");
+  },
+  get commandCut() {
+    return t("notchClaudeSessions.commandCut");
+  },
+  get commandControls() {
+    return t("notchClaudeSessions.commandControls");
+  },
+  get commandIncomplete() {
+    return t("notchClaudeSessions.commandIncomplete");
+  },
+  get commandTooLarge() {
+    return t("notchClaudeSessions.commandTooLarge");
+  },
+  get commandOpen() {
+    return t("notchClaudeSessions.commandOpen");
+  },
+  get showCommand() {
+    return t("notchClaudeSessions.showCommand");
+  },
+  get hideCommand() {
+    return t("notchClaudeSessions.hideCommand");
+  },
+  get openingCommand() {
+    return t("notchClaudeSessions.openingCommand");
+  },
+  get commandOpenFailed() {
+    return t("notchClaudeSessions.commandOpenFailed");
+  },
   get sendFailed() {
     return t("notchClaudeSessions.sendFailed");
   },

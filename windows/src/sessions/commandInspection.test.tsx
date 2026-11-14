@@ -9,6 +9,7 @@ import { performPermissionKey } from "./permissionKeys";
 import { automaticallyAllows } from "./autoAllow";
 import { hidesAutoApproval } from "./presentation";
 import type { Session } from "./types";
+import { S } from "./strings";
 
 vi.mock("./store", async (original) => {
   const actual = await original<typeof import("./store")>();
@@ -67,7 +68,7 @@ it("short commands allow Allow, Always and Deny without inspection", async () =>
   expect(invoke).toHaveBeenCalledTimes(3);
   const html = renderToStaticMarkup(<PermissionCard session={s} onOpen={() => {}} />);
   expect(html).not.toContain("disabled=");
-  expect(html).not.toContain("Inspect full command");
+  expect(html).not.toContain(S.showCommand);
 });
 
 it("collapsed long commands block Allow and Always; Deny stays available", async () => {
@@ -77,7 +78,9 @@ it("collapsed long commands block Allow and Always; Deny stays available", async
   expect(await useSessions.getState().decide(s, "always")).toBe(false);
   expect(invoke).not.toHaveBeenCalled();
   const html = renderToStaticMarkup(<PermissionCard session={s} onOpen={() => {}} />);
-  expect(html).toContain("Inspect full command");
+  expect(html).toContain(S.showCommand);
+  expect(html).toContain(S.commandCut);
+  expect(html).toContain(S.shortcutsHintInspect);
   expect(html).toMatch(/class="s-button is-allow"[^>]*disabled=""/);
   expect(html).toMatch(/class="s-button is-secondary"[^>]*aria-keyshortcuts="Control\+t"[^>]*disabled=""/);
   expect(html).not.toMatch(/class="s-button is-deny"[^>]*disabled/);
@@ -98,8 +101,9 @@ it("missing full content stays blocked even if frontend supplies a token", async
   expect(await useSessions.getState().decide(s, "allow", undefined, "anything")).toBe(false);
   expect(await useSessions.getState().decide(s, "always", undefined, "anything")).toBe(false);
   const html = renderToStaticMarkup(<PermissionCard session={s} onOpen={() => {}} />);
-  expect(html).toContain("Full command unavailable");
-  expect(html).not.toContain("Inspect full command");
+  expect(html).toContain(S.commandIncomplete);
+  expect(html).toContain(S.shortcutsHintDenyOnly);
+  expect(html).not.toContain(S.showCommand);
   expect(await useSessions.getState().decide(s, "deny")).toBe(true);
 });
 
@@ -127,9 +131,18 @@ it("keyboard and auto-allow cannot bypass a truncated command", async () => {
   expect(await performPermissionKey(s, "n")).toBe(true);
 });
 
-it("Deny remains available immediately, including incomplete commands", async () => {
+it("Deny waits the settle moment like every answer, then works for incomplete commands", async () => {
   const s = request(true, false);
   receive(s);
-  useSessions.setState({ shownAt: {} });
+  useSessions.setState({ shownAt: { [s.permission!.requestId]: Date.now() / 1000 } });
+  expect(await useSessions.getState().decide(s, "deny")).toBe(false);
+  useSessions.setState({ shownAt: { [s.permission!.requestId]: Date.now() / 1000 - 2 } });
   expect(await useSessions.getState().decide(s, "deny")).toBe(true);
+});
+
+it("a tool with no arguments is allowed as it stands", async () => {
+  const s = request(false);
+  s.permission = { ...s.permission!, detail: "", command: { ...s.permission!.command!, remaining: 0 } };
+  receive(s);
+  expect(await useSessions.getState().decide(s, "allow")).toBe(true);
 });

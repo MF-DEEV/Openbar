@@ -351,7 +351,6 @@ struct NotchClaudeSessionPermissionCard: View {
     @State private var loadingInspection = false
     @State private var inspectionFailed = false
     @State private var viewerPresented = false
-    @State private var commandAlert: NSAlert?
     @State private var inspectionGeneration = UUID()
     private var revision: String? { session.permission.flatMap { p in p.content.map { $0.revision(p) } } }
     private var inspected: Bool { inspection != nil && inspection?.revision == revision }
@@ -364,12 +363,6 @@ struct NotchClaudeSessionPermissionCard: View {
         inspection = nil
         loadingInspection = false
         viewerPresented = false
-        let alert = commandAlert
-        commandAlert = nil
-        if let alert {
-            if NSApp.modalWindow === alert.window { NSApp.abortModal() }
-            alert.window.orderOut(nil)
-        }
     }
     private func expandCommand() {
         guard let permission = session.permission, let revision, permission.content?.available == true else { return }
@@ -383,28 +376,16 @@ struct NotchClaudeSessionPermissionCard: View {
             }
             loadingInspection = false
             guard let result, result.revision == revision else { inspectionFailed = true; return }
+            // The viewer reports itself on screen; only then can Allow be pressed.
             inspection = result
-            DispatchQueue.main.async { presentFullCommandViewer(generation: generation) }
         }
     }
-    private func presentFullCommandViewer(generation: UUID) {
-        guard generation == inspectionGeneration, inspected else { return }
-        // Use the island's existing above-window modal mechanism. A sheet
-        // would move and reskin the island's borderless surface.
-        let alert = NSAlert()
-        alert.messageText = "Full command"
-        alert.informativeText = "Inspect the complete command before allowing this request."
-        guard let inspection else { return }
-        let content = NSHostingView(rootView: NotchPermissionCommandViewer(
-            text: inspection.text, shown: { viewerPresented = true }, close: closeInspection,
-            controls: { decisionControls }))
-        content.frame = NSRect(x: 0, y: 0, width: 600, height: 420)
-        alert.accessoryView = content
-        alert.addButton(withTitle: "Close").keyEquivalent = "\u{1b}"
-        alert.window.appearance = NSAppearance(named: .darkAqua)
-        commandAlert = alert
-        _ = alert.runAboveIsland()
-        closeInspection()
+    /// Why a request that needs a full read can't be allowed yet, or what the open viewer shows.
+    private func inspectionNotice(_ content: PermissionContent) -> String {
+        if inspected { return text.commandOpen }
+        if !content.complete { return text.commandIncomplete }
+        if !content.available { return text.commandTooLarge }
+        return content.truncated ? text.commandCut : text.commandControls
     }
     private func approve(_ permission: ClaudePermission, _ decision: ClaudeHookMessage.Decision, autoAllowTurn: Bool = false) {
         service.decide(session.id, request: permission.requestID, decision, revision: revision,
@@ -455,23 +436,37 @@ struct NotchClaudeSessionPermissionCard: View {
 
     /// A tool's request, read whole and allowed or denied.
     @ViewBuilder private var request: some View {
-        if restricted {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(inspected ? "Full command. Invisible controls are annotated as ⟦U+XXXX⟧."
-                     : session.permission?.content?.complete != true ? "Full command unavailable. Approval is blocked; deny or inspect it in the agent."
-                     : session.permission?.content?.available != true ? "This command exceeds the inspection viewer's resource limit. Approval is blocked."
-                     : "Command shortened or contains invisible controls. Inspect the full command before allowing it.")
-                    .font(.system(size: 10.5)).foregroundStyle(.orange)
-                if session.permission?.content?.available == true {
-                    Button(inspected ? "Close full command" : loadingInspection ? "Loading full command…" : "Inspect full command") {
+        if restricted, let content = session.permission?.content {
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: inspected ? "eye" : "exclamationmark.shield.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(inspected ? Color.white.opacity(0.55) : .orange)
+                Text(inspectionNotice(content))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                if content.available {
+                    NotchClaudeDecisionButton(
+                        title: inspected ? text.hideCommand : loadingInspection ? text.openingCommand : text.showCommand,
+                        symbol: inspected ? "chevron.up" : "text.magnifyingglass", role: .secondary) {
                         if inspected { closeInspection() } else { expandCommand() }
                     }
                     .disabled(loadingInspection)
                 }
-                if inspectionFailed { Text("Could not load this request. Approval remains blocked.").font(.system(size: 10.5)) }
+            }
+            if inspectionFailed {
+                Text(text.commandOpenFailed).font(.system(size: 10.5)).foregroundStyle(.orange)
             }
         }
-        if let diffs = session.permission?.diffs, !diffs.isEmpty {
+        if inspected, let inspection {
+            // Every character, wrapped and scrolled, so Allow lands on what was read.
+            NotchFullCommandView(text: inspection.text, shown: { viewerPresented = true })
+                .frame(height: max(120, diffHeight))
+                .padding(8)
+                .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .accessibilityLabel(text.commandOpen)
+        } else         if let diffs = session.permission?.diffs, !diffs.isEmpty {
             // A file change shows what changes, not just where.
             NotchClaudeFileDiffView(diffs: diffs, text: text, maxHeight: diffHeight)
                 // Gaps opened for one request start closed on the next.
@@ -504,6 +499,7 @@ struct NotchClaudeSessionPermissionCard: View {
                 NotchClaudeDecisionButton(title: plan ? text.keepPlanning : text.deny, symbol: "xmark", role: .deny) {
                     service.decide(session.id, request: permission.requestID, .deny)
                 }
+                .disabled(settling)
                 Spacer(minLength: 0)
                 if session.provider == .codex {
                     if restricted {
@@ -548,7 +544,7 @@ struct NotchClaudeSessionPermissionCard: View {
             }
         }
         if let permission = session.permission {
-            Text(restricted ? "Use the full command viewer buttons to allow this request."
+            Text(restricted ? (permission.content?.available == true ? text.shortcutsHintInspect : text.shortcutsHintDenyOnly)
                  : permission.planModes.first.map { String(format: text.shortcutsHintPlanFormat, text.planMode($0)) }
                  ?? (session.provider == .codex || permission.offersAlways ? text.shortcutsHintAlways : text.shortcutsHint))
                 .font(.system(size: 9.5)).foregroundStyle(.tertiary)
@@ -557,50 +553,43 @@ struct NotchClaudeSessionPermissionCard: View {
 
 }
 
-/// A separate hosting root owns focus and readiness in the above-island modal.
-/// Its controls are rebuilt while the live session/request changes.
-private struct NotchPermissionCommandViewer<Controls: View>: View {
+/// The whole command in the card: read-only, selectable, wrapped, scrolled.
+/// A text view, not a SwiftUI Text, so a command of up to a megabyte stays smooth.
+private struct NotchFullCommandView: NSViewRepresentable {
     let text: String
     let shown: () -> Void
-    let close: () -> Void
-    let controls: () -> Controls
-    @ObservedObject private var service = ClaudeSessionService.shared
-    @State private var mounted = false
-    @FocusState private var focused: Bool
 
-    init(text: String, shown: @escaping () -> Void, close: @escaping () -> Void,
-         controls: @escaping () -> Controls) {
-        self.text = text
-        self.shown = shown
-        self.close = close
-        self.controls = controls
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSTextView.scrollableTextView()
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.scrollerStyle = .overlay
+        scroll.scrollerKnobStyle = .light
+        if let view = scroll.documentView as? NSTextView {
+            view.isEditable = false
+            view.isSelectable = true
+            view.drawsBackground = false
+            view.isRichText = false
+            view.textContainerInset = .zero
+            view.textContainer?.lineFragmentPadding = 0
+            view.textContainer?.widthTracksTextView = true
+            fill(view)
+        }
+        DispatchQueue.main.async(execute: shown)
+        return scroll
     }
 
-    var body: some View {
-        TimelineView(.periodic(from: .now, by: 0.2)) { _ in
-            VStack(alignment: .leading, spacing: 12) {
-                Text("Invisible control characters are annotated as \u{27e6}U+XXXX\u{27e7}.")
-                    .font(.caption).foregroundStyle(.secondary)
-                ScrollView([.horizontal, .vertical]) {
-                    Text(verbatim: text)
-                        .font(.system(size: 12, design: .monospaced))
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: true, vertical: true)
-                        .padding(8)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8))
-                .focusable().focused($focused)
-                .accessibilityLabel("Full command")
-                .onKeyPress(.escape) { close(); return .handled }
-                controls().disabled(!mounted)
-            }
-        }
-        .padding(16)
-        .frame(minWidth: 600, minHeight: 420)
-        .preferredColorScheme(.dark)
-        .onAppear { shown(); mounted = true; focused = true }
-        .onDisappear(perform: close)
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        guard let view = scroll.documentView as? NSTextView, view.string != text else { return }
+        fill(view)
+    }
+
+    private func fill(_ view: NSTextView) {
+        view.textStorage?.setAttributedString(NSAttributedString(string: text, attributes: [
+            .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .regular),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.9),
+        ]))
     }
 }
 
@@ -637,6 +626,7 @@ struct NotchClaudeQuestionForm: View {
                 NotchClaudeDecisionButton(title: text.skip, symbol: "forward", role: .deny) {
                     service.decide(session.id, request: permission.requestID, .deny)
                 }
+                .disabled(settling)
                 Spacer(minLength: 0)
                 NotchClaudeDecisionButton(title: text.sendAnswer, symbol: "arrow.up", role: .allow, action: send)
                     .disabled(answers == nil)

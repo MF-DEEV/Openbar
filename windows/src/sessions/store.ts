@@ -204,7 +204,8 @@ export const useSessions = create<SessionsState>()((set, get) => ({
     if (
       !session.permission ||
       session.permission.questions.length > 0 ||
-      (decision !== "deny" && !settled(get(), session))
+      // Deny waits the same moment, so a Ctrl+N meant for the request before cannot deny this one.
+      !settled(get(), session)
     )
       return false;
     const { id } = session;
