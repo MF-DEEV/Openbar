@@ -9,6 +9,7 @@ struct NotchClaudeSessionsView: View {
     let size: CGSize
     @ObservedObject private var service = ClaudeSessionService.shared
     @ObservedObject private var l10n = L10n.shared
+    @ObservedObject private var away = NotchAwayCard.shared
     @Environment(\.notchSettingsPreview) private var preview
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
@@ -28,7 +29,10 @@ struct NotchClaudeSessionsView: View {
 
     var body: some View {
         Group {
-            if service.composingSession, !preview {
+            if away.isShown, !preview {
+                NotchAwayCardView(size: size, text: text)
+                    .transition(reduceMotion ? .opacity : .scale(scale: 0.96, anchor: .top).combined(with: .opacity))
+            } else if service.composingSession, !preview {
                 NotchClaudeNewSessionView(text: text)
                     .transition(reduceMotion ? .opacity : .move(edge: .trailing).combined(with: .opacity))
             } else if let dressing {
@@ -47,6 +51,7 @@ struct NotchClaudeSessionsView: View {
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: focused?.id)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: dressing?.id)
         .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: service.composingSession)
+        .animation(reduceMotion ? nil : .spring(response: 0.36, dampingFraction: 0.82), value: away.isShown)
         .frame(width: size.width, height: size.height, alignment: .top)
         .environment(\.locale, l10n.language.formattingLocale())
         .onChange(of: [focused?.id, dressing?.id, service.composingSession ? "new" : nil], initial: true) { _, _ in
@@ -72,6 +77,8 @@ struct NotchClaudeSessionsView: View {
         }
         .onDisappear {
             guard !preview else { return }
+            // The card goes with the island: closed, or opened on something else.
+            NotchAwayCard.shared.close(collapse: false)
             NotchService.shared.setPageLayer(.sessions, close: nil)
             // The island opens on the list again; a notice or the strip
             // choose a session after the page appears.
@@ -162,8 +169,13 @@ struct NotchClaudeSessionRow: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var contrast
     @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
+    @AppStorage(DefaultsKey.notchSessionsProgressStyle) private var progressRaw = NotchSessionProgressStyle.ring.rawValue
     @State private var hovered = false
     @FocusState private var focused: Bool
+
+    private var progressStyle: NotchSessionProgressStyle { NotchSessionProgressStyle(rawValue: progressRaw) ?? .ring }
+    /// The session's task list, when it keeps one (#215).
+    private var tasks: ClaudeTaskProgress? { session.tasks.flatMap { $0.total > 0 ? $0 : nil } }
 
     /// A session whose Clawd sleeps fades back a little, and comes forward
     /// under the pointer or the keyboard to be read. With more contrast asked
@@ -177,6 +189,12 @@ struct NotchClaudeSessionRow: View {
             Button(action: open) {
                 HStack(spacing: 10) {
                     NotchClaudeSessionAvatar(session: session, now: now, agentMark: true)
+                        .overlay {
+                            if let tasks, progressStyle == .ring {
+                                NotchTaskRing(tasks: tasks, tint: session.provider.tint, gapped: true)
+                                    .frame(width: 42, height: 42)
+                            }
+                        }
                     summary
                     if !quickDecision {
                         Image(systemName: "chevron.right")
@@ -211,6 +229,9 @@ struct NotchClaudeSessionRow: View {
             }
         }
         .modifier(NotchControlSurface(cornerRadius: 14))
+        .overlay(alignment: .bottom) {
+            if let tasks, progressStyle == .bar { NotchTaskBar(tasks: tasks, tint: session.provider.tint) }
+        }
         .overlay {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .strokeBorder(session.tint.opacity(session.phase.isWaiting ? 0.55 : session.phase == .limited ? 0.4 : 0),
@@ -235,6 +256,8 @@ struct NotchClaudeSessionRow: View {
                 if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
                 if let account { NotchClaudeAccountBadge(name: account) }
                 Spacer(minLength: 4)
+                NotchModelChip(session: session)
+                if let tasks { NotchTaskCount(tasks: tasks, tint: session.provider.tint, style: progressStyle, text: text) }
                 if let clock = NotchClaudeSessionFormat.clock(session, now: now) {
                     Text(clock)
                         .font(.system(size: 11, weight: .medium))
@@ -476,7 +499,7 @@ enum NotchClaudeSessionFormat {
         }
         // A dev server or an emulator left running, which is not work.
         if session.services > 0, !session.phase.isWorking { parts.append(text.leftRunning(session.services)) }
-        if let tasks = session.tasks, session.phase.isWorking { parts.append("\(tasks.done)/\(tasks.total)") }
+        // The row draws the task list's reading itself (#215).
         return parts.filter { !$0.isEmpty }.joined(separator: " · ")
     }
 }

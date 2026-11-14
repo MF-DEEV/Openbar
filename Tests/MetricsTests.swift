@@ -133,6 +133,7 @@ struct MetricsTests {
                 ClawdCostumeTests.run(suite)
                 NotchClawdSpriteTests.run(suite)
                 NotchSessionAgentTests.run(suite)
+                NotchAwayTests.run(suite)
                 ClaudeBackgroundSessionTests.run(suite)
                 SessionWorktreeTests.run(suite)
                 NotchClawdViewTests.run(suite)

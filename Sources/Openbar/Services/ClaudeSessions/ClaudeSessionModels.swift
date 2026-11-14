@@ -356,8 +356,56 @@ struct ClaudeTaskProgress: Equatable {
     var total = 0
     /// The task under way; nil unless content previews are on.
     var current: String?
+    /// The list itself, in the agent's order; empty unless content previews
+    /// are on (#215).
+    var items: [ClaudeTaskItem] = []
 
     var fraction: Double { total > 0 ? Double(done) / Double(total) : 0 }
+    /// Every task done: the list has run its course.
+    var finished: Bool { total > 0 && done >= total }
+
+    /// A list from its items as the agent states them: (title, the words
+    /// for it under way, state). `current` comes from the first under way.
+    static func from(_ items: [(String, String, ClaudeTaskItem.State)], previews: Bool) -> ClaudeTaskProgress? {
+        guard !items.isEmpty else { return nil }
+        var progress = ClaudeTaskProgress(done: items.filter { $0.2 == .done }.count, total: items.count)
+        guard previews else { return progress }
+        if let under = items.first(where: { $0.2 == .current }) {
+            progress.current = under.1.isEmpty ? under.0 : under.1
+        }
+        progress.items = items.map { ClaudeTaskItem(title: $0.0, state: $0.2) }
+        return progress
+    }
+
+    /// Without previews only the counts stay.
+    func stripped() -> ClaudeTaskProgress {
+        ClaudeTaskProgress(done: done, total: total)
+    }
+}
+
+/// One task of an agent's list.
+struct ClaudeTaskItem: Equatable {
+    enum State: Equatable { case done, current, pending }
+    var title: String
+    var state: State
+
+    /// A status as Claude Code and Codex write it.
+    static func state(_ status: String) -> State {
+        switch status {
+        case "completed", "done": return .done
+        case "in_progress", "inProgress": return .current
+        default: return .pending
+        }
+    }
+}
+
+/// What a session changed in files: lines in all, and when each file it
+/// touched was last touched, which is all the away card needs (#215).
+struct ClaudeEditStats: Equatable {
+    var added = 0
+    var removed = 0
+    /// The last edit of each file, one entry a file, oldest first.
+    var touched: [Date] = []
 }
 
 /// Everything the island shows about one session.
@@ -373,6 +421,8 @@ struct ClaudeSession: Equatable, Identifiable {
     var nameSource: String? = nil
     var branch: String?
     var model: String?
+    /// The reasoning level the agent reports: low, medium, high, xhigh, max.
+    var effort: String? = nil
     var host: ClaudeSessionHost
     var phase: ClaudeSessionPhase
     var phaseSince: Date
@@ -392,6 +442,10 @@ struct ClaudeSession: Equatable, Identifiable {
     var timeline: [ClaudeToolUse]
     var subagents: [ClaudeSubagent]
     var tasks: ClaudeTaskProgress?
+    /// Lines and files it changed so far (#215).
+    var edits: ClaudeEditStats? = nil
+    /// When its last turn stopped on an error rather than ending.
+    var failedAt: Date? = nil
     var tokens: AgentTokens
     var cost: Double
     /// Gated by content previews.
@@ -531,6 +585,12 @@ enum ClaudeTranscriptFact: Equatable {
     case title(String)
     case branch(String)
     case model(String)
+    /// The reasoning level the line was made at.
+    case effort(String)
+    /// A file the agent wrote, with the lines it added and took out.
+    case edited(path: String, added: Int, removed: Int, at: Date)
+    /// The turn stopped on an API error.
+    case turnFailed(Date)
     /// Streamed replies repeat their usage per block; the key merges them.
     case usage(key: String, tokens: AgentTokens, cost: Double)
     case subagentActivity(id: String, at: Date)

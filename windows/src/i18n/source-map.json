@@ -8138,5 +8138,113 @@
     "key": "windows.sessions.codexFailed",
     "english": "Codex couldn’t start the session",
     "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.awayTitle",
+    "english": "While you were away",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.awayMinutesFormat",
+    "english": "%@ min",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.awayFilesFormat",
+    "english": "%@ files changed",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.awayWaiting",
+    "english": "waiting for you",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.awayError",
+    "english": "stopped on an error",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.awayLimited",
+    "english": "hit a limit",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.awayFinished",
+    "english": "finished",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.awayWorking",
+    "english": "still working",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.awayClose",
+    "english": "Close",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.progressStyle",
+    "english": "Task progress",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.progressStyleCaption",
+    "english": "How a session's task list shows on its row.",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.progressRing",
+    "english": "Ring",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.progressDots",
+    "english": "Dots",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.progressBar",
+    "english": "Bar",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.awayCard",
+    "english": "While you were away",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.awayCardCaption",
+    "english": "Back from the lock screen or a break, one card shows what your sessions did.",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.awayMinutes",
+    "english": "Break after",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.awayMinutesValue",
+    "english": "%@ min",
+    "source": null
   }
 ]

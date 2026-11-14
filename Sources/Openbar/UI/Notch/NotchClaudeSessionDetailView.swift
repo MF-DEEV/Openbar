@@ -122,6 +122,7 @@ struct NotchClaudeSessionDetailView: View {
                     if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
                     if let account = service.accountLabels[session.id] { NotchClaudeAccountBadge(name: account) }
                     NotchClaudeProjectTag(project: session.project)
+                    NotchModelChip(session: session)
                     Text(details)
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
@@ -135,7 +136,9 @@ struct NotchClaudeSessionDetailView: View {
     }
 
     private var details: String {
-        [session.branch.map { "⎇ \($0)" }, session.model.map(AgentPricing.displayName),
+        // The chip beside the tag names the model (#215).
+        [session.branch.map { "⎇ \($0)" },
+         NotchSessionProgress.shortModel(session) == nil ? session.model.map(AgentPricing.displayName) : nil,
          session.tokens.total > 0 ? AgentFormat.tokens(session.tokens.total) : nil,
          session.cost > 0 ? AgentFormat.cost(session.cost) : nil]
             .compactMap { $0 }.joined(separator: " · ")
@@ -229,25 +232,7 @@ struct NotchClaudeSessionDetailView: View {
     // MARK: Work
 
     private func tasksRow(_ tasks: ClaudeTaskProgress) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack {
-                Text(text.tasks(done: tasks.done, total: tasks.total))
-                    .font(.system(size: 10.5, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.8))
-                if let current = tasks.current {
-                    Text(current).font(.system(size: 10.5)).foregroundStyle(.secondary).lineLimit(1)
-                }
-            }
-            GeometryReader { proxy in
-                ZStack(alignment: .leading) {
-                    Capsule().fill(.white.opacity(0.1))
-                    Capsule().fill(session.provider.tint)
-                        .frame(width: max(4, proxy.size.width * tasks.fraction))
-                }
-            }
-            .frame(height: 4)
-            .accessibilityHidden(true)
-        }
+        NotchTaskChecklist(tasks: tasks, tint: session.provider.tint, text: text)
     }
 
     private var timeline: some View {

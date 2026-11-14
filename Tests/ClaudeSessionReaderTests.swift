@@ -9,6 +9,7 @@ enum ClaudeSessionReaderTests {
         suite.run("sessions registry") { registry(suite) }
         suite.run("sessions config folders") { configHomes(suite) }
         suite.run("sessions transcript") { transcript(suite) }
+        suite.run("sessions progress, effort and edits") { progress(suite) }
         suite.run("sessions prompt images") { promptImages(suite) }
         suite.run("sessions hosts") { hosts(suite) }
     }
@@ -341,9 +342,43 @@ enum ClaudeSessionReaderTests {
             data(#"{"id":"2","subject":"B","activeForm":"Doing B","status":"in_progress"}"#),
             data(#"{"id":"3","subject":"C","status":"pending"}"#), data(#"{"id":"4","status":"deleted"}"#), data("{"),
         ], policy: ClaudeContentPolicy(previews: true))
-        suite.expect(tasks == ClaudeTaskProgress(done: 1, total: 3, current: "Doing B"),
+        suite.expect(tasks == ClaudeTaskProgress(done: 1, total: 3, current: "Doing B", items: [
+            ClaudeTaskItem(title: "A", state: .done), ClaudeTaskItem(title: "B", state: .current),
+            ClaudeTaskItem(title: "C", state: .pending),
+        ]),
                      "task progress counts finished tasks and names the one under way")
         suite.expect(ClaudeTranscriptReader.tasks([], policy: ClaudeContentPolicy()) == nil, "no tasks shows no progress")
+    }
+
+    /// #215: the reasoning level, a TodoWrite list, the lines an edit changed
+    /// and a turn an API error stopped.
+    static func progress(_ suite: TestSuite) {
+        let effort = #"{"type":"assistant","isSidechain":false,"effort":"high","perTurnEffort":"xhigh","timestamp":"2026-11-14T10:00:00Z","message":{"model":"claude-opus-5-5","content":[],"stop_reason":"tool_use"}}"#
+        suite.expect(parse([effort], previews: false).contains(.effort("xhigh")), "the turn's own level wins over the session's")
+        let synthetic = #"{"type":"assistant","effort":"high","timestamp":"2026-11-14T10:00:00Z","message":{"model":"<synthetic>","content":[]}}"#
+        suite.expect(!parse([synthetic], previews: false).contains { if case .effort = $0 { true } else { false } },
+                     "a line no model wrote says nothing of its level")
+
+        let todo = #"{"type":"assistant","timestamp":"2026-11-14T10:00:00Z","message":{"model":"claude-opus-5-5","content":[{"type":"tool_use","id":"t1","name":"TodoWrite","input":{"todos":[{"content":"Read","status":"completed","activeForm":"Reading"},{"content":"Write","status":"in_progress","activeForm":"Writing"},{"content":"Test","status":"pending","activeForm":"Testing"}]}}]}}"#
+        let list = parse([todo], previews: true).compactMap { if case .tasks(let t) = $0 { t } else { nil } }.first
+        suite.expect(list?.done == 1 && list?.total == 3 && list?.current == "Writing", "a TodoWrite call is a task list")
+        suite.expect(list?.items.map(\.state) == [.done, .current, .pending] && list?.items[1].title == "Write",
+                     "every task keeps its words and state")
+        let quiet = parse([todo], previews: false).compactMap { if case .tasks(let t) = $0 { t } else { nil } }.first
+        suite.expect(quiet?.items.isEmpty == true && quiet?.current == nil && quiet?.total == 3, "without previews only the counts stay")
+
+        let edit = #"{"type":"user","timestamp":"2026-11-14T10:00:05Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"ok"}]},"toolUseResult":{"filePath":"/p/a.swift","structuredPatch":[{"lines":[" keep","-old","+new","+more"]}]}}"#
+        suite.expect(parse([edit], previews: false).contains { if case .edited("/p/a.swift", 2, 1, _) = $0 { true } else { false } },
+                     "an edit counts its patch's lines")
+        let create = #"{"type":"user","timestamp":"2026-11-14T10:00:05Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t2","content":"ok"}]},"toolUseResult":{"type":"create","filePath":"/p/b.swift","content":"a\nb\nc\n","structuredPatch":[]}}"#
+        suite.expect(parse([create], previews: false).contains { if case .edited(_, 3, 0, _) = $0 { true } else { false } },
+                     "a new file counts every line")
+        let refused = #"{"type":"user","timestamp":"2026-11-14T10:00:05Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t3","content":"no","is_error":true}]},"toolUseResult":{"filePath":"/p/c.swift","structuredPatch":[{"lines":["+x"]}]}}"#
+        suite.expect(!parse([refused], previews: false).contains { if case .edited = $0 { true } else { false } },
+                     "a refused edit changed nothing")
+        let failed = #"{"type":"assistant","isApiErrorMessage":true,"timestamp":"2026-11-14T10:00:00Z","message":{"model":"<synthetic>","content":[{"type":"text","text":"API Error"}],"stop_reason":"stop_sequence"}}"#
+        suite.expect(parse([failed], previews: false).contains { if case .turnFailed = $0 { true } else { false } },
+                     "an API error fails the turn")
     }
 
     // MARK: Hosts
