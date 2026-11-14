@@ -888,7 +888,6 @@ fn plugin(
                 .map(|a| {
                     a.iter()
                         .filter_map(Value::as_str)
-                        .filter(|s| !s.is_empty())
                         .map(str::to_owned)
                         .collect()
                 })
@@ -904,10 +903,44 @@ fn plugin(
                 .get("always")
                 .and_then(Value::as_array)
                 .is_some_and(|a| a.iter().filter_map(Value::as_str).any(|s| !s.is_empty()));
-            let detail: String = detail.chars().take(tool_summary::DETAIL_LIMIT).collect();
+
             decoded.permission = Some((session.clone(), request.clone()));
-            let mut permission = waiting_permission(&tool, detail, always, date, &request);
-            if tool == "Edit" {
+            let mut permission = waiting_permission(&tool, String::new(), always, date, &request);
+            let command = metadata.get("command").and_then(Value::as_str);
+            let original_length = metadata
+                .get("commandLength")
+                .and_then(Value::as_u64)
+                .and_then(|n| usize::try_from(n).ok());
+            let shell = tool == "Bash" || metadata.contains_key("command");
+            let complete_detail = json.get("permissionContentComplete") == Some(&Value::Bool(true))
+                && json.get("metadata").is_none_or(Value::is_object)
+                && json
+                    .get("patterns")
+                    .is_none_or(|v| v.as_array().is_some_and(|a| a.iter().all(Value::is_string)))
+                && json
+                    .get("permissionDetailLength")
+                    .is_none_or(|v| v.as_u64() == Some(detail.chars().count() as u64));
+            let complete = if shell {
+                metadata.get("commandComplete") == Some(&Value::Bool(true))
+                    && command.is_some_and(|s| {
+                        !s.is_empty() && original_length == Some(s.chars().count())
+                    })
+            } else {
+                complete_detail
+            };
+            permission.set_content(
+                &detail,
+                complete,
+                if shell {
+                    original_length
+                } else {
+                    json.get("permissionDetailLength")
+                        .and_then(Value::as_u64)
+                        .and_then(|n| usize::try_from(n).ok())
+                        .or_else(|| complete.then(|| detail.chars().count()))
+                },
+            );
+            if tool == "Edit" && !shell {
                 permission.diffs = file_diff::opencode(&metadata);
             }
             add(Kind::Permission(permission));
@@ -2773,7 +2806,7 @@ mod tests {
             ON,
         );
         let ask = ev(
-            json!({ "kind": "permission", "session": "s", "id": "per", "permission": "bash", "metadata": { "command": "rm -rf build" }, "always": ["rm *"] }),
+            json!({ "kind": "permission", "session": "s", "id": "per", "permission": "bash", "metadata": { "command": "rm -rf build", "commandComplete": true, "commandLength": 12 }, "always": ["rm *"] }),
         );
         assert_eq!(
             decode(&ask, NOW, OFF).unwrap().permission,

@@ -314,6 +314,8 @@ pub fn run() {
             prefs::launch_at_login_get,
             prefs::launch_at_login_set,
             sessions::service::sessions_decide,
+            sessions::service::sessions_inspect_command,
+            sessions::service::sessions_close_inspection,
             sessions::service::sessions_show_sample,
             sessions::service::sessions_dismiss_sample,
             sessions::service::sessions_answer,

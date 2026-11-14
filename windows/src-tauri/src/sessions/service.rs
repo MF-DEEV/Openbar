@@ -177,6 +177,7 @@ struct Inner {
     /// Gemini CLI's, Copilot CLI's, OpenCode's and Cursor's sessions.
     hook_agents: HookAgents,
     agent_pending: HashMap<String, AgentPending>,
+    inspection: super::inspection::Gate,
     /// Each OpenCode's plugin listening for replies, by its process.
     listeners: HashMap<i32, HookConnection>,
     /// The agents whose sessions the list shows.
@@ -254,6 +255,7 @@ impl Service {
                 local_codex: Vec::new(),
                 hook_agents: HookAgents::default(),
                 agent_pending: HashMap::new(),
+                inspection: Default::default(),
                 listeners: HashMap::new(),
                 hidden_agents: HashSet::new(),
                 branches: HashMap::new(),
@@ -604,6 +606,9 @@ impl Service {
         if let Some((session, request)) = &decoded.permission
             && let Some(connection) = connection.take()
         {
+            inner
+                .inspection
+                .invalidate(&hook_agents::id(provider, session));
             inner.agent_pending.insert(
                 request.clone(),
                 AgentPending {
@@ -828,6 +833,17 @@ impl Service {
                 .map(|a| super::accounts::canonical(Path::new(a)));
         }
         super::accounts::note_in_use(&sessions, &inner.accounts);
+        let live = sessions
+            .iter()
+            .filter_map(|s| {
+                s.permission.as_ref().and_then(|p| {
+                    p.content
+                        .as_ref()
+                        .map(|c| (s.id.clone(), c.metadata(p).revision))
+                })
+            })
+            .collect::<Vec<_>>();
+        inner.inspection.retain(&live);
         let counts = SessionCounts::of(&sessions);
         let busy = sessions
             .iter()
@@ -1068,10 +1084,42 @@ impl Service {
     // MARK: Actions
 
     fn answer(&self, session: &str, request: &str, decision: Decision) -> bool {
+        self.answer_inspected(session, request, decision, None, None)
+    }
+
+    fn answer_inspected(
+        &self,
+        session: &str,
+        request: &str,
+        decision: Decision,
+        revision: Option<&str>,
+        token: Option<&str>,
+    ) -> bool {
         {
             let mut inner = self.inner.lock().unwrap();
             if inner.hook_agents.owns(session) {
+                let Some(p) = inner
+                    .hook_agents
+                    .entry(session)
+                    .and_then(|e| e.permission.as_ref())
+                else {
+                    return false;
+                };
+                if p.request_id != request
+                    || (!matches!(decision, Decision::Deny | Decision::Answer(_))
+                        && !inner.inspection.allows(session, p, revision, token))
+                {
+                    return false;
+                }
                 // OpenCode's plugin waits for the answer; the other agents ask in their own terminal.
+                if !matches!(decision, Decision::Deny)
+                    && inner
+                        .agent_pending
+                        .get(request)
+                        .is_none_or(|p| now() - p.since > HOOK_PATIENCE)
+                {
+                    return false;
+                }
                 let Some(reply) = hook_agents::opencode_reply(&decision) else {
                     return false;
                 };
@@ -1097,7 +1145,7 @@ impl Service {
                 Decision::Deny => CodexAnswer::Deny,
                 Decision::Answer(map) => CodexAnswer::Questions(map.into_iter().collect()),
             };
-            let ok = codex.answer(session, request, answer);
+            let ok = codex.answer_inspected(session, request, answer, revision, token);
             if ok {
                 codex.acknowledge(session, now());
             }
@@ -1107,6 +1155,15 @@ impl Service {
             return ok;
         }
         let mut inner = self.inner.lock().unwrap();
+        let Some(p) = inner.engine.permission(session) else {
+            return false;
+        };
+        if p.request_id != request
+            || (!matches!(decision, Decision::Deny | Decision::Answer(_))
+                && !inner.inspection.allows(session, p, revision, token))
+        {
+            return false;
+        }
         let asks = inner
             .engine
             .permission(session)
@@ -1116,6 +1173,14 @@ impl Service {
             Decision::Allow | Decision::AllowAlways | Decision::ApprovePlan(_) => !asks,
             Decision::Deny => true,
         };
+        if !matches!(decision, Decision::Deny)
+            && inner
+                .pending
+                .get(request)
+                .is_none_or(|p| now() - p.since > HOOK_PATIENCE)
+        {
+            return false;
+        }
         if !fits || !inner.engine.holds(request, session) {
             return false;
         }
@@ -1970,6 +2035,8 @@ pub fn sessions_decide(
     request_id: String,
     decision: UiDecision,
     plan_mode: Option<PlanMode>,
+    revision: Option<String>,
+    inspection_token: Option<String>,
 ) -> bool {
     let decision = match (decision, plan_mode) {
         (UiDecision::Allow, Some(mode)) => Decision::ApprovePlan(mode),
@@ -1984,7 +2051,44 @@ pub fn sessions_decide(
             !matches!(decision, Decision::Deny),
         );
     }
-    service.answer(&session_id, &request_id, decision)
+    service.answer_inspected(
+        &session_id,
+        &request_id,
+        decision,
+        revision.as_deref(),
+        inspection_token.as_deref(),
+    )
+}
+
+/// Fetch only the authoritative pending request, never text supplied by the frontend.
+#[tauri::command]
+pub fn sessions_inspect_command(
+    service: tauri::State<'_, Shared>,
+    session_id: String,
+    request_id: String,
+    revision: String,
+) -> Option<super::inspection::Inspection> {
+    if let Some(codex) = service.codex_owner(&session_id) {
+        return codex.inspect(&session_id, &request_id, &revision);
+    }
+    let mut inner = service.inner.lock().unwrap();
+    let p = if inner.hook_agents.owns(&session_id) {
+        inner.hook_agents.entry(&session_id)?.permission.clone()?
+    } else {
+        inner.engine.permission(&session_id)?.clone()
+    };
+    if p.request_id != request_id {
+        return None;
+    }
+    inner.inspection.open(&session_id, &p, &revision)
+}
+
+#[tauri::command]
+pub fn sessions_close_inspection(service: tauri::State<'_, Shared>, token: String) {
+    for codex in service.codex_clients() {
+        codex.close_inspection(&token);
+    }
+    service.inner.lock().unwrap().inspection.close(&token);
 }
 
 // MARK: Sample request (#168)

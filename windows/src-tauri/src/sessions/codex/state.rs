@@ -940,23 +940,17 @@ pub fn readable_command(command: &str) -> String {
 }
 
 /// The card the island shows for the oldest request Codex waits on.
-fn permission(pending: &Pending) -> Permission {
+pub fn permission(pending: &Pending) -> Permission {
     let p = &pending.params;
     let (tool, summary, detail, always) = match pending.method.as_str() {
         "item/commandExecution/requestApproval" => {
-            let command = readable_command(str_at(p, "command").unwrap_or(""));
-            let command = command.as_str();
-            let mut detail = command.to_string();
-            if let Some(cwd) = str_at(p, "cwd") {
-                detail.push_str(&format!("\n\nin {cwd}"));
-            }
-            if let Some(reason) = str_at(p, "reason") {
-                detail.push_str(&format!("\n\n{reason}"));
-            }
+            let command = str_at(p, "command").unwrap_or("");
             (
                 "Command",
-                Some(command.lines().next().unwrap_or("").to_string()),
-                detail,
+                Some(crate::sessions::models::tool_summary::clip(
+                    command.lines().next().unwrap_or(""),
+                )),
+                String::new(),
                 true,
             )
         }
@@ -1011,7 +1005,26 @@ fn permission(pending: &Pending) -> Permission {
         always,
         pending.since,
     );
-    card.detail = clip(detail.trim(), DETAIL_LIMIT);
+    let complete =
+        pending.method != "item/commandExecution/requestApproval" || str_at(p, "command").is_some();
+    if pending.method == "item/commandExecution/requestApproval" {
+        let raw = str_at(p, "command").unwrap_or("");
+        card.set_content(raw, complete, Some(raw.chars().count()));
+        if let Some(cwd) = str_at(p, "cwd") {
+            card.detail.push_str(&format!(
+                "\n\nin {}",
+                crate::sessions::inspection::display(cwd)
+            ));
+        }
+        if let Some(reason) = str_at(p, "reason") {
+            card.detail.push_str(&format!(
+                "\n\n{}",
+                crate::sessions::inspection::display(reason)
+            ));
+        }
+    } else {
+        card.set_content(&detail, complete, Some(detail.chars().count()));
+    }
     if pending.method == "item/tool/requestUserInput" {
         card.questions = questions(p).into_iter().map(|(_, q)| q).collect();
     }

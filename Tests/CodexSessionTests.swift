@@ -1022,7 +1022,7 @@ enum CodexSessionTests {
         suite.expect(eventually { client.snapshot(now: Date(), previews: false).sessions.first?.permission?.requestID == "codex:7" },
                      "the approval reaches the island")
         let card = client.snapshot(now: Date(), previews: false).sessions.first
-        suite.expect(card?.phase == .waitingPermission && card?.permission?.detail.hasPrefix("rm -rf build") == true,
+        suite.expect(card?.phase == .waitingPermission && card?.permission?.detail.hasPrefix("/bin/zsh -lc 'rm -rf build'") == true,
                      "and reads as its command")
         suite.expect(!client.reply("t1", text: "hi"), "no reply while a request waits")
         suite.expect(!client.answer("t1", requestID: "codex:8", answer: .allow), "an unknown request is not answered")
@@ -1034,6 +1034,34 @@ enum CodexSessionTests {
         suite.expect(json(answer) == #"{"id":7,"result":{"decision":"accept"}}"#, "the answer accepts by the same id: \(json(answer))")
         suite.expect(!client.answer("t1", requestID: "codex:7", answer: .deny), "the first answer wins")
         suite.expect(client.snapshot(now: Date(), previews: false).sessions.first?.permission == nil, "the card goes")
+
+        // #224: exercise the actual locked client boundary over this fake daemon.
+        let hiddenCommand = String(repeating: "# harmless padding\n", count: 600) + "printf 'HIDDEN_SUFFIX_FIXTURE'"
+        daemon.send(["id": 224, "method": "item/commandExecution/requestApproval", "params": ["threadId": "t1", "command": hiddenCommand]])
+        suite.expect(eventually { client.snapshot(now: Date(), previews: false).sessions.first?.permission?.requestID == "codex:224" }, "long request arrives")
+        suite.expect(!client.answer("t1", requestID: "codex:224", answer: .allow)
+                     && !client.answer("t1", requestID: "codex:224", answer: .allowForSession), "keyboard and Always cannot approve an uninspected command")
+        let longCard = client.snapshot(now: Date(), previews: false).sessions.first!.permission!
+        let revision = longCard.content!.revision(longCard)
+        let inspected = client.inspect("t1", request: "codex:224", revision: revision)!
+        suite.expect(inspected.text == hiddenCommand, "full inspected text preserves the hidden suffix")
+        let changedCommand = hiddenCommand + "\necho changed"
+        daemon.send(["id": 224, "method": "item/commandExecution/requestApproval", "params": ["threadId": "t1", "command": changedCommand]])
+        suite.expect(eventually { client.snapshot(now: Date(), previews: false).sessions.first?.permission?.content?.full == changedCommand }, "replacement with same RPC id arrives")
+        suite.expect(!client.answer("t1", requestID: "codex:224", answer: .allow, revision: revision, inspectionToken: inspected.token), "a replaced request rejects the old capability")
+        let changedCard = client.snapshot(now: Date(), previews: false).sessions.first!.permission!
+        let changedRevision = changedCard.content!.revision(changedCard)
+        let changedInspection = client.inspect("t1", request: "codex:224", revision: changedRevision)!
+        client.closeInspection(changedInspection.token)
+        suite.expect(!client.answer("t1", requestID: "codex:224", answer: .allow, revision: changedRevision, inspectionToken: changedInspection.token), "closing the viewer revokes approval")
+        let reopened = client.inspect("t1", request: "codex:224", revision: changedRevision)!
+        suite.expect(client.answer("t1", requestID: "codex:224", answer: .allowForSession, revision: changedRevision, inspectionToken: reopened.token), "explicit Always after inspection answers only the displayed request")
+        suite.expect(json(daemon.message()) == #"{"id":224,"result":{"decision":"acceptForSession"}}"#, "full inspection preserves Always semantics")
+        daemon.send(["id": 225, "method": "item/commandExecution/requestApproval", "params": ["threadId": "t1"]])
+        suite.expect(eventually { client.snapshot(now: Date(), previews: false).sessions.first?.permission?.requestID == "codex:225" }, "missing command arrives")
+        suite.expect(!client.answer("t1", requestID: "codex:225", answer: .allow)
+                     && client.answer("t1", requestID: "codex:225", answer: .deny), "missing commands fail closed but Deny remains available")
+        suite.expect(json(daemon.message()) == #"{"id":225,"result":{"decision":"decline"}}"#, "Deny still reaches Codex")
 
         // A request with a string id, answered back with it.
         daemon.send(["id": "r9", "method": "item/fileChange/requestApproval", "params": ["threadId": "t1"]])

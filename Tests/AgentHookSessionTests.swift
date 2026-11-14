@@ -240,7 +240,7 @@ enum AgentHookSessionTests {
                      && listed[0].tokens.output == 25 && listed[0].tokens.cacheRead == 50 && abs(listed[0].cost - 0.012) < 1e-9,
                      "OpenCode's tools, model, tokens and cost come through, a repeated part once: \(listed)")
         let ask = event(["kind": "permission", "session": "ses_1", "id": "per_1", "permission": "bash",
-                         "patterns": ["rm -rf build"], "metadata": ["command": "rm -rf build"], "always": ["rm *"]])
+                         "patterns": ["rm -rf build"], "metadata": ["command": "rm -rf build", "commandComplete": true, "commandLength": 12], "always": ["rm *"]])
         let decoded = AgentHookMessage.decode(ask, now: now, policy: off)
         suite.expect(decoded?.permission?.request == "per_1" && decoded?.permission?.session == "ses_1",
                      "a permission names the request the answer goes to")

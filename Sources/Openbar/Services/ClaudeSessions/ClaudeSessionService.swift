@@ -127,6 +127,7 @@ final class ClaudeSessionService: ObservableObject {
     private var server: ClaudeHookServer?
     /// The sessions as they came, before Always hid the waits it answers.
     private var latest: [ClaudeSession] = []
+    private var inspection = PermissionInspectionGate()
     /// The sample request onboarding shows, which no agent asked, and what
     /// it has to tell the island next. Queue.
     private var sample: ClaudeSession?
@@ -394,22 +395,37 @@ final class ClaudeSessionService: ObservableObject {
     /// Answers the permission the session waits on, if its hook still waits.
     /// Answers the request the person saw, and only that one: a newer request
     /// for the same session, or one already settled, is left alone.
-    func decide(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision) {
-        guard settled(id, request: request) else { return }
+    func decide(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision, revision: String? = nil, inspectionToken: String? = nil, autoAllowTurn: Bool = false) {
+        if case .deny = decision {} else { guard settled(id, request: request) else { return } }
+        let revision = revision ?? sessions.first(where: { $0.id == id && $0.permission?.requestID == request })
+            .flatMap { $0.permission }.flatMap { p in p.content.map { $0.revision(p) } }
         queue.async { [self] in
             if id == ClaudeSessionSample.id { return answerSample(request: request, decision) }
             // Codex takes its answer through its own server; the first answer wins there.
             if let codex = codexOwner(id) {
-                if codex.answer(id, requestID: request, answer: CodexAnswer(decision)) {
+                if codex.answer(id, requestID: request, answer: CodexAnswer(decision), revision: revision, inspectionToken: inspectionToken) {
                     codex.acknowledge(id, now: Date())
+                    if autoAllowTurn, case .allow = decision {
+                        _ = autoAllow.set(id, on: true, session: latest.first { $0.id == id }, now: Date())
+                    }
                 }
                 publish(now: Date())
                 return
+            }
+            let current = hookAgents.owns(id) ? hookAgents.entry(id)?.permission : engine.permission(of: id)
+            guard let current, current.requestID == request else { return }
+            switch decision {
+            case .deny, .answer: break
+            default:
+                guard inspection.allows(id, current, revision: revision, token: inspectionToken) else { return }
             }
             if hookAgents.owns(id) {
                 // OpenCode's plugin waits for the answer; the other agents ask in their own terminal.
                 guard let asked = agentPending[request], asked.session == id,
                       let reply = AgentHookMessage.opencodeReply(decision) else { return }
+                if case .deny = decision {} else {
+                    guard !asked.connection.isClosed, Date().timeIntervalSince(asked.since) <= Self.permissionDeadline else { return }
+                }
                 agentPending[request] = nil
                 asked.connection.finish(reply)
                 hookAgents.resolve(id, request: request)
@@ -418,6 +434,9 @@ final class ClaudeSessionService: ObservableObject {
                 return
             }
             guard engine.holds(request, for: id), let asked = pending[request] else { return }
+            if case .deny = decision {} else {
+                guard !asked.connection.peerIsGone, Date().timeIntervalSince(asked.since) <= Self.permissionDeadline else { return }
+            }
             // A question is answered or skipped, never allowed as it stands;
             // answers go only to a question, and a mode only to a plan.
             var decision = decision
@@ -437,6 +456,25 @@ final class ClaudeSessionService: ObservableObject {
             engine.resolvePermission(requestID: request)
             engine.acknowledge(id, now: Date())
             publish(now: Date())
+        }
+    }
+
+    func inspectCommand(_ id: String, request: String, revision: String, completion: @escaping (PermissionInspection?) -> Void) {
+        queue.async { [self] in
+            let result: PermissionInspection?
+            if let codex = codexOwner(id) {
+                result = codex.inspect(id, request: request, revision: revision)
+            } else if let p = hookAgents.owns(id) ? hookAgents.entry(id)?.permission : engine.permission(of: id), p.requestID == request {
+                result = inspection.open(id, p, revision: revision)
+            } else { result = nil }
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    func closeInspection(_ token: String) {
+        queue.async { [self] in
+            inspection.close(token)
+            codexClients.forEach { $0.closeInspection(token) }
         }
     }
 
@@ -1027,6 +1065,7 @@ final class ClaudeSessionService: ObservableObject {
         }
         if let asked = decoded.permission {
             let id = AgentHookEvent.id(decoded.provider, asked.session)
+            inspection.invalidate(id)
             agentPending.removeValue(forKey: asked.request)?.connection.finish()
             agentPending[asked.request] = (connection, id, now)
         } else {
@@ -1520,6 +1559,7 @@ final class ClaudeSessionService: ObservableObject {
         let agentSessions = fromAgents.sessions.filter { shownAgents.contains($0.provider) }
         let sorted = NotchClaudeSessionsSupport.sorted(withBackground(claude, now: now) + codexSessions + agentSessions
             + (sample.map { [$0] } ?? []))
+        inspection.retain(sorted)
         let shown = autoAllowing(sorted, now: now)
         let allowed = autoAllow.sessions
         let hidden = Set(sorted.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed, now: now) }

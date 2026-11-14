@@ -263,6 +263,7 @@ pub struct Permission {
     /// Shown even with previews off, since nobody should allow what they
     /// cannot read, and dropped once answered.
     pub detail: String,
+    pub content: Option<super::inspection::Content>,
     /// Claude Code offered rules that would stop it asking again.
     pub offers_always: bool,
     pub since: Time,
@@ -295,6 +296,7 @@ impl Permission {
             tool: tool.to_owned(),
             summary: summary.map(str::to_owned),
             detail: String::new(),
+            content: None,
             offers_always,
             since,
             tool_id: None,
@@ -303,6 +305,12 @@ impl Permission {
             diffs: Vec::new(),
             plan_modes: Vec::new(),
         }
+    }
+
+    pub fn set_content(&mut self, text: &str, complete: bool, original_length: Option<usize>) {
+        let content = super::inspection::Content::new(text, complete, original_length);
+        self.detail = content.preview();
+        self.content = Some(content);
     }
 
     pub fn asks_questions(&self) -> bool {
@@ -315,6 +323,10 @@ impl Permission {
     /// its path alone does not say what changes.
     pub fn fits_on_a_line(&self) -> bool {
         !self.asks_questions()
+            && self
+                .content
+                .as_ref()
+                .is_none_or(|c| !c.metadata(self).requires_inspection)
             && self.diffs.is_empty()
             && !self.detail.contains('\n')
             && char_count(&self.detail) <= QUICK_DECISION_LIMIT
@@ -323,7 +335,7 @@ impl Permission {
 
 impl Serialize for Permission {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut out = serializer.serialize_struct("Permission", 11)?;
+        let mut out = serializer.serialize_struct("Permission", 12)?;
         out.serialize_field("requestId", &self.request_id)?;
         out.serialize_field("tool", &self.tool)?;
         match &self.summary {
@@ -331,6 +343,7 @@ impl Serialize for Permission {
             None => out.skip_field("summary")?,
         }
         out.serialize_field("detail", &self.detail)?;
+        out.serialize_field("command", &self.content.as_ref().map(|c| c.metadata(self)))?;
         out.serialize_field("offersAlways", &self.offers_always)?;
         out.serialize_field("since", &self.since)?;
         out.serialize_field("questions", &self.questions)?;
@@ -966,16 +979,17 @@ pub mod tool_summary {
     pub fn input_key(name: &str, input: &Map<String, Value>) -> u64 {
         let mut hasher = DefaultHasher::new();
         name.hash(&mut hasher);
-        permission_detail(name, input).hash(&mut hasher);
+        canonical_json(&Value::Object(input.clone())).hash(&mut hasher);
         hasher.finish()
     }
 
     /// All of what a tool asks to do, for the person to read before allowing
     /// it: every line of a command, a whole path or address, or each
-    /// argument. Only text past `DETAIL_LIMIT` is left out, and that says so.
+    /// argument. Never shorten or trim this authoritative text; set_content
+    /// creates its separate bounded preview.
     pub fn permission_detail(name: &str, input: &Map<String, Value>) -> String {
         let string = |key: &str| str_of(input.get(key)).map(str::to_owned);
-        let text = match name {
+        match name {
             "Bash" => string("command").unwrap_or_else(|| arguments(input)),
             "Read" | "Edit" | "Write" | "MultiEdit" | "NotebookEdit" => string("file_path")
                 .or_else(|| string("notebook_path"))
@@ -983,17 +997,7 @@ pub mod tool_summary {
             "WebFetch" => string("url").unwrap_or_else(|| arguments(input)),
             PLAN_TOOL => string("plan").unwrap_or_else(|| arguments(input)),
             _ => arguments(input),
-        };
-        let trimmed = trim(&text);
-        let count = char_count(trimmed);
-        if count <= DETAIL_LIMIT {
-            return trimmed.to_owned();
         }
-        format!(
-            "{}\n… {} more characters",
-            prefix(trimmed, DETAIL_LIMIT),
-            count - DETAIL_LIMIT
-        )
     }
 
     /// Each argument on its own line, in a steady order. Values that are not
@@ -1499,11 +1503,11 @@ mod tests {
             "nested values read as sorted JSON"
         );
         let huge = permission_detail("Bash", &obj(json!({"command": "x".repeat(9000)})));
-        assert!(
-            huge.ends_with("1000 more characters"),
-            "only past the limit is text left out, and that says so"
+        assert_eq!(
+            huge,
+            "x".repeat(9000),
+            "authoritative content is never clipped"
         );
-        assert!(huge.starts_with(&"x".repeat(DETAIL_LIMIT)));
 
         let mut short = Permission::new("r", "Bash", Some("ls"), false, 0.0);
         short.detail = "ls -la".into();

@@ -50,7 +50,7 @@ interface SessionsState {
   addAttachments(id: string, images: ReplyAttachment[]): void;
   removeAttachment(id: string, path: string): void;
   rename(id: string, name: string): void;
-  decide(session: Session, decision: Decision, planMode?: PlanMode): Promise<boolean>;
+  decide(session: Session, decision: Decision, planMode?: PlanMode, inspectionToken?: string): Promise<boolean>;
   answer(session: Session, answers: Record<string, string | string[]>): Promise<boolean>;
   skip(session: Session): Promise<boolean>;
   reply(session: Session, text: string, images: string[]): Promise<ReplyFailure | null>;
@@ -200,14 +200,26 @@ export const useSessions = create<SessionsState>()((set, get) => ({
     });
   },
 
-  async decide(session, decision, planMode) {
-    if (!session.permission || session.permission.questions.length > 0 || !settled(get(), session)) return false;
+  async decide(session, decision, planMode, inspectionToken) {
+    if (
+      !session.permission ||
+      session.permission.questions.length > 0 ||
+      (decision !== "deny" && !settled(get(), session))
+    )
+      return false;
     const { id } = session;
     const request = session.permission.requestId;
+    const p = session.permission;
+    const live = get().snapshot.sessions.find((s) => s.id === id)?.permission;
+    if (!live || live.requestId !== request || live.command?.revision !== p.command?.revision) return false;
+    if (decision !== "deny" && p.command && (!p.command.complete || (p.command.requiresInspection && !inspectionToken)))
+      return false;
     // A mode goes along only for a plan's approval.
-    const sent = planMode
-      ? bridge.sessions.decide(id, request, decision, planMode)
-      : bridge.sessions.decide(id, request, decision);
+    const sent = p.command
+      ? bridge.sessions.decide(id, request, decision, planMode, p.command.revision, inspectionToken)
+      : planMode
+        ? bridge.sessions.decide(id, request, decision, planMode)
+        : bridge.sessions.decide(id, request, decision);
     return (await sent) ?? false;
   },
 

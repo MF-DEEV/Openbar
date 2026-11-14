@@ -748,11 +748,8 @@ final class CodexSessionState {
         let always: Bool
         switch pending.method {
         case "item/commandExecution/requestApproval":
-            let command = readableCommand(string(params, "command") ?? "")
-            var text = command
-            if let cwd = string(params, "cwd") { text += "\n\nin \(cwd)" }
-            if let reason = string(params, "reason") { text += "\n\n\(reason)" }
-            (tool, summary, detail, always) = ("Command", firstLine(command), text, true)
+            let command = string(params, "command") ?? ""
+            (tool, summary, detail, always) = ("Command", ClaudeToolSummary.clip(firstLine(command)), "", true)
         case "item/fileChange/requestApproval":
             let paths = (params["changes"] as? [Any] ?? []).compactMap { ($0 as? [String: Any]).flatMap { string($0, "path") } }
             let reason = string(params, "reason")
@@ -775,7 +772,16 @@ final class CodexSessionState {
         }
         var card = ClaudePermission(requestID: pending.requestID, tool: tool, summary: summary,
                                     offersAlways: always, since: pending.since)
-        card.detail = clip(detail.trimmingCharacters(in: .whitespacesAndNewlines), limit: detailLimit)
+        let commandRequest = pending.method == "item/commandExecution/requestApproval"
+        let raw = commandRequest ? (string(params, "command") ?? "") : detail
+        let content = PermissionContent(full: raw, complete: !commandRequest || string(params, "command") != nil,
+                                        originalLength: raw.unicodeScalars.count)
+        card.content = content
+        card.detail = content.preview
+        if commandRequest {
+            if let cwd = string(params, "cwd") { card.detail += "\n\nin \(PermissionContent.display(cwd))" }
+            if let reason = string(params, "reason") { card.detail += "\n\n\(PermissionContent.display(reason))" }
+        }
         if pending.method == "item/tool/requestUserInput" {
             card.questions = questions(params).map(\.question)
         }

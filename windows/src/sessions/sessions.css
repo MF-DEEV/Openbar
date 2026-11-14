@@ -2812,3 +2812,57 @@
 .s-row-line2 > .s-remote-mark {
   margin-right: 2px;
 }
+
+/* #224: the complete command is text, never HTML or terminal output. */
+.s-command-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 11px;
+  color: #ffd18a;
+}
+.s-full-command {
+  white-space: pre;
+  overflow: auto;
+  max-height: 240px;
+  min-height: 64px;
+  flex: 0 1 auto;
+  tab-size: 4;
+  unicode-bidi: plaintext;
+  direction: ltr;
+}
+.s-full-command:focus-visible {
+  outline: 2px solid #b9a2ff;
+  outline-offset: 2px;
+}
+.s-card-buttons {
+  flex-wrap: wrap;
+}
+
+/* A restricted request owns the available session area: its controls cannot
+   disappear below the island's fixed viewport while the command scrolls. */
+.s-scroll:has(.s-command-notice) {
+  position: relative;
+  overflow: hidden;
+}
+.s-scroll .s-card:has(.s-command-notice) {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.s-scroll:has(.s-command-notice) > :not(.s-card) {
+  visibility: hidden;
+  pointer-events: none;
+}
+.s-card:has(.s-command-notice) > * {
+  flex-shrink: 0;
+}
+.s-card:has(.s-command-notice) > .s-detail {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
+  overscroll-behavior: contain;
+}

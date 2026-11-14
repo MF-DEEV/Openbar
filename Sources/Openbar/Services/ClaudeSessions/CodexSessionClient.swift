@@ -56,6 +56,7 @@ final class CodexSessionClient {
 
     /// The daemon's socket: Codex's own, or one `ssh` forwards from a host.
     private let socket: URL?
+    private var inspection = PermissionInspectionGate()
     /// The SSH alias of the host whose Codex this is; nil for this Mac's.
     let remoteAlias: String?
     /// Whether to look for the daemon now: a host's only while its
@@ -158,6 +159,7 @@ final class CodexSessionClient {
                 }
             }
             var snapshot = state.snapshot(now: now, previews: previews)
+            inspection.retain(snapshot.sessions)
             // A host's threads wear its name, as its Claude Code sessions do.
             if let remoteAlias {
                 for index in snapshot.sessions.indices {
@@ -187,15 +189,30 @@ final class CodexSessionClient {
 
     /// Answers the request with this island id, the session's own or one
     /// of its subagents'; false when it is gone or of another kind.
-    func answer(_ session: String, requestID: String, answer: CodexAnswer) -> Bool {
+    func answer(_ session: String, requestID: String, answer: CodexAnswer, revision: String? = nil, inspectionToken: String? = nil) -> Bool {
         lock.withLock {
-            guard let pending = state.answerable(session: session, requestID: requestID)?.pending,
-                  let body = CodexSessionState.result(pending, answer),
+            guard state.pending(session: session).first?.requestID == requestID,
+                  let pending = state.answerable(session: session, requestID: requestID)?.pending,
+                  let body = CodexSessionState.result(pending, answer) else { return false }
+            let permission = CodexSessionState.permission(pending)
+            let expected = revision ?? permission.content.map { $0.revision(permission) }
+            guard (!(answer == .allow || answer == .allowForSession) || inspection.allows(session, permission, revision: expected, token: inspectionToken)),
                   state.takePending(thread: session, requestID: requestID) != nil else { return false }
+            if let inspectionToken { inspection.close(inspectionToken) }
             send(["id": pending.rpcID.json, "result": body])
             return true
         }
     }
+
+    func inspect(_ session: String, request: String, revision: String) -> PermissionInspection? {
+        lock.withLock {
+            guard state.pending(session: session).first?.requestID == request,
+                  let pending = state.answerable(session: session, requestID: request)?.pending else { return nil }
+            return inspection.open(session, CodexSessionState.permission(pending), revision: revision)
+        }
+    }
+
+    func closeInspection(_ token: String) { lock.withLock { inspection.close(token) } }
 
     /// Whether the request with this island id still waits on the session's row.
     func waits(_ session: String, requestID: String) -> Bool {
@@ -307,6 +324,13 @@ final class CodexSessionClient {
             switch (method, id) {
             // A request: approvals and questions the island may answer.
             case (let method?, let id?):
+                if let thread = params["threadId"] as? String {
+                    let row = state.row(of: thread)
+                    if let old = state.answerable(session: row, requestID: "codex:\(id)")?.pending {
+                        let p = CodexSessionState.permission(old)
+                        if let content = p.content { inspection.invalidate(row, revision: content.revision(p)) }
+                    }
+                }
                 let kept = state.request(id, method: method, params: params, now: now)
                 follow()
                 return kept
@@ -383,6 +407,7 @@ final class CodexSessionClient {
                     waiting.removeAll()
                     focused.removeAll()
                     state.reset()
+                    inspection = PermissionInspectionGate()
                     return starts
                 }
                 // A start the daemon never answered failed.

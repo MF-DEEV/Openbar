@@ -79,11 +79,26 @@ export interface FileDiff {
   hidden: number;
 }
 
+export interface CommandMetadata {
+  revision: string;
+  complete: boolean;
+  truncated: boolean;
+  remaining: number | null;
+  requiresInspection: boolean;
+  available: boolean;
+}
+export interface CommandInspection {
+  revision: string;
+  token: string;
+  text: string;
+}
+
 export interface Permission {
   requestId: string;
   tool: string;
   summary?: string;
   detail: string;
+  command?: CommandMetadata | null;
   offersAlways: boolean;
   since: number;
   questions: Question[];

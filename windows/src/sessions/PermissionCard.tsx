@@ -11,12 +11,13 @@ import { PROVIDER_NAMES } from "./types";
 import { useLocale, t } from "../i18n";
 
 import { ArrowUp, BadgeCheck, Check, CheckSquare, Circle, CircleDot, FastForward, Square, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
+import { bridge } from "../shared/bridge";
 import { phaseIcon } from "./Avatar";
 import { phaseTint } from "./format";
 import { S } from "./strings";
 import { OWN_ANSWER_LIMIT, SETTLE_DELAY, useSessions } from "./store";
-import type { Question, Session } from "./types";
+import type { CommandInspection, Question, Session } from "./types";
 import { handlePermissionKey } from "./permissionKeys";
 import { subscribeGlobalPermissionKeys } from "./globalPermissionKeys";
 import { AutoAllowButton } from "./AutoAllowButton";
@@ -84,7 +85,7 @@ export function PermissionCard({ session, onOpen }: { session: Session; onOpen: 
       ) : asks ? (
         <QuestionForm key={p.requestId} session={session} />
       ) : (
-        <ToolRequest key={p.requestId} session={session} />
+        <ToolRequest key={`${session.id}:${p.requestId}:${p.command?.revision ?? ""}`} session={session} />
       )}
     </div>
   );
@@ -95,6 +96,75 @@ function ToolRequest({ session }: { session: Session }) {
   const p = session.permission!;
   const ready = useSettled(p.requestId);
   const decide = useSessions((s) => s.decide);
+  const [inspection, setInspection] = useState<CommandInspection | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [rendered, setRendered] = useState(false);
+  const mounted = useRef(true);
+  const issued = useRef<string | null>(null);
+  const viewer = useRef<HTMLPreElement>(null);
+  const expandButton = useRef<HTMLButtonElement>(null);
+  const command = p.command;
+  const restricted = !!command?.requiresInspection;
+  const inspected = !!inspection && inspection.revision === command?.revision;
+  const canApprove = ready && (!restricted || (command?.available === true && inspected && rendered));
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      if (issued.current) void bridge.sessions.closeInspection(issued.current);
+    };
+  }, []);
+  useEffect(() => {
+    const node = viewer.current;
+    if (!inspected || !node || !inspection) return;
+    node.focus({ preventScroll: true });
+    const check = () =>
+      setRendered(node.clientWidth > 0 && node.clientHeight > 0 && node.textContent === inspection.text);
+    check();
+    const observer = new ResizeObserver(check);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [inspected, inspection]);
+  const expand = async () => {
+    if (!command?.available || loading) return;
+    setLoading(true);
+    setFailed(false);
+    try {
+      const result = await bridge.sessions.inspectCommand(session.id, p.requestId, command.revision);
+      if (!mounted.current) {
+        if (result) void bridge.sessions.closeInspection(result.token);
+        return;
+      }
+      if (
+        !result ||
+        result.revision !== command.revision ||
+        typeof result.text !== "string" ||
+        !result.text ||
+        typeof result.token !== "string" ||
+        !result.token
+      ) {
+        if (result?.token) void bridge.sessions.closeInspection(result.token);
+        setFailed(true);
+        return;
+      }
+      issued.current = result.token;
+      setInspection(result);
+    } catch {
+      if (mounted.current) setFailed(true);
+    } finally {
+      if (mounted.current) setLoading(false);
+    }
+  };
+  const collapse = () => {
+    if (issued.current) void bridge.sessions.closeInspection(issued.current);
+    issued.current = null;
+    setRendered(false);
+    setInspection(null);
+    expandButton.current?.focus();
+  };
+  const approve = (decision: "allow" | "always", mode?: import("./types").PlanMode) =>
+    decide(session, decision, mode, inspected ? inspection.token : undefined);
   // A plan is prose, read in the interface's font.
   const plan = p.tool === PLAN_TOOL;
   // As Claude Code's plan dialog: the mode that lets Claude work on its own
@@ -111,7 +181,50 @@ function ToolRequest({ session }: { session: Session }) {
   }, [session.id, p.requestId]);
   return (
     <>
-      {p.diffs?.length ? (
+      {restricted ? (
+        <div className="s-command-notice" role="status">
+          {inspected
+            ? "Full command — invisible control characters are annotated as ⟦U+XXXX⟧."
+            : !command?.complete
+              ? "Full command unavailable. Approval is blocked; deny or inspect it in the agent."
+              : !command.available
+                ? "This command exceeds the inspection viewer's resource limit. Approval is blocked."
+                : command.truncated
+                  ? "Command shortened. Inspect the full command before allowing it."
+                  : "Command contains invisible control characters. Inspect their annotations before allowing it."}
+          {command?.available && (
+            <button
+              ref={expandButton}
+              type="button"
+              className="s-button is-secondary"
+              aria-expanded={inspected}
+              disabled={loading}
+              onClick={() => (inspected ? collapse() : void expand())}
+            >
+              {loading ? "Loading full command…" : inspected ? "Close full command" : "Inspect full command"}
+            </button>
+          )}
+          {failed && <span role="alert">Could not load this request. Approval remains blocked.</span>}
+        </div>
+      ) : null}
+      {inspected ? (
+        <pre
+          ref={viewer}
+          tabIndex={0}
+          role="region"
+          aria-label="Full command"
+          className="s-detail s-full-command"
+          onKeyDown={(event) => {
+            if (event.key === "Escape") {
+              event.preventDefault();
+              event.stopPropagation();
+              collapse();
+            }
+          }}
+        >
+          {inspection.text}
+        </pre>
+      ) : p.diffs?.length ? (
         // A file change shows what changes, not just where.
         // Gaps opened for one request start closed on the next.
         <FileDiffView key={p.requestId} diffs={p.diffs} />
@@ -124,7 +237,6 @@ function ToolRequest({ session }: { session: Session }) {
           className="s-button is-deny"
           aria-keyshortcuts="Control+n"
           title={t("windows.sessions.ctrlN")}
-          disabled={!ready}
           onClick={() => void decide(session, "deny")}
         >
           <X size={10} strokeWidth={3.5} />
@@ -132,15 +244,30 @@ function ToolRequest({ session }: { session: Session }) {
         </button>
         <span className="s-spacer" />
         {session.provider === "codex" ? (
-          <AutoAllowButton session={session} disabled={!ready} />
+          restricted ? (
+            <button
+              type="button"
+              className="s-button is-secondary"
+              disabled={!canApprove}
+              onClick={() =>
+                void approve("allow").then((ok) => {
+                  if (ok) useSessions.getState().toggleAutoAllow(session.id);
+                })
+              }
+            >
+              {S.alwaysAllow}
+            </button>
+          ) : (
+            <AutoAllowButton session={session} disabled={!canApprove} />
+          )
         ) : p.offersAlways ? (
           <button
             type="button"
             className="s-button is-secondary"
             aria-keyshortcuts="Control+t"
             title={t("windows.sessions.ctrlT")}
-            disabled={!ready}
-            onClick={() => void decide(session, "always")}
+            disabled={!canApprove}
+            onClick={() => void approve("always")}
           >
             <BadgeCheck size={10} strokeWidth={3} />
             {S.alwaysAllow}
@@ -152,8 +279,8 @@ function ToolRequest({ session }: { session: Session }) {
             type="button"
             className="s-button is-secondary"
             title={S.planModeHelp(mode)}
-            disabled={!ready}
-            onClick={() => void decide(session, "allow", mode)}
+            disabled={!canApprove}
+            onClick={() => void approve("allow", mode)}
           >
             <HandFill size={10} />
             {S.planMode(mode)}
@@ -166,14 +293,20 @@ function ToolRequest({ session }: { session: Session }) {
           title={
             firstMode ? `${S.planModeHelp(firstMode)} (${t("windows.sessions.ctrlY")})` : t("windows.sessions.ctrlY")
           }
-          disabled={!ready}
-          onClick={() => void decide(session, "allow", firstMode)}
+          disabled={!canApprove}
+          onClick={() => void approve("allow", firstMode)}
         >
           <Check size={10} strokeWidth={3.5} />
           {firstMode ? S.planMode(firstMode) : plan ? S.approvePlan : S.allow}
         </button>
       </div>
-      <div className="s-hint">{firstMode ? S.shortcutsHintPlan(S.planMode(firstMode)) : S.shortcutsHint}</div>
+      <div className="s-hint">
+        {restricted
+          ? "Use the full command viewer buttons to allow this request."
+          : firstMode
+            ? S.shortcutsHintPlan(S.planMode(firstMode))
+            : S.shortcutsHint}
+      </div>
     </>
   );
 }

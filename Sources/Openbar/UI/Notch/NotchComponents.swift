@@ -964,7 +964,7 @@ extension NSAlert {
         return alert.runAboveIsland() == .alertFirstButtonReturn
     }
 
-    private func runAboveIsland() -> NSApplication.ModalResponse {
+    func runAboveIsland() -> NSApplication.ModalResponse {
         let island = NotchService.shared.presentationWindow
         var observers: [NSObjectProtocol] = []
         if let island {

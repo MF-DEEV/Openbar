@@ -1,6 +1,7 @@
 // Openbar Dynamic Island: shows OpenCode's sessions in the island's Sessions list.
 // Installed and removed from the island's settings. __OPENBAR_MARKER__
 import { connect } from "node:net";
+import { createHash } from "node:crypto";
 
 const SOCKET = "__OPENBAR_SOCKET__";
 const LIMIT = 4000;
@@ -13,10 +14,41 @@ export const OpenbarIsland = async ({ client, directory }) => {
   const roles = new Map();
   const sent = new Map();
   const waiting = new Map();
+  const permissionVersions = new Map();
   // What the island was told of each session, told again after it restarts.
   const known = new Map();
   const clip = (text) => (typeof text === "string" ? text.slice(0, LIMIT) : undefined);
   const clipPatch = (text) => (typeof text === "string" ? text.slice(0, PATCH_LIMIT) : undefined);
+  const scalarCount = (text) => {
+    let count = 0;
+    for (const _ of text) count++;
+    return count;
+  };
+  const scalarPrefix = (text, limit = 8000) => {
+    let out = "",
+      count = 0;
+    for (const c of text) {
+      if (count++ === limit) break;
+      out += c;
+    }
+    return out;
+  };
+  const patternPreview = (values) => {
+    let out = "",
+      count = 0;
+    outer: for (let i = 0; i < values.length; i++) {
+      if (i) {
+        if (count++ === 8000) break;
+        out += "\n";
+      }
+      if (typeof values[i] !== "string") continue;
+      for (const c of values[i]) {
+        if (count++ === 8000) break outer;
+        out += c;
+      }
+    }
+    return out;
+  };
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   // One event on its own connection. One that waits gets the island's answer back.
@@ -27,7 +59,7 @@ export const OpenbarIsland = async ({ client, directory }) => {
       const finish = (value) => {
         if (done) return;
         done = true;
-        if (key) waiting.delete(key);
+        if (key && waiting.get(key) === socket) waiting.delete(key);
         resolve(value);
       };
       let socket;
@@ -99,34 +131,84 @@ export const OpenbarIsland = async ({ client, directory }) => {
   };
   void listen();
 
-  const ask = async (p) => {
+  const ask = async (p, version) => {
+    const budget = 1048576;
+    const validMetadata = p.metadata == null || (typeof p.metadata === "object" && !Array.isArray(p.metadata));
+    const metadata = validMetadata ? (p.metadata ?? {}) : {};
+    const command = metadata.command;
+    const commandComplete =
+      typeof command === "string" &&
+      command.length > 0 &&
+      Buffer.byteLength(command, "utf8") <= budget &&
+      Buffer.byteLength(JSON.stringify(command), "utf8") <= 3 * budget;
+    const originalPatterns = Array.isArray(p.patterns) ? p.patterns : p.pattern != null ? [].concat(p.pattern) : [];
+    const validPatterns =
+      (p.patterns == null || Array.isArray(p.patterns)) && originalPatterns.every((value) => typeof value === "string");
+    const patternBytes = originalPatterns.reduce(
+      (n, value) => n + (typeof value === "string" ? Buffer.byteLength(value, "utf8") + 1 : 0),
+      0,
+    );
+    const patternsComplete =
+      validPatterns && patternBytes <= budget && Buffer.byteLength(JSON.stringify(originalPatterns), "utf8") <= budget;
+    // Fallback metadata must be kept whole, including fields unknown to this plugin.
+    // Otherwise it cannot be declared complete merely because its projection is short.
+    let fullMetadata = null;
+    if (!Object.hasOwn(metadata, "command") && !originalPatterns.length && Object.keys(metadata).length) {
+      try {
+        if (
+          Buffer.byteLength(JSON.stringify(metadata), "utf8") <= budget &&
+          !Object.hasOwn(metadata, "commandComplete") &&
+          !Object.hasOwn(metadata, "commandLength")
+        )
+          fullMetadata = metadata;
+      } catch {
+        /* Malformed data is explicitly incomplete below. */
+      }
+    }
+    const permissionContentComplete =
+      validMetadata &&
+      validPatterns &&
+      (Object.hasOwn(metadata, "command")
+        ? commandComplete
+        : originalPatterns.length
+          ? patternsComplete
+          : fullMetadata !== null);
     const answer = await send(
       {
         kind: "permission",
         session: p.sessionID,
         id: p.id,
         permission: p.permission ?? p.type,
-        patterns: Array.isArray(p.patterns) ? p.patterns.map(clip) : p.pattern ? [].concat(p.pattern).map(clip) : [],
+        permissionContentComplete,
+        permissionDetailLength:
+          originalPatterns.length && validPatterns
+            ? originalPatterns.reduce((n, value) => n + scalarCount(value), originalPatterns.length - 1)
+            : undefined,
+        patterns: patternsComplete ? originalPatterns : [patternPreview(originalPatterns)],
         metadata: {
-          command: clip(p.metadata && p.metadata.command),
-          filepath: clip(p.metadata && (p.metadata.filepath ?? p.metadata.filePath)),
-          diff: clipPatch(p.metadata && p.metadata.diff),
-          files:
-            p.metadata && Array.isArray(p.metadata.files)
-              ? p.metadata.files.slice(0, 50).map((f) => ({
+          ...(fullMetadata ?? {
+            filepath: clip(metadata.filepath ?? metadata.filePath),
+            diff: clipPatch(metadata.diff),
+            files: Array.isArray(metadata.files)
+              ? metadata.files.slice(0, 50).map((f) => ({
                   filePath: clip(f && (f.filePath ?? f.relativePath)),
                   type: clip(f && f.type),
                   patch: clipPatch(f && f.patch),
                   movePath: clip(f && f.movePath),
                 }))
               : undefined,
+          }),
+          // Permission commands bypass the summary clip. Oversized data is explicitly incomplete.
+          command: typeof command === "string" ? (commandComplete ? command : scalarPrefix(command)) : undefined,
+          commandComplete,
+          commandLength: typeof command === "string" ? scalarCount(command) : undefined,
         },
         always: Array.isArray(p.always) ? p.always.map(clip) : [],
       },
       true,
       p.id,
     );
-    if (!answer || !answer.reply) return;
+    if (permissionVersions.get(p.id)?.version !== version || !answer || !answer.reply) return;
     try {
       await client.postSessionIdPermissionsPermissionId({
         path: { id: p.sessionID, permissionID: p.id },
@@ -156,6 +238,11 @@ export const OpenbarIsland = async ({ client, directory }) => {
         case "session.created":
           return post({ kind: "created", session, directory: info.directory ?? directory });
         case "session.deleted":
+          for (const [id, pending] of permissionVersions) {
+            if (pending.session !== session) continue;
+            permissionVersions.delete(id);
+            waiting.get(id)?.destroy();
+          }
           return post({ kind: "deleted", session });
         case "session.status":
           return post({ kind: "status", session, status: p.status && p.status.type }, "status:" + session);
@@ -200,11 +287,37 @@ export const OpenbarIsland = async ({ client, directory }) => {
           return;
         }
         case "permission.asked":
-        case "permission.updated":
-          if (p.id && !waiting.has(p.id)) void ask(p);
+        case "permission.updated": {
+          if (!p.id) return;
+          let fingerprint;
+          try {
+            fingerprint = createHash("sha256")
+              .update(
+                JSON.stringify({
+                  session,
+                  permission: p.permission ?? p.type,
+                  metadata: p.metadata,
+                  patterns: p.patterns,
+                  pattern: p.pattern,
+                  always: p.always,
+                }),
+              )
+              .digest("hex");
+          } catch {
+            permissionVersions.delete(p.id);
+            waiting.get(p.id)?.destroy();
+            return;
+          }
+          if (permissionVersions.get(p.id)?.fingerprint === fingerprint && waiting.has(p.id)) return;
+          const version = Symbol();
+          permissionVersions.set(p.id, { fingerprint, version, session });
+          waiting.get(p.id)?.destroy();
+          void ask(p, version);
           return;
+        }
         case "permission.replied": {
           const id = p.requestID ?? p.permissionID ?? p.id;
+          permissionVersions.delete(id);
           const socket = waiting.get(id);
           if (socket) socket.destroy();
           return post({ kind: "permissionReplied", session, id });
