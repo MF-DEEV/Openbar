@@ -14,8 +14,11 @@ struct NotchAwayCardView: View {
 
     var body: some View {
         let tiles = card.lines.compactMap { line in service.sessions.first { $0.id == line.id }.map { (line, $0) } }
+        // A tile is a third of the card wide; one or two sit in the middle.
+        let width = max(80, (size.width - 12) / 3)
         ScrollView {
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 6), count: 3), spacing: 6) {
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(width), spacing: 6), count: max(1, min(3, tiles.count))),
+                      spacing: 6) {
                 ForEach(Array(tiles.enumerated()), id: \.element.0.id) { index, tile in
                     NotchAwayTile(line: tile.0, session: tile.1, name: service.displayName(tile.1), index: index, text: text)
                 }
@@ -119,8 +122,9 @@ private struct NotchAwayTile: View {
 
     @ViewBuilder private var stats: some View {
         if line.files > 0 || line.tasks != nil {
-            HStack(spacing: 4) {
+            VStack(spacing: 4) {
                 if line.files > 0 {
+                  HStack(spacing: 4) {
                     HStack(spacing: 2) {
                         Image(systemName: "doc").font(.system(size: 8.5, weight: .semibold))
                         Text("\(line.files)")
@@ -129,6 +133,7 @@ private struct NotchAwayTile: View {
                     .accessibilityLabel(text.awayFiles(line.files))
                     if line.added > 0 { Text("+\(line.added)").foregroundStyle(NotchSessionProgress.finishedTint) }
                     if line.removed > 0 { Text("−\(line.removed)").foregroundStyle(ClaudeSessionPhase.limited.tint) }
+                  }
                 }
                 if let tasks = line.tasks { NotchAwayTasks(tasks: tasks, tint: session.provider.tint, text: text) }
             }

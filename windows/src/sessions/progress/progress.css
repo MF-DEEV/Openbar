@@ -575,7 +575,9 @@
 }
 .p-away-tiles {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* A tile is a third of the card wide; one or two sit in the middle. */
+  grid-template-columns: repeat(var(--p-cols, 3), calc((100% - 12px) / 3));
+  justify-content: center;
   gap: 6px;
 }
 .p-away-tile {

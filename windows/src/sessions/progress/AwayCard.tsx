@@ -79,6 +79,7 @@ export function AwayPage() {
   return (
     <div
       className="p-away-tiles"
+      style={{ "--p-cols": Math.max(1, Math.min(3, tiles.length)) } as CSSProperties}
       role="list"
       aria-label={S.awayTitle}
       onPointerEnter={() => useClock.setState({ held: true })}
