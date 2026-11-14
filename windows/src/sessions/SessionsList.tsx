@@ -7,7 +7,8 @@
 import { worktreeName } from "./worktree";
 import { useLocale } from "../i18n";
 
-import { Check, ChevronRight, GalleryVerticalEnd, X } from "lucide-react";
+import { Check, ChevronRight, X } from "lucide-react";
+import { AgentFace } from "../shared/ui/AgentFace";
 import { AnimatePresence, motion } from "motion/react";
 import { EmptyState } from "../island/views/Controls";
 import { SessionAvatar } from "./SessionAvatar";
@@ -56,7 +57,7 @@ export function SessionsList() {
   const sessions = useSessions((s) => presentedSnapshot(s).sessions);
   const now = useNow();
   if (sessions.length === 0) {
-    return <EmptyState icon={GalleryVerticalEnd} title={S.emptyTitle} detail={S.emptyDetail} />;
+    return <EmptyState icon={AgentFace} title={S.emptyTitle} detail={S.emptyDetail} />;
   }
   return (
     <div className="s-list">

@@ -365,6 +365,7 @@ if (( TEST )); then
         Sources/Openbar/Services/Notch/NotchCalendarSupport.swift
         Sources/Openbar/Services/Notch/NotchKeepAwakeSupport.swift
         Sources/Openbar/Services/Notch/NotchSupport.swift
+        Sources/Openbar/UI/Notch/NotchSymbol.swift
         Sources/Openbar/Services/Notch/NotchAudioLevelSupport.swift
         Sources/Openbar/Services/Notch/NotchVolumeKeyGate.swift
         Sources/Openbar/Services/Notch/NotchMusicSupport.swift

@@ -154,7 +154,7 @@ struct NotchIconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: symbol)
+            SymbolImage(symbol)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(selected ? .white : .white.opacity(0.55))
                 .contentTransition(.symbolEffect(.replace))
@@ -209,7 +209,7 @@ struct NotchEmptyView<Actions: View>: View {
     }
 
     private var glyph: some View {
-        Image(systemName: symbol)
+        SymbolImage(symbol)
             .font(.system(size: 26, weight: .light))
             .foregroundStyle(.white.opacity(0.65))
             .frame(width: 56, height: 56)
@@ -797,7 +797,7 @@ struct NotchBandMenuLabel: View {
     var body: some View {
         HStack(spacing: 4) {
             if let symbol {
-                Image(systemName: symbol).foregroundStyle(.white.opacity(0.55))
+                SymbolImage(symbol).foregroundStyle(.white.opacity(0.55))
             }
             Text(title).lineLimit(1).truncationMode(truncation)
             Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
@@ -913,7 +913,7 @@ final class NotchMenuAnchor: NSObject {
             entry.state = item.checked ? .on : .off
             entry.isEnabled = item.enabled
             if let symbol = item.symbol {
-                entry.image = NSImage(systemSymbolName: symbol, accessibilityDescription: nil)
+                entry.image = OpenbarSymbol.nsImage(symbol)
             }
             menu.addItem(entry)
         }

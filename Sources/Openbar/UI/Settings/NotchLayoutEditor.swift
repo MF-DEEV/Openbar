@@ -219,7 +219,7 @@ struct NotchLayoutEditor: View {
         // stays here, dimmed, in the place it takes back once that is on.
         let hidden = button.action?.isAvailable() != true
         return Button { editingName = button.label; editingID = button.id } label: {
-            Image(systemName: button.action?.symbol ?? "questionmark")
+            SymbolImage(button.action?.symbol ?? "questionmark")
                 .font(.system(size: 12, weight: .medium)).foregroundStyle(.white)
                 .frame(width: 30, height: 30).background(.black, in: Circle())
                 .overlay { Circle().strokeBorder(editingID == button.id ? Color.brandAccent : .white.opacity(0.2), lineWidth: 1.5) }
@@ -413,7 +413,7 @@ struct NotchActionChooser: View {
                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
                     ForEach(matches) { action in
                         Button { choose(action) } label: {
-                            Label(action.title(l10n), systemImage: action.symbol)
+                            Label { Text(action.title(l10n)) } icon: { SymbolImage(action.symbol) }
                                 .font(.system(size: 11)).lineLimit(2)
                                 .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading).padding(.horizontal, 8)
                                 .background(selected == action ? Color.brandAccent.opacity(0.14) : Color.secondary.opacity(0.07), in: RoundedRectangle(cornerRadius: 9))

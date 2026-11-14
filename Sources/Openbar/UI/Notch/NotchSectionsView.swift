@@ -103,7 +103,7 @@ struct NotchSectionsView: View {
         let shape = RoundedRectangle(cornerRadius: 16, style: .continuous)
         return Button { service.select(module) } label: {
             VStack(spacing: 6) {
-                Image(systemName: module.symbol)
+                SymbolImage(module.symbol)
                     .font(.system(size: 22, weight: .medium))
                     .foregroundStyle(tint(for: module))
                     .frame(width: 25, height: 25)
