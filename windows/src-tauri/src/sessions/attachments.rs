@@ -59,7 +59,6 @@ pub async fn sessions_clipboard_images() -> Result<Vec<Attachment>, String> {
 #[cfg(windows)]
 fn clipboard_images() -> Result<Vec<Attachment>, String> {
     use crate::clipboard::{formats, native};
-    use std::io::Read;
 
     // The clipboard may briefly be held by the screenshot tool.
     let clipboard = native::open(None).ok_or("Clipboard is busy. Try again")?;
@@ -76,11 +75,20 @@ fn clipboard_images() -> Result<Vec<Attachment>, String> {
         }
     }
     // Explorer's Copy on image files stores CF_HDROP rather than bitmap data.
+    image_files(
+        native::hdrop_paths(&clipboard, 5)
+            .map(|(_, paths)| paths)
+            .unwrap_or_default(),
+    )
+}
+
+/// The image files among `paths`, at most five, as attachments.
+#[cfg(any(windows, target_os = "linux"))]
+fn image_files(paths: Vec<String>) -> Result<Vec<Attachment>, String> {
+    use std::io::Read;
+
     let mut images = Vec::new();
-    for path in native::hdrop_paths(&clipboard, 5)
-        .map(|(_, paths)| paths)
-        .unwrap_or_default()
-    {
+    for path in paths.into_iter().take(5) {
         let Ok(file) = std::fs::File::open(&path) else {
             continue;
         };
@@ -95,7 +103,19 @@ fn clipboard_images() -> Result<Vec<Attachment>, String> {
     Ok(images)
 }
 
-#[cfg(not(windows))]
+/// A picture on the clipboard, or image files copied in the file manager.
+#[cfg(target_os = "linux")]
+fn clipboard_images() -> Result<Vec<Attachment>, String> {
+    use crate::clipboard::history::Content;
+
+    match crate::clipboard::native::read(true) {
+        Some(Content::Image { png, .. }) => Ok(vec![save(&png)?]),
+        Some(Content::Files(paths)) => image_files(paths),
+        _ => Ok(Vec::new()),
+    }
+}
+
+#[cfg(not(any(windows, target_os = "linux")))]
 fn clipboard_images() -> Result<Vec<Attachment>, String> {
     Ok(Vec::new())
 }
@@ -114,5 +134,40 @@ mod tests {
         std::fs::remove_file(attachment.path).unwrap();
         assert!(from_data_url("data:text/plain;base64,aGVsbG8=").is_err());
         assert!(from_data_url("data:image/png;base64,aGVsbG8=").is_err());
+    }
+
+    #[cfg(any(windows, target_os = "linux"))]
+    #[test]
+    fn copied_files_give_only_their_images_and_at_most_five() {
+        let folder =
+            std::env::temp_dir().join(format!("openbar-image-files-{}", std::process::id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        let png = [b"\x89PNG\r\n\x1a\n".as_slice(), &[9, 9]].concat();
+        let mut paths = Vec::new();
+        for index in 0..6 {
+            let path = folder.join(format!("{index}.png"));
+            std::fs::write(&path, &png).unwrap();
+            paths.push(path.to_string_lossy().into_owned());
+        }
+        let text = folder.join("notes.txt");
+        std::fs::write(&text, "hello").unwrap();
+        let missing = folder.join("gone.png");
+
+        let mixed = vec![
+            text.to_string_lossy().into_owned(),
+            missing.to_string_lossy().into_owned(),
+            paths[0].clone(),
+        ];
+        let found = image_files(mixed).unwrap();
+        assert_eq!(found.len(), 1);
+        assert_eq!(std::fs::read(&found[0].path).unwrap(), png);
+
+        let many = image_files(paths).unwrap();
+        assert_eq!(many.len(), 5);
+
+        for attachment in found.iter().chain(many.iter()) {
+            std::fs::remove_file(&attachment.path).unwrap();
+        }
+        std::fs::remove_dir_all(&folder).unwrap();
     }
 }
