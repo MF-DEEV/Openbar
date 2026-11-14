@@ -268,7 +268,7 @@ private struct NotchScratchpadStill: View {
     }
 
     private func glyph(_ symbol: String) -> some View {
-        Image(systemName: symbol)
+        SymbolImage(symbol)
             .font(.system(size: 12, weight: .medium))
             .foregroundStyle(.white.opacity(0.55))
             .frame(width: 28, height: 28)
@@ -381,7 +381,7 @@ struct NotchSectionTile: View {
     let side: CGFloat
 
     var body: some View {
-        Image(systemName: module.symbol)
+        SymbolImage(module.symbol)
             .font(.system(size: side * 0.46, weight: .semibold))
             .foregroundStyle(shown ? module.settingsGlyph : Color.secondary)
             .frame(width: side, height: side)

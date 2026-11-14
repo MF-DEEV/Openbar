@@ -785,7 +785,7 @@ struct NotchSettings: View {
     private func choice(_ title: String, symbol: String, selected: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(spacing: 8) {
-                Image(systemName: symbol).font(.system(size: 20, weight: .medium))
+                SymbolImage(symbol).font(.system(size: 20, weight: .medium))
                 Text(title).font(.system(size: 11, weight: .medium)).lineLimit(2).multilineTextAlignment(.center)
             }.frame(maxWidth: .infinity, minHeight: 68).padding(8)
                 .foregroundStyle(selected ? Color.brandAccent : .primary)

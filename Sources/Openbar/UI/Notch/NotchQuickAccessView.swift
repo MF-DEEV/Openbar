@@ -139,7 +139,7 @@ struct NotchQuickAccessView: View {
         return Button {
             service.activateQuickAction(action)
         } label: {
-            Image(systemName: symbol)
+            SymbolImage(symbol)
                 .font(.system(size: 17, weight: .medium))
                 .frame(width: NotchQuickAccessLayout.diameter, height: NotchQuickAccessLayout.diameter)
                 // In glass the drop beneath carries the island's shade, which

@@ -44,7 +44,7 @@ private struct NotchCapsuleSymbol: View {
     var tint: Color = .white
 
     var body: some View {
-        Image(systemName: name)
+        SymbolImage(name)
             .font(.system(size: CapsuleLayout.symbolSize, weight: .medium))
             .foregroundStyle(tint)
             .frame(width: CapsuleLayout.symbolWidth)
