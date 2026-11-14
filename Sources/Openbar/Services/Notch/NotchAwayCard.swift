@@ -72,19 +72,38 @@ final class NotchAwayWatcher {
 
     private(set) var seen: NotchAway.Mark?
     private(set) var away: NotchAway.Mark?
+    /// The screen is locked: only the unlock ends this time away, never an
+    /// input reading, which still holds the last key pressed before the lock.
+    private var locked = false
     private var timer: Timer?
     private var observers: [NSObjectProtocol] = []
+    private var joining: AnyCancellable?
 
     func start() {
         guard observers.isEmpty else { return }
         let center = DistributedNotificationCenter.default()
         observers.append(center.addObserver(forName: .init("com.apple.screenIsLocked"), object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { NotchAwayWatcher.shared.wentAway() }
+            MainActor.assumeIsolated {
+                NotchAwayWatcher.shared.locked = true
+                NotchAwayWatcher.shared.wentAway()
+            }
         })
         observers.append(center.addObserver(forName: .init("com.apple.screenIsUnlocked"), object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { NotchAwayWatcher.shared.cameBack() }
+            MainActor.assumeIsolated {
+                NotchAwayWatcher.shared.locked = false
+                NotchAwayWatcher.shared.cameBack()
+            }
         })
         seen = mark()
+        // A session that shows up while the person is here joins the mark as
+        // it stands, the first reading after launch included.
+        joining = ClaudeSessionService.shared.$sessions.sink { sessions in
+            MainActor.assumeIsolated {
+                let watcher = NotchAwayWatcher.shared
+                guard watcher.away == nil, let seen = watcher.seen else { return }
+                watcher.seen = NotchAway.adding(sessions, to: seen)
+            }
+        }
         schedule(Self.poll)
     }
 
@@ -121,6 +140,7 @@ final class NotchAwayWatcher {
     }
 
     private func tick() {
+        guard !locked else { return schedule(Self.poll) }
         let anyInput = CGEventType(rawValue: ~0)!
         let idle = CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: anyInput)
         let minutes = UserDefaults.standard.object(forKey: DefaultsKey.notchSessionsAwayMinutes) as? Int ?? 10

@@ -9,7 +9,7 @@
 
 import { bridge } from "../shared/bridge";
 import { useIsland } from "../island/store";
-import { awayLines, awayMark, type AwayMark } from "./away";
+import { awayLines, awayMark, type AwayMark, withNewSessions } from "./away";
 import { presentAway } from "./progress/AwayCard";
 import { useSessions } from "./store";
 
@@ -25,6 +25,9 @@ export const awayState = {
   seen: null as AwayMark | null,
   /** Set while the person is away: the mark the card will compare with. */
   away: null as AwayMark | null,
+  /** The session is locked: only the unlock ends this time away, never an
+   *  input reading, which still holds the last key pressed before the lock. */
+  locked: false,
 };
 
 const now = () => Date.now() / 1000;
@@ -37,26 +40,28 @@ export function wentAway() {
 }
 
 /** The person is back: the card, when anything changed and it is wanted. */
-export function cameBack() {
+export function cameBack(delay = 0) {
   const since = awayState.away;
   awayState.away = null;
   awayState.seen = mark();
   if (!since || !useSessions.getState().prefs.awayCard) return;
-  const lines = awayLines(since, useSessions.getState().snapshot.sessions);
-  if (lines.length > 0) presentAway(lines, since.at);
+  // After an unlock, a moment for the desktop to come back before the island opens.
+  setTimeout(() => {
+    const lines = awayLines(since, useSessions.getState().snapshot.sessions);
+    if (lines.length > 0) presentAway(lines, since.at);
+  }, delay);
 }
 
-let timer: ReturnType<typeof setTimeout> | undefined;
-
 async function poll() {
-  const idle = await bridge.session.idleSeconds().catch(() => null);
-  if (typeof idle === "number") {
+  const idle = awayState.locked ? null : await bridge.session.idleSeconds().catch(() => null);
+  // A reading begun before a lock that came meanwhile says nothing of now.
+  if (typeof idle === "number" && !awayState.locked) {
     const limit = Math.max(1, useSessions.getState().prefs.awayMinutes) * 60;
     if (awayState.away && idle < HERE) cameBack();
     else if (!awayState.away && idle >= limit) wentAway();
     else if (!awayState.away && idle < HERE) awayState.seen = mark();
   }
-  timer = setTimeout(() => void poll(), awayState.away ? POLL_AWAY : POLL);
+  setTimeout(() => void poll(), awayState.away ? POLL_AWAY : POLL);
 }
 
 let started = false;
@@ -65,14 +70,23 @@ export function startAwayWatcher() {
   if (started) return;
   started = true;
   void bridge.session.onLock(() => {
+    awayState.locked = true;
     wentAway();
-    clearTimeout(timer);
-    timer = setTimeout(() => void poll(), POLL_AWAY);
   });
-  void bridge.session.onUnlock(() => cameBack());
+  void bridge.session.onUnlock(() => {
+    awayState.locked = false;
+    cameBack(800);
+  });
   // The card goes with the island: closed, or opened on something else.
   useIsland.subscribe((s, prev) => {
     if (prev.expanded && !s.expanded && useSessions.getState().away) useSessions.setState({ away: null });
+  });
+  // A session that shows up while the person is here joins the mark as it
+  // stands, the first snapshot after launch included.
+  useSessions.subscribe((s, prev) => {
+    if (s.snapshot !== prev.snapshot && !awayState.away && awayState.seen) {
+      awayState.seen = withNewSessions(awayState.seen, s.snapshot.sessions);
+    }
   });
   awayState.seen = mark();
   void poll();

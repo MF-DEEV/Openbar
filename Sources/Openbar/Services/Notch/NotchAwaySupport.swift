@@ -49,6 +49,17 @@ enum NotchAway {
         }, uniquingKeysWith: { first, _ in first }))
     }
 
+    /// The mark with the sessions it has not met yet added as they stand
+    /// now: ones that showed up while the person was here, so the card
+    /// counts only what they did after.
+    static func adding(_ sessions: [ClaudeSession], to mark: Mark) -> Mark {
+        let fresh = sessions.filter { mark.sessions[$0.id] == nil }
+        guard !fresh.isEmpty else { return mark }
+        var mark = mark
+        mark.sessions.merge(Self.mark(fresh, at: mark.at).sessions) { known, _ in known }
+        return mark
+    }
+
     /// What each session did since the mark; a session that did nothing has no line.
     static func lines(since mark: Mark, sessions: [ClaudeSession]) -> [Line] {
         var lines: [Line] = []

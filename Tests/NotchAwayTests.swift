@@ -61,5 +61,16 @@ enum NotchAwayTests {
         }]
         suite.expect(NotchAway.lines(since: NotchAway.mark([], at: at), sessions: fresh).map { $0.outcome } == [NotchAway.Outcome.finished],
                      "a session begun and finished while away counts")
+
+        let early = NotchAway.mark([], at: at.addingTimeInterval(-60))
+        let seen = NotchAway.adding([session("s", .generating) {
+            $0.edits = ClaudeEditStats(added: 300, removed: 100, touched: [at.addingTimeInterval(-500)])
+        }], to: early)
+        let later = [session("s", .generating) {
+            $0.edits = ClaudeEditStats(added: 310, removed: 102, touched: [at.addingTimeInterval(-500), at.addingTimeInterval(5)])
+        }]
+        let joined = NotchAway.lines(since: seen, sessions: later).first
+        suite.expect(joined?.added == 10 && joined?.removed == 2 && joined?.files == 1,
+                     "a session that showed up later counts only what it did after")
     }
 }

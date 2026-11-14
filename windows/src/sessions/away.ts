@@ -46,6 +46,15 @@ export function awayMark(sessions: Session[], at: number): AwayMark {
   };
 }
 
+/** The mark with the sessions it has not met yet added as they stand now:
+ *  ones that showed up while the person was here, so the card counts only
+ *  what they did after. */
+export function withNewSessions(mark: AwayMark, sessions: Session[]): AwayMark {
+  const fresh = sessions.filter((s) => !(s.id in mark.sessions));
+  if (fresh.length === 0) return mark;
+  return { at: mark.at, sessions: { ...mark.sessions, ...awayMark(fresh, mark.at).sessions } };
+}
+
 const ORDER: Outcome[] = ["waiting", "error", "limited", "finished", "working"];
 
 /** What each session did since the mark; a session that did nothing has no line. */

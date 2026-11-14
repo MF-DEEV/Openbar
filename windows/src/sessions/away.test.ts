@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { awayLines, awayMark } from "./away";
+import { awayLines, awayMark, withNewSessions } from "./away";
 import type { Session } from "./types";
 
 const at = 1000;
@@ -91,5 +91,18 @@ describe("away card lines (#215)", () => {
       session({ id: "n", phase: "finished", turnStarted: at + 5, phaseSince: at + 90, lastActive: at + 90 }),
     ];
     expect(awayLines(awayMark([], at), after).map((l) => l.outcome)).toEqual(["finished"]);
+  });
+
+  it("counts only what a session that showed up later did after it showed up", () => {
+    const early = awayMark([], at - 60);
+    const seen = withNewSessions(early, [
+      session({ id: "s", phase: "generating", edits: { added: 300, removed: 100, touched: [at - 500] } }),
+    ]);
+    const after = [
+      session({ id: "s", phase: "generating", edits: { added: 310, removed: 102, touched: [at - 500, at + 5] } }),
+    ];
+    const [line] = awayLines(seen, after);
+    expect([line?.added, line?.removed, line?.files]).toEqual([10, 2, 1]);
+    expect(withNewSessions(seen, after)).toBe(seen);
   });
 });
