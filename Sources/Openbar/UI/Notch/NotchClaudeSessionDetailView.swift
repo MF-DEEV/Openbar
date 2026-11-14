@@ -63,11 +63,17 @@ struct NotchClaudeSessionDetailView: View {
 
     private var work: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
+            ScrollViewReader { page in
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     header(now: context.date)
                     NotchClaudeAutoAllowBar(session: session, text: text)
-                    if session.phase.isWaiting { NotchClaudeSessionPermissionCard(session: session, text: text, open: open) }
+                    if session.phase.isWaiting {
+                        // An opened command brings its buttons into sight.
+                        NotchClaudeSessionPermissionCard(session: session, text: text, open: open,
+                                                         reveal: { withAnimation(.easeOut(duration: 0.2)) { page.scrollTo(Self.permissionCard, anchor: .bottom) } })
+                            .id(Self.permissionCard)
+                    }
                     if let title = session.title {
                         Text(title)
                             .font(.system(size: 13, weight: .semibold))
@@ -83,8 +89,10 @@ struct NotchClaudeSessionDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollIndicators(.automatic)
+            }
         }
     }
+    private static let permissionCard = "permission-card"
 
     // MARK: Header
 
@@ -343,6 +351,8 @@ struct NotchClaudeSessionPermissionCard: View {
     /// How tall a file change's diff grows before it scrolls: about five
     /// lines on the island, so the buttons stay in sight below it.
     var diffHeight: CGFloat = 76
+    /// Scrolls the page so the card's buttons show, once the whole command opens.
+    var reveal: (() -> Void)? = nil
     @ObservedObject private var service = ClaudeSessionService.shared
     /// A request that replaced the one on screen holds the buttons back a
     /// moment, so a click meant for the old one cannot answer it.
@@ -378,6 +388,7 @@ struct NotchClaudeSessionPermissionCard: View {
             guard let result, result.revision == revision else { inspectionFailed = true; return }
             // The viewer reports itself on screen; only then can Allow be pressed.
             inspection = result
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { reveal?() }
         }
     }
     /// Why a request that needs a full read can't be allowed yet, or what the open viewer shows.
@@ -462,7 +473,8 @@ struct NotchClaudeSessionPermissionCard: View {
         if inspected, let inspection {
             // Every character, wrapped and scrolled, so Allow lands on what was read.
             NotchFullCommandView(text: inspection.text, shown: { viewerPresented = true })
-                .frame(height: max(120, diffHeight))
+                // As tall as a diff: on the island the buttons stay in sight below it.
+                .frame(height: diffHeight)
                 .padding(8)
                 .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
                 .accessibilityLabel(text.commandOpen)
@@ -483,7 +495,7 @@ struct NotchClaudeSessionPermissionCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxHeight: 120)
+            .frame(maxHeight: restricted ? diffHeight : 120)
             .padding(8)
             .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         } else if session.permission == nil, !session.waitingDiffs.isEmpty {
