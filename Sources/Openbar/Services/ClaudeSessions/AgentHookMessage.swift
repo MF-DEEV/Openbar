@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import Foundation
+import CoreFoundation
 
 /// One event from Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi, Mistral
 /// Vibe or Devin CLI, as the island reads it. The hook the island installs wraps what the agent hands it in
@@ -368,16 +369,42 @@ enum AgentHookMessage {
             guard let request = text(json, "id") else { return }
             let tool = AgentHookTools.name(provider, json["permission"] as? String ?? "")
             let metadata = json["metadata"] as? [String: Any] ?? [:]
-            let patterns = (json["patterns"] as? [String] ?? []).filter { !$0.isEmpty }
+            let patterns = json["patterns"] as? [String] ?? []
             let detail = (metadata["command"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 ?? (patterns.isEmpty ? ClaudeToolSummary.arguments(metadata) : patterns.joined(separator: "\n"))
             let always = (json["always"] as? [String] ?? []).contains { !$0.isEmpty }
             decoded.permission = (session, request)
+            let command = metadata["command"] as? String
+            // JSONSerialization bridges both booleans and numbers through NSNumber.
+            // A numeric 1 is not an explicit completeness acknowledgement.
+            let lengthNumber = metadata["commandLength"] as? NSNumber
+            let length = lengthNumber.flatMap { number -> Int? in
+                guard CFGetTypeID(number) != CFBooleanGetTypeID(),
+                      let value = metadata["commandLength"] as? Int, value >= 0 else { return nil }
+                return value
+            }
+            let completeFlag = (metadata["commandComplete"] as? NSNumber).map {
+                CFGetTypeID($0) == CFBooleanGetTypeID() && $0.boolValue
+            } ?? false
+            let shell = tool == "Bash" || metadata["command"] != nil
+            let detailFlag = (json["permissionContentComplete"] as? NSNumber).map {
+                CFGetTypeID($0) == CFBooleanGetTypeID() && $0.boolValue
+            } ?? false
+            let completeDetail = detailFlag && (json["metadata"] == nil || json["metadata"] is [String: Any])
+                && (json["patterns"] == nil || json["patterns"] is [String])
+            let detailLength = (json["permissionDetailLength"] as? NSNumber).flatMap { n -> Int? in
+                guard CFGetTypeID(n) != CFBooleanGetTypeID(), let value = json["permissionDetailLength"] as? Int, value >= 0 else { return nil }
+                return value
+            }
+            let complete = shell ? (completeFlag && command.map { !$0.isEmpty && length == $0.unicodeScalars.count } == true)
+                : (completeDetail && (json["permissionDetailLength"] == nil || detailLength == detail.unicodeScalars.count))
+            let content = PermissionContent(full: detail, complete: complete,
+                                            originalLength: shell ? length : (detailLength ?? (complete ? detail.unicodeScalars.count : nil)))
             add(.permission(ClaudePermission(
                 requestID: request, tool: tool.isEmpty ? "Tool" : tool,
                 summary: ClaudeToolSummary.clip(detail.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""),
-                detail: String(detail.prefix(ClaudeToolSummary.detailLimit)), offersAlways: always, since: date,
-                diffs: tool == "Edit" ? ClaudeFileDiffs.opencode(metadata) : [])))
+                detail: content.preview, content: content, offersAlways: always, since: date,
+                diffs: tool == "Edit" && !shell ? ClaudeFileDiffs.opencode(metadata) : [])))
         case "permissionReplied": add(.permissionSettled(text(json, "id")))
         case "question": add(.question)
         case "reply":

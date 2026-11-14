@@ -12,7 +12,8 @@ export function hidesAutoApproval(session: Session, autoAllow: AutoAllow): boole
     session.provider === "codex" &&
     session.phase === "waitingPermission" &&
     session.waitingFor !== "terminal" &&
-    !session.permission?.questions.length
+    !session.permission?.questions.length &&
+    !session.permission?.command?.requiresInspection
   );
 }
 

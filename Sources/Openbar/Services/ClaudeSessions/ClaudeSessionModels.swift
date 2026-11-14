@@ -265,6 +265,7 @@ struct ClaudePermission: Equatable {
     /// Shown even with previews off, since nobody should allow what they
     /// cannot read, and dropped once answered.
     var detail: String = ""
+    var content: PermissionContent? = nil
     /// Claude Code offered rules that would stop it asking again.
     let offersAlways: Bool
     let since: Date
@@ -288,7 +289,7 @@ struct ClaudePermission: Equatable {
     /// A request short enough to read whole on one line of the list. A file
     /// change never is: its path alone does not say what changes.
     var fitsOnALine: Bool {
-        !asksQuestions && diffs.isEmpty && !detail.contains("\n") && detail.count <= ClaudeToolSummary.quickDecisionLimit
+        content?.requiresInspection != true && !asksQuestions && diffs.isEmpty && !detail.contains("\n") && detail.count <= ClaudeToolSummary.quickDecisionLimit
     }
 }
 
@@ -608,14 +609,15 @@ enum ClaudeToolSummary {
     static func inputKey(name: String, input: [String: Any]) -> Int {
         var hasher = Hasher()
         hasher.combine(name)
-        hasher.combine(permissionDetail(name: name, input: input))
+        hasher.combine(arguments(input))
         return hasher.finalize()
     }
-    static let detailLimit = 8000
+    static let detailLimit = PermissionContent.previewLimit
 
     /// All of what a tool asks to do, for the person to read before allowing
     /// it: every line of a command, a whole path or address, or each
-    /// argument. Only text past `detailLimit` is left out, and that says so.
+    /// argument. This authoritative value is never shortened or trimmed;
+    /// PermissionContent produces a separate bounded preview.
     static func permissionDetail(name: String, input: [String: Any]) -> String {
         let text: String
         switch name {
@@ -626,9 +628,7 @@ enum ClaudeToolSummary {
         case planTool: text = input["plan"] as? String ?? arguments(input)
         default: text = arguments(input)
         }
-        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.count > detailLimit else { return trimmed }
-        return String(trimmed.prefix(detailLimit)) + "\n… \(trimmed.count - detailLimit) more characters"
+        return text
     }
 
     /// Each argument on its own line, in a steady order.

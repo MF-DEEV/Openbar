@@ -576,6 +576,7 @@ enum NotchClaudeSessionsSupport {
     static func hidesAutoApproval(_ session: ClaudeSession, autoAllowed: Set<String>, now: Date) -> Bool {
         autoAllowed.contains(session.id) && session.provider == .codex && session.phase == .waitingPermission
             && session.waitingFor != CodexSessionState.answerInTerminal && session.permission?.asksQuestions != true
+            && session.permission?.content?.requiresInspection != true
             && (session.permission != nil || now.timeIntervalSince(session.phaseSince) < statusOnlyWait)
     }
 

@@ -150,7 +150,13 @@ impl HookMessage {
                 } else {
                     Vec::new()
                 };
-                HookEvent::PermissionRequested(Permission {
+                let full = tool_summary::permission_detail(tool, input);
+                let complete = tool != "Bash"
+                    || input
+                        .get("command")
+                        .and_then(Value::as_str)
+                        .is_some_and(|s| !s.is_empty());
+                let mut permission = Permission {
                     request_id: request_id.to_owned(),
                     tool: if tool.is_empty() {
                         "Tool".to_owned()
@@ -161,7 +167,8 @@ impl HookMessage {
                         .first()
                         .map(|q| tool_summary::clip(&q.question))
                         .or_else(|| tool_summary::summary(tool, input)),
-                    detail: tool_summary::permission_detail(tool, input),
+                    detail: String::new(),
+                    content: None,
                     offers_always: offers && questions.is_empty(),
                     since: now,
                     tool_id: None,
@@ -169,7 +176,9 @@ impl HookMessage {
                     questions,
                     diffs: file_diff::diffs(tool, input, str_of(json.get("cwd"))),
                     plan_modes: modes,
-                })
+                };
+                permission.set_content(&full, complete, Some(full.chars().count()));
+                HookEvent::PermissionRequested(permission)
             }
             "Notification" => HookEvent::Notification {
                 kind: str_of(json.get("notification_type"))

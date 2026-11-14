@@ -810,7 +810,7 @@ enum ClaudeSessionEngineTests {
         suite.expect(mcp == "force: 1\nrepo: me/app" || mcp == "force: true\nrepo: me/app",
                      "a tool without a known shape lists each argument: \(mcp)")
         let huge = ClaudeToolSummary.permissionDetail(name: "Bash", input: ["command": String(repeating: "x", count: 9000)])
-        suite.expect(huge.hasSuffix("1000 more characters"), "only past the limit is text left out, and that says so")
+        suite.expect(huge == String(repeating: "x", count: 9000), "the authoritative detail is never clipped")
         let short = ClaudePermission(requestID: "r", tool: "Bash", summary: "ls", detail: "ls -la", offersAlways: false, since: t0)
         let multiline = ClaudePermission(requestID: "r", tool: "Bash", summary: "a", detail: "a\nb", offersAlways: false, since: t0)
         suite.expect(short.fitsOnALine && !multiline.fitsOnALine, "only a one-line request is answered from the list")

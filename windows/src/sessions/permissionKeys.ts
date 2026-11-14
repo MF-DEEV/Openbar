@@ -8,6 +8,7 @@ import type { Session } from "./types";
 export type PermissionKey = "y" | "n" | "always";
 
 export async function performPermissionKey(session: Session, key: PermissionKey): Promise<boolean> {
+  if (key !== "n" && session.permission?.command?.requiresInspection) return false;
   if (key === "always" && session.provider === "codex") {
     useSessions.getState().toggleAutoAllow(session.id);
     return true;

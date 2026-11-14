@@ -115,6 +115,19 @@ struct NotchClaudeSessionStrings {
     let shortcutsHintAlways: String
     /// The same, on a plan's card, with the mode ⌘Y picks.
     let shortcutsHintPlanFormat: String
+    /// A request whose text didn't fit or holds invisible characters (#224):
+    /// why Allow waits, the button that opens the whole text, and the hints.
+    let commandCut: String
+    let commandControls: String
+    let commandIncomplete: String
+    let commandTooLarge: String
+    let commandOpen: String
+    let showCommand: String
+    let hideCommand: String
+    let openingCommand: String
+    let commandOpenFailed: String
+    let shortcutsHintInspect: String
+    let shortcutsHintDenyOnly: String
     let sendFailed: String
     let sendWhileWaiting: String
     let bridgeTitle: String
@@ -410,6 +423,17 @@ extension NotchClaudeSessionStrings {
         shortcutsHint: "⌘Y allows and ⌘N denies, even while another app is in front.",
         shortcutsHintAlways: "⌘Y allows, ⌘T picks Always and ⌘N denies, even while another app is in front.",
         shortcutsHintPlanFormat: "⌘Y approves with %@ and ⌘N keeps planning, even while another app is in front.",
+        commandCut: "Too long to show here. Open the whole command before you allow it.",
+        commandControls: "Has invisible characters. Open the whole command to see them before you allow it.",
+        commandIncomplete: "The agent didn’t send the whole command, so it can’t be allowed here. Deny it or answer in the agent.",
+        commandTooLarge: "Too large to open here, so it can’t be allowed here. Deny it or answer in the agent.",
+        commandOpen: "The whole command. Invisible characters show as ⟦U+XXXX⟧.",
+        showCommand: "Show all",
+        hideCommand: "Hide",
+        openingCommand: "Opening…",
+        commandOpenFailed: "Couldn’t open the command. Allow stays off.",
+        shortcutsHintInspect: "⌘N denies. Allow works from the buttons once the whole command is open.",
+        shortcutsHintDenyOnly: "⌘N denies, even while another app is in front.",
         sendFailed: "Couldn’t reach that terminal",
         sendWhileWaiting: "It’s waiting on a prompt now. Answer it first.",
         bridgeTitle: "Editor extension",

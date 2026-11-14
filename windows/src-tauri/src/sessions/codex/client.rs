@@ -93,6 +93,7 @@ struct Shared {
     /// The SSH alias of the host whose Codex this is; None for this PC's.
     remote: Option<String>,
     state: State,
+    inspection: crate::sessions::inspection::Gate,
     next_id: i64,
     waiting: HashMap<i64, Waiting>,
     outbox: Option<Sender<Value>>,
@@ -107,6 +108,7 @@ impl Shared {
         Shared {
             remote: None,
             state: State::default(),
+            inspection: Default::default(),
             next_id: 0,
             waiting: HashMap::new(),
             outbox: None,
@@ -128,6 +130,7 @@ impl Shared {
         }
         self.focused.clear();
         self.state = State::default();
+        self.inspection = Default::default();
     }
 
     fn send(&mut self, message: Value) {
@@ -286,6 +289,17 @@ impl CodexClient {
             }
         }
         let (mut sessions, events) = shared.state.snapshot(now, policy);
+        let live = sessions
+            .iter()
+            .filter_map(|s| {
+                s.permission.as_ref().and_then(|p| {
+                    p.content
+                        .as_ref()
+                        .map(|c| (s.id.clone(), c.metadata(p).revision))
+                })
+            })
+            .collect::<Vec<_>>();
+        shared.inspection.retain(&live);
         // A host's threads wear its name, as its Claude Code sessions do.
         if let Some(alias) = &shared.remote {
             for session in &mut sessions {
@@ -326,10 +340,52 @@ impl CodexClient {
     /// Answers the request with this island id, the session's own or one of
     /// its subagents'; false when it is gone or of another kind.
     pub fn answer(&self, session: &str, request_id: &str, answer: Answer) -> bool {
+        let mut shared = self.shared.lock().unwrap();
+        let revision = shared
+            .state
+            .answerable(session, request_id)
+            .and_then(|(_, pending)| {
+                let p = super::state::permission(&pending);
+                p.content.as_ref().map(|c| c.metadata(&p).revision)
+            });
+        shared.answer(session, request_id, &answer, revision.as_deref(), None)
+    }
+
+    pub fn inspect(
+        &self,
+        session: &str,
+        request: &str,
+        revision: &str,
+    ) -> Option<crate::sessions::inspection::Inspection> {
+        let mut s = self.shared.lock().unwrap();
+        if s.state
+            .pending(session)
+            .first()
+            .is_none_or(|p| p.request_id() != request)
+        {
+            return None;
+        }
+        let (_, pending) = s.state.answerable(session, request)?;
+        let p = super::state::permission(&pending);
+        s.inspection.open(session, &p, revision)
+    }
+
+    pub fn close_inspection(&self, token: &str) {
+        self.shared.lock().unwrap().inspection.close(token);
+    }
+
+    pub fn answer_inspected(
+        &self,
+        session: &str,
+        request: &str,
+        answer: Answer,
+        revision: Option<&str>,
+        token: Option<&str>,
+    ) -> bool {
         self.shared
             .lock()
             .unwrap()
-            .answer(session, request_id, &answer)
+            .answer(session, request, &answer, revision, token)
     }
 
     /// A prompt for an idle thread, or one queued after the current turn of a working one.
@@ -375,15 +431,41 @@ impl Shared {
         self.state.threads.get(session)?.name.clone()
     }
 
-    fn answer(&mut self, session: &str, request_id: &str, answer: &Answer) -> bool {
+    fn answer(
+        &mut self,
+        session: &str,
+        request_id: &str,
+        answer: &Answer,
+        revision: Option<&str>,
+        token: Option<&str>,
+    ) -> bool {
+        if self
+            .state
+            .pending(session)
+            .first()
+            .is_none_or(|p| p.request_id() != request_id)
+        {
+            return false;
+        }
         let Some((_, pending)) = self.state.answerable(session, request_id) else {
             return false;
         };
+        let permission = super::state::permission(&pending);
+        if matches!(answer, Answer::Allow | Answer::AllowForSession)
+            && !self
+                .inspection
+                .allows(session, &permission, revision, token)
+        {
+            return false;
+        }
         let Some(body) = super::state::result(&pending, answer) else {
             return false;
         };
         if self.state.take_pending(session, request_id).is_none() {
             return false;
+        }
+        if let Some(token) = token {
+            self.inspection.close(token);
         }
         self.send(json!({"id": pending.rpc_id, "result": body}));
         true
@@ -513,6 +595,16 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
     match (method, message.get("id").cloned()) {
         // A request: approvals and questions the island may answer.
         (Some(method), Some(id)) => {
+            if let Some(thread) = params.get("threadId").and_then(Value::as_str) {
+                let row = s.state.row_of(thread);
+                if let Some((_, old)) = s.state.answerable(&row, &format!("codex:{id}")) {
+                    let p = super::state::permission(&old);
+                    if let Some(content) = &p.content {
+                        s.inspection
+                            .invalidate_revision(&row, &content.metadata(&p).revision);
+                    }
+                }
+            }
             let kept = s.state.request(id, &method, &params, now);
             s.follow();
             kept
@@ -1155,18 +1247,33 @@ mod tests {
         sent(&rx);
         assert!(!s.reply("t1", "go on", &[]), "no reply while the row waits");
         assert!(sent(&rx).is_empty());
-        assert!(!s.answer("t1", "codex:99", &Answer::Allow), "an unknown id");
         assert!(
-            !s.answer("t1", "codex:21", &Answer::Questions(HashMap::new())),
+            !s.answer("t1", "codex:99", &Answer::Allow, None, None),
+            "an unknown id"
+        );
+        assert!(
+            !s.answer(
+                "t1",
+                "codex:21",
+                &Answer::Questions(HashMap::new()),
+                None,
+                None
+            ),
             "an answer of another kind"
         );
-        assert!(s.answer("t1", "codex:21", &Answer::Allow));
+        let (_, pending) = s.state.answerable("t1", "codex:21").unwrap();
+        let p = super::super::state::permission(&pending);
+        let revision = p.content.as_ref().unwrap().metadata(&p).revision;
+        assert!(s.answer("t1", "codex:21", &Answer::Allow, Some(&revision), None));
         assert_eq!(
             sent(&rx),
             [json!({"id": 21, "result": {"decision": "accept"}})]
         );
         assert!(s.state.threads["c1"].pending.is_empty());
-        assert!(!s.answer("t1", "codex:21", &Answer::Allow), "answered once");
+        assert!(
+            !s.answer("t1", "codex:21", &Answer::Allow, None, None),
+            "answered once"
+        );
         assert!(s.reply("t1", "go on", &[]), "the row takes replies again");
         assert_eq!(methods(&sent(&rx)), ["thread/queue/add"]);
         s.connected = false;
@@ -1184,5 +1291,75 @@ mod tests {
             json!({"cwd": "C:/w"})
         );
         assert_eq!(thread_start_params("C:/w", None), json!({"cwd": "C:/w"}));
+    }
+    #[test]
+    fn security_command_approval_boundary_rejects_bypasses_and_stale_inspection() {
+        let (mut s, rx) = joined();
+        read_thread(
+            &mut s,
+            &rx,
+            json!({"id":"t1","cwd":"C:/code","status":{"type":"active","activeFlags":[]}}),
+        );
+        let command = format!(
+            "{}\nprintf 'HIDDEN_SUFFIX_FIXTURE'",
+            "# harmless\n".repeat(1000)
+        );
+        let request = json!({"id":224, "method":"item/commandExecution/requestApproval", "params":{"threadId":"t1","command":command}});
+        assert!(deliver(&mut s, request.clone()));
+        sent(&rx);
+        assert!(!s.answer("t1", "codex:224", &Answer::Allow, None, None));
+        assert!(!s.answer("t1", "codex:224", &Answer::AllowForSession, None, None));
+        assert!(!s.answer("t1", "codex:224", &Answer::Allow, None, Some("forged")));
+        let (_, pending) = s.state.answerable("t1", "codex:224").unwrap();
+        let p = super::super::state::permission(&pending);
+        let revision = p.content.as_ref().unwrap().metadata(&p).revision;
+        let inspection = s.inspection.open("t1", &p, &revision).unwrap();
+        assert_eq!(inspection.text, command);
+        assert!(s.answer(
+            "t1",
+            "codex:224",
+            &Answer::Allow,
+            Some(&revision),
+            Some(&inspection.token)
+        ));
+        assert_eq!(
+            sent(&rx),
+            [json!({"id":224,"result":{"decision":"accept"}})]
+        );
+        assert!(!s.answer(
+            "t1",
+            "codex:224",
+            &Answer::Allow,
+            Some(&revision),
+            Some(&inspection.token)
+        ));
+        assert!(deliver(&mut s, request));
+        assert!(!s.answer(
+            "t1",
+            "codex:224",
+            &Answer::Allow,
+            Some(&revision),
+            Some(&inspection.token)
+        ));
+        assert!(s.answer("t1", "codex:224", &Answer::Deny, None, None));
+        sent(&rx);
+        let short = json!({"id":225,"method":"item/commandExecution/requestApproval","params":{"threadId":"t1","command":"  echo 'ok'  "}});
+        assert!(deliver(&mut s, short));
+        let (_, pending) = s.state.answerable("t1", "codex:225").unwrap();
+        let p = super::super::state::permission(&pending);
+        let revision = p.content.as_ref().unwrap().metadata(&p).revision;
+        assert!(s.answer(
+            "t1",
+            "codex:225",
+            &Answer::AllowForSession,
+            Some(&revision),
+            None
+        ));
+        assert!(deliver(
+            &mut s,
+            json!({"id":226,"method":"item/commandExecution/requestApproval","params":{"threadId":"t1"}})
+        ));
+        assert!(!s.answer("t1", "codex:226", &Answer::Allow, None, None));
+        assert!(s.answer("t1", "codex:226", &Answer::Deny, None, None));
     }
 }

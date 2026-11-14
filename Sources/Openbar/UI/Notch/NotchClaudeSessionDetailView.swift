@@ -2,6 +2,7 @@
 // Copyright (C) 2026 Vorssaint
 
 import SwiftUI
+import AppKit
 
 /// One session's page: what it works on, its latest tools, tasks and
 /// subagents, what it said last, and the ways to answer it.
@@ -62,11 +63,17 @@ struct NotchClaudeSessionDetailView: View {
 
     private var work: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
+            ScrollViewReader { page in
             ScrollView {
                 VStack(alignment: .leading, spacing: 10) {
                     header(now: context.date)
                     NotchClaudeAutoAllowBar(session: session, text: text)
-                    if session.phase.isWaiting { NotchClaudeSessionPermissionCard(session: session, text: text, open: open) }
+                    if session.phase.isWaiting {
+                        // An opened command brings its buttons into sight.
+                        NotchClaudeSessionPermissionCard(session: session, text: text, open: open,
+                                                         reveal: { withAnimation(.easeOut(duration: 0.2)) { page.scrollTo(Self.permissionCard, anchor: .bottom) } })
+                            .id(Self.permissionCard)
+                    }
                     if let title = session.title {
                         Text(title)
                             .font(.system(size: 13, weight: .semibold))
@@ -82,8 +89,10 @@ struct NotchClaudeSessionDetailView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .scrollIndicators(.automatic)
+            }
         }
     }
+    private static let permissionCard = "permission-card"
 
     // MARK: Header
 
@@ -342,10 +351,57 @@ struct NotchClaudeSessionPermissionCard: View {
     /// How tall a file change's diff grows before it scrolls: about five
     /// lines on the island, so the buttons stay in sight below it.
     var diffHeight: CGFloat = 76
+    /// Scrolls the page so the card's buttons show, once the whole command opens.
+    var reveal: (() -> Void)? = nil
     @ObservedObject private var service = ClaudeSessionService.shared
     /// A request that replaced the one on screen holds the buttons back a
     /// moment, so a click meant for the old one cannot answer it.
     @State private var settling = false
+    @State private var inspection: PermissionInspection?
+    @State private var loadingInspection = false
+    @State private var inspectionFailed = false
+    @State private var viewerPresented = false
+    @State private var inspectionGeneration = UUID()
+    private var revision: String? { session.permission.flatMap { p in p.content.map { $0.revision(p) } } }
+    private var inspected: Bool { inspection != nil && inspection?.revision == revision }
+    private var restricted: Bool { session.permission?.content?.requiresInspection == true }
+    private var blocked: Bool { settling || (restricted && (!inspected || !viewerPresented || session.permission?.content?.available != true)) }
+
+    private func closeInspection() {
+        inspectionGeneration = UUID()
+        if let inspection { service.closeInspection(inspection.token) }
+        inspection = nil
+        loadingInspection = false
+        viewerPresented = false
+    }
+    private func expandCommand() {
+        guard let permission = session.permission, let revision, permission.content?.available == true else { return }
+        loadingInspection = true
+        inspectionFailed = false
+        let generation = inspectionGeneration
+        service.inspectCommand(session.id, request: permission.requestID, revision: revision) { result in
+            guard generation == inspectionGeneration else {
+                if let result { service.closeInspection(result.token) }
+                return
+            }
+            loadingInspection = false
+            guard let result, result.revision == revision else { inspectionFailed = true; return }
+            // The viewer reports itself on screen; only then can Allow be pressed.
+            inspection = result
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) { reveal?() }
+        }
+    }
+    /// Why a request that needs a full read can't be allowed yet, or what the open viewer shows.
+    private func inspectionNotice(_ content: PermissionContent) -> String {
+        if inspected { return text.commandOpen }
+        if !content.complete { return text.commandIncomplete }
+        if !content.available { return text.commandTooLarge }
+        return content.truncated ? text.commandCut : text.commandControls
+    }
+    private func approve(_ permission: ClaudePermission, _ decision: ClaudeHookMessage.Decision, autoAllowTurn: Bool = false) {
+        service.decide(session.id, request: permission.requestID, decision, revision: revision,
+                       inspectionToken: inspected ? inspection?.token : nil, autoAllowTurn: autoAllowTurn)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -364,6 +420,8 @@ struct NotchClaudeSessionPermissionCard: View {
                 request
             }
         }
+        .onChange(of: revision) { _, _ in closeInspection() }
+        .onDisappear { closeInspection() }
         .padding(10)
         .onChange(of: session.permission?.requestID, initial: true) { old, new in
             // Every request waits a moment before it can be answered, the
@@ -389,7 +447,38 @@ struct NotchClaudeSessionPermissionCard: View {
 
     /// A tool's request, read whole and allowed or denied.
     @ViewBuilder private var request: some View {
-        if let diffs = session.permission?.diffs, !diffs.isEmpty {
+        if restricted, let content = session.permission?.content {
+            HStack(alignment: .center, spacing: 8) {
+                Image(systemName: inspected ? "eye" : "exclamationmark.shield.fill")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(inspected ? Color.white.opacity(0.55) : .orange)
+                Text(inspectionNotice(content))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.white.opacity(0.75))
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                if content.available {
+                    NotchClaudeDecisionButton(
+                        title: inspected ? text.hideCommand : loadingInspection ? text.openingCommand : text.showCommand,
+                        symbol: inspected ? "chevron.up" : "text.magnifyingglass", role: .secondary) {
+                        if inspected { closeInspection() } else { expandCommand() }
+                    }
+                    .disabled(loadingInspection)
+                }
+            }
+            if inspectionFailed {
+                Text(text.commandOpenFailed).font(.system(size: 10.5)).foregroundStyle(.orange)
+            }
+        }
+        if inspected, let inspection {
+            // Every character, wrapped and scrolled, so Allow lands on what was read.
+            NotchFullCommandView(text: inspection.text, shown: { viewerPresented = true })
+                // As tall as a diff: on the island the buttons stay in sight below it.
+                .frame(height: diffHeight)
+                .padding(8)
+                .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                .accessibilityLabel(text.commandOpen)
+        } else         if let diffs = session.permission?.diffs, !diffs.isEmpty {
             // A file change shows what changes, not just where.
             NotchClaudeFileDiffView(diffs: diffs, text: text, maxHeight: diffHeight)
                 // Gaps opened for one request start closed on the next.
@@ -399,20 +488,23 @@ struct NotchClaudeSessionPermissionCard: View {
             let plan = session.permission?.tool == ClaudeToolSummary.planTool
             // The whole request, every line of it, so nothing is allowed unread.
             ScrollView {
-                Text(detail)
+                Text(verbatim: detail)
                     .font(.system(size: 11, design: plan ? .default : .monospaced))
                     .foregroundStyle(.white.opacity(0.9))
                     .textSelection(.enabled)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            .frame(maxHeight: 120)
+            .frame(maxHeight: restricted ? diffHeight : 120)
             .padding(8)
             .background(.black.opacity(0.35), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
         } else if session.permission == nil, !session.waitingDiffs.isEmpty {
             // A file change only the agent can answer still shows what it changes.
             NotchClaudeFileDiffView(diffs: session.waitingDiffs, text: text, maxHeight: diffHeight)
         }
+        decisionControls
+    }
+    @ViewBuilder private var decisionControls: some View {
         HStack(spacing: 6) {
             if let permission = session.permission {
                 let plan = permission.tool == ClaudeToolSummary.planTool
@@ -422,14 +514,19 @@ struct NotchClaudeSessionPermissionCard: View {
                 .disabled(settling)
                 Spacer(minLength: 0)
                 if session.provider == .codex {
-                    NotchClaudeAutoAllowButton(session: session, text: text)
-                        .disabled(settling)
+                    if restricted {
+                        NotchClaudeDecisionButton(title: text.alwaysAllow, symbol: "checkmark.seal", role: .secondary) {
+                            approve(permission, .allow, autoAllowTurn: true)
+                        }.disabled(blocked)
+                    } else {
+                        NotchClaudeAutoAllowButton(session: session, text: text).disabled(blocked)
+                    }
                 } else if permission.offersAlways {
                     NotchClaudeDecisionButton(title: text.alwaysAllow, symbol: "checkmark.seal", role: .secondary,
                                               help: text.alwaysAllow + " (⌘T)") {
-                        service.decide(session.id, request: permission.requestID, .allowAlways)
+                        approve(permission, .allowAlways)
                     }
-                    .disabled(settling)
+                    .disabled(blocked)
                 }
                 if plan, let first = permission.planModes.first {
                     // As Claude Code's plan dialog: the mode that lets Claude
@@ -437,20 +534,20 @@ struct NotchClaudeSessionPermissionCard: View {
                     ForEach(Array(permission.planModes.dropFirst().reversed()), id: \.self) { mode in
                         NotchClaudeDecisionButton(title: text.planMode(mode), symbol: "hand.raised", role: .secondary,
                                                   help: text.planModeHelp(mode)) {
-                            service.decide(session.id, request: permission.requestID, .approvePlan(mode))
+                            approve(permission, .approvePlan(mode))
                         }
-                        .disabled(settling)
+                        .disabled(blocked)
                     }
                     NotchClaudeDecisionButton(title: text.planMode(first), symbol: "checkmark", role: .allow,
                                               help: text.planModeHelp(first) + " (⌘Y)") {
-                        service.decide(session.id, request: permission.requestID, .approvePlan(first))
+                        approve(permission, .approvePlan(first))
                     }
-                    .disabled(settling)
+                    .disabled(blocked)
                 } else {
                     NotchClaudeDecisionButton(title: plan ? text.approvePlan : text.allow, symbol: "checkmark", role: .allow) {
-                        service.decide(session.id, request: permission.requestID, .allow)
+                        approve(permission, .allow)
                     }
-                    .disabled(settling)
+                    .disabled(blocked)
                 }
             } else {
                 Text(text.answerIn(session.provider)).font(.system(size: 10.5)).foregroundStyle(.secondary)
@@ -459,10 +556,52 @@ struct NotchClaudeSessionPermissionCard: View {
             }
         }
         if let permission = session.permission {
-            Text(permission.planModes.first.map { String(format: text.shortcutsHintPlanFormat, text.planMode($0)) }
+            Text(restricted ? (permission.content?.available == true ? text.shortcutsHintInspect : text.shortcutsHintDenyOnly)
+                 : permission.planModes.first.map { String(format: text.shortcutsHintPlanFormat, text.planMode($0)) }
                  ?? (session.provider == .codex || permission.offersAlways ? text.shortcutsHintAlways : text.shortcutsHint))
                 .font(.system(size: 9.5)).foregroundStyle(.tertiary)
         }
+    }
+
+}
+
+/// The whole command in the card: read-only, selectable, wrapped, scrolled.
+/// A text view, not a SwiftUI Text, so a command of up to a megabyte stays smooth.
+private struct NotchFullCommandView: NSViewRepresentable {
+    let text: String
+    let shown: () -> Void
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = NSTextView.scrollableTextView()
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+        scroll.scrollerStyle = .overlay
+        scroll.scrollerKnobStyle = .light
+        if let view = scroll.documentView as? NSTextView {
+            view.isEditable = false
+            view.isSelectable = true
+            view.drawsBackground = false
+            view.isRichText = false
+            view.textContainerInset = .zero
+            view.textContainer?.lineFragmentPadding = 0
+            view.textContainer?.widthTracksTextView = true
+            fill(view)
+        }
+        DispatchQueue.main.async(execute: shown)
+        return scroll
+    }
+
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        guard let view = scroll.documentView as? NSTextView, view.string != text else { return }
+        fill(view)
+    }
+
+    private func fill(_ view: NSTextView) {
+        view.textStorage?.setAttributedString(NSAttributedString(string: text, attributes: [
+            .font: NSFont.monospacedSystemFont(ofSize: 11, weight: .regular),
+            .foregroundColor: NSColor.white.withAlphaComponent(0.9),
+        ]))
     }
 }
 
@@ -499,6 +638,7 @@ struct NotchClaudeQuestionForm: View {
                 NotchClaudeDecisionButton(title: text.skip, symbol: "forward", role: .deny) {
                     service.decide(session.id, request: permission.requestID, .deny)
                 }
+                .disabled(settling)
                 Spacer(minLength: 0)
                 NotchClaudeDecisionButton(title: text.sendAnswer, symbol: "arrow.up", role: .allow, action: send)
                     .disabled(answers == nil)

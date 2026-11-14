@@ -80,11 +80,14 @@ struct ClaudeHookMessage {
             // offers them for the session.
             let modes = tool == ClaudeToolSummary.planTool
                 ? planModes(json["transcript_path"] as? String, json["cwd"] as? String) : []
+            let full = ClaudeToolSummary.permissionDetail(name: tool, input: input)
+            let content = PermissionContent(full: full, complete: tool != "Bash" || (input["command"] as? String).map { !$0.isEmpty } == true,
+                                            originalLength: full.unicodeScalars.count)
             event = .permissionRequested(ClaudePermission(
                 requestID: requestID, tool: tool.isEmpty ? "Tool" : tool,
                 summary: questions.first.map { ClaudeToolSummary.clip($0.question) }
                     ?? ClaudeToolSummary.summary(name: tool, input: input),
-                detail: ClaudeToolSummary.permissionDetail(name: tool, input: input),
+                detail: content.preview, content: content,
                 offersAlways: !offered.isEmpty && questions.isEmpty, since: now,
                 inputKey: ClaudeToolSummary.inputKey(name: tool, input: input), questions: questions,
                 diffs: ClaudeFileDiffs.diffs(tool: tool, input: input, cwd: json["cwd"] as? String),
