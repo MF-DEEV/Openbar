@@ -9,7 +9,7 @@ import { useLocale, t } from "../i18n";
 
 import { Pause, Play } from "lucide-react";
 import { useState } from "react";
-import { COMPACT_EDGE_GAP, edgeInset, type Geometry } from "../island/geometry";
+import { capsuleBody, COMPACT_EDGE_GAP, edgeInset, type Geometry } from "../island/geometry";
 import type { Size } from "../island/motion";
 import { useIsland } from "../island/store";
 import { EqualizerBars } from "./EqualizerBars";
@@ -36,8 +36,10 @@ export function MusicStrip({ geometry, size }: { geometry: Geometry; size: Size 
   const capsule = geometry.floatingGap !== null;
   const side = artworkSide(capsule ? geometry.stripHeight - 2 * (geometry.floatingGap ?? 0) + 4 : geometry.stripHeight);
   const bars = barHeight(geometry.stripHeight);
-  const coverInset = capsule ? 3 : edgeInset(size, side, side * 0.28, COMPACT_EDGE_GAP, geometry.input);
-  const barsInset = capsule ? 8 : edgeInset(size, bars, BAR_WIDTH / 2, COMPACT_EDGE_GAP, geometry.input);
+  // Capsule activity sizing reserves 8px inside each painted end, beyond the transparent shoulders.
+  const capsuleInset = capsule ? capsuleBody(size.width, size.height, geometry.floatingGap ?? 0).x + 8 : 0;
+  const coverInset = capsule ? capsuleInset : edgeInset(size, side, side * 0.28, COMPACT_EDGE_GAP, geometry.input);
+  const barsInset = capsule ? capsuleInset : edgeInset(size, bars, BAR_WIDTH / 2, COMPACT_EDGE_GAP, geometry.input);
   const wing = capsule ? undefined : (size.width - geometry.cameraWidth) / 2;
 
   return (

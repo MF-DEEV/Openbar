@@ -1,0 +1,14 @@
+{
+  "silhouette": "capsule",
+  "coverGap": 7.994536399841309,
+  "barsGap": 7.994477272033691,
+  "topGap": 3,
+  "bottomGap": 3,
+  "coverWidth": 17.200000762939453,
+  "frame": {
+    "x": 941,
+    "y": 2,
+    "width": 166,
+    "height": 27.200000762939453
+  }
+}
