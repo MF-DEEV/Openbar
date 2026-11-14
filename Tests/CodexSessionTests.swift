@@ -10,6 +10,7 @@ import Foundation
 enum CodexSessionTests {
     static func run(_ suite: TestSuite) {
         suite.run("codex sessions state") { state(suite) }
+        suite.run("codex plan, settings and changes") { planAndChanges(suite) }
         suite.run("codex conversation parity") { CodexConversationTests.run(suite) }
         suite.run("codex conversation review") { CodexConversationReviewTests.run(suite) }
         suite.run("codex conversation images") { CodexConversationTests.images(suite) }
@@ -155,6 +156,35 @@ enum CodexSessionTests {
     }
 
     // MARK: State
+
+    /// Codex 0.164's `turn/plan/updated`, `thread/settings/updated` and a
+    /// finished file change, as its generated schema states them (#215).
+    static func planAndChanges(_ suite: TestSuite) {
+        let state = stateWithThread()
+        state.setPreviews(true)
+        _ = state.notify("turn/plan/updated", params: ["threadId": "t1", "turnId": "u", "plan": [
+            ["step": "Find the retries", "status": "completed"],
+            ["step": "Add backoff", "status": "inProgress"],
+            ["step": "Test it", "status": "pending"],
+        ]], now: at(1))
+        _ = state.notify("thread/settings/updated", params: ["threadId": "t1",
+                                                             "threadSettings": ["model": "gpt-5.5", "effort": "high"]], now: at(2))
+        let item: [String: Any] = ["type": "fileChange", "id": "f1", "status": "completed", "changes": [
+            ["path": "/w/a.rs", "kind": ["type": "add"], "diff": "a\nb\n"],
+            ["path": "/w/b.rs", "kind": ["type": "update"], "diff": "@@ -1,2 +1,2 @@\n-old\n+new\n keep\n"],
+        ]]
+        _ = state.notify("item/started", params: ["threadId": "t1", "turnId": "u", "item": item], now: at(3))
+        _ = state.notify("item/completed", params: ["threadId": "t1", "turnId": "u", "item": item], now: at(4))
+        let s = state.snapshot(now: at(5), previews: true).sessions.first
+        suite.expect(s?.tasks?.done == 1 && s?.tasks?.total == 3 && s?.tasks?.current == "Add backoff", "the plan is the task list")
+        suite.expect(s?.tasks?.items.last?.state == .pending, "with each step's state")
+        suite.expect(s?.model == "gpt-5.5" && s?.effort == "high", "a settings change moves the model and its level")
+        suite.expect(s?.edits?.added == 3 && s?.edits?.removed == 1 && s?.edits?.touched.count == 2, "a finished change counts its lines")
+        let quiet = state.snapshot(now: at(5), previews: false).sessions.first
+        suite.expect(quiet?.tasks?.items.isEmpty == true, "without previews only the counts stay")
+        _ = state.notify("turn/completed", params: ["threadId": "t1", "turn": ["id": "u", "status": "failed", "completedAt": at(6).timeIntervalSince1970]], now: at(6))
+        suite.expect(state.snapshot(now: at(7), previews: true).sessions.first?.failedAt == at(6), "a failed turn is noted")
+    }
 
     static func state(_ suite: TestSuite) {
         // a_thread_reads_as_a_codex_session

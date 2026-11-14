@@ -87,6 +87,16 @@ final class CodexSessionState {
         var name: String?
         var preview: String?
         var model: String?
+        /// The reasoning level, from the thread or its settings (#215).
+        var effort: String?
+        /// The turn's plan, from `turn/plan/updated`.
+        var plan: ClaudeTaskProgress?
+        /// Lines its file changes added and took out, when each file was last
+        /// changed, and when a turn last ended failed.
+        var added = 0
+        var removed = 0
+        var touched: [String: Date] = [:]
+        var failedAt: Date?
         var branch: String?
         var created: Date?
         var updated: Date?
@@ -125,6 +135,27 @@ final class CodexSessionState {
 
         /// Gives a file change's approval, already waiting, the item's patch.
         @discardableResult
+        /// Counts the lines a finished file change wrote: an added file's
+        /// every line, an update's `+` and `-` lines (#215).
+        mutating func count(_ changes: [[String: Any]], at date: Date) {
+            for change in changes {
+                guard let path = change["path"] as? String else { continue }
+                let diff = change["diff"] as? String ?? ""
+                let lines = diff.split(separator: "\n", omittingEmptySubsequences: false)
+                    .dropLast(diff.hasSuffix("\n") ? 1 : 0)
+                switch (change["kind"] as? [String: Any])?["type"] as? String {
+                case "add": added += diff.isEmpty ? 0 : lines.count
+                case "delete": removed += diff.isEmpty ? 0 : lines.count
+                default:
+                    for line in lines {
+                        if line.hasPrefix("+"), !line.hasPrefix("+++") { added += 1 }
+                        else if line.hasPrefix("-"), !line.hasPrefix("---") { removed += 1 }
+                    }
+                }
+                touched[path] = max(touched[path] ?? date, date)
+            }
+        }
+
         mutating func attach(_ changes: [Any], to item: String) -> Bool {
             var attached = false
             for index in pending.indices where pending[index].method == "item/fileChange/requestApproval"
@@ -284,6 +315,7 @@ final class CodexSessionState {
         entry.name = Self.string(thread, "name") ?? entry.name
         entry.preview = Self.string(thread, "preview") ?? entry.preview
         entry.model = Self.string(thread, "model") ?? entry.model
+        entry.effort = Self.string(thread, "reasoningEffort") ?? entry.effort
         entry.branch = (thread["gitInfo"] as? [String: Any]).flatMap { Self.string($0, "branch") } ?? entry.branch
         entry.created = Self.time(thread, "createdAt") ?? entry.created
         entry.updated = Self.time(thread, "updatedAt") ?? entry.updated
@@ -367,6 +399,28 @@ final class CodexSessionState {
             let started = Self.time(turn, "startedAt") ?? now
             guard threads[id]?.turnStarted != started else { return unchanged }
             threads[id]?.turnStarted = started
+            // A plan run to its end belongs to the turns before.
+            if threads[id]?.plan?.finished == true { threads[id]?.plan = nil }
+            return changed
+        case "turn/plan/updated":
+            guard let id = threadID, threads[id] != nil, let steps = params["plan"] as? [[String: Any]] else { return unchanged }
+            let items = steps.compactMap { step -> (String, String, ClaudeTaskItem.State)? in
+                guard let status = Self.string(step, "status") else { return nil }
+                return (Self.string(step, "step") ?? "", "", ClaudeTaskItem.state(status))
+            }
+            let plan = ClaudeTaskProgress.from(items, previews: previews)
+            guard threads[id]?.plan != plan else { return unchanged }
+            threads[id]?.plan = plan
+            return changed
+        case "thread/settings/updated":
+            guard let id = threadID, var thread = threads[id],
+                  let settings = params["threadSettings"] as? [String: Any] else { return unchanged }
+            let model = Self.string(settings, "model") ?? thread.model
+            let effort = Self.string(settings, "effort") ?? thread.effort
+            guard model != thread.model || effort != thread.effort else { return unchanged }
+            thread.model = model
+            thread.effort = effort
+            threads[id] = thread
             return changed
         case "turn/completed":
             guard let id = threadID, var thread = threads[id] else { return unchanged }
@@ -376,6 +430,7 @@ final class CodexSessionState {
             let at = Self.time(turn, "completedAt") ?? now
             thread.turnEnded = (at, completed)
             if let stop = Self.limitStop(turn, at: at) { thread.limit = stop }
+            else if status == "failed" { thread.failedAt = at }
             // A turn that ends takes its questions with it.
             thread.pending.removeAll()
             thread.fileChanges.removeAll()
@@ -403,6 +458,9 @@ final class CodexSessionState {
                     thread.attach(changes, to: itemID)
                 } else if method == "item/completed" {
                     thread.fileChanges[itemID] = nil
+                    if Self.string(item, "status") == "completed", let changes = item["changes"] as? [[String: Any]] {
+                        thread.count(changes, at: now)
+                    }
                 }
             }
             if method == "item/started" {
@@ -577,7 +635,7 @@ final class CodexSessionState {
         var session = ClaudeSession(
             id: thread.id, pid: 0, cwd: thread.cwd, project: project,
             name: name ?? project, nameSource: name == nil ? nil : "user",
-            branch: thread.branch, model: thread.model,
+            branch: thread.branch, model: thread.model, effort: thread.effort,
             // Its terminal is found when Open is pressed: no pid ties it to one.
             // Replies go through Codex's own server, whatever terminal shows it.
             host: .unknown,
@@ -585,7 +643,11 @@ final class CodexSessionState {
             lookedAt: thread.acknowledged, waitingFor: inTerminal ? answerInTerminal : nil,
             currentTool: phase == .runningTool || phase == .waitingPermission ? current : nil,
             permission: card.map(permission),
-            timeline: timeline, subagents: [], tasks: nil, tokens: thread.tokens, cost: 0,
+            timeline: timeline, subagents: [], tasks: previews ? thread.plan : thread.plan?.stripped(),
+            edits: thread.touched.isEmpty ? nil
+                : ClaudeEditStats(added: thread.added, removed: thread.removed, touched: thread.touched.values.sorted()),
+            failedAt: thread.failedAt,
+            tokens: thread.tokens, cost: 0,
             title: previews ? thread.preview : nil,
             lastText: previews ? thread.chat.last(where: { $0.value.role == .assistant })?.value.text : nil,
             hooked: true, provider: .codex)
