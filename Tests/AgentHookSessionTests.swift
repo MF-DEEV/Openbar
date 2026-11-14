@@ -497,8 +497,11 @@ enum AgentHookSessionTests {
         for provider in ClaudeSessionProvider.hookAgents {
             let layers = NotchHookAgentMarkPaths.mark(provider)?.layers ?? []
             let boxes = layers.map { $0.path.boundingBoxOfPath }
+            // A mark of several colors (Pi's i, Mistral's rows) has narrow parts; together they fill the square.
+            let whole = boxes.reduce(CGRect.null) { $0.union($1) }
             suite.expect(!layers.isEmpty && boxes.allSatisfy { !$0.isEmpty && $0.minX >= -0.01 && $0.minY >= -0.01
-                                                                && $0.maxX <= 24.01 && $0.maxY <= 24.01 && $0.width > 10 },
+                                                                && $0.maxX <= 24.01 && $0.maxY <= 24.01 && $0.width > 4 }
+                         && whole.width > 12 && whole.height > 12,
                          "\(provider)'s own mark parses and fills its 24-point square: \(boxes)")
         }
     }

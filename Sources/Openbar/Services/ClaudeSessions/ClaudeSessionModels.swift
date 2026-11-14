@@ -109,6 +109,9 @@ enum ClaudeSessionProvider: String, Equatable, CaseIterable {
     case copilot
     case opencode
     case cursor
+    case pi
+    case vibe
+    case devin
 }
 
 extension ClaudeSessionProvider {
@@ -120,7 +123,7 @@ extension ClaudeSessionProvider {
         case .codex: return .codex
         case .opencode: return .opencode
         case .copilot: return .copilot
-        case .gemini, .cursor: return nil
+        case .gemini, .cursor, .pi, .vibe, .devin: return nil
         }
     }
 
@@ -133,6 +136,9 @@ extension ClaudeSessionProvider {
         case .copilot: return "Copilot CLI"
         case .opencode: return "OpenCode"
         case .cursor: return "Cursor"
+        case .pi: return "Pi"
+        case .vibe: return "Mistral Vibe"
+        case .devin: return "Devin CLI"
         }
     }
 
@@ -142,27 +148,38 @@ extension ClaudeSessionProvider {
         case .claude: return "Claude"
         case .gemini: return "Gemini"
         case .copilot: return "Copilot"
+        case .vibe: return "Vibe"
+        case .devin: return "Devin"
         default: return displayName
         }
     }
 
     /// The agents that report through the island's hooks or plugin.
-    static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor]
+    static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin]
 
     var reportsThroughHooks: Bool { Self.hookAgents.contains(self) }
 
     /// Whether the island can answer the agent's permission requests. Gemini
-    /// CLI's and Copilot CLI's hooks only hear of a prompt, and Cursor keeps
-    /// its approvals; the person answers those in the agent.
+    /// CLI's, Copilot CLI's and Mistral Vibe's hooks only hear of a prompt,
+    /// Cursor keeps its approvals, Pi asks for none of its own (an extension's
+    /// dialog is answered in Pi), and Devin CLI's are left to Devin until its
+    /// permission hook is seen holding a request live; the person answers
+    /// those in the agent.
     var answersPermissions: Bool {
         switch self {
         case .claude, .codex, .opencode: return true
-        case .gemini, .copilot, .cursor: return false
+        case .gemini, .copilot, .cursor, .pi, .vibe, .devin: return false
         }
     }
 
-    /// Whether replies go to the agent itself rather than being typed into its terminal.
-    var takesRepliesDirectly: Bool { self == .codex || self == .opencode }
+    /// Whether replies go to the agent itself rather than being typed into
+    /// its terminal: Codex through its server, OpenCode and Pi through the
+    /// island's plugin inside them.
+    var takesRepliesDirectly: Bool { self == .codex || self == .opencode || self == .pi }
+
+    /// Whether the agent's own plugin or extension, running inside it, tells
+    /// the island of its sessions and takes replies back, rather than hooks.
+    var reportsThroughPlugin: Bool { self == .opencode || self == .pi }
 }
 
 /// The app showing a session's terminal, which Open brings forward and a

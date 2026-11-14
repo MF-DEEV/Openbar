@@ -915,6 +915,9 @@ enum DefaultsKey {
     static let notchSessionsAgentGemini = "notchSessionsAgentGemini"
     static let notchSessionsAgentCopilot = "notchSessionsAgentCopilot"
     static let notchSessionsAgentOpenCode = "notchSessionsAgentOpenCode"
+    static let notchSessionsAgentPi = "notchSessionsAgentPi"
+    static let notchSessionsAgentVibe = "notchSessionsAgentVibe"
+    static let notchSessionsAgentDevin = "notchSessionsAgentDevin"
     static let notchSessionsAgentCursor = "notchSessionsAgentCursor"
     /// Names given to Claude Code sessions in the island, by session.
     static let notchSessionsNames = "notchSessionsNames"
@@ -1567,6 +1570,9 @@ enum Defaults {
         DefaultsKey.notchSessionsAgentGemini: true,
         DefaultsKey.notchSessionsAgentCopilot: true,
         DefaultsKey.notchSessionsAgentOpenCode: true,
+        DefaultsKey.notchSessionsAgentPi: true,
+        DefaultsKey.notchSessionsAgentVibe: true,
+        DefaultsKey.notchSessionsAgentDevin: true,
         DefaultsKey.notchSessionsAgentCursor: true,
         DefaultsKey.notchSessionsLargeTextSize: 15.0,
         DefaultsKey.notchSessionsSidebarHidden: false,

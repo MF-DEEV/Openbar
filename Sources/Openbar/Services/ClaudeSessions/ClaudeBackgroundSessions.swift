@@ -775,8 +775,8 @@ enum CodexCLI {
     }
 }
 
-/// The command lines of Gemini CLI, Copilot CLI, OpenCode and Cursor's
-/// `cursor-agent`, found as `codex` is. New session starts them in a
+/// The command lines of Gemini CLI, Copilot CLI, OpenCode, Cursor's
+/// `cursor-agent`, Pi, Mistral Vibe and Devin CLI, found as `codex` is. New session starts them in a
 /// terminal with the first prompt; they have no background of their own.
 enum AgentCLI {
     static func command(_ provider: ClaudeSessionProvider) -> String? {
@@ -785,6 +785,9 @@ enum AgentCLI {
         case .copilot: return "copilot"
         case .opencode: return "opencode"
         case .cursor: return "cursor-agent"
+        case .pi: return "pi"
+        case .vibe: return "vibe"
+        case .devin: return "devin"
         case .claude, .codex: return nil
         }
     }
@@ -801,14 +804,15 @@ enum AgentCLI {
     }
 
     /// The arguments that open the agent's terminal UI with a first prompt
-    /// already sent: `gemini -i`, `copilot -i`, `opencode --prompt`, and
-    /// `cursor-agent` takes it as it is.
+    /// already sent: `gemini -i`, `copilot -i`, `opencode --prompt`,
+    /// `devin --`, and `cursor-agent`, `pi` and `vibe` take it as it is.
     static func startArguments(_ provider: ClaudeSessionProvider, prompt: String?) -> [String] {
         guard let prompt, !prompt.isEmpty else { return [] }
         switch provider {
         case .gemini, .copilot: return ["-i", prompt]
         case .opencode: return ["--prompt", prompt]
-        case .cursor: return [prompt]
+        case .cursor, .pi, .vibe: return [prompt]
+        case .devin: return ["--", prompt]
         case .claude, .codex: return []
         }
     }

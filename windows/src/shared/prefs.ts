@@ -51,6 +51,9 @@ export interface SessionPrefs {
   agentCopilot: boolean;
   agentOpencode: boolean;
   agentCursor: boolean;
+  agentPi: boolean;
+  agentVibe: boolean;
+  agentDevin: boolean;
   /** A microphone in the reply field; speech is recognized on this PC only. */
   voiceReplies: boolean;
   /** The language voice replies are heard in; empty follows the app. */
@@ -89,6 +92,9 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   agentCopilot: true,
   agentOpencode: true,
   agentCursor: true,
+  agentPi: true,
+  agentVibe: true,
+  agentDevin: true,
   voiceReplies: true,
   voiceLanguage: "",
   voiceSendOnStop: false,

@@ -261,6 +261,9 @@ struct NotchClaudeSessionStrings {
         case .copilot: return agentHintCopilot
         case .opencode: return agentHintOpenCode
         case .cursor: return agentHintCursor
+        case .pi: return agentHintPi
+        case .vibe: return agentHintVibe
+        case .devin: return agentHintDevin
         case .claude, .codex: return ""
         }
     }
@@ -564,6 +567,15 @@ extension NotchClaudeSessionStrings {
     }
     var agentHintCursor: String {
         "Hooks in ~/.cursor/hooks.json, next to your own, for Cursor’s agent and cursor-agent. Approvals stay in Cursor; Open takes you there."
+    }
+    var agentHintPi: String {
+        "An extension of the island’s own in ~/.pi/agent/extensions. It shows what each session does and sends replies from the island; Pi asks no permissions, and a dialog another extension opens is answered in Pi."
+    }
+    var agentHintVibe: String {
+        "Hooks in ~/.vibe/hooks.toml, after your own. Sessions show what runs and when Mistral Vibe waits on you; you answer its approvals and questions in the terminal, and replies are typed there."
+    }
+    var agentHintDevin: String {
+        "Hooks in ~/.config/devin/config.json, next to your own. Sessions show what runs and when Devin CLI waits on you; you answer its permission prompts in the terminal, and replies are typed there."
     }
 }
 

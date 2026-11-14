@@ -132,7 +132,7 @@ export const CLASSIC: Readonly<ClawdCostume> = Object.freeze({
  * Codex. The costume catalog and codes are shared; the figure and the shell
  * that comes up most often differ.
  */
-export type Character = "clawd" | "codex" | "gemini" | "copilot" | "opencode" | "cursor";
+export type Character = "clawd" | "codex" | "gemini" | "copilot" | "opencode" | "cursor" | "pi" | "vibe" | "devin";
 
 /** The shell each character's lots favour: Claude's clay, for Codex the iris
  * closest to its violet-blue, and for the others the shell nearest their color. */
@@ -143,6 +143,9 @@ export const FAVOURED_SHELL: Readonly<Record<Character, ClawdShell>> = {
   copilot: "teal",
   opencode: "mint",
   cursor: "midnight",
+  pi: "rose",
+  vibe: "amber",
+  devin: "orchid",
 };
 
 /** The figure a session of each agent is drawn as: Claude Code's Clawd, the

@@ -67,7 +67,7 @@ export function limitReset(session: Session, snapshot: AgentSnapshot, nowSeconds
     agent === "claude" && session.accountId
       ? (snapshot.claudeAccounts ?? []).find((account) => account.id === session.accountId)
       : undefined;
-  // Gemini CLI and Cursor have no limits the AI section reads.
+  // Gemini CLI, Cursor, Pi, Mistral Vibe and Devin CLI have no limits the AI section reads.
   const windows = other
     ? (other.limits?.windows ?? [])
     : ((agent in snapshot.limits ? snapshot.limits[agent]?.windows : undefined) ?? []);

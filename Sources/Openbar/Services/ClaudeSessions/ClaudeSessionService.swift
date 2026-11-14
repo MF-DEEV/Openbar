@@ -482,8 +482,8 @@ final class ClaudeSessionService: ObservableObject {
             }
             return
         }
-        if session.provider == .opencode {
-            // OpenCode's plugin sends the reply from inside OpenCode.
+        if session.provider.reportsThroughPlugin {
+            // OpenCode's plugin and Pi's extension send the reply from inside the agent.
             queue.async { [self] in
                 let id = hookAgents.entry(session.id)?.sessionID
                 let listener = hookAgents.entry(session.id).flatMap { listeners[$0.pid] }
@@ -985,6 +985,11 @@ final class ClaudeSessionService: ObservableObject {
         // A hook that arrived as the section stopped goes back to the terminal.
         guard timer != nil else { return connection.finish() }
         if AgentHookMessage.isEnvelope(payload) { return receiveAgent(payload, from: connection, at: now) }
+        // Devin CLI runs the hooks in Claude Code's settings too; its sessions
+        // are heard through hooks of their own, so these are let go unanswered.
+        if !isRemotePeer(connection.peer), AgentDevinClaudeHooks.isDevin(payload, peer: connection.peer) {
+            return connection.finish()
+        }
         let request = UUID().uuidString
         guard let message = ClaudeHookMessage.decode(payload, requestID: request, now: now, policy: engine.policy) else {
             return connection.finish()
@@ -1028,8 +1033,20 @@ final class ClaudeSessionService: ObservableObject {
             connection.finish()
         }
         for event in decoded.events {
-            let placed = AgentHookEvent(provider: event.provider, sessionID: event.sessionID, pid: pid > 0 ? pid : event.pid,
-                                        cwd: event.cwd, date: event.date, kind: event.kind)
+            let agent = pid > 0 ? pid : event.pid
+            // Devin CLI names no folder: the agent's own is the session's.
+            var cwd = event.cwd
+            if cwd == nil, agent > 0, (hookAgents.entry(event.id)?.cwd ?? "").isEmpty {
+                cwd = ClaudeSessionHosts.cwd(of: agent)
+            }
+            var kind = event.kind
+            // Vibe's hooks carry no reply: with previews on, its session's log tells the last one.
+            if event.provider == .vibe, engine.policy.previews, case .stopped(nil, let failed) = kind,
+               let folder = decoded.transcript {
+                kind = .stopped(lastText: AgentVibeLog.lastReply(in: folder), failed: failed)
+            }
+            let placed = AgentHookEvent(provider: event.provider, sessionID: event.sessionID, pid: agent,
+                                        cwd: cwd, date: event.date, kind: kind)
             if case .permissionSettled(let request) = event.kind {
                 // Answered in OpenCode itself: its plugin stops waiting too.
                 for (key, waiting) in agentPending where waiting.session == placed.id && (request == nil || key == request) {

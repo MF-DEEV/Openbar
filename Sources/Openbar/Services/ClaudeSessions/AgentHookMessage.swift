@@ -3,14 +3,14 @@
 
 import Foundation
 
-/// One event from Gemini CLI, Copilot CLI, Cursor or OpenCode, as the island
-/// reads it. The hook the island installs wraps what the agent hands it in
+/// One event from Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi, Mistral
+/// Vibe or Devin CLI, as the island reads it. The hook the island installs wraps what the agent hands it in
 /// an envelope naming the agent, the hook and the agent's process:
 ///
 ///     {"openbar": "gemini", "hook": "BeforeTool", "pid": 4242, "event": {…}}
 ///
-/// OpenCode's plugin writes the same envelope with an event of its own
-/// making (docs/more-session-agents.md). Prompts, replies and tool arguments
+/// OpenCode's plugin and Pi's extension write the same envelope with an
+/// event of their own making (docs/more-session-agents.md). Prompts, replies and tool arguments
 /// are kept only as the content policy allows, like Claude Code's.
 struct AgentHookEvent: Equatable {
     enum Kind: Equatable {
@@ -64,8 +64,10 @@ enum AgentHookMessage {
         var events: [AgentHookEvent] = []
         /// An OpenCode permission request, answered on the same connection.
         var permission: (session: String, request: String)? = nil
-        /// OpenCode's plugin listening for replies the person types here.
+        /// OpenCode's plugin or Pi's extension listening for replies the person types here.
         var listens = false
+        /// The folder of the session's own log, where the agent names one (Vibe).
+        var transcript: String? = nil
         let provider: ClaudeSessionProvider
         let pid: Int32
     }
@@ -75,15 +77,17 @@ enum AgentHookMessage {
         AgentLogParser.contains(data, #""openbar":"#)
     }
 
-    /// Whether the hook waits for the island's answer: an OpenCode permission
-    /// or its plugin listening. Every other hook is let go at once.
+    /// Whether the hook waits for the island's answer: an OpenCode permission,
+    /// or OpenCode's plugin or Pi's extension listening. Every other hook is
+    /// let go at once.
     static func waits(_ data: Data) -> Bool {
-        guard isEnvelope(data), AgentLogParser.contains(data, "\"opencode\"") else { return false }
+        guard isEnvelope(data), AgentLogParser.contains(data, "\"opencode\"") || AgentLogParser.contains(data, "\"pi\"")
+        else { return false }
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              json[key] as? String == ClaudeSessionProvider.opencode.rawValue,
+              let name = json[key] as? String, let provider = ClaudeSessionProvider(rawValue: name), provider.reportsThroughPlugin,
               let event = json["event"] as? [String: Any] else { return false }
         let kind = event["kind"] as? String
-        return kind == "permission" || kind == "listen"
+        return kind == "listen" || (provider == .opencode && kind == "permission")
     }
 
     static func decode(_ data: Data, now: Date, policy: ClaudeContentPolicy) -> Decoded? {
@@ -97,7 +101,11 @@ enum AgentHookMessage {
         case .gemini: decoded.events = gemini(hook, event, pid: pid, now: now, policy: policy)
         case .copilot: decoded.events = copilot(hook, event, pid: pid, now: now, policy: policy)
         case .cursor: decoded.events = cursor(hook, event, pid: pid, now: now, policy: policy)
-        case .opencode: opencode(event, pid: pid, now: now, policy: policy, into: &decoded)
+        case .opencode, .pi: plugin(provider, event, pid: pid, now: now, policy: policy, into: &decoded)
+        case .vibe:
+            decoded.events = vibe(hook, event, pid: pid, now: now, policy: policy)
+            decoded.transcript = text(event, "transcript_path")
+        case .devin: decoded.events = devin(hook, event, pid: pid, now: now, policy: policy)
         case .claude, .codex: return nil
         }
         return decoded
@@ -224,18 +232,112 @@ enum AgentHookMessage {
         return events
     }
 
-    // MARK: OpenCode
+    // MARK: Mistral Vibe
 
-    /// What the island's OpenCode plugin writes (AgentOpenCodePlugin.swift).
-    private static func opencode(_ json: [String: Any], pid: Int32, now: Date, policy: ClaudeContentPolicy,
-                                 into decoded: inout Decoded) {
+    /// Mistral Vibe's hooks.toml hooks (its bundled `vibe` skill, "Hooks").
+    /// A notification only tells of an approval or a question, answered in
+    /// Vibe; the end of the person's turn is heard from it too.
+    private static func vibe(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
+                             policy: ClaudeContentPolicy) -> [AgentHookEvent] {
+        guard let session = text(json, "session_id") else { return [] }
+        // A subagent's hooks name the session it works for; its tools are the parent's.
+        if text(json, "parent_session_id") != nil { return [] }
+        let cwd = text(json, "cwd")
+        var events: [AgentHookEvent] = []
+        func add(_ kind: AgentHookEvent.Kind) {
+            events.append(AgentHookEvent(provider: .vibe, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
+        }
+        let raw = json["tool_name"] as? String ?? ""
+        let tool = AgentHookTools.name(.vibe, raw)
+        let input = arguments(json["tool_input"])
+        switch hook {
+        case "session_start":
+            add(.started)
+            if let model = text(json, "model") { add(.model(model)) }
+        case "session_end": add(.ended)
+        case "pre_agent": add(.prompt(policy.previews ? preview(json["prompt"]) : nil))
+        case "pre_tool":
+            var use = toolUse(tool, input: input, at: now, policy: policy)
+            if let id = text(json, "tool_call_id") {
+                use = ClaudeToolUse(id: id, name: use.name, summary: use.summary, started: now, inputKey: use.inputKey)
+            }
+            add(.toolStarted(use))
+        case "post_tool":
+            add(.toolFinished(id: text(json, "tool_call_id"), name: tool, inputKey: ClaudeToolSummary.inputKey(name: tool, input: input),
+                              failed: json["tool_status"] as? String == "failure", started: nil))
+        case "notification":
+            switch json["notification_type"] as? String {
+            case "approval_requested":
+                let asked = AgentHookTools.name(.vibe, json["tool_name"] as? String ?? "")
+                let message = text(json, "message") ?? ""
+                add(.permission(ClaudePermission(
+                    requestID: UUID().uuidString, tool: asked.isEmpty ? "Tool" : asked,
+                    summary: ClaudeToolSummary.clip(message), detail: message, offersAlways: false, since: now)))
+            case "question_asked": add(.question)
+            case "turn_completed": add(.stopped(lastText: nil, failed: false))
+            case "turn_failed": add(.stopped(lastText: nil, failed: true))
+            default: break
+            }
+        default: break
+        }
+        return events
+    }
+
+    // MARK: Devin CLI
+
+    /// Devin CLI's hooks, in Claude Code's format (docs.devin.ai, "Lifecycle
+    /// Hooks"). Its payloads carry no folder; the island reads the agent's.
+    /// A permission is heard and answered in Devin.
+    private static func devin(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
+                              policy: ClaudeContentPolicy) -> [AgentHookEvent] {
+        guard let session = text(json, "session_id") else { return [] }
+        let cwd = text(json, "cwd")
+        var events: [AgentHookEvent] = []
+        func add(_ kind: AgentHookEvent.Kind) {
+            events.append(AgentHookEvent(provider: .devin, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
+        }
+        let raw = json["tool_name"] as? String ?? ""
+        let tool = AgentHookTools.name(.devin, raw)
+        let input = arguments(json["tool_input"])
+        switch hook {
+        case "SessionStart": add(.started)
+        case "SessionEnd": add(.ended)
+        case "UserPromptSubmit": add(.prompt(policy.previews ? preview(json["prompt"]) : nil))
+        case "PreToolUse":
+            // Devin's question to the person is a tool of its own.
+            if raw == "ask_user_question" { add(.question) } else { add(.toolStarted(toolUse(tool, input: input, at: now, policy: policy))) }
+        case "PostToolUse":
+            if raw == "ask_user_question" { add(.permissionSettled(nil)); break }
+            let response = json["tool_response"] as? [String: Any]
+            add(.toolFinished(id: nil, name: tool, inputKey: ClaudeToolSummary.inputKey(name: tool, input: input),
+                              failed: response?["success"] as? Bool == false, started: nil))
+        case "PermissionRequest":
+            let detail = [input["command"], input["file_path"], input["path"], input["url"]]
+                .compactMap { ($0 as? String).flatMap { $0.isEmpty ? nil : $0 } }.first
+                ?? (input.isEmpty ? "" : ClaudeToolSummary.arguments(input))
+            add(.permission(ClaudePermission(
+                requestID: UUID().uuidString, tool: tool.isEmpty ? "Tool" : tool,
+                summary: ClaudeToolSummary.clip(detail.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""),
+                detail: detail, offersAlways: false, since: now)))
+        case "Stop": add(.stopped(lastText: nil, failed: false))
+        default: break
+        }
+        return events
+    }
+
+    // MARK: OpenCode and Pi
+
+    /// What the island's OpenCode plugin (AgentOpenCodePlugin.swift) and Pi
+    /// extension (AgentPiExtension.swift) write.
+    private static func plugin(_ provider: ClaudeSessionProvider, _ json: [String: Any], pid: Int32, now: Date,
+                               policy: ClaudeContentPolicy, into decoded: inout Decoded) {
         let kind = json["kind"] as? String ?? ""
         if kind == "listen" { decoded.listens = true; return }
         guard let session = text(json, "session") else { return }
         let cwd = text(json, "directory")
         let date = timestamp(json["at"]) ?? now
         func add(_ kind: AgentHookEvent.Kind) {
-            decoded.events.append(AgentHookEvent(provider: .opencode, sessionID: session, pid: pid, cwd: cwd, date: date, kind: kind))
+            decoded.events.append(AgentHookEvent(provider: provider, sessionID: session, pid: pid, cwd: cwd, date: date, kind: kind))
         }
         switch kind {
         case "created": add(.started)
@@ -249,7 +351,7 @@ enum AgentHookMessage {
             }
         case "error": add(.stopped(lastText: nil, failed: true))
         case "tool":
-            let tool = AgentHookTools.name(.opencode, json["tool"] as? String ?? "")
+            let tool = AgentHookTools.name(provider, json["tool"] as? String ?? "")
             let input = arguments(json["input"])
             let id = text(json, "call") ?? UUID().uuidString
             switch json["status"] as? String {
@@ -262,9 +364,9 @@ enum AgentHookMessage {
                                   started: nil))
             default: break
             }
-        case "permission":
+        case "permission" where provider == .opencode:
             guard let request = text(json, "id") else { return }
-            let tool = AgentHookTools.name(.opencode, json["permission"] as? String ?? "")
+            let tool = AgentHookTools.name(provider, json["permission"] as? String ?? "")
             let metadata = json["metadata"] as? [String: Any] ?? [:]
             let patterns = (json["patterns"] as? [String] ?? []).filter { !$0.isEmpty }
             let detail = (metadata["command"] as? String).flatMap { $0.isEmpty ? nil : $0 }
@@ -290,6 +392,8 @@ enum AgentHookMessage {
             }
         case "title":
             if policy.previews, let title = preview(json["title"]) { add(.title(title)) }
+        case "model":
+            if let model = text(json, "model") { add(.model(model)) }
         default: break
         }
     }
@@ -308,7 +412,7 @@ enum AgentHookMessage {
         return try? JSONSerialization.data(withJSONObject: ["reply": reply], options: [.sortedKeys])
     }
 
-    /// A prompt for OpenCode's listening plugin to send to one of its sessions.
+    /// A prompt for OpenCode's listening plugin or Pi's extension to send to one of its sessions.
     static func opencodePrompt(session: String, text: String) -> Data? {
         try? JSONSerialization.data(withJSONObject: ["prompt": ["session": session, "text": text]], options: [.sortedKeys])
     }
@@ -370,10 +474,22 @@ enum AgentHookTools {
                     "todowrite": "TodoWrite", "todoread": "TodoRead", "external_directory": "Folder"],
         .cursor: ["Shell": "Bash", "Read": "Read", "Write": "Write", "Edit": "Edit", "Grep": "Grep", "Glob": "Glob",
                   "Task": "Task", "Delete": "Delete"],
+        .pi: ["bash": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "grep": "Grep", "find": "Glob", "ls": "LS"],
+        // Vibe names a tool with its group, as `file_system.bash`; the last part is matched.
+        .vibe: ["bash": "Bash", "process_start": "Bash", "read_file": "Read", "write_file": "Write", "search_replace": "Edit",
+                "edit_file": "Edit", "grep": "Grep", "glob": "Glob", "list_dir": "LS", "web_fetch": "WebFetch",
+                "web_search": "WebSearch", "todo": "TodoWrite", "agents_spawn": "Task", "ask_user_question": "AskUserQuestion"],
+        .devin: ["exec": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "apply_patch": "Edit", "grep": "Grep",
+                 "glob": "Glob", "webfetch": "WebFetch", "todo_write": "TodoWrite", "run_subagent": "Task",
+                 "notebook_read": "Read", "notebook_edit": "Edit", "exit_plan_mode": "ExitPlanMode"],
     ]
 
     static func name(_ provider: ClaudeSessionProvider, _ tool: String) -> String {
         if let known = names[provider]?[tool] { return known }
+        if provider == .vibe, let dot = tool.lastIndex(of: "."), !tool.hasPrefix("mcp_") {
+            return name(provider, String(tool[tool.index(after: dot)...]))
+        }
+        if tool.hasPrefix("mcp__") { return String(tool.dropFirst(5)) }
         if tool.hasPrefix("MCP:") { return String(tool.dropFirst(4)) }
         guard let first = tool.first else { return tool }
         return first.uppercased() + tool.dropFirst()

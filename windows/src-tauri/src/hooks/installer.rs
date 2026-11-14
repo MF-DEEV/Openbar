@@ -318,13 +318,50 @@ pub fn update(link: &Path, change: impl Fn(&Value) -> Value) -> Result<(), Failu
         if modified(&path) != before || contents(&path).ok().flatten() != original {
             continue;
         }
+        return write_with_backup(&path, original.as_deref(), &data);
+    }
+    Err(Failure::Busy)
+}
+
+/// Changes a text file the same way, as Mistral Vibe's hooks.toml: read,
+/// change, copy aside and write in one step. `change` gets the text (None
+/// when there is no file) and gives back the new text, or None for no change.
+pub fn update_text(
+    link: &Path,
+    change: impl Fn(Option<&str>) -> Option<String>,
+) -> Result<(), Failure> {
+    let path = fs::canonicalize(link).unwrap_or_else(|_| link.to_path_buf());
+    for _ in 0..3 {
+        let before = modified(&path);
+        let original = contents(&path)?;
+        let text = match &original {
+            Some(data) => Some(String::from_utf8(data.clone()).map_err(|_| Failure::Unreadable)?),
+            None => None,
+        };
+        let Some(changed) = change(text.as_deref()) else {
+            return Ok(());
+        };
+        if Some(&changed) == text.as_ref() {
+            return Ok(());
+        }
+        if modified(&path) != before || contents(&path).ok().flatten() != original {
+            continue;
+        }
+        return write_with_backup(&path, original.as_deref(), changed.as_bytes());
+    }
+    Err(Failure::Busy)
+}
+
+/// Writes `data` over the file, keeping a copy of `original` beside it first.
+fn write_with_backup(path: &Path, original: Option<&[u8]>, data: &[u8]) -> Result<(), Failure> {
+    {
         let folder = path.parent().map(Path::to_path_buf).unwrap_or_default();
         let name = path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         fs::create_dir_all(&folder).map_err(|e| Failure::Unwritable(e.to_string()))?;
-        if let Some(original) = &original {
+        if let Some(original) = original {
             let stamp = SystemTime::now()
                 .duration_since(UNIX_EPOCH)
                 .map(|d| d.as_secs())
@@ -334,17 +371,16 @@ pub fn update(link: &Path, change: impl Fn(&Value) -> Value) -> Result<(), Failu
             prune(&folder, &name);
         }
         let temporary = folder.join(format!(".{name}.openbar-{}", std::process::id()));
-        fs::write(&temporary, &data).map_err(|e| Failure::Unwritable(e.to_string()))?;
-        if let Ok(meta) = fs::metadata(&path) {
+        fs::write(&temporary, data).map_err(|e| Failure::Unwritable(e.to_string()))?;
+        if let Ok(meta) = fs::metadata(path) {
             let _ = fs::set_permissions(&temporary, meta.permissions());
         }
-        if let Err(e) = replace(&temporary, &path) {
+        if let Err(e) = replace(&temporary, path) {
             let _ = fs::remove_file(&temporary);
             return Err(Failure::Unwritable(e.to_string()));
         }
-        return Ok(());
+        Ok(())
     }
-    Err(Failure::Busy)
 }
 
 /// Settings can hold tokens: the copy is the owner's alone (0600 on Unix;

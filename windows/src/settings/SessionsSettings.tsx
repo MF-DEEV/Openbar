@@ -5,8 +5,8 @@
 // hooks in the island. Claude Code needs Openbar's hooks in its
 // settings.json; Codex needs nothing, its app-server already tells the island
 // everything (spec 02-sessions, 07-codex-sessions); Gemini CLI, Copilot CLI,
-// OpenCode and Cursor each get the island's hooks or plugin on Install
-// (docs/more-session-agents.md).
+// OpenCode, Cursor, Pi, Mistral Vibe and Devin CLI each get the island's
+// hooks or plugin on Install (docs/more-session-agents.md).
 
 import { type StringKey, useLocale, t, tf } from "../i18n";
 import { type ClaudeAccount, HOOK_AGENTS, type HookAgent, PROVIDER_NAMES } from "../sessions/types";
@@ -369,6 +369,9 @@ const AGENT_PREF = {
   copilot: "agentCopilot",
   opencode: "agentOpencode",
   cursor: "agentCursor",
+  pi: "agentPi",
+  vibe: "agentVibe",
+  devin: "agentDevin",
 } as const satisfies Record<HookAgent, keyof SessionPrefs>;
 
 const AGENT_HINT: Record<HookAgent, StringKey> = {
@@ -376,6 +379,9 @@ const AGENT_HINT: Record<HookAgent, StringKey> = {
   copilot: "windows.settings.sessions.agentHintCopilot",
   opencode: "windows.settings.sessions.agentHintOpencode",
   cursor: "windows.settings.sessions.agentHintCursor",
+  pi: "windows.settings.sessions.agentHintPi",
+  vibe: "windows.settings.sessions.agentHintVibe",
+  devin: "windows.settings.sessions.agentHintDevin",
 };
 
 /** What an agent's hooks are doing now that they follow its switch by themselves. */
@@ -397,7 +403,7 @@ function AgentState({ status, shown }: { status: AgentHooksStatus; shown: boolea
   );
 }
 
-/** Gemini CLI, Copilot CLI, OpenCode and Cursor: each found on this PC is
+/** Gemini CLI, Copilot CLI, OpenCode, Cursor, Pi, Mistral Vibe and Devin CLI: each found on this PC is
  * connected by itself, and its switch shows it in the list or takes its hooks out. */
 function MoreAgents() {
   useLocale();

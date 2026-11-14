@@ -484,6 +484,9 @@ const AGENT_PREF = {
   copilot: "agentCopilot",
   opencode: "agentOpencode",
   cursor: "agentCursor",
+  pi: "agentPi",
+  vibe: "agentVibe",
+  devin: "agentDevin",
 } as const;
 
 /** The agents this PC can start, the pill sliding to the one picked. */

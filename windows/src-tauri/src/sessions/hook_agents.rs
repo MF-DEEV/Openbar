@@ -1,15 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-//! Gemini CLI, Copilot CLI, Cursor and OpenCode in the Sessions list
-//! (AgentHookMessage.swift, AgentHookSessions.swift, AgentHookInstaller.swift).
+//! Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi, Mistral Vibe and Devin CLI
+//! in the Sessions list (AgentHookMessage.swift, AgentHookSessions.swift,
+//! AgentHookInstaller.swift, AgentHookSupport.swift).
 //! The hook the island installs is this app run with `--hook --agent <name>
 //! --event <hook>`, which wraps what the agent hands it in an envelope:
 //!
 //! `{"openbar": "gemini", "hook": "BeforeTool", "pid": 0, "event": {…}}`
 //!
-//! OpenCode's plugin writes the same envelope with an event of its own
-//! making. None of these agents keeps a registry, so a session is listed from
+//! OpenCode's plugin and Pi's extension write the same envelope with an
+//! event of their own making. None of these agents keeps a registry, so a session is listed from
 //! its first event until it ends, its process quits, or (for Cursor's app,
 //! whose process outlives its conversations) it has been quiet a while.
 
@@ -36,19 +37,23 @@ const TIMELINE_LENGTH: usize = 12;
 const CHAT_LENGTH: usize = 40;
 
 impl Provider {
-    pub const HOOK_AGENTS: [Provider; 4] = [
+    pub const HOOK_AGENTS: [Provider; 7] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
         Provider::Cursor,
+        Provider::Pi,
+        Provider::Vibe,
+        Provider::Devin,
     ];
 
     pub fn reports_through_hooks(self) -> bool {
         Self::HOOK_AGENTS.contains(&self)
     }
 
-    /// Gemini CLI's and Copilot CLI's hooks only hear of a prompt, and
-    /// Cursor keeps its approvals; the person answers those in the agent.
+    /// Gemini CLI's, Copilot CLI's and Mistral Vibe's hooks only hear of a
+    /// prompt, Cursor keeps its approvals, Pi asks none of its own and Devin
+    /// CLI's stay in Devin; the person answers those in the agent.
     pub fn answers_permissions(self) -> bool {
         matches!(
             self,
@@ -64,7 +69,16 @@ impl Provider {
             Provider::Copilot => "copilot",
             Provider::Opencode => "opencode",
             Provider::Cursor => "cursor",
+            Provider::Pi => "pi",
+            Provider::Vibe => "vibe",
+            Provider::Devin => "devin",
         }
+    }
+
+    /// Whether the agent's own plugin or extension, running inside it, tells
+    /// the island of its sessions and takes replies back.
+    pub fn reports_through_plugin(self) -> bool {
+        matches!(self, Provider::Opencode | Provider::Pi)
     }
 
     pub fn from_key(key: &str) -> Option<Provider> {
@@ -75,6 +89,9 @@ impl Provider {
             Provider::Copilot,
             Provider::Opencode,
             Provider::Cursor,
+            Provider::Pi,
+            Provider::Vibe,
+            Provider::Devin,
         ]
         .into_iter()
         .find(|p| p.key() == key)
@@ -143,8 +160,10 @@ pub struct Decoded {
     pub events: Vec<AgentEvent>,
     /// An OpenCode permission request: (session, request), answered on the same connection.
     pub permission: Option<(String, String)>,
-    /// OpenCode's plugin listening for replies the person types here.
+    /// OpenCode's plugin or Pi's extension listening for replies the person types here.
     pub listens: bool,
+    /// The folder of the session's own log, where the agent names one (Vibe).
+    pub transcript: Option<String>,
     pub provider: Option<Provider>,
     pub pid: i32,
 }
@@ -154,20 +173,21 @@ pub fn is_envelope(data: &[u8]) -> bool {
     contains(data, b"\"openbar\":")
 }
 
-/// Whether the hook waits for the island's answer: an OpenCode permission
-/// or its plugin listening.
+/// Whether the hook waits for the island's answer: an OpenCode permission,
+/// or OpenCode's plugin or Pi's extension listening.
 pub fn waits(data: &[u8]) -> bool {
-    if !is_envelope(data) || !contains(data, b"\"opencode\"") {
+    if !is_envelope(data) || !(contains(data, b"\"opencode\"") || contains(data, b"\"pi\"")) {
         return false;
     }
     let Ok(json) = serde_json::from_slice::<Value>(data) else {
         return false;
     };
-    json.get(KEY).and_then(Value::as_str) == Some("opencode")
-        && matches!(
-            json.pointer("/event/kind").and_then(Value::as_str),
-            Some("permission" | "listen")
-        )
+    let kind = json.pointer("/event/kind").and_then(Value::as_str);
+    match json.get(KEY).and_then(Value::as_str) {
+        Some("opencode") => matches!(kind, Some("permission" | "listen")),
+        Some("pi") => kind == Some("listen"),
+        _ => false,
+    }
 }
 
 fn contains(data: &[u8], needle: &[u8]) -> bool {
@@ -197,7 +217,14 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
         Provider::Gemini => decoded.events = gemini(&hook, event, pid, now, policy),
         Provider::Copilot => decoded.events = copilot(&hook, event, pid, now, policy),
         Provider::Cursor => decoded.events = cursor(&hook, event, pid, now, policy),
-        Provider::Opencode => opencode(event, pid, now, policy, &mut decoded),
+        Provider::Opencode | Provider::Pi => {
+            plugin(provider, event, pid, now, policy, &mut decoded)
+        }
+        Provider::Vibe => {
+            decoded.events = vibe(&hook, event, pid, now, policy);
+            decoded.transcript = text(event, "transcript_path");
+        }
+        Provider::Devin => decoded.events = devin(&hook, event, pid, now, policy),
         Provider::Claude | Provider::Codex => return None,
     }
     Some(decoded)
@@ -536,7 +563,245 @@ fn cursor(
 
 // MARK: OpenCode
 
-fn opencode(
+// MARK: Mistral Vibe
+
+/// Mistral Vibe's hooks.toml hooks (its bundled `vibe` skill, "Hooks"). A
+/// notification only tells of an approval or a question, answered in Vibe;
+/// the end of the person's turn is heard from it too.
+fn vibe(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+) -> Vec<AgentEvent> {
+    let Some(session) = text(json, "session_id") else {
+        return vec![];
+    };
+    // A subagent's hooks name the session it works for; its tools are the parent's.
+    if text(json, "parent_session_id").is_some() {
+        return vec![];
+    }
+    let cwd = text(json, "cwd");
+    let mut events = Vec::new();
+    let mut add = |kind| {
+        events.push(AgentEvent {
+            provider: Provider::Vibe,
+            session_id: session.clone(),
+            pid,
+            cwd: cwd.clone(),
+            date: now,
+            kind,
+        })
+    };
+    let tool = name(Provider::Vibe, str_of(json.get("tool_name")).unwrap_or(""));
+    let input = arguments(json.get("tool_input"));
+    match hook {
+        "session_start" => {
+            add(Kind::Started);
+            if let Some(model) = text(json, "model") {
+                add(Kind::Model(model));
+            }
+        }
+        "session_end" => add(Kind::Ended),
+        "pre_agent" => add(Kind::Prompt(
+            policy
+                .previews
+                .then(|| reply_preview(json.get("prompt")))
+                .flatten(),
+        )),
+        "pre_tool" => {
+            let mut use_ = tool_use(&tool, &input, now, policy);
+            if let Some(id) = text(json, "tool_call_id") {
+                use_.id = id;
+            }
+            add(Kind::ToolStarted(use_));
+        }
+        "post_tool" => add(Kind::ToolFinished {
+            id: text(json, "tool_call_id"),
+            input_key: Some(tool_summary::input_key(&tool, &input)),
+            name: tool,
+            failed: str_of(json.get("tool_status")) == Some("failure"),
+            started: None,
+        }),
+        "notification" => match str_of(json.get("notification_type")) {
+            Some("approval_requested") => {
+                let asked = name(Provider::Vibe, str_of(json.get("tool_name")).unwrap_or(""));
+                let message = text(json, "message").unwrap_or_default();
+                add(Kind::Permission(waiting_permission(
+                    &asked,
+                    message,
+                    false,
+                    now,
+                    &format!("{:x}", rand_id()),
+                )));
+            }
+            Some("question_asked") => add(Kind::Question),
+            Some("turn_completed") => add(Kind::Stopped {
+                last_text: None,
+                failed: false,
+            }),
+            Some("turn_failed") => add(Kind::Stopped {
+                last_text: None,
+                failed: true,
+            }),
+            _ => {}
+        },
+        _ => {}
+    }
+    events
+}
+
+// MARK: Devin CLI
+
+/// Devin CLI's hooks, in Claude Code's format (docs.devin.ai, "Lifecycle
+/// Hooks"). Its payloads carry no folder; the island reads the agent's. A
+/// permission is heard and answered in Devin.
+fn devin(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+) -> Vec<AgentEvent> {
+    let Some(session) = text(json, "session_id") else {
+        return vec![];
+    };
+    let cwd = text(json, "cwd");
+    let mut events = Vec::new();
+    let mut add = |kind| {
+        events.push(AgentEvent {
+            provider: Provider::Devin,
+            session_id: session.clone(),
+            pid,
+            cwd: cwd.clone(),
+            date: now,
+            kind,
+        })
+    };
+    let raw = str_of(json.get("tool_name")).unwrap_or("");
+    let tool = name(Provider::Devin, raw);
+    let input = arguments(json.get("tool_input"));
+    match hook {
+        "SessionStart" => add(Kind::Started),
+        "SessionEnd" => add(Kind::Ended),
+        "UserPromptSubmit" => add(Kind::Prompt(
+            policy
+                .previews
+                .then(|| reply_preview(json.get("prompt")))
+                .flatten(),
+        )),
+        // Devin's question to the person is a tool of its own.
+        "PreToolUse" if raw == "ask_user_question" => add(Kind::Question),
+        "PreToolUse" => add(Kind::ToolStarted(tool_use(&tool, &input, now, policy))),
+        "PostToolUse" if raw == "ask_user_question" => add(Kind::PermissionSettled(None)),
+        "PostToolUse" => add(Kind::ToolFinished {
+            id: None,
+            input_key: Some(tool_summary::input_key(&tool, &input)),
+            name: tool,
+            failed: json
+                .get("tool_response")
+                .and_then(|r| r.get("success"))
+                .and_then(Value::as_bool)
+                == Some(false),
+            started: None,
+        }),
+        "PermissionRequest" => {
+            let detail = ["command", "file_path", "path", "url"]
+                .iter()
+                .find_map(|k| text(&input, k))
+                .unwrap_or_else(|| {
+                    if input.is_empty() {
+                        String::new()
+                    } else {
+                        tool_summary::arguments(&input)
+                    }
+                });
+            add(Kind::Permission(waiting_permission(
+                &tool,
+                detail,
+                false,
+                now,
+                &format!("{:x}", rand_id()),
+            )));
+        }
+        "Stop" => add(Kind::Stopped {
+            last_text: None,
+            failed: false,
+        }),
+        _ => {}
+    }
+    events
+}
+
+/// Devin CLI reads the hooks in Claude Code's settings by default, so the
+/// island's Claude Code hooks run in its sessions too; those are told apart
+/// and let go. A hook in Claude Code's format is Devin's when its input has
+/// Devin's per-turn id and none of the transcript every Claude Code hook
+/// names, or when Devin's process ran it.
+pub fn is_devin_payload(data: &[u8]) -> bool {
+    if !contains(data, b"\"prompt_id\"") {
+        return false;
+    }
+    serde_json::from_slice::<Value>(data)
+        .is_ok_and(|json| json.get("prompt_id").is_some() && json.get("transcript_path").is_none())
+}
+
+pub fn is_devin_process(name: &str) -> bool {
+    let name = name.to_lowercase();
+    let name = name.strip_suffix(".exe").unwrap_or(&name);
+    name == "devin" || name.starts_with("devin-") || name.starts_with("devin.")
+}
+
+/// The last reply of a Mistral Vibe session, read from its own log, since
+/// its hooks carry none: the newest JSON chunk under `chunks/` that holds
+/// history ends on the latest messages (AgentVibeLog in AgentHookSupport.swift).
+pub fn vibe_last_reply(folder: &Path) -> Option<String> {
+    const CHUNK_LIMIT: u64 = 4 * 1024 * 1024;
+    let mut files: Vec<(std::time::SystemTime, PathBuf, u64)> =
+        std::fs::read_dir(folder.join("chunks"))
+            .ok()?
+            .filter_map(Result::ok)
+            .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+            .filter_map(|e| {
+                let meta = e.metadata().ok()?;
+                Some((meta.modified().ok()?, e.path(), meta.len()))
+            })
+            .collect();
+    files.sort_by_key(|a| std::cmp::Reverse(a.0));
+    files
+        .into_iter()
+        .take(6)
+        .filter(|(_, _, size)| *size <= CHUNK_LIMIT)
+        .filter_map(|(_, path, _)| std::fs::read(path).ok())
+        .filter(|data| contains(data, b"\"history\""))
+        .find_map(|data| vibe_chunk_reply(&data))
+}
+
+pub fn vibe_chunk_reply(data: &[u8]) -> Option<String> {
+    let entries: Vec<Value> = serde_json::from_slice(data).ok()?;
+    entries.iter().rev().find_map(|entry| {
+        if str_of(entry.get("source")) != Some("history")
+            || entry.pointer("/message/role").and_then(Value::as_str) != Some("assistant")
+        {
+            return None;
+        }
+        let text: Vec<&str> = entry
+            .pointer("/message/content")
+            .and_then(Value::as_array)?
+            .iter()
+            .filter(|p| str_of(p.get("type")) == Some("text"))
+            .filter_map(|p| str_of(p.get("text")))
+            .collect();
+        preview(Some(&text.join("\n")), REPLY_LIMIT)
+    })
+}
+
+// MARK: OpenCode and Pi
+
+/// What the island's OpenCode plugin and Pi extension write.
+fn plugin(
+    provider: Provider,
     json: &Map<String, Value>,
     pid: i32,
     now: Time,
@@ -555,7 +820,7 @@ fn opencode(
     let date = timestamp(json.get("at")).unwrap_or(now);
     let mut add = |kind| {
         decoded.events.push(AgentEvent {
-            provider: Provider::Opencode,
+            provider,
             session_id: session.clone(),
             pid,
             cwd: cwd.clone(),
@@ -585,7 +850,7 @@ fn opencode(
             failed: true,
         }),
         "tool" => {
-            let tool = name(Provider::Opencode, str_of(json.get("tool")).unwrap_or(""));
+            let tool = name(provider, str_of(json.get("tool")).unwrap_or(""));
             let input = arguments(json.get("input"));
             let call = text(json, "call").unwrap_or_else(|| format!("{:x}", rand_id()));
             match str_of(json.get("status")) {
@@ -604,7 +869,7 @@ fn opencode(
                 _ => {}
             }
         }
-        "permission" => {
+        "permission" if provider == Provider::Opencode => {
             let Some(request) = text(json, "id") else {
                 return;
             };
@@ -681,6 +946,11 @@ fn opencode(
                 });
             }
         }
+        "model" => {
+            if let Some(model) = text(json, "model") {
+                add(Kind::Model(model));
+            }
+        }
         "title" => {
             if let Some(title) = reply_preview(json.get("title")).filter(|_| policy.previews) {
                 add(Kind::Title(title));
@@ -702,7 +972,7 @@ pub fn opencode_reply(decision: &super::hook_message::Decision) -> Option<Vec<u8
     serde_json::to_vec(&json!({ "reply": reply })).ok()
 }
 
-/// A prompt for OpenCode's listening plugin to send to one of its sessions.
+/// A prompt for OpenCode's listening plugin or Pi's extension to send to one of its sessions.
 pub fn opencode_prompt(session: &str, text: &str) -> Vec<u8> {
     serde_json::to_vec(&json!({ "prompt": { "session": session, "text": text } }))
         .unwrap_or_default()
@@ -769,12 +1039,62 @@ pub fn name(provider: Provider, tool: &str) -> String {
             ("Task", "Task"),
             ("Delete", "Delete"),
         ],
+        Provider::Pi => &[
+            ("bash", "Bash"),
+            ("read", "Read"),
+            ("write", "Write"),
+            ("edit", "Edit"),
+            ("grep", "Grep"),
+            ("find", "Glob"),
+            ("ls", "LS"),
+        ],
+        // Vibe names a tool with its group, as `file_system.bash`; the last part is matched.
+        Provider::Vibe => &[
+            ("bash", "Bash"),
+            ("process_start", "Bash"),
+            ("read_file", "Read"),
+            ("write_file", "Write"),
+            ("search_replace", "Edit"),
+            ("edit_file", "Edit"),
+            ("grep", "Grep"),
+            ("glob", "Glob"),
+            ("list_dir", "LS"),
+            ("web_fetch", "WebFetch"),
+            ("web_search", "WebSearch"),
+            ("todo", "TodoWrite"),
+            ("agents_spawn", "Task"),
+            ("ask_user_question", "AskUserQuestion"),
+        ],
+        Provider::Devin => &[
+            ("exec", "Bash"),
+            ("read", "Read"),
+            ("write", "Write"),
+            ("edit", "Edit"),
+            ("apply_patch", "Edit"),
+            ("grep", "Grep"),
+            ("glob", "Glob"),
+            ("webfetch", "WebFetch"),
+            ("todo_write", "TodoWrite"),
+            ("run_subagent", "Task"),
+            ("notebook_read", "Read"),
+            ("notebook_edit", "Edit"),
+            ("exit_plan_mode", "ExitPlanMode"),
+        ],
         Provider::Claude | Provider::Codex => &[],
     };
     if let Some((_, name)) = known.iter().find(|(k, _)| *k == tool) {
         return (*name).to_owned();
     }
+    if provider == Provider::Vibe
+        && !tool.starts_with("mcp_")
+        && let Some((_, last)) = tool.rsplit_once('.')
+    {
+        return self::name(provider, last);
+    }
     if let Some(rest) = tool.strip_prefix("MCP:") {
+        return rest.to_owned();
+    }
+    if let Some(rest) = tool.strip_prefix("mcp__") {
         return rest.to_owned();
     }
     let mut chars = tool.chars();
@@ -1373,13 +1693,17 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
         Provider::Copilot => Some("copilot"),
         Provider::Opencode => Some("opencode"),
         Provider::Cursor => Some("cursor-agent"),
+        Provider::Pi => Some("pi"),
+        Provider::Vibe => Some("vibe"),
+        Provider::Devin => Some("devin"),
         Provider::Claude | Provider::Codex => None,
     }
 }
 
 /// The arguments that open the agent's terminal UI with a first prompt
-/// already sent: `gemini -i`, `copilot -i`, `opencode --prompt`, and
-/// `cursor-agent` takes it as it is (AgentCLI in ClaudeBackgroundSessions.swift).
+/// already sent: `gemini -i`, `copilot -i`, `opencode --prompt`, `devin --`,
+/// and `cursor-agent`, `pi` and `vibe` take it as it is (AgentCLI in
+/// ClaudeBackgroundSessions.swift).
 pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
     let prompt = prompt.trim();
     if prompt.is_empty() {
@@ -1388,7 +1712,8 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
     match provider {
         Provider::Gemini | Provider::Copilot => vec!["-i".into(), prompt.into()],
         Provider::Opencode => vec!["--prompt".into(), prompt.into()],
-        Provider::Cursor => vec![prompt.into()],
+        Provider::Cursor | Provider::Pi | Provider::Vibe => vec![prompt.into()],
+        Provider::Devin => vec!["--".into(), prompt.into()],
         Provider::Claude | Provider::Codex => Vec::new(),
     }
 }
@@ -1477,6 +1802,27 @@ pub mod installer {
         "stop",
     ];
     pub const CURSOR_CONTINUES: [&str; 1] = ["beforeSubmitPrompt"];
+    /// Mistral Vibe's hook types. `post_agent` runs after subagents' turns
+    /// too, so the end of the person's turn is heard from `notification`.
+    pub const VIBE_EVENTS: [&str; 6] = [
+        "session_start",
+        "session_end",
+        "pre_agent",
+        "pre_tool",
+        "post_tool",
+        "notification",
+    ];
+    /// Devin CLI's events, in Claude Code's format. `PermissionRequest` is
+    /// only heard: the hook answers nothing, so Devin asks in its terminal.
+    pub const DEVIN_EVENTS: [&str; 7] = [
+        "SessionStart",
+        "SessionEnd",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "PermissionRequest",
+        "Stop",
+    ];
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -1535,15 +1881,40 @@ pub mod installer {
             .join(format!("{}.js", own_name(app)))
     }
 
+    pub fn pi_folder(home: &Path) -> PathBuf {
+        env_dir("PI_CODING_AGENT_DIR").unwrap_or_else(|| home.join(".pi").join("agent"))
+    }
+
+    pub fn pi_extension(home: &Path, app: &str) -> PathBuf {
+        pi_folder(home)
+            .join("extensions")
+            .join(format!("{}.js", own_name(app)))
+    }
+
+    pub fn vibe_hooks(home: &Path) -> PathBuf {
+        env_dir("VIBE_HOME")
+            .unwrap_or_else(|| home.join(".vibe"))
+            .join("hooks.toml")
+    }
+
+    /// Devin CLI keeps its user config in `%APPDATA%\devin` on Windows.
+    pub fn devin_config(home: &Path) -> PathBuf {
+        env_dir("APPDATA")
+            .unwrap_or_else(|| home.join("AppData").join("Roaming"))
+            .join("devin")
+            .join("config.json")
+    }
+
     /// Whether the agent is installed: its command (as New session finds
-    /// it), or Cursor's app. A folder like `.gemini` or `.copilot` is not
-    /// enough: other apps make those too.
+    /// it), or Cursor's app; for Pi, its command and the folder Pi makes on
+    /// first run, since other tools take the name `pi` too. A folder like
+    /// `.gemini` or `.copilot` is not enough: other apps make those too.
     pub fn is_present(provider: Provider, home: &Path) -> bool {
         if super::command_name(provider)
             .and_then(crate::agent_usage::agent_executable)
             .is_some()
         {
-            return true;
+            return provider != Provider::Pi || home.join(".pi").join("agent").is_dir();
         }
         provider == Provider::Cursor
             && std::env::var_os("LOCALAPPDATA")
@@ -1594,6 +1965,40 @@ pub mod installer {
         )
     }
 
+    /// The hook for Mistral Vibe and Devin CLI, whose shell on Windows may be
+    /// Git Bash, PowerShell or cmd: this app's path with no quotes (its short
+    /// form when the path has a space), which each of them runs as it is.
+    /// A path that keeps a space even so falls back to PowerShell's form.
+    pub fn portable_command(provider: Provider, event: &str, exe: &Path, app: &str) -> String {
+        let path = short_path(exe).to_string_lossy().replace('\\', "/");
+        if path.contains(char::is_whitespace) {
+            return command(provider, event, exe, app);
+        }
+        format!(
+            "{path} --hook --agent {} --event {event} {}",
+            provider.key(),
+            claude::marker(app)
+        )
+    }
+
+    /// The 8.3 form of a path, where Windows keeps one.
+    fn short_path(path: &Path) -> PathBuf {
+        #[cfg(windows)]
+        {
+            use std::os::windows::ffi::{OsStrExt, OsStringExt};
+            use windows::Win32::Storage::FileSystem::GetShortPathNameW;
+            use windows::core::PCWSTR;
+            let wide: Vec<u16> = path.as_os_str().encode_wide().chain(Some(0)).collect();
+            let mut buffer = vec![0u16; 1024];
+            let length =
+                unsafe { GetShortPathNameW(PCWSTR(wide.as_ptr()), Some(&mut buffer)) } as usize;
+            if length > 0 && length < buffer.len() {
+                return PathBuf::from(std::ffi::OsString::from_wide(&buffer[..length]));
+            }
+        }
+        path.to_path_buf()
+    }
+
     /// Copilot runs an executable directly, with no shell between.
     pub fn copilot_file(exe: &Path, app: &str) -> Vec<u8> {
         let path = exe.to_string_lossy().into_owned();
@@ -1624,6 +2029,132 @@ pub mod installer {
     }
 
     const PLUGIN: &str = include_str!("opencode-plugin.js");
+    const PI_EXTENSION: &str = include_str!("pi-extension.js");
+
+    pub fn pi_file(endpoint: &str, app: &str) -> Vec<u8> {
+        let literal = serde_json::to_string(endpoint).unwrap_or_else(|_| "\"\"".into());
+        PI_EXTENSION
+            .replace("\"__OPENBAR_SOCKET__\"", &literal)
+            .replace("__OPENBAR_MARKER__", &claude::marker(app))
+            .into_bytes()
+    }
+
+    // MARK: Vibe's hooks.toml
+
+    /// The lines that open and close the island's entries are TOML comments;
+    /// on Windows the marker is the hook's arguments, so `#` starts them.
+    pub fn vibe_start(app: &str) -> String {
+        format!(
+            "# {} start: added by the island, removed by it",
+            claude::marker(app)
+        )
+    }
+
+    pub fn vibe_end(app: &str) -> String {
+        format!("# {} end", claude::marker(app))
+    }
+
+    /// The island's `[[hooks]]` entries between its two marker lines; names
+    /// carry the app's own, so two builds never clash.
+    pub fn vibe_block(exe: &Path, app: &str) -> String {
+        let mut lines = vec![vibe_start(app)];
+        for event in VIBE_EVENTS {
+            lines.push("[[hooks]]".into());
+            lines.push(format!(
+                "name = {}",
+                toml_string(&format!("{}-{event}", own_name(app)))
+            ));
+            lines.push(format!("type = {}", toml_string(event)));
+            lines.push(format!(
+                "command = {}",
+                toml_string(&portable_command(Provider::Vibe, event, exe, app))
+            ));
+            lines.push(format!("timeout = {EVENT_TIMEOUT}.0"));
+        }
+        lines.push(vibe_end(app));
+        lines.join("\n") + "\n"
+    }
+
+    /// A TOML basic string.
+    pub fn toml_string(text: &str) -> String {
+        let mut out = String::from("\"");
+        for c in text.chars() {
+            match c {
+                '"' => out.push_str("\\\""),
+                '\\' => out.push_str("\\\\"),
+                '\n' => out.push_str("\\n"),
+                '\t' => out.push_str("\\t"),
+                '\r' => out.push_str("\\r"),
+                c if (c as u32) < 0x20 || c as u32 == 0x7F => {
+                    out.push_str(&format!("\\u{:04X}", c as u32))
+                }
+                c => out.push(c),
+            }
+        }
+        out.push('"');
+        out
+    }
+
+    /// The file without the island's entries; None when it had none.
+    pub fn vibe_removing(text: &str, app: &str) -> Option<String> {
+        let start = vibe_start(app);
+        let end = vibe_end(app);
+        let mut lines: Vec<&str> = text.split('\n').collect();
+        let mut changed = false;
+        while let Some(first) = lines.iter().position(|l| l.trim_end_matches('\r') == start) {
+            let last = lines[first..]
+                .iter()
+                .position(|l| l.trim_end_matches('\r') == end)
+                .map(|i| first + i)
+                .unwrap_or(lines.len() - 1);
+            lines.drain(first..=last);
+            changed = true;
+        }
+        if !changed {
+            return None;
+        }
+        let mut result = lines.join("\n");
+        while result.ends_with("\n\n") {
+            result.pop();
+        }
+        Some(if result.trim().is_empty() {
+            String::new()
+        } else {
+            result
+        })
+    }
+
+    /// The file with the island's entries at its end, after the person's own.
+    pub fn vibe_installing(text: Option<&str>, exe: &Path, app: &str) -> String {
+        let mut base = text
+            .map(|t| vibe_removing(t, app).unwrap_or_else(|| t.to_owned()))
+            .unwrap_or_default();
+        if !base.is_empty() && !base.ends_with('\n') {
+            base.push('\n');
+        }
+        if !base.is_empty() {
+            base.push('\n');
+        }
+        base + &vibe_block(exe, app)
+    }
+
+    /// Whether hooks.toml keeps its hooks as an inline array, which the
+    /// island's tables can't sit beside, so the file is left alone.
+    pub fn vibe_inline(text: &str) -> bool {
+        text.lines().any(|line| {
+            line.trim()
+                .strip_prefix("hooks")
+                .is_some_and(|rest| rest.trim_start().starts_with('='))
+        })
+    }
+
+    fn vibe_text(path: &Path) -> Result<Option<String>, ()> {
+        match std::fs::read(path) {
+            Ok(data) => String::from_utf8(data).map(Some).map_err(|_| ()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+            Err(_) => Err(()),
+        }
+    }
 
     fn groups_hold(settings: &Value, events: &[&str], command: impl Fn(&str) -> String) -> bool {
         let Some(hooks) = settings.get("hooks").and_then(Value::as_object) else {
@@ -1784,8 +2315,56 @@ pub mod installer {
             Provider::Opencode => {
                 own_state(&opencode_plugin(home, app), &opencode_file(endpoint, app))
             }
+            Provider::Pi => own_state(&pi_extension(home, app), &pi_file(endpoint, app)),
+            Provider::Vibe => match vibe_text(&vibe_hooks(home)) {
+                Ok(None) => State::Missing,
+                Ok(Some(text)) if text.contains(&vibe_block(exe, app)) => State::Installed,
+                Ok(Some(text)) if text.contains(&claude::marker(app)) => State::Outdated,
+                Ok(Some(text)) if vibe_inline(&text) => State::Unreadable,
+                Ok(Some(_)) => State::Missing,
+                Err(_) => State::Unreadable,
+            },
+            Provider::Devin => match read(&devin_config(home)) {
+                Ok(s)
+                    if groups_hold(&s, &DEVIN_EVENTS, |e| {
+                        portable_command(Provider::Devin, e, exe, app)
+                    }) =>
+                {
+                    State::Installed
+                }
+                Ok(s) if claude::has_any(&s, app) => State::Outdated,
+                Ok(_) => State::Missing,
+                Err(_) => State::Unreadable,
+            },
             _ => State::Missing,
         }
+    }
+
+    pub fn devin_installing(settings: &Value, exe: &Path, app: &str) -> Value {
+        let mut settings = claude::removing(settings, app);
+        if !settings.is_object() {
+            settings = json!({});
+        }
+        let object = settings.as_object_mut().unwrap();
+        // Devin writes its own file with a version; a new one gets the same.
+        object.entry("version").or_insert(json!(1));
+        let hooks = object.entry("hooks").or_insert_with(|| json!({}));
+        if !hooks.is_object() {
+            *hooks = json!({});
+        }
+        let hooks = hooks.as_object_mut().unwrap();
+        for event in DEVIN_EVENTS {
+            let entry = json!({
+                "type": "command",
+                "timeout": EVENT_TIMEOUT,
+                "command": portable_command(Provider::Devin, event, exe, app),
+            });
+            let list = hooks.entry(event).or_insert_with(|| json!([]));
+            if let Some(list) = list.as_array_mut() {
+                list.push(json!({ "hooks": [entry] }));
+            }
+        }
+        settings
     }
 
     fn own_state(path: &Path, wanted: &[u8]) -> State {
@@ -1819,6 +2398,21 @@ pub mod installer {
                 &opencode_file(endpoint, app),
                 app,
             ),
+            Provider::Pi => write_own(&pi_extension(home, app), &pi_file(endpoint, app), app),
+            Provider::Vibe => {
+                let path = vibe_hooks(home);
+                if let Ok(Some(text)) = vibe_text(&path)
+                    && vibe_inline(&text)
+                {
+                    return Err(format!("{} keeps its hooks inline", path.display()));
+                }
+                claude::update_text(&path, |text| Some(vibe_installing(text, exe, app)))
+                    .map_err(|e| e.to_string())
+            }
+            Provider::Devin => {
+                claude::update(&devin_config(home), |s| devin_installing(s, exe, app))
+                    .map_err(|e| e.to_string())
+            }
             _ => Ok(()),
         }
     }
@@ -1841,6 +2435,22 @@ pub mod installer {
             }
             Provider::Copilot => remove_own(&copilot_hooks(home, app), app),
             Provider::Opencode => remove_own(&opencode_plugin(home, app), app),
+            Provider::Pi => remove_own(&pi_extension(home, app), app),
+            Provider::Vibe => {
+                let path = vibe_hooks(home);
+                if !path.exists() {
+                    return Ok(());
+                }
+                claude::update_text(&path, |text| text.and_then(|t| vibe_removing(t, app)))
+                    .map_err(|e| e.to_string())
+            }
+            Provider::Devin => {
+                let path = devin_config(home);
+                if !path.exists() {
+                    return Ok(());
+                }
+                claude::update(&path, |s| claude::removing(s, app)).map_err(|e| e.to_string())
+            }
             _ => Ok(()),
         }
     }
@@ -2343,6 +2953,380 @@ mod tests {
             "../../../../Sources/Openbar/Services/ClaudeSessions/AgentOpenCodePlugin.swift"
         );
         assert!(mac.contains(include_str!("opencode-plugin.js")));
+    }
+
+    #[test]
+    fn the_pi_extension_is_the_one_the_mac_installs() {
+        let mac = include_str!(
+            "../../../../Sources/Openbar/Services/ClaudeSessions/AgentPiExtension.swift"
+        );
+        assert!(mac.contains(include_str!("pi-extension.js")));
+        let file = String::from_utf8(installer::pi_file(r"\\.\pipe\openbar-x", "app")).unwrap();
+        assert!(file.contains(r#"const SOCKET = "\\\\.\\pipe\\openbar-x""#));
+        assert!(file.contains("pi.sendUserMessage") && !file.contains("__OPENBAR"));
+    }
+
+    #[test]
+    fn a_pi_session_is_told_by_its_extension() {
+        let mut tracker = Tracker::default();
+        let send = |tracker: &mut Tracker, event: Value| {
+            let mut event = event;
+            event["session"] = json!("p1");
+            event["directory"] = json!("C:/w/pi-app");
+            feed(tracker, &envelope("pi", "", event), ON);
+        };
+        send(&mut tracker, json!({ "kind": "created" }));
+        send(
+            &mut tracker,
+            json!({ "kind": "model", "model": "claude-sonnet-4-5" }),
+        );
+        send(
+            &mut tracker,
+            json!({ "kind": "prompt", "text": "list the files" }),
+        );
+        send(&mut tracker, json!({ "kind": "status", "status": "busy" }));
+        send(
+            &mut tracker,
+            json!({ "kind": "tool", "call": "c1", "tool": "bash", "status": "running", "input": { "command": "ls -la" } }),
+        );
+        let (listed, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].provider, Provider::Pi);
+        assert_eq!(listed[0].id, "pi:p1");
+        assert_eq!(listed[0].phase, SessionPhase::RunningTool);
+        assert_eq!(listed[0].model.as_deref(), Some("claude-sonnet-4-5"));
+        send(
+            &mut tracker,
+            json!({ "kind": "tool", "call": "c1", "tool": "bash", "status": "completed" }),
+        );
+        send(
+            &mut tracker,
+            json!({ "kind": "reply", "text": "Here they are." }),
+        );
+        send(&mut tracker, json!({ "kind": "question" }));
+        let (listed, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(listed[0].phase, SessionPhase::WaitingInput);
+        assert_eq!(listed[0].waiting_for.as_deref(), Some(ANSWER_IN_TERMINAL));
+        send(&mut tracker, json!({ "kind": "permissionReplied" }));
+        send(&mut tracker, json!({ "kind": "status", "status": "idle" }));
+        let (listed, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(listed[0].phase, SessionPhase::Finished);
+        assert_eq!(listed[0].last_text.as_deref(), Some("Here they are."));
+        // Pi asks no permission of its own; only OpenCode's plugin waits on one.
+        send(
+            &mut tracker,
+            json!({ "kind": "permission", "id": "x", "permission": "bash" }),
+        );
+        assert!(snap(&mut tracker, NOW, true).0[0].permission.is_none());
+        assert!(waits(&envelope("pi", "", json!({ "kind": "listen" }))));
+        assert!(!waits(&envelope(
+            "pi",
+            "",
+            json!({ "kind": "permission", "session": "p1", "id": "x" })
+        )));
+        assert!(
+            decode(&envelope("pi", "", json!({ "kind": "listen" })), NOW, ON)
+                .unwrap()
+                .listens
+        );
+        assert!(Provider::Pi.reports_through_plugin() && !Provider::Pi.answers_permissions());
+        send(&mut tracker, json!({ "kind": "deleted" }));
+        assert!(snap(&mut tracker, NOW, true).0.is_empty());
+    }
+
+    #[test]
+    fn a_vibe_session_is_told_by_its_hooks() {
+        let mut tracker = Tracker::default();
+        let send = |tracker: &mut Tracker, hook: &str, fields: Value| {
+            let mut event = json!({ "session_id": "v1", "cwd": "C:/w/vibe-app", "parent_session_id": null,
+                                     "transcript_path": "C:/vibe/logs/session/unified/v1", "hook_event_name": hook });
+            for (k, v) in fields.as_object().unwrap() {
+                event[k] = v.clone();
+            }
+            feed(tracker, &envelope("vibe", hook, event), ON);
+        };
+        send(
+            &mut tracker,
+            "session_start",
+            json!({ "model": "mistral-medium-3.5" }),
+        );
+        send(
+            &mut tracker,
+            "pre_agent",
+            json!({ "prompt": "fix the tests" }),
+        );
+        send(
+            &mut tracker,
+            "pre_tool",
+            json!({ "tool_name": "file_system.bash", "tool_call_id": "call_1", "tool_input": { "command": "npm test" } }),
+        );
+        let (listed, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(listed[0].provider, Provider::Vibe);
+        assert_eq!(listed[0].phase, SessionPhase::RunningTool);
+        assert_eq!(listed[0].current_tool.as_ref().unwrap().name, "Bash");
+        assert_eq!(listed[0].current_tool.as_ref().unwrap().id, "call_1");
+        assert_eq!(listed[0].model.as_deref(), Some("mistral-medium-3.5"));
+        send(
+            &mut tracker,
+            "notification",
+            json!({ "notification_type": "approval_requested", "tool_name": "file_system.bash", "message": "Vibe needs your approval" }),
+        );
+        let (listed, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(listed[0].phase, SessionPhase::WaitingPermission);
+        assert!(listed[0].permission.is_none());
+        assert_eq!(listed[0].waiting_for.as_deref(), Some(ANSWER_IN_TERMINAL));
+        send(
+            &mut tracker,
+            "post_tool",
+            json!({ "tool_name": "file_system.bash", "tool_call_id": "call_1", "tool_input": { "command": "npm test" }, "tool_status": "failure" }),
+        );
+        let (listed, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(listed[0].phase, SessionPhase::Generating);
+        assert!(listed[0].timeline.last().unwrap().failed);
+        // A subagent adds no row.
+        feed(
+            &mut tracker,
+            &envelope(
+                "vibe",
+                "pre_tool",
+                json!({ "session_id": "sub", "parent_session_id": "v1", "tool_name": "file_system.read_file" }),
+            ),
+            ON,
+        );
+        assert_eq!(snap(&mut tracker, NOW, true).0.len(), 1);
+        send(
+            &mut tracker,
+            "notification",
+            json!({ "notification_type": "turn_completed" }),
+        );
+        assert_eq!(
+            snap(&mut tracker, NOW, true).0[0].phase,
+            SessionPhase::Finished
+        );
+        let decoded = decode(
+            &envelope(
+                "vibe",
+                "notification",
+                json!({ "session_id": "v1", "transcript_path": "C:/x" }),
+            ),
+            NOW,
+            ON,
+        )
+        .unwrap();
+        assert_eq!(decoded.transcript.as_deref(), Some("C:/x"));
+        send(&mut tracker, "session_end", json!({ "reason": "exit" }));
+        assert!(snap(&mut tracker, NOW, true).0.is_empty());
+    }
+
+    #[test]
+    fn a_devin_session_is_told_by_its_hooks_and_its_claude_hooks_are_not() {
+        let mut tracker = Tracker::default();
+        let send = |tracker: &mut Tracker, hook: &str, fields: Value| {
+            let mut event =
+                json!({ "session_id": "d1", "prompt_id": "t1", "hook_event_name": hook });
+            for (k, v) in fields.as_object().unwrap() {
+                event[k] = v.clone();
+            }
+            feed(tracker, &envelope("devin", hook, event), ON);
+        };
+        send(&mut tracker, "SessionStart", json!({ "source": "startup" }));
+        send(
+            &mut tracker,
+            "UserPromptSubmit",
+            json!({ "prompt": "add a test" }),
+        );
+        send(
+            &mut tracker,
+            "PreToolUse",
+            json!({ "tool_name": "exec", "tool_input": { "command": "cargo test" } }),
+        );
+        let (listed, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(listed[0].provider, Provider::Devin);
+        assert_eq!(listed[0].current_tool.as_ref().unwrap().name, "Bash");
+        send(
+            &mut tracker,
+            "PermissionRequest",
+            json!({ "tool_name": "exec", "tool_input": { "command": "git push" } }),
+        );
+        let (listed, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(listed[0].phase, SessionPhase::WaitingPermission);
+        assert!(listed[0].permission.is_none());
+        send(
+            &mut tracker,
+            "PostToolUse",
+            json!({ "tool_name": "exec", "tool_input": { "command": "cargo test" }, "tool_response": { "success": false } }),
+        );
+        let (listed, _) = snap(&mut tracker, NOW, true);
+        assert_eq!(listed[0].phase, SessionPhase::Generating);
+        assert!(listed[0].timeline[0].failed);
+        send(
+            &mut tracker,
+            "PreToolUse",
+            json!({ "tool_name": "ask_user_question", "tool_input": {} }),
+        );
+        assert_eq!(
+            snap(&mut tracker, NOW, true).0[0].phase,
+            SessionPhase::WaitingInput
+        );
+        send(
+            &mut tracker,
+            "PostToolUse",
+            json!({ "tool_name": "ask_user_question", "tool_input": {} }),
+        );
+        assert_eq!(
+            snap(&mut tracker, NOW, true).0[0].phase,
+            SessionPhase::Generating
+        );
+        send(&mut tracker, "Stop", json!({}));
+        assert_eq!(
+            snap(&mut tracker, NOW, true).0[0].phase,
+            SessionPhase::Finished
+        );
+        send(&mut tracker, "SessionEnd", json!({}));
+        assert!(snap(&mut tracker, NOW, true).0.is_empty());
+        assert!(!waits(&envelope(
+            "devin",
+            "PermissionRequest",
+            json!({ "session_id": "d1" })
+        )));
+
+        let devin = serde_json::to_vec(
+            &json!({ "hook_event_name": "PreToolUse", "session_id": "d", "prompt_id": "t" }),
+        )
+        .unwrap();
+        let claude = serde_json::to_vec(&json!({ "hook_event_name": "PreToolUse", "session_id": "c", "prompt_id": "t", "transcript_path": "C:/t.jsonl" })).unwrap();
+        assert!(is_devin_payload(&devin) && !is_devin_payload(&claude));
+        assert!(
+            is_devin_process("devin.exe")
+                && is_devin_process("Devin")
+                && !is_devin_process("claude.exe")
+        );
+        assert!(!is_devin_process("devinci.exe"));
+    }
+
+    #[test]
+    fn vibe_hooks_go_after_the_persons_own_and_come_out_alone() {
+        let exe = Path::new("C:/Users/me/AppData/Local/Openbar/Openbar.exe");
+        let own = "[[hooks]]\nname = \"lint\"\ntype = \"post_agent\"\ncommand = \"eslint .\"\n";
+        let installed = installer::vibe_installing(Some(own), exe, "app");
+        assert!(installed.starts_with(own));
+        assert_eq!(
+            installed.matches("[[hooks]]").count(),
+            1 + installer::VIBE_EVENTS.len()
+        );
+        assert!(installed.contains("name = \"openbar-app-pre_tool\""));
+        // Every line the island adds is a TOML table, key or comment, never a bare word.
+        for line in installed.lines().skip(own.lines().count()) {
+            let line = line.trim();
+            assert!(
+                line.is_empty()
+                    || line.starts_with('#')
+                    || line.starts_with("[[hooks]]")
+                    || line.contains(" = "),
+                "not TOML: {line}"
+            );
+        }
+        let again = installer::vibe_installing(Some(&installed), exe, "app");
+        assert_eq!(again, installed);
+        assert_eq!(
+            installer::vibe_removing(&installed, "app").as_deref(),
+            Some(own)
+        );
+        assert_eq!(installer::vibe_removing(own, "app"), None);
+        let both = installer::vibe_installing(Some(&installed), exe, "other");
+        assert_eq!(
+            installer::vibe_removing(&both, "app")
+                .unwrap()
+                .matches("[[hooks]]")
+                .count(),
+            1 + installer::VIBE_EVENTS.len()
+        );
+        assert!(installer::vibe_inline("hooks = [{ name = \"x\" }]\n"));
+        assert!(!installer::vibe_inline(own));
+        assert_eq!(installer::toml_string("a\"b\\c\nd"), r#""a\"b\\c\nd""#);
+        // A path with no space runs as it is in Git Bash, PowerShell and cmd.
+        let command = installer::portable_command(Provider::Vibe, "pre_tool", exe, "app");
+        assert!(command.starts_with(
+            "C:/Users/me/AppData/Local/Openbar/Openbar.exe --hook --agent vibe --event pre_tool "
+        ));
+        assert!(!command.contains('"') && !command.starts_with('&'));
+        // One that keeps a space falls back to PowerShell's form.
+        let spaced = installer::portable_command(
+            Provider::Vibe,
+            "pre_tool",
+            Path::new("Z:/No Such Folder/Openbar.exe"),
+            "app",
+        );
+        assert!(spaced.starts_with("& \""));
+    }
+
+    #[test]
+    fn devin_hooks_go_beside_the_persons_own_and_come_out_alone() {
+        let exe = Path::new("C:/Openbar/Openbar.exe");
+        let own = json!({ "version": 1, "permission_mode": "auto",
+                          "hooks": { "PreToolUse": [{ "matcher": "exec", "hooks": [{ "type": "command", "command": "guard.ps1" }] }] } });
+        let installed = installer::devin_installing(&own, exe, "app");
+        let pre = installed
+            .pointer("/hooks/PreToolUse")
+            .unwrap()
+            .as_array()
+            .unwrap();
+        assert_eq!(pre.len(), 2);
+        assert_eq!(pre[0], own.pointer("/hooks/PreToolUse/0").unwrap().clone());
+        assert_eq!(installed["permission_mode"], "auto");
+        assert_eq!(
+            installed["hooks"].as_object().unwrap().len(),
+            installer::DEVIN_EVENTS.len()
+        );
+        assert_eq!(crate::hooks::installer::removing(&installed, "app"), own);
+        assert_eq!(
+            installer::devin_installing(&json!({}), exe, "app")["version"],
+            1
+        );
+        let devin = installer::portable_command(Provider::Devin, "PermissionRequest", exe, "app");
+        assert!(
+            devin.starts_with(
+                "C:/Openbar/Openbar.exe --hook --agent devin --event PermissionRequest"
+            )
+        );
+    }
+
+    #[test]
+    fn a_vibe_log_ends_on_its_last_reply() {
+        let history = br#"[{"message":{"content":[{"text":"list","type":"text"}],"role":"user"},"source":"history"},{"message":{"content":[{"type":"tool_call","name":"bash"}],"role":"assistant"},"source":"history"},{"message":{"content":[{"text":"Done: the folder holds the files. ","type":"text"}],"role":"assistant"},"source":"history"}]"#;
+        assert_eq!(
+            vibe_chunk_reply(history).as_deref(),
+            Some("Done: the folder holds the files.")
+        );
+        assert_eq!(vibe_chunk_reply(b"not json"), None);
+        let folder = std::env::temp_dir().join(format!("ob-vibe-{}", std::process::id()));
+        std::fs::create_dir_all(folder.join("chunks")).unwrap();
+        std::fs::write(folder.join("chunks").join("b.json"), history).unwrap();
+        std::fs::write(
+            folder.join("chunks").join("c.json"),
+            br#"[{"type":"notice"}]"#,
+        )
+        .unwrap();
+        assert_eq!(
+            vibe_last_reply(&folder).as_deref(),
+            Some("Done: the folder holds the files.")
+        );
+        assert_eq!(vibe_last_reply(&folder.join("missing")), None);
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn the_three_new_agents_start_with_their_prompt() {
+        assert_eq!(start_arguments(Provider::Devin, "go"), vec!["--", "go"]);
+        assert_eq!(start_arguments(Provider::Pi, "go"), vec!["go"]);
+        assert_eq!(start_arguments(Provider::Vibe, " "), Vec::<String>::new());
+        assert_eq!(command_name(Provider::Vibe), Some("vibe"));
+        assert_eq!(name(Provider::Vibe, "file_system.search_replace"), "Edit");
+        assert_eq!(
+            name(Provider::Devin, "mcp__github__create_issue"),
+            "github__create_issue"
+        );
+        assert_eq!(Provider::from_key("devin"), Some(Provider::Devin));
     }
 
     #[test]
