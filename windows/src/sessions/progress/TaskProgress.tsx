@@ -25,13 +25,21 @@ export function itemsOf(t: Tasks): TaskItem[] {
   }));
 }
 
-/** A ring drawn round the row's Clawd, filled to the share done. */
+/** Where the agent's badge sits on the ring, clockwise from 3 o'clock, and
+ *  the gap the ring leaves round it, wide enough to read as apart at a glance. */
+export const BADGE_ANGLE = 39.6;
+export const BADGE_GAP = 100;
+
+/** A ring drawn round the row's Clawd, open where the agent's badge sits and
+ *  filled to the share done, from the end of the gap on. */
 export function AvatarRing({ session }: { session: Session }) {
   const look = useSessions((s) => s.prefs.progressStyle);
   if (look !== "ring" || !hasTasks(session)) return null;
   const t = session.tasks;
   const fraction = Math.min(1, t.done / t.total);
   const done = tasksDone(t);
+  const span = (360 - BADGE_GAP) / 360;
+  const start = BADGE_ANGLE + BADGE_GAP / 2;
   return (
     <svg
       className={`p-avatar-ring${done ? " is-done" : ""}`}
@@ -39,15 +47,24 @@ export function AvatarRing({ session }: { session: Session }) {
       aria-hidden
       style={{ "--p-tint": providerTint(session.provider) } as CSSProperties}
     >
-      <circle cx="22" cy="22" r="20" className="p-ring-track" />
+      <circle
+        cx="22"
+        cy="22"
+        r="20"
+        className="p-ring-track"
+        pathLength="1"
+        strokeDasharray={`${span} 1`}
+        strokeLinecap="round"
+        transform={`rotate(${start} 22 22)`}
+      />
       <circle
         cx="22"
         cy="22"
         r="20"
         className="p-ring-fill"
         pathLength="1"
-        strokeDasharray={`${fraction} 1`}
-        transform="rotate(-90 22 22)"
+        strokeDasharray={`${span * fraction} 1`}
+        transform={`rotate(${start} 22 22)`}
       />
     </svg>
   );
@@ -188,7 +205,7 @@ export function StripTasksRing({ children, off }: { children: ReactNode; off?: b
   const tint = providerTint(provider as Session["provider"]);
   return (
     <span className="p-strip-ring" style={{ "--p-tint": tint } as CSSProperties}>
-      {children}
+      <span className="p-strip-mark">{children}</span>
       <svg className="p-strip-arc" viewBox="0 0 24 24" aria-hidden>
         <circle cx="12" cy="12" r="10.5" className="p-ring-track" style={{ strokeWidth: 2.2 }} />
         <circle

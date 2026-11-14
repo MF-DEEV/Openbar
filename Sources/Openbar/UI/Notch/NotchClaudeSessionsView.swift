@@ -191,7 +191,7 @@ struct NotchClaudeSessionRow: View {
                     NotchClaudeSessionAvatar(session: session, now: now, agentMark: true)
                         .overlay {
                             if let tasks, progressStyle == .ring {
-                                NotchTaskRing(tasks: tasks, tint: session.provider.tint)
+                                NotchTaskRing(tasks: tasks, tint: session.provider.tint, gapped: true)
                                     .frame(width: 42, height: 42)
                             }
                         }

@@ -44,22 +44,35 @@ enum NotchSessionProgress {
     }
 }
 
-/// A ring round the row's Clawd, filled to the share of tasks done.
+/// A ring round the row's Clawd, filled to the share of tasks done. On a row
+/// it leaves a gap where the agent's badge sits, so the two never touch.
 struct NotchTaskRing: View {
     let tasks: ClaudeTaskProgress
     let tint: Color
     var lineWidth: CGFloat = 2
+    /// Open round the agent's badge at the Clawd's foot (the row); closed on the strip.
+    var gapped = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Where the badge sits, clockwise from 3 o'clock, and the gap round it,
+    /// as on Windows (`BADGE_ANGLE`, `BADGE_GAP`).
+    static let badgeAngle = 39.6
+    static let badgeGap = 100.0
 
     var body: some View {
         let done = tasks.finished
+        let span = gapped ? (360 - Self.badgeGap) / 360 : 1
+        let start = gapped ? Self.badgeAngle + Self.badgeGap / 2 : -90
         ZStack {
-            Circle().stroke(.white.opacity(0.13), lineWidth: lineWidth)
             Circle()
-                .trim(from: 0, to: min(1, tasks.fraction))
+                .trim(from: 0, to: span)
+                .stroke(.white.opacity(0.13), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                .rotationEffect(.degrees(start))
+            Circle()
+                .trim(from: 0, to: span * min(1, tasks.fraction))
                 .stroke(done ? NotchSessionProgress.finishedTint : tint,
                         style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
+                .rotationEffect(.degrees(start))
                 .shadow(color: done ? NotchSessionProgress.finishedTint.opacity(0.6) : .clear, radius: done ? 3 : 0)
         }
         .animation(reduceMotion ? nil : .spring(response: 0.55, dampingFraction: 0.8), value: tasks.done)
