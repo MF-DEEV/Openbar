@@ -1046,37 +1046,135 @@ impl NewSessionModel {
 
 /// Claude Code's aliases for its latest models (`claude --help`), so the
 /// list doesn't age with each release.
-pub const CLAUDE_ALIASES: [(&str, &str); 4] = [
-    ("fable", "Fable"),
-    ("opus", "Opus"),
-    ("sonnet", "Sonnet"),
-    ("haiku", "Haiku"),
+pub const CLAUDE_ALIASES: [&str; 4] = ["fable", "opus", "sonnet", "haiku"];
+
+/// What each alias points to when Claude Code hasn't cached its model
+/// catalog yet (it never ran). Claude Code's own catalog wins otherwise.
+pub const CLAUDE_LATEST: [(&str, &str); 4] = [
+    ("fable", "claude-fable-5-2"),
+    ("opus", "claude-opus-5-5"),
+    ("sonnet", "claude-sonnet-5-5"),
+    ("haiku", "claude-haiku-5-5"),
 ];
 
-/// The default (named by `current`, the settings' model), then the aliases.
-/// The island words the default itself.
-pub fn claude_models(current: Option<&str>) -> Vec<NewSessionModel> {
+/// The model catalog Claude Code caches in `cache/model-catalog`: what each
+/// alias points to, each model's name, and the model it starts with.
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct ClaudeCatalog {
+    pub aliases: HashMap<String, String>,
+    pub names: HashMap<String, String>,
+    pub current: Option<String>,
+}
+
+/// The freshest of the cached catalogs, one per account Claude Code signed
+/// in with.
+pub fn claude_catalog(files: &[Vec<u8>]) -> Option<ClaudeCatalog> {
+    files
+        .iter()
+        .filter_map(|data| {
+            let value: Value = serde_json::from_slice(data).ok()?;
+            let body = value.get("catalog")?;
+            let config = body.get("config")?;
+            let mut catalog = ClaudeCatalog::default();
+            for model in config
+                .get("models")
+                .and_then(Value::as_array)
+                .into_iter()
+                .flatten()
+            {
+                let id = model.get("id").and_then(Value::as_str).unwrap_or("");
+                let name = model.get("name").and_then(Value::as_str).unwrap_or("");
+                if !id.is_empty() && !name.is_empty() {
+                    catalog.names.insert(id.to_owned(), name.to_owned());
+                }
+            }
+            for (alias, target) in config
+                .get("provider_alias_targets")
+                .and_then(Value::as_object)
+                .into_iter()
+                .flatten()
+            {
+                if let Some(id) = target
+                    .get("default")
+                    .and_then(Value::as_str)
+                    .filter(|id| !id.is_empty())
+                {
+                    catalog.aliases.insert(alias.clone(), id.to_owned());
+                }
+            }
+            catalog.current = body
+                .get("state")
+                .and_then(|s| s.get("model"))
+                .and_then(Value::as_str)
+                .filter(|m| !m.is_empty())
+                .map(str::to_owned);
+            if catalog.names.is_empty() && catalog.aliases.is_empty() {
+                return None;
+            }
+            let fetched = value
+                .get("fetchedAt")
+                .and_then(Value::as_f64)
+                .unwrap_or(0.0);
+            Some((fetched, catalog))
+        })
+        .max_by(|a, b| a.0.total_cmp(&b.0))
+        .map(|(_, catalog)| catalog)
+}
+
+/// The default (named by `current`, the settings' model, or else the model
+/// Claude Code starts with), then the aliases. The island words the default itself.
+pub fn claude_models(
+    current: Option<&str>,
+    catalog: Option<&ClaudeCatalog>,
+) -> Vec<NewSessionModel> {
+    // `default` in the settings leaves it to the account, as no setting does.
+    let picked = current
+        .filter(|m| !m.eq_ignore_ascii_case("default"))
+        .or_else(|| catalog.and_then(|c| c.current.as_deref()));
     let mut models = vec![NewSessionModel {
         id: None,
         name: String::new(),
-        detail: current.map(claude_name),
+        detail: picked.map(|m| claude_name(m, catalog)),
     }];
     models.extend(
         CLAUDE_ALIASES
             .iter()
-            .map(|(id, name)| NewSessionModel::named(id, name)),
+            .map(|alias| NewSessionModel::named(alias, &claude_name(alias, catalog))),
     );
     models
 }
 
-/// An alias or full model name as a person reads it: `opus[1m]` as Opus.
-pub fn claude_name(model: &str) -> String {
-    let base = model.split('[').next().unwrap_or(model);
-    CLAUDE_ALIASES
-        .iter()
-        .find(|(id, _)| id.eq_ignore_ascii_case(base))
-        .map(|(_, name)| (*name).to_owned())
-        .unwrap_or_else(|| base.to_owned())
+/// An alias or full model name as a person reads it, with its version:
+/// `opus` as Opus 5.5, `claude-opus-5-5[1m]` as Opus 5.5 (1M).
+pub fn claude_name(model: &str, catalog: Option<&ClaudeCatalog>) -> String {
+    let (base, tag) = match model.split_once('[') {
+        Some((base, rest)) => (base.trim(), rest.split(']').next().unwrap_or("")),
+        None => (model.trim(), ""),
+    };
+    let alias = base.to_ascii_lowercase();
+    let id = catalog
+        .and_then(|c| c.aliases.get(&alias).cloned())
+        .or_else(|| {
+            CLAUDE_LATEST
+                .iter()
+                .find(|(a, _)| *a == alias)
+                .map(|(_, id)| (*id).to_owned())
+        })
+        .unwrap_or_else(|| base.to_owned());
+    let name = catalog
+        .and_then(|c| c.names.get(&id).cloned())
+        .unwrap_or_else(|| {
+            if id.to_ascii_lowercase().starts_with("claude-") {
+                crate::agent_usage::model_display_name(&id)
+            } else {
+                base.to_owned()
+            }
+        });
+    if tag.is_empty() {
+        name
+    } else {
+        format!("{name} ({})", tag.to_ascii_uppercase())
+    }
 }
 
 /// The `model` Claude Code's settings name, if any.
@@ -1468,7 +1566,7 @@ mod tests {
 
     #[test]
     fn new_session_models() {
-        let claude = claude_models(Some("opus[1m]"));
+        let claude = claude_models(Some("opus[1m]"), None);
         let ids: Vec<Option<&str>> = claude.iter().map(|m| m.id.as_deref()).collect();
         assert_eq!(
             ids,
@@ -1480,9 +1578,50 @@ mod tests {
                 Some("haiku")
             ]
         );
-        assert_eq!(claude[0].detail.as_deref(), Some("Opus"));
-        assert_eq!(claude_models(None)[0].detail, None);
-        assert_eq!(claude_name("claude-fable-5-1"), "claude-fable-5-1");
+        assert_eq!(claude[0].detail.as_deref(), Some("Opus 5.5 (1M)"));
+        let names: Vec<&str> = claude[1..].iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(names, ["Fable 5.2", "Opus 5.5", "Sonnet 5.5", "Haiku 5.5"]);
+        assert_eq!(claude_models(None, None)[0].detail, None);
+        assert_eq!(claude_name("claude-fable-5-1", None), "Fable 5.1");
+        assert_eq!(claude_name("claude-opus-5-5[1m]", None), "Opus 5.5 (1M)");
+        assert_eq!(claude_name("my-proxy-model", None), "my-proxy-model");
+
+        let older = br#"{"version":2,"fetchedAt":1,"catalog":{"config":{"models":[{"id":"claude-opus-5","name":"Opus 5"}],"provider_alias_targets":{"opus":{"default":"claude-opus-5"}}},"state":{"model":"claude-opus-5"}}}"#.to_vec();
+        let newer = br#"{"version":2,"fetchedAt":2,"catalog":{"config":{"models":[{"id":"claude-opus-6","name":"Opus 6"},{"id":"claude-fable-6-1","name":"Fable 6.1 Preview"}],"provider_alias_targets":{"opus":{"default":"claude-opus-6","per_provider":{"gateway":"claude-opus-5"}},"fable":{"default":"claude-fable-6-1"},"sonnet":{"default":"claude-sonnet-6"}}},"state":{"model":"claude-fable-6-1"}}}"#.to_vec();
+        let catalog = claude_catalog(&[
+            older,
+            newer,
+            b"not json".to_vec(),
+            br#"{"catalog":{}}"#.to_vec(),
+        ]);
+        assert_eq!(
+            catalog
+                .as_ref()
+                .and_then(|c| c.aliases.get("opus"))
+                .map(String::as_str),
+            Some("claude-opus-6")
+        );
+        let resolved = claude_models(None, catalog.as_ref());
+        let names: Vec<&str> = resolved[1..].iter().map(|m| m.name.as_str()).collect();
+        assert_eq!(
+            names,
+            ["Fable 6.1 Preview", "Opus 6", "Sonnet 6", "Haiku 5.5"]
+        );
+        assert_eq!(resolved[0].detail.as_deref(), Some("Fable 6.1 Preview"));
+        assert_eq!(
+            claude_models(Some("default"), catalog.as_ref())[0]
+                .detail
+                .as_deref(),
+            Some("Fable 6.1 Preview")
+        );
+        assert_eq!(
+            claude_models(Some("sonnet"), catalog.as_ref())[0]
+                .detail
+                .as_deref(),
+            Some("Sonnet 6")
+        );
+        assert_eq!(claude_catalog(&[]), None);
+        assert_eq!(claude_catalog(&[b"[]".to_vec()]), None);
         assert_eq!(
             claude_setting(br#"{"model":"sonnet","env":{}}"#).as_deref(),
             Some("sonnet")

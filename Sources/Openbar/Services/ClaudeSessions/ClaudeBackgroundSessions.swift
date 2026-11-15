@@ -652,20 +652,65 @@ struct NewSessionModel: Equatable, Identifiable {
 enum NewSessionModels {
     /// Claude Code's aliases for its latest models (`claude --help`), so
     /// the list doesn't age with each release.
-    static let claudeAliases: [(id: String, name: String)] = [
-        ("fable", "Fable"), ("opus", "Opus"), ("sonnet", "Sonnet"), ("haiku", "Haiku"),
+    static let claudeAliases = ["fable", "opus", "sonnet", "haiku"]
+
+    /// What each alias points to when Claude Code hasn't cached its model
+    /// catalog yet (it never ran). Claude Code's own catalog wins otherwise.
+    static let claudeLatest = [
+        "fable": "claude-fable-5-2", "opus": "claude-opus-5-5",
+        "sonnet": "claude-sonnet-5-5", "haiku": "claude-haiku-5-5",
     ]
 
-    static func claude(defaultName: String, current: String? = nil) -> [NewSessionModel] {
-        [NewSessionModel(id: nil, name: defaultName, detail: current.map(claudeName))]
-            + claudeAliases.map { NewSessionModel(id: $0.id, name: $0.name) }
+    /// The model catalog Claude Code caches in `cache/model-catalog`: what
+    /// each alias points to, each model's name, and the model it starts with.
+    struct ClaudeCatalog: Equatable {
+        var aliases: [String: String] = [:]
+        var names: [String: String] = [:]
+        var current: String?
     }
 
-    /// An alias or full model name as a person reads it: `opus[1m]` as Opus.
-    static func claudeName(_ model: String) -> String {
-        let base = model.split(separator: "[").first.map(String.init) ?? model
-        if let alias = claudeAliases.first(where: { $0.id == base.lowercased() }) { return alias.name }
-        return base
+    /// The freshest of the cached catalogs, one per account Claude Code
+    /// signed in with.
+    static func claudeCatalog(_ files: [Data]) -> ClaudeCatalog? {
+        let parsed = files.compactMap { data -> (fetched: Double, catalog: ClaudeCatalog)? in
+            guard let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+                  let body = object["catalog"] as? [String: Any],
+                  let config = body["config"] as? [String: Any] else { return nil }
+            var catalog = ClaudeCatalog()
+            for case let model as [String: Any] in config["models"] as? [Any] ?? [] {
+                if let id = model["id"] as? String, let name = model["name"] as? String, !id.isEmpty, !name.isEmpty {
+                    catalog.names[id] = name
+                }
+            }
+            for (alias, target) in config["provider_alias_targets"] as? [String: Any] ?? [:] {
+                if let id = (target as? [String: Any])?["default"] as? String, !id.isEmpty { catalog.aliases[alias] = id }
+            }
+            if let model = (body["state"] as? [String: Any])?["model"] as? String, !model.isEmpty { catalog.current = model }
+            guard !catalog.names.isEmpty || !catalog.aliases.isEmpty else { return nil }
+            return ((object["fetchedAt"] as? NSNumber)?.doubleValue ?? 0, catalog)
+        }
+        return parsed.max { $0.fetched < $1.fetched }?.catalog
+    }
+
+    static func claude(defaultName: String, current: String? = nil, catalog: ClaudeCatalog? = nil) -> [NewSessionModel] {
+        // `default` in the settings leaves it to the account, as no setting does.
+        let picked = current.flatMap { $0.lowercased() == "default" ? nil : $0 } ?? catalog?.current
+        let detail = picked.map { claudeName($0, catalog: catalog) }
+        return [NewSessionModel(id: nil, name: defaultName, detail: detail)]
+            + claudeAliases.map { NewSessionModel(id: $0, name: claudeName($0, catalog: catalog)) }
+    }
+
+    /// An alias or full model name as a person reads it, with its version:
+    /// `opus` as Opus 5.5, `claude-opus-5-5[1m]` as Opus 5.5 (1M).
+    static func claudeName(_ model: String, catalog: ClaudeCatalog? = nil) -> String {
+        let parts = model.split(separator: "[", maxSplits: 1)
+        let base = parts.first.map { String($0).trimmingCharacters(in: .whitespaces) } ?? model
+        let alias = base.lowercased()
+        let id = catalog?.aliases[alias] ?? claudeLatest[alias] ?? base
+        let name = catalog?.names[id] ?? (id.lowercased().hasPrefix("claude-") ? AgentPricing.displayName(id) : base)
+        guard parts.count > 1 else { return name }
+        let tag = parts[1].split(separator: "]").first.map(String.init) ?? ""
+        return tag.isEmpty ? name : "\(name) (\(tag.uppercased()))"
     }
 
     /// The `model` Claude Code's settings name, if any.
@@ -727,7 +772,11 @@ enum NewSessionModels {
                            home: URL = FileManager.default.homeDirectoryForCurrentUser) -> [NewSessionModel] {
         let folder = configHome.map { URL(fileURLWithPath: $0, isDirectory: true) } ?? home.appending(path: ".claude")
         let setting = (try? Data(contentsOf: folder.appending(path: "settings.json"))).flatMap(claudeSetting)
-        return claude(defaultName: defaultName, current: setting)
+        let cache = folder.appending(path: "cache/model-catalog", directoryHint: .isDirectory)
+        let files = ((try? FileManager.default.contentsOfDirectory(at: cache, includingPropertiesForKeys: nil)) ?? [])
+            .filter { $0.pathExtension == "json" }
+            .compactMap { try? Data(contentsOf: $0) }
+        return claude(defaultName: defaultName, current: setting, catalog: claudeCatalog(files))
     }
 }
 

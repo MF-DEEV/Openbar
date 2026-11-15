@@ -2502,8 +2502,20 @@ pub async fn sessions_new_models(config_home: Option<String>) -> Result<NewSessi
             .map(std::path::PathBuf::from)
             .or_else(|| hooks::installer::home_dir().map(|h| h.join(".claude")));
         let setting = claude_folder
+            .as_ref()
             .and_then(|f| std::fs::read(f.join("settings.json")).ok())
             .and_then(|data| background::claude_setting(&data));
+        // Claude Code's cached model catalog says what each alias points to.
+        let catalogs: Vec<Vec<u8>> = claude_folder
+            .and_then(|f| std::fs::read_dir(f.join("cache").join("model-catalog")).ok())
+            .into_iter()
+            .flatten()
+            .flatten()
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().is_some_and(|e| e == "json"))
+            .filter_map(|path| std::fs::read(path).ok())
+            .collect();
+        let catalog = background::claude_catalog(&catalogs);
         let codex_home = crate::sessions::codex::client::codex_home();
         let cache = codex_home
             .as_ref()
@@ -2512,7 +2524,7 @@ pub async fn sessions_new_models(config_home: Option<String>) -> Result<NewSessi
             .as_ref()
             .and_then(|h| std::fs::read_to_string(h.join("config.toml")).ok());
         NewSessionModels {
-            claude: background::claude_models(setting.as_deref()),
+            claude: background::claude_models(setting.as_deref(), catalog.as_ref()),
             codex: background::codex_models(cache.as_deref(), config.as_deref()),
         }
     })
