@@ -20,7 +20,9 @@ pub struct Metadata {
 }
 
 #[cfg(target_os = "linux")]
-pub use crate::linux::process::{ancestors, is_running, metadata, pids_named, started_at};
+pub use crate::linux::process::{
+    ancestors, environment_values, is_running, metadata, pids_named, started_at,
+};
 
 #[cfg(windows)]
 pub fn metadata(pid: u32) -> Option<Metadata> {

@@ -716,4 +716,20 @@ mod tests {
         );
         let _ = fs::remove_dir_all(home);
     }
+
+    /// By hand on Linux, with a process named `codex` running (a copy of `sleep`
+    /// does) and its rollout under `$HOME/.codex/sessions`:
+    /// `cargo test live_discover -- --ignored --nocapture`.
+    #[test]
+    #[ignore = "needs a running process named codex and its rollout"]
+    fn live_discover_finds_a_codex_process_and_its_rollout() {
+        let found = discover();
+        let seen: Vec<_> = found.iter().map(|f| (f.pid, &f.id, &f.cwd)).collect();
+        assert_eq!(found.len(), 1, "found {seen:?}");
+        let session = &found[0];
+        println!("pid {} id {} cwd {}", session.pid, session.id, session.cwd);
+        assert!(session.path.is_file());
+        let host = crate::hosts::locate(session.pid).map(|l| l.host.display_name());
+        println!("host {host:?}");
+    }
 }
