@@ -38,6 +38,11 @@ enum AgentHookInstaller {
     /// only heard: the hook answers nothing, so Devin asks in its terminal.
     static let devinEvents = ["SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse",
                               "PermissionRequest", "Stop"]
+    /// Google Antigravity's lifecycle hooks (its hooks.json guide). It has no
+    /// session or prompt hooks: a turn is heard from the model's invocations.
+    static let antigravityEvents = ["PreInvocation", "PreToolUse", "PostToolUse", "PostInvocation", "Stop"]
+    /// Antigravity's tool hooks sit in groups with a matcher; the rest are flat.
+    static let antigravityToolEvents: Set<String> = ["PreToolUse", "PostToolUse"]
 
     typealias Failure = ClaudeHookInstaller.Failure
 
@@ -100,6 +105,9 @@ enum AgentHookInstaller {
         return config.appending(path: "devin/config.json")
     }
 
+    /// Antigravity's global hooks, read by its app, its IDE and `agy` alike.
+    static func antigravityHooks(home: URL) -> URL { home.appending(path: ".gemini/config/hooks.json") }
+
     /// The folder whose presence says the agent was used on this Mac.
     static func agentFolder(_ provider: ClaudeSessionProvider, home: URL,
                             environment: [String: String] = ProcessInfo.processInfo.environment) -> URL? {
@@ -111,13 +119,15 @@ enum AgentHookInstaller {
         case .pi: return piFolder(home: home, environment: environment)
         case .vibe: return vibeFolder(home: home, environment: environment)
         case .devin: return devinConfig(home: home, environment: environment).deletingLastPathComponent()
+        case .antigravity: return antigravityHooks(home: home).deletingLastPathComponent()
         case .claude, .codex: return nil
         }
     }
 
     /// Whether the agent is installed: its command on the login shell's
-    /// `PATH` or where its installers put it, or, for Cursor and OpenCode,
-    /// their app; for Pi, its command and the folder Pi makes on first run.
+    /// `PATH` or where its installers put it, or, for Cursor, OpenCode and
+    /// Google Antigravity, their app; for Pi, its command and the folder Pi
+    /// makes on first run.
     /// A folder like `~/.gemini` or `~/.copilot` is not enough: other apps
     /// (Antigravity, VS Code) make those too.
     static func isPresent(_ provider: ClaudeSessionProvider, home: URL, path: String?,
@@ -131,6 +141,7 @@ enum AgentHookInstaller {
         switch provider {
         case .cursor: apps = ["Cursor.app"]
         case .opencode: apps = ["OpenCode.app"]
+        case .antigravity: apps = ["Antigravity.app", "Antigravity IDE.app"]
         default: apps = []
         }
         return apps.contains { app in ["/Applications", home.appending(path: "Applications").path].contains { exists("\($0)/\(app)") } }
@@ -159,11 +170,26 @@ enum AgentHookInstaller {
 
     static func marker(bundle: String) -> String { ClaudeHookInstaller.marker(bundle: bundle) }
 
+    /// What Antigravity reads from the island's hook. It refuses a tool call
+    /// whose `PreToolUse` hook prints nothing, `{}`, fails or runs out of
+    /// time, so that hook hands every call back to Antigravity's own check
+    /// (`ask`, which keeps its grants and Always Allow); the others print an
+    /// empty answer, which asks nothing of Antigravity.
+    static func antigravityAnswer(_ event: String) -> String {
+        event == "PreToolUse" ? #"{"decision":"ask"}"# : "{}"
+    }
+
     /// The hook for one event: the agent's input inside the island's envelope,
     /// with the process that ran the hook as a hint of the agent's.
     static func command(_ provider: ClaudeSessionProvider, event: String, socket: String, bundle: String) -> String {
         let quoted = "'" + socket.replacingOccurrences(of: "'", with: "'\\''") + "'"
         let head = "{\"\(AgentHookMessage.key)\":\"\(provider.rawValue)\",\"hook\":\"\(event)\",\"pid\":%d,\"event\":"
+        if provider == .antigravity {
+            // The answer goes out first, whatever the island does, and the
+            // island gets at most two seconds: Antigravity waits on its hooks.
+            return "printf '\(antigravityAnswer(event))'; { printf '\(head)' \"$PPID\"; cat; printf '}'; } "
+                + "| /usr/bin/nc -w 2 -U \(quoted) >/dev/null 2>&1; exit 0 \(marker(bundle: bundle))"
+        }
         var command = "{ printf '\(head)' \"$PPID\"; cat; printf '}'; } | /usr/bin/nc -U \(quoted) 2>/dev/null"
         if provider == .cursor, cursorContinues.contains(event) { command += "; printf '{\"continue\":true}'" }
         return command + "; exit 0 \(marker(bundle: bundle))"
@@ -318,6 +344,13 @@ enum AgentHookInstaller {
                     return .installed
                 }
                 return ClaudeHookInstaller.hasAny(in: settings, bundle: bundle) ? .outdated : .missing
+            case .antigravity:
+                let settings = try ClaudeHookInstaller.read(antigravityHooks(home: home))
+                if let own = settings[ownName(bundle)] as? [String: Any],
+                   NSDictionary(dictionary: own).isEqual(to: antigravityEntry(socket: socket, bundle: bundle)) {
+                    return .installed
+                }
+                return antigravityRemoving(from: settings, bundle: bundle).count != settings.count ? .outdated : .missing
             case .claude, .codex:
                 return .missing
             }
@@ -370,6 +403,12 @@ enum AgentHookInstaller {
                 if settings["version"] == nil { settings["version"] = 1 }
                 return settings
             }
+        case .antigravity:
+            try ClaudeHookInstaller.update(antigravityHooks(home: home)) { settings in
+                var settings = antigravityRemoving(from: settings, bundle: bundle)
+                settings[ownName(bundle)] = antigravityEntry(socket: socket, bundle: bundle)
+                return settings
+            }
         case .claude, .codex:
             break
         }
@@ -399,6 +438,10 @@ enum AgentHookInstaller {
             let url = devinConfig(home: home)
             guard try ClaudeHookInstaller.contents(url) != nil else { return }
             try ClaudeHookInstaller.update(url) { ClaudeHookInstaller.removing(from: $0, bundle: bundle) }
+        case .antigravity:
+            let url = antigravityHooks(home: home)
+            guard try ClaudeHookInstaller.contents(url) != nil else { return }
+            try ClaudeHookInstaller.update(url) { antigravityRemoving(from: $0, bundle: bundle) }
         case .claude, .codex:
             break
         }
@@ -429,6 +472,35 @@ enum AgentHookInstaller {
         }
         settings["hooks"] = hooks
         return settings
+    }
+
+    // MARK: Antigravity's named hooks
+
+    /// The island's named hook in Antigravity's hooks.json: every event's
+    /// command, the tool events in a group matching every tool.
+    static func antigravityEntry(socket: String, bundle: String) -> [String: Any] {
+        var entry: [String: Any] = [:]
+        for event in antigravityEvents {
+            let handler: [String: Any] = ["type": "command", "timeout": eventTimeout,
+                                          "command": command(.antigravity, event: event, socket: socket, bundle: bundle)]
+            entry[event] = antigravityToolEvents.contains(event) ? [["matcher": "*", "hooks": [handler]]] : [handler]
+        }
+        return entry
+    }
+
+    /// The hooks.json without the island's named hooks: every top-level
+    /// entry one of whose commands carries the marker, whatever it is called.
+    static func antigravityRemoving(from settings: [String: Any], bundle: String) -> [String: Any] {
+        let marker = marker(bundle: bundle)
+        func carries(_ value: Any) -> Bool {
+            if let object = value as? [String: Any] {
+                if (object["command"] as? String)?.contains(marker) == true { return true }
+                return object.values.contains(where: carries)
+            }
+            if let list = value as? [Any] { return list.contains(where: carries) }
+            return false
+        }
+        return settings.filter { !carries($0.value) }
     }
 
     // MARK: Cursor's list

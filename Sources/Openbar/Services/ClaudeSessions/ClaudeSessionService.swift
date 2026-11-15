@@ -1052,7 +1052,8 @@ final class ClaudeSessionService: ObservableObject {
         publish(now: now)
     }
 
-    /// One event of Gemini CLI, Copilot CLI, Cursor or OpenCode, on the queue.
+    /// One event of a hook agent (Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi,
+    /// Mistral Vibe, Devin CLI, Google Antigravity), on the queue.
     private func receiveAgent(_ payload: Data, from connection: ClaudeHookServer.Connection, at now: Date) {
         guard let decoded = AgentHookMessage.decode(payload, now: now, policy: engine.policy),
               shownAgents.contains(decoded.provider) else { return connection.finish() }
@@ -1084,6 +1085,18 @@ final class ClaudeSessionService: ObservableObject {
             if event.provider == .vibe, engine.policy.previews, case .stopped(nil, let failed) = kind,
                let folder = decoded.transcript {
                 kind = .stopped(lastText: AgentVibeLog.lastReply(in: folder), failed: failed)
+            }
+            // Antigravity has no prompt hook: the first invocation of a turn
+            // opens it, and with previews its transcript tells the prompt and,
+            // at the end, the reply.
+            if event.provider == .antigravity {
+                let previews = engine.policy.previews
+                if case .working = kind, hookAgents.entry(event.id)?.turnOpen != true {
+                    kind = .prompt(previews ? decoded.transcript.flatMap(AgentAntigravityLog.lastPrompt) : nil)
+                }
+                if previews, case .stopped(nil, let failed) = kind, let path = decoded.transcript {
+                    kind = .stopped(lastText: AgentAntigravityLog.lastReply(in: path), failed: failed)
+                }
             }
             let placed = AgentHookEvent(provider: event.provider, sessionID: event.sessionID, pid: agent,
                                         cwd: cwd, date: event.date, kind: kind)

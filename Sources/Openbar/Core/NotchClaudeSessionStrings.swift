@@ -284,7 +284,9 @@ struct NotchClaudeSessionStrings {
 
     /// The reply field of a session replies can't reach.
     func replyUnavailable(for session: ClaudeSession) -> String {
-        if session.provider == .cursor { return String(format: replyInAgentFormat, session.provider.displayName) }
+        if session.provider == .cursor || session.provider == .antigravity {
+            return String(format: replyInAgentFormat, session.provider.displayName)
+        }
         return replyUnavailable(for: session.host)
     }
 
@@ -297,6 +299,7 @@ struct NotchClaudeSessionStrings {
         case .pi: return agentHintPi
         case .vibe: return agentHintVibe
         case .devin: return agentHintDevin
+        case .antigravity: return agentHintAntigravity
         case .claude, .codex: return ""
         }
     }
@@ -620,6 +623,9 @@ extension NotchClaudeSessionStrings {
     }
     var agentHintDevin: String {
         "Hooks in ~/.config/devin/config.json, next to your own. Sessions show what runs and when Devin CLI waits on you; you answer its permission prompts in the terminal, and replies are typed there."
+    }
+    var agentHintAntigravity: String {
+        "Hooks in ~/.gemini/config/hooks.json, next to your own, for Antigravity’s app, its IDE and agy. Sessions show what its agent runs; approvals stay in Antigravity, and Open takes you there."
     }
 }
 

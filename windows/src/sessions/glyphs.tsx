@@ -141,10 +141,10 @@ const markClass = (working?: boolean, className?: string) =>
   `agent-mark${working ? " is-working" : ""}${className ? ` ${className}` : ""}`;
 
 // The makers' marks of Gemini CLI, GitHub Copilot, OpenCode, Cursor, Pi,
-// Mistral Vibe and Devin CLI
+// Mistral Vibe, Devin CLI and Google Antigravity
 // (NotchHookAgentMarks.swift), from @lobehub/icons-static-svg (MIT). Gemini
-// CLI's keeps its gradient; the others are one color, as their makers show
-// them on dark.
+// CLI's keeps its gradient and Antigravity's arch Google's four colors
+// across it; the others are one color, as their makers show them on dark.
 export const GEMINI_SQUARE =
   "M0 4.391A4.391 4.391 0 014.391 0h15.217A4.391 4.391 0 0124 4.391v15.217A4.391 4.391 0 0119.608 24H4.391A4.391 4.391 0 010 19.608V4.391z";
 export const GEMINI_FACE =
@@ -154,6 +154,8 @@ export const COPILOT_PATH =
 export const OPENCODE_PATH = "M16 6H8v12h8V6zm4 16H4V2h16v20z";
 export const CURSOR_PATH =
   "M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z";
+export const ANTIGRAVITY_PATH =
+  "M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z";
 /** How the one-color marks show on the island's black. */
 export const MONO_MARK = "#F0F0F0";
 
@@ -179,6 +181,33 @@ export function GeminiMark({ size = 14, style, className, working }: MarkProps) 
       </defs>
       <path d={GEMINI_SQUARE} fill={`url(#${id})`} />
       <path d={GEMINI_FACE} fill="#1E1E2E" fillRule="evenodd" clipRule="evenodd" />
+    </svg>
+  );
+}
+
+/** Google Antigravity's arch: its colored mark blurs Google's green, yellow,
+ * red and blue over it, and a gradient across it keeps them in that order. */
+export function AntigravityMark({ size = 14, style, className, working }: MarkProps) {
+  useLocale();
+  const id = useId();
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      style={style}
+      className={markClass(working, className)}
+      aria-hidden
+    >
+      <defs>
+        <linearGradient id={id} gradientUnits="userSpaceOnUse" x1="0" x2="24" y1="4" y2="20">
+          <stop stopColor="#00B95C" />
+          <stop offset=".38" stopColor="#FFE432" />
+          <stop offset=".62" stopColor="#FC413D" />
+          <stop offset="1" stopColor="#3186FF" />
+        </linearGradient>
+      </defs>
+      <path d={ANTIGRAVITY_PATH} fill={`url(#${id})`} fillRule="evenodd" />
     </svg>
   );
 }
@@ -280,6 +309,7 @@ export const MARK_SCALE: Readonly<Record<Provider, number>> = {
   pi: 1.15,
   vibe: 1.15,
   devin: 1.15,
+  antigravity: 1.15,
 };
 
 const MARKS: Readonly<Record<Provider, (props: MarkProps) => ReturnType<typeof ClaudeMark>>> = {
@@ -292,6 +322,7 @@ const MARKS: Readonly<Record<Provider, (props: MarkProps) => ReturnType<typeof C
   pi: PiMark,
   vibe: VibeMark,
   devin: DevinMark,
+  antigravity: AntigravityMark,
 };
 
 /** The mark of an agent, to draw as a component. */

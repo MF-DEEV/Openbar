@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-//! Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi, Mistral Vibe and Devin CLI
-//! in the Sessions list (AgentHookMessage.swift, AgentHookSessions.swift,
+//! Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi, Mistral Vibe, Devin CLI and
+//! Google Antigravity in the Sessions list (AgentHookMessage.swift, AgentHookSessions.swift,
 //! AgentHookInstaller.swift, AgentHookSupport.swift).
 //! The hook the island installs is this app run with `--hook --agent <name>
 //! --event <hook>`, which wraps what the agent hands it in an envelope:
@@ -11,8 +11,9 @@
 //!
 //! OpenCode's plugin and Pi's extension write the same envelope with an
 //! event of their own making. None of these agents keeps a registry, so a session is listed from
-//! its first event until it ends, its process quits, or (for Cursor's app,
-//! whose process outlives its conversations) it has been quiet a while.
+//! its first event until it ends, its process quits, or (for Cursor's app and
+//! Antigravity's language server, whose process outlives its conversations)
+//! it has been quiet a while.
 
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
@@ -31,13 +32,14 @@ pub const KEY: &str = "openbar";
 pub const ANSWER_IN_TERMINAL: &str = super::codex::state::ANSWER_IN_TERMINAL;
 /// How long an unread finished turn stays marked, as for Claude Code.
 pub const FINISHED_FOR: Time = 10.0 * 60.0;
-/// A Cursor conversation nothing was heard from for this long leaves the list.
+/// A Cursor or Antigravity conversation nothing was heard from for this long
+/// leaves the list.
 pub const QUIET_FOR: Time = 30.0 * 60.0;
 const TIMELINE_LENGTH: usize = 12;
 const CHAT_LENGTH: usize = 40;
 
 impl Provider {
-    pub const HOOK_AGENTS: [Provider; 7] = [
+    pub const HOOK_AGENTS: [Provider; 8] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -45,6 +47,7 @@ impl Provider {
         Provider::Pi,
         Provider::Vibe,
         Provider::Devin,
+        Provider::Antigravity,
     ];
 
     pub fn reports_through_hooks(self) -> bool {
@@ -52,8 +55,9 @@ impl Provider {
     }
 
     /// Gemini CLI's, Copilot CLI's and Mistral Vibe's hooks only hear of a
-    /// prompt, Cursor keeps its approvals, Pi asks none of its own and Devin
-    /// CLI's stay in Devin; the person answers those in the agent.
+    /// prompt, Cursor keeps its approvals, Pi asks none of its own, Devin
+    /// CLI's stay in Devin and Google Antigravity's hook can't approve a call;
+    /// the person answers those in the agent.
     pub fn answers_permissions(self) -> bool {
         matches!(
             self,
@@ -72,6 +76,7 @@ impl Provider {
             Provider::Pi => "pi",
             Provider::Vibe => "vibe",
             Provider::Devin => "devin",
+            Provider::Antigravity => "antigravity",
         }
     }
 
@@ -92,6 +97,7 @@ impl Provider {
             Provider::Pi,
             Provider::Vibe,
             Provider::Devin,
+            Provider::Antigravity,
         ]
         .into_iter()
         .find(|p| p.key() == key)
@@ -162,7 +168,8 @@ pub struct Decoded {
     pub permission: Option<(String, String)>,
     /// OpenCode's plugin or Pi's extension listening for replies the person types here.
     pub listens: bool,
-    /// The folder of the session's own log, where the agent names one (Vibe).
+    /// The session's own log, where the agent names one: Vibe's folder,
+    /// Antigravity's transcript.
     pub transcript: Option<String>,
     pub provider: Option<Provider>,
     pub pid: i32,
@@ -225,6 +232,10 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
             decoded.transcript = text(event, "transcript_path");
         }
         Provider::Devin => decoded.events = devin(&hook, event, pid, now, policy),
+        Provider::Antigravity => {
+            decoded.events = antigravity(&hook, event, pid, now, policy);
+            decoded.transcript = text(event, "transcriptPath");
+        }
         Provider::Claude | Provider::Codex => return None,
     }
     Some(decoded)
@@ -753,6 +764,168 @@ pub fn is_devin_process(name: &str) -> bool {
     name == "devin" || name.starts_with("devin-") || name.starts_with("devin.")
 }
 
+// MARK: Google Antigravity
+
+/// Google Antigravity's lifecycle hooks (the hooks.json guide its language
+/// server carries), the same in its app, its IDE and `agy`. The input is
+/// camelCase, a session is a conversation, and there is no hook for a prompt
+/// or a permission: a model invocation opens the turn, `Stop` ends it, and
+/// approvals are asked and answered in Antigravity.
+fn antigravity(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+) -> Vec<AgentEvent> {
+    let Some(session) = text(json, "conversationId") else {
+        return vec![];
+    };
+    let cwd = json
+        .get("workspacePaths")
+        .and_then(Value::as_array)
+        .and_then(|paths| {
+            paths
+                .iter()
+                .filter_map(Value::as_str)
+                .find(|p| !p.is_empty())
+        })
+        .map(str::to_owned);
+    let mut events = Vec::new();
+    let mut add = |kind| {
+        events.push(AgentEvent {
+            provider: Provider::Antigravity,
+            session_id: session.clone(),
+            pid,
+            cwd: cwd.clone(),
+            date: now,
+            kind,
+        })
+    };
+    if let Some(model) = text(json, "modelName").filter(|m| !m.eq_ignore_ascii_case("auto")) {
+        add(Kind::Model(model));
+    }
+    // A tool's hooks share the step it runs as, which ties the two together.
+    let step = json
+        .get("stepIdx")
+        .and_then(Value::as_i64)
+        .map(|i| format!("step-{i}"));
+    match hook {
+        "PreInvocation" => add(Kind::Working),
+        "PreToolUse" => {
+            let call = json.get("toolCall");
+            let tool = name(
+                Provider::Antigravity,
+                str_of(call.and_then(|c| c.get("name"))).unwrap_or(""),
+            );
+            let input = antigravity_input(&arguments(call.and_then(|c| c.get("args"))));
+            let mut use_ = tool_use(&tool, &input, now, policy);
+            if let Some(step) = step {
+                use_.id = step;
+            }
+            add(Kind::ToolStarted(use_));
+        }
+        "PostToolUse" => add(Kind::ToolFinished {
+            id: step,
+            name: String::new(),
+            input_key: None,
+            failed: text(json, "error").is_some(),
+            started: None,
+        }),
+        "Stop" => add(Kind::Stopped {
+            last_text: None,
+            failed: str_of(json.get("terminationReason")) == Some("error")
+                || text(json, "error").is_some(),
+        }),
+        _ => {}
+    }
+    events
+}
+
+/// Antigravity's tool arguments under the names Claude Code gives them, so
+/// they are summed up alike; its own one-line summary, when it wrote one,
+/// comes last.
+pub fn antigravity_input(args: &Map<String, Value>) -> Map<String, Value> {
+    let mut input = args.clone();
+    for (from, to) in [
+        ("CommandLine", "command"),
+        ("AbsolutePath", "file_path"),
+        ("TargetFile", "file_path"),
+        ("Query", "pattern"),
+        ("Pattern", "pattern"),
+        ("SearchPath", "path"),
+        ("DirectoryPath", "path"),
+        ("SearchDirectory", "path"),
+        ("Url", "url"),
+        ("toolSummary", "description"),
+    ] {
+        if !input.contains_key(to)
+            && let Some(value) = args.get(from)
+        {
+            input.insert(to.to_owned(), value.clone());
+        }
+    }
+    input
+}
+
+/// The person's prompt and the agent's last reply in an Antigravity
+/// conversation, read from the end of the transcript its hooks name, since
+/// the hooks carry neither: `USER_INPUT` steps hold the prompt,
+/// `PLANNER_RESPONSE` the model's text (AgentAntigravityLog in
+/// AgentHookSupport.swift). Read only with previews on.
+pub fn antigravity_last_prompt(path: &Path) -> Option<String> {
+    antigravity_last(path, "USER_INPUT")
+        .map(|text| antigravity_unwrapped(&text).to_owned())
+        .and_then(|text| preview(Some(&text), REPLY_LIMIT))
+}
+
+pub fn antigravity_last_reply(path: &Path) -> Option<String> {
+    antigravity_last(path, "PLANNER_RESPONSE").and_then(|text| preview(Some(&text), REPLY_LIMIT))
+}
+
+fn antigravity_last(path: &Path, kind: &str) -> Option<String> {
+    use std::io::{Read, Seek, SeekFrom};
+    const TAIL: u64 = 1024 * 1024;
+    if path.file_name().and_then(|n| n.to_str()) != Some("transcript.jsonl") {
+        return None;
+    }
+    let mut file = std::fs::File::open(path).ok()?;
+    let size = file.metadata().ok()?.len();
+    let start = size.saturating_sub(TAIL);
+    file.seek(SeekFrom::Start(start)).ok()?;
+    let mut data = Vec::new();
+    file.read_to_end(&mut data).ok()?;
+    // A cut first line is not a step.
+    if start > 0
+        && let Some(newline) = data.iter().position(|b| *b == b'\n')
+    {
+        data.drain(..=newline);
+    }
+    antigravity_last_in(&data, kind)
+}
+
+pub fn antigravity_last_in(data: &[u8], kind: &str) -> Option<String> {
+    data.split(|b| *b == b'\n').rev().find_map(|line| {
+        let step: Value = serde_json::from_slice(line).ok()?;
+        if str_of(step.get("type")) != Some(kind) {
+            return None;
+        }
+        str_of(step.get("content"))
+            .filter(|c| !c.trim().is_empty())
+            .map(str::to_owned)
+    })
+}
+
+/// The prompt without the tags Antigravity may wrap it in.
+pub fn antigravity_unwrapped(text: &str) -> &str {
+    match (text.find("<USER_REQUEST>"), text.find("</USER_REQUEST>")) {
+        (Some(open), Some(close)) if open + "<USER_REQUEST>".len() <= close => {
+            &text[open + "<USER_REQUEST>".len()..close]
+        }
+        _ => text,
+    }
+}
+
 /// The last reply of a Mistral Vibe session, read from its own log, since
 /// its hooks carry none: the newest JSON chunk under `chunks/` that holds
 /// history ends on the latest messages (AgentVibeLog in AgentHookSupport.swift).
@@ -1113,6 +1286,22 @@ pub fn name(provider: Provider, tool: &str) -> String {
             ("notebook_edit", "Edit"),
             ("exit_plan_mode", "ExitPlanMode"),
         ],
+        Provider::Antigravity => &[
+            ("run_command", "Bash"),
+            ("command_status", "Bash"),
+            ("send_command_input", "Bash"),
+            ("view_file", "Read"),
+            ("view_file_outline", "Read"),
+            ("view_code_item", "Read"),
+            ("write_to_file", "Write"),
+            ("replace_file_content", "Edit"),
+            ("multi_replace_file_content", "Edit"),
+            ("grep_search", "Grep"),
+            ("find_by_name", "Glob"),
+            ("list_dir", "LS"),
+            ("read_url_content", "WebFetch"),
+            ("search_web", "WebSearch"),
+        ],
         Provider::Claude | Provider::Codex => &[],
     };
     if let Some((_, name)) = known.iter().find(|(k, _)| *k == tool) {
@@ -1218,6 +1407,11 @@ impl Entry {
             chat: Vec::new(),
             usage: BTreeMap::new(),
         }
+    }
+
+    /// Whether a turn is under way, as its first event opened it.
+    pub fn turn_open(&self) -> bool {
+        self.turn_open
     }
 
     fn open_tool(&self) -> Option<&ToolUse> {
@@ -1488,14 +1682,15 @@ impl Tracker {
         }
     }
 
-    /// Drops sessions whose process is gone, and Cursor conversations long quiet.
+    /// Drops sessions whose process is gone, and Cursor and Antigravity
+    /// conversations long quiet.
     pub fn prune(&mut self, now: Time, alive: impl Fn(i32) -> bool) {
         let gone: Vec<String> = self
             .entries
             .iter()
             .filter(|(_, e)| {
                 (e.pid > 0 && !alive(e.pid))
-                    || (e.provider == Provider::Cursor
+                    || (matches!(e.provider, Provider::Cursor | Provider::Antigravity)
                         && !e.turn_open
                         && e.permission.is_none()
                         && now - e.heard > QUIET_FOR)
@@ -1732,12 +1927,13 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
         Provider::Pi => Some("pi"),
         Provider::Vibe => Some("vibe"),
         Provider::Devin => Some("devin"),
+        Provider::Antigravity => Some("agy"),
         Provider::Claude | Provider::Codex => None,
     }
 }
 
 /// The arguments that open the agent's terminal UI with a first prompt
-/// already sent: `gemini -i`, `copilot -i`, `opencode --prompt`, `devin --`,
+/// already sent: `gemini -i`, `copilot -i`, `agy -i`, `opencode --prompt`, `devin --`,
 /// and `cursor-agent`, `pi` and `vibe` take it as it is (AgentCLI in
 /// ClaudeBackgroundSessions.swift).
 pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
@@ -1746,7 +1942,9 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
         return Vec::new();
     }
     match provider {
-        Provider::Gemini | Provider::Copilot => vec!["-i".into(), prompt.into()],
+        Provider::Gemini | Provider::Copilot | Provider::Antigravity => {
+            vec!["-i".into(), prompt.into()]
+        }
         Provider::Opencode => vec!["--prompt".into(), prompt.into()],
         Provider::Cursor | Provider::Pi | Provider::Vibe => vec![prompt.into()],
         Provider::Devin => vec!["--".into(), prompt.into()],
@@ -1795,11 +1993,12 @@ pub fn read_branch(folder: &str) -> Option<String> {
 // MARK: Installing
 
 pub mod installer {
-    //! Puts the island's hooks into Gemini CLI, Copilot CLI and Cursor, and
-    //! its plugin into OpenCode, only when the person presses Install. Gemini's
-    //! settings and Cursor's hooks.json keep the island's entries beside the
-    //! person's own, copied aside first; Copilot and OpenCode read a folder,
-    //! where the island writes a file of its own.
+    //! Puts the island's hooks into Gemini CLI, Copilot CLI, Cursor, Mistral
+    //! Vibe, Devin CLI and Google Antigravity, and its plugin into OpenCode
+    //! and Pi, only when the person presses Install. A file of the agent's
+    //! keeps the island's entries beside the person's own, copied aside
+    //! first; Copilot, OpenCode and Pi read a folder, where the island writes
+    //! a file of its own.
 
     use super::*;
     use crate::hooks::installer as claude;
@@ -1859,6 +2058,18 @@ pub mod installer {
         "PermissionRequest",
         "Stop",
     ];
+
+    /// Google Antigravity's lifecycle hooks (its hooks.json guide). It has no
+    /// session or prompt hooks: a turn is heard from the model's invocations.
+    pub const ANTIGRAVITY_EVENTS: [&str; 5] = [
+        "PreInvocation",
+        "PreToolUse",
+        "PostToolUse",
+        "PostInvocation",
+        "Stop",
+    ];
+    /// Antigravity's tool hooks sit in groups with a matcher; the rest are flat.
+    pub const ANTIGRAVITY_TOOL_EVENTS: [&str; 2] = ["PreToolUse", "PostToolUse"];
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -1941,8 +2152,36 @@ pub mod installer {
             .join("config.json")
     }
 
+    /// Antigravity's global hooks, read by its app, its IDE and `agy` alike,
+    /// in the same place on every system.
+    pub fn antigravity_hooks(home: &Path) -> PathBuf {
+        home.join(".gemini").join("config").join("hooks.json")
+    }
+
+    /// Where Antigravity's app and IDE are put: the per-user installs on
+    /// Windows, the packages' folders on Linux.
+    fn antigravity_apps(home: &Path) -> Vec<PathBuf> {
+        if cfg!(windows) {
+            let local = std::env::var_os("LOCALAPPDATA")
+                .map(PathBuf::from)
+                .unwrap_or_else(|| home.join("AppData").join("Local"))
+                .join("Programs");
+            vec![
+                local.join("Antigravity").join("Antigravity.exe"),
+                local.join("Antigravity IDE").join("Antigravity IDE.exe"),
+            ]
+        } else {
+            vec![
+                PathBuf::from("/usr/share/antigravity/antigravity"),
+                PathBuf::from("/usr/share/antigravity-ide/antigravity-ide"),
+                PathBuf::from("/opt/Antigravity/antigravity"),
+                PathBuf::from("/opt/Antigravity IDE/antigravity-ide"),
+            ]
+        }
+    }
+
     /// Whether the agent is installed: its command (as New session finds
-    /// it), or Cursor's app; for Pi, its command and the folder Pi makes on
+    /// it), or Cursor's or Antigravity's app; for Pi, its command and the folder Pi makes on
     /// first run, since other tools take the name `pi` too. A folder like
     /// `.gemini` or `.copilot` is not enough: other apps make those too.
     pub fn is_present(provider: Provider, home: &Path) -> bool {
@@ -1951,6 +2190,9 @@ pub mod installer {
             .is_some()
         {
             return provider != Provider::Pi || home.join(".pi").join("agent").is_dir();
+        }
+        if provider == Provider::Antigravity {
+            return antigravity_apps(home).iter().any(|p| p.is_file());
         }
         provider == Provider::Cursor
             && std::env::var_os("LOCALAPPDATA")
@@ -2015,6 +2257,79 @@ pub mod installer {
             provider.key(),
             claude::marker(app)
         )
+    }
+
+    /// The hook for Google Antigravity, which runs it with `cmd /c` on
+    /// Windows and `sh -c` elsewhere: the portable form there, and the path
+    /// in single quotes here. The app itself prints Antigravity's answer
+    /// (hooks::transport::fixed_answer).
+    pub fn antigravity_command(event: &str, exe: &Path, app: &str) -> String {
+        if cfg!(windows) {
+            return portable_command(Provider::Antigravity, event, exe, app);
+        }
+        let path = exe.to_string_lossy().replace('\'', "'\\''");
+        format!(
+            "'{path}' --hook --agent {} --event {event} {}",
+            Provider::Antigravity.key(),
+            claude::marker(app)
+        )
+    }
+
+    /// The island's named hook in Antigravity's hooks.json: every event's
+    /// command, the tool events in a group matching every tool.
+    pub fn antigravity_entry(exe: &Path, app: &str) -> Value {
+        let mut entry = Map::new();
+        for event in ANTIGRAVITY_EVENTS {
+            let handler = json!({
+                "type": "command",
+                "timeout": EVENT_TIMEOUT,
+                "command": antigravity_command(event, exe, app),
+            });
+            let value = if ANTIGRAVITY_TOOL_EVENTS.contains(&event) {
+                json!([{ "matcher": "*", "hooks": [handler] }])
+            } else {
+                json!([handler])
+            };
+            entry.insert(event.to_owned(), value);
+        }
+        Value::Object(entry)
+    }
+
+    /// The hooks.json without the island's named hooks: every top-level
+    /// entry one of whose commands carries the marker, whatever it is called.
+    pub fn antigravity_removing(settings: &Value, app: &str) -> Value {
+        fn carries(value: &Value, marker: &str) -> bool {
+            match value {
+                Value::Object(object) => {
+                    object
+                        .get("command")
+                        .and_then(Value::as_str)
+                        .is_some_and(|c| c.contains(marker))
+                        || object.values().any(|v| carries(v, marker))
+                }
+                Value::Array(list) => list.iter().any(|v| carries(v, marker)),
+                _ => false,
+            }
+        }
+        let marker = claude::marker(app);
+        match settings {
+            Value::Object(object) => Value::Object(
+                object
+                    .iter()
+                    .filter(|(_, v)| !carries(v, &marker))
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect(),
+            ),
+            _ => json!({}),
+        }
+    }
+
+    pub fn antigravity_installing(settings: &Value, exe: &Path, app: &str) -> Value {
+        let mut settings = antigravity_removing(settings, app);
+        if let Some(object) = settings.as_object_mut() {
+            object.insert(own_name(app), antigravity_entry(exe, app));
+        }
+        settings
     }
 
     /// The 8.3 form of a path, where Windows keeps one.
@@ -2372,6 +2687,14 @@ pub mod installer {
                 Ok(_) => State::Missing,
                 Err(_) => State::Unreadable,
             },
+            Provider::Antigravity => match read(&antigravity_hooks(home)) {
+                Ok(s) if s.get(own_name(app)) == Some(&antigravity_entry(exe, app)) => {
+                    State::Installed
+                }
+                Ok(s) if antigravity_removing(&s, app) != s && s.is_object() => State::Outdated,
+                Ok(_) => State::Missing,
+                Err(_) => State::Unreadable,
+            },
             _ => State::Missing,
         }
     }
@@ -2449,6 +2772,10 @@ pub mod installer {
                 claude::update(&devin_config(home), |s| devin_installing(s, exe, app))
                     .map_err(|e| e.to_string())
             }
+            Provider::Antigravity => claude::update(&antigravity_hooks(home), |s| {
+                antigravity_installing(s, exe, app)
+            })
+            .map_err(|e| e.to_string()),
             _ => Ok(()),
         }
     }
@@ -2486,6 +2813,13 @@ pub mod installer {
                     return Ok(());
                 }
                 claude::update(&path, |s| claude::removing(s, app)).map_err(|e| e.to_string())
+            }
+            Provider::Antigravity => {
+                let path = antigravity_hooks(home);
+                if !path.exists() {
+                    return Ok(());
+                }
+                claude::update(&path, |s| antigravity_removing(s, app)).map_err(|e| e.to_string())
             }
             _ => Ok(()),
         }
@@ -3363,6 +3697,272 @@ mod tests {
             "github__create_issue"
         );
         assert_eq!(Provider::from_key("devin"), Some(Provider::Devin));
+    }
+
+    fn antigravity(hook: &str, extra: Value) -> Vec<u8> {
+        let mut event = json!({
+            "conversationId": "a1",
+            "workspacePaths": ["/w/rocket"],
+            "transcriptPath": "/h/.gemini/antigravity-ide/brain/a1/.system_generated/logs/transcript.jsonl",
+            "modelName": "Gemini 3.8 Flash",
+        });
+        for (key, value) in extra.as_object().unwrap() {
+            event[key] = value.clone();
+        }
+        envelope("antigravity", hook, event)
+    }
+
+    #[test]
+    fn an_antigravity_conversation_is_told_by_its_hooks() {
+        let mut t = Tracker::default();
+        let decoded = decode(&antigravity("PreInvocation", json!({})), NOW, ON).unwrap();
+        assert_eq!(decoded.provider, Some(Provider::Antigravity));
+        assert!(
+            decoded
+                .transcript
+                .unwrap()
+                .ends_with("logs/transcript.jsonl")
+        );
+        feed(
+            &mut t,
+            &antigravity("PreInvocation", json!({ "invocationNum": 1 })),
+            ON,
+        );
+        let (listed, _) = snap(&mut t, NOW, true);
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].id, "antigravity:a1");
+        assert_eq!(listed[0].provider, Provider::Antigravity);
+        assert_eq!(listed[0].phase, SessionPhase::Generating);
+        assert_eq!(listed[0].model.as_deref(), Some("Gemini 3.8 Flash"));
+        feed(
+            &mut t,
+            &antigravity(
+                "PreToolUse",
+                json!({ "stepIdx": 4, "toolCall": { "name": "run_command",
+                        "args": { "CommandLine": "npm test", "toolSummary": "Run tests" } } }),
+            ),
+            ON,
+        );
+        let (listed, _) = snap(&mut t, NOW, true);
+        assert_eq!(listed[0].phase, SessionPhase::RunningTool);
+        let tool = listed[0].current_tool.clone().unwrap();
+        assert_eq!(tool.name, "Bash");
+        assert_eq!(tool.summary.as_deref(), Some("npm test"));
+        feed(
+            &mut t,
+            &antigravity("PostToolUse", json!({ "stepIdx": 4 })),
+            ON,
+        );
+        feed(
+            &mut t,
+            &antigravity(
+                "PreToolUse",
+                json!({ "stepIdx": 5, "toolCall": { "name": "write_to_file",
+                        "args": { "TargetFile": "/w/rocket/src/a.ts" } } }),
+            ),
+            ON,
+        );
+        feed(
+            &mut t,
+            &antigravity("PostToolUse", json!({ "stepIdx": 5, "error": "denied" })),
+            ON,
+        );
+        let (listed, _) = snap(&mut t, NOW, true);
+        assert_eq!(listed[0].phase, SessionPhase::Generating);
+        assert_eq!(listed[0].timeline.len(), 2);
+        assert!(listed[0].timeline[0].finished.is_some() && !listed[0].timeline[0].failed);
+        assert_eq!(listed[0].timeline[1].name, "Write");
+        assert!(listed[0].timeline[1].failed);
+        feed(
+            &mut t,
+            &antigravity(
+                "Stop",
+                json!({ "terminationReason": "model_stop", "fullyIdle": true }),
+            ),
+            ON,
+        );
+        let (listed, _) = snap(&mut t, NOW, true);
+        assert_eq!(listed[0].phase, SessionPhase::Finished);
+        assert!(listed[0].permission.is_none());
+        assert!(!waits(&antigravity("PreToolUse", json!({}))));
+        // The model picker's "auto" names no model; no conversation, no session.
+        let auto = decode(
+            &antigravity("PreInvocation", json!({ "modelName": "auto" })),
+            NOW,
+            ON,
+        )
+        .unwrap();
+        assert!(!auto.events.iter().any(|e| matches!(e.kind, Kind::Model(_))));
+        let none = decode(
+            &envelope(
+                "antigravity",
+                "PreInvocation",
+                json!({ "workspacePaths": ["/w"] }),
+            ),
+            NOW,
+            ON,
+        )
+        .unwrap();
+        assert!(none.events.is_empty());
+        // Without previews a command line is not kept.
+        let quiet = decode(
+            &antigravity(
+                "PreToolUse",
+                json!({ "stepIdx": 1, "toolCall": { "name": "run_command", "args": { "CommandLine": "rm -rf x" } } }),
+            ),
+            NOW,
+            OFF,
+        )
+        .unwrap();
+        assert!(
+            quiet
+                .events
+                .iter()
+                .any(|e| matches!(&e.kind, Kind::ToolStarted(u) if u.summary.is_none()))
+        );
+        // Its language server outlives the conversation: a quiet one leaves.
+        t.prune(NOW + 60.0, |_| true);
+        assert_eq!(snap(&mut t, NOW, true).0.len(), 1);
+        t.prune(NOW + QUIET_FOR + 1.0, |_| true);
+        assert!(snap(&mut t, NOW, true).0.is_empty());
+    }
+
+    #[test]
+    fn antigravity_hooks_go_beside_the_persons_own_and_come_out_alone() {
+        let exe = Path::new("/opt/Openbar/openbar");
+        let own = json!({
+            "lint-checker": { "PostToolUse": [{ "matcher": "run_command", "hooks": [{ "type": "command", "command": "./lint.sh" }] }] },
+            "safety-gate": { "enabled": false, "PreToolUse": [{ "matcher": "run_command", "hooks": [{ "command": "./safety.sh" }] }] },
+        });
+        let installed = installer::antigravity_installing(&own, exe, "app");
+        let mine = &installed[installer::own_name("app")];
+        assert_eq!(installed["lint-checker"], own["lint-checker"]);
+        assert_eq!(installed["safety-gate"], own["safety-gate"]);
+        assert_eq!(
+            mine.as_object().unwrap().len(),
+            installer::ANTIGRAVITY_EVENTS.len()
+        );
+        assert_eq!(mine.pointer("/PreToolUse/0/matcher"), Some(&json!("*")));
+        assert_eq!(mine.pointer("/Stop/0/type"), Some(&json!("command")));
+        assert_eq!(installer::antigravity_removing(&installed, "app"), own);
+        // Another app's hook stays when this one's goes.
+        let both = installer::antigravity_installing(&installed, exe, "other");
+        assert_eq!(
+            installer::antigravity_removing(&both, "app")
+                .as_object()
+                .unwrap()
+                .len(),
+            3
+        );
+        let command = installer::antigravity_command("PreToolUse", exe, "app");
+        if cfg!(windows) {
+            assert!(
+                command.starts_with(
+                    "/opt/Openbar/openbar --hook --agent antigravity --event PreToolUse"
+                )
+            );
+        } else {
+            assert!(command.starts_with(
+                "'/opt/Openbar/openbar' --hook --agent antigravity --event PreToolUse"
+            ));
+            let spaced =
+                installer::antigravity_command("Stop", Path::new("/opt/My App/it's"), "app");
+            assert!(spaced.starts_with(r"'/opt/My App/it'\''s' --hook"));
+        }
+        assert!(command.contains(&crate::hooks::installer::marker("app")));
+        // State, from a file on disk.
+        let home = std::env::temp_dir().join(format!("ob-ag-{}", rand_id()));
+        let path = installer::antigravity_hooks(&home);
+        assert!(path.ends_with(".gemini/config/hooks.json"));
+        assert_eq!(
+            installer::state(Provider::Antigravity, &home, exe, "", "app"),
+            installer::State::Missing
+        );
+        installer::install(Provider::Antigravity, &home, exe, "", "app").unwrap();
+        assert_eq!(
+            installer::state(Provider::Antigravity, &home, exe, "", "app"),
+            installer::State::Installed
+        );
+        assert_eq!(
+            installer::state(
+                Provider::Antigravity,
+                &home,
+                Path::new("/elsewhere/openbar"),
+                "",
+                "app"
+            ),
+            installer::State::Outdated
+        );
+        installer::remove(Provider::Antigravity, &home, "app").unwrap();
+        assert_eq!(
+            installer::state(Provider::Antigravity, &home, exe, "", "app"),
+            installer::State::Missing
+        );
+        std::fs::write(&path, "{ not json").unwrap();
+        assert!(installer::install(Provider::Antigravity, &home, exe, "", "app").is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "{ not json");
+        assert_eq!(
+            installer::state(Provider::Antigravity, &home, exe, "", "app"),
+            installer::State::Unreadable
+        );
+        let _ = std::fs::remove_dir_all(&home);
+    }
+
+    #[test]
+    fn an_antigravity_transcript_gives_the_prompt_and_the_reply() {
+        let folder = std::env::temp_dir().join(format!("ob-ag-log-{}", rand_id()));
+        std::fs::create_dir_all(&folder).unwrap();
+        let log = folder.join("transcript.jsonl");
+        let lines = [
+            r#"{"type":"USER_INPUT","status":"DONE","content":"<USER_REQUEST>\nlist the files\n</USER_REQUEST>"}"#,
+            r#"{"type":"PLANNER_RESPONSE","status":"DONE","tool_calls":[{"name":"run_command"}]}"#,
+            r#"{"type":"PLANNER_RESPONSE","status":"DONE","content":"The folder holds a.txt."}"#,
+            "not json",
+        ];
+        std::fs::write(&log, lines.join("\n")).unwrap();
+        assert_eq!(
+            antigravity_last_prompt(&log).as_deref(),
+            Some("list the files")
+        );
+        assert_eq!(
+            antigravity_last_reply(&log).as_deref(),
+            Some("The folder holds a.txt.")
+        );
+        let other = folder.join("notes.jsonl");
+        std::fs::write(&other, lines.join("\n")).unwrap();
+        assert!(antigravity_last_reply(&other).is_none());
+        assert!(antigravity_last_reply(&folder.join("gone/transcript.jsonl")).is_none());
+        assert_eq!(antigravity_unwrapped("plain"), "plain");
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    #[test]
+    fn antigravity_is_named_and_started_with_its_prompt() {
+        assert_eq!(Provider::HOOK_AGENTS.last(), Some(&Provider::Antigravity));
+        assert!(!Provider::Antigravity.answers_permissions());
+        assert_eq!(
+            Provider::from_key("antigravity"),
+            Some(Provider::Antigravity)
+        );
+        assert_eq!(command_name(Provider::Antigravity), Some("agy"));
+        assert_eq!(start_arguments(Provider::Antigravity, "go"), ["-i", "go"]);
+        assert_eq!(name(Provider::Antigravity, "view_file"), "Read");
+        assert_eq!(
+            name(Provider::Antigravity, "browser_click"),
+            "Browser_click"
+        );
+        assert_eq!(
+            crate::hooks::transport::fixed_answer("antigravity", "PreToolUse"),
+            Some(r#"{"decision":"ask"}"#)
+        );
+        assert_eq!(
+            crate::hooks::transport::fixed_answer("antigravity", "Stop"),
+            Some("{}")
+        );
+        assert_eq!(
+            crate::hooks::transport::fixed_answer("gemini", "BeforeTool"),
+            None
+        );
     }
 
     #[test]

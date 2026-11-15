@@ -788,6 +788,7 @@ enum AgentCLI {
         case .pi: return "pi"
         case .vibe: return "vibe"
         case .devin: return "devin"
+        case .antigravity: return "agy"
         case .claude, .codex: return nil
         }
     }
@@ -804,12 +805,12 @@ enum AgentCLI {
     }
 
     /// The arguments that open the agent's terminal UI with a first prompt
-    /// already sent: `gemini -i`, `copilot -i`, `opencode --prompt`,
+    /// already sent: `gemini -i`, `copilot -i`, `agy -i`, `opencode --prompt`,
     /// `devin --`, and `cursor-agent`, `pi` and `vibe` take it as it is.
     static func startArguments(_ provider: ClaudeSessionProvider, prompt: String?) -> [String] {
         guard let prompt, !prompt.isEmpty else { return [] }
         switch provider {
-        case .gemini, .copilot: return ["-i", prompt]
+        case .gemini, .copilot, .antigravity: return ["-i", prompt]
         case .opencode: return ["--prompt", prompt]
         case .cursor, .pi, .vibe: return [prompt]
         case .devin: return ["--", prompt]

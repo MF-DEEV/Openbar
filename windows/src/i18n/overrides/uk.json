@@ -652,6 +652,7 @@
   "windows.settings.sessions.agentUnreadable": "Не вдалося прочитати його налаштування",
   "windows.settings.sessions.showAgent": "Показувати %@ у «Сесіях»",
   "windows.settings.sessions.agentHintGemini": "Хуки в .gemini\\settings.json, поруч із вашими. На запити дозволів Gemini CLI ви відповідаєте в його терміналі; відповіді вводяться там.",
+  "windows.settings.sessions.agentHintAntigravity": "Хуки в .gemini\\config\\hooks.json, поруч із вашими, для застосунку Antigravity, його IDE і agy. Підтвердження лишаються в Antigravity; «Відкрити» переносить вас туди.",
   "windows.settings.sessions.agentHintCopilot": "Власний файл хуків острова в .copilot\\hooks. На запити дозволів Copilot CLI ви відповідаєте в його терміналі; відповіді вводяться там.",
   "windows.settings.sessions.agentHintOpencode": "Власний плагін острова в .config\\opencode\\plugins. Дозволяйте або відхиляйте запити OpenCode й надсилайте відповіді просто з острова.",
   "windows.settings.sessions.agentHintCursor": "Хуки в .cursor\\hooks.json, поруч із вашими, для агента Cursor і cursor-agent. Підтвердження лишаються в Cursor; «Відкрити» переносить вас туди.",

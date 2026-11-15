@@ -369,7 +369,7 @@ enum MoreAgentHookTests {
         suite.expect(AgentCLI.startArguments(.devin, prompt: "go") == ["--", "go"] && AgentCLI.startArguments(.pi, prompt: "go") == ["go"]
                      && AgentCLI.startArguments(.vibe, prompt: "go") == ["go"] && AgentCLI.startArguments(.vibe, prompt: nil).isEmpty,
                      "New session hands each its first prompt")
-        suite.expect(ClaudeSessionProvider.hookAgents.suffix(3) == [.pi, .vibe, .devin]
+        suite.expect(Array(ClaudeSessionProvider.hookAgents[4..<7]) == [.pi, .vibe, .devin]
                      && [ClaudeSessionProvider.pi, .vibe, .devin].map(\.displayName) == ["Pi", "Mistral Vibe", "Devin CLI"]
                      && ![ClaudeSessionProvider.vibe, .devin].contains { $0.takesRepliesDirectly || $0.answersPermissions },
                      "the three are listed after the others; Vibe's and Devin's replies are typed into their terminal")

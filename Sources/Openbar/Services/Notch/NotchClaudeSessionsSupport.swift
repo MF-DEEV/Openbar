@@ -35,6 +35,7 @@ enum NotchClaudeSessionsSupport {
         case .pi: return DefaultsKey.notchSessionsAgentPi
         case .vibe: return DefaultsKey.notchSessionsAgentVibe
         case .devin: return DefaultsKey.notchSessionsAgentDevin
+        case .antigravity: return DefaultsKey.notchSessionsAgentAntigravity
         case .claude, .codex: return nil
         }
     }
@@ -257,11 +258,12 @@ enum NotchClaudeSessionsSupport {
     }
 
     /// Whether a reply could reach the session at all: through the agent's
-    /// own channel, or typed into the terminal it runs in. Cursor's app keeps
-    /// its chat in its own window, so only `cursor-agent` in a terminal takes one.
+    /// own channel, or typed into the terminal it runs in. Cursor's and
+    /// Antigravity's apps keep their chat in their own window, so only
+    /// `cursor-agent` and `agy` in a terminal take one.
     static func repliesReach(_ session: ClaudeSession) -> Bool {
         if session.provider.takesRepliesDirectly { return true }
-        if session.provider == .cursor {
+        if session.provider == .cursor || session.provider == .antigravity {
             switch session.host {
             case .ide, .app, .unknown, .background: return false
             default: break

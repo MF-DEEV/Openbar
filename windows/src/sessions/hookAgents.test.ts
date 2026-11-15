@@ -3,11 +3,11 @@
 
 import { describe, expect, it } from "vitest";
 import { characterOf, FAVOURED_SHELL } from "./clawd/costume";
-import { CLAUDE_TINT, GEMINI_TINT, OPENCODE_TINT, providerTint } from "./format";
+import { ANTIGRAVITY_TINT, CLAUDE_TINT, GEMINI_TINT, OPENCODE_TINT, providerTint } from "./format";
 import { MARK_SCALE, markOf } from "./glyphs";
 import { countItems, stripAgents } from "./SessionsStrip";
 import { S } from "./strings";
-import { HOOK_AGENTS, isHookAgent, PROVIDERS, workingOf, type Counts } from "./types";
+import { HOOK_AGENTS, isHookAgent, PROVIDER_NAMES, PROVIDERS, SHORT_NAMES, workingOf, type Counts } from "./types";
 
 const counts = (working: number, others: Partial<Counts> = {}): Counts => ({
   working,
@@ -20,7 +20,7 @@ const counts = (working: number, others: Partial<Counts> = {}): Counts => ({
 describe("Gemini CLI, Copilot CLI, OpenCode and Cursor in Sessions", () => {
   it("counts each agent's work apart, Claude's being what no other claims", () => {
     const c = counts(4, { workingGemini: 1, workingOpencode: 2 });
-    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0]);
+    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0, 0]);
     expect(workingOf(counts(1, { workingCursor: 5 }), "cursor")).toBe(1);
     expect(workingOf(counts(-1, { workingGemini: -3 }), "gemini")).toBe(0);
   });
@@ -59,7 +59,7 @@ describe("Pi, Mistral Vibe and Devin CLI in Sessions (#220)", () => {
     const c = counts(5, { workingPi: 1, workingVibe: 2, workingDevin: 1 });
     expect(["pi", "vibe", "devin"].map((p) => workingOf(c, p as never))).toEqual([1, 2, 1]);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.slice(-3)).toEqual(["pi", "vibe", "devin"]);
+    expect(HOOK_AGENTS.slice(4, 7)).toEqual(["pi", "vibe", "devin"]);
     expect(stripAgents(counts(2, { workingVibe: 1, workingDevin: 1 }))).toEqual(["vibe", "devin"]);
     expect(characterOf("pi")).toBe("pi");
     expect(characterOf("devin")).toBe("devin");
@@ -70,5 +70,24 @@ describe("Pi, Mistral Vibe and Devin CLI in Sessions (#220)", () => {
     expect(S.answerIn("vibe")).toBe("Answer this one in Mistral Vibe.");
     expect(S.answerIn("devin")).toBe("Answer this one in Devin CLI.");
     expect(S.replyPlaceholderFor("vibe")).toBe("Reply to Mistral Vibe…");
+  });
+});
+
+describe("Google Antigravity in Sessions (#247)", () => {
+  it("counts, names and draws it as itself", () => {
+    const c = counts(3, { workingAntigravity: 2 });
+    expect(workingOf(c, "antigravity")).toBe(2);
+    expect(workingOf(c, "claude")).toBe(1);
+    expect(HOOK_AGENTS.at(-1)).toBe("antigravity");
+    expect(PROVIDER_NAMES.antigravity).toBe("Google Antigravity");
+    expect(SHORT_NAMES.antigravity).toBe("Antigravity");
+    expect(stripAgents(counts(2, { workingAntigravity: 1, workingDevin: 1 }))).toEqual(["devin", "antigravity"]);
+    expect(characterOf("antigravity")).toBe("antigravity");
+    expect(providerTint("antigravity")).toBe(ANTIGRAVITY_TINT);
+  });
+
+  it("sends its requests and replies to Antigravity", () => {
+    expect(S.answerIn("antigravity")).toBe("Answer this one in Google Antigravity.");
+    expect(S.replyIn("antigravity")).toBe("Reply in Google Antigravity");
   });
 });

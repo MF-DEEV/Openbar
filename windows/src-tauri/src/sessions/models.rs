@@ -747,7 +747,7 @@ pub struct SessionCounts {
     /// Of `working`, the Codex ones: each agent shows its own mark and color.
     pub working_codex: i64,
     /// Of `working`, the ones of Gemini CLI, Copilot CLI, OpenCode, Cursor,
-    /// Pi, Mistral Vibe and Devin CLI.
+    /// Pi, Mistral Vibe, Devin CLI and Google Antigravity.
     pub working_gemini: i64,
     pub working_copilot: i64,
     pub working_opencode: i64,
@@ -755,6 +755,7 @@ pub struct SessionCounts {
     pub working_pi: i64,
     pub working_vibe: i64,
     pub working_devin: i64,
+    pub working_antigravity: i64,
     pub waiting: i64,
     /// Stopped by the plan's usage limit.
     pub limited: i64,
@@ -776,6 +777,7 @@ impl SessionCounts {
                     Provider::Pi => counts.working_pi += 1,
                     Provider::Vibe => counts.working_vibe += 1,
                     Provider::Devin => counts.working_devin += 1,
+                    Provider::Antigravity => counts.working_antigravity += 1,
                     Provider::Claude => {}
                 }
             }
@@ -811,6 +813,7 @@ pub enum Provider {
     Pi,
     Vibe,
     Devin,
+    Antigravity,
 }
 
 /// A change worth a notice in the island.

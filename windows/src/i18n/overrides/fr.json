@@ -652,6 +652,7 @@
   "windows.settings.sessions.agentUnreadable": "Ses réglages n’ont pas pu être lus",
   "windows.settings.sessions.showAgent": "Afficher %@ dans Sessions",
   "windows.settings.sessions.agentHintGemini": "Hooks dans .gemini\\settings.json, à côté des tiens. Tu réponds aux demandes d’autorisation de Gemini CLI dans son terminal ; les réponses y sont saisies.",
+  "windows.settings.sessions.agentHintAntigravity": "Hooks dans .gemini\\config\\hooks.json, à côté des tiens, pour l’app Antigravity, son IDE et agy. Les validations restent dans Antigravity ; Ouvrir t’y amène.",
   "windows.settings.sessions.agentHintCopilot": "Un fichier de hooks propre à l’île dans .copilot\\hooks. Tu réponds aux demandes d’autorisation de Copilot CLI dans son terminal ; les réponses y sont saisies.",
   "windows.settings.sessions.agentHintOpencode": "Un plugin propre à l’île dans .config\\opencode\\plugins. Autorise ou refuse les demandes d’OpenCode et envoie des réponses depuis l’île.",
   "windows.settings.sessions.agentHintCursor": "Hooks dans .cursor\\hooks.json, à côté des tiens, pour l’agent de Cursor et cursor-agent. Les validations restent dans Cursor ; Ouvrir t’y amène.",

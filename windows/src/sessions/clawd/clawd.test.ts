@@ -312,6 +312,7 @@ describe("clawd drawing", () => {
       "pi",
       "vibe",
       "devin",
+      "antigravity",
     ] as const) {
       for (const c of costumes) {
         for (const p of poses) {
@@ -353,6 +354,7 @@ describe("clawd drawing", () => {
       "pi",
       "vibe",
       "devin",
+      "antigravity",
     ] as const) {
       const parts: ClawdCostume[] = [
         ...HATS.map((hat) => ({ ...CLASSIC, hat })),
@@ -365,7 +367,7 @@ describe("clawd drawing", () => {
         }
       }
     }
-    expect(fingerprint.toString(16)).toBe("83577cb7");
+    expect(fingerprint.toString(16)).toBe("94b95429");
   });
 
   it("covers the eyes with opaque glasses and hero masks", () => {

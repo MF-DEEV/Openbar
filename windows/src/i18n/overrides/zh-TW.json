@@ -652,6 +652,7 @@
   "windows.settings.sessions.agentUnreadable": "無法讀取其設定",
   "windows.settings.sessions.showAgent": "在工作階段中顯示 %@",
   "windows.settings.sessions.agentHintGemini": "掛鉤位於 .gemini\\settings.json，與你自己的掛鉤並列。Gemini CLI 的權限請求在其終端機中回應，回覆也在那裡輸入。",
+  "windows.settings.sessions.agentHintAntigravity": "掛鉤位於 .gemini\\config\\hooks.json，與你自己的掛鉤並列，適用於 Antigravity 應用程式、其 IDE 和 agy。核准仍在 Antigravity 中進行，「打開」會帶你前往。",
   "windows.settings.sessions.agentHintCopilot": "動態島專用的掛鉤檔案位於 .copilot\\hooks。Copilot CLI 的權限請求在其終端機中回應，回覆也在那裡輸入。",
   "windows.settings.sessions.agentHintOpencode": "動態島專用的外掛位於 .config\\opencode\\plugins。可以在動態島中允許或拒絕 OpenCode 的請求並傳送回覆。",
   "windows.settings.sessions.agentHintCursor": "掛鉤位於 .cursor\\hooks.json，與你自己的掛鉤並列，適用於 Cursor 的代理程式和 cursor-agent。核准仍在 Cursor 中進行，「打開」會帶你前往。",
