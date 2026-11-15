@@ -6,10 +6,10 @@
     "linux": {
       "deb": {
         "section": "utils",
-        "recommends": ["pulseaudio-utils", "tesseract-ocr", "ffmpeg", "libsqlite3-0"]
+        "recommends": ["pulseaudio-utils", "tesseract-ocr", "ffmpeg", "libsqlite3-0", "libgtk-layer-shell0"]
       },
       "rpm": {
-        "recommends": ["pulseaudio-utils", "tesseract", "ffmpeg-free", "sqlite-libs"]
+        "recommends": ["pulseaudio-utils", "tesseract", "ffmpeg-free", "sqlite-libs", "gtk-layer-shell"]
       }
     }
   }

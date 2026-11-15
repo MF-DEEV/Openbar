@@ -264,6 +264,8 @@ pub fn create<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<WebviewWindow<R>>
 /// island, so its size costs nothing the person can notice, and it never
 /// resizes during a motion (spec 01-shell §6.2).
 pub fn place<R: Runtime>(window: &WebviewWindow<R>, choice: DisplayChoice) -> tauri::Result<()> {
+    #[cfg(target_os = "linux")]
+    let choice = platform::usable(choice);
     if let Some(state) = window.try_state::<IslandState>() {
         *state.display.lock().unwrap() = choice;
     }
@@ -303,6 +305,8 @@ fn move_to<R: Runtime>(window: &WebviewWindow<R>, monitor: &tauri::Monitor) -> t
     if let Some(state) = window.try_state::<IslandState>() {
         *state.placed_on.lock().unwrap() = Some((monitor.position().x, monitor.position().y));
     }
+    #[cfg(target_os = "linux")]
+    platform::moved_to(window, monitor);
     Ok(())
 }
 
@@ -554,6 +558,10 @@ use platform::set_click_through;
 
 /// The pointer in the window's CSS pixels.
 fn pointer_in_window<R: Runtime>(window: &WebviewWindow<R>) -> Option<(f64, f64)> {
+    #[cfg(target_os = "linux")]
+    if let Some(own) = platform::own_pointer(window) {
+        return own;
+    }
     let pointer = window.cursor_position().ok()?;
     let origin = window.inner_position().ok()?;
     let scale = window.scale_factor().ok()?;

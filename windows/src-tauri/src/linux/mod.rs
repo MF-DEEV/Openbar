@@ -26,6 +26,7 @@ pub mod hosts;
 pub mod ics;
 pub mod image;
 pub mod kitty;
+pub mod layer;
 pub mod locale;
 pub mod net;
 pub mod ocr;
@@ -85,8 +86,26 @@ fn has_dri3() -> Option<bool> {
     )
 }
 
+/// Whether GTK should go through XWayland: on a Wayland session whose compositor
+/// cannot keep a panel above the others (GNOME's Mutter has no layer-shell), the
+/// island works as it does on X11, unless the person chose a backend.
+fn through_xwayland(env: impl Fn(&str) -> Option<String>) -> bool {
+    let set = |name: &str| env(name).is_some_and(|v| !v.is_empty());
+    if set("GDK_BACKEND") || !set("WAYLAND_DISPLAY") || !set("DISPLAY") {
+        return false;
+    }
+    env("XDG_CURRENT_DESKTOP")
+        .unwrap_or_default()
+        .split(':')
+        .any(|desktop| desktop.eq_ignore_ascii_case("GNOME"))
+}
+
 /// Called first thing in `run`: the WebKit settings this machine needs.
 pub fn before_start() {
+    if through_xwayland(|name| std::env::var(name).ok()) {
+        // SAFETY: nothing else is running yet, the first thing `run` does.
+        unsafe { std::env::set_var("GDK_BACKEND", "x11") };
+    }
     let chosen = |name: &str| std::env::var_os(name).is_some();
     let nvidia = std::path::Path::new("/proc/driver/nvidia/version").exists();
     for (name, value) in webkit_settings(chosen, nvidia, has_dri3()) {
@@ -134,6 +153,57 @@ mod tests {
         assert_eq!(
             webkit_settings(with(&[]), true, Some(false)),
             [SHM, SOFTWARE]
+        );
+    }
+
+    fn env(pairs: &'static [(&'static str, &'static str)]) -> impl Fn(&str) -> Option<String> {
+        move |name| {
+            pairs
+                .iter()
+                .find(|(n, _)| *n == name)
+                .map(|(_, v)| (*v).to_string())
+        }
+    }
+
+    #[test]
+    fn gnome_on_wayland_goes_through_xwayland_and_other_desktops_do_not() {
+        assert!(through_xwayland(env(&[
+            ("WAYLAND_DISPLAY", "wayland-0"),
+            ("DISPLAY", ":0"),
+            ("XDG_CURRENT_DESKTOP", "ubuntu:GNOME"),
+        ])));
+        assert!(through_xwayland(env(&[
+            ("WAYLAND_DISPLAY", "wayland-0"),
+            ("DISPLAY", ":1"),
+            ("XDG_CURRENT_DESKTOP", "GNOME"),
+        ])));
+        assert!(
+            !through_xwayland(env(&[
+                ("WAYLAND_DISPLAY", "wayland-0"),
+                ("DISPLAY", ":0"),
+                ("XDG_CURRENT_DESKTOP", "KDE"),
+            ])),
+            "KWin has layer-shell"
+        );
+        assert!(
+            !through_xwayland(env(&[
+                ("WAYLAND_DISPLAY", "wayland-0"),
+                ("DISPLAY", ":0"),
+                ("XDG_CURRENT_DESKTOP", "GNOME"),
+                ("GDK_BACKEND", "wayland"),
+            ])),
+            "the person chose"
+        );
+        assert!(
+            !through_xwayland(env(&[
+                ("WAYLAND_DISPLAY", "wayland-0"),
+                ("XDG_CURRENT_DESKTOP", "GNOME"),
+            ])),
+            "no XWayland to go through"
+        );
+        assert!(
+            !through_xwayland(env(&[("DISPLAY", ":0"), ("XDG_CURRENT_DESKTOP", "GNOME"),])),
+            "an X11 session"
         );
     }
 
