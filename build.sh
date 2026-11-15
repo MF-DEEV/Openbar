@@ -331,6 +331,8 @@ if (( TEST )); then
         Sources/Openbar/Services/ClaudeSessions/AgentHookMessage.swift
         Sources/Openbar/Services/ClaudeSessions/AgentHookSessions.swift
         Sources/Openbar/Services/ClaudeSessions/AgentHookInstaller.swift
+        Sources/Openbar/Services/ClaudeSessions/VibeAppServerProxy.swift
+        Sources/Openbar/Services/ClaudeSessions/VibeLauncher.swift
         Sources/Openbar/Services/ClaudeSessions/AgentOpenCodePlugin.swift
         Sources/Openbar/Services/ClaudeSessions/AgentPiExtension.swift
         Sources/Openbar/Services/ClaudeSessions/AgentHookSupport.swift

@@ -46,7 +46,7 @@ Every agent session on your machine, beside the camera. When one needs you, the 
 | Copilot CLI | ✓ | in Copilot CLI | ✓ |
 | Cursor | ✓ | in Cursor | `cursor-agent` only |
 | Pi | ✓ | asks none | ✓ |
-| Mistral Vibe | ✓ | in Mistral Vibe | ✓ |
+| Mistral Vibe | ✓ | ✓ from New session; in Mistral Vibe otherwise | ✓ |
 | Devin CLI | ✓ | in Devin CLI | ✓ |
 | Google Antigravity | ✓ | in Antigravity | `agy` only |
 

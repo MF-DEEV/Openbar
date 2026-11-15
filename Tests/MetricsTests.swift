@@ -142,6 +142,7 @@ struct MetricsTests {
                 NotchSessionAutoAllowTests.run(suite)
                 AgentHookSessionTests.run(suite)
                 MoreAgentHookTests.run(suite)
+                VibeAppServerTests.run(suite)
                 AntigravityAgentTests.run(suite)
                 ClaudeFileDiffTests.run(suite)
                 VoiceReplyTests.run(suite)
@@ -153,6 +154,7 @@ struct MetricsTests {
             ("hook-agents", {
                 AgentHookSessionTests.run(suite)
                 MoreAgentHookTests.run(suite)
+                VibeAppServerTests.run(suite)
                 AntigravityAgentTests.run(suite)
             }),
             ("codex-sessions", { CodexSessionTests.run(suite) }),

@@ -45,6 +45,10 @@ fn main() {
     if std::env::args().nth(1).as_deref() == Some("--hook") {
         openbar_windows_lib::hook_main();
     }
+    if std::env::args().nth(1).as_deref() == Some("--vibe-proxy") {
+        let arguments: Vec<String> = std::env::args().collect();
+        openbar_windows_lib::vibe_proxy_main(&arguments);
+    }
     if std::env::args().nth(1).as_deref() == Some("--music-probe") {
         let path = std::env::args()
             .nth(2)

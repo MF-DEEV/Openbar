@@ -121,6 +121,11 @@ final class AgentHookSessions {
             entry.permission = permission
             entry.answerable = event.provider.answersPermissions
             entry.asking = false
+        case .heldPermission(let permission):
+            entry.openTurn(at: date)
+            entry.permission = permission
+            entry.answerable = true
+            entry.asking = false
         case .permissionSettled(let request):
             if request == nil || entry.permission?.requestID == request { entry.clearWait() }
         case .question:

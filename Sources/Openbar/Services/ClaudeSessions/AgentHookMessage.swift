@@ -27,6 +27,9 @@ struct AgentHookEvent: Equatable {
         /// A tool waits for the person's permission. Answerable only where the
         /// island can answer that agent.
         case permission(ClaudePermission)
+        /// A permission or question the island answers itself, over the
+        /// connection that holds it (Vibe's app-server proxy).
+        case heldPermission(ClaudePermission)
         /// The request was answered, in the agent or here.
         case permissionSettled(String?)
         /// A question or other dialog of the agent's waits on the person.
@@ -69,6 +72,10 @@ enum AgentHookMessage {
         var listens = false
         /// The folder of the session's own log, where the agent names one (Vibe).
         var transcript: String? = nil
+        /// A session Vibe's app-server proxy runs, which then answers its approvals.
+        var attached: String? = nil
+        /// The events come from the proxy, not from Vibe's hooks.
+        var fromProxy = false
         let provider: ClaudeSessionProvider
         let pid: Int32
     }
@@ -83,11 +90,15 @@ enum AgentHookMessage {
     /// let go at once.
     static func waits(_ data: Data) -> Bool {
         guard isEnvelope(data), AgentLogParser.contains(data, "\"opencode\"") || AgentLogParser.contains(data, "\"pi\"")
+            || AgentLogParser.contains(data, "\"proxy\"")
         else { return false }
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let name = json[key] as? String, let provider = ClaudeSessionProvider(rawValue: name), provider.reportsThroughPlugin,
+              let name = json[key] as? String, let provider = ClaudeSessionProvider(rawValue: name),
               let event = json["event"] as? [String: Any] else { return false }
         let kind = event["kind"] as? String
+        // Vibe's proxy holds the connection of an approval or a question, which the island answers.
+        if provider == .vibe { return json["hook"] as? String == "proxy" && (kind == "approval" || kind == "question") }
+        guard provider.reportsThroughPlugin else { return false }
         return kind == "listen" || (provider == .opencode && kind == "permission")
     }
 
@@ -104,8 +115,12 @@ enum AgentHookMessage {
         case .cursor: decoded.events = cursor(hook, event, pid: pid, now: now, policy: policy)
         case .opencode, .pi: plugin(provider, event, pid: pid, now: now, policy: policy, into: &decoded)
         case .vibe:
-            decoded.events = vibe(hook, event, pid: pid, now: now, policy: policy)
-            decoded.transcript = text(event, "transcript_path")
+            if hook == "proxy" {
+                vibeProxy(event, pid: pid, now: now, policy: policy, into: &decoded)
+            } else {
+                decoded.events = vibe(hook, event, pid: pid, now: now, policy: policy)
+                decoded.transcript = text(event, "transcript_path")
+            }
         case .devin: decoded.events = devin(hook, event, pid: pid, now: now, policy: policy)
         case .antigravity:
             decoded.events = antigravity(hook, event, pid: pid, now: now, policy: policy)
@@ -285,6 +300,79 @@ enum AgentHookMessage {
         default: break
         }
         return events
+    }
+
+    // MARK: Mistral Vibe's app-server proxy
+
+    /// What the proxy a New session runs Vibe's server through tells the
+    /// island (`VibeProxy`): a session it serves, an approval or question the
+    /// island can answer, and one answered elsewhere.
+    private static func vibeProxy(_ json: [String: Any], pid: Int32, now: Date, policy: ClaudeContentPolicy,
+                                  into decoded: inout Decoded) {
+        decoded.fromProxy = true
+        guard let session = text(json, "session"), let request = text(json, "request") ?? (json["kind"] as? String == "attach" ? "" : nil)
+        else { return }
+        let cwd = text(json, "cwd")
+        // The proxy's pid is not the agent's: the hooks name that.
+        func add(_ kind: AgentHookEvent.Kind) {
+            decoded.events.append(AgentHookEvent(provider: .vibe, sessionID: session, pid: 0, cwd: cwd, date: now, kind: kind))
+        }
+        switch json["kind"] as? String {
+        case "attach":
+            decoded.attached = session
+        case "settled":
+            add(.permissionSettled(request))
+        case "approval":
+            let raw = json["tool"] as? String ?? ""
+            let tool = AgentHookTools.name(.vibe, raw)
+            let input = (json["input"] as? [String: Any]) ?? [:]
+            let detail = [input["command"], input["file_path"], input["path"], input["url"]]
+                .compactMap { ($0 as? String).flatMap { $0.isEmpty ? nil : $0 } }.first
+                ?? (input.isEmpty ? "" : ClaudeToolSummary.arguments(input))
+            decoded.permission = (session, request)
+            let content = PermissionContent(full: detail, complete: true, originalLength: detail.unicodeScalars.count)
+            add(.heldPermission(ClaudePermission(
+                requestID: request, tool: tool.isEmpty ? "Tool" : tool,
+                summary: ClaudeToolSummary.clip(detail.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""),
+                detail: content.preview, content: content, offersAlways: json["always"] as? Bool ?? false, since: now)))
+        case "question":
+            let questions = (json["questions"] as? [[String: Any]] ?? []).compactMap { item -> ClaudeQuestion? in
+                guard let asked = item["question"] as? String, !asked.isEmpty else { return nil }
+                let options = (item["options"] as? [[String: Any]] ?? []).compactMap { option -> ClaudeQuestion.Option? in
+                    guard let label = option["label"] as? String, !label.isEmpty else { return nil }
+                    return ClaudeQuestion.Option(label: label, description: (option["description"] as? String).flatMap { $0.isEmpty ? nil : $0 })
+                }
+                return ClaudeQuestion(question: asked, header: (item["header"] as? String).flatMap { $0.isEmpty ? nil : $0 },
+                                      options: options, multiSelect: item["multiSelect"] as? Bool ?? false)
+            }
+            guard !questions.isEmpty else { return }
+            decoded.permission = (session, request)
+            add(.heldPermission(ClaudePermission(
+                requestID: request, tool: ClaudeQuestion.tool, summary: ClaudeToolSummary.clip(questions[0].question),
+                offersAlways: false, since: now, questions: questions)))
+        default: break
+        }
+    }
+
+    /// What the proxy passes on to Vibe for the person's decision on a request.
+    static func vibeReply(_ decision: ClaudeHookMessage.Decision, questions: [ClaudeQuestion] = []) -> Data? {
+        let reply: [String: Any]
+        switch decision {
+        case .allow, .approvePlan: reply = ["decision": "approve"]
+        case .allowAlways: reply = ["decision": "approve_for_session"]
+        case .deny:
+            reply = questions.isEmpty ? ["decision": "deny", "feedback": ClaudeHookMessage.denyMessage] : ["cancelled": true]
+        case .answer(let answers):
+            let given = questions.compactMap { question -> [String: Any]? in
+                guard let picked = answers[question.question], !picked.isEmpty else { return nil }
+                let text = picked.joined(separator: ", ")
+                let listed = Set(question.options.map(\.label))
+                return ["question": question.question, "answer": text, "isOther": !picked.allSatisfy(listed.contains)]
+            }
+            guard !given.isEmpty, given.count == questions.count else { return nil }
+            reply = ["answers": given]
+        }
+        return try? JSONSerialization.data(withJSONObject: reply, options: [.sortedKeys])
     }
 
     // MARK: Devin CLI

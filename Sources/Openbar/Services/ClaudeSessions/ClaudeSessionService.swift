@@ -161,6 +161,10 @@ final class ClaudeSessionService: ObservableObject {
     private var agentPending: [String: (connection: ClaudeHookServer.Connection, session: String, since: Date)] = [:]
     /// Each OpenCode's plugin listening for replies, by its process.
     private var listeners: [Int32: ClaudeHookServer.Connection] = [:]
+    /// The Mistral Vibe sessions a New session runs through the island's
+    /// app-server proxy, by the proxy's process. Those approvals and questions
+    /// are answered here; Vibe's hooks only hear of them, so theirs are dropped. Queue.
+    private var proxied: [String: pid_t] = [:]
     /// The agents whose sessions the list shows. Queue.
     private var shownAgents = Set(ClaudeSessionProvider.allCases)
     /// What Agent View last listed, by config folder's order. Queue.
@@ -422,8 +426,18 @@ final class ClaudeSessionService: ObservableObject {
             }
             if hookAgents.owns(id) {
                 // OpenCode's plugin waits for the answer; the other agents ask in their own terminal.
+                let vibe = hookAgents.entry(id)?.provider == .vibe
+                if vibe {
+                    // A question is answered or skipped, never allowed; answers go only to a question.
+                    switch decision {
+                    case .allow, .allowAlways, .approvePlan: if current.asksQuestions { return }
+                    case .answer: if !current.asksQuestions { return }
+                    case .deny: break
+                    }
+                }
                 guard let asked = agentPending[request], asked.session == id,
-                      let reply = AgentHookMessage.opencodeReply(decision) else { return }
+                      let reply = vibe ? AgentHookMessage.vibeReply(decision, questions: current.questions)
+                        : AgentHookMessage.opencodeReply(decision) else { return }
                 if case .deny = decision {} else {
                     guard !asked.connection.isClosed, Date().timeIntervalSince(asked.since) <= Self.permissionDeadline else { return }
                 }
@@ -815,8 +829,15 @@ final class ClaudeSessionService: ObservableObject {
                                                        home: FileManager.default.homeDirectoryForCurrentUser) else {
                     return finish(text.commandFailed)
                 }
-                let line = CodexCLI.line(executable: executable,
+                var line = CodexCLI.line(executable: executable,
                                          arguments: AgentCLI.startArguments(provider, prompt: trimmed), folder: folder)
+                // Vibe's server runs through the island's proxy, which answers its approvals and questions.
+                if provider == .vibe, let proxy = Bundle.main.executablePath,
+                   let install = VibeLauncher.install(vibe: executable),
+                   let proxied = VibeLauncher.line(install: install, proxy: proxy, socket: Self.socketPath(),
+                                                   prompt: trimmed, folder: folder) {
+                    line = proxied
+                }
                 return finish(ClaudeTerminalLauncher.open(line, terminal: terminal) ? nil : text.commandFailed)
             }
             if provider == .codex {
@@ -1059,7 +1080,11 @@ final class ClaudeSessionService: ObservableObject {
               shownAgents.contains(decoded.provider) else { return connection.finish() }
         // The agent is the process above the hook's shells; OpenCode's plugin
         // writes from inside it.
-        let pid = AgentHookProcess.agent(fromHook: connection.peer, hint: decoded.pid)
+        let pid = decoded.fromProxy ? 0 : AgentHookProcess.agent(fromHook: connection.peer, hint: decoded.pid)
+        if let attached = decoded.attached {
+            proxied[AgentHookEvent.id(decoded.provider, attached)] = connection.peer
+            return connection.finish()
+        }
         if decoded.listens {
             listeners.removeValue(forKey: pid)?.finish()
             listeners[pid] = connection
@@ -1081,6 +1106,13 @@ final class ClaudeSessionService: ObservableObject {
                 cwd = ClaudeSessionHosts.cwd(of: agent)
             }
             var kind = event.kind
+            // A session run through the proxy is answered there: Vibe's hooks only hear of its requests.
+            if event.provider == .vibe, !decoded.fromProxy, proxied[event.id] != nil {
+                switch kind {
+                case .permission, .question: continue
+                default: break
+                }
+            }
             // Vibe's hooks carry no reply: with previews on, its session's log tells the last one.
             if event.provider == .vibe, engine.policy.previews, case .stopped(nil, let failed) = kind,
                let folder = decoded.transcript {
@@ -1117,6 +1149,7 @@ final class ClaudeSessionService: ObservableObject {
             waiting.connection.finish()
             if current { hookAgents.resolve(waiting.session, request: request) }
         }
+        for (id, proxy) in proxied where !AgentHookSessions.isAlive(proxy) { proxied[id] = nil }
         for (pid, listener) in listeners where listener.isClosed || !AgentHookSessions.isAlive(pid) {
             listeners[pid] = nil
             listener.finish()
