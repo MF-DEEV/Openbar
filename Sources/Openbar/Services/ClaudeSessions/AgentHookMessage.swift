@@ -107,6 +107,9 @@ enum AgentHookMessage {
             decoded.events = vibe(hook, event, pid: pid, now: now, policy: policy)
             decoded.transcript = text(event, "transcript_path")
         case .devin: decoded.events = devin(hook, event, pid: pid, now: now, policy: policy)
+        case .antigravity:
+            decoded.events = antigravity(hook, event, pid: pid, now: now, policy: policy)
+            decoded.transcript = text(event, "transcriptPath")
         case .claude, .codex: return nil
         }
         return decoded
@@ -326,6 +329,54 @@ enum AgentHookMessage {
         return events
     }
 
+    // MARK: Google Antigravity
+
+    /// Google Antigravity's lifecycle hooks (the hooks.json guide its
+    /// language server carries), the same in its app, its IDE and `agy`. The
+    /// input is camelCase, a session is a conversation, and there is no hook
+    /// for a prompt or for a permission: a turn's first model invocation
+    /// (`invocationNum` 0, with the prompt as `lastUserInput`) opens it,
+    /// `Stop` ends it, and approvals are asked and answered in Antigravity.
+    /// A tool Antigravity refused never reports back; `Stop` closes it.
+    private static func antigravity(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
+                                    policy: ClaudeContentPolicy) -> [AgentHookEvent] {
+        guard let session = text(json, "conversationId") else { return [] }
+        let cwd = (json["workspacePaths"] as? [String])?.first(where: { !$0.isEmpty }) ?? text(json, "cwd")
+        var events: [AgentHookEvent] = []
+        func add(_ kind: AgentHookEvent.Kind) {
+            events.append(AgentHookEvent(provider: .antigravity, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
+        }
+        if let model = text(json, "modelName"), model.lowercased() != "auto" { add(.model(model)) }
+        // A tool's hooks share the step it runs as, which ties the two together.
+        let step = (json["stepIdx"] as? NSNumber).map { "step-\($0.intValue)" }
+        switch hook {
+        case "PreInvocation":
+            if (json["invocationNum"] as? NSNumber)?.intValue == 0 {
+                add(.prompt(policy.previews ? preview(json["lastUserInput"]) : nil))
+            } else {
+                add(.working)
+            }
+        case "PreToolUse":
+            let call = json["toolCall"] as? [String: Any] ?? [:]
+            let tool = AgentHookTools.name(.antigravity, call["name"] as? String ?? "")
+            let input = AgentHookTools.antigravityInput(arguments(call["args"]))
+            var use = toolUse(tool, input: input, at: now, policy: policy)
+            if let step { use = ClaudeToolUse(id: step, name: use.name, summary: use.summary, started: now, inputKey: use.inputKey) }
+            add(.toolStarted(use))
+        case "PostToolUse":
+            // It names the tool too, for a call whose start the island missed.
+            let call = json["toolCall"] as? [String: Any] ?? [:]
+            let tool = AgentHookTools.name(.antigravity, call["name"] as? String ?? "")
+            add(.toolFinished(id: step, name: tool, inputKey: nil, failed: text(json, "error") != nil, started: nil))
+        case "Stop":
+            // As "NO_TOOL_CALL" for a turn that ended well; a failed one says so.
+            let reason = (text(json, "terminationReason") ?? "").lowercased()
+            add(.stopped(lastText: nil, failed: reason.contains("error") || text(json, "error") != nil))
+        default: break
+        }
+        return events
+    }
+
     // MARK: OpenCode and Pi
 
     /// What the island's OpenCode plugin (AgentOpenCodePlugin.swift) and Pi
@@ -506,6 +557,11 @@ enum AgentHookTools {
         .vibe: ["bash": "Bash", "process_start": "Bash", "read_file": "Read", "write_file": "Write", "search_replace": "Edit",
                 "edit_file": "Edit", "grep": "Grep", "glob": "Glob", "list_dir": "LS", "web_fetch": "WebFetch",
                 "web_search": "WebSearch", "todo": "TodoWrite", "agents_spawn": "Task", "ask_user_question": "AskUserQuestion"],
+        .antigravity: ["run_command": "Bash", "view_file": "Read", "view_file_outline": "Read", "view_code_item": "Read",
+                       "write_to_file": "Write", "replace_file_content": "Edit", "multi_replace_file_content": "Edit",
+                       "grep_search": "Grep", "find_by_name": "Glob", "list_dir": "LS", "read_url_content": "WebFetch",
+                       "search_web": "WebSearch", "command_status": "BashOutput", "send_command_input": "Bash",
+                       "manage_task": "BashOutput"],
         .devin: ["exec": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "apply_patch": "Edit", "grep": "Grep",
                  "glob": "Glob", "webfetch": "WebFetch", "todo_write": "TodoWrite", "run_subagent": "Task",
                  "notebook_read": "Read", "notebook_edit": "Edit", "exit_plan_mode": "ExitPlanMode"],
@@ -520,6 +576,20 @@ enum AgentHookTools {
         if tool.hasPrefix("MCP:") { return String(tool.dropFirst(4)) }
         guard let first = tool.first else { return tool }
         return first.uppercased() + tool.dropFirst()
+    }
+
+    /// Antigravity's tool arguments under the names Claude Code gives them,
+    /// so they are summed up alike; its own one-line summary, when it wrote
+    /// one, comes last.
+    static func antigravityInput(_ args: [String: Any]) -> [String: Any] {
+        var input = args
+        let renames = ["CommandLine": "command", "AbsolutePath": "file_path", "TargetFile": "file_path",
+                       "Query": "pattern", "SearchPath": "path", "DirectoryPath": "path", "SearchDirectory": "path",
+                       "Pattern": "pattern", "Url": "url", "toolSummary": "description"]
+        for (from, to) in renames where input[to] == nil {
+            if let value = args[from] { input[to] = value }
+        }
+        return input
     }
 
     /// One line on what a tool works on, from the first field that says.

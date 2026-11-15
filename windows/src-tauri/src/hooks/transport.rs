@@ -206,11 +206,30 @@ pub fn run_hook(app: &str) -> ! {
             .and_then(|i| args.get(i + 1))
             .cloned()
     };
+    let agent = value("--agent");
+    let event = value("--event").unwrap_or_default();
     // Gemini CLI, Copilot CLI and Cursor: their input goes in the island's
     // envelope, naming the agent and the hook (sessions::hook_agents).
-    if let Some(agent) = value("--agent") {
-        input =
-            envelope(&agent, value("--event").as_deref().unwrap_or(""), &input).unwrap_or_default();
+    if let Some(agent) = &agent {
+        input = envelope(agent, &event, &input).unwrap_or_default();
+    }
+    if let Some(answer) = agent.as_deref().and_then(|a| fixed_answer(a, &event)) {
+        // Google Antigravity refuses a tool call whose hook prints nothing,
+        // fails or runs out of time, and waits on its hooks: the answer goes
+        // out first, whatever the island does, and the island gets two
+        // seconds at most.
+        let mut out = io::stdout().lock();
+        let _ = out.write_all(answer.as_bytes());
+        let _ = out.flush();
+        drop(out);
+        let (done, finished) = std::sync::mpsc::channel();
+        let app = app.to_owned();
+        thread::spawn(move || {
+            let _ = ask(&app, &input);
+            let _ = done.send(());
+        });
+        let _ = finished.recv_timeout(Duration::from_secs(2));
+        std::process::exit(0)
     }
     let answer = ask(app, &input);
     let mut out = io::stdout().lock();
@@ -222,6 +241,19 @@ pub fn run_hook(app: &str) -> ! {
     }
     let _ = out.flush();
     std::process::exit(0)
+}
+
+/// What an agent's hook prints whatever the island says, for the agents that
+/// read every hook's output as a decision: Google Antigravity hands each
+/// tool call back to its own permission check (`ask`, which keeps its grants
+/// and Always Allow) and asks nothing of its other hooks
+/// (AgentHookInstaller.antigravityAnswer).
+pub fn fixed_answer(agent: &str, event: &str) -> Option<&'static str> {
+    (agent == "antigravity").then_some(if event == "PreToolUse" {
+        r#"{"decision":"ask"}"#
+    } else {
+        "{}"
+    })
 }
 
 /// The agent's input inside the island's envelope; None for input that is

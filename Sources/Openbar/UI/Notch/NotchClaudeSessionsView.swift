@@ -378,8 +378,9 @@ extension ClaudeSessionProvider {
     /// Claude's orange or Codex's periwinkle, the same as on the AI page,
     /// and OpenCode's and Copilot's from there too. Gemini CLI gets the cyan
     /// of its star's first light, and Cursor a silver for its grey cube. Pi
-    /// takes the pink of its P, Mistral Vibe the amber of Mistral's M, and
-    /// Devin CLI a violet no other agent wears.
+    /// takes the pink of its P, Mistral Vibe the amber of Mistral's M,
+    /// Devin CLI a violet no other agent wears, and Google Antigravity the
+    /// deep blue of its arch's foot.
     var tint: Color {
         if let agent { return agent.tint }
         switch self {
@@ -387,6 +388,7 @@ extension ClaudeSessionProvider {
         case .pi: return Color(red: 0.95, green: 0.55, blue: 0.56)
         case .vibe: return Color(red: 1.0, green: 0.69, blue: 0.0)
         case .devin: return Color(red: 0.70, green: 0.55, blue: 1.0)
+        case .antigravity: return Color(red: 0.19, green: 0.53, blue: 1.0)
         default: return Color(red: 0.80, green: 0.82, blue: 0.90)
         }
     }

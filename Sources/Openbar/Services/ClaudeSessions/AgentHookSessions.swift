@@ -13,8 +13,12 @@ import Foundation
 final class AgentHookSessions {
     /// How long an unread finished turn stays marked, as for Claude Code.
     static let finishedFor = ClaudeSessionEngine.finishedFor
-    /// A Cursor conversation nothing was heard from for this long leaves the list.
+    /// A Cursor or Antigravity conversation nothing was heard from for this
+    /// long leaves the list.
     static let quietFor: TimeInterval = 30 * 60
+    /// The agents whose process outlives its conversations: Cursor's app, and
+    /// the language server under Antigravity's app, IDE window or `agy`.
+    static let outlived: Set<ClaudeSessionProvider> = [.cursor, .antigravity]
     static let timelineLength = 12
     static let chatLength = 40
 
@@ -173,11 +177,12 @@ final class AgentHookSessions {
         }
     }
 
-    /// Drops sessions whose process is gone, and Cursor conversations long quiet.
+    /// Drops sessions whose process is gone, and Cursor and Antigravity
+    /// conversations long quiet.
     func prune(now: Date, alive: (Int32) -> Bool = AgentHookSessions.isAlive) {
         for (id, entry) in entries {
             let gone = entry.pid > 0 && !alive(entry.pid)
-            let quiet = entry.provider == .cursor && !entry.turnOpen && entry.permission == nil
+            let quiet = Self.outlived.contains(entry.provider) && !entry.turnOpen && entry.permission == nil
                 && now.timeIntervalSince(entry.heard) > Self.quietFor
             if gone || quiet {
                 entries[id] = nil

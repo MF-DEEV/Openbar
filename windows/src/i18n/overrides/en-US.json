@@ -652,6 +652,7 @@
   "windows.settings.sessions.agentUnreadable": "Its settings couldn’t be read",
   "windows.settings.sessions.showAgent": "Show %@ in Sessions",
   "windows.settings.sessions.agentHintGemini": "Hooks in .gemini\\settings.json, next to your own. You answer Gemini CLI’s permission prompts in its terminal; replies are typed there.",
+  "windows.settings.sessions.agentHintAntigravity": "Hooks in .gemini\\config\\hooks.json, next to your own, for Antigravity’s app, its IDE and agy. Approvals stay in Antigravity; Open takes you there.",
   "windows.settings.sessions.agentHintCopilot": "A hooks file of the island’s own in .copilot\\hooks. You answer Copilot CLI’s permission prompts in its terminal; replies are typed there.",
   "windows.settings.sessions.agentHintOpencode": "A plugin of the island’s own in .config\\opencode\\plugins. Allow or deny OpenCode’s requests and send replies from the island.",
   "windows.settings.sessions.agentHintCursor": "Hooks in .cursor\\hooks.json, next to your own, for Cursor’s agent and cursor-agent. Approvals stay in Cursor; Open takes you there.",

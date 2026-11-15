@@ -4,12 +4,13 @@
 import SwiftUI
 
 /// The makers' own marks of Gemini CLI, GitHub Copilot, OpenCode, Cursor,
-/// Pi, Mistral Vibe and Devin CLI, drawn by the app from the same paths the
-/// Windows island uses, so a session reads as its agent's whether that
-/// agent's app is on the Mac or not. Paths from @lobehub/icons-static-svg
-/// (MIT), Pi's colors from pi.dev's own logo; the marks belong to Google,
-/// GitHub, OpenCode, Anysphere, Earendil, Mistral AI and Cognition and only
-/// name whose session it is. Gemini CLI's keeps its gradient and Pi's,
+/// Pi, Mistral Vibe, Devin CLI and Google Antigravity, drawn by the app from
+/// the same paths the Windows island uses, so a session reads as its
+/// agent's whether that agent's app is on the Mac or not. Paths from
+/// @lobehub/icons-static-svg (MIT), Pi's colors from pi.dev's own logo; the
+/// marks belong to Google, GitHub, OpenCode, Anysphere, Earendil, Mistral AI
+/// and Cognition and only name whose session it is. Gemini CLI's keeps its
+/// gradient, Antigravity's arch Google's four colors across it, and Pi's,
 /// Mistral's and Devin's their colors; the other three are one color, as
 /// their makers show them on dark. Each breathes while its session works, unless Reduce Motion
 /// is on.
@@ -94,6 +95,8 @@ enum NotchHookAgentMarkPaths {
     static let mistral2 = "M3.428 10.258h17.144v3.428H3.428v-3.428z"
     static let mistral3 = "M3.428 13.686h3.429v3.428H3.428v-3.428zm6.858 0h3.429v3.428h-3.429v-3.428zm6.856 0h3.43v3.428h-3.43v-3.428z"
     static let mistral4 = "M0 17.114h10.286v3.429H0v-3.429zm13.714 0H24v3.429H13.714v-3.429z"
+    /// Antigravity's arch.
+    static let antigravity = "M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z"
     /// Devin's three linked hexagons.
     static let devin0 = "M2.033 9.867l2.554 1.483a.589.589 0 00.592 0l2.554-1.483.01-.008a.608.608 0 00.11-.084l.013-.015a.631.631 0 00.076-.1c.003-.005.008-.01.01-.016a.558.558 0 00.052-.125l.007-.028a.611.611 0 00.019-.14V7.868c0-.572.307-1.105.8-1.392a1.595 1.595 0 011.598 0l1.277.742a.54.54 0 00.129.053l.028.01c.044.01.088.015.133.016h.006l.013-.002a.587.587 0 00.27-.074l.011-.004 2.554-1.483a.596.596 0 00.297-.516V2.253a.595.595 0 00-.297-.516L12.293.257a.587.587 0 00-.591 0L9.148 1.737l-.01.01a.609.609 0 00-.109.083l-.014.015a.632.632 0 00-.076.1c-.003.005-.008.01-.01.016a.57.57 0 00-.052.124l-.007.028a.612.612 0 00-.018.14v1.483c0 .572-.307 1.105-.8 1.393a1.597 1.597 0 01-1.599 0l-1.276-.742a.603.603 0 00-.13-.053l-.028-.008a.658.658 0 00-.133-.018h-.02a.57.57 0 00-.269.074c-.003.002-.008.002-.012.005L2.033 5.872a.596.596 0 00-.297.515v2.966c0 .213.113.41.297.515z"
     static let devin1 = "M15.943 10.607a1.596 1.596 0 011.599 0l1.276.74c.041.025.085.04.13.055l.028.008c.043.01.088.016.133.018h.005c.005 0 .01-.002.014-.003a.474.474 0 00.122-.016l.021-.005a.616.616 0 00.126-.052c.004-.002.009-.002.013-.005l2.554-1.482a.597.597 0 00.297-.516V6.383a.596.596 0 00-.297-.515l-2.552-1.483a.587.587 0 00-.592 0l-2.553 1.482-.011.008a.61.61 0 00-.108.084l-.014.016a.637.637 0 00-.076.1c-.003.005-.008.01-.01.016a.57.57 0 00-.052.124l-.007.029a.612.612 0 00-.018.14v1.482c0 .572-.307 1.105-.8 1.393a1.597 1.597 0 01-1.599 0l-1.276-.742a.584.584 0 00-.13-.053l-.028-.008a.62.62 0 00-.133-.018h-.02a.587.587 0 00-.269.074l-.012.004L9.15 10a.596.596 0 00-.296.516v2.966c0 .212.112.409.296.515l2.554 1.483s.008.002.012.005c.04.022.082.04.126.052l.02.004a.57.57 0 00.123.017l.014.002h.006c.054 0 .108-.01.16-.025a.587.587 0 00.13-.054l1.277-.741a1.597 1.597 0 012.398 1.392v1.482c0 .049.007.095.019.14l.007.028a.619.619 0 00.051.125c.004.006.008.01.01.016a.6.6 0 00.076.1l.014.015c.033.032.069.06.108.084.004.002.006.006.011.008l2.554 1.483a.59.59 0 00.593 0l2.554-1.483a.597.597 0 00.296-.516v-2.965a.595.595 0 00-.296-.516l-2.554-1.483s-.008-.002-.012-.005a.54.54 0 00-.126-.051c-.007-.003-.013-.003-.02-.005a.635.635 0 00-.125-.017h-.018a.557.557 0 00-.16.026.588.588 0 00-.13.053l-1.276.742a1.595 1.595 0 01-1.598 0 1.615 1.615 0 010-2.785l-.005-.001z"
@@ -123,6 +126,15 @@ enum NotchHookAgentMarkPaths {
             Layer(path: path(mistral2), fill: .solid(Color(red: 0xFF / 255, green: 0x82 / 255, blue: 0x05 / 255))),
             Layer(path: path(mistral3), fill: .solid(Color(red: 0xFA / 255, green: 0x50 / 255, blue: 0x0F / 255))),
             Layer(path: path(mistral4), fill: .solid(Color(red: 0xE1 / 255, green: 0x05 / 255, blue: 0x00 / 255))),
+        ]),
+        // The colored mark blurs Google's green, yellow, red and blue over the
+        // arch; a gradient across it keeps them in that order.
+        .antigravity: Mark(layers: [
+            Layer(path: path(antigravity), fill: .gradient([(Color(red: 0x00 / 255, green: 0xB9 / 255, blue: 0x5C / 255), 0),
+                                                            (Color(red: 0xFF / 255, green: 0xE4 / 255, blue: 0x32 / 255), 0.38),
+                                                            (Color(red: 0xFC / 255, green: 0x41 / 255, blue: 0x3D / 255), 0.62),
+                                                            (Color(red: 0x31 / 255, green: 0x86 / 255, blue: 0xFF / 255), 1)],
+                                                           start: CGPoint(x: 0, y: 4), end: CGPoint(x: 24, y: 20))),
         ]),
         .devin: Mark(layers: [
             Layer(path: path(devin0), fill: .solid(Color(red: 0x39 / 255, green: 0x69 / 255, blue: 0xCA / 255))),

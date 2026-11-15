@@ -574,7 +574,8 @@ impl Service {
             .retain(|pid, _| hosts::process::is_running(*pid as u32));
     }
 
-    /// One event of Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi, Mistral Vibe or Devin CLI.
+    /// One event of Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi, Mistral Vibe,
+    /// Devin CLI or Google Antigravity.
     fn on_agent(&self, connection: HookConnection) {
         let t = now();
         let mut inner = self.inner.lock().unwrap();
@@ -645,6 +646,20 @@ impl Service {
             {
                 event.kind = hook_agents::Kind::Stopped {
                     last_text: hook_agents::vibe_last_reply(Path::new(folder)),
+                    failed,
+                };
+            }
+            // Antigravity's hooks carry no reply: with previews on, its transcript tells the last one.
+            if provider == models::Provider::Antigravity
+                && previews
+                && let hook_agents::Kind::Stopped {
+                    last_text: None,
+                    failed,
+                } = event.kind
+                && let Some(path) = &decoded.transcript
+            {
+                event.kind = hook_agents::Kind::Stopped {
+                    last_text: hook_agents::antigravity_last_reply(Path::new(path)),
                     failed,
                 };
             }
@@ -767,10 +782,12 @@ impl Service {
                     let kind = host
                         .map(|l| host_kind(&l.host))
                         .unwrap_or(HostKind::Unknown);
-                    // OpenCode and Pi take replies through their plugin; Cursor's app keeps its own chat.
+                    // OpenCode and Pi take replies through their plugin; Cursor's and
+                    // Antigravity's apps keep their own chat, so only `cursor-agent`
+                    // and `agy` in a terminal take one.
                     let accepts = match entry.provider {
                         models::Provider::Opencode | models::Provider::Pi => true,
-                        models::Provider::Cursor => {
+                        models::Provider::Cursor | models::Provider::Antigravity => {
                             matches!(
                                 kind,
                                 HostKind::WindowsTerminal

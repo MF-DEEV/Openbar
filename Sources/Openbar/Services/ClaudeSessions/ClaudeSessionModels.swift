@@ -112,6 +112,7 @@ enum ClaudeSessionProvider: String, Equatable, CaseIterable {
     case pi
     case vibe
     case devin
+    case antigravity
 }
 
 extension ClaudeSessionProvider {
@@ -123,7 +124,7 @@ extension ClaudeSessionProvider {
         case .codex: return .codex
         case .opencode: return .opencode
         case .copilot: return .copilot
-        case .gemini, .cursor, .pi, .vibe, .devin: return nil
+        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity: return nil
         }
     }
 
@@ -139,6 +140,7 @@ extension ClaudeSessionProvider {
         case .pi: return "Pi"
         case .vibe: return "Mistral Vibe"
         case .devin: return "Devin CLI"
+        case .antigravity: return "Google Antigravity"
         }
     }
 
@@ -150,25 +152,27 @@ extension ClaudeSessionProvider {
         case .copilot: return "Copilot"
         case .vibe: return "Vibe"
         case .devin: return "Devin"
+        case .antigravity: return "Antigravity"
         default: return displayName
         }
     }
 
     /// The agents that report through the island's hooks or plugin.
-    static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin]
+    static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity]
 
     var reportsThroughHooks: Bool { Self.hookAgents.contains(self) }
 
     /// Whether the island can answer the agent's permission requests. Gemini
     /// CLI's, Copilot CLI's and Mistral Vibe's hooks only hear of a prompt,
     /// Cursor keeps its approvals, Pi asks for none of its own (an extension's
-    /// dialog is answered in Pi), and Devin CLI's are left to Devin until its
-    /// permission hook is seen holding a request live; the person answers
-    /// those in the agent.
+    /// dialog is answered in Pi), Devin CLI's are left to Devin until its
+    /// permission hook is seen holding a request live, and Google
+    /// Antigravity's hook can't approve a call (its own check still asks);
+    /// the person answers those in the agent.
     var answersPermissions: Bool {
         switch self {
         case .claude, .codex, .opencode: return true
-        case .gemini, .copilot, .cursor, .pi, .vibe, .devin: return false
+        case .gemini, .copilot, .cursor, .pi, .vibe, .devin, .antigravity: return false
         }
     }
 

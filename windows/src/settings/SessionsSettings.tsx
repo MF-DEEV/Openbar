@@ -375,6 +375,7 @@ const AGENT_PREF = {
   pi: "agentPi",
   vibe: "agentVibe",
   devin: "agentDevin",
+  antigravity: "agentAntigravity",
 } as const satisfies Record<HookAgent, keyof SessionPrefs>;
 
 const AGENT_HINT: Record<HookAgent, StringKey> = {
@@ -385,6 +386,7 @@ const AGENT_HINT: Record<HookAgent, StringKey> = {
   pi: "windows.settings.sessions.agentHintPi",
   vibe: "windows.settings.sessions.agentHintVibe",
   devin: "windows.settings.sessions.agentHintDevin",
+  antigravity: "windows.settings.sessions.agentHintAntigravity",
 };
 
 /** What an agent's hooks are doing now that they follow its switch by themselves. */

@@ -48,6 +48,7 @@ Every agent session on your machine, beside the camera. When one needs you, the 
 | Pi | ✓ | asks none | ✓ |
 | Mistral Vibe | ✓ | in Mistral Vibe | ✓ |
 | Devin CLI | ✓ | in Devin CLI | ✓ |
+| Google Antigravity | ✓ | in Antigravity | `agy` only |
 
 Background sessions (`claude --bg`), plan limits and **New session** are there too. Each session started from New session gets [its own git worktree](session-worktrees.md), so agents working on one repo don't change each other's files. Sessions on [machines you reach over SSH](remote-hosts.md) can show up too, with the host's name on them. See [what each agent allows](more-session-agents.md) and [which terminals replies reach](terminal-hosts.md).
 
@@ -138,7 +139,7 @@ Then turn on Sessions as the [README](../README.md#install) describes.
 | [Troubleshooting](TROUBLESHOOTING.md) | The common fixes |
 | [Claude Code sessions](claude-sessions-spike.md) | What Claude Code exposes and how the island uses it |
 | [Codex sessions](codex-sessions.md) | How the island talks to Codex's app server |
-| [More agents](more-session-agents.md) | Gemini CLI, Copilot CLI, OpenCode, Cursor, Pi, Mistral Vibe and Devin CLI |
+| [More agents](more-session-agents.md) | Gemini CLI, Copilot CLI, OpenCode, Cursor, Pi, Mistral Vibe, Devin CLI and Google Antigravity |
 | [Background sessions](background-sessions.md) | `claude --bg`, Agent View and New session |
 | [Session worktrees](session-worktrees.md) | A git worktree for each session started from New session |
 | [Terminals](terminal-hosts.md) | Every terminal and editor replies reach |

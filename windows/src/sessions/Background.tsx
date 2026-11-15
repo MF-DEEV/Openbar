@@ -487,6 +487,7 @@ const AGENT_PREF = {
   pi: "agentPi",
   vibe: "agentVibe",
   devin: "agentDevin",
+  antigravity: "agentAntigravity",
 } as const;
 
 /** The agents this PC can start, the pill sliding to the one picked. */

@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- Google Antigravity joins the Sessions list: its app, its IDE and `agy` show each conversation with its own mark, color, pixel figure and switch, and the mark joins the closed island's stack. Approvals stay in Antigravity, and a reply from the island reaches `agy` in a terminal. On Mac, Windows and Linux. Settings → Dynamic Island → Content → Sessions → More agents.
 - Pi, Mistral Vibe and Devin CLI join the Sessions list, each with its own mark, color, pixel figure and switch, and their marks join the closed island's stack. Each one installed connects by itself. Pi's replies go from the island straight into the session; Mistral Vibe's approvals and questions and Devin CLI's permission prompts are answered in their terminal, and Open takes you there. On Mac and Windows. Settings → Dynamic Island → Content → Sessions → More agents.
 - On Linux, the paste button in a session's reply box attaches the picture on the clipboard or the image files you copied in the file manager, as it does on Windows.
 - On Linux, a Codex running in a terminal that its app server does not list now shows in Sessions, with its folder and what it is doing. Open brings its terminal forward, and a reply goes into tmux, kitty or WezTerm.

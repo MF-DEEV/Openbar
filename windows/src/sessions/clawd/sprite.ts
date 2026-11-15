@@ -894,6 +894,13 @@ const LEGS: Readonly<Record<Character, readonly (readonly [number, boolean])[]>>
     [8, false],
     [9, false],
   ],
+  // The arch stands on the ends of its two legs.
+  antigravity: [
+    [0, true],
+    [2, true],
+    [10, false],
+    [12, false],
+  ],
 };
 
 // MARK: The other agents' figures (NotchClawdSprite.swift)
@@ -983,6 +990,19 @@ export const DEVIN_BODY = [
   "...ccccccc...",
 ];
 
+/** Google Antigravity's figure: the arch of its mark, round on top and open
+ * between its two legs. */
+export const ANTIGRAVITY_BODY = [
+  "....CCCCC....",
+  "..CCCCCCCCC..",
+  ".CCCCCCCCCCC.",
+  "CCCCCCCCCCCCC",
+  "CCCCCCCCCCCCC",
+  "CCCCC...CCCCC",
+  "CCCC.....CCCC",
+  "ccc.......ccc",
+];
+
 function compose(
   costume: ClawdCostume,
   p: ClawdPose,
@@ -1047,6 +1067,9 @@ function compose(
     put(s(3, -2, ["A", "c"]));
     put(s(9, -2, ["A", "c"]));
     put(s(0, 0, DEVIN_BODY));
+    CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
+  } else if (character === "antigravity") {
+    put(s(0, 0, ANTIGRAVITY_BODY));
     CODEX_ARM_STAMPS[p.arms].forEach((stamp) => put(stamp));
   } else {
     put(s(0, 0, BODY_ROWS));

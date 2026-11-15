@@ -70,3 +70,47 @@ enum AgentVibeLog {
         return nil
     }
 }
+
+/// The agent's last reply in a Google Antigravity conversation, read from
+/// the transcript its hooks name
+/// (`…/brain/<conversation>/.system_generated/logs/transcript_full.jsonl`),
+/// since the hooks carry none. One step per line; `PLANNER_RESPONSE` steps
+/// hold the model's text, empty on a step that only calls tools. Read only
+/// with previews on, and only the file's end.
+enum AgentAntigravityLog {
+    static let tailBytes = 1024 * 1024
+    static let names: Set<String> = ["transcript_full.jsonl", "transcript.jsonl"]
+
+    static func lastReply(in path: String) -> String? {
+        lastContent(in: path) { $0 == "PLANNER_RESPONSE" }.flatMap(AgentHookMessage.preview)
+    }
+
+    /// The content of the last step of a type that has any, in the file's last part.
+    static func lastContent(in path: String, where matches: (String) -> Bool) -> String? {
+        guard names.contains((path as NSString).lastPathComponent), let data = tail(path) else { return nil }
+        return lastContent(lines: data, where: matches)
+    }
+
+    static func lastContent(lines data: Data, where matches: (String) -> Bool) -> String? {
+        for line in data.split(separator: 0x0A).reversed() {
+            guard let step = (try? JSONSerialization.jsonObject(with: Data(line))) as? [String: Any],
+                  let type = step["type"] as? String, matches(type),
+                  let content = step["content"] as? String,
+                  !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+            return content
+        }
+        return nil
+    }
+
+    private static func tail(_ path: String) -> Data? {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
+        defer { try? handle.close() }
+        guard let size = try? handle.seekToEnd() else { return nil }
+        let start = size > UInt64(tailBytes) ? size - UInt64(tailBytes) : 0
+        try? handle.seek(toOffset: start)
+        guard var data = try? handle.readToEnd() else { return nil }
+        // A cut first line is not a step.
+        if start > 0, let newline = data.firstIndex(of: 0x0A) { data = data[(newline + 1)...] }
+        return data
+    }
+}

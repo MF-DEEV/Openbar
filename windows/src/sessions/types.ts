@@ -158,7 +158,8 @@ export interface ChatMessage {
   endsTurn: boolean;
 }
 
-export type Provider = "claude" | "codex" | "gemini" | "copilot" | "opencode" | "cursor" | "pi" | "vibe" | "devin";
+export type Provider =
+  "claude" | "codex" | "gemini" | "copilot" | "opencode" | "cursor" | "pi" | "vibe" | "devin" | "antigravity";
 
 /** Every agent, in the order the strip and lists take them. */
 export const PROVIDERS: readonly Provider[] = [
@@ -171,11 +172,12 @@ export const PROVIDERS: readonly Provider[] = [
   "pi",
   "vibe",
   "devin",
+  "antigravity",
 ];
 
 /** The agents that report through the island's hooks or plugin
  * (sessions/hook_agents.rs, docs/more-session-agents.md). */
-export const HOOK_AGENTS = ["gemini", "copilot", "opencode", "cursor", "pi", "vibe", "devin"] as const;
+export const HOOK_AGENTS = ["gemini", "copilot", "opencode", "cursor", "pi", "vibe", "devin", "antigravity"] as const;
 export type HookAgent = (typeof HOOK_AGENTS)[number];
 
 /** The agent's name where room is short, as New session's picker. */
@@ -189,6 +191,7 @@ export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
   pi: "Pi",
   vibe: "Vibe",
   devin: "Devin",
+  antigravity: "Antigravity",
 };
 
 export const isHookAgent = (provider: Provider): provider is HookAgent =>
@@ -205,6 +208,7 @@ export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
   pi: "Pi",
   vibe: "Mistral Vibe",
   devin: "Devin CLI",
+  antigravity: "Google Antigravity",
 };
 
 export interface Session {
@@ -306,6 +310,7 @@ export interface Counts {
   workingPi?: number;
   workingVibe?: number;
   workingDevin?: number;
+  workingAntigravity?: number;
   waiting: number;
   /** Stopped by the plan's usage limit; absent from an older service. */
   limited?: number;
@@ -370,6 +375,7 @@ export function workingOf(counts: Counts, provider: Provider): number {
     pi: counts.workingPi ?? 0,
     vibe: counts.workingVibe ?? 0,
     devin: counts.workingDevin ?? 0,
+    antigravity: counts.workingAntigravity ?? 0,
   };
   if (provider === "claude") {
     return Math.max(0, total - Object.values(others).reduce((sum, n) => sum + Math.max(0, n), 0));

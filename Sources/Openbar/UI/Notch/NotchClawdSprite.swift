@@ -297,6 +297,9 @@ enum NotchClawdSprite {
             devinAntennae.forEach { put($0) }
             put(Stamp(x: 0, y: 0, rows: devinBody))
             codexArms(pose.arms).forEach { put($0) }
+        case .antigravity:
+            put(Stamp(x: 0, y: 0, rows: antigravityBody))
+            codexArms(pose.arms).forEach { put($0) }
         }
         put(eyes(pose.eyes, column: 3))
         put(eyes(pose.eyes, column: 9))
@@ -334,6 +337,8 @@ enum NotchClawdSprite {
         case .pi: return [(1, true), (3, true), (7, false), (11, false)]
         case .vibe: return [(0, true), (2, true), (10, false), (12, false)]
         case .devin: return [(3, true), (4, true), (8, false), (9, false)]
+        // The arch stands on the ends of its two legs.
+        case .antigravity: return [(0, true), (2, true), (10, false), (12, false)]
         }
     }
 
@@ -426,6 +431,18 @@ enum NotchClawdSprite {
         "cCCCCCCCCCCCc",
         ".ccCCCCCCCcc.",
         "...ccccccc...",
+    ]
+    /// Google Antigravity's figure: the arch of its mark, round on top and
+    /// open between its two legs.
+    static let antigravityBody = [
+        "....CCCCC....",
+        "..CCCCCCCCC..",
+        ".CCCCCCCCCCC.",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCC...CCCCC",
+        "CCCC.....CCCC",
+        "ccc.......ccc",
     ]
     private static let devinAntennae = [Stamp(x: 3, y: -2, rows: ["A", "c"]), Stamp(x: 9, y: -2, rows: ["A", "c"])]
 
@@ -1008,7 +1025,7 @@ enum NotchClawdSprite {
             case "y": return shaded(piYellow)
             default: break
             }
-        case .vibe, .devin:
+        case .vibe, .devin, .antigravity:
             break
         case .clawd:
             break
