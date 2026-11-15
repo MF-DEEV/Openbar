@@ -4,7 +4,8 @@
 //! Other apps' windows on Wayland (#252). Wayland gives a client nothing about
 //! windows that are not its own, so the compositor is asked over its own
 //! socket where it has one: sway's IPC (`$SWAYSOCK`, i3's protocol) and
-//! Hyprland's (`$HYPRLAND_INSTANCE_SIGNATURE`). Both list each window with the
+//! Hyprland's (`$HYPRLAND_INSTANCE_SIGNATURE`), or through a KWin script on
+//! KDE Plasma (`kwin.rs`). Each lists every window with the
 //! pid of its program, whether it is focused or fullscreen and where it is,
 //! and focus a window when asked, which is what X11's `_NET_ACTIVE_WINDOW`,
 //! `_NET_WM_STATE` and `_NET_WM_PID` give the rest of the Linux code.
@@ -35,6 +36,8 @@ pub struct Toplevel {
 enum Ipc {
     Sway(PathBuf),
     Hyprland(PathBuf),
+    /// KDE Plasma: a KWin script reports to us (`kwin.rs`).
+    KWin,
 }
 
 /// Whether GTK runs on Wayland itself rather than through XWayland, from what
@@ -80,11 +83,13 @@ fn ipc() -> Option<Ipc> {
     if let Some(sock) = env("SWAYSOCK") {
         return Some(Ipc::Sway(sock.into()));
     }
-    let signature = env("HYPRLAND_INSTANCE_SIGNATURE")?;
-    hyprland_socket(env("XDG_RUNTIME_DIR").as_deref(), &signature)
-        .into_iter()
-        .find(|p| p.exists())
-        .map(Ipc::Hyprland)
+    if let Some(signature) = env("HYPRLAND_INSTANCE_SIGNATURE") {
+        return hyprland_socket(env("XDG_RUNTIME_DIR").as_deref(), &signature)
+            .into_iter()
+            .find(|p| p.exists())
+            .map(Ipc::Hyprland);
+    }
+    super::kwin::available().then_some(Ipc::KWin)
 }
 
 /// Whether the windows of other apps can be listed and focused here.
@@ -261,6 +266,7 @@ pub fn toplevels() -> Option<Vec<Toplevel>> {
             let address = active.get("address").and_then(Value::as_str);
             Some(hyprland_toplevels(&clients, address))
         }
+        Ipc::KWin => Some(super::kwin::report()?.windows),
     }
 }
 
@@ -279,6 +285,7 @@ pub fn focus(id: u64) -> bool {
             hyprland(&path, &format!("dispatch focuswindow address:0x{id:x}"))
                 .is_some_and(|answer| answer.trim() == "ok")
         }
+        Some(Ipc::KWin) => super::kwin::activate(id),
         None => false,
     }
 }
@@ -388,6 +395,7 @@ pub fn focused_output() -> Option<Output> {
         Ipc::Hyprland(path) => {
             hyprland_outputs(&serde_json::from_str(&hyprland(&path, "j/monitors")?).ok()?)
         }
+        Ipc::KWin => super::kwin::report()?.screen.into_iter().collect(),
     };
     outputs
         .iter()

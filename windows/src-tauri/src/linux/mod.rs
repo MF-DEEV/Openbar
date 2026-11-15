@@ -26,6 +26,7 @@ pub mod hosts;
 pub mod ics;
 pub mod image;
 pub mod kitty;
+pub mod kwin;
 pub mod layer;
 pub mod locale;
 pub mod net;

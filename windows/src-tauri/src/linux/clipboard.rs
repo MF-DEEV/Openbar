@@ -205,6 +205,11 @@ pub fn read(include_images_files: bool) -> Option<Content> {
     rx.recv_timeout(ANSWER).ok().flatten()
 }
 
+/// Whether a type is named as types are (`text/plain`, `UTF8_STRING`), not in garbled bytes.
+fn readable_type(name: &str) -> bool {
+    !name.is_empty() && name.bytes().all(|b| b.is_ascii_graphic())
+}
+
 /// The same choice as `start_read`, from what wl-paste says the copy offers.
 fn read_wayland(include_images_files: bool) -> Option<Content> {
     let targets = wl::types();
@@ -212,28 +217,29 @@ fn read_wayland(include_images_files: bool) -> Option<Content> {
         return None;
     }
     if include_images_files && offers(&targets, "text/uri-list") {
-        let paths = wl::get("text/uri-list", MAX_TEXT_BYTES)
+        let paths = wl::get(Some("text/uri-list"), MAX_TEXT_BYTES)
             .map(|bytes| paths_from_list(&String::from_utf8_lossy(&bytes)))
             .unwrap_or_default();
         if !paths.is_empty() && paths.len() <= MAX_FILES {
             return Some(Content::Files(paths));
         }
     }
-    let text = [
-        "text/plain;charset=utf-8",
-        "UTF8_STRING",
-        "text/plain",
-        "STRING",
-    ]
-    .into_iter()
-    .find(|t| offers(&targets, t));
-    if let Some(text) = text.and_then(|t| wl::get(t, MAX_TEXT_BYTES))
+    const TEXT: [&str; 4] = ["text/plain;charset=utf-8", "UTF8_STRING", "text/plain", "STRING"];
+    let text = match TEXT.into_iter().find(|t| offers(&targets, t)) {
+        Some(t) => wl::get(Some(t), MAX_TEXT_BYTES),
+        // KWin 5.27 names a copy's types with garbled bytes; wl-paste's own pick still reads it.
+        None if !targets.is_empty() && !targets.iter().any(|t| readable_type(t)) => {
+            wl::get(None, MAX_TEXT_BYTES)
+        }
+        None => None,
+    };
+    if let Some(text) = text
         && let Ok(text) = String::from_utf8(text)
     {
         return Some(Content::Text(text));
     }
     if include_images_files && offers(&targets, "image/png") {
-        return wl::get("image/png", MAX_IMAGE_BYTES).and_then(content_of_png);
+        return wl::get(Some("image/png"), MAX_IMAGE_BYTES).and_then(content_of_png);
     }
     None
 }
@@ -653,6 +659,14 @@ mod tests {
 
     fn names(list: &[&str]) -> Vec<String> {
         list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn a_type_named_in_garbled_bytes_is_not_a_type() {
+        assert!(readable_type("text/plain;charset=utf-8"));
+        assert!(readable_type("UTF8_STRING"));
+        assert!(!readable_type("\u{fffd}\u{fffd}>U\u{fffd}"));
+        assert!(!readable_type(""));
     }
 
     #[test]

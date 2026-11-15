@@ -8,7 +8,7 @@
 //!
 //! On Wayland no app may read the screen by itself: the picture comes from
 //! `grim` (the screencopy protocol of sway, Hyprland and other wlroots
-//! compositors), the display is the one the compositor has focused, and the
+//! compositors) or, on KDE, Spectacle, the display is the one the compositor has focused, and the
 //! selection overlay is a layer surface over it.
 
 use tauri::{Runtime, WebviewWindow};
@@ -142,12 +142,55 @@ fn grab_wayland(rect: Rect) -> Option<Frame> {
         .args(["-g", &area, "-t", "ppm", "-"])
         .stdin(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .output()
-        .ok()?;
-    if !output.status.success() {
+        .output();
+    match output {
+        Ok(output) if output.status.success() => frame_from_ppm(&output.stdout),
+        // KWin has no screencopy for grim; its own screenshot tool may take the picture.
+        _ => grab_with_spectacle(rect),
+    }
+}
+
+/// The picture of `rect` cut from Spectacle's picture of the whole desktop (KDE).
+fn grab_with_spectacle(rect: Rect) -> Option<Frame> {
+    let file = std::env::temp_dir().join(format!("openbar-grab-{}.png", std::process::id()));
+    let taken = std::process::Command::new("spectacle")
+        .args(["--background", "--nonotify", "--fullscreen", "--output"])
+        .arg(&file)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+        .is_ok_and(|s| s.success());
+    let picture = taken
+        .then(|| gtk::gdk_pixbuf::Pixbuf::from_file(&file).ok())
+        .flatten();
+    let _ = std::fs::remove_file(&file);
+    crop_pixbuf(&picture?, rect)
+}
+
+/// `rect` of a picture as tight opaque RGBA; None when it is not all inside.
+fn crop_pixbuf(picture: &gtk::gdk_pixbuf::Pixbuf, rect: Rect) -> Option<Frame> {
+    let (width, height) = (picture.width(), picture.height());
+    if rect.x < 0 || rect.y < 0 || rect.x + rect.width > width || rect.y + rect.height > height {
         return None;
     }
-    frame_from_ppm(&output.stdout)
+    let channels = picture.n_channels() as usize;
+    let stride = picture.rowstride() as usize;
+    let bytes = picture.read_pixel_bytes();
+    let mut rgba = Vec::with_capacity(rect.width as usize * rect.height as usize * 4);
+    for y in rect.y..rect.y + rect.height {
+        let row = y as usize * stride;
+        for x in rect.x..rect.x + rect.width {
+            let at = row + x as usize * channels;
+            let px = bytes.get(at..at + 3)?;
+            rgba.extend_from_slice(&[px[0], px[1], px[2], 255]);
+        }
+    }
+    Some(Frame {
+        width: rect.width as u32,
+        height: rect.height as u32,
+        rgba,
+    })
 }
 
 /// The display under the pointer: a number for it, and where it is in the desktop.
@@ -328,7 +371,7 @@ pub fn take_foreground<R: Runtime>(window: &WebviewWindow<R>) {
 mod tests {
     use super::*;
 
-    /// By hand in a nested sway whose background is #335577, nothing over (900, 900):
+    /// By hand in a nested compositor, nothing over (900, 900) but its background:
     /// OPENBAR_LIVE_GRAB_WAYLAND=1 WAYLAND_DISPLAY=wayland-1 SWAYSOCK=... cargo test live_grab_wayland -- --ignored
     #[test]
     #[ignore = "reads the screen of a nested compositor"]
@@ -342,9 +385,31 @@ mod tests {
         })
         .expect("a picture");
         assert_eq!((frame.width, frame.height), (40, 30));
-        assert_eq!(&frame.rgba[..4], &[0x33, 0x55, 0x77, 255]);
+        // The background's colour, #335577 unless OPENBAR_LIVE_GRAB_RGB says otherwise.
+        let rgb = std::env::var("OPENBAR_LIVE_GRAB_RGB").unwrap_or_else(|_| "335577".into());
+        let rgb = u32::from_str_radix(&rgb, 16).unwrap().to_be_bytes();
+        assert_eq!(&frame.rgba[..4], &[rgb[1], rgb[2], rgb[3], 255]);
         let (_, display) = monitor_under_cursor().expect("a display");
         assert_eq!((display.width, display.height), (1920, 1080));
+    }
+
+    #[test]
+    fn a_part_of_a_picture_is_cut_out_and_one_outside_it_is_not() {
+        let picture =
+            gtk::gdk_pixbuf::Pixbuf::new(gtk::gdk_pixbuf::Colorspace::Rgb, false, 8, 4, 3).unwrap();
+        picture.fill(0x11223300);
+        picture.put_pixel(2, 1, 0xaa, 0xbb, 0xcc, 0);
+        let rect = |x, y, width, height| Rect {
+            x,
+            y,
+            width,
+            height,
+        };
+        let part = crop_pixbuf(&picture, rect(2, 1, 2, 2)).unwrap();
+        assert_eq!((part.width, part.height), (2, 2));
+        assert_eq!(&part.rgba[..8], &[0xaa, 0xbb, 0xcc, 255, 0x11, 0x22, 0x33, 255]);
+        assert!(crop_pixbuf(&picture, rect(3, 0, 2, 1)).is_none());
+        assert!(crop_pixbuf(&picture, rect(-1, 0, 1, 1)).is_none());
     }
 
     #[test]
