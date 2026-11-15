@@ -219,18 +219,37 @@ enum ClaudeBackgroundSessionTests {
         suite.expect(ClaudeCLI.startArguments(prompt: nil, background: false, model: "") == [], "an empty model is the default")
         let claude = NewSessionModels.claude(defaultName: "Default", current: "opus[1m]")
         suite.expect(claude.map(\.id) == [nil, "fable", "opus", "sonnet", "haiku"], "the default, then the aliases")
-        suite.expect(claude.first?.detail == "Opus", "the default names the model the settings pick")
+        suite.expect(claude.first?.detail == "Opus 5.5 (1M)", "the default names the exact model the settings pick")
+        suite.expect(claude.dropFirst().map(\.name) == ["Fable 5.2", "Opus 5.5", "Sonnet 5.5", "Haiku 5.5"],
+                     "without Claude Code's catalog, the bundled versions")
         suite.expect(NewSessionModels.claude(defaultName: "Default").first?.detail == nil, "no setting, no name")
-        suite.expect(NewSessionModels.claudeName("claude-fable-5-1") == "claude-fable-5-1", "a full name stays")
+        suite.expect(NewSessionModels.claudeName("claude-fable-5-1") == "Fable 5.1", "a full name reads with its version")
+        suite.expect(NewSessionModels.claudeName("claude-opus-5-5[1m]") == "Opus 5.5 (1M)", "a full name with a 1M context")
+        suite.expect(NewSessionModels.claudeName("my-proxy-model") == "my-proxy-model", "an unknown name stays")
+
+        // Claude Code's cached model catalog
+        let older = json(#"{"version":2,"fetchedAt":1,"catalog":{"config":{"models":[{"id":"claude-opus-5","name":"Opus 5"}],"provider_alias_targets":{"opus":{"default":"claude-opus-5"}}},"state":{"model":"claude-opus-5"}}}"#)
+        let newer = json(#"{"version":2,"fetchedAt":2,"catalog":{"config":{"models":[{"id":"claude-opus-6","name":"Opus 6"},{"id":"claude-fable-6-1","name":"Fable 6.1 Preview"}],"provider_alias_targets":{"opus":{"default":"claude-opus-6","per_provider":{"gateway":"claude-opus-5"}},"fable":{"default":"claude-fable-6-1"},"sonnet":{"default":"claude-sonnet-6"}}},"state":{"model":"claude-fable-6-1"}}}"#)
+        let catalog = NewSessionModels.claudeCatalog([older, newer, json("not json"), json(#"{"catalog":{}}"#)])
+        suite.expect(catalog?.aliases["opus"] == "claude-opus-6", "the freshest catalog wins")
+        let resolved = NewSessionModels.claude(defaultName: "Default", catalog: catalog)
+        suite.expect(resolved.map(\.name) == ["Default", "Fable 6.1 Preview", "Opus 6", "Sonnet 6", "Haiku 5.5"],
+                     "aliases name what the catalog points them to, read from the id when it has no name")
+        suite.expect(resolved.first?.detail == "Fable 6.1 Preview", "no setting: the model Claude Code starts with")
+        suite.expect(NewSessionModels.claude(defaultName: "Default", current: "default", catalog: catalog).first?.detail == "Fable 6.1 Preview",
+                     "`default` in the settings is the account's")
+        suite.expect(NewSessionModels.claude(defaultName: "Default", current: "sonnet", catalog: catalog).first?.detail == "Sonnet 6",
+                     "the setting wins over the catalog's state")
+        suite.expect(NewSessionModels.claudeCatalog([]) == nil && NewSessionModels.claudeCatalog([json("[]")]) == nil, "no catalog")
         suite.expect(NewSessionModels.claudeSetting(json(#"{"model":"sonnet","env":{}}"#)) == "sonnet", "settings name a model")
         suite.expect(NewSessionModels.claudeSetting(json(#"{"model":""}"#)) == nil, "an empty one is none")
         suite.expect(NewSessionModels.claudeSetting(json("not json")) == nil, "a broken file is none")
 
         // Codex's catalog, shaped as 0.164 writes models_cache.json
         let cache = json(#"{"fetched_at":"x","models":[{"slug":"gpt-b","display_name":"GPT B","visibility":"list","priority":2},{"slug":"hidden","display_name":"Hidden","visibility":"hide","priority":0},{"slug":"gpt-a","display_name":"GPT A","visibility":"list","priority":1},{"slug":"gpt-c","display_name":"","priority":2},{"slug":"gpt-a","display_name":"Again","visibility":"list","priority":9},{"display_name":"No slug","visibility":"list","priority":0}]}"#)
-        let catalog = NewSessionModels.codexCatalog(cache)
-        suite.expect(catalog.map(\.key) == ["gpt-a", "gpt-b", "gpt-c"], "listed ones in Codex's order, once each, hidden left out")
-        suite.expect(catalog.last?.name == "gpt-c", "no display name shows the slug")
+        let codexList = NewSessionModels.codexCatalog(cache)
+        suite.expect(codexList.map(\.key) == ["gpt-a", "gpt-b", "gpt-c"], "listed ones in Codex's order, once each, hidden left out")
+        suite.expect(codexList.last?.name == "gpt-c", "no display name shows the slug")
         suite.expect(NewSessionModels.codexCatalog(nil).isEmpty && NewSessionModels.codexCatalog(json("[]")).isEmpty, "no catalog, no models")
         let codex = NewSessionModels.codex(cache: cache, config: "model = \"gpt-b\"\n", defaultName: "Default")
         suite.expect(codex.first?.id == nil && codex.first?.detail == "GPT B", "the default names the configured model")
