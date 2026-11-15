@@ -53,7 +53,7 @@ export async function checkMusicQueue({ send, evaluate, base }) {
   })()`);
   assert(bounds.lastBottom <= bounds.panelBottom + 1, "Five queue rows must fit without clipping");
   assert(bounds.surfaceBottom - bounds.lastBottom < 40, "Queue surface must finish close to the fifth row");
-  console.log('Space below fifth row:',Math.round(bounds.surfaceBottom-bounds.lastBottom),'px');
+  console.log("Space below fifth row:", Math.round(bounds.surfaceBottom - bounds.lastBottom), "px");
   assert.equal(await evaluate("lyrics.getState().expanded"), false);
   assert.deepEqual(await evaluate("playCommands"), []);
   const shot = await send("Page.captureScreenshot", { format: "png" });

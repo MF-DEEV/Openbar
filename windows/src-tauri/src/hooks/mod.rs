@@ -145,7 +145,7 @@ pub fn claude_hooks_status() -> HooksStatus {
         .iter()
         .filter(|s| **s == AccountHooks::Installed)
         .count();
-    let unreadable = states.iter().any(|s| *s == AccountHooks::Unreadable);
+    let unreadable = states.contains(&AccountHooks::Unreadable);
     HooksStatus {
         installed: installed_in == states.len(),
         stale: installed_in < states.len() && states.contains(&AccountHooks::Outdated),

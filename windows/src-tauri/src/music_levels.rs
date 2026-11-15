@@ -144,12 +144,12 @@ pub fn start<R: tauri::Runtime>(app: tauri::AppHandle<R>, media: crate::media::S
                             smoother = Smoother::default();
                         } else if streams.is_empty() {
                             mode = "unavailable";
-                            if let Ok((device, id)) = device {
-                                if let Ok(capture) = Capture::system(&device) {
-                                    streams.push(capture);
-                                    endpoint = id;
-                                    mode = "system";
-                                }
+                            if let Ok((device, id)) = device
+                                && let Ok(capture) = Capture::system(&device)
+                            {
+                                streams.push(capture);
+                                endpoint = id;
+                                mode = "system";
                             }
                         }
                         pids = next_pids;

@@ -326,7 +326,7 @@ mod tests {
 
     #[test]
     fn a_kitty_window_counts_only_when_it_lists_the_session() {
-        let body = r#"case "$*" in *' ls '*) echo '[{"tabs":[{"windows":[{"id":3,"pid":500,"foreground_processes":[{"pid":501}]}]}]}]';; *) exit 1;; esac
+        let body = r#"case "$*" in *' ls') echo '[{"tabs":[{"windows":[{"id":3,"pid":500,"foreground_processes":[{"pid":501}]}]}]}]';; *) exit 1;; esac
 "#;
         let (dir, program) = scripted("window", "kitten", body);
         let in_kitty = Located {

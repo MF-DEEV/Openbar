@@ -74,7 +74,7 @@ pub fn metadata(pid: u32) -> Option<Metadata> {
         if bytes == 0 {
             return Some(String::new());
         }
-        if bytes > 64 * 1024 || bytes % 2 != 0 || value.Buffer.0.is_null() {
+        if bytes > 64 * 1024 || !bytes.is_multiple_of(2) || value.Buffer.0.is_null() {
             return None;
         }
         let mut units = vec![0u16; bytes / 2];
@@ -204,8 +204,10 @@ pub fn environment_values(pid: u32, names: &[&str]) -> std::collections::HashMap
             let mut bytes = vec![0u8; size];
             read_bytes(handle, block, &mut bytes)?;
             let units: Vec<u16> = bytes
-                .chunks_exact(2)
-                .map(|pair| u16::from_ne_bytes([pair[0], pair[1]]))
+                .as_chunks::<2>()
+                .0
+                .iter()
+                .map(|pair| u16::from_ne_bytes(*pair))
                 .collect();
             Some(pick_environment(&units, names))
         })();
