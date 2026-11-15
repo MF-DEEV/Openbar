@@ -22,8 +22,9 @@ use serde_json::{Map, Value, json};
 
 use super::file_diff;
 use super::models::{
-    ChatMessage, ChatRole, ContentPolicy, HostKind, Permission, Provider, Session, SessionEvent,
-    SessionPhase, Time, Tokens, ToolUse, preview, project_name, str_of, tool_summary,
+    ChatMessage, ChatRole, ContentPolicy, HostKind, Permission, Provider, Question, QuestionOption,
+    Session, SessionEvent, SessionPhase, Time, Tokens, ToolUse, preview, project_name, str_of,
+    tool_summary,
 };
 use super::transcript::REPLY_LIMIT;
 
@@ -124,6 +125,9 @@ pub enum Kind {
         started: Option<Time>,
     },
     Permission(Permission),
+    /// A permission or question the island answers itself, over the
+    /// connection that holds it (Vibe's app-server proxy).
+    HeldPermission(Permission),
     PermissionSettled(Option<String>),
     Question,
     Reply(String),
@@ -171,6 +175,10 @@ pub struct Decoded {
     /// The session's own log, where the agent names one: Vibe's folder,
     /// Antigravity's transcript.
     pub transcript: Option<String>,
+    /// A session Vibe's app-server proxy runs, which then answers its approvals.
+    pub attached: Option<String>,
+    /// The events come from the proxy, not from Vibe's hooks.
+    pub from_proxy: bool,
     pub provider: Option<Provider>,
     pub pid: i32,
 }
@@ -183,7 +191,11 @@ pub fn is_envelope(data: &[u8]) -> bool {
 /// Whether the hook waits for the island's answer: an OpenCode permission,
 /// or OpenCode's plugin or Pi's extension listening.
 pub fn waits(data: &[u8]) -> bool {
-    if !is_envelope(data) || !(contains(data, b"\"opencode\"") || contains(data, b"\"pi\"")) {
+    if !is_envelope(data)
+        || !(contains(data, b"\"opencode\"")
+            || contains(data, b"\"pi\"")
+            || contains(data, b"\"proxy\""))
+    {
         return false;
     }
     let Ok(json) = serde_json::from_slice::<Value>(data) else {
@@ -193,6 +205,11 @@ pub fn waits(data: &[u8]) -> bool {
     match json.get(KEY).and_then(Value::as_str) {
         Some("opencode") => matches!(kind, Some("permission" | "listen")),
         Some("pi") => kind == Some("listen"),
+        // Vibe's proxy holds the connection of an approval or a question, which the island answers.
+        Some("vibe") => {
+            json.get("hook").and_then(Value::as_str) == Some("proxy")
+                && matches!(kind, Some("approval" | "question"))
+        }
         _ => false,
     }
 }
@@ -227,6 +244,7 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
         Provider::Opencode | Provider::Pi => {
             plugin(provider, event, pid, now, policy, &mut decoded)
         }
+        Provider::Vibe if hook == "proxy" => vibe_proxy(event, now, &mut decoded),
         Provider::Vibe => {
             decoded.events = vibe(&hook, event, pid, now, policy);
             decoded.transcript = text(event, "transcript_path");
@@ -661,6 +679,155 @@ fn vibe(
         _ => {}
     }
     events
+}
+
+// MARK: Mistral Vibe's app-server proxy
+
+/// What the proxy a New session runs Vibe's server through tells the island
+/// (`vibe_proxy`): a session it serves, an approval or question the island
+/// can answer, and one answered elsewhere.
+fn vibe_proxy(json: &Map<String, Value>, now: Time, decoded: &mut Decoded) {
+    decoded.from_proxy = true;
+    let kind = text(json, "kind").unwrap_or_default();
+    let Some(session) = text(json, "session") else {
+        return;
+    };
+    let request = text(json, "request");
+    if request.is_none() && kind != "attach" {
+        return;
+    }
+    let cwd = text(json, "cwd");
+    // The proxy's pid is not the agent's: the hooks name that.
+    let mut add = |kind| {
+        decoded.events.push(AgentEvent {
+            provider: Provider::Vibe,
+            session_id: session.clone(),
+            pid: 0,
+            cwd: cwd.clone(),
+            date: now,
+            kind,
+        })
+    };
+    match kind.as_str() {
+        "attach" => decoded.attached = Some(session.clone()),
+        "settled" => add(Kind::PermissionSettled(request.clone())),
+        "approval" => {
+            let raw = text(json, "tool").unwrap_or_default();
+            let tool = name(Provider::Vibe, &raw);
+            let input = json
+                .get("input")
+                .and_then(Value::as_object)
+                .cloned()
+                .unwrap_or_default();
+            let detail = ["command", "file_path", "path", "url"]
+                .iter()
+                .filter_map(|key| str_of(input.get(*key)).filter(|s| !s.is_empty()))
+                .next()
+                .map(str::to_owned)
+                .unwrap_or_else(|| {
+                    if input.is_empty() {
+                        String::new()
+                    } else {
+                        tool_summary::arguments(&input)
+                    }
+                });
+            let request = request.clone().unwrap_or_default();
+            decoded.permission = Some((session.clone(), request.clone()));
+            let always = json.get("always").and_then(Value::as_bool).unwrap_or(false);
+            let mut permission = waiting_permission(&tool, String::new(), always, now, &request);
+            permission.summary = Some(first_line(&detail)).filter(|s| !s.is_empty());
+            permission.set_content(&detail, true, Some(detail.chars().count()));
+            add(Kind::HeldPermission(permission));
+        }
+        "question" => {
+            let questions: Vec<Question> = json
+                .get("questions")
+                .and_then(Value::as_array)
+                .map(|list| {
+                    list.iter()
+                        .filter_map(|item| {
+                            let item = item.as_object()?;
+                            let asked = text(item, "question").filter(|s| !s.is_empty())?;
+                            Some(Question {
+                                question: asked,
+                                header: text(item, "header"),
+                                options: item
+                                    .get("options")
+                                    .and_then(Value::as_array)
+                                    .map(|options| {
+                                        options
+                                            .iter()
+                                            .filter_map(|option| {
+                                                let option = option.as_object()?;
+                                                let label = text(option, "label")
+                                                    .filter(|s| !s.is_empty())?;
+                                                Some(QuestionOption {
+                                                    label,
+                                                    description: text(option, "description"),
+                                                    preview: None,
+                                                })
+                                            })
+                                            .collect()
+                                    })
+                                    .unwrap_or_default(),
+                                multi_select: item
+                                    .get("multiSelect")
+                                    .and_then(Value::as_bool)
+                                    .unwrap_or(false),
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default();
+            let Some(first) = questions.first() else {
+                return;
+            };
+            let request = request.clone().unwrap_or_default();
+            decoded.permission = Some((session.clone(), request.clone()));
+            let mut permission =
+                waiting_permission(Question::TOOL, String::new(), false, now, &request);
+            permission.summary = Some(tool_summary::clip(&first.question));
+            permission.questions = questions;
+            add(Kind::HeldPermission(permission));
+        }
+        _ => {}
+    }
+}
+
+/// What the proxy passes on to Vibe for the person's decision on a request.
+pub fn vibe_reply(
+    decision: &super::hook_message::Decision,
+    questions: &[Question],
+) -> Option<Vec<u8>> {
+    use super::hook_message::{DENY_MESSAGE, Decision};
+    let reply = match decision {
+        Decision::Allow | Decision::ApprovePlan(_) => json!({ "decision": "approve" }),
+        Decision::AllowAlways => json!({ "decision": "approve_for_session" }),
+        Decision::Deny if questions.is_empty() => {
+            json!({ "decision": "deny", "feedback": DENY_MESSAGE })
+        }
+        Decision::Deny => json!({ "cancelled": true }),
+        Decision::Answer(answers) => {
+            let given: Vec<Value> = questions
+                .iter()
+                .filter_map(|question| {
+                    let picked = answers.get(&question.question).filter(|p| !p.is_empty())?;
+                    let listed: Vec<&str> =
+                        question.options.iter().map(|o| o.label.as_str()).collect();
+                    Some(json!({
+                        "question": question.question,
+                        "answer": picked.join(", "),
+                        "isOther": !picked.iter().all(|p| listed.contains(&p.as_str())),
+                    }))
+                })
+                .collect();
+            if given.is_empty() || given.len() != questions.len() {
+                return None;
+            }
+            json!({ "answers": given })
+        }
+    };
+    serde_json::to_vec(&reply).ok()
 }
 
 // MARK: Devin CLI
@@ -1597,6 +1764,12 @@ impl Tracker {
                 entry.open_turn(date);
                 entry.permission = Some(permission);
                 entry.answerable = event.provider.answers_permissions();
+                entry.asking = false;
+            }
+            Kind::HeldPermission(permission) => {
+                entry.open_turn(date);
+                entry.permission = Some(permission);
+                entry.answerable = true;
                 entry.asking = false;
             }
             Kind::PermissionSettled(request) => {
@@ -4018,5 +4191,218 @@ mod tests {
             Some("feat/x")
         );
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    // MARK: Vibe's app-server proxy (#251)
+
+    const VIBE_SESSION: &str = "6267026e-5700-b9cb-3d47-f84eb25621f1";
+    // As Vibe 3.1.2 sent it (trimmed of what the proxy does not read).
+    const VIBE_APPROVAL: &str = r#"{"jsonrpc":"2.0","id":1,"method":"callback/call","params":{"callback":{"id":"approval-call_1-da12e44f","sessionId":"6267026e-5700-b9cb-3d47-f84eb25621f1","turnId":"turn-aee2","type":"callback","callbackId":"approval-call_1-da12e44f","title":"Approve file_system.bash","detail":{"kind":"approval","effect":{"toolName":"file_system.bash","display":{"summary":"bash: touch approved.txt","message":"touch approved.txt"},"kind":"shell","input":{"command":"touch approved.txt"}},"choices":["approve","approve_for_session","approve_permanently","deny","cancel_turn"],"pathScopeChoices":[],"reason":null},"state":{"status":"open"}}}}"#;
+    const VIBE_QUESTION: &str = r#"{"jsonrpc":"2.0","id":2,"method":"callback/call","params":{"callback":{"id":"user-input-call_q-716120f1","sessionId":"30f956f5","type":"callback","callbackId":"user-input-call_q-716120f1","title":"Question","detail":{"kind":"user_input","request":{"questions":[{"question":"Which color?","header":"Color","options":[{"label":"Red","description":"warm"},{"label":"Blue","description":"cool"}],"multiSelect":false,"hideOther":false}],"footerNote":null}},"state":{"status":"open"}}}}"#;
+
+    fn proxy_message(event: Value) -> Vec<u8> {
+        super::super::vibe_proxy::envelope(&event, 4242)
+    }
+
+    #[test]
+    fn a_proxy_approval_is_held_and_answered_here() {
+        use super::super::vibe_proxy as proxy;
+        let callback = proxy::callback_in_server_line(VIBE_APPROVAL.as_bytes()).unwrap();
+        let sent = proxy::envelope(&proxy::event_for(&callback), 4242);
+        assert!(is_envelope(&sent) && waits(&sent));
+        let decoded = decode(&sent, NOW, ON).unwrap();
+        assert!(decoded.from_proxy);
+        assert_eq!(
+            decoded.permission,
+            Some((
+                VIBE_SESSION.to_owned(),
+                "approval-call_1-da12e44f".to_owned()
+            ))
+        );
+        let Kind::HeldPermission(permission) = &decoded.events[0].kind else {
+            panic!(
+                "an approval is a request the island holds: {:?}",
+                decoded.events
+            )
+        };
+        assert_eq!(permission.tool, "Bash");
+        assert_eq!(permission.detail, "touch approved.txt");
+        assert!(permission.offers_always);
+        assert_eq!(permission.request_id, "approval-call_1-da12e44f");
+        assert!(permission.content.is_some());
+        assert_eq!(
+            decoded.events[0].pid, 0,
+            "the proxy's pid is not the agent's"
+        );
+
+        let mut t = Tracker::default();
+        feed(
+            &mut t,
+            &envelope(
+                "vibe",
+                "session_start",
+                json!({ "hook_event_name": "session_start", "session_id": VIBE_SESSION, "cwd": "C:/w/vibe-app", "model": "devstral" }),
+            ),
+            ON,
+        );
+        feed(&mut t, &sent, ON);
+        let listed = snap(&mut t, NOW, true).0;
+        assert_eq!(listed[0].phase, SessionPhase::WaitingPermission);
+        assert_eq!(
+            listed[0].permission.as_ref().map(|p| p.tool.as_str()),
+            Some("Bash")
+        );
+        assert_eq!(
+            listed[0].waiting_for, None,
+            "answered here, not in the terminal"
+        );
+        assert_eq!(listed[0].cwd, "C:/w/vibe-app");
+        // Answered in the terminal, the card goes.
+        feed(
+            &mut t,
+            &proxy_message(
+                json!({ "kind": "settled", "session": VIBE_SESSION, "request": "approval-call_1-da12e44f" }),
+            ),
+            ON,
+        );
+        let listed = snap(&mut t, NOW, true).0;
+        assert!(listed[0].permission.is_none());
+        assert_ne!(listed[0].phase, SessionPhase::WaitingPermission);
+    }
+
+    #[test]
+    fn a_session_started_by_hand_is_still_answered_in_the_terminal() {
+        let mut t = Tracker::default();
+        feed(
+            &mut t,
+            &envelope(
+                "vibe",
+                "notification",
+                json!({ "hook_event_name": "notification", "session_id": "hand", "cwd": "C:/w/x",
+                        "notification_type": "approval_requested", "tool_name": "file_system.bash",
+                        "message": "Vibe needs your approval" }),
+            ),
+            ON,
+        );
+        let listed = snap(&mut t, NOW, true).0;
+        assert!(listed[0].permission.is_none());
+        assert_eq!(listed[0].waiting_for.as_deref(), Some(ANSWER_IN_TERMINAL));
+        assert!(!waits(&envelope(
+            "vibe",
+            "notification",
+            json!({ "notification_type": "approval_requested", "session_id": "hand" })
+        )));
+    }
+
+    #[test]
+    fn a_proxy_question_is_asked_like_claude_codes() {
+        use super::super::vibe_proxy as proxy;
+        let callback = proxy::callback_in_server_line(VIBE_QUESTION.as_bytes()).unwrap();
+        let sent = proxy::envelope(&proxy::event_for(&callback), 4242);
+        assert!(waits(&sent));
+        let decoded = decode(&sent, NOW, ON).unwrap();
+        let Kind::HeldPermission(permission) = &decoded.events[0].kind else {
+            panic!("a question is a request the island holds")
+        };
+        assert!(permission.asks_questions());
+        assert_eq!(permission.tool, Question::TOOL);
+        assert_eq!(permission.questions[0].question, "Which color?");
+        assert_eq!(
+            permission.questions[0]
+                .options
+                .iter()
+                .map(|o| o.label.as_str())
+                .collect::<Vec<_>>(),
+            ["Red", "Blue"]
+        );
+        assert_eq!(
+            permission.questions[0].options[0].description.as_deref(),
+            Some("warm")
+        );
+        let reply = |d, q: &[Question]| -> Value {
+            serde_json::from_slice(&vibe_reply(&d, q).unwrap()).unwrap()
+        };
+        use super::super::hook_message::Decision;
+        let picked = reply(
+            Decision::Answer([("Which color?".to_owned(), vec!["Blue".to_owned()])].into()),
+            &permission.questions,
+        );
+        assert_eq!(picked["answers"][0]["answer"], "Blue");
+        assert_eq!(picked["answers"][0]["isOther"], false);
+        let typed = reply(
+            Decision::Answer([("Which color?".to_owned(), vec!["green".to_owned()])].into()),
+            &permission.questions,
+        );
+        assert_eq!(typed["answers"][0]["isOther"], true);
+        assert_eq!(
+            reply(Decision::Deny, &permission.questions)["cancelled"],
+            true
+        );
+        assert!(
+            vibe_reply(
+                &Decision::Answer([("Other?".to_owned(), vec!["x".to_owned()])].into()),
+                &permission.questions
+            )
+            .is_none()
+        );
+        assert!(vibe_reply(&Decision::Answer(Default::default()), &permission.questions).is_none());
+    }
+
+    #[test]
+    fn what_the_island_answers_to_an_approval_is_vibes_own_decisions() {
+        use super::super::hook_message::{DENY_MESSAGE, Decision};
+        let reply = |d: Decision| -> Value {
+            serde_json::from_slice(&vibe_reply(&d, &[]).unwrap()).unwrap()
+        };
+        assert_eq!(reply(Decision::Allow)["decision"], "approve");
+        assert_eq!(
+            reply(Decision::AllowAlways)["decision"],
+            "approve_for_session"
+        );
+        assert_eq!(reply(Decision::Deny)["decision"], "deny");
+        assert_eq!(reply(Decision::Deny)["feedback"], DENY_MESSAGE);
+    }
+
+    #[test]
+    fn the_proxy_tells_of_a_session_and_of_one_answered_elsewhere() {
+        let attach =
+            proxy_message(json!({ "kind": "attach", "session": VIBE_SESSION, "cwd": "C:/w/app" }));
+        let decoded = decode(&attach, NOW, ON).unwrap();
+        assert!(!waits(&attach));
+        assert_eq!(decoded.attached.as_deref(), Some(VIBE_SESSION));
+        assert!(decoded.events.is_empty());
+        let settled =
+            proxy_message(json!({ "kind": "settled", "session": VIBE_SESSION, "request": "r1" }));
+        assert!(!waits(&settled));
+        assert_eq!(
+            decode(&settled, NOW, ON).unwrap().events[0].kind,
+            Kind::PermissionSettled(Some("r1".to_owned()))
+        );
+        // Vibe's hooks are not the proxy.
+        let hook = envelope(
+            "vibe",
+            "notification",
+            json!({ "session_id": "v1", "notification_type": "turn_completed" }),
+        );
+        assert!(!decode(&hook, NOW, ON).unwrap().from_proxy);
+        // A proxy message with nothing to say is read without a crash.
+        assert!(
+            decode(&proxy_message(json!({ "kind": "approval" })), NOW, ON)
+                .unwrap()
+                .events
+                .is_empty()
+        );
+        assert!(
+            decode(
+                &proxy_message(
+                    json!({ "kind": "question", "session": "s", "request": "r", "questions": [] })
+                ),
+                NOW,
+                ON
+            )
+            .unwrap()
+            .events
+            .is_empty()
+        );
     }
 }

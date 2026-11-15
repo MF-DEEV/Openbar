@@ -63,6 +63,12 @@ pub fn hook_main() -> ! {
     hooks::transport::run_hook(hooks::APP_ID)
 }
 
+/// `Openbar.exe --vibe-proxy <app> <vibe-app-server> [arguments]`: the server of a
+/// Mistral Vibe started from New session, relayed for the island.
+pub fn vibe_proxy_main(arguments: &[String]) -> ! {
+    sessions::vibe_proxy::main(arguments)
+}
+
 /// `Openbar.exe --music-probe <file>`: writes what the media reader sees.
 pub fn music_probe_main(path: &str) -> ! {
     let _ = std::fs::write(path, media::probe());

@@ -657,7 +657,7 @@
   "windows.settings.sessions.agentHintOpencode": "アイランド専用のプラグインが .config\\opencode\\plugins に入ります。OpenCode のリクエストの許可・拒否や返信をアイランドから行えます。",
   "windows.settings.sessions.agentHintCursor": "フックは .cursor\\hooks.json に、あなたのフックと並べて追加されます（Cursor のエージェントと cursor-agent 用）。承認は Cursor に残り、「開く」で移動できます。",
   "windows.settings.sessions.agentHintPi": "アイランド専用の拡張機能を .pi\\agent\\extensions に置きます。各セッションの動作を表示し、アイランドから返信を送ります。Pi は権限を求めず、他の拡張機能が開いたダイアログには Pi で答えます。",
-  "windows.settings.sessions.agentHintVibe": "あなたのフックの後に .vibe\\hooks.toml へフックを追加します。Mistral Vibe の承認や質問にはターミナルで答え、返信はそこに入力されます。",
+  "windows.settings.sessions.agentHintVibe": "あなたのフックの後に .vibe\\hooks.toml へフックを追加します。新しいセッションで始めたセッションでは Mistral Vibe の承認や質問にここで答え、自分で起動したものはターミナルで答え、返信はそこに入力されます。",
   "windows.settings.sessions.agentHintDevin": "あなたのフックと並べて %APPDATA%\\devin\\config.json にフックを追加します。Devin CLI の権限確認にはターミナルで答え、返信はそこに入力されます。",
   "windows.sessions.opensInTerminal": "%@ は最初のプロンプト付きでコンソールで開きます。",
   "windows.settings.sessions.agentConnected": "接続済み",

@@ -27,4 +27,5 @@ pub mod remote;
 pub mod sample;
 pub mod service;
 pub mod transcript;
+pub mod vibe_proxy;
 pub mod worktree;

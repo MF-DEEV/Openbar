@@ -180,6 +180,11 @@ struct Inner {
     inspection: super::inspection::Gate,
     /// Each OpenCode's plugin listening for replies, by its process.
     listeners: HashMap<i32, HookConnection>,
+    /// The Mistral Vibe sessions a New session runs through the island's
+    /// app-server proxy, by the proxy's process. Those approvals and
+    /// questions are answered here; Vibe's hooks only hear of them, so
+    /// theirs are dropped.
+    proxied: HashMap<String, u32>,
     /// The agents whose sessions the list shows.
     hidden_agents: HashSet<models::Provider>,
     branches: HashMap<String, (Option<String>, Time)>,
@@ -257,6 +262,7 @@ impl Service {
                 agent_pending: HashMap::new(),
                 inspection: Default::default(),
                 listeners: HashMap::new(),
+                proxied: HashMap::new(),
                 hidden_agents: HashSet::new(),
                 branches: HashMap::new(),
                 engine: Engine::new(ContentPolicy::default()),
@@ -572,6 +578,9 @@ impl Service {
         inner
             .listeners
             .retain(|pid, _| hosts::process::is_running(*pid as u32));
+        inner
+            .proxied
+            .retain(|_, proxy| hosts::process::is_running(*proxy));
     }
 
     /// One event of Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi, Mistral Vibe,
@@ -598,7 +607,19 @@ impl Service {
             .into_iter()
             .map(|e| (e.pid, e.name))
             .collect();
-        let pid = hook_agents::agent_process(&chain, decoded.pid);
+        let pid = if decoded.from_proxy {
+            0
+        } else {
+            hook_agents::agent_process(&chain, decoded.pid)
+        };
+        if let Some(attached) = &decoded.attached {
+            if let Some(proxy) = connection.peer_pid {
+                inner
+                    .proxied
+                    .insert(hook_agents::id(provider, attached), proxy);
+            }
+            return;
+        }
         if decoded.listens {
             inner.listeners.insert(pid, connection);
             return;
@@ -622,6 +643,17 @@ impl Service {
         drop(connection);
         let previews = inner.engine.policy().previews;
         for mut event in decoded.events {
+            // A session run through the proxy is answered there: Vibe's hooks only hear of its requests.
+            if provider == models::Provider::Vibe
+                && !decoded.from_proxy
+                && inner.proxied.contains_key(&event.id())
+                && matches!(
+                    event.kind,
+                    hook_agents::Kind::Permission(_) | hook_agents::Kind::Question
+                )
+            {
+                continue;
+            }
             event.pid = if pid > 0 { pid } else { event.pid };
             // Devin CLI names no folder: the agent's own is the session's.
             if event.cwd.is_none()
@@ -1134,7 +1166,35 @@ impl Service {
                 {
                     return false;
                 }
-                let Some(reply) = hook_agents::opencode_reply(&decision) else {
+                let vibe = inner
+                    .hook_agents
+                    .entry(session)
+                    .is_some_and(|e| e.provider == models::Provider::Vibe);
+                if vibe {
+                    // A question is answered or skipped, never allowed; answers go only to a question.
+                    let asks = p.asks_questions();
+                    match &decision {
+                        Decision::Allow | Decision::AllowAlways | Decision::ApprovePlan(_)
+                            if asks =>
+                        {
+                            return false;
+                        }
+                        Decision::Answer(_) if !asks => return false,
+                        _ => {}
+                    }
+                }
+                let reply = if vibe {
+                    let questions = inner
+                        .hook_agents
+                        .entry(session)
+                        .and_then(|e| e.permission.as_ref())
+                        .map(|p| p.questions.clone())
+                        .unwrap_or_default();
+                    hook_agents::vibe_reply(&decision, &questions)
+                } else {
+                    hook_agents::opencode_reply(&decision)
+                };
+                let Some(reply) = reply else {
                     return false;
                 };
                 let Some(pending) = inner
@@ -2609,6 +2669,20 @@ pub async fn sessions_start(
             let started = hook_agents::command_name(provider)
                 .and_then(crate::agent_usage::agent_executable)
                 .is_some_and(|exe| {
+                    // Vibe's server runs through the island's proxy, which answers its approvals and questions.
+                    if provider == models::Provider::Vibe
+                        && let Some((python, arguments)) = super::vibe_proxy::launch(
+                            Path::new(&exe),
+                            crate::hooks::APP_ID,
+                            &prompt,
+                        )
+                    {
+                        return self::background::agent_in_terminal(
+                            &python,
+                            &arguments,
+                            Some(&folder),
+                        );
+                    }
                     self::background::agent_in_terminal(
                         &exe,
                         &hook_agents::start_arguments(provider, &prompt),
