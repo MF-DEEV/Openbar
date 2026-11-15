@@ -12,6 +12,7 @@ enum VibeAppServerTests {
         suite.run("vibe app-server: callbacks read") { callbacks(suite) }
         suite.run("vibe app-server: settled elsewhere") { settled(suite) }
         suite.run("vibe app-server: callback/result") { results(suite) }
+        suite.run("vibe app-server: late answers") { acknowledgements(suite) }
         suite.run("vibe app-server: envelopes") { envelopes(suite) }
         suite.run("vibe app-server: island session") { islandSession(suite) }
         suite.run("vibe app-server: replies") { replies(suite) }
@@ -113,6 +114,24 @@ enum VibeAppServerTests {
                      && VibeWire.result(id: "x", callback: asked, reply: ["decision": "approve"]) == nil
                      && VibeWire.result(id: "x", callback: asked, reply: ["answers": []]) == nil,
                      "an answer to a question that was not asked, or none, is not sent")
+    }
+
+    static func acknowledgements(_ suite: TestSuite) {
+        let own = data(#"{"jsonrpc":"2.0","id":"openbar-3","result":{"lastEventId":9,"accepted":true}}"#)
+        let taken = VibeWire.response(inServerLine: own, idPrefix: "openbar-")
+        suite.expect(taken?.id == "openbar-3" && taken?.accepted == true && taken?.lastEventId == 9, "the server's answer to a request of the proxy's is told")
+        let conflict = data(#"{"jsonrpc":"2.0","id":"openbar-4","error":{"code":"conflict","message":"x","data":null}}"#)
+        suite.expect(VibeWire.response(inServerLine: conflict, idPrefix: "openbar-")?.accepted == false
+                     && VibeWire.response(inServerLine: data(#"{"jsonrpc":"2.0","id":17,"result":{"accepted":true}}"#), idPrefix: "openbar-") == nil
+                     && VibeWire.response(inServerLine: data(#"{"jsonrpc":"2.0","id":"ob-1","result":{}}"#), idPrefix: "openbar-") == nil,
+                     "a conflict is not a taken answer, and the terminal's own answers are not the proxy's")
+        let terminal = data(#"{"jsonrpc":"2.0","id":17,"method":"callback/result","params":{"sessionId":"s","result":{"callbackId":"c"}}}"#)
+        let reply = json(VibeWire.acknowledgement(forClientLine: terminal, lastEventId: 9))
+        suite.expect(reply["id"] as? Int == 17 && (reply["result"] as? [String: Any])?["accepted"] as? Bool == true
+                     && (reply["result"] as? [String: Any])?["lastEventId"] as? Int == 9,
+                     "a late answer of the terminal is told it was taken: \(reply)")
+        suite.expect(VibeWire.acknowledgement(forClientLine: data(#"{"jsonrpc":"2.0","id":1,"method":"turn/start","params":{}}"#), lastEventId: 0) == nil,
+                     "only a callback/result is acknowledged")
     }
 
     static func envelopes(_ suite: TestSuite) {

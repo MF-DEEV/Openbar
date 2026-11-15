@@ -278,6 +278,48 @@ pub fn answered_callback(line: &[u8]) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// The server's answer to one of the proxy's own requests, by id prefix:
+/// whether it took it and how far the event stream had got. Its answers are
+/// not the terminal's.
+pub fn response(line: &[u8], id_prefix: &str) -> Option<(String, bool, i64)> {
+    if !contains(line, &format!("\"id\":\"{id_prefix}")) {
+        return None;
+    }
+    let json = object(line)?;
+    let id = text(&json, "id").filter(|id| id.starts_with(id_prefix))?;
+    let result = json.get("result");
+    Some((
+        id.to_owned(),
+        result
+            .and_then(|r| r.get("accepted"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+        result
+            .and_then(|r| r.get("lastEventId"))
+            .and_then(Value::as_i64)
+            .unwrap_or(0),
+    ))
+}
+
+/// What the server would answer a terminal that answers a callback the island
+/// already answered: its terminal UI keeps the approval's dialog open on the
+/// server's `conflict` and closes it on a taken answer, so the proxy says the
+/// answer was taken. `line` is the terminal's `callback/result` request.
+pub fn acknowledgement(line: &[u8], last_event_id: i64) -> Option<Vec<u8>> {
+    let json = object(line)?;
+    if text(&json, "method") != Some("callback/result") {
+        return None;
+    }
+    let mut data = serde_json::to_vec(&json!({
+        "jsonrpc": "2.0",
+        "id": json.get("id")?,
+        "result": { "lastEventId": last_event_id, "accepted": true },
+    }))
+    .ok()?;
+    data.push(b'\n');
+    Some(data)
+}
+
 /// The `callback/result` request for the island's reply:
 /// `{"decision": "approve" | "approve_for_session" | "deny", "feedback": "…"}`
 /// for an approval, `{"answers": [{"question", "answer", "isOther"}]}` or
@@ -534,9 +576,18 @@ pub fn launch(vibe: &Path, app: &str, prompt: &str) -> Option<(PathBuf, Vec<Stri
 
 // MARK: The proxy process
 
+/// The id of every request of the proxy's own.
+const ID_PREFIX: &str = "openbar-";
+
 struct Shared {
     /// What the island is asked, by callback.
     waiting: Mutex<HashMap<String, VibeCallback>>,
+    /// The proxy's own `callback/result` requests, by id, and the callbacks the
+    /// island has answered, with the event the server had reached.
+    ours: Mutex<HashMap<String, String>>,
+    answered_by_island: Mutex<HashMap<String, i64>>,
+    /// To the terminal: a line is written whole, whichever thread has it.
+    out: Mutex<io::Stdout>,
     told: Mutex<HashSet<String>>,
     counter: Mutex<u64>,
     to_server: Mutex<Box<dyn Write + Send>>,
@@ -569,6 +620,9 @@ pub fn run(app: &str, server: &str, arguments: &[String]) -> i32 {
     };
     let shared = Arc::new(Shared {
         waiting: Mutex::new(HashMap::new()),
+        ours: Mutex::new(HashMap::new()),
+        answered_by_island: Mutex::new(HashMap::new()),
+        out: Mutex::new(io::stdout()),
         told: Mutex::new(HashSet::new()),
         counter: Mutex::new(0),
         to_server: Mutex::new(Box::new(stdin)),
@@ -580,6 +634,12 @@ pub fn run(app: &str, server: &str, arguments: &[String]) -> i32 {
     }
     read_server(&shared, stdout);
     child.wait().ok().and_then(|s| s.code()).unwrap_or(1)
+}
+
+fn emit(shared: &Shared, data: &[u8]) {
+    let mut out = shared.out.lock().unwrap();
+    let _ = out.write_all(data);
+    let _ = out.flush();
 }
 
 fn send(shared: &Shared, line: &[u8]) {
@@ -600,10 +660,25 @@ fn read_client(shared: &Arc<Shared>) {
         match input.read_until(b'\n', &mut line) {
             Ok(0) | Err(_) => break,
             Ok(_) => {
-                send(shared, &line);
-                if let Some(answered) = answered_callback(&line) {
-                    settle(shared, &answered);
+                let Some(answered) = answered_callback(&line) else {
+                    send(shared, &line);
+                    continue;
+                };
+                // The island answered first: the terminal's answer is taken as it is, not sent.
+                let reached = shared
+                    .answered_by_island
+                    .lock()
+                    .unwrap()
+                    .get(&answered)
+                    .copied();
+                if let Some(reached) = reached
+                    && let Some(taken) = acknowledgement(&line, reached)
+                {
+                    emit(shared, &taken);
+                    continue;
                 }
+                send(shared, &line);
+                settle(shared, &answered);
             }
         }
     }
@@ -615,14 +690,24 @@ fn read_client(shared: &Arc<Shared>) {
 fn read_server(shared: &Arc<Shared>, stdout: impl Read) {
     let mut reader = BufReader::new(stdout);
     let mut line = Vec::new();
-    let mut out = io::stdout();
     loop {
         line.clear();
         match reader.read_until(b'\n', &mut line) {
             Ok(0) | Err(_) => break,
             Ok(_) => {
-                let _ = out.write_all(&line);
-                let _ = out.flush();
+                if let Some((id, accepted, reached)) = response(&line, ID_PREFIX) {
+                    if let Some(callback) = shared.ours.lock().unwrap().remove(&id)
+                        && accepted
+                    {
+                        shared
+                            .answered_by_island
+                            .lock()
+                            .unwrap()
+                            .insert(callback, reached);
+                    }
+                    continue;
+                }
+                emit(shared, &line);
                 inspect(shared, &line);
             }
         }
@@ -702,7 +787,13 @@ fn ask(shared: &Arc<Shared>, callback: VibeCallback) {
     let id = {
         let mut counter = shared.counter.lock().unwrap();
         *counter += 1;
-        format!("openbar-{counter}")
+        let id = format!("{ID_PREFIX}{counter}");
+        shared
+            .ours
+            .lock()
+            .unwrap()
+            .insert(id.clone(), callback.id.clone());
+        id
     };
     if let Some(request) = result(&id, &callback, &reply) {
         send(shared, &request);
@@ -907,6 +998,46 @@ mod tests {
         );
         assert!(result("x", &asked, &json!({ "decision": "approve" })).is_none());
         assert!(result("x", &asked, &json!({ "answers": [] })).is_none());
+    }
+
+    #[test]
+    fn a_late_answer_of_the_terminal_is_taken_and_not_sent() {
+        let own =
+            br#"{"jsonrpc":"2.0","id":"openbar-3","result":{"lastEventId":9,"accepted":true}}"#;
+        assert_eq!(
+            response(own, "openbar-"),
+            Some(("openbar-3".to_owned(), true, 9))
+        );
+        let conflict = br#"{"jsonrpc":"2.0","id":"openbar-4","error":{"code":"conflict","message":"x","data":null}}"#;
+        assert_eq!(
+            response(conflict, "openbar-"),
+            Some(("openbar-4".to_owned(), false, 0))
+        );
+        assert!(
+            response(
+                br#"{"jsonrpc":"2.0","id":17,"result":{"accepted":true}}"#,
+                "openbar-"
+            )
+            .is_none()
+        );
+        assert!(response(br#"{"jsonrpc":"2.0","id":"ob-1","result":{}}"#, "openbar-").is_none());
+        let terminal = br#"{"jsonrpc":"2.0","id":17,"method":"callback/result","params":{"sessionId":"s","result":{"callbackId":"c"}}}"#;
+        let taken: Value = serde_json::from_slice(&acknowledgement(terminal, 9).unwrap()).unwrap();
+        assert_eq!(taken["id"], 17);
+        assert_eq!(taken["result"]["accepted"], true);
+        assert_eq!(taken["result"]["lastEventId"], 9);
+        let named = br#"{"jsonrpc":"2.0","id":"t-5","method":"callback/result","params":{"sessionId":"s","result":{"callbackId":"c"}}}"#;
+        assert_eq!(
+            serde_json::from_slice::<Value>(&acknowledgement(named, 0).unwrap()).unwrap()["id"],
+            "t-5"
+        );
+        assert!(
+            acknowledgement(
+                br#"{"jsonrpc":"2.0","id":1,"method":"turn/start","params":{}}"#,
+                0
+            )
+            .is_none()
+        );
     }
 
     #[test]

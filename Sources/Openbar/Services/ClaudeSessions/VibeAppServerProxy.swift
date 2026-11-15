@@ -173,6 +173,28 @@ enum VibeWire {
         return try? JSONSerialization.data(withJSONObject: request, options: [.sortedKeys])
     }
 
+    /// The server's answer to a request, by its id: whether it took it and
+    /// how far the event stream had got. The proxy's own requests carry ids
+    /// of its own, and their answers are not the terminal's.
+    static func response(inServerLine line: Data, idPrefix: String) -> (id: String, accepted: Bool, lastEventId: Int)? {
+        guard contains(line, "\"id\":\"\(idPrefix)"), let json = object(line), let id = json["id"] as? String,
+              id.hasPrefix(idPrefix) else { return nil }
+        let result = json["result"] as? [String: Any]
+        return (id, result?["accepted"] as? Bool ?? false, (result?["lastEventId"] as? NSNumber)?.intValue ?? 0)
+    }
+
+    /// What the server would answer a terminal that answers a callback the
+    /// island already answered: its terminal UI keeps the approval's dialog
+    /// open on the server's `conflict` and closes it on a taken answer, so the
+    /// proxy says the answer was taken. `line` is the terminal's `callback/result` request.
+    static func acknowledgement(forClientLine line: Data, lastEventId: Int) -> Data? {
+        guard let json = object(line), let id = json["id"], json["method"] as? String == "callback/result" else { return nil }
+        let reply: [String: Any] = ["jsonrpc": "2.0", "id": id, "result": ["lastEventId": lastEventId, "accepted": true]]
+        guard var data = try? JSONSerialization.data(withJSONObject: reply, options: [.sortedKeys]) else { return nil }
+        data.append(0x0A)
+        return data
+    }
+
     // MARK: What the island is told
 
     /// The envelope for one of the proxy's messages (`hook` is `proxy`).
@@ -225,10 +247,16 @@ final class VibeProxyProcess {
     private let toServer = Pipe()
     private let fromServer = Pipe()
     private let writeLock = NSLock()
+    private let outLock = NSLock()
+    static let idPrefix = "openbar-"
     /// What the island is asked, by callback: the connection waiting for its answer.
     private let state = NSLock()
     private var waiting: [String: (callback: VibeCallback, fd: Int32)] = [:]
     private var told = Set<String>()
+    /// The proxy's own `callback/result` requests, by id, and the callbacks the
+    /// island has answered, with the event the server had reached.
+    private var ours: [String: String] = [:]
+    private var answeredByIsland: [String: Int] = [:]
     private var counter = 0
     /// Asking the island never holds up the relay.
     private let island = DispatchQueue(label: "com.openbar.vibe-proxy.island", attributes: .concurrent)
@@ -279,8 +307,18 @@ final class VibeProxyProcess {
             while let newline = buffer.firstIndex(of: 0x0A) {
                 let line = Data(buffer[buffer.startIndex...newline])
                 buffer.removeSubrange(buffer.startIndex...newline)
-                send(line)
-                if let answered = VibeWire.answeredCallback(inClientLine: line) { settle(answered) }
+                if let answered = VibeWire.answeredCallback(inClientLine: line) {
+                    // The island answered first: the terminal's answer is taken as it is, not sent.
+                    if let reached = state.withLock({ answeredByIsland[answered] }),
+                       let taken = VibeWire.acknowledgement(forClientLine: line, lastEventId: reached) {
+                        emit(taken)
+                        continue
+                    }
+                    send(line)
+                    settle(answered)
+                } else {
+                    send(line)
+                }
             }
         }
         try? toServer.fileHandleForWriting.close()
@@ -288,7 +326,6 @@ final class VibeProxyProcess {
 
     /// The server's lines to the terminal, as they come.
     private func readServer() {
-        let output = FileHandle.standardOutput
         let input = fromServer.fileHandleForReading
         var buffer = Data()
         while true {
@@ -298,11 +335,24 @@ final class VibeProxyProcess {
             while let newline = buffer.firstIndex(of: 0x0A) {
                 let line = Data(buffer[buffer.startIndex...newline])
                 buffer.removeSubrange(buffer.startIndex...newline)
-                try? output.write(contentsOf: line)
+                if let own = VibeWire.response(inServerLine: line, idPrefix: Self.idPrefix) {
+                    state.withLock {
+                        if let callback = ours.removeValue(forKey: own.id), own.accepted { answeredByIsland[callback] = own.lastEventId }
+                    }
+                    continue
+                }
+                emit(line)
                 inspect(line)
             }
         }
-        if !buffer.isEmpty { try? output.write(contentsOf: buffer) }
+        if !buffer.isEmpty { emit(buffer) }
+    }
+
+    /// To the terminal: a line is written whole, whichever thread has it.
+    private func emit(_ data: Data) {
+        outLock.lock()
+        defer { outLock.unlock() }
+        try? FileHandle.standardOutput.write(contentsOf: data)
     }
 
     private func send(_ line: Data) {
@@ -349,7 +399,8 @@ final class VibeProxyProcess {
         guard open, let reply, let json = (try? JSONSerialization.jsonObject(with: reply)) as? [String: Any] else { return }
         let id = state.withLock { () -> String in
             counter += 1
-            return "openbar-\(counter)"
+            ours["\(Self.idPrefix)\(counter)"] = callback.id
+            return "\(Self.idPrefix)\(counter)"
         }
         if let request = VibeWire.result(id: id, callback: callback, reply: json) { send(request) }
     }
