@@ -619,7 +619,7 @@ extension NotchClaudeSessionStrings {
         "An extension of the island’s own in ~/.pi/agent/extensions. It shows what each session does and sends replies from the island; Pi asks no permissions, and a dialog another extension opens is answered in Pi."
     }
     var agentHintVibe: String {
-        "Hooks in ~/.vibe/hooks.toml, after your own. Sessions show what runs and when Mistral Vibe waits on you; you answer its approvals and questions in the terminal, and replies are typed there."
+        "Hooks in ~/.vibe/hooks.toml, after your own. Sessions show what runs and when Mistral Vibe waits on you. Ones started with New session answer its approvals and questions here, through the Vibe app server; ones you start yourself are answered in the terminal, and replies are typed there."
     }
     var agentHintDevin: String {
         "Hooks in ~/.config/devin/config.json, next to your own. Sessions show what runs and when Devin CLI waits on you; you answer its permission prompts in the terminal, and replies are typed there."

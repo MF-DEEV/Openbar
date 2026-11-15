@@ -4,6 +4,10 @@
 import AppKit
 
 SuperKeyMappingGuard.runIfRequestedAndExit()
+// Mistral Vibe's server, relayed for the island: no preferences, no UI.
+if VibeProxy.isRequested(by: CommandLine.arguments) {
+    VibeProxy.runAndExit()
+}
 #if OPENBAR_DEVELOPMENT
 // Before Defaults.register(), whose migrations write to the running build's
 // preferences: the companion probe must leave them as they are.
