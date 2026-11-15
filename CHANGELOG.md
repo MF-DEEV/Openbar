@@ -10,6 +10,7 @@ All notable changes to this project are documented here. The format follows
 - Pi, Mistral Vibe and Devin CLI join the Sessions list, each with its own mark, color, pixel figure and switch, and their marks join the closed island's stack. Each one installed connects by itself. Pi's replies go from the island straight into the session; Mistral Vibe's approvals and questions and Devin CLI's permission prompts are answered in their terminal, and Open takes you there. On Mac and Windows. Settings → Dynamic Island → Content → Sessions → More agents.
 - On Linux, the paste button in a session's reply box attaches the picture on the clipboard or the image files you copied in the file manager, as it does on Windows.
 - On Linux, a Codex running in a terminal that its app server does not list now shows in Sessions, with its folder and what it is doing. Open brings its terminal forward, and a reply goes into tmux, kitty or WezTerm.
+- Watch works on Linux: pick an area of a window or of the desktop and Openbar follows it, reads the text and tells you when your rule is met, as it does on Windows.
 
 ## [3.5.0-beta.3] - 2026-11-13
 
