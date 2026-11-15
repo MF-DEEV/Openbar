@@ -836,9 +836,13 @@ fn antigravity(
             }
             add(Kind::ToolStarted(use_));
         }
+        // It names the tool too, for a call whose start the island missed.
         "PostToolUse" => add(Kind::ToolFinished {
             id: step,
-            name: String::new(),
+            name: name(
+                Provider::Antigravity,
+                str_of(json.get("toolCall").and_then(|c| c.get("name"))).unwrap_or(""),
+            ),
             input_key: None,
             failed: text(json, "error").is_some(),
             started: None,
@@ -1288,7 +1292,8 @@ pub fn name(provider: Provider, tool: &str) -> String {
         ],
         Provider::Antigravity => &[
             ("run_command", "Bash"),
-            ("command_status", "Bash"),
+            ("command_status", "BashOutput"),
+            ("manage_task", "BashOutput"),
             ("send_command_input", "Bash"),
             ("view_file", "Read"),
             ("view_file_outline", "Read"),
@@ -3965,6 +3970,20 @@ mod tests {
         assert_eq!(command_name(Provider::Antigravity), Some("agy"));
         assert_eq!(start_arguments(Provider::Antigravity, "go"), ["-i", "go"]);
         assert_eq!(name(Provider::Antigravity, "view_file"), "Read");
+        let late = decode(
+            &envelope(
+                "antigravity",
+                "PostToolUse",
+                json!({ "conversationId": "a1", "stepIdx": 9,
+                      "toolCall": { "name": "manage_task", "args": {} } }),
+            ),
+            NOW,
+            ON,
+        )
+        .unwrap();
+        assert!(
+            matches!(&late.events[0].kind, Kind::ToolFinished { name, .. } if name == "BashOutput")
+        );
         assert_eq!(
             name(Provider::Antigravity, "browser_click"),
             "Browser_click"

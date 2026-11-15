@@ -65,6 +65,9 @@ enum AntigravityAgentTests {
                      && listed[0].timeline[1].failed, "a failed write shows by its file: \(listed[0].timeline)")
         send("PreToolUse", ["stepIdx": 6, "toolCall": ["name": "browser_click", "args": [:] as [String: Any]]])
         suite.expect(T.snapshot(tracker).sessions[0].currentTool?.name == "Browser_click", "a tool of its own keeps its name")
+        send("PostToolUse", ["stepIdx": 9, "error": "", "toolCall": ["name": "manage_task", "args": [:] as [String: Any]]])
+        suite.expect(T.snapshot(tracker).sessions[0].timeline.last?.name == "BashOutput",
+                     "a tool whose start the island missed is named by its end")
         send("PostInvocation", ["invocationNum": 0])
         send("PreInvocation", ["invocationNum": 1])
         suite.expect(T.snapshot(tracker).sessions[0].chat.count == 1, "a later invocation of the turn is no new prompt")

@@ -364,7 +364,10 @@ enum AgentHookMessage {
             if let step { use = ClaudeToolUse(id: step, name: use.name, summary: use.summary, started: now, inputKey: use.inputKey) }
             add(.toolStarted(use))
         case "PostToolUse":
-            add(.toolFinished(id: step, name: "", inputKey: nil, failed: text(json, "error") != nil, started: nil))
+            // It names the tool too, for a call whose start the island missed.
+            let call = json["toolCall"] as? [String: Any] ?? [:]
+            let tool = AgentHookTools.name(.antigravity, call["name"] as? String ?? "")
+            add(.toolFinished(id: step, name: tool, inputKey: nil, failed: text(json, "error") != nil, started: nil))
         case "Stop":
             // As "NO_TOOL_CALL" for a turn that ended well; a failed one says so.
             let reason = (text(json, "terminationReason") ?? "").lowercased()
@@ -557,7 +560,8 @@ enum AgentHookTools {
         .antigravity: ["run_command": "Bash", "view_file": "Read", "view_file_outline": "Read", "view_code_item": "Read",
                        "write_to_file": "Write", "replace_file_content": "Edit", "multi_replace_file_content": "Edit",
                        "grep_search": "Grep", "find_by_name": "Glob", "list_dir": "LS", "read_url_content": "WebFetch",
-                       "search_web": "WebSearch", "command_status": "Bash", "send_command_input": "Bash"],
+                       "search_web": "WebSearch", "command_status": "BashOutput", "send_command_input": "Bash",
+                       "manage_task": "BashOutput"],
         .devin: ["exec": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "apply_patch": "Edit", "grep": "Grep",
                  "glob": "Glob", "webfetch": "WebFetch", "todo_write": "TodoWrite", "run_subagent": "Task",
                  "notebook_read": "Read", "notebook_edit": "Edit", "exit_plan_mode": "ExitPlanMode"],
