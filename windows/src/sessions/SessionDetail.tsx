@@ -428,7 +428,7 @@ function Conversation({
     <div className={`s-section s-conversation${enlarged ? " is-large" : ""}`} ref={section}>
       {!previews ? (
         <>
-          <div className="s-tertiary">{session.provider === "codex" ? S.previewsOffCodex : S.previewsOff}</div>
+          <div className="s-tertiary">{S.previewsOffFor(session.provider)}</div>
           <button type="button" className="s-enable-previews" disabled={enabling} onClick={() => void enable()}>
             {S.enablePreviews}
           </button>
