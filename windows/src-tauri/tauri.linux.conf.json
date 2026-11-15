@@ -6,10 +6,30 @@
     "linux": {
       "deb": {
         "section": "utils",
-        "recommends": ["pulseaudio-utils", "tesseract-ocr", "ffmpeg", "libsqlite3-0", "libgtk-layer-shell0", "wl-clipboard", "grim", "wtype", "wf-recorder"]
+        "recommends": [
+          "pulseaudio-utils",
+          "tesseract-ocr",
+          "ffmpeg",
+          "libsqlite3-0",
+          "libgtk-layer-shell0",
+          "wl-clipboard",
+          "grim",
+          "wtype",
+          "wf-recorder"
+        ]
       },
       "rpm": {
-        "recommends": ["pulseaudio-utils", "tesseract", "ffmpeg-free", "sqlite-libs", "gtk-layer-shell", "wl-clipboard", "grim", "wtype", "wf-recorder"]
+        "recommends": [
+          "pulseaudio-utils",
+          "tesseract",
+          "ffmpeg-free",
+          "sqlite-libs",
+          "gtk-layer-shell",
+          "wl-clipboard",
+          "grim",
+          "wtype",
+          "wf-recorder"
+        ]
       }
     }
   }
