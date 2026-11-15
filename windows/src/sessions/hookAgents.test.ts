@@ -51,6 +51,10 @@ describe("Gemini CLI, Copilot CLI, OpenCode and Cursor in Sessions", () => {
     expect(S.replyPlaceholderFor("copilot")).toBe("Reply to Copilot CLI…");
     expect(S.replyPlaceholderFor("codex")).toBe(S.replyPlaceholderCodex);
     expect(S.replyIn("cursor")).toBe("Reply in Cursor");
+    expect(S.previewsOffFor("claude")).toBe(S.previewsOff);
+    expect(S.previewsOffFor("codex")).toBe(S.previewsOffCodex);
+    expect(S.previewsOffFor("gemini")).toBe("Turn on previews in Settings to see what Gemini CLI wrote.");
+    expect(S.previewsOffFor("cursor")).not.toContain("Claude");
   });
 });
 

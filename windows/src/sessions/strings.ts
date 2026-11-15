@@ -323,6 +323,13 @@ export const S = {
   get previewsOffCodex() {
     return t("notchClaudeSessions.previewsOffCodex");
   },
+  /** What to turn on to see what the session's agent wrote: Claude's own
+   * line, or Codex's with the agent's name in its place, as the Mac does
+   * (NotchClaudeSessionStrings.previewsOff(for:)). */
+  previewsOffFor(provider: Provider) {
+    if (provider === "claude") return this.previewsOff;
+    return this.previewsOffCodex.replace("Codex", PROVIDER_NAMES[provider]);
+  },
   get permissionNotice() {
     return t("notchClaudeSessions.permissionNotice");
   },
