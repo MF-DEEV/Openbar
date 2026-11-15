@@ -46,6 +46,8 @@ pub mod testbus;
 pub mod tmux;
 pub mod toggles;
 pub mod wezterm;
+pub mod wl_clipboard;
+pub mod wm;
 pub mod x11;
 
 /// What WebKit is told before it starts, from what the machine offers, as

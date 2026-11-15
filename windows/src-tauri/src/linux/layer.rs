@@ -39,6 +39,7 @@ pub enum Edge {
 #[repr(C)]
 pub enum Keyboard {
     None = 0,
+    Exclusive = 1,
     OnDemand = 2,
 }
 

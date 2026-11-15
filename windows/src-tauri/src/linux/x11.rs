@@ -3,7 +3,8 @@
 
 //! Brings a terminal or editor window forward on X11: the window manager lists
 //! windows with the pid of the program that owns each, and is asked to
-//! activate one the way a taskbar does.
+//! activate one the way a taskbar does. On Wayland the compositor is asked
+//! instead, where it can be (`wm.rs`).
 
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{
@@ -102,6 +103,10 @@ pub fn activate(connection: &RustConnection, root: Window, active: Atom, window:
 
 /// The program owning the window the window manager calls active (#210).
 pub fn active_pid() -> Option<u32> {
+    // On Wayland the compositor knows, and XWayland only of its own windows.
+    if super::wm::available() {
+        return super::wm::active_pid();
+    }
     let (connection, screen) = RustConnection::connect(None).ok()?;
     let root = connection.setup().roots.get(screen)?.root;
     let window = active_window(&connection, root, atom(&connection, "_NET_ACTIVE_WINDOW")?)?;
@@ -110,6 +115,9 @@ pub fn active_pid() -> Option<u32> {
 
 /// Raises the window of the nearest program in `pids` that has one.
 pub fn raise(pids: &[u32], cwd: &str) -> bool {
+    if super::wm::available() {
+        return super::wm::raise(pids, cwd);
+    }
     let Ok((connection, screen)) = RustConnection::connect(None) else {
         return false;
     };

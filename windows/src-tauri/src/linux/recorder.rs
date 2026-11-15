@@ -78,6 +78,43 @@ fn arguments(
     sources: &Sources,
     path: &Path,
 ) -> Vec<String> {
+    let mut video: Vec<String> = ["-f", "x11grab", "-framerate"].map(String::from).to_vec();
+    video.push(FRAMES_PER_SECOND.to_string());
+    video.extend(["-draw_mouse", "1", "-video_size"].map(String::from));
+    video.push(format!("{}x{}", size.0, size.1));
+    video.extend(["-i".to_string(), grab_input(display, origin.0, origin.1)]);
+    arguments_from(video, sources, path)
+}
+
+/// On Wayland the picture comes from `wf-recorder`, which writes raw frames
+/// into `pipe` in the NUT container.
+fn wayland_video(pipe: &Path) -> Vec<String> {
+    let mut video: Vec<String> = ["-thread_queue_size", "1024", "-f", "nut", "-i"]
+        .map(String::from)
+        .to_vec();
+    video.push(pipe.to_string_lossy().into_owned());
+    video
+}
+
+/// wf-recorder's command line: the area in the compositor's layout, raw frames into `pipe`.
+fn wf_recorder_arguments(origin: (i32, i32), size: (i32, i32), pipe: &Path) -> Vec<String> {
+    vec![
+        "-y".into(),
+        "-g".into(),
+        format!("{},{} {}x{}", origin.0, origin.1, size.0, size.1),
+        "-r".into(),
+        FRAMES_PER_SECOND.to_string(),
+        "-c".into(),
+        "rawvideo".into(),
+        "-m".into(),
+        "nut".into(),
+        "-f".into(),
+        pipe.to_string_lossy().into_owned(),
+    ]
+}
+
+/// The ffmpeg command line around `video`, the input that gives the picture.
+fn arguments_from(video: Vec<String>, sources: &Sources, path: &Path) -> Vec<String> {
     let mut args: Vec<String> = [
         "-hide_banner",
         "-loglevel",
@@ -88,17 +125,11 @@ fn arguments(
         "-stats_period",
         "0.1",
         "-y",
-        "-f",
-        "x11grab",
-        "-framerate",
     ]
     .iter()
     .map(|s| s.to_string())
     .collect();
-    args.push(FRAMES_PER_SECOND.to_string());
-    args.extend(["-draw_mouse", "1", "-video_size"].map(String::from));
-    args.push(format!("{}x{}", size.0, size.1));
-    args.extend(["-i".to_string(), grab_input(display, origin.0, origin.1)]);
+    args.extend(video);
     let sounds: Vec<&String> = [&sources.system, &sources.microphone]
         .into_iter()
         .flatten()
@@ -366,6 +397,9 @@ pub fn record(
         let _ = ready.send(Err(error.clone()));
         return failed(error, 0.0, false);
     };
+    if super::wm::native_wayland() {
+        return record_wayland(&program, monitor, area, choice, path, stop, ready);
+    }
     let Some(display) = std::env::var("DISPLAY").ok().filter(|d| !d.is_empty()) else {
         let error = "there is no X display to record".to_string();
         let _ = ready.send(Err(error.clone()));
@@ -391,6 +425,71 @@ pub fn record(
             finish: FINISH_WAIT,
         },
     )
+}
+
+/// A recording on Wayland: wf-recorder takes the picture through the
+/// compositor and hands it to ffmpeg through a pipe, which records the sound
+/// and writes the file as on X11.
+fn record_wayland(
+    ffmpeg: &Path,
+    monitor: Rect,
+    area: Rect,
+    choice: AudioChoice,
+    path: &Path,
+    stop: &Arc<AtomicBool>,
+    ready: Sender<Result<(), String>>,
+) -> Ended {
+    if !super::wl_clipboard::installed("wf-recorder") {
+        let error = "recording on Wayland needs wf-recorder, which is not installed".to_string();
+        let _ = ready.send(Err(error.clone()));
+        return failed(error, 0.0, false);
+    }
+    let pipe = std::env::temp_dir().join(format!("openbar-record-{}.nut", std::process::id()));
+    let _ = std::fs::remove_file(&pipe);
+    let Ok(name) = std::ffi::CString::new(pipe.to_string_lossy().as_bytes()) else {
+        return failed("no pipe for the picture".to_string(), 0.0, false);
+    };
+    // SAFETY: a C string naming a file that does not exist yet.
+    if unsafe { libc::mkfifo(name.as_ptr(), 0o600) } != 0 {
+        let error = "no pipe for the picture".to_string();
+        let _ = ready.send(Err(error.clone()));
+        return failed(error, 0.0, false);
+    }
+    let origin = (monitor.x + area.x, monitor.y + area.y);
+    let grabber = Command::new("wf-recorder")
+        .args(wf_recorder_arguments(
+            origin,
+            (area.width, area.height),
+            &pipe,
+        ))
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .spawn();
+    let Ok(mut grabber) = grabber else {
+        let _ = std::fs::remove_file(&pipe);
+        let error = "wf-recorder did not start".to_string();
+        let _ = ready.send(Err(error.clone()));
+        return failed(error, 0.0, false);
+    };
+    let (sources, missing) = sources(choice, &Pactl::default());
+    let args = arguments_from(wayland_video(&pipe), &sources, path);
+    let ended = session(
+        ffmpeg,
+        &args,
+        path,
+        stop,
+        ready,
+        missing,
+        &Waits {
+            first_frame: FIRST_FRAME_WAIT,
+            finish: FINISH_WAIT,
+        },
+    );
+    let _ = grabber.kill();
+    let _ = grabber.wait();
+    let _ = std::fs::remove_file(&pipe);
+    ended
 }
 
 #[cfg(test)]
@@ -502,6 +601,36 @@ mod tests {
         let (found, missing) = sources(BOTH, &Server::default());
         assert_eq!(found, Sources::default());
         assert!(missing);
+    }
+
+    #[test]
+    fn on_wayland_the_picture_comes_through_a_pipe_from_wf_recorder() {
+        let pipe = Path::new("/tmp/openbar-record-1.nut");
+        assert_eq!(
+            wf_recorder_arguments((1920, 40), (640, 360), pipe),
+            [
+                "-y",
+                "-g",
+                "1920,40 640x360",
+                "-r",
+                &FRAMES_PER_SECOND.to_string(),
+                "-c",
+                "rawvideo",
+                "-m",
+                "nut",
+                "-f",
+                "/tmp/openbar-record-1.nut"
+            ]
+        );
+        let args = arguments_from(
+            wayland_video(pipe),
+            &Sources::default(),
+            Path::new("/v/a.mp4"),
+        );
+        assert!(has_pair(&args, "-f", "nut"));
+        assert!(has_pair(&args, "-i", "/tmp/openbar-record-1.nut"));
+        assert!(!args.iter().any(|a| a == "x11grab"));
+        assert_eq!(args.last().map(String::as_str), Some("/v/a.mp4"));
     }
 
     #[test]
@@ -845,6 +974,49 @@ exit 0
             .output()
             .unwrap();
         output.stdout[..3].try_into().expect("a pixel")
+    }
+
+    /// By hand in a nested sway whose background is a solid colour:
+    /// OPENBAR_LIVE_RECORD_WAYLAND=1 WAYLAND_DISPLAY=wayland-1 SWAYSOCK=... cargo test live_wayland -- --ignored
+    #[test]
+    #[ignore = "records a nested compositor with wf-recorder and ffmpeg"]
+    fn live_wayland_recording_has_the_area_and_the_length() {
+        std::env::var("OPENBAR_LIVE_RECORD_WAYLAND").expect("OPENBAR_LIVE_RECORD_WAYLAND");
+        assert_ne!(std::env::var("WAYLAND_DISPLAY").as_deref(), Ok("wayland-0"));
+        let path = std::env::temp_dir().join("openbar-live-wayland.mp4");
+        let stop = Arc::new(AtomicBool::new(false));
+        let (ready, answer) = std::sync::mpsc::channel();
+        let stopper = stop.clone();
+        let waiter = std::thread::spawn(move || {
+            let started = answer.recv_timeout(Duration::from_secs(10));
+            std::thread::sleep(Duration::from_secs(2));
+            stopper.store(true, Ordering::SeqCst);
+            started
+        });
+        let monitor = Rect {
+            x: 0,
+            y: 0,
+            width: 1920,
+            height: 1080,
+        };
+        let area = Rect {
+            x: 200,
+            y: 300,
+            width: 320,
+            height: 240,
+        };
+        let ended = record(monitor, area, NONE, &path, &stop, ready);
+        assert_eq!(waiter.join().unwrap(), Ok(Ok(())));
+        assert_eq!(ended.error, None);
+        assert!(ended.seconds > 1.0, "{} seconds", ended.seconds);
+        let probe = Command::new("ffprobe")
+            .args(["-v", "error", "-select_streams", "v:0", "-show_entries"])
+            .args(["stream=width,height", "-of", "csv=p=0"])
+            .arg(&path)
+            .output()
+            .unwrap();
+        assert_eq!(String::from_utf8_lossy(&probe.stdout).trim(), "320,240");
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]

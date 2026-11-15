@@ -41,6 +41,10 @@ export interface MirrorFrame {
   hit: HitRect;
 }
 export const inTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+
+/** The `--shortcut` listeners of the permission keys held now. */
+const permissionKeyListeners = new Map<string, UnlistenFn>();
+
 export interface AttentionContext {
   canAutoPresent: boolean;
   fullscreen: boolean;
@@ -183,10 +187,21 @@ export const bridge = {
   setFocusable: (focusable: boolean, take: boolean) => call("island_set_focusable", { focusable, take }),
   sessions: {
     registerPermissionKey: async (key: "y" | "n" | "always", handler: (event: ShortcutEvent) => void) => {
-      if (inTauri) await register(key === "always" ? "Control+T" : `Control+${key.toUpperCase()}`, handler);
+      if (!inTauri) return;
+      const accelerator = key === "always" ? "Control+T" : `Control+${key.toUpperCase()}`;
+      // `openbar --shortcut Ctrl+Y`, bound in a Wayland compositor that keeps the keys to itself.
+      const outside = await listen<string>("sessions://permission-key", (e) => {
+        if (e.payload === key) handler({ shortcut: accelerator, id: 0, state: "Pressed" });
+      });
+      permissionKeyListeners.get(key)?.();
+      permissionKeyListeners.set(key, outside);
+      await register(accelerator, handler);
     },
     unregisterPermissionKey: async (key: "y" | "n" | "always") => {
-      if (inTauri) await unregister(key === "always" ? "Control+T" : `Control+${key.toUpperCase()}`);
+      if (!inTauri) return;
+      permissionKeyListeners.get(key)?.();
+      permissionKeyListeners.delete(key);
+      await unregister(key === "always" ? "Control+T" : `Control+${key.toUpperCase()}`);
     },
     onSnapshot(handler: (s: Snapshot) => void): Promise<UnlistenFn> {
       if (!inTauri) return Promise.resolve(() => {});

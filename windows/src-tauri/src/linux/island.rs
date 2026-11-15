@@ -576,8 +576,14 @@ pub fn set_focusable<R: Runtime>(
             layer::set_keyboard(native.upcast_ref(), mode);
         });
         if focusable && take {
+            // Where a paste goes back to, as the X11 window below keeps it.
+            let front = crate::linux::wm::active().filter(|t| t.pid != std::process::id());
+            if let Some(front) = front {
+                *state.previous_foreground.lock().unwrap() = front.id as isize;
+            }
             let _ = window.set_focus();
         }
+        // Closed, the surface takes no keyboard, and the compositor gives it back itself.
         return;
     }
     on_main_thread(window, move |native| native.set_accept_focus(focusable));

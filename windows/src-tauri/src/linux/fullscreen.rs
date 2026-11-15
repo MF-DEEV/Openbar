@@ -2,7 +2,8 @@
 // Copyright (C) 2026 MF DEV, Adrian and the Openbar contributors
 
 //! X11: the window manager marks a fullscreen window in `_NET_WM_STATE`, and
-//! the active window is asked about it a few times a second.
+//! the active window is asked about it a few times a second. On Wayland the
+//! compositor is asked the same (`wm.rs`).
 //! Included by `fullscreen.rs` as its `imp`, so it can reach what the module keeps private.
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -103,13 +104,23 @@ fn fullscreen_bounds(probe: &Probe) -> Option<[i32; 4]> {
     Some([x, y, x + i32::from(size.width), y + i32::from(size.height)])
 }
 
+/// The focused window's rectangle in physical pixels, when it is fullscreen,
+/// as the compositor tells it on Wayland.
+fn wayland_fullscreen_bounds(scale: f64) -> Option<[i32; 4]> {
+    let active = crate::linux::wm::active()?;
+    if !active.fullscreen || active.pid == std::process::id() {
+        return None;
+    }
+    Some(active.rect.map(|v| (f64::from(v) * scale).round() as i32))
+}
+
 pub fn context<R: Runtime>(window: &WebviewWindow<R>) -> super::AttentionContext {
     let mut context = super::AttentionContext {
         can_auto_present: true,
         fullscreen: false,
         busy: false,
     };
-    let (Ok(Some(monitor)), Some(probe)) = (window.current_monitor(), probe()) else {
+    let Ok(Some(monitor)) = window.current_monitor() else {
         return context;
     };
     let (position, size) = (monitor.position(), monitor.size());
@@ -119,6 +130,15 @@ pub fn context<R: Runtime>(window: &WebviewWindow<R>) -> super::AttentionContext
         position.x + size.width as i32,
         position.y + size.height as i32,
     ];
+    if crate::linux::wm::available() {
+        if let Some(bounds) = wayland_fullscreen_bounds(monitor.scale_factor()) {
+            context.fullscreen = super::fullscreen_candidate(true, bounds, display);
+        }
+        return context;
+    }
+    let Some(probe) = probe() else {
+        return context;
+    };
     if let Some(bounds) = fullscreen_bounds(probe) {
         context.fullscreen = super::fullscreen_candidate(true, bounds, display);
     }

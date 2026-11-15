@@ -183,6 +183,61 @@ pub fn console_main(pid: u32) -> ! {
     hosts::console::helper_main(pid)
 }
 
+/// What a global shortcut does, from the plugin or from `--shortcut`.
+fn on_shortcut<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    shortcut: &tauri_plugin_global_shortcut::Shortcut,
+    pressed: bool,
+) {
+    if audio::roller_key(shortcut, pressed) || !pressed {
+        return;
+    }
+    if island_shortcut::matches(app, shortcut) {
+        let _ = app.emit_to(island::LABEL, "island://toggle", ());
+    } else if audio::is_switcher_shortcut(shortcut) {
+        audio::switch_to_next_output();
+    }
+}
+
+/// The keys after `--shortcut` in a second launch's arguments.
+fn shortcut_argument(args: &[String]) -> Option<String> {
+    let at = args.iter().position(|a| a == "--shortcut")?;
+    args.get(at + 1)
+        .cloned()
+        .filter(|keys| !keys.trim().is_empty())
+}
+
+/// The permission keys the sessions page holds while a request waits.
+fn permission_key(shortcut: &tauri_plugin_global_shortcut::Shortcut) -> Option<&'static str> {
+    use std::str::FromStr;
+    use tauri_plugin_global_shortcut::Shortcut;
+    [
+        ("Control+Y", "y"),
+        ("Control+N", "n"),
+        ("Control+T", "always"),
+    ]
+    .into_iter()
+    .find(|(keys, _)| Shortcut::from_str(keys).is_ok_and(|s| s.id() == shortcut.id()))
+    .map(|(_, key)| key)
+}
+
+/// A shortcut pressed where Openbar cannot hear the keyboard: on Wayland the
+/// compositor runs `openbar --shortcut Ctrl+Alt+Space` for a key bound to it,
+/// and the running Openbar acts as if the key went down and up.
+fn pressed_from_outside<R: tauri::Runtime>(app: &tauri::AppHandle<R>, keys: &str) {
+    use std::str::FromStr;
+    let Ok(shortcut) = tauri_plugin_global_shortcut::Shortcut::from_str(keys) else {
+        eprintln!("openbar: --shortcut {keys:?} is not a shortcut");
+        return;
+    };
+    if let Some(key) = permission_key(&shortcut) {
+        let _ = app.emit("sessions://permission-key", key);
+        return;
+    }
+    on_shortcut(app, &shortcut, true);
+    on_shortcut(app, &shortcut, false);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[cfg(target_os = "linux")]
@@ -194,25 +249,19 @@ pub fn run() {
     #[cfg(windows)]
     let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
     let app = builder
-        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            settings::open(app)
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // `openbar --shortcut <keys>`: a key a Wayland compositor bound for us (#252).
+            match shortcut_argument(&args) {
+                Some(keys) => pressed_from_outside(app, &keys),
+                None => settings::open(app),
+            }
         }))
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(
             tauri_plugin_global_shortcut::Builder::new()
                 .with_handler(|app, shortcut, event| {
-                    if audio::roller_key(shortcut, event.state() == ShortcutState::Pressed) {
-                        return;
-                    }
-                    if event.state() != ShortcutState::Pressed {
-                        return;
-                    }
-                    if island_shortcut::matches(app, shortcut) {
-                        let _ = app.emit_to(island::LABEL, "island://toggle", ());
-                    } else if audio::is_switcher_shortcut(shortcut) {
-                        audio::switch_to_next_output();
-                    }
+                    on_shortcut(app, shortcut, event.state() == ShortcutState::Pressed);
                 })
                 .build(),
         )
@@ -525,4 +574,39 @@ pub fn run() {
             audio::stop();
         }
     });
+}
+
+#[cfg(test)]
+mod shortcut_argument_tests {
+    use super::*;
+    use std::str::FromStr;
+    use tauri_plugin_global_shortcut::Shortcut;
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn the_keys_follow_the_flag_and_nothing_else_is_a_shortcut() {
+        assert_eq!(
+            shortcut_argument(&args(&["openbar", "--shortcut", "Ctrl+Alt+Space"])).as_deref(),
+            Some("Ctrl+Alt+Space")
+        );
+        assert_eq!(shortcut_argument(&args(&["openbar"])), None);
+        assert_eq!(shortcut_argument(&args(&["openbar", "--shortcut"])), None);
+        assert_eq!(
+            shortcut_argument(&args(&["openbar", "--shortcut", " "])),
+            None
+        );
+    }
+
+    #[test]
+    fn the_permission_keys_are_known_however_they_are_spelled() {
+        let key = |keys: &str| permission_key(&Shortcut::from_str(keys).unwrap());
+        assert_eq!(key("Ctrl+Y"), Some("y"));
+        assert_eq!(key("control+n"), Some("n"));
+        assert_eq!(key("Ctrl+T"), Some("always"));
+        assert_eq!(key("Ctrl+Alt+Y"), None);
+        assert_eq!(key("Ctrl+Alt+Space"), None);
+    }
 }

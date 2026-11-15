@@ -5,6 +5,11 @@
 //! the picture of an area (`GetImage` of the root window, which has what every
 //! window and the compositor drew), the display under the pointer (RandR),
 //! and the window under a point (the window manager's stacking list).
+//!
+//! On Wayland no app may read the screen by itself: the picture comes from
+//! `grim` (the screencopy protocol of sway, Hyprland and other wlroots
+//! compositors), the display is the one the compositor has focused, and the
+//! selection overlay is a layer surface over it.
 
 use tauri::{Runtime, WebviewWindow};
 use x11rb::connection::Connection;
@@ -37,6 +42,9 @@ fn rgba_from_bgrx(data: &[u8], width: usize, rows: usize, stride: usize, out: &m
 /// The picture of `rect` (desktop pixels), or None where the server will not
 /// give it (the area is off the screen, or its pixels are not 32 bits).
 pub fn grab(rect: Rect) -> Option<Frame> {
+    if crate::linux::wm::native_wayland() {
+        return grab_wayland(rect);
+    }
     let (connection, root) = connect()?;
     grab_from(&connection, root, rect)
 }
@@ -85,8 +93,77 @@ pub fn grab_from(connection: &RustConnection, drawable: u32, rect: Rect) -> Opti
     })
 }
 
+/// A binary PPM (`P6`, 8 bits) as tight opaque RGBA.
+fn frame_from_ppm(ppm: &[u8]) -> Option<Frame> {
+    // The header is four fields split by whitespace, the last one followed by one byte.
+    let mut fields = Vec::with_capacity(4);
+    let mut at = 0;
+    while fields.len() < 4 {
+        while ppm.get(at)?.is_ascii_whitespace() {
+            at += 1;
+        }
+        if *ppm.get(at)? == b'#' {
+            while *ppm.get(at)? != b'\n' {
+                at += 1;
+            }
+            continue;
+        }
+        let start = at;
+        while !ppm.get(at)?.is_ascii_whitespace() {
+            at += 1;
+        }
+        fields.push(std::str::from_utf8(&ppm[start..at]).ok()?);
+    }
+    let pixels = &ppm[at + 1..];
+    let (width, height): (u32, u32) = (fields[1].parse().ok()?, fields[2].parse().ok()?);
+    if fields[0] != "P6" || fields[3] != "255" {
+        return None;
+    }
+    let count = width as usize * height as usize;
+    let rgb = pixels.get(..count * 3)?;
+    let mut rgba = Vec::with_capacity(count * 4);
+    for px in rgb.as_chunks::<3>().0 {
+        rgba.extend_from_slice(&[px[0], px[1], px[2], 255]);
+    }
+    Some(Frame {
+        width,
+        height,
+        rgba,
+    })
+}
+
+/// `grim`'s picture of `rect`, which is in the compositor's layout pixels.
+fn grab_wayland(rect: Rect) -> Option<Frame> {
+    if rect.width <= 0 || rect.height <= 0 {
+        return None;
+    }
+    let area = format!("{},{} {}x{}", rect.x, rect.y, rect.width, rect.height);
+    let output = std::process::Command::new("grim")
+        .args(["-g", &area, "-t", "ppm", "-"])
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    frame_from_ppm(&output.stdout)
+}
+
 /// The display under the pointer: a number for it, and where it is in the desktop.
 pub fn monitor_under_cursor() -> Option<(isize, Rect)> {
+    if crate::linux::wm::native_wayland() {
+        let output = crate::linux::wm::focused_output()?;
+        return Some((
+            output.index as isize,
+            Rect {
+                x: output.x,
+                y: output.y,
+                width: output.width,
+                height: output.height,
+            },
+        ));
+    }
     let (connection, root) = connect()?;
     let pointer = connection.query_pointer(root).ok()?.reply().ok()?;
     let (x, y) = (i32::from(pointer.root_x), i32::from(pointer.root_y));
@@ -125,7 +202,38 @@ fn containing(rects: &[Rect], x: i32, y: i32) -> Option<usize> {
 /// The topmost window at the point that is not ours or the desktop's own
 /// (a panel, the desktop window): 0 when there is none.
 pub fn window_at(x: i32, y: i32) -> isize {
+    // An X window id means nothing to the Wayland side; the area is the desktop's.
+    if crate::linux::wm::native_wayland() {
+        return 0;
+    }
     window_at_inner(x, y).unwrap_or(0)
+}
+
+/// On Wayland the overlay is a layer surface over its display that takes the
+/// keyboard, as an ordinary window would be tiled or placed by the compositor.
+pub fn overlay<R: Runtime>(window: &WebviewWindow<R>, at: (i32, i32)) {
+    use crate::linux::layer;
+    let target = window.clone();
+    let _ = window.run_on_main_thread(move || {
+        let Ok(native) = target.gtk_window() else {
+            return;
+        };
+        if !layer::available() {
+            return;
+        }
+        use gtk::prelude::Cast;
+        use layer::Edge::{Bottom, Left, Right, Top};
+        let gtk_window: &gtk::Window = native.upcast_ref();
+        if layer::init(
+            gtk_window,
+            c"openbar-capture",
+            layer::Layer::Overlay,
+            &[Left, Right, Top, Bottom],
+        ) {
+            layer::set_monitor(gtk_window, layer::monitor_at(at).as_ref());
+            layer::set_keyboard(gtk_window, layer::Keyboard::Exclusive);
+        }
+    });
 }
 
 fn window_at_inner(x: i32, y: i32) -> Option<isize> {
@@ -219,6 +327,43 @@ pub fn take_foreground<R: Runtime>(window: &WebviewWindow<R>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// By hand in a nested sway whose background is #335577, nothing over (900, 900):
+    /// OPENBAR_LIVE_GRAB_WAYLAND=1 WAYLAND_DISPLAY=wayland-1 SWAYSOCK=... cargo test live_grab_wayland -- --ignored
+    #[test]
+    #[ignore = "reads the screen of a nested compositor"]
+    fn live_grab_wayland() {
+        std::env::var("OPENBAR_LIVE_GRAB_WAYLAND").expect("OPENBAR_LIVE_GRAB_WAYLAND");
+        let frame = grab(Rect {
+            x: 900,
+            y: 900,
+            width: 40,
+            height: 30,
+        })
+        .expect("a picture");
+        assert_eq!((frame.width, frame.height), (40, 30));
+        assert_eq!(&frame.rgba[..4], &[0x33, 0x55, 0x77, 255]);
+        let (_, display) = monitor_under_cursor().expect("a display");
+        assert_eq!((display.width, display.height), (1920, 1080));
+    }
+
+    #[test]
+    fn a_ppm_becomes_opaque_rgba_and_a_short_or_odd_one_nothing() {
+        let mut ppm = b"P6\n# grim\n2 1\n255\n".to_vec();
+        ppm.extend([1, 2, 3, 4, 5, 6]);
+        let frame = frame_from_ppm(&ppm).unwrap();
+        assert_eq!((frame.width, frame.height), (2, 1));
+        assert_eq!(frame.rgba, [1, 2, 3, 255, 4, 5, 6, 255]);
+        assert!(
+            frame_from_ppm(&ppm[..ppm.len() - 1]).is_none(),
+            "a pixel short"
+        );
+        assert!(
+            frame_from_ppm(b"P5\n1 1\n255\n\x00").is_none(),
+            "grey is not asked for"
+        );
+        assert!(frame_from_ppm(b"P6\n1").is_none());
+    }
 
     #[test]
     fn pixels_become_opaque_rgba_without_the_rows_padding() {

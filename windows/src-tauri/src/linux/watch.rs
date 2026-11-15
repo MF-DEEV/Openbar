@@ -226,14 +226,15 @@ impl Source {
     /// measured on (the window in points, which are pixels here, or the
     /// display in pixels).
     pub fn grab(&mut self, crop: Area, space: (f64, f64)) -> Grab {
-        let Some((connection, _)) = self.connection.as_ref() else {
-            return Grab::Missing;
-        };
         let frame = match self.kind {
+            // `screen::grab` asks the X server or, on Wayland, grim.
+            Kind::Display { monitor, .. } => screen::grab(display_rect(monitor, crop)),
             Kind::Window { hwnd, .. } => {
+                let Some((connection, _)) = self.connection.as_ref() else {
+                    return Grab::Missing;
+                };
                 window_frame(connection, hwnd, self.redirected, crop, space)
             }
-            Kind::Display { monitor, .. } => screen::grab(display_rect(monitor, crop)),
         };
         frame.map_or(Grab::Missing, Grab::Frame)
     }
