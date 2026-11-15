@@ -84,6 +84,8 @@ windows = { version = "0.62", features = [
   "Graphics_Imaging",
   "Media",
   "Media_Control",
+  "Media_Core",
+  "Media_Playback",
   "Media_Ocr",
   "Security_Authorization_AppCapabilityAccess",
   "Storage",

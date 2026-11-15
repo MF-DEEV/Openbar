@@ -1603,3 +1603,20 @@ select {
 .st-account-row + .st-subrow {
   border-top: 1px solid var(--st-divider);
 }
+
+.st-session-sounds {
+  min-width: 0;
+}
+.st-session-sounds .st-card-control {
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.st-session-sounds .st-card-text {
+  min-width: 120px;
+}
+.st-sound-preview {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}

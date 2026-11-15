@@ -10,8 +10,67 @@ import AppKit
 /// in front in its terminal (#210). The same as Windows'
 /// `sessions/waitingSound.ts`.
 struct NotchSessionWaitingSound {
+    private var eventsInitialized = false
+    private var seenEvents: Set<String> = []
+    private var eventOrder: [String] = []
+    private let since: Date
+    init(since: Date = Date()) { self.since = since }
     /// What each session waited on at the last reading; nil before the first.
     private var known: [String: NotchSessionAttention.Request]?
+
+    struct Event: Equatable {
+        let session: String
+        let kind: SessionSoundKind
+        let id: String
+        let at: Date
+    }
+
+    /// The same six events as sessions/waitingSound.ts. The service has already
+    /// folded subagent requests into the parent's row; children never start an
+    /// independent notification. Restored sessions are baseline, not new starts.
+    mutating func events(_ sessions: [ClaudeSession]) -> [Event] {
+        let requests = Dictionary(sessions.compactMap { session in
+            NotchSessionAttention.request(of: session).map { (session.id, $0) }
+        }, uniquingKeysWith: { first, _ in first })
+        let fresh = eventsInitialized ? Set(arrived(requests)) : Set(requests.keys)
+        if !eventsInitialized { _ = arrived(requests) }
+        var candidates: [Event] = []
+        for session in sessions {
+            if fresh.contains(session.id), let request = requests[session.id] {
+                let kind: SessionSoundKind = session.phase == .waitingInput || session.permission?.asksQuestions == true ? .question : .permission
+                candidates.append(Event(session: session.id, kind: kind, id: request.id ?? request.wait, at: session.permission?.since ?? session.phaseSince))
+            }
+            if let at = session.startedAt {
+                candidates.append(Event(session: session.id, kind: .started, id: String(at.timeIntervalSince1970), at: at))
+            }
+            if let terminal = Self.terminal(session) { candidates.append(terminal) }
+        }
+        var result: [Event] = []
+        for event in candidates {
+            let key = "\(event.session.utf8.count):\(event.session):\(event.kind.rawValue):\(event.id)"
+            guard seenEvents.insert(key).inserted else { continue }
+            eventOrder.append(key)
+            if eventOrder.count > 4096 { seenEvents.remove(eventOrder.removeFirst()) }
+            if eventsInitialized && event.at >= since { result.append(event) }
+        }
+        eventsInitialized = true
+        return result
+    }
+
+    static func terminal(_ session: ClaudeSession) -> Event? {
+        guard !session.phase.isWorking, !session.phase.isWaiting else { return nil }
+        let began = session.turnStarted ?? .distantPast
+        if session.phase == .limited, let stop = session.limitStop, stop.at >= began {
+            return Event(session: session.id, kind: .limit, id: String(stop.at.timeIntervalSince1970), at: stop.at)
+        }
+        if let failed = session.failedAt, failed >= began, let ended = session.turnEndedAt, failed <= ended {
+            return Event(session: session.id, kind: .error, id: String(failed.timeIntervalSince1970), at: failed)
+        }
+        if session.turnCompleted, let ended = session.turnEndedAt, ended >= began {
+            return Event(session: session.id, kind: .finished, id: String(ended.timeIntervalSince1970), at: ended)
+        }
+        return nil
+    }
 
     /// The sessions whose request is new since the last reading. The hook
     /// and the terminal's record can tell of one prompt a moment apart, so a

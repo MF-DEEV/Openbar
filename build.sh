@@ -300,6 +300,7 @@ if (( TEST )); then
         Sources/Openbar/Services/Notch/NotchSessionLimitsSupport.swift
         Sources/Openbar/Services/Notch/NotchSessionAttention.swift
         Sources/Openbar/Services/Notch/NotchAwaySupport.swift
+        Sources/Openbar/Services/Notch/SessionSoundPreferences.swift
         Sources/Openbar/Services/Notch/NotchSessionWaitingSound.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeSessionModels.swift
         Sources/Openbar/Services/ClaudeSessions/PermissionInspection.swift
@@ -739,6 +740,8 @@ mkdir -p "$STAGE/Contents/Frameworks"
 cp "build/$NOW_PLAYING_ADAPTER" "$STAGE/Contents/Frameworks/$NOW_PLAYING_ADAPTER"
 cp Resources/now-playing.pl "$STAGE/Contents/Resources/now-playing.pl"
 cp Resources/agent-prices.json "$STAGE/Contents/Resources/agent-prices.json"
+mkdir -p "$STAGE/Contents/Resources/SessionSounds"
+cp Resources/SessionSounds/*.wav "$STAGE/Contents/Resources/SessionSounds/"
 cp Resources/remote-agent.sh "$STAGE/Contents/Resources/remote-agent.sh"
 # The Antigravity extension the Sessions page types replies through. A copy
 # also sits next to the bare binary, where `build/Openbar --selftest` looks.

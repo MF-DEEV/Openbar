@@ -155,6 +155,9 @@ final class NotchService: ObservableObject {
     private var sessionPresentingWork: DispatchWorkItem?
     private var sessionAttention = NotchSessionAttention()
     private var waitingSound = NotchSessionWaitingSound()
+    private var sessionSoundPending: [NotchSessionWaitingSound.Event] = []
+    private var sessionSoundWork: DispatchWorkItem?
+    private var sessionSoundChecking = false
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
     @Published private(set) var choosingFileDropDestination = false
@@ -4325,7 +4328,7 @@ final class NotchService: ObservableObject {
             ClaudeSessionService.shared.$sessions
                 .receive(on: DispatchQueue.main)
                 .sink { [weak self] _ in
-                    self?.playWaitingSound()
+                    self?.playSessionSounds()
                     self?.syncPendingSessions()
                     self?.scheduleSessionKeysSync()
                 }.store(in: &subscriptions)
@@ -4506,39 +4509,67 @@ final class NotchService: ObservableObject {
         DispatchQueue.main.asyncAfter(deadline: .now() + NotchClaudeSessionsSupport.presentingDelay, execute: work)
     }
 
-    /// A sound once for each new request, unless its page or the list is
-    /// already open (#167), or its own tab is in front in its terminal (#210).
-    /// Unlike the notice it does not wait for the person to come back from
-    /// another app: that is when it helps most.
-    private func playWaitingSound() {
-        let service = ClaudeSessionService.shared
-        let waiting = Dictionary(service.sessions.compactMap { session in
-            NotchSessionAttention.request(of: session).map { (session.id, $0) }
-        }, uniquingKeysWith: { first, _ in first })
-        let arrived = waitingSound.arrived(waiting)
-        guard !arrived.isEmpty, NotchSessionWaitingSound.isEnabled() else { return }
-        let unseen = Set(arrived.filter {
-            !NotchSessionWaitingSound.inView(expanded: expanded, selected: selected, focused: service.focusedID, session: $0)
-        })
-        guard !unseen.isEmpty else { return }
-        let sessions = service.sessions.filter { unseen.contains($0.id) }
-        let sound = NotchSessionWaitingSound.soundName()
-        // The terminals are asked off the main thread; one that is slow to
-        // answer doesn't hold the sound back for long.
+    /// A single notification for each one-second batch. Snapshot rows are
+    /// already the parent's rows (#210), and all terminal facts come from the
+    /// agent rather than tool result text. Settings and mute are read again
+    /// after the terminal check so a late answer cannot play a stale sound.
+    private func playSessionSounds() {
+        sessionSoundPending.append(contentsOf: waitingSound.events(ClaudeSessionService.shared.sessions))
+        if sessionSoundPending.count > 256 { sessionSoundPending.removeFirst(sessionSoundPending.count - 256) }
+        scheduleSessionSound()
+    }
+
+    private func scheduleSessionSound() {
+        guard !sessionSoundPending.isEmpty, sessionSoundWork == nil, !sessionSoundChecking else { return }
+        let work = DispatchWorkItem { [weak self] in self?.flushSessionSounds() }
+        sessionSoundWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
+    }
+
+    private func sessionSoundAudible(_ event: NotchSessionWaitingSound.Event) -> Bool {
+        guard NotchSupport.routes(.sessions), !SessionSoundPreferences.muted(), SessionSoundPreferences.volume() > 0,
+              SessionSoundPreferences.choice(event.kind) != "none",
+              let session = ClaudeSessionService.shared.sessions.first(where: { $0.id == event.session }) else { return false }
+        if NotchSessionWaitingSound.inView(expanded: expanded, selected: selected,
+                                           focused: ClaudeSessionService.shared.focusedID, session: event.session) { return false }
+        if event.kind == .started { return true }
+        if event.kind == .permission || event.kind == .question {
+            guard let request = NotchSessionAttention.request(of: session) else { return false }
+            return (request.id ?? request.wait) == event.id
+        }
+        guard let terminal = NotchSessionWaitingSound.terminal(session) else { return false }
+        return terminal.kind == event.kind && terminal.id == event.id
+    }
+
+    private func flushSessionSounds() {
+        sessionSoundWork = nil
+        sessionSoundChecking = true
+        let batch = sessionSoundPending.filter(sessionSoundAudible)
+        sessionSoundPending.removeAll()
+        let ids = Set(batch.map(\.session))
+        guard !ids.isEmpty else { sessionSoundChecking = false; scheduleSessionSound(); return }
+        let sessions = ClaudeSessionService.shared.sessions.filter { ids.contains($0.id) }
         var decided = false
-        let decide = { (play: Bool, why: String) in
-            guard !decided else { return }
+        let decide = { [weak self] (visible: Set<String>) in
+            guard let self, !decided else { return }
             decided = true
-            Self.waitingSoundLog.info("waiting sound \(play ? "played" : "quiet", privacy: .public): \(why, privacy: .public)")
-            if play { NotchSessionWaitingSound.play(sound) }
+            let choice = batch.filter { visible.contains($0.session) && self.sessionSoundAudible($0) }
+                .sorted { lhs, rhs in lhs.kind.priority == rhs.kind.priority ? lhs.at > rhs.at : lhs.kind.priority > rhs.kind.priority }
+                .first
+            if let choice {
+                let name = SessionSoundPreferences.choice(choice.kind)
+                let played = SessionSoundPlayer.play(name, volume: SessionSoundPreferences.volume())
+                Self.waitingSoundLog.info("session sound \(played ? "played" : "unavailable", privacy: .public): \(choice.kind.rawValue, privacy: .public)")
+            }
+            self.sessionSoundChecking = false
+            self.scheduleSessionSound()
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + NotchSessionWaitingSound.terminalCheckLimit) {
-            decide(true, "terminal check timed out")
+            decide(ids)
         }
         waitingSoundChecks.async {
-            let states = sessions.map(ClaudeTerminalFocus.state(of:))
-            let play = NotchSessionWaitingSound.shouldPlay(states)
-            DispatchQueue.main.async { decide(play, "terminals \(states)") }
+            let visible = Set(sessions.filter { ClaudeTerminalFocus.state(of: $0) != .shown }.map(\.id))
+            DispatchQueue.main.async { decide(visible) }
         }
     }
 

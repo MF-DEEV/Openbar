@@ -1272,6 +1272,13 @@ fn session(
             }
         }),
         failed_at: thread.failed_at,
+        started_at: (thread.created > 0.0).then_some(thread.created),
+        turn_ended_at: thread.turn_ended.map(|(at, _)| at),
+        turn_completed: thread.turn_ended.is_some_and(|(at, completed)| {
+            completed
+                && thread.failed_at.is_none_or(|failed| failed < at)
+                && thread.limit.is_none_or(|limit| limit.at != at)
+        }),
         // Its terminal is found when Open is pressed (no pid ties it to one).
         host: HostKind::App,
         // Replies go through Codex's own server, whatever terminal shows the session.
@@ -2263,6 +2270,15 @@ mod tests {
             .next()
             .unwrap();
         assert_eq!(session.phase, SessionPhase::Limited);
+        assert_eq!(session.turn_ended_at, Some(320.0));
+        assert!(
+            !session.turn_completed,
+            "a failed limit turn never sounds finished"
+        );
+        assert!(
+            session.failed_at.is_none(),
+            "a plan limit is not a generic error"
+        );
         assert_eq!(
             session.limit_stop.map(|s| (s.at, s.resets_at)),
             Some((320.0, None))
@@ -2280,6 +2296,12 @@ mod tests {
         );
         other.notify("thread/status/changed", &idle, 320.0);
         assert_ne!(phase(&other.threads["t1"], 321.0), SessionPhase::Limited);
+        let failed = other.snapshot(321.0, ContentPolicy::default()).0;
+        assert_eq!(failed[0].failed_at, Some(320.0));
+        assert!(
+            !failed[0].turn_completed,
+            "terminal error is distinct from completion"
+        );
 
         let mut read = State::default();
         read.upsert_thread(
@@ -2349,5 +2371,6 @@ mod tests {
         );
         let (failed, _) = state.snapshot(7.0, ContentPolicy { previews: true });
         assert_eq!(failed[0].failed_at, Some(6.0));
+        assert!(!failed[0].turn_completed);
     }
 }

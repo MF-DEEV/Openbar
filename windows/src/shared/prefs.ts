@@ -6,6 +6,7 @@
 // set follows the defaults if they ever change.
 
 import { invoke } from "@tauri-apps/api/core";
+import { DEFAULT_SOUND_PREFS, resolveSessionSounds, type SessionSoundPrefs } from "../sessions/soundPreferences";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { MODULES, type ModuleId } from "../island/modules";
 import {
@@ -30,7 +31,7 @@ import {
 } from "../mascot/model";
 
 /** The Sessions section's own preferences (spec 01-shell §7.2, sessions). */
-export interface SessionPrefs {
+export interface SessionPrefs extends SessionSoundPrefs {
   /** Show what sessions say and run; off keeps only names and phases. */
   previews: boolean;
   /** A session that needs the person opens the island on its page. */
@@ -91,6 +92,7 @@ export interface ClaudeAccountSetting {
 }
 
 export const DEFAULT_SESSION_PREFS: SessionPrefs = {
+  ...DEFAULT_SOUND_PREFS,
   previews: false,
   autoExpand: true,
   waitingSound: true,
@@ -385,7 +387,11 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
           ]
         : [],
     },
-    sessions: { ...DEFAULT_SESSION_PREFS, ...checked(DEFAULT_SESSION_PREFS, stored?.sessions) },
+    sessions: {
+      ...DEFAULT_SESSION_PREFS,
+      ...checked(DEFAULT_SESSION_PREFS, stored?.sessions),
+      ...resolveSessionSounds(stored?.sessions),
+    },
   };
 }
 

@@ -16,6 +16,7 @@ enum NotchSessionAttentionTests {
         suite.run("session attention context") { context(suite) }
         suite.run("session answer keys follow the layout") { keys(suite) }
         suite.run("session waiting sound") { waitingSound(suite) }
+        suite.run("session event sounds and migration") { sessionEventSounds(suite) }
         suite.run("session waiting sound reads the terminal") { terminalFocus(suite) }
     }
 
@@ -118,6 +119,77 @@ enum NotchSessionAttentionTests {
         defaults.set("Ping", forKey: DefaultsKey.notchSessionsWaitingSoundName)
         suite.expect(NotchSessionWaitingSound.soundName(in: defaults, available: ["Glass", "Ping"]) == "Ping",
                      "the chosen sound plays")
+    }
+
+    static func sessionEventSounds(_ suite: TestSuite) {
+        let defaults = UserDefaults(suiteName: "com.openbar.tests.sessionSounds")!
+        defaults.removePersistentDomain(forName: "com.openbar.tests.sessionSounds")
+        defer { defaults.removePersistentDomain(forName: "com.openbar.tests.sessionSounds") }
+        suite.expect(SessionSoundPreferences.choice(.permission, in: defaults) == "Glass"
+                     && SessionSoundPreferences.choice(.started, in: defaults) == "none",
+                     "new installations keep starts silent and permissions at the old default")
+        defaults.set("Ping", forKey: DefaultsKey.notchSessionsWaitingSoundName)
+        suite.expect(SessionSoundPreferences.choice(.permission, in: defaults) == "Ping"
+                     && SessionSoundPreferences.choice(.question, in: defaults) == "Ping",
+                     "the old waiting sound maps to both waiting events")
+        defaults.set(false, forKey: DefaultsKey.notchSessionsWaitingSound)
+        suite.expect(SessionSoundPreferences.choice(.permission, in: defaults) == "none"
+                     && SessionSoundPreferences.choice(.question, in: defaults) == "none",
+                     "the old disabled setting still silences both events")
+        defaults.set("openbar:soft", forKey: SessionSoundKind.permission.preferenceKey)
+        defaults.set("none", forKey: SessionSoundKind.question.preferenceKey)
+        suite.expect(SessionSoundPreferences.choice(.permission, in: defaults) == "openbar:soft"
+                     && SessionSoundPreferences.choice(.question, in: defaults) == "none",
+                     "independent choices override migration without rewriting the old keys")
+        defaults.set(27, forKey: SessionSoundPreferences.volumeKey)
+        suite.expect(SessionSoundPreferences.volume(in: defaults) == 27, "volume survives a read")
+        defaults.set(Date().addingTimeInterval(60).timeIntervalSince1970, forKey: SessionSoundPreferences.muteKey)
+        suite.expect(SessionSoundPreferences.muted(in: defaults), "temporary mute survives a read")
+        defaults.set(0, forKey: SessionSoundPreferences.muteKey)
+        suite.expect(!SessionSoundPreferences.muted(in: defaults), "early unmute restores playback")
+        let tomorrow = SessionSoundPreferences.muteUntilTomorrow(now: Date(timeIntervalSince1970: 0))
+        suite.expect(Calendar.current.component(.hour, from: tomorrow) == 0,
+                     "until tomorrow follows local midnight")
+
+        var detector = NotchSessionWaitingSound(since: Date(timeIntervalSince1970: 0))
+        suite.expect(detector.events([]).isEmpty, "first snapshot is a baseline")
+        let start = Date(timeIntervalSince1970: 1)
+        var active = session("a", .generating)
+        active.startedAt = start
+        suite.expect(detector.events([active]).map(\.kind) == [.started], "one parent start event")
+        var permission = session("a", .waitingPermission, request: "r1", since: 5)
+        permission.startedAt = start
+        suite.expect(detector.events([permission]).map(\.kind) == [.permission], "permission event")
+        suite.expect(detector.events([permission]).isEmpty, "the same permission never replays")
+        var question = session("a", .waitingInput, request: "q1", since: 6)
+        question.startedAt = start
+        suite.expect(detector.events([question]).map(\.kind) == [.question], "question event")
+        let ended = Date(timeIntervalSince1970: 7)
+        var finished = session("a", .finished)
+        finished.startedAt = start
+        finished.turnStarted = start
+        finished.turnEndedAt = ended
+        finished.turnCompleted = true
+        suite.expect(detector.events([finished]).map(\.kind) == [.finished], "completed turn event")
+        var recovering = session("a", .generating)
+        recovering.failedAt = ended
+        recovering.turnEndedAt = nil
+        suite.expect(NotchSessionWaitingSound.terminal(recovering) == nil,
+                     "a failed tool in a working turn is not a terminal error")
+        var error = session("a", .idle)
+        error.turnStarted = start
+        error.failedAt = ended
+        error.turnEndedAt = ended
+        suite.expect(detector.events([error]).map(\.kind) == [.error], "terminal error event")
+        var limited = session("a", .limited)
+        limited.turnStarted = start
+        limited.failedAt = ended.addingTimeInterval(1)
+        limited.turnEndedAt = limited.failedAt
+        limited.limitStop = ClaudeLimitStop(at: limited.failedAt!, resetsAt: nil, kind: nil)
+        suite.expect(detector.events([limited]).map(\.kind) == [.limit], "plan limit takes priority over generic error")
+        suite.expect(detector.events([limited]).isEmpty, "duplicate limits stay silent")
+        suite.expect(SessionSoundKind.limit.priority > SessionSoundKind.error.priority,
+                     "a burst keeps its most urgent event")
     }
 
     static func session(_ id: String, _ phase: ClaudeSessionPhase, request: String? = nil,
