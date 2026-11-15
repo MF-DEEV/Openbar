@@ -133,7 +133,7 @@ pub fn locale_settings() -> RegionalSettings {
         if preferred.is_empty() {
             preferred.push("en-US".into());
         }
-        return RegionalSettings {
+        RegionalSettings {
             preferred,
             region: field(LOCALE_SISO3166CTRYNAME).unwrap_or_else(|| "US".into()),
             hour_cycle: if field(LOCALE_ITIME).as_deref() == Some("0") {
@@ -145,7 +145,7 @@ pub fn locale_settings() -> RegionalSettings {
             first_weekday: field(LOCALE_IFIRSTDAYOFWEEK)
                 .and_then(|n| n.parse::<u8>().ok())
                 .map_or(1, |n| (n + 1) % 7),
-        };
+        }
     }
     #[cfg(target_os = "linux")]
     {

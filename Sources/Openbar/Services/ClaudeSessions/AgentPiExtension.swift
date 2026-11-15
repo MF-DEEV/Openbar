@@ -150,7 +150,13 @@ export default function openbarIsland(pi) {
   pi.on("tool_execution_start", (event, ctx) => {
     context = ctx;
     if (event.parentToolCallId) return;
-    post({ kind: "tool", call: event.toolCallId, tool: event.toolName, status: "running", input: summarize(event.args) });
+    post({
+      kind: "tool",
+      call: event.toolCallId,
+      tool: event.toolName,
+      status: "running",
+      input: summarize(event.args),
+    });
   });
   pi.on("tool_execution_end", (event, ctx) => {
     context = ctx;
