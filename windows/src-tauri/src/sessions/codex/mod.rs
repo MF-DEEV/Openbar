@@ -7,6 +7,6 @@
 //! replies into the thread, without typing into any terminal.
 
 pub mod client;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "linux"))]
 pub mod local;
 pub mod state;
