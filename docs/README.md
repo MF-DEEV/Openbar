@@ -144,4 +144,4 @@ Then turn on Sessions as the [README](../README.md#install) describes.
 | [Terminals](terminal-hosts.md) | Every terminal and editor replies reach |
 | [Remote hosts](remote-hosts.md) | Sessions on machines reached over SSH |
 | [Windows](../windows/README.md) | The Windows island, installer and build |
-| [Linux](../windows/docs/linux.md) | The island under X11: the build and what works |
+| [Linux](../windows/docs/linux.md) | The island under X11 and Wayland: the build and what works |

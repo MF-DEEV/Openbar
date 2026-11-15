@@ -13,6 +13,11 @@
 //! one in front. Paste brings the window the island took the keyboard from
 //! forward and types Ctrl+V (Ctrl+Shift+V in a terminal) into it through the
 //! X server's test extension.
+//!
+//! On Wayland an app sees the clipboard only while it has the keyboard, so the
+//! history reads and writes it through wl-clipboard, and Paste focuses the
+//! window through the compositor and types through `wtype` (`wl_clipboard.rs`,
+//! `wm.rs`).
 
 use std::ffi::CString;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -33,7 +38,7 @@ use x11rb::rust_connection::RustConnection;
 
 use super::history::{Content, MAX_FILES, MAX_IMAGE_BYTES};
 use crate::linux::gtk_main::on_main;
-use crate::linux::x11;
+use crate::linux::{wl_clipboard as wl, wm, x11};
 
 /// How long a read waits for the program that owns the clipboard to answer.
 const ANSWER: Duration = Duration::from_secs(4);
@@ -104,7 +109,10 @@ fn atom_names(targets: Vec<Atom>) -> Vec<String> {
 
 /// A picture as the PNG the history keeps.
 fn content_of_pixbuf(pixbuf: &Pixbuf) -> Option<Content> {
-    let png = pixbuf.save_to_bufferv("png", &[]).ok()?;
+    content_of_png(pixbuf.save_to_bufferv("png", &[]).ok()?)
+}
+
+fn content_of_png(png: Vec<u8>) -> Option<Content> {
     if png.len() > MAX_IMAGE_BYTES {
         return None;
     }
@@ -189,9 +197,51 @@ fn read_picture(board: &gtk::Clipboard, reply: mpsc::Sender<Option<Content>>) {
 /// The content the history keeps, or None for nothing, a secret, or what
 /// does not arrive in time.
 pub fn read(include_images_files: bool) -> Option<Content> {
+    if wl::available() {
+        return read_wayland(include_images_files);
+    }
     let (tx, rx) = mpsc::channel();
     on_main(move || start_read(include_images_files, tx))?;
     rx.recv_timeout(ANSWER).ok().flatten()
+}
+
+/// Whether a type is named as types are (`text/plain`, `UTF8_STRING`), not in garbled bytes.
+fn readable_type(name: &str) -> bool {
+    !name.is_empty() && name.bytes().all(|b| b.is_ascii_graphic())
+}
+
+/// The same choice as `start_read`, from what wl-paste says the copy offers.
+fn read_wayland(include_images_files: bool) -> Option<Content> {
+    let targets = wl::types();
+    if offers(&targets, PRIVATE_TARGET) {
+        return None;
+    }
+    if include_images_files && offers(&targets, "text/uri-list") {
+        let paths = wl::get(Some("text/uri-list"), MAX_TEXT_BYTES)
+            .map(|bytes| paths_from_list(&String::from_utf8_lossy(&bytes)))
+            .unwrap_or_default();
+        if !paths.is_empty() && paths.len() <= MAX_FILES {
+            return Some(Content::Files(paths));
+        }
+    }
+    const TEXT: [&str; 4] = ["text/plain;charset=utf-8", "UTF8_STRING", "text/plain", "STRING"];
+    let text = match TEXT.into_iter().find(|t| offers(&targets, t)) {
+        Some(t) => wl::get(Some(t), MAX_TEXT_BYTES),
+        // KWin 5.27 names a copy's types with garbled bytes; wl-paste's own pick still reads it.
+        None if !targets.is_empty() && !targets.iter().any(|t| readable_type(t)) => {
+            wl::get(None, MAX_TEXT_BYTES)
+        }
+        None => None,
+    };
+    if let Some(text) = text
+        && let Ok(text) = String::from_utf8(text)
+    {
+        return Some(Content::Text(text));
+    }
+    if include_images_files && offers(&targets, "image/png") {
+        return wl::get(Some("image/png"), MAX_IMAGE_BYTES).and_then(content_of_png);
+    }
+    None
 }
 
 // MARK: Writing
@@ -296,6 +346,23 @@ pub fn write(payload: &Payload, from_history: bool) -> bool {
         Payload::Image(png) => Payload::Image(png.clone()),
         Payload::Files(paths) => Payload::Files(paths.clone()),
     };
+    if wl::available() {
+        let done = match &payload {
+            Payload::Text(text) => wl::set("text/plain;charset=utf-8", text.as_bytes()),
+            Payload::Image(png) => wl::set("image/png", png),
+            Payload::Files(paths) => {
+                let uris: Vec<String> = paths
+                    .iter()
+                    .map(|p| gio::File::for_path(p).uri().to_string())
+                    .collect();
+                wl::set("text/uri-list", (uris.join("\r\n") + "\r\n").as_bytes())
+            }
+        };
+        if !done {
+            take_one(counter);
+        }
+        return done;
+    }
     let done = on_main(move || {
         let board = clipboard();
         match &payload {
@@ -373,6 +440,27 @@ fn owner_and_front() -> (Option<String>, Option<String>) {
 
 /// Calls `on_update` for each change of the clipboard, on GTK's thread.
 pub fn listen(on_update: impl Fn(Update) + Send + Sync + 'static) {
+    if wl::available() {
+        // No owner to ask on Wayland: the copy came from the app in front.
+        wl::watch(move || {
+            if take_one(&HISTORY_WRITES) {
+                return;
+            }
+            let own = take_one(&OWN_WRITES);
+            let front = (!own)
+                .then(wm::active)
+                .flatten()
+                .filter(|t| t.pid != std::process::id())
+                .and_then(|t| crate::linux::process::image_path(t.pid))
+                .map(|p| p.to_string_lossy().into_owned());
+            on_update(Update {
+                own,
+                exe: front.clone(),
+                candidates: front.into_iter().collect(),
+            });
+        });
+        return;
+    }
     on_main(move || {
         let _ = clipboard().connect_local("owner-change", false, move |_| {
             if take_one(&HISTORY_WRITES) {
@@ -395,6 +483,17 @@ pub fn listen(on_update: impl Fn(Update) + Send + Sync + 'static) {
 /// Where a paste goes: the window the island took the keyboard from, else the
 /// one in front. Never one of Openbar's own windows.
 pub fn paste_target(island_previous: isize) -> Option<isize> {
+    if wm::available() {
+        let windows = wm::toplevels()?;
+        let front = windows
+            .iter()
+            .find(|t| t.focused)
+            .map_or(0, |t| t.id as isize);
+        let me = std::process::id();
+        return first_target(&[island_previous, front], |id| {
+            windows.iter().any(|t| t.id == id && t.pid != me)
+        });
+    }
     let (connection, screen) = RustConnection::connect(None).ok()?;
     let root = connection.setup().roots.get(screen)?.root;
     let active = x11::atom(&connection, "_NET_ACTIVE_WINDOW")?;
@@ -402,6 +501,9 @@ pub fn paste_target(island_previous: isize) -> Option<isize> {
     let front = x11::active_window(&connection, root, active).map_or(0, |w| w as isize);
     let me = std::process::id();
     first_target(&[island_previous, front], |window| {
+        let Ok(window) = Window::try_from(window) else {
+            return false;
+        };
         let exists = connection
             .get_window_attributes(window)
             .is_ok_and(|cookie| cookie.reply().is_ok());
@@ -410,11 +512,11 @@ pub fn paste_target(island_previous: isize) -> Option<isize> {
 }
 
 /// The first of `candidates` that is a window `usable` accepts; 0 is none.
-fn first_target(candidates: &[isize], usable: impl Fn(Window) -> bool) -> Option<isize> {
+fn first_target(candidates: &[isize], usable: impl Fn(u64) -> bool) -> Option<isize> {
     candidates
         .iter()
         .copied()
-        .find(|&c| Window::try_from(c).is_ok_and(|window| window != 0 && usable(window)))
+        .find(|&c| u64::try_from(c).is_ok_and(|window| window != 0 && usable(window)))
 }
 
 /// X has no elevated windows to refuse input.
@@ -488,6 +590,16 @@ fn bring_forward(connection: &RustConnection, root: Window, window: Window) -> b
 /// Brings `target` forward, waits for it, then types the paste shortcut into
 /// it, through XTEST.
 pub fn send_paste(target: isize) -> bool {
+    if wm::available() {
+        let Ok(id) = u64::try_from(target) else {
+            return false;
+        };
+        let app_id = wm::toplevels()
+            .and_then(|all| all.into_iter().find(|t| t.id == id))
+            .map(|t| t.app_id)
+            .unwrap_or_default();
+        return wm::bring_forward(id) && wl::type_paste(is_terminal(&app_id));
+    }
     let Ok((connection, screen)) = RustConnection::connect(None) else {
         return false;
     };
@@ -532,6 +644,9 @@ pub fn send_paste(target: isize) -> bool {
 
 /// The X server's bell, for a paste that had nowhere to go.
 pub fn beep() {
+    if wm::native_wayland() {
+        return;
+    }
     if let Ok((connection, _)) = RustConnection::connect(None) {
         let _ = connection.bell(0);
         let _ = connection.flush();
@@ -547,8 +662,16 @@ mod tests {
     }
 
     #[test]
+    fn a_type_named_in_garbled_bytes_is_not_a_type() {
+        assert!(readable_type("text/plain;charset=utf-8"));
+        assert!(readable_type("UTF8_STRING"));
+        assert!(!readable_type("\u{fffd}\u{fffd}>U\u{fffd}"));
+        assert!(!readable_type(""));
+    }
+
+    #[test]
     fn a_paste_goes_to_the_window_the_island_came_from_else_the_one_in_front() {
-        let theirs = |window: Window| window != 7;
+        let theirs = |window: u64| window != 7;
         assert_eq!(first_target(&[5, 9], theirs), Some(5));
         assert_eq!(first_target(&[0, 9], theirs), Some(9));
         assert_eq!(first_target(&[7, 9], theirs), Some(9));
@@ -643,6 +766,24 @@ mod tests {
             !display.is_empty() && !display.starts_with(":0"),
             "refusing to type into {display:?}: use a nested server such as Xephyr on :97"
         );
+        let target: isize = std::env::var("OPENBAR_PASTE_TARGET")
+            .unwrap()
+            .parse()
+            .unwrap();
+        assert_eq!(paste_target(target), Some(target));
+        assert!(send_paste(target));
+    }
+
+    /// By hand in a nested sway: OPENBAR_PASTE_TARGET=<con id> WAYLAND_DISPLAY=wayland-1 SWAYSOCK=... cargo test live_paste_wayland -- --ignored
+    #[test]
+    #[ignore = "types into a window of the compositor: only a nested one, never the desktop's own"]
+    fn live_paste_wayland() {
+        let display = std::env::var("WAYLAND_DISPLAY").unwrap_or_default();
+        assert!(
+            !display.is_empty() && display != "wayland-0",
+            "refusing to type into {display:?}: use a nested compositor"
+        );
+        assert!(wm::available(), "no compositor to ask");
         let target: isize = std::env::var("OPENBAR_PASTE_TARGET")
             .unwrap()
             .parse()

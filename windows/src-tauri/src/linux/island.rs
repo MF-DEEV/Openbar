@@ -2,23 +2,79 @@
 // Copyright (C) 2026 MF DEV, Adrian and the Openbar contributors
 
 //! The island window on X11: a dock-type GTK window that is cut to the drawn island with XShape.
+//! On Wayland, where the compositor offers it, the window is a layer surface instead
+//! (`layer.rs`), which takes the pointer only over the island.
 //! Included by `island.rs` as its `platform`, so it can reach the private state of the window.
 
-use std::sync::OnceLock;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::cell::RefCell;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Mutex, OnceLock};
 
 use gtk::gdk::{Screen, WindowTypeHint};
-use gtk::prelude::{GtkWindowExt, WidgetExt};
+use gtk::glib::Propagation;
+use gtk::prelude::{Cast, GtkWindowExt, WidgetExt};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 use serde::Deserialize;
-use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
+use tauri::{AppHandle, Emitter, Manager, Runtime, WebviewWindow};
 use x11rb::connection::Connection;
 use x11rb::protocol::xproto::{AtomEnum, ClientMessageEvent, ConnectionExt, EventMask, KeyButMask};
 use x11rb::rust_connection::RustConnection;
 
-use super::{HitRect, IslandState, LABEL, Mirror, MirrorFrame};
+use super::{DisplayChoice, HitRect, IslandState, LABEL, Mirror, MirrorFrame};
+use crate::linux::layer;
 
 static DISPLAY_CHANGES: AtomicU32 = AtomicU32::new(0);
+
+/// The island is a layer surface on a Wayland compositor, set once it is styled.
+static LAYERED: AtomicBool = AtomicBool::new(false);
+/// While the island lets the pointer through outside what it answers to.
+static PASSING: AtomicBool = AtomicBool::new(true);
+/// While the island is open (it may take the keyboard), when its surface takes
+/// every click, since a click on another app's window is not seen on Wayland.
+static OPEN: AtomicBool = AtomicBool::new(false);
+/// Where the pointer is over the island's surface, in CSS pixels; None once it left.
+/// Wayland tells an app nothing about the pointer anywhere else.
+static POINTER: Mutex<Option<(f64, f64)>> = Mutex::new(None);
+
+thread_local! {
+    /// The surfaces that keep room for the island on Wayland, made on the main thread.
+    static SPACERS: RefCell<Vec<gtk::Window>> = const { RefCell::new(Vec::new()) };
+}
+
+fn layered() -> bool {
+    LAYERED.load(Ordering::Relaxed)
+}
+
+/// Far from any island: where the pointer counts as being once it left the surface.
+const AWAY: (f64, f64) = (-100_000.0, -100_000.0);
+
+/// The pointer in the island's CSS pixels as its own surface saw it last, where
+/// Wayland gives no position for the screen; None where the screen's is used.
+pub fn own_pointer<R: Runtime>(window: &WebviewWindow<R>) -> Option<Option<(f64, f64)>> {
+    (layered() && window.label() == LABEL).then(|| Some(POINTER.lock().unwrap().unwrap_or(AWAY)))
+}
+
+/// The display choice that can be kept: a layer surface cannot follow a pointer
+/// it is not told about, nor tell which mirror it is over, so it stays on one display.
+pub fn usable(choice: DisplayChoice) -> DisplayChoice {
+    if layered() {
+        DisplayChoice::Primary
+    } else {
+        choice
+    }
+}
+
+/// A layer surface is put on a display by the compositor, not moved there.
+pub fn moved_to<R: Runtime>(window: &WebviewWindow<R>, monitor: &tauri::Monitor) {
+    if !layered() {
+        return;
+    }
+    let at = (monitor.position().x, monitor.position().y);
+    on_main_thread(window, move |native| {
+        let monitor = layer::monitor_at(at);
+        layer::set_monitor(native.upcast_ref(), monitor.as_ref());
+    });
+}
 
 struct X11 {
     connection: RustConnection,
@@ -114,6 +170,13 @@ pub fn watch_displays<R: Runtime>(window: &WebviewWindow<R>) {
 /// one pixel in the corner clickable; an empty input shape on the widget
 /// waits for the window and covers all of it.
 pub fn set_click_through<R: Runtime>(window: &WebviewWindow<R>, ignore: bool) -> tauri::Result<()> {
+    if layered() && window.label() == LABEL {
+        PASSING.store(ignore, Ordering::Relaxed);
+        if let Some(state) = window.try_state::<IslandState>() {
+            set_input(window, &state);
+        }
+        return Ok(());
+    }
     on_main_thread(window, move |native| {
         let nothing = gtk::cairo::Region::create();
         native.input_shape_combine_region(ignore.then_some(&nothing));
@@ -121,11 +184,126 @@ pub fn set_click_through<R: Runtime>(window: &WebviewWindow<R>, ignore: bool) ->
     Ok(())
 }
 
+/// Where a layer surface takes the pointer: where the island answers to it, so
+/// the surface hears the pointer come in, and all of it while the island has it
+/// or is open.
+fn input_strips(
+    state: &IslandState,
+    passing: bool,
+    open: bool,
+) -> Option<Vec<(i32, i32, i32, i32)>> {
+    if !passing || open || *state.capture.lock().unwrap() {
+        return None;
+    }
+    let rects = state.rects.lock().unwrap();
+    Some(
+        rects
+            .iter()
+            .filter(|r| r.width > 0.0 && r.height > 0.0)
+            .map(|r| {
+                let (x, y) = (r.x.floor() as i32, r.y.floor() as i32);
+                let (right, bottom) = (
+                    (r.x + r.width).ceil() as i32,
+                    (r.y + r.height).ceil() as i32,
+                );
+                (x, y, right - x, bottom - y)
+            })
+            .collect(),
+    )
+}
+
+fn set_input<R: Runtime>(window: &WebviewWindow<R>, state: &IslandState) {
+    let strips = input_strips(
+        state,
+        PASSING.load(Ordering::Relaxed),
+        OPEN.load(Ordering::Relaxed),
+    );
+    on_main_thread(window, move |native| match strips {
+        None => native.input_shape_combine_region(None),
+        Some(strips) => {
+            let strips: Vec<_> = strips
+                .iter()
+                .map(|&(x, y, w, h)| gtk::cairo::RectangleInt::new(x, y, w, h))
+                .collect();
+            native
+                .input_shape_combine_region(Some(&gtk::cairo::Region::create_rectangles(&strips)));
+        }
+    });
+}
+
+/// Follows the pointer over the island's surface, and tells the page about a
+/// click elsewhere the ways Wayland shows one: on the open island's surface
+/// outside the island, or the island losing the keyboard.
+fn track_pointer<R: Runtime>(window: &WebviewWindow<R>, native: &gtk::ApplicationWindow) {
+    let Some(view) = crate::linux::shelf::web_view_of(native.upcast_ref()) else {
+        return;
+    };
+    view.connect_motion_notify_event(|_, event| {
+        *POINTER.lock().unwrap() = Some(event.position());
+        Propagation::Proceed
+    });
+    view.connect_enter_notify_event(|_, event| {
+        *POINTER.lock().unwrap() = Some(event.position());
+        Propagation::Proceed
+    });
+    view.connect_leave_notify_event(|_, event| {
+        // Into a child of the page (a menu) is still over the island.
+        if event.detail() != gtk::gdk::NotifyType::Inferior {
+            *POINTER.lock().unwrap() = None;
+        }
+        Propagation::Proceed
+    });
+    let app = window.app_handle().clone();
+    view.connect_button_press_event(move |_, event| {
+        let (x, y) = event.position();
+        let outside = app
+            .try_state::<IslandState>()
+            .is_some_and(|state| !*state.capture.lock().unwrap() && !state.contains(x, y));
+        if outside {
+            let _ = app.emit_to(LABEL, "island://outside-click", ());
+            return Propagation::Stop;
+        }
+        Propagation::Proceed
+    });
+    let app = window.app_handle().clone();
+    native.connect_focus_out_event(move |_, _| {
+        if POINTER.lock().unwrap().is_none() {
+            let _ = app.emit_to(LABEL, "island://outside-click", ());
+        }
+        Propagation::Proceed
+    });
+}
+
 /// A dock-type window: no frame, on every workspace, not in the taskbar,
 /// and clicking the closed island does not take the keyboard. It has no
 /// shape until the page says what is drawn, so nothing of it catches the pointer.
+/// On Wayland the island is a layer surface over the whole display, above
+/// fullscreen windows' layer and every panel, where the compositor has them.
 pub fn style<R: Runtime>(window: &WebviewWindow<R>) {
-    on_main_thread(window, |native| {
+    let island = window.label() == LABEL;
+    let handle = window.clone();
+    on_main_thread(window, move |native| {
+        if island && layer::available() {
+            use layer::Edge::{Bottom, Left, Right, Top};
+            let made = layer::init(
+                native.upcast_ref(),
+                c"openbar",
+                layer::Layer::Overlay,
+                &[Left, Right, Top, Bottom],
+            );
+            if made {
+                LAYERED.store(true, Ordering::Relaxed);
+                native.set_accept_focus(false);
+                track_pointer(&handle, &native);
+                if let Some(state) = handle.try_state::<IslandState>() {
+                    if let Some(at) = *state.placed_on.lock().unwrap() {
+                        layer::set_monitor(native.upcast_ref(), layer::monitor_at(at).as_ref());
+                    }
+                    set_input(&handle, &state);
+                }
+                return;
+            }
+        }
         native.set_type_hint(WindowTypeHint::Dock);
         native.set_accept_focus(false);
         native.set_focus_on_map(false);
@@ -230,6 +408,10 @@ fn shape_rows(shapes: &[Drawn]) -> Vec<(i32, i32, i32, i32)> {
 /// gives its frame the same shape, so a click anywhere else reaches the
 /// window below. While the capture overlay is up it is the whole canvas.
 pub fn set_shape<R: Runtime>(window: &WebviewWindow<R>, shapes: &[Drawn], capture: bool) {
+    // A Wayland surface is seen where it is painted; its input region is kept apart.
+    if layered() && window.label() == LABEL {
+        return;
+    }
     let strips = shape_rows(shapes);
     on_main_thread(window, move |native| {
         if capture {
@@ -256,7 +438,11 @@ fn shape(state: &IslandState) -> Vec<Drawn> {
 /// Cuts the island's window down to what is drawn.
 fn reshape<R: Runtime>(app: &AppHandle<R>, state: &IslandState) {
     if let Some(window) = app.get_webview_window(LABEL) {
-        set_shape(&window, &shape(state), *state.capture.lock().unwrap());
+        if layered() {
+            set_input(&window, state);
+        } else {
+            set_shape(&window, &shape(state), *state.capture.lock().unwrap());
+        }
     }
 }
 
@@ -317,6 +503,10 @@ fn area(monitor: &tauri::Monitor) -> crate::linux::room::Area {
 /// or every display shows it), or gives them back.
 pub fn set_room<R: Runtime>(window: &WebviewWindow<R>, state: &IslandState) {
     use crate::linux::room;
+    if layered() {
+        set_layer_room(window, state);
+        return;
+    }
     let Some(height) = *state.room.lock().unwrap() else {
         room::reserve(&[]);
         return;
@@ -340,6 +530,28 @@ pub fn set_room<R: Runtime>(window: &WebviewWindow<R>, state: &IslandState) {
     room::reserve(&room::bands(&wanted, &all, height));
 }
 
+/// The room on Wayland: an exclusive zone on the island's display, kept by an
+/// empty surface of its own, as the island's covers the whole display.
+fn set_layer_room<R: Runtime>(window: &WebviewWindow<R>, state: &IslandState) {
+    let height = *state.room.lock().unwrap();
+    let at = *state.placed_on.lock().unwrap();
+    on_main_thread(window, move |_| {
+        SPACERS.with_borrow_mut(|spacers| {
+            for spacer in spacers.drain(..) {
+                spacer.close();
+            }
+            let Some(zone) = height.map(|h| h.ceil() as i32).filter(|z| *z > 0) else {
+                return;
+            };
+            // Before the island is first placed, on the display the compositor gives it.
+            let monitor = at.and_then(layer::monitor_at);
+            if let Some(spacer) = layer::spacer(monitor.as_ref(), zone) {
+                spacers.push(spacer);
+            }
+        });
+    });
+}
+
 pub fn show_in_captures<R: Runtime>(window: &WebviewWindow<R>, show: bool) {
     let _ = window.set_content_protected(!show);
 }
@@ -350,6 +562,30 @@ pub fn set_focusable<R: Runtime>(
     focusable: bool,
     take: bool,
 ) {
+    if layered() {
+        if OPEN.swap(focusable, Ordering::Relaxed) != focusable {
+            set_input(window, state);
+        }
+        on_main_thread(window, move |native| {
+            native.set_accept_focus(focusable);
+            let mode = if focusable {
+                layer::Keyboard::OnDemand
+            } else {
+                layer::Keyboard::None
+            };
+            layer::set_keyboard(native.upcast_ref(), mode);
+        });
+        if focusable && take {
+            // Where a paste goes back to, as the X11 window below keeps it.
+            let front = crate::linux::wm::active().filter(|t| t.pid != std::process::id());
+            if let Some(front) = front {
+                *state.previous_foreground.lock().unwrap() = front.id as isize;
+            }
+            let _ = window.set_focus();
+        }
+        // Closed, the surface takes no keyboard, and the compositor gives it back itself.
+        return;
+    }
     on_main_thread(window, move |native| native.set_accept_focus(focusable));
     let (Some(x), Some(own)) = (x11(), own_window(window)) else {
         if focusable && take {
@@ -372,6 +608,9 @@ pub fn set_focusable<R: Runtime>(
 }
 
 pub fn mouse_buttons_down() -> bool {
+    if layered() {
+        return false;
+    }
     let Some(x) = x11() else { return false };
     let buttons = KeyButMask::BUTTON1 | KeyButMask::BUTTON2 | KeyButMask::BUTTON3;
     x.connection
@@ -409,6 +648,43 @@ mod tests {
         assert!(
             shape(&state).is_empty(),
             "an empty drawing is not the fallback"
+        );
+    }
+
+    #[test]
+    fn a_layer_surface_takes_the_pointer_where_the_island_answers_or_everywhere_while_it_has_it() {
+        let state = IslandState::default();
+        *state.rects.lock().unwrap() = vec![
+            rect(897.4, 0.0, 125.2, 24.5, 0.0, 8.0),
+            rect(10.0, 10.0, 0.0, 5.0, 0.0, 0.0),
+        ];
+        assert_eq!(
+            input_strips(&state, true, false),
+            Some(vec![(897, 0, 126, 25)]),
+            "rounded out, and an empty rect takes nothing"
+        );
+        assert_eq!(
+            input_strips(&state, false, false),
+            None,
+            "the pointer is on the island"
+        );
+        assert_eq!(
+            input_strips(&state, true, true),
+            None,
+            "the open island catches every click"
+        );
+        *state.capture.lock().unwrap() = true;
+        assert_eq!(
+            input_strips(&state, true, false),
+            None,
+            "the capture overlay covers it all"
+        );
+        *state.capture.lock().unwrap() = false;
+        state.rects.lock().unwrap().clear();
+        assert_eq!(
+            input_strips(&state, true, false),
+            Some(vec![]),
+            "nothing drawn, nothing taken"
         );
     }
 

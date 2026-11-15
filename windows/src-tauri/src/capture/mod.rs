@@ -323,6 +323,8 @@ fn open_overlay<R: Runtime>(app: &AppHandle<R>, monitor: Rect, id: u64) -> tauri
         monitor.height as u32,
     ))?;
     platform::exclude_from_capture(&window);
+    #[cfg(target_os = "linux")]
+    crate::linux::screen::overlay(&window, (monitor.x, monitor.y));
     let app = app.clone();
     window.on_window_event(move |event| {
         if let tauri::WindowEvent::Destroyed = event {

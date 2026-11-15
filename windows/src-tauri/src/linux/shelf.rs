@@ -357,6 +357,11 @@ fn widgets_of<R: Runtime>(window: &WebviewWindow<R>) -> Option<(gtk::Widget, gtk
     Some((view, toplevel))
 }
 
+/// The web view inside a window's widgets.
+pub fn web_view_of(toplevel: &gtk::Widget) -> Option<gtk::Widget> {
+    find_web_view(toplevel)
+}
+
 fn find_web_view(widget: &gtk::Widget) -> Option<gtk::Widget> {
     if widget.type_().name() == WEB_VIEW {
         return Some(widget.clone());

@@ -50,6 +50,9 @@ libc = "0.2"
 raw-window-handle = "0.6"
 # Both already in the tree through tauri: the media players' bus, and the HTTPS client of the web view.
 soup3 = "0.5"
+# Wayland (#252): hears clipboard changes through the data-control protocol (pure Rust, no libwayland).
+wayland-client = "0.31"
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
 x11rb = { version = "0.13", features = ["composite", "dpms", "randr", "shape", "xtest"] }
 zbus = "5"
 
