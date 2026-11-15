@@ -71,18 +71,15 @@ enum AgentVibeLog {
     }
 }
 
-/// The person's prompt and the agent's last reply in a Google Antigravity
-/// conversation, read from the transcript its hooks name
-/// (`…/brain/<conversation>/.system_generated/logs/transcript.jsonl`), since
-/// the hooks carry neither. One step per line: `USER_INPUT` holds the
-/// prompt, `PLANNER_RESPONSE` the model's text. Read only with previews on,
-/// and only the file's end.
+/// The agent's last reply in a Google Antigravity conversation, read from
+/// the transcript its hooks name
+/// (`…/brain/<conversation>/.system_generated/logs/transcript_full.jsonl`),
+/// since the hooks carry none. One step per line; `PLANNER_RESPONSE` steps
+/// hold the model's text, empty on a step that only calls tools. Read only
+/// with previews on, and only the file's end.
 enum AgentAntigravityLog {
     static let tailBytes = 1024 * 1024
-
-    static func lastPrompt(in path: String) -> String? {
-        lastContent(in: path) { $0 == "USER_INPUT" }.map(unwrapped).flatMap(AgentHookMessage.preview)
-    }
+    static let names: Set<String> = ["transcript_full.jsonl", "transcript.jsonl"]
 
     static func lastReply(in path: String) -> String? {
         lastContent(in: path) { $0 == "PLANNER_RESPONSE" }.flatMap(AgentHookMessage.preview)
@@ -90,7 +87,7 @@ enum AgentAntigravityLog {
 
     /// The content of the last step of a type that has any, in the file's last part.
     static func lastContent(in path: String, where matches: (String) -> Bool) -> String? {
-        guard (path as NSString).lastPathComponent == "transcript.jsonl", let data = tail(path) else { return nil }
+        guard names.contains((path as NSString).lastPathComponent), let data = tail(path) else { return nil }
         return lastContent(lines: data, where: matches)
     }
 
@@ -103,13 +100,6 @@ enum AgentAntigravityLog {
             return content
         }
         return nil
-    }
-
-    /// The prompt without the tags Antigravity may wrap it in.
-    static func unwrapped(_ text: String) -> String {
-        guard let open = text.range(of: "<USER_REQUEST>"), let close = text.range(of: "</USER_REQUEST>"),
-              open.upperBound <= close.lowerBound else { return text }
-        return String(text[open.upperBound..<close.lowerBound])
     }
 
     private static func tail(_ path: String) -> Data? {

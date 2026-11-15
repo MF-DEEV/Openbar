@@ -649,35 +649,19 @@ impl Service {
                     failed,
                 };
             }
-            // Antigravity has no prompt hook: the first invocation of a turn
-            // opens it, and with previews its transcript tells the prompt and,
-            // at the end, the reply.
-            if provider == models::Provider::Antigravity {
-                let transcript = decoded.transcript.as_deref().map(Path::new);
-                if event.kind == hook_agents::Kind::Working
-                    && !inner
-                        .hook_agents
-                        .entry(&event.id())
-                        .is_some_and(|e| e.turn_open())
-                {
-                    event.kind = hook_agents::Kind::Prompt(
-                        transcript
-                            .filter(|_| previews)
-                            .and_then(hook_agents::antigravity_last_prompt),
-                    );
-                }
-                if previews
-                    && let hook_agents::Kind::Stopped {
-                        last_text: None,
-                        failed,
-                    } = event.kind
-                    && let Some(path) = transcript
-                {
-                    event.kind = hook_agents::Kind::Stopped {
-                        last_text: hook_agents::antigravity_last_reply(path),
-                        failed,
-                    };
-                }
+            // Antigravity's hooks carry no reply: with previews on, its transcript tells the last one.
+            if provider == models::Provider::Antigravity
+                && previews
+                && let hook_agents::Kind::Stopped {
+                    last_text: None,
+                    failed,
+                } = event.kind
+                && let Some(path) = &decoded.transcript
+            {
+                event.kind = hook_agents::Kind::Stopped {
+                    last_text: hook_agents::antigravity_last_reply(Path::new(path)),
+                    failed,
+                };
             }
             if let hook_agents::Kind::PermissionSettled(request) = &event.kind {
                 // Answered in OpenCode itself: its plugin stops waiting too.

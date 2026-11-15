@@ -769,8 +769,10 @@ pub fn is_devin_process(name: &str) -> bool {
 /// Google Antigravity's lifecycle hooks (the hooks.json guide its language
 /// server carries), the same in its app, its IDE and `agy`. The input is
 /// camelCase, a session is a conversation, and there is no hook for a prompt
-/// or a permission: a model invocation opens the turn, `Stop` ends it, and
-/// approvals are asked and answered in Antigravity.
+/// or a permission: a turn's first model invocation (`invocationNum` 0, with
+/// the prompt as `lastUserInput`) opens it, `Stop` ends it, and approvals are
+/// asked and answered in Antigravity. A tool Antigravity refused never
+/// reports back; `Stop` closes it.
 fn antigravity(
     hook: &str,
     json: &Map<String, Value>,
@@ -790,7 +792,8 @@ fn antigravity(
                 .filter_map(Value::as_str)
                 .find(|p| !p.is_empty())
         })
-        .map(str::to_owned);
+        .map(str::to_owned)
+        .or_else(|| text(json, "cwd"));
     let mut events = Vec::new();
     let mut add = |kind| {
         events.push(AgentEvent {
@@ -811,6 +814,14 @@ fn antigravity(
         .and_then(Value::as_i64)
         .map(|i| format!("step-{i}"));
     match hook {
+        "PreInvocation" if json.get("invocationNum").and_then(Value::as_i64) == Some(0) => {
+            add(Kind::Prompt(
+                policy
+                    .previews
+                    .then(|| reply_preview(json.get("lastUserInput")))
+                    .flatten(),
+            ))
+        }
         "PreInvocation" => add(Kind::Working),
         "PreToolUse" => {
             let call = json.get("toolCall");
@@ -832,9 +843,11 @@ fn antigravity(
             failed: text(json, "error").is_some(),
             started: None,
         }),
+        // As "NO_TOOL_CALL" for a turn that ended well; a failed one says so.
         "Stop" => add(Kind::Stopped {
             last_text: None,
-            failed: str_of(json.get("terminationReason")) == Some("error")
+            failed: str_of(json.get("terminationReason"))
+                .is_some_and(|r| r.to_lowercase().contains("error"))
                 || text(json, "error").is_some(),
         }),
         _ => {}
@@ -868,17 +881,11 @@ pub fn antigravity_input(args: &Map<String, Value>) -> Map<String, Value> {
     input
 }
 
-/// The person's prompt and the agent's last reply in an Antigravity
-/// conversation, read from the end of the transcript its hooks name, since
-/// the hooks carry neither: `USER_INPUT` steps hold the prompt,
-/// `PLANNER_RESPONSE` the model's text (AgentAntigravityLog in
+/// The agent's last reply in an Antigravity conversation, read from the end
+/// of the transcript its hooks name (`transcript_full.jsonl`), since the
+/// hooks carry none: `PLANNER_RESPONSE` steps hold the model's text, empty on
+/// a step that only calls tools (AgentAntigravityLog in
 /// AgentHookSupport.swift). Read only with previews on.
-pub fn antigravity_last_prompt(path: &Path) -> Option<String> {
-    antigravity_last(path, "USER_INPUT")
-        .map(|text| antigravity_unwrapped(&text).to_owned())
-        .and_then(|text| preview(Some(&text), REPLY_LIMIT))
-}
-
 pub fn antigravity_last_reply(path: &Path) -> Option<String> {
     antigravity_last(path, "PLANNER_RESPONSE").and_then(|text| preview(Some(&text), REPLY_LIMIT))
 }
@@ -886,7 +893,10 @@ pub fn antigravity_last_reply(path: &Path) -> Option<String> {
 fn antigravity_last(path: &Path, kind: &str) -> Option<String> {
     use std::io::{Read, Seek, SeekFrom};
     const TAIL: u64 = 1024 * 1024;
-    if path.file_name().and_then(|n| n.to_str()) != Some("transcript.jsonl") {
+    if !matches!(
+        path.file_name().and_then(|n| n.to_str()),
+        Some("transcript_full.jsonl" | "transcript.jsonl")
+    ) {
         return None;
     }
     let mut file = std::fs::File::open(path).ok()?;
@@ -914,16 +924,6 @@ pub fn antigravity_last_in(data: &[u8], kind: &str) -> Option<String> {
             .filter(|c| !c.trim().is_empty())
             .map(str::to_owned)
     })
-}
-
-/// The prompt without the tags Antigravity may wrap it in.
-pub fn antigravity_unwrapped(text: &str) -> &str {
-    match (text.find("<USER_REQUEST>"), text.find("</USER_REQUEST>")) {
-        (Some(open), Some(close)) if open + "<USER_REQUEST>".len() <= close => {
-            &text[open + "<USER_REQUEST>".len()..close]
-        }
-        _ => text,
-    }
 }
 
 /// The last reply of a Mistral Vibe session, read from its own log, since
@@ -1407,11 +1407,6 @@ impl Entry {
             chat: Vec::new(),
             usage: BTreeMap::new(),
         }
-    }
-
-    /// Whether a turn is under way, as its first event opened it.
-    pub fn turn_open(&self) -> bool {
-        self.turn_open
     }
 
     fn open_tool(&self) -> Option<&ToolUse> {
@@ -3703,8 +3698,10 @@ mod tests {
         let mut event = json!({
             "conversationId": "a1",
             "workspacePaths": ["/w/rocket"],
-            "transcriptPath": "/h/.gemini/antigravity-ide/brain/a1/.system_generated/logs/transcript.jsonl",
-            "modelName": "Gemini 3.8 Flash",
+            "cwd": "/w/rocket",
+            "transcriptPath": "/h/.gemini/antigravity-cli/brain/a1/.system_generated/logs/transcript_full.jsonl",
+            "modelName": "gemini-3.8-flash-high",
+            "lastUserInput": "run the tests",
         });
         for (key, value) in extra.as_object().unwrap() {
             event[key] = value.clone();
@@ -3721,11 +3718,11 @@ mod tests {
             decoded
                 .transcript
                 .unwrap()
-                .ends_with("logs/transcript.jsonl")
+                .ends_with("logs/transcript_full.jsonl")
         );
         feed(
             &mut t,
-            &antigravity("PreInvocation", json!({ "invocationNum": 1 })),
+            &antigravity("PreInvocation", json!({ "invocationNum": 0 })),
             ON,
         );
         let (listed, _) = snap(&mut t, NOW, true);
@@ -3733,7 +3730,15 @@ mod tests {
         assert_eq!(listed[0].id, "antigravity:a1");
         assert_eq!(listed[0].provider, Provider::Antigravity);
         assert_eq!(listed[0].phase, SessionPhase::Generating);
-        assert_eq!(listed[0].model.as_deref(), Some("Gemini 3.8 Flash"));
+        assert_eq!(listed[0].model.as_deref(), Some("gemini-3.8-flash-high"));
+        assert_eq!(listed[0].chat.len(), 1);
+        assert_eq!(listed[0].chat[0].text, "run the tests");
+        feed(
+            &mut t,
+            &antigravity("PreInvocation", json!({ "invocationNum": 1 })),
+            ON,
+        );
+        assert_eq!(snap(&mut t, NOW, true).0[0].chat.len(), 1);
         feed(
             &mut t,
             &antigravity(
@@ -3777,7 +3782,7 @@ mod tests {
             &mut t,
             &antigravity(
                 "Stop",
-                json!({ "terminationReason": "model_stop", "fullyIdle": true }),
+                json!({ "terminationReason": "NO_TOOL_CALL", "fullyIdle": true, "error": "" }),
             ),
             ON,
         );
@@ -3804,6 +3809,24 @@ mod tests {
         )
         .unwrap();
         assert!(none.events.is_empty());
+        let hidden = decode(
+            &antigravity("PreInvocation", json!({ "invocationNum": 0 })),
+            NOW,
+            OFF,
+        )
+        .unwrap();
+        assert!(hidden.events.iter().any(|e| e.kind == Kind::Prompt(None)));
+        let bare = decode(
+            &envelope(
+                "antigravity",
+                "PreInvocation",
+                json!({ "conversationId": "a3", "cwd": "/w/other" }),
+            ),
+            NOW,
+            ON,
+        )
+        .unwrap();
+        assert_eq!(bare.events[0].cwd.as_deref(), Some("/w/other"));
         // Without previews a command line is not kept.
         let quiet = decode(
             &antigravity(
@@ -3909,10 +3932,10 @@ mod tests {
     }
 
     #[test]
-    fn an_antigravity_transcript_gives_the_prompt_and_the_reply() {
+    fn an_antigravity_transcript_gives_the_last_reply() {
         let folder = std::env::temp_dir().join(format!("ob-ag-log-{}", rand_id()));
         std::fs::create_dir_all(&folder).unwrap();
-        let log = folder.join("transcript.jsonl");
+        let log = folder.join("transcript_full.jsonl");
         let lines = [
             r#"{"type":"USER_INPUT","status":"DONE","content":"<USER_REQUEST>\nlist the files\n</USER_REQUEST>"}"#,
             r#"{"type":"PLANNER_RESPONSE","status":"DONE","tool_calls":[{"name":"run_command"}]}"#,
@@ -3921,10 +3944,6 @@ mod tests {
         ];
         std::fs::write(&log, lines.join("\n")).unwrap();
         assert_eq!(
-            antigravity_last_prompt(&log).as_deref(),
-            Some("list the files")
-        );
-        assert_eq!(
             antigravity_last_reply(&log).as_deref(),
             Some("The folder holds a.txt.")
         );
@@ -3932,7 +3951,6 @@ mod tests {
         std::fs::write(&other, lines.join("\n")).unwrap();
         assert!(antigravity_last_reply(&other).is_none());
         assert!(antigravity_last_reply(&folder.join("gone/transcript.jsonl")).is_none());
-        assert_eq!(antigravity_unwrapped("plain"), "plain");
         let _ = std::fs::remove_dir_all(&folder);
     }
 

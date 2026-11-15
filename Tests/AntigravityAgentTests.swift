@@ -20,10 +20,12 @@ enum AntigravityAgentTests {
     typealias T = AgentHookSessionTests
     static var now: Date { T.now }
 
+    /// The fields every hook of agy 1.5.9 sent in a live run (Linux, 2026-11-15).
     static func common(_ extra: [String: Any] = [:]) -> [String: Any] {
-        var json: [String: Any] = ["conversationId": "a1", "workspacePaths": ["/w/rocket"],
-                                   "transcriptPath": "/h/.gemini/antigravity-ide/brain/a1/.system_generated/logs/transcript.jsonl",
-                                   "artifactDirectoryPath": "/h/.gemini/antigravity-ide/brain/a1", "modelName": "Gemini 3.8 Flash"]
+        var json: [String: Any] = ["conversationId": "a1", "workspacePaths": ["/w/rocket"], "cwd": "/w/rocket",
+                                   "transcriptPath": "/h/.gemini/antigravity-cli/brain/a1/.system_generated/logs/transcript_full.jsonl",
+                                   "artifactDirectoryPath": "/h/.gemini/antigravity-cli/brain/a1", "modelName": "gemini-3.8-flash-high",
+                                   "lastUserInput": "run the tests"]
         for (key, value) in extra { json[key] = value }
         return json
     }
@@ -37,20 +39,21 @@ enum AntigravityAgentTests {
         }
         let decoded = AgentHookMessage.decode(T.envelope("antigravity", hook: "PreInvocation", common(["invocationNum": 1])),
                                               now: now, policy: T.on)
-        suite.expect(decoded?.provider == .antigravity && decoded?.transcript?.hasSuffix("logs/transcript.jsonl") == true,
+        suite.expect(decoded?.provider == .antigravity && decoded?.transcript?.hasSuffix("logs/transcript_full.jsonl") == true,
                      "the envelope is Antigravity's and names its transcript")
-        send("PreInvocation", ["invocationNum": 1])
+        send("PreInvocation", ["invocationNum": 0, "initialNumSteps": 1])
         var listed = T.snapshot(tracker).sessions
         suite.expect(listed.count == 1 && listed[0].id == "antigravity:a1" && listed[0].provider == .antigravity
-                     && listed[0].project == "rocket" && listed[0].phase == .generating && listed[0].model == "Gemini 3.8 Flash",
-                     "an invocation lists the conversation in its workspace, at work, with its model: \(listed)")
+                     && listed[0].project == "rocket" && listed[0].phase == .generating && listed[0].model == "gemini-3.8-flash-high"
+                     && listed[0].chat.map(\.text) == ["run the tests"],
+                     "a turn's first invocation lists the conversation in its workspace, with its model and prompt: \(listed)")
         send("PreToolUse", ["stepIdx": 4, "toolCall": ["name": "run_command",
                                                       "args": ["CommandLine": "npm test", "Cwd": "/w/rocket", "toolSummary": "Run tests"]]])
         listed = T.snapshot(tracker).sessions
         suite.expect(listed[0].phase == .runningTool && listed[0].currentTool?.name == "Bash"
                      && listed[0].currentTool?.summary == "npm test",
                      "a command runs as Bash, summed up by its command line: \(listed[0].currentTool as Any)")
-        send("PostToolUse", ["stepIdx": 4])
+        send("PostToolUse", ["stepIdx": 4, "error": "", "toolCall": ["name": "run_command", "args": ["CommandLine": "npm test"]]])
         listed = T.snapshot(tracker).sessions
         suite.expect(listed[0].phase == .generating && listed[0].timeline.count == 1 && listed[0].timeline[0].finished != nil
                      && listed[0].timeline[0].failed == false,
@@ -62,13 +65,17 @@ enum AntigravityAgentTests {
                      && listed[0].timeline[1].failed, "a failed write shows by its file: \(listed[0].timeline)")
         send("PreToolUse", ["stepIdx": 6, "toolCall": ["name": "browser_click", "args": [:] as [String: Any]]])
         suite.expect(T.snapshot(tracker).sessions[0].currentTool?.name == "Browser_click", "a tool of its own keeps its name")
+        send("PostInvocation", ["invocationNum": 0])
+        send("PreInvocation", ["invocationNum": 1])
+        suite.expect(T.snapshot(tracker).sessions[0].chat.count == 1, "a later invocation of the turn is no new prompt")
         send("PostInvocation", ["invocationNum": 1])
-        send("Stop", ["executionNum": 1, "terminationReason": "model_stop", "fullyIdle": true], at: now.addingTimeInterval(1))
+        send("Stop", ["executionNum": 0, "terminationReason": "NO_TOOL_CALL", "fullyIdle": true, "error": ""],
+             at: now.addingTimeInterval(1))
         listed = T.snapshot(tracker, at: now.addingTimeInterval(1)).sessions
         suite.expect(listed[0].phase == .finished && listed[0].timeline.allSatisfy { $0.finished != nil },
                      "Stop ends the turn and every tool still open: \(listed[0].phase)")
-        send("PreInvocation", ["invocationNum": 2], at: now.addingTimeInterval(2))
-        send("Stop", ["terminationReason": "error", "error": "quota"], at: now.addingTimeInterval(3))
+        send("PreInvocation", ["invocationNum": 0], at: now.addingTimeInterval(2))
+        send("Stop", ["terminationReason": "ERROR", "error": "quota"], at: now.addingTimeInterval(3))
         suite.expect(T.snapshot(tracker, at: now.addingTimeInterval(3)).sessions[0].phase == .idle,
                      "a turn that ended on an error is not a finished one")
         // There is no hook for a prompt or a permission: nothing waits on the island.
@@ -85,6 +92,10 @@ enum AntigravityAgentTests {
                              policy: T.off)
         suite.expect(quiet.contains { if case .toolStarted(let use) = $0.kind { return use.summary == nil } else { return false } },
                      "without previews a command line is not kept")
+        let hidden = T.decode(T.envelope("antigravity", hook: "PreInvocation", common(["invocationNum": 0])), policy: T.off)
+        suite.expect(hidden.contains { $0.kind == .prompt(nil) }, "without previews the prompt opens the turn with no text")
+        let noWorkspace = T.decode(T.envelope("antigravity", hook: "PreInvocation", ["conversationId": "a3", "cwd": "/w/other"]))
+        suite.expect(noWorkspace.first?.cwd == "/w/other", "with no workspace, the folder agy runs in is the session's")
     }
 
     // MARK: Lifetime
@@ -234,7 +245,8 @@ enum AntigravityAgentTests {
         let folder = FileManager.default.temporaryDirectory.appending(path: "vs-ag-log-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let log = folder.appending(path: "transcript.jsonl")
+        // The shape agy 1.5.9 wrote in a live run.
+        let log = folder.appending(path: "transcript_full.jsonl")
         let lines = [
             #"{"type":"USER_INPUT","status":"DONE","source":"USER_EXPLICIT","step_index":0,"content":"<USER_REQUEST>\nlist the files\n</USER_REQUEST>"}"#,
             #"{"type":"PLANNER_RESPONSE","status":"DONE","source":"MODEL","step_index":1,"tool_calls":[{"name":"run_command","args":{"CommandLine":"ls"}}]}"#,
@@ -243,15 +255,13 @@ enum AntigravityAgentTests {
             "not json",
         ]
         try? Data((lines.joined(separator: "\n") + "\n").utf8).write(to: log)
-        suite.expect(AgentAntigravityLog.lastPrompt(in: log.path) == "list the files"
-                     && AgentAntigravityLog.lastReply(in: log.path) == "The folder holds a.txt.",
-                     "the prompt comes out of its tags, the reply is the last text, past a tool call with none")
+        suite.expect(AgentAntigravityLog.lastReply(in: log.path) == "The folder holds a.txt.",
+                     "the reply is the last text, past a tool call with none")
         let other = folder.appending(path: "notes.jsonl")
         try? Data((lines.joined(separator: "\n")).utf8).write(to: other)
         suite.expect(AgentAntigravityLog.lastReply(in: other.path) == nil
                      && AgentAntigravityLog.lastReply(in: folder.appending(path: "missing/transcript.jsonl").path) == nil,
                      "only a transcript that is there is read")
-        suite.expect(AgentAntigravityLog.unwrapped("plain") == "plain", "an unwrapped prompt stays as it is")
     }
 
     // MARK: Presence and names

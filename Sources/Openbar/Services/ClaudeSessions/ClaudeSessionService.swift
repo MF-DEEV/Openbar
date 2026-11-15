@@ -1086,17 +1086,10 @@ final class ClaudeSessionService: ObservableObject {
                let folder = decoded.transcript {
                 kind = .stopped(lastText: AgentVibeLog.lastReply(in: folder), failed: failed)
             }
-            // Antigravity has no prompt hook: the first invocation of a turn
-            // opens it, and with previews its transcript tells the prompt and,
-            // at the end, the reply.
-            if event.provider == .antigravity {
-                let previews = engine.policy.previews
-                if case .working = kind, hookAgents.entry(event.id)?.turnOpen != true {
-                    kind = .prompt(previews ? decoded.transcript.flatMap(AgentAntigravityLog.lastPrompt) : nil)
-                }
-                if previews, case .stopped(nil, let failed) = kind, let path = decoded.transcript {
-                    kind = .stopped(lastText: AgentAntigravityLog.lastReply(in: path), failed: failed)
-                }
+            // Antigravity's hooks carry no reply: with previews on, its transcript tells the last one.
+            if event.provider == .antigravity, engine.policy.previews, case .stopped(nil, let failed) = kind,
+               let path = decoded.transcript {
+                kind = .stopped(lastText: AgentAntigravityLog.lastReply(in: path), failed: failed)
             }
             let placed = AgentHookEvent(provider: event.provider, sessionID: event.sessionID, pid: agent,
                                         cwd: cwd, date: event.date, kind: kind)

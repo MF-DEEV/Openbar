@@ -334,12 +334,14 @@ enum AgentHookMessage {
     /// Google Antigravity's lifecycle hooks (the hooks.json guide its
     /// language server carries), the same in its app, its IDE and `agy`. The
     /// input is camelCase, a session is a conversation, and there is no hook
-    /// for a prompt or for a permission: a model invocation opens the turn,
+    /// for a prompt or for a permission: a turn's first model invocation
+    /// (`invocationNum` 0, with the prompt as `lastUserInput`) opens it,
     /// `Stop` ends it, and approvals are asked and answered in Antigravity.
+    /// A tool Antigravity refused never reports back; `Stop` closes it.
     private static func antigravity(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
                                     policy: ClaudeContentPolicy) -> [AgentHookEvent] {
         guard let session = text(json, "conversationId") else { return [] }
-        let cwd = (json["workspacePaths"] as? [String])?.first(where: { !$0.isEmpty })
+        let cwd = (json["workspacePaths"] as? [String])?.first(where: { !$0.isEmpty }) ?? text(json, "cwd")
         var events: [AgentHookEvent] = []
         func add(_ kind: AgentHookEvent.Kind) {
             events.append(AgentHookEvent(provider: .antigravity, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
@@ -348,7 +350,12 @@ enum AgentHookMessage {
         // A tool's hooks share the step it runs as, which ties the two together.
         let step = (json["stepIdx"] as? NSNumber).map { "step-\($0.intValue)" }
         switch hook {
-        case "PreInvocation": add(.working)
+        case "PreInvocation":
+            if (json["invocationNum"] as? NSNumber)?.intValue == 0 {
+                add(.prompt(policy.previews ? preview(json["lastUserInput"]) : nil))
+            } else {
+                add(.working)
+            }
         case "PreToolUse":
             let call = json["toolCall"] as? [String: Any] ?? [:]
             let tool = AgentHookTools.name(.antigravity, call["name"] as? String ?? "")
@@ -359,8 +366,9 @@ enum AgentHookMessage {
         case "PostToolUse":
             add(.toolFinished(id: step, name: "", inputKey: nil, failed: text(json, "error") != nil, started: nil))
         case "Stop":
-            let reason = text(json, "terminationReason") ?? ""
-            add(.stopped(lastText: nil, failed: reason == "error" || text(json, "error") != nil))
+            // As "NO_TOOL_CALL" for a turn that ended well; a failed one says so.
+            let reason = (text(json, "terminationReason") ?? "").lowercased()
+            add(.stopped(lastText: nil, failed: reason.contains("error") || text(json, "error") != nil))
         default: break
         }
         return events
