@@ -58,7 +58,7 @@ export function GroupingSwitch() {
           className={grouping === value ? "is-on" : ""}
           onClick={() => setGrouping(value)}
         >
-          {grouping === value ? <SlidingHighlight layoutId={`s-grouping-${id}`} className="s-grouping-pill" /> : null}
+          {grouping === value ? <SlidingHighlight layoutId={id} className="s-grouping-pill" /> : null}
           <Icon size={12} strokeWidth={2.2} />
         </button>
       ))}
