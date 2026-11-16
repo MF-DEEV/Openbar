@@ -140,7 +140,7 @@ enum DiagnosticsTests {
         suite.expect(HookRecords.fingerprint(of: Data(toml.utf8), marker: marker)
                      == HookRecords.fingerprint(of: Data(("[x]\n" + toml).utf8), marker: marker), "lines outside it are not")
 
-        let suiteName = "openbar-diagnostics-tests-\(UUID().uuidString)"
+        let suiteName = "com.openbar.tests.diagnostics-records"
         guard let defaults = UserDefaults(suiteName: suiteName) else { return suite.expect(false, "test defaults") }
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let file = FileManager.default.temporaryDirectory.appending(path: "openbar-hooks-\(UUID().uuidString).json")
@@ -159,7 +159,7 @@ enum DiagnosticsTests {
         let home = FileManager.default.temporaryDirectory.appending(path: "openbar-diag-home-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: home) }
         try? FileManager.default.createDirectory(at: home.appending(path: ".gemini"), withIntermediateDirectories: true)
-        let suiteName = "openbar-diagnostics-install-\(UUID().uuidString)"
+        let suiteName = "com.openbar.tests.diagnostics-install"
         guard let defaults = UserDefaults(suiteName: suiteName) else { return suite.expect(false, "test defaults") }
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let bundle = "com.openbar.app.dev", socket = "/tmp/openbar-test.sock"
