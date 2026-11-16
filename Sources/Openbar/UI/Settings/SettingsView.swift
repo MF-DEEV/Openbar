@@ -775,6 +775,9 @@ struct AboutSettings: View {
                 }
                 Link(l10n.s.viewOnGitHub, destination: AppInfo.repositoryURL)
             }
+            Button(FeatureStrings.diagnostics(l10n.language).exportButton) {
+                DiagnosticsExportWindow.shared.show()
+            }
             Text(AppInfo.copyright)
                 .font(.caption2)
                 .foregroundStyle(.tertiary)

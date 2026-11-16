@@ -509,6 +509,7 @@ struct NotchSettings: View {
         case .sessions:
             NotchClaudeSessionsSettingsControls()
                 .toggleStyle(TrailingSwitchToggleStyle())
+            DiagnosticsSettingsRow()
         case .watch:
             NotchWatchSettingsControls()
                 .toggleStyle(TrailingSwitchToggleStyle())

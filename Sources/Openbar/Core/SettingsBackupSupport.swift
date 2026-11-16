@@ -93,6 +93,7 @@ enum SettingsBackupSupport {
         DefaultsKey.featureHubKeptFeatures,
         DefaultsKey.brightnessUpdatePromptState,
         DefaultsKey.panelCollapsedResetVersion,
+        DefaultsKey.feedbackAttachDiagnostics,
     ]
 
     /// Never exported: live state, per-machine placement, private content and

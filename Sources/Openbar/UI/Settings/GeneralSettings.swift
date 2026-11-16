@@ -17,6 +17,7 @@ struct GeneralSettings: View {
     @State private var loginPending = false
     @State private var loginRefreshID = UUID()
     @AppStorage(DefaultsKey.hotkeyEnabled) private var hotkeyEnabled = true
+    @AppStorage(DefaultsKey.feedbackAttachDiagnostics) private var attachDiagnostics = false
 
     private var text: GeneralSettingsStrings { FeatureStrings.generalSettings(l10n.language) }
     private var appearanceStrings: AppearanceStrings { FeatureStrings.appearance(l10n.language) }
@@ -152,6 +153,13 @@ struct GeneralSettings: View {
                 Button(feedbackStrings.openButton) {
                     appDelegate()?.openFeedbackWindow()
                 }
+            }
+            let diagnostics = FeatureStrings.diagnostics(l10n.language)
+            SettingsRow(symbol: "doc.zipper", title: diagnostics.attachTitle, caption: diagnostics.attachCaption) {
+                Toggle(diagnostics.attachTitle, isOn: $attachDiagnostics)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
             }
         }
     }
