@@ -347,6 +347,7 @@ final class ClaudeSessionEngine {
             permission: entry.permissions.first,
             timeline: entry.tools.suffix(Self.timelineLength).map(gated), subagents: subagents, tasks: tasks,
             edits: edits, failedAt: entry.failedAt,
+            startedAt: record.started, turnEndedAt: entry.turnEnded, turnCompleted: entry.completed,
             tokens: tokens, cost: cost,
             title: previews ? entry.title : nil, lastText: previews ? entry.lastText : nil,
             hooked: entry.hooked, chat: previews ? entry.chat : [],

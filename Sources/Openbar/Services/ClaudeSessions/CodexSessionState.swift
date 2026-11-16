@@ -647,6 +647,9 @@ final class CodexSessionState {
             edits: thread.touched.isEmpty ? nil
                 : ClaudeEditStats(added: thread.added, removed: thread.removed, touched: thread.touched.values.sorted()),
             failedAt: thread.failedAt,
+            startedAt: thread.created, turnEndedAt: thread.turnEnded?.at,
+            turnCompleted: thread.turnEnded.map { $0.completed && (thread.failedAt == nil || thread.failedAt! < $0.at)
+                && (thread.limit == nil || thread.limit!.at != $0.at) } ?? false,
             tokens: thread.tokens, cost: 0,
             title: previews ? thread.preview : nil,
             lastText: previews ? thread.chat.last(where: { $0.value.role == .assistant })?.value.text : nil,

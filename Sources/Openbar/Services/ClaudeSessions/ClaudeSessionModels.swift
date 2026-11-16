@@ -450,6 +450,10 @@ struct ClaudeSession: Equatable, Identifiable {
     var edits: ClaudeEditStats? = nil
     /// When its last turn stopped on an error rather than ending.
     var failedAt: Date? = nil
+    /// Agent-reported lifecycle facts; acknowledgement never changes them.
+    var startedAt: Date? = nil
+    var turnEndedAt: Date? = nil
+    var turnCompleted = false
     var tokens: AgentTokens
     var cost: Double
     /// Gated by content previews.

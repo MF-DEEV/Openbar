@@ -234,6 +234,10 @@ export interface Session {
   phase: Phase;
   phaseSince: number;
   turnStarted?: number;
+  /** Agent-reported creation and terminal turn facts, independent of UI acknowledgement. */
+  startedAt?: number;
+  turnEndedAt?: number;
+  turnCompleted?: boolean;
   lastActive?: number;
   /** When its page was last opened (or a reply or decision sent), by the service. */
   lookedAt?: number;

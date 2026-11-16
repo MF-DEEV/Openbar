@@ -7,9 +7,21 @@
 //! (NotchTimerAlert.swift; spec 04 §4.4).
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::{Duration, Instant};
+use tauri::Manager;
+
+#[cfg(any(target_os = "linux", test))]
+#[path = "sound/pcm.rs"]
+pub(crate) mod pcm;
+#[cfg(windows)]
+#[path = "sound/windows.rs"]
+mod session_player;
+static SESSION_REQUEST: AtomicU64 = AtomicU64::new(0);
+pub(crate) fn session_request_current(ticket: u64) -> bool {
+    SESSION_REQUEST.load(Ordering::SeqCst) == ticket
+}
 
 const RATE: u32 = 44_100;
 pub const REPEAT: Duration = Duration::from_secs(2);
@@ -240,10 +252,95 @@ pub fn sound_list() -> Vec<SoundChoice> {
         .collect()
 }
 
-/// Plays `sound` (an id from `sound_list`), or the chime.
+/// Session playback uses its own stream and gain. Unrelated timer/Watch callers
+/// omit volume and keep their existing player. Preview and notifications share
+/// one session player, so they cannot overlap or change other applications.
 #[tauri::command]
-pub fn sound_play(sound: Option<String>) {
-    play(sound.as_deref());
+pub async fn sound_play<R: tauri::Runtime>(
+    app: tauri::AppHandle<R>,
+    sound: Option<String>,
+    volume: Option<f64>,
+) -> bool {
+    let Some(volume) = volume else {
+        play(sound.as_deref());
+        return true;
+    };
+    if !volume.is_finite() {
+        return false;
+    }
+    if volume <= 0.0 || sound.as_deref() == Some("none") {
+        sound_session_stop();
+        return true;
+    }
+    let Ok(cache) = app.path().app_cache_dir() else {
+        return false;
+    };
+    let ticket = SESSION_REQUEST
+        .fetch_add(1, Ordering::SeqCst)
+        .wrapping_add(1);
+    let volume = volume.clamp(0.0, 100.0) / 100.0;
+    tauri::async_runtime::spawn_blocking(move || {
+        let file = match sound_file(sound.as_deref()) {
+            Some(file) => file,
+            None => {
+                let (name, bytes) = builtin_sound(sound.as_deref());
+                static FILES: Mutex<()> = Mutex::new(());
+                let _files = FILES.lock().unwrap();
+                let folder = cache.join("session-sounds");
+                if std::fs::create_dir_all(&folder).is_err() {
+                    return false;
+                }
+                let file = folder.join(format!("{name}.wav"));
+                if std::fs::read(&file).ok().as_deref() != Some(bytes)
+                    && std::fs::write(&file, bytes).is_err()
+                {
+                    return false;
+                }
+                file
+            }
+        };
+        #[cfg(windows)]
+        {
+            session_player::play(&file, volume, ticket)
+        }
+        #[cfg(target_os = "linux")]
+        {
+            crate::linux::sound::play_session(&file, volume, &cache, ticket)
+        }
+        #[cfg(not(any(windows, target_os = "linux")))]
+        {
+            let _ = (file, volume, ticket);
+            false
+        }
+    })
+    .await
+    .unwrap_or(false)
+}
+
+pub fn builtin_sound(id: Option<&str>) -> (&'static str, &'static [u8]) {
+    match id {
+        Some("openbar:soft") => (
+            "soft",
+            include_bytes!("../../../Resources/SessionSounds/soft.wav"),
+        ),
+        Some("openbar:alert") => (
+            "alert",
+            include_bytes!("../../../Resources/SessionSounds/alert.wav"),
+        ),
+        _ => (
+            "chime",
+            include_bytes!("../../../Resources/SessionSounds/chime.wav"),
+        ),
+    }
+}
+
+#[tauri::command]
+pub fn sound_session_stop() {
+    SESSION_REQUEST.fetch_add(1, Ordering::SeqCst);
+    #[cfg(windows)]
+    session_player::stop();
+    #[cfg(target_os = "linux")]
+    crate::linux::sound::stop_session();
 }
 
 #[tauri::command]

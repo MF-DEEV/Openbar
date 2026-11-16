@@ -706,6 +706,12 @@ pub struct Session {
     /// When the last turn stopped on an error rather than ending.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub failed_at: Option<Time>,
+    /// Agent-reported lifecycle facts for notifications, independent of acknowledgement.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub started_at: Option<Time>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub turn_ended_at: Option<Time>,
+    pub turn_completed: bool,
     pub tokens: Tokens,
     pub cost: f64,
     /// Gated by content previews.
@@ -1440,6 +1446,9 @@ mod tests {
             effort: None,
             edits: None,
             failed_at: None,
+            started_at: None,
+            turn_ended_at: None,
+            turn_completed: false,
             host: HostKind::WindowsTerminal,
             accepts_replies: true,
             host_name: None,
