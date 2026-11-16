@@ -31,7 +31,7 @@ import { useNow } from "./useNow";
 import { AccountMark, BackgroundMark, RemoteHostMark } from "./Background";
 import { S } from "./strings";
 import { settled, useSessions } from "./store";
-import { isWaiting, type Session } from "./types";
+import { isWaiting, PROVIDER_NAMES, type Session } from "./types";
 import { presentedSnapshot } from "./presentation";
 import { useAgents } from "../agents/store";
 import { limitReset, resetText } from "./limits";
@@ -173,7 +173,7 @@ function Row({ session, now, inProject = false }: { session: Session; now: numbe
       className={`s-row${waiting ? " is-waiting" : ""}${limited ? " is-limited" : ""}${asleep ? " is-dozing" : ""}`}
       aria-label={[
         name,
-        session.provider === "codex" ? S.codex : S.claudeCode,
+        PROVIDER_NAMES[session.provider],
         session.project,
         branchLabel(session)?.full,
         sessionPhaseLabel(session),
