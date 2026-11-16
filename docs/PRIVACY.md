@@ -67,6 +67,19 @@ Covers for Firefox-based browsers are off until you turn on Find covers for Fire
 
 Voice replies, on by default, add a microphone to a session's reply field (Settings → Dynamic Island → Content → Sessions → Voice replies). Only while you hold the shortcut or the button is on, the default microphone's audio goes to Apple's speech recognizer with on-device recognition required, so it never leaves the Mac; a language this Mac can't recognize on the device is refused rather than sent. The audio is held in memory only until recognition ends and is never written to disk. The words fill the reply field and go to the session only when you send them, or by themselves if you turn on Send when I stop talking. Recording never starts on its own and stops after a minute at most.
 
+## Logs and the diagnostics file
+
+Openbar keeps a short log of its own so a bug can be understood later. It records when the app starts, what it found when it checked the agents' hooks, when it put hooks in or took them out, the type of each event a session sent (for example "toolStarted" or "stopped", with the tool's name at most), update check results and errors. It never records prompts, replies, commands or file contents. Home folder paths, email addresses, tokens and API keys are masked before a line is written. There is one file a day, capped at 2 MB, and files older than a week are deleted. The log lives at `~/Library/Logs/<bundle id>` on a Mac, `%LOCALAPPDATA%\com.openbar.island\logs` on Windows and `~/.local/share/com.openbar.island/logs` on Linux. It is never uploaded.
+
+Besides the log, Openbar notes a fingerprint (a SHA-256 hash) and a date each time it installs an agent's hooks, so it can later tell hooks that were changed or removed by hand. It keeps them in its preferences on a Mac and in `hook-records.json` beside the settings on Windows and Linux. The file contents themselves are not kept.
+
+**Export diagnostics**, in Settings under About and in Settings › Sessions, saves one zip file wherever you choose. Before saving, a screen lists what goes in, with a switch for each optional part:
+
+- always: the Openbar version and update channel, the system version, the CPU type and the displays; which features are on; and for each agent, whether it is installed, its version (from its own `--version`), the state of Openbar's hooks in it and where its settings file is
+- optional: the last 200 events sessions sent (type, agent, time, state change), Openbar's own logs from the last 3 days, and the terminals and editors found, with Claude accounts, Codex accounts and remote hosts by name only
+
+Prompts, replies, commands and file contents are never part of the file. The home folder is shown as `~`, and email addresses, tokens and API keys are replaced with placeholders, on Mac, Windows and Linux alike. Nothing is sent anywhere: you decide whether to attach the file to an issue or send it to someone.
+
 ## Network connections
 
 Openbar opens only a few kinds of connection, and each one belongs to a visible feature.
@@ -87,7 +100,7 @@ The check runs when you open the list or press Check now, and on a schedule only
 
 5. **No link sharing for now.** Openbar does not run a server for temporary screenshot or recording links yet, and it does not use Vorssaint's. Until it has its own, the link options are hidden and no capture or recording leaves your Mac through them.
 
-6. **Feedback goes through GitHub.** Sending feedback, from the menu, Settings or the command bar, opens a new issue form on github.com/MF-DEEV/Openbar in your browser. For a bug, the form arrives with the app version and build, macOS version and Mac model filled in, which you can change or delete before you send it. Nothing is sent until you submit the issue yourself, and it is then public on GitHub under your account.
+6. **Feedback goes through GitHub.** Sending feedback, from the menu, Settings or the command bar, opens a new issue form on github.com/MF-DEEV/Openbar in your browser. For a bug, the form arrives with the app version and build, macOS version and Mac model filled in, which you can change or delete before you send it. Nothing is sent until you submit the issue yourself, and it is then public on GitHub under your account. With **Attach a diagnostics file** switched on, reporting a bug first saves the diagnostics file described above and shows it in its folder; the form names it, and it goes along only if you drag it into the issue yourself. On Windows and Linux, About in Settings has the same Report a bug button and switch.
 
 7. **Online lyrics, only after you enable the separate lookup option.** While the lyrics view is open, a lookup sends the current song's title, artist, album and duration over HTTPS to `lrclib.net`. If normal matching fails, artist names and album titles may also be sent to `musicbrainz.org` to verify alternate artist names. This lets a native name, transliteration or historical credit match the same artist (for example, 林宥嘉 and Yoga Lin) without embedding artist-specific mappings. When artist aliases are insufficient, the song title may also be checked against recording credits and duration there; lyrics and audio are not sent to MusicBrainz. Audio, artwork, local paths, accounts and listening history are not included. These providers receive ordinary request data, including your public IP address, under their own policies. Requests use an ephemeral session without stored cookies, reject redirects and stop when you hide the view or disable lookup. Lyrics are kept only in memory for the current song. A bounded, temporary metadata cache avoids repeating artist verification; it is cleared when lyrics stop. Local lyric import works without these connections.
 
