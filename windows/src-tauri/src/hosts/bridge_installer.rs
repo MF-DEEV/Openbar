@@ -544,6 +544,23 @@ pub async fn ide_bridge_install(id: String) -> Result<(), String> {
     .map_err(Failure::into_reason)
 }
 
+/// Each editor found and Openbar's extension in it, for a diagnostics file (#230).
+pub(crate) fn editor_states() -> Vec<(String, String)> {
+    let (Some(places), Some(bundled)) = (Places::of_this_pc(), bundled_version()) else {
+        return Vec::new();
+    };
+    statuses(&places, &bundled)
+        .into_iter()
+        .map(|status| {
+            let state = serde_json::to_value(&status.state)
+                .ok()
+                .and_then(|v| v.as_str().map(str::to_owned))
+                .unwrap_or_else(|| "unknown".into());
+            (status.name.to_string(), state)
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

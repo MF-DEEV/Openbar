@@ -166,9 +166,13 @@ pub fn claude_hooks_install() -> Result<(), String> {
     let failures: Vec<String> = files
         .iter()
         .filter_map(|(account, path)| {
-            installer::update(path, |s| installer::installing(s, &command, APP_ID))
-                .err()
-                .map(|e| format!("{}: {e}", account.name))
+            noted(
+                path,
+                true,
+                installer::update(path, |s| installer::installing(s, &command, APP_ID)),
+            )
+            .err()
+            .map(|e| format!("{}: {e}", account.name))
         })
         .collect();
     if failures.is_empty() {
@@ -186,9 +190,13 @@ pub fn claude_hooks_remove() -> Result<(), String> {
         .iter()
         .filter(|(_, path)| path.exists())
         .filter_map(|(account, path)| {
-            installer::update(path, |s| installer::removing(s, APP_ID))
-                .err()
-                .map(|e| format!("{}: {e}", account.name))
+            noted(
+                path,
+                false,
+                installer::update(path, |s| installer::removing(s, APP_ID)),
+            )
+            .err()
+            .map(|e| format!("{}: {e}", account.name))
         })
         .collect();
     if failures.is_empty() {
@@ -230,10 +238,79 @@ pub fn claude_hooks_install_account(path: String) -> Result<(), String> {
     if !folder.is_dir() {
         return Err("not a folder".into());
     }
-    installer::update(&folder.join("settings.json"), |s| {
-        installer::installing(s, &command, APP_ID)
-    })
+    let path = folder.join("settings.json");
+    noted(
+        &path,
+        true,
+        installer::update(&path, |s| installer::installing(s, &command, APP_ID)),
+    )
     .map_err(|e| e.to_string())
+}
+
+/// A change to one account's hooks, kept for a diagnostics file (#230):
+/// what was written, and a line in the log.
+fn noted<E: std::fmt::Display>(
+    path: &std::path::Path,
+    install: bool,
+    result: Result<(), E>,
+) -> Result<(), E> {
+    let change = if install { "installed" } else { "removed" };
+    let id = crate::diagnostics::hook_records::claude_id(path);
+    match &result {
+        Ok(()) if install => {
+            crate::diagnostics::hook_records::note_installed(&id, path, &installer::marker(APP_ID), None, false);
+            crate::diagnostics::log::info("hooks", &format!("claude hooks {change} in {}", path.display()));
+        }
+        Ok(()) => {
+            crate::diagnostics::hook_records::forget(&id);
+            crate::diagnostics::log::info("hooks", &format!("claude hooks {change} in {}", path.display()));
+        }
+        Err(e) => crate::diagnostics::log::error(
+            "hooks",
+            &format!("claude hooks could not be {change} in {}: {e}", path.display()),
+        ),
+    }
+    result
+}
+
+/// Each Claude account's hooks as a diagnostics file shows them (#230).
+pub(crate) fn diagnostics_hooks(
+    records: &std::collections::BTreeMap<String, crate::diagnostics::hook_records::Record>,
+) -> Vec<crate::diagnostics::report::Hooks> {
+    use crate::diagnostics::hook_records;
+    use crate::sessions::hook_agents::installer::State as Base;
+    let command = current_command().unwrap_or_default();
+    account_files(false)
+        .into_iter()
+        .map(|(account, path)| {
+            let base = match account_hooks(&path, &command) {
+                AccountHooks::Installed => Base::Installed,
+                AccountHooks::Outdated => Base::Outdated,
+                AccountHooks::Missing => Base::Missing,
+                AccountHooks::Unreadable => Base::Unreadable,
+            };
+            let current = hook_records::fingerprint(
+                std::fs::read(&path).ok().as_deref(),
+                &installer::marker(APP_ID),
+                None,
+                false,
+            );
+            let state = hook_records::derive(
+                base,
+                records.get(&hook_records::claude_id(&path)),
+                current.as_deref(),
+            );
+            crate::diagnostics::report::Hooks {
+                account: Some(if account.hidden {
+                    format!("{} (hidden)", account.name)
+                } else {
+                    account.name.clone()
+                }),
+                state: state.name().into(),
+                config_path: Some(path.to_string_lossy().into_owned()),
+            }
+        })
+        .collect()
 }
 
 /// Whether a folder can be added by hand: one that exists and is not listed.

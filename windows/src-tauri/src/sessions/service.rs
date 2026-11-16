@@ -311,6 +311,8 @@ impl Service {
             hook_side.on_hook(connection)
         }) {
             eprintln!("openbar: Claude Code hooks unavailable: {e}");
+        } else {
+            crate::diagnostics::log::info("sessions", "listening for hooks");
         }
         let ticker = service.clone();
         thread::Builder::new()
@@ -647,6 +649,14 @@ impl Service {
         }
         drop(connection);
         let previews = inner.engine.policy().previews;
+        // For the diagnostics journal (#230): each session's state before these events.
+        let mut heard: Vec<(models::Provider, String, (&'static str, Option<String>))> = Vec::new();
+        let mut before: HashMap<String, Option<models::SessionPhase>> = HashMap::new();
+        for event in &decoded.events {
+            let id = event.id();
+            let phase = phase_of(&inner, &id);
+            before.entry(id).or_insert(phase);
+        }
         for mut event in decoded.events {
             // A session run through the proxy is answered there: Vibe's hooks only hear of its requests.
             if provider == models::Provider::Vibe
@@ -715,9 +725,24 @@ impl Service {
                     inner.agent_pending.remove(&key);
                 }
             }
+            heard.push((
+                event.provider,
+                event.id(),
+                crate::diagnostics::journal::agent_label(&event.kind),
+            ));
             inner.hook_agents.ingest(event, t);
         }
         self.publish(&mut inner, t);
+        for (provider, id, label) in heard {
+            crate::diagnostics::journal::record(crate::diagnostics::journal::make(
+                provider,
+                label,
+                &id,
+                before.get(&id).copied().flatten(),
+                phase_of(&inner, &id),
+                chrono::Utc::now(),
+            ));
+        }
     }
 
     fn release_stale_hooks(&self, inner: &mut Inner, t: Time) {
@@ -930,8 +955,57 @@ impl Service {
         for event in &snapshot.events {
             let _ = self.app.emit::<&SessionEvent>("sessions://event", event);
         }
+        // Codex is heard through its app-server, not hooks: what the
+        // diagnostics journal keeps of it is each thread's change of state.
+        for session in sessions
+            .iter()
+            .filter(|s| s.provider == models::Provider::Codex)
+        {
+            let before = inner
+                .sessions
+                .iter()
+                .find(|s| s.id == session.id)
+                .map(|s| s.phase);
+            if before != Some(session.phase) {
+                crate::diagnostics::journal::record(crate::diagnostics::journal::make(
+                    models::Provider::Codex,
+                    (if before.is_none() { "listed" } else { "update" }, None),
+                    &session.id,
+                    before,
+                    Some(session.phase),
+                    chrono::Utc::now(),
+                ));
+            }
+        }
         inner.sessions = sessions;
         busy
+    }
+
+    /// Where each listed session runs, for a diagnostics file (#230).
+    pub(crate) fn host_names(&self) -> Vec<String> {
+        self.inner
+            .lock()
+            .unwrap()
+            .sessions
+            .iter()
+            .map(|s| s.host_name.clone().unwrap_or_else(|| "unknown".into()))
+            .collect()
+    }
+
+    /// Each remote host's state in a word or two, for a diagnostics file (#230).
+    pub(crate) fn remote_states(&self, aliases: &[String]) -> Vec<(String, String)> {
+        self.remote_statuses(aliases)
+            .into_iter()
+            .map(|status| {
+                let state = match &status.state {
+                    None => "off".to_string(),
+                    Some(remote::State::Connecting) => "connecting".into(),
+                    Some(remote::State::Connected { .. }) => "connected".into(),
+                    Some(remote::State::Disconnected { reason }) => format!("disconnected: {reason}"),
+                };
+                (status.alias, state)
+            })
+            .collect()
     }
 
     // MARK: Background sessions
@@ -1123,6 +1197,9 @@ impl Service {
             self.read_transcript(&mut inner, &id, home.as_deref(), now());
         }
         let session = message.fact.session_id.clone();
+        let label = crate::diagnostics::journal::claude_label(&message.fact.event);
+        let before = phase_of(&inner, &session);
+        let heard = session.clone();
         let modes = match &message.fact.event {
             HookEvent::PermissionRequested(asked) => asked.plan_modes.clone(),
             _ => Vec::new(),
@@ -1147,6 +1224,14 @@ impl Service {
         }
         let t = now();
         self.publish(&mut inner, t);
+        crate::diagnostics::journal::record(crate::diagnostics::journal::make(
+            models::Provider::Claude,
+            label,
+            &heard,
+            before,
+            phase_of(&inner, &heard),
+            chrono::Utc::now(),
+        ));
     }
 
     // MARK: Actions
@@ -2353,17 +2438,65 @@ fn sync_agent_hooks(hidden: &HashSet<models::Provider>) {
         .map(|p| (p, true))
         .chain(remove.into_iter().map(|p| (p, false)))
     {
-        let result = if on {
-            hook_agents::installer::install(provider, &home, &exe, &endpoint, hooks::APP_ID)
-        } else {
-            hook_agents::installer::remove(provider, &home, hooks::APP_ID)
-        };
+        let result = change_agent_hooks(provider, on, &home, &exe, &endpoint);
         let mut failures = AGENT_HOOK_FAILURES.lock().unwrap();
         match result {
             Ok(()) => failures.remove(provider.key()),
             Err(e) => failures.insert(provider.key(), e),
         };
     }
+}
+
+/// One agent's hooks put in or taken out, kept for a diagnostics file
+/// (#230): what was written, and a line in the log.
+fn change_agent_hooks(
+    provider: models::Provider,
+    install: bool,
+    home: &Path,
+    exe: &Path,
+    endpoint: &str,
+) -> Result<(), String> {
+    use crate::diagnostics::{hook_records, log};
+    let result = if install {
+        hook_agents::installer::install(provider, home, exe, endpoint, hooks::APP_ID)
+    } else {
+        hook_agents::installer::remove(provider, home, hooks::APP_ID)
+    };
+    let change = if install { "installed" } else { "removed" };
+    match &result {
+        Ok(()) => {
+            if install {
+                hook_records::note_agent(provider, home, hooks::APP_ID);
+            } else {
+                hook_records::forget(&hook_records::agent_id(provider));
+            }
+            log::info("hooks", &format!("{} hooks {change}", provider.key()));
+        }
+        Err(e) => log::error(
+            "hooks",
+            &format!("{} hooks could not be {change}: {e}", provider.key()),
+        ),
+    }
+    result
+}
+
+/// The agents' hook states as last logged, so only a change is written.
+static AGENT_HOOK_SUMMARY: Mutex<String> = Mutex::new(String::new());
+
+/// Whether the island hears Codex, in a word, for a diagnostics file (#230).
+pub fn codex_status_name(service: &Service) -> &'static str {
+    if service.codex().is_some_and(|c| c.connected()) {
+        "connected"
+    } else if crate::sessions::codex::client::codex_home().is_some_and(|h| h.is_dir()) {
+        "notRunning"
+    } else {
+        "notFound"
+    }
+}
+
+/// The state a session was last shown in; None when it isn't listed.
+fn phase_of(inner: &Inner, id: &str) -> Option<models::SessionPhase> {
+    inner.sessions.iter().find(|s| s.id == id).map(|s| s.phase)
 }
 
 /// For Settings › Content › Sessions: each hook agent's hooks or plugin.
@@ -2383,7 +2516,7 @@ pub fn sessions_agent_hooks_status() -> Vec<AgentHooksStatus> {
         return Vec::new();
     };
     let endpoint = hooks::transport::endpoint(hooks::APP_ID);
-    models::Provider::HOOK_AGENTS
+    let statuses: Vec<AgentHooksStatus> = models::Provider::HOOK_AGENTS
         .iter()
         .map(|&provider| {
             let state =
@@ -2399,7 +2532,25 @@ pub fn sessions_agent_hooks_status() -> Vec<AgentHooksStatus> {
                     .cloned(),
             }
         })
-        .collect()
+        .collect();
+    let summary = statuses
+        .iter()
+        .map(|s| {
+            format!(
+                "{}={:?}{}",
+                s.agent,
+                s.state,
+                if s.present { "" } else { "(absent)" }
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
+    let mut last = AGENT_HOOK_SUMMARY.lock().unwrap();
+    if *last != summary {
+        crate::diagnostics::log::info("hooks", &format!("agent hooks: {summary}"));
+        *last = summary;
+    }
+    statuses
 }
 
 #[tauri::command]
@@ -2408,13 +2559,9 @@ pub fn sessions_agent_hooks_install(agent: String, install: bool) -> Result<(), 
         .filter(|p| p.reports_through_hooks())
         .ok_or("unknown agent")?;
     let home = hooks::installer::home_dir().ok_or("no home folder")?;
-    let result = if install {
-        let exe = hooks::current_program()?;
-        let endpoint = hooks::transport::endpoint(hooks::APP_ID);
-        hook_agents::installer::install(provider, &home, &exe, &endpoint, hooks::APP_ID)
-    } else {
-        hook_agents::installer::remove(provider, &home, hooks::APP_ID)
-    };
+    let exe = hooks::current_program()?;
+    let endpoint = hooks::transport::endpoint(hooks::APP_ID);
+    let result = change_agent_hooks(provider, install, &home, &exe, &endpoint);
     let mut failures = AGENT_HOOK_FAILURES.lock().unwrap();
     match &result {
         Ok(()) => failures.remove(provider.key()),
