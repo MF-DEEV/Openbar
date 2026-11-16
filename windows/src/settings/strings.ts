@@ -976,6 +976,21 @@ export const T = {
     get progressStyleCaption() {
       return t("windows.settings.sessions.progressStyleCaption");
     },
+    get grouping() {
+      return t("windows.settings.sessions.grouping");
+    },
+    get groupingCaption() {
+      return t("windows.settings.sessions.groupingCaption");
+    },
+    get groupNone() {
+      return t("windows.sessions.groupNone");
+    },
+    get groupByProject() {
+      return t("windows.sessions.groupByProject");
+    },
+    get groupByAgent() {
+      return t("windows.sessions.groupByAgent");
+    },
     get progressRing() {
       return t("windows.settings.sessions.progressRing");
     },

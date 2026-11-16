@@ -323,7 +323,10 @@ mod tests {
             ydotool_keys(true, false),
             ["key", "29:1", "42:1", "47:1", "47:0", "42:0", "29:0"]
         );
-        assert_eq!(ydotool_keys(false, false), ["key", "29:1", "47:1", "47:0", "29:0"]);
+        assert_eq!(
+            ydotool_keys(false, false),
+            ["key", "29:1", "47:1", "47:0", "29:0"]
+        );
         assert_eq!(ydotool_keys(false, true), ["key", "ctrl+v"]);
     }
 

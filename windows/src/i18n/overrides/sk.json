@@ -843,5 +843,13 @@
   "windows.settings.sessions.sounds.unmute": "Unmute session sounds",
   "windows.settings.sessions.sounds.hour": "Mute session sounds for 1 hour",
   "windows.settings.sessions.sounds.tomorrow": "Mute session sounds until tomorrow",
-  "windows.settings.sessions.sounds.failed": "Could not play the sound. Check the audio output and try again."
+  "windows.settings.sessions.sounds.failed": "Could not play the sound. Check the audio output and try again.",
+  "windows.sessions.groupSessions": "Zoskupiť relácie",
+  "windows.sessions.groupNone": "Jeden zoznam",
+  "windows.sessions.groupByProject": "Podľa projektu",
+  "windows.sessions.groupByAgent": "Podľa agenta",
+  "windows.sessions.groupCount": "Relácie: %@",
+  "windows.sessions.groupWaiting": "Čakajú na vás: %@",
+  "windows.settings.sessions.grouping": "Zoskupiť zoznam",
+  "windows.settings.sessions.groupingCaption": "Relácie jedného projektu alebo jedného agenta sú spolu pod hlavičkou, ktorú môžete zbaliť."
 }

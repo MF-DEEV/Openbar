@@ -843,5 +843,13 @@
   "windows.settings.sessions.sounds.unmute": "Unmute session sounds",
   "windows.settings.sessions.sounds.hour": "Mute session sounds for 1 hour",
   "windows.settings.sessions.sounds.tomorrow": "Mute session sounds until tomorrow",
-  "windows.settings.sessions.sounds.failed": "Could not play the sound. Check the audio output and try again."
+  "windows.settings.sessions.sounds.failed": "Could not play the sound. Check the audio output and try again.",
+  "windows.sessions.groupSessions": "Agrupar sessões",
+  "windows.sessions.groupNone": "Uma lista",
+  "windows.sessions.groupByProject": "Por projeto",
+  "windows.sessions.groupByAgent": "Por agente",
+  "windows.sessions.groupCount": "Sessões: %@",
+  "windows.sessions.groupWaiting": "Esperando você: %@",
+  "windows.settings.sessions.grouping": "Agrupar a lista",
+  "windows.settings.sessions.groupingCaption": "As sessões de um projeto ou de um agente ficam juntas sob um cabeçalho que você pode recolher."
 }

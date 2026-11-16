@@ -843,5 +843,13 @@
   "windows.settings.sessions.sounds.unmute": "Unmute session sounds",
   "windows.settings.sessions.sounds.hour": "Mute session sounds for 1 hour",
   "windows.settings.sessions.sounds.tomorrow": "Mute session sounds until tomorrow",
-  "windows.settings.sessions.sounds.failed": "Could not play the sound. Check the audio output and try again."
+  "windows.settings.sessions.sounds.failed": "Could not play the sound. Check the audio output and try again.",
+  "windows.sessions.groupSessions": "セッションをグループ化",
+  "windows.sessions.groupNone": "1つのリスト",
+  "windows.sessions.groupByProject": "プロジェクト別",
+  "windows.sessions.groupByAgent": "エージェント別",
+  "windows.sessions.groupCount": "セッション: %@",
+  "windows.sessions.groupWaiting": "あなたを待っています: %@",
+  "windows.settings.sessions.grouping": "リストをグループ化",
+  "windows.settings.sessions.groupingCaption": "同じプロジェクトや同じエージェントのセッションを、折りたためる見出しの下にまとめます。"
 }

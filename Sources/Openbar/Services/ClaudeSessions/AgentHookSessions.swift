@@ -333,22 +333,51 @@ enum AgentHookProcess {
     }
 }
 
-/// The branch a folder's repository is on, read from its HEAD, for the
-/// agents that do not say. Cached a little, since every tick asks.
+/// The branch a folder's repository is on, read from its HEAD: for the
+/// agents that do not say, and for every session on this Mac so a checkout
+/// inside it shows on its row (#233). Cached a little, since every tick asks.
 final class AgentGitBranch {
-    private var cache: [String: (branch: String?, at: Date)] = [:]
-    static let freshFor: TimeInterval = 10
+    /// What a checkout is on.
+    enum Head: Equatable {
+        case branch(String)
+        /// HEAD names a commit, not a branch.
+        case detached
+        /// No repository found, or its HEAD couldn't be read.
+        case unknown
 
-    func branch(of folder: String, now: Date = Date()) -> String? {
-        guard !folder.isEmpty else { return nil }
-        if let known = cache[folder], now.timeIntervalSince(known.at) < Self.freshFor { return known.branch }
-        let branch = Self.read(folder)
-        cache[folder] = (branch, now)
-        if cache.count > 64 { cache = cache.filter { now.timeIntervalSince($0.value.at) < Self.freshFor } }
-        return branch
+        var branch: String? { if case .branch(let name) = self { return name } else { return nil } }
     }
 
-    static func read(_ folder: String) -> String? {
+    private var cache: [String: (head: Head, at: Date)] = [:]
+    static let freshFor: TimeInterval = 3
+
+    func head(of folder: String, now: Date = Date()) -> Head {
+        guard !folder.isEmpty else { return .unknown }
+        if let known = cache[folder], now.timeIntervalSince(known.at) < Self.freshFor { return known.head }
+        let head = Self.head(folder)
+        cache[folder] = (head, now)
+        if cache.count > 64 { cache = cache.filter { now.timeIntervalSince($0.value.at) < Self.freshFor } }
+        return head
+    }
+
+    func branch(of folder: String, now: Date = Date()) -> String? {
+        head(of: folder, now: now).branch
+    }
+
+    static func read(_ folder: String) -> String? { head(folder).branch }
+
+    /// A session's branch as its checkout has it now: a detached HEAD shows
+    /// none, and a folder this Mac can't read keeps what the agent said.
+    static func live(reported: String?, head: Head) -> String? {
+        switch head {
+        case .branch(let name): return name
+        case .detached: return nil
+        case .unknown: return reported
+        }
+    }
+
+    static func head(_ folder: String) -> Head {
+        guard !folder.isEmpty else { return .unknown }
         var url = URL(fileURLWithPath: folder, isDirectory: true)
         for _ in 0..<32 {
             let git = url.appending(path: ".git")
@@ -358,20 +387,24 @@ final class AgentGitBranch {
                 if !isFolder.boolValue {
                     // A worktree's .git file names its own folder.
                     guard let text = try? String(contentsOf: git, encoding: .utf8),
-                          let line = text.split(whereSeparator: \.isNewline).first, line.hasPrefix("gitdir:") else { return nil }
+                          let line = text.split(whereSeparator: \.isNewline).first, line.hasPrefix("gitdir:") else { return .unknown }
                     let path = line.dropFirst("gitdir:".count).trimmingCharacters(in: .whitespaces)
                     let gitdir = path.hasPrefix("/") ? URL(fileURLWithPath: path) : url.appending(path: path)
                     head = gitdir.appending(path: "HEAD")
                 }
-                guard let text = try? String(contentsOf: head, encoding: .utf8) else { return nil }
+                guard let text = try? String(contentsOf: head, encoding: .utf8) else { return .unknown }
                 let line = text.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard line.hasPrefix("ref: refs/heads/") else { return nil }
-                return String(line.dropFirst("ref: refs/heads/".count))
+                if line.hasPrefix("ref: refs/heads/") {
+                    let name = String(line.dropFirst("ref: refs/heads/".count))
+                    return name.isEmpty ? .unknown : .branch(name)
+                }
+                // An odd ref still isn't a commit: say nothing new.
+                return line.hasPrefix("ref:") ? .unknown : .detached
             }
             let parent = url.deletingLastPathComponent()
-            if parent.path == url.path { return nil }
+            if parent.path == url.path { return .unknown }
             url = parent
         }
-        return nil
+        return .unknown
     }
 }

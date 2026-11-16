@@ -387,6 +387,21 @@ export const S = {
     return t("windows.sessions.backgroundMark");
   },
   remoteHelp: (alias: string) => tf("windows.sessions.remoteHelp", alias),
+  // #233: the list in groups.
+  get groupSessions() {
+    return t("windows.sessions.groupSessions");
+  },
+  get groupNone() {
+    return t("windows.sessions.groupNone");
+  },
+  get groupByProject() {
+    return t("windows.sessions.groupByProject");
+  },
+  get groupByAgent() {
+    return t("windows.sessions.groupByAgent");
+  },
+  groupCount: (n: number) => tf("windows.sessions.groupCount", String(n)),
+  groupWaiting: (n: number) => tf("windows.sessions.groupWaiting", String(n)),
   get replyNeedsTmux() {
     return t("windows.sessions.replyNeedsTmux");
   },

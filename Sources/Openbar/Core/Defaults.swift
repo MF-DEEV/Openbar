@@ -929,6 +929,10 @@ enum DefaultsKey {
     static let notchSessionsLimits = "notchSessionsLimits"
     /// How a session's task list shows on its row: ring, dots or bar (#215).
     static let notchSessionsProgressStyle = "notchSessionsProgressStyle"
+    /// The Sessions list as one list or grouped by project or agent (#233).
+    static let notchSessionsGrouping = "notchSessionsGrouping"
+    /// Folded groups' keys, one a line (NotchSessionGroupStore).
+    static let notchSessionsCollapsedGroups = "notchSessionsCollapsedGroups"
     /// A card of what sessions did, on return after the lock screen or a break.
     static let notchSessionsAwayCard = "notchSessionsAwayCard"
     /// Minutes without input that count as a break.
@@ -1587,6 +1591,8 @@ enum Defaults {
         DefaultsKey.notchSessionsBuddies: true,
         DefaultsKey.notchSessionsLimits: true,
         DefaultsKey.notchSessionsProgressStyle: "ring",
+        DefaultsKey.notchSessionsGrouping: "none",
+        DefaultsKey.notchSessionsCollapsedGroups: "",
         DefaultsKey.notchSessionsAwayCard: true,
         DefaultsKey.notchSessionsAwayMinutes: 10,
         DefaultsKey.notchSessionsVoiceReplies: true,

@@ -144,6 +144,70 @@ export function demoSnapshot(): Snapshot {
       cost: 0.17,
     }),
   ];
+  // ?sessions&groups: more sessions in the same projects, worktrees, another agent and a host (#233).
+  if (typeof location !== "undefined" && new URLSearchParams(location.search).has("groups")) {
+    const root = "C:\\Users\\vors\\Projekty";
+    sessions.push(
+      base({
+        id: "g1",
+        project: "checkout-api",
+        cwd: `${root}\\checkout-api\\.claude\\worktrees\\refund-flow`,
+        phase: "generating",
+        branch: "worktree-refund-flow",
+        turnStarted: t - 64,
+        title: "Refunds in one step",
+        model: "claude-opus-5-5",
+        effort: "high",
+      }),
+      base({
+        id: "g2",
+        provider: "codex",
+        project: "checkout-api",
+        phase: "finished",
+        branch: "fix/currency-rounding-for-the-new-checkout-totals",
+        host: "unknown",
+        title: "Round totals once",
+        phaseSince: t - 320,
+      }),
+      base({
+        id: "g3",
+        provider: "gemini",
+        project: "landing-page",
+        phase: "runningTool",
+        branch: "main",
+        turnStarted: t - 18,
+        currentTool: { id: "t9", name: "WriteFile", summary: "hero.tsx", started: t - 2, failed: false },
+        title: "Hero copy",
+      }),
+      base({
+        id: "g4",
+        project: "checkout-api",
+        cwd: "/home/vors/checkout-api",
+        remote: "devbox",
+        host: "remote",
+        phase: "generating",
+        branch: "release/2.4",
+        turnStarted: t - 140,
+        title: "Release notes for 2.4",
+      }),
+      base({
+        id: "g5",
+        project: "developer-docs",
+        cwd: `${root}\\developer-docs\\.openbar\\worktrees\\api-reference`,
+        phase: "idle",
+        branch: "openbar/api-reference",
+        lastActive: t - 900,
+        title: "API reference pages",
+      }),
+    );
+    return {
+      sessions,
+      counts: { waiting: 2, working: 5, workingCodex: 1, workingGemini: 1, limited: 1, finished: 2 },
+      previews: true,
+      hooksInstalled: true,
+      canStart: true,
+    };
+  }
   // ?sessions&accounts: Claude sessions under two accounts carry their names (#216).
   if (typeof location !== "undefined" && new URLSearchParams(location.search).has("accounts")) {
     for (const session of sessions) {

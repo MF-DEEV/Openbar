@@ -843,5 +843,13 @@
   "windows.settings.sessions.sounds.unmute": "Unmute session sounds",
   "windows.settings.sessions.sounds.hour": "Mute session sounds for 1 hour",
   "windows.settings.sessions.sounds.tomorrow": "Mute session sounds until tomorrow",
-  "windows.settings.sessions.sounds.failed": "Could not play the sound. Check the audio output and try again."
+  "windows.settings.sessions.sounds.failed": "Could not play the sound. Check the audio output and try again.",
+  "windows.sessions.groupSessions": "세션 그룹화",
+  "windows.sessions.groupNone": "하나의 목록",
+  "windows.sessions.groupByProject": "프로젝트별",
+  "windows.sessions.groupByAgent": "에이전트별",
+  "windows.sessions.groupCount": "세션: %@",
+  "windows.sessions.groupWaiting": "응답 대기: %@",
+  "windows.settings.sessions.grouping": "목록 그룹화",
+  "windows.settings.sessions.groupingCaption": "같은 프로젝트나 같은 에이전트의 세션을 접을 수 있는 머리글 아래에 모읍니다."
 }

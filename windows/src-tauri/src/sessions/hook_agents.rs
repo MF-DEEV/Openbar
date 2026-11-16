@@ -2128,8 +2128,22 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
     }
 }
 
-/// The branch a folder's repository is on, read from its HEAD.
-pub fn read_branch(folder: &str) -> Option<String> {
+/// What a folder's checkout is on, read from its repository's HEAD (#233).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Head {
+    Branch(String),
+    /// HEAD names a commit, not a branch.
+    Detached,
+    /// No repository found, or its HEAD couldn't be read.
+    Unknown,
+}
+
+/// The HEAD of the repository a folder is in, a linked worktree's own one
+/// included.
+pub fn read_head(folder: &str) -> Head {
+    if folder.is_empty() {
+        return Head::Unknown;
+    }
     let mut path = PathBuf::from(folder);
     for _ in 0..32 {
         let git = path.join(".git");
@@ -2138,13 +2152,17 @@ pub fn read_branch(folder: &str) -> Option<String> {
                 git.join("HEAD")
             } else {
                 // A worktree's .git file names its own folder.
-                let text = std::fs::read_to_string(&git).ok()?;
-                let line = text
-                    .lines()
-                    .next()?
-                    .strip_prefix("gitdir:")?
-                    .trim()
-                    .to_owned();
+                let Some(line) = std::fs::read_to_string(&git).ok().and_then(|text| {
+                    Some(
+                        text.lines()
+                            .next()?
+                            .strip_prefix("gitdir:")?
+                            .trim()
+                            .to_owned(),
+                    )
+                }) else {
+                    return Head::Unknown;
+                };
                 let dir = PathBuf::from(&line);
                 if dir.is_absolute() {
                     dir
@@ -2153,17 +2171,41 @@ pub fn read_branch(folder: &str) -> Option<String> {
                 }
                 .join("HEAD")
             };
-            let text = std::fs::read_to_string(head).ok()?;
-            return text
-                .trim()
-                .strip_prefix("ref: refs/heads/")
-                .map(str::to_owned);
+            let Ok(text) = std::fs::read_to_string(head) else {
+                return Head::Unknown;
+            };
+            let text = text.trim();
+            return match text.strip_prefix("ref: refs/heads/") {
+                Some(branch) if !branch.is_empty() => Head::Branch(branch.to_owned()),
+                // An unborn or odd ref still isn't a commit: say nothing new.
+                _ if text.starts_with("ref:") => Head::Unknown,
+                _ => Head::Detached,
+            };
         }
         if !path.pop() {
-            return None;
+            return Head::Unknown;
         }
     }
-    None
+    Head::Unknown
+}
+
+/// The branch a folder's repository is on, read from its HEAD.
+pub fn read_branch(folder: &str) -> Option<String> {
+    match read_head(folder) {
+        Head::Branch(branch) => Some(branch),
+        Head::Detached | Head::Unknown => None,
+    }
+}
+
+/// A session's branch as its checkout has it now: a checkout inside the
+/// session shows at once, a detached HEAD shows none, and a folder this
+/// machine can't read keeps what the agent said.
+pub fn live_branch(reported: Option<String>, head: &Head) -> Option<String> {
+    match head {
+        Head::Branch(branch) => Some(branch.clone()),
+        Head::Detached => None,
+        Head::Unknown => reported,
+    }
 }
 
 // MARK: Installing
@@ -4176,6 +4218,49 @@ mod tests {
             crate::hooks::transport::fixed_answer("gemini", "BeforeTool"),
             None
         );
+    }
+
+    #[test]
+    fn a_checkout_says_its_branch_detached_head_or_nothing() {
+        let root = std::env::temp_dir().join(format!("vs-head-{:x}", rand_id()));
+        let repo = root.join("repo");
+        std::fs::create_dir_all(repo.join(".git").join("worktrees").join("wt")).unwrap();
+        let head = repo.join(".git").join("HEAD");
+        std::fs::write(&head, "ref: refs/heads/main\n").unwrap();
+        let folder = repo.to_string_lossy().into_owned();
+        assert_eq!(read_head(&folder), Head::Branch("main".into()));
+        // A checkout inside the session shows on the next read.
+        std::fs::write(&head, "ref: refs/heads/feat/y\n").unwrap();
+        assert_eq!(read_head(&folder), Head::Branch("feat/y".into()));
+        std::fs::write(&head, "3f2c1a9e8d7b6c5a4f3e2d1c0b9a8f7e6d5c4b3a\n").unwrap();
+        assert_eq!(read_head(&folder), Head::Detached);
+        // A linked worktree reads its own HEAD through its .git file.
+        let wt = root.join("wt");
+        std::fs::create_dir_all(&wt).unwrap();
+        let gitdir = repo.join(".git").join("worktrees").join("wt");
+        std::fs::write(wt.join(".git"), format!("gitdir: {}\n", gitdir.display())).unwrap();
+        std::fs::write(gitdir.join("HEAD"), "ref: refs/heads/worktree-wt\n").unwrap();
+        assert_eq!(
+            read_head(&wt.to_string_lossy()),
+            Head::Branch("worktree-wt".into())
+        );
+        assert_eq!(read_head(""), Head::Unknown);
+        assert_eq!(
+            read_head(&root.join("nowhere").to_string_lossy()),
+            Head::Unknown
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_session_keeps_its_branch_only_where_head_cant_be_read() {
+        let said = Some("feat/a".to_string());
+        assert_eq!(
+            live_branch(said.clone(), &Head::Branch("feat/b".into())).as_deref(),
+            Some("feat/b")
+        );
+        assert_eq!(live_branch(said.clone(), &Head::Detached), None);
+        assert_eq!(live_branch(said, &Head::Unknown).as_deref(), Some("feat/a"));
     }
 
     #[test]

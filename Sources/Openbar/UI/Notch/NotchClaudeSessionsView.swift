@@ -13,8 +13,11 @@ struct NotchClaudeSessionsView: View {
     @Environment(\.notchSettingsPreview) private var preview
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
+    @AppStorage(DefaultsKey.notchSessionsGrouping) private var groupingRaw = NotchSessionGrouping.none.rawValue
+    @AppStorage(DefaultsKey.notchSessionsCollapsedGroups) private var collapsedRaw = ""
 
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
+    private var grouping: NotchSessionGrouping { NotchSessionGrouping(rawValue: groupingRaw) ?? .none }
 
     private var focused: ClaudeSession? {
         guard !preview, let id = service.focusedID else { return nil }
@@ -90,23 +93,63 @@ struct NotchClaudeSessionsView: View {
     private var list: some View {
         TimelineView(.periodic(from: .now, by: 1)) { context in
             ScrollView {
-                LazyVStack(spacing: 6) {
-                    ForEach(service.sessions) { session in
-                        NotchClaudeSessionRow(session: session, name: service.displayName(session), now: context.date, text: text,
-                                              account: service.accountLabels[session.id]) {
-                            guard !preview else { return }
-                            service.focus(session.id)
-                        }
+                if grouping == .none {
+                    LazyVStack(spacing: 6) {
+                        ForEach(service.sessions) { session in row(session, now: context.date) }
                     }
+                    .padding(.bottom, 4)
+                    .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
+                               value: service.sessions.map(\.id))
+                } else {
+                    grouped(now: context.date)
                 }
-                .padding(.bottom, 4)
-                .animation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
-                           value: service.sessions.map(\.id))
             }
             .scrollIndicators(.automatic)
         }
-        .notchBand(leading: { NotchClaudeSessionCounts(counts: service.counts, total: service.sessions.count) },
+        // The open island shows every session, so the band leads with how
+        // they're laid out rather than counting them again (#233).
+        .notchBand(leading: { NotchSessionGroupingSwitch(text: text) },
                    trailing: { newSessionButton })
+    }
+
+    private func row(_ session: ClaudeSession, now: Date, inProject: Bool = false) -> some View {
+        NotchClaudeSessionRow(session: session, name: service.displayName(session), now: now, text: text,
+                              account: service.accountLabels[session.id], inProject: inProject) {
+            guard !preview else { return }
+            service.focus(session.id)
+        }
+    }
+
+    /// The list in groups (#233): groups with someone waiting on top, each
+    /// folding its rows away.
+    private func grouped(now: Date) -> some View {
+        let groups = NotchSessionGroups.groups(service.sessions, by: grouping)
+        let collapsed = Set(NotchSessionGroupStore.keys(collapsedRaw))
+        let spring: Animation? = reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85)
+        return LazyVStack(alignment: .leading, spacing: 10) {
+            ForEach(groups) { group in
+                let folded = collapsed.contains(group.key)
+                VStack(spacing: 4) {
+                    NotchSessionGroupHeader(group: group, collapsed: folded, text: text) {
+                        withAnimation(reduceMotion ? .easeOut(duration: 0.12) : .spring(response: 0.34, dampingFraction: 0.86)) {
+                            collapsedRaw = NotchSessionGroupStore.raw(
+                                NotchSessionGroups.toggled(NotchSessionGroupStore.keys(collapsedRaw), key: group.key))
+                        }
+                    }
+                    if !folded {
+                        VStack(spacing: 6) {
+                            ForEach(group.sessions) { session in row(session, now: now, inProject: group.kind == .project) }
+                        }
+                        .transition(reduceMotion ? .opacity
+                                    : .asymmetric(insertion: .opacity.combined(with: .move(edge: .top)), removal: .opacity))
+                    }
+                }
+                .clipped()
+            }
+        }
+        .padding(.bottom, 4)
+        .animation(spring, value: groups.map(\.key))
+        .animation(spring, value: service.sessions.map(\.id))
     }
 
     /// Starts a session from here, where Claude Code is there to start one.
@@ -130,32 +173,6 @@ struct NotchClaudeSessionsView: View {
     }
 }
 
-/// How many sessions work, wait and have news, beside the camera: the ones
-/// at work counted by agent, each in its color, as on the closed strip.
-private struct NotchClaudeSessionCounts: View {
-    let counts: ClaudeSessionCounts
-    let total: Int
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(NotchClaudeSessionsSupport.stripReading(counts)) { item in
-                HStack(spacing: 3) {
-                    Image(systemName: NotchClaudeSessionsSupport.symbol(item.phase))
-                        .font(.system(size: 9, weight: .semibold))
-                    Text("\(item.count)").font(.system(size: 11, weight: .semibold)).monospacedDigit()
-                }
-                .foregroundStyle(item.tint)
-            }
-            if counts.isEmpty {
-                Text("\(total)").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 7)
-        .frame(height: 28)
-        .accessibilityElement(children: .combine)
-    }
-}
-
 /// One session in the list: what it is called, what it does, where it
 /// works and for how long.
 struct NotchClaudeSessionRow: View {
@@ -165,6 +182,8 @@ struct NotchClaudeSessionRow: View {
     let text: NotchClaudeSessionStrings
     /// The Claude account it runs under, while more than one is in use.
     var account: String? = nil
+    /// In a project's group, whose header names the project (#233).
+    var inProject = false
     let open: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var contrast
@@ -212,7 +231,9 @@ struct NotchClaudeSessionRow: View {
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 14, lifts: false))
             .focused($focused)
-            .accessibilityLabel("\(name), \(text.agent(session.provider)), \(session.project), \(text.phase(session.phase))")
+            .accessibilityLabel([name, text.agent(session.provider), session.project,
+                                 NotchSessionGroups.branchLabel(session)?.full, text.phase(session.phase)]
+                .compactMap { $0 }.joined(separator: ", "))
             .accessibilityValue(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name, now: now))
             if quickDecision, let permission = session.permission {
                 // A request short enough to read whole on the line beside is
@@ -267,23 +288,20 @@ struct NotchClaudeSessionRow: View {
             }
             HStack(spacing: 6) {
                 // The project first, in its own color, so sessions of one
-                // project are found together at a glance.
-                NotchClaudeProjectTag(project: session.project)
+                // project are found together at a glance; in a project's
+                // group the header names it.
+                if !inProject {
+                    NotchClaudeProjectTag(project: session.project)
+                        .layoutPriority(3)
+                }
+                // Then where it works: the branch, and a worktree's name (#233).
+                NotchSessionBranchChip(session: session)
                     .layoutPriority(2)
                 Text(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name, now: now))
                     .foregroundStyle(session.phase.isWaiting || session.phase == .limited ? session.tint : .secondary)
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .layoutPriority(1)
-                // A worktree names the session's own checkout better than
-                // the branch made for it.
-                if let branch = session.worktree ?? session.branch {
-                    Label(branch, systemImage: "arrow.triangle.branch")
-                        .labelStyle(NotchClaudeSessionInlineLabel())
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
             }
             .font(.system(size: 10.5))
         }

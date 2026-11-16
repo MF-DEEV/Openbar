@@ -224,7 +224,12 @@ fn read_wayland(include_images_files: bool) -> Option<Content> {
             return Some(Content::Files(paths));
         }
     }
-    const TEXT: [&str; 4] = ["text/plain;charset=utf-8", "UTF8_STRING", "text/plain", "STRING"];
+    const TEXT: [&str; 4] = [
+        "text/plain;charset=utf-8",
+        "UTF8_STRING",
+        "text/plain",
+        "STRING",
+    ];
     let text = match TEXT.into_iter().find(|t| offers(&targets, t)) {
         Some(t) => wl::get(Some(t), MAX_TEXT_BYTES),
         // KWin 5.27 names a copy's types with garbled bytes; wl-paste's own pick still reads it.

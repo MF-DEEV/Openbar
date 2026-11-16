@@ -1598,7 +1598,7 @@ final class ClaudeSessionService: ObservableObject {
         }, branch: { [self] folder in branches.branch(of: folder, now: now) })
         let agentSessions = fromAgents.sessions.filter { shownAgents.contains($0.provider) }
         let sorted = NotchClaudeSessionsSupport.sorted(withBackground(claude, now: now) + codexSessions + agentSessions
-            + (sample.map { [$0] } ?? []))
+            + (sample.map { [$0] } ?? [])).map { withLiveBranch($0, now: now) }
         inspection.retain(sorted)
         let shown = autoAllowing(sorted, now: now)
         let allowed = autoAllow.sessions
@@ -1641,6 +1641,15 @@ final class ClaudeSessionService: ObservableObject {
             }
             events.forEach(self.events.send)
         }
+    }
+
+    /// The branch as the session's checkout has it now, so a checkout inside
+    /// it shows on its row (#233). A host's sessions keep what it said.
+    private func withLiveBranch(_ session: ClaudeSession, now: Date) -> ClaudeSession {
+        guard session.host.remoteAlias == nil, !session.cwd.isEmpty else { return session }
+        var session = session
+        session.branch = AgentGitBranch.live(reported: session.branch, head: branches.head(of: session.cwd, now: now))
+        return session
     }
 
     /// Keeps Always to the turn it was given in, sends each answer it

@@ -300,6 +300,7 @@ if (( TEST )); then
         Sources/Openbar/Services/Notch/NotchSessionLimitsSupport.swift
         Sources/Openbar/Services/Notch/NotchSessionAttention.swift
         Sources/Openbar/Services/Notch/NotchAwaySupport.swift
+        Sources/Openbar/Services/Notch/NotchSessionGroups.swift
         Sources/Openbar/Services/Notch/SessionSoundPreferences.swift
         Sources/Openbar/Services/Notch/NotchSessionWaitingSound.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeSessionModels.swift

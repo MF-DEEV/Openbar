@@ -430,6 +430,9 @@ Sessions notices have priority 2 and last **6 s** (`NotchSupport.swift:1627, 163
 
   Ties: project name (localized standard compare), then pid.
 
+- Groups (#233, `docs/session-groups.md`): by project (`project:<remote alias>:<project>`) or by agent (`agent:<provider>`), in the order of each group's first session above, so groups with someone waiting lead; rows keep this order inside. Folded keys persist (`collapsedGroups`, latest 64).
+- Branch: local sessions read `HEAD` every 3 s (`hook_agents::read_head`): a branch replaces the reported one, a detached `HEAD` clears it, an unreadable folder keeps it. Remote sessions keep what their host reports.
+
 ---
 
 ## 4. UI

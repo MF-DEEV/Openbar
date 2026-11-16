@@ -843,5 +843,13 @@
   "windows.settings.sessions.sounds.unmute": "Unmute session sounds",
   "windows.settings.sessions.sounds.hour": "Mute session sounds for 1 hour",
   "windows.settings.sessions.sounds.tomorrow": "Mute session sounds until tomorrow",
-  "windows.settings.sessions.sounds.failed": "Could not play the sound. Check the audio output and try again."
+  "windows.settings.sessions.sounds.failed": "Could not play the sound. Check the audio output and try again.",
+  "windows.sessions.groupSessions": "工作階段分組",
+  "windows.sessions.groupNone": "單一列表",
+  "windows.sessions.groupByProject": "依專案",
+  "windows.sessions.groupByAgent": "依代理",
+  "windows.sessions.groupCount": "工作階段：%@",
+  "windows.sessions.groupWaiting": "等你處理：%@",
+  "windows.settings.sessions.grouping": "列表分組",
+  "windows.settings.sessions.groupingCaption": "同一專案或同一代理的工作階段歸在可收合的標題下。"
 }

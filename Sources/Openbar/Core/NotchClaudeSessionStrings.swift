@@ -41,6 +41,19 @@ struct NotchClaudeSessionStrings {
     }
     func minutes(_ n: Int) -> String { "\(n) min" }
     func awayFiles(_ n: Int) -> String { "\(n) files changed" }
+    // #233: the list in groups.
+    var groupSessions = "Group sessions"
+    var groupNone = "One list"
+    var groupByProject = "By project"
+    var groupByAgent = "By agent"
+    var groupingSetting = "Group the list"
+    var groupingSettingHint = "Sessions of one project, or of one agent, sit together under a header you can fold."
+    var groupFolded = "Folded"
+    var groupOpen = "Open"
+    var groupOpenHint = "Shows its sessions."
+    var groupFoldHint = "Hides its sessions."
+    func groupCount(_ n: Int) -> String { "Sessions: \(n)" }
+    func groupWaiting(_ n: Int) -> String { "Waiting for you: \(n)" }
     let allow: String
     let alwaysAllow: String
     /// Always while it allows every request of a Codex turn.
@@ -431,7 +444,7 @@ extension NotchClaudeSessionStrings {
         autoExpand: "Open the island when a session needs you",
         autoExpandHint: "It won’t replace a page you already have open.",
         waitingSound: "Sound when a session waits",
-        waitingSoundHint: "Plays a short sound when a session asks for permission, asks a question or waits for you to approve a plan. It stays quiet when a turn simply ends, when the island already shows the session, and when the session's own terminal tab is in front.",
+        waitingSoundHint: "Plays a short sound when a session asks for permission, asks a question or waits for you to approve a plan. It stays quiet when a turn simply ends, when the island already shows the session, and when the session’s own terminal tab is in front.",
         waitingSoundChoice: "Sound",
         playSound: "Play",
         contentPreview: "Show previews",
