@@ -17,32 +17,24 @@ enum NotchSessionGroupStore {
 struct NotchSessionGroupingSwitch: View {
     let text: NotchClaudeSessionStrings
     @AppStorage(DefaultsKey.notchSessionsGrouping) private var groupingRaw = NotchSessionGrouping.none.rawValue
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Namespace private var pill
 
+    private static let cell = CGSize(width: 24, height: 22)
     private var grouping: NotchSessionGrouping { NotchSessionGrouping(rawValue: groupingRaw) ?? .none }
+    private var index: Int { NotchSessionGrouping.allCases.firstIndex(of: grouping) ?? 0 }
 
     var body: some View {
         HStack(spacing: 0) {
             ForEach(NotchSessionGrouping.allCases, id: \.self) { choice in
                 let on = choice == grouping
                 Button {
-                    withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
-                        groupingRaw = choice.rawValue
-                    }
+                    groupingRaw = choice.rawValue
                 } label: {
                     symbol(choice)
                         .font(.system(size: 11, weight: .semibold))
                         .frame(width: 13, height: 13)
                         .foregroundStyle(.white.opacity(on ? 1 : 0.5))
-                        .frame(width: 24, height: 22)
-                        .background {
-                            if on {
-                                RoundedRectangle(cornerRadius: 7, style: .continuous)
-                                    .fill(.white.opacity(0.18))
-                                    .matchedGeometryEffect(id: "pill", in: pill)
-                            }
-                        }
+                        .animation(PanelMotion.selection, value: on)
+                        .frame(width: Self.cell.width, height: Self.cell.height)
                         .contentShape(Rectangle())
                 }
                 .buttonStyle(NotchGroupingButtonStyle())
@@ -50,6 +42,16 @@ struct NotchSessionGroupingSwitch: View {
                 .accessibilityLabel(label(choice))
                 .accessibilityAddTraits(on ? [.isSelected] : [])
             }
+        }
+        // One pill that slides to the choice on the panels' tab spring, as
+        // the Windows island's SlidingHighlight does. It moves by its index,
+        // so it slides even when the band around it is rebuilt.
+        .background(alignment: .leading) {
+            RoundedRectangle(cornerRadius: 7, style: .continuous)
+                .fill(.white.opacity(0.18))
+                .frame(width: Self.cell.width, height: Self.cell.height)
+                .offset(x: CGFloat(index) * Self.cell.width)
+                .animation(PanelMotion.tab, value: index)
         }
         .padding(2)
         .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 9, style: .continuous))
