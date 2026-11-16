@@ -201,6 +201,9 @@ final class DiagnosticsExportWindow: NSObject, NSWindowDelegate {
             self.window = window
         }
         window?.title = FeatureStrings.diagnostics(L10n.shared.language).windowTitle
+        // Sized before it is centered: SwiftUI would grow it from its corner afterwards.
+        host.view.layoutSubtreeIfNeeded()
+        window?.setContentSize(host.view.fittingSize)
         window?.center()
         NSApp.activate(ignoringOtherApps: true)
         window?.makeKeyAndOrderFront(nil)
