@@ -72,6 +72,23 @@ struct NotchSessionWaitingSound {
         return nil
     }
 
+    /// Whether the event still tells of what the session is in now, when its
+    /// sound is about to play.
+    static func current(_ event: Event, _ session: ClaudeSession) -> Bool {
+        switch event.kind {
+        case .started:
+            return true
+        case .permission, .question:
+            // Heard by its wait, the hook may name it before the sound plays
+            // (as `current` in Windows' pages.tsx).
+            guard let request = NotchSessionAttention.request(of: session) else { return false }
+            return request.id == event.id || request.wait == event.id
+        case .finished, .error, .limit:
+            guard let terminal = terminal(session) else { return false }
+            return terminal.kind == event.kind && terminal.id == event.id
+        }
+    }
+
     /// The sessions whose request is new since the last reading. The hook
     /// and the terminal's record can tell of one prompt a moment apart, so a
     /// prompt that only gains its name is not new (`Request.isSame`).

@@ -23,7 +23,12 @@ Plan limits require an agent-reported limit status. A failed tool inside an
 active turn is not a terminal error. An unknown terminal cause is left
 unclassified. Codex and Claude status data determine which events can be
 classified; when an agent gives no structured limit reason, Openbar does not
-guess from arbitrary output text.
+guess from arbitrary output text. Agents reported through hooks (Gemini,
+Copilot and the others) give finished turns on every platform, but neither
+session starts nor errors.
+
+A prompt can be heard from the terminal's record a moment before the hook
+names it. Either name keeps its sound when the burst plays.
 
 Existing focused session checks apply to every event. On the island, the
 session page must show the relevant session. For a terminal, its own tab or

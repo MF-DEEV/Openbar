@@ -264,7 +264,10 @@ final class AgentHookSessions {
                 permission.inputKey = permission.inputKey ?? entry.openTool?.inputKey
                 return permission
             },
-            timeline: timeline, subagents: [], tasks: nil, tokens: tokens, cost: cost,
+            timeline: timeline, subagents: [], tasks: nil,
+            // The same turn facts as Windows' hook_agents.rs, for the session sounds (#232).
+            turnEndedAt: entry.turnEnded, turnCompleted: phase == .finished,
+            tokens: tokens, cost: cost,
             title: previews ? entry.title : nil, lastText: previews ? entry.lastText : nil,
             hooked: true, provider: entry.provider)
         if previews { session.chat = entry.chat }

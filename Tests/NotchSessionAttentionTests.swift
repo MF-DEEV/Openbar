@@ -188,6 +188,20 @@ enum NotchSessionAttentionTests {
         limited.limitStop = ClaudeLimitStop(at: limited.failedAt!, resetsAt: nil, kind: nil)
         suite.expect(detector.events([limited]).map(\.kind) == [.limit], "plan limit takes priority over generic error")
         suite.expect(detector.events([limited]).isEmpty, "duplicate limits stay silent")
+
+        // The terminal's record tells of a prompt before the hook names it;
+        // the name arriving inside the one-second batch keeps its sound.
+        var unnamedDetector = NotchSessionWaitingSound(since: Date(timeIntervalSince1970: 0))
+        _ = unnamedDetector.events([])
+        let unnamed = session("b", .waitingPermission, since: 9)
+        let heard = unnamedDetector.events([unnamed])
+        let named = session("b", .waitingPermission, request: "r9", since: 9)
+        suite.expect(heard.count == 1 && NotchSessionWaitingSound.current(heard[0], named),
+                     "a prompt the hook names before its sound plays still sounds")
+        suite.expect(!NotchSessionWaitingSound.current(heard[0], session("b", .waitingPermission, since: 12)),
+                     "a later wait is not the prompt that sounded")
+        suite.expect(!NotchSessionWaitingSound.current(heard[0], session("b", .generating)),
+                     "an answered prompt no longer sounds")
         suite.expect(SessionSoundKind.limit.priority > SessionSoundKind.error.priority,
                      "a burst keeps its most urgent event")
     }

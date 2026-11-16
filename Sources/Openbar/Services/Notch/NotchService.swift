@@ -4532,13 +4532,7 @@ final class NotchService: ObservableObject {
               let session = ClaudeSessionService.shared.sessions.first(where: { $0.id == event.session }) else { return false }
         if NotchSessionWaitingSound.inView(expanded: expanded, selected: selected,
                                            focused: ClaudeSessionService.shared.focusedID, session: event.session) { return false }
-        if event.kind == .started { return true }
-        if event.kind == .permission || event.kind == .question {
-            guard let request = NotchSessionAttention.request(of: session) else { return false }
-            return (request.id ?? request.wait) == event.id
-        }
-        guard let terminal = NotchSessionWaitingSound.terminal(session) else { return false }
-        return terminal.kind == event.kind && terminal.id == event.id
+        return NotchSessionWaitingSound.current(event, session)
     }
 
     private func flushSessionSounds() {
