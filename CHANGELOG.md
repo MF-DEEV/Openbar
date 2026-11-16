@@ -17,7 +17,7 @@ All notable changes to this project are documented here. The format follows
 - Reminders for a session nobody reacted to. A permission or a question left unanswered, or a finished turn nobody looked at, brings the island back on that session after 2, 5, 10 or 15 minutes, with that event's sound. Once, or again every few minutes if you want. Several sessions waiting together give one reminder that names them all. Nothing comes while the session's own terminal tab is in front, and a locked or sleeping screen holds the reminder until you unlock. Do Not Disturb does too (Focus on the Mac, Focus Assist on Windows, the desktop's setting on GNOME, KDE, Cinnamon, MATE and XFCE), unless you allow it. A waiting row now reads "waiting 12 min" from the first minute on. Everything is off until you turn it on. On Mac, Windows and Linux. Settings → Dynamic Island → Content → Sessions → Remind me.
 
 ### Fixed
-- On Windows, Claude Code sessions started in a terminal show in Sessions again. Claude Code 2.1.325 names the machine in its session records, and Openbar used to skip those records.
+- On Windows, Claude Code sessions started in a terminal show in Sessions from their own records. Claude Code 2.1.325 names the machine in its session records, and Openbar used to skip those records.
 
 ## [3.5.0-beta.3] - 2026-11-13
 
