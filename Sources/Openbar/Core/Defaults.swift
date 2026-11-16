@@ -946,6 +946,16 @@ enum DefaultsKey {
     static let notchSessionsRemindAfter = "notchSessionsRemindAfter"
     static let notchSessionsRemindEvery = "notchSessionsRemindEvery"
     static let notchSessionsRemindDuringFocus = "notchSessionsRemindDuringFocus"
+    /// Sessions in their agent's no-ask mode run without the island (#234),
+    /// per agent whose mode it tells; on by default.
+    static let notchSessionsAutoRunClaude = "notchSessionsAutoRunClaude"
+    static let notchSessionsAutoRunCodex = "notchSessionsAutoRunCodex"
+    /// Every permission of the agent is allowed without asking (#234); off
+    /// unless the person turns it on.
+    static let notchSessionsAlwaysProceedClaude = "notchSessionsAlwaysProceedClaude"
+    static let notchSessionsAlwaysProceedCodex = "notchSessionsAlwaysProceedCodex"
+    static let notchSessionsAlwaysProceedOpenCode = "notchSessionsAlwaysProceedOpenCode"
+    static let notchSessionsAlwaysProceedVibe = "notchSessionsAlwaysProceedVibe"
     /// Claude Code accounts (config folders) the person named, hid or added
     /// by hand (issue #216), as JSON: `[{"path", "name"?, "hidden"?, "manual"?}]`.
     static let notchSessionsClaudeAccounts = "notchSessionsClaudeAccounts"
@@ -1616,6 +1626,12 @@ enum Defaults {
         DefaultsKey.notchSessionsRemindAfter: 5,
         DefaultsKey.notchSessionsRemindEvery: 0,
         DefaultsKey.notchSessionsRemindDuringFocus: false,
+        DefaultsKey.notchSessionsAutoRunClaude: true,
+        DefaultsKey.notchSessionsAutoRunCodex: true,
+        DefaultsKey.notchSessionsAlwaysProceedClaude: false,
+        DefaultsKey.notchSessionsAlwaysProceedCodex: false,
+        DefaultsKey.notchSessionsAlwaysProceedOpenCode: false,
+        DefaultsKey.notchSessionsAlwaysProceedVibe: false,
         DefaultsKey.notchSessionsVoiceReplies: true,
         DefaultsKey.notchSessionsVoiceLanguage: "",
         DefaultsKey.notchSessionsVoiceSendOnStop: false,

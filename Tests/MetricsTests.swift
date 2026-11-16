@@ -143,6 +143,7 @@ struct MetricsTests {
                 NotchSessionAttentionTests.run(suite)
                 NotchSessionReminderTests.run(suite)
                 NotchSessionAutoAllowTests.run(suite)
+                SessionAutoModeTests.run(suite)
                 AgentHookSessionTests.run(suite)
                 MoreAgentHookTests.run(suite)
                 VibeAppServerTests.run(suite)

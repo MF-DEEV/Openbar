@@ -40,6 +40,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             switchRow("rectangle.expand.vertical", text.autoExpand, caption: text.autoExpandHint, isOn: $autoExpand)
             SessionSoundsSettings()
             reminders
+            SessionAutoModeSettings()
             switchRow("text.bubble", text.contentPreview, caption: text.contentPreviewHint, isOn: $previews)
             switchRow("gauge.with.dots.needle.50percent", text.limitsSetting, caption: text.limitsSettingHint, isOn: $limits)
             buddiesRow

@@ -68,6 +68,28 @@ struct NotchClaudeSessionStrings {
     var remindDuringFocusHint = "Reminds while Focus or Do Not Disturb is on. Otherwise the reminder waits until it ends."
     var reminderStill = "Still waiting"
     func reminderTitle(_ n: Int) -> String { "\(n) sessions waiting" }
+    // #234: sessions in their agent's no-ask mode, and Always proceed.
+    var autoMark = "auto"
+    func autoMarkHelp(_ provider: ClaudeSessionProvider) -> String {
+        switch provider {
+        case .codex: return "Codex runs with approvals off here. The island lets its permission requests through and still brings you its questions."
+        default: return "Claude Code runs with bypass permissions here. The island lets its permission requests through and still brings you its questions."
+        }
+    }
+    var letThroughTitle = "Let through"
+    var letThroughAlways = "Always proceed"
+    func moreLetThrough(_ n: Int) -> String { "\(n) more" }
+    var autoModeSetting = "Let auto-mode sessions run without the island"
+    var autoModeSettingHint = "A session started in its agent's no-ask mode never waits on the island: Claude Code with bypass permissions, Codex with approvals off (yolo). Its requests go ahead at once and are listed on its page. Questions still come to you."
+    var alwaysProceedSetting = "Always proceed"
+    var alwaysProceedSettingHint = "The island allows every permission request of the agents you pick, in any mode, without asking. Questions still come to you."
+    func alwaysProceedConfirmTitle(_ agent: String) -> String { "Always proceed for \(agent)?" }
+    func alwaysProceedConfirmMessage(_ agent: String) -> String {
+        "The island will allow every command and file change \(agent) asks for, in every session and mode, without showing it to you first. That includes deleting files and reaching the network. Questions still come to you, and each request it allows is listed on the session's page."
+    }
+    var alwaysProceedConfirm = "Always proceed"
+    var cancel = "Cancel"
+    var alwaysProceedOnWarning = "On: requests of this agent are allowed without asking."
     func waitingFor(minutes: Int) -> String {
         minutes >= 60 ? "waiting \(minutes / 60)h \(minutes % 60)m" : "waiting \(minutes) min"
     }

@@ -476,6 +476,11 @@ struct ClaudeSession: Equatable, Identifiable {
     /// The config folder of the Claude Code account it runs under, for a
     /// session on this Mac (issue #216).
     var account: String? = nil
+    /// It runs in its agent's no-ask mode: bypass permissions, Codex with
+    /// approvals off (#234).
+    var autoMode = false
+    /// Permissions the island allowed without asking, newest last (#234).
+    var letThrough: [ClaudeLetThrough] = []
 }
 
 /// Tells a background command that is meant to keep running, like a dev
@@ -611,6 +616,8 @@ enum ClaudeTranscriptFact: Equatable {
     case backgroundTask(toolID: String, task: String)
     case subagentInfo(id: String, type: String, description: String?)
     case tasks(ClaudeTaskProgress)
+    /// The permission mode a prompt was typed in (#234).
+    case permissionMode(String, at: Date)
     /// The plan's usage limit stopped the turn.
     case limitReached(ClaudeLimitStop)
 }
@@ -636,6 +643,8 @@ struct ClaudeHookFact: Equatable {
     let event: Event
     /// The subagent the event comes from; nil for the main agent.
     var agentID: String? = nil
+    /// The permission mode the session was in, as the hook says (#234).
+    var mode: String? = nil
 }
 
 // MARK: Tool summaries

@@ -22,6 +22,7 @@ struct NotchClaudeSessionLargeView: View {
     @State private var layoutHidden = UserDefaults.standard.bool(forKey: DefaultsKey.notchSessionsSidebarHidden)
     @State private var textSettling = false
     @State private var allTools = false
+    @State private var allLetThrough = false
     @State private var allAgents = false
     @State private var handleHovered = false
     @State private var pageHeight: CGFloat = 0
@@ -194,6 +195,7 @@ struct NotchClaudeSessionLargeView: View {
                 HStack(spacing: 8) {
                     if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias, size: 11) }
                     if let account = ClaudeSessionService.shared.accountLabels[session.id] { NotchClaudeAccountBadge(name: account, size: 11) }
+                    if session.autoMode { NotchSessionAutoBadge(provider: session.provider, text: text, size: 11) }
                     NotchClaudeProjectTag(project: session.project, size: 12)
                     NotchSessionBranchChip(session: session, size: 12, maxWidth: 320)
                     NotchModelChip(session: session)
@@ -370,6 +372,13 @@ struct NotchClaudeSessionLargeView: View {
                     ForEach(session.subagents.prefix(allAgents ? session.subagents.count : Self.foldedRows)) { agentRow($0, now: now) }
                 }
             }
+            if !session.letThrough.isEmpty {
+                // What the island allowed without asking (#234).
+                let entries = Array(session.letThrough.reversed())
+                fold(text.letThroughTitle, count: entries.count, expanded: $allLetThrough) {
+                    ForEach(entries.prefix(allLetThrough ? entries.count : Self.foldedRows)) { letThroughRow($0) }
+                }
+            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -425,6 +434,32 @@ struct NotchClaudeSessionLargeView: View {
                     .font(.system(size: 10)).monospacedDigit().foregroundStyle(.secondary)
             }
         }
+    }
+
+    private func letThroughRow(_ entry: ClaudeLetThrough) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "forward.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(session.provider.tint.opacity(0.8))
+                .frame(width: 14)
+            Text(entry.tool)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(.white.opacity(0.85))
+            if let summary = entry.summary {
+                Text(summary)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(.white.opacity(0.65))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .textSelection(.enabled)
+            }
+            Spacer(minLength: 6)
+            if entry.reason == .alwaysProceed {
+                Text(text.letThroughAlways).font(.system(size: 11, weight: .medium)).foregroundStyle(.secondary)
+            }
+            Text(entry.at, style: .time).font(.system(size: 12)).monospacedDigit().foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private func agentRow(_ agent: ClaudeSubagent, now: Date) -> some View {
