@@ -158,6 +158,10 @@ final class NotchService: ObservableObject {
     private var sessionSoundPending: [NotchSessionWaitingSound.Event] = []
     private var sessionSoundWork: DispatchWorkItem?
     private var sessionSoundChecking = false
+    /// Reminders of a session nobody reacted to (#231).
+    private var sessionReminders = NotchSessionReminders()
+    private var sessionReminderChecking = false
+    private var sessionReminderWork: DispatchWorkItem?
     @Published private(set) var peeking = false
     @Published private(set) var dragPlaceholder = false
     @Published private(set) var choosingFileDropDestination = false
@@ -3914,6 +3918,8 @@ final class NotchService: ObservableObject {
         if couldPresent != session.canPresent {
             if session.canPresent {
                 syncWithPreferences()
+                // A reminder held through the lock or sleep comes now (#231).
+                scheduleSessionReminderCheck(after: NotchSessionReminders.afterUnlock)
             } else {
                 let cancel = captureControlsCancel
                 endCaptureControls()
@@ -4344,6 +4350,10 @@ final class NotchService: ObservableObject {
             objectWillChange
                 .sink { [weak self] _ in self?.scheduleSessionKeysSync() }
                 .store(in: &subscriptions)
+            // A wait nobody reacted to is brought up again (#231).
+            Timer.publish(every: NotchSessionReminders.checkEvery, on: .main, in: .common).autoconnect()
+                .sink { [weak self] _ in self?.checkSessionReminders() }
+                .store(in: &subscriptions)
             sessionAllowKey.onPress = { [weak self] in self?.answerSessionRequest(.allow) }
             sessionDenyKey.onPress = { [weak self] in self?.answerSessionRequest(.deny) }
             sessionAlwaysKey.onPress = { [weak self] in self?.answerSessionRequest(.allowAlways) }
@@ -4569,6 +4579,115 @@ final class NotchService: ObservableObject {
 
     private let waitingSoundChecks = DispatchQueue(label: "com.openbar.waiting-sound", qos: .userInitiated)
     private static let waitingSoundLog = Logger(subsystem: Bundle.main.bundleIdentifier ?? "openbar", category: "waiting-sound")
+
+    private func scheduleSessionReminderCheck(after delay: TimeInterval) {
+        sessionReminderWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.sessionReminderWork = nil
+            self?.checkSessionReminders()
+        }
+        sessionReminderWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: work)
+    }
+
+    /// Reminds of the sessions that have waited long enough with nobody
+    /// reacting (#231). A locked or asleep Mac waits, and so does Focus
+    /// unless it was allowed; a session whose own tab is in front counts as
+    /// seen. The terminals and Control Center are asked off the main thread.
+    private func checkSessionReminders() {
+        guard running, NotchSupport.routes(.sessions), !sessionReminderChecking, !suspended else { return }
+        let settings = NotchSessionReminders.Settings.load()
+        let sessions = ClaudeSessionService.shared.sessions
+        let due = sessionReminders.due(sessions, settings: settings, now: Date())
+        guard !due.isEmpty else { return }
+        sessionReminderChecking = true
+        let ids = Set(due.map(\.session))
+        let asked = sessions.filter { ids.contains($0.id) }
+        var decided = false
+        let decide = { [weak self] (shown: Set<String>, focus: Bool?) in
+            guard let self, !decided else { return }
+            decided = true
+            self.sessionReminderChecking = false
+            self.finishSessionReminder(due, settings: settings, shown: shown, focus: focus)
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + NotchSessionReminders.checkLimit) {
+            decide([], nil)
+        }
+        waitingSoundChecks.async {
+            let focus = settings.duringFocus ? nil : NotchFocusStatus.isOn()
+            let shown = Set(asked.filter { ClaudeTerminalFocus.state(of: $0) == .shown }.map(\.id))
+            DispatchQueue.main.async { decide(shown, focus) }
+        }
+    }
+
+    private func finishSessionReminder(_ due: [NotchSessionReminders.Wait], settings: NotchSessionReminders.Settings,
+                                       shown: Set<String>, focus: Bool?) {
+        guard running, !suspended else { return }
+        if NotchSessionReminders.heldByFocus(settings, focus: focus) {
+            Self.waitingSoundLog.info("reminder held: focus is on")
+            return
+        }
+        // Answered while the terminals were asked: no reminder of it.
+        let now = Date()
+        let sessions = ClaudeSessionService.shared.sessions
+        let live = due.filter { wait in
+            sessions.first { $0.id == wait.session }
+                .flatMap { NotchSessionReminders.wait(of: $0, now: now) }?.isSame(as: wait) == true
+        }
+        sessionReminders.mark(live.filter { shown.contains($0.session) }, at: now)
+        let remind = live.filter { !shown.contains($0.session) }
+        if remind.count < live.count {
+            Self.waitingSoundLog.info("reminder skipped for \(live.count - remind.count, privacy: .public) session(s): own terminal in front")
+        }
+        guard !remind.isEmpty else { return }
+        sessionReminders.mark(remind, at: now)
+        presentSessionReminder(remind, sessions: sessions, now: now)
+    }
+
+    /// One reminder for every session in it: its sound, then the island on
+    /// the one session, or on the list of them. While another app is in
+    /// front, a notice instead, as for the request itself (#167).
+    private func presentSessionReminder(_ waits: [NotchSessionReminders.Wait], sessions all: [ClaudeSession], now: Date) {
+        let service = ClaudeSessionService.shared
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
+        var sound = "none"
+        if let kind = NotchSessionReminders.sound(for: waits), !SessionSoundPreferences.muted(),
+           SessionSoundPreferences.volume() > 0 {
+            let name = SessionSoundPreferences.choice(kind)
+            if name != "none" {
+                sound = SessionSoundPlayer.play(name, volume: SessionSoundPreferences.volume()) ? kind.rawValue : "unavailable"
+            }
+        }
+        Self.waitingSoundLog.info("reminder fired: \(waits.count, privacy: .public) session(s) [\(waits.map(\.kind.rawValue).joined(separator: ","), privacy: .public)], sound \(sound, privacy: .public)")
+        // The list or the session's page already in view, or the away card.
+        if MainActor.assumeIsolated({ NotchAwayCard.shared.isShown }) { return }
+        if expanded, selected == .sessions,
+           service.focusedID == nil || (waits.count == 1 && service.focusedID == waits[0].session) { return }
+        if sessionsMayPresent, NotchClaudeSessionsSupport.autoExpands() {
+            open(.sessions, takeFocus: false)
+            service.focus(waits.count == 1 ? waits[0].session : nil)
+            return
+        }
+        let sessions = waits.compactMap { wait in all.first { $0.id == wait.session } }
+        guard let first = sessions.first else { return }
+        let symbol: (SessionReminderKind) -> String = { kind in
+            switch kind {
+            case .permission: NotchClaudeSessionsSupport.symbol(.waitingPermission)
+            case .question: NotchClaudeSessionsSupport.symbol(.waitingInput)
+            case .finished: NotchClaudeSessionsSupport.symbol(.finished)
+            }
+        }
+        if sessions.count == 1 {
+            let minutes = max(1, Int(now.timeIntervalSince(waits[0].since) / 60))
+            show(NotchNotice(event: .sessions, title: service.displayName(first),
+                             detail: [text.reminderStill, text.waitingFor(minutes: minutes)].joined(separator: " · "),
+                             symbol: symbol(waits[0].kind), agent: first.provider.agent, sessionID: first.id))
+        } else {
+            show(NotchNotice(event: .sessions, title: text.reminderTitle(sessions.count),
+                             detail: sessions.map { service.displayName($0) }.joined(separator: ", "),
+                             symbol: symbol(waits.max { $0.kind.sound.priority < $1.kind.sound.priority }?.kind ?? .permission)))
+        }
+    }
 
     /// Presents what the sessions wait on now that was not presented yet,
     /// including requests from before launch or whose event never came.

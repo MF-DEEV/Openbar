@@ -54,6 +54,23 @@ struct NotchClaudeSessionStrings {
     var groupFoldHint = "Hides its sessions."
     func groupCount(_ n: Int) -> String { "Sessions: \(n)" }
     func groupWaiting(_ n: Int) -> String { "Waiting for you: \(n)" }
+    // #231: reminders of a session nobody reacted to.
+    var remindersSetting = "Remind me"
+    var remindersSettingHint = "When a session waits and nobody reacts, the island opens on it again and plays its sound. Not while its own terminal tab is in front or the screen is locked."
+    var remindPermission = "Unanswered permission"
+    var remindQuestion = "Unanswered question"
+    var remindFinished = "Finished turn nobody looked at"
+    var remindAfter = "Remind after"
+    var remindEvery = "Remind again"
+    var remindOnce = "Once"
+    func remindEveryMinutes(_ n: Int) -> String { "Every \(n) min" }
+    var remindDuringFocus = "Also during Focus"
+    var remindDuringFocusHint = "Reminds while Focus or Do Not Disturb is on. Otherwise the reminder waits until it ends."
+    var reminderStill = "Still waiting"
+    func reminderTitle(_ n: Int) -> String { "\(n) sessions waiting" }
+    func waitingFor(minutes: Int) -> String {
+        minutes >= 60 ? "waiting \(minutes / 60)h \(minutes % 60)m" : "waiting \(minutes) min"
+    }
     let allow: String
     let alwaysAllow: String
     /// Always while it allows every request of a Codex turn.
