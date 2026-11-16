@@ -336,6 +336,7 @@ pub fn run() {
             fullscreen::attention_compact_sessions,
             settings::open_settings,
             diagnostics::diagnostics_export,
+            diagnostics::diagnostics_system_line,
             onboarding::onboarding_open,
             updater::updates_endpoints,
             updater::updates_install,

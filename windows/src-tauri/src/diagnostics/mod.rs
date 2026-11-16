@@ -76,6 +76,23 @@ pub async fn diagnostics_export<R: Runtime>(
         .map_err(|e| e.to_string())?
 }
 
+/// The system in one line, for a bug report's form: "Windows 11 Pro 24H2
+/// (26100.4351)" or "Ubuntu 24.04 (wayland, GNOME)".
+#[tauri::command]
+pub fn diagnostics_system_line() -> String {
+    let os = os();
+    let detail: Vec<String> = [os.build, os.session, os.desktop]
+        .into_iter()
+        .flatten()
+        .collect();
+    let line = format!("{} {}", os.name, os.version).trim().to_string();
+    if detail.is_empty() {
+        line
+    } else {
+        format!("{line} ({})", detail.join(", "))
+    }
+}
+
 fn export<R: Runtime>(
     app: &AppHandle<R>,
     window: &tauri::WebviewWindow<R>,
@@ -128,7 +145,10 @@ fn export<R: Runtime>(
     let input = collect(app, &request, &parts);
     let files = report::files(&parts, &input, PLATFORM, chrono::Utc::now(), &home);
     match report::write_zip(&files, &path) {
-        Ok(()) => log::info("diagnostics", &format!("export saved ({} files)", files.len())),
+        Ok(()) => log::info(
+            "diagnostics",
+            &format!("export saved ({} files)", files.len()),
+        ),
         Err(error) => {
             log::error("diagnostics", &format!("export failed: {error}"));
             return Err(error);
@@ -141,7 +161,11 @@ fn export<R: Runtime>(
     Ok(Some(shown))
 }
 
-fn collect<R: Runtime>(app: &AppHandle<R>, request: &ExportRequest, parts: &[Part]) -> report::Input {
+fn collect<R: Runtime>(
+    app: &AppHandle<R>,
+    request: &ExportRequest,
+    parts: &[Part],
+) -> report::Input {
     let home = crate::hooks::installer::home_dir().unwrap_or_default();
     let service = app
         .try_state::<crate::sessions::service::Shared>()
@@ -213,7 +237,11 @@ fn system<R: Runtime>(app: &AppHandle<R>, request: &ExportRequest) -> report::Sy
             developer_build: cfg!(debug_assertions),
         },
         os: os(),
-        cpu: format!("{} ({})", cpu_name().unwrap_or_else(|| "unknown".into()), std::env::consts::ARCH),
+        cpu: format!(
+            "{} ({})",
+            cpu_name().unwrap_or_else(|| "unknown".into()),
+            std::env::consts::ARCH
+        ),
         model: model(),
         language: request.language.clone(),
         displays,
@@ -242,7 +270,11 @@ fn registry(path: &str, name: &str) -> Option<String> {
     };
     if text.is_ok() {
         let length = (size as usize / 2).saturating_sub(1).min(buffer.len());
-        return Some(String::from_utf16_lossy(&buffer[..length]).trim().to_string());
+        return Some(
+            String::from_utf16_lossy(&buffer[..length])
+                .trim()
+                .to_string(),
+        );
     }
     let mut number = 0u32;
     let mut size = 4u32;
@@ -268,9 +300,18 @@ fn os() -> report::Os {
     let build = registry(KEY, "CurrentBuild");
     let release = registry(KEY, "DisplayVersion");
     // ProductName still says Windows 10 on 11; the build tells them apart.
-    let eleven = build.as_deref().and_then(|b| b.parse::<u32>().ok()).is_some_and(|b| b >= 22000);
+    let eleven = build
+        .as_deref()
+        .and_then(|b| b.parse::<u32>().ok())
+        .is_some_and(|b| b >= 22000);
     let name = registry(KEY, "ProductName")
-        .map(|n| if eleven { n.replacen("Windows 10", "Windows 11", 1) } else { n })
+        .map(|n| {
+            if eleven {
+                n.replacen("Windows 10", "Windows 11", 1)
+            } else {
+                n
+            }
+        })
         .unwrap_or_else(|| "Windows".into());
     report::Os {
         name,
@@ -285,7 +326,10 @@ fn os() -> report::Os {
 
 #[cfg(windows)]
 fn cpu_name() -> Option<String> {
-    registry(r"HARDWARE\DESCRIPTION\System\CentralProcessor\0", "ProcessorNameString")
+    registry(
+        r"HARDWARE\DESCRIPTION\System\CentralProcessor\0",
+        "ProcessorNameString",
+    )
 }
 
 #[cfg(windows)]
@@ -306,7 +350,9 @@ fn os() -> report::Os {
     let env = |key: &str| std::env::var(key).ok().filter(|v| !v.is_empty());
     report::Os {
         name: field("NAME").unwrap_or_else(|| "Linux".into()),
-        version: field("VERSION_ID").or_else(|| field("VERSION")).unwrap_or_default(),
+        version: field("VERSION_ID")
+            .or_else(|| field("VERSION"))
+            .unwrap_or_default(),
         build: None,
         kernel: std::fs::read_to_string("/proc/sys/kernel/osrelease")
             .ok()
@@ -376,7 +422,8 @@ fn executable(provider: Provider) -> Option<PathBuf> {
 
 fn agents(home: &Path, service: Option<&crate::sessions::service::Service>) -> Vec<Agent> {
     let records = hook_records::all();
-    let found: Vec<(Provider, Option<PathBuf>)> = AGENTS.iter().map(|&p| (p, executable(p))).collect();
+    let found: Vec<(Provider, Option<PathBuf>)> =
+        AGENTS.iter().map(|&p| (p, executable(p))).collect();
     let versions = probe_versions(&found);
     let exe = crate::hooks::current_program().ok();
     let endpoint = crate::hooks::transport::endpoint(crate::hooks::APP_ID);
@@ -414,10 +461,18 @@ fn agents(home: &Path, service: Option<&crate::sessions::service::Service>) -> V
                 _ => {
                     use crate::sessions::hook_agents::installer;
                     let base = match &exe {
-                        Some(exe) => installer::state(provider, home, exe, &endpoint, crate::hooks::APP_ID),
+                        Some(exe) => {
+                            installer::state(provider, home, exe, &endpoint, crate::hooks::APP_ID)
+                        }
                         None => installer::State::Unreadable,
                     };
-                    let state = hook_records::agent_state(provider, base, home, crate::hooks::APP_ID, &records);
+                    let state = hook_records::agent_state(
+                        provider,
+                        base,
+                        home,
+                        crate::hooks::APP_ID,
+                        &records,
+                    );
                     let file = hook_records::hook_file(provider, home, crate::hooks::APP_ID);
                     Agent {
                         id: provider.key().into(),
@@ -446,7 +501,10 @@ fn probe_versions(found: &[(Provider, Option<PathBuf>)]) -> Vec<(Provider, Optio
             let provider = *provider;
             let path = path.clone();
             std::thread::spawn(move || {
-                (provider, path.and_then(|p| version_of(&p, Duration::from_secs(3))))
+                (
+                    provider,
+                    path.and_then(|p| version_of(&p, Duration::from_secs(3))),
+                )
             })
         })
         .collect();
@@ -527,7 +585,11 @@ const TERMINALS: [(&str, &str); 14] = [
     ("screen", "screen"),
 ];
 
-fn hosts(home: &Path, service: Option<&crate::sessions::service::Service>, prefs: &Value) -> report::Hosts {
+fn hosts(
+    home: &Path,
+    service: Option<&crate::sessions::service::Service>,
+    prefs: &Value,
+) -> report::Hosts {
     let terminals = TERMINALS
         .iter()
         .filter(|(command, _)| crate::agent_usage::agent_executable(command).is_some())
@@ -543,13 +605,22 @@ fn hosts(home: &Path, service: Option<&crate::sessions::service::Service>, prefs
     }
     let claude_accounts = crate::sessions::accounts::current(home)
         .into_iter()
-        .map(|a| if a.hidden { format!("{} (hidden)", a.name) } else { a.name })
+        .map(|a| {
+            if a.hidden {
+                format!("{} (hidden)", a.name)
+            } else {
+                a.name
+            }
+        })
         .collect();
     let codex_accounts = codex_profiles(prefs);
     let aliases = crate::sessions::remote::hosts_from_prefs(prefs);
     let remote_hosts = match service {
         Some(service) => service.remote_states(&aliases),
-        None => aliases.iter().map(|a| (a.clone(), "off".to_string())).collect(),
+        None => aliases
+            .iter()
+            .map(|a| (a.clone(), "off".to_string()))
+            .collect(),
     }
     .into_iter()
     .map(|(label, state)| report::Remote { label, state })
@@ -608,7 +679,10 @@ mod tests {
         for file in [&script, &slow] {
             std::fs::set_permissions(file, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
-        assert_eq!(version_of(&script, Duration::from_secs(3)).as_deref(), Some("1.2.3"));
+        assert_eq!(
+            version_of(&script, Duration::from_secs(3)).as_deref(),
+            Some("1.2.3")
+        );
         let started = Instant::now();
         assert_eq!(version_of(&slow, Duration::from_millis(300)), None);
         assert!(started.elapsed() < Duration::from_secs(2));

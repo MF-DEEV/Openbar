@@ -258,16 +258,31 @@ fn noted<E: std::fmt::Display>(
     let id = crate::diagnostics::hook_records::claude_id(path);
     match &result {
         Ok(()) if install => {
-            crate::diagnostics::hook_records::note_installed(&id, path, &installer::marker(APP_ID), None, false);
-            crate::diagnostics::log::info("hooks", &format!("claude hooks {change} in {}", path.display()));
+            crate::diagnostics::hook_records::note_installed(
+                &id,
+                path,
+                &installer::marker(APP_ID),
+                None,
+                false,
+            );
+            crate::diagnostics::log::info(
+                "hooks",
+                &format!("claude hooks {change} in {}", path.display()),
+            );
         }
         Ok(()) => {
             crate::diagnostics::hook_records::forget(&id);
-            crate::diagnostics::log::info("hooks", &format!("claude hooks {change} in {}", path.display()));
+            crate::diagnostics::log::info(
+                "hooks",
+                &format!("claude hooks {change} in {}", path.display()),
+            );
         }
         Err(e) => crate::diagnostics::log::error(
             "hooks",
-            &format!("claude hooks could not be {change} in {}: {e}", path.display()),
+            &format!(
+                "claude hooks could not be {change} in {}: {e}",
+                path.display()
+            ),
         ),
     }
     result

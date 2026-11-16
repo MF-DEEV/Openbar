@@ -50,6 +50,7 @@ export function writeKeys() {
       quit: values["s.menuQuit"],
       saveScreenshot: values["screenshot.saveAsButton"],
       screenshot: values["screenshot.editorTitle"],
+      exportDiagnostics: values["diagnostics.windowTitle"],
     };
   }
   writeFileSync("src/i18n/native.json", JSON.stringify(native, null, 2) + "\n");

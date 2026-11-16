@@ -650,7 +650,7 @@ impl Service {
         drop(connection);
         let previews = inner.engine.policy().previews;
         // For the diagnostics journal (#230): each session's state before these events.
-        let mut heard: Vec<(models::Provider, String, (&'static str, Option<String>))> = Vec::new();
+        let mut heard: Vec<HeardEvent> = Vec::new();
         let mut before: HashMap<String, Option<models::SessionPhase>> = HashMap::new();
         for event in &decoded.events {
             let id = event.id();
@@ -1001,7 +1001,9 @@ impl Service {
                     None => "off".to_string(),
                     Some(remote::State::Connecting) => "connecting".into(),
                     Some(remote::State::Connected { .. }) => "connected".into(),
-                    Some(remote::State::Disconnected { reason }) => format!("disconnected: {reason}"),
+                    Some(remote::State::Disconnected { reason }) => {
+                        format!("disconnected: {reason}")
+                    }
                 };
                 (status.alias, state)
             })
@@ -2493,6 +2495,10 @@ pub fn codex_status_name(service: &Service) -> &'static str {
         "notFound"
     }
 }
+
+/// An agent's event as the diagnostics journal keeps it: whose, which
+/// session, and its kind with the tool it names.
+type HeardEvent = (models::Provider, String, (&'static str, Option<String>));
 
 /// The state a session was last shown in; None when it isn't listed.
 fn phase_of(inner: &Inner, id: &str) -> Option<models::SessionPhase> {

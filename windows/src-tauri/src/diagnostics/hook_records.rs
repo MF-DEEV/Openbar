@@ -98,7 +98,12 @@ pub fn note_installed_in(
     own_name: Option<&str>,
     whole: bool,
 ) {
-    let print = fingerprint(std::fs::read(config).ok().as_deref(), marker, own_name, whole);
+    let print = fingerprint(
+        std::fs::read(config).ok().as_deref(),
+        marker,
+        own_name,
+        whole,
+    );
     update(file, |records| match print {
         Some(print) => {
             records.insert(
@@ -170,7 +175,12 @@ pub fn derive(base: Base, record: Option<&Record>, current: Option<&str>) -> Sta
 /// otherwise every string that carries Openbar's marker, plus the entry under
 /// Openbar's own name (Antigravity) and the lines of a marked block (Vibe's
 /// hooks.toml). None when there is no file.
-pub fn fingerprint(data: Option<&[u8]>, marker: &str, own_name: Option<&str>, whole: bool) -> Option<String> {
+pub fn fingerprint(
+    data: Option<&[u8]>,
+    marker: &str,
+    own_name: Option<&str>,
+    whole: bool,
+) -> Option<String> {
     let data = data?;
     if whole {
         return Some(hex(&Sha256::digest(data)));
@@ -182,7 +192,10 @@ pub fn fingerprint(data: Option<&[u8]>, marker: &str, own_name: Option<&str>, wh
             && let Some(entry) = object.get(own)
         {
             let canonical = crate::hooks::installer::sorted(entry);
-            parts.push(format!("{own}={}", serde_json::to_string(&canonical).unwrap_or_default()));
+            parts.push(format!(
+                "{own}={}",
+                serde_json::to_string(&canonical).unwrap_or_default()
+            ));
         }
     } else if let Ok(text) = std::str::from_utf8(data) {
         let start = format!("{marker} start");
@@ -247,7 +260,13 @@ fn own_name(provider: Provider, app: &str) -> Option<String> {
 pub fn note_agent(provider: Provider, home: &Path, app: &str) {
     if let Some((file, whole)) = hook_file(provider, home, app) {
         let marker = crate::hooks::installer::marker(app);
-        note_installed(&agent_id(provider), &file, &marker, own_name(provider, app).as_deref(), whole);
+        note_installed(
+            &agent_id(provider),
+            &file,
+            &marker,
+            own_name(provider, app).as_deref(),
+            whole,
+        );
     }
 }
 
@@ -288,8 +307,14 @@ mod tests {
         assert_eq!(derive(Base::Installed, None, None), State::Installed);
         assert_eq!(derive(Base::Missing, None, None), State::Missing);
         assert_eq!(derive(Base::Missing, Some(&r), None), State::RemovedByHand);
-        assert_eq!(derive(Base::Outdated, Some(&r), Some("abc")), State::Outdated);
-        assert_eq!(derive(Base::Outdated, Some(&r), Some("xyz")), State::ChangedByHand);
+        assert_eq!(
+            derive(Base::Outdated, Some(&r), Some("abc")),
+            State::Outdated
+        );
+        assert_eq!(
+            derive(Base::Outdated, Some(&r), Some("xyz")),
+            State::ChangedByHand
+        );
         assert_eq!(derive(Base::Outdated, None, Some("xyz")), State::Outdated);
         assert_eq!(derive(Base::Unreadable, Some(&r), None), State::Unreadable);
     }
@@ -302,16 +327,27 @@ mod tests {
         theirs["theme"] = json!("dark");
         let first = fingerprint(Some(ours.to_string().as_bytes()), marker, None, false);
         assert!(first.is_some());
-        assert_eq!(first, fingerprint(Some(theirs.to_string().as_bytes()), marker, None, false));
+        assert_eq!(
+            first,
+            fingerprint(Some(theirs.to_string().as_bytes()), marker, None, false)
+        );
         let changed = json!({"hooks": {"SessionStart": [{"hooks": [{"command": format!("y --hook {marker}")}]}]}});
-        assert_ne!(first, fingerprint(Some(changed.to_string().as_bytes()), marker, None, false));
-        assert_eq!(fingerprint(Some(b"{\"theme\":1}"), marker, None, false), None);
+        assert_ne!(
+            first,
+            fingerprint(Some(changed.to_string().as_bytes()), marker, None, false)
+        );
+        assert_eq!(
+            fingerprint(Some(b"{\"theme\":1}"), marker, None, false),
+            None
+        );
         assert_eq!(fingerprint(None, marker, None, false), None);
         assert_ne!(
             fingerprint(Some(b"x"), marker, None, true),
             fingerprint(Some(b"y"), marker, None, true)
         );
-        let toml = format!("[[hooks]]\nname = \"mine\"\n\n# {marker} start: added\n[[hooks]]\ntimeout = 5.0\n# {marker} end\n");
+        let toml = format!(
+            "[[hooks]]\nname = \"mine\"\n\n# {marker} start: added\n[[hooks]]\ntimeout = 5.0\n# {marker} end\n"
+        );
         let edited = toml.replace("timeout = 5.0", "timeout = 9.0");
         assert_ne!(
             fingerprint(Some(toml.as_bytes()), marker, None, false),
@@ -331,7 +367,11 @@ mod tests {
         let store = folder.join("hook-records.json");
         let config = folder.join("settings.json");
         let marker = "--marker openbar-hook --app test";
-        std::fs::write(&config, json!({"hooks": {"A": [{"hooks": [{"command": format!("z {marker}")}]}]}}).to_string()).unwrap();
+        std::fs::write(
+            &config,
+            json!({"hooks": {"A": [{"hooks": [{"command": format!("z {marker}")}]}]}}).to_string(),
+        )
+        .unwrap();
         note_installed_in(&store, "agent:gemini", &config, marker, None, false);
         assert!(all_in(&store).contains_key("agent:gemini"));
         forget_in(&store, "agent:gemini");
@@ -351,14 +391,23 @@ mod tests {
         agents::install(Provider::Gemini, &home, exe, "", app).unwrap();
         let (file, whole) = hook_file(Provider::Gemini, &home, app).unwrap();
         let marker = crate::hooks::installer::marker(app);
-        note_installed_in(&store, &agent_id(Provider::Gemini), &file, &marker, None, whole);
+        note_installed_in(
+            &store,
+            &agent_id(Provider::Gemini),
+            &file,
+            &marker,
+            None,
+            whole,
+        );
         let state = |exe: &Path| {
             let base = agents::state(Provider::Gemini, &home, exe, "", app);
             agent_state(Provider::Gemini, base, &home, app, &all_in(&store))
         };
         assert_eq!(state(exe), State::Installed);
         assert_eq!(state(Path::new("/opt/newer/openbar")), State::Outdated);
-        let text = std::fs::read_to_string(&file).unwrap().replace("/opt/openbar/openbar", "/elsewhere/openbar");
+        let text = std::fs::read_to_string(&file)
+            .unwrap()
+            .replace("/opt/openbar/openbar", "/elsewhere/openbar");
         std::fs::write(&file, text).unwrap();
         assert_eq!(state(exe), State::ChangedByHand);
         std::fs::write(&file, "{\"theme\":\"dark\"}").unwrap();

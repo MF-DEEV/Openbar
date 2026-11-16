@@ -221,7 +221,8 @@ pub struct Input {
 
 /// `openbar-diagnostics-20261116-1530.zip`, in local time.
 pub fn file_name(now: DateTime<Local>) -> String {
-    now.format("openbar-diagnostics-%Y%m%d-%H%M.zip").to_string()
+    now.format("openbar-diagnostics-%Y%m%d-%H%M.zip")
+        .to_string()
 }
 
 /// Every file of the report, by its path inside the zip's folder, masked.
@@ -257,7 +258,10 @@ pub fn files(
             Part::Hosts => files.push((part.file_name(), json(&input.hosts, home))),
             Part::Logs => {
                 for (name, text) in &input.logs {
-                    files.push((format!("logs/{name}"), redact_lines(text, home).into_bytes()));
+                    files.push((
+                        format!("logs/{name}"),
+                        redact_lines(text, home).into_bytes(),
+                    ));
                 }
             }
         }
@@ -292,13 +296,20 @@ pub fn readme(parts: &[Part], platform: &str, app: &str, created: &str, logs: &[
     ];
     for part in parts {
         if *part == Part::Logs {
-            let none = if logs.is_empty() { " (none were written yet)" } else { "" };
+            let none = if logs.is_empty() {
+                " (none were written yet)"
+            } else {
+                ""
+            };
             lines.push(format!("- logs/: {}{none}", part.readme()));
         } else {
             lines.push(format!("- {}: {}", part.file_name(), part.readme()));
         }
     }
-    let left: Vec<Part> = Part::ALL.into_iter().filter(|p| !parts.contains(p)).collect();
+    let left: Vec<Part> = Part::ALL
+        .into_iter()
+        .filter(|p| !parts.contains(p))
+        .collect();
     if !left.is_empty() {
         lines.push(String::new());
         lines.push("Left out before saving:".into());
@@ -471,12 +482,21 @@ mod tests {
         );
         let manifest: Manifest = serde_json::from_slice(&all[1].1).unwrap();
         assert_eq!(manifest.files, sorted);
-        assert_eq!(manifest.parts, ["system", "features", "agents", "events", "hosts", "logs"]);
+        assert_eq!(
+            manifest.parts,
+            ["system", "features", "agents", "events", "hosts", "logs"]
+        );
         let everything: String = all
             .iter()
             .map(|(_, d)| String::from_utf8_lossy(d).into_owned())
             .collect();
-        for canary in ["CANARY123", "CANARYKEY99", r"C:\Users\jane", r"C:\\Users\\jane", "jane@example.com"] {
+        for canary in [
+            "CANARY123",
+            "CANARYKEY99",
+            r"C:\Users\jane",
+            r"C:\\Users\\jane",
+            "jane@example.com",
+        ] {
             assert!(!everything.contains(canary), "{canary} leaked");
         }
         assert!(everything.contains("removedByHand"));
@@ -488,11 +508,23 @@ mod tests {
         let paths: Vec<&str> = required.iter().map(|(p, _)| p.as_str()).collect();
         assert_eq!(
             paths,
-            ["README.txt", "manifest.json", "system.json", "features.json", "agents.json"]
+            [
+                "README.txt",
+                "manifest.json",
+                "system.json",
+                "features.json",
+                "agents.json"
+            ]
         );
         let readme = String::from_utf8_lossy(&required[0].1);
         assert!(readme.contains("Left out before saving:") && readme.contains("- logs/:"));
-        let no_logs = files(&[Part::Events, Part::Hosts], &input(), "Linux", at(), "/home/jane");
+        let no_logs = files(
+            &[Part::Events, Part::Hosts],
+            &input(),
+            "Linux",
+            at(),
+            "/home/jane",
+        );
         assert!(!no_logs.iter().any(|(p, _)| p.starts_with("logs/")));
     }
 
@@ -516,8 +548,14 @@ mod tests {
 
     #[test]
     fn versions_and_names() {
-        assert_eq!(version_in("2.1.309 (Claude Code)").as_deref(), Some("2.1.309"));
-        assert_eq!(version_in("codex-cli 0.164.0\n").as_deref(), Some("0.164.0"));
+        assert_eq!(
+            version_in("2.1.309 (Claude Code)").as_deref(),
+            Some("2.1.309")
+        );
+        assert_eq!(
+            version_in("codex-cli 0.164.0\n").as_deref(),
+            Some("0.164.0")
+        );
         assert_eq!(version_in("v1.2.3-beta.1").as_deref(), Some("1.2.3-beta.1"));
         assert_eq!(version_in("no version"), None);
         assert_eq!(Part::from_key("logs"), Some(Part::Logs));

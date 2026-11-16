@@ -146,10 +146,7 @@ pub fn recent_files(days: i64, now: DateTime<Utc>) -> Vec<PathBuf> {
 
 /// `2026-11-16T15:30:02.123Z INFO  [sessions] hooks installed for gemini`
 pub fn line(level: Level, category: &str, message: &str, at: DateTime<Utc>, home: &str) -> String {
-    let flat = message
-        .replace("\r\n", " ")
-        .replace('\n', " ")
-        .replace('\r', " ");
+    let flat = message.replace("\r\n", " ").replace(['\n', '\r'], " ");
     format!(
         "{} {:<5} [{category}] {}\n",
         timestamp(at),
@@ -183,7 +180,11 @@ pub fn recent(names: &[String], days: i64, now: DateTime<Utc>) -> Vec<String> {
     let first = day(now - Duration::days(days.max(1) - 1));
     let mut found: Vec<(&str, &String)> = names
         .iter()
-        .filter_map(|name| day_of(name).filter(|d| *d >= first.as_str()).map(|d| (d, name)))
+        .filter_map(|name| {
+            day_of(name)
+                .filter(|d| *d >= first.as_str())
+                .map(|d| (d, name))
+        })
         .collect();
     found.sort();
     found.into_iter().map(|(_, name)| name.clone()).collect()
