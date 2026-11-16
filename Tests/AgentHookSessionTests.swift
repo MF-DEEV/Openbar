@@ -123,6 +123,9 @@ enum AgentHookSessionTests {
         suite.expect(done.sessions[0].phase == .finished && done.sessions[0].lastText == "All green."
                      && done.events.contains { if case .finished(let id, _) = $0 { return id == "gemini:g1" }; return false },
                      "the turn's end is news, with the reply it ended on: \(done.events)")
+        suite.expect(done.sessions[0].turnCompleted && done.sessions[0].turnEndedAt != nil
+                     && NotchSessionWaitingSound.terminal(done.sessions[0])?.kind == .finished,
+                     "a hook agent's finished turn can sound, as on Windows (#232)")
         tracker.acknowledge("gemini:g1", now: now.addingTimeInterval(1))
         suite.expect(snapshot(tracker, at: now.addingTimeInterval(2)).sessions[0].phase == .idle, "a read result rests")
         feed(tracker, event("BeforeTool", ["tool_name": "read_file", "tool_input": ["file_path": "/w/app/Sources/a.swift"]]))

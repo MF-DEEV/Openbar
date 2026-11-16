@@ -450,6 +450,8 @@ struct NotchView: View {
         Button(action: service.openSettings) {
             Label(l10n.s.menuSettings, systemImage: "gearshape")
         }
+        Divider()
+        SessionSoundMuteMenu()
         // An offer the row has no room for still reaches the island.
         if updateOffered {
             Button(action: service.showUpdate) {

@@ -98,6 +98,167 @@ pub fn play_file(file: &Path) {
     play_with(&players_for(file), path.as_deref(), file, &[]);
 }
 
+/// The existing desktop players, with gain on this stream only. ALSA has no
+/// gain flag, so its WAV is scaled before it is handed to aplay.
+fn session_arguments(program: &str, volume: f64) -> Vec<String> {
+    match program {
+        "paplay" => vec![
+            "--client-name=Openbar".into(),
+            format!("--volume={}", (volume * 65536.0).round() as u32),
+        ],
+        "pw-play" => vec![format!("--volume={volume}")],
+        "ffplay" => vec![
+            "-nodisp".into(),
+            "-autoexit".into(),
+            "-loglevel".into(),
+            "quiet".into(),
+            "-volume".into(),
+            (volume * 100.0).round().to_string(),
+        ],
+        _ => vec!["-q".into()],
+    }
+}
+
+enum SessionPlayback {
+    Play {
+        file: PathBuf,
+        cache: PathBuf,
+        volume: f64,
+        ticket: u64,
+        result: std::sync::mpsc::SyncSender<bool>,
+    },
+    Stop,
+}
+
+/// One worker owns and reaps the session player. It blocks while idle; while
+/// audio is playing it waits briefly for stop/replacement commands. Timer and
+/// Watch playback keep their existing independent path.
+fn session_worker() -> &'static std::sync::mpsc::Sender<SessionPlayback> {
+    static WORKER: std::sync::OnceLock<std::sync::mpsc::Sender<SessionPlayback>> =
+        std::sync::OnceLock::new();
+    WORKER.get_or_init(|| {
+        let (sender, receiver) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let mut playing: Option<std::process::Child> = None;
+            loop {
+                let command = if playing.is_some() {
+                    match receiver.recv_timeout(std::time::Duration::from_millis(30)) {
+                        Ok(command) => Some(command),
+                        Err(std::sync::mpsc::RecvTimeoutError::Timeout) => None,
+                        Err(_) => break,
+                    }
+                } else {
+                    match receiver.recv() {
+                        Ok(command) => Some(command),
+                        Err(_) => break,
+                    }
+                };
+                if playing
+                    .as_mut()
+                    .is_some_and(|child| child.try_wait().ok().flatten().is_some())
+                {
+                    playing = None;
+                }
+                let Some(command) = command else {
+                    continue;
+                };
+                if let Some(mut child) = playing.take() {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                }
+                if let SessionPlayback::Play {
+                    file,
+                    cache,
+                    volume,
+                    ticket,
+                    result,
+                } = command
+                {
+                    if crate::sound::session_request_current(ticket) {
+                        playing = spawn_session(&file, &cache, volume);
+                    }
+                    let _ = result.send(playing.is_some());
+                }
+            }
+            if let Some(mut child) = playing {
+                let _ = child.kill();
+                let _ = child.wait();
+            }
+        });
+        sender
+    })
+}
+
+fn spawn_session(file: &Path, cache: &Path, volume: f64) -> Option<std::process::Child> {
+    for (program, _) in players_for(file) {
+        let mut source = file.to_path_buf();
+        if program == "aplay" {
+            let Some(wav) = std::fs::read(file)
+                .ok()
+                .and_then(|data| crate::sound::pcm::scaled_wav(&data, volume))
+            else {
+                continue;
+            };
+            let folder = cache.join("session-sounds");
+            if std::fs::create_dir_all(&folder).is_err() {
+                continue;
+            }
+            source = folder.join("alsa-preview.wav");
+            if std::fs::write(&source, wav).is_err() {
+                continue;
+            }
+        }
+        if let Ok(mut child) = Command::new(program)
+            .args(session_arguments(program, volume))
+            .arg(source)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+        {
+            // A server program may exist while its daemon or audio device does
+            // not. If it exits immediately with an error, try the next player.
+            std::thread::sleep(std::time::Duration::from_millis(35));
+            if child
+                .try_wait()
+                .ok()
+                .flatten()
+                .is_some_and(|status| !status.success())
+            {
+                continue;
+            }
+            return Some(child);
+        }
+    }
+    None
+}
+
+pub fn play_session(file: &Path, volume: f64, cache: &Path, ticket: u64) -> bool {
+    if !volume.is_finite() || volume <= 0.0 {
+        return false;
+    }
+    let (result, receiver) = std::sync::mpsc::sync_channel(1);
+    if session_worker()
+        .send(SessionPlayback::Play {
+            file: file.to_owned(),
+            cache: cache.to_owned(),
+            volume: volume.clamp(0.0, 1.0),
+            ticket,
+            result,
+        })
+        .is_err()
+    {
+        return false;
+    }
+    receiver
+        .recv_timeout(std::time::Duration::from_secs(2))
+        .unwrap_or(false)
+}
+
+pub fn stop_session() {
+    let _ = session_worker().send(SessionPlayback::Stop);
+}
+
 /// The sound themes' folders of sounds, by theme, the person's own first
 /// (`$XDG_DATA_HOME`, then `$XDG_DATA_DIRS`, as the sound theme spec has it).
 pub fn themes() -> Vec<(String, PathBuf)> {
@@ -136,6 +297,23 @@ fn themes_in(roots: impl Iterator<Item = PathBuf>) -> Vec<(String, PathBuf)> {
 mod tests {
     use super::*;
     use crate::linux::command::fake_program;
+
+    #[test]
+    fn session_volume_is_a_player_argument_never_a_mixer_command() {
+        assert_eq!(
+            session_arguments("paplay", 0.5),
+            ["--client-name=Openbar", "--volume=32768"]
+        );
+        assert_eq!(session_arguments("pw-play", 0.25), ["--volume=0.25"]);
+        assert!(session_arguments("ffplay", 0.75).ends_with(&["-volume".into(), "75".into()]));
+        assert_eq!(session_arguments("aplay", 0.5), ["-q"]);
+        assert!(!play_session(
+            Path::new("/missing.wav"),
+            0.0,
+            Path::new("/tmp"),
+            0
+        ));
+    }
 
     fn temp(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!("openbar-sound-{name}-{}", std::process::id()));

@@ -451,7 +451,9 @@ export const bridge = {
   },
   sound: {
     /** Plays a system sound from `list`, or Openbar's chime. */
-    play: (sound?: string) => call("sound_play", { sound: sound || null }),
+    play: (sound?: string, volume?: number) =>
+      call<boolean>("sound_play", { sound: sound || null, volume: volume ?? null }),
+    stopSession: () => call("sound_session_stop"),
     /** The system's sounds that can stand in for the chime. */
     list: () => call<SoundChoice[]>("sound_list"),
     /** The chime every 2 s for up to 5 min, until turned off (timer, watch). */

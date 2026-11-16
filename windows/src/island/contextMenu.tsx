@@ -3,10 +3,14 @@
 
 import { t } from "../i18n";
 
-import { ChevronUp, Download, LayoutGrid, Pin, PinOff, Settings } from "lucide-react";
+import { Bell, BellOff, ChevronUp, Download, LayoutGrid, Pin, PinOff, Settings } from "lucide-react";
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 
 import { bridge } from "../shared/bridge";
+import { setPrefs } from "../shared/prefs";
+import { useSessions } from "../sessions/store";
+import { muteUntil, soundsMuted } from "../sessions/soundPreferences";
+import { soundText, useSoundMute } from "../settings/SessionSounds";
 import { Menu, type MenuAnchor, type MenuEntry } from "../shared/ui/Menu";
 import { openPrompt } from "../updates/open";
 import { useUpdates } from "../updates/store";
@@ -18,6 +22,14 @@ import { modulesOf, useIsland } from "./store";
 export function islandMenuEntries(): MenuEntry[] {
   const state = useIsland.getState();
   const update = useUpdates.getState().latest;
+  const prefs = useSessions.getState().prefs;
+  const mute = (until: number) => {
+    void setPrefs({ sessions: { soundMutedUntil: until } })
+      .then(() => {
+        if (until > Date.now() / 1000) void bridge.sound.stopSession();
+      })
+      .catch((error: unknown) => console.error("Could not save session mute", error));
+  };
   return [
     ...(modulesOf(state).length
       ? [
@@ -44,6 +56,18 @@ export function islandMenuEntries(): MenuEntry[] {
         void bridge.openSettings();
       },
     },
+    { kind: "separator" },
+    ...(soundsMuted(prefs)
+      ? [
+          {
+            kind: "header" as const,
+            label: `${soundText("muted")} ${new Date(prefs.soundMutedUntil * 1000).toLocaleString()}`,
+          },
+          { label: soundText("unmute"), icon: Bell, onSelect: () => mute(0) },
+        ]
+      : []),
+    { label: soundText("hour"), icon: BellOff, onSelect: () => mute(muteUntil("hour")) },
+    { label: soundText("tomorrow"), icon: BellOff, onSelect: () => mute(muteUntil("tomorrow")) },
     ...(update
       ? [
           {
@@ -59,6 +83,7 @@ export function islandMenuEntries(): MenuEntry[] {
 }
 
 export function useIslandContextMenu() {
+  useSoundMute(useSessions((s) => s.prefs.soundMutedUntil));
   const [anchor, setAnchor] = useState<MenuAnchor | null>(null);
   const previousHeld = useRef(false);
   const opened = useRef(false);

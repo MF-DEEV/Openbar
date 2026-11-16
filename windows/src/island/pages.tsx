@@ -31,7 +31,8 @@ import { loadPrefs, onPrefs, type Prefs } from "../shared/prefs";
 import { DownloadsLeading, DownloadsPage, DownloadStrip, subscribeDownloads } from "../downloads/Downloads";
 import { bridge, type AttentionContext } from "../shared/bridge";
 import { DeferredSessionAttention, noticeLeavesWhenBusy } from "../sessions/attention";
-import { inView, shouldPlay, waitingRequests, WaitingSound } from "../sessions/waitingSound";
+import { inView, SessionSoundEvents, SessionSoundQueue, terminalSound } from "../sessions/waitingSound";
+import { soundsMuted } from "../sessions/soundPreferences";
 import { subscribeAutoAllow } from "../sessions/autoAllow";
 import { startAwayWatcher } from "../sessions/awayWatcher";
 import { hidesAutoApproval, presentedSnapshot } from "../sessions/presentation";
@@ -246,20 +247,43 @@ void bridge.attention.onContext(applyAttention).then(() => bridge.attention.curr
 
 // A sound once for each new request, unless its page is already in front
 // (#167) or its own terminal tab is (#210).
-const waitingSound = new WaitingSound();
-useSessions.subscribe((s, prev) => {
+const waitingSound = new SessionSoundEvents();
+const soundQueue = new SessionSoundQueue(
+  () => {
+    const s = useSessions.getState();
+    const island = useIsland.getState();
+    return {
+      prefs: s.prefs,
+      enabled: island.settings.enabled && shown("sessions"),
+      inView: (id: string) => inView(island, s.focused, id),
+      current: (event) => {
+        const session = s.snapshot.sessions.find((row) => row.id === event.session);
+        if (!session) return false;
+        if (event.kind === "started") return true;
+        if (event.kind === "permission" || event.kind === "question") {
+          return (
+            !hidesAutoApproval(session, s.autoAllow) &&
+            (session.permission?.requestId === event.id || `${session.phase}:${session.phaseSince}` === event.id)
+          );
+        }
+        const terminal = terminalSound(session);
+        return terminal?.kind === event.kind && terminal.id === event.id;
+      },
+    };
+  },
+  bridge.sessions.terminalShown,
+  (sound, volume) => bridge.sound.play(sound, volume),
+);
+const stopSounds = useSessions.subscribe((s, prev) => {
+  if (s.prefs !== prev.prefs && (s.prefs.soundVolume === 0 || soundsMuted(s.prefs))) void bridge.sound.stopSession();
   if (s.snapshot === prev.snapshot && s.autoAllow === prev.autoAllow) return;
-  const arrived = waitingSound.arrived(waitingRequests(s.snapshot.sessions, s.autoAllow));
-  const island = useIsland.getState();
-  if (!s.prefs.waitingSound || !island.settings.enabled || !shown("sessions")) return;
-  const unseen = arrived
-    .filter((request) => !inView(island, s.focused, request.session))
-    .map((request) => request.session);
-  const choice = s.prefs.waitingSoundChoice;
-  void shouldPlay(unseen, bridge.sessions.terminalShown).then((play) => {
-    if (play) void bridge.sound.play(choice);
-  });
+  soundQueue.enqueue(waitingSound.arrived(s.snapshot.sessions, s.autoAllow));
 });
+if (import.meta.hot)
+  import.meta.hot.dispose(() => {
+    stopSounds();
+    soundQueue.dispose();
+  });
 subscribeSessions((event) => {
   void sessionAttention.handle(event);
 });

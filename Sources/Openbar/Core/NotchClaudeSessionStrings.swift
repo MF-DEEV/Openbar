@@ -444,7 +444,7 @@ extension NotchClaudeSessionStrings {
         autoExpand: "Open the island when a session needs you",
         autoExpandHint: "It won’t replace a page you already have open.",
         waitingSound: "Sound when a session waits",
-        waitingSoundHint: "Plays a short sound when a session asks for permission, asks a question or waits for you to approve a plan. It stays quiet when a turn simply ends, when the island already shows the session, and when the session's own terminal tab is in front.",
+        waitingSoundHint: "Plays a short sound when a session asks for permission, asks a question or waits for you to approve a plan. It stays quiet when a turn simply ends, when the island already shows the session, and when the session’s own terminal tab is in front.",
         waitingSoundChoice: "Sound",
         playSound: "Play",
         contentPreview: "Show previews",
