@@ -338,6 +338,12 @@ if (( TEST )); then
         Sources/Openbar/Services/ClaudeSessions/AgentOpenCodePlugin.swift
         Sources/Openbar/Services/ClaudeSessions/AgentPiExtension.swift
         Sources/Openbar/Services/ClaudeSessions/AgentHookSupport.swift
+        Sources/Openbar/Services/Diagnostics/DiagnosticsRedactor.swift
+        Sources/Openbar/Services/Diagnostics/DiagnosticsLog.swift
+        Sources/Openbar/Services/Diagnostics/DiagnosticsJournal.swift
+        Sources/Openbar/Services/Diagnostics/HookRecords.swift
+        Sources/Openbar/Services/Diagnostics/DiagnosticsReport.swift
+        Sources/Openbar/Core/DiagnosticsStrings.swift
         Sources/Openbar/Core/LegacyIdentity.swift
         Sources/Openbar/Core/NotchLockScreenStrings.swift
         Sources/Openbar/Services/Notch/NotchLockScreenSupport.swift

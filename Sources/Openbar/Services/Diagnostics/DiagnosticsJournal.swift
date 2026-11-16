@@ -83,7 +83,7 @@ final class DiagnosticsJournal {
         case .prompt: return ("promptSubmitted", nil)
         case .working: return ("working", nil)
         case .toolStarted(let tool): return ("toolStarted", safe(tool.name))
-        case .toolFinished(_, let name, _, let failed, _): return ("toolFinished", safe(failed ? "\(name) failed" : name))
+        case .toolFinished(_, let name, _, let failed, _): return ("toolFinished", safe(failed ? "\(name):failed" : name))
         case .permission(let permission): return ("permissionRequested", safe(permission.tool))
         case .heldPermission(let permission): return ("permissionRequested", safe(permission.tool))
         case .permissionSettled: return ("permissionSettled", nil)
@@ -100,7 +100,7 @@ final class DiagnosticsJournal {
     /// else (a sentence, a path) is left out.
     static func safe(_ text: String?) -> String? {
         guard let text, !text.isEmpty, text.count <= 64 else { return nil }
-        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_.:- "))
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "_.:-"))
         guard text.unicodeScalars.allSatisfy({ allowed.contains($0) && $0.isASCII }) else { return nil }
         return text
     }
