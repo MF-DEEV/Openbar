@@ -49,6 +49,7 @@ import { RichText } from "./RichText";
 import { MessageImages } from "./MessageImages";
 import { useNow } from "./useNow";
 import { AccountMark, BackgroundBar, BackgroundLogs, RemoteHostMark, WorktreeBar } from "./Background";
+import { AutoMark, LetThroughList } from "./AutoMode";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { setPrefs } from "../shared/prefs";
@@ -234,6 +235,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
             <div className="s-row-line2">
               {session.remote ? <RemoteHostMark alias={session.remote} /> : null}
               {session.accountLabel ? <AccountMark name={session.accountLabel} /> : null}
+              {session.autoMode ? <AutoMark provider={session.provider} /> : null}
               <span className="s-tag" style={{ color, background: `color-mix(in srgb, ${color} 16%, transparent)` }}>
                 {session.project}
               </span>
@@ -352,6 +354,9 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
               ) : null}
               {session.subagents.length > 0 ? (
                 <Subagents key={`${session.id}:agents`} session={session} now={now} enlarged={enlarged} />
+              ) : null}
+              {session.letThrough?.length ? (
+                <LetThroughList key={`${session.id}:let`} session={session} enlarged={enlarged} />
               ) : null}
             </aside>
           </div>

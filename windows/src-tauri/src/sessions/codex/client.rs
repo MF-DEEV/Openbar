@@ -271,6 +271,7 @@ impl CodexClient {
 
     pub fn snapshot(&self, now: Time, policy: ContentPolicy) -> (Vec<Session>, Vec<SessionEvent>) {
         let mut shared = self.shared.lock().unwrap();
+        shared.state.auto_settings = crate::sessions::auto_mode::settings();
         if shared.state.previews != policy.previews {
             shared.state.previews = policy.previews;
             if policy.previews {
@@ -471,6 +472,44 @@ impl Shared {
         true
     }
 
+    /// Answers an approval of a session the island lets run without asking
+    /// (#234) as it comes, and lists it on the session's page.
+    fn let_through(&mut self, thread: &str, rpc_id: &Value, now: Time) {
+        let Some(reason) = self.state.lets_through(thread) else {
+            return;
+        };
+        let Some(pending) = self.state.threads.get(thread).and_then(|t| {
+            t.pending
+                .iter()
+                .rev()
+                .find(|p| &p.rpc_id == rpc_id && p.answerable() && !p.asks())
+                .cloned()
+        }) else {
+            return;
+        };
+        let Some(body) = super::state::result(&pending, &Answer::Allow) else {
+            return;
+        };
+        let row = self.state.row_of(thread);
+        if self
+            .state
+            .take_pending(&row, &pending.request_id())
+            .is_none()
+        {
+            return;
+        }
+        self.state.proceeded(thread, now);
+        self.send(json!({"id": pending.rpc_id, "result": body}));
+        crate::sessions::auto_mode::LOG.add(
+            crate::sessions::auto_mode::LetThrough::of(
+                &super::state::permission(&pending),
+                now,
+                reason,
+            ),
+            &row,
+        );
+    }
+
     fn reply(&mut self, session: &str, text: &str, images: &[String]) -> bool {
         if !self.connected || !self.state.pending(session).is_empty() {
             return false;
@@ -605,7 +644,11 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
                     }
                 }
             }
-            let kept = s.state.request(id, &method, &params, now);
+            s.state.auto_settings = crate::sessions::auto_mode::settings();
+            let kept = s.state.request(id.clone(), &method, &params, now);
+            if kept && let Some(thread) = params.get("threadId").and_then(Value::as_str) {
+                s.let_through(thread, &id, now);
+            }
             s.follow();
             kept
         }
@@ -684,6 +727,13 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
                         return false;
                     };
                     s.state.upsert_thread(thread);
+                    // Only a resume says how the thread asks for approvals (#234).
+                    if matches!(waiting, Some(Waiting::Resume))
+                        && let Some(id) = thread.get("id").and_then(Value::as_str)
+                    {
+                        s.state
+                            .set_approval_policy(id, result.get("approvalPolicy"));
+                    }
                     // Joined without its history (previews off): ask for the
                     // newest turn alone, without items, for when it started.
                     let no_turns = thread
@@ -1361,5 +1411,109 @@ mod tests {
         ));
         assert!(!s.answer("t1", "codex:226", &Answer::Allow, None, None));
         assert!(s.answer("t1", "codex:226", &Answer::Deny, None, None));
+    }
+}
+
+#[cfg(test)]
+mod auto_mode_tests {
+    use super::*;
+    use serde_json::json;
+    use std::sync::mpsc::channel;
+
+    fn deliver(s: &mut Shared, message: Value) -> bool {
+        handle_at(&message.to_string(), s, 1_000.0)
+    }
+
+    /// A `--yolo` session (#234): Codex says approvals are off when the island
+    /// joins it, and an approval that still comes is accepted at once.
+    #[test]
+    fn approvals_of_a_session_with_approvals_off_go_through_at_once() {
+        let (tx, rx) = channel();
+        let mut s = Shared::new();
+        s.outbox = Some(tx);
+        s.connected = true;
+        let id = "auto-t1";
+        let active = json!({"type": "active", "activeFlags": []});
+        let thread = json!({"id": id, "cwd": "C:\\code\\app", "status": active});
+        deliver(
+            &mut s,
+            json!({"method": "thread/status/changed", "params": {"threadId": id, "status": active}}),
+        );
+        let reads: Vec<Value> = rx.try_iter().collect();
+        let read = reads
+            .iter()
+            .find(|m| m["method"] == "thread/read")
+            .expect("the thread is read");
+        deliver(
+            &mut s,
+            json!({"id": read["id"], "result": {"thread": thread}}),
+        );
+        let joins: Vec<Value> = rx.try_iter().collect();
+        let resume = joins
+            .iter()
+            .find(|m| m["method"] == "thread/resume")
+            .expect("an active thread is joined");
+        deliver(
+            &mut s,
+            json!({"id": resume["id"], "result": {"thread": thread, "approvalPolicy": "never",
+                                                              "sandbox": {"type": "dangerFullAccess"}}}),
+        );
+        let _: Vec<Value> = rx.try_iter().collect();
+        assert_eq!(
+            s.state.threads[id].approval_policy.as_deref(),
+            Some("never")
+        );
+        let (sessions, _) = s.state.snapshot(1_000.0, ContentPolicy { previews: false });
+        assert!(
+            sessions.iter().any(|x| x.id == id && x.auto_mode),
+            "marked auto"
+        );
+
+        assert!(deliver(
+            &mut s,
+            json!({"id": 31, "method": "item/commandExecution/requestApproval",
+                                        "params": {"threadId": id, "command": "rm -rf build"}})
+        ));
+        let answers: Vec<Value> = rx.try_iter().collect();
+        assert!(
+            answers.contains(&json!({"id": 31, "result": {"decision": "accept"}})),
+            "{answers:?}"
+        );
+        assert!(s.state.pending(id).is_empty(), "no card waits");
+        let listed = crate::sessions::auto_mode::LOG.entries(id);
+        assert_eq!(listed.len(), 1);
+        assert_eq!(listed[0].tool, "Command");
+        assert_eq!(
+            listed[0].reason,
+            crate::sessions::auto_mode::Reason::AutoMode
+        );
+
+        // A question is never answered for the person.
+        deliver(
+            &mut s,
+            json!({"id": 32, "method": "item/tool/requestUserInput", "params": {"threadId": id,
+            "questions": [{"id": "q", "header": "Pick", "question": "Which?", "options": [{"label": "A", "description": "a"}]}]}}),
+        );
+        assert!(rx.try_iter().all(|m| m.get("id") != Some(&json!(32))));
+        assert_eq!(
+            s.state.pending(id).len(),
+            1,
+            "the question waits on the island"
+        );
+
+        // Back to asking: the next approval waits for the person.
+        deliver(
+            &mut s,
+            json!({"method": "thread/settings/updated", "params": {"threadId": id,
+            "threadSettings": {"approvalPolicy": "on-request"}}}),
+        );
+        deliver(
+            &mut s,
+            json!({"id": 33, "method": "item/commandExecution/requestApproval",
+                               "params": {"threadId": id, "command": "ls"}}),
+        );
+        assert!(rx.try_iter().all(|m| m.get("id") != Some(&json!(33))));
+        assert_eq!(s.state.pending(id).len(), 2);
+        assert_eq!(crate::sessions::auto_mode::LOG.entries(id).len(), 1);
     }
 }

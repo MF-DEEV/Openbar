@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "Una vez",
   "windows.settings.sessions.remindEveryValue": "Cada %@ min",
   "windows.settings.sessions.remindDuringDnd": "También con No molestar",
-  "windows.settings.sessions.remindDuringDndCaption": "Recuerda aunque No molestar esté activado. Si no, el recordatorio espera a que termine."
+  "windows.settings.sessions.remindDuringDndCaption": "Recuerda aunque No molestar esté activado. Si no, el recordatorio espera a que termine.",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "Claude Code se ejecuta aquí con bypass permissions. La isla deja pasar sus solicitudes de permiso y te sigue mostrando sus preguntas.",
+  "windows.sessions.autoMarkHelpCodex": "Codex se ejecuta aquí con las aprobaciones desactivadas. La isla deja pasar sus solicitudes de permiso y te sigue mostrando sus preguntas.",
+  "windows.sessions.letThroughTitle": "Permitidas sin preguntar",
+  "windows.sessions.letThroughAlways": "Continuar siempre",
+  "windows.sessions.moreLetThrough": "%@ más",
+  "windows.settings.sessions.autoMode": "Dejar que las sesiones en modo automático funcionen sin la isla",
+  "windows.settings.sessions.autoModeCaption": "Una sesión iniciada en el modo sin preguntas de su agente nunca espera a la isla: Claude Code con bypass permissions, Codex con las aprobaciones desactivadas (yolo). Sus solicitudes siguen al momento y quedan en la lista de su página. Las preguntas te siguen llegando.",
+  "windows.settings.sessions.alwaysProceed": "Continuar siempre",
+  "windows.settings.sessions.alwaysProceedCaption": "La isla permite todas las solicitudes de permiso de los agentes que elijas, en cualquier modo, sin preguntar. Las preguntas te siguen llegando.",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "¿Continuar siempre con %@?",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "La isla permitirá cada comando y cada cambio de archivos que pida %@, en todas las sesiones y modos, sin mostrártelo antes. Eso incluye borrar archivos y acceder a la red. Las preguntas te siguen llegando, y cada solicitud permitida queda en la lista de la página de la sesión.",
+  "windows.settings.sessions.alwaysProceedConfirm": "Continuar siempre",
+  "windows.settings.sessions.alwaysProceedOn": "Activado: las solicitudes de este agente se permiten sin preguntar.",
+  "windows.settings.sessions.alwaysProceedCancel": "Cancelar"
 }

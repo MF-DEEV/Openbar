@@ -29,6 +29,7 @@ import {
 } from "./format";
 import { useNow } from "./useNow";
 import { AccountMark, BackgroundMark, RemoteHostMark } from "./Background";
+import { AutoMark } from "./AutoMode";
 import { S } from "./strings";
 import { settled, useSessions } from "./store";
 import { isWaiting, PROVIDER_NAMES, type Session } from "./types";
@@ -190,6 +191,7 @@ function Row({ session, now, inProject = false }: { session: Session; now: numbe
           {session.background ? <BackgroundMark /> : null}
           {session.remote ? <RemoteHostMark alias={session.remote} /> : null}
           {session.accountLabel ? <AccountMark name={session.accountLabel} /> : null}
+          {session.autoMode ? <AutoMark provider={session.provider} /> : null}
           <ModelLabel session={session} />
           <TaskCount session={session} />
           {time ? (

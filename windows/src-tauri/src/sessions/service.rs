@@ -660,6 +660,28 @@ impl Service {
             return;
         }
         let mut connection = Some(connection);
+        // A request the person chose Always proceed for goes ahead now (#234).
+        let mut proceeded: Option<String> = None;
+        if let Some((session, request)) = &decoded.permission
+            && let Some(reason) = super::auto_mode::settings().passes(provider, false)
+            && let Some(asked) = allowable(&decoded.events, request)
+            && let Some(body) = if provider == models::Provider::Vibe {
+                hook_agents::vibe_reply(&Decision::Allow, &[])
+            } else {
+                hook_agents::opencode_reply(&Decision::Allow)
+            }
+            && let Some(connection) = connection.take()
+        {
+            if let Some(old) = inner.agent_pending.remove(request) {
+                drop(old);
+            }
+            let _ = connection.reply(&body);
+            super::auto_mode::LOG.add(
+                super::auto_mode::LetThrough::of(&asked, t, reason),
+                &hook_agents::id(provider, session),
+            );
+            proceeded = Some(request.clone());
+        }
         if let Some((session, request)) = &decoded.permission
             && let Some(connection) = connection.take()
         {
@@ -686,6 +708,13 @@ impl Service {
             before.entry(id).or_insert(phase);
         }
         for mut event in decoded.events {
+            // Let through: nothing waits on the person (#234).
+            if let hook_agents::Kind::Permission(p) | hook_agents::Kind::HeldPermission(p) =
+                &event.kind
+                && proceeded.as_deref() == Some(p.request_id.as_str())
+            {
+                continue;
+            }
             // A session run through the proxy is answered there: Vibe's hooks only hear of its requests.
             if provider == models::Provider::Vibe
                 && !decoded.from_proxy
@@ -954,6 +983,10 @@ impl Service {
                 .map(|a| super::accounts::canonical(Path::new(a)));
         }
         super::accounts::note_in_use(&sessions, &inner.accounts);
+        // What the island let through for each session (#234).
+        let listed: HashSet<String> = sessions.iter().map(|s| s.id.clone()).collect();
+        super::auto_mode::LOG.prune(&listed, t);
+        super::auto_mode::LOG.decorate(&mut sessions);
         let live = sessions
             .iter()
             .filter_map(|s| {
@@ -1208,13 +1241,46 @@ impl Service {
         let request_id = format!("{:032x}", rand_id());
         let mut inner = self.inner.lock().unwrap();
         let policy = inner.engine.policy();
-        let Some(message) = HookMessage::decode(&connection.payload, &request_id, now(), policy)
+        let Some(mut message) =
+            HookMessage::decode(&connection.payload, &request_id, now(), policy)
         else {
             return;
         };
+        let mut connection = Some(connection);
+        // A session that runs without asking is never held (#234): its tool
+        // goes ahead now, and its page lists it.
+        if let Some(asked) = message.lets_through() {
+            let mode = message.fact.mode.clone().or_else(|| {
+                inner
+                    .engine
+                    .mode(&message.fact.session_id)
+                    .map(str::to_owned)
+            });
+            if let Some(reason) = super::auto_mode::settings().passes(
+                models::Provider::Claude,
+                super::auto_mode::is_auto_claude(mode.as_deref()),
+            ) {
+                let body = hook_message::reply(
+                    &Decision::Allow,
+                    None,
+                    None,
+                    message.approval_input.as_ref(),
+                );
+                if let Some(connection) = connection.take() {
+                    let _ = connection.reply(&body);
+                }
+                super::auto_mode::LOG.add(
+                    super::auto_mode::LetThrough::of(asked, now(), reason),
+                    &message.fact.session_id,
+                );
+                message = message.settled();
+            }
+        }
         let permission = message.is_permission_request();
         // A remote session's transcript is on its host, read through its connection.
-        let remote = inner.remote.is_peer(connection.peer_pid);
+        let remote = inner
+            .remote
+            .is_peer(connection.as_ref().and_then(|c| c.peer_pid));
         if !remote && let Some(path) = &message.transcript {
             inner
                 .transcripts
@@ -1235,7 +1301,7 @@ impl Service {
             _ => Vec::new(),
         };
         inner.engine.ingest_hook(message.fact, now());
-        if permission {
+        if permission && let Some(connection) = connection {
             inner.pending.insert(
                 request_id,
                 Pending {
@@ -2529,6 +2595,19 @@ pub fn codex_status_name(service: &Service) -> &'static str {
 type HeardEvent = (models::Provider, String, (&'static str, Option<String>));
 
 /// The state a session was last shown in; None when it isn't listed.
+/// The request among an agent's events that a plain allow answers: a
+/// tool's, never a question (#234).
+fn allowable(events: &[hook_agents::AgentEvent], request: &str) -> Option<models::Permission> {
+    events.iter().find_map(|event| match &event.kind {
+        hook_agents::Kind::Permission(p) | hook_agents::Kind::HeldPermission(p)
+            if p.request_id == request && p.questions.is_empty() =>
+        {
+            Some(p.clone())
+        }
+        _ => None,
+    })
+}
+
 fn phase_of(inner: &Inner, id: &str) -> Option<models::SessionPhase> {
     inner.sessions.iter().find(|s| s.id == id).map(|s| s.phase)
 }

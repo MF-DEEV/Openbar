@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "1回のみ",
   "windows.settings.sessions.remindEveryValue": "%@分ごと",
   "windows.settings.sessions.remindDuringDnd": "おやすみモード中も",
-  "windows.settings.sessions.remindDuringDndCaption": "おやすみモードがオンでもリマインドします。オフの場合は、終わるまでリマインドを待ちます。"
+  "windows.settings.sessions.remindDuringDndCaption": "おやすみモードがオンでもリマインドします。オフの場合は、終わるまでリマインドを待ちます。",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "このセッションの Claude Code は bypass permissions で動いています。アイランドは許可リクエストをそのまま通し、質問はこれまでどおり表示します。",
+  "windows.sessions.autoMarkHelpCodex": "このセッションの Codex は承認オフで動いています。アイランドは許可リクエストをそのまま通し、質問はこれまでどおり表示します。",
+  "windows.sessions.letThroughTitle": "許可済み",
+  "windows.sessions.letThroughAlways": "常に続行",
+  "windows.sessions.moreLetThrough": "ほか %@ 件",
+  "windows.settings.sessions.autoMode": "自動モードのセッションはアイランドを待たずに実行",
+  "windows.settings.sessions.autoModeCaption": "エージェントの確認なしモードで始めたセッションは、アイランドを待ちません。対象は bypass permissions の Claude Code と、承認オフ (yolo) の Codex です。リクエストはすぐに進み、セッションのページに一覧されます。質問はこれまでどおり届きます。",
+  "windows.settings.sessions.alwaysProceed": "常に続行",
+  "windows.settings.sessions.alwaysProceedCaption": "選んだエージェントの許可リクエストを、モードに関係なく、確認せずにすべて許可します。質問はこれまでどおり届きます。",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "%@ で常に続行しますか？",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "%@ が求めるすべてのコマンドとファイル変更を、どのセッションやモードでも、表示せずに許可します。ファイルの削除やネットワークへのアクセスも含まれます。質問はこれまでどおり届き、許可したリクエストはセッションのページに一覧されます。",
+  "windows.settings.sessions.alwaysProceedConfirm": "常に続行",
+  "windows.settings.sessions.alwaysProceedOn": "オン: このエージェントのリクエストは確認なしで許可されます。",
+  "windows.settings.sessions.alwaysProceedCancel": "キャンセル"
 }

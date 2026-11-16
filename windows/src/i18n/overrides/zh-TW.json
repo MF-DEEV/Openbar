@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "僅一次",
   "windows.settings.sessions.remindEveryValue": "每 %@ 分鐘",
   "windows.settings.sessions.remindDuringDnd": "勿擾模式下也提醒",
-  "windows.settings.sessions.remindDuringDndCaption": "勿擾模式開啟時也會提醒。否則提醒會等到勿擾結束。"
+  "windows.settings.sessions.remindDuringDndCaption": "勿擾模式開啟時也會提醒。否則提醒會等到勿擾結束。",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "這裡的 Claude Code 以 bypass permissions 模式執行。動態島會直接放行它的權限請求，但仍會把問題顯示給你。",
+  "windows.sessions.autoMarkHelpCodex": "這裡的 Codex 以關閉核准的方式執行。動態島會直接放行它的權限請求，但仍會把問題顯示給你。",
+  "windows.sessions.letThroughTitle": "已放行",
+  "windows.sessions.letThroughAlways": "一律繼續",
+  "windows.sessions.moreLetThrough": "另外 %@ 項",
+  "windows.settings.sessions.autoMode": "讓自動模式的工作階段不必等待動態島",
+  "windows.settings.sessions.autoModeCaption": "以代理程式免詢問模式啟動的工作階段不會等待動態島：使用 bypass permissions 的 Claude Code，以及關閉核准（yolo）的 Codex。它們的請求會立即通過，並列在工作階段頁面上。問題仍會傳給你。",
+  "windows.settings.sessions.alwaysProceed": "一律繼續",
+  "windows.settings.sessions.alwaysProceedCaption": "動態島會在任何模式下直接允許你所選代理程式的所有權限請求，不再詢問。問題仍會傳給你。",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "要對 %@ 一律繼續嗎？",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "動態島將在所有工作階段和模式中允許 %@ 請求的每個指令和每項檔案變更，而不先顯示給你。這也包括刪除檔案和存取網路。問題仍會傳給你，每個被允許的請求都會列在工作階段頁面上。",
+  "windows.settings.sessions.alwaysProceedConfirm": "一律繼續",
+  "windows.settings.sessions.alwaysProceedOn": "已開啟：此代理程式的請求會直接允許，不再詢問。",
+  "windows.settings.sessions.alwaysProceedCancel": "取消"
 }

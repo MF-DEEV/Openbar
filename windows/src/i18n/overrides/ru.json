@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "Один раз",
   "windows.settings.sessions.remindEveryValue": "Каждые %@ мин",
   "windows.settings.sessions.remindDuringDnd": "И в режиме «Не беспокоить»",
-  "windows.settings.sessions.remindDuringDndCaption": "Напоминает при включённом «Не беспокоить». Иначе напоминание ждёт, пока режим не выключится."
+  "windows.settings.sessions.remindDuringDndCaption": "Напоминает при включённом «Не беспокоить». Иначе напоминание ждёт, пока режим не выключится.",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "Claude Code работает здесь в режиме bypass permissions. Остров пропускает его запросы разрешений, а вопросы по-прежнему показывает вам.",
+  "windows.sessions.autoMarkHelpCodex": "Codex работает здесь с отключёнными подтверждениями. Остров пропускает его запросы разрешений, а вопросы по-прежнему показывает вам.",
+  "windows.sessions.letThroughTitle": "Пропущено",
+  "windows.sessions.letThroughAlways": "Всегда продолжать",
+  "windows.sessions.moreLetThrough": "Ещё %@",
+  "windows.settings.sessions.autoMode": "Сеансы в автоматическом режиме работают без острова",
+  "windows.settings.sessions.autoModeCaption": "Сеанс, запущенный в режиме агента без вопросов, никогда не ждёт остров: Claude Code с bypass permissions, Codex с отключёнными подтверждениями (yolo). Его запросы выполняются сразу и попадают в список на его странице. Вопросы по-прежнему приходят вам.",
+  "windows.settings.sessions.alwaysProceed": "Всегда продолжать",
+  "windows.settings.sessions.alwaysProceedCaption": "Остров разрешает любой запрос выбранных агентов в любом режиме, не спрашивая вас. Вопросы по-прежнему приходят вам.",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "Всегда продолжать для %@?",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "Остров будет разрешать любую команду и любое изменение файлов, которые запросит %@, в любом сеансе и режиме, не показывая их вам. Это касается и удаления файлов, и доступа к сети. Вопросы по-прежнему приходят вам, а каждый разрешённый запрос попадает в список на странице сеанса.",
+  "windows.settings.sessions.alwaysProceedConfirm": "Всегда продолжать",
+  "windows.settings.sessions.alwaysProceedOn": "Включено: запросы этого агента разрешаются без вопросов.",
+  "windows.settings.sessions.alwaysProceedCancel": "Отмена"
 }

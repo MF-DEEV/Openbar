@@ -13,6 +13,7 @@
 pub mod accounts;
 pub mod agent_colors;
 pub mod attachments;
+pub mod auto_mode;
 pub mod background;
 pub mod codex;
 pub mod engine;

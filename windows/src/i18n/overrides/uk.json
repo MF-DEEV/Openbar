@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "Один раз",
   "windows.settings.sessions.remindEveryValue": "Кожні %@ хв",
   "windows.settings.sessions.remindDuringDnd": "І в режимі «Не турбувати»",
-  "windows.settings.sessions.remindDuringDndCaption": "Нагадує, навіть коли ввімкнено «Не турбувати». Інакше нагадування чекає, доки режим не вимкнеться."
+  "windows.settings.sessions.remindDuringDndCaption": "Нагадує, навіть коли ввімкнено «Не турбувати». Інакше нагадування чекає, доки режим не вимкнеться.",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "Claude Code працює тут у режимі bypass permissions. Острів пропускає його запити на дозвіл, а запитання й далі показує вам.",
+  "windows.sessions.autoMarkHelpCodex": "Codex працює тут із вимкненими підтвердженнями. Острів пропускає його запити на дозвіл, а запитання й далі показує вам.",
+  "windows.sessions.letThroughTitle": "Пропущено",
+  "windows.sessions.letThroughAlways": "Завжди продовжувати",
+  "windows.sessions.moreLetThrough": "Ще %@",
+  "windows.settings.sessions.autoMode": "Сеанси в автоматичному режимі працюють без острова",
+  "windows.settings.sessions.autoModeCaption": "Сеанс, запущений у режимі агента без запитань, ніколи не чекає на острів: Claude Code з bypass permissions, Codex із вимкненими підтвердженнями (yolo). Його запити виконуються одразу й потрапляють до списку на його сторінці. Запитання й далі надходять вам.",
+  "windows.settings.sessions.alwaysProceed": "Завжди продовжувати",
+  "windows.settings.sessions.alwaysProceedCaption": "Острів дозволяє кожен запит вибраних агентів у будь-якому режимі, не питаючи вас. Запитання й далі надходять вам.",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "Завжди продовжувати для %@?",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "Острів дозволятиме кожну команду й кожну зміну файлів, яку запросить %@, у кожному сеансі й режимі, не показуючи їх вам. Це стосується й видалення файлів, і доступу до мережі. Запитання й далі надходять вам, а кожен дозволений запит потрапляє до списку на сторінці сеансу.",
+  "windows.settings.sessions.alwaysProceedConfirm": "Завжди продовжувати",
+  "windows.settings.sessions.alwaysProceedOn": "Увімкнено: запити цього агента дозволяються без запитань.",
+  "windows.settings.sessions.alwaysProceedCancel": "Скасувати"
 }

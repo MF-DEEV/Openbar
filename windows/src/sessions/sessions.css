@@ -3123,3 +3123,42 @@
     transition: none;
   }
 }
+
+/* #234: a session in its agent's no-ask mode, and what the island let through. */
+.s-auto-mark svg {
+  flex: none;
+}
+.s-row-line2 > .s-auto-mark {
+  margin-right: 2px;
+}
+.s-let-through-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+}
+.s-let-through-mark {
+  flex: none;
+  width: 12px;
+  display: inline-flex;
+  justify-content: center;
+}
+.s-let-through-tool {
+  flex: none;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+}
+.s-let-through-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.65);
+}
+.s-let-through-row .s-clock {
+  margin-left: auto;
+}

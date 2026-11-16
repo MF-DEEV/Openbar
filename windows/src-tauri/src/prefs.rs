@@ -188,6 +188,10 @@ pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Val
         service.set_previews(previews);
         // Gemini CLI, Copilot CLI, OpenCode and Cursor each have a switch.
         service.set_hidden_agents(hidden_agents(value));
+        // Sessions that run without asking, and Always proceed (#234).
+        crate::sessions::auto_mode::set_settings(crate::sessions::auto_mode::settings_from_prefs(
+            value,
+        ));
         // Claude accounts the person named, hid or added (#216).
         crate::sessions::accounts::set_settings(crate::sessions::accounts::settings_from_prefs(
             value,

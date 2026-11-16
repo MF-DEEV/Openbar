@@ -282,6 +282,13 @@ impl TranscriptReader {
                 if is_true(json.get("isSidechain")) {
                     return facts;
                 }
+                // Each prompt records the mode it was typed in (#234).
+                if let Some(mode) = str_of(json.get("permissionMode")).filter(|m| !m.is_empty()) {
+                    facts.push(TranscriptFact::PermissionMode {
+                        mode: mode.to_owned(),
+                        at: date,
+                    });
+                }
                 let content = json.get("message").and_then(|m| m.get("content"));
                 let blocks = dicts(content);
                 let results: Vec<_> = blocks

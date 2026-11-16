@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "Una volta",
   "windows.settings.sessions.remindEveryValue": "Ogni %@ min",
   "windows.settings.sessions.remindDuringDnd": "Anche con Non disturbare",
-  "windows.settings.sessions.remindDuringDndCaption": "Ricorda anche quando Non disturbare è attivo. Altrimenti il promemoria aspetta che finisca."
+  "windows.settings.sessions.remindDuringDndCaption": "Ricorda anche quando Non disturbare è attivo. Altrimenti il promemoria aspetta che finisca.",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "Claude Code qui gira con bypass permissions. L'isola lascia passare le sue richieste di autorizzazione e ti mostra comunque le sue domande.",
+  "windows.sessions.autoMarkHelpCodex": "Codex qui gira con le approvazioni disattivate. L'isola lascia passare le sue richieste di autorizzazione e ti mostra comunque le sue domande.",
+  "windows.sessions.letThroughTitle": "Lasciate passare",
+  "windows.sessions.letThroughAlways": "Procedi sempre",
+  "windows.sessions.moreLetThrough": "Altre %@",
+  "windows.settings.sessions.autoMode": "Lascia che le sessioni in modalità automatica girino senza l'isola",
+  "windows.settings.sessions.autoModeCaption": "Una sessione avviata nella modalità senza domande del suo agente non aspetta mai l'isola: Claude Code con bypass permissions, Codex con le approvazioni disattivate (yolo). Le sue richieste vanno avanti subito e sono elencate nella sua pagina. Le domande arrivano comunque a te.",
+  "windows.settings.sessions.alwaysProceed": "Procedi sempre",
+  "windows.settings.sessions.alwaysProceedCaption": "L'isola consente ogni richiesta di autorizzazione degli agenti che scegli, in qualsiasi modalità, senza chiedere. Le domande arrivano comunque a te.",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "Procedere sempre per %@?",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "L'isola consentirà ogni comando e ogni modifica ai file che %@ chiede, in ogni sessione e modalità, senza mostrartelo prima. Questo include eliminare file e accedere alla rete. Le domande arrivano comunque a te e ogni richiesta consentita è elencata nella pagina della sessione.",
+  "windows.settings.sessions.alwaysProceedConfirm": "Procedi sempre",
+  "windows.settings.sessions.alwaysProceedOn": "Attivo: le richieste di questo agente sono consentite senza chiedere.",
+  "windows.settings.sessions.alwaysProceedCancel": "Annulla"
 }

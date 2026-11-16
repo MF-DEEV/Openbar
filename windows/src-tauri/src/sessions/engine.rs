@@ -108,6 +108,8 @@ struct Activity {
     acknowledged: Option<Time>,
     /// The last turn the plan's usage limit stopped.
     limit: Option<LimitStop>,
+    /// The permission mode last heard of, and when (#234).
+    mode: Option<(String, Time)>,
     first_seen: Time,
 }
 
@@ -144,6 +146,7 @@ impl Activity {
             asked: None,
             acknowledged: None,
             limit: None,
+            mode: None,
             first_seen,
         }
     }
@@ -364,6 +367,12 @@ impl Engine {
             .entry(fact.session_id.clone())
             .or_insert_with(|| Activity::new(now));
         entry.hooked = true;
+        // A subagent's hooks name its own mode, not the session's.
+        if fact.agent_id.is_none()
+            && let Some(mode) = &fact.mode
+        {
+            set_mode(mode, fact.date, entry);
+        }
         match &fact.agent_id {
             Some(_) => apply_subagent(fact.event, fact.date, previews, entry),
             None => apply_hook(fact.event, fact.date, previews, entry),
@@ -378,6 +387,14 @@ impl Engine {
     }
 
     /// The permission the island shows for a session: the oldest one asked.
+    /// The permission mode a session was last heard in (#234).
+    pub fn mode(&self, id: &str) -> Option<&str> {
+        self.activity
+            .get(id)
+            .and_then(|e| e.mode.as_ref())
+            .map(|(mode, _)| mode.as_str())
+    }
+
     pub fn permission(&self, id: &str) -> Option<&Permission> {
         self.activity.get(id)?.permissions.first()
     }
@@ -724,7 +741,18 @@ fn session(
         account: None,
         account_label: None,
         account_id: None,
+        auto_mode: super::auto_mode::is_auto_claude(entry.mode.as_ref().map(|(m, _)| m.as_str())),
+        let_through: Vec::new(),
     }
+}
+
+/// A newer reading of the mode wins; one read late from the transcript
+/// never replaces what a hook said since (#234).
+fn set_mode(mode: &str, at: Time, entry: &mut Activity) {
+    if mode.is_empty() || entry.mode.as_ref().is_some_and(|(_, known)| *known > at) {
+        return;
+    }
+    entry.mode = Some((mode.to_owned(), at));
 }
 
 /// Working subagents first, by when they began, then the ones done, the
@@ -896,6 +924,7 @@ fn apply_fact(fact: &TranscriptFact, previews: bool, entry: &mut Activity) {
             }
             entry.tasks = (tasks.total > 0).then_some(tasks);
         }
+        TranscriptFact::PermissionMode { mode, at } => set_mode(mode, *at, entry),
         TranscriptFact::LimitReached(stop) => {
             // A stop read late never replaces a newer one.
             if entry.limit.is_none_or(|known| known.at <= stop.at) {
@@ -1207,6 +1236,7 @@ mod tests {
             date: at(seconds),
             event,
             agent_id: None,
+            mode: None,
         }
     }
 
@@ -1216,11 +1246,66 @@ mod tests {
             date: at(seconds),
             event,
             agent_id: agent.map(str::to_owned),
+            mode: None,
         }
     }
 
     fn tool(id: &str, seconds: f64, name: &str, summary: Option<&str>) -> ToolUse {
         ToolUse::new(id, name, summary.map(str::to_owned), at(seconds))
+    }
+
+    /// The mode a session runs in, from hooks and the transcript (#234).
+    #[test]
+    fn the_permission_mode_marks_a_bypass_session_auto() {
+        let mut engine = Engine::default();
+        engine.ingest_records(vec![record(BUSY, 0.0)], at(0.0));
+        let only = |engine: &mut Engine, t: f64| engine.snapshot(at(t)).sessions.remove(0);
+        assert!(!only(&mut engine, 1.0).auto_mode);
+        engine.ingest_facts(
+            "s1",
+            &[TranscriptFact::PermissionMode {
+                mode: "bypassPermissions".into(),
+                at: at(1.0),
+            }],
+            at(1.0),
+        );
+        assert!(
+            only(&mut engine, 2.0).auto_mode,
+            "the transcript's last prompt, as after a restart"
+        );
+        assert_eq!(engine.mode("s1"), Some("bypassPermissions"));
+        let mut prompt = hook(HookEvent::PromptSubmitted, 5.0);
+        prompt.mode = Some("default".into());
+        engine.ingest_hook(prompt, at(5.0));
+        assert!(!only(&mut engine, 6.0).auto_mode, "back to the normal mode");
+        engine.ingest_facts(
+            "s1",
+            &[TranscriptFact::PermissionMode {
+                mode: "bypassPermissions".into(),
+                at: at(3.0),
+            }],
+            at(6.0),
+        );
+        assert!(
+            !only(&mut engine, 7.0).auto_mode,
+            "a prompt read late never undoes a newer hook"
+        );
+        let mut sub = hook_in(
+            HookEvent::ToolStarted(bash("t1", 8.0)),
+            8.0,
+            "s1",
+            Some("a1"),
+        );
+        sub.mode = Some("bypassPermissions".into());
+        engine.ingest_hook(sub, at(8.0));
+        assert!(
+            !only(&mut engine, 9.0).auto_mode,
+            "a subagent speaks of its own mode"
+        );
+        let mut back = hook(HookEvent::PromptSubmitted, 10.0);
+        back.mode = Some("bypassPermissions".into());
+        engine.ingest_hook(back, at(10.0));
+        assert!(only(&mut engine, 11.0).auto_mode);
     }
 
     fn bash(id: &str, seconds: f64) -> ToolUse {

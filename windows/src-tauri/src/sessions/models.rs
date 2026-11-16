@@ -744,6 +744,13 @@ pub struct Session {
     /// That account's identity, as the limits name it.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub account_id: Option<String>,
+    /// It runs in its agent's no-ask mode: bypass permissions, Codex with
+    /// approvals off (#234).
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub auto_mode: bool,
+    /// Permissions the island allowed without asking, newest last (#234).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub let_through: Vec<super::auto_mode::LetThrough>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -928,6 +935,11 @@ pub enum TranscriptFact {
     Tasks(TaskProgress),
     /// The plan's usage limit stopped the turn.
     LimitReached(LimitStop),
+    /// The permission mode a prompt was typed in (#234).
+    PermissionMode {
+        mode: String,
+        at: Time,
+    },
 }
 
 /// One hook event Claude Code sent while the session ran.
@@ -938,6 +950,8 @@ pub struct HookFact {
     pub event: HookEvent,
     /// The subagent the event comes from; nil for the main agent.
     pub agent_id: Option<String>,
+    /// The permission mode the session was in, as the hook says (#234).
+    pub mode: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -1478,6 +1492,8 @@ mod tests {
             account: None,
             account_label: None,
             account_id: None,
+            auto_mode: false,
+            let_through: Vec::new(),
         }
     }
 

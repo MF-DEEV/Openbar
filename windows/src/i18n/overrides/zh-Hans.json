@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "仅一次",
   "windows.settings.sessions.remindEveryValue": "每 %@ 分钟",
   "windows.settings.sessions.remindDuringDnd": "勿扰模式下也提醒",
-  "windows.settings.sessions.remindDuringDndCaption": "勿扰模式开启时也会提醒。否则提醒会等到勿扰结束。"
+  "windows.settings.sessions.remindDuringDndCaption": "勿扰模式开启时也会提醒。否则提醒会等到勿扰结束。",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "此处的 Claude Code 以 bypass permissions 模式运行。灵动岛会直接放行它的权限请求，但仍会把问题显示给你。",
+  "windows.sessions.autoMarkHelpCodex": "此处的 Codex 以关闭审批的方式运行。灵动岛会直接放行它的权限请求，但仍会把问题显示给你。",
+  "windows.sessions.letThroughTitle": "已放行",
+  "windows.sessions.letThroughAlways": "始终继续",
+  "windows.sessions.moreLetThrough": "另外 %@ 项",
+  "windows.settings.sessions.autoMode": "让自动模式的会话无需等待灵动岛",
+  "windows.settings.sessions.autoModeCaption": "以代理的免询问模式启动的会话不会等待灵动岛：使用 bypass permissions 的 Claude Code，以及关闭审批（yolo）的 Codex。它们的请求会立即通过，并列在会话页面上。问题仍会发给你。",
+  "windows.settings.sessions.alwaysProceed": "始终继续",
+  "windows.settings.sessions.alwaysProceedCaption": "灵动岛会在任何模式下直接允许你所选代理的所有权限请求，不再询问。问题仍会发给你。",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "要对 %@ 始终继续吗？",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "灵动岛将在所有会话和模式中允许 %@ 请求的每条命令和每项文件更改，而不先向你显示。这也包括删除文件和访问网络。问题仍会发给你，每个被允许的请求都会列在会话页面上。",
+  "windows.settings.sessions.alwaysProceedConfirm": "始终继续",
+  "windows.settings.sessions.alwaysProceedOn": "已开启：此代理的请求会直接允许，不再询问。",
+  "windows.settings.sessions.alwaysProceedCancel": "取消"
 }

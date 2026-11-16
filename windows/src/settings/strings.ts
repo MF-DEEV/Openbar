@@ -1042,6 +1042,30 @@ export const T = {
     get remindDuringDndCaption() {
       return t("windows.settings.sessions.remindDuringDndCaption");
     },
+    // #234: sessions in their agent's no-ask mode, and Always proceed.
+    get autoMode() {
+      return t("windows.settings.sessions.autoMode");
+    },
+    get autoModeCaption() {
+      return t("windows.settings.sessions.autoModeCaption");
+    },
+    get alwaysProceed() {
+      return t("windows.settings.sessions.alwaysProceed");
+    },
+    get alwaysProceedCaption() {
+      return t("windows.settings.sessions.alwaysProceedCaption");
+    },
+    alwaysProceedConfirmTitle: (agent: string) => tf("windows.settings.sessions.alwaysProceedConfirmTitle", agent),
+    alwaysProceedConfirmMessage: (agent: string) => tf("windows.settings.sessions.alwaysProceedConfirmMessage", agent),
+    get alwaysProceedConfirm() {
+      return t("windows.settings.sessions.alwaysProceedConfirm");
+    },
+    get alwaysProceedOn() {
+      return t("windows.settings.sessions.alwaysProceedOn");
+    },
+    get cancel() {
+      return t("windows.settings.sessions.alwaysProceedCancel");
+    },
   },
   calendar: {
     get permission() {

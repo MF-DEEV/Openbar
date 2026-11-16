@@ -271,6 +271,19 @@ export interface Session {
   accountId?: string;
   /** That account's name, only while sessions of more than one account are listed. */
   accountLabel?: string;
+  /** It runs in its agent's no-ask mode: bypass permissions, Codex with approvals off (#234). */
+  autoMode?: boolean;
+  /** Permissions the island allowed without asking, newest last (#234). */
+  letThrough?: LetThrough[];
+}
+
+/** One permission the island allowed without asking (#234; sessions/auto_mode.rs). */
+export interface LetThrough {
+  id: string;
+  tool: string;
+  summary?: string;
+  at: number;
+  reason: "autoMode" | "alwaysProceed";
 }
 
 /** A Claude Code account: a config folder with its own sign-in (#216; hooks/mod.rs AccountStatus). */

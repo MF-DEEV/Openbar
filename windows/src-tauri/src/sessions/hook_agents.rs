@@ -2059,6 +2059,8 @@ fn session(
         account: None,
         account_label: None,
         account_id: None,
+        auto_mode: false,
+        let_through: Vec::new(),
     }
 }
 

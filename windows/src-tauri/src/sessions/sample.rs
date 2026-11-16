@@ -67,6 +67,8 @@ pub fn waiting(round: u64, home: &str, t: Time) -> Session {
         account: None,
         account_label: None,
         account_id: None,
+        auto_mode: false,
+        let_through: Vec::new(),
     }
 }
 

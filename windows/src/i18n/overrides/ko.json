@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "한 번",
   "windows.settings.sessions.remindEveryValue": "%@분마다",
   "windows.settings.sessions.remindDuringDnd": "방해 금지 중에도",
-  "windows.settings.sessions.remindDuringDndCaption": "방해 금지가 켜져 있어도 알립니다. 그렇지 않으면 끝날 때까지 알림을 미룹니다."
+  "windows.settings.sessions.remindDuringDndCaption": "방해 금지가 켜져 있어도 알립니다. 그렇지 않으면 끝날 때까지 알림을 미룹니다.",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "여기서 Claude Code는 bypass permissions로 실행됩니다. 아일랜드는 권한 요청을 그대로 통과시키고 질문은 계속 보여 줍니다.",
+  "windows.sessions.autoMarkHelpCodex": "여기서 Codex는 승인 끔 상태로 실행됩니다. 아일랜드는 권한 요청을 그대로 통과시키고 질문은 계속 보여 줍니다.",
+  "windows.sessions.letThroughTitle": "통과됨",
+  "windows.sessions.letThroughAlways": "항상 진행",
+  "windows.sessions.moreLetThrough": "%@개 더",
+  "windows.settings.sessions.autoMode": "자동 모드 세션은 아일랜드 없이 실행",
+  "windows.settings.sessions.autoModeCaption": "에이전트의 묻지 않는 모드로 시작한 세션은 아일랜드를 기다리지 않습니다. bypass permissions의 Claude Code, 승인을 끈 Codex(yolo)가 해당됩니다. 요청은 바로 진행되고 세션 페이지에 기록됩니다. 질문은 계속 받습니다.",
+  "windows.settings.sessions.alwaysProceed": "항상 진행",
+  "windows.settings.sessions.alwaysProceedCaption": "선택한 에이전트의 모든 권한 요청을 모드와 상관없이 묻지 않고 허용합니다. 질문은 계속 받습니다.",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "%@에서 항상 진행할까요?",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "%@이(가) 요청하는 모든 명령과 파일 변경을 모든 세션과 모드에서 먼저 보여 주지 않고 허용합니다. 파일 삭제와 네트워크 접근도 포함됩니다. 질문은 계속 받으며, 허용한 요청은 세션 페이지에 기록됩니다.",
+  "windows.settings.sessions.alwaysProceedConfirm": "항상 진행",
+  "windows.settings.sessions.alwaysProceedOn": "켜짐: 이 에이전트의 요청은 묻지 않고 허용됩니다.",
+  "windows.settings.sessions.alwaysProceedCancel": "취소"
 }
