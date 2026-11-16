@@ -29,6 +29,13 @@
 </p>
 
 <p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/agents/agents-dark.svg">
+    <img src="docs/assets/readme/agents/agents-light.svg" width="640" alt="Works with Claude Code, Codex, OpenCode, Gemini CLI, Copilot CLI, Cursor, Pi, Mistral Vibe, Devin CLI and Google Antigravity">
+  </picture>
+</p>
+
+<p align="center">
   <img src="docs/assets/readme/openbar-demo.gif" width="100%" alt="A laptop on a stone table by a campfire with knights around it; the camera moves in to the notch, where Openbar lists Claude Code, Codex, Gemini CLI and OpenCode sessions, and a reply typed in the island lands in the session's terminal">
 </p>
 
