@@ -19,6 +19,7 @@ import {
   ToggleRight,
 } from "lucide-react";
 import React, { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { getLanguage, t, tf, useLocale } from "../i18n";
 import { EVENT_COUNT, LOG_DAYS, PARTS, type PartId, request } from "../diagnostics/diagnostics";
 import { inTauri } from "../shared/bridge";
@@ -134,7 +135,9 @@ export function DiagnosticsDialog(props: {
     );
   };
 
-  return (
+  // On the body: the page slides in under a transform, which would hold a
+  // fixed backdrop inside it instead of over the whole window.
+  return createPortal(
     <div
       className="dg-backdrop"
       role="presentation"
@@ -190,7 +193,8 @@ export function DiagnosticsDialog(props: {
           </Button>
         </footer>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

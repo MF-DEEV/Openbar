@@ -8,8 +8,7 @@
   position: fixed;
   inset: 0;
   z-index: 50;
-  display: grid;
-  place-items: center;
+  display: flex;
   padding: 24px 16px;
   background: rgba(0, 0, 0, 0.42);
   animation: dg-fade 160ms var(--st-ease) both;
@@ -17,6 +16,8 @@
 }
 
 .dg-dialog {
+  /* Centered, and still scrollable from its top when taller than the window. */
+  margin: auto;
   width: min(560px, 100%);
   display: flex;
   flex-direction: column;

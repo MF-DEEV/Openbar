@@ -46,6 +46,14 @@ const PAGES: { id: PageId; icon: LucideIcon; label: string; Page: () => React.JS
     Page: GeneralSettings,
   },
   {
+    id: "about",
+    icon: Info,
+    get label() {
+      return t("s.tabAbout");
+    },
+    Page: AboutSettings,
+  },
+  {
     id: "layout",
     icon: LayoutTemplate,
     get label() {
@@ -89,14 +97,6 @@ const PAGES: { id: PageId; icon: LucideIcon; label: string; Page: () => React.JS
     },
     Page: MascotSettings,
     island: true,
-  },
-  {
-    id: "about",
-    icon: Info,
-    get label() {
-      return t("s.tabAbout");
-    },
-    Page: AboutSettings,
   },
 ];
 
