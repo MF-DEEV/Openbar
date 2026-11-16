@@ -823,5 +823,13 @@
   "windows.settings.sessions.progressDots": "Крапки",
   "windows.settings.sessions.progressRing": "Кільце",
   "windows.settings.sessions.progressStyle": "Прогрес завдань",
-  "windows.settings.sessions.progressStyleCaption": "Як список завдань сесії показується в її рядку."
+  "windows.settings.sessions.progressStyleCaption": "Як список завдань сесії показується в її рядку.",
+  "windows.sessions.groupSessions": "Групувати сесії",
+  "windows.sessions.groupNone": "Один список",
+  "windows.sessions.groupByProject": "За проєктом",
+  "windows.sessions.groupByAgent": "За агентом",
+  "windows.sessions.groupCount": "Сесії: %@",
+  "windows.sessions.groupWaiting": "Чекають на вас: %@",
+  "windows.settings.sessions.grouping": "Групувати список",
+  "windows.settings.sessions.groupingCaption": "Сесії одного проєкту або одного агента збираються під заголовком, який можна згорнути."
 }

@@ -823,5 +823,13 @@
   "windows.settings.sessions.progressDots": "Punti",
   "windows.settings.sessions.progressRing": "Anello",
   "windows.settings.sessions.progressStyle": "Avanzamento attività",
-  "windows.settings.sessions.progressStyleCaption": "Come l'elenco delle attività di una sessione appare nella sua riga."
+  "windows.settings.sessions.progressStyleCaption": "Come l'elenco delle attività di una sessione appare nella sua riga.",
+  "windows.sessions.groupSessions": "Raggruppa sessioni",
+  "windows.sessions.groupNone": "Un elenco",
+  "windows.sessions.groupByProject": "Per progetto",
+  "windows.sessions.groupByAgent": "Per agente",
+  "windows.sessions.groupCount": "Sessioni: %@",
+  "windows.sessions.groupWaiting": "Ti aspettano: %@",
+  "windows.settings.sessions.grouping": "Raggruppa l’elenco",
+  "windows.settings.sessions.groupingCaption": "Le sessioni di un progetto o di un agente stanno insieme sotto un’intestazione che puoi chiudere."
 }

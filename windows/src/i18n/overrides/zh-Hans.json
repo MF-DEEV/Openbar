@@ -823,5 +823,13 @@
   "windows.settings.sessions.progressDots": "圆点",
   "windows.settings.sessions.progressRing": "圆环",
   "windows.settings.sessions.progressStyle": "任务进度",
-  "windows.settings.sessions.progressStyleCaption": "会话的任务列表在其行上的显示方式。"
+  "windows.settings.sessions.progressStyleCaption": "会话的任务列表在其行上的显示方式。",
+  "windows.sessions.groupSessions": "会话分组",
+  "windows.sessions.groupNone": "单一列表",
+  "windows.sessions.groupByProject": "按项目",
+  "windows.sessions.groupByAgent": "按代理",
+  "windows.sessions.groupCount": "会话：%@",
+  "windows.sessions.groupWaiting": "等你处理：%@",
+  "windows.settings.sessions.grouping": "列表分组",
+  "windows.settings.sessions.groupingCaption": "同一项目或同一代理的会话归在可折叠的标题下。"
 }

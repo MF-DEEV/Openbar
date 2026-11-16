@@ -823,5 +823,13 @@
   "windows.settings.sessions.progressDots": "Bodky",
   "windows.settings.sessions.progressRing": "Kruh",
   "windows.settings.sessions.progressStyle": "Priebeh úloh",
-  "windows.settings.sessions.progressStyleCaption": "Ako sa zoznam úloh relácie zobrazí v jej riadku."
+  "windows.settings.sessions.progressStyleCaption": "Ako sa zoznam úloh relácie zobrazí v jej riadku.",
+  "windows.sessions.groupSessions": "Zoskupiť relácie",
+  "windows.sessions.groupNone": "Jeden zoznam",
+  "windows.sessions.groupByProject": "Podľa projektu",
+  "windows.sessions.groupByAgent": "Podľa agenta",
+  "windows.sessions.groupCount": "Relácie: %@",
+  "windows.sessions.groupWaiting": "Čakajú na vás: %@",
+  "windows.settings.sessions.grouping": "Zoskupiť zoznam",
+  "windows.settings.sessions.groupingCaption": "Relácie jedného projektu alebo jedného agenta sú spolu pod hlavičkou, ktorú môžete zbaliť."
 }

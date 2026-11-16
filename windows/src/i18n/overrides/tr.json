@@ -823,5 +823,13 @@
   "windows.settings.sessions.progressDots": "Noktalar",
   "windows.settings.sessions.progressRing": "Halka",
   "windows.settings.sessions.progressStyle": "Görev ilerlemesi",
-  "windows.settings.sessions.progressStyleCaption": "Bir oturumun görev listesinin satırında nasıl görüneceği."
+  "windows.settings.sessions.progressStyleCaption": "Bir oturumun görev listesinin satırında nasıl görüneceği.",
+  "windows.sessions.groupSessions": "Oturumları grupla",
+  "windows.sessions.groupNone": "Tek liste",
+  "windows.sessions.groupByProject": "Projeye göre",
+  "windows.sessions.groupByAgent": "Ajana göre",
+  "windows.sessions.groupCount": "Oturumlar: %@",
+  "windows.sessions.groupWaiting": "Sizi bekleyen: %@",
+  "windows.settings.sessions.grouping": "Listeyi grupla",
+  "windows.settings.sessions.groupingCaption": "Bir projenin ya da bir ajanın oturumları, katlayabileceğiniz bir başlık altında toplanır."
 }

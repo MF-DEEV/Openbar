@@ -14,6 +14,8 @@ import { useIsland } from "../island/store";
 import { NewSession } from "./Background";
 import { SessionDetail } from "./SessionDetail";
 import { SessionsList } from "./SessionsList";
+import { GroupingMenuButton, GroupingSwitch } from "./SessionGroups";
+import { useProto233 } from "./proto233";
 import { displayName } from "./format";
 import { countItems } from "./SessionsStrip";
 import { S } from "./strings";
@@ -96,6 +98,8 @@ function Trailing() {
   const composing = useSessions((s) => s.composing);
   const canStart = useSessions((s) => s.snapshot.canStart === true || s.snapshot.canStartCodex === true);
   const away = useSessions((s) => s.away !== null);
+  const listed = useSessions((s) => presentedSnapshot(s).sessions.length);
+  const switcher = useProto233((s) => s.switcher);
   const [, tick] = useState(0);
   useEffect(() => {
     const wait = failedUntil * 1000 - Date.now();
@@ -106,12 +110,21 @@ function Trailing() {
   if (away) return <AwayTrailing />;
   if (composing) return null;
   if (!session) {
-    return canStart ? (
-      <button type="button" className="n-pill-button s-open" onClick={() => useSessions.setState({ composing: true })}>
-        <Plus size={11} />
-        {S.newSession}
-      </button>
-    ) : null;
+    return (
+      <>
+        {listed > 0 ? switcher === "menu" ? <GroupingMenuButton /> : <GroupingSwitch /> : null}
+        {canStart ? (
+          <button
+            type="button"
+            className="n-pill-button s-open"
+            onClick={() => useSessions.setState({ composing: true })}
+          >
+            <Plus size={11} />
+            {S.newSession}
+          </button>
+        ) : null}
+      </>
+    );
   }
   const failed = Date.now() / 1000 < failedUntil;
   return (

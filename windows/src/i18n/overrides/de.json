@@ -823,5 +823,13 @@
   "windows.settings.sessions.progressDots": "Punkte",
   "windows.settings.sessions.progressRing": "Ring",
   "windows.settings.sessions.progressStyle": "Aufgabenfortschritt",
-  "windows.settings.sessions.progressStyleCaption": "Wie die Aufgabenliste einer Sitzung in ihrer Zeile erscheint."
+  "windows.settings.sessions.progressStyleCaption": "Wie die Aufgabenliste einer Sitzung in ihrer Zeile erscheint.",
+  "windows.sessions.groupSessions": "Sitzungen gruppieren",
+  "windows.sessions.groupNone": "Eine Liste",
+  "windows.sessions.groupByProject": "Nach Projekt",
+  "windows.sessions.groupByAgent": "Nach Agent",
+  "windows.sessions.groupCount": "Sitzungen: %@",
+  "windows.sessions.groupWaiting": "Warten auf dich: %@",
+  "windows.settings.sessions.grouping": "Liste gruppieren",
+  "windows.settings.sessions.groupingCaption": "Sitzungen eines Projekts oder eines Agenten stehen zusammen unter einer Überschrift, die du einklappen kannst."
 }

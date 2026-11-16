@@ -823,5 +823,13 @@
   "windows.settings.sessions.progressDots": "Puntos",
   "windows.settings.sessions.progressRing": "Anillo",
   "windows.settings.sessions.progressStyle": "Progreso de tareas",
-  "windows.settings.sessions.progressStyleCaption": "Cómo se muestra la lista de tareas de una sesión en su fila."
+  "windows.settings.sessions.progressStyleCaption": "Cómo se muestra la lista de tareas de una sesión en su fila.",
+  "windows.sessions.groupSessions": "Agrupar sesiones",
+  "windows.sessions.groupNone": "Una lista",
+  "windows.sessions.groupByProject": "Por proyecto",
+  "windows.sessions.groupByAgent": "Por agente",
+  "windows.sessions.groupCount": "Sesiones: %@",
+  "windows.sessions.groupWaiting": "Esperándote: %@",
+  "windows.settings.sessions.grouping": "Agrupar la lista",
+  "windows.settings.sessions.groupingCaption": "Las sesiones de un proyecto o de un agente quedan juntas bajo un encabezado que puedes plegar."
 }

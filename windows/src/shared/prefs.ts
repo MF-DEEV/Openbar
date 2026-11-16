@@ -77,7 +77,14 @@ export interface SessionPrefs {
   awayCard: boolean;
   /** Minutes without input that count as a break. */
   awayMinutes: number;
+  /** The list as one column, or grouped by project or by agent (#233). */
+  grouping: Grouping;
+  /** Groups the person folded, by their key (sessions/groups.ts). */
+  collapsedGroups: string[];
 }
+
+export const GROUPINGS = ["none", "project", "agent"] as const;
+export type Grouping = (typeof GROUPINGS)[number];
 
 export const PROGRESS_STYLES = ["ring", "dots", "bar"] as const;
 export type ProgressStyle = (typeof PROGRESS_STYLES)[number];
@@ -117,6 +124,8 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   progressStyle: "ring",
   awayCard: true,
   awayMinutes: 10,
+  grouping: "none",
+  collapsedGroups: [],
 };
 
 /** What is stored: only what differs from the defaults. */
@@ -139,6 +148,7 @@ export type PrefsPatch = {
 /** Values settings.json may hold for the enumerated keys; anything else reads as the default. */
 const CHOICES: Partial<Record<keyof IslandSettings | keyof SessionPrefs, readonly string[]>> = {
   progressStyle: PROGRESS_STYLES,
+  grouping: GROUPINGS,
   language: ["auto", ...LANGUAGES.map((language) => language.value)],
   silhouette: ["notch", "capsule"],
   layout: ["compact", "spacious", "custom"],
@@ -385,8 +395,14 @@ export function resolve(stored: StoredPrefs | null | undefined): Prefs {
           ]
         : [],
     },
-    sessions: { ...DEFAULT_SESSION_PREFS, ...checked(DEFAULT_SESSION_PREFS, stored?.sessions) },
+    sessions: sessionPrefs(stored?.sessions),
   };
+}
+
+function sessionPrefs(stored: unknown): SessionPrefs {
+  const sessions = { ...DEFAULT_SESSION_PREFS, ...checked(DEFAULT_SESSION_PREFS, stored) };
+  sessions.collapsedGroups = stringList(sessions.collapsedGroups) ?? [];
+  return sessions;
 }
 
 function sectionSwitches(value: unknown): Partial<Record<ModuleId, boolean>> {

@@ -823,5 +823,13 @@
   "windows.settings.sessions.progressDots": "Точки",
   "windows.settings.sessions.progressRing": "Кольцо",
   "windows.settings.sessions.progressStyle": "Прогресс задач",
-  "windows.settings.sessions.progressStyleCaption": "Как список задач сессии показывается в её строке."
+  "windows.settings.sessions.progressStyleCaption": "Как список задач сессии показывается в её строке.",
+  "windows.sessions.groupSessions": "Группировать сессии",
+  "windows.sessions.groupNone": "Один список",
+  "windows.sessions.groupByProject": "По проекту",
+  "windows.sessions.groupByAgent": "По агенту",
+  "windows.sessions.groupCount": "Сессии: %@",
+  "windows.sessions.groupWaiting": "Ждут вас: %@",
+  "windows.settings.sessions.grouping": "Группировать список",
+  "windows.settings.sessions.groupingCaption": "Сессии одного проекта или одного агента собираются под заголовком, который можно свернуть."
 }

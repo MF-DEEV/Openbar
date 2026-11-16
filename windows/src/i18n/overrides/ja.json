@@ -823,5 +823,13 @@
   "windows.settings.sessions.progressDots": "ドット",
   "windows.settings.sessions.progressRing": "リング",
   "windows.settings.sessions.progressStyle": "タスクの進捗",
-  "windows.settings.sessions.progressStyleCaption": "セッションのタスクリストを行にどう表示するか。"
+  "windows.settings.sessions.progressStyleCaption": "セッションのタスクリストを行にどう表示するか。",
+  "windows.sessions.groupSessions": "セッションをグループ化",
+  "windows.sessions.groupNone": "1つのリスト",
+  "windows.sessions.groupByProject": "プロジェクト別",
+  "windows.sessions.groupByAgent": "エージェント別",
+  "windows.sessions.groupCount": "セッション: %@",
+  "windows.sessions.groupWaiting": "あなたを待っています: %@",
+  "windows.settings.sessions.grouping": "リストをグループ化",
+  "windows.settings.sessions.groupingCaption": "同じプロジェクトや同じエージェントのセッションを、折りたためる見出しの下にまとめます。"
 }

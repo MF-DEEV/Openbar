@@ -2896,3 +2896,248 @@
   max-height: none;
   overscroll-behavior: contain;
 }
+
+/* #233: the list in groups, and the branch on every row. */
+
+.s-list.is-grouped {
+  gap: 10px;
+}
+
+.s-group {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.s-group-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.s-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px 0 4px;
+  border-radius: 9px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.9);
+  transition:
+    background-color 0.15s,
+    box-shadow 0.2s;
+}
+
+.s-group-head:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Folded with someone inside waiting: the header keeps the amber the row had. */
+.s-group-head.is-collapsed.has-waiting {
+  background: rgba(255, 199, 71, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 199, 71, 0.45);
+}
+
+.s-group-chevron {
+  flex: none;
+  color: rgba(255, 255, 255, 0.4);
+  transform: rotate(90deg);
+  transition: transform 0.3s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.s-group-head.is-collapsed .s-group-chevron {
+  transform: rotate(0deg);
+}
+
+.s-group-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.s-group-mark.is-agent {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.s-group-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s-group-count {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 15px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.s-group-fill {
+  flex: 1;
+  min-width: 0;
+}
+
+.s-group-faces {
+  display: flex;
+  align-items: center;
+}
+
+/* Each face ringed in its phase's color, over the island's black. */
+.s-group-face {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: #111;
+  box-shadow:
+    inset 0 0 0 1.5px currentColor,
+    0 0 0 1.5px #000;
+}
+
+.s-group-face:first-child {
+  margin-left: 0;
+}
+
+.s-group-more {
+  margin-left: 4px;
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.s-group-waiting {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 199, 71, 0.16);
+  color: #ffc747;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Prototype looks (#233): a rail down the group's rows, or the group as one card. */
+.s-list.is-look-rail .s-group-rows {
+  margin-left: 11px;
+  padding-left: 8px;
+  border-left: 2px solid color-mix(in srgb, var(--s-group-tint) 50%, transparent);
+}
+
+.s-list.is-look-card .s-group {
+  padding: 3px;
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.s-list.is-look-card .s-group-head {
+  padding-left: 7px;
+  border-radius: 14px;
+}
+
+/* The switch in the band: one list, by project, by agent. */
+.s-grouping {
+  display: flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.s-grouping button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 22px;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.5);
+  transition:
+    color 0.15s,
+    transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.s-grouping button:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.s-grouping button:active {
+  transform: scale(0.92);
+}
+
+.s-grouping button.is-on {
+  color: #fff;
+}
+
+.s-grouping button > svg {
+  position: relative;
+}
+
+.s-grouping-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* The branch beside the project, cut in the middle by the row (groups.ts cutMiddle). */
+.s-branch-chip {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 48%;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.s-branch-chip > svg {
+  flex: none;
+}
+
+.s-branch-name,
+.s-branch-worktree {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.s-branch-sep {
+  flex: none;
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-group-chevron,
+  .s-grouping button {
+    transition: none;
+  }
+}
