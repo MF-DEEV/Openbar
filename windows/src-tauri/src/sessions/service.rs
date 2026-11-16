@@ -3278,3 +3278,51 @@ mod tests {
         assert_eq!(codex_refusal(&[], "idle"), "unreachable");
     }
 }
+
+#[cfg(test)]
+mod auto_mode_tests {
+    use super::*;
+    use hook_agents::{AgentEvent, Kind};
+    use models::{Permission, Provider, Question};
+
+    fn event(kind: Kind) -> AgentEvent {
+        AgentEvent {
+            provider: Provider::Opencode,
+            session_id: "s1".into(),
+            pid: 1,
+            cwd: None,
+            date: 1.0,
+            kind,
+        }
+    }
+
+    /// Always proceed answers a tool's request, never a question (#234).
+    #[test]
+    fn only_a_tools_request_is_allowable() {
+        let asked = Permission::new("per_1", "Bash", Some("rm -rf build"), false, 1.0);
+        let events = vec![
+            event(Kind::Question),
+            event(Kind::Permission(asked.clone())),
+        ];
+        assert_eq!(allowable(&events, "per_1"), Some(asked.clone()));
+        assert_eq!(allowable(&events, "per_2"), None, "another request");
+        let mut question = Permission::new("q_1", "AskUserQuestion", None, false, 1.0);
+        question.questions = vec![Question {
+            question: "Which?".into(),
+            header: None,
+            options: Vec::new(),
+            multi_select: false,
+        }];
+        let held = vec![event(Kind::HeldPermission(question))];
+        assert_eq!(
+            allowable(&held, "q_1"),
+            None,
+            "a question waits on the person"
+        );
+        let vibe = vec![event(Kind::HeldPermission(asked))];
+        assert!(
+            allowable(&vibe, "per_1").is_some(),
+            "Vibe's approvals held by its proxy"
+        );
+    }
+}
