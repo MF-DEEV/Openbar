@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "セッション: %@",
   "windows.sessions.groupWaiting": "あなたを待っています: %@",
   "windows.settings.sessions.grouping": "リストをグループ化",
-  "windows.settings.sessions.groupingCaption": "同じプロジェクトや同じエージェントのセッションを、折りたためる見出しの下にまとめます。"
+  "windows.settings.sessions.groupingCaption": "同じプロジェクトや同じエージェントのセッションを、折りたためる見出しの下にまとめます。",
+  "windows.sessions.waitingMinutes": "%@分待機中",
+  "windows.sessions.waitingHoursMinutes": "%@時間%@分待機中",
+  "windows.sessions.reminderStill": "まだ待機中",
+  "windows.sessions.reminderTitle": "%@件のセッションが待機中",
+  "windows.settings.sessions.reminders": "リマインド",
+  "windows.settings.sessions.remindersCaption": "セッションが待っていて誰も反応しないとき、アイランドがそのセッションで再び開き、サウンドを鳴らします。自身のターミナルタブが前面にあるときや画面がロックされているときは鳴りません。",
+  "windows.settings.sessions.remindPermission": "未回答の許可",
+  "windows.settings.sessions.remindQuestion": "未回答の質問",
+  "windows.settings.sessions.remindFinished": "誰も見ていない完了したターン",
+  "windows.settings.sessions.remindAfter": "リマインドまでの時間",
+  "windows.settings.sessions.remindAfterValue": "%@分",
+  "windows.settings.sessions.remindEvery": "再リマインド",
+  "windows.settings.sessions.remindOnce": "1回のみ",
+  "windows.settings.sessions.remindEveryValue": "%@分ごと",
+  "windows.settings.sessions.remindDuringDnd": "おやすみモード中も",
+  "windows.settings.sessions.remindDuringDndCaption": "おやすみモードがオンでもリマインドします。オフの場合は、終わるまでリマインドを待ちます。"
 }

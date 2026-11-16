@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "Сессии: %@",
   "windows.sessions.groupWaiting": "Ждут вас: %@",
   "windows.settings.sessions.grouping": "Группировать список",
-  "windows.settings.sessions.groupingCaption": "Сессии одного проекта или одного агента собираются под заголовком, который можно свернуть."
+  "windows.settings.sessions.groupingCaption": "Сессии одного проекта или одного агента собираются под заголовком, который можно свернуть.",
+  "windows.sessions.waitingMinutes": "ждёт %@ мин",
+  "windows.sessions.waitingHoursMinutes": "ждёт %@ ч %@ мин",
+  "windows.sessions.reminderStill": "Всё ещё ждёт",
+  "windows.sessions.reminderTitle": "Ждут сеансов: %@",
+  "windows.settings.sessions.reminders": "Напоминать",
+  "windows.settings.sessions.remindersCaption": "Если сеанс ждёт, а никто не реагирует, остров снова открывается на нём и играет его звук. Не напоминает, пока впереди его вкладка терминала или экран заблокирован.",
+  "windows.settings.sessions.remindPermission": "Неотвеченное разрешение",
+  "windows.settings.sessions.remindQuestion": "Неотвеченный вопрос",
+  "windows.settings.sessions.remindFinished": "Завершённый ход, который никто не посмотрел",
+  "windows.settings.sessions.remindAfter": "Напомнить через",
+  "windows.settings.sessions.remindAfterValue": "%@ мин",
+  "windows.settings.sessions.remindEvery": "Напоминать снова",
+  "windows.settings.sessions.remindOnce": "Один раз",
+  "windows.settings.sessions.remindEveryValue": "Каждые %@ мин",
+  "windows.settings.sessions.remindDuringDnd": "И в режиме «Не беспокоить»",
+  "windows.settings.sessions.remindDuringDndCaption": "Напоминает при включённом «Не беспокоить». Иначе напоминание ждёт, пока режим не выключится."
 }

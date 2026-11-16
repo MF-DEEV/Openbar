@@ -40,6 +40,7 @@ mod prefs;
 mod recorder;
 mod scratchpad;
 mod session_lock;
+mod session_quiet;
 mod sessions;
 mod settings;
 mod shell;
@@ -440,6 +441,7 @@ pub fn run() {
             keep_awake::keep_awake_toggle,
             power_saver::power_saver_on,
             session_lock::session_idle_seconds,
+            session_quiet::session_quiet,
             battery::battery_status,
             brightness::brightness_displays,
             brightness::brightness_set,

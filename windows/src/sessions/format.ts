@@ -7,6 +7,7 @@
 import { tf } from "../i18n";
 
 import { S } from "./strings";
+import { waitedMinutes } from "./reminders";
 import { isWaiting, isWorking, type Phase, type Provider, type Session, type Tokens, isActive } from "./types";
 
 export const CLAUDE_TINT = "#D97857";
@@ -148,6 +149,11 @@ export function clock(seconds: number): string {
 /** The row's clock: since the turn began while working, since the phase began while waiting or in background. */
 export function phaseClock(session: Session, now: number): string | null {
   if (isWorking(session.phase)) return clock(now - (session.turnStarted ?? session.phaseSince));
+  if (isWaiting(session.phase)) {
+    // From a minute on, how long it has waited in words (#231).
+    const minutes = waitedMinutes(session, now);
+    if (minutes !== null) return S.waitingFor(minutes);
+  }
   if (isWaiting(session.phase) || session.phase === "background") return clock(now - session.phaseSince);
   return null;
 }

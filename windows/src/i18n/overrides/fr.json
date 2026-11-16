@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "Sessions : %@",
   "windows.sessions.groupWaiting": "Vous attendent : %@",
   "windows.settings.sessions.grouping": "Grouper la liste",
-  "windows.settings.sessions.groupingCaption": "Les sessions d’un projet ou d’un agent se rangent sous un en-tête que vous pouvez replier."
+  "windows.settings.sessions.groupingCaption": "Les sessions d’un projet ou d’un agent se rangent sous un en-tête que vous pouvez replier.",
+  "windows.sessions.waitingMinutes": "en attente depuis %@ min",
+  "windows.sessions.waitingHoursMinutes": "en attente depuis %@ h %@ min",
+  "windows.sessions.reminderStill": "Toujours en attente",
+  "windows.sessions.reminderTitle": "%@ sessions en attente",
+  "windows.settings.sessions.reminders": "Me rappeler",
+  "windows.settings.sessions.remindersCaption": "Quand une session attend et que personne ne réagit, l’îlot s’ouvre de nouveau sur elle et joue son son. Pas tant que son propre onglet de terminal est au premier plan ou que l’écran est verrouillé.",
+  "windows.settings.sessions.remindPermission": "Autorisation sans réponse",
+  "windows.settings.sessions.remindQuestion": "Question sans réponse",
+  "windows.settings.sessions.remindFinished": "Tour terminé que personne n’a regardé",
+  "windows.settings.sessions.remindAfter": "Rappeler après",
+  "windows.settings.sessions.remindAfterValue": "%@ min",
+  "windows.settings.sessions.remindEvery": "Rappeler encore",
+  "windows.settings.sessions.remindOnce": "Une fois",
+  "windows.settings.sessions.remindEveryValue": "Toutes les %@ min",
+  "windows.settings.sessions.remindDuringDnd": "Aussi en mode Ne pas déranger",
+  "windows.settings.sessions.remindDuringDndCaption": "Rappelle même quand Ne pas déranger est activé. Sinon, le rappel attend qu’il se termine."
 }

@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "Sesiones: %@",
   "windows.sessions.groupWaiting": "Esperándote: %@",
   "windows.settings.sessions.grouping": "Agrupar la lista",
-  "windows.settings.sessions.groupingCaption": "Las sesiones de un proyecto o de un agente quedan juntas bajo un encabezado que puedes plegar."
+  "windows.settings.sessions.groupingCaption": "Las sesiones de un proyecto o de un agente quedan juntas bajo un encabezado que puedes plegar.",
+  "windows.sessions.waitingMinutes": "esperando %@ min",
+  "windows.sessions.waitingHoursMinutes": "esperando %@ h %@ min",
+  "windows.sessions.reminderStill": "Sigue esperando",
+  "windows.sessions.reminderTitle": "%@ sesiones esperando",
+  "windows.settings.sessions.reminders": "Recordarme",
+  "windows.settings.sessions.remindersCaption": "Cuando una sesión espera y nadie reacciona, la isla vuelve a abrirse en ella y reproduce su sonido. No mientras su propia pestaña del terminal esté al frente o la pantalla esté bloqueada.",
+  "windows.settings.sessions.remindPermission": "Permiso sin responder",
+  "windows.settings.sessions.remindQuestion": "Pregunta sin responder",
+  "windows.settings.sessions.remindFinished": "Turno terminado que nadie vio",
+  "windows.settings.sessions.remindAfter": "Recordar después de",
+  "windows.settings.sessions.remindAfterValue": "%@ min",
+  "windows.settings.sessions.remindEvery": "Volver a recordar",
+  "windows.settings.sessions.remindOnce": "Una vez",
+  "windows.settings.sessions.remindEveryValue": "Cada %@ min",
+  "windows.settings.sessions.remindDuringDnd": "También con No molestar",
+  "windows.settings.sessions.remindDuringDndCaption": "Recuerda aunque No molestar esté activado. Si no, el recordatorio espera a que termine."
 }

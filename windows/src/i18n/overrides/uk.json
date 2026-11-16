@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "Сесії: %@",
   "windows.sessions.groupWaiting": "Чекають на вас: %@",
   "windows.settings.sessions.grouping": "Групувати список",
-  "windows.settings.sessions.groupingCaption": "Сесії одного проєкту або одного агента збираються під заголовком, який можна згорнути."
+  "windows.settings.sessions.groupingCaption": "Сесії одного проєкту або одного агента збираються під заголовком, який можна згорнути.",
+  "windows.sessions.waitingMinutes": "чекає %@ хв",
+  "windows.sessions.waitingHoursMinutes": "чекає %@ год %@ хв",
+  "windows.sessions.reminderStill": "Досі чекає",
+  "windows.sessions.reminderTitle": "Чекають сеансів: %@",
+  "windows.settings.sessions.reminders": "Нагадувати",
+  "windows.settings.sessions.remindersCaption": "Коли сеанс чекає, а ніхто не реагує, острів знову відкривається на ньому й грає його звук. Не нагадує, поки попереду його вкладка термінала або екран заблоковано.",
+  "windows.settings.sessions.remindPermission": "Дозвіл без відповіді",
+  "windows.settings.sessions.remindQuestion": "Питання без відповіді",
+  "windows.settings.sessions.remindFinished": "Завершений хід, який ніхто не переглянув",
+  "windows.settings.sessions.remindAfter": "Нагадати через",
+  "windows.settings.sessions.remindAfterValue": "%@ хв",
+  "windows.settings.sessions.remindEvery": "Нагадувати знову",
+  "windows.settings.sessions.remindOnce": "Один раз",
+  "windows.settings.sessions.remindEveryValue": "Кожні %@ хв",
+  "windows.settings.sessions.remindDuringDnd": "І в режимі «Не турбувати»",
+  "windows.settings.sessions.remindDuringDndCaption": "Нагадує, навіть коли ввімкнено «Не турбувати». Інакше нагадування чекає, доки режим не вимкнеться."
 }

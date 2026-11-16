@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "工作階段：%@",
   "windows.sessions.groupWaiting": "等你處理：%@",
   "windows.settings.sessions.grouping": "列表分組",
-  "windows.settings.sessions.groupingCaption": "同一專案或同一代理的工作階段歸在可收合的標題下。"
+  "windows.settings.sessions.groupingCaption": "同一專案或同一代理的工作階段歸在可收合的標題下。",
+  "windows.sessions.waitingMinutes": "已等待 %@ 分鐘",
+  "windows.sessions.waitingHoursMinutes": "已等待 %@ 小時 %@ 分鐘",
+  "windows.sessions.reminderStill": "仍在等待",
+  "windows.sessions.reminderTitle": "%@ 個工作階段在等待",
+  "windows.settings.sessions.reminders": "提醒我",
+  "windows.settings.sessions.remindersCaption": "工作階段在等待而沒人回應時，動態島會再次在該工作階段上開啟並播放其提示音。其終端機分頁位於前景或螢幕鎖定時不會提醒。",
+  "windows.settings.sessions.remindPermission": "未回應的權限要求",
+  "windows.settings.sessions.remindQuestion": "未回應的問題",
+  "windows.settings.sessions.remindFinished": "沒人查看的已完成回合",
+  "windows.settings.sessions.remindAfter": "提醒時間",
+  "windows.settings.sessions.remindAfterValue": "%@ 分鐘",
+  "windows.settings.sessions.remindEvery": "再次提醒",
+  "windows.settings.sessions.remindOnce": "只一次",
+  "windows.settings.sessions.remindEveryValue": "每 %@ 分鐘",
+  "windows.settings.sessions.remindDuringDnd": "勿擾模式下也提醒",
+  "windows.settings.sessions.remindDuringDndCaption": "勿擾模式開啟時也會提醒。否則提醒會等到勿擾結束。"
 }

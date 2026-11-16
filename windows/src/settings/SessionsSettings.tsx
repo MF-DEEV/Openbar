@@ -29,6 +29,7 @@ import { Button, Segmented, Status, SubRow, Toggle } from "./ui";
 const AWAY_MINUTES = [5, 10, 15, 30, 60];
 import { T } from "./strings";
 import { SessionSounds } from "./SessionSounds";
+import { SessionReminders } from "./SessionReminders";
 
 interface HooksStatus {
   installed: boolean;
@@ -941,6 +942,7 @@ export function SessionsOptions() {
         <Toggle label={T.sessions.autoExpand} checked={prefs.autoExpand} onChange={(on) => set("autoExpand", on)} />
       </SubRow>
       <SessionSounds prefs={prefs} set={set} />
+      <SessionReminders prefs={prefs} set={set} />
       <SubRow title={T.sessions.previews} caption={T.sessions.previewsCaption}>
         <Toggle label={T.sessions.previews} checked={prefs.previews} onChange={(on) => set("previews", on)} />
       </SubRow>

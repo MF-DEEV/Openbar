@@ -8246,5 +8246,101 @@
     "key": "windows.settings.sessions.awayMinutesValue",
     "english": "%@ min",
     "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.waitingMinutes",
+    "english": "waiting %@ min",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.waitingHoursMinutes",
+    "english": "waiting %@h %@m",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.reminderStill",
+    "english": "Still waiting",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.reminderTitle",
+    "english": "%@ sessions waiting",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.reminders",
+    "english": "Remind me",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.remindersCaption",
+    "english": "When a session waits and nobody reacts, the island opens on it again and plays its sound. Not while its own terminal tab is in front or the screen is locked.",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.remindPermission",
+    "english": "Unanswered permission",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.remindQuestion",
+    "english": "Unanswered question",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.remindFinished",
+    "english": "Finished turn nobody looked at",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.remindAfter",
+    "english": "Remind after",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.remindAfterValue",
+    "english": "%@ min",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.remindEvery",
+    "english": "Remind again",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.remindOnce",
+    "english": "Once",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.remindEveryValue",
+    "english": "Every %@ min",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.remindDuringDnd",
+    "english": "Also during Do Not Disturb",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.remindDuringDndCaption",
+    "english": "Reminds while Do Not Disturb is on. Otherwise the reminder waits until it ends.",
+    "source": null
   }
 ]

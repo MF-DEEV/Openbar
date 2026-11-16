@@ -78,6 +78,15 @@ export interface SessionPrefs extends SessionSoundPrefs {
   awayCard: boolean;
   /** Minutes without input that count as a break. */
   awayMinutes: number;
+  /** Reminders of a session nobody reacted to (#231; sessions/reminders.ts):
+   * which waits, the minutes before the first one, the minutes between
+   * repeats (0 for once), and whether they come during Do Not Disturb. */
+  remindPermission: boolean;
+  remindQuestion: boolean;
+  remindFinished: boolean;
+  remindAfter: number;
+  remindEvery: number;
+  remindDuringDnd: boolean;
   /** The list as one column, or grouped by project or by agent (#233). */
   grouping: Grouping;
   /** Groups the person folded, by their key (sessions/groups.ts). */
@@ -126,6 +135,12 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   progressStyle: "ring",
   awayCard: true,
   awayMinutes: 10,
+  remindPermission: false,
+  remindQuestion: false,
+  remindFinished: false,
+  remindAfter: 5,
+  remindEvery: 0,
+  remindDuringDnd: false,
   grouping: "none",
   collapsedGroups: [],
 };

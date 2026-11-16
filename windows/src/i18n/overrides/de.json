@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "Sitzungen: %@",
   "windows.sessions.groupWaiting": "Warten auf dich: %@",
   "windows.settings.sessions.grouping": "Liste gruppieren",
-  "windows.settings.sessions.groupingCaption": "Sitzungen eines Projekts oder eines Agenten stehen zusammen unter einer Überschrift, die du einklappen kannst."
+  "windows.settings.sessions.groupingCaption": "Sitzungen eines Projekts oder eines Agenten stehen zusammen unter einer Überschrift, die du einklappen kannst.",
+  "windows.sessions.waitingMinutes": "wartet seit %@ Min.",
+  "windows.sessions.waitingHoursMinutes": "wartet seit %@ Std. %@ Min.",
+  "windows.sessions.reminderStill": "Wartet noch",
+  "windows.sessions.reminderTitle": "%@ Sitzungen warten",
+  "windows.settings.sessions.reminders": "Erinnern",
+  "windows.settings.sessions.remindersCaption": "Wenn eine Sitzung wartet und niemand reagiert, öffnet sich die Insel erneut bei ihr und spielt ihren Ton. Nicht, solange ihr eigener Terminal-Tab vorne ist oder der Bildschirm gesperrt ist.",
+  "windows.settings.sessions.remindPermission": "Unbeantwortete Erlaubnis",
+  "windows.settings.sessions.remindQuestion": "Unbeantwortete Frage",
+  "windows.settings.sessions.remindFinished": "Beendeter Zug, den niemand angesehen hat",
+  "windows.settings.sessions.remindAfter": "Erinnern nach",
+  "windows.settings.sessions.remindAfterValue": "%@ Min.",
+  "windows.settings.sessions.remindEvery": "Erneut erinnern",
+  "windows.settings.sessions.remindOnce": "Einmal",
+  "windows.settings.sessions.remindEveryValue": "Alle %@ Min.",
+  "windows.settings.sessions.remindDuringDnd": "Auch bei „Nicht stören“",
+  "windows.settings.sessions.remindDuringDndCaption": "Erinnert auch, wenn „Nicht stören“ an ist. Sonst wartet die Erinnerung, bis es endet."
 }

@@ -4646,7 +4646,8 @@ final class NotchService: ObservableObject {
 
     /// One reminder for every session in it: its sound, then the island on
     /// the one session, or on the list of them. While another app is in
-    /// front, a notice instead, as for the request itself (#167).
+    /// front, or the island is open on something else, a notice instead,
+    /// as for the request itself (#167).
     private func presentSessionReminder(_ waits: [NotchSessionReminders.Wait], sessions all: [ClaudeSession], now: Date) {
         let service = ClaudeSessionService.shared
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
@@ -4663,7 +4664,8 @@ final class NotchService: ObservableObject {
         if MainActor.assumeIsolated({ NotchAwayCard.shared.isShown }) { return }
         if expanded, selected == .sessions,
            service.focusedID == nil || (waits.count == 1 && service.focusedID == waits[0].session) { return }
-        if sessionsMayPresent, NotchClaudeSessionsSupport.autoExpands() {
+        // Another page open is the person at work: a notice, not a jump.
+        if sessionsMayPresent, NotchClaudeSessionsSupport.autoExpands(), !expanded {
             open(.sessions, takeFocus: false)
             service.focus(waits.count == 1 ? waits[0].session : nil)
             return
