@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "세션: %@",
   "windows.sessions.groupWaiting": "응답 대기: %@",
   "windows.settings.sessions.grouping": "목록 그룹화",
-  "windows.settings.sessions.groupingCaption": "같은 프로젝트나 같은 에이전트의 세션을 접을 수 있는 머리글 아래에 모읍니다."
+  "windows.settings.sessions.groupingCaption": "같은 프로젝트나 같은 에이전트의 세션을 접을 수 있는 머리글 아래에 모읍니다.",
+  "windows.sessions.waitingMinutes": "%@분째 대기 중",
+  "windows.sessions.waitingHoursMinutes": "%@시간 %@분째 대기 중",
+  "windows.sessions.reminderStill": "아직 대기 중",
+  "windows.sessions.reminderTitle": "%@개 세션 대기 중",
+  "windows.settings.sessions.reminders": "알림 받기",
+  "windows.settings.sessions.remindersCaption": "세션이 기다리는데 아무도 반응하지 않으면 아일랜드가 그 세션에서 다시 열리고 소리를 재생합니다. 해당 터미널 탭이 앞에 있거나 화면이 잠겨 있을 때는 알리지 않습니다.",
+  "windows.settings.sessions.remindPermission": "응답하지 않은 권한",
+  "windows.settings.sessions.remindQuestion": "응답하지 않은 질문",
+  "windows.settings.sessions.remindFinished": "아무도 보지 않은 완료된 턴",
+  "windows.settings.sessions.remindAfter": "알림 시점",
+  "windows.settings.sessions.remindAfterValue": "%@분",
+  "windows.settings.sessions.remindEvery": "다시 알림",
+  "windows.settings.sessions.remindOnce": "한 번",
+  "windows.settings.sessions.remindEveryValue": "%@분마다",
+  "windows.settings.sessions.remindDuringDnd": "방해 금지 중에도",
+  "windows.settings.sessions.remindDuringDndCaption": "방해 금지가 켜져 있어도 알립니다. 그렇지 않으면 끝날 때까지 알림을 미룹니다."
 }

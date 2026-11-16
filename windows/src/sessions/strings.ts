@@ -520,6 +520,15 @@ export const S = {
       ? tf("windows.sessions.valueHValueM", Math.floor(minutes / 60), minutes % 60)
       : tf("windows.sessions.awayMinutesFormat", minutes),
   awayFiles: (n: number) => tf("windows.sessions.awayFilesFormat", n),
+  /** How long a session has waited on the person, on its row (#231). */
+  waitingFor: (minutes: number) =>
+    minutes >= 60
+      ? tf("windows.sessions.waitingHoursMinutes", Math.floor(minutes / 60), minutes % 60)
+      : tf("windows.sessions.waitingMinutes", minutes),
+  get reminderStill() {
+    return t("windows.sessions.reminderStill");
+  },
+  reminderTitle: (n: number) => tf("windows.sessions.reminderTitle", n),
   get awayWaiting() {
     return t("windows.sessions.awayWaiting");
   },

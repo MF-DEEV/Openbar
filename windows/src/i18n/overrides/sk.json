@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "Relácie: %@",
   "windows.sessions.groupWaiting": "Čakajú na vás: %@",
   "windows.settings.sessions.grouping": "Zoskupiť zoznam",
-  "windows.settings.sessions.groupingCaption": "Relácie jedného projektu alebo jedného agenta sú spolu pod hlavičkou, ktorú môžete zbaliť."
+  "windows.settings.sessions.groupingCaption": "Relácie jedného projektu alebo jedného agenta sú spolu pod hlavičkou, ktorú môžete zbaliť.",
+  "windows.sessions.waitingMinutes": "čaká %@ min",
+  "windows.sessions.waitingHoursMinutes": "čaká %@ h %@ min",
+  "windows.sessions.reminderStill": "Stále čaká",
+  "windows.sessions.reminderTitle": "Čakajúce relácie: %@",
+  "windows.settings.sessions.reminders": "Pripomenúť",
+  "windows.settings.sessions.remindersCaption": "Keď relácia čaká a nikto nereaguje, ostrov sa na nej znova otvorí a prehrá jej zvuk. Nie, kým je vpredu jej vlastná karta terminálu alebo je obrazovka zamknutá.",
+  "windows.settings.sessions.remindPermission": "Nezodpovedané povolenie",
+  "windows.settings.sessions.remindQuestion": "Nezodpovedaná otázka",
+  "windows.settings.sessions.remindFinished": "Dokončený ťah, na ktorý sa nikto nepozrel",
+  "windows.settings.sessions.remindAfter": "Pripomenúť po",
+  "windows.settings.sessions.remindAfterValue": "%@ min",
+  "windows.settings.sessions.remindEvery": "Pripomenúť znova",
+  "windows.settings.sessions.remindOnce": "Raz",
+  "windows.settings.sessions.remindEveryValue": "Každých %@ min",
+  "windows.settings.sessions.remindDuringDnd": "Aj počas Nerušiť",
+  "windows.settings.sessions.remindDuringDndCaption": "Pripomína aj pri zapnutom režime Nerušiť. Inak pripomienka počká, kým sa neskončí."
 }

@@ -41,6 +41,20 @@ pub fn session_idle_seconds() -> Option<f64> {
 #[cfg(windows)]
 static APP: std::sync::OnceLock<AppHandle> = std::sync::OnceLock::new();
 
+/// Locked now, by the session's own reports, and the display off (or
+/// dimmed) by the console's: a reminder (#231) waits through either.
+#[cfg(windows)]
+static LOCKED_NOW: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+#[cfg(windows)]
+static DISPLAY_OFF: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Whether nobody would see the island: the session locked or the display off.
+#[cfg(windows)]
+pub fn screen_away() -> bool {
+    use std::sync::atomic::Ordering;
+    LOCKED_NOW.load(Ordering::Relaxed) || DISPLAY_OFF.load(Ordering::Relaxed)
+}
+
 #[cfg(windows)]
 pub fn start(app: AppHandle) {
     use windows::Win32::Foundation::{HINSTANCE, HWND};
@@ -88,6 +102,13 @@ pub fn start(app: AppHandle) {
             if WTSRegisterSessionNotification(window, NOTIFY_FOR_THIS_SESSION).is_err() {
                 return;
             }
+            // The display going off or coming back (#231). Registering
+            // reports the state at once, so it is known from the start.
+            let _ = windows::Win32::System::Power::RegisterPowerSettingNotification(
+                windows::Win32::Foundation::HANDLE(window.0),
+                &windows::Win32::System::SystemServices::GUID_CONSOLE_DISPLAY_STATE,
+                windows::Win32::UI::WindowsAndMessaging::DEVICE_NOTIFY_WINDOW_HANDLE,
+            );
             let mut message = MSG::default();
             while GetMessageW(&mut message, None, 0, 0).as_bool() {
                 DispatchMessageW(&message);
@@ -110,17 +131,31 @@ unsafe extern "system" fn window_proc(
     wparam: windows::Win32::Foundation::WPARAM,
     lparam: windows::Win32::Foundation::LPARAM,
 ) -> windows::Win32::Foundation::LRESULT {
+    use std::sync::atomic::Ordering;
     use tauri::Emitter;
+    use windows::Win32::System::Power::POWERBROADCAST_SETTING;
+    use windows::Win32::System::SystemServices::GUID_CONSOLE_DISPLAY_STATE;
     use windows::Win32::UI::WindowsAndMessaging::{
-        DefWindowProcW, WM_WTSSESSION_CHANGE, WTS_SESSION_LOCK, WTS_SESSION_UNLOCK,
+        DefWindowProcW, PBT_POWERSETTINGCHANGE, WM_POWERBROADCAST, WM_WTSSESSION_CHANGE,
+        WTS_SESSION_LOCK, WTS_SESSION_UNLOCK,
     };
     if message == WM_WTSSESSION_CHANGE
         && let Some(app) = APP.get()
     {
         if wparam.0 == WTS_SESSION_UNLOCK as usize {
+            LOCKED_NOW.store(false, Ordering::Relaxed);
             let _ = app.emit(EVENT, ());
         } else if wparam.0 == WTS_SESSION_LOCK as usize {
+            LOCKED_NOW.store(true, Ordering::Relaxed);
             let _ = app.emit(LOCKED, ());
+        }
+    }
+    if message == WM_POWERBROADCAST && wparam.0 == PBT_POWERSETTINGCHANGE as usize && lparam.0 != 0
+    {
+        let setting = unsafe { &*(lparam.0 as *const POWERBROADCAST_SETTING) };
+        if setting.PowerSetting == GUID_CONSOLE_DISPLAY_STATE && setting.DataLength >= 1 {
+            // 0 off, 1 on, 2 dimmed: a dimmed display still shows the island.
+            DISPLAY_OFF.store(setting.Data[0] == 0, Ordering::Relaxed);
         }
     }
     unsafe { DefWindowProcW(window, message, wparam, lparam) }

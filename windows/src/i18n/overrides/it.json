@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "Sessioni: %@",
   "windows.sessions.groupWaiting": "Ti aspettano: %@",
   "windows.settings.sessions.grouping": "Raggruppa l’elenco",
-  "windows.settings.sessions.groupingCaption": "Le sessioni di un progetto o di un agente stanno insieme sotto un’intestazione che puoi chiudere."
+  "windows.settings.sessions.groupingCaption": "Le sessioni di un progetto o di un agente stanno insieme sotto un’intestazione che puoi chiudere.",
+  "windows.sessions.waitingMinutes": "in attesa da %@ min",
+  "windows.sessions.waitingHoursMinutes": "in attesa da %@ h %@ min",
+  "windows.sessions.reminderStill": "Ancora in attesa",
+  "windows.sessions.reminderTitle": "%@ sessioni in attesa",
+  "windows.settings.sessions.reminders": "Ricordamelo",
+  "windows.settings.sessions.remindersCaption": "Quando una sessione aspetta e nessuno reagisce, l’isola si riapre su di essa e riproduce il suo suono. Non mentre la sua scheda del terminale è in primo piano o lo schermo è bloccato.",
+  "windows.settings.sessions.remindPermission": "Permesso senza risposta",
+  "windows.settings.sessions.remindQuestion": "Domanda senza risposta",
+  "windows.settings.sessions.remindFinished": "Turno finito che nessuno ha guardato",
+  "windows.settings.sessions.remindAfter": "Ricorda dopo",
+  "windows.settings.sessions.remindAfterValue": "%@ min",
+  "windows.settings.sessions.remindEvery": "Ricorda di nuovo",
+  "windows.settings.sessions.remindOnce": "Una volta",
+  "windows.settings.sessions.remindEveryValue": "Ogni %@ min",
+  "windows.settings.sessions.remindDuringDnd": "Anche con Non disturbare",
+  "windows.settings.sessions.remindDuringDndCaption": "Ricorda anche quando Non disturbare è attivo. Altrimenti il promemoria aspetta che finisca."
 }

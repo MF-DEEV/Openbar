@@ -16,6 +16,12 @@ struct NotchClaudeSessionsSettingsControls: View {
     @AppStorage(DefaultsKey.notchSessionsGrouping) private var grouping = NotchSessionGrouping.none.rawValue
     @AppStorage(DefaultsKey.notchSessionsAwayCard) private var awayCard = true
     @AppStorage(DefaultsKey.notchSessionsAwayMinutes) private var awayMinutes = 10
+    @AppStorage(DefaultsKey.notchSessionsRemindPermission) private var remindPermission = false
+    @AppStorage(DefaultsKey.notchSessionsRemindQuestion) private var remindQuestion = false
+    @AppStorage(DefaultsKey.notchSessionsRemindFinished) private var remindFinished = false
+    @AppStorage(DefaultsKey.notchSessionsRemindAfter) private var remindAfter = 5
+    @AppStorage(DefaultsKey.notchSessionsRemindEvery) private var remindEvery = 0
+    @AppStorage(DefaultsKey.notchSessionsRemindDuringFocus) private var remindDuringFocus = false
     @AppStorage(DefaultsKey.notchSessionsVoiceReplies) private var voiceReplies = true
     @AppStorage(DefaultsKey.notchSessionsVoiceLanguage) private var voiceLanguage = ""
     @AppStorage(DefaultsKey.notchSessionsVoiceSendOnStop) private var voiceSendOnStop = false
@@ -33,6 +39,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             switchRow("waveform.path.ecg", text.liveActivity, isOn: $liveActivity)
             switchRow("rectangle.expand.vertical", text.autoExpand, caption: text.autoExpandHint, isOn: $autoExpand)
             SessionSoundsSettings()
+            reminders
             switchRow("text.bubble", text.contentPreview, caption: text.contentPreviewHint, isOn: $previews)
             switchRow("gauge.with.dots.needle.50percent", text.limitsSetting, caption: text.limitsSettingHint, isOn: $limits)
             buddiesRow
@@ -87,6 +94,42 @@ struct NotchClaudeSessionsSettingsControls: View {
                     .labelsHidden()
                     .frame(maxWidth: 120)
                 }
+            }
+        }
+    }
+
+    /// Reminders of a session nobody reacted to (#231): what to remind of,
+    /// then when, once any of it is on.
+    private var reminders: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SettingsRow(symbol: "bell.badge", title: text.remindersSetting, caption: text.remindersSettingHint) {
+                EmptyView()
+            }
+            VStack(alignment: .leading, spacing: 6) {
+                Toggle(text.remindPermission, isOn: $remindPermission)
+                Toggle(text.remindQuestion, isOn: $remindQuestion)
+                Toggle(text.remindFinished, isOn: $remindFinished)
+            }
+            .toggleStyle(.checkbox)
+            .padding(.leading, settingsRowTextInset)
+            if remindPermission || remindQuestion || remindFinished {
+                SettingsRow(symbol: "timer", title: text.remindAfter) {
+                    Picker(text.remindAfter, selection: $remindAfter) {
+                        ForEach(NotchSessionReminders.Settings.afterChoices, id: \.self) { Text(text.minutes($0)).tag($0) }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 120)
+                }
+                SettingsRow(symbol: "arrow.clockwise", title: text.remindEvery) {
+                    Picker(text.remindEvery, selection: $remindEvery) {
+                        ForEach(NotchSessionReminders.Settings.everyChoices, id: \.self) { minutes in
+                            Text(minutes == 0 ? text.remindOnce : text.remindEveryMinutes(minutes)).tag(minutes)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(maxWidth: 140)
+                }
+                switchRow("moon", text.remindDuringFocus, caption: text.remindDuringFocusHint, isOn: $remindDuringFocus)
             }
         }
     }

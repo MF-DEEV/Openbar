@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "会话：%@",
   "windows.sessions.groupWaiting": "等你处理：%@",
   "windows.settings.sessions.grouping": "列表分组",
-  "windows.settings.sessions.groupingCaption": "同一项目或同一代理的会话归在可折叠的标题下。"
+  "windows.settings.sessions.groupingCaption": "同一项目或同一代理的会话归在可折叠的标题下。",
+  "windows.sessions.waitingMinutes": "已等待 %@ 分钟",
+  "windows.sessions.waitingHoursMinutes": "已等待 %@ 小时 %@ 分钟",
+  "windows.sessions.reminderStill": "仍在等待",
+  "windows.sessions.reminderTitle": "%@ 个会话在等待",
+  "windows.settings.sessions.reminders": "提醒我",
+  "windows.settings.sessions.remindersCaption": "会话在等待而无人回应时，灵动岛会再次在该会话上打开并播放其提示音。其终端标签页位于前台或屏幕锁定时不会提醒。",
+  "windows.settings.sessions.remindPermission": "未回应的权限请求",
+  "windows.settings.sessions.remindQuestion": "未回应的问题",
+  "windows.settings.sessions.remindFinished": "无人查看的已完成回合",
+  "windows.settings.sessions.remindAfter": "提醒间隔",
+  "windows.settings.sessions.remindAfterValue": "%@ 分钟",
+  "windows.settings.sessions.remindEvery": "再次提醒",
+  "windows.settings.sessions.remindOnce": "仅一次",
+  "windows.settings.sessions.remindEveryValue": "每 %@ 分钟",
+  "windows.settings.sessions.remindDuringDnd": "勿扰模式下也提醒",
+  "windows.settings.sessions.remindDuringDndCaption": "勿扰模式开启时也会提醒。否则提醒会等到勿扰结束。"
 }

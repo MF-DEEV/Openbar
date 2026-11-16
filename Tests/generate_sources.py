@@ -1241,6 +1241,7 @@ def main():
           + declaration(notch, "    func open(_ module:")
               .replace("NotchSupport.isEnabled()", "NotchSupport.isEnabled(in: ReviewDefaults.current)")
           + "func removeHoverExitMonitors() {}\n"
+          + "func scheduleSessionReminderCheck(after delay: TimeInterval) {}\n"
           + declaration(notch, "    func showScratchpad(")
               .replace("NotchSupport.routesScratchpad()", "NotchSupport.routesScratchpad(in: ReviewDefaults.current)")
           + declaration(notch, "    func showClipboard(")

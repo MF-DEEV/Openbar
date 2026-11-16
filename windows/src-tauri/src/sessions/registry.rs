@@ -30,13 +30,22 @@ pub const MAX_RECORD_BYTES: usize = 1 << 16;
 /// processes, is left out.
 pub const MAC_PID_DOMAINS: &[&str] = &["darwin"];
 
-/// [VERIFY] What Claude Code writes as `pidDomain` on Windows has not been
-/// seen yet. It looks like Node's `process.platform`, which is "win32"
-/// there. A record that names no domain is always accepted, so a wrong guess
-/// here hides sessions only from builds that do write one; check a real
-/// record and fix this list. A WSL session writes its own, Linux, domain:
-/// its pids are not Windows pids, so leaving it out is right.
+/// Claude Code 2.1.325 on Windows writes `win32:<host name>`, like
+/// "win32:vors-win11" (seen on a real record); older builds may write a bare
+/// "win32". The service adds this machine's own name (`windows_pid_domains`).
+/// A WSL session writes its own, Linux, domain: its pids are not Windows
+/// pids, so leaving it out is right.
 pub const WINDOWS_PID_DOMAINS: &[&str] = &["win32"];
+
+/// The `pidDomain`s a record written on this Windows machine may carry: the
+/// bare platform, and the platform with the host name Node reports.
+pub fn windows_pid_domains(host: Option<&str>) -> Vec<String> {
+    let mut domains = vec!["win32".to_owned()];
+    if let Some(host) = host.map(str::trim).filter(|host| !host.is_empty()) {
+        domains.push(format!("win32:{host}"));
+    }
+    domains
+}
 
 /// The folders Claude Code keeps its state in: the two standard ones, the
 /// same the AI section reads logs from, then any `CLAUDE_CONFIG_DIR` moved it
@@ -133,8 +142,11 @@ pub fn record(data: &[u8], accepted_domains: &[&str]) -> Option<SessionRecord> {
     let pid = int_of(json.get("pid")).filter(|pid| *pid > 0 && *pid <= i64::from(i32::MAX))?;
     let session = str_of(json.get("sessionId")).filter(|s| !s.is_empty())?;
     let cwd = str_of(json.get("cwd")).filter(|c| !c.is_empty())?;
+    // Host names in a domain are not case-sensitive.
     if let Some(domain) = str_of(json.get("pidDomain"))
-        && !accepted_domains.contains(&domain)
+        && !accepted_domains
+            .iter()
+            .any(|accepted| accepted.eq_ignore_ascii_case(domain))
     {
         return None;
     }
@@ -179,10 +191,24 @@ pub fn is_current(recorded: Option<Time>, actual: Option<Time>) -> bool {
         || (recorded > actual && recorded - actual < 60.0)
 }
 
+/// On Windows `procStart` is the process's creation time as a FILETIME, the
+/// 100 ns intervals since 1601, like "134393262705484072" (a real record).
+/// Anything shorter is not one (Linux's clock ticks never reach this size).
+pub fn proc_start_filetime(text: &str) -> Option<Time> {
+    if text.len() < 17 || !text.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let intervals: u64 = text.parse().ok()?;
+    Some(intervals as f64 / 10_000_000.0 - 11_644_473_600.0)
+}
+
 /// `procStart` is `ps -o lstart=` read in UTC, like "Wed Oct 21 17:50:25 2026",
 /// with runs of spaces collapsed as the Mac does. [VERIFY] what Claude Code
 /// writes on Windows; `startedAt` is the fallback when this does not parse.
 pub fn proc_start(text: &str) -> Option<Time> {
+    if let Some(started) = proc_start_filetime(text) {
+        return Some(started);
+    }
     #[cfg(target_os = "linux")]
     if let Some(started) = crate::linux::sessions::proc_start_ticks(text) {
         return Some(started);
@@ -609,6 +635,39 @@ mod tests {
             record(odd.as_bytes(), WINDOWS_PID_DOMAINS).is_some(),
             "a domain that is not text is ignored, as on the Mac"
         );
+    }
+
+    // A real record from Claude Code 2.1.325 on Windows 11 (pid, ids shortened).
+    #[test]
+    fn a_real_windows_record_is_accepted_on_its_own_machine() {
+        let real = r#"{"pid":4952,"sessionId":"be6cb236","cwd":"C:\\vors\\r231\\work","startedAt":1794852671202,"procStart":"134393262705484072","version":"2.1.325","kind":"interactive","pidDomain":"win32:vors-win11","name":"work-35","status":"waiting","waitingFor":"permission prompt","statusUpdatedAt":1794852671485}"#;
+        let own = windows_pid_domains(Some("VORS-WIN11"));
+        let accepted: Vec<&str> = own.iter().map(String::as_str).collect();
+        let parsed = record(real.as_bytes(), &accepted).expect("its own machine's record");
+        assert_eq!(parsed.status, Some(RegistryStatus::Waiting));
+        let started = parsed.started.unwrap();
+        assert!(
+            (started - 1_794_852_670.548).abs() < 0.01,
+            "procStart is read as a FILETIME: {started}"
+        );
+        assert!(
+            record(real.as_bytes(), WINDOWS_PID_DOMAINS).is_none(),
+            "a bare platform does not take another machine's record"
+        );
+        let other = windows_pid_domains(Some("other-pc"));
+        let other: Vec<&str> = other.iter().map(String::as_str).collect();
+        assert!(
+            record(real.as_bytes(), &other).is_none(),
+            "nor does another host"
+        );
+        assert_eq!(windows_pid_domains(None), vec!["win32"]);
+        assert_eq!(windows_pid_domains(Some(" ")), vec!["win32"]);
+        assert_eq!(
+            proc_start_filetime("2012813"),
+            None,
+            "Linux ticks are not a FILETIME"
+        );
+        assert_eq!(proc_start_filetime("Wed Oct 21 17:50:25 2026"), None);
     }
 
     #[test]

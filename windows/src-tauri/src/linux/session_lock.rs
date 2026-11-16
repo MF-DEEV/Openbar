@@ -151,6 +151,140 @@ fn watch_screensaver(connection: &Connection, mut on_unlock: impl FnMut()) -> Op
     Some(())
 }
 
+/// Whether the screen is locked now (#231): logind's `LockedHint` for this
+/// session, a screensaver service that says it is active, or a locker
+/// program running. Any of them is enough.
+pub fn locked_now() -> bool {
+    let system = Builder::system().and_then(|b| b.build()).ok();
+    let session = Builder::session().and_then(|b| b.build()).ok();
+    system.as_ref().is_some_and(logind_locked)
+        || session.as_ref().is_some_and(screensaver_active)
+        || locker_running(Path::new("/proc"))
+}
+
+fn logind_locked(connection: &Connection) -> bool {
+    let Some(path) = session_path(connection) else {
+        return false;
+    };
+    Proxy::new(
+        connection,
+        "org.freedesktop.login1",
+        path,
+        "org.freedesktop.login1.Session",
+    )
+    .and_then(|session| session.get_property::<bool>("LockedHint"))
+    .unwrap_or(false)
+}
+
+/// The screensaver services the desktops run, any of which may answer.
+const SCREENSAVERS: [(&str, &str, &str); 4] = [
+    (
+        "org.freedesktop.ScreenSaver",
+        "/org/freedesktop/ScreenSaver",
+        "org.freedesktop.ScreenSaver",
+    ),
+    (
+        "org.gnome.ScreenSaver",
+        "/org/gnome/ScreenSaver",
+        "org.gnome.ScreenSaver",
+    ),
+    (
+        "org.cinnamon.ScreenSaver",
+        "/org/cinnamon/ScreenSaver",
+        "org.cinnamon.ScreenSaver",
+    ),
+    (
+        "org.mate.ScreenSaver",
+        "/org/mate/ScreenSaver",
+        "org.mate.ScreenSaver",
+    ),
+];
+
+fn screensaver_active(connection: &Connection) -> bool {
+    SCREENSAVERS.iter().any(|(name, path, interface)| {
+        Proxy::new(connection, *name, *path, *interface)
+            .and_then(|proxy| proxy.call::<_, _, bool>("GetActive", &()))
+            .unwrap_or(false)
+    })
+}
+
+/// Whether Do Not Disturb is on (#231), from what the desktop exposes:
+/// the notification server's `Inhibited` (KDE Plasma and others), then the
+/// desktops' own settings (GNOME, Cinnamon, MATE, XFCE). None when nothing
+/// tells.
+pub fn do_not_disturb() -> Option<bool> {
+    let inhibited = Builder::session()
+        .and_then(|b| b.build())
+        .ok()
+        .and_then(|connection| notifications_inhibited(&connection));
+    if inhibited == Some(true) {
+        return Some(true);
+    }
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    desktop_dnd(&desktop, read_setting).or(inhibited)
+}
+
+fn notifications_inhibited(connection: &Connection) -> Option<bool> {
+    Proxy::new(
+        connection,
+        "org.freedesktop.Notifications",
+        "/org/freedesktop/Notifications",
+        "org.freedesktop.Notifications",
+    )
+    .ok()?
+    .get_property::<bool>("Inhibited")
+    .ok()
+}
+
+/// A desktop setting through its own tool: `gsettings get` or `xfconf-query`.
+fn read_setting(program: &str, args: &[&str]) -> Option<String> {
+    let output = std::process::Command::new(program)
+        .args(args)
+        .stdin(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .output()
+        .ok()?;
+    output
+        .status
+        .success()
+        .then(|| String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+/// Do Not Disturb by the desktop named in `XDG_CURRENT_DESKTOP`, read with
+/// `read`; None for a desktop that keeps no such setting, or can't be read.
+fn desktop_dnd(desktop: &str, read: impl Fn(&str, &[&str]) -> Option<String>) -> Option<bool> {
+    let desktop = desktop.to_ascii_lowercase();
+    let has = |name: &str| desktop.split(':').any(|part| part == name);
+    // A banner switch: false is Do Not Disturb.
+    let banners_off = |schema: &str, key: &str| {
+        read("gsettings", &["get", schema, key]).map(|value| value == "false")
+    };
+    if has("gnome") || has("ubuntu") || has("unity") || has("pop") || has("budgie") {
+        return banners_off("org.gnome.desktop.notifications", "show-banners");
+    }
+    if has("x-cinnamon") || has("cinnamon") {
+        return banners_off(
+            "org.cinnamon.desktop.notifications",
+            "display-notifications",
+        );
+    }
+    if has("mate") {
+        return read(
+            "gsettings",
+            &["get", "org.mate.NotificationDaemon", "do-not-disturb"],
+        )
+        .map(|value| value == "true");
+    }
+    if has("xfce") {
+        return read(
+            "xfconf-query",
+            &["-c", "xfce4-notifyd", "-p", "/do-not-disturb"],
+        )
+        .map(|value| value == "true");
+    }
+    None
+}
+
 pub fn start(app: AppHandle) {
     let notifier = Arc::new(Notifier {
         app,
@@ -233,6 +367,100 @@ mod tests {
         assert!(!locker_running(&proc));
         assert!(!locker_running(Path::new("/nonexistent")));
         std::fs::remove_dir_all(proc).unwrap();
+    }
+
+    #[test]
+    fn do_not_disturb_is_read_from_each_desktop_setting() {
+        let reads = |answer: &str| {
+            let answer = answer.to_string();
+            move |program: &str, args: &[&str]| -> Option<String> {
+                let key = format!("{program} {}", args.join(" "));
+                answer
+                    .split(';')
+                    .find_map(|pair| pair.split_once('=').filter(|(k, _)| *k == key))
+                    .map(|(_, v)| v.to_string())
+            }
+        };
+        let gnome = "gsettings get org.gnome.desktop.notifications show-banners";
+        assert_eq!(
+            desktop_dnd("ubuntu:GNOME", reads(&format!("{gnome}=false"))),
+            Some(true)
+        );
+        assert_eq!(
+            desktop_dnd("GNOME", reads(&format!("{gnome}=true"))),
+            Some(false)
+        );
+        assert_eq!(
+            desktop_dnd(
+                "X-Cinnamon",
+                reads(
+                    "gsettings get org.cinnamon.desktop.notifications display-notifications=false"
+                )
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            desktop_dnd(
+                "MATE",
+                reads("gsettings get org.mate.NotificationDaemon do-not-disturb=true")
+            ),
+            Some(true)
+        );
+        assert_eq!(
+            desktop_dnd(
+                "XFCE",
+                reads("xfconf-query -c xfce4-notifyd -p /do-not-disturb=false")
+            ),
+            Some(false)
+        );
+        // A setting that can't be read, or a desktop with none, says nothing.
+        assert_eq!(desktop_dnd("GNOME", reads("")), None);
+        assert_eq!(desktop_dnd("sway", reads("")), None);
+        assert_eq!(desktop_dnd("", reads("")), None);
+    }
+
+    struct Notifications {
+        inhibited: bool,
+    }
+
+    #[zbus::interface(name = "org.freedesktop.Notifications")]
+    impl Notifications {
+        #[zbus(property)]
+        fn inhibited(&self) -> bool {
+            self.inhibited
+        }
+    }
+
+    struct ScreenSaver;
+
+    #[zbus::interface(name = "org.gnome.ScreenSaver")]
+    impl ScreenSaver {
+        fn get_active(&self) -> bool {
+            true
+        }
+    }
+
+    #[test]
+    fn the_notification_server_and_a_screensaver_are_asked() {
+        let Some(bus) = PrivateBus::start() else {
+            eprintln!("skipped: dbus-daemon is not installed");
+            return;
+        };
+        let client = bus.connect();
+        assert_eq!(notifications_inhibited(&client), None);
+        assert!(!screensaver_active(&client));
+        let _notifications = bus.serve("org.freedesktop.Notifications", |b| {
+            b.serve_at(
+                "/org/freedesktop/Notifications",
+                Notifications { inhibited: true },
+            )
+            .unwrap()
+        });
+        assert_eq!(notifications_inhibited(&client), Some(true));
+        let _saver = bus.serve("org.gnome.ScreenSaver", |b| {
+            b.serve_at("/org/gnome/ScreenSaver", ScreenSaver).unwrap()
+        });
+        assert!(screensaver_active(&client));
     }
 
     struct Manager;

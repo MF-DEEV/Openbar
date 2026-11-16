@@ -539,6 +539,8 @@ export const bridge = {
     },
     /** Seconds since the last keyboard or mouse input; null where unknown. */
     idleSeconds: () => call<number | null>("session_idle_seconds"),
+    /** Whether a reminder (#231) waits: locked or display off, and Do Not Disturb (null where unknown). */
+    quiet: () => call<{ locked: boolean; dnd: boolean | null }>("session_quiet"),
   },
   mascot: {
     /** Settings asks the island's companion to say hello; answers whether it had room to. */

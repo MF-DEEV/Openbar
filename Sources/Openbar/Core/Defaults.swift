@@ -937,6 +937,15 @@ enum DefaultsKey {
     static let notchSessionsAwayCard = "notchSessionsAwayCard"
     /// Minutes without input that count as a break.
     static let notchSessionsAwayMinutes = "notchSessionsAwayMinutes"
+    /// Reminders of a session nobody reacted to (#231): which waits, the
+    /// minutes before the first one, the minutes between repeats (0 for
+    /// once), and whether they come during Focus.
+    static let notchSessionsRemindPermission = "notchSessionsRemindPermission"
+    static let notchSessionsRemindQuestion = "notchSessionsRemindQuestion"
+    static let notchSessionsRemindFinished = "notchSessionsRemindFinished"
+    static let notchSessionsRemindAfter = "notchSessionsRemindAfter"
+    static let notchSessionsRemindEvery = "notchSessionsRemindEvery"
+    static let notchSessionsRemindDuringFocus = "notchSessionsRemindDuringFocus"
     /// Claude Code accounts (config folders) the person named, hid or added
     /// by hand (issue #216), as JSON: `[{"path", "name"?, "hidden"?, "manual"?}]`.
     static let notchSessionsClaudeAccounts = "notchSessionsClaudeAccounts"
@@ -1601,6 +1610,12 @@ enum Defaults {
         DefaultsKey.notchSessionsCollapsedGroups: "",
         DefaultsKey.notchSessionsAwayCard: true,
         DefaultsKey.notchSessionsAwayMinutes: 10,
+        DefaultsKey.notchSessionsRemindPermission: false,
+        DefaultsKey.notchSessionsRemindQuestion: false,
+        DefaultsKey.notchSessionsRemindFinished: false,
+        DefaultsKey.notchSessionsRemindAfter: 5,
+        DefaultsKey.notchSessionsRemindEvery: 0,
+        DefaultsKey.notchSessionsRemindDuringFocus: false,
         DefaultsKey.notchSessionsVoiceReplies: true,
         DefaultsKey.notchSessionsVoiceLanguage: "",
         DefaultsKey.notchSessionsVoiceSendOnStop: false,

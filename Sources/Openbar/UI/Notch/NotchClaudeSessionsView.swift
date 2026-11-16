@@ -442,7 +442,13 @@ enum NotchClaudeSessionFormat {
         switch session.phase {
         case .generating, .runningTool:
             return AgentFormat.clock(now.timeIntervalSince(session.turnStarted ?? session.phaseSince))
-        case .waitingPermission, .waitingInput, .background:
+        case .waitingPermission, .waitingInput:
+            // From a minute on, how long it has waited in words (#231).
+            if let minutes = NotchSessionReminders.waitedMinutes(session, now: now) {
+                return FeatureStrings.notchClaudeSessions(L10n.shared.language).waitingFor(minutes: minutes)
+            }
+            return AgentFormat.clock(now.timeIntervalSince(session.phaseSince))
+        case .background:
             return AgentFormat.clock(now.timeIntervalSince(session.phaseSince))
         case .limited, .finished, .idle:
             return nil

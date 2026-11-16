@@ -47,8 +47,6 @@ const HOOK_PATIENCE: f64 = 590.0;
 const MAX_LINE: usize = 32 * 1024 * 1024;
 const CHUNK: usize = 4 * 1024 * 1024;
 
-#[cfg(windows)]
-const PID_DOMAINS: &[&str] = registry::WINDOWS_PID_DOMAINS;
 #[cfg(not(any(windows, target_os = "linux")))]
 const PID_DOMAINS: &[&str] = registry::MAC_PID_DOMAINS;
 
@@ -56,8 +54,38 @@ const PID_DOMAINS: &[&str] = registry::MAC_PID_DOMAINS;
 fn pid_domains() -> &'static [&'static str] {
     #[cfg(target_os = "linux")]
     return crate::linux::sessions::pid_domains();
-    #[cfg(not(target_os = "linux"))]
+    #[cfg(windows)]
+    return windows_pid_domains();
+    #[cfg(not(any(windows, target_os = "linux")))]
     PID_DOMAINS
+}
+
+/// "win32" and "win32:<this machine's host name>", the name Node's
+/// `os.hostname()` gives (GetComputerNameExW's DNS host name).
+#[cfg(windows)]
+fn windows_pid_domains() -> &'static [&'static str] {
+    static DOMAINS: std::sync::OnceLock<Vec<&'static str>> = std::sync::OnceLock::new();
+    DOMAINS.get_or_init(|| {
+        let host = unsafe {
+            use windows::Win32::System::SystemInformation::{
+                ComputerNameDnsHostname, GetComputerNameExW,
+            };
+            let mut size = 0u32;
+            let _ = GetComputerNameExW(ComputerNameDnsHostname, None, &mut size);
+            let mut buffer = vec![0u16; size as usize + 1];
+            GetComputerNameExW(
+                ComputerNameDnsHostname,
+                Some(windows::core::PWSTR(buffer.as_mut_ptr())),
+                &mut size,
+            )
+            .ok()
+            .map(|_| String::from_utf16_lossy(&buffer[..size as usize]))
+        };
+        registry::windows_pid_domains(host.as_deref())
+            .into_iter()
+            .map(|domain| &*Box::leak(domain.into_boxed_str()))
+            .collect()
+    })
 }
 
 /// How often Agent View is asked: more often while it has sessions.

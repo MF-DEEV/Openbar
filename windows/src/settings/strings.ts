@@ -1010,6 +1010,38 @@ export const T = {
       return t("windows.settings.sessions.awayMinutes");
     },
     awayMinutesValue: (n: number) => tf("windows.settings.sessions.awayMinutesValue", n),
+    get reminders() {
+      return t("windows.settings.sessions.reminders");
+    },
+    get remindersCaption() {
+      return t("windows.settings.sessions.remindersCaption");
+    },
+    get remindPermission() {
+      return t("windows.settings.sessions.remindPermission");
+    },
+    get remindQuestion() {
+      return t("windows.settings.sessions.remindQuestion");
+    },
+    get remindFinished() {
+      return t("windows.settings.sessions.remindFinished");
+    },
+    get remindAfter() {
+      return t("windows.settings.sessions.remindAfter");
+    },
+    remindAfterValue: (n: number) => tf("windows.settings.sessions.remindAfterValue", n),
+    get remindEvery() {
+      return t("windows.settings.sessions.remindEvery");
+    },
+    get remindOnce() {
+      return t("windows.settings.sessions.remindOnce");
+    },
+    remindEveryValue: (n: number) => tf("windows.settings.sessions.remindEveryValue", n),
+    get remindDuringDnd() {
+      return t("windows.settings.sessions.remindDuringDnd");
+    },
+    get remindDuringDndCaption() {
+      return t("windows.settings.sessions.remindDuringDndCaption");
+    },
   },
   calendar: {
     get permission() {

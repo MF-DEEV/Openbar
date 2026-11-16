@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "Oturumlar: %@",
   "windows.sessions.groupWaiting": "Sizi bekleyen: %@",
   "windows.settings.sessions.grouping": "Listeyi grupla",
-  "windows.settings.sessions.groupingCaption": "Bir projenin ya da bir ajanın oturumları, katlayabileceğiniz bir başlık altında toplanır."
+  "windows.settings.sessions.groupingCaption": "Bir projenin ya da bir ajanın oturumları, katlayabileceğiniz bir başlık altında toplanır.",
+  "windows.sessions.waitingMinutes": "%@ dk bekliyor",
+  "windows.sessions.waitingHoursMinutes": "%@ sa %@ dk bekliyor",
+  "windows.sessions.reminderStill": "Hâlâ bekliyor",
+  "windows.sessions.reminderTitle": "%@ oturum bekliyor",
+  "windows.settings.sessions.reminders": "Hatırlat",
+  "windows.settings.sessions.remindersCaption": "Bir oturum bekler ve kimse tepki vermezse ada yeniden onu açar ve sesini çalar. Kendi terminal sekmesi öndeyken veya ekran kilitliyken hatırlatmaz.",
+  "windows.settings.sessions.remindPermission": "Yanıtlanmamış izin",
+  "windows.settings.sessions.remindQuestion": "Yanıtlanmamış soru",
+  "windows.settings.sessions.remindFinished": "Kimsenin bakmadığı biten tur",
+  "windows.settings.sessions.remindAfter": "Şu süreden sonra hatırlat",
+  "windows.settings.sessions.remindAfterValue": "%@ dk",
+  "windows.settings.sessions.remindEvery": "Yeniden hatırlat",
+  "windows.settings.sessions.remindOnce": "Bir kez",
+  "windows.settings.sessions.remindEveryValue": "Her %@ dk",
+  "windows.settings.sessions.remindDuringDnd": "Rahatsız Etmeyin açıkken de",
+  "windows.settings.sessions.remindDuringDndCaption": "Rahatsız Etmeyin açıkken de hatırlatır. Aksi halde hatırlatma, o kapanana kadar bekler."
 }

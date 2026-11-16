@@ -851,5 +851,21 @@
   "windows.sessions.groupCount": "Sessions: %@",
   "windows.sessions.groupWaiting": "Waiting for you: %@",
   "windows.settings.sessions.grouping": "Group the list",
-  "windows.settings.sessions.groupingCaption": "Sessions of one project, or of one agent, sit together under a header you can fold."
+  "windows.settings.sessions.groupingCaption": "Sessions of one project, or of one agent, sit together under a header you can fold.",
+  "windows.sessions.waitingMinutes": "waiting %@ min",
+  "windows.sessions.waitingHoursMinutes": "waiting %@h %@m",
+  "windows.sessions.reminderStill": "Still waiting",
+  "windows.sessions.reminderTitle": "%@ sessions waiting",
+  "windows.settings.sessions.reminders": "Remind me",
+  "windows.settings.sessions.remindersCaption": "When a session waits and nobody reacts, the island opens on it again and plays its sound. Not while its own terminal tab is in front or the screen is locked.",
+  "windows.settings.sessions.remindPermission": "Unanswered permission",
+  "windows.settings.sessions.remindQuestion": "Unanswered question",
+  "windows.settings.sessions.remindFinished": "Finished turn nobody looked at",
+  "windows.settings.sessions.remindAfter": "Remind after",
+  "windows.settings.sessions.remindAfterValue": "%@ min",
+  "windows.settings.sessions.remindEvery": "Remind again",
+  "windows.settings.sessions.remindOnce": "Once",
+  "windows.settings.sessions.remindEveryValue": "Every %@ min",
+  "windows.settings.sessions.remindDuringDnd": "Also during Do Not Disturb",
+  "windows.settings.sessions.remindDuringDndCaption": "Reminds while Do Not Disturb is on. Otherwise the reminder waits until it ends."
 }

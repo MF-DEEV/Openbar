@@ -34,7 +34,14 @@ import { DeferredSessionAttention, noticeLeavesWhenBusy } from "../sessions/atte
 import { inView, SessionSoundEvents, SessionSoundQueue, terminalSound } from "../sessions/waitingSound";
 import { soundsMuted } from "../sessions/soundPreferences";
 import { subscribeAutoAllow } from "../sessions/autoAllow";
-import { startAwayWatcher } from "../sessions/awayWatcher";
+import { awayState, startAwayWatcher } from "../sessions/awayWatcher";
+import {
+  REMINDER_AFTER_UNLOCK_MS,
+  REMINDER_CHECK_MS,
+  ReminderRunner,
+  type ReminderKind,
+  type ReminderWait,
+} from "../sessions/reminders";
 import { hidesAutoApproval, presentedSnapshot } from "../sessions/presentation";
 import { MicrophoneStrip, subscribeMicrophone } from "../microphone/Microphone";
 import "../timer/register";
@@ -287,6 +294,85 @@ if (import.meta.hot)
 subscribeSessions((event) => {
   void sessionAttention.handle(event);
 });
+
+// MARK: Reminders (#231)
+
+const REMINDER_EVENT: Record<ReminderKind, SessionEvent["kind"]> = {
+  permission: "needsPermission",
+  question: "needsInput",
+  finished: "finished",
+};
+
+/**
+ * One reminder for every session in it, after its sound: the island on the
+ * one session, or on the list of them. While another app is in use, or the
+ * island is open on something else, a notice instead, as for the request
+ * itself (#167). The list or the session's page already in view, or the
+ * away card, needs nothing more.
+ */
+async function presentReminder(waits: ReminderWait[]) {
+  const sessions = useSessions.getState();
+  const island = useIsland.getState();
+  console.info(`[openbar] reminder fired: ${waits.length} session(s) [${waits.map((w) => w.kind).join(",")}]`);
+  if (sessions.away) return;
+  const focused = sessions.focused;
+  if (
+    island.expanded &&
+    island.selected === "sessions" &&
+    (focused === null || (waits.length === 1 && focused === waits[0].session))
+  )
+    return;
+  const allowed = await bridge.attention
+    .current()
+    .then((context) => context.canAutoPresent)
+    .catch(() => false);
+  const one = waits.length === 1 ? waits[0].session : null;
+  if (allowed && sessions.prefs.autoExpand && !island.expanded) {
+    island.open("sessions", { takeFocus: false });
+    useSessions.getState().focus(one);
+    return;
+  }
+  const rows = waits
+    .map((wait) => sessions.snapshot.sessions.find((session) => session.id === wait.session))
+    .filter((session) => session !== undefined);
+  const first = rows[0];
+  if (!first) return;
+  const minutes = Math.max(1, Math.floor((Date.now() / 1000 - waits[0].since) / 60));
+  island.showNotice({
+    id: `reminder:${waits.map((w) => w.session).join(",")}:${Date.now()}`,
+    kind: "sessions",
+    title: one ? displayName(first, sessions.names[first.id]) : S.reminderTitle(rows.length),
+    detail: one
+      ? `${S.reminderStill} · ${S.waitingFor(minutes)}`
+      : rows.map((session) => displayName(session, sessions.names[session.id])).join(", "),
+    priority: 2,
+    duration: 6,
+    opens: "sessions",
+    session: one ? { id: first.id, provider: first.provider, event: REMINDER_EVENT[waits[0].kind] } : undefined,
+    onOpen: () => useSessions.getState().focus(one),
+  });
+}
+
+const reminders = new ReminderRunner({
+  sessions: () => {
+    const s = useSessions.getState();
+    return s.snapshot.sessions.filter((session) => !hidesAutoApproval(session, s.autoAllow));
+  },
+  prefs: () => useSessions.getState().prefs,
+  enabled: () => useIsland.getState().settings.enabled && shown("sessions"),
+  quiet: () => bridge.session.quiet(),
+  locked: () => awayState.locked,
+  terminalShown: bridge.sessions.terminalShown,
+  play: (sound, volume) => bridge.sound.play(sound, volume),
+  present: presentReminder,
+  now: () => Date.now() / 1000,
+});
+const reminderTimer = setInterval(() => void reminders.check(), REMINDER_CHECK_MS);
+// A reminder held through the lock comes a moment after the unlock.
+void bridge.session.onUnlock(() => {
+  setTimeout(() => void reminders.check(), REMINDER_AFTER_UNLOCK_MS);
+});
+if (import.meta.hot) import.meta.hot.dispose(() => clearInterval(reminderTimer));
 
 // MARK: Music
 
