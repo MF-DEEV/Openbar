@@ -1,0 +1,237 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 MF DEV, Adrian and the Openbar contributors */
+
+/* The screen before a diagnostics file is saved (#230): a dialog over the
+   settings page, in the page's own cards and colors. */
+
+.dg-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  padding: 24px 16px;
+  background: rgba(0, 0, 0, 0.42);
+  animation: dg-fade 160ms var(--st-ease) both;
+  overflow-y: auto;
+}
+
+.dg-dialog {
+  /* Centered, and still scrollable from its top when taller than the window. */
+  margin: auto;
+  width: min(560px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 22px 22px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--st-stroke);
+  background: var(--st-menu-bg);
+  box-shadow: var(--st-menu-shadow);
+  color: var(--st-text);
+  animation: dg-rise 220ms var(--st-ease) both;
+}
+
+.dg-head {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.dg-head-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: var(--st-control);
+  border: 1px solid var(--st-control-stroke);
+}
+
+.dg-title {
+  margin: 0 0 4px;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.dg-intro {
+  margin: 0;
+  color: var(--st-text-2);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.dg-section-title {
+  margin: 0 0 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--st-text-2);
+}
+
+.dg-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dg-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-height: 52px;
+  padding: 8px 14px;
+  border-radius: var(--st-radius);
+  background: var(--st-card);
+  border: 1px solid var(--st-stroke);
+}
+
+.dg-row-icon {
+  flex: none;
+  color: var(--st-text-2);
+}
+
+.dg-row-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.dg-row-title {
+  font-size: 14px;
+}
+
+.dg-row-caption {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--st-text-3);
+}
+
+.dg-row-check {
+  flex: none;
+  color: var(--st-text-3);
+}
+
+.dg-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  color: var(--st-text-3);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.dg-note svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.dg-note p {
+  margin: 0 0 4px;
+}
+
+.dg-failure {
+  margin: 0;
+  color: #ff6b6b;
+  font-size: 12px;
+}
+
+.dg-foot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dg-saving {
+  margin-right: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--st-text-2);
+  font-size: 13px;
+}
+
+.dg-spinner {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--st-control-stroke);
+  border-top-color: var(--st-text);
+  animation: dg-spin 0.8s linear infinite;
+}
+
+.st-about-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 4px 2px 8px;
+}
+
+.st-about-mark {
+  width: 64px;
+  height: 38px;
+  flex: none;
+  border-radius: 0 0 16px 16px;
+  background: #000;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.st-about-name {
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.st-about-version {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--st-text-2);
+}
+
+.st-about-badge {
+  padding: 1px 6px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #ff9f0a;
+  background: rgba(255, 159, 10, 0.16);
+}
+
+.st-about-copyright {
+  margin: 8px 2px 0;
+  font-size: 12px;
+  color: var(--st-text-3);
+}
+
+@keyframes dg-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dg-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.985);
+  }
+}
+
+@keyframes dg-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dg-backdrop,
+  .dg-dialog {
+    animation: none;
+  }
+
+  .dg-spinner {
+    animation-duration: 2s;
+  }
+}

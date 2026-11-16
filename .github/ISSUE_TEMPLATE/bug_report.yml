@@ -9,6 +9,7 @@ body:
       value: |
         One problem per issue, please. A partial report is still useful.
         [Reporting a useful bug](https://github.com/MF-DEEV/Openbar/blob/main/docs/TROUBLESHOOTING.md#reporting-a-useful-bug) lists what helps most.
+        A [diagnostics file](https://github.com/MF-DEEV/Openbar/blob/main/docs/TROUBLESHOOTING.md#attach-a-diagnostics-file) (Settings › About › Export diagnostics…) answers most of our questions at once.
 
   - type: checkboxes
     id: preflight
@@ -67,6 +68,12 @@ body:
         - Other
     validations:
       required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics file
+      description: Drag the zip from Settings › About › Export diagnostics… here. It holds versions, hook states and Openbar's logs, with prompts, commands, keys and your home folder masked. [What's in it](https://github.com/MF-DEEV/Openbar/blob/main/docs/TROUBLESHOOTING.md#attach-a-diagnostics-file).
 
   - type: textarea
     id: screenshots

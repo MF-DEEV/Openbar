@@ -62,7 +62,8 @@ enum FeedbackRouting {
     /// The GitHub issue form for this kind of feedback, with the app and
     /// macOS versions filled in for the person to check before sending.
     static func issueURL(kind: FeedbackKind,
-                         diagnostics: FeedbackDiagnostics = .current()) -> URL {
+                         diagnostics: FeedbackDiagnostics = .current(),
+                         attachment: String? = nil) -> URL {
         var components = URLComponents(url: AppInfo.repositoryURL.appending(path: "issues/new"),
                                        resolvingAgainstBaseURL: false)!
         // The issue forms set their own labels; a bug report's form also
@@ -72,6 +73,11 @@ enum FeedbackRouting {
             items.append(URLQueryItem(name: "version", value: "\(diagnostics.appVersion) (\(diagnostics.appBuild))"))
             items.append(URLQueryItem(name: "os_version", value: "macOS \(diagnostics.macOS)"))
             if let model = diagnostics.macModel { items.append(URLQueryItem(name: "hardware", value: model)) }
+            // The form can't take a file from an address: it says which one
+            // to drag in, the diagnostics file just saved (#230).
+            if let attachment {
+                items.append(URLQueryItem(name: "diagnostics", value: "Drag \(attachment) here to attach it."))
+            }
         }
         components.queryItems = items
         return components.url!

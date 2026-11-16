@@ -21,7 +21,17 @@ final class UpdateService: ObservableObject {
         case failed(String)
     }
 
-    @Published private(set) var state: State = .idle
+    @Published private(set) var state: State = .idle {
+        didSet {
+            // Outcomes only, for a diagnostics file (#230): not every step between.
+            switch state {
+            case .upToDate where oldValue != .upToDate: DiagnosticsLog.info("update", "up to date")
+            case .available(let version) where oldValue != state: DiagnosticsLog.info("update", "update available: \(version)")
+            case .failed(let reason) where oldValue != state: DiagnosticsLog.warn("update", "update failed: \(reason)")
+            default: break
+            }
+        }
+    }
     @Published private(set) var lastChecked: Date?
     /// Markdown release notes for the available update, shown in the pre-install
     /// preview. Set alongside `.available`; cleared otherwise.

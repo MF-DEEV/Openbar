@@ -9,10 +9,20 @@ import { initializeLocalization } from "../i18n/start";
 // tabs (Layout, Content, Activity, Behavior) as pages beside General.
 
 import "@fontsource-variable/inter";
-import { Activity, LayoutTemplate, type LucideIcon, Settings2, SlidersHorizontal, Smile, Wand2 } from "lucide-react";
+import {
+  Activity,
+  Info,
+  LayoutTemplate,
+  type LucideIcon,
+  Settings2,
+  SlidersHorizontal,
+  Smile,
+  Wand2,
+} from "lucide-react";
 import React, { useEffect, useState } from "react";
 import ReactDOM from "react-dom/client";
 import { PageEnter, SlidingHighlight, SPRING_TAB } from "../shared/ui/motionKit";
+import { AboutSettings } from "./AboutSettings";
 import { ActivitySettings } from "./ActivitySettings";
 import { BehaviorSettings } from "./BehaviorSettings";
 import { ContentSettings } from "./ContentSettings";
@@ -24,7 +34,7 @@ import { T } from "./strings";
 import "./settings.css";
 import "../shared/controls.css";
 
-type PageId = "general" | "layout" | "content" | "activity" | "behavior" | "mascot";
+type PageId = "general" | "layout" | "content" | "activity" | "behavior" | "mascot" | "about";
 
 const PAGES: { id: PageId; icon: LucideIcon; label: string; Page: () => React.JSX.Element; island?: boolean }[] = [
   {
@@ -34,6 +44,14 @@ const PAGES: { id: PageId; icon: LucideIcon; label: string; Page: () => React.JS
       return T.nav.general;
     },
     Page: GeneralSettings,
+  },
+  {
+    id: "about",
+    icon: Info,
+    get label() {
+      return t("s.tabAbout");
+    },
+    Page: AboutSettings,
   },
   {
     id: "layout",

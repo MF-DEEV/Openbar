@@ -117,9 +117,23 @@ tccutil reset All com.openbar.app
 A clear report gets fixed faster. Try to include the following.
 
 - **What you did**, what you expected, and what actually happened.
-- **Your versions**, both the Openbar version from Settings under About and your macOS version.
+- **Your versions**, both the Openbar version from Settings under About and your system version.
 - **Steps to reproduce**, as specific as you can make them.
 - **A screenshot or short screen recording**, when the issue is something you can see.
+- **A diagnostics file**, especially when a session never shows up, hooks stop firing or an approval hangs.
+
+### Attach a diagnostics file
+
+One file tells us the versions, which features are on, each agent's version and hook state, the last session events and Openbar's own logs, so we don't have to ask for them one by one.
+
+- **Mac:** Settings › About › Export diagnostics…, or Settings › Dynamic Island › Sessions › Diagnostics.
+- **Windows and Linux:** Settings › About › Export diagnostics…, or Settings › Content › Sessions › Diagnostics.
+
+A short screen lists what goes in; switch off any optional part you'd rather keep, then save. Drag the zip into the Diagnostics box of the bug report. Prompts, replies, commands and file contents are never in it, and your home folder, email addresses, tokens and API keys are masked. [Privacy](PRIVACY.md#logs-and-the-diagnostics-file) describes it in full.
+
+With **Attach a diagnostics file** switched on (Settings › General › Feedback on a Mac, Settings › About on Windows and Linux), Report a bug saves the file first and opens the form next to it.
+
+A hook state of `removedByHand` or `changedByHand` in `agents.json` means the hook Openbar installed was taken out or edited outside Openbar. Installing the hooks again from Settings › Sessions puts it back.
 
 If you have a build from source, the self test prints a quick health summary that is handy to paste in.
 
