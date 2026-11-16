@@ -65,8 +65,15 @@ pub fn agent_id(provider: Provider) -> String {
     format!("agent:{}", provider.key())
 }
 
+/// The folder is resolved, not the file: a settings file deleted by hand
+/// must still name the record Openbar made for it.
 pub fn claude_id(settings: &Path) -> String {
-    let path = std::fs::canonicalize(settings).unwrap_or_else(|_| settings.to_path_buf());
+    let path = match (settings.parent(), settings.file_name()) {
+        (Some(folder), Some(name)) => std::fs::canonicalize(folder)
+            .map(|f| f.join(name))
+            .unwrap_or_else(|_| settings.to_path_buf()),
+        _ => settings.to_path_buf(),
+    };
     format!("claude:{}", path.to_string_lossy())
 }
 
@@ -376,6 +383,20 @@ mod tests {
         assert!(all_in(&store).contains_key("agent:gemini"));
         forget_in(&store, "agent:gemini");
         assert!(all_in(&store).is_empty() && !store.exists());
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    /// A settings file deleted by hand still names the same record.
+    #[test]
+    fn claude_ids_survive_a_deleted_file() {
+        let folder = std::env::temp_dir().join(format!("openbar-claude-id-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        let file = folder.join("settings.json");
+        std::fs::write(&file, "{}").unwrap();
+        let before = claude_id(&file);
+        std::fs::remove_file(&file).unwrap();
+        assert_eq!(claude_id(&file), before);
         let _ = std::fs::remove_dir_all(&folder);
     }
 

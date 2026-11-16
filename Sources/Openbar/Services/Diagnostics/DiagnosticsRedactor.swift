@@ -56,13 +56,25 @@ enum DiagnosticsRedactor {
         try! NSRegularExpression(pattern: source)
     }
 
-    /// The exact home folder, for one outside /Users (a test's, or a network home).
+    /// The exact home folder, for one outside /Users (a test's, a network
+    /// home, a Windows profile on another drive): as written, JSON-escaped
+    /// with its backslashes doubled, and with forward slashes.
     private static func maskHome(_ text: String, home: String) -> String {
-        let trimmed = home.hasSuffix("/") ? String(home.dropLast()) : home
+        var trimmed = home
+        while trimmed.hasSuffix("/") || trimmed.hasSuffix("\\") { trimmed.removeLast() }
         guard trimmed.count > 1 else { return text }
-        let escaped = NSRegularExpression.escapedPattern(for: trimmed)
-        guard let regex = try? NSRegularExpression(pattern: escaped + #"(?![A-Za-z0-9_.-])"#) else { return text }
-        return replace(regex, in: text) { _ in "~" }
+        var forms: [String] = []
+        for form in [trimmed.replacingOccurrences(of: "\\", with: "\\\\"), trimmed,
+                     trimmed.replacingOccurrences(of: "\\", with: "/")] where !forms.contains(form) {
+            forms.append(form)
+        }
+        var text = text
+        for form in forms {
+            let escaped = NSRegularExpression.escapedPattern(for: form)
+            guard let regex = try? NSRegularExpression(pattern: escaped + #"(?![A-Za-z0-9_.-])"#) else { continue }
+            text = replace(regex, in: text) { _ in "~" }
+        }
+        return text
     }
 
     /// Replaces each match with what `transform` makes of its groups (index 0

@@ -18,7 +18,7 @@ enum DiagnosticsTests {
     }
 
     private struct Fixture: Decodable {
-        struct Case: Decodable { let `in`: String; let out: String }
+        struct Case: Decodable { let `in`: String; let out: String; let home: String? }
         let home: String
         let cases: [Case]
     }
@@ -31,9 +31,10 @@ enum DiagnosticsTests {
         }
         suite.expect(fixture.cases.count >= 25, "the fixture has its cases")
         for item in fixture.cases {
-            let masked = DiagnosticsRedactor.redact(item.in, home: fixture.home)
+            let home = item.home ?? fixture.home
+            let masked = DiagnosticsRedactor.redact(item.in, home: home)
             suite.expect(masked == item.out, "masks \(item.in.debugDescription): got \(masked.debugDescription), expected \(item.out.debugDescription)")
-            suite.expect(DiagnosticsRedactor.redact(item.out, home: fixture.home) == item.out,
+            suite.expect(DiagnosticsRedactor.redact(item.out, home: home) == item.out,
                          "masking twice changes nothing: \(item.out.debugDescription)")
         }
         suite.expect(DiagnosticsRedactor.redact("", home: "/Users/jane").isEmpty, "empty stays empty")
@@ -148,6 +149,11 @@ enum DiagnosticsTests {
         try? json(ours).write(to: file)
         HookRecords.noteInstalled("agent:gemini", file: file, marker: marker, in: defaults)
         suite.expect(HookRecords.all(in: defaults)["agent:gemini"]?.fingerprint == first, "an install is recorded")
+        let linked = FileManager.default.temporaryDirectory.appending(path: "openbar-linked-\(UUID().uuidString).json")
+        try? FileManager.default.createSymbolicLink(at: linked, withDestinationURL: file)
+        let linkedID = HookRecords.claudeID(linked)
+        try? FileManager.default.removeItem(at: linked)
+        suite.expect(HookRecords.claudeID(linked) == linkedID, "a settings link deleted by hand still names its record")
         HookRecords.forget("agent:gemini", in: defaults)
         suite.expect(HookRecords.all(in: defaults).isEmpty && defaults.object(forKey: DefaultsKey.diagnosticsHookRecords) == nil,
                      "a removal by Openbar forgets it")

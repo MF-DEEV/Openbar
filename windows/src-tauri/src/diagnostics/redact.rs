@@ -82,13 +82,33 @@ pub fn redact(text: &str, home: &str) -> String {
     p.email.replace_all(&text, EMAIL).into_owned()
 }
 
-/// The exact home folder, for one outside the usual places (a test's, or a
-/// network home), where the next character doesn't carry the name on.
+/// The exact home folder, for one outside the usual places (a test's, a
+/// network home, a Windows profile on another drive): as written,
+/// JSON-escaped with its backslashes doubled, and with forward slashes.
 fn mask_home(text: &str, home: &str) -> String {
-    let home = home.strip_suffix(['/', '\\']).unwrap_or(home);
+    let home = home.trim_end_matches(['/', '\\']);
     if home.chars().count() <= 1 {
         return text.to_string();
     }
+    let mut forms: Vec<String> = Vec::new();
+    for form in [
+        home.replace('\\', "\\\\"),
+        home.to_string(),
+        home.replace('\\', "/"),
+    ] {
+        if !forms.contains(&form) {
+            forms.push(form);
+        }
+    }
+    let mut text = text.to_string();
+    for form in &forms {
+        text = mask_exact(&text, form);
+    }
+    text
+}
+
+/// Each `home` in `text` becomes `~`, unless the next character carries the name on.
+fn mask_exact(text: &str, home: &str) -> String {
     let mut out = String::with_capacity(text.len());
     let mut rest = text;
     while let Some(index) = rest.find(home) {
@@ -114,6 +134,7 @@ mod tests {
         #[serde(rename = "in")]
         input: String,
         out: String,
+        home: Option<String>,
     }
 
     #[derive(serde::Deserialize)]
@@ -131,14 +152,15 @@ mod tests {
         .unwrap();
         assert!(fixture.cases.len() >= 25);
         for case in &fixture.cases {
+            let home = case.home.as_deref().unwrap_or(&fixture.home);
             assert_eq!(
-                redact(&case.input, &fixture.home),
+                redact(&case.input, home),
                 case.out,
                 "masking {:?}",
                 case.input
             );
             assert_eq!(
-                redact(&case.out, &fixture.home),
+                redact(&case.out, home),
                 case.out,
                 "masking twice {:?}",
                 case.out

@@ -1,36 +1,146 @@
 {
-  "comment": "Shared by the Mac tests (Tests/DiagnosticsTests.swift) and the Windows/Linux tests (windows/src-tauri/src/diagnostics/redact.rs), so a diagnostics file is masked the same way on every system.",
+  "comment": "Shared by the Mac tests (Tests/DiagnosticsTests.swift) and the Windows/Linux tests (windows/src-tauri/src/diagnostics/redact.rs), so a diagnostics file is masked the same way on every system. A case may name its own home.",
   "home": "/Volumes/Data/jane",
   "cases": [
-    { "in": "Started in /Users/jane/Projects/app", "out": "Started in ~/Projects/app" },
-    { "in": "config /home/jane/.claude/settings.json", "out": "config ~/.claude/settings.json" },
-    { "in": "config C:\\Users\\jane\\.claude\\settings.json", "out": "config ~\\.claude\\settings.json" },
-    { "in": "{\"path\":\"C:\\\\Users\\\\jane\\\\.gemini\\\\settings.json\"}", "out": "{\"path\":\"~\\\\.gemini\\\\settings.json\"}" },
-    { "in": "d:/users/Jane/x", "out": "~/x" },
-    { "in": "D:/Users/jane/x", "out": "~/x" },
-    { "in": "shared /Users/Shared/Openbar and C:\\Users\\Public\\Desktop", "out": "shared /Users/Shared/Openbar and C:\\Users\\Public\\Desktop" },
-    { "in": "log at /Volumes/Data/jane/Library/Logs", "out": "log at ~/Library/Logs" },
-    { "in": "other /Volumes/Data/jane2/x", "out": "other /Volumes/Data/jane2/x" },
-    { "in": "home is /Volumes/Data/jane", "out": "home is ~" },
-    { "in": "mail jane.doe+bugs@example.co.uk now", "out": "mail <email> now" },
-    { "in": "key sk-ant-api03-AbC123xyz_-987654321 end", "out": "key <secret> end" },
-    { "in": "openai sk-proj-abcdefghijklmnop1234", "out": "openai <secret>" },
-    { "in": "gh ghp_abcdefghijklmnopqrstuvwxyz0123456789", "out": "gh <secret>" },
-    { "in": "pat github_pat_11ABCDEFG0123456789_abcdefghij", "out": "pat <secret>" },
-    { "in": "slack xoxb-1234567890-abcdefghij", "out": "slack <secret>" },
-    { "in": "aws AKIAIOSFODNN7EXAMPLE", "out": "aws <secret>" },
-    { "in": "google AIzaSyA1234567890abcdefghijklmnopqrstu", "out": "google <secret>" },
-    { "in": "Authorization: Bearer abc.def-ghi_123456", "out": "Authorization: Bearer <secret>" },
-    { "in": "ANTHROPIC_API_KEY=abc123def456", "out": "ANTHROPIC_API_KEY=<secret>" },
-    { "in": "{\"apiKey\": \"zzz-123\"}", "out": "{\"apiKey\": \"<secret>\"}" },
-    { "in": "password: hunter2", "out": "password: <secret>" },
-    { "in": "x-access-token='q1w2e3'", "out": "x-access-token='<secret>'" },
-    { "in": "jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijk", "out": "jwt <secret>" },
-    { "in": "blob Zm9vYmFyQmF6UXV4MTIzNDU2Nzg5MEFCQ0RFRkdISUpLTE1O end", "out": "blob <secret> end" },
-    { "in": "commit 0123456789abcdef0123456789abcdef01234567", "out": "commit 0123456789abcdef0123456789abcdef01234567" },
-    { "in": "session 3f2504e0-4f89-11d3-9a0c-0305e82c3301", "out": "session 3f2504e0-4f89-11d3-9a0c-0305e82c3301" },
-    { "in": "tokens used 1234, token_count=5", "out": "tokens used 1234, token_count=5" },
-    { "in": "already masked key=<secret> and <email>", "out": "already masked key=<secret> and <email>" },
-    { "in": "plain line with nothing private: hooks installed for gemini", "out": "plain line with nothing private: hooks installed for gemini" }
+    {
+      "in": "Started in /Users/jane/Projects/app",
+      "out": "Started in ~/Projects/app"
+    },
+    {
+      "in": "config /home/jane/.claude/settings.json",
+      "out": "config ~/.claude/settings.json"
+    },
+    {
+      "in": "config C:\\Users\\jane\\.claude\\settings.json",
+      "out": "config ~\\.claude\\settings.json"
+    },
+    {
+      "in": "{\"path\":\"C:\\\\Users\\\\jane\\\\.gemini\\\\settings.json\"}",
+      "out": "{\"path\":\"~\\\\.gemini\\\\settings.json\"}"
+    },
+    {
+      "in": "d:/users/Jane/x",
+      "out": "~/x"
+    },
+    {
+      "in": "D:/Users/jane/x",
+      "out": "~/x"
+    },
+    {
+      "in": "shared /Users/Shared/Openbar and C:\\Users\\Public\\Desktop",
+      "out": "shared /Users/Shared/Openbar and C:\\Users\\Public\\Desktop"
+    },
+    {
+      "in": "log at /Volumes/Data/jane/Library/Logs",
+      "out": "log at ~/Library/Logs"
+    },
+    {
+      "in": "other /Volumes/Data/jane2/x",
+      "out": "other /Volumes/Data/jane2/x"
+    },
+    {
+      "in": "home is /Volumes/Data/jane",
+      "out": "home is ~"
+    },
+    {
+      "in": "mail jane.doe+bugs@example.co.uk now",
+      "out": "mail <email> now"
+    },
+    {
+      "in": "key sk-ant-api03-AbC123xyz_-987654321 end",
+      "out": "key <secret> end"
+    },
+    {
+      "in": "openai sk-proj-abcdefghijklmnop1234",
+      "out": "openai <secret>"
+    },
+    {
+      "in": "gh ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+      "out": "gh <secret>"
+    },
+    {
+      "in": "pat github_pat_11ABCDEFG0123456789_abcdefghij",
+      "out": "pat <secret>"
+    },
+    {
+      "in": "slack xoxb-1234567890-abcdefghij",
+      "out": "slack <secret>"
+    },
+    {
+      "in": "aws AKIAIOSFODNN7EXAMPLE",
+      "out": "aws <secret>"
+    },
+    {
+      "in": "google AIzaSyA1234567890abcdefghijklmnopqrstu",
+      "out": "google <secret>"
+    },
+    {
+      "in": "Authorization: Bearer abc.def-ghi_123456",
+      "out": "Authorization: Bearer <secret>"
+    },
+    {
+      "in": "ANTHROPIC_API_KEY=abc123def456",
+      "out": "ANTHROPIC_API_KEY=<secret>"
+    },
+    {
+      "in": "{\"apiKey\": \"zzz-123\"}",
+      "out": "{\"apiKey\": \"<secret>\"}"
+    },
+    {
+      "in": "password: hunter2",
+      "out": "password: <secret>"
+    },
+    {
+      "in": "x-access-token='q1w2e3'",
+      "out": "x-access-token='<secret>'"
+    },
+    {
+      "in": "jwt eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.abcdefghijk",
+      "out": "jwt <secret>"
+    },
+    {
+      "in": "blob Zm9vYmFyQmF6UXV4MTIzNDU2Nzg5MEFCQ0RFRkdISUpLTE1O end",
+      "out": "blob <secret> end"
+    },
+    {
+      "in": "commit 0123456789abcdef0123456789abcdef01234567",
+      "out": "commit 0123456789abcdef0123456789abcdef01234567"
+    },
+    {
+      "in": "session 3f2504e0-4f89-11d3-9a0c-0305e82c3301",
+      "out": "session 3f2504e0-4f89-11d3-9a0c-0305e82c3301"
+    },
+    {
+      "in": "tokens used 1234, token_count=5",
+      "out": "tokens used 1234, token_count=5"
+    },
+    {
+      "in": "already masked key=<secret> and <email>",
+      "out": "already masked key=<secret> and <email>"
+    },
+    {
+      "in": "plain line with nothing private: hooks installed for gemini",
+      "out": "plain line with nothing private: hooks installed for gemini"
+    },
+    {
+      "home": "E:\\Profiles\\jane",
+      "in": "log E:\\Profiles\\jane\\AppData\\Local\\x",
+      "out": "log ~\\AppData\\Local\\x"
+    },
+    {
+      "home": "E:\\Profiles\\jane",
+      "in": "{\"p\":\"E:\\\\Profiles\\\\jane\\\\.gemini\\\\settings.json\"}",
+      "out": "{\"p\":\"~\\\\.gemini\\\\settings.json\"}"
+    },
+    {
+      "home": "E:\\Profiles\\jane",
+      "in": "slash E:/Profiles/jane/x",
+      "out": "slash ~/x"
+    },
+    {
+      "home": "E:\\Profiles\\jane",
+      "in": "other E:\\Profiles\\jane2\\x",
+      "out": "other E:\\Profiles\\jane2\\x"
+    }
   ]
 }

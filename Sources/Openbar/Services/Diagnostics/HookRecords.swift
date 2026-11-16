@@ -34,7 +34,12 @@ enum HookRecords {
 
     static func agentID(_ provider: ClaudeSessionProvider) -> String { "agent:\(provider.rawValue)" }
 
-    static func claudeID(_ settings: URL) -> String { "claude:\(settings.resolvingSymlinksInPath().path)" }
+    /// The folder is resolved, not the file: a settings file (or the link to
+    /// one) deleted by hand must still name the record Openbar made for it.
+    static func claudeID(_ settings: URL) -> String {
+        let folder = settings.deletingLastPathComponent().resolvingSymlinksInPath()
+        return "claude:\(folder.appending(path: settings.lastPathComponent).path)"
+    }
 
     // MARK: Store
 
