@@ -30,6 +30,7 @@ const AWAY_MINUTES = [5, 10, 15, 30, 60];
 import { T } from "./strings";
 import { SessionSounds } from "./SessionSounds";
 import { SessionReminders } from "./SessionReminders";
+import { DiagnosticsSubRow } from "./DiagnosticsDialog";
 
 interface HooksStatus {
   installed: boolean;
@@ -991,6 +992,7 @@ export function SessionsOptions() {
       ) : null}
       {voiceHeard() ? <VoiceReplies prefs={prefs} set={set} /> : null}
       <RemoteHosts />
+      <DiagnosticsSubRow />
     </>
   );
 }

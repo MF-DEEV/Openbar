@@ -81,6 +81,8 @@ final class ClaudeSessionService: ObservableObject {
     @Published private(set) var remoteFailures: [String: String] = [:]
     /// The agents shown when the settings were last read. Main thread.
     private var lastShownAgents: Set<ClaudeSessionProvider>?
+    /// The agents' hook states as last logged. Main thread.
+    private var agentHookSummary: String?
     /// The page that starts a new session is open.
     @Published var composingSession = false
     /// How the person answered the sample request onboarding showed, once
@@ -902,7 +904,10 @@ final class ClaudeSessionService: ObservableObject {
             if codex?.connected == true { status = .connected }
             else if let home = CodexSessionClient.home(), FileManager.default.fileExists(atPath: home.path) { status = .notRunning }
             else { status = .notFound }
-            DispatchQueue.main.async { self.codexStatus = status }
+            DispatchQueue.main.async {
+                if self.codexStatus != status { DiagnosticsLog.info("codex", "codex \(status)") }
+                self.codexStatus = status
+            }
         }
     }
 
@@ -917,7 +922,15 @@ final class ClaudeSessionService: ObservableObject {
                 let path = ClaudeCLI.shell(home: home).environment["PATH"]
                 states[provider] = (state, AgentHookInstaller.isPresent(provider, home: home, path: path))
             }
-            DispatchQueue.main.async { self.agentHooks = states }
+            let summary = ClaudeSessionProvider.hookAgents.map { provider in
+                let entry = states[provider]
+                return "\(provider.rawValue)=\(entry.map { "\($0.state)" } ?? "?")\(entry?.present == true ? "" : "(absent)")"
+            }.joined(separator: " ")
+            DispatchQueue.main.async {
+                if self.agentHookSummary != summary { DiagnosticsLog.info("hooks", "agent hooks: \(summary)") }
+                self.agentHookSummary = summary
+                self.agentHooks = states
+            }
         }
     }
 
@@ -974,20 +987,33 @@ final class ClaudeSessionService: ObservableObject {
     private static func changeAgentHooks(_ provider: ClaudeSessionProvider, install: Bool, home: URL, socket: String,
                                          bundle: String) -> String? {
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
+        let failure: String?
         do {
-            if install { try AgentHookInstaller.install(provider, home: home, socket: socket, bundle: bundle) }
-            else { try AgentHookInstaller.remove(provider, home: home, bundle: bundle) }
-            return nil
+            if install {
+                try AgentHookInstaller.install(provider, home: home, socket: socket, bundle: bundle)
+                AgentHookInstaller.noteInstalled(provider, home: home, bundle: bundle)
+            } else {
+                try AgentHookInstaller.remove(provider, home: home, bundle: bundle)
+                HookRecords.forget(HookRecords.agentID(provider))
+            }
+            failure = nil
         } catch let error as ClaudeHookInstaller.Failure {
             switch error {
-            case .unreadable: return text.settingsUnreadable
-            case .unwritable(let reason): return reason
-            case .busy: return text.settingsBusy
-            case .noBackup: return text.settingsNoBackup
+            case .unreadable: failure = text.settingsUnreadable
+            case .unwritable(let reason): failure = reason
+            case .busy: failure = text.settingsBusy
+            case .noBackup: failure = text.settingsNoBackup
             }
         } catch {
-            return error.localizedDescription
+            failure = error.localizedDescription
         }
+        let change = install ? "installed" : "removed"
+        if let failure {
+            DiagnosticsLog.error("hooks", "\(provider.rawValue) hooks could not be \(change): \(failure)")
+        } else {
+            DiagnosticsLog.info("hooks", "\(provider.rawValue) hooks \(change)")
+        }
+        return failure
     }
 
     func checkBridge() {
@@ -1038,6 +1064,11 @@ final class ClaudeSessionService: ObservableObject {
             self?.queue.async { self?.receive(payload, from: connection, at: delivered) }
         }
         server = created.start() ? created : nil
+        if server == nil {
+            DiagnosticsLog.error("sessions", "the hook socket could not be opened at \(path)")
+        } else {
+            DiagnosticsLog.info("sessions", "listening for hooks at \(path)")
+        }
     }
 
     /// One hook event, on the queue.
@@ -1069,8 +1100,17 @@ final class ClaudeSessionService: ObservableObject {
         if !remote, case .stopped = message.fact.event, let path = transcripts[message.fact.sessionID] {
             read(path, session: message.fact.sessionID, now: now)
         }
+        let before = phase(of: message.fact.sessionID)
         engine.ingest(hook: message.fact, now: now)
         publish(now: now)
+        DiagnosticsJournal.shared.record(DiagnosticsJournal.make(
+            agent: .claude, event: DiagnosticsJournal.label(message.fact.event), session: message.fact.sessionID,
+            from: before, to: phase(of: message.fact.sessionID), at: now), at: now)
+    }
+
+    /// The state a session was last shown in; nil when it isn't listed. Queue.
+    private func phase(of id: String) -> ClaudeSessionPhase? {
+        published.first { $0.id == id }?.phase
     }
 
     /// One event of a hook agent (Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi,
@@ -1098,6 +1138,10 @@ final class ClaudeSessionService: ObservableObject {
         } else {
             connection.finish()
         }
+        // For the diagnostics journal: each session's state before these events.
+        var heard: [AgentHookEvent] = []
+        var before: [String: ClaudeSessionPhase?] = [:]
+        for event in decoded.events where before[event.id] == nil { before[event.id] = .some(phase(of: event.id)) }
         for event in decoded.events {
             let agent = pid > 0 ? pid : event.pid
             // Devin CLI names no folder: the agent's own is the session's.
@@ -1133,8 +1177,14 @@ final class ClaudeSessionService: ObservableObject {
                 }
             }
             hookAgents.ingest(placed, now: now)
+            heard.append(placed)
         }
         publish(now: now)
+        for event in heard {
+            DiagnosticsJournal.shared.record(DiagnosticsJournal.make(
+                agent: event.provider, event: DiagnosticsJournal.label(event.kind), session: event.id,
+                from: before[event.id] ?? nil, to: phase(of: event.id), at: now), at: now)
+        }
     }
 
     /// Lets go of OpenCode requests whose session left or that waited too
@@ -1185,7 +1235,11 @@ final class ClaudeSessionService: ObservableObject {
                     self.accounts = accounts
                     self.updateAccountLabels()
                 }
-                if self.accountHooks != states { self.accountHooks = states }
+                if self.accountHooks != states {
+                    let summary = accounts.map { "\($0.name)=\(states[$0.id].map { "\($0)" } ?? "?")" }.joined(separator: " ")
+                    DiagnosticsLog.info("hooks", "claude hooks: \(summary)")
+                    self.accountHooks = states
+                }
                 let shown = accounts.filter { !$0.hidden }
                 self.hooksInstalled = shown.isEmpty ? false : shown.allSatisfy { states[$0.id] == .installed }
             }
@@ -1232,22 +1286,35 @@ final class ClaudeSessionService: ObservableObject {
 
     private static func changeHooks(_ url: URL, install: Bool, command: String, bundle: String,
                                     text: NotchClaudeSessionStrings) -> String? {
+        let failure: String?
         do {
             try ClaudeHookInstaller.update(url) { settings in
                 install ? ClaudeHookInstaller.installing(into: settings, command: command, bundle: bundle)
                     : ClaudeHookInstaller.removing(from: settings, bundle: bundle)
             }
-            return nil
+            if install {
+                HookRecords.noteInstalled(HookRecords.claudeID(url), file: url, marker: ClaudeHookInstaller.marker(bundle: bundle))
+            } else {
+                HookRecords.forget(HookRecords.claudeID(url))
+            }
+            failure = nil
         } catch let error as ClaudeHookInstaller.Failure {
             switch error {
-            case .unreadable: return text.settingsUnreadable
-            case .unwritable(let reason): return reason
-            case .busy: return text.settingsBusy
-            case .noBackup: return text.settingsNoBackup
+            case .unreadable: failure = text.settingsUnreadable
+            case .unwritable(let reason): failure = reason
+            case .busy: failure = text.settingsBusy
+            case .noBackup: failure = text.settingsNoBackup
             }
         } catch {
-            return error.localizedDescription
+            failure = error.localizedDescription
         }
+        let change = install ? "installed" : "removed"
+        if let failure {
+            DiagnosticsLog.error("hooks", "claude hooks could not be \(change) in \(url.path): \(failure)")
+        } else {
+            DiagnosticsLog.info("hooks", "claude hooks \(change) in \(url.path)")
+        }
+        return failure
     }
 
     // MARK: Accounts (#216)
@@ -1341,6 +1408,9 @@ final class ClaudeSessionService: ObservableObject {
                 }
                 DispatchQueue.main.async { [self] in
                     guard self.running else { return }
+                    if self.remoteStates[alias].map(Self.remoteKind) != Self.remoteKind(state) {
+                        DiagnosticsLog.info("remote", "host \(alias) \(Self.remoteKind(state))")
+                    }
                     self.remoteStates[alias] = state
                 }
             }
@@ -1363,6 +1433,15 @@ final class ClaudeSessionService: ObservableObject {
     }
 
     /// Settings forgets hosts that are no longer listed.
+    /// A host's state in a word or two, for the log; why it is down, too.
+    static func remoteKind(_ state: RemoteHostState) -> String {
+        switch state {
+        case .connecting: return "connecting"
+        case .connected: return "connected"
+        case .disconnected(let reason, _): return "disconnected: \(reason)"
+        }
+    }
+
     private func publishRemoteStates() {
         let aliases = Set(remoteLinks.keys)
         DispatchQueue.main.async { [self] in
@@ -1608,6 +1687,7 @@ final class ClaudeSessionService: ObservableObject {
             .filter { NotchClaudeSessionsSupport.shows($0, hidden: hidden) } + sampleEvents
         sampleEvents = []
         let changed = shown != published || allowed != publishedAutoAllow
+        if changed { journalCodex(shown, now: now) }
         published = shown
         publishedAutoAllow = allowed
         guard changed || !events.isEmpty else { return }
@@ -1640,6 +1720,18 @@ final class ClaudeSessionService: ObservableObject {
                 }
             }
             events.forEach(self.events.send)
+        }
+    }
+
+    /// Codex is heard through its app-server, not hooks: what the journal
+    /// keeps of it is each thread's change of state. Queue.
+    private func journalCodex(_ shown: [ClaudeSession], now: Date) {
+        for session in shown where session.provider == .codex {
+            let before = published.first { $0.id == session.id }?.phase
+            guard before != session.phase else { continue }
+            DiagnosticsJournal.shared.record(DiagnosticsJournal.make(
+                agent: .codex, event: (before == nil ? "listed" : "update", nil), session: session.id,
+                from: before, to: session.phase, at: now), at: now)
         }
     }
 

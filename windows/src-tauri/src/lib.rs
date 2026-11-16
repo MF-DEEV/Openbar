@@ -1,6 +1,16 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+/// Every `eprintln!` in the app also goes into Openbar's own log, masked, so
+/// a diagnostics file can carry it (#230); it still prints to stderr as
+/// before. Defined before the modules so it stands in for the standard
+/// macro in all of them.
+macro_rules! eprintln {
+    ($($arg:tt)*) => {
+        $crate::diagnostics::log::stderr_line(::std::format_args!($($arg)*))
+    };
+}
+
 mod agent_usage;
 mod audio;
 mod bar;
@@ -10,6 +20,7 @@ mod calendar;
 mod capture;
 mod clipboard;
 mod com;
+mod diagnostics;
 mod discord_keys;
 mod discord_reply;
 mod discord_storage;
@@ -325,6 +336,8 @@ pub fn run() {
             fullscreen::attention_context,
             fullscreen::attention_compact_sessions,
             settings::open_settings,
+            diagnostics::diagnostics_export,
+            diagnostics::diagnostics_system_line,
             onboarding::onboarding_open,
             updater::updates_endpoints,
             updater::updates_install,
@@ -510,6 +523,8 @@ pub fn run() {
         .setup(|app| {
             #[cfg(target_os = "macos")]
             app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            // The log first, so everything after it can write there (#230).
+            diagnostics::start(app.handle());
             // Loaded before the island exists, so its first prefs_get finds them.
             app.manage(prefs::Prefs::load(app.handle()));
             locale::start(app.handle().clone());

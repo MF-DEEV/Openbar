@@ -984,6 +984,12 @@ enum DefaultsKey {
     static let notchSessionsSidebarHidden = "notchSessionsSidebarHidden"
     /// The text size of a session's page with the island grown around it.
     static let notchSessionsLargeTextSize = "notchSessionsLargeTextSize"
+    /// What Openbar last wrote into each agent's hook settings, so a
+    /// diagnostics file can tell hooks changed or removed by hand (#230).
+    /// Machine state: never in a settings backup.
+    static let diagnosticsHookRecords = "diagnosticsHookRecords"
+    /// Reporting a bug first saves a diagnostics file to attach (#230).
+    static let feedbackAttachDiagnostics = "feedbackAttachDiagnostics"
     static let notchEnabled = "notchEnabled"
     static let notchDisplay = "notchDisplay"
     // How the island looks on a display without a camera housing.

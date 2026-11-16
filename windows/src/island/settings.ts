@@ -82,6 +82,8 @@ export interface IslandSettings {
   updateSkipped: string;
   /** "Remind me later": prompts stay quiet until this time, in milliseconds. */
   updateSnoozedUntil: number;
+  /** Reporting a bug first saves a diagnostics file to attach (#230). */
+  feedbackAttachDiagnostics: boolean;
   /** Music takes the closed island while it plays (notchShowPlayingMusic). */
   showPlayingMusic: boolean;
   /** Idle player to open; empty chooses the last music app, then an installed player. */
@@ -294,6 +296,7 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   betaUpdates: true,
   updateSkipped: "",
   updateSnoozedUntil: 0,
+  feedbackAttachDiagnostics: false,
   showPlayingMusic: true,
   preferredPlayer: "",
   includeOtherPlayers: true,

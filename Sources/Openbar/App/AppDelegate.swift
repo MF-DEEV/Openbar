@@ -58,6 +58,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        DiagnosticsLog.info("app", "\(AppInfo.name) \(AppInfo.version) started on macOS "
+            + ProcessInfo.processInfo.operatingSystemVersionString)
         // Before any window exists, so nothing is ever built with the wrong
         // appearance and then repainted.
         AppAppearanceController.shared.apply()
@@ -1776,6 +1778,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, NSW
     func openFeedbackWindow(kind: FeedbackKind = .bug) {
         closePopover()
         guard FeedbackRouting.endpoint != nil else {
+            // With Attach on, a bug report saves a diagnostics file first and
+            // the form opens beside it in Finder (#230).
+            if kind == .bug, UserDefaults.standard.bool(forKey: DefaultsKey.feedbackAttachDiagnostics) {
+                DiagnosticsExportWindow.shared.show(forBugReport: true) { url in
+                    NSWorkspace.shared.open(FeedbackRouting.issueURL(kind: kind, attachment: url.lastPathComponent))
+                }
+                return
+            }
             NSWorkspace.shared.open(FeedbackRouting.issueURL(kind: kind))
             return
         }
