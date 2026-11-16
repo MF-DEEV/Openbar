@@ -13,6 +13,7 @@ struct NotchClaudeSessionsSettingsControls: View {
     @AppStorage(DefaultsKey.notchSessionsBuddies) private var buddies = true
     @AppStorage(DefaultsKey.notchSessionsLimits) private var limits = true
     @AppStorage(DefaultsKey.notchSessionsProgressStyle) private var progressStyle = NotchSessionProgressStyle.ring.rawValue
+    @AppStorage(DefaultsKey.notchSessionsGrouping) private var grouping = NotchSessionGrouping.none.rawValue
     @AppStorage(DefaultsKey.notchSessionsAwayCard) private var awayCard = true
     @AppStorage(DefaultsKey.notchSessionsAwayMinutes) private var awayMinutes = 10
     @AppStorage(DefaultsKey.notchSessionsVoiceReplies) private var voiceReplies = true
@@ -58,6 +59,17 @@ struct NotchClaudeSessionsSettingsControls: View {
     /// How a task list shows on a row, and the card on return (#215).
     private var progress: some View {
         VStack(alignment: .leading, spacing: 10) {
+            // One list, or groups by project or agent (#233).
+            SettingsRow(symbol: "square.stack.3d.up", title: text.groupingSetting, caption: text.groupingSettingHint) {
+                Picker(text.groupingSetting, selection: $grouping) {
+                    Text(text.groupNone).tag(NotchSessionGrouping.none.rawValue)
+                    Text(text.groupByProject).tag(NotchSessionGrouping.project.rawValue)
+                    Text(text.groupByAgent).tag(NotchSessionGrouping.agent.rawValue)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(maxWidth: 260)
+            }
             SettingsRow(symbol: "circle.dashed", title: text.progressStyle, caption: text.progressStyleHint) {
                 Picker(text.progressStyle, selection: $progressStyle) {
                     Text(text.progressRing).tag(NotchSessionProgressStyle.ring.rawValue)

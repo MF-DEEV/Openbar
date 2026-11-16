@@ -10,7 +10,6 @@ import { useLocale } from "../i18n";
 import { ChevronRight, Folder, GitBranch, List, FolderGit2 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useId } from "react";
-import { useMenu } from "../shared/ui/Menu";
 import { AgentFace } from "../shared/ui/AgentFace";
 import { SlidingHighlight } from "../shared/ui/motionKit";
 import { setPrefs, type Grouping } from "../shared/prefs";
@@ -67,38 +66,6 @@ export function GroupingSwitch() {
   );
 }
 
-/** PROTOTYPE variant (#233): one mark in the band that opens a menu of the three. */
-export function GroupingMenuButton() {
-  useLocale();
-  const grouping = useSessions((s) => s.prefs.grouping);
-  const menu = useMenu();
-  const current = CHOICES.find((c) => c.value === grouping) ?? CHOICES[0]!;
-  return (
-    <>
-      <button
-        type="button"
-        className={`n-icon-button${grouping !== "none" ? " is-selected" : ""}`}
-        aria-label={S.groupSessions}
-        title={S.groupSessions}
-        onClick={(e) =>
-          menu.openBelow(
-            e.currentTarget,
-            CHOICES.map((c) => ({
-              label: c.label(),
-              icon: c.Icon,
-              checked: c.value === grouping,
-              onSelect: () => setGrouping(c.value),
-            })),
-          )
-        }
-      >
-        <current.Icon size={12} strokeWidth={2.2} />
-      </button>
-      {menu.menu}
-    </>
-  );
-}
-
 /** A project's first letter on its color, or the agent's own mark. */
 function GroupMark({ group }: { group: SessionGroup }) {
   if (group.kind === "agent" && group.provider) {
@@ -133,7 +100,7 @@ function FaceStack({ sessions }: { sessions: Session[] }) {
           className={`s-group-face${isWaiting(session.phase) ? " is-waiting" : ""}`}
           style={{ color: phaseTint(session.phase, session.provider) }}
         >
-          <ProviderMark provider={session.provider} size={10} working={false} />
+          <ProviderMark provider={session.provider} size={9} working={false} />
         </span>
       ))}
       {more > 0 ? <span className="s-group-more">+{more}</span> : null}

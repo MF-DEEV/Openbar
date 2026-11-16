@@ -41,6 +41,19 @@ struct NotchClaudeSessionStrings {
     }
     func minutes(_ n: Int) -> String { "\(n) min" }
     func awayFiles(_ n: Int) -> String { "\(n) files changed" }
+    // #233: the list in groups.
+    var groupSessions = "Group sessions"
+    var groupNone = "One list"
+    var groupByProject = "By project"
+    var groupByAgent = "By agent"
+    var groupingSetting = "Group the list"
+    var groupingSettingHint = "Sessions of one project, or of one agent, sit together under a header you can fold."
+    var groupFolded = "Folded"
+    var groupOpen = "Open"
+    var groupOpenHint = "Shows its sessions."
+    var groupFoldHint = "Hides its sessions."
+    func groupCount(_ n: Int) -> String { "Sessions: \(n)" }
+    func groupWaiting(_ n: Int) -> String { "Waiting for you: \(n)" }
     let allow: String
     let alwaysAllow: String
     /// Always while it allows every request of a Codex turn.

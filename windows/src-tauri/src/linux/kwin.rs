@@ -211,10 +211,7 @@ fn session() -> Option<&'static Session> {
 /// Whether this is Plasma on Wayland with a KWin that runs our script.
 pub fn available() -> bool {
     let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
-    desktop
-        .split(':')
-        .any(|d| d.eq_ignore_ascii_case("KDE"))
-        && session().is_some()
+    desktop.split(':').any(|d| d.eq_ignore_ascii_case("KDE")) && session().is_some()
 }
 
 /// What the script said last, waiting a moment for its first report.
@@ -255,7 +252,11 @@ mod tests {
             {"pid":60}
         ],"screen":{"x":1920,"y":0,"w":2560,"h":1440}}"#;
         let report = parse(json).unwrap();
-        assert_eq!(report.windows.len(), 2, "a window without an id is left out");
+        assert_eq!(
+            report.windows.len(),
+            2,
+            "a window without an id is left out"
+        );
         assert_eq!(report.windows[1].pid, 40, "the active window last");
         assert!(report.windows[1].focused && !report.windows[1].fullscreen);
         assert!(report.windows[0].fullscreen);
@@ -275,6 +276,9 @@ mod tests {
         let watching = script("com.openbar.island.kwin.p7");
         assert!(watching.contains(r#"callDBus("com.openbar.island.kwin.p7", "/com/openbar/island/KWin", "com.openbar.island.KWin", "Report""#));
         let raising = raise_script(r#"{x"y}"#);
-        assert!(raising.contains(r#"=== "{x\"y}""#), "the id is a JS string, quotes and all");
+        assert!(
+            raising.contains(r#"=== "{x\"y}""#),
+            "the id is a JS string, quotes and all"
+        );
     }
 }

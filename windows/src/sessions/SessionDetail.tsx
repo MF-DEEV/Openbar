@@ -6,6 +6,7 @@
 // last reply, and a field that types a reply into its terminal.
 
 import { ModelLabel, shortModel } from "./progress/ModelLabel";
+import { BranchChip } from "./SessionGroups";
 import { Checklist } from "./progress/TaskProgress";
 import { characterOf } from "./clawd/costume";
 import { useLocale, t, tf } from "../i18n";
@@ -166,7 +167,6 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
   const open = () => useSessions.getState().openWindow(session);
 
   const meta = [
-    session.branch ? `⎇ ${session.branch}` : undefined,
     // The chip beside the tag names the model (#215).
     shortModel(session) ? undefined : (session.modelName ?? session.model),
     totalTokens(session.tokens) > 0 ? compactNumber(totalTokens(session.tokens)) : undefined,
@@ -237,6 +237,8 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
               <span className="s-tag" style={{ color, background: `color-mix(in srgb, ${color} 16%, transparent)` }}>
                 {session.project}
               </span>
+              {/* The branch beside the project, as on the row (#233); whole while there's room. */}
+              <BranchChip session={session} max={enlarged ? 60 : 32} />
               <ModelLabel session={session} />
               <span className="s-secondary">{meta.join(" · ")}</span>
             </div>

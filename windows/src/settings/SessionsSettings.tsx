@@ -11,7 +11,7 @@
 import { type StringKey, useLocale, t, tf } from "../i18n";
 import { type ClaudeAccount, HOOK_AGENTS, type HookAgent, PROVIDER_NAMES } from "../sessions/types";
 import { ProviderMark } from "../sessions/glyphs";
-import type { ClaudeAccountSetting, ProgressStyle, SessionPrefs } from "../shared/prefs";
+import type { ClaudeAccountSetting, Grouping, ProgressStyle, SessionPrefs } from "../shared/prefs";
 import { Eye, EyeOff, MinusCircle } from "lucide-react";
 import { voiceHeard } from "../shared/platform";
 
@@ -998,6 +998,18 @@ export function SessionsOptions() {
       </SubRow>
       <SubRow title={T.sessions.limits} caption={T.sessions.limitsCaption}>
         <Toggle label={T.sessions.limits} checked={prefs.limits} onChange={(on) => set("limits", on)} />
+      </SubRow>
+      <SubRow title={T.sessions.grouping} caption={T.sessions.groupingCaption}>
+        <Segmented<Grouping>
+          label={T.sessions.grouping}
+          value={prefs.grouping}
+          options={[
+            { value: "none", label: T.sessions.groupNone },
+            { value: "project", label: T.sessions.groupByProject },
+            { value: "agent", label: T.sessions.groupByAgent },
+          ]}
+          onChange={(v) => set("grouping", v)}
+        />
       </SubRow>
       <SubRow title={T.sessions.progressStyle} caption={T.sessions.progressStyleCaption}>
         <Segmented<ProgressStyle>

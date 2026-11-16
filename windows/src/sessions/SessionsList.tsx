@@ -15,7 +15,6 @@ import type { CSSProperties } from "react";
 import { Collapse } from "../shared/ui/motionKit";
 import { BranchChip, GroupHeader } from "./SessionGroups";
 import { groupSessions } from "./groups";
-import { useProto233 } from "./proto233";
 import { EmptyState } from "../island/views/Controls";
 import { SessionAvatar } from "./SessionAvatar";
 import {
@@ -99,10 +98,9 @@ export function SessionsList() {
 /** The list in groups (#233): groups with someone waiting on top, each folding its rows away. */
 function GroupedList({ sessions, by, now }: { sessions: Session[]; by: "project" | "agent"; now: number }) {
   const collapsed = useSessions((s) => s.prefs.collapsedGroups);
-  const look = useProto233((s) => s.look);
   const groups = groupSessions(orderSessions(sessions), by);
   return (
-    <div className={`s-list is-grouped is-look-${look}`}>
+    <div className="s-list is-grouped">
       <AnimatePresence initial={false}>
         {groups.map((group) => {
           const folded = collapsed.includes(group.key);

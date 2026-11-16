@@ -122,6 +122,7 @@ struct NotchClaudeSessionDetailView: View {
                     if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
                     if let account = service.accountLabels[session.id] { NotchClaudeAccountBadge(name: account) }
                     NotchClaudeProjectTag(project: session.project)
+                    NotchSessionBranchChip(session: session, maxWidth: 180)
                     NotchModelChip(session: session)
                     Text(details)
                         .font(.system(size: 10.5))
@@ -137,8 +138,7 @@ struct NotchClaudeSessionDetailView: View {
 
     private var details: String {
         // The chip beside the tag names the model (#215).
-        [session.branch.map { "⎇ \($0)" },
-         NotchSessionProgress.shortModel(session) == nil ? session.model.map(AgentPricing.displayName) : nil,
+        [NotchSessionProgress.shortModel(session) == nil ? session.model.map(AgentPricing.displayName) : nil,
          session.tokens.total > 0 ? AgentFormat.tokens(session.tokens.total) : nil,
          session.cost > 0 ? AgentFormat.cost(session.cost) : nil]
             .compactMap { $0 }.joined(separator: " · ")

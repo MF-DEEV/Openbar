@@ -109,3 +109,55 @@ it("names the terminals and editors of the platform in the empty list", () => {
   expect(html).toContain("in a terminal or an editor");
   expect(html).not.toContain("Windows Terminal");
 });
+
+function grouped(sessions: Session[], grouping: "none" | "project" | "agent", collapsedGroups: string[] = []): string {
+  useSessions.setState((s) => ({
+    snapshot: { ...demoSnapshot(), sessions },
+    prefs: { ...s.prefs, grouping, collapsedGroups },
+    lookedAt: {},
+    autoAllow: {},
+  }));
+  const html = renderToStaticMarkup(<SessionsList />);
+  useSessions.setState((s) => ({ prefs: { ...s.prefs, grouping: "none", collapsedGroups: [] } }));
+  return html;
+}
+
+it("keeps today's single list under None (#233)", () => {
+  const html = grouped(demoSnapshot().sessions, "none");
+  expect(html).not.toContain("s-group");
+  expect(html.match(/class="s-row[ "]/g)).toHaveLength(demoSnapshot().sessions.length);
+});
+
+it("heads each project's group and drops the repeated project tag from its rows (#233)", () => {
+  const sessions = demoSnapshot().sessions;
+  const html = grouped(sessions, "project");
+  expect(html.match(/class="s-group-head/g)).toHaveLength(new Set(sessions.map((s) => s.project)).size);
+  expect(html).not.toContain('class="s-tag"');
+  expect(html).toContain('aria-expanded="true"');
+});
+
+it("folds a group to its header, which still says someone waits (#233)", () => {
+  const sessions = demoSnapshot().sessions;
+  const waiting = sessions.find((s) => s.phase === "waitingPermission")!;
+  const html = grouped(sessions, "project", [`project::${waiting.project}`]);
+  expect(html).toContain('class="s-group-head is-collapsed has-waiting"');
+  expect(html).toContain('aria-expanded="false"');
+  expect(html).toContain("s-group-faces");
+  expect(html).not.toContain(waiting.title!);
+});
+
+it("groups by agent and keeps the project tag on rows (#233)", () => {
+  const html = grouped(demoSnapshot().sessions, "agent");
+  expect(html).toContain(">Claude Code<");
+  expect(html).toContain(">Codex<");
+  expect(html).toContain('class="s-tag"');
+});
+
+it("shows the branch beside the project, cut in the middle, whole on hover (#233)", () => {
+  const long = "fix/currency-rounding-for-the-new-checkout-totals";
+  const html = rows([{ ...quiet, branch: long }]);
+  expect(html).toContain(`title="${long}"`);
+  expect(html).toContain("…");
+  expect(html.indexOf("s-tag")).toBeLessThan(html.indexOf("s-branch-chip"));
+  expect(rows([{ ...quiet, branch: undefined }])).not.toContain("s-branch-chip");
+});

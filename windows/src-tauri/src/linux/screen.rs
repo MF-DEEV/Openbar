@@ -407,7 +407,10 @@ mod tests {
         };
         let part = crop_pixbuf(&picture, rect(2, 1, 2, 2)).unwrap();
         assert_eq!((part.width, part.height), (2, 2));
-        assert_eq!(&part.rgba[..8], &[0xaa, 0xbb, 0xcc, 255, 0x11, 0x22, 0x33, 255]);
+        assert_eq!(
+            &part.rgba[..8],
+            &[0xaa, 0xbb, 0xcc, 255, 0x11, 0x22, 0x33, 255]
+        );
         assert!(crop_pixbuf(&picture, rect(3, 0, 2, 1)).is_none());
         assert!(crop_pixbuf(&picture, rect(-1, 0, 1, 1)).is_none());
     }

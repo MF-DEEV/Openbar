@@ -23,11 +23,6 @@ if (!inTauri && new URLSearchParams(location.search).has("sessions")) {
   });
 }
 
-// PROTOTYPE (#233): ?proto233 adds the picker of looks. Removed before the PR.
-if (!inTauri && new URLSearchParams(location.search).has("proto233")) {
-  void import("../sessions/ProtoPanel233").then((m) => m.mountProtoPanel());
-}
-
 // ?sessions&away opens the "while you were away" card on the samples (#215).
 if (!inTauri && new URLSearchParams(location.search).has("away")) {
   void Promise.all([import("../sessions/demo"), import("../sessions/progress/AwayCard")]).then(([demo, card]) => {

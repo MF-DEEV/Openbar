@@ -63,6 +63,8 @@ fn pid_domains() -> &'static [&'static str] {
 /// How often Agent View is asked: more often while it has sessions.
 const JOBS_EVERY: Time = 10.0;
 const JOBS_EVERY_QUIETLY: Time = 60.0;
+/// How long a session's checkout is trusted before HEAD is read again (#233).
+const HEAD_FRESH: Time = 3.0;
 
 pub fn now() -> Time {
     SystemTime::now()
@@ -188,6 +190,8 @@ struct Inner {
     /// The agents whose sessions the list shows.
     hidden_agents: HashSet<models::Provider>,
     branches: HashMap<String, (Option<String>, Time)>,
+    /// Each local session's checkout, read again every few seconds (#233).
+    heads: HashMap<String, (hook_agents::Head, Time)>,
     engine: Engine,
     agent_colors: AgentColors,
     tails: HashMap<PathBuf, Tail>,
@@ -265,6 +269,7 @@ impl Service {
                 proxied: HashMap::new(),
                 hidden_agents: HashSet::new(),
                 branches: HashMap::new(),
+                heads: HashMap::new(),
                 engine: Engine::new(ContentPolicy::default()),
                 agent_colors: AgentColors::default(),
                 tails: HashMap::new(),
@@ -854,6 +859,23 @@ impl Service {
         }
         snapshot.events.append(&mut inner.sample_events);
         let mut sessions = models::sorted(self.with_background(inner, snapshot.sessions, t));
+        // The branch as the checkout has it now, so a checkout inside a
+        // session shows on its row; a host's sessions keep what it said.
+        inner.heads.retain(|_, (_, at)| t - *at < HEAD_FRESH * 4.0);
+        for session in &mut sessions {
+            if session.remote.is_some() || session.cwd.is_empty() {
+                continue;
+            }
+            let head = match inner.heads.get(&session.cwd) {
+                Some((head, at)) if t - at < HEAD_FRESH => head.clone(),
+                _ => {
+                    let head = hook_agents::read_head(&session.cwd);
+                    inner.heads.insert(session.cwd.clone(), (head.clone(), t));
+                    head
+                }
+            };
+            session.branch = hook_agents::live_branch(session.branch.take(), &head);
+        }
         // The account each Claude session runs under, and its name while
         // more than one is in use (#216).
         for session in &mut sessions {

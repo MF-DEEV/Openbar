@@ -14,8 +14,7 @@ import { useIsland } from "../island/store";
 import { NewSession } from "./Background";
 import { SessionDetail } from "./SessionDetail";
 import { SessionsList } from "./SessionsList";
-import { GroupingMenuButton, GroupingSwitch } from "./SessionGroups";
-import { useProto233 } from "./proto233";
+import { GroupingSwitch } from "./SessionGroups";
 import { displayName } from "./format";
 import { countItems } from "./SessionsStrip";
 import { S } from "./strings";
@@ -99,7 +98,6 @@ function Trailing() {
   const canStart = useSessions((s) => s.snapshot.canStart === true || s.snapshot.canStartCodex === true);
   const away = useSessions((s) => s.away !== null);
   const listed = useSessions((s) => presentedSnapshot(s).sessions.length);
-  const switcher = useProto233((s) => s.switcher);
   const [, tick] = useState(0);
   useEffect(() => {
     const wait = failedUntil * 1000 - Date.now();
@@ -112,7 +110,7 @@ function Trailing() {
   if (!session) {
     return (
       <>
-        {listed > 0 ? switcher === "menu" ? <GroupingMenuButton /> : <GroupingSwitch /> : null}
+        {listed > 0 ? <GroupingSwitch /> : null}
         {canStart ? (
           <button
             type="button"
