@@ -191,7 +191,10 @@ final class DiagnosticsExportWindow: NSObject, NSWindowDelegate {
             window.contentViewController = host
         } else {
             let window = NSWindow(contentViewController: host)
-            window.styleMask = [.titled, .closable]
+            window.styleMask = [.titled, .closable, .fullSizeContentView]
+            // The screen names itself in its header; the bar stays empty.
+            window.titleVisibility = .hidden
+            window.titlebarAppearsTransparent = true
             window.isReleasedWhenClosed = false
             window.isRestorable = false
             window.delegate = self
