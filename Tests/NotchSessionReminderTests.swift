@@ -162,7 +162,8 @@ enum NotchSessionReminderTests {
         focus.duringFocus = true
         suite.expect(!NotchSessionReminders.heldByFocus(focus, focus: true), "unless allowed")
 
-        let defaults = UserDefaults(suiteName: "reminders-test-\(UUID().uuidString)")!
+        let defaults = UserDefaults(suiteName: "com.openbar.tests.reminders")!
+        defaults.removePersistentDomain(forName: "com.openbar.tests.reminders")
         let off = NotchSessionReminders.Settings.load(defaults)
         suite.expect(!off.anyOn && off.after == 300 && off.every == nil && !off.duringFocus, "off by default, 5 min, once")
         defaults.set(true, forKey: DefaultsKey.notchSessionsRemindQuestion)
