@@ -16,7 +16,6 @@ import { SessionDetail } from "./SessionDetail";
 import { SessionsList } from "./SessionsList";
 import { GroupingSwitch } from "./SessionGroups";
 import { displayName } from "./format";
-import { countItems } from "./SessionsStrip";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { presentedSnapshot } from "./presentation";
@@ -45,31 +44,13 @@ function Page() {
   return session ? <SessionDetail session={session} enlarged={enlarged} /> : <SessionsList />;
 }
 
-/** Counts with 9 pt symbols and 11 pt numbers, or the total when nothing is going on. */
-function Counts() {
-  useLocale();
-  const counts = useSessions((s) => presentedSnapshot(s).counts);
-  const total = useSessions((s) => s.snapshot.sessions.length);
-  const items = countItems(counts);
-  if (items.length === 0) return total > 0 ? <span className="s-band-total">{total}</span> : null;
-  return (
-    <span className="s-band-counts">
-      {items.map(({ n, Icon, tint }, i) => (
-        <span key={i} style={{ color: tint }}>
-          <Icon size={9} strokeWidth={3} />
-          {n}
-        </span>
-      ))}
-    </span>
-  );
-}
-
 function Leading() {
   useLocale();
   const session = useFocusedSession();
   const custom = useSessions((s) => (session ? s.names[session.id] : undefined));
   const composing = useSessions((s) => s.composing);
   const away = useSessions((s) => s.away !== null);
+  const listed = useSessions((s) => presentedSnapshot(s).sessions.length);
   if (away) return <AwayLeading />;
   if (composing) {
     return (
@@ -79,7 +60,9 @@ function Leading() {
       </button>
     );
   }
-  if (!session) return <Counts />;
+  // The open island shows every session, so the band leads with how they're
+  // laid out rather than counting them again (#233).
+  if (!session) return listed > 0 ? <GroupingSwitch /> : null;
   return (
     <button type="button" className="s-back" onClick={() => useSessions.getState().focus(null)}>
       <ChevronLeft size={13} strokeWidth={2.5} />
@@ -97,7 +80,6 @@ function Trailing() {
   const composing = useSessions((s) => s.composing);
   const canStart = useSessions((s) => s.snapshot.canStart === true || s.snapshot.canStartCodex === true);
   const away = useSessions((s) => s.away !== null);
-  const listed = useSessions((s) => presentedSnapshot(s).sessions.length);
   const [, tick] = useState(0);
   useEffect(() => {
     const wait = failedUntil * 1000 - Date.now();
@@ -108,21 +90,12 @@ function Trailing() {
   if (away) return <AwayTrailing />;
   if (composing) return null;
   if (!session) {
-    return (
-      <>
-        {listed > 0 ? <GroupingSwitch /> : null}
-        {canStart ? (
-          <button
-            type="button"
-            className="n-pill-button s-open"
-            onClick={() => useSessions.setState({ composing: true })}
-          >
-            <Plus size={11} />
-            {S.newSession}
-          </button>
-        ) : null}
-      </>
-    );
+    return canStart ? (
+      <button type="button" className="n-pill-button s-open" onClick={() => useSessions.setState({ composing: true })}>
+        <Plus size={11} />
+        {S.newSession}
+      </button>
+    ) : null;
   }
   const failed = Date.now() / 1000 < failedUntil;
   return (

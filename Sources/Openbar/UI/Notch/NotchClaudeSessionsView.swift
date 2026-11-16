@@ -106,13 +106,10 @@ struct NotchClaudeSessionsView: View {
             }
             .scrollIndicators(.automatic)
         }
-        .notchBand(leading: { NotchClaudeSessionCounts(counts: service.counts, total: service.sessions.count) },
-                   trailing: {
-                       HStack(spacing: 8) {
-                           NotchSessionGroupingSwitch(text: text)
-                           newSessionButton
-                       }
-                   })
+        // The open island shows every session, so the band leads with how
+        // they're laid out rather than counting them again (#233).
+        .notchBand(leading: { NotchSessionGroupingSwitch(text: text) },
+                   trailing: { newSessionButton })
     }
 
     private func row(_ session: ClaudeSession, now: Date, inProject: Bool = false) -> some View {
@@ -176,32 +173,6 @@ struct NotchClaudeSessionsView: View {
     }
 }
 
-/// How many sessions work, wait and have news, beside the camera: the ones
-/// at work counted by agent, each in its color, as on the closed strip.
-private struct NotchClaudeSessionCounts: View {
-    let counts: ClaudeSessionCounts
-    let total: Int
-
-    var body: some View {
-        HStack(spacing: 8) {
-            ForEach(NotchClaudeSessionsSupport.stripReading(counts)) { item in
-                HStack(spacing: 3) {
-                    Image(systemName: NotchClaudeSessionsSupport.symbol(item.phase))
-                        .font(.system(size: 9, weight: .semibold))
-                    Text("\(item.count)").font(.system(size: 11, weight: .semibold)).monospacedDigit()
-                }
-                .foregroundStyle(item.tint)
-            }
-            if counts.isEmpty {
-                Text("\(total)").font(.system(size: 11, weight: .semibold)).foregroundStyle(.secondary)
-            }
-        }
-        .padding(.horizontal, 7)
-        .frame(height: 28)
-        .accessibilityElement(children: .combine)
-    }
-}
-
 /// One session in the list: what it is called, what it does, where it
 /// works and for how long.
 struct NotchClaudeSessionRow: View {
@@ -260,7 +231,9 @@ struct NotchClaudeSessionRow: View {
             }
             .buttonStyle(NotchButtonStyle(cornerRadius: 14, lifts: false))
             .focused($focused)
-            .accessibilityLabel("\(name), \(text.agent(session.provider)), \(session.project), \(text.phase(session.phase))")
+            .accessibilityLabel([name, text.agent(session.provider), session.project,
+                                 NotchSessionGroups.branchLabel(session)?.full, text.phase(session.phase)]
+                .compactMap { $0 }.joined(separator: ", "))
             .accessibilityValue(NotchClaudeSessionFormat.activity(session, text: text, title: session.title != name, now: now))
             if quickDecision, let permission = session.permission {
                 // A request short enough to read whole on the line beside is

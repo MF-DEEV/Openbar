@@ -237,8 +237,9 @@ struct NotchSessionBranchChip: View {
             }
             .font(.system(size: size))
             .foregroundStyle(.white.opacity(0.5))
+            // As wide as the name, up to the cap, where the middle gives way.
             .frame(maxWidth: maxWidth, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
+            .fixedSize(horizontal: true, vertical: false)
             .help(label.full)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(label.full)

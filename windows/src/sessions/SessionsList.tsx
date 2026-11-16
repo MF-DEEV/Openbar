@@ -14,7 +14,7 @@ import { AnimatePresence, motion } from "motion/react";
 import type { CSSProperties } from "react";
 import { Collapse } from "../shared/ui/motionKit";
 import { BranchChip, GroupHeader } from "./SessionGroups";
-import { groupSessions } from "./groups";
+import { branchLabel, groupSessions } from "./groups";
 import { EmptyState } from "../island/views/Controls";
 import { SessionAvatar } from "./SessionAvatar";
 import {
@@ -171,7 +171,15 @@ function Row({ session, now, inProject = false }: { session: Session; now: numbe
       role="button"
       tabIndex={0}
       className={`s-row${waiting ? " is-waiting" : ""}${limited ? " is-limited" : ""}${asleep ? " is-dozing" : ""}`}
-      aria-label={`${name}, ${session.provider === "codex" ? S.codex : S.claudeCode}, ${session.project}, ${sessionPhaseLabel(session)}`}
+      aria-label={[
+        name,
+        session.provider === "codex" ? S.codex : S.claudeCode,
+        session.project,
+        branchLabel(session)?.full,
+        sessionPhaseLabel(session),
+      ]
+        .filter(Boolean)
+        .join(", ")}
       onClick={() => useSessions.getState().focus(session.id)}
       onKeyDown={(e) => e.key === "Enter" && useSessions.getState().focus(session.id)}
     >
