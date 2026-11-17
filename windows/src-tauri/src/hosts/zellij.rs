@@ -59,10 +59,62 @@ pub fn pane_of(environment: &std::collections::HashMap<String, String>) -> Optio
     (!session.is_empty() && !session.contains('\n')).then(|| (session.to_owned(), pane))
 }
 
-fn act(program: &str, session: &str, arguments: &[&str]) -> Option<String> {
-    let mut command = vec!["--session", session, "action"];
-    command.extend_from_slice(arguments);
-    run(program, &[], &command, None)
+/// A zellij session to act on: the server's own program, the session's name
+/// and the server's pid.
+pub struct Target<'a> {
+    pub program: &'a str,
+    pub session: &'a str,
+    pub server: u32,
+}
+
+/// The `--session` that worked last for each server.
+static WORKING: std::sync::Mutex<Option<std::collections::HashMap<u32, String>>> =
+    std::sync::Mutex::new(None);
+
+/// What `--session` takes for the session, the one that worked last first.
+/// zellij finds a session by its name through the metadata it keeps in the
+/// user's cache folder; with another cache folder (the app started with
+/// another HOME or XDG_CACHE_HOME than the shell) only the name of the
+/// server's socket, a hash, finds it.
+fn names(target: &Target) -> Vec<String> {
+    let mut names = vec![target.session.to_owned()];
+    if let Some(socket) = crate::hosts::process::metadata(target.server)
+        .and_then(|meta| socket_name(&meta.command_line))
+        .filter(|socket| socket != target.session)
+    {
+        names.push(socket);
+    }
+    let known = WORKING
+        .lock()
+        .ok()
+        .and_then(|map| map.as_ref()?.get(&target.server).cloned());
+    if let Some(index) = known.and_then(|known| names.iter().position(|n| *n == known)) {
+        names.swap(0, index);
+    }
+    names
+}
+
+/// The last part of the path after `--server` in a server's command line.
+pub fn socket_name(command_line: &str) -> Option<String> {
+    let words = split_command_line(command_line);
+    let path = words.iter().skip_while(|w| *w != "--server").nth(1)?;
+    let name = path.rsplit(['/', '\\']).next()?;
+    (!name.is_empty()).then(|| name.to_owned())
+}
+
+fn act(target: &Target, arguments: &[&str]) -> Option<String> {
+    for name in names(target) {
+        let mut command = vec!["--session", name.as_str(), "action"];
+        command.extend_from_slice(arguments);
+        if let Some(output) = run(target.program, &[], &command, None) {
+            if let Ok(mut map) = WORKING.lock() {
+                map.get_or_insert_with(Default::default)
+                    .insert(target.server, name);
+            }
+            return Some(output);
+        }
+    }
+    None
 }
 
 fn pane_id(pane: u32) -> String {
@@ -71,23 +123,17 @@ fn pane_id(pane: u32) -> String {
 
 /// Types the reply into the pane, whichever pane is in front. Err when
 /// zellij or the pane is gone.
-pub fn send(
-    program: &str,
-    session: &str,
-    pane: u32,
-    text: &str,
-    images: &[String],
-) -> Result<(), ()> {
+pub fn send(target: &Target, pane: u32, text: &str, images: &[String]) -> Result<(), ()> {
     let id = pane_id(pane);
     for step in crate::hosts::wezterm::steps(text, images) {
         match step {
             // A bracketed paste, so line breaks stay text.
             Step::Paste(content) => {
-                act(program, session, &["paste", "--pane-id", &id, &content]).ok_or(())?;
+                act(target, &["paste", "--pane-id", &id, &content]).ok_or(())?;
             }
             Step::Wait(ms) => std::thread::sleep(std::time::Duration::from_millis(ms)),
             Step::Enter => {
-                act(program, session, &["send-keys", "--pane-id", &id, "Enter"]).ok_or(())?;
+                act(target, &["send-keys", "--pane-id", &id, "Enter"]).ok_or(())?;
             }
         }
     }
@@ -148,13 +194,12 @@ pub enum Focus {
 
 /// Selects the pane's tab, then the pane (`focus-pane-id` alone never
 /// changes tabs), in the client used last.
-pub fn focus(program: &str, session: &str, pane: u32) -> Focus {
-    let Some(tab) =
-        act(program, session, &["list-panes", "--json"]).and_then(|json| tab_of(&json, pane))
+pub fn focus(target: &Target, pane: u32) -> Focus {
+    let Some(tab) = act(target, &["list-panes", "--json"]).and_then(|json| tab_of(&json, pane))
     else {
         return Focus::Missing;
     };
-    let Some(clients) = act(program, session, &["list-clients"]) else {
+    let Some(clients) = act(target, &["list-clients"]) else {
         return Focus::Missing;
     };
     if client_panes(&clients).is_empty() {
@@ -162,24 +207,24 @@ pub fn focus(program: &str, session: &str, pane: u32) -> Focus {
     }
     let tab = tab.to_string();
     let id = pane_id(pane);
-    if act(program, session, &["go-to-tab-by-id", &tab]).is_none() {
+    if act(target, &["go-to-tab-by-id", &tab]).is_none() {
         return Focus::Missing;
     }
     // It fails with "already focused" when it is: list-panes already told
     // the pane is there.
-    let _ = act(program, session, &["focus-pane-id", &id]);
+    let _ = act(target, &["focus-pane-id", &id]);
     Focus::Selected
 }
 
 /// Whether the pane is in front inside zellij, as `shown_by` tells.
-pub fn shown(program: &str, session: &str, pane: u32) -> Option<bool> {
-    let listed = act(program, session, &["list-clients"])?;
+pub fn shown(target: &Target, pane: u32) -> Option<bool> {
+    let listed = act(target, &["list-clients"])?;
     shown_by(&client_panes(&listed), pane)
 }
 
 /// Whether any terminal is attached to the session.
-pub fn attached(program: &str, session: &str) -> Option<bool> {
-    act(program, session, &["list-clients"]).map(|listed| !client_panes(&listed).is_empty())
+pub fn attached(target: &Target) -> Option<bool> {
+    act(target, &["list-clients"]).map(|listed| !client_panes(&listed).is_empty())
 }
 
 /// The arguments that attach the session in a new terminal window.
@@ -444,6 +489,21 @@ mod tests {
         assert!(peers.contains(&(635574, 634874)));
         let found = clients_by_socket(&[634874], &[(10, vec![635574]), (20, vec![639303])], &peers);
         assert_eq!(found, vec![10]);
+    }
+
+    #[test]
+    fn the_servers_socket_is_named_with_a_hash() {
+        assert_eq!(
+            socket_name("/z/zellij --server /tmp/zellij-501/contract_version_1/69447bcc5479")
+                .as_deref(),
+            Some("69447bcc5479")
+        );
+        assert_eq!(
+            socket_name(r#""C:\z\zellij.exe" --server C:\Users\v\AppData\Local\Temp\zellij\contract_version_1\58e6c9a68744"#)
+                .as_deref(),
+            Some("58e6c9a68744")
+        );
+        assert_eq!(socket_name("zellij attach work"), None);
     }
 
     #[test]

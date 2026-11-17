@@ -434,6 +434,10 @@ enum ClaudeSessionReaderTests {
         for word in ["zellij", "--server", "/tmp/s"] { procargs += Array(word.utf8) + [0] }
         procargs += Array("HOME=/Users/x".utf8) + [0]
         suite.expect(ClaudeZellij.parseArguments(procargs) == ["zellij", "--server", "/tmp/s"], "a process's arguments are read")
+        suite.expect(ClaudeZellij.socketName(arguments: ["zellij", "--server", "/tmp/zellij-501/contract_version_1/69447bcc5479"])
+                     == "69447bcc5479" && ClaudeZellij.socketName(arguments: ["zellij", "--server"]) == nil
+                     && ClaudeZellij.socketName(arguments: ["zellij", "attach", "work"]) == nil,
+                     "the server's socket is named with a hash, which --session takes when the name can't be looked up")
 
         let listed = """
             [{"id":4,"is_plugin":true,"is_focused":true,"tab_id":0},

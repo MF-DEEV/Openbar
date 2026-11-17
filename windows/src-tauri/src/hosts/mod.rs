@@ -302,8 +302,12 @@ pub fn deliver(
             if !zellij_holds(pid, *server) {
                 return Err(DeliveryError::Unreachable);
             }
-            zellij::send(program, session, *pane, text, images)
-                .map_err(|_| DeliveryError::Unreachable)
+            let target = zellij::Target {
+                program,
+                session,
+                server: *server,
+            };
+            zellij::send(&target, *pane, text, images).map_err(|_| DeliveryError::Unreachable)
         }
         #[cfg(target_os = "linux")]
         Host::Tmux { .. } | Host::Kitty { .. } => {
@@ -342,7 +346,12 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
             if !zellij_holds(pid, *server) {
                 return false;
             }
-            match zellij::focus(program, session, *pane) {
+            let target = zellij::Target {
+                program,
+                session,
+                server: *server,
+            };
+            match zellij::focus(&target, *pane) {
                 zellij::Focus::Selected => {}
                 zellij::Focus::Detached | zellij::Focus::Missing => return false,
             }
@@ -391,7 +400,12 @@ pub fn shown(pid: u32, located: &Located) -> Option<bool> {
             if !zellij_holds(pid, *server) {
                 return None;
             }
-            if !zellij::shown(program, session, *pane)? {
+            let target = zellij::Target {
+                program,
+                session,
+                server: *server,
+            };
+            if !zellij::shown(&target, *pane)? {
                 return Some(false);
             }
             // Every attached client shows the pane; the terminal of the one
@@ -452,7 +466,12 @@ fn detached_at(pid: u32, located: &Located, depth: u32) -> Option<(String, Vec<S
             if !zellij_holds(pid, *server) {
                 return None;
             }
-            if !zellij::attached(program, session)? {
+            let target = zellij::Target {
+                program,
+                session,
+                server: *server,
+            };
+            if !zellij::attached(&target)? {
                 return Some((program.clone(), zellij::attach_arguments(session)));
             }
             let client = *zellij::clients(*server, session).first()?;

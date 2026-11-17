@@ -64,8 +64,45 @@ enum ClaudeZellij {
     static func run(_ target: ClaudeZellijPane, _ arguments: [String], input: String? = nil,
                     timeout: TimeInterval = 4) -> String? {
         guard let zellij = binary(server: target.server) else { return nil }
-        return ClaudeHostCommand.run(zellij, ["--session", target.session, "action"] + arguments,
-                                     input: input, timeout: timeout)
+        for name in names(target) {
+            if let output = ClaudeHostCommand.run(zellij, ["--session", name, "action"] + arguments,
+                                                  input: input, timeout: timeout) {
+                remember(name, server: target.server)
+                return output
+            }
+        }
+        return nil
+    }
+
+    /// What `--session` takes for the pane's session, the one that worked
+    /// last first. zellij finds a session by its name through the metadata it
+    /// keeps in the user's cache folder; with another cache folder (the app
+    /// started with another HOME or XDG_CACHE_HOME than the shell) only the
+    /// name of the server's socket, a hash, finds it.
+    static func names(_ target: ClaudeZellijPane) -> [String] {
+        var names = [target.session]
+        if let socket = socketName(arguments: arguments(of: target.server)), socket != target.session {
+            names.append(socket)
+        }
+        if let known = lock.withLock({ working[target.server] }), let index = names.firstIndex(of: known), index > 0 {
+            names.swapAt(0, index)
+        }
+        return names
+    }
+
+    /// The last part of the path after `--server`: zellij names the socket
+    /// with a hash of the session.
+    static func socketName(arguments: [String]) -> String? {
+        guard let index = arguments.firstIndex(of: "--server"), index + 1 < arguments.count else { return nil }
+        let name = (arguments[index + 1] as NSString).lastPathComponent
+        return name.isEmpty ? nil : name
+    }
+
+    private static let lock = NSLock()
+    private static var working: [Int32: String] = [:]
+
+    private static func remember(_ name: String, server: Int32) {
+        lock.withLock { working[server] = name }
     }
 
     // MARK: Processes
