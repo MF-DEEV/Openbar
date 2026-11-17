@@ -162,11 +162,12 @@ pub fn focus(program: &str, session: &str, pane: u32) -> Focus {
     }
     let tab = tab.to_string();
     let id = pane_id(pane);
-    if act(program, session, &["go-to-tab-by-id", &tab]).is_none()
-        || act(program, session, &["focus-pane-id", &id]).is_none()
-    {
+    if act(program, session, &["go-to-tab-by-id", &tab]).is_none() {
         return Focus::Missing;
     }
+    // It fails with "already focused" when it is: list-panes already told
+    // the pane is there.
+    let _ = act(program, session, &["focus-pane-id", &id]);
     Focus::Selected
 }
 

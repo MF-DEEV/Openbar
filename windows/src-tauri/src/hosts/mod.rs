@@ -1023,7 +1023,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     #[ignore = "Types into the live session process selected with OPENBAR_TEST_REPLY_PID"]
     fn live_session_reply_reaches_its_host() {
         let pid: u32 = std::env::var("OPENBAR_TEST_REPLY_PID")
@@ -1040,7 +1040,15 @@ mod tests {
             located.host.accepts_replies()
         );
         if std::env::var("OPENBAR_TEST_OPEN").is_ok() {
-            eprintln!("Open: {}", focus(pid, &located, ""));
+            let opened = focus(pid, &located, "");
+            eprintln!("Open: {opened}");
+            if !opened {
+                eprintln!("Detached: {:?}", detached(pid, &located));
+            }
+        }
+        eprintln!("Shown: {:?}", shown(pid, &located));
+        if std::env::var("OPENBAR_TEST_NO_REPLY").is_ok() {
+            return;
         }
         let delivered = deliver(pid, &located, &text, &[]);
         eprintln!("Delivered: {delivered:?}");

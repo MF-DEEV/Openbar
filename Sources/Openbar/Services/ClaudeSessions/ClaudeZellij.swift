@@ -184,8 +184,10 @@ enum ClaudeZellij {
               let pane = panes(listed).first(where: { $0.id == target.pane }) else { return .missing }
         guard let clients = run(target, ["list-clients"]) else { return .missing }
         if clientPanes(clients).isEmpty { return .detached }
-        guard run(target, ["go-to-tab-by-id", String(pane.tab)]) != nil,
-              run(target, ["focus-pane-id", target.paneID]) != nil else { return .missing }
+        guard run(target, ["go-to-tab-by-id", String(pane.tab)]) != nil else { return .missing }
+        // It fails with "already focused" when it is: list-panes already
+        // told the pane is there.
+        run(target, ["focus-pane-id", target.paneID])
         return .client(client(of: target))
     }
 
