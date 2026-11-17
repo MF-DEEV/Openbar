@@ -11,18 +11,23 @@ each was checked.
 The host is read from the session's own environment, innermost terminal
 first:
 
-1. `TMUX` and `TMUX_PANE` (tmux). The pane's device is checked against the
+1. `ZELLIJ`, `ZELLIJ_SESSION_NAME` and `ZELLIJ_PANE_ID` (zellij, #235). They
+   count only when a zellij server is an ancestor of the session: zellij
+   starts each pane's program itself, while an editor, or a tmux, started
+   from a pane runs apart from it. zellij leaves the outer terminal's
+   `TERM_PROGRAM` alone, so its variables are read first.
+2. `TMUX` and `TMUX_PANE` (tmux). The pane's device is checked against the
    session's before it counts, since an editor opened from tmux keeps those
    variables too.
-2. `TERM`. kitty (`xterm-kitty`), Ghostty (`xterm-ghostty`) and Alacritty
+3. `TERM`. kitty (`xterm-kitty`), Ghostty (`xterm-ghostty`) and Alacritty
    (`alacritty`) set it, and kitty and Alacritty leave a `TERM_PROGRAM` they
    inherited alone.
-3. `TERM_PROGRAM`, set by the terminal itself: `Apple_Terminal`,
+4. `TERM_PROGRAM`, set by the terminal itself: `Apple_Terminal`,
    `iTerm.app`, `ghostty`, `WezTerm`, `WarpTerminal`, `vscode`. For `vscode`
    the editor comes from the app macOS holds responsible for the process,
    since an editor started from another one's terminal inherits that one's
    bundle identifier.
-4. `__CFBundleIdentifier`, which the app that started the shell put there.
+5. `__CFBundleIdentifier`, which the app that started the shell put there.
 
 | Host | Open | Reply | How it is reached | Needs |
 |---|---|---|---|---|
@@ -31,6 +36,7 @@ first:
 | Ghostty 1.4+ | window, tab, split | yes | AppleScript, terminal by `tty` (`input text`, `send key "enter"`) | Automation |
 | tmux on a remote host over SSH ([remote hosts](remote-hosts.md)) | pane and window in the host's tmux | yes | the host's `tmux` through the island's `ssh` link: `paste-buffer -p`, `send-keys Enter` | the host set up in Settings |
 | tmux, in any of these | pane, window, and the terminal attached to it | yes | `tmux -S <socket>` of the pane's own server: `paste-buffer -p`, `send-keys Enter`, `select-window`, `select-pane`, `switch-client` | nothing |
+| zellij 0.44+, in any of these | tab and pane, and the terminal attached to it | yes | `zellij --session <name> action` with the server's own binary: `paste --pane-id`, `send-keys --pane-id … Enter`, `go-to-tab-by-id`, `focus-pane-id` | nothing |
 | WezTerm | tab and pane, then the window | yes | `wezterm cli` with the pane's socket: `send-text`, `activate-tab`, `activate-pane`, pane checked by `tty_name` | nothing (Accessibility to raise one window of several) |
 | kitty, remote control on | window | yes | `kitten @ --to $KITTY_LISTEN_ON`, window checked to list the session's pid | `allow_remote_control` and `listen_on` in kitty.conf |
 | kitty, remote control off | app | no, says so | | |
@@ -40,12 +46,52 @@ first:
 The reply is always one bracketed paste per image path and one for the text,
 then Return, as `ClaudeTyping.steps` lays out, so line breaks stay text.
 
+A tmux or zellij can be nested in the other. Open goes from the innermost
+pane outward: the multiplexer selects the pane, then the terminal its client
+runs in is brought forward the way a session in it would be, a pane of the
+outer multiplexer included.
+
+### No terminal attached (#235)
+
+When the session's tmux or zellij, or a multiplexer around it, has no client
+at all, Open says so on its button ("Detached · Attach") for ten seconds.
+Pressing it runs `zellij attach <name>` or `tmux -S <socket> attach-session -t
+<session>` in a new window of the terminal the person's sessions use. On
+Windows and Linux the service works that line out again when Attach is
+pressed; the page never sends one. Replies still reach a detached pane.
+
+### zellij, how it is reached
+
+- Every `zellij action` from outside a session goes to the client that was
+  used last (typed into last), like tmux's most active client.
+  `focus-pane-id` only works once a client has had input since it attached;
+  until then Open still changes the tab. It exits with 2 when the pane is
+  already focused, which counts as done.
+- The pane's tab (`tab_id` from `list-panes --json`) is selected first with
+  `go-to-tab-by-id`, which works on a client that hasn't been used yet.
+- `list-clients` names each client's focused pane and nothing else: no
+  process, no device. The client's process is found by its unix socket: on
+  the Mac `lsof -U` gives the peer address of each `zellij` process's
+  socket, on Linux `ss -xn` the peer inode, and a client is the process whose
+  socket's peer is one of the server's. Among several, the one whose device
+  was read last (its access time, which input updates) is the one used last.
+  Windows has no way to see a socket's peer from outside, so a client counts
+  there when its command line names the session (`attach <name>`, `-s
+  <name>`) or when it started the server (a plain `zellij`).
+- zellij names each server's socket with a hash
+  (`$TMPDIR/zellij-<uid>/contract_version_1/<hash>`), not the session, so the
+  session comes from the pane's environment. Renaming a session leaves the old
+  name there; Open and Reply then find nothing.
+- Client and server have to be the same version, so the server's own binary
+  (`proc_pidpath`, `/proc/<pid>/exe`, the process image) runs every action.
+
 ## Windows
 
 | Host | Open | Reply | How |
 |---|---|---|---|
 | Windows Terminal, classic console | tab, window | yes | console attach (`hosts/console.rs`) |
 | VS Code, Cursor, Antigravity, Windsurf | terminal | yes | IDE bridge (`hosts/bridge.rs`) |
+| zellij 0.44+ (native; zellij runs on Windows since 0.44) | tab and pane, then the console its client runs in | yes | `zellij.exe --session <name> action`, as on the Mac (`hosts/zellij.rs`) |
 | WezTerm | tab and pane, then the window | yes | `wezterm.exe` beside the session's `wezterm-gui.exe`, by `WEZTERM_PANE` and `WEZTERM_UNIX_SOCKET`; only those two variables are read from the session's environment block (`process::environment_values`) |
 | Git Bash (mintty), Alacritty, Warp, Tabby, Hyper, ConEmu, Rio | window | no, says so | named from the process tree |
 
@@ -58,7 +104,8 @@ The sound when a session waits stays quiet when the session's own tab or pane is
 | Terminal, iTerm2, Ghostty 1.4+ (Mac) | the app is frontmost with its window the front ordinary window on screen, then AppleScript gives the device of the front window's selected tab (`selected tab`, `current session`, `focused terminal of selected tab`); never asks for Automation |
 | WezTerm | `wezterm cli list-clients`: the focused pane of the client used last, with WezTerm's window in front |
 | kitty, remote control on | `kitten @ ls`: `is_focused` on the OS window, the tab and the window |
-| tmux | `#{pane_active}#{window_active}` is `11`, then the terminal of the client used last on that session is asked the same (Linux: kitty or WezTerm only) |
+| tmux | `#{pane_active}#{window_active}` is `11`, then the terminal of the client used last on that session is asked the same (Linux: kitty, WezTerm, or a tmux or zellij around it) |
+| zellij | every attached client has the pane focused (`list-clients`), then the terminal of the client used last is asked the same; none has it: hidden; only some: can't tell |
 | Classic console (Windows) | its window is the foreground window and not minimised |
 | Windows Terminal | its window is in front, and the selected tab (UI Automation) bears the console's title (`GetConsoleTitleW`) and no other tab does |
 | Editors, Warp, Alacritty, GNOME Terminal, Konsole, remote and background sessions | can't tell: the sound plays |
@@ -99,16 +146,19 @@ compared without spending tokens.
   `tty` fails and the session counts as not found: Ghostty comes forward and
   nothing is typed.
 - **Warp.** No scripting that can target one tab; it is raised and says so.
-- **WSL on Windows.** Not answered: the VM has no WSL, and installing it needs
-  a reboot and a distribution download. A Claude session inside WSL keeps its
-  registry in the Linux home, which the island doesn't read, so it doesn't
-  show up today.
+- **WSL on Windows.** A Claude session inside WSL keeps its registry in the
+  Linux home, which the island doesn't read, and writes a Linux `pidDomain`
+  whose pids aren't Windows pids (`sessions/registry.rs` leaves it out on
+  purpose), so it doesn't show up at all, and neither does a zellij or tmux
+  there. zellij inside WSL is out of reach for the same reason; zellij run
+  natively on Windows (0.44 and later) is reached as above.
 - **The VS Code Claude Code panel** (the extension's own chat, not the
   terminal) has no terminal to type into. It is left for a separate issue.
 
 ## Not done
 
 - tmux on Windows (it would come through WSL, above).
+- zellij on remote hosts: remote sessions are reached through tmux only.
 - Typing into one tab of Warp, Alacritty, mintty: none of them offer a way
   that targets one tab safely.
 - The name "tmux in Ghostty" is worked out when the island first sees the
