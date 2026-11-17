@@ -882,5 +882,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "Die Insel erlaubt jeden Befehl und jede Dateiänderung, die %@ anfragt, in jeder Sitzung und jedem Modus, ohne sie dir vorher zu zeigen. Das gilt auch für das Löschen von Dateien und den Zugriff aufs Netz. Fragen kommen weiterhin zu dir, und jede erlaubte Anfrage steht auf der Seite der Sitzung.",
   "windows.settings.sessions.alwaysProceedConfirm": "Immer fortfahren",
   "windows.settings.sessions.alwaysProceedOn": "An: Anfragen dieses Agenten werden ohne Rückfrage erlaubt.",
-  "windows.settings.sessions.alwaysProceedCancel": "Abbrechen"
+  "windows.settings.sessions.alwaysProceedCancel": "Abbrechen",
+  "windows.sessions.queueTitle": "%@ warten",
+  "windows.sessions.allowAll": "Alle erlauben",
+  "windows.sessions.allowAllHelp": "Erlaubt die Anfragen, die sicher aussehen. Die anderen bleiben hier für dich.",
+  "windows.sessions.queueHeldBack": "Bleiben für dich: %@",
+  "windows.sessions.queueReview": "Ansehen",
+  "windows.sessions.queueOpenHelp": "Diese Anfrage auf der Seite ihrer Sitzung öffnen",
+  "windows.sessions.riskUnassessed": "Noch nicht geprüft",
+  "windows.sessions.riskRule": "Deine Einstellungen fragen zuerst",
+  "windows.sessions.riskDeletes": "Löscht Dateien",
+  "windows.sessions.riskOutside": "Außerhalb des Projekts",
+  "windows.sessions.riskNetwork": "Nutzt das Netzwerk",
+  "windows.sessions.riskSystem": "Ändert das System",
+  "windows.sessions.riskRunsCode": "Führt selbst gebauten Code aus",
+  "windows.sessions.riskUnfamiliar": "Unbekanntes Werkzeug"
 }

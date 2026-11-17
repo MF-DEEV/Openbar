@@ -12,6 +12,7 @@ import { autoAllowConsent } from "./autoAllowConsent";
 import type { Decision, PlanMode, ReplyAttachment, ReplyFailure, Session, SessionEvent, Snapshot } from "./types";
 import { DEFAULT_SESSION_PREFS, type SessionPrefs } from "../shared/prefs";
 import type { AwayLine } from "./away";
+import { asks, type PermissionQueue } from "./queue";
 
 /** A permission must be on screen this long before a click or Ctrl+Y can answer it. */
 export const SETTLE_DELAY = 0.8;
@@ -22,6 +23,8 @@ interface SessionsState {
   snapshot: Snapshot;
   /** The session whose page is open, if any. */
   focused: string | null;
+  /** The ask that page shows, when the queue opened it on one behind another (#269). */
+  focusedRequest: string | null;
   /** When each permission request first showed, by request id. */
   shownAt: Record<string, number>;
   drafts: Record<string, string>;
@@ -48,7 +51,9 @@ interface SessionsState {
   /** "Couldn’t find that window" shows until this time. */
   openFailedUntil: number;
   receive(snapshot: Snapshot): void;
-  focus(id: string | null): void;
+  focus(id: string | null, request?: string | null): void;
+  /** Allows every ask of the queue that looks safe and has been on screen a moment (#269). */
+  allowAll(queue: PermissionQueue): Promise<number>;
   setDraft(id: string, text: string): void;
   addAttachments(id: string, images: ReplyAttachment[]): void;
   removeAttachment(id: string, path: string): void;
@@ -90,6 +95,7 @@ export function settled(state: Pick<SessionsState, "shownAt">, session: Session,
 export const useSessions = create<SessionsState>()((set, get) => ({
   snapshot: EMPTY,
   focused: null,
+  focusedRequest: null,
   shownAt: {},
   drafts: {},
   attachments: {},
@@ -145,16 +151,17 @@ export const useSessions = create<SessionsState>()((set, get) => ({
     };
     const shownAt: Record<string, number> = {};
     const t = now();
+    // Every ask a session holds settles on its own, the ones behind the first too (#269).
     for (const s of snapshot.sessions) {
-      const id = s.permission?.requestId;
-      if (id) shownAt[id] = get().shownAt[id] ?? t;
+      for (const p of asks(s)) shownAt[p.requestId] = get().shownAt[p.requestId] ?? t;
     }
     set({ snapshot, shownAt, autoAllow });
   },
 
-  focus(id) {
+  focus(id, request = null) {
     set((s) => ({
       focused: id,
+      focusedRequest: id ? request : null,
       renaming: false,
       logsFor: null,
       wardrobe: false,
@@ -216,7 +223,9 @@ export const useSessions = create<SessionsState>()((set, get) => ({
     const { id } = session;
     const request = session.permission.requestId;
     const p = session.permission;
-    const live = get().snapshot.sessions.find((s) => s.id === id)?.permission;
+    // Any ask the session still holds, not only its first (#269).
+    const held = get().snapshot.sessions.find((s) => s.id === id);
+    const live = held ? asks(held).find((x) => x.requestId === request) : undefined;
     if (!live || live.requestId !== request || live.command?.revision !== p.command?.revision) return false;
     if (decision !== "deny" && p.command && (!p.command.complete || (p.command.requiresInspection && !inspectionToken)))
       return false;
@@ -227,6 +236,18 @@ export const useSessions = create<SessionsState>()((set, get) => ({
         ? bridge.sessions.decide(id, request, decision, planMode)
         : bridge.sessions.decide(id, request, decision);
     return (await sent) ?? false;
+  },
+
+  async allowAll(queue) {
+    // Each goes through decide like a click on its row, so one that changed,
+    // or came since, is left for the person.
+    const results = await Promise.all(
+      queue.allowAll.map((row) => {
+        const session = { ...row.session, permission: row.ask };
+        return settled(get(), session) ? get().decide(session, "allow") : Promise.resolve(false);
+      }),
+    );
+    return results.filter(Boolean).length;
   },
 
   async answer(session, answers) {

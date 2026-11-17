@@ -34,6 +34,7 @@ export function presentedSnapshot({ snapshot, autoAllow }: { snapshot: Snapshot;
       phase: "generating" as const,
       phaseSince: session.turnStarted ?? session.phaseSince,
       permission: undefined,
+      laterAsks: undefined,
       waitingFor: undefined,
     };
   });

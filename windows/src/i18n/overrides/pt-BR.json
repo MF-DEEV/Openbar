@@ -882,5 +882,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "A ilha vai permitir todo comando e toda alteração de arquivo que o %@ pedir, em qualquer sessão e modo, sem mostrar antes. Isso inclui apagar arquivos e acessar a rede. As perguntas continuam chegando para você, e cada pedido permitido fica listado na página da sessão.",
   "windows.settings.sessions.alwaysProceedConfirm": "Sempre prosseguir",
   "windows.settings.sessions.alwaysProceedOn": "Ligado: os pedidos deste agente são permitidos sem perguntar.",
-  "windows.settings.sessions.alwaysProceedCancel": "Cancelar"
+  "windows.settings.sessions.alwaysProceedCancel": "Cancelar",
+  "windows.sessions.queueTitle": "%@ aguardando",
+  "windows.sessions.allowAll": "Permitir todos",
+  "windows.sessions.allowAllHelp": "Permite os pedidos que parecem seguros. Os outros ficam aqui para você.",
+  "windows.sessions.queueHeldBack": "Ficam para você: %@",
+  "windows.sessions.queueReview": "Revisar",
+  "windows.sessions.queueOpenHelp": "Abrir este pedido na página da sessão",
+  "windows.sessions.riskUnassessed": "Ainda não verificado",
+  "windows.sessions.riskRule": "Suas configurações pedem confirmação",
+  "windows.sessions.riskDeletes": "Apaga arquivos",
+  "windows.sessions.riskOutside": "Fora do projeto",
+  "windows.sessions.riskNetwork": "Usa a rede",
+  "windows.sessions.riskSystem": "Altera o sistema",
+  "windows.sessions.riskRunsCode": "Executa código que monta",
+  "windows.sessions.riskUnfamiliar": "Ferramenta desconhecida"
 }

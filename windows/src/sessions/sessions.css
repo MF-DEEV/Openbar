@@ -3162,3 +3162,164 @@
 .s-let-through-row .s-clock {
   margin-left: auto;
 }
+
+/* The permission queue (#269): every waiting ask, on top of the list. */
+
+.s-queue {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  margin-bottom: 4px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--s-waiting, #ffc747) 7%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--s-waiting, #ffc747) 40%, transparent);
+}
+
+.s-queue-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  color: var(--s-waiting, #ffc747);
+}
+
+.s-queue-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.s-queue-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 6px 0 10px;
+  border-radius: 14px;
+  background: #5cd685;
+  color: rgba(0, 0, 0, 0.85);
+  font-size: 11.5px;
+  font-weight: 600;
+  transition:
+    transform 120ms ease-out,
+    filter 120ms ease-out;
+}
+
+.s-queue-all:hover {
+  filter: brightness(1.08);
+}
+
+.s-queue-all:active {
+  transform: scale(0.97);
+}
+
+.s-queue-count {
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.14);
+  font-size: 10.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.s-queue-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.s-queue-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.s-queue-open {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 0 0 0 6px;
+  border-radius: 10px;
+  text-align: left;
+}
+
+.s-queue-open:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.s-queue-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.s-queue-line1 {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.s-queue-name {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.s-queue-tool {
+  flex: none;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10.5px;
+  font-weight: 500;
+}
+
+.s-queue-risk {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 6px;
+  background: rgba(255, 159, 10, 0.16);
+  color: #ff9f0a;
+  font-size: 9.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.s-queue-detail {
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.8);
+  font-family: var(--n-mono, ui-monospace, "Cascadia Mono", Consolas, monospace);
+  font-size: 10.5px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.s-queue-detail.is-prose {
+  font-family: inherit;
+}
+
+.s-quick-button.is-secondary {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.s-queue-held {
+  margin: 0 0 0 2px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 10px;
+}

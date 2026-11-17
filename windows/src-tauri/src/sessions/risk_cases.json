@@ -2,7 +2,14 @@
   "about": "Shared cases for the Allow-all risk check (#269). Read by the Mac tests (Tests/PermissionRiskTests.swift) and the Rust tests (sessions/risk.rs). cwd is the project folder, home the user's.",
   "cwd": "/w/proj",
   "home": "/w",
-  "rules": ["Bash(npm publish:*)", "Read(./.env)", "Edit(//etc/**)", "WebFetch(domain:example.com)", "mcp__github", "Bash(git commit *)"],
+  "rules": [
+    "Bash(npm publish:*)",
+    "Read(./.env)",
+    "Edit(//etc/**)",
+    "WebFetch(domain:example.com)",
+    "mcp__github",
+    "Bash(git commit *)"
+  ],
   "cases": [
     { "tool": "Bash", "text": "ls -la", "expect": "safe" },
     { "tool": "Bash", "text": "npm test && npm run build", "expect": "safe" },
@@ -58,9 +65,19 @@
     { "tool": "Write", "text": "/w/proj/../secret.txt", "expect": "outside" },
     { "tool": "Edit", "text": "/w/.zshrc", "expect": "outside" },
     { "tool": "Edit", "text": "/etc/hosts", "expect": "rule" },
-    { "tool": "Edit", "text": "Codex wants to change files.", "diffs": [{ "path": "/w/proj/a.txt", "change": "update" }], "expect": "safe" },
+    {
+      "tool": "Edit",
+      "text": "Codex wants to change files.",
+      "diffs": [{ "path": "/w/proj/a.txt", "change": "update" }],
+      "expect": "safe"
+    },
     { "tool": "Edit", "text": "", "diffs": [{ "path": "/w/proj/a.txt", "change": "delete" }], "expect": "deletes" },
-    { "tool": "Edit", "text": "", "diffs": [{ "path": "/w/elsewhere/a.txt", "change": "update" }], "expect": "outside" },
+    {
+      "tool": "Edit",
+      "text": "",
+      "diffs": [{ "path": "/w/elsewhere/a.txt", "change": "update" }],
+      "expect": "outside"
+    },
     { "tool": "Edit", "text": "Codex wants to change files.", "expect": "unfamiliar" },
     { "tool": "WebFetch", "text": "https://docs.rs/serde", "expect": "network" },
     { "tool": "WebFetch", "text": "https://api.example.com/x", "expect": "rule" },

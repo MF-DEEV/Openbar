@@ -47,7 +47,7 @@ struct NotchPermissionQueueView: View {
                         .contentShape(Capsule())
                     }
                     .buttonStyle(NotchButtonStyle(cornerRadius: 14))
-                    .help(text.allowAllHelp(allowAll.count))
+                    .help(text.allowAllHelp)
                     .accessibilityLabel("\(text.allowAll), \(allowAll.count)")
                     .transition(.opacity)
                 }

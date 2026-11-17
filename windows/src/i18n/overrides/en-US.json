@@ -882,5 +882,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "The island will allow every command and file change %@ asks for, in every session and mode, without showing it to you first. That includes deleting files and reaching the network. Questions still come to you, and each request it allows is listed on the session's page.",
   "windows.settings.sessions.alwaysProceedConfirm": "Always proceed",
   "windows.settings.sessions.alwaysProceedOn": "On: requests of this agent are allowed without asking.",
-  "windows.settings.sessions.alwaysProceedCancel": "Cancel"
+  "windows.settings.sessions.alwaysProceedCancel": "Cancel",
+  "windows.sessions.queueTitle": "%@ waiting",
+  "windows.sessions.allowAll": "Allow all",
+  "windows.sessions.allowAllHelp": "Allows the asks that look safe. The others stay here for you.",
+  "windows.sessions.queueHeldBack": "Left for you: %@",
+  "windows.sessions.queueReview": "Review",
+  "windows.sessions.queueOpenHelp": "Open this ask on its session's page",
+  "windows.sessions.riskUnassessed": "Not checked yet",
+  "windows.sessions.riskRule": "Your settings ask first",
+  "windows.sessions.riskDeletes": "Deletes files",
+  "windows.sessions.riskOutside": "Outside the project",
+  "windows.sessions.riskNetwork": "Uses the network",
+  "windows.sessions.riskSystem": "Changes the system",
+  "windows.sessions.riskRunsCode": "Runs code it builds",
+  "windows.sessions.riskUnfamiliar": "Unfamiliar tool"
 }

@@ -5,7 +5,7 @@
 // language (NotchClaudeSessionStrings.swift); Mac-only wording is swapped
 // for Windows here.
 
-import { isHookAgent, PROVIDER_NAMES, type PlanMode, type Provider } from "./types";
+import { isHookAgent, PROVIDER_NAMES, type PermissionRisk, type PlanMode, type Provider } from "./types";
 import { t, tf } from "../i18n";
 import { onLinux } from "../shared/platform";
 import { EXPAND_STEP } from "./diffGaps";
@@ -529,6 +529,45 @@ export const S = {
     return t("windows.sessions.reminderStill");
   },
   reminderTitle: (n: number) => tf("windows.sessions.reminderTitle", n),
+  // #269: every waiting ask in one queue.
+  queueTitle: (n: number) => tf("windows.sessions.queueTitle", n),
+  get allowAll() {
+    return t("windows.sessions.allowAll");
+  },
+  get allowAllHelp() {
+    return t("windows.sessions.allowAllHelp");
+  },
+  queueHeldBack: (n: number) => tf("windows.sessions.queueHeldBack", n),
+  get queueReview() {
+    return t("windows.sessions.queueReview");
+  },
+  get queueOpenHelp() {
+    return t("windows.sessions.queueOpenHelp");
+  },
+  /** Why Allow all leaves an ask out, in a word or three; nothing for a safe one. */
+  risk(risk: PermissionRisk | undefined): string | null {
+    switch (risk) {
+      case "safe":
+        return null;
+      case undefined:
+      case "unassessed":
+        return t("windows.sessions.riskUnassessed");
+      case "rule":
+        return t("windows.sessions.riskRule");
+      case "deletes":
+        return t("windows.sessions.riskDeletes");
+      case "outside":
+        return t("windows.sessions.riskOutside");
+      case "network":
+        return t("windows.sessions.riskNetwork");
+      case "system":
+        return t("windows.sessions.riskSystem");
+      case "runsCode":
+        return t("windows.sessions.riskRunsCode");
+      default:
+        return t("windows.sessions.riskUnfamiliar");
+    }
+  },
   // #234: sessions in their agent's no-ask mode.
   get autoMark() {
     return t("windows.sessions.autoMark");

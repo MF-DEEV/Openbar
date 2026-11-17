@@ -882,5 +882,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "Ostrov povolí každý príkaz a každú zmenu súborov, o ktoré %@ požiada, v každej relácii a režime, bez toho, aby vám ich najprv ukázal. Patrí sem aj mazanie súborov a prístup do siete. Otázky vám stále prichádzajú a každá povolená žiadosť je uvedená na stránke relácie.",
   "windows.settings.sessions.alwaysProceedConfirm": "Vždy pokračovať",
   "windows.settings.sessions.alwaysProceedOn": "Zapnuté: žiadosti tohto agenta sa povoľujú bez pýtania.",
-  "windows.settings.sessions.alwaysProceedCancel": "Zrušiť"
+  "windows.settings.sessions.alwaysProceedCancel": "Zrušiť",
+  "windows.sessions.queueTitle": "Čaká: %@",
+  "windows.sessions.allowAll": "Povoliť všetko",
+  "windows.sessions.allowAllHelp": "Povolí žiadosti, ktoré vyzerajú bezpečne. Ostatné tu na vás počkajú.",
+  "windows.sessions.queueHeldBack": "Zostáva pre vás: %@",
+  "windows.sessions.queueReview": "Skontrolovať",
+  "windows.sessions.queueOpenHelp": "Otvoriť túto žiadosť na stránke relácie",
+  "windows.sessions.riskUnassessed": "Ešte neskontrolované",
+  "windows.sessions.riskRule": "Vaše nastavenia chcú najprv otázku",
+  "windows.sessions.riskDeletes": "Maže súbory",
+  "windows.sessions.riskOutside": "Mimo projektu",
+  "windows.sessions.riskNetwork": "Používa sieť",
+  "windows.sessions.riskSystem": "Mení systém",
+  "windows.sessions.riskRunsCode": "Spúšťa kód, ktorý si zostaví",
+  "windows.sessions.riskUnfamiliar": "Neznámy nástroj"
 }

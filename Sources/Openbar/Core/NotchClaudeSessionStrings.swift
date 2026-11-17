@@ -71,13 +71,8 @@ struct NotchClaudeSessionStrings {
     // #269: every waiting ask in one queue.
     func queueTitle(_ n: Int) -> String { "\(n) waiting" }
     var allowAll = "Allow all"
-    func allowAllHelp(_ n: Int) -> String {
-        n == 1 ? "Allows the 1 ask that looks safe. The others stay here for you."
-            : "Allows the \(n) asks that look safe. The others stay here for you."
-    }
-    func queueHeldBack(_ n: Int) -> String {
-        n == 1 ? "1 ask needs a look of its own" : "\(n) asks need a look of their own"
-    }
+    var allowAllHelp = "Allows the asks that look safe. The others stay here for you."
+    func queueHeldBack(_ n: Int) -> String { "Left for you: \(n)" }
     var queueReview = "Review"
     var queueOpenHelp = "Open this ask on its session's page"
     func risk(_ risk: PermissionRisk) -> String? {
