@@ -37,8 +37,11 @@ final class ClaudeSessionService: ObservableObject {
     /// The session whose Clawd is being dressed. Its page stays focused
     /// under the wardrobe, so an enlarged island keeps its size.
     @Published private(set) var dressingID: String?
-    /// The permission each session shows and since when. Main thread.
-    private var shownRequests: [String: (request: String, at: Date)] = [:]
+    /// When each ask a session holds was first published, keyed by
+    /// session and request: each settles on its own (#269). Main thread.
+    private var shownRequests: [String: Date] = [:]
+    /// What each ask looks like it does, for Allow all (#269). Queue.
+    private let risks = PermissionRiskCache()
     /// Codex sessions whose requests Always allows until their turn ends.
     @Published private(set) var autoAllowed: Set<String> = []
     let events = PassthroughSubject<ClaudeSessionEvent, Never>()
@@ -359,8 +362,18 @@ final class ClaudeSessionService: ObservableObject {
         UserDefaults.standard.set(names, forKey: DefaultsKey.notchSessionsNames)
     }
 
-    func focus(_ id: String?) {
+    /// The ask the open page shows, when the queue opened it on one that
+    /// waits behind another (#269); nil shows the session's first.
+    @Published private(set) var focusedRequest: String?
+
+    /// The session whose page is open, as the page shows it.
+    var focusedSession: ClaudeSession? {
+        focusedID.flatMap { id in sessions.first { $0.id == id } }?.showing(focusedRequest)
+    }
+
+    func focus(_ id: String?, request: String? = nil) {
         focusedID = id
+        focusedRequest = id == nil ? nil : request
         dressingID = nil
         if let id { acknowledge(id) }
         // An open Codex page keeps its thread joined, so its replies and
@@ -406,8 +419,8 @@ final class ClaudeSessionService: ObservableObject {
     func decide(_ id: String, request: String, _ decision: ClaudeHookMessage.Decision, revision: String? = nil, inspectionToken: String? = nil, autoAllowTurn: Bool = false) {
         // Deny waits the same moment, so a ⌘N meant for the request before cannot deny this one.
         guard settled(id, request: request) else { return }
-        let revision = revision ?? sessions.first(where: { $0.id == id && $0.permission?.requestID == request })
-            .flatMap { $0.permission }.flatMap { p in p.content.map { $0.revision(p) } }
+        let revision = revision ?? sessions.first(where: { $0.id == id })?.ask(request)
+            .flatMap { p in p.content.map { $0.revision(p) } }
         queue.async { [self] in
             if id == ClaudeSessionSample.id { return answerSample(request: request, decision) }
             // Codex takes its answer through its own server; the first answer wins there.
@@ -421,7 +434,9 @@ final class ClaudeSessionService: ObservableObject {
                 publish(now: Date())
                 return
             }
-            let current = hookAgents.owns(id) ? hookAgents.entry(id)?.permission : engine.permission(of: id)
+            // Any ask the session holds, not only the first: the queue
+            // answers them in any order (#269).
+            let current = hookAgents.owns(id) ? hookAgents.entry(id)?.permission : engine.permission(request, of: id)
             guard let current, current.requestID == request else { return }
             switch decision {
             case .deny, .answer: break
@@ -478,12 +493,21 @@ final class ClaudeSessionService: ObservableObject {
         }
     }
 
+    /// Allows every ask of the queue that looks safe and has been on screen
+    /// a moment (#269); each goes through `decide` like a click on its row,
+    /// so one that changed, or came since, is left for the person.
+    func allowAll(_ queue: NotchPermissionQueue) {
+        for row in queue.allowAll where settled(row.session.id, request: row.ask.requestID) {
+            decide(row.session.id, request: row.ask.requestID, .allow)
+        }
+    }
+
     func inspectCommand(_ id: String, request: String, revision: String, completion: @escaping (PermissionInspection?) -> Void) {
         queue.async { [self] in
             let result: PermissionInspection?
             if let codex = codexOwner(id) {
                 result = codex.inspect(id, request: request, revision: revision)
-            } else if let p = hookAgents.owns(id) ? hookAgents.entry(id)?.permission : engine.permission(of: id), p.requestID == request {
+            } else if let p = hookAgents.owns(id) ? hookAgents.entry(id)?.permission : engine.permission(request, of: id), p.requestID == request {
                 result = inspection.open(id, p, revision: revision)
             } else { result = nil }
             DispatchQueue.main.async { completion(result) }
@@ -500,8 +524,11 @@ final class ClaudeSessionService: ObservableObject {
     /// A request is answerable once it has been on screen a moment, so a
     /// click or ⌘Y meant for the one before it cannot answer it.
     func settled(_ id: String, request: String) -> Bool {
-        guard let shown = shownRequests[id], shown.request == request else { return false }
-        return Date().timeIntervalSince(shown.at) >= NotchClaudeSessionsSupport.settleDelay
+        guard let shown = shownRequests[Self.shownKey(id, request)] else { return false }
+        return Date().timeIntervalSince(shown) >= NotchClaudeSessionsSupport.settleDelay
+    }
+
+    private static func shownKey(_ session: String, _ request: String) -> String { session + "\u{1}" + request
     }
 
     /// Always on a Codex session: every request of the turn under way is
@@ -1720,11 +1747,12 @@ final class ClaudeSessionService: ObservableObject {
         let sorted = SessionAutoMode.log.decorate(NotchClaudeSessionsSupport.sorted(
             withBackground(claude, now: now) + codexSessions + agentSessions + (sample.map { [$0] } ?? [])
         ).map { withLiveBranch($0, now: now) })
-        inspection.retain(sorted)
-        SessionAutoMode.log.prune(listed: Set(sorted.map(\.id)), now: now)
-        let shown = autoAllowing(sorted, now: now)
+        let assessed = risks.assess(sorted, now: now)
+        inspection.retain(assessed)
+        SessionAutoMode.log.prune(listed: Set(assessed.map(\.id)), now: now)
+        let shown = autoAllowing(assessed, now: now)
         let allowed = autoAllow.sessions
-        let hidden = Set(sorted.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed, now: now) }
+        let hidden = Set(assessed.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed, now: now) }
             .map(\.id))
         let events = (snapshot.events + codexEvents + fromAgents.events)
             .filter { NotchClaudeSessionsSupport.shows($0, hidden: hidden) } + sampleEvents
@@ -1744,17 +1772,13 @@ final class ClaudeSessionService: ObservableObject {
                 updateAccountLabels()
                 counts = ClaudeSessionCounts(shown)
                 if autoAllowed != allowed { autoAllowed = allowed }
-                for session in shown {
-                    let request = session.permission?.requestID
-                    if shownRequests[session.id]?.request != request {
-                        shownRequests[session.id] = request.map { (request: $0, at: Date()) }
-                    }
-                }
-                // A session that left forgets its request: one coming back
-                // (Codex numbers requests afresh after a restart) waits its
-                // settle delay again.
+                // An answered ask, or a session that left, forgets its
+                // request: one coming back (Codex numbers requests afresh
+                // after a restart) waits its settle delay again.
+                let held = Set(shown.flatMap { session in session.asks.map { Self.shownKey(session.id, $0.requestID) } })
+                shownRequests = shownRequests.filter { held.contains($0.key) }
+                for key in held where shownRequests[key] == nil { shownRequests[key] = Date() }
                 let listed = Set(shown.map(\.id))
-                shownRequests = shownRequests.filter { listed.contains($0.key) }
                 if let focusedID, !listed.contains(focusedID) {
                     self.focusedID = nil
                     dressingID = nil

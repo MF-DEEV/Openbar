@@ -68,6 +68,31 @@ struct NotchClaudeSessionStrings {
     var remindDuringFocusHint = "Reminds while Focus or Do Not Disturb is on. Otherwise the reminder waits until it ends."
     var reminderStill = "Still waiting"
     func reminderTitle(_ n: Int) -> String { "\(n) sessions waiting" }
+    // #269: every waiting ask in one queue.
+    func queueTitle(_ n: Int) -> String { "\(n) waiting" }
+    var allowAll = "Allow all"
+    func allowAllHelp(_ n: Int) -> String {
+        n == 1 ? "Allows the 1 ask that looks safe. The others stay here for you."
+            : "Allows the \(n) asks that look safe. The others stay here for you."
+    }
+    func queueHeldBack(_ n: Int) -> String {
+        n == 1 ? "1 ask needs a look of its own" : "\(n) asks need a look of their own"
+    }
+    var queueReview = "Review"
+    var queueOpenHelp = "Open this ask on its session's page"
+    func risk(_ risk: PermissionRisk) -> String? {
+        switch risk {
+        case .safe: return nil
+        case .unassessed: return "Not checked yet"
+        case .rule: return "Your settings ask first"
+        case .deletes: return "Deletes files"
+        case .outside: return "Outside the project"
+        case .network: return "Uses the network"
+        case .system: return "Changes the system"
+        case .runsCode: return "Runs code it builds"
+        case .unfamiliar: return "Unfamiliar tool"
+        }
+    }
     // #234: sessions in their agent's no-ask mode, and Always proceed.
     var autoMark = "auto"
     func autoMarkHelp(_ provider: ClaudeSessionProvider) -> String {

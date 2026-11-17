@@ -19,10 +19,13 @@ struct NotchClaudeSessionsView: View {
     private var text: NotchClaudeSessionStrings { FeatureStrings.notchClaudeSessions(l10n.language) }
     private var grouping: NotchSessionGrouping { NotchSessionGrouping(rawValue: groupingRaw) ?? .none }
 
+    /// The open page's session, with the ask the queue opened it on (#269).
     private var focused: ClaudeSession? {
-        guard !preview, let id = service.focusedID else { return nil }
-        return service.sessions.first { $0.id == id }
+        guard !preview else { return nil }
+        return service.focusedSession
     }
+
+    private var queue: NotchPermissionQueue { NotchPermissionQueue(service.sessions) }
 
     /// The session whose Clawd is being dressed, over its own page.
     private var dressing: ClaudeSession? {
@@ -91,8 +94,15 @@ struct NotchClaudeSessionsView: View {
     }
 
     private var list: some View {
-        TimelineView(.periodic(from: .now, by: 1)) { context in
+        let queue = queue
+        return TimelineView(.periodic(from: .now, by: 1)) { context in
             ScrollView {
+                // More than one ask waiting: all of them first, in one queue (#269).
+                if queue.shows, !preview {
+                    NotchPermissionQueueView(queue: queue, text: text)
+                        .padding(.bottom, 4)
+                        .transition(reduceMotion ? .opacity : .opacity.combined(with: .move(edge: .top)))
+                }
                 if grouping == .none {
                     LazyVStack(spacing: 6) {
                         ForEach(service.sessions) { session in row(session, now: context.date) }
@@ -105,6 +115,7 @@ struct NotchClaudeSessionsView: View {
                 }
             }
             .scrollIndicators(.automatic)
+            .animation(reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.86), value: queue.shows)
         }
         // The open island shows every session, so the band leads with how
         // they're laid out rather than counting them again (#233).
@@ -114,7 +125,9 @@ struct NotchClaudeSessionsView: View {
 
     private func row(_ session: ClaudeSession, now: Date, inProject: Bool = false) -> some View {
         NotchClaudeSessionRow(session: session, name: service.displayName(session), now: now, text: text,
-                              account: service.accountLabels[session.id], inProject: inProject) {
+                              account: service.accountLabels[session.id], inProject: inProject,
+                              // The queue above answers it; the row only says it waits.
+                              quickDecisions: preview || !queue.shows) {
             guard !preview else { return }
             service.focus(session.id)
         }
@@ -184,6 +197,8 @@ struct NotchClaudeSessionRow: View {
     var account: String? = nil
     /// In a project's group, whose header names the project (#233).
     var inProject = false
+    /// Allow and Deny beside a short ask; off while the queue shows it (#269).
+    var quickDecisions = true
     let open: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorSchemeContrast) private var contrast
@@ -263,7 +278,7 @@ struct NotchClaudeSessionRow: View {
         .onHover { hovered = $0 }
     }
 
-    private var quickDecision: Bool { session.permission?.fitsOnALine == true }
+    private var quickDecision: Bool { quickDecisions && session.permission?.fitsOnALine == true }
 
     private var summary: some View {
         VStack(alignment: .leading, spacing: 2) {

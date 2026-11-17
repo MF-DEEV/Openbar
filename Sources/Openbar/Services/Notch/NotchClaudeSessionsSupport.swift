@@ -600,6 +600,7 @@ enum NotchClaudeSessionsSupport {
             working.phase = session.currentTool != nil ? .runningTool : .generating
             working.phaseSince = session.turnStarted ?? session.phaseSince
             working.permission = nil
+            working.laterAsks = []
             working.waitingFor = nil
             return working
         })

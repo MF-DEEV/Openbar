@@ -97,9 +97,9 @@ final class PermissionInspectionGate {
     func invalidate(_ session: String) { grants = grants.filter { $0.value.session != session } }
     func close(_ token: String) { grants[token] = nil }
     func retain(_ sessions: [ClaudeSession]) {
-        let live = sessions.compactMap { s -> (String, String)? in
-            guard let p = s.permission, let content = p.content else { return nil }
-            return (s.id, content.revision(p))
+        // Every ask a session holds keeps its inspection, not only the first (#269).
+        let live = sessions.flatMap { s in
+            s.asks.compactMap { p -> (String, String)? in p.content.map { (s.id, $0.revision(p)) } }
         }
         grants = grants.filter { grant in live.contains { $0.0 == grant.value.session && $0.1 == grant.value.revision } }
     }

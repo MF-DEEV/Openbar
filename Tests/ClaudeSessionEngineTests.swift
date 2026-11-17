@@ -496,6 +496,11 @@ enum ClaudeSessionEngineTests {
         engine.ingest(hook: hook(.permissionRequested(second), 21, agent: "a2"), now: at(21))
         suite.expect(engine.permission(of: "s1")?.requestID == "r1" && engine.holds("r2", for: "s1"),
                      "a newer request waits behind the one on screen instead of replacing it")
+        let both = only(engine, 21.5)
+        suite.expect(both?.permission?.requestID == "r1" && both?.laterAsks.map(\.requestID) == ["r2"]
+                         && both?.asks.count == 2, "the snapshot lists the one behind it too (#269)")
+        suite.expect(engine.permission("r2", of: "s1")?.summary == "rm" && engine.permission("r2", of: "other") == nil,
+                     "an ask behind the first is found by its id")
         engine.resolvePermission(requestID: "r1")
         suite.expect(engine.permission(of: "s1")?.requestID == "r2", "and shows once the first is answered")
         suite.expect(!engine.holds("r1", for: "s1") && !engine.holds("r2", for: "other"), "answered or foreign requests are not held")

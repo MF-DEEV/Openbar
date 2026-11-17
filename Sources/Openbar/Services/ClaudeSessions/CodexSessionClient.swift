@@ -195,8 +195,8 @@ final class CodexSessionClient {
     /// of its subagents'; false when it is gone or of another kind.
     func answer(_ session: String, requestID: String, answer: CodexAnswer, revision: String? = nil, inspectionToken: String? = nil) -> Bool {
         lock.withLock {
-            guard state.pending(session: session).first?.requestID == requestID,
-                  let pending = state.answerable(session: session, requestID: requestID)?.pending,
+            // Any request the row holds: the queue answers them in any order (#269).
+            guard let pending = state.answerable(session: session, requestID: requestID)?.pending,
                   let body = CodexSessionState.result(pending, answer) else { return false }
             let permission = CodexSessionState.permission(pending)
             let expected = revision ?? permission.content.map { $0.revision(permission) }
@@ -210,8 +210,7 @@ final class CodexSessionClient {
 
     func inspect(_ session: String, request: String, revision: String) -> PermissionInspection? {
         lock.withLock {
-            guard state.pending(session: session).first?.requestID == request,
-                  let pending = state.answerable(session: session, requestID: request)?.pending else { return nil }
+            guard let pending = state.answerable(session: session, requestID: request)?.pending else { return nil }
             return inspection.open(session, CodexSessionState.permission(pending), revision: revision)
         }
     }
