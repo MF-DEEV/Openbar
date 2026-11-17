@@ -886,5 +886,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "La isla permitirá cada comando y cada cambio de archivos que pida %@, en todas las sesiones y modos, sin mostrártelo antes. Eso incluye borrar archivos y acceder a la red. Las preguntas te siguen llegando, y cada solicitud permitida queda en la lista de la página de la sesión.",
   "windows.settings.sessions.alwaysProceedConfirm": "Continuar siempre",
   "windows.settings.sessions.alwaysProceedOn": "Activado: las solicitudes de este agente se permiten sin preguntar.",
-  "windows.settings.sessions.alwaysProceedCancel": "Cancelar"
+  "windows.settings.sessions.alwaysProceedCancel": "Cancelar",
+  "windows.sessions.queueTitle": "%@ esperando",
+  "windows.sessions.allowAll": "Permitir todo",
+  "windows.sessions.allowAllHelp": "Permite las solicitudes que parecen seguras. Las demás se quedan aquí para ti.",
+  "windows.sessions.queueHeldBack": "Quedan para ti: %@",
+  "windows.sessions.queueReview": "Revisar",
+  "windows.sessions.queueOpenHelp": "Abrir esta solicitud en la página de su sesión",
+  "windows.sessions.riskUnassessed": "Aún sin revisar",
+  "windows.sessions.riskRule": "Tu configuración pide preguntar",
+  "windows.sessions.riskDeletes": "Borra archivos",
+  "windows.sessions.riskOutside": "Fuera del proyecto",
+  "windows.sessions.riskNetwork": "Usa la red",
+  "windows.sessions.riskSystem": "Cambia el sistema",
+  "windows.sessions.riskRunsCode": "Ejecuta código que arma",
+  "windows.sessions.riskUnfamiliar": "Herramienta desconocida"
 }

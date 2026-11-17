@@ -399,6 +399,15 @@ impl Engine {
         self.activity.get(id)?.permissions.first()
     }
 
+    /// The ask with this id the session holds, first or behind it (#269).
+    pub fn permission_by_id(&self, id: &str, request_id: &str) -> Option<&Permission> {
+        self.activity
+            .get(id)?
+            .permissions
+            .iter()
+            .find(|p| p.request_id == request_id)
+    }
+
     pub fn holds(&self, request_id: &str, id: &str) -> bool {
         self.activity
             .get(id)
@@ -743,6 +752,7 @@ fn session(
         account_id: None,
         auto_mode: super::auto_mode::is_auto_claude(entry.mode.as_ref().map(|(m, _)| m.as_str())),
         let_through: Vec::new(),
+        later_asks: entry.permissions.iter().skip(1).cloned().collect(),
     }
 }
 
@@ -2076,6 +2086,14 @@ mod tests {
             Some(""),
             "a subagent's is tied to no tool"
         );
+        assert_eq!(
+            engine
+                .permission_by_id("s1", "r2")
+                .map(|p| p.request_id.as_str()),
+            Some("r2"),
+            "an ask behind the first is found by its id (#269)"
+        );
+        assert!(engine.permission_by_id("other", "r2").is_none());
         engine.resolve_permission("r1");
         assert_eq!(
             engine.permission("s1").map(|p| p.request_id.as_str()),

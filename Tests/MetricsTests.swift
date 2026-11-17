@@ -129,6 +129,8 @@ struct MetricsTests {
                 ClaudeSessionReaderTests.run(suite)
                 ClaudeHookTests.run(suite)
                 PermissionInspectionTests.run(suite)
+                PermissionRiskTests.run(suite)
+                NotchPermissionQueueTests.run(suite)
                 RemoteHostTests.run(suite)
                 ClaudeAccountTests.run(suite)
                 ClawdCostumeTests.run(suite)
@@ -152,7 +154,11 @@ struct MetricsTests {
                 VoiceReplyTests.run(suite)
                 LegacyIdentityTests.run(suite)
             }),
-            ("permission-security", { PermissionInspectionTests.run(suite) }),
+            ("permission-security", {
+                PermissionInspectionTests.run(suite)
+                PermissionRiskTests.run(suite)
+                NotchPermissionQueueTests.run(suite)
+            }),
             ("file-diffs", { ClaudeFileDiffTests.run(suite) }),
             ("voice-replies", { VoiceReplyTests.run(suite) }),
             ("hook-agents", {

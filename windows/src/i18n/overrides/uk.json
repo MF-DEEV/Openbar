@@ -886,5 +886,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "Острів дозволятиме кожну команду й кожну зміну файлів, яку запросить %@, у кожному сеансі й режимі, не показуючи їх вам. Це стосується й видалення файлів, і доступу до мережі. Запитання й далі надходять вам, а кожен дозволений запит потрапляє до списку на сторінці сеансу.",
   "windows.settings.sessions.alwaysProceedConfirm": "Завжди продовжувати",
   "windows.settings.sessions.alwaysProceedOn": "Увімкнено: запити цього агента дозволяються без запитань.",
-  "windows.settings.sessions.alwaysProceedCancel": "Скасувати"
+  "windows.settings.sessions.alwaysProceedCancel": "Скасувати",
+  "windows.sessions.queueTitle": "Чекають: %@",
+  "windows.sessions.allowAll": "Дозволити всі",
+  "windows.sessions.allowAllHelp": "Дозволяє запити, що виглядають безпечними. Решта чекає на вас тут.",
+  "windows.sessions.queueHeldBack": "Залишилось вам: %@",
+  "windows.sessions.queueReview": "Переглянути",
+  "windows.sessions.queueOpenHelp": "Відкрити цей запит на сторінці сеансу",
+  "windows.sessions.riskUnassessed": "Ще не перевірено",
+  "windows.sessions.riskRule": "Ваші налаштування вимагають запитати",
+  "windows.sessions.riskDeletes": "Видаляє файли",
+  "windows.sessions.riskOutside": "Поза проєктом",
+  "windows.sessions.riskNetwork": "Використовує мережу",
+  "windows.sessions.riskSystem": "Змінює систему",
+  "windows.sessions.riskRunsCode": "Запускає зібраний код",
+  "windows.sessions.riskUnfamiliar": "Незнайомий інструмент"
 }

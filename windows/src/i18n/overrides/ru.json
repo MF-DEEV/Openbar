@@ -886,5 +886,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "Остров будет разрешать любую команду и любое изменение файлов, которые запросит %@, в любом сеансе и режиме, не показывая их вам. Это касается и удаления файлов, и доступа к сети. Вопросы по-прежнему приходят вам, а каждый разрешённый запрос попадает в список на странице сеанса.",
   "windows.settings.sessions.alwaysProceedConfirm": "Всегда продолжать",
   "windows.settings.sessions.alwaysProceedOn": "Включено: запросы этого агента разрешаются без вопросов.",
-  "windows.settings.sessions.alwaysProceedCancel": "Отмена"
+  "windows.settings.sessions.alwaysProceedCancel": "Отмена",
+  "windows.sessions.queueTitle": "Ждут: %@",
+  "windows.sessions.allowAll": "Разрешить все",
+  "windows.sessions.allowAllHelp": "Разрешает запросы, которые выглядят безопасными. Остальные ждут вас здесь.",
+  "windows.sessions.queueHeldBack": "Осталось вам: %@",
+  "windows.sessions.queueReview": "Открыть",
+  "windows.sessions.queueOpenHelp": "Открыть этот запрос на странице сеанса",
+  "windows.sessions.riskUnassessed": "Ещё не проверено",
+  "windows.sessions.riskRule": "Ваши настройки требуют спросить",
+  "windows.sessions.riskDeletes": "Удаляет файлы",
+  "windows.sessions.riskOutside": "За пределами проекта",
+  "windows.sessions.riskNetwork": "Использует сеть",
+  "windows.sessions.riskSystem": "Меняет систему",
+  "windows.sessions.riskRunsCode": "Запускает собранный код",
+  "windows.sessions.riskUnfamiliar": "Незнакомый инструмент"
 }

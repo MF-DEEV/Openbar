@@ -696,6 +696,7 @@ final class CodexSessionState {
             lookedAt: thread.acknowledged, waitingFor: inTerminal ? answerInTerminal : nil,
             currentTool: phase == .runningTool || phase == .waitingPermission ? current : nil,
             permission: card.map(permission),
+            laterAsks: pending.filter(\.answerable).dropFirst().map(Self.permission),
             timeline: timeline, subagents: [], tasks: previews ? thread.plan : thread.plan?.stripped(),
             edits: thread.touched.isEmpty ? nil
                 : ClaudeEditStats(added: thread.added, removed: thread.removed, touched: thread.touched.values.sorted()),

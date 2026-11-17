@@ -8,7 +8,7 @@
 import { useLocale } from "../i18n";
 
 import { AppWindow, Check, ChevronLeft, ExternalLink, Maximize2, Minimize2, Pencil, Plus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { PageDefinition } from "../island/views/Expanded";
 import { useIsland } from "../island/store";
 import { multiplexerOf, NewSession } from "./Background";
@@ -19,13 +19,19 @@ import { displayName } from "./format";
 import { S } from "./strings";
 import { useSessions } from "./store";
 import { presentedSnapshot } from "./presentation";
+import { showing } from "./queue";
 import "./sessions.css";
 import "./progress/progress.css";
 import { AwayLeading, AwayPage, AwayTrailing } from "./progress/AwayCard";
 
 function useFocusedSession() {
   const focused = useSessions((s) => s.focused);
-  return useSessions((s) => (focused ? presentedSnapshot(s).sessions.find((x) => x.id === focused) : undefined));
+  const request = useSessions((s) => s.focusedRequest);
+  const session = useSessions((s) =>
+    focused ? presentedSnapshot(s).sessions.find((x) => x.id === focused) : undefined,
+  );
+  // The ask the queue opened the page on, when it waits behind another (#269).
+  return useMemo(() => session && showing(session, request), [session, request]);
 }
 
 function Page() {

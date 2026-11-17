@@ -80,6 +80,8 @@ pub fn managed_settings() -> Vec<PathBuf> {
         vec![PathBuf::from(
             r"C:\Program Files\ClaudeCode\managed-settings.json",
         )]
+    } else if cfg!(target_os = "linux") {
+        vec![PathBuf::from("/etc/claude-code/managed-settings.json")]
     } else {
         vec![PathBuf::from(
             "/Library/Application Support/ClaudeCode/managed-settings.json",

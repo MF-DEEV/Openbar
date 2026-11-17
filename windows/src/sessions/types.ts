@@ -117,7 +117,13 @@ export interface Permission {
   /** For a plan, the modes it can be approved into, the one a plain approval picks first. */
   planModes?: PlanMode[];
   fitsOnALine: boolean;
+  /** What it looks like it does, for the queue's Allow all (#269); only "safe" joins it. */
+  risk?: PermissionRisk;
 }
+
+/** Why an ask stays out of Allow all, or "safe" (sessions/risk.rs). */
+export type PermissionRisk =
+  "safe" | "unassessed" | "rule" | "deletes" | "outside" | "network" | "system" | "runsCode" | "unfamiliar";
 
 /** A mode a plan is approved into, by the name Claude Code takes (ClaudePlanMode). */
 export type PlanMode = "bypassPermissions" | "auto" | "acceptEdits" | "default";
@@ -254,6 +260,8 @@ export interface Session {
   waitingFor?: string;
   currentTool?: ToolUse;
   permission?: Permission;
+  /** Asks waiting behind `permission`, oldest first (#269). */
+  laterAsks?: Permission[];
   /** A file change only the agent can answer, shown above "answer it there". */
   waitingDiffs?: FileDiff[];
   timeline: ToolUse[];

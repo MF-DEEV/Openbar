@@ -886,5 +886,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "L'île autorisera chaque commande et chaque modification de fichier demandée par %@, dans toutes les sessions et tous les modes, sans vous la montrer avant. Cela inclut la suppression de fichiers et l'accès au réseau. Les questions vous parviennent toujours, et chaque demande autorisée est listée sur la page de la session.",
   "windows.settings.sessions.alwaysProceedConfirm": "Toujours continuer",
   "windows.settings.sessions.alwaysProceedOn": "Activé : les demandes de cet agent sont autorisées sans question.",
-  "windows.settings.sessions.alwaysProceedCancel": "Annuler"
+  "windows.settings.sessions.alwaysProceedCancel": "Annuler",
+  "windows.sessions.queueTitle": "%@ en attente",
+  "windows.sessions.allowAll": "Tout autoriser",
+  "windows.sessions.allowAllHelp": "Autorise les demandes qui semblent sûres. Les autres restent ici pour vous.",
+  "windows.sessions.queueHeldBack": "Restent pour vous : %@",
+  "windows.sessions.queueReview": "Examiner",
+  "windows.sessions.queueOpenHelp": "Ouvrir cette demande sur la page de sa session",
+  "windows.sessions.riskUnassessed": "Pas encore vérifié",
+  "windows.sessions.riskRule": "Vos réglages demandent d'abord",
+  "windows.sessions.riskDeletes": "Supprime des fichiers",
+  "windows.sessions.riskOutside": "Hors du projet",
+  "windows.sessions.riskNetwork": "Utilise le réseau",
+  "windows.sessions.riskSystem": "Modifie le système",
+  "windows.sessions.riskRunsCode": "Exécute du code qu'il construit",
+  "windows.sessions.riskUnfamiliar": "Outil inconnu"
 }

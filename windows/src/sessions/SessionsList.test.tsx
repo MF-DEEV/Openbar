@@ -153,7 +153,18 @@ it("folds a group to its header, which still says someone waits (#233)", () => {
   expect(html).toContain('class="s-group-head is-collapsed has-waiting"');
   expect(html).toContain('aria-expanded="false"');
   expect(html).toContain("s-group-faces");
-  expect(html).not.toContain(waiting.title!);
+  // The queue on top still lists its ask (#269); the folded group does not.
+  const groups = html.slice(html.indexOf('class="s-group '));
+  expect(groups).not.toContain(waiting.title!);
+});
+
+it("puts every waiting ask in one queue above the rows, without row buttons (#269)", () => {
+  const sessions = demoSnapshot().sessions;
+  const html = grouped(sessions, "project");
+  expect(html.indexOf('class="s-queue"')).toBeGreaterThan(-1);
+  expect(html.indexOf('class="s-queue"')).toBeLessThan(html.indexOf('<section class="s-group'));
+  // The rows below only say they wait; the queue answers them.
+  expect(html.slice(html.indexOf('<section class="s-group')).includes('class="s-quick"')).toBe(false);
 });
 
 it("groups by agent and keeps the project tag on rows (#233)", () => {

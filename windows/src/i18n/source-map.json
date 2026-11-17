@@ -8432,5 +8432,89 @@
     "key": "windows.settings.sessions.alwaysProceedCancel",
     "english": "Cancel",
     "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.queueTitle",
+    "english": "%@ waiting",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.allowAll",
+    "english": "Allow all",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.allowAllHelp",
+    "english": "Allows the asks that look safe. The others stay here for you.",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.queueHeldBack",
+    "english": "Left for you: %@",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.queueReview",
+    "english": "Review",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.queueOpenHelp",
+    "english": "Open this ask on its session's page",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.riskUnassessed",
+    "english": "Not checked yet",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.riskRule",
+    "english": "Your settings ask first",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.riskDeletes",
+    "english": "Deletes files",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.riskOutside",
+    "english": "Outside the project",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.riskNetwork",
+    "english": "Uses the network",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.riskSystem",
+    "english": "Changes the system",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.riskRunsCode",
+    "english": "Runs code it builds",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.riskUnfamiliar",
+    "english": "Unfamiliar tool",
+    "source": null
   }
 ]

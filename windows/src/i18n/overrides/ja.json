@@ -886,5 +886,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "%@ が求めるすべてのコマンドとファイル変更を、どのセッションやモードでも、表示せずに許可します。ファイルの削除やネットワークへのアクセスも含まれます。質問はこれまでどおり届き、許可したリクエストはセッションのページに一覧されます。",
   "windows.settings.sessions.alwaysProceedConfirm": "常に続行",
   "windows.settings.sessions.alwaysProceedOn": "オン: このエージェントのリクエストは確認なしで許可されます。",
-  "windows.settings.sessions.alwaysProceedCancel": "キャンセル"
+  "windows.settings.sessions.alwaysProceedCancel": "キャンセル",
+  "windows.sessions.queueTitle": "%@件待機中",
+  "windows.sessions.allowAll": "すべて許可",
+  "windows.sessions.allowAllHelp": "安全そうなリクエストを許可します。残りはここで確認できます。",
+  "windows.sessions.queueHeldBack": "残り：%@",
+  "windows.sessions.queueReview": "確認",
+  "windows.sessions.queueOpenHelp": "このリクエストをセッションのページで開く",
+  "windows.sessions.riskUnassessed": "未確認",
+  "windows.sessions.riskRule": "設定で確認が必要",
+  "windows.sessions.riskDeletes": "ファイルを削除",
+  "windows.sessions.riskOutside": "プロジェクト外",
+  "windows.sessions.riskNetwork": "ネットワークを使用",
+  "windows.sessions.riskSystem": "システムを変更",
+  "windows.sessions.riskRunsCode": "生成したコードを実行",
+  "windows.sessions.riskUnfamiliar": "不明なツール"
 }

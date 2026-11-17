@@ -886,5 +886,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "灵动岛将在所有会话和模式中允许 %@ 请求的每条命令和每项文件更改，而不先向你显示。这也包括删除文件和访问网络。问题仍会发给你，每个被允许的请求都会列在会话页面上。",
   "windows.settings.sessions.alwaysProceedConfirm": "始终继续",
   "windows.settings.sessions.alwaysProceedOn": "已开启：此代理的请求会直接允许，不再询问。",
-  "windows.settings.sessions.alwaysProceedCancel": "取消"
+  "windows.settings.sessions.alwaysProceedCancel": "取消",
+  "windows.sessions.queueTitle": "%@ 个等待中",
+  "windows.sessions.allowAll": "全部允许",
+  "windows.sessions.allowAllHelp": "允许看起来安全的请求。其余的留在这里等你处理。",
+  "windows.sessions.queueHeldBack": "留给你：%@",
+  "windows.sessions.queueReview": "查看",
+  "windows.sessions.queueOpenHelp": "在会话页面中打开此请求",
+  "windows.sessions.riskUnassessed": "尚未检查",
+  "windows.sessions.riskRule": "你的设置要求先询问",
+  "windows.sessions.riskDeletes": "删除文件",
+  "windows.sessions.riskOutside": "在项目之外",
+  "windows.sessions.riskNetwork": "使用网络",
+  "windows.sessions.riskSystem": "更改系统",
+  "windows.sessions.riskRunsCode": "运行自己生成的代码",
+  "windows.sessions.riskUnfamiliar": "未知工具"
 }

@@ -1065,6 +1065,19 @@ enum CodexSessionTests {
         suite.expect(!client.answer("t1", requestID: "codex:7", answer: .deny), "the first answer wins")
         suite.expect(client.snapshot(now: Date(), previews: false).sessions.first?.permission == nil, "the card goes")
 
+        // #269: two approvals at once wait in the queue, and the later one
+        // can be answered first.
+        daemon.send(["id": 30, "method": "item/commandExecution/requestApproval", "params": ["threadId": "t1", "command": "ls"]])
+        daemon.send(["id": 31, "method": "item/commandExecution/requestApproval", "params": ["threadId": "t1", "command": "pwd"]])
+        suite.expect(eventually { client.snapshot(now: Date(), previews: false).sessions.first?.laterAsks.map(\.requestID) == ["codex:31"] },
+                     "the second approval waits behind the first")
+        suite.expect(client.answer("t1", requestID: "codex:31", answer: .allow), "the later approval is answered first")
+        suite.expect(json(daemon.message()) == #"{"id":31,"result":{"decision":"accept"}}"#, "by its own id")
+        let left = client.snapshot(now: Date(), previews: false).sessions.first
+        suite.expect(left?.permission?.requestID == "codex:30" && left?.laterAsks.isEmpty == true, "the first still waits")
+        suite.expect(client.answer("t1", requestID: "codex:30", answer: .deny), "and is answered on its own")
+        suite.expect(json(daemon.message()) == #"{"id":30,"result":{"decision":"decline"}}"#, "declined by its id")
+
         // #224: exercise the actual locked client boundary over this fake daemon.
         let hiddenCommand = String(repeating: "# harmless padding\n", count: 600) + "printf 'HIDDEN_SUFFIX_FIXTURE'"
         daemon.send(["id": 224, "method": "item/commandExecution/requestApproval", "params": ["threadId": "t1", "command": hiddenCommand]])

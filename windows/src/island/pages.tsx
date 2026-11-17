@@ -43,6 +43,7 @@ import {
   type ReminderWait,
 } from "../sessions/reminders";
 import { hidesAutoApproval, presentedSnapshot } from "../sessions/presentation";
+import { permissionQueue } from "../sessions/queue";
 import { MicrophoneStrip, subscribeMicrophone } from "../microphone/Microphone";
 import "../timer/register";
 import "../system/register";
@@ -188,7 +189,8 @@ function presentSessionEvent(event: SessionEvent) {
   if (!shown("sessions")) return;
   if (event.kind !== "finished" && !island.expanded && sessions.prefs.autoExpand) {
     island.open("sessions", { takeFocus: false });
-    sessions.focus(session.id);
+    // More than one ask waiting opens on the queue, not on one of them (#269).
+    sessions.focus(permissionQueue(presentedSnapshot(sessions).sessions).shows ? null : session.id);
     return;
   }
   const detail =

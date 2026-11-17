@@ -886,5 +886,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "Ada, %@ ajanının istediği her komuta ve dosya değişikliğine, her oturumda ve modda, sana göstermeden izin verecek. Buna dosya silmek ve ağa erişmek de dahil. Sorular yine sana gelir ve izin verilen her istek oturumun sayfasında listelenir.",
   "windows.settings.sessions.alwaysProceedConfirm": "Her zaman devam et",
   "windows.settings.sessions.alwaysProceedOn": "Açık: bu ajanın istekleri sormadan onaylanıyor.",
-  "windows.settings.sessions.alwaysProceedCancel": "İptal"
+  "windows.settings.sessions.alwaysProceedCancel": "İptal",
+  "windows.sessions.queueTitle": "%@ bekliyor",
+  "windows.sessions.allowAll": "Tümüne izin ver",
+  "windows.sessions.allowAllHelp": "Güvenli görünen isteklere izin verir. Diğerleri burada seni bekler.",
+  "windows.sessions.queueHeldBack": "Sana kalan: %@",
+  "windows.sessions.queueReview": "İncele",
+  "windows.sessions.queueOpenHelp": "Bu isteği oturumun sayfasında aç",
+  "windows.sessions.riskUnassessed": "Henüz kontrol edilmedi",
+  "windows.sessions.riskRule": "Ayarların önce sormanı istiyor",
+  "windows.sessions.riskDeletes": "Dosya siler",
+  "windows.sessions.riskOutside": "Proje dışında",
+  "windows.sessions.riskNetwork": "Ağı kullanır",
+  "windows.sessions.riskSystem": "Sistemi değiştirir",
+  "windows.sessions.riskRunsCode": "Kendi kurduğu kodu çalıştırır",
+  "windows.sessions.riskUnfamiliar": "Tanınmayan araç"
 }

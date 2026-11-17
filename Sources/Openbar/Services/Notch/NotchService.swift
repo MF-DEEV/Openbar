@@ -2011,8 +2011,9 @@ final class NotchService: ObservableObject {
         let sessions = ClaudeSessionService.shared
         // The wardrobe covers the request: a key must not answer what is not on screen.
         guard sessions.dressingID == nil else { return nil }
-        let focused = sessions.focusedID.flatMap { id in sessions.sessions.first { $0.id == id } }
-        guard let target = focused ?? sessions.sessions.first(where: { $0.permission.map { !$0.asksQuestions } ?? false }),
+        // The open page's card, else the oldest ask of the queue (#269).
+        let focused = sessions.focusedSession
+        guard let target = focused ?? NotchPermissionQueue(sessions.sessions).keyTarget.map({ $0.session.showing($0.ask.requestID) }),
               let permission = target.permission,
               !(permission.asksQuestions && decision != .deny),
               // Always shows only on the open page's card: Codex's for its turn,
@@ -4719,7 +4720,8 @@ final class NotchService: ObservableObject {
         if NotchClaudeSessionsSupport.shouldAutoExpand(event, enabled: NotchClaudeSessionsSupport.autoExpands(),
                                                        expanded: expanded, suspended: suspended || hiddenInFullscreen) {
             open(.sessions, takeFocus: false)
-            sessions.focus(id)
+            // More than one ask waiting opens on the queue, not on one of them (#269).
+            sessions.focus(NotchPermissionQueue(sessions.sessions).shows ? nil : id)
             return
         }
         switch event {

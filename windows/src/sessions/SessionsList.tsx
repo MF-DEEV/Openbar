@@ -11,7 +11,7 @@ import { useLocale } from "../i18n";
 import { Check, ChevronRight, X } from "lucide-react";
 import { AgentFace } from "../shared/ui/AgentFace";
 import { AnimatePresence, motion } from "motion/react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { Collapse } from "../shared/ui/motionKit";
 import { BranchChip, GroupHeader } from "./SessionGroups";
 import { branchLabel, groupSessions } from "./groups";
@@ -36,6 +36,8 @@ import { isWaiting, PROVIDER_NAMES, type Session } from "./types";
 import { presentedSnapshot } from "./presentation";
 import { useAgents } from "../agents/store";
 import { limitReset, resetText } from "./limits";
+import { PermissionQueue } from "./PermissionQueue";
+import { permissionQueue } from "./queue";
 
 /** waitingPermission 0 · waitingInput 1 · working 2 · limited 3 · background 4 · finished 5 · idle 6 (§3.6). */
 const RANK: Record<Session["phase"], number> = {
@@ -75,9 +77,14 @@ export function SessionsList() {
   if (sessions.length === 0) {
     return <EmptyState icon={AgentFace} title={S.emptyTitle} detail={S.emptyDetail} />;
   }
-  if (grouping !== "none") return <GroupedList sessions={sessions} by={grouping} now={now} />;
+  // More than one ask waiting: all of them first, in one queue (#269).
+  const queue = permissionQueue(sessions);
+  const top = queue.shows ? <PermissionQueue queue={queue} now={now} /> : null;
+  if (grouping !== "none")
+    return <GroupedList sessions={sessions} by={grouping} now={now} top={top} quick={!queue.shows} />;
   return (
     <div className="s-list">
+      {top}
       <AnimatePresence initial={false}>
         {orderSessions(sessions).map((session) => (
           <motion.div
@@ -88,7 +95,7 @@ export function SessionsList() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <Row session={session} now={now} />
+            <Row session={session} now={now} quickDecisions={!queue.shows} />
           </motion.div>
         ))}
       </AnimatePresence>
@@ -97,11 +104,24 @@ export function SessionsList() {
 }
 
 /** The list in groups (#233): groups with someone waiting on top, each folding its rows away. */
-function GroupedList({ sessions, by, now }: { sessions: Session[]; by: "project" | "agent"; now: number }) {
+function GroupedList({
+  sessions,
+  by,
+  now,
+  top,
+  quick,
+}: {
+  sessions: Session[];
+  by: "project" | "agent";
+  now: number;
+  top: ReactNode;
+  quick: boolean;
+}) {
   const collapsed = useSessions((s) => s.prefs.collapsedGroups);
   const groups = groupSessions(orderSessions(sessions), by);
   return (
     <div className="s-list is-grouped">
+      {top}
       <AnimatePresence initial={false}>
         {groups.map((group) => {
           const folded = collapsed.includes(group.key);
@@ -131,7 +151,7 @@ function GroupedList({ sessions, by, now }: { sessions: Session[]; by: "project"
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
                       >
-                        <Row session={session} now={now} inProject={by === "project"} />
+                        <Row session={session} now={now} inProject={by === "project"} quickDecisions={quick} />
                       </motion.div>
                     ))}
                   </AnimatePresence>
@@ -145,7 +165,18 @@ function GroupedList({ sessions, by, now }: { sessions: Session[]; by: "project"
   );
 }
 
-function Row({ session, now, inProject = false }: { session: Session; now: number; inProject?: boolean }) {
+function Row({
+  session,
+  now,
+  inProject = false,
+  quickDecisions = true,
+}: {
+  session: Session;
+  now: number;
+  inProject?: boolean;
+  /** Allow and Deny beside a short ask; off while the queue shows it (#269). */
+  quickDecisions?: boolean;
+}) {
   useLocale();
   const custom = useSessions((s) => s.names[session.id]);
   const lookedAt = useSessions((s) => s.lookedAt[session.id]);
@@ -159,7 +190,7 @@ function Row({ session, now, inProject = false }: { session: Session; now: numbe
   const resumes = session.phase === "limited" ? limitReset(session, agents, now) : null;
   const activity = activityText(session, name, resumes ? resetText(resumes, now, locale) : null);
   const limited = session.phase === "limited";
-  const quick = session.permission?.fitsOnALine && session.permission.questions.length === 0;
+  const quick = quickDecisions && session.permission?.fitsOnALine && session.permission.questions.length === 0;
   const color = projectColor(session.project);
   const waiting = isWaiting(session.phase);
   // A session whose Clawd sleeps fades back a little; sessions.css brings it

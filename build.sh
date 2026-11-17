@@ -295,6 +295,7 @@ if (( TEST )); then
         Sources/Openbar/Services/Notch/NotchAgentSupport.swift
         Sources/Openbar/Core/NotchClaudeSessionStrings.swift
         Sources/Openbar/Services/Notch/NotchClaudeSessionsSupport.swift
+        Sources/Openbar/Services/Notch/NotchPermissionQueue.swift
         Sources/Openbar/Services/ClaudeSessions/VoiceReplySupport.swift
         Sources/Openbar/Core/NotchVoiceReplyStrings.swift
         Sources/Openbar/Services/Notch/NotchSessionLimitsSupport.swift
@@ -307,6 +308,7 @@ if (( TEST )); then
         Sources/Openbar/Services/ClaudeSessions/ClaudeSessionModels.swift
         Sources/Openbar/Services/ClaudeSessions/SessionAutoMode.swift
         Sources/Openbar/Services/ClaudeSessions/PermissionInspection.swift
+        Sources/Openbar/Services/ClaudeSessions/PermissionRisk.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeSessionSample.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeFileDiff.swift
         Sources/Openbar/Services/ClaudeSessions/ClaudeSessionEngine.swift

@@ -886,5 +886,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "%@이(가) 요청하는 모든 명령과 파일 변경을 모든 세션과 모드에서 먼저 보여 주지 않고 허용합니다. 파일 삭제와 네트워크 접근도 포함됩니다. 질문은 계속 받으며, 허용한 요청은 세션 페이지에 기록됩니다.",
   "windows.settings.sessions.alwaysProceedConfirm": "항상 진행",
   "windows.settings.sessions.alwaysProceedOn": "켜짐: 이 에이전트의 요청은 묻지 않고 허용됩니다.",
-  "windows.settings.sessions.alwaysProceedCancel": "취소"
+  "windows.settings.sessions.alwaysProceedCancel": "취소",
+  "windows.sessions.queueTitle": "%@개 대기 중",
+  "windows.sessions.allowAll": "모두 허용",
+  "windows.sessions.allowAllHelp": "안전해 보이는 요청을 허용합니다. 나머지는 여기에 남습니다.",
+  "windows.sessions.queueHeldBack": "남은 요청: %@",
+  "windows.sessions.queueReview": "검토",
+  "windows.sessions.queueOpenHelp": "세션 페이지에서 이 요청 열기",
+  "windows.sessions.riskUnassessed": "아직 확인 안 됨",
+  "windows.sessions.riskRule": "설정에서 먼저 묻도록 함",
+  "windows.sessions.riskDeletes": "파일 삭제",
+  "windows.sessions.riskOutside": "프로젝트 밖",
+  "windows.sessions.riskNetwork": "네트워크 사용",
+  "windows.sessions.riskSystem": "시스템 변경",
+  "windows.sessions.riskRunsCode": "직접 만든 코드 실행",
+  "windows.sessions.riskUnfamiliar": "알 수 없는 도구"
 }

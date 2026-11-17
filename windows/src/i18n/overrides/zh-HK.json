@@ -886,5 +886,19 @@
   "windows.settings.sessions.alwaysProceedConfirmMessage": "動態島將在所有工作階段和模式中允許 %@ 請求的每個指令和每項檔案變更，而不先顯示給你。這亦包括刪除檔案和存取網絡。問題仍會傳給你，每個被允許的請求都會列在工作階段頁面上。",
   "windows.settings.sessions.alwaysProceedConfirm": "一律繼續",
   "windows.settings.sessions.alwaysProceedOn": "已開啟：此代理程式的請求會直接允許，不再詢問。",
-  "windows.settings.sessions.alwaysProceedCancel": "取消"
+  "windows.settings.sessions.alwaysProceedCancel": "取消",
+  "windows.sessions.queueTitle": "%@ 個等待中",
+  "windows.sessions.allowAll": "全部允許",
+  "windows.sessions.allowAllHelp": "允許看來安全的請求。其餘的留在這裡等你處理。",
+  "windows.sessions.queueHeldBack": "留給你：%@",
+  "windows.sessions.queueReview": "查看",
+  "windows.sessions.queueOpenHelp": "在工作階段頁面中開啟此請求",
+  "windows.sessions.riskUnassessed": "尚未檢查",
+  "windows.sessions.riskRule": "你的設定要求先詢問",
+  "windows.sessions.riskDeletes": "刪除檔案",
+  "windows.sessions.riskOutside": "在專案之外",
+  "windows.sessions.riskNetwork": "使用網絡",
+  "windows.sessions.riskSystem": "變更系統",
+  "windows.sessions.riskRunsCode": "執行自行產生的程式碼",
+  "windows.sessions.riskUnfamiliar": "不明工具"
 }

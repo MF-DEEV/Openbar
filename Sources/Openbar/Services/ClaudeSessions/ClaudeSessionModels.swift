@@ -308,6 +308,9 @@ struct ClaudePermission: Equatable {
     /// For a plan, the modes it can be approved into, the one a plain
     /// approval picks first.
     var planModes: [ClaudePlanMode] = []
+    /// What it looks like it does, for the queue's Allow all (#269). Set
+    /// when the island publishes it; until then it is never allowed in bulk.
+    var risk: PermissionRisk = .unassessed
 
     var asksQuestions: Bool { !questions.isEmpty }
 
@@ -460,6 +463,9 @@ struct ClaudeSession: Equatable, Identifiable {
     var waitingFor: String?
     var currentTool: ClaudeToolUse?
     var permission: ClaudePermission?
+    /// Asks waiting behind `permission`, oldest first: a session can ask
+    /// several things at once, as subagents do (#269).
+    var laterAsks: [ClaudePermission] = []
     /// What a file change only the agent can answer would do: shown above
     /// "answer it there", since the request itself is not the island's.
     var waitingDiffs: [ClaudeFileDiff] = []
@@ -502,6 +508,12 @@ struct ClaudeSession: Equatable, Identifiable {
     var autoMode = false
     /// Permissions the island allowed without asking, newest last (#234).
     var letThrough: [ClaudeLetThrough] = []
+
+    /// Every ask the island can answer for it, oldest first (#269).
+    var asks: [ClaudePermission] { permission.map { [$0] + laterAsks } ?? [] }
+
+    /// The ask with this id, the shown one or one waiting behind it.
+    func ask(_ requestID: String) -> ClaudePermission? { asks.first { $0.requestID == requestID } }
 }
 
 /// Tells a background command that is meant to keep running, like a dev

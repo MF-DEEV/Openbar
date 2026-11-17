@@ -4,6 +4,7 @@
 import { useIsland } from "../island/store";
 import { settled, useSessions } from "./store";
 import type { Session } from "./types";
+import { asks, showing } from "./queue";
 
 export type PermissionKey = "y" | "n" | "always";
 
@@ -29,13 +30,11 @@ export function permissionKeyTarget(sessionId: string, requestId: string) {
     state.wardrobe
   )
     return undefined;
-  return state.snapshot.sessions.find(
-    (s) =>
-      s.id === sessionId &&
-      s.phase === "waitingPermission" &&
-      s.permission?.requestId === requestId &&
-      !s.permission.questions.length,
-  );
+  // The ask on the page, the first or one the queue opened it on (#269).
+  const session = state.snapshot.sessions.find((s) => s.id === sessionId && s.phase === "waitingPermission");
+  const ask = session && asks(session).find((p) => p.requestId === requestId);
+  if (!session || !ask || ask.questions.length) return undefined;
+  return showing(session, requestId);
 }
 
 /** Answer only the request currently visible on this session's page. */

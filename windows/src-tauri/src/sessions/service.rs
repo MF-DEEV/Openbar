@@ -208,6 +208,8 @@ struct Inner {
     hook_agents: HookAgents,
     agent_pending: HashMap<String, AgentPending>,
     inspection: super::inspection::Gate,
+    /// What each ask looks like it does, for the queue's Allow all (#269).
+    risks: super::risk::Cache,
     /// Each OpenCode's plugin listening for replies, by its process.
     listeners: HashMap<i32, HookConnection>,
     /// The Mistral Vibe sessions a New session runs through the island's
@@ -293,6 +295,19 @@ impl Service {
                 hook_agents: HookAgents::default(),
                 agent_pending: HashMap::new(),
                 inspection: Default::default(),
+                risks: {
+                    let home = hooks::installer::home_dir()
+                        .map(|h| h.to_string_lossy().into_owned())
+                        .unwrap_or_default();
+                    let managed = super::plan_modes::managed_settings();
+                    let reader_home = home.clone();
+                    super::risk::Cache::new(
+                        &home,
+                        Box::new(move |config, cwd| {
+                            super::risk::Rules::read(config, Some(cwd), &managed, &reader_home)
+                        }),
+                    )
+                },
                 listeners: HashMap::new(),
                 proxied: HashMap::new(),
                 hidden_agents: HashSet::new(),
@@ -988,10 +1003,12 @@ impl Service {
         let listed: HashSet<String> = sessions.iter().map(|s| s.id.clone()).collect();
         super::auto_mode::LOG.prune(&listed, t);
         super::auto_mode::LOG.decorate(&mut sessions);
+        inner.risks.assess(&mut sessions, t);
         let live = sessions
             .iter()
-            .filter_map(|s| {
-                s.permission.as_ref().and_then(|p| {
+            // Every ask a session holds keeps its inspection, not only the first (#269).
+            .flat_map(|s| {
+                s.permission.iter().chain(&s.later_asks).filter_map(|p| {
                     p.content
                         .as_ref()
                         .map(|c| (s.id.clone(), c.metadata(p).revision))
@@ -1433,7 +1450,9 @@ impl Service {
             return ok;
         }
         let mut inner = self.inner.lock().unwrap();
-        let Some(p) = inner.engine.permission(session) else {
+        // Any ask the session holds, not only the first: the queue answers
+        // them in any order (#269).
+        let Some(p) = inner.engine.permission_by_id(session, request) else {
             return false;
         };
         if p.request_id != request
@@ -1444,7 +1463,7 @@ impl Service {
         }
         let asks = inner
             .engine
-            .permission(session)
+            .permission_by_id(session, request)
             .is_some_and(|p| !p.questions.is_empty());
         let fits = match &decision {
             Decision::Answer(_) => asks,
@@ -2391,7 +2410,10 @@ pub fn sessions_inspect_command(
     let p = if inner.hook_agents.owns(&session_id) {
         inner.hook_agents.entry(&session_id)?.permission.clone()?
     } else {
-        inner.engine.permission(&session_id)?.clone()
+        inner
+            .engine
+            .permission_by_id(&session_id, &request_id)?
+            .clone()
     };
     if p.request_id != request_id {
         return None;

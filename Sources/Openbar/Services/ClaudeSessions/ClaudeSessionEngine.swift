@@ -209,6 +209,11 @@ final class ClaudeSessionEngine {
     /// The permission the island shows for a session: the oldest one asked.
     func permission(of id: String) -> ClaudePermission? { activity[id]?.permissions.first }
 
+    /// The ask with this id the session holds, first or behind it (#269).
+    func permission(_ requestID: String, of id: String) -> ClaudePermission? {
+        activity[id]?.permissions.first { $0.requestID == requestID }
+    }
+
     func holds(_ requestID: String, for id: String) -> Bool {
         activity[id]?.permissions.contains { $0.requestID == requestID } == true
     }
@@ -358,7 +363,7 @@ final class ClaudeSessionEngine {
             lookedAt: entry.acknowledged,
             waitingFor: record.status == .waiting ? record.waitingFor : nil,
             currentTool: phase == .runningTool || phase == .waitingPermission ? entry.openTool.map(gated) : nil,
-            permission: entry.permissions.first,
+            permission: entry.permissions.first, laterAsks: Array(entry.permissions.dropFirst()),
             timeline: entry.tools.suffix(Self.timelineLength).map(gated), subagents: subagents, tasks: tasks,
             edits: edits, failedAt: entry.failedAt,
             startedAt: record.started, turnEndedAt: entry.turnEnded, turnCompleted: entry.completed,

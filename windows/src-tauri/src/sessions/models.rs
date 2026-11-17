@@ -283,6 +283,9 @@ pub struct Permission {
     /// For a plan, the modes it can be approved into, the one a plain
     /// approval picks first.
     pub plan_modes: Vec<PlanMode>,
+    /// What it looks like it does, for the queue's Allow all (#269). Set
+    /// when the island publishes it; until then it is never allowed in bulk.
+    pub risk: super::risk::Risk,
 }
 
 impl Permission {
@@ -306,6 +309,7 @@ impl Permission {
             questions: Vec::new(),
             diffs: Vec::new(),
             plan_modes: Vec::new(),
+            risk: super::risk::Risk::Unassessed,
         }
     }
 
@@ -337,7 +341,7 @@ impl Permission {
 
 impl Serialize for Permission {
     fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        let mut out = serializer.serialize_struct("Permission", 12)?;
+        let mut out = serializer.serialize_struct("Permission", 13)?;
         out.serialize_field("requestId", &self.request_id)?;
         out.serialize_field("tool", &self.tool)?;
         match &self.summary {
@@ -354,6 +358,7 @@ impl Serialize for Permission {
         // Worked out here, where the character count matches the Mac's.
         out.serialize_field("asksQuestions", &self.asks_questions())?;
         out.serialize_field("fitsOnALine", &self.fits_on_a_line())?;
+        out.serialize_field("risk", &self.risk)?;
         out.end()
     }
 }
@@ -693,6 +698,10 @@ pub struct Session {
     pub current_tool: Option<ToolUse>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub permission: Option<Permission>,
+    /// Asks waiting behind `permission`, oldest first: a session can ask
+    /// several things at once, as subagents do (#269).
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub later_asks: Vec<Permission>,
     /// What a file change only the agent can answer would do: shown above
     /// "answer it there", since the request itself is not the island's.
     #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -1496,6 +1505,7 @@ mod tests {
             account_id: None,
             auto_mode: false,
             let_through: Vec::new(),
+            later_asks: Vec::new(),
         }
     }
 

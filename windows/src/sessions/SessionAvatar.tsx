@@ -20,6 +20,8 @@ import type { Provider, Session, SessionEvent, Subagent } from "./types";
 
 const SIZES = {
   row: { ...CLAWD_SIZES.listRow, badge: 26 },
+  /** A row of the permission queue (#269). */
+  queue: { width: 24, height: 22, badge: 20 },
   page: { ...CLAWD_SIZES.pageHeader, badge: 30 },
   large: { ...CLAWD_SIZES.largeHeader, badge: 34 },
 };
