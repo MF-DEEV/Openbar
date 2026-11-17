@@ -188,10 +188,10 @@ pub fn paths_in(text: &str) -> Vec<String> {
     }
     // A glob names a folder only when it starts from one.
     for line in &lines {
-        if let Some(rest) = line.strip_prefix("pattern: ") {
-            if rest.starts_with('/') || rest.starts_with('~') || is_drive(rest) {
-                keyed.push(rest.to_owned());
-            }
+        if let Some(rest) = line.strip_prefix("pattern: ")
+            && (rest.starts_with('/') || rest.starts_with('~') || is_drive(rest))
+        {
+            keyed.push(rest.to_owned());
         }
     }
     if !keyed.is_empty() {
@@ -464,12 +464,11 @@ fn segment_risk(segment: &Segment, root: &Paths, depth: usize) -> Risk {
     if has(WRITING) && !plain.iter().all(|p| root.inside(p)) {
         risks.push(Risk::Outside);
     }
-    if has(COPYING) {
-        if let Some(last) = plain.last() {
-            if !root.inside(last) {
-                risks.push(Risk::Outside);
-            }
-        }
+    if has(COPYING)
+        && let Some(last) = plain.last()
+        && !root.inside(last)
+    {
+        risks.push(Risk::Outside);
     }
     if (name == "sed" || name == "perl")
         && args.iter().any(|a| a.starts_with("-i"))
@@ -477,12 +476,11 @@ fn segment_risk(segment: &Segment, root: &Paths, depth: usize) -> Risk {
     {
         risks.push(Risk::Outside);
     }
-    if ["cd", "pushd", "set-location", "sl", "chdir"].contains(&name) {
-        if let Some(target) = plain.first() {
-            if !root.inside(target) {
-                risks.push(Risk::Outside);
-            }
-        }
+    if ["cd", "pushd", "set-location", "sl", "chdir"].contains(&name)
+        && let Some(target) = plain.first()
+        && !root.inside(target)
+    {
+        risks.push(Risk::Outside);
     }
     if name == "find"
         && args
@@ -816,14 +814,14 @@ pub fn parse(command: &str) -> Vec<Segment> {
                 continue;
             }
             if open == '"' {
-                if c == '\\' {
-                    if let Some(n) = next {
-                        s.word.push(n);
-                        s.text.push(c);
-                        s.text.push(n);
-                        i += 2;
-                        continue;
-                    }
+                if c == '\\'
+                    && let Some(n) = next
+                {
+                    s.word.push(n);
+                    s.text.push(c);
+                    s.text.push(n);
+                    i += 2;
+                    continue;
                 }
                 // Inside double quotes a substitution still runs; the quote
                 // goes on once it closes.
@@ -1312,17 +1310,20 @@ pub fn glob(pattern: &str, text: &str, slash: bool) -> bool {
 
 /// Gives every ask the island publishes its risk, judged once per ask, with
 /// each project's settings rules read again at most every few seconds.
+/// Reads a session's rules from its account's config folder and its project.
+pub type RulesReader = Box<dyn Fn(Option<&str>, &str) -> Rules + Send>;
+
 pub struct Cache {
     judged: HashMap<String, Risk>,
     rules: HashMap<String, (Rules, f64)>,
-    read: Box<dyn Fn(Option<&str>, &str) -> Rules + Send>,
+    read: RulesReader,
     home: String,
 }
 
 pub const RULES_LIFETIME: f64 = 5.0;
 
 impl Cache {
-    pub fn new(home: &str, read: Box<dyn Fn(Option<&str>, &str) -> Rules + Send>) -> Self {
+    pub fn new(home: &str, read: RulesReader) -> Self {
         Cache {
             judged: HashMap::new(),
             rules: HashMap::new(),
@@ -1378,10 +1379,10 @@ impl Cache {
 
     fn rules_for(&mut self, config_home: Option<&str>, cwd: &str, now: f64) -> Rules {
         let key = format!("{}\u{1}{cwd}", config_home.unwrap_or(""));
-        if let Some((rules, read)) = self.rules.get(&key) {
-            if now - read < RULES_LIFETIME {
-                return rules.clone();
-            }
+        if let Some((rules, read)) = self.rules.get(&key)
+            && now - read < RULES_LIFETIME
+        {
+            return rules.clone();
         }
         let found = (self.read)(config_home, cwd);
         // A changed rule judges every ask again.
