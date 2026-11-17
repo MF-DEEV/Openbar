@@ -107,7 +107,7 @@ impl Pending {
         format!("codex:{}", self.rpc_id)
     }
 
-    fn asks(&self) -> bool {
+    pub fn asks(&self) -> bool {
         self.method == "item/tool/requestUserInput"
             || self.method == "mcpServer/elicitation/request"
     }
@@ -154,6 +154,13 @@ pub struct Thread {
     pub turn_ended: Option<(Time, bool)>,
     /// The last turn the plan's usage limit stopped.
     pub limit: Option<LimitStop>,
+    /// Its approval policy, as a resume or a settings change says; a
+    /// granular one reads "granular" (#234).
+    pub approval_policy: Option<String>,
+    /// When its status last began to wait on an approval, and when the
+    /// island last let one through for it (#234).
+    pub approval_wait_since: Option<Time>,
+    pub proceeded_at: Option<Time>,
     pub acknowledged: Time,
     pub pending: Vec<Pending>,
     /// The patch of each file change item still running, by item id, for
@@ -173,6 +180,21 @@ pub struct Thread {
 pub struct State {
     pub threads: BTreeMap<String, Thread>,
     pub previews: bool,
+    /// Which sessions the island lets run without asking (#234).
+    pub auto_settings: crate::sessions::auto_mode::Settings,
+}
+
+/// How long a session the island lets through may say it waits on an
+/// approval that has not come (#234).
+pub const APPROVAL_GRACE: Time = 3.0;
+
+/// An approval policy as Codex sends it: a name, or "granular" for its object.
+pub fn approval_policy(value: Option<&Value>) -> Option<String> {
+    match value? {
+        Value::String(text) if !text.is_empty() => Some(text.clone()),
+        Value::Object(_) => Some("granular".to_owned()),
+        _ => None,
+    }
 }
 
 impl Thread {
@@ -387,6 +409,48 @@ impl State {
         Some(thread.pending.remove(index))
     }
 
+    /// A thread's approval policy, from a resume's result (#234).
+    pub fn set_approval_policy(&mut self, id: &str, value: Option<&Value>) -> bool {
+        let Some(policy) = approval_policy(value) else {
+            return false;
+        };
+        match self.threads.get_mut(id) {
+            Some(thread) if thread.approval_policy.as_deref() != Some(policy.as_str()) => {
+                thread.approval_policy = Some(policy);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    /// Whether the island lets this thread's approvals through, by its own
+    /// policy or, for a subagent's thread not yet described, its row's.
+    pub fn lets_through(&self, id: &str) -> Option<crate::sessions::auto_mode::Reason> {
+        let policy = self
+            .threads
+            .get(id)
+            .and_then(|t| t.approval_policy.clone())
+            .or_else(|| {
+                self.threads
+                    .get(&self.row_of(id))
+                    .and_then(|t| t.approval_policy.clone())
+            });
+        self.auto_settings.passes(
+            crate::sessions::models::Provider::Codex,
+            crate::sessions::auto_mode::is_auto_codex(policy.as_deref()),
+        )
+    }
+
+    /// The island answered one of the thread's approvals itself.
+    pub fn proceeded(&mut self, id: &str, at: Time) {
+        let row = self.row_of(id);
+        for key in [id.to_owned(), row] {
+            if let Some(thread) = self.threads.get_mut(&key) {
+                thread.proceeded_at = Some(at);
+            }
+        }
+    }
+
     // MARK: Input
 
     /// `thread/read`'s thread, or a thread from `thread/list`. A thread read
@@ -592,6 +656,17 @@ impl State {
                 if status.is_active() && !thread.status.as_ref().is_some_and(Status::is_active) {
                     thread.turn_started = Some(now);
                 }
+                if matches!(
+                    status,
+                    Status::Active {
+                        waiting_on_approval: true,
+                        ..
+                    }
+                ) {
+                    thread.approval_wait_since.get_or_insert(now);
+                } else {
+                    thread.approval_wait_since = None;
+                }
                 thread.status = Some(status);
                 let changed =
                     !known || before.0 != thread.status || before.1 != thread.turn_started;
@@ -662,11 +737,18 @@ impl State {
                 let effort = str_at(settings, "effort")
                     .map(str::to_owned)
                     .or(thread.effort.clone());
-                if thread.model == model && thread.effort == effort {
+                // A switch of /permissions comes here too, as the next turn starts (#234).
+                let policy = approval_policy(settings.get("approvalPolicy"))
+                    .or(thread.approval_policy.clone());
+                if thread.model == model
+                    && thread.effort == effort
+                    && thread.approval_policy == policy
+                {
                     return None;
                 }
                 thread.model = model;
                 thread.effort = effort;
+                thread.approval_policy = policy;
                 Some(Notified::CHANGED)
             }
             "turn/completed" => {
@@ -841,13 +923,19 @@ impl State {
                 .or_default()
                 .extend(thread.pending.iter().cloned());
         }
+        let passing: HashSet<String> = self
+            .threads
+            .keys()
+            .filter(|id| self.lets_through(id).is_some())
+            .cloned()
+            .collect();
         for thread in self.threads.values_mut() {
             // A subagent's thread belongs to its parent's row.
             if thread.parent.is_some() || thread.ephemeral || thread.cwd.is_empty() {
                 continue;
             }
             let pending = ordered(waiting.remove(&thread.id).unwrap_or_default());
-            let phase = phase_with(thread, &pending, now);
+            let phase = phase_passing(thread, &pending, now, passing.contains(&thread.id));
             let since = match thread.phase {
                 Some((previous, since)) if previous == phase => since,
                 previous => {
@@ -918,17 +1006,34 @@ pub fn phase(thread: &Thread, now: Time) -> SessionPhase {
 /// Phase rules in order, where `pending` is what waits on the thread's row,
 /// its subagents' requests too.
 pub fn phase_with(thread: &Thread, pending: &[Pending], now: Time) -> SessionPhase {
+    phase_passing(thread, pending, now, false)
+}
+
+/// The same, for a thread whose approvals the island lets through (#234):
+/// Codex says it waits a moment before the request itself comes, and that
+/// request is answered at once, so the moment is no wait.
+pub fn phase_passing(
+    thread: &Thread,
+    pending: &[Pending],
+    now: Time,
+    lets_through: bool,
+) -> SessionPhase {
     if pending.iter().any(|p| !p.asks()) {
         return SessionPhase::WaitingPermission;
     }
     if pending.iter().any(Pending::asks) {
         return SessionPhase::WaitingInput;
     }
+    let passing = lets_through
+        && [thread.approval_wait_since, thread.proceeded_at]
+            .into_iter()
+            .flatten()
+            .any(|at| now - at < APPROVAL_GRACE);
     match &thread.status {
         Some(Status::Active {
             waiting_on_approval: true,
             ..
-        }) => SessionPhase::WaitingPermission,
+        }) if !passing => SessionPhase::WaitingPermission,
         Some(Status::Active {
             waiting_on_input: true,
             ..
@@ -1343,6 +1448,8 @@ fn session(
         account: None,
         account_label: None,
         account_id: None,
+        auto_mode: crate::sessions::auto_mode::is_auto_codex(thread.approval_policy.as_deref()),
+        let_through: Vec::new(),
     }
 }
 
@@ -2372,5 +2479,103 @@ mod tests {
         let (failed, _) = state.snapshot(7.0, ContentPolicy { previews: true });
         assert_eq!(failed[0].failed_at, Some(6.0));
         assert!(!failed[0].turn_completed);
+    }
+}
+
+#[cfg(test)]
+mod auto_mode_tests {
+    use super::*;
+    use crate::sessions::auto_mode::{Reason, Settings};
+    use serde_json::json;
+
+    fn state() -> State {
+        let mut state = State::default();
+        state.upsert_thread(
+            &json!({"id": "t1", "cwd": "C:\\code\\app", "status": {"type": "idle"}}),
+        );
+        state
+    }
+
+    #[test]
+    fn the_approval_policy_marks_a_session_auto() {
+        let mut state = state();
+        let policy = ContentPolicy { previews: false };
+        assert!(!state.snapshot(1.0, policy).0[0].auto_mode);
+        assert_eq!(state.lets_through("t1"), None, "unknown before a resume");
+        assert!(state.set_approval_policy("t1", Some(&json!("never"))));
+        assert!(
+            !state.set_approval_policy("t1", Some(&json!("never"))),
+            "the same changes nothing"
+        );
+        assert!(!state.set_approval_policy("nope", Some(&json!("never"))));
+        assert!(state.snapshot(2.0, policy).0[0].auto_mode);
+        assert_eq!(state.lets_through("t1"), Some(Reason::AutoMode));
+
+        let changed = state.notify(
+            "thread/settings/updated",
+            &json!({"threadId": "t1",
+            "threadSettings": {"approvalPolicy": "on-request", "model": "gpt-5.5-codex"}}),
+            3.0,
+        );
+        assert!(changed.changed);
+        assert!(
+            !state.snapshot(4.0, policy).0[0].auto_mode,
+            "switching back takes the mark off"
+        );
+        state.notify("thread/settings/updated", &json!({"threadId": "t1",
+            "threadSettings": {"approvalPolicy": {"granular": {"rules": true, "sandbox_approval": true, "mcp_elicitations": true}}}}), 5.0);
+        assert_eq!(
+            state.threads["t1"].approval_policy.as_deref(),
+            Some("granular")
+        );
+        state.notify(
+            "thread/settings/updated",
+            &json!({"threadId": "t1", "threadSettings": {"approvalPolicy": "never"}}),
+            6.0,
+        );
+        assert!(
+            state.snapshot(7.0, policy).0[0].auto_mode,
+            "Full Access marks it again"
+        );
+    }
+
+    #[test]
+    fn a_passing_sessions_wait_flag_is_no_wait_for_a_moment() {
+        let mut state = state();
+        state.set_approval_policy("t1", Some(&json!("never")));
+        state.notify(
+            "thread/status/changed",
+            &json!({"threadId": "t1",
+            "status": {"type": "active", "activeFlags": ["waitingOnApproval"]}}),
+            10.0,
+        );
+        let policy = ContentPolicy { previews: false };
+        let phase = |state: &mut State, t: f64| state.snapshot(t, policy).0[0].phase;
+        assert_eq!(phase(&mut state, 11.0), SessionPhase::Generating);
+        assert_eq!(
+            phase(&mut state, 14.0),
+            SessionPhase::WaitingPermission,
+            "left that long it waits"
+        );
+        state.auto_settings = Settings::none();
+        assert_eq!(
+            phase(&mut state, 11.0),
+            SessionPhase::WaitingPermission,
+            "with the switch off at once"
+        );
+        state.auto_settings = Settings::default();
+        state.proceeded("t1", 20.0);
+        assert_eq!(
+            phase(&mut state, 21.0),
+            SessionPhase::Generating,
+            "just after an answer"
+        );
+        state.notify(
+            "thread/status/changed",
+            &json!({"threadId": "t1",
+            "status": {"type": "active", "activeFlags": []}}),
+            22.0,
+        );
+        assert_eq!(state.threads["t1"].approval_wait_since, None);
     }
 }

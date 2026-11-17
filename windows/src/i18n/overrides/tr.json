@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "Bir kez",
   "windows.settings.sessions.remindEveryValue": "Her %@ dk",
   "windows.settings.sessions.remindDuringDnd": "Rahatsız Etmeyin açıkken de",
-  "windows.settings.sessions.remindDuringDndCaption": "Rahatsız Etmeyin açıkken de hatırlatır. Aksi halde hatırlatma, o kapanana kadar bekler."
+  "windows.settings.sessions.remindDuringDndCaption": "Rahatsız Etmeyin açıkken de hatırlatır. Aksi halde hatırlatma, o kapanana kadar bekler.",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "Claude Code burada bypass permissions ile çalışıyor. Ada izin isteklerini geçirir, soruları yine sana getirir.",
+  "windows.sessions.autoMarkHelpCodex": "Codex burada onaylar kapalı çalışıyor. Ada izin isteklerini geçirir, soruları yine sana getirir.",
+  "windows.sessions.letThroughTitle": "Geçirilenler",
+  "windows.sessions.letThroughAlways": "Her zaman devam et",
+  "windows.sessions.moreLetThrough": "%@ tane daha",
+  "windows.settings.sessions.autoMode": "Otomatik moddaki oturumlar adayı beklemeden çalışsın",
+  "windows.settings.sessions.autoModeCaption": "Ajanının soru sormayan modunda başlatılan bir oturum adayı hiç beklemez: bypass permissions ile Claude Code, onayları kapalı Codex (yolo). İstekleri hemen ilerler ve sayfasında listelenir. Sorular yine sana gelir.",
+  "windows.settings.sessions.alwaysProceed": "Her zaman devam et",
+  "windows.settings.sessions.alwaysProceedCaption": "Ada, seçtiğin ajanların her izin isteğine, hangi modda olursa olsun, sormadan izin verir. Sorular yine sana gelir.",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "%@ için her zaman devam edilsin mi?",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "Ada, %@ ajanının istediği her komuta ve dosya değişikliğine, her oturumda ve modda, sana göstermeden izin verecek. Buna dosya silmek ve ağa erişmek de dahil. Sorular yine sana gelir ve izin verilen her istek oturumun sayfasında listelenir.",
+  "windows.settings.sessions.alwaysProceedConfirm": "Her zaman devam et",
+  "windows.settings.sessions.alwaysProceedOn": "Açık: bu ajanın istekleri sormadan onaylanıyor.",
+  "windows.settings.sessions.alwaysProceedCancel": "İptal"
 }

@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "Raz",
   "windows.settings.sessions.remindEveryValue": "Každých %@ min",
   "windows.settings.sessions.remindDuringDnd": "Aj počas Nerušiť",
-  "windows.settings.sessions.remindDuringDndCaption": "Pripomína aj pri zapnutom režime Nerušiť. Inak pripomienka počká, kým sa neskončí."
+  "windows.settings.sessions.remindDuringDndCaption": "Pripomína aj pri zapnutom režime Nerušiť. Inak pripomienka počká, kým sa neskončí.",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "Claude Code tu beží s bypass permissions. Ostrov jeho žiadosti o povolenie prepustí a otázky vám stále ukáže.",
+  "windows.sessions.autoMarkHelpCodex": "Codex tu beží s vypnutým schvaľovaním. Ostrov jeho žiadosti o povolenie prepustí a otázky vám stále ukáže.",
+  "windows.sessions.letThroughTitle": "Prepustené",
+  "windows.sessions.letThroughAlways": "Vždy pokračovať",
+  "windows.sessions.moreLetThrough": "Ďalšie: %@",
+  "windows.settings.sessions.autoMode": "Relácie v automatickom režime bežia bez ostrova",
+  "windows.settings.sessions.autoModeCaption": "Relácia spustená v režime agenta bez otázok nikdy nečaká na ostrov: Claude Code s bypass permissions, Codex s vypnutým schvaľovaním (yolo). Jej žiadosti prejdú hneď a sú uvedené na jej stránke. Otázky vám stále prichádzajú.",
+  "windows.settings.sessions.alwaysProceed": "Vždy pokračovať",
+  "windows.settings.sessions.alwaysProceedCaption": "Ostrov povolí každú žiadosť vybraných agentov v akomkoľvek režime bez pýtania. Otázky vám stále prichádzajú.",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "Vždy pokračovať pre %@?",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "Ostrov povolí každý príkaz a každú zmenu súborov, o ktoré %@ požiada, v každej relácii a režime, bez toho, aby vám ich najprv ukázal. Patrí sem aj mazanie súborov a prístup do siete. Otázky vám stále prichádzajú a každá povolená žiadosť je uvedená na stránke relácie.",
+  "windows.settings.sessions.alwaysProceedConfirm": "Vždy pokračovať",
+  "windows.settings.sessions.alwaysProceedOn": "Zapnuté: žiadosti tohto agenta sa povoľujú bez pýtania.",
+  "windows.settings.sessions.alwaysProceedCancel": "Zrušiť"
 }

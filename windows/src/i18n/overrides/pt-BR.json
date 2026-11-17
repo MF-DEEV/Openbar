@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "Uma vez",
   "windows.settings.sessions.remindEveryValue": "A cada %@ min",
   "windows.settings.sessions.remindDuringDnd": "Também em Não perturbe",
-  "windows.settings.sessions.remindDuringDndCaption": "Lembra mesmo com Não perturbe ativado. Caso contrário, o lembrete espera até ele terminar."
+  "windows.settings.sessions.remindDuringDndCaption": "Lembra mesmo com Não perturbe ativado. Caso contrário, o lembrete espera até ele terminar.",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "O Claude Code roda aqui com bypass permissions. A ilha deixa passar os pedidos de permissão e continua trazendo as perguntas para você.",
+  "windows.sessions.autoMarkHelpCodex": "O Codex roda aqui com aprovações desligadas. A ilha deixa passar os pedidos de permissão e continua trazendo as perguntas para você.",
+  "windows.sessions.letThroughTitle": "Liberados",
+  "windows.sessions.letThroughAlways": "Sempre prosseguir",
+  "windows.sessions.moreLetThrough": "mais %@",
+  "windows.settings.sessions.autoMode": "Deixar sessões em modo automático rodarem sem a ilha",
+  "windows.settings.sessions.autoModeCaption": "Uma sessão iniciada no modo sem perguntas do agente nunca espera pela ilha: Claude Code com bypass permissions, Codex com aprovações desligadas (yolo). Os pedidos seguem na hora e ficam listados na página dela. As perguntas continuam chegando para você.",
+  "windows.settings.sessions.alwaysProceed": "Sempre prosseguir",
+  "windows.settings.sessions.alwaysProceedCaption": "A ilha permite todos os pedidos de permissão dos agentes que você escolher, em qualquer modo, sem perguntar. As perguntas continuam chegando para você.",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "Sempre prosseguir no %@?",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "A ilha vai permitir todo comando e toda alteração de arquivo que o %@ pedir, em qualquer sessão e modo, sem mostrar antes. Isso inclui apagar arquivos e acessar a rede. As perguntas continuam chegando para você, e cada pedido permitido fica listado na página da sessão.",
+  "windows.settings.sessions.alwaysProceedConfirm": "Sempre prosseguir",
+  "windows.settings.sessions.alwaysProceedOn": "Ligado: os pedidos deste agente são permitidos sem perguntar.",
+  "windows.settings.sessions.alwaysProceedCancel": "Cancelar"
 }

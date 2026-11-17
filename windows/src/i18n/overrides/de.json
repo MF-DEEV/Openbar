@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "Einmal",
   "windows.settings.sessions.remindEveryValue": "Alle %@ Min.",
   "windows.settings.sessions.remindDuringDnd": "Auch bei „Nicht stören“",
-  "windows.settings.sessions.remindDuringDndCaption": "Erinnert auch, wenn „Nicht stören“ an ist. Sonst wartet die Erinnerung, bis es endet."
+  "windows.settings.sessions.remindDuringDndCaption": "Erinnert auch, wenn „Nicht stören“ an ist. Sonst wartet die Erinnerung, bis es endet.",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "Claude Code läuft hier mit bypass permissions. Die Insel lässt seine Berechtigungsanfragen durch und zeigt dir seine Fragen weiterhin.",
+  "windows.sessions.autoMarkHelpCodex": "Codex läuft hier ohne Freigaben. Die Insel lässt seine Berechtigungsanfragen durch und zeigt dir seine Fragen weiterhin.",
+  "windows.sessions.letThroughTitle": "Durchgelassen",
+  "windows.sessions.letThroughAlways": "Immer fortfahren",
+  "windows.sessions.moreLetThrough": "%@ weitere",
+  "windows.settings.sessions.autoMode": "Sitzungen im Automodus ohne die Insel laufen lassen",
+  "windows.settings.sessions.autoModeCaption": "Eine Sitzung, die im Modus ohne Rückfragen ihres Agenten gestartet wurde, wartet nie auf die Insel: Claude Code mit bypass permissions, Codex ohne Freigaben (yolo). Ihre Anfragen laufen sofort weiter und stehen auf ihrer Seite. Fragen kommen weiterhin zu dir.",
+  "windows.settings.sessions.alwaysProceed": "Immer fortfahren",
+  "windows.settings.sessions.alwaysProceedCaption": "Die Insel erlaubt jede Berechtigungsanfrage der gewählten Agenten, in jedem Modus, ohne zu fragen. Fragen kommen weiterhin zu dir.",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "Für %@ immer fortfahren?",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "Die Insel erlaubt jeden Befehl und jede Dateiänderung, die %@ anfragt, in jeder Sitzung und jedem Modus, ohne sie dir vorher zu zeigen. Das gilt auch für das Löschen von Dateien und den Zugriff aufs Netz. Fragen kommen weiterhin zu dir, und jede erlaubte Anfrage steht auf der Seite der Sitzung.",
+  "windows.settings.sessions.alwaysProceedConfirm": "Immer fortfahren",
+  "windows.settings.sessions.alwaysProceedOn": "An: Anfragen dieses Agenten werden ohne Rückfrage erlaubt.",
+  "windows.settings.sessions.alwaysProceedCancel": "Abbrechen"
 }

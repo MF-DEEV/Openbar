@@ -83,6 +83,7 @@ struct NotchClaudeSessionDetailView: View {
                     if let tasks = session.tasks { tasksRow(tasks) }
                     if !session.timeline.isEmpty { timeline }
                     if !session.subagents.isEmpty { subagents(now: context.date) }
+                    if !session.letThrough.isEmpty { NotchSessionLetThroughList(session: session, text: text) }
                     lastReply
                 }
                 .padding(.bottom, 6)
@@ -121,6 +122,7 @@ struct NotchClaudeSessionDetailView: View {
                 HStack(spacing: 6) {
                     if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
                     if let account = service.accountLabels[session.id] { NotchClaudeAccountBadge(name: account) }
+                    if session.autoMode { NotchSessionAutoBadge(provider: session.provider, text: text) }
                     NotchClaudeProjectTag(project: session.project)
                     NotchSessionBranchChip(session: session, maxWidth: 180)
                     NotchModelChip(session: session)

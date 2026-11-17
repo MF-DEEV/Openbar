@@ -6,7 +6,7 @@ import Foundation
 /// One hook event as Claude Code writes it to the hook's input, and the
 /// answer a permission request takes back.
 struct ClaudeHookMessage {
-    let fact: ClaudeHookFact
+    private(set) var fact: ClaudeHookFact
     let transcript: String?
     /// The rules Claude Code offered to stop asking, handed back as they came
     /// when the person picks Always.
@@ -30,6 +30,23 @@ struct ClaudeHookMessage {
     var isPermissionRequest: Bool {
         if case .permissionRequested = fact.event { return true }
         return false
+    }
+
+    /// A request for a tool to run, which a no-ask session lets through
+    /// (#234): not a question, which only the person can answer, nor a plan,
+    /// which they approve.
+    var letsThrough: ClaudePermission? {
+        guard case .permissionRequested(let permission) = fact.event, questionInput == nil,
+              !permission.asksQuestions, permission.tool != ClaudeToolSummary.planTool else { return nil }
+        return permission
+    }
+
+    /// The same event, no longer waiting on anyone: the request was let through.
+    func settled() -> ClaudeHookMessage {
+        var message = self
+        message.fact = ClaudeHookFact(sessionID: fact.sessionID, date: fact.date, event: .other("PermissionRequest"),
+                                      agentID: fact.agentID, mode: fact.mode)
+        return message
     }
 
     /// Nil for input that is not a hook event. Text and arguments are kept
@@ -107,7 +124,8 @@ struct ClaudeHookMessage {
         default: event = .other(name)
         }
         return ClaudeHookMessage(
-            fact: ClaudeHookFact(sessionID: session, date: now, event: event, agentID: from),
+            fact: ClaudeHookFact(sessionID: session, date: now, event: event, agentID: from,
+                                 mode: (json["permission_mode"] as? String).flatMap { $0.isEmpty ? nil : $0 }),
             transcript: json["transcript_path"] as? String, suggestions: suggestions, questionInput: questionInput,
             approvalInput: approvalInput)
     }

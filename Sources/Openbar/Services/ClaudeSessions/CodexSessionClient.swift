@@ -68,6 +68,9 @@ final class CodexSessionClient {
     private let lock = NSLock()
     // Everything below is guarded by `lock`.
     private let state = CodexSessionState()
+    /// Which sessions run without asking, and where what they did goes (#234).
+    var auto: SessionAutoMode.Box = SessionAutoMode.shared
+    var letThroughLog: SessionAutoMode.Log = SessionAutoMode.log
     private var nextID = 0
     private var waiting: [Int: Waiting] = [:]
     /// Text frames queued for the daemon; nil while not connected.
@@ -150,6 +153,7 @@ final class CodexSessionClient {
 
     func snapshot(now: Date, previews: Bool) -> (sessions: [ClaudeSession], events: [ClaudeSessionEvent]) {
         lock.withLock {
+            state.autoSettings = auto.settings
             if state.previews != previews {
                 state.setPreviews(previews)
                 if previews {
@@ -213,6 +217,20 @@ final class CodexSessionClient {
     }
 
     func closeInspection(_ token: String) { lock.withLock { inspection.close(token) } }
+
+    /// Answers an approval of a session the island lets run without asking
+    /// (#234) as it comes, and lists it on the session's page. Under the lock.
+    private func letThrough(thread: String, request: CodexRPCID, now: Date) {
+        state.autoSettings = auto.settings
+        guard let reason = state.letsThrough(thread),
+              let pending = state.threads[thread]?.pending.last(where: { $0.rpcID == request }),
+              pending.answerable, !pending.asks, let body = CodexSessionState.result(pending, .allow) else { return }
+        let row = state.row(of: thread)
+        guard state.takePending(thread: row, requestID: pending.requestID) != nil else { return }
+        state.proceeded(thread, at: now)
+        send(["id": pending.rpcID.json, "result": body])
+        letThroughLog.add(ClaudeLetThrough(CodexSessionState.permission(pending), at: now, reason: reason), to: row)
+    }
 
     /// Whether the request with this island id still waits on the session's row.
     func waits(_ session: String, requestID: String) -> Bool {
@@ -331,7 +349,9 @@ final class CodexSessionClient {
                         if let content = p.content { inspection.invalidate(row, revision: content.revision(p)) }
                     }
                 }
+                state.autoSettings = auto.settings
                 let kept = state.request(id, method: method, params: params, now: now)
+                if kept, let thread = params["threadId"] as? String { letThrough(thread: thread, request: id, now: now) }
                 follow()
                 return kept
             case (let method?, nil):
@@ -377,6 +397,10 @@ final class CodexSessionClient {
                 case .read(let revision), .resume(let revision):
                     guard let thread = result["thread"] as? [String: Any] else { return false }
                     state.upsertThread(thread, historyRevision: revision, historyOrder: number)
+                    // Only a resume says how the thread asks for approvals (#234).
+                    if case .resume = kind, let id = thread["id"] as? String {
+                        state.setApprovalPolicy(id, result["approvalPolicy"])
+                    }
                     if let id = thread["id"] as? String, state.threads[id] == nil { focused.remove(id) }
                     follow()
                     return true

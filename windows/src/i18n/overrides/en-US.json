@@ -867,5 +867,20 @@
   "windows.settings.sessions.remindOnce": "Once",
   "windows.settings.sessions.remindEveryValue": "Every %@ min",
   "windows.settings.sessions.remindDuringDnd": "Also during Do Not Disturb",
-  "windows.settings.sessions.remindDuringDndCaption": "Reminds while Do Not Disturb is on. Otherwise the reminder waits until it ends."
+  "windows.settings.sessions.remindDuringDndCaption": "Reminds while Do Not Disturb is on. Otherwise the reminder waits until it ends.",
+  "windows.sessions.autoMark": "auto",
+  "windows.sessions.autoMarkHelpClaude": "Claude Code runs with bypass permissions here. The island lets its permission requests through and still brings you its questions.",
+  "windows.sessions.autoMarkHelpCodex": "Codex runs with approvals off here. The island lets its permission requests through and still brings you its questions.",
+  "windows.sessions.letThroughTitle": "Let through",
+  "windows.sessions.letThroughAlways": "Always proceed",
+  "windows.sessions.moreLetThrough": "%@ more",
+  "windows.settings.sessions.autoMode": "Let auto-mode sessions run without the island",
+  "windows.settings.sessions.autoModeCaption": "A session started in its agent's no-ask mode never waits on the island: Claude Code with bypass permissions, Codex with approvals off (yolo). Its requests go ahead at once and are listed on its page. Questions still come to you.",
+  "windows.settings.sessions.alwaysProceed": "Always proceed",
+  "windows.settings.sessions.alwaysProceedCaption": "The island allows every permission request of the agents you pick, in any mode, without asking. Questions still come to you.",
+  "windows.settings.sessions.alwaysProceedConfirmTitle": "Always proceed for %@?",
+  "windows.settings.sessions.alwaysProceedConfirmMessage": "The island will allow every command and file change %@ asks for, in every session and mode, without showing it to you first. That includes deleting files and reaching the network. Questions still come to you, and each request it allows is listed on the session's page.",
+  "windows.settings.sessions.alwaysProceedConfirm": "Always proceed",
+  "windows.settings.sessions.alwaysProceedOn": "On: requests of this agent are allowed without asking.",
+  "windows.settings.sessions.alwaysProceedCancel": "Cancel"
 }

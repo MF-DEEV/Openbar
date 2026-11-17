@@ -8,6 +8,9 @@ import Foundation
 /// §3.4, §3.5, §5). Pure: messages and times go in, sessions and the answers
 /// to send come out. The owner serializes every call.
 final class CodexSessionState {
+    /// How long a session the island lets through may say it waits on an
+    /// approval that has not come (#234).
+    static let approvalGrace: TimeInterval = 3
     /// How long an unread finished turn stays marked, as for Claude.
     static let finishedFor: TimeInterval = ClaudeSessionEngine.finishedFor
     static let timelineLength = ClaudeSessionEngine.timelineLength
@@ -109,6 +112,13 @@ final class CodexSessionState {
         var turnEnded: (at: Date, completed: Bool)?
         /// The last turn the plan's usage limit stopped.
         var limit: ClaudeLimitStop?
+        /// Its approval policy, as a resume or a settings change says; a
+        /// granular one reads "granular" (#234).
+        var approvalPolicy: String?
+        /// When its status last began to wait on an approval, and when the
+        /// island last let one through for it (#234).
+        var approvalWaitSince: Date?
+        var proceededAt: Date?
         var acknowledged: Date?
         var pending: [Pending] = []
         /// The patch of each file change item still running, by item id, for
@@ -224,6 +234,8 @@ final class CodexSessionState {
 
     private(set) var threads: [String: Thread] = [:]
     private(set) var previews = false
+    /// Which sessions the island lets run without asking (#234).
+    var autoSettings = SessionAutoMode.Settings(autoRun: [], alwaysProceed: [])
     private(set) var chatRevision = 0
 
     /// Turning previews off also drops content already received. Late history
@@ -239,6 +251,33 @@ final class CodexSessionState {
 
     /// Forgets every thread, as when the daemon goes away.
     func reset() { threads.removeAll() }
+
+    /// A thread's approval policy, from a resume's result (#234).
+    @discardableResult
+    func setApprovalPolicy(_ id: String, _ value: Any?) -> Bool {
+        guard threads[id] != nil, let policy = Self.approvalPolicy(value), threads[id]?.approvalPolicy != policy else { return false }
+        threads[id]?.approvalPolicy = policy
+        return true
+    }
+
+    static func approvalPolicy(_ value: Any?) -> String? {
+        if let text = value as? String, !text.isEmpty { return text }
+        return value is [String: Any] ? "granular" : nil
+    }
+
+    /// Whether the island lets this thread's approvals through, by its own
+    /// policy or, for a subagent's thread not yet described, its row's.
+    func letsThrough(_ id: String) -> ClaudeLetThrough.Reason? {
+        let policy = threads[id]?.approvalPolicy ?? threads[row(of: id)]?.approvalPolicy
+        return autoSettings.passes(.codex, autoMode: SessionAutoMode.isAuto(codexApproval: policy))
+    }
+
+    /// The island answered one of the thread's approvals itself.
+    func proceeded(_ id: String, at date: Date) {
+        threads[id]?.proceededAt = date
+        let row = row(of: id)
+        if row != id { threads[row]?.proceededAt = date }
+    }
 
     /// Sets a thread's subscription mark; the client joins and leaves threads.
     func setSubscribed(_ id: String, _ subscribed: Bool) {
@@ -379,6 +418,11 @@ final class CodexSessionState {
             let before = (thread.status, thread.turnStarted)
             // A new turn starts now; turn/started, if it comes, has the exact time.
             if status.isActive, !thread.isActive { thread.turnStarted = now }
+            if case .active(waitingOnApproval: true, _) = status {
+                if thread.approvalWaitSince == nil { thread.approvalWaitSince = now }
+            } else {
+                thread.approvalWaitSince = nil
+            }
             thread.status = status
             threads[id] = thread
             return Notified(changed: !known || before.0 != thread.status || before.1 != thread.turnStarted,
@@ -417,9 +461,12 @@ final class CodexSessionState {
                   let settings = params["threadSettings"] as? [String: Any] else { return unchanged }
             let model = Self.string(settings, "model") ?? thread.model
             let effort = Self.string(settings, "effort") ?? thread.effort
-            guard model != thread.model || effort != thread.effort else { return unchanged }
+            // A switch of /permissions comes here too, as the next turn starts (#234).
+            let policy = Self.approvalPolicy(settings["approvalPolicy"]) ?? thread.approvalPolicy
+            guard model != thread.model || effort != thread.effort || policy != thread.approvalPolicy else { return unchanged }
             thread.model = model
             thread.effort = effort
+            thread.approvalPolicy = policy
             threads[id] = thread
             return changed
         case "turn/completed":
@@ -548,7 +595,7 @@ final class CodexSessionState {
             // A subagent's thread belongs to its parent's row.
             if thread.parent != nil || thread.ephemeral || thread.cwd.isEmpty { continue }
             let pending = Self.ordered(waiting[id] ?? [])
-            let phase = Self.phase(thread, pending: pending, now: now)
+            let phase = Self.phase(thread, pending: pending, now: now, letsThrough: letsThrough(id) != nil)
             let since: Date
             if let previous = thread.phase, previous.phase == phase {
                 since = previous.since
@@ -568,12 +615,18 @@ final class CodexSessionState {
 
     /// Phase rules in order (docs/codex-sessions.md §5.1). `pending` is what waits on the
     /// thread's row, its subagents' requests too; the thread's own by default.
-    static func phase(_ thread: Thread, pending: [Pending]? = nil, now: Date) -> ClaudeSessionPhase {
+    static func phase(_ thread: Thread, pending: [Pending]? = nil, now: Date, letsThrough: Bool = false) -> ClaudeSessionPhase {
         let pending = pending ?? thread.pending
         if pending.contains(where: { !$0.asks }) { return .waitingPermission }
         if pending.contains(where: \.asks) { return .waitingInput }
+        // Codex says it waits a moment before the request itself comes; for
+        // a session the island lets through, that request is answered at
+        // once, so the moment is no wait (#234).
+        let passing = letsThrough && [thread.approvalWaitSince, thread.proceededAt].contains {
+            $0.map { now.timeIntervalSince($0) < approvalGrace } ?? false
+        }
         switch thread.status {
-        case .active(waitingOnApproval: true, _)?: return .waitingPermission
+        case .active(waitingOnApproval: true, _)? where !passing: return .waitingPermission
         case .active(_, waitingOnInput: true)?: return .waitingInput
         case .active?: return thread.tools.contains { $0.finished == nil } ? .runningTool : .generating
         default:
@@ -656,6 +709,7 @@ final class CodexSessionState {
             hooked: true, provider: .codex)
         if phase == .limited { session.limitStop = thread.limit }
         if previews { session.chat = thread.chat.map(\.value) }
+        session.autoMode = SessionAutoMode.isAuto(codexApproval: thread.approvalPolicy)
         return session
     }
 

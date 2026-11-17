@@ -8342,5 +8342,95 @@
     "key": "windows.settings.sessions.remindDuringDndCaption",
     "english": "Reminds while Do Not Disturb is on. Otherwise the reminder waits until it ends.",
     "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.autoMark",
+    "english": "auto",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.autoMarkHelpClaude",
+    "english": "Claude Code runs with bypass permissions here. The island lets its permission requests through and still brings you its questions.",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.autoMarkHelpCodex",
+    "english": "Codex runs with approvals off here. The island lets its permission requests through and still brings you its questions.",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.letThroughTitle",
+    "english": "Let through",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.letThroughAlways",
+    "english": "Always proceed",
+    "source": null
+  },
+  {
+    "file": "src/sessions/strings.ts",
+    "key": "windows.sessions.moreLetThrough",
+    "english": "%@ more",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.autoMode",
+    "english": "Let auto-mode sessions run without the island",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.autoModeCaption",
+    "english": "A session started in its agent's no-ask mode never waits on the island: Claude Code with bypass permissions, Codex with approvals off (yolo). Its requests go ahead at once and are listed on its page. Questions still come to you.",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.alwaysProceed",
+    "english": "Always proceed",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.alwaysProceedCaption",
+    "english": "The island allows every permission request of the agents you pick, in any mode, without asking. Questions still come to you.",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.alwaysProceedConfirmTitle",
+    "english": "Always proceed for %@?",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.alwaysProceedConfirmMessage",
+    "english": "The island will allow every command and file change %@ asks for, in every session and mode, without showing it to you first. That includes deleting files and reaching the network. Questions still come to you, and each request it allows is listed on the session's page.",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.alwaysProceedConfirm",
+    "english": "Always proceed",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.alwaysProceedOn",
+    "english": "On: requests of this agent are allowed without asking.",
+    "source": null
+  },
+  {
+    "file": "src/settings/strings.ts",
+    "key": "windows.settings.sessions.alwaysProceedCancel",
+    "english": "Cancel",
+    "source": null
   }
 ]

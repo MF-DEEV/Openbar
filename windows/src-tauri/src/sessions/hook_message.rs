@@ -42,6 +42,28 @@ impl HookMessage {
         matches!(self.fact.event, HookEvent::PermissionRequested(_))
     }
 
+    /// A request for a tool to run, which a no-ask session lets through
+    /// (#234): not a question, which only the person can answer, nor a plan,
+    /// which they approve.
+    pub fn lets_through(&self) -> Option<&Permission> {
+        match &self.fact.event {
+            HookEvent::PermissionRequested(p)
+                if self.question_input.is_none()
+                    && p.questions.is_empty()
+                    && p.tool != tool_summary::PLAN_TOOL =>
+            {
+                Some(p)
+            }
+            _ => None,
+        }
+    }
+
+    /// The same event, no longer waiting on anyone: the request was let through.
+    pub fn settled(mut self) -> HookMessage {
+        self.fact.event = HookEvent::Other("PermissionRequest".to_owned());
+        self
+    }
+
     /// Nil for input that is not a hook event. Text and arguments are kept
     /// only as the policy allows, except what a permission would run.
     pub fn decode(
@@ -214,6 +236,9 @@ impl HookMessage {
                 date: now,
                 event,
                 agent_id: from,
+                mode: str_of(json.get("permission_mode"))
+                    .filter(|m| !m.is_empty())
+                    .map(str::to_owned),
             },
             transcript: str_of(json.get("transcript_path")).map(str::to_owned),
             suggestions,
@@ -1079,5 +1104,61 @@ mod tests {
             panic!("a command decodes");
         };
         assert!(other.diffs.is_empty() && other.fits_on_a_line());
+    }
+}
+
+#[cfg(test)]
+mod auto_mode_tests {
+    use super::*;
+
+    const BASE: &str = r#""session_id":"s1","transcript_path":"C:\\t.jsonl","cwd":"C:\\code\\app""#;
+
+    fn decode(json: &str) -> Option<HookMessage> {
+        HookMessage::decode_with(
+            json.as_bytes(),
+            "r1",
+            1.0,
+            ContentPolicy { previews: false },
+            |_, _| Vec::new(),
+        )
+    }
+
+    /// As Claude Code 2.1.318 sends them in a bypass session (#234).
+    #[test]
+    fn a_tools_request_is_let_through_but_not_a_question_or_plan() {
+        let bash = decode(&format!(r#"{{{BASE},"permission_mode":"bypassPermissions","hook_event_name":"PermissionRequest","tool_name":"Bash","tool_input":{{"command":"echo hi"}},"permission_suggestions":[]}}"#)).unwrap();
+        assert_eq!(bash.fact.mode.as_deref(), Some("bypassPermissions"));
+        assert_eq!(bash.lets_through().map(|p| p.tool.as_str()), Some("Bash"));
+        let settled = bash.settled();
+        assert!(!settled.is_permission_request());
+        assert_eq!(
+            settled.fact.event,
+            HookEvent::Other("PermissionRequest".into())
+        );
+        assert_eq!(settled.fact.mode.as_deref(), Some("bypassPermissions"));
+
+        let question = decode(&format!(r#"{{{BASE},"permission_mode":"bypassPermissions","hook_event_name":"PermissionRequest","tool_name":"AskUserQuestion","tool_input":{{"questions":[{{"question":"Which color?","header":"Color","options":[{{"label":"Red","description":"r"}},{{"label":"Blue","description":"b"}}],"multiSelect":false}}]}}}}"#)).unwrap();
+        assert!(question.is_permission_request());
+        assert!(
+            question.lets_through().is_none(),
+            "a question still comes to the island"
+        );
+        let plan = decode(&format!(r##"{{{BASE},"permission_mode":"bypassPermissions","hook_event_name":"PermissionRequest","tool_name":"ExitPlanMode","tool_input":{{"plan":"# Plan"}}}}"##)).unwrap();
+        assert!(
+            plan.lets_through().is_none(),
+            "a plan is approved by the person"
+        );
+        let start = decode(&format!(r#"{{{BASE},"hook_event_name":"SessionStart"}}"#)).unwrap();
+        assert_eq!(start.fact.mode, None);
+        let prompt = decode(&format!(r#"{{{BASE},"permission_mode":"default","hook_event_name":"UserPromptSubmit","prompt":"again"}}"#)).unwrap();
+        assert_eq!(prompt.fact.mode.as_deref(), Some("default"));
+
+        let allow: Value =
+            serde_json::from_slice(&reply(&Decision::Allow, None, None, None)).unwrap();
+        assert_eq!(
+            allow["hookSpecificOutput"]["decision"],
+            serde_json::json!({"behavior": "allow"}),
+            "this call only"
+        );
     }
 }

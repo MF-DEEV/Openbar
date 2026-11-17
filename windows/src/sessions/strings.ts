@@ -529,6 +529,19 @@ export const S = {
     return t("windows.sessions.reminderStill");
   },
   reminderTitle: (n: number) => tf("windows.sessions.reminderTitle", n),
+  // #234: sessions in their agent's no-ask mode.
+  get autoMark() {
+    return t("windows.sessions.autoMark");
+  },
+  autoMarkHelp: (provider: string) =>
+    provider === "codex" ? t("windows.sessions.autoMarkHelpCodex") : t("windows.sessions.autoMarkHelpClaude"),
+  get letThroughTitle() {
+    return t("windows.sessions.letThroughTitle");
+  },
+  get letThroughAlways() {
+    return t("windows.sessions.letThroughAlways");
+  },
+  moreLetThrough: (n: number) => tf("windows.sessions.moreLetThrough", n),
   get awayWaiting() {
     return t("windows.sessions.awayWaiting");
   },

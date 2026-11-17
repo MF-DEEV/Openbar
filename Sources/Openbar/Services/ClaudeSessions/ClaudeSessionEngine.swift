@@ -65,6 +65,8 @@ final class ClaudeSessionEngine {
         var acknowledged: Date?
         /// The last turn the plan's usage limit stopped.
         var limit: ClaudeLimitStop?
+        /// The permission mode last heard of, and when (#234).
+        var mode: (value: String, at: Date)?
         var firstSeen: Date
 
         init(firstSeen: Date) { self.firstSeen = firstSeen }
@@ -179,6 +181,8 @@ final class ClaudeSessionEngine {
     func ingest(hook fact: ClaudeHookFact, now: Date) {
         var entry = activity[fact.sessionID] ?? Activity(firstSeen: now)
         entry.hooked = true
+        // A subagent's hooks name its own mode, not the session's.
+        if fact.agentID == nil, let mode = fact.mode { Self.setMode(mode, at: fact.date, in: &entry) }
         if let agent = fact.agentID {
             applySubagent(fact.event, agent: agent, date: fact.date, to: &entry)
         } else {
@@ -190,6 +194,16 @@ final class ClaudeSessionEngine {
     /// The person answered, or the hook stopped waiting for an answer.
     func resolvePermission(requestID: String) {
         for id in activity.keys { activity[id]?.permissions.removeAll { $0.requestID == requestID } }
+    }
+
+    /// The permission mode a session was last heard in (#234).
+    func mode(of id: String) -> String? { activity[id]?.mode?.value }
+
+    /// A newer reading of the mode wins; one read late from the transcript
+    /// never replaces what a hook said since.
+    private static func setMode(_ mode: String, at date: Date, in entry: inout Activity) {
+        guard !mode.isEmpty, (entry.mode?.at ?? .distantPast) <= date else { return }
+        entry.mode = (mode, date)
     }
 
     /// The permission the island shows for a session: the oldest one asked.
@@ -356,7 +370,8 @@ final class ClaudeSessionEngine {
             services: record.status == .shell || phase == .background ? entry.runningBackground.filter(\.service).count : 0,
             background: record.job.map { ClaudeBackgroundDetails(job: $0, configHome: record.configHome) },
             limitStop: phase == .limited ? entry.limit : nil,
-            account: record.host.remoteAlias == nil ? record.configHome : nil)
+            account: record.host.remoteAlias == nil ? record.configHome : nil,
+            autoMode: SessionAutoMode.isAuto(claudeMode: entry.mode?.value))
     }
 
     // MARK: Rules
@@ -420,6 +435,7 @@ final class ClaudeSessionEngine {
         case .tasks(var tasks):
             if !policy.previews { tasks = tasks.stripped() }
             entry.tasks = tasks.total > 0 ? tasks : nil
+        case .permissionMode(let mode, let date): Self.setMode(mode, at: date, in: &entry)
         case .limitReached(let stop):
             // A stop read late never replaces a newer one.
             if (entry.limit?.at ?? .distantPast) <= stop.at { entry.limit = stop }

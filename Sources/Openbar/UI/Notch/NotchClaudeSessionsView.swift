@@ -276,6 +276,7 @@ struct NotchClaudeSessionRow: View {
                 if session.background != nil { NotchClaudeBackgroundMark(text: text) }
                 if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
                 if let account { NotchClaudeAccountBadge(name: account) }
+                if session.autoMode { NotchSessionAutoBadge(provider: session.provider, text: text) }
                 Spacer(minLength: 4)
                 NotchModelChip(session: session)
                 if let tasks { NotchTaskCount(tasks: tasks, tint: session.provider.tint, style: progressStyle, text: text) }

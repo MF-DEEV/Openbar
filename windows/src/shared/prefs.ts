@@ -87,6 +87,15 @@ export interface SessionPrefs extends SessionSoundPrefs {
   remindAfter: number;
   remindEvery: number;
   remindDuringDnd: boolean;
+  /** Sessions in their agent's no-ask mode run without the island, per agent
+   * whose mode it tells (#234; sessions/auto_mode.rs); on by default. */
+  autoRunClaude: boolean;
+  autoRunCodex: boolean;
+  /** Every permission of the agent is allowed without asking (#234); off unless chosen. */
+  alwaysProceedClaude: boolean;
+  alwaysProceedCodex: boolean;
+  alwaysProceedOpencode: boolean;
+  alwaysProceedVibe: boolean;
   /** The list as one column, or grouped by project or by agent (#233). */
   grouping: Grouping;
   /** Groups the person folded, by their key (sessions/groups.ts). */
@@ -141,6 +150,12 @@ export const DEFAULT_SESSION_PREFS: SessionPrefs = {
   remindAfter: 5,
   remindEvery: 0,
   remindDuringDnd: false,
+  autoRunClaude: true,
+  autoRunCodex: true,
+  alwaysProceedClaude: false,
+  alwaysProceedCodex: false,
+  alwaysProceedOpencode: false,
+  alwaysProceedVibe: false,
   grouping: "none",
   collapsedGroups: [],
 };

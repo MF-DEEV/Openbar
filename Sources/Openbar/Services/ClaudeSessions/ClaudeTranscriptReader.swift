@@ -131,6 +131,8 @@ struct ClaudeTranscriptReader {
             }
         case "user":
             guard json["isSidechain"] as? Bool != true else { break }
+            // Each prompt records the mode it was typed in (#234).
+            if let mode = json["permissionMode"] as? String, !mode.isEmpty { facts.append(.permissionMode(mode, at: date)) }
             let content = (json["message"] as? [String: Any])?["content"]
             let blocks = content as? [[String: Any]] ?? []
             let results = blocks.filter { $0["type"] as? String == "tool_result" }

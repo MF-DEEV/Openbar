@@ -206,6 +206,7 @@ final class ClaudeSessionService: ObservableObject {
     }
 
     func syncWithPreferences() {
+        SessionAutoMode.shared.settings = SessionAutoMode.Settings(defaults: .standard)
         let policy = NotchClaudeSessionsSupport.policy()
         let agents = NotchClaudeSessionsSupport.shownAgents()
         guard NotchClaudeSessionsSupport.isEnabled() else { stop(); return }
@@ -293,6 +294,7 @@ final class ClaudeSessionService: ObservableObject {
             autoAllowWork.values.forEach { $0.cancel() }
             autoAllowWork = [:]
             publishedAutoAllow = []
+            SessionAutoMode.log.clear()
             readers = [:]
             transcripts = [:]
             subagentMeta = []
@@ -1082,13 +1084,22 @@ final class ClaudeSessionService: ObservableObject {
             return connection.finish()
         }
         let request = UUID().uuidString
-        guard let message = ClaudeHookMessage.decode(payload, requestID: request, now: now, policy: engine.policy) else {
+        guard var message = ClaudeHookMessage.decode(payload, requestID: request, now: now, policy: engine.policy) else {
             return connection.finish()
         }
         // A remote session's transcript is on its host, read through its connection.
         let remote = isRemotePeer(connection.peer)
         if !remote, let transcript = message.transcript, !transcript.isEmpty { transcripts[message.fact.sessionID] = transcript }
-        if message.isPermissionRequest {
+        let session = message.fact.sessionID
+        if let permission = message.letsThrough,
+           let reason = SessionAutoMode.shared.settings.passes(
+               .claude, autoMode: SessionAutoMode.isAuto(claudeMode: message.fact.mode ?? engine.mode(of: session))) {
+            // A session that runs without asking is never held (#234): its
+            // tool goes ahead now, and its page lists it.
+            connection.finish(ClaudeHookMessage.reply(.allow, suggestions: nil, approved: message.approvalInput))
+            SessionAutoMode.log.add(ClaudeLetThrough(permission, at: now, reason: reason), to: session)
+            message = message.settled()
+        } else if message.isPermissionRequest {
             pending[request] = (connection, message.fact.sessionID, message.suggestions, message.questionInput,
                                 message.approvalInput, message.planModes, now)
         } else {
@@ -1130,7 +1141,17 @@ final class ClaudeSessionService: ObservableObject {
             listeners[pid] = connection
             return
         }
-        if let asked = decoded.permission {
+        // A request the person chose Always proceed for goes ahead now (#234).
+        var proceeded: String?
+        if let asked = decoded.permission, let reason = SessionAutoMode.shared.settings.passes(decoded.provider, autoMode: false),
+           let permission = Self.allowable(decoded.events, request: asked.request),
+           let reply = decoded.provider == .vibe ? AgentHookMessage.vibeReply(.allow) : AgentHookMessage.opencodeReply(.allow) {
+            let id = AgentHookEvent.id(decoded.provider, asked.session)
+            agentPending.removeValue(forKey: asked.request)?.connection.finish()
+            connection.finish(reply)
+            SessionAutoMode.log.add(ClaudeLetThrough(permission, at: now, reason: reason), to: id)
+            proceeded = asked.request
+        } else if let asked = decoded.permission {
             let id = AgentHookEvent.id(decoded.provider, asked.session)
             inspection.invalidate(id)
             agentPending.removeValue(forKey: asked.request)?.connection.finish()
@@ -1150,6 +1171,12 @@ final class ClaudeSessionService: ObservableObject {
                 cwd = ClaudeSessionHosts.cwd(of: agent)
             }
             var kind = event.kind
+            switch kind {
+            case .permission(let p) where p.requestID == proceeded, .heldPermission(let p) where p.requestID == proceeded:
+                // Let through: nothing waits on the person.
+                continue
+            default: break
+            }
             // A session run through the proxy is answered there: Vibe's hooks only hear of its requests.
             if event.provider == .vibe, !decoded.fromProxy, proxied[event.id] != nil {
                 switch kind {
@@ -1185,6 +1212,20 @@ final class ClaudeSessionService: ObservableObject {
                 agent: event.provider, event: DiagnosticsJournal.label(event.kind), session: event.id,
                 from: before[event.id] ?? nil, to: phase(of: event.id), at: now), at: now)
         }
+    }
+
+    /// The request among an agent's events that a plain allow answers: a
+    /// tool's, never a question.
+    static func allowable(_ events: [AgentHookEvent], request: String) -> ClaudePermission? {
+        for event in events {
+            switch event.kind {
+            case .permission(let p) where p.requestID == request && !p.asksQuestions,
+                 .heldPermission(let p) where p.requestID == request && !p.asksQuestions:
+                return p
+            default: continue
+            }
+        }
+        return nil
     }
 
     /// Lets go of OpenCode requests whose session left or that waited too
@@ -1676,9 +1717,11 @@ final class ClaudeSessionService: ObservableObject {
             return hosts[pid] ?? .unknown
         }, branch: { [self] folder in branches.branch(of: folder, now: now) })
         let agentSessions = fromAgents.sessions.filter { shownAgents.contains($0.provider) }
-        let sorted = NotchClaudeSessionsSupport.sorted(withBackground(claude, now: now) + codexSessions + agentSessions
-            + (sample.map { [$0] } ?? [])).map { withLiveBranch($0, now: now) }
+        let sorted = SessionAutoMode.log.decorate(NotchClaudeSessionsSupport.sorted(
+            withBackground(claude, now: now) + codexSessions + agentSessions + (sample.map { [$0] } ?? [])
+        ).map { withLiveBranch($0, now: now) })
         inspection.retain(sorted)
+        SessionAutoMode.log.prune(listed: Set(sorted.map(\.id)), now: now)
         let shown = autoAllowing(sorted, now: now)
         let allowed = autoAllow.sessions
         let hidden = Set(sorted.filter { NotchClaudeSessionsSupport.hidesAutoApproval($0, autoAllowed: allowed, now: now) }

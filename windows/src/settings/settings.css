@@ -1620,3 +1620,23 @@ select {
   align-items: center;
   justify-content: center;
 }
+
+/* #234: Always proceed says what it means before it turns on. */
+.st-warning {
+  color: var(--st-warn);
+}
+.st-confirm {
+  margin: 4px 0 8px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  border: 1px solid color-mix(in srgb, var(--st-warn) 45%, transparent);
+  background: color-mix(in srgb, var(--st-warn) 8%, var(--st-card));
+}
+.st-confirm .st-card-caption {
+  margin: 4px 0 10px;
+}
+.st-confirm-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
