@@ -3326,3 +3326,667 @@
   color: rgba(255, 255, 255, 0.35);
   font-size: 10px;
 }
+
+/* New session in four steps (#270; NotchClaudeNewSessionView.swift). The
+ * steps sit across the top, each page is centred and no wider than it needs,
+ * and pages slide in from the side they lie on. */
+.s-steps {
+  gap: 10px;
+}
+
+.s-step-bar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+}
+
+.s-step-item {
+  display: inline-flex;
+  align-items: center;
+}
+
+.s-step {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background 260ms var(--ease-spring),
+    color 200ms ease,
+    box-shadow 260ms ease,
+    transform 160ms var(--ease-spring);
+}
+
+.s-step:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.s-step:active {
+  transform: scale(0.96);
+}
+
+.s-step.is-done {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.s-step.is-current {
+  background: rgba(var(--agent), 0.24);
+  box-shadow: inset 0 0 0 1px rgba(var(--agent), 0.5);
+  color: #fff;
+  font-weight: 600;
+}
+
+.s-step-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+
+.s-step:not(.is-current) .s-step-icon .agent-mark {
+  filter: grayscale(1);
+  opacity: 0.7;
+}
+
+.s-step.is-current .s-step-icon {
+  animation: s-step-icon-in 320ms var(--ease-spring);
+}
+
+@keyframes s-step-icon-in {
+  from {
+    transform: scale(0.6);
+  }
+}
+
+.s-step-dot {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgb(var(--agent));
+}
+
+.s-step-line {
+  width: 14px;
+  height: 2px;
+  margin: 0 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.14);
+  transition: background 300ms ease;
+}
+
+.s-step-line.is-done {
+  background: rgba(var(--agent), 0.6);
+}
+
+.s-step-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.s-step-page {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+.s-step-page.from-right {
+  animation: s-step-from-right 300ms var(--ease-spring);
+}
+
+.s-step-page.from-left {
+  animation: s-step-from-left 300ms var(--ease-spring);
+}
+
+@keyframes s-step-from-right {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+
+@keyframes s-step-from-left {
+  from {
+    opacity: 0;
+    transform: translateX(-28px);
+  }
+}
+
+.s-step-content {
+  box-sizing: border-box;
+  width: min(100%, 560px);
+  padding: 2px 0;
+}
+
+.s-step-page .s-new-folders {
+  flex: none;
+  overflow: visible;
+}
+
+.s-step-page .s-new-folder {
+  height: 32px;
+  padding: 0 10px;
+}
+
+.s-step-page .s-new-name {
+  font-size: 13px;
+}
+
+.s-new-known {
+  display: inline-flex;
+  margin-left: auto;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* Step 2: the agents as tiles, their account and model below. */
+.s-agent-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+
+.s-agent-tiles {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.s-agent-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  width: 92px;
+  height: 80px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 12px;
+  font-weight: 600;
+  transition:
+    background 260ms var(--ease-spring),
+    box-shadow 260ms ease,
+    color 200ms ease,
+    transform 160ms var(--ease-spring);
+}
+
+.s-agent-tile .agent-mark {
+  filter: grayscale(1);
+  opacity: 0.6;
+  transition:
+    filter 260ms ease,
+    opacity 260ms ease,
+    transform 320ms var(--ease-spring);
+}
+
+.s-agent-tile:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.s-agent-tile:active {
+  transform: scale(0.96);
+}
+
+.s-agent-tile.is-selected {
+  background: rgba(var(--agent), 0.22);
+  box-shadow: inset 0 0 0 1px rgba(var(--agent), 0.5);
+  color: #fff;
+}
+
+.s-agent-tile.is-selected .agent-mark {
+  filter: none;
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.s-new-menus {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+}
+
+.s-new-menus .s-model-button {
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12.5px;
+}
+
+/* In the middle of the page the menus open downward, centred. */
+.s-new-menus .s-model-list {
+  top: calc(100% + 6px);
+  bottom: auto;
+  left: 50%;
+  right: auto;
+  translate: -50% 0;
+  transform-origin: top center;
+}
+
+/* Step 3: each option a card with its mark, name and switch. */
+.s-new-options {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.s-new-option {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 7px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.s-new-option-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.s-new-option-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.55);
+  animation: s-option-icon-in 360ms var(--ease-spring);
+}
+
+.s-new-option-icon.is-on {
+  background: rgba(var(--agent), 0.18);
+  color: rgb(var(--agent));
+}
+
+@keyframes s-option-icon-in {
+  40% {
+    transform: scale(1.18);
+  }
+}
+
+.s-new-option-title {
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.s-new-option-note {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10.5px;
+}
+
+.s-new-option-gap {
+  flex: 1;
+}
+
+.s-new-option-field {
+  flex: 1;
+  height: 24px;
+  animation: s-safe-chip-in 220ms var(--ease-spring);
+}
+
+.s-switch {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.14);
+  transition: background 220ms ease;
+}
+
+.s-switch.is-on {
+  background: rgb(var(--agent));
+}
+
+.s-switch:disabled {
+  opacity: 0.4;
+}
+
+.s-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  transition: transform 260ms var(--ease-spring);
+}
+
+.s-switch.is-on .s-switch-knob {
+  transform: translateX(14px);
+}
+
+.s-safe-count {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  animation: s-new-message-in 220ms ease-out;
+}
+
+.s-safe-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.s-safe-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 7px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.04);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.38);
+  font:
+    500 10.5px ui-monospace,
+    "Cascadia Mono",
+    Consolas,
+    monospace;
+  text-decoration: line-through rgba(255, 255, 255, 0.3);
+  transition:
+    background 220ms ease,
+    box-shadow 220ms ease,
+    color 200ms ease,
+    transform 160ms var(--ease-spring);
+}
+
+.s-safe-chip.is-on {
+  background: rgba(var(--agent), 0.18);
+  box-shadow: inset 0 0 0 1px rgba(var(--agent), 0.4);
+  color: rgba(255, 255, 255, 0.92);
+  text-decoration: none;
+}
+
+.s-safe-chip:active {
+  transform: scale(0.94);
+}
+
+.s-safe-icon {
+  flex: none;
+  animation: s-option-icon-in 360ms var(--ease-spring);
+}
+
+.s-safe-chip.is-custom {
+  animation: s-safe-chip-in 260ms var(--ease-spring);
+}
+
+@keyframes s-safe-chip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+.s-safe-add {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 22px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.7);
+  transition: background 150ms ease;
+}
+
+.s-safe-add:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.s-safe-add-field {
+  width: 130px;
+  height: 22px;
+  padding: 0 8px;
+  appearance: none;
+  border: 1px solid rgba(var(--agent), 0.5);
+  border-radius: 11px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  font:
+    10.5px ui-monospace,
+    "Cascadia Mono",
+    Consolas,
+    monospace;
+  animation: s-safe-chip-in 220ms var(--ease-spring);
+}
+
+.s-safe-add-field.is-refused {
+  border-color: rgb(255, 140, 128);
+  animation: s-safe-refused 300ms ease;
+}
+
+@keyframes s-safe-refused {
+  25% {
+    transform: translateX(-3px);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
+}
+
+.s-run-modes {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.s-run-mode {
+  display: inline-grid;
+  place-items: center;
+  width: 34px;
+  height: 22px;
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.5);
+  transition:
+    background 200ms ease,
+    color 200ms ease;
+}
+
+.s-run-mode.is-selected {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+/* Step 4: the agent in a glow of its colour, the prompt, and what the
+ * session starts with. */
+.s-prompt-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.s-prompt-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 4px 0;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px rgba(var(--agent), 0.35);
+}
+
+.s-prompt-mark::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--agent), 0.24), transparent 70%);
+  transition:
+    transform 500ms var(--ease-spring),
+    opacity 300ms ease;
+}
+
+.s-prompt-mark.is-typing::before {
+  transform: scale(1.12);
+  opacity: 1.5;
+  background: radial-gradient(circle, rgba(var(--agent), 0.38), transparent 70%);
+}
+
+.s-step-prompt {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 58px;
+  max-height: 110px;
+  padding: 8px 10px;
+  resize: none;
+  appearance: none;
+  border: 1px solid rgba(var(--agent), 0);
+  border-radius: 10px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.07);
+  color: #fff;
+  font: inherit;
+  font-size: 12.5px;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease;
+}
+
+.s-step-prompt:focus {
+  border-color: rgba(var(--agent), 0.55);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.s-recipe {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 5px;
+}
+
+.s-recipe-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 10.5px;
+  font-weight: 500;
+  transition: background 150ms ease;
+}
+
+.s-recipe-chip:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.s-step-footer {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.s-step-arrow {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.75);
+  transition:
+    background 150ms ease,
+    transform 160ms var(--ease-spring);
+  animation: s-safe-chip-in 220ms var(--ease-spring);
+}
+
+.s-step-arrow:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.s-step-arrow:active {
+  transform: scale(0.94);
+}
+
+.s-step-arrow:disabled {
+  opacity: 0.4;
+}
+
+.s-new-start-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.s-new-start.is-waiting:not(.is-starting) {
+  background: rgba(var(--agent), 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-step,
+  .s-step-line,
+  .s-agent-tile,
+  .s-agent-tile .agent-mark,
+  .s-switch,
+  .s-switch-knob,
+  .s-safe-chip,
+  .s-prompt-mark::before {
+    transition: none;
+  }
+  .s-step.is-current .s-step-icon,
+  .s-new-option-icon,
+  .s-safe-icon,
+  .s-safe-chip.is-custom,
+  .s-safe-add-field,
+  .s-safe-add-field.is-refused,
+  .s-step-arrow,
+  .s-safe-count {
+    animation: none;
+  }
+  .s-step-page.from-right,
+  .s-step-page.from-left {
+    animation: s-step-fade 120ms ease-out;
+  }
+  .s-agent-tile.is-selected .agent-mark {
+    transform: none;
+  }
+}
+
+@keyframes s-step-fade {
+  from {
+    opacity: 0;
+  }
+}

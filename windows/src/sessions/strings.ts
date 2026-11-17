@@ -11,6 +11,51 @@ import { onLinux } from "../shared/platform";
 import { EXPAND_STEP } from "./diffGaps";
 
 export const S = {
+  get stepProject() {
+    return t("windows.sessions.stepProject");
+  },
+  get stepAgent() {
+    return t("windows.sessions.stepAgent");
+  },
+  get stepOptions() {
+    return t("windows.sessions.stepOptions");
+  },
+  get stepPrompt() {
+    return t("windows.sessions.stepPrompt");
+  },
+  get stepsLabel() {
+    return t("windows.sessions.stepsLabel");
+  },
+  get previousStep() {
+    return t("windows.sessions.previousStep");
+  },
+  get nextStep() {
+    return t("windows.sessions.nextStep");
+  },
+  get rememberedProject() {
+    return t("windows.sessions.rememberedProject");
+  },
+  get safeCommands() {
+    return t("windows.sessions.safeCommands");
+  },
+  get safeCommandsHelp() {
+    return t("windows.sessions.safeCommandsHelp");
+  },
+  get addCommand() {
+    return t("windows.sessions.addCommand");
+  },
+  get removeCommand() {
+    return t("windows.sessions.removeCommand");
+  },
+  get commandRefused() {
+    return t("windows.sessions.commandRefused");
+  },
+  stepLabel(number: number, total: number, title: string) {
+    return tf("windows.sessions.stepLabel", String(number), String(total), title);
+  },
+  safeCount(count: number) {
+    return count === 1 ? t("windows.sessions.safeCountOne") : tf("windows.sessions.safeCount", String(count));
+  },
   get ownWorktree() {
     return t("notchClaudeSessions.ownWorktree");
   },

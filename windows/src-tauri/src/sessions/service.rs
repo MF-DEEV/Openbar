@@ -2974,8 +2974,16 @@ pub async fn sessions_start(
     model: Option<String>,
     worktree: Option<bool>,
     worktree_name: Option<String>,
+    safe_commands: Option<Vec<String>>,
 ) -> Result<Option<String>, ()> {
     let service = service.inner().clone();
+    // Only agents with a session allow list take one (#270).
+    let safe_commands: Vec<String> = safe_commands
+        .unwrap_or_default()
+        .iter()
+        .filter(|_| agent.as_deref().is_none_or(super::safe_commands::supports))
+        .filter_map(|c| super::safe_commands::cleaned(c))
+        .collect();
     tauri::async_runtime::spawn_blocking(move || {
         let model = model.as_deref().filter(|m| !m.is_empty());
         let hook_agent = agent
@@ -3007,7 +3015,7 @@ pub async fn sessions_start(
             }
         }
         if codex {
-            return start_codex(&service, &folder, &prompt, background, model);
+            return start_codex(&service, &folder, &prompt, background, model, safe_commands);
         }
         // Gemini CLI, Copilot CLI, OpenCode and cursor-agent run only in a
         // console, where their hooks or plugin report them.
@@ -3042,6 +3050,7 @@ pub async fn sessions_start(
             background,
             model,
             claude_worktree.as_deref(),
+            &super::safe_commands::claude_rules(&safe_commands),
         );
         let home = config_home.as_deref();
         let failure = if background {
@@ -3066,6 +3075,16 @@ pub async fn sessions_start(
     })
     .await
     .map_err(|_| ())
+}
+
+/// The safe commands a folder suggests for New session (#270).
+#[tauri::command]
+pub async fn sessions_safe_commands(
+    folder: String,
+) -> Result<Vec<super::safe_commands::Entry>, ()> {
+    tauri::async_runtime::spawn_blocking(move || super::safe_commands::suggested(&folder))
+        .await
+        .map_err(|_| ())
 }
 
 /// Whether a folder is in a git repository, and whether its checkout has
@@ -3162,8 +3181,15 @@ fn start_codex(
     prompt: &str,
     background: bool,
     model: Option<&str>,
+    safe_commands: Vec<String>,
 ) -> Option<String> {
     if !background {
+        // The console's thread is named only once it starts, in this folder.
+        if !safe_commands.is_empty()
+            && let Some(client) = service.codex()
+        {
+            client.expect_safe_commands(folder, safe_commands);
+        }
         let arguments = self::background::codex_start_arguments(prompt, model);
         return (!self::background::codex_in_terminal(&arguments, Some(folder)))
             .then(|| "unavailable".to_owned());
@@ -3184,7 +3210,7 @@ fn start_codex(
             std::thread::sleep(Duration::from_millis(200));
         }
     }
-    let Some(answer) = client.start_thread(folder, model, prompt.trim()) else {
+    let Some(answer) = client.start_thread(folder, model, prompt.trim(), safe_commands) else {
         return Some("codexNotStarted".to_owned());
     };
     match answer.recv_timeout(Duration::from_secs(30)) {

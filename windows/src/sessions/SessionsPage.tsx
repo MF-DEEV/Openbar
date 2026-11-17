@@ -11,7 +11,8 @@ import { AppWindow, Check, ChevronLeft, ExternalLink, Maximize2, Minimize2, Penc
 import { useEffect, useMemo, useState } from "react";
 import type { PageDefinition } from "../island/views/Expanded";
 import { useIsland } from "../island/store";
-import { multiplexerOf, NewSession } from "./Background";
+import { multiplexerOf } from "./Background";
+import { NewSession } from "./NewSession";
 import { SessionDetail } from "./SessionDetail";
 import { SessionsList } from "./SessionsList";
 import { GroupingSwitch } from "./SessionGroups";

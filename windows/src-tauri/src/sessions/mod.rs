@@ -26,6 +26,7 @@ pub mod plan_modes;
 pub mod registry;
 pub mod remote;
 pub mod risk;
+pub mod safe_commands;
 pub mod sample;
 pub mod service;
 pub mod transcript;

@@ -75,7 +75,7 @@ enum Waiting {
     Turns(String),
     /// A thread the island asked for, its first prompt, and who waits:
     /// None once Codex has it, else Codex's words.
-    Started(Value, Sender<Option<String>>),
+    Started(Value, Vec<String>, Sender<Option<String>>),
     Other,
 }
 
@@ -101,6 +101,8 @@ struct Shared {
     focused: HashSet<String>,
     connected: bool,
     version: Option<String>,
+    /// The safe commands of threads New session started (#270).
+    grants: crate::sessions::safe_commands::Grants,
 }
 
 impl Shared {
@@ -115,6 +117,7 @@ impl Shared {
             focused: HashSet::new(),
             connected: false,
             version: None,
+            grants: Default::default(),
         }
     }
 
@@ -124,7 +127,7 @@ impl Shared {
         self.outbox = None;
         // A start the daemon never answered failed.
         for (_, waiting) in self.waiting.drain() {
-            if let Waiting::Started(_, done) = waiting {
+            if let Waiting::Started(_, _, done) = waiting {
                 let _ = done.send(Some(String::new()));
             }
         }
@@ -397,6 +400,7 @@ impl CodexClient {
         cwd: &str,
         model: Option<&str>,
         prompt: &str,
+        safe_commands: Vec<String>,
     ) -> Option<Receiver<Option<String>>> {
         let mut s = self.shared.lock().unwrap();
         if !s.connected || prompt.trim().is_empty() {
@@ -407,9 +411,18 @@ impl CodexClient {
         s.call(
             "thread/start",
             thread_start_params(cwd, model),
-            Waiting::Started(input, done),
+            Waiting::Started(input, safe_commands, done),
         );
         Some(receiver)
+    }
+
+    /// Safe commands for the next thread a console starts in `cwd`, which
+    /// the island can't name before it exists (#270).
+    pub fn expect_safe_commands(&self, cwd: &str, commands: Vec<String>) {
+        let mut s = self.shared.lock().unwrap();
+        let known = s.state.threads.keys().cloned().collect();
+        s.grants
+            .expect(cwd, commands, std::time::Instant::now(), known);
     }
 
     /// Joined to Codex's app-server right now.
@@ -458,6 +471,51 @@ impl Shared {
         }
         self.send(json!({"id": pending.rpc_id, "result": body}));
         true
+    }
+
+    /// Answers a command approval of a thread New session started with a
+    /// list of safe commands (#270) "for this session", when the command is
+    /// one of them, so it never reaches the island.
+    fn allow_safe(&mut self, thread: &str, rpc_id: &Value, now: Time) {
+        let Some(pending) = self.state.threads.get(thread).and_then(|t| {
+            t.pending
+                .iter()
+                .rev()
+                .find(|p| {
+                    &p.rpc_id == rpc_id && p.method == "item/commandExecution/requestApproval"
+                })
+                .cloned()
+        }) else {
+            return;
+        };
+        let Some(command) = pending.params.get("command").and_then(Value::as_str) else {
+            return;
+        };
+        let row = self.state.row_of(thread);
+        let cwd = self
+            .state
+            .threads
+            .get(&row)
+            .map(|t| t.cwd.clone())
+            .unwrap_or_default();
+        let Some(allowed) = self.grants.commands(&row, &cwd, std::time::Instant::now()) else {
+            return;
+        };
+        if !crate::sessions::safe_commands::matches(command, &allowed) {
+            return;
+        }
+        let Some(body) = super::state::result(&pending, &Answer::AllowForSession) else {
+            return;
+        };
+        if self
+            .state
+            .take_pending(&row, &pending.request_id())
+            .is_none()
+        {
+            return;
+        }
+        self.state.proceeded(thread, now);
+        self.send(json!({"id": pending.rpc_id, "result": body}));
     }
 
     /// Answers an approval of a session the island lets run without asking
@@ -636,6 +694,7 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
             let kept = s.state.request(id.clone(), &method, &params, now);
             if kept && let Some(thread) = params.get("threadId").and_then(Value::as_str) {
                 s.let_through(thread, &id, now);
+                s.allow_safe(thread, &id, now);
             }
             s.follow();
             kept
@@ -661,9 +720,10 @@ fn handle_at(text: &str, s: &mut Shared, now: Time) -> bool {
         (None, Some(id)) => {
             let waiting = id.as_i64().and_then(|id| s.waiting.remove(&id));
             let result = message.get("result").cloned().unwrap_or(Value::Null);
-            if let Some(Waiting::Started(input, done)) = &waiting {
+            if let Some(Waiting::Started(input, safe, done)) = &waiting {
                 let thread = result.pointer("/thread/id").and_then(Value::as_str);
                 if let Some(thread) = thread {
+                    s.grants.grant(thread, safe.clone());
                     let params = json!({"threadId": thread, "input": input});
                     s.call("turn/start", params, Waiting::Other);
                     let _ = done.send(None);
