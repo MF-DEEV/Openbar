@@ -57,6 +57,9 @@ extension ClaudeSessionHost {
         if case .tmux(let target) = self {
             return target.outer.map { "tmux in " + ClaudeTerminalApps.name(of: $0) } ?? "tmux"
         }
+        if case .zellij(let target) = self {
+            return target.outer.map { "zellij in " + ClaudeTerminalApps.name(of: $0) } ?? "zellij"
+        }
         if case .remote(let alias, let tmux) = self { return tmux ? "tmux on " + alias : alias }
         return bundle.map(ClaudeTerminalApps.name(of:))
     }
@@ -377,6 +380,18 @@ enum ClaudeTmux {
               let client = client(from: listed, session: session) else { return nil }
         if client.elsewhere { run(target, ["switch-client", "-c", client.tty, "-t", target.pane]) }
         return client
+    }
+
+    /// The command line that attaches the pane's session in a new terminal
+    /// window, when no terminal shows that tmux at all.
+    static func attachLine(_ target: ClaudeTmuxPane, tty: String?) -> String? {
+        guard holds(target, tty: tty), let tmux = binary(server: target.server),
+              let session = run(target, ["display-message", "-p", "-t", target.pane, "#{session_id}"])?
+                .trimmingCharacters(in: .whitespacesAndNewlines).nilIfEmpty,
+              let listed = run(target, ["list-clients", "-F", "#{client_tty}"]),
+              listed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        return [tmux, "-S", target.socket, "attach-session", "-t", session]
+            .map(HomebrewCommandBuilder.shellQuote).joined(separator: " ")
     }
 
     /// The terminal attached to the pane's session, without selecting anything.

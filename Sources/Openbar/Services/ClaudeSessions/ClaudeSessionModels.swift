@@ -186,6 +186,15 @@ extension ClaudeSessionProvider {
     var reportsThroughPlugin: Bool { self == .opencode || self == .pi }
 }
 
+/// What Open came to: the session's terminal in front, nothing found, or a
+/// tmux or zellij with no terminal attached, which `attach` (a command line)
+/// shows in a new window (#235).
+enum ClaudeHostOpen: Equatable {
+    case opened
+    case missing
+    case detached(attach: String)
+}
+
 /// The app showing a session's terminal, which Open brings forward and a
 /// reply is typed into. Every terminal is reached by the device, pane or
 /// window the session runs in, never by the window in front.
@@ -198,6 +207,8 @@ enum ClaudeSessionHost: Equatable {
     case ghostty(tty: String)
     /// A tmux pane, in whatever terminal shows that tmux.
     case tmux(ClaudeTmuxPane)
+    /// A zellij pane, in whatever terminal shows that zellij (#235).
+    case zellij(ClaudeZellijPane)
     /// A pane of WezTerm, by the id WezTerm gives it, and the socket of the
     /// WezTerm that runs it when the pane names one.
     case wezterm(pane: Int, socket: String?)
@@ -221,7 +232,7 @@ enum ClaudeSessionHost: Equatable {
 
     var acceptsReplies: Bool {
         switch self {
-        case .terminal, .iterm, .ghostty, .tmux, .wezterm, .ide, .background: return true
+        case .terminal, .iterm, .ghostty, .tmux, .zellij, .wezterm, .ide, .background: return true
         // kitty only takes keys from outside with remote control on.
         case .kitty(_, let socket): return socket != nil
         case .remote(_, let tmux): return tmux
@@ -238,7 +249,17 @@ enum ClaudeSessionHost: Equatable {
         case .wezterm: return ClaudeTerminalApps.wezterm
         case .kitty: return ClaudeTerminalApps.kitty
         case .ide(let bundle, _), .app(let bundle): return bundle
-        case .tmux, .background, .remote, .unknown: return nil
+        case .tmux, .zellij, .background, .remote, .unknown: return nil
+        }
+    }
+
+    /// The multiplexer on this Mac the session's pane belongs to, named on
+    /// its row (#235). A remote host's row names the host instead.
+    var multiplexer: String? {
+        switch self {
+        case .tmux: return "tmux"
+        case .zellij: return "zellij"
+        default: return nil
         }
     }
 }

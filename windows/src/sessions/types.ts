@@ -17,7 +17,17 @@ export interface LimitStop {
 }
 
 export type HostKind =
-  "windowsTerminal" | "vscode" | "conhost" | "wezterm" | "tmux" | "kitty" | "app" | "background" | "remote" | "unknown";
+  | "windowsTerminal"
+  | "vscode"
+  | "conhost"
+  | "wezterm"
+  | "tmux"
+  | "zellij"
+  | "kitty"
+  | "app"
+  | "background"
+  | "remote"
+  | "unknown";
 
 export interface ToolUse {
   id: string;

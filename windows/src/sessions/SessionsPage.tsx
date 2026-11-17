@@ -7,11 +7,11 @@
 
 import { useLocale } from "../i18n";
 
-import { Check, ChevronLeft, ExternalLink, Maximize2, Minimize2, Pencil, Plus } from "lucide-react";
+import { AppWindow, Check, ChevronLeft, ExternalLink, Maximize2, Minimize2, Pencil, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { PageDefinition } from "../island/views/Expanded";
 import { useIsland } from "../island/store";
-import { NewSession } from "./Background";
+import { multiplexerOf, NewSession } from "./Background";
 import { SessionDetail } from "./SessionDetail";
 import { SessionsList } from "./SessionsList";
 import { GroupingSwitch } from "./SessionGroups";
@@ -76,6 +76,7 @@ function Trailing() {
   const session = useFocusedSession();
   const enlarged = useIsland((s) => s.sessionsEnlarged);
   const failedUntil = useSessions((s) => s.openFailedUntil);
+  const detached = useSessions((s) => s.detached);
   const renaming = useSessions((s) => s.renaming);
   const composing = useSessions((s) => s.composing);
   const canStart = useSessions((s) => s.snapshot.canStart === true || s.snapshot.canStartCodex === true);
@@ -87,6 +88,13 @@ function Trailing() {
     const t = setTimeout(() => tick((n) => n + 1), wait + 20);
     return () => clearTimeout(t);
   }, [failedUntil]);
+  // The Attach offer goes back to Open when it lapses.
+  useEffect(() => {
+    const wait = (detached?.until ?? 0) * 1000 - Date.now();
+    if (wait <= 0) return;
+    const t = setTimeout(() => tick((n) => n + 1), wait + 20);
+    return () => clearTimeout(t);
+  }, [detached]);
   if (away) return <AwayTrailing />;
   if (composing) return null;
   if (!session) {
@@ -98,6 +106,8 @@ function Trailing() {
     ) : null;
   }
   const failed = Date.now() / 1000 < failedUntil;
+  const multiplexer = multiplexerOf(session);
+  const offersAttach = detached !== null && detached.id === session.id && Date.now() / 1000 < detached.until;
   return (
     <>
       <button
@@ -122,11 +132,17 @@ function Trailing() {
         type="button"
         className="n-pill-button is-prominent s-open"
         disabled={session.host === "unknown"}
-        title={session.hostName ? S.openIn(session.hostName) : S.open}
-        onClick={() => void useSessions.getState().openWindow(session)}
+        title={
+          offersAttach ? S.detachedHelp(multiplexer ?? "tmux") : session.hostName ? S.openIn(session.hostName) : S.open
+        }
+        onClick={() =>
+          void (offersAttach
+            ? useSessions.getState().attachDetached(session)
+            : useSessions.getState().openWindow(session))
+        }
       >
-        <ExternalLink size={11} />
-        {failed ? S.openFailed : S.open}
+        {offersAttach ? <AppWindow size={11} /> : <ExternalLink size={11} />}
+        {failed ? S.openFailed : offersAttach ? S.detachedAttach : S.open}
       </button>
     </>
   );

@@ -16,6 +16,7 @@ pub mod bridge_installer;
 pub mod console;
 pub mod process;
 pub mod wezterm;
+pub mod zellij;
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase", tag = "kind")]
@@ -42,6 +43,15 @@ pub enum Host {
         socket: String,
         pane: String,
     },
+    /// A zellij pane (#235), by the session and pane zellij put in the
+    /// environment, the server the session runs under, and that server's own
+    /// program (Linux, and Windows where zellij runs natively).
+    Zellij {
+        session: String,
+        pane: u32,
+        server: u32,
+        program: String,
+    },
     /// A kitty window with remote control on (Linux).
     #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
     Kitty {
@@ -65,8 +75,19 @@ impl Host {
                 | Host::Conhost
                 | Host::Wezterm { .. }
                 | Host::Tmux { .. }
+                | Host::Zellij { .. }
                 | Host::Kitty { .. }
         )
+    }
+
+    /// The tmux or zellij the session's pane belongs to, for the chip on
+    /// its row (#235).
+    pub fn multiplexer(&self) -> Option<&'static str> {
+        match self {
+            Host::Tmux { .. } => Some("tmux"),
+            Host::Zellij { .. } => Some("zellij"),
+            _ => None,
+        }
     }
 
     /// The app as the person knows it, for "Open in …" and the notice
@@ -86,6 +107,7 @@ impl Host {
             ),
             Host::Wezterm { .. } => Some("WezTerm".into()),
             Host::Tmux { .. } => Some("tmux".into()),
+            Host::Zellij { .. } => Some("zellij".into()),
             Host::Kitty { .. } => Some("kitty".into()),
             Host::App { name } => Some(name.clone()),
             Host::Conhost | Host::Unknown => None,
@@ -122,6 +144,30 @@ pub fn wezterm_host(
         pane,
         socket: socket.clone(),
     })
+}
+
+/// A zellij pane, when the session's own environment names one and a zellij
+/// server runs it (`chain` is the session's ancestors, itself first).
+pub fn zellij_host(
+    chain: &[process::Entry],
+    environment: &std::collections::HashMap<String, String>,
+) -> Option<Host> {
+    let (session, pane) = zellij::pane_of(environment)?;
+    let server = zellij::server_of(chain)?;
+    Some(Host::Zellij {
+        session,
+        pane,
+        server,
+        program: zellij::program_of(process::image_path(server).as_deref()),
+    })
+}
+
+/// The zellij variables a session is told by.
+pub const ZELLIJ_VARIABLES: [&str; 3] = [zellij::ZELLIJ, zellij::SESSION, zellij::PANE];
+
+/// The session still runs under that zellij server.
+fn zellij_holds(pid: u32, server: u32) -> bool {
+    process::ancestors(pid).is_some_and(|chain| zellij::server_of(&chain) == Some(server))
 }
 
 /// The host and the claude process's ancestors (nearest first), which the
@@ -213,6 +259,11 @@ pub fn locate(pid: u32) -> Option<Located> {
     {
         located.host = host;
     }
+    // A zellij pane wins over the console zellij runs in, once its server
+    // runs the session.
+    if let Some(host) = zellij_host(&chain, &process::environment_values(pid, &ZELLIJ_VARIABLES)) {
+        located.host = host;
+    }
     Some(located)
 }
 
@@ -242,6 +293,22 @@ pub fn deliver(
             socket,
         } => wezterm::send(*gui_pid, *pane, socket, text, images)
             .map_err(|_| DeliveryError::Unreachable),
+        Host::Zellij {
+            session,
+            pane,
+            server,
+            program,
+        } => {
+            if !zellij_holds(pid, *server) {
+                return Err(DeliveryError::Unreachable);
+            }
+            let target = zellij::Target {
+                program,
+                session,
+                server: *server,
+            };
+            zellij::send(&target, *pane, text, images).map_err(|_| DeliveryError::Unreachable)
+        }
         #[cfg(target_os = "linux")]
         Host::Tmux { .. } | Host::Kitty { .. } => {
             crate::linux::hosts::deliver(pid, located, text, images)
@@ -270,6 +337,34 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
             let _ = wezterm::focus(*gui_pid, *pane, socket);
             platform_raise_host(&located.ancestors, cwd)
         }
+        Host::Zellij {
+            session,
+            pane,
+            server,
+            program,
+        } => {
+            if !zellij_holds(pid, *server) {
+                return false;
+            }
+            let target = zellij::Target {
+                program,
+                session,
+                server: *server,
+            };
+            match zellij::focus(&target, *pane) {
+                zellij::Focus::Selected => {}
+                zellij::Focus::Detached | zellij::Focus::Missing => return false,
+            }
+            // The terminal of the client used last comes forward the way a
+            // session in it would, a multiplexer showing it included.
+            match zellij::clients(*server, session).first() {
+                Some(&client) => {
+                    locate(client).is_some_and(|outer| focus_client(client, &outer, cwd))
+                }
+                // Selected in zellij, though which terminal shows it isn't known.
+                None => true,
+            }
+        }
         #[cfg(target_os = "linux")]
         Host::Tmux { .. } | Host::Kitty { .. } => crate::linux::hosts::focus(pid, located, cwd),
         #[cfg(not(target_os = "linux"))]
@@ -296,8 +391,100 @@ pub fn shown(pid: u32, located: &Located) -> Option<bool> {
             }
             wezterm::shows(*gui_pid, *pane, socket)
         }
+        Host::Zellij {
+            session,
+            pane,
+            server,
+            program,
+        } => {
+            if !zellij_holds(pid, *server) {
+                return None;
+            }
+            let target = zellij::Target {
+                program,
+                session,
+                server: *server,
+            };
+            if !zellij::shown(&target, *pane)? {
+                return Some(false);
+            }
+            // Every attached client shows the pane; the terminal of the one
+            // used last decides the rest.
+            let client = *zellij::clients(*server, session).first()?;
+            let outer = locate(client)?;
+            shown(client, &outer)
+        }
         #[cfg(target_os = "linux")]
         Host::Tmux { .. } | Host::Kitty { .. } => crate::linux::hosts::shown(pid, located),
+        _ => None,
+    }
+}
+
+/// Brings forward the terminal of a multiplexer's client `client`.
+fn focus_client(client: u32, outer: &Located, cwd: &str) -> bool {
+    match &outer.host {
+        // A multiplexer inside another, or a terminal that knows its tabs.
+        Host::Tmux { .. } | Host::Zellij { .. } | Host::Kitty { .. } | Host::Wezterm { .. } => {
+            focus(client, outer, cwd)
+        }
+        _ => {
+            let mut pids = vec![client];
+            pids.extend(outer.ancestors.iter().copied());
+            platform_raise_client(client, &pids, cwd)
+        }
+    }
+}
+
+#[cfg(windows)]
+fn platform_raise_client(client: u32, pids: &[u32], cwd: &str) -> bool {
+    console_focus(client) || platform_raise_host(pids, cwd)
+}
+
+#[cfg(not(windows))]
+fn platform_raise_client(_client: u32, pids: &[u32], cwd: &str) -> bool {
+    platform_raise_host(pids, cwd)
+}
+
+/// What attaches the session's tmux or zellij in a new terminal window,
+/// when no terminal shows it, however deep in other multiplexers it sits
+/// (#235): a program and its arguments.
+pub fn detached(pid: u32, located: &Located) -> Option<(String, Vec<String>)> {
+    detached_at(pid, located, 0)
+}
+
+fn detached_at(pid: u32, located: &Located, depth: u32) -> Option<(String, Vec<String>)> {
+    if depth > 3 {
+        return None;
+    }
+    match &located.host {
+        Host::Zellij {
+            session,
+            pane: _,
+            server,
+            program,
+        } => {
+            if !zellij_holds(pid, *server) {
+                return None;
+            }
+            let target = zellij::Target {
+                program,
+                session,
+                server: *server,
+            };
+            if !zellij::attached(&target)? {
+                return Some((program.clone(), zellij::attach_arguments(session)));
+            }
+            let client = *zellij::clients(*server, session).first()?;
+            detached_at(client, &locate(client)?, depth + 1)
+        }
+        #[cfg(target_os = "linux")]
+        Host::Tmux { socket, pane } => {
+            let terminal = crate::linux::process::terminal_of(pid);
+            match crate::linux::tmux::attachment(socket, pane, terminal.as_deref())? {
+                Ok(arguments) => Some(("tmux".into(), arguments)),
+                Err(client) => detached_at(client, &locate(client)?, depth + 1),
+            }
+        }
         _ => None,
     }
 }
@@ -359,7 +546,7 @@ pub fn types_codex(host: &Host) -> bool {
     } else {
         matches!(
             host,
-            Host::Tmux { .. } | Host::Kitty { .. } | Host::Wezterm { .. }
+            Host::Tmux { .. } | Host::Zellij { .. } | Host::Kitty { .. } | Host::Wezterm { .. }
         )
     }
 }
@@ -855,7 +1042,7 @@ mod tests {
     }
 
     #[test]
-    #[cfg(windows)]
+    #[cfg(any(windows, target_os = "linux"))]
     #[ignore = "Types into the live session process selected with OPENBAR_TEST_REPLY_PID"]
     fn live_session_reply_reaches_its_host() {
         let pid: u32 = std::env::var("OPENBAR_TEST_REPLY_PID")
@@ -872,7 +1059,15 @@ mod tests {
             located.host.accepts_replies()
         );
         if std::env::var("OPENBAR_TEST_OPEN").is_ok() {
-            eprintln!("Open: {}", focus(pid, &located, ""));
+            let opened = focus(pid, &located, "");
+            eprintln!("Open: {opened}");
+            if !opened {
+                eprintln!("Detached: {:?}", detached(pid, &located));
+            }
+        }
+        eprintln!("Shown: {:?}", shown(pid, &located));
+        if std::env::var("OPENBAR_TEST_NO_REPLY").is_ok() {
+            return;
         }
         let delivered = deliver(pid, &located, &text, &[]);
         eprintln!("Delivered: {delivered:?}");

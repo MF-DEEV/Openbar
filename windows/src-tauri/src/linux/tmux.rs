@@ -164,6 +164,56 @@ fn client_on(listed: &str, session: &str) -> Option<u32> {
         .map(|(pid, _)| pid)
 }
 
+/// What attaching the pane's session takes when no terminal is attached to
+/// that tmux at all: Ok with tmux's arguments. Err gives the client on the
+/// session used last instead, whose own terminal may be the detached one.
+/// None when the pane isn't the session's or tmux can't say.
+pub fn attachment(
+    socket: &str,
+    pane: &str,
+    terminal: Option<&str>,
+) -> Option<Result<Vec<String>, u32>> {
+    attachment_with("tmux", socket, pane, terminal)
+}
+
+fn attachment_with(
+    program: &str,
+    socket: &str,
+    pane: &str,
+    terminal: Option<&str>,
+) -> Option<Result<Vec<String>, u32>> {
+    if !holds_with(program, socket, pane, terminal) {
+        return None;
+    }
+    let session = tmux_with(
+        program,
+        socket,
+        &["display-message", "-p", "-t", pane, "#{session_id}"],
+        None,
+    )?;
+    let session = session.trim();
+    let clients = tmux_with(
+        program,
+        socket,
+        &[
+            "list-clients",
+            "-F",
+            "#{client_pid}\t#{session_id}\t#{client_activity}",
+        ],
+        None,
+    )?;
+    if clients.trim().is_empty() {
+        return Some(Ok(vec![
+            "-S".into(),
+            socket.into(),
+            "attach-session".into(),
+            "-t".into(),
+            session.into(),
+        ]));
+    }
+    client_on(&clients, session).map(Err)
+}
+
 /// Shows the pane's window and pane inside tmux; the pids of the attached
 /// clients, whose terminal window the caller raises.
 pub fn focus(socket: &str, pane: &str, terminal: Option<&str>) -> Vec<u32> {
