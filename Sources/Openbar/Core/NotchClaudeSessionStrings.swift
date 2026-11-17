@@ -727,3 +727,23 @@ extension NotchClaudeSessionStrings {
         }
     }
 }
+
+extension NotchClaudeSessionStrings {
+    // New session in steps, with safe commands (#270).
+    var stepProject: String { "Project" }
+    var stepAgent: String { "Agent" }
+    var stepOptions: String { "Options" }
+    var stepPrompt: String { "Prompt" }
+    var stepsLabel: String { "Steps" }
+    func stepLabel(_ number: Int, of total: Int, _ title: String) -> String { "Step \(number) of \(total): \(title)" }
+    var previousStep: String { "Back" }
+    var nextStep: String { "Next" }
+    var rememberedProject: String { "Starts as last time. Click to go to the prompt." }
+    var safeCommands: String { "Safe commands" }
+    var safeCommandsHelp: String { "Run without asking, in this session only. Anything else still asks here." }
+    func safeCount(_ count: Int) -> String { count == 1 ? "1 safe command" : "\(count) safe commands" }
+    var addCommand: String { "Add a command" }
+    var addCommandPlaceholder: String { "make check" }
+    var removeCommand: String { "Remove" }
+    var commandRefused: String { "Plain commands only: no quotes, ; | & > $ or *." }
+}

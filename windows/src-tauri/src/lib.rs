@@ -407,6 +407,7 @@ pub fn run() {
             sessions::service::sessions_pick_folder,
             sessions::service::sessions_start,
             sessions::service::sessions_repo_state,
+            sessions::service::sessions_safe_commands,
             sessions::service::sessions_worktree_remove,
             sessions::service::sessions_worktree_branch,
             sessions::service::sessions_worktree_open,

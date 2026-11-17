@@ -261,12 +261,15 @@ pub fn settings_disable(data: &[u8]) -> bool {
 
 /// The arguments that start a session; `--` keeps a prompt that begins with a
 /// dash from reading as an option. A worktree name has Claude Code make the
-/// session its own worktree, which `claude rm` removes again.
+/// session its own worktree, which `claude rm` removes again. `allowed`
+/// rules hold for the session only (#270); `--allowedTools` takes one or
+/// more, and `--` ends them before the prompt.
 pub fn start_arguments(
     prompt: &str,
     background: bool,
     model: Option<&str>,
     worktree: Option<&str>,
+    allowed: &[String],
 ) -> Vec<String> {
     let mut arguments = Vec::new();
     if background {
@@ -279,6 +282,10 @@ pub fn start_arguments(
     if let Some(worktree) = worktree.filter(|w| !w.is_empty()) {
         arguments.push("--worktree".to_owned());
         arguments.push(worktree.to_owned());
+    }
+    if !allowed.is_empty() {
+        arguments.push("--allowedTools".to_owned());
+        arguments.extend(allowed.iter().cloned());
     }
     let prompt = prompt.trim();
     if !prompt.is_empty() {
@@ -1455,23 +1462,28 @@ mod tests {
     #[test]
     fn command_lines() {
         assert_eq!(
-            start_arguments("-x", true, None, None),
+            start_arguments("-x", true, None, None, &[]),
             ["--bg", "--", "-x"]
         );
-        assert_eq!(start_arguments("  ", true, None, None), ["--bg"]);
-        assert!(start_arguments("", false, Some(""), Some("")).is_empty());
+        assert_eq!(start_arguments("  ", true, None, None, &[]), ["--bg"]);
+        assert!(start_arguments("", false, Some(""), Some(""), &[]).is_empty());
         assert_eq!(
-            start_arguments("-x", true, Some("opus"), None),
+            start_arguments("-x", true, Some("opus"), None, &[]),
             ["--bg", "--model", "opus", "--", "-x"]
         );
         // Claude Code makes the session's worktree itself.
         assert_eq!(
-            start_arguments("go", true, Some("opus"), Some("fix")),
+            start_arguments("go", true, Some("opus"), Some("fix"), &[]),
             ["--bg", "--model", "opus", "--worktree", "fix", "--", "go"]
         );
         assert_eq!(
-            start_arguments("go", false, None, Some("fix")),
+            start_arguments("go", false, None, Some("fix"), &[]),
             ["--worktree", "fix", "--", "go"]
+        );
+        // Safe commands (#270) come before the prompt's `--`.
+        assert_eq!(
+            start_arguments("go", true, None, None, &["Bash(git diff:*)".to_owned()]),
+            ["--bg", "--allowedTools", "Bash(git diff:*)", "--", "go"]
         );
         assert!(
             is_job_id("a5b5e11e")

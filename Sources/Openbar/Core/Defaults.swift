@@ -986,6 +986,10 @@ enum DefaultsKey {
     /// `ClaudeSessionProvider` raw value, comma-separated; every other agent
     /// gets one.
     static let notchNewSessionNoWorktree = "notchNewSessionNoWorktree"
+    /// What New session last started with in each project, by its path,
+    /// as JSON (`NewSessionChoices`, #270). Paths belong to this Mac, so it
+    /// stays out of settings backups.
+    static let notchNewSessionByProject = "notchNewSessionByProject"
     /// Costumes the person dressed sessions in, by session, as
     /// `ClawdCostume.code`. Session ids belong to this Mac, so like the names
     /// they stay out of settings backups.

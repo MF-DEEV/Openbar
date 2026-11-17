@@ -140,6 +140,7 @@ struct MetricsTests {
                 NotchSessionGroupTests.run(suite)
                 ClaudeBackgroundSessionTests.run(suite)
                 SessionWorktreeTests.run(suite)
+                SafeCommandsTests.run(suite)
                 NotchClawdViewTests.run(suite)
                 ClaudeAgentColorTests.run(suite)
                 NotchSessionAttentionTests.run(suite)

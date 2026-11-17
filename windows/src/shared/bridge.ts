@@ -276,6 +276,7 @@ export const bridge = {
       model: string | null = null,
       worktree = false,
       worktreeName: string | null = null,
+      safeCommands: string[] = [],
     ) =>
       call<string | null>("sessions_start", {
         folder,
@@ -286,7 +287,11 @@ export const bridge = {
         model,
         worktree,
         worktreeName,
+        safeCommands,
       }),
+    /** The safe commands a folder suggests for New session (#270). */
+    safeCommands: (folder: string) =>
+      call<import("../sessions/newSessionChoices").SafeEntry[]>("sessions_safe_commands", { folder }),
     newModels: (configHome: string | undefined) =>
       call<import("../sessions/types").NewSessionModels>("sessions_new_models", { configHome: configHome ?? null }),
   },

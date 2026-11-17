@@ -5,41 +5,26 @@
 // (NotchClaudeBackgroundViews.swift): their mark, what can be done with them,
 // their recent output, and the page that starts a new session.
 
-import { useSettings } from "../settings/state";
-import { HOOK_AGENTS, isHookAgent, PROVIDER_NAMES, PROVIDERS, SHORT_NAMES } from "./types";
 import {
   Check,
   ChevronsUpDown,
   Copy,
   Cpu,
   FileText,
-  Folder,
   FolderOpen,
-  FolderPlus,
   GitBranch,
   Square,
   Trash2,
   UserRound,
 } from "lucide-react";
-import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useRef, useState } from "react";
 import { t, tf, useLocale } from "../i18n";
 import { useIsland } from "../island/store";
-import { bridge, inTauri } from "../shared/bridge";
+import { bridge } from "../shared/bridge";
 import { canRemoveBackground, canStopBackground, problemText } from "./format";
 import { S } from "./strings";
-import { useSessions } from "./store";
-import { ProviderMark } from "./glyphs";
-import type {
-  ClaudeAccount,
-  NewSessionModel,
-  NewSessionModels,
-  Provider,
-  RecentFolder,
-  RepoState,
-  Session,
-  WorktreeRemoval,
-} from "./types";
-import { isOwnWorktree, worktreeName, worktreeSlug } from "./worktree";
+import type { ClaudeAccount, NewSessionModel, Provider, Session, WorktreeRemoval } from "./types";
+import { isOwnWorktree, worktreeName } from "./worktree";
 
 /** Says a session runs in the background, in words, on its row. */
 export function BackgroundMark() {
@@ -341,7 +326,7 @@ export function BackgroundLogs({ session }: { session: Session }) {
 }
 
 /** The agent and models New session last started with, kept for the next visit. */
-const REMEMBER = {
+export const REMEMBER = {
   agent: "openbar.newSession.agent",
   claude: "openbar.newSession.claudeModel",
   codex: "openbar.newSession.codexModel",
@@ -352,7 +337,7 @@ const REMEMBER = {
 } as const;
 
 /** Accounts for designing the picker in a plain browser (?sessions&accounts). */
-const DEMO_ACCOUNTS: ClaudeAccount[] = [
+export const DEMO_ACCOUNTS: ClaudeAccount[] = [
   {
     id: "c:\\users\\vors\\.claude",
     path: "C:\\Users\\vors\\.claude",
@@ -392,7 +377,7 @@ export function preferredAccount(
 }
 
 /** Which Claude account a session starts with (#216). */
-function AccountMenu({
+export function AccountMenu({
   accounts,
   value,
   onPick,
@@ -468,7 +453,7 @@ function AccountMenu({
   );
 }
 
-function remembered(key: string): string {
+export function remembered(key: string): string {
   try {
     return localStorage.getItem(key) ?? "";
   } catch {
@@ -476,7 +461,7 @@ function remembered(key: string): string {
   }
 }
 
-function remember(key: string, value: string) {
+export function remember(key: string, value: string) {
   try {
     localStorage.setItem(key, value);
   } catch {
@@ -485,10 +470,10 @@ function remember(key: string, value: string) {
 }
 
 /** A model's key in the menu; the default has none. */
-const modelKey = (model: NewSessionModel) => model.id ?? "";
+export const modelKey = (model: NewSessionModel) => model.id ?? "";
 
 /** The model's name; for the default, which model that is, when known. */
-function modelLabel(model: NewSessionModel | undefined): string {
+export function modelLabel(model: NewSessionModel | undefined): string {
   if (!model) return S.defaultModel;
   if (model.id === null) return model.detail ?? S.defaultModel;
   return model.name;
@@ -499,7 +484,7 @@ function menuText(model: NewSessionModel): string {
   return model.detail ? `${S.defaultModel} · ${model.detail}` : S.defaultModel;
 }
 
-const AGENT_PREF = {
+export const AGENT_PREF = {
   gemini: "agentGemini",
   copilot: "agentCopilot",
   opencode: "agentOpencode",
@@ -510,64 +495,8 @@ const AGENT_PREF = {
   antigravity: "agentAntigravity",
 } as const;
 
-/** The agents this PC can start, the pill sliding to the one picked. */
-function AgentPicker({
-  agents,
-  agent,
-  onPick,
-}: {
-  agents: Provider[];
-  agent: Provider;
-  onPick: (p: Provider) => void;
-}) {
-  const index = Math.max(0, agents.indexOf(agent));
-  // Past three agents only marks show; the picked one is named beside them.
-  const compact = agents.length > 3;
-  return (
-    <div className="s-agent-picker-wrap">
-      <div
-        className={`s-agent-picker${compact ? " is-compact" : ""}`}
-        role="radiogroup"
-        aria-label={S.agentPicker}
-        style={{ "--count": agents.length, "--index": index } as CSSProperties}
-      >
-        <span className="s-agent-pill" aria-hidden />
-        {agents.map((provider) => {
-          const selected = provider === agent;
-          return (
-            <button
-              key={provider}
-              type="button"
-              role="radio"
-              aria-checked={selected}
-              aria-label={PROVIDER_NAMES[provider]}
-              title={PROVIDER_NAMES[provider]}
-              className={`s-agent-option${selected ? " is-selected" : ""}`}
-              onClick={() => onPick(provider)}
-              onKeyDown={(event) => {
-                if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-                event.preventDefault();
-                const step = event.key === "ArrowRight" ? 1 : -1;
-                onPick(agents[(index + step + agents.length) % agents.length]);
-              }}
-            >
-              <ProviderMark provider={provider} size={provider === "claude" ? 12 : 11} />
-              {compact ? null : <span>{SHORT_NAMES[provider]}</span>}
-            </button>
-          );
-        })}
-      </div>
-      {compact ? (
-        <span key={agent} className="s-agent-picked">
-          {SHORT_NAMES[agent]}
-        </span>
-      ) : null}
-    </div>
-  );
-}
-
 /** The model, picked from a menu that opens upward: Codex lists more than fit as chips. */
-function ModelMenu({
+export function ModelMenu({
   models,
   value,
   agent,
@@ -670,332 +599,6 @@ function ModelMenu({
             </button>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-/** Starts a session: which folder, which agent and model, what to say first,
- * background or terminal. */
-export function NewSession() {
-  useLocale();
-  const backgroundOn = useSessions((s) => s.snapshot.backgroundAvailable === true);
-  const canClaude = useSessions((s) => s.snapshot.canStart === true);
-  const canCodex = useSessions((s) => s.snapshot.canStartCodex === true);
-  const startable = useSessions((s) => s.snapshot.startableAgents);
-  const sessionPrefs = useSettings((s) => s.prefs.sessions);
-  const [folders, setFolders] = useState<RecentFolder[]>([]);
-  const [chosen, setChosen] = useState<RecentFolder | null>(null);
-  const [prompt, setPrompt] = useState("");
-  const [inBackground, setInBackground] = useState(true);
-  const [starting, setStarting] = useState(false);
-  const [problem, setProblem] = useState<string | null>(null);
-  const [models, setModels] = useState<NewSessionModels>({ claude: [], codex: [] });
-  const [picked, setPicked] = useState<Provider>(() => {
-    const saved = remembered(REMEMBER.agent);
-    return PROVIDERS.find((p) => p === saved) ?? "claude";
-  });
-  const [claudeModel, setClaudeModel] = useState(() => remembered(REMEMBER.claude));
-  const [codexModel, setCodexModel] = useState(() => remembered(REMEMBER.codex));
-  const [noWorktree, setNoWorktree] = useState(() => remembered(REMEMBER.noWorktree));
-  const [accounts, setAccounts] = useState<ClaudeAccount[]>([]);
-  const [accountChoice, setAccountChoice] = useState<string | null>(null);
-  const [lastAccount, setLastAccount] = useState(() => remembered(REMEMBER.account));
-  const [worktreeNameText, setWorktreeNameText] = useState("");
-  /** What the folder picked is to git; null while it's being asked. */
-  const [repository, setRepository] = useState<RepoState | null>(null);
-
-  // Claude Code, Codex, and the hook agents found on this PC and shown in Sessions.
-  const agents: Provider[] = [
-    ...(canClaude ? (["claude"] as const) : []),
-    ...(canCodex ? (["codex"] as const) : []),
-    ...HOOK_AGENTS.filter((a) => startable?.includes(a) && sessionPrefs[AGENT_PREF[a]] !== false),
-  ];
-  const agent: Provider = agents.includes(picked) ? picked : (agents[0] ?? "claude");
-  // Codex runs threads in its own background server, so it needs no Agent
-  // View; the agents after it run only in a console.
-  const canRunInBackground = agent === "codex" || (agent === "claude" && backgroundOn);
-  const background = inBackground && canRunInBackground;
-  const list = agent === "codex" ? models.codex : agent === "claude" ? models.claude : [];
-  const key = agent === "codex" ? codexModel : claudeModel;
-  const model = list.find((m) => modelKey(m) === key) ?? list[0];
-  // A session in the background has nobody to type to it, so it starts with a prompt.
-  const needsPrompt = background && prompt.trim() === "";
-  const promptPlaceholder = background ? S.firstPromptRequired : S.firstPrompt;
-  const canStart = chosen !== null && !starting && !needsPrompt;
-  const message = problem ?? (needsPrompt ? S.backgroundNeedsPrompt : null);
-  // A worktree of its own for each agent, as last chosen for it; on until turned off.
-  const wantsWorktree = !noWorktree.split(",").includes(agent);
-  const isRepository = repository !== null && repository.kind !== "notRepo";
-  const usesWorktree = wantsWorktree && isRepository;
-  const worktreePlaceholder = worktreeSlug(prompt) || S.worktreeNamePlaceholder;
-  const worktreeNote =
-    repository?.kind === "notRepo"
-      ? S.worktreeNotRepo
-      : repository?.kind === "dirty" && wantsWorktree
-        ? S.worktreeFromHead
-        : null;
-  const folderList = useRef<HTMLDivElement>(null);
-  const [highlight, setHighlight] = useState<{ top: number; height: number } | null>(null);
-
-  // One highlight, sliding to the folder picked.
-  useLayoutEffect(() => {
-    const row = folderList.current?.querySelector<HTMLElement>(".s-new-folder.is-selected");
-    setHighlight(row ? { top: row.offsetTop, height: row.offsetHeight } : null);
-  }, [chosen, folders]);
-
-  useEffect(() => {
-    void bridge.sessions.recentFolders().then((found) => {
-      setFolders(found ?? []);
-      setChosen((current) => current ?? found?.[0] ?? null);
-    });
-  }, []);
-
-  useEffect(() => {
-    const path = chosen?.path;
-    setRepository(null);
-    if (!path) return;
-    let gone = false;
-    // An answer for a folder no longer picked is old news.
-    void bridge.sessions.repoState(path).then((state) => !gone && setRepository(state ?? { kind: "notRepo" }));
-    return () => {
-      gone = true;
-    };
-  }, [chosen?.path]);
-
-  const toggleWorktree = () => {
-    const off = new Set(noWorktree.split(",").filter(Boolean));
-    if (wantsWorktree) off.add(agent);
-    else off.delete(agent);
-    const value = [...off].sort().join(",");
-    setNoWorktree(value);
-    remember(REMEMBER.noWorktree, value);
-  };
-
-  useEffect(() => {
-    const demo = !inTauri && new URLSearchParams(location.search).has("accounts");
-    void bridge.sessions.accounts().then((found) => setAccounts(found ?? (demo ? DEMO_ACCOUNTS : [])));
-  }, []);
-
-  // A choice while more than one account is shown; else the folder's own, as before (#216).
-  const shownAccounts = accounts.filter((a) => !a.hidden);
-  const picksAccount = agent === "claude" && shownAccounts.length > 1;
-  const account =
-    shownAccounts.find((a) => a.id === accountChoice) ?? preferredAccount(accounts, lastAccount, chosen?.configHome);
-  const configHome = shownAccounts.length > 1 ? (account?.path ?? chosen?.configHome) : chosen?.configHome;
-
-  useEffect(() => {
-    void bridge.sessions.newModels(configHome).then((found) => {
-      if (found) setModels(found);
-    });
-  }, [configHome]);
-
-  // Escape steps back to the list before it reaches the island.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      // An open model menu takes Escape for itself.
-      if (document.querySelector(".s-model-list.is-open")) return;
-      event.stopImmediatePropagation();
-      useSessions.setState({ composing: false });
-    };
-    window.addEventListener("keydown", onKey, true);
-    return () => window.removeEventListener("keydown", onKey, true);
-  }, []);
-
-  const pickAgent = (provider: Provider) => {
-    if (provider === agent) return;
-    setProblem(null);
-    setPicked(provider);
-    remember(REMEMBER.agent, provider);
-  };
-
-  const pickModel = (value: string) => {
-    if (agent === "codex") {
-      setCodexModel(value);
-      remember(REMEMBER.codex, value);
-    } else {
-      setClaudeModel(value);
-      remember(REMEMBER.claude, value);
-    }
-  };
-
-  const browse = async () => {
-    const path = await bridge.sessions.pickFolder();
-    if (!path) return;
-    const existing = folders.find((folder) => folder.path === path);
-    const folder = existing ?? {
-      path,
-      name: path.split(/[\\/]/).filter(Boolean).pop() ?? path,
-      configHome: folders[0]?.configHome,
-    };
-    if (!existing) setFolders([folder, ...folders]);
-    setChosen(folder);
-    setProblem(null);
-  };
-
-  const start = async () => {
-    if (!chosen || !canStart) return;
-    setStarting(true);
-    setProblem(null);
-    if (picksAccount && account) {
-      setLastAccount(account.path);
-      remember(REMEMBER.account, account.path);
-    }
-    const failure = await bridge.sessions.start(
-      chosen.path,
-      agent === "claude" ? configHome : chosen.configHome,
-      prompt.trim(),
-      background,
-      agent,
-      model?.id ?? null,
-      usesWorktree,
-      worktreeNameText.trim() || null,
-    );
-    setStarting(false);
-    if (failure === "unavailable" && agent === "codex") setProblem(S.codexFailed);
-    else if (failure) setProblem(problemText(failure));
-    else if (failure === null) useSessions.setState({ composing: false });
-    else setProblem(agent === "codex" ? S.codexFailed : S.commandFailed);
-  };
-
-  return (
-    <div className="s-new-session" data-agent={agent}>
-      <div ref={folderList} className="s-new-folders" role="listbox" aria-label={S.newSession}>
-        {highlight ? (
-          <span
-            className="s-new-highlight"
-            aria-hidden
-            style={{ transform: `translateY(${highlight.top}px)`, height: highlight.height }}
-          />
-        ) : null}
-        {folders.length === 0 ? <span className="s-new-none">{S.noRecentFolders}</span> : null}
-        {folders.map((folder) => {
-          const selected = chosen?.path === folder.path;
-          return (
-            <button
-              key={folder.path}
-              type="button"
-              role="option"
-              aria-selected={selected}
-              aria-label={folder.path}
-              className={`s-new-folder${selected ? " is-selected" : ""}`}
-              onClick={() => {
-                setChosen(folder);
-                setProblem(null);
-              }}
-            >
-              <span key={selected ? "picked" : "folder"} className={`s-new-icon${selected ? " is-picked" : ""}`}>
-                {selected ? <Check size={12} className="s-new-check" /> : <Folder size={12} />}
-              </span>
-              <span className="s-new-name">{folder.name}</span>
-              <span className="s-new-path">{folder.path}</span>
-            </button>
-          );
-        })}
-        <button type="button" className="s-new-folder" onClick={() => void browse()}>
-          <FolderPlus size={12} />
-          <span className="s-new-name">{S.browseFolder}</span>
-        </button>
-      </div>
-      <input
-        className="s-new-prompt"
-        value={prompt}
-        placeholder={promptPlaceholder}
-        aria-label={promptPlaceholder}
-        onChange={(event) => setPrompt(event.target.value)}
-        onKeyDown={(event) => event.key === "Enter" && void start()}
-      />
-      {message ? (
-        <span
-          key={message}
-          className={`s-new-message${problem ? " s-background-problem" : ""}`}
-          role={problem ? "alert" : "status"}
-        >
-          {message}
-        </span>
-      ) : null}
-      <div className="s-worktree-row">
-        <div className="s-background-row">
-          <button
-            type="button"
-            role="switch"
-            aria-checked={usesWorktree}
-            disabled={!isRepository}
-            className={`s-background-button s-worktree-toggle${usesWorktree ? " is-selected" : ""}`}
-            title={`${S.ownWorktreeHelp} ${S.worktreeIgnoredFiles}`}
-            onClick={toggleWorktree}
-          >
-            <span className={`s-worktree-box${usesWorktree ? " is-on" : ""}`} aria-hidden>
-              {usesWorktree ? <Check size={9} strokeWidth={3} /> : null}
-            </span>
-            <GitBranch size={11} />
-            {S.ownWorktree}
-          </button>
-          {usesWorktree ? (
-            <input
-              className="s-worktree-input"
-              value={worktreeNameText}
-              placeholder={worktreePlaceholder}
-              aria-label={S.worktreeNamePlaceholder}
-              spellCheck={false}
-              onChange={(event) => setWorktreeNameText(event.target.value)}
-              onKeyDown={(event) => event.key === "Enter" && void start()}
-            />
-          ) : null}
-        </div>
-        {worktreeNote ? (
-          <span key={worktreeNote} className="s-new-message" role="status">
-            {worktreeNote}
-          </span>
-        ) : null}
-      </div>
-      {agents.length > 1 || list.length > 0 || picksAccount ? (
-        <div className="s-background-row">
-          {agents.length > 1 ? <AgentPicker agents={agents} agent={agent} onPick={pickAgent} /> : null}
-          <span className="s-background-gap" />
-          {picksAccount ? (
-            <AccountMenu accounts={shownAccounts} value={account} onPick={(a) => setAccountChoice(a.id)} />
-          ) : null}
-          {list.length > 0 ? <ModelMenu models={list} value={model} agent={agent} onPick={pickModel} /> : null}
-        </div>
-      ) : null}
-      <div className="s-background-row">
-        {canRunInBackground ? (
-          <>
-            <button
-              type="button"
-              className={`s-background-button${inBackground ? " is-selected" : ""}`}
-              aria-pressed={inBackground}
-              onClick={() => setInBackground(true)}
-            >
-              {S.runInBackground}
-            </button>
-            <button
-              type="button"
-              className={`s-background-button${inBackground ? "" : " is-selected"}`}
-              aria-pressed={!inBackground}
-              onClick={() => setInBackground(false)}
-            >
-              {S.runInTerminal}
-            </button>
-          </>
-        ) : (
-          <span className="s-background-off">
-            {isHookAgent(agent) ? tf("windows.sessions.opensInTerminal", PROVIDER_NAMES[agent]) : S.backgroundOffHelp}
-          </span>
-        )}
-        <span className="s-background-gap" />
-        <button
-          type="button"
-          className={`s-new-start${starting ? " is-starting" : ""}`}
-          disabled={!canStart}
-          aria-busy={starting}
-          onClick={() => void start()}
-        >
-          <span className="s-new-start-text">{S.startSession}</span>
-          <span className="s-new-spinner" aria-hidden />
-        </button>
       </div>
     </div>
   );
