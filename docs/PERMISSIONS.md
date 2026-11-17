@@ -1,0 +1,189 @@
+# Permissions
+
+Openbar asks for a macOS permission only when a feature actually needs it, and every one of them is optional. Skip a permission and the feature that leans on it simply stays off or runs in a lighter mode, while the rest of the app carries on as normal. The first run walks you through each grant, and you can come back to it anytime from Settings under About.
+
+You can review or change every grant in System Settings, under Privacy and Security, and reset them whenever you like. The [troubleshooting guide](TROUBLESHOOTING.md) shows how.
+
+| Permission | Optional | Powers |
+|---|---|---|
+| Accessibility | Yes | Scroll direction, Window Layout, the app and window switcher, Dock Preview, Dock click to minimize, middle click, paste as plain text, Finder cut and paste, quit on close, radial menu key actions, optional notch notification mirroring and Discord replies, keyboard feedback and Discord microphone status |
+| Screen Recording | Yes | Window previews, screenshots, copy text from screen, magnified color picking and screen recordings |
+| System Audio Recording | Yes | Volume mixer, optional live equalizer and system audio capture for recordings |
+| Microphone | Yes | Your voice in a screen recording, or a reply you speak to a session, only while you record it |
+| Speech Recognition | Yes | Turning a reply you speak to a session into text, on this Mac only |
+| Camera | Yes | The camera preview mirror, floating or inside the notch |
+| Calendars | Yes | Upcoming appointments in the notch |
+| Bluetooth | Yes | Accessory battery levels in Monitor, optional accessory alerts in the notch and Bluetooth on sleep |
+| Files and Folders | Yes | Monitoring downloads in your Downloads folder, your browsers' download folders and folders you add |
+| Notifications | Yes | Keep awake, battery, Monitor and update alerts |
+| Full Disk Access | Yes | A deeper uninstaller scan; agent colors from projects in protected folders |
+| Administrator (one time) | Yes | Password free closed lid toggling |
+| Automation | Yes | Finder actions, Homebrew Terminal handoff, replies to Claude Code sessions in Terminal, iTerm2 and Ghostty, and supported music playback controls |
+| App Management | Yes | App installs, updates and removal |
+
+## Accessibility
+
+**Why it comes up.** macOS keeps control of keyboard and pointer input, along with the ability to read other apps' windows, behind the Accessibility permission.
+
+**What uses it.**
+
+- **Notch**, for optional mirroring of new visible notifications, opening their original native action and optionally hiding the original banner, plus system key feedback. Scrolling gestures inside the notch window need no global input permission.
+- **Scroll direction inverter**, which flips the mouse wheel.
+- **Window Layout**, which moves or resizes windows when you use a layout action, shortcut or optional trackpad or mouse gesture.
+- **App and window switcher**, which captures the switcher hotkey and reads the window list.
+- **Dock Preview**, which reads Dock items and brings windows forward for a temporary peek.
+- **Dock click to minimize**, which spots clicks on the Dock icon of the active app and minimizes or restores its windows.
+- **Middle click**, which turns a three finger press on the trackpad into a middle click.
+- **Paste as plain text**, which presses ⌘V for you after stripping the formatting.
+- **Finder cut and paste**, which steps in on ⌘X and ⌘V while Finder is in front.
+- **Quit on close**, which spots when an app's last window goes away.
+- **Radial menu**, for wheel actions that press a key combo or a media key
+  for you and for the optional side button trigger; opening apps, files and
+  links with the keyboard shortcut alone needs nothing.
+- **Dynamic Island microphone status**, which reads Discord's Mute and Deafen controls and, while Discord is hidden, watches for the mute and deafen shortcuts you set in Discord without blocking them. Without the permission, Discord's state is not shown.
+- **Dynamic Island Sessions**, only if Accessibility is already allowed: Open brings the editor window (Antigravity, VS Code, Cursor, Windsurf) holding a session's folder to the front, and the WezTerm window showing a session's pane. It never asks for the permission; without it, Open brings Antigravity forward as a whole. It also opens a new Terminal window with `claude attach` for a background session, or to start a session in a terminal.
+
+**If you say no.** These features stay off. Openbar sees the moment you grant the permission and brings them to life with no relaunch.
+
+**Optional.** Yes. macOS shows its prompt the first time a feature needs it, and you can also grant it later in System Settings, under Privacy and Security, Accessibility.
+
+## Screen Recording
+
+**Why it comes up.** On macOS, reading other windows' titles and grabbing their thumbnails counts as screen recording.
+
+**What uses it.** The window switcher and Dock Preview for live thumbnails and titles, screenshots and copy text from screen for the area you select, and the screen recorder for the area, window or display you choose.
+
+The color picker also uses this permission for Openbar's magnifier and keyboard controls. Arrow keys select a pixel; Return or keypad Enter copies its color and closes the picker. C copies without closing. Without this permission, the native macOS color picker remains available.
+
+**If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
+
+**Optional.** Yes.
+
+## System Audio Recording
+
+**Why it comes up.** macOS gates app audio taps behind the System Audio Recording permission.
+
+**What uses it.** The Volume Mixer, the optional live equalizer in Dynamic Island, and the screen recorder's system audio tap.
+
+**If you say no.** Apps keep using normal system audio. The mixer cannot adjust or route individual apps, and the island uses animated music bars. The recorder can fall back to the screen capture stream's audio when available.
+
+**Optional.** Yes. The mixer and equalizer process audio in memory without saving or uploading it; apps you route to AirPlay are streamed from memory to the speaker you pick on your local network, through macOS's own AirPlay. The recorder saves audio only as part of a recording you start; sharing that recording is a separate action.
+
+## Microphone
+
+**Why it comes up.** macOS asks before an app can record your microphone.
+
+**What uses it.** The screen recorder, only when you turn on microphone audio. Your voice is kept on a separate track so you can adjust or remove it in the editor. Voice replies in Dynamic Island's Sessions page, only while you hold the shortcut or the microphone button is on; that audio goes to the speech recognizer on this Mac and is not kept. The prompt comes the first time you press the microphone, never at launch.
+
+**If you say no.** Screen recording still works without your microphone. System audio remains a separate choice. The microphone button says it can't listen and opens this page of System Settings.
+
+**Optional.** Yes. Microphone audio stays in the recording on your Mac unless you explicitly create a temporary link for the finished video.
+
+## Speech Recognition
+
+**Why it comes up.** macOS asks before an app can use its speech recognizer.
+
+**What uses it.** Voice replies in Dynamic Island's Sessions page (Settings → Dynamic Island → Content → Sessions → Voice replies, on by default). Openbar asks the recognizer to work on this Mac only (`requiresOnDeviceRecognition`), so nothing you say goes to Apple; a language without an on-device recognizer is refused, not sent. Apple's recognizer also needs Dictation turned on in Keyboard settings, where it downloads the languages. The prompt comes the first time you press the microphone, never at launch.
+
+**If you say no.** Typed replies work as before. The microphone button says speech recognition is off and opens this page of System Settings.
+
+**Optional.** Yes.
+
+## Camera
+
+**Why it comes up.** macOS asks before any app can show the camera image.
+
+**What uses it.** Camera preview, either in its floating mirror or inside the notch. The camera starts only from an explicit action and stops when the preview closes, its notch section is hidden, the feature is disabled or the Mac locks.
+
+**If you say no.** The preview window explains the state and offers the System Settings shortcut. Everything else in the app carries on as normal.
+
+**Optional.** Yes. The image goes straight to the local preview. This feature does not save or upload camera frames. Visible notch content can still appear in a screenshot or recording when you include the notch in captures.
+
+## Calendars
+
+The optional notch calendar asks for access when you press its permission button. macOS calls this full calendar access; Openbar uses it only to read appointments and never modifies them. If access is denied, the calendar shows a System Settings shortcut while the rest of the notch remains available. Event content stays on this Mac.
+
+## Bluetooth
+
+**Why it comes up.** macOS asks before an app can use Bluetooth. Some accessories report their battery level only when an app talks to them over Bluetooth, and recent macOS versions also ask before an app checks or switches Bluetooth itself.
+
+**What uses it.**
+
+- **Monitor**, for the battery level of keyboards, mice, headphones and other accessories. It is read only while the battery details are open or while you show it in the menu bar or in the Power card. Both stay off until you turn them on.
+- **Notch**, for the optional accessory alerts when an accessory connects or runs low.
+- **Bluetooth on sleep**, which checks and switches Bluetooth around sleep while you have it turned on.
+
+**If you say no.** Accessories that report their battery to macOS directly, as many keyboards, mice and trackpads do, still show it. Others can be missing from the list and from accessory alerts. Bluetooth on sleep may be unable to switch Bluetooth off and back on.
+
+**Optional.** Yes. Battery levels and the Bluetooth state are read on your Mac and never leave it.
+
+## Files and Folders
+
+Download monitoring watches your Downloads folder, the folders your browsers save to and any folder you add in Settings. Browser folders come from each Chromium profile's Preferences file and Firefox's prefs.js, which are read for that folder setting only; history, addresses and file contents are never read. While a Chromium browser (Chrome, Edge, Brave, Arc, Vivaldi, Opera and others) is writing a partial file into a watched folder, Openbar also reads that profile's in-progress download store (`shared_proto_db`) for the partial's path, final name and byte counts, so the row can show a percentage and the real file name. The store is read from disk without opening it for writing or taking its lock; the address, referrer and tab fields in each record are skipped unread, and nothing from the store is saved. macOS may ask once before the Downloads folder or a browser's folder on the Desktop, in Documents or on another volume is read. A folder you add in the system picker keeps its access as a local bookmark that does not travel in a settings backup; if it becomes unavailable or access is revoked, Settings marks it so you can add it again. Only the top level of each folder is read, and Full Disk Access is not needed for this feature.
+
+## Notifications
+
+**Why it comes up.** So the app can post the odd alert when something you set up actually happens.
+
+**What uses it.**
+
+- **Keep awake**, with a note when a keep awake timer finishes.
+- **Battery**, with the battery protection alerts.
+- **Monitor**, with optional alerts for the conditions you turn on.
+- **Updates**, with a one time note when a new version shows up, and only while automatic update checks are on.
+- **App updates**, with a note when other apps on the Mac have a newer version, and only while the background check is on.
+
+**If you say no.** These system notifications are not posted. Status remains available inside the app, and alarms from timers you start still work. Mirroring existing system banners uses Accessibility instead of this permission.
+
+**Optional.** Yes.
+
+## Full Disk Access
+
+**Why it comes up.** The uninstaller hunts down the files an app leaves behind, like caches, preferences and logs. Some of those spots are protected by macOS and only open up with Full Disk Access.
+
+**What uses it.** The uninstaller, for a deeper scan. When it is already granted, Dynamic Island Sessions also looks for agent definitions inside projects in protected folders such as Desktop or Documents, to give a subagent's Clawd its agent's color. It never asks for the permission.
+
+**If you say no.** The uninstaller still works and scans the places it can reach. It just might not surface files tucked away in protected folders. A subagent from a project in a protected folder keeps the color its Clawd drew at random.
+
+**Optional.** Yes. There is no pop up for Full Disk Access. You add Openbar in System Settings, under Privacy and Security, Full Disk Access, and Openbar opens that pane for you when the feature calls for it.
+
+## Administrator, one time and optional
+
+**Why it comes up.** Keeping the Mac awake with the lid shut relies on `pmset disablesleep`, which needs administrator rights. So it does not have to ask for your password every time you flip closed lid mode, Openbar can install a tightly scoped `sudoers` rule that allows only that single command.
+
+**What uses it.** Closed lid keep awake.
+
+**If you say no.** Closed lid mode still works. macOS just asks for your administrator password each time you turn it on or off.
+
+**Optional.** Yes, and it is a one time choice. The rule is limited to `pmset disablesleep` and nothing else, and it goes away on its own when you uninstall Openbar or reset things from Settings under Advanced.
+
+## Automation
+
+**Why it comes up.** A few features ask another app to carry out an action you choose. macOS protects that interaction with permission for each target app.
+
+**What uses it.**
+
+- **Finder cut and paste**, which reads the current Finder selection and the destination folder, then moves the files.
+- **Uninstaller**, which moves leftover files to the Trash.
+- **Empty the Trash** in Quick toggles, which asks Finder to empty it. The other quick toggles, dark mode included, need no permission.
+- **Homebrew manager**, which can open Terminal with the exact Homebrew install or setup command when the app should not collect a password itself.
+- **Dynamic Island Sessions**, which finds the Terminal tab a Claude Code session runs in by its device, brings it forward when you press Open, and types the reply you send from the island into it. Nothing is typed while that session waits on a permission or a question. iTerm2 and Ghostty (1.4 or later) are reached the same way: the island asks each app for the session whose device is the session's own, and macOS asks once per app whether Openbar may control it. Sessions in the terminal of Antigravity, VS Code, Cursor or Windsurf go through the extension the page installs into that editor instead, which needs no permission. Sessions in tmux, zellij, WezTerm and kitty go through those programs' own command lines and need no permission either: the island checks that the tmux pane, zellij pane, WezTerm pane or kitty window still runs the session before it selects or types anything. kitty takes keys from outside only with remote control turned on in kitty.conf (`allow_remote_control` and `listen_on`). Warp, Alacritty and other terminals can only be brought forward, and the reply field says so. Answering permission prompts and Claude's questions from the island goes through Claude Code hooks, which are written to `~/.claude/settings.json` when you press Install Hooks and need no permission either. Codex sessions take approvals, answers and replies through Codex's own app server and need no permission; Open on one finds its Terminal tab the same way.
+- **Dynamic Island playback**, when a music app requires Automation to control its own playback while another app is active. Only playback commands declared by the selected app are used; an explicit button requests permission before a new action can be sent. The shuffle button on the music page reads and switches only the shuffle setting the app declares, and reads whether shuffle is available for what is playing when the app declares that too. Until the app is allowed, its first press only asks for this permission, even for an app whose playback controls work without it.
+
+**If you say no.** Those Finder or Terminal handoff steps will not go through, and replies to sessions in Terminal, iTerm2 or Ghostty stay unsent; you can still answer in the session's own tab. Music stays visible, and you can open its player to control it there. You can switch Automation back on in System Settings, under Privacy and Security, Automation.
+
+**Optional.** Yes.
+
+## App Management
+
+**Why it comes up.** macOS protects installed app bundles from changes by apps signed by another developer.
+
+**What uses it.** The package manager, App updates and disk image installer, when they install, replace or remove apps.
+
+**If you say no.** Package updates keep working, but operations that change installed apps can be blocked. You can grant access later in System Settings, under Privacy and Security, App Management.
+
+**Optional.** Yes. macOS records the request when an update first tries to change an installed app, so Openbar cannot check the status beforehand.
+
+## Resetting permissions
+
+To clear what you have granted and start over, follow the reset steps in the [troubleshooting guide](TROUBLESHOOTING.md#resetting-permissions), or use Settings under Advanced, which clears every permission, the login item and the closed lid rule while leaving the app in place.

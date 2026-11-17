@@ -1,0 +1,637 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+/// Every `eprintln!` in the app also goes into Openbar's own log, masked, so
+/// a diagnostics file can carry it (#230); it still prints to stderr as
+/// before. Defined before the modules so it stands in for the standard
+/// macro in all of them.
+macro_rules! eprintln {
+    ($($arg:tt)*) => {
+        $crate::diagnostics::log::stderr_line(::std::format_args!($($arg)*))
+    };
+}
+
+mod agent_usage;
+mod audio;
+mod bar;
+mod battery;
+mod brightness;
+mod calendar;
+mod capture;
+mod clipboard;
+mod com;
+mod diagnostics;
+mod discord_keys;
+mod discord_reply;
+mod discord_storage;
+mod downloads;
+mod files;
+mod fullscreen;
+mod hooks;
+mod hosts;
+mod island;
+mod island_shortcut;
+mod keep_awake;
+mod legacy;
+#[cfg(target_os = "linux")]
+mod linux;
+mod local_calendar;
+mod locale;
+mod media;
+mod media_volume;
+mod microphone;
+mod music_levels;
+mod music_queue;
+mod notification_history;
+mod notifications;
+mod ocr;
+mod onboarding;
+mod power_saver;
+mod prefs;
+mod recorder;
+mod scratchpad;
+mod session_lock;
+mod session_quiet;
+mod sessions;
+mod settings;
+mod shell;
+mod sound;
+mod speed_test;
+mod system_monitor;
+mod timer;
+mod toggles;
+mod tray;
+mod update_window;
+mod updater;
+mod voice;
+mod watch;
+
+use tauri::{Emitter, Manager, RunEvent};
+use tauri_plugin_global_shortcut::ShortcutState;
+
+/// `Openbar.exe --hook`: Claude Code runs this for every hook event. It
+/// never starts the app, only hands the event to the running island.
+pub fn hook_main() -> ! {
+    hooks::transport::run_hook(hooks::APP_ID)
+}
+
+/// `Openbar.exe --vibe-proxy <app> <vibe-app-server> [arguments]`: the server of a
+/// Mistral Vibe started from New session, relayed for the island.
+pub fn vibe_proxy_main(arguments: &[String]) -> ! {
+    sessions::vibe_proxy::main(arguments)
+}
+
+/// `Openbar.exe --music-probe <file>`: writes what the media reader sees.
+pub fn music_probe_main(path: &str) -> ! {
+    let _ = std::fs::write(path, media::probe());
+    std::process::exit(0)
+}
+
+/// On-demand queue diagnostic; never starts the island or changes playback.
+pub fn music_queue_probe_main(path: &str, title: &str) -> ! {
+    let snapshot = music_queue::read("Spotify.exe", title, true);
+    if let Ok(json) = serde_json::to_string_pretty(&snapshot) {
+        let _ = std::fs::write(path, json);
+    }
+    std::process::exit(0)
+}
+
+pub fn microphone_probe_main(path: &str) -> ! {
+    microphone::probe_main(path)
+}
+
+/// `Openbar.exe --watch-probe <file> <title>`: times Watch's capture steps for a window.
+#[cfg(windows)]
+pub fn watch_probe_main(path: &str, title: &str) -> ! {
+    watch::probe(path, title);
+    std::process::exit(0)
+}
+
+/// `Openbar.exe --agents-probe <file> [--limits]`: what the AI page would read.
+pub fn agents_probe_main(path: &str, limits: bool) -> ! {
+    agent_usage::probe_main(path, limits)
+}
+
+/// `--discord-reply-probe <out> <app id> <title> <text>`: the whole send path
+/// against a stand-in window, which OPENBAR_DISCORD_WINDOW_CLASS must name;
+/// the probe never drives the person's Discord.
+#[cfg(target_os = "linux")]
+pub fn discord_reply_probe_main(path: &str, app_id: &str, title: &str, text: &str) -> ! {
+    let result = if std::env::var_os("OPENBAR_DISCORD_WINDOW_CLASS").is_none() {
+        "refused: set OPENBAR_DISCORD_WINDOW_CLASS to a stand-in".to_string()
+    } else {
+        match discord_reply::send(app_id, title, text) {
+            Ok(()) => "OK".into(),
+            Err(code) => code,
+        }
+    };
+    let written = std::fs::write(path, &result);
+    std::process::exit(if written.is_ok() && result == "OK" {
+        0
+    } else {
+        1
+    });
+}
+
+pub fn notifications_probe_main(path: &str) -> ! {
+    notifications::probe_main(path)
+}
+
+/// `Openbar.exe --speed-test-probe <file>`: runs the network detail's speed test.
+pub fn speed_test_probe_main(path: &str) -> ! {
+    speed_test::probe_main(path)
+}
+
+/// `Openbar.exe --voice-probe <wav> <file> [language]`: the voice-reply
+/// recognizer on a recording, without the island.
+pub fn voice_probe_main(wav: &str, path: &str, language: &str) -> ! {
+    voice::probe_main(wav, path, language)
+}
+
+/// `Openbar.exe --network-helper`, `--install-network-helper` or
+/// `--remove-network-helper`: the per-app network list's elevated helper
+/// and the steps that approve and remove it. Returns for anything else.
+pub fn network_helper_main(arg: &str) {
+    system_monitor::network_helper_main(arg)
+}
+
+/// `Openbar.exe --remove-hooks`: the uninstaller takes Openbar's hooks out
+/// of Claude Code's settings, so Claude doesn't call a program that's gone.
+/// `Openbar.exe --migrate-legacy`: the installer brings settings and hooks
+/// over from the app's old name before it removes the old app.
+pub fn migrate_legacy_main() -> ! {
+    legacy::migrate_main()
+}
+
+pub fn remove_hooks_main() -> ! {
+    // The accounts the person added by hand are in the app's prefs (#216).
+    if let Some(prefs) = std::env::var_os("APPDATA")
+        .map(|d| {
+            std::path::PathBuf::from(d)
+                .join("com.openbar.island")
+                .join("settings.json")
+        })
+        .and_then(|p| std::fs::read(p).ok())
+        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
+    {
+        sessions::accounts::set_settings(sessions::accounts::settings_from_prefs(&prefs));
+    }
+    std::process::exit(if hooks::claude_hooks_remove().is_ok() {
+        0
+    } else {
+        1
+    })
+}
+
+/// `Openbar.exe --remove-ide-bridge`: the uninstaller takes the IDE bridge
+/// extension out of every editor that has it.
+pub fn remove_ide_bridge_main() -> ! {
+    hosts::bridge_installer::remove_everywhere();
+    std::process::exit(0)
+}
+
+/// `Openbar.exe --codex-probe`: prints what Codex's app-server tells the island.
+pub fn codex_probe_main() -> ! {
+    sessions::codex::client::probe()
+}
+
+/// `Openbar.exe --console <pid>`: the helper that types into a session's console.
+#[cfg(windows)]
+pub fn console_main(pid: u32) -> ! {
+    hosts::console::helper_main(pid)
+}
+
+/// What a global shortcut does, from the plugin or from `--shortcut`.
+fn on_shortcut<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    shortcut: &tauri_plugin_global_shortcut::Shortcut,
+    pressed: bool,
+) {
+    if audio::roller_key(shortcut, pressed) || !pressed {
+        return;
+    }
+    if island_shortcut::matches(app, shortcut) {
+        let _ = app.emit_to(island::LABEL, "island://toggle", ());
+    } else if audio::is_switcher_shortcut(shortcut) {
+        audio::switch_to_next_output();
+    }
+}
+
+/// The keys after `--shortcut` in a second launch's arguments.
+fn shortcut_argument(args: &[String]) -> Option<String> {
+    let at = args.iter().position(|a| a == "--shortcut")?;
+    args.get(at + 1)
+        .cloned()
+        .filter(|keys| !keys.trim().is_empty())
+}
+
+/// The permission keys the sessions page holds while a request waits.
+fn permission_key(shortcut: &tauri_plugin_global_shortcut::Shortcut) -> Option<&'static str> {
+    use std::str::FromStr;
+    use tauri_plugin_global_shortcut::Shortcut;
+    [
+        ("Control+Y", "y"),
+        ("Control+N", "n"),
+        ("Control+T", "always"),
+    ]
+    .into_iter()
+    .find(|(keys, _)| Shortcut::from_str(keys).is_ok_and(|s| s.id() == shortcut.id()))
+    .map(|(_, key)| key)
+}
+
+/// A shortcut pressed where Openbar cannot hear the keyboard: on Wayland the
+/// compositor runs `openbar --shortcut Ctrl+Alt+Space` for a key bound to it,
+/// and the running Openbar acts as if the key went down and up.
+fn pressed_from_outside<R: tauri::Runtime>(app: &tauri::AppHandle<R>, keys: &str) {
+    use std::str::FromStr;
+    let Ok(shortcut) = tauri_plugin_global_shortcut::Shortcut::from_str(keys) else {
+        eprintln!("openbar: --shortcut {keys:?} is not a shortcut");
+        return;
+    };
+    if let Some(key) = permission_key(&shortcut) {
+        let _ = app.emit("sessions://permission-key", key);
+        return;
+    }
+    on_shortcut(app, &shortcut, true);
+    on_shortcut(app, &shortcut, false);
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    #[cfg(target_os = "linux")]
+    linux::before_start();
+    // Settings and hooks from the app's old name, before anything reads them.
+    legacy::migrate_at_start();
+    let builder = tauri::Builder::default();
+    // In-app updates are Windows only; the Linux packages open the release page.
+    #[cfg(windows)]
+    let builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    let app = builder
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            // `openbar --shortcut <keys>`: a key a Wayland compositor bound for us (#252).
+            match shortcut_argument(&args) {
+                Some(keys) => pressed_from_outside(app, &keys),
+                None => settings::open(app),
+            }
+        }))
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_global_shortcut::Builder::new()
+                .with_handler(|app, shortcut, event| {
+                    on_shortcut(app, shortcut, event.state() == ShortcutState::Pressed);
+                })
+                .build(),
+        )
+        .manage(recorder::Shared::default())
+        .manage(island::IslandState::default())
+        .manage(island_shortcut::Shared::default())
+        .manage(media::Shared::default())
+        .manage(music_levels::Demand::default())
+        .manage(microphone::Shared::default())
+        .manage(downloads::Shared::default())
+        .manage(notifications::Shared::default())
+        .manage(system_monitor::Shared::default())
+        .manage(speed_test::Shared::default())
+        .manage(voice::Shared::default())
+        .manage(calendar::Shared::default())
+        .manage(audio::Shared::default())
+        .manage(keep_awake::Shared::default())
+        .manage(capture::Shared::default())
+        .manage(capture::history::Shared::default())
+        .manage(capture::preview::Shared::default())
+        .manage(clipboard::Shared::default())
+        .manage(agent_usage::State::default())
+        .manage(watch::Shared::default())
+        .on_window_event(|window, event| {
+            // A page can disappear without running React's cleanup. Do not
+            // wait on a registration lock from the native event-loop thread.
+            if matches!(
+                event,
+                tauri::WindowEvent::CloseRequested { .. }
+                    | tauri::WindowEvent::Destroyed
+                    | tauri::WindowEvent::Focused(false)
+            ) {
+                let app = window.app_handle().clone();
+                let owner = window.label().to_string();
+                tauri::async_runtime::spawn_blocking(move || {
+                    audio::recording_window_closed(&app, &owner)
+                });
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            recorder::recorder_stop,
+            recorder::recorder_running,
+            recorder::recorder_reveal,
+            locale::locale_settings,
+            tray::tray_battery_warning,
+            island::island_set_hit_rects,
+            island::island_set_capture,
+            island::island_set_focusable,
+            island::island_set_room,
+            island::island_mirror_update,
+            island::island_mirror_frame,
+            island::island_mirroring,
+            island::island_mirror_open,
+            fullscreen::attention_context,
+            fullscreen::attention_compact_sessions,
+            settings::open_settings,
+            diagnostics::diagnostics_export,
+            diagnostics::diagnostics_system_line,
+            onboarding::onboarding_open,
+            updater::updates_endpoints,
+            updater::updates_install,
+            update_window::update_window_open,
+            onboarding::onboarding_finish,
+            onboarding::onboarding_claude_present,
+            hosts::bridge_installer::ide_bridge_status,
+            hosts::bridge_installer::ide_bridge_install,
+            hooks::claude_hooks_status,
+            hooks::claude_hooks_install,
+            hooks::claude_hooks_remove,
+            hooks::claude_accounts_status,
+            hooks::claude_hooks_install_account,
+            hooks::claude_accounts_can_add,
+            media::music_now,
+            media::music_select_source,
+            media::music_players,
+            music_levels::music_watch_levels,
+            microphone::microphone_snapshot,
+            downloads::downloads_snapshot,
+            downloads::downloads_open,
+            downloads::downloads_reveal,
+            downloads::downloads_add_to_shelf,
+            downloads::downloads_open_folder,
+            downloads::downloads_choose_folder,
+            media_volume::music_volume,
+            music_queue::music_queue,
+            music_queue::artwork::music_queue_artwork,
+            music_queue::artwork::music_queue_album,
+            media::music_command,
+            media::music_seek,
+            media::music_shuffle,
+            media::music_open_player,
+            notifications::notifications_inbox,
+            notifications::notifications_request_access,
+            notifications::notifications_dismiss,
+            notifications::notifications_clear,
+            notifications::notifications_open,
+            notifications::notifications_send_discord,
+            notifications::notifications_open_privacy_settings,
+            prefs::prefs_get,
+            prefs::prefs_set,
+            prefs::launch_at_login_get,
+            prefs::launch_at_login_set,
+            sessions::service::sessions_decide,
+            sessions::service::sessions_inspect_command,
+            sessions::service::sessions_close_inspection,
+            sessions::service::sessions_show_sample,
+            sessions::service::sessions_dismiss_sample,
+            sessions::service::sessions_answer,
+            sessions::service::sessions_acknowledge,
+            sessions::service::sessions_focus,
+            sessions::service::sessions_codex_status,
+            sessions::service::sessions_agent_hooks_status,
+            sessions::service::sessions_agent_hooks_install,
+            sessions::service::sessions_remote_hosts_status,
+            sessions::service::sessions_remote_hosts_change,
+            island_shortcut::shortcut_registered,
+            sessions::service::sessions_reply,
+            sessions::service::sessions_open,
+            sessions::service::sessions_attach,
+            sessions::service::sessions_terminal_shown,
+            sessions::service::sessions_background_stop,
+            sessions::service::sessions_background_remove,
+            sessions::service::sessions_background_logs,
+            sessions::service::sessions_recent_folders,
+            sessions::service::sessions_pick_folder,
+            sessions::service::sessions_start,
+            sessions::service::sessions_repo_state,
+            sessions::service::sessions_worktree_remove,
+            sessions::service::sessions_worktree_branch,
+            sessions::service::sessions_worktree_open,
+            sessions::service::sessions_new_models,
+            sessions::service::sessions_image,
+            sessions::attachments::sessions_attach_image,
+            sessions::attachments::sessions_clipboard_images,
+            shell::shell_icon,
+            shell::shell_open_task_manager,
+            sound::sound_play,
+            sound::sound_session_stop,
+            sound::sound_list,
+            sound::sound_alarm,
+            timer::timer_now_ms,
+            timer::timer_wake,
+            system_monitor::system_monitor_watch,
+            system_monitor::system_monitor_snapshot,
+            system_monitor::system_network_approve,
+            speed_test::speed_test_state,
+            speed_test::speed_test_start,
+            voice::voice_start,
+            voice::voice_stop,
+            voice::voice_cancel,
+            voice::voice_open_settings,
+            voice::model::voice_model_status,
+            voice::model::voice_model_download,
+            voice::model::voice_model_delete,
+            calendar::calendar_snapshot,
+            calendar::calendar_show_range,
+            calendar::calendar_request_access,
+            calendar::calendar_open,
+            calendar::calendar_open_privacy_settings,
+            local_calendar::calendar_save_event,
+            local_calendar::calendar_delete_event,
+            audio::audio_state,
+            audio::audio_set_output,
+            audio::audio_set_input,
+            audio::audio_set_default,
+            audio::audio_set_app,
+            audio::audio_watch_apps,
+            audio::mic_mute_set,
+            audio::audio_priority_set,
+            audio::audio_switcher_recording,
+            keep_awake::keep_awake_state,
+            keep_awake::keep_awake_set,
+            keep_awake::keep_awake_toggle,
+            power_saver::power_saver_on,
+            session_lock::session_idle_seconds,
+            session_quiet::session_quiet,
+            battery::battery_status,
+            brightness::brightness_displays,
+            brightness::brightness_set,
+            capture::capture_run,
+            capture::history::captures_list,
+            capture::history::captures_open,
+            capture::history::captures_remove,
+            capture::history::captures_clear,
+            capture::capture_session,
+            capture::capture_pixels,
+            capture::capture_ready,
+            capture::capture_commit,
+            capture::tools_copy_text,
+            capture::preview::preview_info,
+            capture::preview::preview_ready,
+            capture::preview::preview_action,
+            capture::preview::preview_pin,
+            capture::preview::preview_close,
+            capture::preview::preview_drag,
+            toggles::toggles_state,
+            toggles::toggles_run,
+            scratchpad::scratchpad_load,
+            scratchpad::scratchpad_save,
+            scratchpad::scratchpad_export,
+            clipboard::clipboard_snapshot,
+            clipboard::clipboard_copy,
+            clipboard::clipboard_paste,
+            clipboard::clipboard_toggle_pin,
+            clipboard::clipboard_remove,
+            clipboard::clipboard_move,
+            clipboard::clipboard_clear_recent,
+            clipboard::clipboard_copy_text,
+            clipboard::clipboard_copy_image,
+            clipboard::clipboard_beep,
+            files::files_snapshot,
+            files::files_remove,
+            files::files_clear,
+            files::files_toggle_pin,
+            files::files_open,
+            files::files_open_with_apps,
+            files::files_open_with,
+            files::files_reveal,
+            files::files_reveal_outputs,
+            files::files_share,
+            files::files_drag_out,
+            files::files_zip,
+            files::files_zip_cancel,
+            files::files_kind,
+            agent_usage::agents_snapshot,
+            agent_usage::agents_page_visible,
+            agent_usage::agents_resets_refresh,
+            agent_usage::agents_resets_redeem,
+            agent_usage::agents_codex_refresh,
+            agent_usage::agents_claude_account_refresh,
+            agent_usage::agents_codex_discover,
+            agent_usage::agents_codex_choose_folder,
+            watch::watch_snapshot,
+            watch::watch_choose,
+            watch::watch_stop,
+            watch::watch_again,
+            watch::watch_set_rule,
+            watch::watch_pin_line,
+            watch::watch_page_visible,
+            watch::watch_notify,
+        ])
+        .setup(|app| {
+            #[cfg(target_os = "macos")]
+            app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+            // The log first, so everything after it can write there (#230).
+            diagnostics::start(app.handle());
+            // Loaded before the island exists, so its first prefs_get finds them.
+            app.manage(prefs::Prefs::load(app.handle()));
+            locale::start(app.handle().clone());
+            app.manage(scratchpad::Store::new(app.handle()));
+            app.manage(local_calendar::Store::new(app.handle()));
+            app.manage(files::Files::load(app.handle()));
+            // Followed before the island exists, so its first power_saver_on has it.
+            power_saver::start(app.handle().clone());
+            std::thread::spawn(hosts::bridge_installer::update_outdated);
+            session_lock::start(app.handle().clone());
+            battery::start(app.handle().clone());
+            island::create(app.handle())?;
+            files::install(app.handle());
+            fullscreen::watch(app.handle());
+            microphone::start(
+                app.handle().clone(),
+                app.state::<microphone::Shared>().inner().clone(),
+            );
+            downloads::start(
+                app.handle().clone(),
+                app.state::<downloads::Shared>().inner().clone(),
+            );
+            app.manage(sessions::service::Service::start(app.handle().clone()));
+            media::start(
+                app.handle().clone(),
+                app.state::<media::Shared>().inner().clone(),
+            );
+            music_levels::start(
+                app.handle().clone(),
+                app.state::<media::Shared>().inner().clone(),
+            );
+            notifications::start(
+                app.handle().clone(),
+                app.state::<notifications::Shared>().inner().clone(),
+            );
+            system_monitor::start(
+                app.handle().clone(),
+                app.state::<system_monitor::Shared>().inner().clone(),
+            );
+            calendar::start(
+                app.handle().clone(),
+                app.state::<calendar::Shared>().inner().clone(),
+            );
+            audio::start(
+                app.handle().clone(),
+                app.state::<audio::Shared>().inner().clone(),
+            );
+            clipboard::start(
+                app.handle().clone(),
+                app.state::<clipboard::Shared>().inner().clone(),
+            );
+            agent_usage::start(
+                app.handle().clone(),
+                app.state::<agent_usage::State>().inner().clone(),
+            );
+            let prefs = app.state::<prefs::Prefs>().get();
+            prefs::apply(app.handle(), None, &prefs);
+            tray::create(app.handle())?;
+            onboarding::start(app.handle());
+            updater::restore_windows(app.handle());
+            Ok(())
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building Openbar");
+
+    app.run(|app, event| {
+        if let RunEvent::Exit = event {
+            system_monitor::stop(app.state::<system_monitor::Shared>().inner());
+            capture::preview::stop(app);
+            fullscreen::stop(app);
+            audio::stop();
+        }
+    });
+}
+
+#[cfg(test)]
+mod shortcut_argument_tests {
+    use super::*;
+    use std::str::FromStr;
+    use tauri_plugin_global_shortcut::Shortcut;
+
+    fn args(list: &[&str]) -> Vec<String> {
+        list.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn the_keys_follow_the_flag_and_nothing_else_is_a_shortcut() {
+        assert_eq!(
+            shortcut_argument(&args(&["openbar", "--shortcut", "Ctrl+Alt+Space"])).as_deref(),
+            Some("Ctrl+Alt+Space")
+        );
+        assert_eq!(shortcut_argument(&args(&["openbar"])), None);
+        assert_eq!(shortcut_argument(&args(&["openbar", "--shortcut"])), None);
+        assert_eq!(
+            shortcut_argument(&args(&["openbar", "--shortcut", " "])),
+            None
+        );
+    }
+
+    #[test]
+    fn the_permission_keys_are_known_however_they_are_spelled() {
+        let key = |keys: &str| permission_key(&Shortcut::from_str(keys).unwrap());
+        assert_eq!(key("Ctrl+Y"), Some("y"));
+        assert_eq!(key("control+n"), Some("n"));
+        assert_eq!(key("Ctrl+T"), Some("always"));
+        assert_eq!(key("Ctrl+Alt+Y"), None);
+        assert_eq!(key("Ctrl+Alt+Space"), None);
+    }
+}

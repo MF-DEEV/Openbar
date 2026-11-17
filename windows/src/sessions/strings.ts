@@ -1,0 +1,572 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+// The Sessions section's strings. On the Mac they are English in every
+// language (NotchClaudeSessionStrings.swift); Mac-only wording is swapped
+// for Windows here.
+
+import { isHookAgent, PROVIDER_NAMES, type PlanMode, type Provider } from "./types";
+import { t, tf } from "../i18n";
+import { onLinux } from "../shared/platform";
+import { EXPAND_STEP } from "./diffGaps";
+
+export const S = {
+  get ownWorktree() {
+    return t("notchClaudeSessions.ownWorktree");
+  },
+  get ownWorktreeHelp() {
+    return t("notchClaudeSessions.ownWorktreeHelp");
+  },
+  get worktreeNamePlaceholder() {
+    return t("notchClaudeSessions.worktreeNamePlaceholder");
+  },
+  get worktreeNotRepo() {
+    return t("notchClaudeSessions.worktreeNotRepo");
+  },
+  get worktreeFromHead() {
+    return t("notchClaudeSessions.worktreeFromHead");
+  },
+  get worktreeIgnoredFiles() {
+    return t("notchClaudeSessions.worktreeIgnoredFiles");
+  },
+  get worktreeFailed() {
+    return t("notchClaudeSessions.worktreeFailed");
+  },
+  get worktreeMark() {
+    return t("notchClaudeSessions.worktreeMark");
+  },
+  get openWorktree() {
+    return t("notchClaudeSessions.openWorktree");
+  },
+  get copyBranch() {
+    return t("notchClaudeSessions.copyBranch");
+  },
+  get branchCopied() {
+    return t("notchClaudeSessions.branchCopied");
+  },
+  get removeWorktree() {
+    return t("notchClaudeSessions.removeWorktree");
+  },
+  get removeWorktreeConfirm() {
+    return t("notchClaudeSessions.removeWorktreeConfirm");
+  },
+  get worktreeUnsaved() {
+    return t("notchClaudeSessions.worktreeUnsaved");
+  },
+  get removeAnyway() {
+    return t("notchClaudeSessions.removeAnyway");
+  },
+  get diffLabel() {
+    return t("windows.sessions.diffLabel");
+  },
+  get diffNewFile() {
+    return t("windows.sessions.diffNewFile");
+  },
+  get diffDeletedFile() {
+    return t("windows.sessions.diffDeletedFile");
+  },
+  get diffReplacesFile() {
+    return t("windows.sessions.diffReplacesFile");
+  },
+  get diffNewCell() {
+    return t("windows.sessions.diffNewCell");
+  },
+  get diffDeletedCell() {
+    return t("windows.sessions.diffDeletedCell");
+  },
+  get diffEveryMatch() {
+    return t("windows.sessions.diffEveryMatch");
+  },
+  diffCell: (id: string) => tf("windows.sessions.diffCell", id),
+  diffPlaces: (n: number) => tf("windows.sessions.diffPlaces", n),
+  diffMovesTo: (path: string) => tf("windows.sessions.diffMovesTo", path),
+  diffMoreLines: (n: number) => tf("windows.sessions.diffMoreLines", n),
+  diffHiddenLines: (n: number) => tf("windows.sessions.diffHiddenLines", n),
+  diffShowAll: (n: number) => tf("windows.sessions.diffShowAll", n),
+  get diffShowBelow() {
+    return tf("windows.sessions.diffShowBelow", EXPAND_STEP);
+  },
+  get diffShowAbove() {
+    return tf("windows.sessions.diffShowAbove", EXPAND_STEP);
+  },
+  diffCounts: (added: number, removed: number) => tf("windows.sessions.diffCounts", added, removed),
+  /** "Added, line 12: text", read out for one line of a diff. */
+  diffLineLabel(line: { kind: string; number?: number; text: string }) {
+    const kind =
+      line.kind === "added"
+        ? t("windows.sessions.diffAdded")
+        : line.kind === "removed"
+          ? t("windows.sessions.diffRemoved")
+          : t("windows.sessions.diffUnchanged");
+    const head = line.number === undefined ? kind : tf("windows.sessions.diffLine", kind, line.number);
+    return [head, line.text].join(": ");
+  },
+  get title() {
+    return t("notchClaudeSessions.title");
+  },
+  get emptyTitle() {
+    return t("notchClaudeSessions.emptyTitle");
+  },
+  get emptyDetail() {
+    return onLinux() ? t("windows.sessions.emptyDetailLinux") : t("windows.sessions.emptyDetail");
+  },
+  get generating() {
+    return t("notchLockScreen.working");
+  },
+  get runningTool() {
+    return t("notchClaudeSessions.runningTool");
+  },
+  get waitingPermission() {
+    return t("notchClaudeSessions.permissionNotice");
+  },
+  get waitingInput() {
+    return t("notchClaudeSessions.waitingInput");
+  },
+  get background() {
+    return t("notchClaudeSessions.background");
+  },
+  get limited() {
+    return t("notchClaudeSessions.limited");
+  },
+  resumes: (when: string) => tf("notchClaudeSessions.resumesFormat", when),
+  get finished() {
+    return t("feedback.done");
+  },
+  get idle() {
+    return t("notchAgents.idle");
+  },
+  get allow() {
+    return t("notchClaudeSessions.allow");
+  },
+  get alwaysAllow() {
+    return t("notchClaudeSessions.alwaysAllow");
+  },
+  get deny() {
+    return t("notchClaudeSessions.deny");
+  },
+  get plan() {
+    return t("notchClaudeSessions.plan");
+  },
+  get approvePlan() {
+    return t("notchClaudeSessions.approvePlan");
+  },
+  get keepPlanning() {
+    return t("notchClaudeSessions.keepPlanning");
+  },
+  /** A plan's approval mode, as Claude Code's plan dialog names it (NotchClaudeSessionStrings.planMode). */
+  planMode(mode: PlanMode): string {
+    switch (mode) {
+      case "auto":
+        return t("notchClaudeSessions.planAuto");
+      case "acceptEdits":
+        return t("notchClaudeSessions.planAcceptEdits");
+      case "bypassPermissions":
+        return t("notchClaudeSessions.planBypass");
+      case "default":
+        return t("notchClaudeSessions.planManual");
+    }
+  },
+  planModeHelp(mode: PlanMode): string {
+    switch (mode) {
+      case "auto":
+        return t("notchClaudeSessions.planAutoHelp");
+      case "acceptEdits":
+        return t("notchClaudeSessions.planAcceptEditsHelp");
+      case "bypassPermissions":
+        return t("notchClaudeSessions.planBypassHelp");
+      case "default":
+        return t("notchClaudeSessions.planManualHelp");
+    }
+  },
+  /** The hint on a plan's card, with the mode Ctrl+Y picks. */
+  shortcutsHintPlan: (mode: string) => tf("windows.sessions.shortcutsHintPlan", mode),
+  get answerInTerminal() {
+    return t("notchClaudeSessions.answerInTerminal");
+  },
+  get question() {
+    return t("notchClaudeSessions.question");
+  },
+  get codexQuestion() {
+    return t("notchClaudeSessions.questionCodex");
+  },
+  get pickAny() {
+    return t("notchClaudeSessions.pickAny");
+  },
+  get ownAnswer() {
+    return t("notchClaudeSessions.ownAnswer");
+  },
+  get sendAnswer() {
+    return t("commandBar.kindAnswer");
+  },
+  get skip() {
+    return t("notchClaudeSessions.skip");
+  },
+  get questionHint() {
+    return t("windows.sessions.questionHint");
+  },
+  get codexQuestionHint() {
+    return t("windows.sessions.codexQuestionHint");
+  },
+  get open() {
+    return t("appUpdates.openApp");
+  },
+  get enlarge() {
+    return t("notchClaudeSessions.enlarge");
+  },
+  get shrink() {
+    return t("notchClaudeSessions.shrink");
+  },
+  leftRunning: (n: number) => tf("notchClaudeSessions.leftRunningFormat", n),
+  get rename() {
+    return t("finderRename.shortcutLabel");
+  },
+  get renamePlaceholder() {
+    return t("notchClaudeSessions.renamePlaceholder");
+  },
+  get conversation() {
+    return t("notchClaudeSessions.conversation");
+  },
+  get details() {
+    return t("windows.sessions.details");
+  },
+  get showDetails() {
+    return t("s.homebrewOperationShowDetails");
+  },
+  get hideDetails() {
+    return t("s.homebrewOperationHideDetails");
+  },
+  get you() {
+    return t("windows.sessions.you");
+  },
+  get enablePreviews() {
+    return t("windows.sessions.enablePreviews");
+  },
+  get previewsFailed() {
+    return t("windows.sessions.previewsFailed");
+  },
+  get noMessages() {
+    return t("notchClaudeSessions.noMessages");
+  },
+  get answer() {
+    return t("notchClaudeSessions.answer");
+  },
+  showAll: (n: number) => tf("notchClaudeSessions.showAllFormat", n),
+  get showLess() {
+    return t("notchClaudeSessions.showLess");
+  },
+  get smallerText() {
+    return t("notchClaudeSessions.smallerText");
+  },
+  get largerText() {
+    return t("notchClaudeSessions.largerText");
+  },
+  get sendShortcut() {
+    return t("windows.sessions.sendShortcut");
+  },
+  get pasteImages() {
+    return t("windows.sessions.pasteImages");
+  },
+  get removeImage() {
+    return t("notchClaudeSessions.removeImage");
+  },
+  get send() {
+    return t("notchClaudeSessions.send");
+  },
+  get replyPlaceholder() {
+    return t("notchClaudeSessions.replyPlaceholder");
+  },
+  get replyPlaceholderCodex() {
+    return t("notchClaudeSessions.replyPlaceholderCodex");
+  },
+  /** "Reply to Gemini CLI…": the reply field of each agent but Claude. */
+  replyPlaceholderFor(provider: Provider) {
+    if (provider === "claude") return this.replyPlaceholder;
+    if (provider === "codex") return this.replyPlaceholderCodex;
+    return tf("windows.sessions.replyToAgent", PROVIDER_NAMES[provider]);
+  },
+  /** Where a request the island can't answer is answered. */
+  answerIn(provider: Provider) {
+    return isHookAgent(provider)
+      ? tf("windows.sessions.answerInAgent", PROVIDER_NAMES[provider])
+      : this.answerInTerminal;
+  },
+  /** Cursor's app keeps its own chat. */
+  replyIn(provider: Provider) {
+    return tf("windows.sessions.replyInAgent", PROVIDER_NAMES[provider]);
+  },
+  get replyUnavailable() {
+    return t("windows.sessions.replyUnavailable");
+  },
+  /** Replies can't reach the app showing the session, named. */
+  replyUnavailableIn: (name: string) => tf("notchClaudeSessions.replyUnavailableFormat", name),
+  openIn: (name: string) => tf("notchClaudeSessions.openInFormat", name),
+  get replyWhileWaiting() {
+    return t("notchClaudeSessions.replyWhileWaiting");
+  },
+  get replyWhileDialog() {
+    return t("notchClaudeSessions.replyWhileDialog");
+  },
+  tasks: (done: number, total: number) => tf("notchClaudeSessions.tasksFormat", done, total),
+  get subagents() {
+    return t("notchClaudeSessions.subagents");
+  },
+  moreSubagents: (n: number) => tf("notchClaudeSessions.moreSubagentsFormat", n),
+  get recentTools() {
+    return t("clipboard.recent");
+  },
+  get lastReply() {
+    return t("notchClaudeSessions.lastReply");
+  },
+  get previewsOff() {
+    return t("notchClaudeSessions.previewsOff");
+  },
+  get previewsOffCodex() {
+    return t("notchClaudeSessions.previewsOffCodex");
+  },
+  /** What to turn on to see what the session's agent wrote: Claude's own
+   * line, or Codex's with the agent's name in its place, as the Mac does
+   * (NotchClaudeSessionStrings.previewsOff(for:)). */
+  previewsOffFor(provider: Provider) {
+    if (provider === "claude") return this.previewsOff;
+    return this.previewsOffCodex.replace("Codex", PROVIDER_NAMES[provider]);
+  },
+  get permissionNotice() {
+    return t("notchClaudeSessions.permissionNotice");
+  },
+  get inputNotice() {
+    return t("notchClaudeSessions.inputNotice");
+  },
+  get finishedNotice() {
+    return t("feedback.done");
+  },
+  finishedAfter: (d: string) => tf("notchClaudeSessions.finishedAfterFormat", d),
+  get shortcutsHint() {
+    return t("windows.sessions.shortcutsHint");
+  },
+  // #224: a request whose text didn't fit or holds invisible characters.
+  get shortcutsHintInspect() {
+    return t("windows.sessions.shortcutsHintInspect");
+  },
+  get shortcutsHintDenyOnly() {
+    return t("windows.sessions.shortcutsHintDenyOnly");
+  },
+  get commandCut() {
+    return t("notchClaudeSessions.commandCut");
+  },
+  get commandControls() {
+    return t("notchClaudeSessions.commandControls");
+  },
+  get commandIncomplete() {
+    return t("notchClaudeSessions.commandIncomplete");
+  },
+  get commandTooLarge() {
+    return t("notchClaudeSessions.commandTooLarge");
+  },
+  get commandOpen() {
+    return t("notchClaudeSessions.commandOpen");
+  },
+  get showCommand() {
+    return t("notchClaudeSessions.showCommand");
+  },
+  get hideCommand() {
+    return t("notchClaudeSessions.hideCommand");
+  },
+  get openingCommand() {
+    return t("notchClaudeSessions.openingCommand");
+  },
+  get commandOpenFailed() {
+    return t("notchClaudeSessions.commandOpenFailed");
+  },
+  get sendFailed() {
+    return t("notchClaudeSessions.sendFailed");
+  },
+  get sendWhileWaiting() {
+    return t("notchClaudeSessions.sendWhileWaiting");
+  },
+  get backgroundMark() {
+    return t("windows.sessions.backgroundMark");
+  },
+  remoteHelp: (alias: string) => tf("windows.sessions.remoteHelp", alias),
+  // #235: the tmux or zellij a session's pane belongs to, and one with no terminal attached.
+  multiplexerHelp: (name: string) => tf("windows.sessions.multiplexerHelp", name),
+  get detachedAttach() {
+    return t("windows.sessions.detachedAttach");
+  },
+  get detachedMark() {
+    return t("windows.sessions.detachedMark");
+  },
+  detachedHelp: (name: string) => tf("windows.sessions.detachedHelp", name),
+  // #233: the list in groups.
+  get groupSessions() {
+    return t("windows.sessions.groupSessions");
+  },
+  get groupNone() {
+    return t("windows.sessions.groupNone");
+  },
+  get groupByProject() {
+    return t("windows.sessions.groupByProject");
+  },
+  get groupByAgent() {
+    return t("windows.sessions.groupByAgent");
+  },
+  groupCount: (n: number) => tf("windows.sessions.groupCount", String(n)),
+  groupWaiting: (n: number) => tf("windows.sessions.groupWaiting", String(n)),
+  get replyNeedsTmux() {
+    return t("windows.sessions.replyNeedsTmux");
+  },
+  get backgroundHelp() {
+    return t("windows.sessions.backgroundHelp");
+  },
+  get backgroundStopped() {
+    return t("windows.sessions.backgroundStopped");
+  },
+  get backgroundFailed() {
+    return t("windows.sessions.backgroundFailed");
+  },
+  get backgroundNeedsReply() {
+    return t("windows.sessions.backgroundNeedsReply");
+  },
+  get logs() {
+    return t("windows.sessions.logs");
+  },
+  get logsTitle() {
+    return t("windows.sessions.logsTitle");
+  },
+  get logsEmpty() {
+    return t("windows.sessions.logsEmpty");
+  },
+  get logsGone() {
+    return t("windows.sessions.logsGone");
+  },
+  get stopSession() {
+    return t("windows.sessions.stopSession");
+  },
+  get stopConfirm() {
+    return t("windows.sessions.stopConfirm");
+  },
+  get removeSession() {
+    return t("windows.sessions.removeSession");
+  },
+  get removeConfirm() {
+    return t("windows.sessions.removeConfirm");
+  },
+  get keepSession() {
+    return t("windows.sessions.keepSession");
+  },
+  get replyEnded() {
+    return t("windows.sessions.replyEnded");
+  },
+  get commandFailed() {
+    return t("windows.sessions.commandFailed");
+  },
+  get newSession() {
+    return t("windows.sessions.newSession");
+  },
+  get browseFolder() {
+    return t("windows.sessions.browseFolder");
+  },
+  get noRecentFolders() {
+    return t("windows.sessions.noRecentFolders");
+  },
+  get firstPrompt() {
+    return t("windows.sessions.firstPrompt");
+  },
+  get firstPromptRequired() {
+    return t("windows.sessions.firstPromptRequired");
+  },
+  get runInBackground() {
+    return t("windows.sessions.runInBackground");
+  },
+  get runInTerminal() {
+    return t("windows.sessions.runInTerminal");
+  },
+  get backgroundOffHelp() {
+    return t("windows.sessions.backgroundOffHelp");
+  },
+  get startSession() {
+    return t("windows.sessions.startSession");
+  },
+  get folderNotTrusted() {
+    return t("windows.sessions.folderNotTrusted");
+  },
+  get agentPicker() {
+    return t("windows.sessions.agentPicker");
+  },
+  get modelPicker() {
+    return t("windows.sessions.modelPicker");
+  },
+  get defaultModel() {
+    return t("windows.sessions.defaultModel");
+  },
+  get backgroundNeedsPrompt() {
+    return t("windows.sessions.backgroundNeedsPrompt");
+  },
+  get codexNotStarted() {
+    return t("windows.sessions.codexNotStarted");
+  },
+  get codexFailed() {
+    return t("windows.sessions.codexFailed");
+  },
+  /** The agents' names, as Settings words them. */
+  get claudeCode() {
+    return t("windows.settings.claudeCode");
+  },
+  get codex() {
+    return t("windows.settings.codex");
+  },
+  get openFailed() {
+    return t("notchClaudeSessions.openFailed");
+  },
+  get back() {
+    return t("radialMenu.backButton");
+  },
+  // While you were away (#215).
+  get awayTitle() {
+    return t("windows.sessions.awayTitle");
+  },
+  awayFor: (minutes: number) =>
+    minutes >= 60
+      ? tf("windows.sessions.valueHValueM", Math.floor(minutes / 60), minutes % 60)
+      : tf("windows.sessions.awayMinutesFormat", minutes),
+  awayFiles: (n: number) => tf("windows.sessions.awayFilesFormat", n),
+  /** How long a session has waited on the person, on its row (#231). */
+  waitingFor: (minutes: number) =>
+    minutes >= 60
+      ? tf("windows.sessions.waitingHoursMinutes", Math.floor(minutes / 60), minutes % 60)
+      : tf("windows.sessions.waitingMinutes", minutes),
+  get reminderStill() {
+    return t("windows.sessions.reminderStill");
+  },
+  reminderTitle: (n: number) => tf("windows.sessions.reminderTitle", n),
+  // #234: sessions in their agent's no-ask mode.
+  get autoMark() {
+    return t("windows.sessions.autoMark");
+  },
+  autoMarkHelp: (provider: string) =>
+    provider === "codex" ? t("windows.sessions.autoMarkHelpCodex") : t("windows.sessions.autoMarkHelpClaude"),
+  get letThroughTitle() {
+    return t("windows.sessions.letThroughTitle");
+  },
+  get letThroughAlways() {
+    return t("windows.sessions.letThroughAlways");
+  },
+  moreLetThrough: (n: number) => tf("windows.sessions.moreLetThrough", n),
+  get awayWaiting() {
+    return t("windows.sessions.awayWaiting");
+  },
+  get awayError() {
+    return t("windows.sessions.awayError");
+  },
+  get awayLimited() {
+    return t("windows.sessions.awayLimited");
+  },
+  get awayFinished() {
+    return t("windows.sessions.awayFinished");
+  },
+  get awayWorking() {
+    return t("windows.sessions.awayWorking");
+  },
+  get awayClose() {
+    return t("windows.sessions.awayClose");
+  },
+} as const;

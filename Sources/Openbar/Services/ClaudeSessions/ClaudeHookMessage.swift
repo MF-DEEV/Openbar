@@ -1,0 +1,198 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import Foundation
+
+/// One hook event as Claude Code writes it to the hook's input, and the
+/// answer a permission request takes back.
+struct ClaudeHookMessage {
+    private(set) var fact: ClaudeHookFact
+    let transcript: String?
+    /// The rules Claude Code offered to stop asking, handed back as they came
+    /// when the person picks Always.
+    let suggestions: Any?
+    /// The input of a question, handed back whole with the answers.
+    var questionInput: [String: Any]? = nil
+    /// The input of a tool Claude Code runs only when the allow hands its
+    /// input back, as the plan of ExitPlanMode.
+    var approvalInput: [String: Any]? = nil
+
+    /// Tools whose allow counts only with their input in it: a bare allow
+    /// leaves the terminal dialog open, and the island would have let go.
+    static let approvedWithInput: Set<String> = [ClaudeToolSummary.planTool]
+
+    /// The modes a plan can be approved into; empty for any other request.
+    var planModes: [ClaudePlanMode] {
+        if case .permissionRequested(let permission) = fact.event { return permission.planModes }
+        return []
+    }
+
+    var isPermissionRequest: Bool {
+        if case .permissionRequested = fact.event { return true }
+        return false
+    }
+
+    /// A request for a tool to run, which a no-ask session lets through
+    /// (#234): not a question, which only the person can answer, nor a plan,
+    /// which they approve.
+    var letsThrough: ClaudePermission? {
+        guard case .permissionRequested(let permission) = fact.event, questionInput == nil,
+              !permission.asksQuestions, permission.tool != ClaudeToolSummary.planTool else { return nil }
+        return permission
+    }
+
+    /// The same event, no longer waiting on anyone: the request was let through.
+    func settled() -> ClaudeHookMessage {
+        var message = self
+        message.fact = ClaudeHookFact(sessionID: fact.sessionID, date: fact.date, event: .other("PermissionRequest"),
+                                      agentID: fact.agentID, mode: fact.mode)
+        return message
+    }
+
+    /// Nil for input that is not a hook event. Text and arguments are kept
+    /// only as the policy allows, except what a permission would run.
+    static func decode(_ data: Data, requestID: String, now: Date, policy: ClaudeContentPolicy,
+                       planModes: (_ transcript: String?, _ cwd: String?) -> [ClaudePlanMode] = { transcript, cwd in
+                           ClaudePlanModes.offered(ClaudePlanModes.read(transcript: transcript, cwd: cwd))
+                       }) -> ClaudeHookMessage? {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let name = json["hook_event_name"] as? String,
+              let session = json["session_id"] as? String, !session.isEmpty else { return nil }
+        let tool = json["tool_name"] as? String ?? ""
+        let input = json["tool_input"] as? [String: Any] ?? [:]
+        let toolID = json["tool_use_id"] as? String ?? ""
+        let agent = (json["agent_id"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+        var suggestions: Any?
+        var questionInput: [String: Any]?
+        var approvalInput: [String: Any]?
+        let event: ClaudeHookFact.Event
+        // Subagent events name the subagent they are about; any other event
+        // carrying an agent comes from inside that subagent.
+        var from = agent
+        switch name {
+        case "SessionStart": event = .sessionStarted
+        case "SessionEnd": event = .sessionEnded
+        case "UserPromptSubmit": event = .promptSubmitted
+        case "PreToolUse":
+            guard !toolID.isEmpty else { return nil }
+            let summary = policy.previews ? ClaudeToolSummary.summary(name: tool, input: input) : nil
+            event = .toolStarted(ClaudeToolUse(id: toolID, name: tool, summary: summary, started: now,
+                                               inputKey: ClaudeToolSummary.inputKey(name: tool, input: input)))
+        case "PostToolUse", "PostToolUseFailure":
+            guard !toolID.isEmpty else { return nil }
+            event = .toolFinished(id: toolID, failed: name == "PostToolUseFailure")
+        case "PermissionRequest" where tool == ClaudeQuestion.tool && ClaudeQuestion.questions(in: input) == nil:
+            // A question the island cannot show is asked in the terminal, never
+            // allowed without its answers.
+            event = .other(name)
+        case "PermissionRequest":
+            let offered = json["permission_suggestions"] as? [Any] ?? []
+            suggestions = offered.isEmpty ? nil : offered
+            // A question Claude asks comes as a permission for its tool; the
+            // answers go back in the tool's input.
+            let questions = tool == ClaudeQuestion.tool ? ClaudeQuestion.questions(in: input) ?? [] : []
+            if !questions.isEmpty { questionInput = input }
+            if approvedWithInput.contains(tool) { approvalInput = input }
+            // A plan is approved into a mode, as Claude Code's plan dialog
+            // offers them for the session.
+            let modes = tool == ClaudeToolSummary.planTool
+                ? planModes(json["transcript_path"] as? String, json["cwd"] as? String) : []
+            let full = ClaudeToolSummary.permissionDetail(name: tool, input: input)
+            let content = PermissionContent(full: full, complete: tool != "Bash" || (input["command"] as? String).map { !$0.isEmpty } == true,
+                                            originalLength: full.unicodeScalars.count)
+            event = .permissionRequested(ClaudePermission(
+                requestID: requestID, tool: tool.isEmpty ? "Tool" : tool,
+                summary: questions.first.map { ClaudeToolSummary.clip($0.question) }
+                    ?? ClaudeToolSummary.summary(name: tool, input: input),
+                detail: content.preview, content: content,
+                offersAlways: !offered.isEmpty && questions.isEmpty, since: now,
+                inputKey: ClaudeToolSummary.inputKey(name: tool, input: input), questions: questions,
+                diffs: ClaudeFileDiffs.diffs(tool: tool, input: input, cwd: json["cwd"] as? String),
+                planModes: modes))
+        case "Notification": event = .notification(type: json["notification_type"] as? String ?? "")
+        case "Stop":
+            let text = policy.previews ? (json["last_assistant_message"] as? String).map(preview) : nil
+            event = .stopped(lastText: text ?? nil)
+        case "SubagentStart":
+            guard let agent else { return nil }
+            event = .subagentStarted(id: agent, type: json["agent_type"] as? String ?? "Agent")
+            from = nil
+        case "SubagentStop":
+            guard let agent else { return nil }
+            event = .subagentStopped(id: agent)
+            from = nil
+        default: event = .other(name)
+        }
+        return ClaudeHookMessage(
+            fact: ClaudeHookFact(sessionID: session, date: now, event: event, agentID: from,
+                                 mode: (json["permission_mode"] as? String).flatMap { $0.isEmpty ? nil : $0 }),
+            transcript: json["transcript_path"] as? String, suggestions: suggestions, questionInput: questionInput,
+            approvalInput: approvalInput)
+    }
+
+    private static func preview(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let limit = ClaudeTranscriptReader.replyLimit
+        return trimmed.count > limit ? String(trimmed.prefix(limit - 1)) + "…" : trimmed
+    }
+
+    enum Decision: Equatable {
+        case allow, allowAlways, deny
+        /// A plan approved into a mode for the rest of the session.
+        case approvePlan(ClaudePlanMode)
+        /// What the person picked or typed for each question, by its text.
+        case answer([String: [String]])
+    }
+
+    static let denyMessage = "Denied from the Dynamic Island."
+    static let skipMessage = "The user skipped the question from the Dynamic Island without answering."
+    static let planDenyMessage = "The user did not approve the plan from the Dynamic Island. Stay in plan mode and ask what to change."
+
+    /// What the hook prints for Claude Code. Always adds the rules Claude Code
+    /// offered, so it stops asking for the same thing. Answers go back in the
+    /// question's own input, unchanged but for them. A tool that runs only
+    /// with its input handed back, as a plan, gets it back unchanged.
+    static func reply(_ decision: Decision, suggestions: Any?, input: [String: Any]? = nil,
+                      approved: [String: Any]? = nil) -> Data {
+        var body: [String: Any]
+        switch decision {
+        case .allow: body = ["behavior": "allow"]
+        case .approvePlan(let mode):
+            // Claude Code's plan dialog answers the same way: the plan's
+            // input back, and the mode the session goes on in.
+            body = ["behavior": "allow",
+                    "updatedPermissions": [["type": "setMode", "mode": mode.rawValue, "destination": "session"]]]
+        case .allowAlways:
+            body = ["behavior": "allow"]
+            if let suggestions { body["updatedPermissions"] = suggestions }
+        case .deny:
+            body = ["behavior": "deny",
+                    "message": input != nil ? skipMessage : approved != nil ? planDenyMessage : denyMessage]
+        case .answer(let answers):
+            guard var updated = input else { return Data() }
+            // One answer goes as text; several, for a question that takes
+            // more than one, as a list.
+            updated["answers"] = answers.mapValues { picked -> Any in picked.count == 1 ? picked[0] : picked }
+            body = ["behavior": "allow", "updatedInput": updated]
+        }
+        if body["behavior"] as? String == "allow", input == nil, let approved { body["updatedInput"] = approved }
+        let output: [String: Any] = ["hookSpecificOutput": ["hookEventName": "PermissionRequest", "decision": body]]
+        return (try? JSONSerialization.data(withJSONObject: output, options: [.sortedKeys])) ?? Data()
+    }
+
+    /// Whether the input is a permission request, told without decoding the rest.
+    static func isPermissionRequest(_ data: Data) -> Bool {
+        AgentLogParser.contains(data, #""hook_event_name":"PermissionRequest""#)
+            || ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any])?["hook_event_name"] as? String == "PermissionRequest"
+    }
+
+    /// The input is complete once it parses: the hook sends one JSON object
+    /// and keeps the connection open for the answer.
+    static func isComplete(_ buffer: Data) -> Bool {
+        guard let last = buffer.last(where: { !($0 == 0x20 || $0 == 0x0A || $0 == 0x0D || $0 == 0x09) }), last == 0x7D else {
+            return false
+        }
+        return (try? JSONSerialization.jsonObject(with: buffer)) != nil
+    }
+}

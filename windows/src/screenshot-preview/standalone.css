@@ -1,0 +1,13 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+:root {
+  font:
+    12px "Inter Variable",
+    sans-serif;
+  color: #eee;
+  color-scheme: dark;
+  background: transparent;
+}
+body {
+  margin: 0;
+  user-select: none;
+}

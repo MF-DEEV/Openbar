@@ -1,0 +1,581 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import Foundation
+
+/// Puts the island's hooks into Gemini CLI, Copilot CLI, Cursor, Mistral
+/// Vibe and Devin CLI, and its plugin into OpenCode and Pi, and takes them
+/// out again, only when the person presses Install or Remove. Where the
+/// agent keeps every hook in one file (Gemini's settings, Cursor's
+/// hooks.json, Vibe's hooks.toml, Devin's config.json) the island's entries
+/// go beside the person's own, carry its marker, and the file is copied
+/// aside first, as for Claude Code. Where the agent reads a folder of files
+/// (Copilot's hooks, OpenCode's plugins, Pi's extensions) the island writes
+/// a file of its own.
+///
+/// Each hook is the system's `nc` writing the event, wrapped in an envelope
+/// naming the agent and the hook, to the island's socket. When the app is
+/// not running it connects to nothing and prints nothing, and the agent
+/// carries on as if there were no hook. None of the hooks installed asks
+/// anything of its answer, so none ever holds the agent up.
+enum AgentHookInstaller {
+    static let eventTimeout = 5
+
+    static let geminiEvents = ["SessionStart", "SessionEnd", "BeforeAgent", "AfterAgent", "BeforeTool", "AfterTool",
+                               "Notification"]
+    static let copilotEvents = ["sessionStart", "sessionEnd", "userPromptSubmitted", "preToolUse", "postToolUse",
+                                "postToolUseFailure", "agentStop", "errorOccurred", "notification"]
+    /// Cursor blocks an action when a hook that may allow or deny it answers
+    /// with nothing, so only hooks that only tell are installed. The prompt's
+    /// hook answers that the prompt goes on.
+    static let cursorEvents = ["sessionStart", "sessionEnd", "beforeSubmitPrompt", "afterAgentThought", "afterAgentResponse",
+                               "postToolUse", "postToolUseFailure", "stop"]
+    static let cursorContinues: Set<String> = ["beforeSubmitPrompt"]
+    /// Mistral Vibe's hook types. `post_agent` runs after subagents' turns
+    /// too, so the end of the person's turn is heard from `notification`.
+    static let vibeEvents = ["session_start", "session_end", "pre_agent", "pre_tool", "post_tool", "notification"]
+    /// Devin CLI's events, in Claude Code's format. `PermissionRequest` is
+    /// only heard: the hook answers nothing, so Devin asks in its terminal.
+    static let devinEvents = ["SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse",
+                              "PermissionRequest", "Stop"]
+    /// Google Antigravity's lifecycle hooks (its hooks.json guide). It has no
+    /// session or prompt hooks: a turn is heard from the model's invocations.
+    static let antigravityEvents = ["PreInvocation", "PreToolUse", "PostToolUse", "PostInvocation", "Stop"]
+    /// Antigravity's tool hooks sit in groups with a matcher; the rest are flat.
+    static let antigravityToolEvents: Set<String> = ["PreToolUse", "PostToolUse"]
+
+    typealias Failure = ClaudeHookInstaller.Failure
+
+    // MARK: Places
+
+    static func geminiSettings(home: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        let base = environment["GEMINI_CLI_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) } ?? home
+        return base.appending(path: ".gemini/settings.json")
+    }
+
+    /// Files of the island's own are named after the app, so the Developer
+    /// build and the release never write over each other's.
+    static func ownName(_ bundle: String) -> String {
+        (LegacyIdentity.isLegacy(bundle) ? "vorssaint-" : "openbar-") + bundle
+    }
+
+    static func copilotFolder(home: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        environment["COPILOT_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) } ?? home.appending(path: ".copilot")
+    }
+
+    static func copilotHooks(home: URL, bundle: String,
+                             environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        copilotFolder(home: home, environment: environment).appending(path: "hooks/\(ownName(bundle)).json")
+    }
+
+    static func cursorHooks(home: URL) -> URL { home.appending(path: ".cursor/hooks.json") }
+
+    static func opencodeFolder(home: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        let config = environment["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+            ?? home.appending(path: ".config")
+        return config.appending(path: "opencode")
+    }
+
+    static func opencodePlugin(home: URL, bundle: String,
+                               environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        opencodeFolder(home: home, environment: environment).appending(path: "plugins/\(ownName(bundle)).js")
+    }
+
+    static func piFolder(home: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        environment["PI_CODING_AGENT_DIR"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+            ?? home.appending(path: ".pi/agent")
+    }
+
+    static func piExtension(home: URL, bundle: String,
+                            environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        piFolder(home: home, environment: environment).appending(path: "extensions/\(ownName(bundle)).js")
+    }
+
+    static func vibeFolder(home: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        environment["VIBE_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) } ?? home.appending(path: ".vibe")
+    }
+
+    static func vibeHooks(home: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        vibeFolder(home: home, environment: environment).appending(path: "hooks.toml")
+    }
+
+    static func devinConfig(home: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        let config = environment["XDG_CONFIG_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+            ?? home.appending(path: ".config")
+        return config.appending(path: "devin/config.json")
+    }
+
+    /// Antigravity's global hooks, read by its app, its IDE and `agy` alike.
+    static func antigravityHooks(home: URL) -> URL { home.appending(path: ".gemini/config/hooks.json") }
+
+    /// The folder whose presence says the agent was used on this Mac.
+    static func agentFolder(_ provider: ClaudeSessionProvider, home: URL,
+                            environment: [String: String] = ProcessInfo.processInfo.environment) -> URL? {
+        switch provider {
+        case .gemini: return geminiSettings(home: home, environment: environment).deletingLastPathComponent()
+        case .copilot: return copilotFolder(home: home, environment: environment)
+        case .cursor: return cursorHooks(home: home).deletingLastPathComponent()
+        case .opencode: return opencodeFolder(home: home, environment: environment)
+        case .pi: return piFolder(home: home, environment: environment)
+        case .vibe: return vibeFolder(home: home, environment: environment)
+        case .devin: return devinConfig(home: home, environment: environment).deletingLastPathComponent()
+        case .antigravity: return antigravityHooks(home: home).deletingLastPathComponent()
+        case .claude, .codex: return nil
+        }
+    }
+
+    /// Whether the agent is installed: its command on the login shell's
+    /// `PATH` or where its installers put it, or, for Cursor, OpenCode and
+    /// Google Antigravity, their app; for Pi, its command and the folder Pi
+    /// makes on first run.
+    /// A folder like `~/.gemini` or `~/.copilot` is not enough: other apps
+    /// (Antigravity, VS Code) make those too.
+    static func isPresent(_ provider: ClaudeSessionProvider, home: URL, path: String?,
+                          isExecutable: (String) -> Bool = FileManager.default.isExecutableFile(atPath:),
+                          exists: (String) -> Bool = FileManager.default.fileExists(atPath:)) -> Bool {
+        if AgentCLI.locate(provider, path: path, home: home, isExecutable: isExecutable) != nil {
+            // Pi's command has a name other tools take too; Pi's own folder says it is Pi's.
+            return provider != .pi || exists(home.appending(path: ".pi/agent").path)
+        }
+        let apps: [String]
+        switch provider {
+        case .cursor: apps = ["Cursor.app"]
+        case .opencode: apps = ["OpenCode.app"]
+        case .antigravity: apps = ["Antigravity.app", "Antigravity IDE.app"]
+        default: apps = []
+        }
+        return apps.contains { app in ["/Applications", home.appending(path: "Applications").path].contains { exists("\($0)/\(app)") } }
+    }
+
+    /// What keeping the hooks in step asks: each found agent whose switch is
+    /// on gets its hooks or plugin, or an update of them; an agent whose
+    /// switch is off has the island's taken out. An agent not found is left
+    /// alone, and a file that could not be read is never touched.
+    static func plan(found: Set<ClaudeSessionProvider>, shown: Set<ClaudeSessionProvider>,
+                     states: [ClaudeSessionProvider: State]) -> (install: [ClaudeSessionProvider], remove: [ClaudeSessionProvider]) {
+        var install: [ClaudeSessionProvider] = []
+        var remove: [ClaudeSessionProvider] = []
+        for provider in ClaudeSessionProvider.hookAgents {
+            let state = states[provider] ?? .missing
+            if shown.contains(provider) {
+                if found.contains(provider), state == .missing || state == .outdated { install.append(provider) }
+            } else if state == .installed || state == .outdated {
+                remove.append(provider)
+            }
+        }
+        return (install, remove)
+    }
+
+    // MARK: Commands
+
+    static func marker(bundle: String) -> String { ClaudeHookInstaller.marker(bundle: bundle) }
+
+    /// What Antigravity reads from the island's hook. It refuses a tool call
+    /// whose `PreToolUse` hook prints nothing, `{}`, fails or runs out of
+    /// time, so that hook hands every call back to Antigravity's own check
+    /// (`ask`, which keeps its grants and Always Allow); the others print an
+    /// empty answer, which asks nothing of Antigravity.
+    static func antigravityAnswer(_ event: String) -> String {
+        event == "PreToolUse" ? #"{"decision":"ask"}"# : "{}"
+    }
+
+    /// The hook for one event: the agent's input inside the island's envelope,
+    /// with the process that ran the hook as a hint of the agent's.
+    static func command(_ provider: ClaudeSessionProvider, event: String, socket: String, bundle: String) -> String {
+        let quoted = "'" + socket.replacingOccurrences(of: "'", with: "'\\''") + "'"
+        let head = "{\"\(AgentHookMessage.key)\":\"\(provider.rawValue)\",\"hook\":\"\(event)\",\"pid\":%d,\"event\":"
+        if provider == .antigravity {
+            // The answer goes out first, whatever the island does, and the
+            // island gets at most two seconds: Antigravity waits on its hooks.
+            return "printf '\(antigravityAnswer(event))'; { printf '\(head)' \"$PPID\"; cat; printf '}'; } "
+                + "| /usr/bin/nc -w 2 -U \(quoted) >/dev/null 2>&1; exit 0 \(marker(bundle: bundle))"
+        }
+        var command = "{ printf '\(head)' \"$PPID\"; cat; printf '}'; } | /usr/bin/nc -U \(quoted) 2>/dev/null"
+        if provider == .cursor, cursorContinues.contains(event) { command += "; printf '{\"continue\":true}'" }
+        return command + "; exit 0 \(marker(bundle: bundle))"
+    }
+
+    // MARK: Vibe's hooks.toml
+
+    /// The lines that open and close the island's entries in hooks.toml.
+    static func vibeStart(bundle: String) -> String { "\(marker(bundle: bundle)) start: added by the island, removed by it" }
+    static func vibeEnd(bundle: String) -> String { "\(marker(bundle: bundle)) end" }
+
+    /// The island's `[[hooks]]` entries, between its two marker lines. Names
+    /// carry the app's own, so the Developer build's never clash with them.
+    static func vibeBlock(socket: String, bundle: String) -> String {
+        var lines = [vibeStart(bundle: bundle)]
+        for event in vibeEvents {
+            lines += ["[[hooks]]",
+                      "name = \(tomlString("\(ownName(bundle))-\(event)"))",
+                      "type = \(tomlString(event))",
+                      "command = \(tomlString(command(.vibe, event: event, socket: socket, bundle: bundle)))",
+                      "timeout = \(eventTimeout).0"]
+        }
+        lines.append(vibeEnd(bundle: bundle))
+        return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// A TOML basic string.
+    static func tomlString(_ text: String) -> String {
+        var out = "\""
+        for scalar in text.unicodeScalars {
+            switch scalar {
+            case "\"": out += "\\\""
+            case "\\": out += "\\\\"
+            case "\n": out += "\\n"
+            case "\t": out += "\\t"
+            case "\r": out += "\\r"
+            default:
+                if scalar.value < 0x20 || scalar.value == 0x7F { out += String(format: "\\u%04X", scalar.value) }
+                else { out.unicodeScalars.append(scalar) }
+            }
+        }
+        return out + "\""
+    }
+
+    /// The file without the island's entries; nil when it had none.
+    static func vibeRemoving(_ text: String, bundle: String) -> String? {
+        let start = vibeStart(bundle: bundle), end = vibeEnd(bundle: bundle)
+        var lines = text.components(separatedBy: "\n")
+        var changed = false
+        while let first = lines.firstIndex(of: start) {
+            let last = lines[first...].firstIndex(of: end) ?? lines.index(before: lines.endIndex)
+            lines.removeSubrange(first...last)
+            changed = true
+        }
+        guard changed else { return nil }
+        var result = lines.joined(separator: "\n")
+        while result.hasSuffix("\n\n") { result.removeLast() }
+        return result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : result
+    }
+
+    /// The file with the island's entries at its end, after the person's own.
+    static func vibeInstalling(_ text: String?, socket: String, bundle: String) -> String {
+        var base = text.map { vibeRemoving($0, bundle: bundle) ?? $0 } ?? ""
+        if !base.isEmpty, !base.hasSuffix("\n") { base += "\n" }
+        if !base.isEmpty { base += "\n" }
+        return base + vibeBlock(socket: socket, bundle: bundle)
+    }
+
+    /// Whether hooks.toml keeps its hooks in a form the island's tables
+    /// can't sit beside (`hooks = [...]`), so it is left alone.
+    static func vibeInline(_ text: String) -> Bool {
+        text.components(separatedBy: "\n").contains { line in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard trimmed.hasPrefix("hooks") else { return false }
+            return trimmed.dropFirst("hooks".count).trimmingCharacters(in: .whitespaces).hasPrefix("=")
+        }
+    }
+
+    static func vibeText(_ url: URL) throws -> String? {
+        guard let data = try ClaudeHookInstaller.contents(url) else { return nil }
+        guard let text = String(data: data, encoding: .utf8) else { throw Failure.unreadable }
+        return text
+    }
+
+    /// Changes hooks.toml in one step, copying it aside first.
+    static func updateVibe(_ link: URL, _ change: (String?) -> String?) throws {
+        let url = link.resolvingSymlinksInPath()
+        for _ in 0..<3 {
+            let manager = FileManager.default
+            let before = (try? manager.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+            let original = try ClaudeHookInstaller.contents(url)
+            let text = try vibeText(url)
+            guard let changed = change(text), changed != text else { return }
+            let after = (try? manager.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+            guard before == after, (try? ClaudeHookInstaller.contents(url)) == original else { continue }
+            try ClaudeHookInstaller.replace(url, original: original, with: Data(changed.utf8), now: Date())
+            return
+        }
+        throw Failure.busy
+    }
+
+    // MARK: State
+
+    enum State: Equatable {
+        case installed
+        /// The island's hooks are there, but for another socket or an older set.
+        case outdated
+        case missing
+        /// The agent's file could not be read; nothing is changed in it.
+        case unreadable
+    }
+
+    static func state(_ provider: ClaudeSessionProvider, home: URL, socket: String, bundle: String) -> State {
+        do {
+            switch provider {
+            case .gemini:
+                let settings = try ClaudeHookInstaller.read(geminiSettings(home: home))
+                if groupsHold(settings, events: geminiEvents, command: { command(.gemini, event: $0, socket: socket, bundle: bundle) }) {
+                    return .installed
+                }
+                return ClaudeHookInstaller.hasAny(in: settings, bundle: bundle) ? .outdated : .missing
+            case .cursor:
+                let settings = try ClaudeHookInstaller.read(cursorHooks(home: home))
+                let hooks = settings["hooks"] as? [String: Any] ?? [:]
+                let current = cursorEvents.allSatisfy { event in
+                    (hooks[event] as? [[String: Any]] ?? []).contains {
+                        $0["command"] as? String == command(.cursor, event: event, socket: socket, bundle: bundle)
+                    }
+                }
+                if current { return .installed }
+                return flatHasAny(settings, bundle: bundle) ? .outdated : .missing
+            case .copilot:
+                let url = copilotHooks(home: home, bundle: bundle)
+                guard let data = try ClaudeHookInstaller.contents(url) else { return .missing }
+                return data == copilotFile(socket: socket, bundle: bundle) ? .installed : .outdated
+            case .opencode:
+                let url = opencodePlugin(home: home, bundle: bundle)
+                guard let data = try ClaudeHookInstaller.contents(url) else { return .missing }
+                return data == opencodeFile(socket: socket, bundle: bundle) ? .installed : .outdated
+            case .pi:
+                let url = piExtension(home: home, bundle: bundle)
+                guard let data = try ClaudeHookInstaller.contents(url) else { return .missing }
+                return data == piFile(socket: socket, bundle: bundle) ? .installed : .outdated
+            case .vibe:
+                guard let text = try vibeText(vibeHooks(home: home)) else { return .missing }
+                if text.contains(vibeBlock(socket: socket, bundle: bundle)) { return .installed }
+                if text.contains(marker(bundle: bundle)) { return .outdated }
+                return vibeInline(text) ? .unreadable : .missing
+            case .devin:
+                let settings = try ClaudeHookInstaller.read(devinConfig(home: home))
+                if groupsHold(settings, events: devinEvents, command: { command(.devin, event: $0, socket: socket, bundle: bundle) }) {
+                    return .installed
+                }
+                return ClaudeHookInstaller.hasAny(in: settings, bundle: bundle) ? .outdated : .missing
+            case .antigravity:
+                let settings = try ClaudeHookInstaller.read(antigravityHooks(home: home))
+                if let own = settings[ownName(bundle)] as? [String: Any],
+                   NSDictionary(dictionary: own).isEqual(to: antigravityEntry(socket: socket, bundle: bundle)) {
+                    return .installed
+                }
+                return antigravityRemoving(from: settings, bundle: bundle).count != settings.count ? .outdated : .missing
+            case .claude, .codex:
+                return .missing
+            }
+        } catch {
+            return .unreadable
+        }
+    }
+
+    // MARK: Changing
+
+    static func install(_ provider: ClaudeSessionProvider, home: URL, socket: String, bundle: String) throws {
+        switch provider {
+        case .gemini:
+            try ClaudeHookInstaller.update(geminiSettings(home: home)) { settings in
+                installingGroups(into: settings, events: geminiEvents, bundle: bundle) { event in
+                    ["type": "command", "name": "openbar", "timeout": eventTimeout * 1000,
+                     "command": command(.gemini, event: event, socket: socket, bundle: bundle)]
+                }
+            }
+        case .cursor:
+            try ClaudeHookInstaller.update(cursorHooks(home: home)) { settings in
+                var settings = flatRemoving(from: settings, bundle: bundle)
+                if settings["version"] == nil { settings["version"] = 1 }
+                var hooks = settings["hooks"] as? [String: Any] ?? [:]
+                for event in cursorEvents {
+                    let entry: [String: Any] = ["command": command(.cursor, event: event, socket: socket, bundle: bundle),
+                                                "timeout": eventTimeout]
+                    hooks[event] = (hooks[event] as? [[String: Any]] ?? []) + [entry]
+                }
+                settings["hooks"] = hooks
+                return settings
+            }
+        case .copilot:
+            try writeOwn(copilotFile(socket: socket, bundle: bundle), to: copilotHooks(home: home, bundle: bundle), bundle: bundle)
+        case .opencode:
+            try writeOwn(opencodeFile(socket: socket, bundle: bundle), to: opencodePlugin(home: home, bundle: bundle), bundle: bundle)
+        case .pi:
+            try writeOwn(piFile(socket: socket, bundle: bundle), to: piExtension(home: home, bundle: bundle), bundle: bundle)
+        case .vibe:
+            let url = vibeHooks(home: home)
+            if let text = try vibeText(url), vibeInline(text) { throw Failure.unreadable }
+            try updateVibe(url) { vibeInstalling($0, socket: socket, bundle: bundle) }
+        case .devin:
+            try ClaudeHookInstaller.update(devinConfig(home: home)) { settings in
+                var settings = installingGroups(into: settings, events: devinEvents, bundle: bundle) { event in
+                    ["type": "command", "timeout": eventTimeout,
+                     "command": command(.devin, event: event, socket: socket, bundle: bundle)]
+                }
+                // Devin writes its own file with a version; a new one gets the same.
+                if settings["version"] == nil { settings["version"] = 1 }
+                return settings
+            }
+        case .antigravity:
+            try ClaudeHookInstaller.update(antigravityHooks(home: home)) { settings in
+                var settings = antigravityRemoving(from: settings, bundle: bundle)
+                settings[ownName(bundle)] = antigravityEntry(socket: socket, bundle: bundle)
+                return settings
+            }
+        case .claude, .codex:
+            break
+        }
+    }
+
+    static func remove(_ provider: ClaudeSessionProvider, home: URL, bundle: String) throws {
+        switch provider {
+        case .gemini:
+            let url = geminiSettings(home: home)
+            guard try ClaudeHookInstaller.contents(url) != nil else { return }
+            try ClaudeHookInstaller.update(url) { ClaudeHookInstaller.removing(from: $0, bundle: bundle) }
+        case .cursor:
+            let url = cursorHooks(home: home)
+            guard try ClaudeHookInstaller.contents(url) != nil else { return }
+            try ClaudeHookInstaller.update(url) { flatRemoving(from: $0, bundle: bundle) }
+        case .copilot:
+            try removeOwn(copilotHooks(home: home, bundle: bundle), bundle: bundle)
+        case .opencode:
+            try removeOwn(opencodePlugin(home: home, bundle: bundle), bundle: bundle)
+        case .pi:
+            try removeOwn(piExtension(home: home, bundle: bundle), bundle: bundle)
+        case .vibe:
+            let url = vibeHooks(home: home)
+            guard try ClaudeHookInstaller.contents(url) != nil else { return }
+            try updateVibe(url) { text in text.flatMap { vibeRemoving($0, bundle: bundle) } }
+        case .devin:
+            let url = devinConfig(home: home)
+            guard try ClaudeHookInstaller.contents(url) != nil else { return }
+            try ClaudeHookInstaller.update(url) { ClaudeHookInstaller.removing(from: $0, bundle: bundle) }
+        case .antigravity:
+            let url = antigravityHooks(home: home)
+            guard try ClaudeHookInstaller.contents(url) != nil else { return }
+            try ClaudeHookInstaller.update(url) { antigravityRemoving(from: $0, bundle: bundle) }
+        case .claude, .codex:
+            break
+        }
+    }
+
+    /// Takes every agent's hooks out, as the app is uninstalled.
+    static func removeAll(home: URL, bundle: String) {
+        for provider in ClaudeSessionProvider.hookAgents { try? remove(provider, home: home, bundle: bundle) }
+    }
+
+    // MARK: Gemini's groups
+
+    static func groupsHold(_ settings: [String: Any], events: [String], command: (String) -> String) -> Bool {
+        let hooks = settings["hooks"] as? [String: Any] ?? [:]
+        return events.allSatisfy { event in
+            (hooks[event] as? [[String: Any]] ?? []).contains { group in
+                (group["hooks"] as? [[String: Any]] ?? []).contains { $0["command"] as? String == command(event) }
+            }
+        }
+    }
+
+    static func installingGroups(into settings: [String: Any], events: [String], bundle: String,
+                                 entry: (String) -> [String: Any]) -> [String: Any] {
+        var settings = ClaudeHookInstaller.removing(from: settings, bundle: bundle)
+        var hooks = settings["hooks"] as? [String: Any] ?? [:]
+        for event in events {
+            hooks[event] = (hooks[event] as? [[String: Any]] ?? []) + [["hooks": [entry(event)]]]
+        }
+        settings["hooks"] = hooks
+        return settings
+    }
+
+    // MARK: Antigravity's named hooks
+
+    /// The island's named hook in Antigravity's hooks.json: every event's
+    /// command, the tool events in a group matching every tool.
+    static func antigravityEntry(socket: String, bundle: String) -> [String: Any] {
+        var entry: [String: Any] = [:]
+        for event in antigravityEvents {
+            let handler: [String: Any] = ["type": "command", "timeout": eventTimeout,
+                                          "command": command(.antigravity, event: event, socket: socket, bundle: bundle)]
+            entry[event] = antigravityToolEvents.contains(event) ? [["matcher": "*", "hooks": [handler]]] : [handler]
+        }
+        return entry
+    }
+
+    /// The hooks.json without the island's named hooks: every top-level
+    /// entry one of whose commands carries the marker, whatever it is called.
+    static func antigravityRemoving(from settings: [String: Any], bundle: String) -> [String: Any] {
+        let marker = marker(bundle: bundle)
+        func carries(_ value: Any) -> Bool {
+            if let object = value as? [String: Any] {
+                if (object["command"] as? String)?.contains(marker) == true { return true }
+                return object.values.contains(where: carries)
+            }
+            if let list = value as? [Any] { return list.contains(where: carries) }
+            return false
+        }
+        return settings.filter { !carries($0.value) }
+    }
+
+    // MARK: Cursor's list
+
+    static func flatHasAny(_ settings: [String: Any], bundle: String) -> Bool {
+        let marker = marker(bundle: bundle)
+        return (settings["hooks"] as? [String: Any] ?? [:]).values.contains { value in
+            (value as? [[String: Any]] ?? []).contains { ($0["command"] as? String)?.contains(marker) == true }
+        }
+    }
+
+    /// Cursor's hooks without the island's; events left empty go too.
+    static func flatRemoving(from settings: [String: Any], bundle: String) -> [String: Any] {
+        let marker = marker(bundle: bundle)
+        var settings = settings
+        guard var hooks = settings["hooks"] as? [String: Any] else { return settings }
+        for (event, value) in hooks {
+            guard let entries = value as? [[String: Any]] else { continue }
+            let kept = entries.filter { ($0["command"] as? String)?.contains(marker) != true }
+            guard kept.count != entries.count else { continue }
+            hooks[event] = kept.isEmpty ? nil : kept
+        }
+        settings["hooks"] = hooks
+        return settings
+    }
+
+    // MARK: Files of the island's own
+
+    static func copilotFile(socket: String, bundle: String) -> Data {
+        var hooks: [String: Any] = [:]
+        for event in copilotEvents {
+            hooks[event] = [["type": "command", "bash": command(.copilot, event: event, socket: socket, bundle: bundle),
+                             "timeoutSec": eventTimeout]]
+        }
+        let file: [String: Any] = ["version": 1, "hooks": hooks]
+        var data = (try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]))
+            ?? Data()
+        data.append(0x0A)
+        return data
+    }
+
+    /// Pi's extension, with the socket written in.
+    static func piFile(socket: String, bundle: String) -> Data {
+        Data(opencodeSource(AgentPiExtension.source, socket: socket, bundle: bundle).utf8)
+    }
+
+    /// The plugin, with the socket written in.
+    static func opencodeFile(socket: String, bundle: String) -> Data {
+        Data(opencodeSource(AgentOpenCodePlugin.source, socket: socket, bundle: bundle).utf8)
+    }
+
+    static func opencodeSource(_ template: String, socket: String, bundle: String) -> String {
+        let literal = (try? JSONSerialization.data(withJSONObject: [socket], options: [.withoutEscapingSlashes]))
+            .map { String(decoding: $0, as: UTF8.self).dropFirst().dropLast() }.map(String.init) ?? "\"\""
+        return template
+            .replacingOccurrences(of: "\"__OPENBAR_SOCKET__\"", with: literal)
+            .replacingOccurrences(of: "__OPENBAR_MARKER__", with: marker(bundle: bundle))
+    }
+
+    /// Writes a file of the island's own, never over one that is not.
+    private static func writeOwn(_ data: Data, to url: URL, bundle: String) throws {
+        if let existing = try ClaudeHookInstaller.contents(url), existing.range(of: Data(marker(bundle: bundle).utf8)) == nil {
+            throw Failure.unwritable("\(url.lastPathComponent) is not the island's")
+        }
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try data.write(to: url, options: [.atomic])
+        } catch {
+            throw Failure.unwritable(error.localizedDescription)
+        }
+    }
+
+    private static func removeOwn(_ url: URL, bundle: String) throws {
+        guard let existing = try ClaudeHookInstaller.contents(url) else { return }
+        guard existing.range(of: Data(marker(bundle: bundle).utf8)) != nil else { return }
+        do { try FileManager.default.removeItem(at: url) } catch { throw Failure.unwritable(error.localizedDescription) }
+    }
+}

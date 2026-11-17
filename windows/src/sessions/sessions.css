@@ -1,0 +1,3167 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* The Sessions section (spec 02-sessions §4). Sizes are the Mac's points. */
+
+.s-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.s-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 46px;
+  padding: 0 10px 0 11px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.065);
+  cursor: default;
+  transition: background-color 0.15s;
+}
+
+.s-row:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.s-row.is-waiting {
+  box-shadow: inset 0 0 0 1px rgba(255, 199, 71, 0.55);
+}
+
+/* Stopped by the plan's limit: a quieter coral ring than waiting's amber. */
+.s-row.is-limited {
+  box-shadow: inset 0 0 0 1px rgba(255, 117, 107, 0.4);
+}
+
+.s-strip-limit {
+  gap: 2px;
+  animation: s-limits-pop 0.35s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+@keyframes s-limits-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-strip-limit {
+    animation: none;
+  }
+}
+
+/* A sleeping session's row fades its face and words, not its surface or
+   its quick answers, to `DOZING_OPACITY`, and comes back under the pointer
+   or the keyboard. With more contrast asked for, nothing fades. */
+.s-row > * {
+  transition: opacity 0.2s ease-out;
+}
+
+@media not ((prefers-contrast: more) or (forced-colors: active)) {
+  .s-row.is-dozing:not(:hover, :focus-visible) > :not(.s-quick) {
+    opacity: 0.65;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-row > * {
+    transition: none;
+  }
+}
+
+.s-avatar {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+/* The agent's mark on the Clawd's foot, ringed in the row's gray (the row's
+   white at 0.065, then 0.1 under the pointer, over the island's black). */
+.s-agent-mark {
+  position: absolute;
+  right: -3px;
+  bottom: -2px;
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #000;
+  box-shadow: 0 0 0 1.5px rgb(17, 17, 17);
+  pointer-events: none;
+}
+
+.s-row:hover .s-agent-mark {
+  box-shadow: 0 0 0 1.5px rgb(26, 26, 26);
+}
+
+.s-badge {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+}
+
+.s-row-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.s-row-line1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.s-row-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.s-clock {
+  font-size: 11px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.s-clock.is-page {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.s-clock.is-small {
+  margin-left: auto;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.s-row-line2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.s-tag {
+  flex: none;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 1.5px 6px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.s-activity,
+.s-secondary {
+  color: rgba(255, 255, 255, 0.55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.s-branch,
+.s-tertiary {
+  color: rgba(255, 255, 255, 0.32);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.s-tertiary {
+  font-size: 10px;
+}
+
+.s-chevron {
+  flex: none;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.s-quick {
+  display: flex;
+  gap: 6px;
+}
+
+.s-quick-button {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 14px;
+}
+
+.s-quick-button.is-deny,
+.s-button.is-deny {
+  background: rgba(255, 69, 58, 0.32);
+}
+
+.s-quick-button.is-allow,
+.s-button.is-allow {
+  background: #5cd685;
+  color: #000;
+}
+
+.s-quick-button:disabled,
+.s-button:disabled {
+  opacity: 0.4;
+}
+
+/* Band */
+
+.s-band-counts {
+  display: flex;
+  gap: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.s-band-counts > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.s-band-total {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.s-back {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  max-width: 260px;
+  padding: 0 8px 0 4px;
+  margin-left: -4px;
+  border-radius: 9px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.s-back span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s-back:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.s-open {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.s-open:disabled {
+  opacity: 0.4;
+}
+
+/* Session page */
+
+.s-detail-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 8px;
+}
+
+.s-auto-allow-status {
+  display: flex;
+  align-self: stretch;
+  width: 100%;
+  max-width: 100%;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: 28px;
+  padding: 3px 6px 3px 9px;
+  border-radius: 10px;
+  background: #5cd685;
+  color: #092313;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.s-auto-allow-label {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.s-auto-allow-label svg {
+  width: 11px;
+  height: 11px;
+  flex: none;
+}
+
+.s-auto-allow-label span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s-auto-allow-cancel {
+  flex: none;
+  min-height: 22px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.12);
+  color: inherit;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.s-auto-allow-cancel:hover {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.s-auto-allow-cancel:active {
+  background: rgba(0, 0, 0, 0.26);
+}
+
+.s-auto-allow-cancel:focus-visible {
+  outline-color: #092313;
+}
+
+.s-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: none;
+}
+
+.s-detail-body,
+.s-details-inline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.s-detail-page.is-large {
+  gap: 12px;
+  min-height: 0;
+}
+.s-scroll.is-large {
+  overflow: hidden;
+  gap: 12px;
+}
+.is-large > .s-header {
+  flex: none;
+  padding-top: 6px;
+  gap: 12px;
+}
+.is-large > .s-header .s-header-text {
+  flex: 1;
+}
+.is-large > .s-header .s-phase {
+  font-size: 15px;
+}
+.is-large > .s-header .s-secondary {
+  font-size: 12px;
+}
+.s-reading-controls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  flex: none;
+}
+.s-reading-controls .n-icon-button {
+  width: 30px;
+  height: 30px;
+}
+.s-small-a {
+  font-size: 11px;
+}
+.s-large-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 38px 330px;
+  flex: 1;
+  min-height: 80px;
+  overflow: hidden;
+}
+.s-large-body.is-folded {
+  grid-template-columns: minmax(0, 1fr) 38px 0;
+}
+.s-details-sidebar {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 4px 3px 8px 0;
+  scrollbar-width: thin;
+}
+.s-details-sidebar[hidden] {
+  display: none;
+}
+.s-details-sidebar .s-section-title {
+  font-size: 11px;
+  letter-spacing: 0.8px;
+}
+.s-details-sidebar .s-title {
+  font-size: 15px;
+  -webkit-line-clamp: unset;
+}
+.s-details-sidebar .s-subagent {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: start;
+  column-gap: 6px;
+  row-gap: 2px;
+}
+.s-details-sidebar .s-subagent > :first-child {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+}
+.s-details-sidebar .s-subagent-type {
+  grid-column: 2;
+  grid-row: 1;
+}
+.s-details-sidebar .s-subagent > .s-clock {
+  grid-column: 3;
+  grid-row: 1 / span 2;
+}
+.s-details-sidebar .s-subagent-description {
+  grid-column: 2;
+  grid-row: 2;
+  white-space: normal;
+}
+.s-sidebar-handle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  color: rgba(255, 255, 255, 0.5);
+}
+.s-sidebar-handle::before {
+  content: "";
+  position: absolute;
+  width: 1px;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.08);
+}
+.s-sidebar-handle svg {
+  z-index: 1;
+  box-sizing: content-box;
+  padding: 12px 4px;
+  border-radius: 15px;
+  background: #1f1f1f;
+}
+.s-sidebar-handle:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
+.is-folded .s-sidebar-handle svg {
+  transform: rotate(180deg);
+}
+.s-sidebar-tool {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 12px;
+  min-width: 0;
+}
+.s-sidebar-tool > svg {
+  align-self: center;
+  flex: none;
+}
+.s-sidebar-tool strong {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+}
+.s-sidebar-command {
+  font:
+    11px "Cascadia Mono",
+    Consolas,
+    monospace;
+  color: rgba(255, 255, 255, 0.65);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.s-sidebar-tool time {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.45);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+.s-fold-list {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  align-self: flex-start;
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.s-fold-list:hover {
+  background: rgba(255, 255, 255, 0.07);
+}
+.s-fold-list .is-open {
+  transform: rotate(180deg);
+}
+.s-conversation.is-large {
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 4px 6px 8px 0;
+  scrollbar-width: thin;
+}
+.s-conversation .s-messages {
+  gap: var(--chat-size);
+}
+.s-conversation .s-message {
+  padding: 0;
+  border-radius: 0;
+  background: none;
+}
+.s-conversation .s-message.is-user {
+  margin-left: 60px;
+  align-self: flex-end;
+  max-width: calc(100% - 60px);
+}
+.s-conversation .is-user .s-message-text {
+  padding: 9px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.95);
+}
+.s-conversation .s-message-text,
+.s-conversation .s-rich-text {
+  font-size: var(--chat-size);
+  line-height: 1.5;
+}
+.s-message-time {
+  display: block;
+  text-align: right;
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.35);
+  font-size: 10px;
+}
+.s-answer-rule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-top: 0.5em;
+  margin-bottom: 0.6em;
+  color: var(--agent-tint, #d97857);
+  font-size: max(10px, calc(var(--chat-size, 15px) - 4px));
+}
+.s-answer-rule > span {
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+}
+.s-answer-rule time {
+  color: rgba(255, 255, 255, 0.35);
+}
+.s-answer-rule i {
+  height: 1px;
+  flex: 1;
+  background: color-mix(in srgb, var(--agent-tint, #d97857) 35%, transparent);
+}
+.s-rich-text {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+.s-message.is-on-the-way .s-rich-text {
+  color: rgba(255, 255, 255, 0.6);
+}
+.s-message.is-answer .s-rich-text {
+  color: rgba(255, 255, 255, 0.96);
+}
+.s-rich-text > :first-child {
+  margin-top: 0;
+}
+.s-rich-text > :last-child {
+  margin-bottom: 0;
+}
+.s-rich-text p {
+  white-space: pre-wrap;
+  margin: 0 0 0.7em;
+}
+.s-rich-text a {
+  color: #6ba8ff;
+  text-decoration: none;
+}
+.s-rich-text a:hover {
+  text-decoration: underline;
+}
+.s-rich-text strong {
+  font-weight: 650;
+}
+.s-rich-text ul,
+.s-rich-text ol {
+  padding-left: 1.5em;
+  margin: 0.6em 0;
+}
+.s-rich-text li > p {
+  margin: 0.3em 0;
+}
+.s-rich-text code {
+  font:
+    0.9em "Cascadia Mono",
+    Consolas,
+    monospace;
+  background: rgba(255, 255, 255, 0.07);
+  border-radius: 4px;
+  padding: 0.1em 0.3em;
+}
+.s-rich-text pre {
+  overflow: auto;
+  padding: 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+.s-rich-text pre code {
+  padding: 0;
+  background: none;
+  white-space: pre;
+}
+.s-rich-text blockquote {
+  margin: 0.7em 0;
+  padding-left: 12px;
+  border-left: 2px solid rgba(255, 255, 255, 0.2);
+}
+.s-rich-text h1,
+.s-rich-text h2,
+.s-rich-text h3 {
+  font-size: 1.12em;
+  margin: 1em 0 0.5em;
+}
+.s-rich-text table {
+  display: block;
+  overflow: auto;
+  border-collapse: collapse;
+  font-size: 0.9em;
+}
+.s-rich-text th,
+.s-rich-text td {
+  padding: 6px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+.s-scroll.is-large > .s-card {
+  max-height: 40%;
+  overflow-y: auto;
+  flex: 0 1 auto;
+}
+.s-detail-page.is-large .s-reply {
+  flex: none;
+}
+.s-detail-page.is-large .s-composer {
+  height: calc(var(--chat-size) * 4 + 20px);
+  min-width: 0;
+  resize: none;
+  padding: 10px 44px 10px 14px;
+  border: 0;
+  outline: none;
+  color: rgba(255, 255, 255, 0.95);
+  font: inherit;
+  font-size: var(--chat-size);
+  line-height: 1.4;
+}
+.s-detail-page.is-large .s-send {
+  bottom: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.s-composer-hint {
+  text-align: right;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+}
+@container island-page (max-width: 850px) {
+  .s-large-body {
+    grid-template-columns: minmax(0, 1fr) 30px 260px;
+  }
+}
+
+.s-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 12px;
+}
+
+.s-header-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.s-header-line1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.s-phase {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.s-tool {
+  font:
+    11px "Cascadia Mono",
+    Consolas,
+    ui-monospace,
+    monospace;
+  color: rgba(255, 255, 255, 0.75);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s-title {
+  font-size: 13px;
+  font-weight: 600;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.s-title:has(.s-image-attachments) {
+  display: block;
+}
+
+.s-image-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.s-image-attachment {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 11px;
+}
+
+.s-image-thumbnail {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid #ffffff26;
+  border-radius: 8px;
+  background: #ffffff0a;
+  color: inherit;
+  cursor: zoom-in;
+}
+
+.s-image-thumbnail img {
+  display: block;
+  max-width: min(120px, 100%);
+  max-height: 72px;
+  object-fit: contain;
+}
+
+.s-image-thumbnail > span {
+  padding: 12px;
+}
+.s-image-thumbnail:focus-visible {
+  outline: 2px solid var(--agent-tint, #bc98ff);
+  outline-offset: 2px;
+}
+
+.s-image-preview {
+  position: fixed;
+  width: fit-content;
+  height: fit-content;
+  max-width: calc(86vw + 2px);
+  max-height: calc(84vh + 2px);
+  padding: 0;
+  border: 1px solid #ffffff26;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #101010;
+  box-shadow: 0 20px 80px #0009;
+  opacity: 0;
+  transform: translateY(10px) scale(0.96);
+}
+
+.s-image-preview[open] {
+  animation: s-image-preview-in 240ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.s-image-preview::backdrop {
+  background: rgb(0 0 0 / 24%);
+}
+
+.s-image-preview.is-closing {
+  animation: s-image-preview-out 180ms ease-in forwards;
+}
+
+.s-image-preview-viewport {
+  max-width: 86vw;
+  max-height: 84vh;
+  overflow: auto;
+}
+
+.s-image-preview-viewport > img {
+  display: block;
+  max-width: 86vw;
+  max-height: 84vh;
+  object-fit: contain;
+}
+
+.s-image-preview-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #ffffff40;
+  border-radius: 50%;
+  color: #fff;
+  background: #000b;
+  cursor: pointer;
+  z-index: 1;
+}
+
+.s-image-preview-dimensions {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  padding: 5px 8px;
+  border-radius: 6px;
+  background: #000b;
+  color: #fff;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.s-image-preview-close:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+@keyframes s-image-preview-in {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes s-image-preview-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.98);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-image-preview[open] {
+    animation-duration: 1ms;
+    transform: none;
+  }
+}
+
+.s-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 10.5px;
+}
+
+.s-tasks-count {
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.s-progress {
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.s-progress > div {
+  height: 100%;
+  border-radius: 2px;
+  background: #d97857;
+  transition: width 0.3s ease-out;
+}
+
+.s-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.s-section-title {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.45);
+}
+
+.s-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.s-tool-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  max-width: 180px;
+  padding: 0 9px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.s-tool-chip > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.s-tool-chip.is-running {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.is-mono {
+  font-family: "Cascadia Mono", Consolas, ui-monospace, monospace;
+}
+
+.s-subagent {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.s-subagent-type {
+  flex: none;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+.s-subagent-description {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+.s-subagent > .s-clock {
+  margin-left: auto;
+  flex: none;
+}
+.s-last-reply {
+  max-height: 9.1em;
+  overflow: hidden;
+  font-size: 11px;
+}
+.s-last-reply .s-rich-text {
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.s-message-text {
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(255, 255, 255, 0.8);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.s-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.s-message {
+  min-width: 0;
+}
+
+.s-enable-previews {
+  align-self: flex-start;
+  padding: 6px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  font: inherit;
+  cursor: pointer;
+}
+
+/* Permission card and questions */
+
+.s-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid;
+  border-radius: 12px;
+}
+
+.s-card-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.s-card-terminal {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.s-detail {
+  margin: 0;
+  max-height: 120px;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  font:
+    11px/1.4 "Cascadia Mono",
+    Consolas,
+    ui-monospace,
+    monospace;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+}
+
+/* A file change's diff (NotchClaudeFileDiffView.swift). */
+.s-diff {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.s-diff-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.s-diff-file {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.s-diff-path {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  font:
+    600 11px/1.4 "Cascadia Mono",
+    Consolas,
+    ui-monospace,
+    monospace;
+}
+
+.s-diff-folder {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* A long folder is cut from its start, so its last parts stay. */
+  direction: rtl;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.s-diff-folder > bdi {
+  direction: ltr;
+}
+
+.s-diff-name {
+  flex: none;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.s-diff-counts {
+  display: flex;
+  flex: none;
+  gap: 5px;
+  font:
+    600 10.5px/1.4 "Cascadia Mono",
+    Consolas,
+    ui-monospace,
+    monospace;
+}
+
+.s-diff-counts .is-added,
+.s-diff-line.is-added .s-diff-sign {
+  color: rgb(92, 214, 133);
+}
+
+.s-diff-counts .is-removed,
+.s-diff-line.is-removed .s-diff-sign {
+  color: rgb(255, 107, 107);
+}
+
+.s-diff-note {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.s-diff-scroll {
+  /* About five lines on the island, so the buttons stay in sight. */
+  max-height: 76px;
+  overflow: auto;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  user-select: text;
+}
+
+.s-diff-scroll:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 1px;
+}
+
+/* On the enlarged page the diff takes what the card has left after its
+   buttons, up to 360px: it shrinks first, so the buttons stay in sight. */
+.s-scroll.is-large > .s-card .s-diff {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+
+.s-detail-page.is-large .s-diff-scroll {
+  flex: 0 1 auto;
+  min-height: 48px;
+  max-height: 360px;
+}
+
+.s-diff-block {
+  padding: 4px 0;
+}
+
+.s-diff-block + .s-diff-block {
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.s-diff-block > .s-diff-header {
+  padding: 2px 8px 4px;
+}
+
+.s-diff-lines {
+  font:
+    10.5px/1.45 "Cascadia Mono",
+    Consolas,
+    ui-monospace,
+    monospace;
+}
+
+.s-diff-line {
+  display: flex;
+  align-items: baseline;
+  padding: 0 8px 0 6px;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.s-diff-line.is-context {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.s-diff-line.is-added {
+  background: rgba(92, 214, 133, 0.14);
+}
+
+.s-diff-line.is-removed {
+  background: rgba(255, 107, 107, 0.14);
+}
+
+.s-diff-line.is-gap {
+  padding-left: calc(var(--s-diff-digits, 0) * 1ch + 18px);
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* In place of lines left out: arrows that open the gap, and how many it holds. */
+.s-diff-line.is-expand {
+  align-items: center;
+  gap: 2px;
+  padding-left: 4px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+}
+
+.s-diff-expand {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 15px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.75);
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    transform 0.1s ease;
+}
+
+.s-diff-expand:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.s-diff-expand:active {
+  transform: scale(0.92);
+}
+
+.s-diff-expand:focus-visible {
+  outline: 1px solid rgba(255, 255, 255, 0.7);
+  outline-offset: -1px;
+}
+
+.s-diff-hidden {
+  margin-left: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Lines a click brings in come up from faint, where they land. */
+.s-diff-line.is-revealed {
+  animation: s-diff-reveal 0.22s ease-out;
+}
+
+@keyframes s-diff-reveal {
+  from {
+    opacity: 0.25;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-diff-line.is-revealed {
+    animation: none;
+  }
+  .s-diff-expand {
+    transition: none;
+  }
+  .s-diff-expand:active {
+    transform: none;
+  }
+}
+
+.s-diff-number {
+  flex: none;
+  width: calc(var(--s-diff-digits, 0) * 1ch);
+  margin-right: 6px;
+  text-align: right;
+  color: rgba(255, 255, 255, 0.35);
+  user-select: none;
+}
+
+.s-diff-sign {
+  flex: none;
+  width: 10px;
+  user-select: none;
+}
+
+.s-diff-text {
+  flex: 1;
+  min-width: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.s-diff-more {
+  padding: 4px 8px;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+/* More contrast: the added and removed lines are told apart by more than tint. */
+@media (prefers-contrast: more), (forced-colors: active) {
+  .s-diff-line.is-added,
+  .s-diff-line.is-removed {
+    background: transparent;
+  }
+  .s-diff-line.is-added .s-diff-sign,
+  .s-diff-line.is-removed .s-diff-sign {
+    font-weight: 700;
+  }
+}
+
+.s-detail.is-preview {
+  max-height: 140px;
+  font-size: 10.5px;
+}
+
+/* A plan is prose, read in the interface's font. */
+.s-detail.is-plan {
+  font-family: inherit;
+  line-height: 1.45;
+}
+
+.s-card-buttons {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.s-spacer {
+  flex: 1;
+}
+
+.s-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border-radius: 14px;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.s-button.is-secondary {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.s-hint {
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.32);
+}
+
+.s-questions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.s-question {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.s-chip {
+  align-self: flex-start;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.s-question-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  user-select: text;
+}
+
+.s-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.s-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 32px;
+  padding: 7px 9px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  text-align: left;
+  transition: background-color 0.12s;
+}
+
+.s-option:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.s-option.is-on {
+  background: rgba(255, 199, 71, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(255, 199, 71, 0.6);
+}
+
+.s-option > svg {
+  flex: none;
+  margin-top: 1px;
+}
+
+.s-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.s-option-label {
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.s-option-description {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.6);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.s-own,
+.s-reply-field,
+.s-rename {
+  box-sizing: border-box;
+  border: 0;
+  outline: none;
+  color: #fff;
+  font-family: inherit;
+}
+
+.s-own {
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 11.5px;
+}
+
+.s-rename-slot {
+  flex: none;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.s-rename-editor {
+  display: flex;
+  align-items: center;
+  flex: none;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  transition:
+    background 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.s-rename-editor:focus-within {
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.24);
+}
+
+.s-rename-editor > svg {
+  flex: none;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.s-rename-content {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.s-rename-label {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  font-weight: 500;
+}
+
+.s-rename {
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border-radius: 0;
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 18px;
+  caret-color: #fff;
+}
+
+.s-rename::placeholder {
+  color: rgba(255, 255, 255, 0.65);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-rename-editor {
+    transition: none;
+  }
+}
+
+/* Reply */
+
+.s-reply {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.s-reply-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.s-reply-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 0;
+}
+
+.s-reply-image {
+  position: relative;
+  width: 84px;
+  height: 56px;
+  border: 1px solid #ffffff26;
+  border-radius: 8px;
+  background: #ffffff0a;
+}
+
+.s-reply-image > img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: inherit;
+}
+
+.s-reply-image > button {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid #ffffff40;
+  border-radius: 50%;
+  background: #252525;
+}
+
+.s-reply-row:focus-within {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.3);
+}
+
+.s-reply-field {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  height: 32px;
+  padding: 0 38px 0 12px;
+  border-radius: 10px;
+  background: transparent;
+  font-size: 12px;
+}
+
+.s-reply-field:focus,
+.s-reply-field:focus-visible,
+.s-rename:focus,
+.s-rename:focus-visible {
+  outline: none;
+  box-shadow: none;
+}
+
+.s-reply-field:disabled {
+  opacity: 0.6;
+}
+
+.s-send {
+  position: absolute;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.s-send.is-ready {
+  background: #d97857;
+  color: #000;
+}
+
+.s-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  color: #ff9f0a;
+}
+
+.s-thinking {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-weight: 600;
+}
+
+.s-thinking-glyph {
+  width: 1.1em;
+  text-align: center;
+}
+
+.s-dress {
+  border-radius: 10px;
+  padding: 0;
+}
+
+.s-dress:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Closed island strip */
+
+.s-strip {
+  display: flex;
+  align-items: center;
+}
+
+.s-strip.is-capsule {
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.s-strip-wing {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 100%;
+}
+
+.s-strip-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Claude's and Codex's marks stacked while both work
+   (NotchClaudeSessionStripMark.stack): the spark in front on a disc of the
+   island's black, the cloud behind it sliding out when Codex starts. */
+.s-strip-stack {
+  position: relative;
+  flex: none;
+}
+.s-strip-stack > span {
+  position: absolute;
+  top: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.s-strip-front {
+  z-index: 1;
+  border-radius: 50%;
+  background: #000;
+}
+.s-strip-behind {
+  animation: s-stack-in 0.38s cubic-bezier(0.2, 1.2, 0.4, 1) both;
+}
+@keyframes s-stack-in {
+  from {
+    transform: translateX(-17px);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .s-strip-behind {
+    animation: none;
+  }
+}
+
+/* The agent glyph grows and brightens and settles back while its session
+   works (NotchAgentAnimationView: scale 0.84…1, opacity 0.7…1, 1.2 s a way). */
+.agent-mark {
+  flex: none;
+  transform-origin: center;
+}
+.agent-mark.is-working {
+  animation: agent-breath 1.2s ease-in-out infinite alternate;
+}
+@keyframes agent-breath {
+  from {
+    transform: scale(0.84);
+    opacity: 0.7;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .agent-mark.is-working {
+    animation: none;
+  }
+}
+
+.s-row {
+  flex-shrink: 0;
+  width: 100%;
+  min-width: 0;
+}
+.s-back {
+  min-width: 0;
+}
+.s-back > svg,
+.s-quick,
+.s-chevron {
+  flex-shrink: 0;
+}
+.s-tag {
+  max-width: min(160px, 40%);
+}
+.s-detail-page,
+.s-header,
+.s-large-body,
+.s-details-sidebar {
+  min-width: 0;
+}
+.s-row-line2 {
+  overflow: hidden;
+}
+@container island-page (max-width: 600px) {
+  .s-large-body {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(80px, 1fr) 28px minmax(0, 35%);
+  }
+  .s-large-body.is-folded {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(80px, 1fr) 28px;
+  }
+  .s-sidebar-handle::before {
+    width: auto;
+    height: 1px;
+    left: 0;
+    right: 0;
+    top: 50%;
+  }
+  .s-sidebar-handle svg {
+    transform: rotate(90deg);
+    padding: 4px 12px;
+  }
+  .is-folded .s-sidebar-handle svg {
+    transform: rotate(-90deg);
+  }
+  .s-message.is-user {
+    max-width: calc(100% - 16px);
+  }
+}
+@container island-page (max-width: 300px) {
+  .s-row {
+    gap: 6px;
+    padding-inline: 6px;
+  }
+  .s-row-line2 {
+    gap: 4px;
+    font-size: 10px;
+  }
+  .s-header {
+    flex-wrap: wrap;
+  }
+  .s-header-text {
+    flex: 1;
+  }
+  .s-reading-controls {
+    margin-left: auto;
+  }
+}
+
+/* macOS folding: reflow text once, slide a separate details layer over it. */
+.s-details-wrapper {
+  display: contents;
+}
+.s-large-body {
+  --s-sidebar-width: 330px;
+  --s-handle-width: 38px;
+  position: relative;
+  display: flex;
+}
+.s-large-body > .s-conversation {
+  flex: none;
+  box-sizing: border-box;
+  width: calc(100% - var(--s-handle-width) - var(--s-sidebar-width));
+  height: 100%;
+  transition: opacity 300ms ease-out;
+}
+.s-large-body.is-layout-folded > .s-conversation {
+  width: calc(100% - var(--s-handle-width));
+}
+.s-large-body.is-text-settling > .s-conversation {
+  opacity: 0.25;
+  transition: none;
+}
+.s-sidebar-layer {
+  position: absolute;
+  inset: 0 0 0 auto;
+  width: calc(var(--s-handle-width) + var(--s-sidebar-width));
+  display: grid;
+  grid-template-columns: var(--s-handle-width) var(--s-sidebar-width);
+  background: #000;
+  transform: translateX(0);
+  transition: transform 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.is-folded > .s-sidebar-layer {
+  transform: translateX(var(--s-sidebar-width));
+}
+.s-sidebar-layer > .s-details-sidebar {
+  box-sizing: border-box;
+  transition: opacity 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.is-folded > .s-sidebar-layer > .s-details-sidebar {
+  opacity: 0;
+  pointer-events: none;
+}
+.s-sidebar-handle svg {
+  transition: transform 380ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@container island-page (max-width: 850px) {
+  .s-large-body {
+    --s-sidebar-width: 260px;
+    --s-handle-width: 30px;
+  }
+}
+@container island-page (max-width: 600px) {
+  .s-large-body {
+    --s-handle-width: 28px;
+  }
+  .s-large-body > .s-conversation {
+    width: 100%;
+    height: calc(65% - var(--s-handle-width));
+  }
+  .s-large-body.is-layout-folded > .s-conversation {
+    width: 100%;
+    height: calc(100% - var(--s-handle-width));
+  }
+  .s-sidebar-layer {
+    inset: auto 0 0;
+    width: 100%;
+    height: calc(35% + var(--s-handle-width));
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: var(--s-handle-width) minmax(0, 1fr);
+  }
+  .is-folded > .s-sidebar-layer {
+    transform: translateY(calc(100% - var(--s-handle-width)));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .s-large-body > .s-conversation,
+  .s-sidebar-layer,
+  .s-sidebar-layer > .s-details-sidebar,
+  .s-sidebar-handle svg {
+    transition: none;
+  }
+}
+
+/* Whole sessions in the background, and starting a new one. */
+
+.s-background-mark {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 9.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.s-background-bar {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.s-background-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+}
+
+.s-background-gap {
+  flex: 1;
+}
+
+.s-background-ask {
+  flex: 1;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+}
+
+.s-background-off {
+  flex: 1;
+  min-width: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 10.5px;
+}
+
+.s-background-button {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: background 120ms ease;
+}
+
+.s-background-button:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.s-background-button:active:not(:disabled) {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.s-background-button.is-selected {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+
+.s-background-button.is-destructive {
+  color: #ff8c80;
+}
+
+.s-background-problem {
+  color: #ff8c80;
+  font-size: 10.5px;
+}
+
+.s-background-logs {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.s-background-screen {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  user-select: text;
+}
+
+.s-background-screen pre {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.88);
+  font-family: "Cascadia Mono", Consolas, monospace;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.s-background-screen p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+}
+
+.s-new-session {
+  /* The picked agent's color, which the page's accents follow. */
+  --agent: 217, 120, 87;
+  --ease-spring: cubic-bezier(0.32, 1.25, 0.5, 1);
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  height: 100%;
+  min-height: 0;
+  container: new-session / size;
+}
+
+.s-new-session[data-agent="codex"] {
+  --agent: 125, 153, 255;
+}
+.s-new-session[data-agent="gemini"] {
+  --agent: 77, 189, 250;
+}
+.s-new-session[data-agent="copilot"] {
+  --agent: 77, 199, 173;
+}
+.s-new-session[data-agent="opencode"] {
+  --agent: 15, 186, 130;
+}
+.s-new-session[data-agent="cursor"] {
+  --agent: 204, 209, 230;
+}
+
+/* Past three agents the picker shows marks only, and names the picked one beside it. */
+.s-agent-picker-wrap {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+}
+.s-agent-picker.is-compact .s-agent-option {
+  padding: 0 8px;
+}
+.s-agent-picked {
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 500;
+  animation: s-agent-picked-in 220ms ease-out;
+}
+@keyframes s-agent-picked-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .s-agent-picked {
+    animation: none;
+  }
+}
+
+/* On a narrow island the controls wrap rather than overlap. */
+.s-new-session .s-background-row {
+  flex-wrap: wrap;
+  row-gap: 5px;
+}
+
+.s-new-message {
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 10.5px;
+  animation: s-new-message-in 220ms ease-out;
+}
+
+@keyframes s-new-message-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}
+
+.s-agent-picker {
+  position: relative;
+  display: grid;
+  flex: none;
+  grid-template-columns: repeat(var(--count), minmax(max-content, 1fr));
+  padding: 2px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+/* Slides under the picked agent, its color fading across. */
+.s-agent-pill {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  left: 2px;
+  width: calc((100% - 4px) / var(--count));
+  border-radius: 7px;
+  background: rgba(var(--agent), 0.22);
+  box-shadow: inset 0 0 0 1px rgba(var(--agent), 0.45);
+  transform: translateX(calc(100% * var(--index)));
+  transition:
+    transform 320ms var(--ease-spring),
+    background 250ms ease,
+    box-shadow 250ms ease;
+}
+
+.s-agent-option {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition: color 200ms ease;
+}
+
+.s-agent-option .agent-mark {
+  filter: grayscale(1);
+  opacity: 0.55;
+  transition:
+    filter 250ms ease,
+    opacity 250ms ease,
+    transform 320ms var(--ease-spring);
+}
+
+.s-agent-option:hover:not(.is-selected) {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.s-agent-option.is-selected {
+  color: #fff;
+}
+
+.s-agent-option.is-selected .agent-mark {
+  filter: none;
+  opacity: 1;
+  transform: scale(1.08);
+}
+
+.s-agent-option:focus-visible {
+  outline: 2px solid rgba(var(--agent), 0.8);
+  outline-offset: 1px;
+}
+
+.s-model-menu {
+  position: relative;
+  flex: none;
+}
+
+.s-model-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 10px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.065);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 11.5px;
+  font-weight: 500;
+  transition:
+    background 120ms ease,
+    box-shadow 160ms ease,
+    transform 160ms var(--ease-spring);
+}
+
+.s-model-button:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 1px rgba(var(--agent), 0.5),
+    0 0 0 3px rgba(var(--agent), 0.12);
+}
+
+.s-model-button:hover,
+.s-model-button.is-open {
+  background: rgba(255, 255, 255, 0.13);
+}
+
+.s-model-button:active {
+  transform: scale(0.97);
+}
+
+.s-model-icon,
+.s-model-chevron {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.s-model-label {
+  display: inline-block;
+  max-width: min(150px, 34vw);
+  overflow: hidden;
+}
+
+/* A new name rises in from below. */
+.s-model-text {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: s-model-text-in 260ms var(--ease-spring);
+}
+
+@keyframes s-model-text-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+/* Opens upward over the folders, growing from the button. */
+.s-model-list {
+  box-sizing: border-box;
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 202px;
+  max-height: min(224px, calc(100cqh - 86px));
+  padding: 6px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(39, 39, 42, 0.98), rgba(28, 28, 31, 0.98));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.09),
+    0 12px 32px rgba(0, 0, 0, 0.5);
+  transform-origin: bottom right;
+  animation: s-model-list-in 180ms var(--ease-spring);
+}
+
+.s-model-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.s-model-list::-webkit-scrollbar-track {
+  background: transparent;
+  margin-block: 8px;
+}
+
+.s-model-list::-webkit-scrollbar-thumb {
+  min-height: 28px;
+  border: 1px solid transparent;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.25);
+  background-clip: padding-box;
+}
+
+.s-model-list::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.4);
+}
+
+.s-model-list::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+.s-model-list::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+.s-model-list[hidden] {
+  display: none;
+}
+
+@keyframes s-model-list-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px) scale(0.96);
+  }
+}
+
+.s-model-option {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.88);
+  font-size: 11.5px;
+  text-align: left;
+  white-space: nowrap;
+  animation: s-model-option-in 200ms ease-out both;
+  animation-delay: calc(min(var(--i), 8) * 14ms);
+}
+
+@keyframes s-model-option-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+}
+
+.s-model-option.is-active {
+  background: rgba(var(--agent), 0.2);
+  box-shadow: inset 0 0 0 1px rgba(var(--agent), 0.12);
+  color: #fff;
+}
+
+.s-model-check {
+  flex: none;
+  color: rgb(var(--agent));
+}
+
+.s-new-folders {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* Slides under the folder picked. */
+.s-new-highlight {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  transition:
+    transform 320ms var(--ease-spring),
+    height 200ms ease;
+}
+
+.s-new-icon {
+  display: inline-flex;
+  flex: none;
+}
+
+/* The check pops in where the folder was. */
+.s-new-icon.is-picked {
+  animation: s-new-icon-in 300ms var(--ease-spring);
+}
+
+@keyframes s-new-icon-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5) rotate(-20deg);
+  }
+}
+
+.s-new-none {
+  padding: 6px 9px;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 11.5px;
+}
+
+.s-new-folder {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 7px;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.6);
+  text-align: left;
+  transition: background 120ms ease;
+}
+
+.s-new-folder:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.s-new-folder.is-selected {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.s-new-folder .s-new-name {
+  color: rgba(255, 255, 255, 0.8);
+  transition: color 200ms ease;
+}
+
+.s-new-folder.is-selected .s-new-name {
+  color: #fff;
+}
+
+.s-new-check {
+  color: rgb(var(--agent));
+  transition: color 250ms ease;
+}
+
+.s-new-name {
+  flex: none;
+  max-width: 45%;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 12px;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s-new-path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.35);
+  direction: rtl;
+  font-size: 10px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s-new-prompt {
+  flex: none;
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  height: 34px;
+  padding: 0 12px;
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 11px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.065);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.12);
+  color: #fff;
+  caret-color: rgba(255, 255, 255, 0.8);
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 18px;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.s-new-prompt::placeholder {
+  color: rgba(255, 255, 255, 0.38);
+}
+
+.s-new-prompt:hover {
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.s-new-prompt:focus-visible {
+  outline: none;
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.075);
+  box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.12);
+}
+
+@media (forced-colors: active) {
+  .s-new-prompt:focus-visible,
+  .s-model-button:focus-visible {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+}
+
+.s-new-start {
+  position: relative;
+  margin-left: auto;
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  height: 28px;
+  padding: 0 14px;
+  border-radius: 8px;
+  background: rgba(var(--agent), 0.85);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  transition:
+    background 250ms ease,
+    opacity 250ms ease,
+    transform 160ms var(--ease-spring);
+}
+
+.s-new-start:hover:not(:disabled) {
+  background: rgb(var(--agent));
+}
+
+.s-new-start:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+.s-new-start:disabled:not(.is-starting) {
+  opacity: 0.4;
+}
+
+.s-new-start-text,
+.s-new-spinner {
+  grid-area: 1 / 1;
+  transition:
+    opacity 180ms ease,
+    transform 220ms var(--ease-spring);
+}
+
+.s-new-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  opacity: 0;
+  transform: scale(0.6);
+  animation: s-new-spin 700ms linear infinite;
+}
+
+.s-new-start.is-starting .s-new-start-text {
+  opacity: 0;
+  transform: scale(0.9);
+}
+
+.s-new-start.is-starting .s-new-spinner {
+  opacity: 1;
+  transform: scale(1);
+}
+
+@keyframes s-new-spin {
+  to {
+    rotate: 360deg;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-background-button,
+  .s-new-folder,
+  .s-new-start,
+  .s-new-start-text,
+  .s-new-spinner,
+  .s-new-prompt,
+  .s-new-check,
+  .s-agent-pill,
+  .s-new-highlight,
+  .s-new-folder .s-new-name,
+  .s-agent-option,
+  .s-agent-option .agent-mark,
+  .s-model-button {
+    transition-duration: 1ms;
+  }
+
+  .s-new-message,
+  .s-new-icon.is-picked,
+  .s-model-text,
+  .s-model-list,
+  .s-model-option {
+    animation: none;
+  }
+
+  .s-agent-option.is-selected .agent-mark {
+    transform: none;
+  }
+}
+
+/* The tag keeps its width on a page with no details beside it yet. */
+.s-header-text {
+  flex: 1;
+}
+
+/* Voice replies: the microphone beside the send button, which grows into a
+   level meter with a stop square while it listens. */
+.s-reply-row.has-mic .s-reply-field {
+  padding-right: 64px;
+}
+.s-reply-row.has-mic.is-listening .s-reply-field {
+  padding-right: 88px;
+}
+.s-mic {
+  position: absolute;
+  right: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.6);
+  transition:
+    background-color 0.15s ease-out,
+    color 0.15s ease-out,
+    padding 0.25s cubic-bezier(0.3, 1.3, 0.5, 1);
+}
+.s-mic:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
+}
+.s-mic:active:not(:disabled) {
+  transform: scale(0.94);
+}
+.s-mic:disabled {
+  opacity: 0.4;
+}
+.s-mic.is-active {
+  background: #d97857;
+  color: #000;
+}
+.s-mic.is-listening {
+  padding: 0 8px;
+}
+.s-mic-spin {
+  animation: s-mic-spin 0.9s linear infinite;
+}
+@keyframes s-mic-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.s-voice-meter {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5px;
+}
+.s-voice-meter > span {
+  width: 2px;
+  border-radius: 1px;
+  background: currentColor;
+  transition: height 0.1s ease-out;
+}
+.s-voice-meter.is-still > span {
+  transition: none;
+}
+.s-voice-problem {
+  flex-wrap: wrap;
+}
+.s-voice-fix {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: rgba(255, 255, 255, 0.85);
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+}
+.s-detail-page.is-large .s-reply-row.has-mic .s-composer {
+  padding-right: 80px;
+}
+.s-detail-page.is-large .s-reply-row.has-mic.is-listening .s-composer {
+  padding-right: 110px;
+}
+.s-detail-page.is-large .s-mic {
+  bottom: 8px;
+  right: 42px;
+  min-width: 28px;
+  height: 28px;
+  border-radius: 14px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .s-mic,
+  .s-voice-meter > span {
+    transition: none;
+  }
+  .s-mic-spin {
+    animation: none;
+  }
+}
+
+/* A worktree of the session's own (SessionWorktrees.swift). */
+.s-worktree-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.s-worktree-toggle:disabled {
+  opacity: 0.45;
+}
+
+.s-worktree-box {
+  display: inline-grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  border-radius: 3.5px;
+  border: 1.5px solid rgba(255, 255, 255, 0.45);
+  color: #fff;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease;
+}
+
+.s-worktree-box.is-on {
+  border-color: var(--agent-tint, #d97757);
+  background: var(--agent-tint, #d97757);
+}
+
+.s-worktree-input {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 8px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+  font:
+    11.5px ui-monospace,
+    "Cascadia Mono",
+    Consolas,
+    monospace;
+  animation: s-new-message-in 200ms ease-out;
+}
+
+.s-worktree-input:focus-visible {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.s-worktree-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 10.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-worktree-input {
+    animation: none;
+  }
+  .s-worktree-box {
+    transition: none;
+  }
+}
+
+/* The SSH host of a remote session (sessions/remote.rs), and the tmux or
+ * zellij a local session's pane belongs to (#235). */
+.s-remote-mark,
+.s-multiplexer-mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 9.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.s-row-line2 > .s-remote-mark,
+.s-row-line2 > .s-multiplexer-mark {
+  margin-right: 2px;
+}
+
+/* #224: why Allow waits, with the button that opens the whole command. */
+.s-command-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10.5px;
+  line-height: 1.35;
+  color: rgba(255, 255, 255, 0.75);
+}
+.s-command-notice > svg {
+  flex: none;
+  color: #ff9f0a;
+}
+.s-command-notice.is-open > svg {
+  color: rgba(255, 255, 255, 0.55);
+}
+.s-command-notice > span {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.s-command-notice > .s-button {
+  flex: none;
+}
+.s-command-failed {
+  font-size: 10.5px;
+  color: #ff9f0a;
+}
+/* The complete command is text, never HTML or terminal output. Long lines
+   wrap, so every character is reached by scrolling down alone. */
+.s-full-command {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-height: 240px;
+  min-height: 64px;
+  flex: 0 1 auto;
+  tab-size: 4;
+  unicode-bidi: plaintext;
+  direction: ltr;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+.s-full-command:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 1px;
+}
+.s-card:has(.s-command-notice) .s-card-buttons {
+  flex-wrap: wrap;
+}
+.s-card:has(.s-command-notice) > .s-detail {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.25) transparent;
+}
+
+/* A restricted request owns the available session area: its controls cannot
+   disappear below the island's fixed viewport while the command scrolls. */
+.s-scroll:has(.s-command-notice) {
+  position: relative;
+  overflow: hidden;
+}
+.s-scroll .s-card:has(.s-command-notice) {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  max-height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.s-scroll:has(.s-command-notice) > :not(.s-card) {
+  visibility: hidden;
+  pointer-events: none;
+}
+.s-card:has(.s-command-notice) > * {
+  flex-shrink: 0;
+}
+.s-card:has(.s-command-notice) > .s-detail {
+  flex: 1 1 0;
+  min-height: 0;
+  max-height: none;
+  overscroll-behavior: contain;
+}
+
+/* #233: the list in groups, and the branch on every row. */
+
+.s-list.is-grouped {
+  gap: 10px;
+}
+
+.s-group {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.s-group-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.s-group-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  height: 30px;
+  padding: 0 6px 0 4px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  color: rgba(255, 255, 255, 0.9);
+  transition:
+    background-color 0.15s,
+    box-shadow 0.2s;
+}
+
+.s-group-head:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Folded with someone inside waiting: the header keeps the amber the row had. */
+.s-group-head.is-collapsed.has-waiting {
+  background: rgba(255, 199, 71, 0.07);
+  box-shadow: inset 0 0 0 1px rgba(255, 199, 71, 0.45);
+}
+
+.s-group-chevron {
+  flex: none;
+  color: rgba(255, 255, 255, 0.4);
+  transform: rotate(90deg);
+  transition: transform 0.3s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.s-group-head.is-collapsed .s-group-chevron {
+  transform: rotate(0deg);
+}
+
+.s-group-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.s-group-mark.is-agent {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.s-group-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.s-group-count {
+  flex: none;
+  display: grid;
+  place-items: center;
+  min-width: 16px;
+  height: 15px;
+  padding: 0 5px;
+  box-sizing: border-box;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.s-group-fill {
+  flex: 1;
+  min-width: 0;
+}
+
+.s-group-faces {
+  display: flex;
+  align-items: center;
+}
+
+/* Each face ringed in its phase's color, over the island's black. */
+.s-group-face {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  margin-left: -4px;
+  border-radius: 50%;
+  background: #111;
+  box-shadow:
+    inset 0 0 0 1.5px currentColor,
+    0 0 0 1.5px #000;
+}
+
+.s-group-face:first-child {
+  margin-left: 0;
+}
+
+.s-group-more {
+  margin-left: 4px;
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.s-group-waiting {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 16px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(255, 199, 71, 0.16);
+  color: #ffc747;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The switch in the band: one list, by project, by agent. */
+.s-grouping {
+  display: flex;
+  padding: 2px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.s-grouping button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 22px;
+  border-radius: 7px;
+  color: rgba(255, 255, 255, 0.5);
+  transition:
+    color 0.15s,
+    transform 0.2s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.s-grouping button:hover {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.s-grouping button:active {
+  transform: scale(0.92);
+}
+
+.s-grouping button.is-on {
+  color: #fff;
+}
+
+.s-grouping button > svg {
+  position: relative;
+}
+
+.s-grouping-pill {
+  position: absolute;
+  inset: 0;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* The branch beside the project, cut in the middle by the row (groups.ts cutMiddle). */
+.s-branch-chip {
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 48%;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  overflow: hidden;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.s-branch-chip > svg {
+  flex: none;
+}
+
+.s-branch-name,
+.s-branch-worktree {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.s-branch-sep {
+  flex: none;
+  opacity: 0.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .s-group-chevron,
+  .s-grouping button {
+    transition: none;
+  }
+}
+
+/* #234: a session in its agent's no-ask mode, and what the island let through. */
+.s-auto-mark svg {
+  flex: none;
+}
+.s-row-line2 > .s-auto-mark {
+  margin-right: 2px;
+}
+.s-let-through-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  font-size: 11px;
+}
+.s-let-through-mark {
+  flex: none;
+  width: 12px;
+  display: inline-flex;
+  justify-content: center;
+}
+.s-let-through-tool {
+  flex: none;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+}
+.s-let-through-summary {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.65);
+}
+.s-let-through-row .s-clock {
+  margin-left: auto;
+}

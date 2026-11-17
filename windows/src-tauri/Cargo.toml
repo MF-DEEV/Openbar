@@ -1,0 +1,168 @@
+[package]
+name = "openbar-windows"
+version = "1.0.0"
+description = "Openbar Dynamic Island for Windows"
+authors = ["Openbar"]
+license = "GPL-3.0-or-later"
+edition = "2024"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+# The `_lib` suffix may seem redundant but it is necessary
+# to make the lib name unique and wouldn't conflict with the bin name.
+# This seems to be only an issue on Windows, see https://github.com/rust-lang/cargo/issues/8519
+name = "openbar_windows_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri-plugin-single-instance = "2"
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-opener = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+interprocess = "2"
+memchr = "2"
+regex = "1"
+unicode-segmentation = "1"
+getrandom = "0.3"
+tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+base64 = "0.22"
+png = "0.18"
+image = { version = "0.25", default-features = false, features = ["png", "bmp"] }
+rqrr = { version = "0.10.1", default-features = false }
+sha2 = "0.10"
+tauri-plugin-dialog = "2"
+zip = { version = "8.6", default-features = false, features = ["deflate-flate2-zlib-rs", "time"] }
+time = { version = "0.3", features = ["local-offset"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+# Watch folds accents and widths out of what it reads (both already in the tree via url/idna).
+icu_normalizer = { version = "2.4", default-features = false, features = ["compiled_data"] }
+icu_properties = { version = "2.4", default-features = false, features = ["compiled_data"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+gtk = "0.18"
+libc = "0.2"
+raw-window-handle = "0.6"
+# Both already in the tree through tauri: the media players' bus, and the HTTPS client of the web view.
+soup3 = "0.5"
+# Wayland (#252): hears clipboard changes through the data-control protocol (pure Rust, no libwayland).
+wayland-client = "0.31"
+wayland-protocols-wlr = { version = "0.3", features = ["client"] }
+x11rb = { version = "0.13", features = ["composite", "dpms", "randr", "shape", "xtest"] }
+zbus = "5"
+
+[target.'cfg(windows)'.dependencies]
+# In-app updates (#213). Windows' own TLS (schannel): rustls pulls in ring,
+# which doesn't cross-build for Arm64 Windows from a Mac.
+tauri-plugin-updater = { version = "2", default-features = false, features = ["native-tls", "system-proxy"] }
+uds_windows = "1"
+# Voice replies: speech recognized on this PC (src/voice). Cross-builds from a
+# Mac need cmake/xwin-toolchain.cmake; see docs/voice-replies.md.
+whisper-rs = "0.16"
+widestring = "1"
+webview2-com = "0.39"
+# The `interface` and `implement` macros expand to `::windows_core` paths.
+windows-core = "0.62"
+windows-collections = "0.3"
+windows = { version = "0.62", features = [
+  "Win32_Networking_WinHttp",
+  "ApplicationModel",
+  "ApplicationModel_Appointments",
+  "ApplicationModel_DataTransfer",
+  "Data_Xml_Dom",
+  "Foundation",
+  "Foundation_Collections",
+  "Graphics",
+  "Graphics_Capture",
+  "Graphics_DirectX",
+  "Graphics_DirectX_Direct3D11",
+  "Graphics_Imaging",
+  "Media",
+  "Media_Control",
+  "Media_Core",
+  "Media_Playback",
+  "Media_Ocr",
+  "Security_Authorization_AppCapabilityAccess",
+  "Storage",
+  "Storage_Streams",
+  "System_Power",
+  "UI",
+  "UI_Notifications",
+  "UI_Notifications_Management",
+  "Wdk_System_SystemInformation",
+  "Wdk_System_Threading",
+  "Win32_System_Kernel",
+  "Win32_Devices_Bluetooth",
+  "Win32_Devices_DeviceAndDriverInstallation",
+  "Win32_Devices_Display",
+  "Win32_Devices_Properties",
+  "Win32_Foundation",
+  "Win32_Globalization",
+  "Win32_Graphics_Direct3D",
+  "Win32_Graphics_Direct3D11",
+  "Win32_Graphics_Dwm",
+  "Win32_Graphics_Dxgi",
+  "Win32_Graphics_Dxgi_Common",
+  "Win32_Graphics_Gdi",
+  "Win32_Media_Audio",
+  "Win32_Media_Audio_Endpoints",
+  "Win32_Media_MediaFoundation",
+  "Win32_NetworkManagement_IpHelper",
+  "Win32_NetworkManagement_Ndis",
+  "Win32_Security",
+  "Win32_Security_Authorization",
+  "Win32_Storage_FileSystem",
+  "Win32_Storage_Xps",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_Console",
+  "Win32_System_DataExchange",
+  "Win32_System_Diagnostics_Debug",
+  "Win32_System_Diagnostics_Etw",
+  "Win32_System_Diagnostics_ToolHelp",
+  "Win32_System_IO",
+  "Win32_System_Ioctl",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_System_Performance",
+  "Win32_System_Pipes",
+  "Win32_System_Power",
+  "Win32_System_ProcessStatus",
+  "Win32_System_Registry",
+  "Win32_System_RemoteDesktop",
+  "Win32_System_Shutdown",
+  "Win32_System_SystemInformation",
+  "Win32_System_SystemServices",
+  "Win32_System_TaskScheduler",
+  "Win32_System_Threading",
+  "Win32_System_Time",
+  "Win32_System_Variant",
+  "Win32_System_WindowsProgramming",
+  "Win32_System_WinRT",
+  "Win32_System_WinRT_Direct3D11",
+  "Win32_System_WinRT_Graphics_Capture",
+  "Win32_System_Wmi",
+  "Win32_UI_Accessibility",
+  "Win32_UI_Controls",
+  "Win32_UI_Controls_Dialogs",
+  "Win32_UI_HiDpi",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
+  "Win32_UI_Shell_PropertiesSystem",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+# Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = 3
+panic = "abort"
+strip = true

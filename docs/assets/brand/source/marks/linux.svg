@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="620" height="720" viewBox="0 0 20.67 24">
+  <defs>
+    <mask id="cut">
+      <rect width="20.67" height="24" fill="#fff"/>
+      <ellipse cx="10.33" cy="16.3" rx="4.5" ry="5.4" fill="none" stroke="#000" stroke-width="0.75"/>
+      <ellipse cx="8.55" cy="5.3" rx="0.95" ry="1.35" fill="#000"/>
+      <ellipse cx="12.1" cy="5.3" rx="0.95" ry="1.35" fill="#000"/>
+      <path d="M8.1 8.1 Q10.33 6.7 12.56 8.1 Q10.33 10.4 8.1 8.1Z" fill="#fff" stroke="#000" stroke-width="0.65"/>
+      <ellipse cx="6.2" cy="22.1" rx="3.7" ry="1.65" fill="none" stroke="#000" stroke-width="0.75"/>
+      <ellipse cx="14.47" cy="22.1" rx="3.7" ry="1.65" fill="none" stroke="#000" stroke-width="0.75"/>
+    </mask>
+  </defs>
+  <g fill="#fff" mask="url(#cut)">
+    <ellipse cx="10.33" cy="6.1" rx="4.7" ry="5.6"/>
+    <path d="M5.9 8.5 C3.4 11.5 2.8 15 3.6 18 C4.3 20.6 6.7 22 10.33 22 C13.97 22 16.37 20.6 17.07 18 C17.87 15 17.27 11.5 14.77 8.5Z"/>
+    <ellipse cx="3.2" cy="15.6" rx="1.5" ry="4.4" transform="rotate(18 3.2 15.6)"/>
+    <ellipse cx="17.47" cy="15.6" rx="1.5" ry="4.4" transform="rotate(-18 17.47 15.6)"/>
+    <ellipse cx="6.2" cy="22.1" rx="3.7" ry="1.65"/>
+    <ellipse cx="14.47" cy="22.1" rx="3.7" ry="1.65"/>
+  </g>
+</svg>

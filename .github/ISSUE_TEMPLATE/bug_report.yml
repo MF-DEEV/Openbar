@@ -1,0 +1,119 @@
+name: Bug report
+description: Something in Openbar doesn't work as it should
+labels:
+  - bug
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        One problem per issue, please. A partial report is still useful.
+        [Reporting a useful bug](https://github.com/MF-DEEV/Openbar/blob/main/docs/TROUBLESHOOTING.md#reporting-a-useful-bug) lists what helps most.
+        A [diagnostics file](https://github.com/MF-DEEV/Openbar/blob/main/docs/TROUBLESHOOTING.md#attach-a-diagnostics-file) (Settings › About › Export diagnostics…) answers most of our questions at once.
+
+  - type: checkboxes
+    id: preflight
+    attributes:
+      label: Before you file
+      description: The [troubleshooting guide](https://github.com/MF-DEEV/Openbar/blob/main/docs/TROUBLESHOOTING.md) covers both.
+      options:
+        - label: If the feature does nothing at all, I checked that the app has the permission it needs in System Settings (or Windows Settings) and toggled it off and on.
+          required: true
+        - label: It still happens on the latest `main` build or Windows release.
+          required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS
+        - Windows
+        - Both
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened
+      description: What you expected, and what you saw instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the island
+        2. Click '...'
+        3. See the error
+    validations:
+      required: true
+
+  - type: dropdown
+    id: feature_area
+    attributes:
+      label: Area
+      options:
+        - Sessions (Claude Code, Codex and other agents)
+        - Dynamic Island
+        - Menu bar panel
+        - Sound
+        - Windows and Dock
+        - Files and clipboard
+        - Energy and display
+        - Settings
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics file
+      description: Drag the zip from Settings › About › Export diagnostics… here. It holds versions, hook states and Openbar's logs, with prompts, commands, keys and your home folder masked. [What's in it](https://github.com/MF-DEEV/Openbar/blob/main/docs/TROUBLESHOOTING.md#attach-a-diagnostics-file).
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots or recordings
+      description: Hide anything private, such as session names, prompts or paths.
+
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The commit you built from, or the Windows release number.
+      placeholder: "main @ 0ff09d5, or windows-v0.1.0"
+    validations:
+      required: true
+
+  - type: input
+    id: os_version
+    attributes:
+      label: OS version
+      placeholder: "macOS 26.1, or Windows 11 24H2"
+    validations:
+      required: true
+
+  - type: input
+    id: agents
+    attributes:
+      label: Agent versions
+      description: Only for Sessions bugs. The output of `claude --version`, `codex --version` and so on.
+      placeholder: "Claude Code 2.1.309"
+
+  - type: input
+    id: hardware
+    attributes:
+      label: Machine and displays
+      description: Skip it unless the bug touches windows, displays or hardware.
+      placeholder: "MacBook Pro 14 (M3 Pro), built-in plus one 4K external"
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      render: text

@@ -1,0 +1,1844 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+//! The AI Agents section's usage service (AgentUsageService.swift; spec 03).
+//! One background thread reads Claude Code, Codex, OpenCode and GitHub
+//! Copilot logs incrementally, asks the vendor CLIs for plan limits, and
+//! emits `agents://snapshot` on change and `agents://event` for notices.
+//! Everything is local; the only network use is the daily price list.
+
+mod archive;
+mod claude;
+mod claude_app;
+mod cli;
+pub(crate) use cli::search_path;
+/// Where `codex` is, for New session too.
+pub(crate) use codex::executable as codex_executable;
+pub(crate) use pricing::display_name as model_display_name;
+
+/// Where a hook agent's command (`gemini`, `copilot`, `opencode`,
+/// `cursor-agent`) is, for New session: the PATH, then where npm-style
+/// installers and the agents' own put it.
+pub(crate) fn agent_executable(name: &str) -> Option<std::path::PathBuf> {
+    let exts = cli::extensions();
+    let mut candidates = cli::in_dirs(&cli::search_path(), name, &exts);
+    candidates.extend(cli::in_dirs(&cli::tool_dirs(), name, &exts));
+    if let Some(home) = files::home() {
+        let dirs = [
+            home.join(".local").join("bin"),
+            home.join(".opencode").join("bin"),
+        ];
+        candidates.extend(cli::in_dirs(&dirs, name, &exts));
+    }
+    cli::first_file(candidates, &[])
+}
+mod codex;
+mod files;
+mod model;
+// The database and network reads are Windows-only; their pure parts are tested everywhere.
+#[cfg_attr(not(windows), allow(dead_code))]
+mod opencode;
+mod parse;
+#[cfg_attr(not(windows), allow(dead_code))]
+mod prices;
+mod pricing;
+mod profiles;
+mod store;
+mod summary;
+
+use files::{Cursor, Root};
+use model::{Event, LimitWindow, Limits, Plan, Provider, Time};
+use serde_json::{Value, json};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::path::{Path, PathBuf};
+use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::{Arc, Condvar, Mutex};
+use std::time::{Duration, SystemTime};
+use store::Store;
+use tauri::{AppHandle, Emitter, Manager, Runtime};
+
+/// History covers 91 days (13 weeks).
+const HORIZON: f64 = summary::DAY_COUNT as f64 * 86_400.0;
+/// Logs written this recently, or holding a turn, are polled every 2 s:
+/// NTFS reports an open file's appends late (§1.2).
+const OPEN_LOG: f64 = 30.0 * 60.0;
+const FAST: f64 = 2.0;
+const TICK: f64 = 30.0;
+const DISCOVERY: f64 = 10.0;
+const SAVE: f64 = 5.0 * 60.0;
+
+/// What the commands share with the reading thread.
+#[derive(Default)]
+pub struct Shared {
+    snapshot: Mutex<Value>,
+    control: Mutex<Control>,
+    wake: Condvar,
+}
+
+#[derive(Default)]
+struct Control {
+    page_visible: bool,
+    /// Some(force) when the Resets card asked for a check.
+    resets: Option<bool>,
+    redeem: Option<Sender<String>>,
+    /// Codex homes a card or Settings asked to check: one, or None for all.
+    accounts: Vec<Option<String>>,
+    /// Other Claude accounts a card asked to check, by id (#216).
+    claude_accounts: Vec<String>,
+}
+
+pub type State = Arc<Shared>;
+/// Reads the prefs, and hands an event to the island's windows.
+type ReadPrefs = Box<dyn Fn() -> Value + Send>;
+type Emit = Box<dyn Fn(&str, Value) + Send>;
+
+fn poke(state: &Shared, change: impl FnOnce(&mut Control)) {
+    change(&mut state.control.lock().unwrap());
+    state.wake.notify_all();
+}
+
+#[tauri::command]
+pub fn agents_snapshot(state: tauri::State<'_, State>) -> Value {
+    let snapshot = state.snapshot.lock().unwrap().clone();
+    if snapshot.is_null() {
+        empty_snapshot()
+    } else {
+        snapshot
+    }
+}
+
+/// The snapshot while nothing was read: a whole one, so the page never meets a missing field.
+fn empty_snapshot() -> Value {
+    let found = Provider::ALL
+        .into_iter()
+        .map(|p| (p, files::found(p)))
+        .collect();
+    serde_json::to_value(summary::Snapshot {
+        found,
+        ..Default::default()
+    })
+    .unwrap_or(Value::Null)
+}
+
+/// The AI page is on screen: Claude's limits are checked every minute.
+#[tauri::command]
+pub fn agents_page_visible(state: tauri::State<'_, State>, visible: bool) {
+    poke(&state, |c| c.page_visible = visible);
+}
+
+#[tauri::command]
+pub fn agents_resets_refresh(state: tauri::State<'_, State>, force: bool) {
+    poke(&state, |c| c.resets = Some(force || c.resets == Some(true)));
+}
+
+/// Checks an added Codex home now, or every one (a card's ⟳, Settings' Check limits).
+#[tauri::command]
+pub fn agents_codex_refresh(state: tauri::State<'_, State>, id: Option<String>) {
+    poke(&state, |c| c.accounts.push(id));
+}
+
+/// Checks another Claude account in use now, as from its card (#216).
+#[tauri::command]
+pub fn agents_claude_account_refresh(state: tauri::State<'_, State>, id: String) {
+    poke(&state, |c| c.claude_accounts.push(id));
+}
+
+/// The usual Codex home and the `.codex-<name>` homes beside it that pass
+/// the checks, with new ids; Settings keeps those it does not have.
+#[tauri::command]
+pub async fn agents_codex_discover(default_name: String) -> Vec<profiles::Profile> {
+    tauri::async_runtime::spawn_blocking(move || {
+        files::home().map_or_else(Vec::new, |home| {
+            profiles::discover(&home, files::codex_home().as_deref(), &default_name)
+        })
+    })
+    .await
+    .unwrap_or_default()
+}
+
+/// A folder the person picks: its canonical path and suggested name, or
+/// `invalid` when it is not a private Codex home; null when they cancel.
+#[tauri::command]
+pub async fn agents_codex_choose_folder<R: Runtime>(
+    app: AppHandle<R>,
+    title: String,
+    default_name: String,
+) -> Value {
+    tauri::async_runtime::spawn_blocking(move || {
+        use tauri_plugin_dialog::DialogExt;
+        let mut builder = app.dialog().file().set_title(title);
+        if let Some(home) = files::home() {
+            builder = builder.set_directory(home);
+        }
+        if let Some(window) = app.get_webview_window(crate::settings::LABEL) {
+            builder = builder.set_parent(&window);
+        }
+        let Some(folder) = builder
+            .blocking_pick_folder()
+            .and_then(|p| p.into_path().ok())
+        else {
+            return Value::Null;
+        };
+        match profiles::canonical(&folder.to_string_lossy()) {
+            Some(canonical) => json!({
+                "name": profiles::suggested_name(&canonical, profiles::usual_home().as_deref(), &default_name),
+                "directory": canonical,
+            }),
+            None => json!({"invalid": true}),
+        }
+    })
+    .await
+    .unwrap_or(Value::Null)
+}
+
+/// Spends one banked Codex reset. Only the Resets card's confirmed button calls this.
+#[tauri::command]
+pub async fn agents_resets_redeem(state: tauri::State<'_, State>) -> Result<String, String> {
+    let (tx, rx) = channel();
+    poke(&state, |c| c.redeem = Some(tx));
+    let shared = state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        rx.recv_timeout(Duration::from_secs(45))
+            .unwrap_or_else(|_| {
+                // Not started by now, it never starts: the card says it failed.
+                shared.control.lock().unwrap().redeem = None;
+                "failed".into()
+            })
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+pub fn start<R: Runtime>(app: AppHandle<R>, state: State) {
+    std::thread::Builder::new()
+        .name("agent-usage".into())
+        .spawn(move || {
+            let prefs_app = app.clone();
+            let emit_app = app.clone();
+            let mut service = Service::new(
+                state,
+                Box::new(move || prefs_app.state::<crate::prefs::Prefs>().get()),
+                Box::new(move |name, payload| {
+                    let _ = emit_app.emit(name, payload);
+                }),
+            );
+            service.run();
+        })
+        .expect("agent usage thread");
+}
+
+/// `Openbar.exe --agents-probe <file> [--limits]`: reads every log once,
+/// as the island does at launch, and writes the snapshot with where the logs
+/// and CLIs were found. `--limits` also asks Claude Code and Codex for the
+/// account limits, and lists every Codex home Settings would find with its
+/// own check (`codexHomes`). It never spends a reset and never writes the archive.
+pub fn probe_main(path: &str, limits: bool) -> ! {
+    let prefs = json!({"island": {"agentsPriceUpdates": false}});
+    let state: State = Arc::default();
+    let mut service = Service::new(
+        state.clone(),
+        Box::new(move || prefs.clone()),
+        Box::new(|_, _| {}),
+    );
+    service.persist = false;
+    service.settings = Some(settings(&(service.prefs)()));
+    let now = model::now();
+    service.begin(files::roots(), now);
+    let roots: Vec<Value> = files::roots()
+        .iter()
+        .map(|r| json!({"provider": r.provider, "path": r.path, "exists": r.path.is_dir()}))
+        .collect();
+    let mut out = json!({
+        "roots": roots,
+        "logs": service.cursors.len(),
+        "records": service.store.records.len(),
+        "claudeExecutable": claude::executable(),
+        "codexExecutable": codex::executable(),
+        "archive": archive::folder(),
+        "snapshot": state.snapshot.lock().unwrap().clone(),
+    });
+    if limits {
+        out["claudeCheck"] = match claude::check(&model::now) {
+            Ok(l) => json!(
+                l.windows
+                    .iter()
+                    .map(summary::WindowOut::from)
+                    .collect::<Vec<_>>()
+            ),
+            Err(f) => json!(f.key()),
+        };
+        out["codexCheck"] = match codex::check(&model::now) {
+            Ok(s) => {
+                json!({"resets": s.available, "windows": s.limits.map(|l| l.windows.iter().map(summary::WindowOut::from).collect::<Vec<_>>())})
+            }
+            Err(f) => json!(f.key()),
+        };
+        // Every Codex home Settings would find, each asked as its card would be.
+        let homes = files::home().map_or_else(Vec::new, |home| {
+            profiles::discover(&home, files::codex_home().as_deref(), "Default")
+        });
+        out["codexHomes"] = homes
+            .iter()
+            .map(|p| {
+                let check = match profiles::read(p, Default::default(), &model::now) {
+                    Ok(r) => json!({"plan": r.plan, "windows": r.limits.windows.iter().map(summary::WindowOut::from).collect::<Vec<_>>()}),
+                    Err(f) => json!(f.key()),
+                };
+                json!({"name": p.name, "directory": p.directory, "check": check})
+            })
+            .collect();
+    }
+    let written = std::fs::write(path, serde_json::to_vec_pretty(&out).unwrap_or_default());
+    std::process::exit(if written.is_ok() { 0 } else { 1 })
+}
+
+/// The section's switches as the island reads them.
+#[derive(Clone, Debug, PartialEq)]
+struct Settings {
+    /// The reader runs: for the AI section, or for Sessions' plan limits.
+    enabled: bool,
+    /// The AI section itself is on.
+    section: bool,
+    /// Read only for Sessions' plan limits, with the AI section off: only
+    /// Claude and Codex are read, only limits are published, and only their
+    /// alerts are told (NotchSessionLimitsSupport.readsAlone).
+    limits_only: bool,
+    providers: Vec<Provider>,
+    finish_minimum: Option<f64>,
+    limit_threshold: Option<f64>,
+    daily_budget: Option<f64>,
+    price_updates: bool,
+    /// Something shows or alerts on plan limits (NotchAgentSupport.limitsInUse).
+    limits_without_page: bool,
+    limits_card: bool,
+    /// The Codex homes with cards of their own (notchAgentsCodexProfiles).
+    codex_profiles: Vec<profiles::Profile>,
+}
+
+impl Settings {
+    /// Added Codex homes are checked only while their cards can show, in the
+    /// Limits card's place (CodexProfileLimitsService.isEnabled).
+    fn checks_accounts(&self) -> bool {
+        self.section && self.providers.contains(&Provider::Codex) && self.limits_card
+    }
+}
+
+fn settings(prefs: &Value) -> Settings {
+    let island = |key: &str| prefs.pointer(&format!("/island/{key}"));
+    let flag = |key: &str, default: bool| island(key).and_then(Value::as_bool).unwrap_or(default);
+    let number = |key: &str, default: f64| {
+        island(key)
+            .and_then(Value::as_f64)
+            .filter(|n| n.is_finite())
+            .unwrap_or(default)
+    };
+    let hidden_modules = island("hiddenModules")
+        .and_then(Value::as_array)
+        .is_some_and(|v| v.iter().any(|m| m == "agents"));
+    let island_on = flag("enabled", true);
+    let section = island_on
+        && prefs
+            .pointer("/island/sections/agents")
+            .and_then(Value::as_bool)
+            .unwrap_or(true)
+        && !hidden_modules;
+    // Sessions shows the plan limits beside its sessions unless turned off.
+    let sessions_limits = island_on
+        && prefs
+            .pointer("/island/sections/sessions")
+            .and_then(Value::as_bool)
+            .unwrap_or(true)
+        && !island("hiddenModules")
+            .and_then(Value::as_array)
+            .is_some_and(|v| v.iter().any(|m| m == "sessions"))
+        && prefs
+            .pointer("/sessions/limits")
+            .and_then(Value::as_bool)
+            .unwrap_or(true);
+    let limits_only = !section && sessions_limits;
+    let mut providers: Vec<Provider> = Provider::ALL
+        .into_iter()
+        .filter(|p| {
+            prefs
+                .pointer(p.pref())
+                .and_then(Value::as_bool)
+                .unwrap_or(true)
+        })
+        .collect();
+    if providers.is_empty() {
+        providers = Provider::ALL.to_vec();
+    }
+    if limits_only {
+        providers = vec![Provider::Claude, Provider::Codex];
+    }
+    let limit_threshold = flag("agentsLimitAlert", true)
+        .then(|| number("agentsLimitThreshold", 80.0).clamp(1.0, 100.0));
+    let live_limit = flag("agentsLiveActivity", true)
+        && island("agentsReadout").and_then(Value::as_str) == Some("limit");
+    let hidden_cards = island("agentsHiddenCards")
+        .and_then(Value::as_array)
+        .is_some_and(|v| v.iter().any(|c| c == "limits"));
+    Settings {
+        enabled: section || sessions_limits,
+        section,
+        limits_only,
+        providers,
+        finish_minimum: flag("agentsFinishAlert", true)
+            .then(|| number("agentsFinishMinimum", 60.0).clamp(0.0, 3600.0)),
+        limit_threshold,
+        daily_budget: Some(number("agentsDailyBudget", 0.0)).filter(|b| *b > 0.0),
+        price_updates: flag("agentsPriceUpdates", true),
+        limits_without_page: limit_threshold.is_some() || live_limit || sessions_limits,
+        limits_card: !hidden_cards,
+        codex_profiles: profiles::decode(island("agentsCodexProfiles")),
+    }
+}
+
+/// What finished in the background.
+enum Job {
+    Claude(Result<Limits, claude::Failure>),
+    /// Another Claude account's check, by its id, with its plan (#216).
+    OtherClaude(String, Result<Limits, claude::Failure>, Option<String>),
+    /// A check's answer, with the redeems that had begun when it started.
+    Resets(Result<codex::Summary, codex::Failure>, u32),
+    Redeem(
+        Result<codex::Outcome, codex::Failure>,
+        Option<codex::Summary>,
+        Sender<String>,
+    ),
+    Prices(Option<pricing::PriceList>),
+    Account(
+        profiles::Check,
+        Result<profiles::Reading, profiles::Failure>,
+    ),
+}
+
+#[derive(Default)]
+struct Resets {
+    summary: Option<codex::Summary>,
+    failure: Option<codex::Failure>,
+    checking: bool,
+    redeeming: bool,
+    attempted: Time,
+    /// An attempt that got no answer: its key and credit, kept for a retry.
+    pending: Option<(String, Option<String>, Time)>,
+    /// Redeems begun, so an older check's answer is set aside.
+    redeems: u32,
+}
+
+/// A Claude account in use beside the one the limits follow (#216).
+#[derive(Clone, Debug)]
+struct OtherClaude {
+    folder: PathBuf,
+    limits: Option<Limits>,
+    plan: Option<String>,
+    failure: Option<claude::Failure>,
+    streak: u32,
+    attempted: Time,
+    checking: bool,
+}
+
+struct Service {
+    /// The other Claude accounts in use, by id, checked one at a time.
+    claude_others: BTreeMap<String, OtherClaude>,
+    state: State,
+    prefs: ReadPrefs,
+    emit: Emit,
+    jobs: (Sender<Job>, Receiver<Job>),
+    settings: Option<Settings>,
+    running: Option<Vec<Provider>>,
+    roots: Vec<Root>,
+    store: Store,
+    cursors: HashMap<String, Cursor>,
+    claude_plan: Option<Plan>,
+    claude_org: Option<String>,
+    claude_profile_modified: Option<SystemTime>,
+    claude_account: Option<Limits>,
+    claude_failure: Option<claude::Failure>,
+    claude_streak: u32,
+    /// When the last account check began; the next is due an interval later.
+    claude_attempted: Time,
+    claude_checking: bool,
+    app_samples: Vec<claude_app::Sample>,
+    app_modified: Option<SystemTime>,
+    previous_limits: HashMap<Provider, Limits>,
+    warned: HashMap<String, (Provider, LimitWindow)>,
+    budget_day: Option<chrono::NaiveDate>,
+    resets: Resets,
+    /// Added Codex homes and their checks, in memory only.
+    accounts: profiles::Accounts,
+    /// Whether the page showed at the last step, so leaving it is noticed.
+    page_was_visible: bool,
+    price_due: Time,
+    price_checking: bool,
+    published: Option<Value>,
+    /// Off for the probe, which must not touch the running island's archive.
+    persist: bool,
+    dirty: bool,
+    last_tick: Time,
+    last_discovery: Time,
+    last_save: Time,
+}
+
+impl Service {
+    fn new(state: State, prefs: ReadPrefs, emit: Emit) -> Service {
+        Service {
+            claude_others: BTreeMap::new(),
+            state,
+            prefs,
+            emit,
+            jobs: channel(),
+            settings: None,
+            running: None,
+            roots: vec![],
+            store: Store::default(),
+            cursors: HashMap::new(),
+            claude_plan: None,
+            claude_org: None,
+            claude_profile_modified: None,
+            claude_account: None,
+            claude_failure: None,
+            claude_streak: 0,
+            claude_attempted: f64::NEG_INFINITY,
+            claude_checking: false,
+            app_samples: vec![],
+            app_modified: None,
+            previous_limits: HashMap::new(),
+            warned: HashMap::new(),
+            budget_day: None,
+            resets: Resets::default(),
+            accounts: profiles::Accounts::default(),
+            page_was_visible: false,
+            price_due: 0.0,
+            price_checking: false,
+            published: None,
+            persist: true,
+            dirty: true,
+            last_tick: 0.0,
+            last_discovery: 0.0,
+            last_save: 0.0,
+        }
+    }
+
+    fn run(&mut self) {
+        loop {
+            self.step(model::now());
+            let control = self.state.control.lock().unwrap();
+            let _ = self
+                .state
+                .wake
+                .wait_timeout(control, Duration::from_secs_f64(FAST))
+                .unwrap();
+        }
+    }
+
+    fn step(&mut self, now: Time) {
+        let settings = settings(&(self.prefs)());
+        if !settings.enabled {
+            self.settings = Some(settings);
+            if self.running.is_some() {
+                self.stop(false);
+            }
+            self.answer_redeem("failed");
+            self.accounts.cancel();
+            self.state.control.lock().unwrap().accounts.clear();
+            return;
+        }
+        if self.running.as_ref() != Some(&settings.providers) {
+            if self.running.is_some() {
+                // A provider switched on is read from the start of its logs.
+                self.stop(false);
+            }
+            self.settings = Some(settings.clone());
+            self.begin(files::roots(), now);
+        }
+        self.settings = Some(settings);
+        while let Ok(job) = self.jobs.1.try_recv() {
+            self.finish(job, now);
+        }
+        self.poll(now);
+        if now - self.last_tick >= TICK {
+            self.tick(now);
+        }
+        self.schedule(now);
+        if self.dirty {
+            self.publish(now);
+        }
+        if now - self.last_save >= SAVE {
+            self.save(now);
+        }
+    }
+
+    fn providers(&self) -> &[Provider] {
+        self.running.as_deref().unwrap_or(&[])
+    }
+
+    fn on(&self, provider: Provider) -> bool {
+        self.providers().contains(&provider)
+    }
+
+    // MARK: Start and stop (§1.3)
+
+    fn begin(&mut self, roots: Vec<Root>, now: Time) {
+        let providers = self
+            .settings
+            .as_ref()
+            .map(|s| s.providers.clone())
+            .unwrap_or_default();
+        // The cached list's age sets the next download: once a day, not each launch.
+        let cached_at = prices::cache_path()
+            .and_then(|p| std::fs::metadata(p).ok())
+            .map(|m| files::modified(&m));
+        self.price_due = self
+            .price_due
+            .max(cached_at.map_or(0.0, |t| t + prices::INTERVAL));
+        // Prices first: the newer of the bundled and the cached list.
+        if let Some(list) = pricing::PriceList::newer(
+            pricing::PriceList::decode(pricing::BUNDLED.as_bytes()),
+            prices::cached(),
+        ) {
+            pricing::install(list);
+        }
+        self.roots = roots
+            .into_iter()
+            .filter(|r| providers.contains(&r.provider))
+            .collect();
+        self.running = Some(providers.clone());
+        self.store = Store::default();
+        self.cursors.clear();
+        if let Some(saved) = archive::folder()
+            .filter(|_| self.persist)
+            .and_then(|d| archive::load(&d, &providers))
+        {
+            self.store = Store::from_saved(saved.store);
+            self.store.reprice();
+            let mut lost: HashSet<String> = HashSet::new();
+            for cursor in saved.cursors {
+                let path = cursor.path.clone();
+                match Cursor::restore(cursor) {
+                    Some(c) => {
+                        self.cursors.insert(path, c);
+                    }
+                    None => {
+                        lost.insert(path);
+                    }
+                }
+            }
+            // Logs gone or rewritten give back their records; logs that
+            // shared one with them are read again in full.
+            let known: HashSet<String> = self.cursors.keys().cloned().collect();
+            lost.extend(
+                self.store
+                    .known_files()
+                    .into_iter()
+                    .filter(|f| !known.contains(f) && !f.contains('#')),
+            );
+            let reread = self.store.files_sharing(&lost);
+            self.store.forget_files(&reread);
+            self.store.forget_files(&lost);
+            for path in &reread {
+                self.cursors.remove(path);
+            }
+        }
+        self.store.drop_records_before(now - HORIZON);
+        self.discover(now, true);
+        self.store.close_idle_turns(now, parse::IDLE_TURN);
+        let registry = files::registry(&self.roots);
+        self.store.close_ended_turns(&registry, true);
+        self.read_claude_plan();
+        self.read_claude_app(now);
+        // History never replays as notices.
+        self.store.reports_transitions = true;
+        self.previous_limits = self.store.limits.clone();
+        if let Some(budget) = self.settings.as_ref().and_then(|s| s.daily_budget)
+            && summary::today_cost(&self.store.records, self.providers(), now) >= budget
+        {
+            self.budget_day = Some(summary::local_day(now));
+        }
+        self.last_tick = now;
+        self.last_discovery = now;
+        self.dirty = true;
+        self.publish(now);
+        self.save(now);
+    }
+
+    /// Clears everything; switching the section off also deletes the archive.
+    fn stop(&mut self, keep: bool) {
+        if let Some(dir) = archive::folder() {
+            if keep {
+                self.save(model::now());
+            } else if !self.settings.as_ref().is_some_and(|s| s.enabled) {
+                archive::remove(&dir);
+            }
+        }
+        self.running = None;
+        self.store = Store::default();
+        self.cursors.clear();
+        self.claude_plan = None;
+        self.claude_org = None;
+        self.claude_profile_modified = None;
+        self.claude_account = None;
+        self.app_samples.clear();
+        self.app_modified = None;
+        self.previous_limits.clear();
+        self.warned.clear();
+        self.budget_day = None;
+        self.published = None;
+        let empty = empty_snapshot();
+        *self.state.snapshot.lock().unwrap() = empty.clone();
+        (self.emit)("agents://snapshot", empty);
+    }
+
+    fn save(&mut self, now: Time) {
+        self.last_save = now;
+        let Some(dir) = archive::folder().filter(|_| self.persist) else {
+            return;
+        };
+        let Some(providers) = self.running.clone() else {
+            return;
+        };
+        let cursors = self
+            .cursors
+            .values_mut()
+            .filter(|c| c.provider != Provider::Opencode && !c.restarted)
+            .filter_map(Cursor::saved)
+            .collect();
+        let _ = archive::save(
+            &dir,
+            &archive::Archive {
+                version: archive::PARSER_VERSION,
+                providers,
+                store: self.store.saved(),
+                cursors,
+            },
+        );
+    }
+
+    // MARK: Reading
+
+    /// Walks the roots for logs inside the horizon; new and grown ones are read.
+    fn discover(&mut self, now: Time, all: bool) {
+        self.last_discovery = now;
+        for (path, provider) in files::discover(&self.roots, now - HORIZON) {
+            let known = self.cursors.get(&path);
+            let changed = known.is_none_or(|c| {
+                all || std::fs::metadata(&path).is_ok_and(|m| {
+                    files::modified(&m) != c.modified
+                        || (provider != Provider::Opencode && m.len() != c.offset)
+                })
+            });
+            if changed {
+                self.read(&path, provider, now);
+            }
+        }
+    }
+
+    /// Logs written in the last half hour or holding a turn, every 2 s.
+    fn poll(&mut self, now: Time) {
+        if now - self.last_discovery >= DISCOVERY {
+            self.discover(now, false);
+            return;
+        }
+        let hot: Vec<(String, Provider)> = self
+            .cursors
+            .values()
+            .filter(|c| {
+                now - c.modified < OPEN_LOG
+                    || self.store.turns.contains_key(&c.path)
+                    || self
+                        .store
+                        .turns
+                        .keys()
+                        .any(|k| k.starts_with(&format!("{}#", c.path)))
+            })
+            .map(|c| (c.path.clone(), c.provider))
+            .collect();
+        for (path, provider) in hot {
+            self.read(&path, provider, now);
+        }
+    }
+
+    fn read(&mut self, path: &str, provider: Provider, now: Time) {
+        let mut cursor = self
+            .cursors
+            .remove(path)
+            .unwrap_or_else(|| Cursor::new(path, provider));
+        let mut lines: Vec<(Vec<parse::Entry>, bool, String)> = Vec::new();
+        let horizon = now - HORIZON;
+        if provider == Provider::Opencode {
+            opencode::read_appended(&mut cursor, horizon, now, &mut |c, line| {
+                let entries = parse::parse(provider, line, &mut c.state, now);
+                // A subagent session's usage counts toward its parent's turn.
+                let file = if c.state.parent_session.is_empty() {
+                    format!("{}#{}", c.path, c.state.session)
+                } else {
+                    format!("{}#{}", c.path, c.state.parent_session)
+                };
+                lines.push((entries, c.state.parent_session.is_empty(), file));
+            });
+        } else {
+            let copilot = provider == Provider::Copilot;
+            let keep = move |line: &[u8]| {
+                !copilot
+                    || parse::first_type(line, 0)
+                        .is_some_and(|(t, _)| parse::COPILOT_EVENTS.contains(&t))
+            };
+            let file = path.to_string();
+            cursor.read_appended(&keep, &mut |state, line| {
+                let entries = parse::parse(provider, line, state, now);
+                if !entries.is_empty() {
+                    lines.push((entries, true, file.clone()));
+                }
+            });
+        }
+        // A log read again from its start gives its responses again, which
+        // count once by their keys; a restarted cursor is only never saved,
+        // so the next launch reads that log as rewritten (as on the Mac).
+        let modified = cursor.modified;
+        let tracks = cursor.tracks_turns();
+        let mut parent = cursor.parent.clone();
+        if provider == Provider::Codex && !tracks {
+            let count = self.cursors.len();
+            parent = cursor.codex_parent(
+                self.cursors
+                    .values()
+                    .map(|c| (c.path.as_str(), &c.state, c.modified)),
+                count,
+            );
+        }
+        self.cursors.insert(path.to_string(), cursor);
+        let mut events = Vec::new();
+        for (entries, tracks_line, file) in lines {
+            let opencode_parent =
+                (provider == Provider::Opencode && !tracks_line).then(|| file.clone());
+            let (tracks, parent) = if provider == Provider::Opencode {
+                (tracks_line, opencode_parent.as_deref())
+            } else {
+                (tracks, parent.as_deref())
+            };
+            if provider == Provider::Opencode
+                && entries.iter().any(|e| matches!(e, parse::Entry::Reset))
+            {
+                self.store.drop_provider(Provider::Opencode);
+            }
+            events.extend(
+                self.store
+                    .apply(entries, &file, provider, tracks, parent, modified, now),
+            );
+            self.dirty = true;
+        }
+        for event in events {
+            self.report(event);
+        }
+        if self.dirty {
+            self.check_limits();
+        }
+    }
+
+    // MARK: Ticks
+
+    fn tick(&mut self, now: Time) {
+        self.last_tick = now;
+        self.store.close_idle_turns(now, parse::IDLE_TURN);
+        self.store.close_settled_turns(now);
+        let registry = files::registry(&self.roots);
+        self.store.close_ended_turns(&registry, false);
+        self.store.drop_records_before(now - HORIZON);
+        self.read_claude_plan();
+        self.read_claude_app(now);
+        self.report_renewals(now);
+        self.check_limits();
+        // A log removed while its turn ran ends that turn without a notice.
+        let gone: Vec<String> = self
+            .cursors
+            .keys()
+            .filter(|p| !Path::new(p).exists())
+            .cloned()
+            .collect();
+        for path in gone {
+            self.cursors.remove(&path);
+            self.store.forget_file(&path);
+        }
+        // The clock moves the snapshot: days, the last half hour, Claude's block.
+        self.dirty = true;
+    }
+
+    /// Starts background checks that are due.
+    fn schedule(&mut self, now: Time) {
+        let (page, resets_request, redeem, asked, asked_claude) = {
+            let mut c = self.state.control.lock().unwrap();
+            (
+                c.page_visible,
+                c.resets.take(),
+                c.redeem.take(),
+                std::mem::take(&mut c.accounts),
+                std::mem::take(&mut c.claude_accounts),
+            )
+        };
+        let Some(settings) = self.settings.clone() else {
+            return;
+        };
+        self.schedule_accounts(&settings, page, asked, now);
+        self.schedule_other_claude(&settings, page, asked_claude, now);
+        // Claude's account check (§2.2).
+        let in_use = settings.limits_without_page || (page && settings.limits_card);
+        // Measured from the last attempt with the page as it is now, so opening
+        // the page brings a check due after a minute forward at once.
+        let due =
+            self.claude_attempted + claude::interval(self.claude_failure, self.claude_streak, page);
+        if self.on(Provider::Claude) && in_use && !self.claude_checking && now >= due {
+            self.claude_attempted = now;
+            self.claude_checking = true;
+            let tx = self.jobs.0.clone();
+            std::thread::spawn(move || {
+                let _ = tx.send(Job::Claude(claude::check(&model::now)));
+            });
+        }
+        // Codex's banked resets (§3.4).
+        if let Some(force) = resets_request {
+            let settled = matches!(
+                self.resets.failure,
+                None | Some(codex::Failure::NeedsSignIn | codex::Failure::Outdated)
+            );
+            let fresh = now - self.resets.attempted
+                < if settled {
+                    codex::FRESHNESS
+                } else {
+                    codex::RETRY_AFTER
+                };
+            if self.on(Provider::Codex)
+                && !self.resets.checking
+                && !self.resets.redeeming
+                && (force || !fresh)
+            {
+                self.resets.checking = true;
+                self.resets.attempted = now;
+                self.dirty = true;
+                let tx = self.jobs.0.clone();
+                let redeems = self.resets.redeems;
+                std::thread::spawn(move || {
+                    let _ = tx.send(Job::Resets(codex::check(&model::now), redeems));
+                });
+            }
+        }
+        if let Some(reply) = redeem {
+            self.redeem(reply, now);
+        }
+        if settings.price_updates && !self.price_checking && now >= self.price_due {
+            self.price_checking = true;
+            let tx = self.jobs.0.clone();
+            std::thread::spawn(move || {
+                let _ = tx.send(Job::Prices(prices::download()));
+            });
+        }
+    }
+
+    /// The other Claude accounts in use, as often as the main one and one at
+    /// a time, only while sessions of more than one account are listed.
+    fn schedule_other_claude(
+        &mut self,
+        settings: &Settings,
+        page: bool,
+        asked: Vec<String>,
+        now: Time,
+    ) {
+        let folders = crate::sessions::accounts::in_use_folders();
+        let primary = claude::account_id(claude::account_dir().as_deref());
+        let others: BTreeMap<String, PathBuf> = if folders.len() > 1 {
+            folders
+                .into_iter()
+                .filter(|(id, _)| Some(id) != primary.as_ref())
+                .collect()
+        } else {
+            BTreeMap::new()
+        };
+        let before = self.claude_others.len();
+        self.claude_others.retain(|id, _| others.contains_key(id));
+        for (id, folder) in &others {
+            self.claude_others
+                .entry(id.clone())
+                .or_insert_with(|| OtherClaude {
+                    folder: folder.clone(),
+                    limits: None,
+                    plan: None,
+                    failure: None,
+                    streak: 0,
+                    attempted: f64::NEG_INFINITY,
+                    checking: false,
+                });
+        }
+        if self.claude_others.len() != before {
+            self.dirty = true;
+        }
+        for id in asked {
+            if let Some(other) = self.claude_others.get_mut(&id).filter(|o| !o.checking) {
+                other.attempted = f64::NEG_INFINITY;
+            }
+        }
+        let in_use = settings.limits_without_page || (page && settings.limits_card);
+        if !self.on(Provider::Claude) || !in_use || self.claude_others.values().any(|o| o.checking)
+        {
+            return;
+        }
+        let due = self
+            .claude_others
+            .iter()
+            .find(|(_, o)| now >= o.attempted + claude::interval(o.failure, o.streak, page))
+            .map(|(id, o)| (id.clone(), o.folder.clone()));
+        let Some((id, folder)) = due else {
+            return;
+        };
+        if let Some(other) = self.claude_others.get_mut(&id) {
+            other.attempted = now;
+            other.checking = true;
+        }
+        self.dirty = true;
+        let tx = self.jobs.0.clone();
+        std::thread::spawn(move || {
+            let dir = claude::dir_of(&folder);
+            let result = claude::check_in(dir.clone(), &model::now);
+            let plan = claude::plan_in(dir.as_deref());
+            let _ = tx.send(Job::OtherClaude(id, result, plan));
+        });
+    }
+
+    /// Added Codex homes: those due while the page shows, and those asked for.
+    fn schedule_accounts(
+        &mut self,
+        settings: &Settings,
+        page: bool,
+        asked: Vec<Option<String>>,
+        now: Time,
+    ) {
+        let mut changed = self.accounts.synchronize(&settings.codex_profiles);
+        if !settings.checks_accounts() {
+            changed |= self.accounts.cancel();
+        } else {
+            if page {
+                changed |= self.accounts.refresh(None, false, now);
+            }
+            for id in asked {
+                changed |= self.accounts.refresh(id.as_deref(), true, now);
+            }
+        }
+        if self.page_was_visible && !page {
+            changed |= self.accounts.page_hidden();
+        }
+        self.page_was_visible = page;
+        if let Some(check) = self.accounts.next(now) {
+            let tx = self.jobs.0.clone();
+            std::thread::spawn(move || {
+                let result = profiles::read(&check.profile, check.cancelled.clone(), &model::now);
+                let _ = tx.send(Job::Account(check, result));
+            });
+        }
+        self.dirty |= changed;
+    }
+
+    /// Spends the reset that expires first; a retry within ten minutes of an
+    /// unanswered attempt reuses its key, so it never spends twice.
+    fn redeem(&mut self, reply: Sender<String>, now: Time) {
+        let available = self.resets.summary.as_ref().map_or(0, |s| s.available);
+        if self.resets.redeeming || available <= 0 || !self.on(Provider::Codex) {
+            let _ = reply.send("failed".into());
+            return;
+        }
+        let first = self
+            .resets
+            .summary
+            .as_ref()
+            .and_then(|s| s.credits.first().map(|c| c.id.clone()));
+        let attempt = match self.resets.pending.take() {
+            Some(pending) if now - pending.2 < codex::RETRY_WINDOW => pending,
+            _ => (codex::uuid(), first, now),
+        };
+        self.resets.pending = Some(attempt.clone());
+        self.resets.redeeming = true;
+        self.resets.redeems += 1;
+        self.dirty = true;
+        let tx = self.jobs.0.clone();
+        std::thread::spawn(move || {
+            let (outcome, summary) = codex::redeem(attempt.1.as_deref(), &attempt.0, &model::now);
+            let _ = tx.send(Job::Redeem(outcome, summary, reply));
+        });
+    }
+
+    fn answer_redeem(&mut self, outcome: &str) {
+        if let Some(reply) = self.state.control.lock().unwrap().redeem.take() {
+            let _ = reply.send(outcome.into());
+        }
+    }
+
+    fn finish(&mut self, job: Job, now: Time) {
+        match job {
+            Job::OtherClaude(id, result, plan) => {
+                if let Some(other) = self.claude_others.get_mut(&id) {
+                    other.checking = false;
+                    other.plan = plan;
+                    match result {
+                        Ok(limits) => {
+                            other.limits = Some(limits);
+                            other.failure = None;
+                            other.streak = 0;
+                        }
+                        Err(failure) => {
+                            if failure == claude::Failure::NeedsSignIn {
+                                other.limits = None;
+                            }
+                            other.streak = if failure == claude::Failure::Unreachable {
+                                other.streak + 1
+                            } else {
+                                0
+                            };
+                            other.failure = Some(failure);
+                        }
+                    }
+                }
+                self.dirty = true;
+            }
+            Job::Claude(result) => {
+                self.claude_checking = false;
+                match result {
+                    Ok(limits) => {
+                        self.claude_failure = None;
+                        self.claude_streak = 0;
+                        self.claude_account = Some(limits);
+                        self.read_claude_app(now);
+                        self.check_limits();
+                    }
+                    Err(failure) => {
+                        self.claude_streak = if failure == claude::Failure::Unreachable {
+                            self.claude_streak + 1
+                        } else {
+                            0
+                        };
+                        self.claude_failure = Some(failure);
+                    }
+                }
+            }
+            Job::Resets(result, redeems) => {
+                self.resets.checking = false;
+                // A check that began before a redeem would bring back the count it spent.
+                match result {
+                    _ if redeems != self.resets.redeems => {}
+                    Ok(summary) => self.accept_resets(summary),
+                    Err(failure) => self.fail_resets(failure),
+                }
+            }
+            Job::Redeem(outcome, summary, reply) => {
+                self.resets.redeeming = false;
+                let answer = match outcome {
+                    Ok(outcome) => {
+                        self.resets.pending = None;
+                        outcome.key()
+                    }
+                    // No outcome came back: the use may have happened on the
+                    // way, so the attempt keeps its key.
+                    Err(codex::Failure::Unreachable | codex::Failure::Refused) => "failed",
+                    Err(failure) => {
+                        self.resets.pending = None;
+                        self.fail_resets(failure);
+                        "failed"
+                    }
+                };
+                let _ = reply.send(answer.into());
+                match summary {
+                    Some(summary) => self.accept_resets(summary),
+                    None => poke(&self.state, |c| c.resets = Some(true)),
+                }
+            }
+            Job::Account(check, result) => {
+                self.accounts.finish(&check, result);
+            }
+            Job::Prices(list) => {
+                self.price_checking = false;
+                match list {
+                    Some(list) => {
+                        self.price_due = now + prices::INTERVAL;
+                        let current = pricing::list();
+                        if let Some(newer) =
+                            pricing::PriceList::newer(Some((*current).clone()), Some(list))
+                            && pricing::install(newer)
+                        {
+                            self.store.reprice();
+                        }
+                    }
+                    None => self.price_due = now + prices::RETRY,
+                }
+            }
+        }
+        self.dirty = true;
+    }
+
+    fn accept_resets(&mut self, summary: codex::Summary) {
+        self.resets.failure = None;
+        self.resets.attempted = summary.checked_at;
+        if let Some(limits) = summary.limits.clone() {
+            self.store.update_limits(limits);
+            self.check_limits();
+        }
+        self.resets.summary = Some(summary);
+    }
+
+    fn fail_resets(&mut self, failure: codex::Failure) {
+        self.resets.failure = Some(failure);
+        // A lost or refused reply leaves the last count standing.
+        if !matches!(
+            failure,
+            codex::Failure::Unreachable | codex::Failure::Refused
+        ) {
+            self.resets.summary = None;
+        }
+    }
+
+    // MARK: Claude's plan and limits
+
+    /// Re-read only when `.claude.json` changes; only `oauthAccount` is kept.
+    fn read_claude_plan(&mut self) {
+        if !self.on(Provider::Claude) {
+            return;
+        }
+        let path = claude::profile_path();
+        let modified = path
+            .as_ref()
+            .and_then(|p| std::fs::metadata(p).ok())
+            .and_then(|m| m.modified().ok());
+        if modified == self.claude_profile_modified && modified.is_some() {
+            return;
+        }
+        self.claude_profile_modified = modified;
+        let profile = claude::read_profile();
+        if !profile.signed_in {
+            self.claude_plan = None;
+            self.claude_org = None;
+            self.claude_account = None;
+            self.store.limits.remove(&Provider::Claude);
+            return;
+        }
+        if profile.organization != self.claude_org {
+            self.claude_account = None;
+            self.store.limits.remove(&Provider::Claude);
+        }
+        self.claude_org = profile.organization.clone();
+        self.claude_plan = pricing::claude_plan(
+            profile.organization_type.as_deref(),
+            profile.rate_limit_tier.as_deref(),
+            &pricing::list(),
+        );
+        self.dirty = true;
+    }
+
+    /// The Claude app's readings, placed at `now`; the account reading wins
+    /// while it is under half an hour old.
+    fn read_claude_app(&mut self, now: Time) {
+        if !self.on(Provider::Claude) {
+            return;
+        }
+        let path = claude_app::history_path();
+        let modified = path
+            .as_ref()
+            .and_then(|p| std::fs::metadata(p).ok())
+            .and_then(|m| m.modified().ok());
+        if modified != self.app_modified {
+            self.app_modified = modified;
+            self.app_samples = path
+                .filter(|_| modified.is_some())
+                .and_then(|p| std::fs::read(p).ok())
+                .and_then(|b| claude_app::samples(&b))
+                .unwrap_or_default();
+        }
+        let start = claude_app::last_check(&self.app_samples, self.claude_org.as_deref()).and_then(
+            |reading| {
+                let recent: Vec<&model::Record> = self
+                    .store
+                    .records
+                    .iter()
+                    .filter(|r| {
+                        r.provider == Provider::Claude
+                            && r.date <= reading
+                            && reading - r.date < 86_400.0
+                    })
+                    .collect();
+                summary::current_block(&recent, reading).map(|b| b.0)
+            },
+        );
+        let desktop = claude_app::limits(&self.app_samples, now, start, self.claude_org.as_deref());
+        let account = claude::current(self.claude_account.as_ref(), now);
+        let recent = account
+            .clone()
+            .filter(|a| now - a.observed_at < claude_app::FRESHNESS);
+        let latest = recent.or_else(|| {
+            [desktop, account]
+                .into_iter()
+                .flatten()
+                .max_by(|a, b| a.observed_at.total_cmp(&b.observed_at))
+        });
+        match latest {
+            Some(limits) => self.store.set_limits(limits),
+            None => {
+                self.store.limits.remove(&Provider::Claude);
+            }
+        }
+        self.dirty = true;
+    }
+
+    // MARK: Alerts (§9)
+
+    fn check_limits(&mut self) {
+        if !self.store.reports_transitions {
+            return;
+        }
+        let threshold = self
+            .settings
+            .as_ref()
+            .and_then(|s| s.limit_threshold)
+            .unwrap_or(80.0);
+        let mut events = Vec::new();
+        for (provider, limits) in &self.store.limits {
+            for window in summary::crossings(self.previous_limits.get(provider), limits, threshold)
+            {
+                self.warned
+                    .insert(window.id.clone(), (*provider, window.clone()));
+                events.push(Event::LimitWarning {
+                    provider: *provider,
+                    window,
+                });
+            }
+        }
+        // A banked reset renews a warned window before its time.
+        let renewed: Vec<String> = self
+            .warned
+            .iter()
+            .filter(|(id, (provider, before))| {
+                self.store.limits.get(provider).is_some_and(|reading| {
+                    reading.windows.iter().any(|w| {
+                        &w.id == *id
+                            && w.used_percent < threshold
+                            && summary::renewed(before, w, reading.observed_at)
+                    })
+                })
+            })
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in renewed {
+            if let Some((provider, _)) = self.warned.remove(&id)
+                && let Some(window) = self
+                    .store
+                    .limits
+                    .get(&provider)
+                    .and_then(|l| l.windows.iter().find(|w| w.id == id))
+                    .cloned()
+            {
+                events.push(Event::LimitReset { provider, window });
+            }
+        }
+        self.previous_limits = self.store.limits.clone();
+        for event in events {
+            self.report(event);
+        }
+    }
+
+    fn report_renewals(&mut self, now: Time) {
+        let due: Vec<String> = self
+            .warned
+            .iter()
+            .filter(|(_, (_, w))| w.resets_at.is_some_and(|r| r <= now))
+            .map(|(id, _)| id.clone())
+            .collect();
+        for id in due {
+            if let Some((provider, window)) = self.warned.remove(&id) {
+                self.report(Event::LimitReset { provider, window });
+            }
+        }
+    }
+
+    /// Filters by the person's choices, then hands the event to the island.
+    fn report(&self, event: Event) {
+        let Some(settings) = &self.settings else {
+            return;
+        };
+        // Read for Sessions alone, only the limits speak.
+        if settings.limits_only
+            && matches!(event, Event::Finished { .. } | Event::BudgetReached { .. })
+        {
+            return;
+        }
+        let payload = match event {
+            Event::Finished {
+                provider,
+                duration,
+                cost,
+                tokens,
+                project,
+            } => {
+                let Some(minimum) = settings
+                    .finish_minimum
+                    .filter(|m| duration >= *m && self.on(provider))
+                else {
+                    return;
+                };
+                let _ = minimum;
+                json!({"kind": "finished", "provider": provider, "duration": duration, "cost": cost, "tokens": tokens, "project": project})
+            }
+            Event::LimitWarning { provider, window } | Event::LimitReset { provider, window }
+                if settings.limit_threshold.is_none() || !self.on(provider) =>
+            {
+                let _ = (provider, window);
+                return;
+            }
+            Event::LimitWarning { provider, window } => {
+                json!({"kind": "limitWarning", "provider": provider, "window": summary::WindowOut::from(&window)})
+            }
+            Event::LimitReset { provider, window } => {
+                json!({"kind": "limitReset", "provider": provider, "window": summary::WindowOut::from(&window)})
+            }
+            Event::BudgetReached { spent, budget } => {
+                if settings.daily_budget.is_none() {
+                    return;
+                }
+                json!({"kind": "budgetReached", "spent": spent, "budget": budget})
+            }
+        };
+        (self.emit)("agents://event", payload);
+    }
+
+    // MARK: Publishing
+
+    fn snapshot(&self, now: Time) -> summary::Snapshot {
+        let mut plans = HashMap::new();
+        if let Some(plan) = &self.claude_plan {
+            plans.insert(Provider::Claude, plan.clone());
+        }
+        if let Some(plan) = pricing::codex_plan(self.store.codex_plan.as_deref(), &pricing::list())
+        {
+            plans.insert(Provider::Codex, plan);
+        }
+        // For Sessions alone, nothing but the limits: no turn at work, spend
+        // or history reaches the island while the AI section is off.
+        let limits_only = self.settings.as_ref().is_some_and(|s| s.limits_only);
+        let mut s = summary::snapshot(summary::Inputs {
+            records: if limits_only {
+                &[]
+            } else {
+                &self.store.records
+            },
+            limits: &self.store.limits,
+            live: if limits_only {
+                Vec::new()
+            } else {
+                self.store.live()
+            },
+            plans: &plans,
+            providers: self.providers(),
+            now,
+        });
+        s.found = Provider::ALL
+            .into_iter()
+            .map(|p| (p, files::found(p)))
+            .collect();
+        s.claude = summary::ClaudeStatus {
+            account_at: self
+                .claude_account
+                .as_ref()
+                .map(|l| (l.observed_at * 1000.0).round()),
+            app_at: claude_app::last_check(&self.app_samples, self.claude_org.as_deref())
+                .map(|t| (t * 1000.0).round()),
+            app_installed: claude_app::installed(),
+            failure: self.claude_failure.map(claude::Failure::key),
+        };
+        let r = &self.resets;
+        s.resets = summary::ResetsOut {
+            checking: r.checking || r.redeeming,
+            count: r.summary.as_ref().map(|s| s.available),
+            credits: r
+                .summary
+                .as_ref()
+                .map(|s| {
+                    s.credits
+                        .iter()
+                        .map(|c| summary::CreditOut {
+                            id: c.id.clone(),
+                            expires_at: c.expires_at.map(|t| (t * 1000.0).round()),
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            failure: r.failure.map(codex::Failure::key),
+            checked_at: r.summary.as_ref().map(|s| (s.checked_at * 1000.0).round()),
+        };
+        s.codex_accounts = self
+            .accounts
+            .list
+            .iter()
+            .map(|a| summary::AccountOut {
+                id: a.profile.id.clone(),
+                name: a.profile.name.clone(),
+                limits: a.current_limits(now).as_ref().map(summary::LimitsOut::from),
+                plan: a.plan.clone(),
+                checking: a.checking,
+                failure: a.failure.map(profiles::Failure::key),
+            })
+            .collect();
+        let home = files::home();
+        let mut others: Vec<summary::AccountOut> = self
+            .claude_others
+            .iter()
+            .map(|(id, o)| summary::AccountOut {
+                id: id.clone(),
+                name: home
+                    .as_deref()
+                    .map(|h| crate::sessions::accounts::display_name(id, h))
+                    .unwrap_or_else(|| id.clone()),
+                limits: claude::current(o.limits.as_ref(), now)
+                    .as_ref()
+                    .map(summary::LimitsOut::from),
+                plan: o.plan.clone(),
+                checking: o.checking,
+                failure: o.failure.map(claude::Failure::key),
+            })
+            .collect();
+        others.sort_by(|a, b| a.name.cmp(&b.name));
+        s.claude_accounts = others;
+        s.claude_account_id = claude::account_id(claude::account_dir().as_deref());
+        s.claude_account_name = match (&s.claude_account_id, &home) {
+            (Some(id), Some(home)) if !s.claude_accounts.is_empty() => {
+                Some(crate::sessions::accounts::display_name(id, home))
+            }
+            _ => None,
+        };
+        s.price_day = pricing::list().updated.clone();
+        s
+    }
+
+    fn publish(&mut self, now: Time) {
+        self.dirty = false;
+        let snapshot = self.snapshot(now);
+        self.check_budget(snapshot.periods.today.total.cost, now);
+        let mut value = serde_json::to_value(&snapshot).unwrap_or(Value::Null);
+        // The time it was built alone is no change.
+        let stamp = value.as_object_mut().and_then(|o| o.remove("now"));
+        if self.published.as_ref() == Some(&value) {
+            return;
+        }
+        self.published = Some(value.clone());
+        if let (Some(object), Some(stamp)) = (value.as_object_mut(), stamp) {
+            object.insert("now".into(), stamp);
+        }
+        *self.state.snapshot.lock().unwrap() = value.clone();
+        (self.emit)("agents://snapshot", value);
+    }
+
+    fn check_budget(&mut self, spent: f64, now: Time) {
+        let Some(budget) = self.settings.as_ref().and_then(|s| s.daily_budget) else {
+            return;
+        };
+        let today = summary::local_day(now);
+        if !self.store.reports_transitions || spent < budget || self.budget_day == Some(today) {
+            return;
+        }
+        self.budget_day = Some(today);
+        self.report(Event::BudgetReached { spent, budget });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    struct Harness {
+        service: Service,
+        events: Arc<Mutex<Vec<(String, Value)>>>,
+    }
+
+    fn harness(prefs: Value) -> Harness {
+        let events = Arc::new(Mutex::new(Vec::new()));
+        let sink = events.clone();
+        let mut service = Service::new(
+            Arc::new(Shared::default()),
+            Box::new(move || prefs.clone()),
+            Box::new(move |name, payload| sink.lock().unwrap().push((name.into(), payload))),
+        );
+        // Tests never touch the person's real archive in %LOCALAPPDATA%.
+        service.persist = false;
+        Harness { service, events }
+    }
+
+    #[test]
+    fn a_rewritten_log_keeps_its_history_and_its_turn() {
+        let dir = std::env::temp_dir().join(format!("openbar-restart-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let projects = dir.join("projects").join("p");
+        std::fs::create_dir_all(&projects).unwrap();
+        let log = projects.join("s.jsonl");
+        let now = model::now();
+        let iso = |t: Time| {
+            chrono::DateTime::from_timestamp_millis((t * 1000.0) as i64)
+                .unwrap()
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+        };
+        let reply = |id: &str, t: Time, stop: &str| {
+            format!(
+                "{{\"type\":\"assistant\",\"timestamp\":\"{}\",\"requestId\":\"{id}\",\"message\":{{\"id\":\"{id}\",\"model\":\"claude-opus-5-5\",\"stop_reason\":\"{stop}\",\"usage\":{{\"output_tokens\":10}}}}}}\n",
+                iso(t)
+            )
+        };
+        let prompt = format!(
+            "{{\"type\":\"user\",\"timestamp\":\"{}\",\"message\":{{\"content\":\"go\"}}}}\n",
+            iso(now - 300.0)
+        );
+        std::fs::write(
+            &log,
+            format!(
+                "{prompt}{}{}",
+                reply("a", now - 200.0, "tool_use"),
+                reply("b", now - 100.0, "tool_use")
+            ),
+        )
+        .unwrap();
+        let mut h =
+            harness(json!({"island": {"agentsPriceUpdates": false, "agentsLimitAlert": false}}));
+        h.service.settings = Some(settings(&(h.service.prefs)()));
+        h.service.begin(
+            vec![Root {
+                provider: Provider::Claude,
+                path: dir.join("projects"),
+            }],
+            now,
+        );
+        assert_eq!(h.service.store.records.len(), 2);
+        // Rewritten shorter in place, then written on: read again from the start.
+        std::fs::write(
+            &log,
+            format!("{prompt}{}", reply("a", now - 200.0, "tool_use")),
+        )
+        .unwrap();
+        h.service.poll(now);
+        use std::io::Write;
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&log)
+            .unwrap()
+            .write_all(reply("c", now - 1.0, "end_turn").as_bytes())
+            .unwrap();
+        h.service.poll(now);
+        h.service.poll(now);
+        assert_eq!(
+            h.service.store.records.len(),
+            3,
+            "what was read stays counted"
+        );
+        assert!(
+            h.events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(n, e)| n == "agents://event" && e["kind"] == "finished")
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn a_check_begun_before_a_redeem_does_not_bring_back_its_count() {
+        let mut h = harness(json!({}));
+        let summary = |n| codex::Summary {
+            available: n,
+            credits: vec![],
+            limits: None,
+            checked_at: 0.0,
+        };
+        h.service.resets.redeems = 1;
+        h.service.finish(Job::Resets(Ok(summary(2)), 0), 0.0);
+        assert!(h.service.resets.summary.is_none());
+        h.service.finish(Job::Resets(Ok(summary(1)), 1), 0.0);
+        assert_eq!(
+            h.service.resets.summary.as_ref().map(|s| s.available),
+            Some(1)
+        );
+    }
+
+    #[test]
+    fn settings_follow_the_prefs_and_keep_one_provider() {
+        let s = settings(
+            &json!({"island": {"agentsClaude": false, "agentsCodex": false, "agentsOpenCode": false, "agentsCopilot": false, "agentsLimitAlert": false, "agentsReadout": "limit", "agentsDailyBudget": 25, "agentsFinishMinimum": 99999}}),
+        );
+        assert!(s.enabled);
+        assert_eq!(
+            s.providers.len(),
+            4,
+            "the last provider can't be switched off"
+        );
+        assert_eq!(s.limit_threshold, None);
+        assert!(s.limits_without_page, "the strip shows a limit");
+        assert_eq!(s.daily_budget, Some(25.0));
+        assert_eq!(s.finish_minimum, Some(3600.0));
+        assert!(!settings(&json!({"island": {"sections": {"agents": false}}})).section);
+        assert!(!settings(&json!({"island": {"hiddenModules": ["agents"]}})).section);
+    }
+
+    #[test]
+    fn sessions_keep_reading_the_limits_with_the_ai_section_off() {
+        let alone = settings(
+            &json!({"island": {"sections": {"agents": false}, "agentsLimitAlert": false}}),
+        );
+        assert!(alone.enabled && !alone.section && alone.limits_only);
+        assert_eq!(alone.providers, vec![Provider::Claude, Provider::Codex]);
+        assert!(alone.limits_without_page, "Sessions shows them");
+        assert!(
+            !alone.checks_accounts(),
+            "added Codex homes stay with the AI page"
+        );
+        let off = settings(
+            &json!({"island": {"sections": {"agents": false}}, "sessions": {"limits": false}}),
+        );
+        assert!(!off.enabled, "with Sessions' limits off too, nothing reads");
+        let hidden = settings(
+            &json!({"island": {"sections": {"agents": false}, "hiddenModules": ["sessions"]}}),
+        );
+        assert!(!hidden.enabled, "nor with Sessions hidden");
+        let both = settings(&json!({}));
+        assert!(both.enabled && both.section && !both.limits_only);
+        assert_eq!(both.providers.len(), 4);
+    }
+
+    #[test]
+    fn added_codex_homes_are_read_and_checked_only_while_their_cards_can_show() {
+        let home = json!([{"id": "11111111-2222-4333-8444-555555555555", "name": "Work", "directory": r"C:\w"}]);
+        let s = settings(&json!({"island": {"agentsCodexProfiles": home}}));
+        assert_eq!(s.codex_profiles.len(), 1);
+        assert!(s.checks_accounts());
+        assert!(!settings(&json!({"island": {"agentsCodex": false}})).checks_accounts());
+        assert!(!settings(&json!({"island": {"agentsHiddenCards": ["limits"]}})).checks_accounts());
+        assert!(!settings(&json!({"island": {"sections": {"agents": false}}})).checks_accounts());
+    }
+
+    #[test]
+    fn logs_become_a_snapshot_and_a_finished_turn_a_notice() {
+        let dir = std::env::temp_dir().join(format!("openbar-service-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let projects = dir.join("projects").join("C--work-site");
+        std::fs::create_dir_all(&projects).unwrap();
+        let log = projects.join("sess-1.jsonl");
+        let now = model::now();
+        let iso = |t: Time| {
+            chrono::DateTime::from_timestamp_millis((t * 1000.0) as i64)
+                .unwrap()
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+        };
+        std::fs::write(&log, format!("{{\"type\":\"user\",\"sessionId\":\"sess-1\",\"cwd\":\"C:\\\\work\\\\site\",\"timestamp\":\"{}\",\"message\":{{\"content\":\"go\"}}}}\n", iso(now - 120.0))).unwrap();
+        let mut h =
+            harness(json!({"island": {"agentsPriceUpdates": false, "agentsLimitAlert": false}}));
+        h.service.settings = Some(settings(&(h.service.prefs)()));
+        h.service.begin(
+            vec![Root {
+                provider: Provider::Claude,
+                path: dir.join("projects"),
+            }],
+            now,
+        );
+        let snapshot = h.service.state.snapshot.lock().unwrap().clone();
+        assert_eq!(snapshot["loaded"], true);
+        assert_eq!(
+            snapshot["live"].as_array().unwrap().len(),
+            1,
+            "the open turn shows as working"
+        );
+        use std::io::Write;
+        let reply = format!(
+            "{{\"type\":\"assistant\",\"sessionId\":\"sess-1\",\"timestamp\":\"{}\",\"requestId\":\"r\",\"message\":{{\"id\":\"m\",\"model\":\"claude-opus-5-5\",\"stop_reason\":\"end_turn\",\"usage\":{{\"input_tokens\":100,\"output_tokens\":2000}}}}}}\n",
+            iso(now - 1.0)
+        );
+        std::fs::OpenOptions::new()
+            .append(true)
+            .open(&log)
+            .unwrap()
+            .write_all(reply.as_bytes())
+            .unwrap();
+        h.service.poll(now);
+        h.service.publish(now);
+        let events = h.events.lock().unwrap().clone();
+        let finished = events
+            .iter()
+            .find(|(n, _)| n == "agents://event")
+            .expect("a notice");
+        assert_eq!(finished.1["kind"], "finished");
+        assert_eq!(finished.1["project"], "site");
+        assert!(finished.1["duration"].as_f64().unwrap() >= 118.0);
+        let last = &events
+            .iter()
+            .rev()
+            .find(|(n, _)| n == "agents://snapshot")
+            .unwrap()
+            .1;
+        assert!(last["live"].as_array().unwrap().is_empty());
+        assert_eq!(last["periods"]["today"]["projects"][0]["name"], "site");
+        assert!(last["periods"]["today"]["total"]["cost"].as_f64().unwrap() > 0.0);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn read_for_sessions_alone_only_limits_leave() {
+        let dir = std::env::temp_dir().join(format!("openbar-limits-only-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let projects = dir.join("projects").join("C--work-site");
+        std::fs::create_dir_all(&projects).unwrap();
+        let now = model::now();
+        let iso = |t: Time| {
+            chrono::DateTime::from_timestamp_millis((t * 1000.0) as i64)
+                .unwrap()
+                .to_rfc3339_opts(chrono::SecondsFormat::Millis, true)
+        };
+        std::fs::write(
+            projects.join("sess-1.jsonl"),
+            format!(
+                "{{\"type\":\"user\",\"sessionId\":\"sess-1\",\"cwd\":\"C:\\\\work\\\\site\",\"timestamp\":\"{}\",\"message\":{{\"content\":\"go\"}}}}\n{{\"type\":\"assistant\",\"sessionId\":\"sess-1\",\"timestamp\":\"{}\",\"requestId\":\"r\",\"message\":{{\"id\":\"m\",\"model\":\"claude-opus-5-5\",\"stop_reason\":\"end_turn\",\"usage\":{{\"input_tokens\":100,\"output_tokens\":2000}}}}}}\n",
+                iso(now - 120.0),
+                iso(now - 100.0)
+            ),
+        )
+        .unwrap();
+        let mut h = harness(
+            json!({"island": {"sections": {"agents": false}, "agentsPriceUpdates": false, "agentsFinishMinimum": 0}}),
+        );
+        h.service.settings = Some(settings(&(h.service.prefs)()));
+        h.service.begin(
+            vec![Root {
+                provider: Provider::Claude,
+                path: dir.join("projects"),
+            }],
+            now,
+        );
+        let snapshot = h.service.state.snapshot.lock().unwrap().clone();
+        assert_eq!(snapshot["loaded"], true);
+        assert!(
+            snapshot["live"].as_array().unwrap().is_empty(),
+            "no turn at work leaves"
+        );
+        assert_eq!(
+            snapshot["periods"]["today"]["total"]["cost"]
+                .as_f64()
+                .unwrap_or(0.0),
+            0.0,
+            "nor any spend"
+        );
+        h.service.report(Event::Finished {
+            provider: Provider::Claude,
+            duration: 120.0,
+            cost: 1.0,
+            tokens: 10,
+            project: "site".into(),
+        });
+        h.service.report(Event::BudgetReached {
+            spent: 9.0,
+            budget: 1.0,
+        });
+        assert!(
+            !h.events
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|(n, _)| n == "agents://event"),
+            "only limit alerts are told"
+        );
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+}

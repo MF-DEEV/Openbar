@@ -1,0 +1,40 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+}
+
+.bar {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 14px;
+  font-family: "Inter Variable", Inter, "Segoe UI Variable Text", "Segoe UI", sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--bar-ink, rgba(255, 255, 255, 0.95));
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.15);
+  -webkit-font-smoothing: antialiased;
+}
+
+.bar-app {
+  font-weight: 700;
+}
+
+.bar-clock {
+  font-variant-numeric: tabular-nums;
+  white-space: pre;
+}
+
+@media (prefers-color-scheme: light) {
+  .bar {
+    --bar-ink: rgba(0, 0, 0, 0.88);
+    text-shadow: none;
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Island and its mirrors, menu bar, settings, first-run and screen selection windows",
+  "windows": ["island", "island-mirror-*", "bar", "settings", "onboarding", "capture"],
+  "permissions": [
+    "core:default",
+    "opener:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister"
+  ]
+}

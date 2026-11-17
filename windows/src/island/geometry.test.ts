@@ -1,0 +1,205 @@
+import { describe, expect, it } from "vitest";
+import {
+  capsulePath,
+  contentInsets,
+  notchMetrics,
+  expandedHeight,
+  expandedWidth,
+  fitContent,
+  hitShape,
+  hoverPulse,
+  makeGeometry,
+  notchPath,
+  peekSize,
+  restingSize,
+} from "./geometry";
+
+const screen = { width: 1920, height: 1080 };
+const notch = makeGeometry({ screen, devicePixelRatio: 1, silhouette: "notch", layout: "spacious" });
+const capsule2x = makeGeometry({ screen, devicePixelRatio: 2, silhouette: "capsule", layout: "spacious" });
+const capsule1x = makeGeometry({ screen, devicePixelRatio: 1, silhouette: "capsule", layout: "spacious" });
+
+describe("proportional content layout", () => {
+  it("fits and centers the entire layout for wide, tall and small islands", () => {
+    for (const width of [100, 200, 344, 600, 1000]) {
+      for (const height of [48, 100, 146, 400, 800]) {
+        const fit = fitContent({ width, height }, { width: 344, height: 146 });
+        expect(fit.x).toBeGreaterThanOrEqual(-1e-10);
+        expect(fit.y).toBeGreaterThanOrEqual(-1e-10);
+        expect(344 * fit.scale + 2 * fit.x).toBeCloseTo(width);
+        expect(146 * fit.scale + 2 * fit.y).toBeCloseTo(height);
+      }
+    }
+  });
+
+  it("honors custom height even for pages with a smaller natural height", () => {
+    const geometry = makeGeometry({
+      screen,
+      devicePixelRatio: 1,
+      silhouette: "notch",
+      layout: "custom",
+      customHeight: 500,
+    });
+    expect(expandedHeight(geometry, { hasRow: false, content: 146 })).toBe(500);
+  });
+});
+
+describe("closed sizes (spec §1.4.1)", () => {
+  it("capsule rests at 106 × 23.5 on 200% and 104 × 23 on 100%", () => {
+    expect(restingSize(capsule2x)).toEqual({ width: 106, height: 23.5 });
+    expect(restingSize(capsule1x)).toEqual({ width: 104, height: 23 });
+  });
+
+  it("simulated notch rests at 135 × 24, 223 with idle wings", () => {
+    expect(restingSize(notch)).toEqual({ width: 135, height: 24 });
+    expect(restingSize(notch, true)).toEqual({ width: 223, height: 24 });
+  });
+
+  it("grows each silhouette proportionally by just three percent on hover", () => {
+    for (const geometry of [notch, capsule2x, capsule1x]) {
+      const rest = restingSize(geometry);
+      const hover = hoverPulse(geometry, rest);
+      expect(hover.width / rest.width).toBeCloseTo(1.03);
+      expect(hover.height / rest.height).toBeCloseTo(1.03);
+    }
+  });
+
+  it("peeks at 340 × 86 hanging and 340 × 68 as a capsule", () => {
+    expect(peekSize(notch)).toEqual({ width: 340, height: 86 });
+    expect(peekSize(capsule2x)).toEqual({ width: 340, height: 68 });
+  });
+});
+
+describe("open sizes (spec §1.4.2)", () => {
+  it("lists are 560 × 328 hanging and 560 × 340 as a capsule", () => {
+    expect(expandedWidth(notch)).toBe(560);
+    expect(expandedHeight(notch, { hasRow: true })).toBe(328);
+    expect(expandedHeight(capsule2x, { hasRow: true })).toBe(340);
+  });
+
+  it("music, timer and controls narrow to 400", () => {
+    expect(expandedWidth(notch, { natural: 344 })).toBe(400);
+  });
+
+  it("compact preset is 480 × 244 hanging", () => {
+    const compact = makeGeometry({ screen, devicePixelRatio: 1, silhouette: "notch", layout: "compact" });
+    expect(expandedWidth(compact)).toBe(480);
+    expect(expandedHeight(compact, { hasRow: true })).toBe(244);
+  });
+
+  it("the enlarged sessions page is 1180 × 864 on 1920 × 1080", () => {
+    expect(expandedWidth(notch, { enlarged: true })).toBeCloseTo(1180, 0);
+    expect(expandedHeight(notch, { hasRow: true, enlarged: true })).toBe(864);
+  });
+});
+
+describe("outlines", () => {
+  it("keep the same number of elements at every size so frames blend", () => {
+    const count = (p: string) => p.split(/[MLCZ]/).length;
+    expect(count(notchPath(135, 24))).toBe(count(notchPath(560, 328)));
+    expect(count(capsulePath(106, 23.5, 2))).toBe(count(capsulePath(560, 340, 2)));
+    expect(count(capsulePath(0, 0, 2))).toBe(count(capsulePath(560, 340, 2)));
+  });
+
+  it("hang from the top edge across the ears", () => {
+    expect(notchPath(135, 24).startsWith("M0 0 L135 0")).toBe(true);
+  });
+
+  it("hit the body between the shoulders, from the very top", () => {
+    const hit = hitShape(notch, { width: 560, height: 328 });
+    expect(hit.rect).toEqual({ x: 14, y: 0, width: 532, height: 328 });
+    expect(hit.bottomRadius).toBe(28);
+    const cap = hitShape(capsule2x, { width: 106, height: 23.5 });
+    expect(cap.rect.y).toBe(0);
+    expect(cap.rect.height).toBeCloseTo(21.5, 5);
+  });
+
+  it("paint a notch where it hits, with the ears it flares out at the top", () => {
+    const hit = hitShape(notch, { width: 560, height: 328 });
+    expect(hit.painted).toEqual({ rect: hit.rect, topRadius: 0, bottomRadius: 28 });
+    expect(hit.ears).toEqual({ width: 14, rise: 14 });
+    // The ears are the ones the path draws: it comes up the side to `rise` and curves out to the corner.
+    expect(notchPath(560, 328, notch.input)).toContain("L14 14");
+    // A frame with no room for shoulders has no ears.
+    expect(hitShape(notch, { width: 0, height: 0 }).ears).toBeUndefined();
+  });
+
+  it("paint a capsule without the strip above it that only the pointer reaches", () => {
+    const cap = hitShape(capsule2x, { width: 106, height: 23.5 });
+    const gap = capsule2x.floatingGap as number;
+    expect(cap.painted.rect.y).toBe(gap);
+    expect(cap.painted.rect.y + cap.painted.rect.height).toBeCloseTo(cap.rect.y + cap.rect.height, 5);
+    expect(cap.painted.rect.x).toBe(cap.rect.x);
+    expect(cap.painted.rect.width).toBe(cap.rect.width);
+    // The painted capsule is round at the top too; the strip above it is square so a pointer pushed up still hits.
+    expect(cap.painted.topRadius).toBe(cap.painted.bottomRadius);
+    expect(cap.topRadius).toBe(0);
+    expect(cap.ears).toBeUndefined();
+  });
+});
+
+describe("custom island shape", () => {
+  it("resizes the closed notch and preserves room for live activity wings", () => {
+    const custom = makeGeometry({ ...notch.input, notchWidth: 260, notchHeight: 40 });
+    expect(restingSize(custom)).toEqual({ width: 260, height: 40 });
+    expect(restingSize(custom, true)).toEqual({ width: 348, height: 40 });
+  });
+
+  it("keeps the drawn contour and pointer area in sync", () => {
+    const custom = makeGeometry({ ...notch.input, roundness: 0, shoulderWidth: 200, shoulderHeight: 150 });
+    const size = { width: 560, height: 328 };
+    const hit = hitShape(custom, size);
+    expect(hit.rect).toEqual({ x: 28, y: 0, width: 504, height: 328 });
+    expect(hit.bottomRadius).toBe(0);
+    expect(notchPath(size.width, size.height, custom.input)).toContain("L532 328");
+    expect(notchPath(size.width, size.height, custom.input)).toContain("L28 21");
+    expect(hit.ears).toEqual({ width: 28, rise: 21 });
+  });
+
+  it("bounds extreme curves even on a zero-sized animation frame", () => {
+    const contour = { roundness: 200, shoulderWidth: 300, shoulderHeight: 300 };
+    for (const size of [
+      { width: 0, height: 0 },
+      { width: 10, height: 4 },
+    ]) {
+      expect(notchPath(size.width, size.height, contour)).not.toMatch(/NaN|Infinity/);
+      const hit = hitShape(makeGeometry({ ...notch.input, ...contour }), size);
+      expect(hit.rect.width).toBeGreaterThanOrEqual(0);
+      expect(hit.bottomRadius).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("applies capsule rounding to both the path and pointer area", () => {
+    const custom = makeGeometry({ ...capsule1x.input, roundness: 0 });
+    expect(hitShape(custom, restingSize(custom)).bottomRadius).toBe(0);
+    expect(capsulePath(106, 24, 2, 0)).toContain("M4.5600000000000005 2");
+  });
+});
+
+describe("content fits the configured silhouette", () => {
+  it("preserves the default content spacing", () => {
+    expect(contentInsets(notch, { width: 560, height: 328 })).toEqual({ horizontal: 28, bottom: 16 });
+  });
+
+  it("keeps content inside stretched sides and rounded bottom corners at every open width", () => {
+    for (const width of [240, 360, 400, 600, 1180]) {
+      for (const height of [140, 260, 640]) {
+        const geometry = makeGeometry({ ...notch.input, shoulderWidth: 300, shoulderHeight: 300, roundness: 200 });
+        const { horizontal, bottom } = contentInsets(geometry, { width, height });
+        const { s, b } = notchMetrics(width, height, geometry.input);
+        expect(horizontal).toBeGreaterThanOrEqual(s + 12);
+        expect(width - 2 * horizontal).toBeGreaterThan(0);
+        const dx = Math.max(0, s + b - horizontal);
+        const dy = Math.max(0, b - bottom);
+        expect(dx * dx + dy * dy).toBeLessThanOrEqual(b * b);
+      }
+    }
+  });
+
+  it("includes the capsule gap when reserving rounded bottom space", () => {
+    const geometry = makeGeometry({ ...capsule1x.input, roundness: 200 });
+    const insets = contentInsets(geometry, { width: 360, height: 260 });
+    expect(insets.horizontal).toBe(42);
+    expect(insets.bottom).toBe(30);
+  });
+});

@@ -1,0 +1,19 @@
+{
+  "name": "openbar-terminal-bridge",
+  "displayName": "Openbar Terminal Bridge",
+  "description": "Lets the Openbar Dynamic Island bring a Claude Code terminal forward and type a reply into it. Listens on a socket only your user can open.",
+  "version": "1.0.4",
+  "publisher": "openbar",
+  "license": "GPL-3.0-or-later",
+  "engines": { "vscode": "^1.80.0" },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./extension.js",
+  "extensionKind": ["ui"],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": true,
+      "description": "Only shows a terminal or types into it when the island asks, over a socket only your user can open; nothing in the workspace is read."
+    }
+  }
+}

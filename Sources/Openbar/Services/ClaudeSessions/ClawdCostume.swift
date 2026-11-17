@@ -1,0 +1,268 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import Foundation
+
+// Every Claude Code session in the island has a Clawd of its own, the little
+// pixel crab Claude Code greets with, dressed in a costume drawn by lot from
+// the session's id. The same session always draws the same costume, so it is
+// known by it from one launch to the next; the person may dress it otherwise.
+// A Codex session wears the same costumes on a figure of its own.
+
+/// Who wears the costume: Clawd for Claude Code, a little terminal robot for
+/// Codex. The costumes and their codes are shared; the figure and the shell
+/// its lots favour differ.
+enum ClawdCharacter: String, CaseIterable {
+    case clawd, codex
+    /// Gemini CLI's star sprite, Copilot CLI's goggled pilot, OpenCode's
+    /// block, Cursor's cube, Pi's blocky P beside its i, Mistral Vibe's
+    /// stepped M, Devin CLI's hexagon with two antennae and Google
+    /// Antigravity's arch.
+    case gemini, copilot, opencode, cursor, pi, vibe, devin, antigravity
+
+    /// The shell this character's lots come up in most: Claude's clay, for
+    /// Codex the iris closest to its violet-blue, and for the others the
+    /// shell nearest their agent's color.
+    var favouredShell: ClawdShell {
+        switch self {
+        case .clawd: return .clay
+        case .codex: return .iris
+        case .gemini: return .sky
+        case .copilot: return .teal
+        case .opencode: return .mint
+        case .cursor: return .midnight
+        case .pi: return .rose
+        case .vibe: return .amber
+        case .devin: return .orchid
+        case .antigravity: return .coral
+        }
+    }
+}
+
+extension ClaudeSessionProvider {
+    /// The figure a session of this agent is drawn as.
+    var character: ClawdCharacter {
+        switch self {
+        case .claude: return .clawd
+        case .codex: return .codex
+        case .gemini: return .gemini
+        case .copilot: return .copilot
+        case .opencode: return .opencode
+        case .cursor: return .cursor
+        case .pi: return .pi
+        case .vibe: return .vibe
+        case .devin: return .devin
+        case .antigravity: return .antigravity
+        }
+    }
+}
+
+/// The color of a Clawd's shell.
+enum ClawdShell: String, CaseIterable, Identifiable {
+    case clay, coral, amber, moss, mint, teal, sky, iris, orchid, rose, midnight
+
+    var id: String { rawValue }
+
+    /// sRGB components out of 255, so the model needs no graphics framework.
+    var rgb: (red: Int, green: Int, blue: Int) {
+        switch self {
+        // Claude Code's own `clawd_body`.
+        case .clay: return (215, 119, 87)
+        case .coral: return (226, 86, 72)
+        case .amber: return (230, 166, 58)
+        case .moss: return (112, 168, 70)
+        case .mint: return (72, 184, 146)
+        case .teal: return (40, 160, 170)
+        case .sky: return (68, 146, 224)
+        case .iris: return (116, 112, 226)
+        case .orchid: return (178, 98, 214)
+        case .rose: return (230, 112, 156)
+        case .midnight: return (74, 82, 118)
+        }
+    }
+
+    /// The shell Claude Code's color for a subagent stands for, as an agent's
+    /// definition names it in its `color:` line.
+    init?(agentColor: String) {
+        switch agentColor.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+        case "red": self = .coral
+        case "orange": self = .clay
+        case "yellow": self = .amber
+        case "green": self = .moss
+        case "cyan": self = .teal
+        case "blue": self = .sky
+        case "purple": self = .iris
+        case "pink": self = .rose
+        default: return nil
+        }
+    }
+}
+
+enum ClawdHat: String, CaseIterable, Identifiable {
+    case none, beanie, cap, beret, topHat, crown, party, propeller, chef, doomHood, thorHelmet, lokiHorns, wonderTiara,
+         mouseEars, bowEars, sorcererHat
+
+    var id: String { rawValue }
+}
+
+enum ClawdEyewear: String, CaseIterable, Identifiable {
+    case none, glasses, shades, round, monocle, anaglyph, batmanMask, ironManMask, spiderManMask, doomMask, wolverineMask, flashMask, captainMask, deadpoolMask, venomMask, blackPantherMask, daredevilMask, starLordMask, greenLanternMask, robinMask
+
+    var id: String { rawValue }
+}
+
+enum ClawdExtra: String, CaseIterable, Identifiable {
+    case none, bow, scarf, bowTie, flower, headphones, coffee, doomCape, strangeCape, thorCape, supermanCape, batmanCape, captainShield, mjolnir, aquamanTrident, lanternRing, wolverineClaws, batarang, hawkeyeBow, strangeSpell, webShooter, ironReactor, supermanEmblem, flashEmblem, lanternEmblem,
+         fairyWand, magicLamp
+
+    var id: String { rawValue }
+}
+
+struct ClawdCostume: Hashable {
+    var shell: ClawdShell
+    var hat: ClawdHat
+    var eyewear: ClawdEyewear
+    var extra: ClawdExtra
+
+    /// Clawd as Claude Code draws it.
+    static let classic = ClawdCostume(shell: .clay, hat: .none, eyewear: .none, extra: .none)
+
+    /// How often a lot draws something rather than nothing.
+    static let hatChance = 0.7
+    static let eyewearChance = 0.4
+    static let extraChance = 0.45
+    /// The character's own color (clay for Clawd) comes up this many times
+    /// as often as any other.
+    static let clayWeight = 3
+
+    /// A number for `key` that stays the same from one launch to the next:
+    /// FNV-1a over its bytes. Swift's `Hasher` is seeded anew each launch.
+    static func seed(_ key: String) -> UInt64 {
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in key.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x0000_0100_0000_01b3
+        }
+        return hash
+    }
+
+    /// The costume a session draws from the full wardrobe, the same each time.
+    /// Clawd and Codex favour their own shell colors.
+    static func seeded(_ key: String, character: ClawdCharacter = .clawd) -> ClawdCostume {
+        var generator = ClawdRandom(seed: seed(key))
+        return drawn(using: &generator, character: character)
+    }
+
+    /// A subagent's costume: drawn from its own key, in the shell of the
+    /// color its definition gives it, if it gives one.
+    static func seeded(_ key: String, agentColor: String?, character: ClawdCharacter = .clawd) -> ClawdCostume {
+        var costume = seeded(key, character: character)
+        if let shell = agentColor.flatMap(ClawdShell.init(agentColor:)) { costume.shell = shell }
+        return costume
+    }
+
+    /// A costume by lot, other than `current`, for "Surprise me".
+    static func random(excluding current: ClawdCostume?, character: ClawdCharacter = .clawd) -> ClawdCostume {
+        var generator = SystemRandomNumberGenerator()
+        var costume = drawn(using: &generator, character: character, fullWardrobe: true)
+        // Ten draws alike in a row are as good as impossible; give up then.
+        for _ in 0..<10 where costume == current {
+            costume = drawn(using: &generator, character: character, fullWardrobe: true)
+        }
+        return costume
+    }
+
+    /// The hats and extras a session's own lot draws from. Parts added after
+    /// these would change the outfit every existing session was given, so
+    /// they come only by hand and through Surprise me (as on Windows).
+    static let seededHats = Array(ClawdHat.allCases.prefix(13))
+    static let seededExtras = Array(ClawdExtra.allCases.prefix(25))
+
+    /// One part after another from the same lot, so each is its own draw.
+    /// A session's own lot leaves out the parts added since the first
+    /// wardrobe; Surprise me draws from all of it.
+    static func drawn<Generator: RandomNumberGenerator>(using generator: inout Generator,
+                                                        character: ClawdCharacter = .clawd,
+                                                        fullWardrobe: Bool = false) -> ClawdCostume {
+        let favoured = character.favouredShell
+        let shells = ClawdShell.allCases
+        let weights = shells.map { $0 == favoured ? clayWeight : 1 }
+        var ticket = Int(generator.next() % UInt64(weights.reduce(0, +)))
+        var shell = favoured
+        for (candidate, weight) in zip(shells, weights) {
+            if ticket < weight { shell = candidate; break }
+            ticket -= weight
+        }
+        return ClawdCostume(shell: shell,
+                            hat: pick(fullWardrobe ? ClawdHat.allCases : seededHats, chance: hatChance,
+                                      using: &generator),
+                            eyewear: pick(ClawdEyewear.allCases, chance: eyewearChance, using: &generator),
+                            extra: pick(fullWardrobe ? ClawdExtra.allCases : seededExtras, chance: extraChance,
+                                        using: &generator))
+    }
+
+    /// Nothing, the first case, with the chance left over; otherwise one of
+    /// the rest, each as likely.
+    private static func pick<Part, Generator: RandomNumberGenerator>(_ parts: [Part], chance: Double,
+                                                                     using generator: inout Generator) -> Part {
+        let roll = Double(generator.next() >> 11) / Double(1 << 53)
+        let index = Int(generator.next() % UInt64(max(1, parts.count - 1)))
+        return roll < chance && parts.count > 1 ? parts[1 + index] : parts[0]
+    }
+}
+
+// The memberwise initializer stays because the one that reads a kept costume
+// lives out here.
+extension ClawdCostume {
+    private static let version = "v1:"
+
+    /// The costume as kept in the preferences.
+    var code: String {
+        Self.version + [shell.rawValue, hat.rawValue, eyewear.rawValue, extra.rawValue].joined(separator: ".")
+    }
+
+    /// Reads a kept costume. A part this version does not know comes from
+    /// `fallback`; anything else unreadable is nil.
+    init?(code: String, fallback: ClawdCostume) {
+        guard code.hasPrefix(Self.version), code.count <= 80 else { return nil }
+        let parts = code.dropFirst(Self.version.count).split(separator: ".", omittingEmptySubsequences: false).map(String.init)
+        guard parts.count == 4 else { return nil }
+        self.init(shell: ClawdShell(rawValue: parts[0]) ?? fallback.shell,
+                  hat: ClawdHat(rawValue: parts[1]) ?? fallback.hat,
+                  eyewear: ClawdEyewear(rawValue: parts[2]) ?? fallback.eyewear,
+                  extra: ClawdExtra(rawValue: parts[3]) ?? fallback.extra)
+    }
+
+    /// What a session wears: what the person chose for it, or its own lot,
+    /// drawn for the character it is.
+    static func resolved(key: String, kept: String?, agentColor: String? = nil,
+                         character: ClawdCharacter = .clawd) -> ClawdCostume {
+        let own = seeded(key, agentColor: agentColor, character: character)
+        return kept.flatMap { ClawdCostume(code: $0, fallback: own) } ?? own
+    }
+
+    /// What to keep for a session dressed in `costume`: nothing when it is
+    /// the session's own lot, so the choice follows the lot if it changes.
+    /// The lot is the character's: a Codex robot dressed as Clawd's lot
+    /// keeps that choice, and is never reset to it.
+    static func kept(_ costume: ClawdCostume?, key: String, character: ClawdCharacter = .clawd) -> String? {
+        guard let costume, costume != seeded(key, character: character) else { return nil }
+        return costume.code
+    }
+}
+
+/// SplitMix64: a small generator that gives the same numbers for the same
+/// seed on every Mac and every launch.
+struct ClawdRandom: RandomNumberGenerator {
+    private var state: UInt64
+
+    init(seed: UInt64) { state = seed }
+
+    mutating func next() -> UInt64 {
+        state = state &+ 0x9e37_79b9_7f4a_7c15
+        var value = state
+        value = (value ^ (value >> 30)) &* 0xbf58_476d_1ce4_e5b9
+        value = (value ^ (value >> 27)) &* 0x94d0_49bb_1331_11eb
+        return value ^ (value >> 31)
+    }
+}

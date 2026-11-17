@@ -1,0 +1,532 @@
+/* SPDX-License-Identifier: GPL-3.0-or-later */
+/* Copyright (C) 2026 Vorssaint */
+/* The Clipboard page (NotchClipboardView.swift; spec 05 §3.1). Points from the Mac. */
+
+.cb-page {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* The search field: 36 tall, radius 14, a 1 pt ring while focused. Hidden it
+   keeps the focus at height 0, so the first key typed goes in. */
+.cb-search {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.065);
+  color: var(--n-dim);
+  overflow: hidden;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0);
+  transition:
+    box-shadow 0.15s ease-out,
+    opacity 0.15s ease-out;
+}
+
+.cb-search.is-open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.cb-search:focus-within {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+}
+
+.cb-search input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: none;
+  color: #fff;
+  font: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+/* The field's own ring is the 1 pt border above. */
+.cb-search input:focus-visible {
+  outline: none;
+}
+
+.cb-search input::placeholder {
+  color: rgba(255, 255, 255, 0.35);
+}
+
+/* The list: 8 between cards, scrolling vertically. */
+.cb-list {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+.cb-row {
+  position: relative;
+  flex: none;
+}
+
+/* The open entry is drawn over the rows around it, which never move. */
+.cb-row.is-open {
+  z-index: 1;
+}
+
+/* The card: control surface 6.5% (12% pinned), radius 14, and the 1 pt
+   highlight ring at 34%. */
+.cb-card {
+  position: relative;
+  box-sizing: border-box;
+  height: 100%;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.065);
+  overflow: hidden;
+}
+
+.cb-card.is-pinned {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.cb-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0);
+  pointer-events: none;
+  transition: box-shadow 0.15s ease-out;
+}
+
+.cb-card.is-highlighted::after {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.34);
+}
+
+/* Lifted: opaque white 9% under the surface, a 0.5 pt hairline, a 1 pt black
+   backing and a shadow (black 50%, radius 10, y 4). */
+.cb-card.is-lifted {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: auto;
+  overflow: hidden;
+  background-color: #171717;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.065), rgba(255, 255, 255, 0.065));
+  box-shadow:
+    0 0 0 1px #000,
+    0 4px 10px rgba(0, 0, 0, 0.5);
+  animation: cb-open 0.18s ease-out;
+}
+
+.cb-card.is-lifted.is-pinned {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.12));
+}
+
+.cb-card.is-lifted::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.14);
+  pointer-events: none;
+}
+
+@keyframes cb-open {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+}
+
+/* Comfortable: 10 in, 10 on top, 4 below; the preview, then a 28 pt row. */
+.cb-full {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  height: 100%;
+  padding: 10px 10px 4px;
+}
+
+/* Text sets an open card's height; a picture or files set it on the card. */
+.cb-card.is-lifted:not(.is-sized) .cb-full {
+  height: auto;
+  min-height: inherit;
+}
+
+/* The row's own button (NotchButtonStyle, lifts: false). */
+.cb-hit {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  align-items: flex-start;
+  text-align: left;
+  border-radius: 8px;
+  overflow: hidden;
+  transition:
+    transform 0.28s cubic-bezier(0.3, 1.2, 0.5, 1),
+    opacity 0.15s;
+}
+
+.cb-hit:active {
+  transform: scale(0.965);
+  opacity: 0.8;
+}
+
+.cb-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  min-width: 0;
+}
+
+.cb-source,
+.cb-leading img {
+  width: 14px;
+  height: 14px;
+  flex: none;
+}
+
+.cb-glyph {
+  flex: none;
+  color: var(--n-dim);
+}
+
+.cb-date {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 9.5px;
+  color: rgba(255, 255, 255, 0.28);
+}
+
+.cb-spacer {
+  flex: 1;
+}
+
+.cb-badge {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.28);
+}
+
+.cb-button {
+  flex: none;
+}
+
+.cb-button:disabled {
+  opacity: 0.4;
+}
+
+.cb-button:disabled:hover {
+  background: none;
+}
+
+/* Text: 12 pt, matches in bold only (the island never uses the accent). */
+.cb-text-row {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  min-width: 0;
+  width: 100%;
+}
+
+.cb-swatch {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.22);
+  transform: translateY(2px);
+}
+
+.cb-text {
+  min-width: 0;
+  font-size: 12px;
+  line-height: 15px;
+  /* Copied code keeps its "=>" and "!=" as typed. */
+  font-variant-ligatures: none;
+  font-feature-settings: "calt" 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.cb-text b {
+  font-weight: 650;
+}
+
+.cb-text.is-two {
+  -webkit-line-clamp: 2;
+}
+
+.cb-text.is-three {
+  -webkit-line-clamp: 3;
+}
+
+/* An open entry: its line breaks kept, up to 8 lines of 16. */
+.cb-text.is-open {
+  -webkit-line-clamp: 8;
+  line-height: 16px;
+  white-space: pre-wrap;
+}
+
+/* Pictures, rounded at their own edges; 72 wide at most in a compact row. */
+.cb-thumb {
+  display: flex;
+  align-items: flex-start;
+  height: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.cb-thumb img {
+  height: 100%;
+  max-width: 100%;
+  object-fit: contain;
+  object-position: left top;
+  border-radius: 6px;
+}
+
+.cb-thumb.is-compact {
+  max-width: 72px;
+  align-items: center;
+}
+
+.cb-files {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  width: 100%;
+  font-size: 12px;
+  line-height: 15px;
+}
+
+.cb-files > svg {
+  flex: none;
+  margin-top: 1px;
+  color: var(--n-dim);
+}
+
+.cb-files .cb-leading {
+  margin-top: 0.5px;
+}
+
+.cb-files-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+
+.cb-files.is-compact {
+  align-items: center;
+}
+
+/* A file name cut in the middle: its start shrinks, its end stays. */
+.cb-middle {
+  display: flex;
+  min-width: 0;
+  white-space: pre;
+}
+
+.cb-middle-head {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cb-middle-tail {
+  flex: none;
+}
+
+.cb-middle b {
+  font-weight: 650;
+}
+
+/* Compact: 52 tall, 10 × 6 in; one 14 pt column of icons. */
+.cb-card.is-compact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+}
+
+.cb-compact-hit {
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+}
+
+.cb-leading {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 14px;
+}
+
+.cb-compact-buttons {
+  flex: none;
+  display: flex;
+  gap: 2px;
+}
+
+.cb-compact-meta {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.28);
+}
+
+.cb-compact-meta svg {
+  color: var(--n-dim);
+}
+
+/* Empty states. */
+.cb-empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.cb-empty .n-empty {
+  height: auto;
+}
+
+.cb-empty .n-empty-title {
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* A bordered small button, as the Mac's .bordered .small. */
+.cb-enable {
+  height: 24px;
+  padding: 0 12px;
+  border-radius: 7px;
+  font-size: 12px;
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.22);
+  transition:
+    background-color 0.15s,
+    transform 0.28s cubic-bezier(0.3, 1.2, 0.5, 1);
+}
+
+.cb-enable:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.cb-enable:active {
+  transform: scale(0.965);
+  opacity: 0.8;
+}
+
+/* Clear unpinned asks inside the island. */
+.cb-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.5);
+  animation: cb-fade 0.15s ease-out;
+}
+
+.cb-sheet {
+  box-sizing: border-box;
+  width: min(320px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px 12px;
+  border-radius: 14px;
+  background: #1c1c1e;
+  box-shadow:
+    inset 0 0 0 0.5px rgba(255, 255, 255, 0.14),
+    0 8px 24px rgba(0, 0, 0, 0.5);
+  animation: cb-open 0.18s ease-out;
+}
+
+.cb-sheet-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.cb-sheet-message {
+  font-size: 11.5px;
+  line-height: 15px;
+  color: var(--n-dim);
+}
+
+.cb-sheet-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.cb-sheet-buttons .n-pill-button:hover {
+  background: rgba(255, 255, 255, 0.09);
+}
+
+.cb-sheet-buttons .cb-destructive {
+  color: #ff453a;
+}
+
+.cb-sheet-buttons .cb-destructive:hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+@keyframes cb-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cb-search,
+  .cb-card::after,
+  .cb-hit,
+  .cb-enable {
+    transition: none;
+  }
+  .cb-hit:active,
+  .cb-enable:active {
+    transform: none;
+  }
+  .cb-card.is-lifted,
+  .cb-sheet,
+  .cb-sheet-backdrop {
+    animation: none;
+  }
+}

@@ -1,0 +1,49 @@
+import { resolve } from "node:path";
+import process from "node:process";
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vite";
+
+const host = process.env.TAURI_DEV_HOST;
+
+// https://vite.dev/config/
+export default defineConfig(() => ({
+  plugins: [react()],
+
+  // One page per window: the island, the menu bar, the settings window, the first-run window and the screen selection.
+  build: {
+    rollupOptions: {
+      input: {
+        island: resolve(import.meta.dirname, "island.html"),
+        mirror: resolve(import.meta.dirname, "mirror.html"),
+        settings: resolve(import.meta.dirname, "settings.html"),
+        onboarding: resolve(import.meta.dirname, "onboarding.html"),
+        update: resolve(import.meta.dirname, "update.html"),
+        bar: resolve(import.meta.dirname, "bar.html"),
+        capture: resolve(import.meta.dirname, "capture.html"),
+        screenshotPreview: resolve(import.meta.dirname, "screenshot-preview.html"),
+      },
+    },
+  },
+
+  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
+  //
+  // 1. prevent Vite from obscuring rust errors
+  clearScreen: false,
+  // 2. tauri expects a fixed port, fail if that port is not available
+  server: {
+    port: 1420,
+    strictPort: true,
+    host: host || false,
+    hmr: host
+      ? {
+          protocol: "ws",
+          host,
+          port: 1421,
+        }
+      : undefined,
+    watch: {
+      // 3. tell Vite to ignore watching `src-tauri`
+      ignored: ["**/src-tauri/**"],
+    },
+  },
+}));

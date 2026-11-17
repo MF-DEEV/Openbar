@@ -1,0 +1,107 @@
+{
+  "en-US": {
+    "settings": "Settings…",
+    "quit": "Quit Openbar",
+    "saveScreenshot": "Save As…",
+    "screenshot": "Screenshot",
+    "exportDiagnostics": "Export diagnostics"
+  },
+  "pt-BR": {
+    "settings": "Ajustes…",
+    "quit": "Sair do Openbar",
+    "saveScreenshot": "Salvar Como…",
+    "screenshot": "Captura de tela",
+    "exportDiagnostics": "Exportar diagnóstico"
+  },
+  "tr": {
+    "settings": "Ayarlar…",
+    "quit": "Openbar’ten Çık",
+    "saveScreenshot": "Farklı Kaydet…",
+    "screenshot": "Ekran görüntüsü",
+    "exportDiagnostics": "Tanılamayı dışa aktar"
+  },
+  "ru": {
+    "settings": "Настройки…",
+    "quit": "Выйти из Openbar",
+    "saveScreenshot": "Сохранить как…",
+    "screenshot": "Снимок экрана",
+    "exportDiagnostics": "Экспорт диагностики"
+  },
+  "es": {
+    "settings": "Ajustes…",
+    "quit": "Salir de Openbar",
+    "saveScreenshot": "Guardar como…",
+    "screenshot": "Captura de pantalla",
+    "exportDiagnostics": "Exportar diagnóstico"
+  },
+  "sk": {
+    "settings": "Nastavenia…",
+    "quit": "Ukončiť Openbar",
+    "saveScreenshot": "Uložiť ako…",
+    "screenshot": "Snímka obrazovky",
+    "exportDiagnostics": "Exportovať diagnostiku"
+  },
+  "de": {
+    "settings": "Einstellungen…",
+    "quit": "Openbar beenden",
+    "saveScreenshot": "Sichern unter…",
+    "screenshot": "Bildschirmfoto",
+    "exportDiagnostics": "Diagnose exportieren"
+  },
+  "fr": {
+    "settings": "Réglages…",
+    "quit": "Quitter Openbar",
+    "saveScreenshot": "Enregistrer sous…",
+    "screenshot": "Capture d’écran",
+    "exportDiagnostics": "Exporter le diagnostic"
+  },
+  "it": {
+    "settings": "Impostazioni…",
+    "quit": "Esci da Openbar",
+    "saveScreenshot": "Salva come…",
+    "screenshot": "Istantanea schermo",
+    "exportDiagnostics": "Esporta diagnostica"
+  },
+  "ja": {
+    "settings": "設定…",
+    "quit": "Openbar を終了",
+    "saveScreenshot": "別名で保存…",
+    "screenshot": "スクリーンショット",
+    "exportDiagnostics": "診断情報を書き出す"
+  },
+  "ko": {
+    "settings": "설정…",
+    "quit": "Openbar 종료",
+    "saveScreenshot": "다른 이름으로 저장…",
+    "screenshot": "스크린샷",
+    "exportDiagnostics": "진단 정보 내보내기"
+  },
+  "uk": {
+    "settings": "Налаштування…",
+    "quit": "Вийти з Openbar",
+    "saveScreenshot": "Зберегти як…",
+    "screenshot": "Знімок екрана",
+    "exportDiagnostics": "Експорт діагностики"
+  },
+  "zh-Hans": {
+    "settings": "设置…",
+    "quit": "退出 Openbar",
+    "saveScreenshot": "存储为…",
+    "screenshot": "截屏",
+    "exportDiagnostics": "导出诊断信息"
+  },
+  "zh-TW": {
+    "settings": "設定…",
+    "quit": "結束 Openbar",
+    "saveScreenshot": "另存為…",
+    "screenshot": "截圖",
+    "exportDiagnostics": "匯出診斷資訊"
+  },
+  "zh-HK": {
+    "settings": "設定…",
+    "quit": "結束 Openbar",
+    "saveScreenshot": "另存為…",
+    "screenshot": "截圖",
+    "exportDiagnostics": "匯出診斷資料"
+  }
+}

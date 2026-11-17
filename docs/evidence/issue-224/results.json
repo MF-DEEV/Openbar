@@ -1,0 +1,23 @@
+{
+  "passed": true,
+  "actualTauri": true,
+  "installedSha256": "71834cc2a505e86baf10f95668b8d168bbc17eb56c06b8f7e4692e73b36a9885",
+  "noCommandExecution": true,
+  "checks": [
+    "short Allow",
+    "truncated Allow/Always blocked at Rust boundary",
+    "keyboard bypass",
+    "exact full text and focus",
+    "enabled expanded controls",
+    "close relocks controls",
+    "inspected Always reaches the agent transport",
+    "horizontal suffix remains reachable with visible controls",
+    "control annotations and inert HTML text",
+    "explicit expanded Allow",
+    "incomplete Deny",
+    "custom patterns preserve full text and require source completeness",
+    "expired request rejects inspection",
+    "file diffs cannot hide an authoritative command",
+    "same-id command replacement closes the viewer and rejects old proof"
+  ]
+}

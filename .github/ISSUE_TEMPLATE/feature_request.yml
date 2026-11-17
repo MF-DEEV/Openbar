@@ -1,0 +1,62 @@
+name: Feature request
+description: Suggest something new for Openbar
+labels:
+  - enhancement
+
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Search the [open issues](https://github.com/MF-DEEV/Openbar/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement) first. A thumbs-up on an existing request counts for more than a second issue.
+        For a loose idea, [Discussions](https://github.com/MF-DEEV/Openbar/discussions/categories/ideas) is a better start.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you're trying to do, and what gets in the way.
+      placeholder: When I run three agents at once, I...
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposal
+      description: What you'd like Openbar to do.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options:
+        - macOS
+        - Windows
+        - Both
+    validations:
+      required: true
+
+  - type: dropdown
+    id: feature_area
+    attributes:
+      label: Area
+      options:
+        - Sessions (Claude Code, Codex and other agents)
+        - Dynamic Island
+        - Menu bar panel
+        - Sound
+        - Windows and Dock
+        - Files and clipboard
+        - Energy and display
+        - Settings
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: mockups
+    attributes:
+      label: Mockups or references
+      description: Sketches, screenshots or apps that do it well.

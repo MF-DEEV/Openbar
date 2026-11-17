@@ -1,0 +1,193 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+import { useLocale, t } from "../i18n";
+
+import { initializeLocalization } from "../i18n/start";
+
+// The settings window: Windows 11's Settings layout, with the Mac's island
+// tabs (Layout, Content, Activity, Behavior) as pages beside General.
+
+import "@fontsource-variable/inter";
+import {
+  Activity,
+  Info,
+  LayoutTemplate,
+  type LucideIcon,
+  Settings2,
+  SlidersHorizontal,
+  Smile,
+  Wand2,
+} from "lucide-react";
+import React, { useEffect, useState } from "react";
+import ReactDOM from "react-dom/client";
+import { PageEnter, SlidingHighlight, SPRING_TAB } from "../shared/ui/motionKit";
+import { AboutSettings } from "./AboutSettings";
+import { ActivitySettings } from "./ActivitySettings";
+import { BehaviorSettings } from "./BehaviorSettings";
+import { ContentSettings } from "./ContentSettings";
+import { GeneralSettings } from "./GeneralSettings";
+import { LayoutSettings } from "./LayoutSettings";
+import { MascotSettings } from "./MascotSettings";
+import { startSettings, useSettings } from "./state";
+import { T } from "./strings";
+import "./settings.css";
+import "../shared/controls.css";
+
+type PageId = "general" | "layout" | "content" | "activity" | "behavior" | "mascot" | "about";
+
+const PAGES: { id: PageId; icon: LucideIcon; label: string; Page: () => React.JSX.Element; island?: boolean }[] = [
+  {
+    id: "general",
+    icon: Settings2,
+    get label() {
+      return T.nav.general;
+    },
+    Page: GeneralSettings,
+  },
+  {
+    id: "about",
+    icon: Info,
+    get label() {
+      return t("s.tabAbout");
+    },
+    Page: AboutSettings,
+  },
+  {
+    id: "layout",
+    icon: LayoutTemplate,
+    get label() {
+      return T.nav.layout;
+    },
+    Page: LayoutSettings,
+    island: true,
+  },
+  {
+    id: "content",
+    icon: SlidersHorizontal,
+    get label() {
+      return T.nav.content;
+    },
+    Page: ContentSettings,
+    island: true,
+  },
+  {
+    id: "activity",
+    icon: Activity,
+    get label() {
+      return T.nav.activity;
+    },
+    Page: ActivitySettings,
+    island: true,
+  },
+  {
+    id: "behavior",
+    icon: Wand2,
+    get label() {
+      return T.nav.behavior;
+    },
+    Page: BehaviorSettings,
+    island: true,
+  },
+  {
+    id: "mascot",
+    icon: Smile,
+    get label() {
+      return T.nav.mascot;
+    },
+    Page: MascotSettings,
+    island: true,
+  },
+];
+
+const PAGE_KEY = "openbar.settings.page";
+
+function initialPage(): PageId {
+  const hash = location.hash.slice(1) as PageId;
+  if (PAGES.some((p) => p.id === hash)) return hash;
+  try {
+    const saved = localStorage.getItem(PAGE_KEY) as PageId | null;
+    if (saved && PAGES.some((p) => p.id === saved)) return saved;
+  } catch {
+    // No storage: start on General.
+  }
+  return "general";
+}
+
+function App() {
+  useLocale();
+  const [page, setPage] = useState<PageId>(initialPage);
+  const error = useSettings((s) => s.error);
+  useEffect(() => {
+    try {
+      localStorage.setItem(PAGE_KEY, page);
+    } catch {
+      // Remembering the page is only a convenience.
+    }
+    history.replaceState(null, "", `#${page}`);
+    document.querySelector(".st-main")?.scrollTo({ top: 0 });
+  }, [page]);
+
+  const current = PAGES.find((p) => p.id === page)!;
+  // The new page settles in from the side of the nav it was picked on.
+  const [direction, setDirection] = useState<1 | -1>(1);
+  const pick = (id: PageId) => {
+    if (id === page) return;
+    const from = PAGES.findIndex((p) => p.id === page);
+    const to = PAGES.findIndex((p) => p.id === id);
+    setDirection(to >= from ? 1 : -1);
+    setPage(id);
+  };
+
+  return (
+    <div className="st-app">
+      <nav className="st-nav" aria-label={t("s.panelSettings")}>
+        <div className="st-brand">
+          <span className="st-brand-mark" aria-hidden />
+          <span className="st-brand-text">
+            <div className="st-brand-name">{t("s.keepAwakeActiveIconOpenbar")}</div>
+            <div className="st-brand-sub">{T.brand}</div>
+          </span>
+        </div>
+        {PAGES.map((p, i) => (
+          <React.Fragment key={p.id}>
+            {p.island && !PAGES[i - 1]?.island ? <div className="st-nav-heading">{T.nav.island}</div> : null}
+            <button
+              type="button"
+              className="st-nav-item"
+              aria-current={p.id === page ? "page" : undefined}
+              title={p.label}
+              onClick={() => pick(p.id)}
+            >
+              {p.id === page ? (
+                <SlidingHighlight layoutId="st-nav-selection" className="st-nav-indicator" transition={SPRING_TAB} />
+              ) : null}
+              <p.icon size={18} strokeWidth={1.75} aria-hidden />
+              <span className="st-nav-label">{p.label}</span>
+            </button>
+          </React.Fragment>
+        ))}
+      </nav>
+      <main className="st-main">
+        {error ? (
+          <div className="st-banner" role="alert">
+            {T.saveFailed} {error}
+          </div>
+        ) : null}
+        <PageEnter key={current.id} direction={direction} axis="y">
+          <current.Page />
+        </PageEnter>
+      </main>
+    </div>
+  );
+}
+
+startSettings();
+
+void initializeLocalization().then(() => {
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      <App />
+    </React.StrictMode>,
+  );
+});

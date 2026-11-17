@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A sparse package: no files of its own, only an identity for Openbar.exe,
+  which stays where the installer put it (the external location). Windows
+  lets an app with an identity ask for the notification listener (the
+  Notifications section) and read the appointment store (the Calendar
+  section). Register it with
+    Add-AppxPackage -Register AppxManifest.xml -ExternalLocation <exe folder>
+  (developer mode), or install the signed .msix the installer carries
+  (tools/package-identity/build-sparse.ps1 makes it; the Version is set there).
+-->
+<Package
+  xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+  xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+  xmlns:uap3="http://schemas.microsoft.com/appx/manifest/uap/windows10/3"
+  xmlns:uap10="http://schemas.microsoft.com/appx/manifest/uap/windows10/10"
+  xmlns:desktop6="http://schemas.microsoft.com/appx/manifest/desktop/windows10/6"
+  xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+  IgnorableNamespaces="uap uap3 uap10 desktop6 rescap">
+  <Identity Name="Openbar.Island" Publisher="CN=Openbar" Version="0.1.0.0" ProcessorArchitecture="neutral" />
+  <Properties>
+    <DisplayName>Openbar</DisplayName>
+    <PublisherDisplayName>Openbar</PublisherDisplayName>
+    <Logo>icon.png</Logo>
+    <uap10:AllowExternalContent>true</uap10:AllowExternalContent>
+    <desktop6:FileSystemWriteVirtualization>disabled</desktop6:FileSystemWriteVirtualization>
+    <desktop6:RegistryWriteVirtualization>disabled</desktop6:RegistryWriteVirtualization>
+  </Properties>
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop" MinVersion="10.0.22000.0" MaxVersionTested="10.0.26300.0" />
+  </Dependencies>
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+  <Applications>
+    <Application Id="Openbar" Executable="Openbar.exe" uap10:TrustLevel="mediumIL" uap10:RuntimeBehavior="win32App">
+      <uap:VisualElements DisplayName="Openbar" Description="Openbar Dynamic Island" BackgroundColor="transparent"
+        Square150x150Logo="icon.png" Square44x44Logo="icon.png" />
+    </Application>
+  </Applications>
+  <Capabilities>
+    <uap:Capability Name="appointments" />
+    <uap3:Capability Name="userNotificationListener" />
+    <rescap:Capability Name="runFullTrust" />
+    <rescap:Capability Name="unvirtualizedResources" />
+    <!-- Watch: capture a window without the yellow border. -->
+    <rescap:Capability Name="graphicsCaptureWithoutBorder" />
+  </Capabilities>
+</Package>

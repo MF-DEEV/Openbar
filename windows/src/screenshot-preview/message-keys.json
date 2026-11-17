@@ -1,0 +1,21 @@
+{
+  "Image copied": "windows.preview.imageCopied",
+  "Text copied": "s.ocrCopied",
+  "Save cancelled": "windows.preview.saveCancelled",
+  "Screenshot discarded. Clipboard contents are unchanged.": "windows.preview.screenshotDiscardedClipboardContentsAreUnchanged",
+  "Windows Share opened. Preview pinned until you close it.": "windows.preview.windowsShareOpenedPreviewPinnedUntilYou",
+  "Windows Share is unavailable on this system. Drag the screenshot into another app instead.": "windows.preview.windowsShareIsUnavailableOnThisSystem",
+  "The saved screenshot was changed by another app. Close the preview to keep that file.": "windows.preview.theSavedScreenshotWasChangedByAnother",
+  "No text found in this screenshot": "windows.preview.noTextFoundInThisScreenshot",
+  "No readable QR code found": "windows.preview.noReadableQRCodeFound",
+  "Another screenshot action is running": "windows.preview.anotherScreenshotActionIsRunning",
+  "This window does not own the screenshot": "windows.preview.thisWindowDoesNotOwnTheScreenshot",
+  "The screenshot has moved to another window": "windows.preview.theScreenshotHasMovedToAnotherWindow",
+  "Unknown screenshot action": "windows.preview.unknownScreenshotAction",
+  "Native screenshot dragging is only available on Windows": "windows.preview.nativeScreenshotDraggingIsOnlyAvailableOn",
+  "QR code detected": "windows.preview.qRCodeDetected",
+  "QR contents copied": "windows.preview.qRContentsCopied",
+  "Could not discard screenshot: %@": "windows.preview.couldNotDiscardScreenshot",
+  "Could not save screenshot: %@": "windows.preview.couldNotSaveScreenshot",
+  "Could not prepare screenshot preview: %@": "windows.preview.couldNotPrepareScreenshotPreview"
+}

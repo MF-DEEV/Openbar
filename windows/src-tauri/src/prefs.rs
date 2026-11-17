@@ -1,0 +1,581 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 Vorssaint
+
+//! The person's preferences, one JSON file in the app's config folder
+//! (`%APPDATA%\com.openbar.island\settings.json`). The windows own the
+//! schema and its defaults; this keeps what was changed, merges patches
+//! (objects merge, anything else replaces, null removes), writes atomically
+//! and tells every window. The few preferences the backend acts on itself
+//! (display, content previews) are applied here, so they hold even before a
+//! window asks.
+
+use std::fs;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
+use serde_json::{Map, Value};
+use tauri::{AppHandle, Emitter, Manager, Runtime};
+
+pub const CHANGED: &str = "prefs://changed";
+// A registration and its persisted preferences form one transaction.
+static UPDATES: Mutex<()> = Mutex::new(());
+
+pub struct Prefs {
+    path: Option<PathBuf>,
+    value: Mutex<Value>,
+    /// The file exists but couldn't be read or moved aside: saving would
+    /// overwrite what the person had, so changes are refused instead.
+    blocked: bool,
+    /// The file was there at launch: this install has been used before.
+    existed: bool,
+}
+
+impl Prefs {
+    pub fn load<R: Runtime>(app: &AppHandle<R>) -> Self {
+        let path = app
+            .path()
+            .app_config_dir()
+            .ok()
+            .map(|d| d.join("settings.json"));
+        Self::at(path)
+    }
+
+    fn at(path: Option<PathBuf>) -> Self {
+        let existed = path.as_deref().is_some_and(Path::exists);
+        let (value, blocked) = match path.as_deref().map(read) {
+            Some(Ok(v)) => (v, false),
+            Some(Err(_)) => (empty(), true),
+            None => (empty(), false),
+        };
+        Prefs {
+            path,
+            value: Mutex::new(value),
+            blocked,
+            existed,
+        }
+    }
+
+    /// Whether settings.json was there at launch.
+    pub fn existed(&self) -> bool {
+        self.existed
+    }
+
+    pub fn get(&self) -> Value {
+        self.value.lock().unwrap().clone()
+    }
+
+    /// Merges `patch` and saves; returns the whole new value.
+    pub fn set(&self, patch: &Value) -> Result<Value, String> {
+        if self.blocked {
+            return Err("settings.json can't be read, so changes aren't saved".into());
+        }
+        let mut value = self.value.lock().unwrap();
+        let mut next = value.clone();
+        merge(&mut next, patch);
+        if let Some(path) = &self.path {
+            write(path, &next).map_err(|e| format!("couldn't save settings: {e}"))?;
+        }
+        *value = next.clone();
+        Ok(next)
+    }
+}
+
+fn empty() -> Value {
+    Value::Object(Map::new())
+}
+
+/// A missing file reads as no changes. One that isn't a JSON object, or
+/// can't be read at all (locked, not text), is moved aside so the next save
+/// doesn't destroy it; if even that fails, it's an error and nothing saves.
+fn read(path: &Path) -> std::io::Result<Value> {
+    let bytes = match fs::read(path) {
+        Ok(b) => b,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(empty()),
+        Err(_) => return set_aside(path),
+    };
+    let Ok(text) = std::str::from_utf8(&bytes) else {
+        return set_aside(path);
+    };
+    // Notepad and PowerShell 5 may write a byte-order mark.
+    match serde_json::from_str::<Value>(text.trim_start_matches('\u{feff}')) {
+        Ok(v @ Value::Object(_)) => Ok(v),
+        _ => set_aside(path),
+    }
+}
+
+fn set_aside(path: &Path) -> std::io::Result<Value> {
+    fs::rename(path, path.with_extension("json.broken"))?;
+    Ok(empty())
+}
+
+fn write(path: &Path, value: &Value) -> std::io::Result<()> {
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, serde_json::to_vec_pretty(value)?)?;
+    fs::rename(&tmp, path)
+}
+
+pub fn merge(target: &mut Value, patch: &Value) {
+    match (target, patch) {
+        (Value::Object(t), Value::Object(p)) => {
+            for (key, v) in p {
+                if v.is_null() {
+                    t.remove(key);
+                } else if let Some(existing) = t.get_mut(key)
+                    && existing.is_object()
+                    && v.is_object()
+                {
+                    merge(existing, v);
+                } else if v.is_object() {
+                    // A new object: merged into nothing, so its nulls drop out.
+                    let mut fresh = empty();
+                    merge(&mut fresh, v);
+                    t.insert(key.clone(), fresh);
+                } else {
+                    t.insert(key.clone(), v.clone());
+                }
+            }
+        }
+        (t, p) => *t = p.clone(),
+    }
+}
+
+/// Acts on what the backend owns. `before` is the value it replaces (None at
+/// launch), so only what changed is redone: placing the island again or
+/// re-reading transcripts on every slider step would be noticeable.
+pub fn apply<R: Runtime>(app: &AppHandle<R>, before: Option<&Value>, value: &Value) {
+    let display = |v: &Value| v.pointer("/island/display").cloned();
+    if before.is_none_or(|b| display(b) != display(value)) {
+        let choice = display(value)
+            .and_then(|v| serde_json::from_value(v).ok())
+            .unwrap_or_default();
+        if let Some(window) = app.get_webview_window(crate::island::LABEL) {
+            let _ = crate::island::place(&window, choice);
+        }
+    }
+    let flag = |pointer: &str, default: bool| {
+        value
+            .pointer(pointer)
+            .and_then(Value::as_bool)
+            .unwrap_or(default)
+    };
+    if before.is_none() {
+        crate::island_shortcut::start(app, value);
+    }
+    crate::fullscreen::set_hides(flag("/island/hideInFullscreen", true));
+    let notifications_hidden = value
+        .pointer("/island/hiddenModules")
+        .and_then(Value::as_array)
+        .is_some_and(|modules| {
+            modules
+                .iter()
+                .any(|id| id.as_str() == Some("notifications"))
+        });
+    crate::notifications::set_enabled(
+        app,
+        flag("/island/enabled", true)
+            && flag("/island/sections/notifications", true)
+            && !notifications_hidden,
+    );
+    crate::calendar::apply(app, before, value);
+    let previews = value
+        .pointer("/sessions/previews")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if let Some(service) = app.try_state::<crate::sessions::service::Shared>() {
+        service.set_previews(previews);
+        // Gemini CLI, Copilot CLI, OpenCode and Cursor each have a switch.
+        service.set_hidden_agents(hidden_agents(value));
+        // Sessions that run without asking, and Always proceed (#234).
+        crate::sessions::auto_mode::set_settings(crate::sessions::auto_mode::settings_from_prefs(
+            value,
+        ));
+        // Claude accounts the person named, hid or added (#216).
+        crate::sessions::accounts::set_settings(crate::sessions::accounts::settings_from_prefs(
+            value,
+        ));
+        // Hosts over SSH, off until the person turns them on.
+        service
+            .inner()
+            .set_remote_hosts(crate::sessions::remote::hosts_from_prefs(value));
+    }
+    crate::clipboard::apply_prefs(app, before, value);
+    crate::audio::apply_prefs(app, value);
+    // Also applies Show in screenshots, which a watched display region overrides.
+    crate::watch::apply_prefs(app);
+}
+
+/// The hook agents whose switch is off (`/sessions/agentGemini` and the rest).
+pub fn hidden_agents(
+    value: &Value,
+) -> std::collections::HashSet<crate::sessions::models::Provider> {
+    crate::sessions::models::Provider::HOOK_AGENTS
+        .into_iter()
+        .filter(|p| {
+            let key = p.key();
+            let pointer = format!("/sessions/agent{}{}", key[..1].to_uppercase(), &key[1..]);
+            value.pointer(&pointer).and_then(Value::as_bool) == Some(false)
+        })
+        .collect()
+}
+
+#[tauri::command]
+pub fn prefs_get(prefs: tauri::State<'_, Prefs>) -> Value {
+    prefs.get()
+}
+
+#[tauri::command]
+pub async fn prefs_set<R: Runtime>(app: AppHandle<R>, patch: Value) -> Result<Value, String> {
+    // Registration waits for the native event loop. Never let a synchronous
+    // IPC command block that loop on the same transaction/registration lock.
+    tauri::async_runtime::spawn_blocking(move || save_patch(&app, patch))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+fn save_patch<R: Runtime>(app: &AppHandle<R>, patch: Value) -> Result<Value, String> {
+    let _update = UPDATES.lock().unwrap();
+    let prefs = app.state::<Prefs>();
+    let before = prefs.get();
+    let mut candidate = before.clone();
+    merge(&mut candidate, &patch);
+    let shortcut_changed = [
+        "shortcut",
+        "shortcutEnabled",
+        "soundOutputSwitcherEnabled",
+        "soundOutputSwitcherShortcut",
+    ]
+    .iter()
+    .any(|key| {
+        before.pointer(&format!("/island/{key}")) != candidate.pointer(&format!("/island/{key}"))
+    });
+    let next = if shortcut_changed {
+        crate::island_shortcut::save(app, &candidate, || prefs.set(&patch))?
+    } else {
+        prefs.set(&patch)?
+    };
+    apply(app, Some(&before), &next);
+    if before.pointer("/island/language") != next.pointer("/island/language") {
+        let _ = crate::tray::refresh(app);
+        crate::locale::refresh_titles(app);
+    }
+    let _ = app.emit(CHANGED, &next);
+    Ok(next)
+}
+
+/// Starts Openbar when the person signs in to Windows (the per-user Run key).
+#[tauri::command]
+pub fn launch_at_login_get() -> bool {
+    autostart::enabled()
+}
+
+#[tauri::command]
+pub fn launch_at_login_set(on: bool) -> Result<bool, String> {
+    autostart::set(on)?;
+    Ok(autostart::enabled())
+}
+
+/// The Run value the app had before Openbar's own name: whether it is there,
+/// and taking it out.
+pub fn legacy_launch_at_login() -> bool {
+    autostart::legacy_present()
+}
+
+pub fn remove_legacy_launch_at_login() {
+    autostart::remove_legacy();
+}
+
+#[cfg(windows)]
+mod autostart {
+    use windows::Win32::System::Registry::{
+        HKEY, HKEY_CURRENT_USER, KEY_QUERY_VALUE, KEY_SET_VALUE, REG_SZ, REG_VALUE_TYPE,
+        RegCloseKey, RegDeleteValueW, RegOpenKeyExW, RegQueryValueExW, RegSetValueExW,
+    };
+    use windows::core::{HSTRING, PCWSTR};
+
+    const RUN: &str = r"Software\Microsoft\Windows\CurrentVersion\Run";
+    const NAME: &str = "Openbar";
+
+    fn open(access: windows::Win32::System::Registry::REG_SAM_FLAGS) -> Option<HKEY> {
+        let mut key = HKEY::default();
+        let ok = unsafe {
+            RegOpenKeyExW(
+                HKEY_CURRENT_USER,
+                &HSTRING::from(RUN),
+                None,
+                access,
+                &mut key,
+            )
+        };
+        ok.is_ok().then_some(key)
+    }
+
+    /// What the Run value holds for this exe: its quoted path.
+    fn command() -> Option<String> {
+        let exe = std::env::current_exe().ok()?;
+        Some(format!("\"{}\"", exe.display()))
+    }
+
+    /// On only when the value starts this very exe: a moved install or
+    /// another build under the same name reads as off, and turning it on
+    /// points it here.
+    pub fn enabled() -> bool {
+        let Some(key) = open(KEY_QUERY_VALUE) else {
+            return false;
+        };
+        let name = HSTRING::from(NAME);
+        let mut size = 0u32;
+        let mut kind = REG_VALUE_TYPE::default();
+        let mut stored = None;
+        unsafe {
+            if RegQueryValueExW(key, &name, None, Some(&mut kind), None, Some(&mut size)).is_ok()
+                && kind == REG_SZ
+                && size >= 2
+            {
+                // Whole UTF-16 units, and the registry told exactly how many bytes it may write.
+                let mut buf = vec![0u16; (size as usize).div_ceil(2)];
+                size = (buf.len() * 2) as u32;
+                if RegQueryValueExW(
+                    key,
+                    &name,
+                    None,
+                    Some(&mut kind),
+                    Some(buf.as_mut_ptr().cast()),
+                    Some(&mut size),
+                )
+                .is_ok()
+                    && kind == REG_SZ
+                {
+                    let len = buf.iter().position(|&c| c == 0).unwrap_or(buf.len());
+                    stored = Some(String::from_utf16_lossy(&buf[..len]));
+                }
+            }
+            let _ = RegCloseKey(key);
+        }
+        match (stored, command()) {
+            (Some(stored), Some(command)) => stored.eq_ignore_ascii_case(&command),
+            _ => false,
+        }
+    }
+
+    const LEGACY_NAME: &str = "Vorssaint";
+
+    pub fn legacy_present() -> bool {
+        let Some(key) = open(KEY_QUERY_VALUE) else {
+            return false;
+        };
+        let present = unsafe {
+            RegQueryValueExW(key, &HSTRING::from(LEGACY_NAME), None, None, None, None).is_ok()
+        };
+        unsafe {
+            let _ = RegCloseKey(key);
+        }
+        present
+    }
+
+    pub fn remove_legacy() {
+        if let Some(key) = open(KEY_SET_VALUE) {
+            unsafe {
+                let _ = RegDeleteValueW(key, PCWSTR(HSTRING::from(LEGACY_NAME).as_ptr()));
+                let _ = RegCloseKey(key);
+            }
+        }
+    }
+
+    pub fn set(on: bool) -> Result<(), String> {
+        let key = open(KEY_SET_VALUE).ok_or("couldn't open the Run key")?;
+        let result = if on {
+            let command = command().ok_or("couldn't find Openbar.exe")?;
+            let wide: Vec<u16> = command.encode_utf16().chain(Some(0)).collect();
+            let bytes =
+                unsafe { std::slice::from_raw_parts(wide.as_ptr().cast::<u8>(), wide.len() * 2) };
+            unsafe { RegSetValueExW(key, &HSTRING::from(NAME), None, REG_SZ, Some(bytes)) }
+        } else {
+            let r = unsafe { RegDeleteValueW(key, PCWSTR(HSTRING::from(NAME).as_ptr())) };
+            // Already off is fine.
+            if r == windows::Win32::Foundation::ERROR_FILE_NOT_FOUND {
+                windows::Win32::Foundation::ERROR_SUCCESS
+            } else {
+                r
+            }
+        };
+        unsafe {
+            let _ = RegCloseKey(key);
+        }
+        result.ok().map_err(|e| e.to_string())
+    }
+}
+
+#[cfg(target_os = "linux")]
+use crate::linux::autostart;
+
+#[cfg(not(any(windows, target_os = "linux")))]
+mod autostart {
+    pub fn enabled() -> bool {
+        false
+    }
+    pub fn set(_on: bool) -> Result<(), String> {
+        Err("launch at login is Windows only".into())
+    }
+    pub fn legacy_present() -> bool {
+        false
+    }
+    pub fn remove_legacy() {}
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn music_preferences_survive_reloading_the_settings_service() {
+        let path = std::env::temp_dir().join(format!(
+            "vors-music-settings-{}-{}.json",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        let prefs = Prefs::at(Some(path.clone()));
+        prefs
+            .set(&json!({"island":{"preferredPlayer":"custom-player","includeOtherPlayers":false}}))
+            .unwrap();
+        drop(prefs);
+        let restarted = Prefs::at(Some(path.clone()));
+        assert_eq!(
+            restarted.get().pointer("/island/preferredPlayer"),
+            Some(&json!("custom-player"))
+        );
+        assert_eq!(
+            restarted.get().pointer("/island/includeOtherPlayers"),
+            Some(&json!(false))
+        );
+        fs::remove_file(path).unwrap();
+    }
+
+    #[test]
+    fn patches_merge_objects_and_replace_the_rest() {
+        let mut v = json!({"island": {"display": "primary", "hiddenModules": ["camera"]}, "sessions": {"previews": true}});
+        merge(
+            &mut v,
+            &json!({"island": {"display": "cursor", "hiddenModules": ["watch"]}, "sessions": {"previews": null}}),
+        );
+        assert_eq!(
+            v,
+            json!({"island": {"display": "cursor", "hiddenModules": ["watch"]}, "sessions": {}})
+        );
+    }
+
+    #[test]
+    fn a_broken_file_reads_as_empty_and_is_kept_aside() {
+        let dir = std::env::temp_dir().join(format!("vors-prefs-{}", std::process::id()));
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        fs::write(&path, "{not json").unwrap();
+        assert_eq!(read(&path).unwrap(), json!({}));
+        assert!(path.with_extension("json.broken").exists());
+        write(&path, &json!({"a": 1})).unwrap();
+        assert_eq!(read(&path).unwrap(), json!({"a": 1}));
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn patches_add_missing_objects_and_keep_their_siblings() {
+        let mut v = json!({});
+        merge(&mut v, &json!({"island": {"capsuleFit": {"width": 4}}}));
+        merge(
+            &mut v,
+            &json!({"island": {"capsuleFit": {"drop": 2}, "outline": true}}),
+        );
+        assert_eq!(
+            v,
+            json!({"island": {"capsuleFit": {"width": 4, "drop": 2}, "outline": true}})
+        );
+        // Removing a key that was never set, inside an object that exists, changes nothing.
+        merge(&mut v, &json!({"island": {"silhouette": null}}));
+        assert_eq!(
+            v,
+            json!({"island": {"capsuleFit": {"width": 4, "drop": 2}, "outline": true}})
+        );
+    }
+
+    #[test]
+    fn set_saves_the_merged_value_and_a_reload_reads_it_back() {
+        let dir = std::env::temp_dir().join(format!("vors-prefs-set-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let path = dir.join("settings.json");
+        let prefs = Prefs {
+            path: Some(path.clone()),
+            value: Mutex::new(empty()),
+            blocked: false,
+            existed: false,
+        };
+        prefs
+            .set(&json!({"island": {"outline": true, "display": "cursor"}}))
+            .unwrap();
+        let next = prefs.set(&json!({"island": {"outline": null}})).unwrap();
+        assert_eq!(next, json!({"island": {"display": "cursor"}}));
+        assert_eq!(prefs.get(), next);
+        assert_eq!(read(&path).unwrap(), next);
+        assert!(!path.with_extension("json.tmp").exists());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_failed_save_keeps_the_value_it_had() {
+        // The folder is a file, so the write fails.
+        let blocker =
+            std::env::temp_dir().join(format!("vors-prefs-blocker-{}", std::process::id()));
+        fs::write(&blocker, "").unwrap();
+        let prefs = Prefs {
+            path: Some(blocker.join("settings.json")),
+            value: Mutex::new(json!({"island": {"outline": true}})),
+            blocked: false,
+            existed: false,
+        };
+        assert!(prefs.set(&json!({"island": {"outline": false}})).is_err());
+        assert_eq!(prefs.get(), json!({"island": {"outline": true}}));
+        let _ = fs::remove_file(&blocker);
+    }
+
+    #[test]
+    fn a_new_object_in_a_patch_loses_its_nulls() {
+        let mut v = json!({});
+        merge(
+            &mut v,
+            &json!({"sessions": {"live": null, "buddies": false}}),
+        );
+        assert_eq!(v, json!({"sessions": {"buddies": false}}));
+    }
+
+    #[test]
+    fn a_byte_order_mark_is_read_and_text_that_isnt_utf8_is_kept_aside() {
+        let dir = std::env::temp_dir().join(format!("vors-prefs-bom-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("settings.json");
+        fs::write(&path, "\u{feff}{\"island\":{\"outline\":true}}").unwrap();
+        assert_eq!(read(&path).unwrap(), json!({"island": {"outline": true}}));
+        fs::write(&path, b"{\"island\":{\"name\":\"caf\xe9\"}}").unwrap();
+        assert_eq!(read(&path).unwrap(), json!({}));
+        assert!(path.with_extension("json.broken").exists());
+        assert!(!path.exists(), "the next save can't overwrite it");
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_file_that_cant_be_read_or_moved_blocks_saving() {
+        let prefs = Prefs {
+            path: Some(PathBuf::from("unused")),
+            value: Mutex::new(empty()),
+            blocked: true,
+            existed: false,
+        };
+        assert!(prefs.set(&json!({"island": {"outline": true}})).is_err());
+        assert_eq!(prefs.get(), json!({}));
+    }
+}

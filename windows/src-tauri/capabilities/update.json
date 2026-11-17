@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "update",
+  "description": "The update prompt: its links, and closing itself after a choice",
+  "windows": ["update"],
+  "permissions": ["core:default", "opener:default", "core:window:allow-close"]
+}
