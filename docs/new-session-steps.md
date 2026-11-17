@@ -51,3 +51,5 @@ The matcher is shared: `windows/src-tauri/src/sessions/safe_command_cases.json` 
 ## Motion
 
 Pages slide in from the side they lie on. The step pill, tiles, switches and chips spring when they change, and the agent's mark over the prompt lights up once there is something to send. With Reduce motion on, pages only fade and nothing springs.
+
+The pages have no scroll bar. Options keeps worktree and Background or Terminal on one row so the page fits the island. If many custom safe commands make it longer, it scrolls and the top and bottom edges fade out.

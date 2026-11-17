@@ -136,7 +136,8 @@ function Option({
   children,
 }: {
   icon: ReactNode;
-  title: string;
+  /** Left out when `inline` takes its place. */
+  title?: string;
   on: boolean;
   help?: string;
   control?: ReactNode;
@@ -150,7 +151,7 @@ function Option({
         <span key={on ? "on" : "off"} className={`s-new-option-icon${on ? " is-on" : ""}`} aria-hidden>
           {icon}
         </span>
-        <span className="s-new-option-title">{title}</span>
+        {title ? <span className="s-new-option-title">{title}</span> : null}
         {inline ?? <span className="s-new-option-gap" />}
         {control}
       </div>
@@ -539,153 +540,163 @@ export function NewSession() {
     </div>
   );
 
+  const worktreeOption = (
+    <Option
+      icon={<GitBranch size={13} />}
+      title={usesWorktree ? undefined : S.ownWorktree}
+      on={usesWorktree}
+      help={`${S.ownWorktreeHelp} ${S.worktreeIgnoredFiles}`}
+      control={<Switch on={usesWorktree} label={S.ownWorktree} disabled={!isRepository} onChange={setWorktreeChoice} />}
+      inline={
+        usesWorktree ? (
+          <input
+            className="s-worktree-input s-new-option-field"
+            value={worktreeNameText}
+            placeholder={worktreeSlug(prompt) || S.worktreeNamePlaceholder}
+            aria-label={S.worktreeNamePlaceholder}
+            spellCheck={false}
+            onChange={(event) => setWorktreeNameText(event.target.value)}
+          />
+        ) : undefined
+      }
+    >
+      {worktreeNote ? <span className="s-new-option-note">{worktreeNote}</span> : null}
+    </Option>
+  );
+
+  const safeOption = offersSafe ? (
+    <Option
+      icon={<ShieldCheck size={13} />}
+      title={S.safeCommands}
+      on={safeOn}
+      help={S.safeCommandsHelp}
+      control={
+        <>
+          {safeOn ? (
+            <span key={safe.length} className="s-safe-count" aria-label={S.safeCount(safe.length)}>
+              {safe.length}
+            </span>
+          ) : null}
+          <Switch on={safeOn} label={S.safeCommands} onChange={setSafeOn} />
+        </>
+      }
+    >
+      {safeOn ? (
+        <div className="s-safe-chips">
+          {visibleSuggested.map((entry) => {
+            const on = !safeOff.includes(entry.command);
+            const Icon = KIND_ICON[entry.kind];
+            return (
+              <button
+                key={entry.command}
+                type="button"
+                aria-pressed={on}
+                className={`s-safe-chip${on ? " is-on" : ""}`}
+                title={S.safeCommandsHelp}
+                onClick={() =>
+                  setSafeOff(on ? [...safeOff, entry.command] : safeOff.filter((c) => c !== entry.command))
+                }
+              >
+                <Icon key={on ? "on" : "off"} size={10} className="s-safe-icon" />
+                <span>{entry.command}</span>
+              </button>
+            );
+          })}
+          {safeCustom.map((command) => (
+            <button
+              key={command}
+              type="button"
+              className="s-safe-chip is-on is-custom"
+              title={S.removeCommand}
+              aria-label={`${S.removeCommand} ${command}`}
+              onClick={() => setSafeCustom(safeCustom.filter((c) => c !== command))}
+            >
+              <X size={10} className="s-safe-icon" />
+              <span>{command}</span>
+            </button>
+          ))}
+          {adding ? (
+            <input
+              autoFocus
+              className={`s-safe-add-field${refused ? " is-refused" : ""}`}
+              value={newCommand}
+              placeholder="make check"
+              aria-label={S.addCommand}
+              spellCheck={false}
+              onAnimationEnd={() => setRefused(false)}
+              onChange={(event) => {
+                setNewCommand(event.target.value);
+                setRefused(false);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") addCommand();
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="s-safe-add"
+              title={S.addCommand}
+              aria-label={S.addCommand}
+              onClick={() => setAdding(true)}
+            >
+              <Plus size={11} />
+            </button>
+          )}
+        </div>
+      ) : null}
+    </Option>
+  ) : null;
+
+  const runOption = canRunInBackground ? (
+    <Option
+      icon={background ? <Moon size={13} /> : <SquareTerminal size={13} />}
+      title={background ? S.runInBackground : S.runInTerminal}
+      on
+      control={
+        <span className="s-run-modes" role="radiogroup">
+          <button
+            type="button"
+            role="radio"
+            aria-checked={inBackground}
+            aria-label={S.runInBackground}
+            title={S.runInBackground}
+            className={`s-run-mode${inBackground ? " is-selected" : ""}`}
+            onClick={() => setInBackground(true)}
+          >
+            <Moon size={12} />
+          </button>
+          <button
+            type="button"
+            role="radio"
+            aria-checked={!inBackground}
+            aria-label={S.runInTerminal}
+            title={S.runInTerminal}
+            className={`s-run-mode${inBackground ? "" : " is-selected"}`}
+            onClick={() => setInBackground(false)}
+          >
+            <SquareTerminal size={12} />
+          </button>
+        </span>
+      }
+    />
+  ) : (
+    <Option icon={<SquareTerminal size={13} />} title={S.runInTerminal} on>
+      <span className="s-new-option-note">
+        {isHookAgent(agent) ? tf("windows.sessions.opensInTerminal", PROVIDER_NAMES[agent]) : S.backgroundOffHelp}
+      </span>
+    </Option>
+  );
+
+  // Worktree and run mode are one line each, so they share a row and the
+  // page fits the island without scrolling.
   const optionsPage = (
     <div className="s-new-options">
-      <Option
-        icon={<GitBranch size={13} />}
-        title={S.ownWorktree}
-        on={usesWorktree}
-        help={`${S.ownWorktreeHelp} ${S.worktreeIgnoredFiles}`}
-        control={
-          <Switch on={usesWorktree} label={S.ownWorktree} disabled={!isRepository} onChange={setWorktreeChoice} />
-        }
-        inline={
-          usesWorktree ? (
-            <input
-              className="s-worktree-input s-new-option-field"
-              value={worktreeNameText}
-              placeholder={worktreeSlug(prompt) || S.worktreeNamePlaceholder}
-              aria-label={S.worktreeNamePlaceholder}
-              spellCheck={false}
-              onChange={(event) => setWorktreeNameText(event.target.value)}
-            />
-          ) : undefined
-        }
-      >
-        {worktreeNote ? <span className="s-new-option-note">{worktreeNote}</span> : null}
-      </Option>
-      {offersSafe ? (
-        <Option
-          icon={<ShieldCheck size={13} />}
-          title={S.safeCommands}
-          on={safeOn}
-          help={S.safeCommandsHelp}
-          control={
-            <>
-              {safeOn ? (
-                <span key={safe.length} className="s-safe-count" aria-label={S.safeCount(safe.length)}>
-                  {safe.length}
-                </span>
-              ) : null}
-              <Switch on={safeOn} label={S.safeCommands} onChange={setSafeOn} />
-            </>
-          }
-        >
-          {safeOn ? (
-            <div className="s-safe-chips">
-              {visibleSuggested.map((entry) => {
-                const on = !safeOff.includes(entry.command);
-                const Icon = KIND_ICON[entry.kind];
-                return (
-                  <button
-                    key={entry.command}
-                    type="button"
-                    aria-pressed={on}
-                    className={`s-safe-chip${on ? " is-on" : ""}`}
-                    title={S.safeCommandsHelp}
-                    onClick={() =>
-                      setSafeOff(on ? [...safeOff, entry.command] : safeOff.filter((c) => c !== entry.command))
-                    }
-                  >
-                    <Icon key={on ? "on" : "off"} size={10} className="s-safe-icon" />
-                    <span>{entry.command}</span>
-                  </button>
-                );
-              })}
-              {safeCustom.map((command) => (
-                <button
-                  key={command}
-                  type="button"
-                  className="s-safe-chip is-on is-custom"
-                  title={S.removeCommand}
-                  aria-label={`${S.removeCommand} ${command}`}
-                  onClick={() => setSafeCustom(safeCustom.filter((c) => c !== command))}
-                >
-                  <X size={10} className="s-safe-icon" />
-                  <span>{command}</span>
-                </button>
-              ))}
-              {adding ? (
-                <input
-                  autoFocus
-                  className={`s-safe-add-field${refused ? " is-refused" : ""}`}
-                  value={newCommand}
-                  placeholder="make check"
-                  aria-label={S.addCommand}
-                  spellCheck={false}
-                  onAnimationEnd={() => setRefused(false)}
-                  onChange={(event) => {
-                    setNewCommand(event.target.value);
-                    setRefused(false);
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter") addCommand();
-                  }}
-                />
-              ) : (
-                <button
-                  type="button"
-                  className="s-safe-add"
-                  title={S.addCommand}
-                  aria-label={S.addCommand}
-                  onClick={() => setAdding(true)}
-                >
-                  <Plus size={11} />
-                </button>
-              )}
-            </div>
-          ) : null}
-        </Option>
-      ) : null}
-      {canRunInBackground ? (
-        <Option
-          icon={background ? <Moon size={13} /> : <SquareTerminal size={13} />}
-          title={background ? S.runInBackground : S.runInTerminal}
-          on
-          control={
-            <span className="s-run-modes" role="radiogroup">
-              <button
-                type="button"
-                role="radio"
-                aria-checked={inBackground}
-                aria-label={S.runInBackground}
-                title={S.runInBackground}
-                className={`s-run-mode${inBackground ? " is-selected" : ""}`}
-                onClick={() => setInBackground(true)}
-              >
-                <Moon size={12} />
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={!inBackground}
-                aria-label={S.runInTerminal}
-                title={S.runInTerminal}
-                className={`s-run-mode${inBackground ? "" : " is-selected"}`}
-                onClick={() => setInBackground(false)}
-              >
-                <SquareTerminal size={12} />
-              </button>
-            </span>
-          }
-        />
-      ) : (
-        <Option icon={<SquareTerminal size={13} />} title={S.runInTerminal} on>
-          <span className="s-new-option-note">
-            {isHookAgent(agent) ? tf("windows.sessions.opensInTerminal", PROVIDER_NAMES[agent]) : S.backgroundOffHelp}
-          </span>
-        </Option>
-      )}
+      <div className="s-new-option-row">
+        {worktreeOption}
+        {runOption}
+      </div>
+      {safeOption}
     </div>
   );
 

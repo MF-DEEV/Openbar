@@ -217,7 +217,8 @@ struct NotchClaudeNewSessionView: View {
     }
 
     /// A step's content in the middle of the page, no wider than `width`:
-    /// as it is when it fits, scrolling when it doesn't.
+    /// as it is when it fits, scrolling when it doesn't. The scroller has no
+    /// bar; its edges fade instead, so a cut-off row still shows there's more.
     private func centered<Content: View>(width: CGFloat, @ViewBuilder _ content: () -> Content) -> some View {
         let content = content().frame(maxWidth: width)
         return ViewThatFits(in: .vertical) {
@@ -226,11 +227,24 @@ struct NotchClaudeNewSessionView: View {
             ScrollView {
                 content
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 2)
+                    .padding(.vertical, Self.scrollFade)
             }
-            .scrollIndicators(.automatic)
+            .scrollIndicators(.never)
+            .mask {
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0),
+                        .init(color: .black, location: 0.08),
+                        .init(color: .black, location: 0.92),
+                        .init(color: .clear, location: 1),
+                    ],
+                    startPoint: .top, endPoint: .bottom)
+            }
         }
     }
+
+    /// Room above and below scrolled content, as deep as the faded edge.
+    private static let scrollFade: CGFloat = 12
 
     /// Moves to a step, sliding the way it lies.
     private func go(_ target: Step) {
@@ -581,16 +595,22 @@ struct NotchClaudeNewSessionView: View {
     // MARK: 3 · Options
 
     private var optionsPage: some View {
+        // Worktree and run mode are one line each, so they share a row and
+        // the page fits the island without scrolling.
         VStack(alignment: .leading, spacing: 6) {
-            worktreeOption
+            HStack(alignment: .top, spacing: 6) {
+                worktreeOption
+                runOption
+            }
+            .fixedSize(horizontal: false, vertical: true)
             if offersSafeCommands { safeOption.transition(.opacity.combined(with: .offset(y: -4))) }
-            runOption
         }
     }
 
     /// One option: its mark, its name and a control, with more below when on.
+    /// Without a name, the control takes the rest of the line.
     private func option<Control: View, Detail: View>(
-        _ symbol: String, _ title: String, on: Bool, help: String? = nil,
+        _ symbol: String, _ title: String?, on: Bool, help: String? = nil, fillsHeight: Bool = false,
         @ViewBuilder control: () -> Control, @ViewBuilder detail: () -> Detail
     ) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -602,17 +622,20 @@ struct NotchClaudeNewSessionView: View {
                     .background((on ? agent.tint.opacity(0.18) : .white.opacity(0.06)),
                                 in: RoundedRectangle(cornerRadius: 7, style: .continuous))
                     .symbolEffect(.bounce, options: .nonRepeating, value: reduceMotion ? false : on)
-                Text(title)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.9))
-                    .lineLimit(1)
-                Spacer(minLength: 4)
+                if let title {
+                    Text(title)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .lineLimit(1)
+                    Spacer(minLength: 4)
+                }
                 control()
             }
-            .help(help ?? title)
+            .help(help ?? title ?? "")
             detail()
         }
         .padding(7)
+        .frame(maxWidth: .infinity, maxHeight: fillsHeight ? .infinity : nil, alignment: .topLeading)
         .background(.white.opacity(0.04), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
     }
 
@@ -626,26 +649,30 @@ struct NotchClaudeNewSessionView: View {
     }
 
     private var worktreeOption: some View {
-        option("arrow.triangle.branch", text.ownWorktree, on: usesWorktree,
-               help: "\(text.ownWorktreeHelp) \(text.worktreeIgnoredFiles)") {
-            toggle(Binding(get: { usesWorktree }, set: { worktreeChoice = $0 }), label: text.ownWorktree)
-                .disabled(!isRepository)
-        } detail: {
-            if usesWorktree {
-                TextField(worktreePlaceholder, text: $worktreeName)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11.5, design: .monospaced))
-                    .padding(.horizontal, 8)
-                    .frame(height: 24)
-                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
-                    .accessibilityLabel(text.worktreeNamePlaceholder)
-                    .transition(.opacity.combined(with: .offset(y: -4)))
+        // When on, the name field takes the title's place on the same line.
+        option("arrow.triangle.branch", usesWorktree ? nil : text.ownWorktree, on: usesWorktree,
+               help: "\(text.ownWorktreeHelp) \(text.worktreeIgnoredFiles)", fillsHeight: true) {
+            HStack(spacing: 6) {
+                if usesWorktree {
+                    TextField(worktreePlaceholder, text: $worktreeName)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 11.5, design: .monospaced))
+                        .padding(.horizontal, 8)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 24)
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 7, style: .continuous))
+                        .accessibilityLabel(text.worktreeNamePlaceholder)
+                        .transition(.opacity.combined(with: .offset(x: -6)))
+                }
+                toggle(Binding(get: { usesWorktree }, set: { worktreeChoice = $0 }), label: text.ownWorktree)
+                    .disabled(!isRepository)
             }
+        } detail: {
             if let note = worktreeNote {
                 Text(note)
                     .font(.system(size: 10.5))
                     .foregroundStyle(.white.opacity(0.5))
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
                     .id(note)
                     .transition(.opacity)
@@ -780,7 +807,7 @@ struct NotchClaudeNewSessionView: View {
     @ViewBuilder
     private var runOption: some View {
         if canRunInBackground {
-            option(background ? "moon.zzz" : "terminal", background ? text.runInBackground : text.runInTerminal, on: true) {
+            option(background ? "moon.zzz" : "terminal", background ? text.runInBackground : text.runInTerminal, on: true, fillsHeight: true) {
                 HStack(spacing: 2) {
                     mode("moon.zzz", text.runInBackground, selected: inBackground) { inBackground = true }
                     mode("terminal", text.runInTerminal, selected: !inBackground) { inBackground = false }
@@ -789,11 +816,11 @@ struct NotchClaudeNewSessionView: View {
                 .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             } detail: { EmptyView() }
         } else {
-            option("terminal", text.runInTerminal, on: true) { EmptyView() } detail: {
+            option("terminal", text.runInTerminal, on: true, fillsHeight: true) { EmptyView() } detail: {
                 Text(agent.reportsThroughHooks ? text.opensInTerminal(agent.displayName) : text.backgroundOffHelp)
                     .font(.system(size: 10.5))
                     .foregroundStyle(.white.opacity(0.5))
-                    .lineLimit(2)
+                    .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }

@@ -3444,10 +3444,17 @@
   flex-direction: column;
   align-items: center;
   justify-content: safe center;
+  padding-block: 12px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  /* No bar: the edges fade so a cut-off row shows there is more. */
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+  mask-image: linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent);
+}
+
+.s-step-page::-webkit-scrollbar {
+  display: none;
 }
 
 .s-step-page.from-right {
@@ -3591,6 +3598,12 @@
   gap: 6px;
 }
 
+.s-new-option-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
 .s-new-option {
   display: flex;
   flex-direction: column;
@@ -3646,6 +3659,7 @@
 
 .s-new-option-field {
   flex: 1;
+  min-width: 0;
   height: 24px;
   animation: s-safe-chip-in 220ms var(--ease-spring);
 }
