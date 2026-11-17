@@ -78,15 +78,16 @@ export function multiplexerOf(session: Session): "tmux" | "zellij" | null {
 }
 
 /** The tmux or zellij a session's pane belongs to, beside its name (#235). */
-export function MultiplexerMark({ name }: { name: string }) {
+export function MultiplexerMark({ name, detached = false }: { name: string; detached?: boolean }) {
   useLocale();
+  const help = detached ? S.detachedHelp(name) : S.multiplexerHelp(name);
   return (
-    <span className="s-multiplexer-mark" title={S.multiplexerHelp(name)} aria-label={S.multiplexerHelp(name)}>
+    <span className="s-multiplexer-mark" title={help} aria-label={help}>
       <svg viewBox="0 0 16 16" width="9" height="9" aria-hidden>
         <rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
         <path d="M8 2.8v10.4" stroke="currentColor" strokeWidth="1.5" />
       </svg>
-      {name}
+      {detached ? `${name} · ${S.detachedMark}` : name}
     </span>
   );
 }

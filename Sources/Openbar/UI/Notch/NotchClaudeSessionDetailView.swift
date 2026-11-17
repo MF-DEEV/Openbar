@@ -39,7 +39,7 @@ struct NotchClaudeSessionDetailView: View {
             if showingLogs, session.background != nil {
                 NotchClaudeBackgroundLogsView(session: session, text: text)
             } else if notch.sessionsEnlarged {
-                NotchClaudeSessionLargeView(session: session, text: text, open: open)
+                NotchClaudeSessionLargeView(session: session, text: text, open: open, detached: detachedLine != nil)
             } else {
                 VStack(spacing: 8) {
                     work
@@ -124,7 +124,9 @@ struct NotchClaudeSessionDetailView: View {
                 }
                 HStack(spacing: 6) {
                     if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
-                    if let multiplexer = session.host.multiplexer { NotchMultiplexerBadge(name: multiplexer, text: text) }
+                    if let multiplexer = session.host.multiplexer {
+                        NotchMultiplexerBadge(name: multiplexer, text: text, detached: detachedLine != nil)
+                    }
                     if let account = service.accountLabels[session.id] { NotchClaudeAccountBadge(name: account) }
                     if session.autoMode { NotchSessionAutoBadge(provider: session.provider, text: text) }
                     NotchClaudeProjectTag(project: session.project)

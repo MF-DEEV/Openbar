@@ -4028,6 +4028,7 @@ export type CatalogKey =
   | "windows.sessions.defaultModel"
   | "windows.sessions.detachedAttach"
   | "windows.sessions.detachedHelp"
+  | "windows.sessions.detachedMark"
   | "windows.sessions.details"
   | "windows.sessions.diffAdded"
   | "windows.sessions.diffCell"

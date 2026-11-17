@@ -862,9 +862,11 @@ struct NotchMultiplexerBadge: View {
     let name: String
     let text: NotchClaudeSessionStrings
     var size: CGFloat = 9.5
+    /// Open found no terminal attached to it.
+    var detached = false
 
     var body: some View {
-        Label(name, systemImage: "rectangle.split.2x1")
+        Label(detached ? name + " · " + text.detachedMark : name, systemImage: "rectangle.split.2x1")
             .labelStyle(NotchClaudeSessionInlineLabel())
             .font(.system(size: size, weight: .semibold))
             .foregroundStyle(.white.opacity(0.78))
@@ -873,8 +875,9 @@ struct NotchMultiplexerBadge: View {
             .padding(.horizontal, 5)
             .padding(.vertical, 1)
             .background(.white.opacity(0.1), in: Capsule())
-            .help(text.inMultiplexer(name))
-            .accessibilityLabel(text.inMultiplexer(name))
+            .help(detached ? text.detachedHelp(name) : text.inMultiplexer(name))
+            .accessibilityLabel(detached ? text.detachedHelp(name) : text.inMultiplexer(name))
+            .animation(.easeOut(duration: 0.15), value: detached)
     }
 }
 

@@ -392,6 +392,9 @@ export const S = {
   get detachedAttach() {
     return t("windows.sessions.detachedAttach");
   },
+  get detachedMark() {
+    return t("windows.sessions.detachedMark");
+  },
   detachedHelp: (name: string) => tf("windows.sessions.detachedHelp", name),
   // #233: the list in groups.
   get groupSessions() {
