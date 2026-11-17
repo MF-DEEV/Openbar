@@ -828,7 +828,7 @@ final class ClaudeSessionService: ObservableObject {
     /// went wrong.
     func startSession(in folder: String, configHome: String?, prompt: String, background: Bool,
                       provider: ClaudeSessionProvider = .claude, model: String? = nil,
-                      worktree: Bool = false, worktreeName: String? = nil,
+                      worktree: Bool = false, worktreeName: String? = nil, safeCommands: [String] = [],
                       completion: @escaping (String?) -> Void) {
         let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -873,15 +873,18 @@ final class ClaudeSessionService: ObservableObject {
             }
             if provider == .codex {
                 if background {
-                    return startCodexThread(in: folder, prompt: trimmed, model: model, text: text, completion: completion)
+                    return startCodexThread(in: folder, prompt: trimmed, model: model, safeCommands: safeCommands,
+                                            text: text, completion: completion)
                 }
                 guard let executable = CodexCLI.executable() else { return finish(text.codexFailed) }
+                // The terminal's thread is named only once it starts, in this folder.
+                if !safeCommands.isEmpty { queue.sync { codex }?.expectSafeCommands(cwd: folder, commands: safeCommands) }
                 let line = CodexCLI.line(executable: executable,
                                          arguments: CodexCLI.startArguments(prompt: trimmed, model: model), folder: folder)
                 return finish(ClaudeTerminalLauncher.open(line, terminal: terminal) ? nil : text.codexFailed)
             }
             let arguments = ClaudeCLI.startArguments(prompt: trimmed, background: background, model: model,
-                                                     worktree: claudeWorktree)
+                                                     worktree: claudeWorktree, allowed: SafeCommands.claudeRules(safeCommands))
             var problem: String?
             if background {
                 let output = ClaudeCLI.claude(arguments, configHome: configHome, in: folder, timeout: 30)
@@ -910,7 +913,8 @@ final class ClaudeSessionService: ObservableObject {
 
     /// A Codex thread with no terminal, run by Codex's shared app-server,
     /// which is started first when it isn't running. On `commands`.
-    private func startCodexThread(in folder: String, prompt: String, model: String?, text: NotchClaudeSessionStrings,
+    private func startCodexThread(in folder: String, prompt: String, model: String?, safeCommands: [String] = [],
+                                  text: NotchClaudeSessionStrings,
                                   completion: @escaping (String?) -> Void) {
         let finish: (String?) -> Void = { problem in DispatchQueue.main.async { completion(problem) } }
         guard !prompt.isEmpty else { finish(text.backgroundNeedsPrompt); return }
@@ -921,7 +925,7 @@ final class ClaudeSessionService: ObservableObject {
             let deadline = Date().addingTimeInterval(CodexSessionClient.retry * 3)
             while !client.connected, Date() < deadline { Thread.sleep(forTimeInterval: 0.2) }
         }
-        let asked = client.startThread(cwd: folder, model: model, prompt: prompt) { error in
+        let asked = client.startThread(cwd: folder, model: model, prompt: prompt, safeCommands: safeCommands) { error in
             finish(error.map { $0.isEmpty ? text.codexFailed : $0 })
         }
         if !asked { finish(text.codexNotStarted) }

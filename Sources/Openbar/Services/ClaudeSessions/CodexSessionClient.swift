@@ -51,7 +51,7 @@ final class CodexSessionClient {
         case read(Int)
         case resume(Int)
         /// A thread the island asked for, and the first prompt for it.
-        case started(input: [[String: Any]], done: (String?) -> Void)
+        case started(input: [[String: Any]], safe: [String], done: (String?) -> Void)
     }
 
     /// The daemon's socket: Codex's own, or one `ssh` forwards from a host.
@@ -71,6 +71,8 @@ final class CodexSessionClient {
     /// Which sessions run without asking, and where what they did goes (#234).
     var auto: SessionAutoMode.Box = SessionAutoMode.shared
     var letThroughLog: SessionAutoMode.Log = SessionAutoMode.log
+    /// The safe commands of threads New session started (#270).
+    private var grants = SafeCommandGrants()
     private var nextID = 0
     private var waiting: [Int: Waiting] = [:]
     /// Text frames queued for the daemon; nil while not connected.
@@ -231,6 +233,28 @@ final class CodexSessionClient {
         letThroughLog.add(ClaudeLetThrough(CodexSessionState.permission(pending), at: now, reason: reason), to: row)
     }
 
+    /// Answers a command approval of a thread New session started with a
+    /// list of safe commands (#270) "for this session", when the command is
+    /// one of them, so it never reaches the island. Under the lock.
+    private func allowSafe(thread: String, request: CodexRPCID, now: Date) {
+        guard let pending = state.threads[thread]?.pending.last(where: { $0.rpcID == request }),
+              pending.method == "item/commandExecution/requestApproval",
+              let command = CodexSessionState.string(pending.params, "command") else { return }
+        let row = state.row(of: thread)
+        guard let allowed = grants.commands(for: row, cwd: state.threads[row]?.cwd ?? "", now: now),
+              SafeCommands.matches(command, allowed: allowed),
+              let body = CodexSessionState.result(pending, .allowForSession),
+              state.takePending(thread: row, requestID: pending.requestID) != nil else { return }
+        state.proceeded(thread, at: now)
+        send(["id": pending.rpcID.json, "result": body])
+    }
+
+    /// Safe commands for the next thread a terminal starts in `cwd`, which
+    /// the island can't name before it exists (#270).
+    func expectSafeCommands(cwd: String, commands: [String], now: Date = Date()) {
+        lock.withLock { grants.expect(cwd: cwd, commands: commands, now: now, known: Set(state.threads.keys)) }
+    }
+
     /// Whether the request with this island id still waits on the session's row.
     func waits(_ session: String, requestID: String) -> Bool {
         lock.withLock { state.pending(session: session).contains { $0.requestID == requestID } }
@@ -256,10 +280,12 @@ final class CodexSessionClient {
     /// Starts a thread in a folder with no terminal, and its first turn.
     /// `done` gets nil once Codex has the thread, or Codex's error; it runs on
     /// the client's thread. False when not connected or there is no prompt.
-    func startThread(cwd: String, model: String?, prompt: String, done: @escaping (String?) -> Void) -> Bool {
+    func startThread(cwd: String, model: String?, prompt: String, safeCommands: [String] = [],
+                     done: @escaping (String?) -> Void) -> Bool {
         lock.withLock {
             guard isConnected, let input = Self.input(text: prompt, images: []) else { return false }
-            call("thread/start", Self.threadStart(cwd: cwd, model: model), .started(input: input, done: done))
+            call("thread/start", Self.threadStart(cwd: cwd, model: model),
+                 .started(input: input, safe: safeCommands, done: done))
             return true
         }
     }
@@ -350,7 +376,10 @@ final class CodexSessionClient {
                 }
                 state.autoSettings = auto.settings
                 let kept = state.request(id, method: method, params: params, now: now)
-                if kept, let thread = params["threadId"] as? String { letThrough(thread: thread, request: id, now: now) }
+                if kept, let thread = params["threadId"] as? String {
+                    letThrough(thread: thread, request: id, now: now)
+                    allowSafe(thread: thread, request: id, now: now)
+                }
                 follow()
                 return kept
             case (let method?, nil):
@@ -367,12 +396,13 @@ final class CodexSessionClient {
             case (nil, let id?):
                 guard case .number(let number) = id, let kind = waiting.removeValue(forKey: number) else { return false }
                 let result = message["result"] as? [String: Any] ?? [:]
-                if case .started(let input, let done) = kind {
+                if case .started(let input, let safe, let done) = kind {
                     guard let thread = (result["thread"] as? [String: Any])?["id"] as? String else {
                         let error = (message["error"] as? [String: Any])?["message"] as? String
                         done(error ?? "")
                         return false
                     }
+                    grants.grant(thread, safe)
                     call("turn/start", ["threadId": thread, "input": input], .other)
                     done(nil)
                     return false
@@ -422,7 +452,7 @@ final class CodexSessionClient {
                 try? session(path: socket, changed: changed)
                 let unanswered = lock.withLock { () -> [(String?) -> Void] in
                     let starts = waiting.values.compactMap { kind -> ((String?) -> Void)? in
-                        if case .started(_, let done) = kind { return done }
+                        if case .started(_, _, let done) = kind { return done }
                         return nil
                     }
                     isConnected = false

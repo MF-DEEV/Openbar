@@ -335,6 +335,8 @@ if (( TEST )); then
         Sources/Openbar/Services/ClaudeSessions/ClaudeAgentColors.swift
         Sources/Openbar/Services/ClaudeSessions/CodexSessionState.swift
         Sources/Openbar/Services/ClaudeSessions/CodexSessionClient.swift
+        Sources/Openbar/Services/ClaudeSessions/SafeCommands.swift
+        Sources/Openbar/Services/ClaudeSessions/NewSessionChoices.swift
         Sources/Openbar/Services/ClaudeSessions/AgentHookMessage.swift
         Sources/Openbar/Services/ClaudeSessions/AgentHookSessions.swift
         Sources/Openbar/Services/ClaudeSessions/AgentHookInstaller.swift
