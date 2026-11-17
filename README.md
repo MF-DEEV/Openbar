@@ -11,7 +11,7 @@
 
 <p align="center">
   <a href="#install"><img alt="macOS 14 or later" src="https://img.shields.io/badge/macOS-14%2B-2A1660?style=flat-square&labelColor=0B0718&logo=apple&logoColor=white"></a>
-  <a href="windows/README.md"><img alt="Windows 11 beta" src="https://img.shields.io/badge/Windows%2011-beta-2A1660?style=flat-square&labelColor=0B0718"></a>
+  <a href="windows/README.md"><img alt="Windows 11" src="https://img.shields.io/badge/Windows%2011-1.0-2A1660?style=flat-square&labelColor=0B0718"></a>
   <a href="windows/docs/linux.md"><img alt="Linux under X11 and Wayland" src="https://img.shields.io/badge/Linux-X11%20%7C%20Wayland-2A1660?style=flat-square&labelColor=0B0718&logo=linux&logoColor=white"></a>
   <a href="LICENSE"><img alt="License GPL-3.0" src="https://img.shields.io/badge/license-GPL--3.0-C8962E?style=flat-square&labelColor=0B0718"></a>
 </p>
@@ -19,7 +19,7 @@
 <p align="center">
   <a href="https://github.com/MF-DEEV/Openbar/releases?q=Mac&expanded=true"><img src="docs/assets/readme/download/mac.png" width="270" alt="Download for Mac, macOS 14 or later"></a>
   <a href="https://github.com/MF-DEEV/Openbar/releases?q=windows&expanded=true"><img src="docs/assets/readme/download/windows.png" width="270" alt="Download for Windows 11"></a>
-  <a href="https://github.com/MF-DEEV/Openbar/releases?q=linux&expanded=true"><img src="docs/assets/readme/download/linux.png" width="270" alt="Download for Linux: deb, rpm, AppImage"></a>
+  <a href="https://github.com/MF-DEEV/Openbar/releases?q=%22for+Linux%22&expanded=true"><img src="docs/assets/readme/download/linux.png" width="270" alt="Download for Linux: deb, rpm, AppImage"></a>
 </p>
 
 <p align="center">
@@ -60,7 +60,7 @@ brew install --cask mf-deev/openbar/openbar
 
 Or get the DMG from the [latest Mac release](https://github.com/MF-DEEV/Openbar/releases?q=Mac&expanded=true) and drag Openbar to Applications. It isn't notarized yet, so the first time choose **Open Anyway** in System Settings › Privacy & Security.
 
-**Windows 11** (beta), with winget:
+**Windows 11**, with winget:
 
 ```powershell
 winget install MFDEV.Openbar
@@ -70,7 +70,7 @@ Or run the installer from the [latest Windows release](https://github.com/MF-DEE
 
 On the Mac and on Windows, Openbar then updates itself: it checks once a day and asks before installing. `brew upgrade` and `winget upgrade` work too.
 
-**Linux** (X11, beta): get the `.deb`, `.rpm` or AppImage from the [latest Linux release](https://github.com/MF-DEEV/Openbar/releases?q=linux&expanded=true), for x86_64 or Arm64. On Wayland the island works on compositors with layer-shell and on GNOME through XWayland, with some features still X11 only; see the [Linux notes](windows/docs/linux.md).
+**Linux** (X11, beta): get the `.deb`, `.rpm` or AppImage from the [latest Linux release](https://github.com/MF-DEEV/Openbar/releases?q=%22for+Linux%22&expanded=true), for x86_64 or Arm64. On Wayland the island works on compositors with layer-shell and on GNOME through XWayland, with some features still X11 only; see the [Linux notes](windows/docs/linux.md).
 
 On the Mac, turn sessions on in Openbar's Settings: install **AI Agents** in the Features hub, turn on **Sessions** under Dynamic Island and press **Install Hooks** for Claude Code. Then start `claude` or `codex`.
 

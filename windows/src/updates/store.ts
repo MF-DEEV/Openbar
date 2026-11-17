@@ -56,7 +56,7 @@ async function betas(): Promise<boolean> {
   try {
     return (await loadPrefs()).island.betaUpdates;
   } catch {
-    return true;
+    return onLinux();
   }
 }
 

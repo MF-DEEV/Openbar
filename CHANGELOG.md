@@ -6,6 +6,13 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [3.5.0-beta.4] - 2026-11-17
+
+Released together with Openbar for Windows 1.0.0 and Openbar for Linux 0.5.0.
+
+### Changed
+- Openbar for Windows leaves beta at 1.0.0. Its releases are no longer GitHub pre-releases, and beta updates are off by default on Windows (Settings → General → Updates). Linux stays a beta with its own version number, 0.5.0.
+
 ### Added
 - Sessions started in their agent's no-ask mode run without the island: Claude Code with bypass permissions and Codex with approvals off (yolo). Their rows get an "auto" mark, their permission requests are allowed at once with no card, sound or wait, and each one is listed under Let through on the session's page. Questions and plans still come to the island, and a session switched back to the normal mode asks again. A new opt-in, Always proceed, lets every request of Claude Code, Codex, OpenCode or Mistral Vibe through in any mode, after a warning. On Mac, Windows and Linux. Settings → Dynamic Island → Content → Sessions.
 - Mistral Vibe's approvals and questions can be answered in the island. A session started with New session runs through Vibe's own app server: Allow, Always or Deny on the card, and the options of a question, go straight to Vibe, with nothing typed into the terminal. One you start yourself is still answered in the terminal. On Mac, Windows and Linux.

@@ -106,7 +106,7 @@ if (( MAC )); then
     Tools/bump-packages.sh mac "$MAC_V"
 fi
 if (( WIN )); then
-    # Every Windows release so far is a beta: below 1.0 it stays one.
+    # Windows releases below 1.0 were betas; from 1.0 only a hyphenated version is.
     beta=0; [[ "$WIN_V" == 0.* ]] && beta=1
     git tag "$WIN_TAG" "$COMMIT"
     git push -q origin "$WIN_TAG"

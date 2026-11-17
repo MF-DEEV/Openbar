@@ -79,7 +79,7 @@ A volume mixer, a system monitor, clipboard history, window layouts, keep awake,
 
 ## On Windows 11
 
-The same island, built with Tauri, hangs from the top of a Windows 11 screen. It's a beta with its own installer for x64 and arm64.
+The same island, built with Tauri, hangs from the top of a Windows 11 screen. It has its own installer for x64 and arm64.
 
 <p align="center">
   <img src="../windows/docs/assets/readme/sessions.gif" width="820" alt="The Windows island: the Sessions list, a permission allowed, the session back at work, and a question answered">
