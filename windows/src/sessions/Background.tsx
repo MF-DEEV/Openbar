@@ -72,6 +72,25 @@ export function RemoteHostMark({ alias }: { alias: string }) {
   );
 }
 
+/** The multiplexer a session's pane belongs to, local tmux or zellij (#235). */
+export function multiplexerOf(session: Session): "tmux" | "zellij" | null {
+  return session.host === "tmux" || session.host === "zellij" ? session.host : null;
+}
+
+/** The tmux or zellij a session's pane belongs to, beside its name (#235). */
+export function MultiplexerMark({ name }: { name: string }) {
+  useLocale();
+  return (
+    <span className="s-multiplexer-mark" title={S.multiplexerHelp(name)} aria-label={S.multiplexerHelp(name)}>
+      <svg viewBox="0 0 16 16" width="9" height="9" aria-hidden>
+        <rect x="1.8" y="2.8" width="12.4" height="10.4" rx="2" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M8 2.8v10.4" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+      {name}
+    </span>
+  );
+}
+
 /** The Claude account a session runs under, while more than one is in use (#216). */
 export function AccountMark({ name }: { name: string }) {
   useLocale();

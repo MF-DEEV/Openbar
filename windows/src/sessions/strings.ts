@@ -387,6 +387,12 @@ export const S = {
     return t("windows.sessions.backgroundMark");
   },
   remoteHelp: (alias: string) => tf("windows.sessions.remoteHelp", alias),
+  // #235: the tmux or zellij a session's pane belongs to, and one with no terminal attached.
+  multiplexerHelp: (name: string) => tf("windows.sessions.multiplexerHelp", name),
+  get detachedAttach() {
+    return t("windows.sessions.detachedAttach");
+  },
+  detachedHelp: (name: string) => tf("windows.sessions.detachedHelp", name),
   // #233: the list in groups.
   get groupSessions() {
     return t("windows.sessions.groupSessions");

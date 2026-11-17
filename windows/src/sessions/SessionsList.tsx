@@ -28,7 +28,7 @@ import {
   sessionPhaseLabel,
 } from "./format";
 import { useNow } from "./useNow";
-import { AccountMark, BackgroundMark, RemoteHostMark } from "./Background";
+import { AccountMark, BackgroundMark, RemoteHostMark, MultiplexerMark, multiplexerOf } from "./Background";
 import { AutoMark } from "./AutoMode";
 import { S } from "./strings";
 import { settled, useSessions } from "./store";
@@ -190,6 +190,7 @@ function Row({ session, now, inProject = false }: { session: Session; now: numbe
           <span className="s-row-name">{name}</span>
           {session.background ? <BackgroundMark /> : null}
           {session.remote ? <RemoteHostMark alias={session.remote} /> : null}
+          {multiplexerOf(session) ? <MultiplexerMark name={multiplexerOf(session)!} /> : null}
           {session.accountLabel ? <AccountMark name={session.accountLabel} /> : null}
           {session.autoMode ? <AutoMark provider={session.provider} /> : null}
           <ModelLabel session={session} />
