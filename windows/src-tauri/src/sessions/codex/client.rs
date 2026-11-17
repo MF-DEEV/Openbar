@@ -292,8 +292,9 @@ impl CodexClient {
         let (mut sessions, events) = shared.state.snapshot(now, policy);
         let live = sessions
             .iter()
-            .filter_map(|s| {
-                s.permission.as_ref().and_then(|p| {
+            // Every ask a session holds keeps its inspection, not only the first (#269).
+            .flat_map(|s| {
+                s.permission.iter().chain(&s.later_asks).filter_map(|p| {
                     p.content
                         .as_ref()
                         .map(|c| (s.id.clone(), c.metadata(p).revision))
@@ -359,13 +360,7 @@ impl CodexClient {
         revision: &str,
     ) -> Option<crate::sessions::inspection::Inspection> {
         let mut s = self.shared.lock().unwrap();
-        if s.state
-            .pending(session)
-            .first()
-            .is_none_or(|p| p.request_id() != request)
-        {
-            return None;
-        }
+        // Any request the row holds: the queue opens them in any order (#269).
         let (_, pending) = s.state.answerable(session, request)?;
         let p = super::state::permission(&pending);
         s.inspection.open(session, &p, revision)
@@ -440,14 +435,7 @@ impl Shared {
         revision: Option<&str>,
         token: Option<&str>,
     ) -> bool {
-        if self
-            .state
-            .pending(session)
-            .first()
-            .is_none_or(|p| p.request_id() != request_id)
-        {
-            return false;
-        }
+        // Any request the row holds: the queue answers them in any order (#269).
         let Some((_, pending)) = self.state.answerable(session, request_id) else {
             return false;
         };
@@ -1328,6 +1316,49 @@ mod tests {
         assert_eq!(methods(&sent(&rx)), ["thread/queue/add"]);
         s.connected = false;
         assert!(!s.reply("t1", "go on", &[]), "not while disconnected");
+    }
+
+    #[test]
+    fn a_later_request_is_answered_before_the_first() {
+        // #269: the queue answers a row's requests in any order.
+        let (mut s, rx) = joined();
+        let active = json!({"type": "active", "activeFlags": []});
+        read_thread(
+            &mut s,
+            &rx,
+            json!({"id": "t1", "cwd": "/w/app", "status": active}),
+        );
+        for (id, command) in [(30, "ls"), (31, "pwd")] {
+            assert!(deliver(
+                &mut s,
+                json!({"id": id, "method": "item/commandExecution/requestApproval",
+                       "params": {"threadId": "t1", "command": command}})
+            ));
+        }
+        sent(&rx);
+        let (sessions, _) = s.state.snapshot(1e9, ContentPolicy::default());
+        let row = sessions.iter().find(|r| r.id == "t1").unwrap();
+        assert_eq!(row.permission.as_ref().unwrap().request_id, "codex:30");
+        assert_eq!(
+            row.later_asks
+                .iter()
+                .map(|p| p.request_id.as_str())
+                .collect::<Vec<_>>(),
+            ["codex:31"]
+        );
+        let (_, pending) = s.state.answerable("t1", "codex:31").unwrap();
+        let p = super::super::state::permission(&pending);
+        let revision = p.content.as_ref().unwrap().metadata(&p).revision;
+        assert!(s.answer("t1", "codex:31", &Answer::Allow, Some(&revision), None));
+        assert_eq!(
+            sent(&rx),
+            [json!({"id": 31, "result": {"decision": "accept"}})]
+        );
+        assert!(s.answer("t1", "codex:30", &Answer::Deny, None, None));
+        assert_eq!(
+            sent(&rx),
+            [json!({"id": 30, "result": {"decision": "decline"}})]
+        );
     }
 
     #[test]

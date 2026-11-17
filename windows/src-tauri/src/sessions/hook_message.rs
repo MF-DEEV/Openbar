@@ -198,6 +198,7 @@ impl HookMessage {
                     questions,
                     diffs: file_diff::diffs(tool, input, str_of(json.get("cwd"))),
                     plan_modes: modes,
+                    risk: super::risk::Risk::Unassessed,
                 };
                 permission.set_content(&full, complete, Some(full.chars().count()));
                 HookEvent::PermissionRequested(permission)

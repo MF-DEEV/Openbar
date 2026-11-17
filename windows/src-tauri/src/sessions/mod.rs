@@ -25,6 +25,7 @@ pub mod models;
 pub mod plan_modes;
 pub mod registry;
 pub mod remote;
+pub mod risk;
 pub mod sample;
 pub mod service;
 pub mod transcript;

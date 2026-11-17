@@ -301,6 +301,9 @@ enum ShellScript {
         var text = ""
     }
 
+    /// What a backslash escapes: what the shell would otherwise read itself.
+    static let escaped: Set<Character> = [" ", "\t", "'", "\"", "\\", "$", "`", ";", "&", "|", "<", ">", "(", ")", "*", "?", "#", "!", "{", "}", "[", "]", "~"]
+
     static func parse(_ command: String) -> [Segment] {
         var segments: [Segment] = []
         var current = Segment()
@@ -358,8 +361,15 @@ enum ShellScript {
             case "'", "\"":
                 quote = c; inWord = true; text.append(c)
             case "\\":
-                if let next, next != "\n" { word.append(next); inWord = true; text.append(c); text.append(next) }
-                i += 1
+                // An escape only before what the shell would read itself; a
+                // Windows path keeps its backslashes.
+                if next == "\n" {
+                    i += 1
+                } else if let next, escaped.contains(next) {
+                    word.append(next); inWord = true; text.append(c); text.append(next); i += 1
+                } else {
+                    word.append(c); inWord = true; text.append(c)
+                }
             case " ", "\t":
                 endWord(); text.append(c)
             case "\n", "\r", ";":
