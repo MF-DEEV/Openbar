@@ -7,6 +7,7 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
+- New session comes in four steps: project, agent, options and prompt, with the steps across the top and Start working from any of them. Each project remembers what it last started with, so a repeat session is pick the project, type, Start. A new option, Safe commands, allows the project's build, test and lint and `git status`, `git diff` and `git log` for the whole session from its first turn. Turn any of them off or add your own. Claude Code gets them as session-only allow rules, and Codex asks for them are answered for the session by the island. Everything else still asks. On Mac, Windows and Linux. See [docs/new-session-steps.md](docs/new-session-steps.md).
 - Waiting permission asks gather into one queue. With more than one waiting, the Sessions list opens on "3 waiting" and every ask on its own row: the session, the tool and the command or file, with its own Deny, Always and Allow. A session asking several things at once gets a row for each. Allow all allows only the asks that look safe: anything that deletes files, works outside the project, uses the network, changes the system, runs code it builds, uses a tool Openbar doesn't know, or matches a deny or ask rule in your Claude Code settings stays for you, with the reason on its row. New asks join at the bottom and never move the page you're reading. Works for Claude Code, Codex, OpenCode and Mistral Vibe. On Mac, Windows and Linux.
 
 ## [3.5.0-beta.4] - 2026-11-17
