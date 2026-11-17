@@ -81,7 +81,7 @@ struct NotchClaudeSessionStrings {
     var allowAllHelp = "Allows the asks that look safe. The others stay here for you."
     func queueHeldBack(_ n: Int) -> String { "Left for you: \(n)" }
     var queueReview = "Review"
-    var queueOpenHelp = "Open this ask on its session's page"
+    var queueOpenHelp = "Open this ask on its session’s page"
     func risk(_ risk: PermissionRisk) -> String? {
         switch risk {
         case .safe: return nil
@@ -107,12 +107,12 @@ struct NotchClaudeSessionStrings {
     var letThroughAlways = "Always proceed"
     func moreLetThrough(_ n: Int) -> String { "\(n) more" }
     var autoModeSetting = "Let auto-mode sessions run without the island"
-    var autoModeSettingHint = "A session started in its agent's no-ask mode never waits on the island: Claude Code with bypass permissions, Codex with approvals off (yolo). Its requests go ahead at once and are listed on its page. Questions still come to you."
+    var autoModeSettingHint = "A session started in its agent’s no-ask mode never waits on the island: Claude Code with bypass permissions, Codex with approvals off (yolo). Its requests go ahead at once and are listed on its page. Questions still come to you."
     var alwaysProceedSetting = "Always proceed"
     var alwaysProceedSettingHint = "The island allows every permission request of the agents you pick, in any mode, without asking. Questions still come to you."
     func alwaysProceedConfirmTitle(_ agent: String) -> String { "Always proceed for \(agent)?" }
     func alwaysProceedConfirmMessage(_ agent: String) -> String {
-        "The island will allow every command and file change \(agent) asks for, in every session and mode, without showing it to you first. That includes deleting files and reaching the network. Questions still come to you, and each request it allows is listed on the session's page."
+        "The island will allow every command and file change \(agent) asks for, in every session and mode, without showing it to you first. That includes deleting files and reaching the network. Questions still come to you, and each request it allows is listed on the session’s page."
     }
     var alwaysProceedConfirm = "Always proceed"
     var cancel = "Cancel"
