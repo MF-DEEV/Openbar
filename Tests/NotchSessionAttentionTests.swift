@@ -32,6 +32,10 @@ enum NotchSessionAttentionTests {
         suite.expect(!ClaudeTerminalFocus.sameTTY("/dev/ttys004", "/dev/ttys040")
                      && !ClaudeTerminalFocus.sameTTY("", "/dev/"), "another device, or none, never matches")
 
+        var zellij = ClaudeZellijPane(session: "work", pane: "3")!
+        zellij.server = 0
+        suite.expect(ClaudeTerminalFocus.state(.zellij(zellij), pid: 999_999, hostOf: { _ in .unknown }) == .unknown,
+                     "a zellij pane whose server isn't the session's can't tell")
         suite.expect(ClaudeTerminalFocus.tmuxActive("11\n"), "the active pane of the active window")
         suite.expect(!ClaudeTerminalFocus.tmuxActive("10") && !ClaudeTerminalFocus.tmuxActive("01")
                      && !ClaudeTerminalFocus.tmuxActive(""), "another pane or window is not in front")

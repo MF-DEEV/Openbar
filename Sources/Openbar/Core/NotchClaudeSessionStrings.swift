@@ -30,6 +30,12 @@ struct NotchClaudeSessionStrings {
     var awayCard = "While you were away"
     var awayCardHint = "Back from the lock screen or a break, one card shows what your sessions did."
     var awayMinutes = "Break after"
+    // #235: a tmux or zellij with no terminal attached.
+    var detachedAttach = "Detached · Attach"
+    var detachedHelpFormat = "No terminal shows this %@ session. Attach opens it in a new window."
+    var attachFailed = "Couldn’t open a terminal"
+    func detachedHelp(_ multiplexer: String) -> String { String(format: detachedHelpFormat, multiplexer) }
+    func inMultiplexer(_ multiplexer: String) -> String { "In a \(multiplexer) pane" }
     var awayWaiting = "waiting for you"
     var awayError = "stopped on an error"
     var awayLimited = "hit a limit"

@@ -42,6 +42,14 @@ enum ClaudeTerminalFocus {
             guard let client = ClaudeTmux.client(of: target) else { return .hidden }
             guard !client.elsewhere else { return .hidden }
             return state(hostOf(client.pid), pid: client.pid, depth: depth + 1, hostOf: hostOf)
+        case .zellij(let target):
+            guard depth < 3, ClaudeZellij.holds(target, pid: pid),
+                  let everywhere = ClaudeZellij.focusedEverywhere(target, timeout: askTimeout) else { return .unknown }
+            guard everywhere else { return .hidden }
+            // Every attached client shows the pane; the terminal of the one
+            // used last decides the rest.
+            guard let client = ClaudeZellij.client(of: target) else { return .unknown }
+            return state(hostOf(client.pid), pid: client.pid, depth: depth + 1, hostOf: hostOf)
         case .ide, .app, .background, .remote, .unknown:
             return .unknown
         }

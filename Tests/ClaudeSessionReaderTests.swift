@@ -383,6 +383,99 @@ enum ClaudeSessionReaderTests {
 
     // MARK: Hosts
 
+    /// #235: a session in a zellij pane, told by zellij's variables and
+    /// checked against the process tree, reached through zellij's own CLI.
+    static func zellijHosts(_ suite: TestSuite) {
+        let zellij = ["ZELLIJ": "0", "ZELLIJ_SESSION_NAME": "work", "ZELLIJ_PANE_ID": "3", "TERM_PROGRAM": "ghostty",
+                      "TERM": "xterm-256color"]
+        let pane = ClaudeZellijPane(session: "work", pane: "3")
+        suite.expect(pane?.session == "work" && pane?.pane == 3 && pane?.paneID == "terminal_3" && pane?.server == 0,
+                     "zellij names its session and pane")
+        suite.expect(ClaudeZellijPane(session: "", pane: "3") == nil && ClaudeZellijPane(session: "w", pane: "x") == nil
+                     && ClaudeZellijPane(session: "w", pane: "-1") == nil && ClaudeZellijPane(session: nil, pane: "1") == nil
+                     && ClaudeZellijPane(session: "a\nb", pane: "1") == nil, "a malformed zellij variable names no pane")
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.mitchellh.ghostty", tty: "/dev/ttys040", port: nil, environment: zellij)
+                     == .zellij(pane!), "a session in zellij in Ghostty is a zellij pane, though TERM_PROGRAM still says Ghostty")
+        var noFlag = zellij
+        noFlag["ZELLIJ"] = nil
+        suite.expect(ClaudeSessionHosts.classify(bundle: "com.mitchellh.ghostty", tty: "/dev/ttys040", port: nil, environment: noFlag)
+                     == .ghostty(tty: "/dev/ttys040"), "without ZELLIJ the session is the terminal's")
+        var inTmux = zellij
+        inTmux["TERM_PROGRAM"] = "tmux"
+        inTmux["TMUX"] = "/private/tmp/tmux-501/default,51484,0"
+        inTmux["TMUX_PANE"] = "%1"
+        suite.expect(ClaudeSessionHosts.classify(bundle: nil, tty: "/dev/ttys041", port: nil, environment: inTmux) == .zellij(pane!),
+                     "with both multiplexers' variables zellij is asked first; the process tree settles which holds it")
+
+        var named = pane!
+        named.outer = "com.mitchellh.ghostty"
+        suite.expect(ClaudeSessionHost.zellij(named).displayName == "zellij in Ghostty"
+                     && ClaudeSessionHost.zellij(pane!).displayName == "zellij", "zellij is named with the terminal showing it")
+        suite.expect(ClaudeSessionHost.zellij(pane!).multiplexer == "zellij"
+                     && ClaudeSessionHost.tmux(ClaudeTmuxPane(tmux: "/s,4,0", pane: "%1")!).multiplexer == "tmux"
+                     && ClaudeSessionHost.remote(alias: "box", tmux: true).multiplexer == nil
+                     && ClaudeSessionHost.terminal(tty: "/dev/ttys1").multiplexer == nil, "the row's chip names the multiplexer")
+        suite.expect(ClaudeSessionHost.zellij(pane!).acceptsReplies && ClaudeSessionHost.zellij(pane!).bundle == nil,
+                     "a zellij pane takes replies")
+
+        // The process tree: 500 (session) → 400 (shell) → 300 (zellij server) → 1.
+        let parents: [Int32: Int32] = [500: 400, 400: 300, 300: 1, 700: 600, 600: 1]
+        suite.expect(ClaudeZellij.server(of: 500, parent: { parents[$0] }, isServer: { $0 == 300 }) == 300,
+                     "the session runs under its zellij server")
+        suite.expect(ClaudeZellij.server(of: 700, parent: { parents[$0] }, isServer: { $0 == 300 }) == nil,
+                     "a tmux started in a zellij pane runs its server apart, so its sessions aren't zellij's")
+        suite.expect(ClaudeZellij.isServer(arguments: ["/opt/homebrew/bin/zellij", "--server", "/tmp/zellij-501/c/abc"])
+                     && !ClaudeZellij.isServer(arguments: ["zellij", "attach", "work"])
+                     && !ClaudeZellij.isServer(arguments: ["/bin/sh", "--server"]), "a server is zellij --server")
+
+        var procargs: [UInt8] = []
+        withUnsafeBytes(of: Int32(3)) { procargs += $0 }
+        procargs += Array("/opt/homebrew/bin/zellij".utf8) + [0, 0, 0]
+        for word in ["zellij", "--server", "/tmp/s"] { procargs += Array(word.utf8) + [0] }
+        procargs += Array("HOME=/Users/x".utf8) + [0]
+        suite.expect(ClaudeZellij.parseArguments(procargs) == ["zellij", "--server", "/tmp/s"], "a process's arguments are read")
+
+        let listed = """
+            [{"id":4,"is_plugin":true,"is_focused":true,"tab_id":0},
+             {"id":0,"is_plugin":false,"is_focused":true,"tab_id":0},
+             {"id":3,"is_plugin":false,"is_focused":false,"tab_id":2}]
+            """
+        suite.expect(ClaudeZellij.panes(listed) == [ClaudeZellijListedPane(id: 0, tab: 0, focused: true),
+                                                    ClaudeZellijListedPane(id: 3, tab: 2, focused: false)]
+                     && ClaudeZellij.panes("nope").isEmpty, "list-panes gives each terminal pane's tab; plugins are left out")
+        let clients = "CLIENT_ID  ZELLIJ_PANE_ID RUNNING_COMMAND\n7          terminal_2     N/A\n8          terminal_3     claude --resume\n"
+        suite.expect(ClaudeZellij.clientPanes(clients) == ["terminal_2", "terminal_3"]
+                     && ClaudeZellij.clientPanes("CLIENT_ID  ZELLIJ_PANE_ID RUNNING_COMMAND\n").isEmpty,
+                     "list-clients gives each client's focused pane; none means detached")
+        suite.expect(ClaudeZellij.shown(["terminal_3", "terminal_3"], pane: "terminal_3") == true
+                     && ClaudeZellij.shown(["terminal_2"], pane: "terminal_3") == false
+                     && ClaudeZellij.shown([], pane: "terminal_3") == false
+                     && ClaudeZellij.shown(["terminal_3", "terminal_2"], pane: "terminal_3") == nil,
+                     "the pane is in front when every client shows it, hidden when none does, unknown in between")
+
+        let lsof = """
+            p300
+            f37
+            d0xdbb7
+            n/tmp/zellij-501/contract_version_1/abc
+            f20
+            d0xb867
+            n->0xba1f
+            p810
+            f6
+            d0x1c11
+            n->0xdbb7
+            p820
+            f6
+            d0x8978
+            n->0xffff
+            """
+        suite.expect(ClaudeZellij.clients(lsof: lsof, server: 300) == [810],
+                     "a client is the process whose socket's peer is one of the server's")
+        suite.expect(ClaudeZellijPane(session: "my work", pane: "1").map { _ in HomebrewCommandBuilder.shellQuote("my work") } == "'my work'",
+                     "a session name with a space is quoted for the attach line")
+    }
+
     /// Issue #121: every terminal is told apart by what the session's own
     /// environment says, and reached by its device, pane or window.
     static func terminalHosts(_ suite: TestSuite) {
@@ -460,6 +553,8 @@ enum ClaudeSessionReaderTests {
         suite.expect(ClaudeSessionHost.tmux(named).displayName == "tmux in Ghostty"
                      && ClaudeSessionHost.tmux(pane!).displayName == "tmux"
                      && ClaudeSessionHost.iterm(tty: "/dev/ttys1").displayName != nil, "the host is named as the person knows it")
+
+        zellijHosts(suite)
 
         let clients = "/dev/ttys001\t100\t$1\t50\n/dev/ttys002\t200\t$0\t40\n/dev/ttys003\t300\t$0\t90\nbad line\n"
         suite.expect(ClaudeTmux.client(from: clients, session: "$0") == ClaudeTmuxClient(tty: "/dev/ttys003", pid: 300, elsewhere: false),

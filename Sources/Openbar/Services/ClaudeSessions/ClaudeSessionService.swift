@@ -1387,21 +1387,22 @@ final class ClaudeSessionService: ObservableObject {
     }
 
     /// Brings the session's terminal forward. Calls back on the main thread
-    /// with whether the window was found.
-    func openHost(_ session: ClaudeSession, completion: @escaping (Bool) -> Void = { _ in }) {
+    /// with whether the window was found, or that the session's tmux or
+    /// zellij has no terminal attached (#235).
+    func openHost(_ session: ClaudeSession, completion: @escaping (ClaudeHostOpen) -> Void = { _ in }) {
         acknowledge(session.id)
-        if session.id == ClaudeSessionSample.id { return completion(false) }
+        if session.id == ClaudeSessionSample.id { return completion(.missing) }
         if session.provider == .codex, session.host.remoteAlias != nil {
             // A host's Codex runs in a terminal there, which nothing here shows.
-            return DispatchQueue.main.async { completion(false) }
+            return DispatchQueue.main.async { completion(.missing) }
         }
         if let alias = session.host.remoteAlias {
             // Its pane comes forward in the host's tmux; no window here shows it.
             queue.async { [self] in
-                guard let link = remoteLinks[alias] else { return DispatchQueue.main.async { completion(false) } }
+                guard let link = remoteLinks[alias] else { return DispatchQueue.main.async { completion(.missing) } }
                 link.perform { link in
                     let found = link.focus(pid: session.pid, session: session.id)
-                    DispatchQueue.main.async { completion(found) }
+                    DispatchQueue.main.async { completion(found ? .opened : .missing) }
                 }
             }
             return
@@ -1409,10 +1410,20 @@ final class ClaudeSessionService: ObservableObject {
         let homes = ClaudeSessionRegistryReader.homes(home)
         let terminal = ClaudeTerminalLauncher.preferred(from: sessions)
         actions.async {
-            let found = session.background != nil
-                ? ClaudeHostFocus.attach(session, terminal: terminal)
-                : ClaudeHostFocus.focus(session, homes: homes)
-            DispatchQueue.main.async { completion(found) }
+            let result = session.background != nil
+                ? (ClaudeHostFocus.attach(session, terminal: terminal) ? .opened : .missing)
+                : ClaudeHostFocus.open(session, homes: homes)
+            DispatchQueue.main.async { completion(result) }
+        }
+    }
+
+    /// Attaches a detached tmux or zellij session in a new window of the
+    /// person's terminal, with the line `openHost` gave.
+    func attachDetached(_ line: String, completion: @escaping (Bool) -> Void = { _ in }) {
+        let terminal = ClaudeTerminalLauncher.preferred(from: sessions)
+        actions.async {
+            let opened = ClaudeTerminalLauncher.open(line, terminal: terminal)
+            DispatchQueue.main.async { completion(opened) }
         }
     }
 
@@ -1838,6 +1849,21 @@ extension ClaudeSessionHosts {
             ? ResponsibleProcess.regularAppOwner(of: pid)?.bundleIdentifier : nil
         let port = environment["CLAUDE_CODE_SSE_PORT"].flatMap(Int.init)
         var host = classify(bundle: bundle, tty: device, port: port, environment: environment, owner: owner)
+        // zellij's variables reach everything started in its panes too, a
+        // tmux run in one among them; only a process zellij's server runs
+        // under is in its pane.
+        if case .zellij(var target) = host {
+            if let server = ClaudeZellij.server(of: pid) {
+                target.server = server
+                // The terminal showing it, for its name; Open looks again.
+                if let client = ClaudeZellij.client(of: target), let outer = Self.host(of: client.pid).bundle {
+                    target.outer = outer
+                }
+                return .zellij(target)
+            }
+            for key in ["ZELLIJ", "ZELLIJ_SESSION_NAME", "ZELLIJ_PANE_ID"] { environment[key] = nil }
+            host = classify(bundle: bundle, tty: device, port: port, environment: environment, owner: owner)
+        }
         // tmux names its pane in the environment of everything started in
         // it, an editor opened from it too: the pane has to be the session's.
         if case .tmux(var target) = host {
@@ -1872,6 +1898,41 @@ enum ClaudeHostFocus {
         focus(session.host, pid: session.pid, cwd: session.cwd, homes: homes)
     }
 
+    static func open(_ session: ClaudeSession, homes: [URL]) -> ClaudeHostOpen {
+        reach(session.host, pid: session.pid, cwd: session.cwd, homes: homes)
+    }
+
+    /// Like `focus`, telling a tmux or zellij with no terminal attached,
+    /// however deep in other multiplexers it sits, from one not found.
+    static func reach(_ host: ClaudeSessionHost, pid: Int32, cwd: String, homes: [URL], depth: Int = 0) -> ClaudeHostOpen {
+        // The terminal showing a multiplexer comes forward the way a session
+        // in that terminal would, a multiplexer showing it in turn included.
+        func outer(_ client: Int32) -> ClaudeHostOpen {
+            guard depth < 3 else { return .opened }
+            let shown = reach(ClaudeSessionHosts.host(of: client), pid: client, cwd: cwd, homes: homes, depth: depth + 1)
+            if case .detached = shown { return shown }
+            return .opened
+        }
+        switch host {
+        case .tmux(let target):
+            let tty = ClaudeSessionHosts.tty(of: pid)
+            guard let client = ClaudeTmux.focus(target, tty: tty) else {
+                return ClaudeTmux.attachLine(target, tty: tty).map { .detached(attach: $0) } ?? .missing
+            }
+            return outer(client.pid)
+        case .zellij(let target):
+            switch ClaudeZellij.focus(target, pid: pid) {
+            case .missing: return .missing
+            case .detached: return ClaudeZellij.attachLine(target).map { .detached(attach: $0) } ?? .missing
+            // Selected in zellij, though which terminal shows it isn't known.
+            case .client(nil): return .opened
+            case .client(let client?): return outer(client.pid)
+            }
+        default:
+            return focus(host, pid: pid, cwd: cwd, homes: homes, depth: depth) ? .opened : .missing
+        }
+    }
+
     /// `depth` stops a tmux shown in a tmux shown in … from going on forever.
     static func focus(_ host: ClaudeSessionHost, pid: Int32, cwd: String, homes: [URL], depth: Int = 0) -> Bool {
         switch host {
@@ -1881,13 +1942,10 @@ enum ClaudeHostFocus {
             return script(ClaudeTerminalApps.iterm, ClaudeTTYTerminalScripts.itermFocus(tty: tty))
         case .ghostty(let tty):
             return script(ClaudeTerminalApps.ghostty, ClaudeTTYTerminalScripts.ghosttyFocus(tty: tty))
-        case .tmux(let target):
-            // tmux selects the pane; the terminal showing it comes forward
-            // the way a session in that terminal would.
-            guard let client = ClaudeTmux.focus(target, tty: ClaudeSessionHosts.tty(of: pid)) else { return false }
-            guard depth < 3 else { return true }
-            _ = focus(ClaudeSessionHosts.host(of: client.pid), pid: client.pid, cwd: cwd, homes: homes, depth: depth + 1)
-            return true
+        case .tmux, .zellij:
+            // The multiplexer selects the pane; the terminal showing it comes
+            // forward the way a session in that terminal would.
+            return reach(host, pid: pid, cwd: cwd, homes: homes, depth: depth) == .opened
         case .wezterm(let pane, let socket):
             guard let found = ClaudeWezTerm.focus(pane: pane, socket: socket, tty: ClaudeSessionHosts.tty(of: pid)) else {
                 return activate(ClaudeTerminalApps.wezterm, window: nil)
@@ -2002,6 +2060,8 @@ enum ClaudeTerminalReply {
             return run(ClaudeTTYTerminalScripts.ghosttyType(steps, tty: tty), in: ClaudeTerminalApps.ghostty)
         case .tmux(let target):
             return ClaudeTmux.send(steps, to: target, tty: ClaudeSessionHosts.tty(of: session.pid))
+        case .zellij(let target):
+            return ClaudeZellij.send(steps, to: target, pid: session.pid)
         case .wezterm(let pane, let socket):
             return ClaudeWezTerm.send(steps, pane: pane, socket: socket, tty: ClaudeSessionHosts.tty(of: session.pid))
         case .kitty(let window, let socket?):

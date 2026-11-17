@@ -14,6 +14,9 @@ struct NotchClaudeSessionDetailView: View {
     @ObservedObject private var notch = NotchService.shared
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
     @State private var openFailed = false
+    /// The line that attaches the session's tmux or zellij, after Open found
+    /// no terminal showing it (#235).
+    @State private var detachedLine: String?
     @State private var renaming = false
     @State private var newName = ""
     @FocusState private var nameFocused: Bool
@@ -121,6 +124,7 @@ struct NotchClaudeSessionDetailView: View {
                 }
                 HStack(spacing: 6) {
                     if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
+                    if let multiplexer = session.host.multiplexer { NotchMultiplexerBadge(name: multiplexer, text: text) }
                     if let account = service.accountLabels[session.id] { NotchClaudeAccountBadge(name: account) }
                     if session.autoMode { NotchSessionAutoBadge(provider: session.provider, text: text) }
                     NotchClaudeProjectTag(project: session.project)
@@ -147,12 +151,30 @@ struct NotchClaudeSessionDetailView: View {
     }
 
     private func open() {
-        service.openHost(session) { found in
-            openFailed = !found
-            if !found {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { openFailed = false }
+        if let line = detachedLine { return attach(line) }
+        service.openHost(session) { result in
+            switch result {
+            case .opened:
+                openFailed = false
+            case .missing:
+                failed()
+            case .detached(let line):
+                openFailed = false
+                detachedLine = line
+                // The offer lapses, so a session attached meanwhile opens as usual.
+                DispatchQueue.main.asyncAfter(deadline: .now() + 10) { if detachedLine == line { detachedLine = nil } }
             }
         }
+    }
+
+    private func attach(_ line: String) {
+        detachedLine = nil
+        service.attachDetached(line) { opened in if !opened { failed() } }
+    }
+
+    private func failed() {
+        openFailed = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { openFailed = false }
     }
 
     private var renameButton: some View {
@@ -215,9 +237,10 @@ struct NotchClaudeSessionDetailView: View {
     private var openButton: some View {
         Button(action: open) {
             HStack(spacing: 4) {
-                Image(systemName: openFailed ? "exclamationmark.triangle.fill" : "arrow.up.forward.app")
+                Image(systemName: openFailed ? "exclamationmark.triangle.fill"
+                        : detachedLine != nil ? "macwindow.badge.plus" : "arrow.up.forward.app")
                     .font(.system(size: 11, weight: .semibold))
-                Text(openFailed ? text.openFailed : text.open)
+                Text(openFailed ? text.openFailed : detachedLine != nil ? text.detachedAttach : text.open)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
             }
@@ -228,7 +251,9 @@ struct NotchClaudeSessionDetailView: View {
         }
         .buttonStyle(NotchButtonStyle(cornerRadius: 9))
         .disabled(session.host == .unknown)
-        .help(session.host.displayName.map(text.openIn) ?? text.open)
+        .help(detachedLine != nil ? text.detachedHelp(session.host.multiplexer ?? "tmux")
+              : session.host.displayName.map(text.openIn) ?? text.open)
+        .animation(.easeOut(duration: 0.15), value: detachedLine)
     }
 
     // MARK: Work

@@ -275,6 +275,7 @@ struct NotchClaudeSessionRow: View {
                     .truncationMode(.tail)
                 if session.background != nil { NotchClaudeBackgroundMark(text: text) }
                 if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias) }
+                if let multiplexer = session.host.multiplexer { NotchMultiplexerBadge(name: multiplexer, text: text) }
                 if let account { NotchClaudeAccountBadge(name: account) }
                 if session.autoMode { NotchSessionAutoBadge(provider: session.provider, text: text) }
                 Spacer(minLength: 4)

@@ -18,6 +18,14 @@ enum ClaudeSessionHosts {
     static func classify(bundle: String?, tty: String?, port: Int?, environment: [String: String] = [:],
                          owner: String? = nil) -> ClaudeSessionHost {
         let program = environment["TERM_PROGRAM"]
+        // zellij leaves the outer terminal's TERM_PROGRAM alone, so its own
+        // variables come first; whether the pane is the session's, and so
+        // which of two nested multiplexers is the inner one, is checked
+        // against the process tree afterwards (`host(of:)`).
+        if environment["ZELLIJ"] != nil,
+           let target = ClaudeZellijPane(session: environment["ZELLIJ_SESSION_NAME"], pane: environment["ZELLIJ_PANE_ID"]) {
+            return .zellij(target)
+        }
         if program == nil || program == "tmux", let tmux = environment["TMUX"], let pane = environment["TMUX_PANE"],
            let target = ClaudeTmuxPane(tmux: tmux, pane: pane) {
             return .tmux(target)
@@ -113,6 +121,7 @@ enum ClaudeSessionHosts {
     /// else in it is kept.
     static let hostKeys: Set<String> = [
         "__CFBundleIdentifier", "CLAUDE_CODE_SSE_PORT", "TERM", "TERM_PROGRAM", "TMUX", "TMUX_PANE",
+        "ZELLIJ", "ZELLIJ_SESSION_NAME", "ZELLIJ_PANE_ID",
         "WEZTERM_PANE", "WEZTERM_UNIX_SOCKET", "KITTY_WINDOW_ID", "KITTY_LISTEN_ON",
     ]
 

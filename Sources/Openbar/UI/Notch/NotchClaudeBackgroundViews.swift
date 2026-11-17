@@ -857,6 +857,27 @@ struct NotchClaudeAccountBadge: View {
     }
 }
 
+/// The tmux or zellij a session's pane belongs to, beside its name (#235).
+struct NotchMultiplexerBadge: View {
+    let name: String
+    let text: NotchClaudeSessionStrings
+    var size: CGFloat = 9.5
+
+    var body: some View {
+        Label(name, systemImage: "rectangle.split.2x1")
+            .labelStyle(NotchClaudeSessionInlineLabel())
+            .font(.system(size: size, weight: .semibold))
+            .foregroundStyle(.white.opacity(0.78))
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(.white.opacity(0.1), in: Capsule())
+            .help(text.inMultiplexer(name))
+            .accessibilityLabel(text.inMultiplexer(name))
+    }
+}
+
 /// The SSH host a session runs on, beside its name, so a remote session
 /// never passes for one on this Mac (issue #189).
 struct NotchRemoteHostBadge: View {
