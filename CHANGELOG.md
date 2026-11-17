@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Waiting permission asks gather into one queue. With more than one waiting, the Sessions list opens on "3 waiting" and every ask on its own row: the session, the tool and the command or file, with its own Deny, Always and Allow. A session asking several things at once gets a row for each. Allow all allows only the asks that look safe: anything that deletes files, works outside the project, uses the network, changes the system, runs code it builds, uses a tool Openbar doesn't know, or matches a deny or ask rule in your Claude Code settings stays for you, with the reason on its row. New asks join at the bottom and never move the page you're reading. Works for Claude Code, Codex, OpenCode and Mistral Vibe. On Mac, Windows and Linux.
+
 ## [3.5.0-beta.4] - 2026-11-17
 
 Released together with Openbar for Windows 1.0.0 and Openbar for Linux 0.5.0.
