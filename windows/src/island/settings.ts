@@ -11,6 +11,7 @@ import type { LanguagePreference } from "../i18n/languages";
 import type { ModuleId } from "./modules";
 import type { MonitorMetric, NetworkSpeedUnit } from "../system/types";
 import { DEFAULT_HIDDEN_CONTROLS, type ControlItem } from "../controls/types";
+import { onLinux } from "../shared/platform";
 import type { AgentCard, AgentPeriod, AgentReadout, CodexProfile, LimitDisplay, LimitFocus } from "../agents/types";
 import type { WatchCondition } from "../watch/types";
 import type { MascotFrequency, MascotPalette, MascotSide, MascotTexture, MascotItem } from "../mascot/model";
@@ -76,7 +77,7 @@ export interface IslandSettings {
   language: LanguagePreference;
   /** Ask GitHub now and then whether a newer version exists (updates/). */
   checkUpdates: boolean;
-  /** Offer beta releases too (the Mac's includeBetaUpdates); on while the Windows app is itself a beta. */
+  /** Offer beta releases too (the Mac's includeBetaUpdates). Off on Windows since 1.0; on for Linux, which is still a beta. */
   betaUpdates: boolean;
   /** "Skip this version": the version whose prompts stay quiet; a newer one prompts again. */
   updateSkipped: string;
@@ -293,7 +294,7 @@ export const DEFAULT_SETTINGS: IslandSettings = {
   sections: { agents: true, sessions: true },
   language: "auto",
   checkUpdates: true,
-  betaUpdates: true,
+  betaUpdates: onLinux(),
   updateSkipped: "",
   updateSnoozedUntil: 0,
   feedbackAttachDiagnostics: false,

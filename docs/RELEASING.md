@@ -16,7 +16,7 @@ Both flags can go together. Bump the versions in a PR first (`Resources/Info.pli
 | Mac | `v<version>` | `Openbar-<version>.dmg`, `Openbar-<version>.dmg.sig` |
 | Windows | `windows-v<version>` | `Openbar_<version>_{x64,arm64}-setup.exe`, their `.sig` files, `latest.json` |
 
-A version with a hyphen (`3.6.0-beta.1`) is a beta and so is every Windows release below 1.0; they go out as GitHub pre-releases and reach only people with beta updates on.
+A version with a hyphen (`3.6.0-beta.1`) is a beta; it goes out as a GitHub pre-release and reaches only people with beta updates on.
 
 ## Update keys
 

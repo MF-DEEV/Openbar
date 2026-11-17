@@ -28,7 +28,7 @@
 <p align="center"><sub>The Sessions page, recorded with sample sessions.</sub></p>
 
 > [!NOTE]
-> This is a beta. The sections listed under [Not yet](#not-yet) show a placeholder for now. Openbar is built on Vorssaint's source under the GPL and is not affiliated with or endorsed by the Vorssaint maintainer.
+> The sections listed under [Not yet](#not-yet) show a placeholder for now. Openbar is built on Vorssaint's source under the GPL and is not affiliated with or endorsed by the Vorssaint maintainer.
 
 ## Install
 
