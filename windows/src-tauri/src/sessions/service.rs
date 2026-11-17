@@ -928,6 +928,7 @@ impl Service {
                                     | HostKind::Conhost
                                     | HostKind::Wezterm
                                     | HostKind::Tmux
+                                    | HostKind::Zellij
                                     | HostKind::Kitty
                             )
                         }
@@ -1760,7 +1761,47 @@ impl Service {
         hosts::shown(pid as u32, &located)
     }
 
-    fn open(&self, session: &str) -> bool {
+    /// Open, telling a tmux or zellij with no terminal attached from a
+    /// window not found (#235).
+    fn open(&self, session: &str) -> OpenResult {
+        if self.open_found(session) {
+            OpenResult::Opened
+        } else if self.detached_of(session).is_some() {
+            OpenResult::Detached
+        } else {
+            OpenResult::Missing
+        }
+    }
+
+    /// The session's own host, from its pid.
+    fn located_of(&self, session: &str) -> Option<(u32, hosts::Located)> {
+        let inner = self.inner.lock().unwrap();
+        let s = inner.sessions.iter().find(|s| s.id == session)?;
+        let located = inner.hosts.get(&s.pid)?.clone();
+        Some((s.pid as u32, located))
+    }
+
+    /// What attaches the session's tmux or zellij, when no terminal shows it.
+    fn detached_of(&self, session: &str) -> Option<(String, Vec<String>)> {
+        let (pid, located) = self.located_of(session)?;
+        hosts::detached(pid, &located)
+    }
+
+    /// Attaches the session's detached tmux or zellij in a new terminal
+    /// window. The command line is worked out here again, never taken from
+    /// the page.
+    fn attach_detached(&self, session: &str) -> bool {
+        let Some((program, arguments)) = self.detached_of(session) else {
+            return false;
+        };
+        let ok = background::agent_in_terminal(std::path::Path::new(&program), &arguments, None);
+        if ok {
+            self.acknowledge(session);
+        }
+        ok
+    }
+
+    fn open_found(&self, session: &str) -> bool {
         if let Some((link, pid)) = self.remote_target(session) {
             // Its pane comes forward in the host's tmux; no window here shows it.
             let ok = link.focus(pid, session);
@@ -1845,6 +1886,7 @@ fn host_kind(host: &hosts::Host) -> HostKind {
         hosts::Host::Conhost => HostKind::Conhost,
         hosts::Host::Wezterm { .. } => HostKind::Wezterm,
         hosts::Host::Tmux { .. } => HostKind::Tmux,
+        hosts::Host::Zellij { .. } => HostKind::Zellij,
         hosts::Host::Kitty { .. } => HostKind::Kitty,
         hosts::Host::App { .. } => HostKind::App,
         hosts::Host::Unknown => HostKind::Unknown,
@@ -3188,13 +3230,35 @@ pub async fn sessions_terminal_shown(
     .map_err(|_| ())
 }
 
+/// What Open came to (#235).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum OpenResult {
+    Opened,
+    Missing,
+    /// The session's tmux or zellij has no terminal attached; `sessions_attach` attaches it.
+    Detached,
+}
+
 #[tauri::command]
 pub async fn sessions_open(
     service: tauri::State<'_, Shared>,
     session_id: String,
-) -> Result<bool, ()> {
+) -> Result<OpenResult, ()> {
     let service = service.inner().clone();
     tauri::async_runtime::spawn_blocking(move || service.open(&session_id))
+        .await
+        .map_err(|_| ())
+}
+
+/// Attaches a session's detached tmux or zellij in a new terminal window.
+#[tauri::command]
+pub async fn sessions_attach(
+    service: tauri::State<'_, Shared>,
+    session_id: String,
+) -> Result<bool, ()> {
+    let service = service.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || service.attach_detached(&session_id))
         .await
         .map_err(|_| ())
 }

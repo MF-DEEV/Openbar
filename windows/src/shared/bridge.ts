@@ -245,7 +245,10 @@ export const bridge = {
       call<ReplyFailure | null>("sessions_reply", { sessionId, text, images }),
     attachImage: (dataUrl: string) => call<ReplyAttachment>("sessions_attach_image", { dataUrl }),
     clipboardImages: () => call<ReplyAttachment[]>("sessions_clipboard_images"),
-    open: (sessionId: string) => call<boolean>("sessions_open", { sessionId }),
+    /** What Open came to: "detached" when the session's tmux or zellij has no terminal attached (#235). */
+    open: (sessionId: string) => call<"opened" | "missing" | "detached">("sessions_open", { sessionId }),
+    /** Attaches that tmux or zellij in a new terminal window. */
+    attach: (sessionId: string) => call<boolean>("sessions_attach", { sessionId }),
     /** Whether every one of these sessions shows in front in its own terminal tab (#210). */
     terminalShown: (sessionIds: string[]) => call<boolean>("sessions_terminal_shown", { sessionIds }),
     /** What went wrong, or null. */

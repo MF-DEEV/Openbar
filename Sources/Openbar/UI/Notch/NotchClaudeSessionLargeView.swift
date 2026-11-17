@@ -11,6 +11,8 @@ struct NotchClaudeSessionLargeView: View {
     let session: ClaudeSession
     let text: NotchClaudeSessionStrings
     let open: () -> Void
+    /// Open found the session's tmux or zellij with no terminal attached (#235).
+    var detached = false
     @AppStorage(DefaultsKey.notchSessionsLargeTextSize) private var textSize = NotchClaudeSessionsSupport.largeTextSizes.lowerBound + 3
     @AppStorage(DefaultsKey.notchSessionsContentPreview) private var previews = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -194,6 +196,7 @@ struct NotchClaudeSessionLargeView: View {
                 }
                 HStack(spacing: 8) {
                     if let alias = session.host.remoteAlias { NotchRemoteHostBadge(alias: alias, size: 11) }
+                    if let multiplexer = session.host.multiplexer { NotchMultiplexerBadge(name: multiplexer, text: text, size: 11, detached: detached) }
                     if let account = ClaudeSessionService.shared.accountLabels[session.id] { NotchClaudeAccountBadge(name: account, size: 11) }
                     if session.autoMode { NotchSessionAutoBadge(provider: session.provider, text: text, size: 11) }
                     NotchClaudeProjectTag(project: session.project, size: 12)

@@ -377,7 +377,7 @@ enum SettingsDirectory {
                                                  FeatureStrings.diagnostics(language).windowTitle,
                                                  FeatureStrings.notchClaudeSessions(language).buddies,
                                                  "Claude Code", "hooks", "permission", "Antigravity", "Terminal",
-                                                 "VS Code", "Cursor", "Windsurf", "iTerm2", "Ghostty", "tmux", "WezTerm", "kitty",
+                                                 "VS Code", "Cursor", "Windsurf", "iTerm2", "Ghostty", "tmux", "zellij", "WezTerm", "kitty",
                                                  "Clawd", "outfit", "costume",
                                                  FeatureStrings.notchLockScreen(language).title,
                                                  FeatureStrings.notchLockScreen(language).sounds]

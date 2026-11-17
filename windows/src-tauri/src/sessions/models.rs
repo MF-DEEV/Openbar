@@ -165,6 +165,8 @@ pub enum HostKind {
     Wezterm,
     /// A tmux pane, reached through tmux's command line.
     Tmux,
+    /// A zellij pane, reached through zellij's command line (#235).
+    Zellij,
     /// A kitty window with remote control on.
     Kitty,
     App,

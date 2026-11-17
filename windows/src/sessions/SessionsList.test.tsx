@@ -102,6 +102,16 @@ it("names the SSH host of a remote session beside its name, and only then", () =
   expect(long).toContain("a-very-long-host-alia…");
 });
 
+it("names the tmux or zellij a local session's pane belongs to (#235)", () => {
+  const zellij = rows([{ ...quiet, id: "z", host: "zellij", hostName: "zellij" }]);
+  expect(zellij).toContain('class="s-multiplexer-mark"');
+  expect(zellij).toContain("In a zellij pane");
+  expect(rows([{ ...quiet, id: "t", host: "tmux", hostName: "tmux" }])).toContain(">tmux</span>");
+  expect(rows([quiet])).not.toContain("s-multiplexer-mark");
+  // A remote host's row names the host instead.
+  expect(rows([{ ...quiet, id: "far", host: "remote", remote: "box" }])).not.toContain("s-multiplexer-mark");
+});
+
 it("names the terminals and editors of the platform in the empty list", () => {
   expect(rows([])).toContain("Windows Terminal or VS Code");
   vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/605.1.15 (KHTML, like Gecko)" });

@@ -50,6 +50,8 @@ interface SessionsState {
   setCostume(key: string, code: string | null): void;
   /** "Couldn’t find that window" shows until this time. */
   openFailedUntil: number;
+  /** The session whose tmux or zellij Open found detached, offering Attach until `until` (#235). */
+  detached: { id: string; until: number } | null;
   receive(snapshot: Snapshot): void;
   focus(id: string | null, request?: string | null): void;
   /** Allows every ask of the queue that looks safe and has been on screen a moment (#269). */
@@ -63,6 +65,8 @@ interface SessionsState {
   skip(session: Session): Promise<boolean>;
   reply(session: Session, text: string, images: string[]): Promise<ReplyFailure | null>;
   openWindow(session: Session): Promise<boolean>;
+  /** Attaches the session's detached tmux or zellij in a new terminal window. */
+  attachDetached(session: Session): Promise<boolean>;
 }
 
 const EMPTY: Snapshot = {
@@ -119,6 +123,7 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   prefs: DEFAULT_SESSION_PREFS,
   costumes: costumeStore.all(),
   openFailedUntil: 0,
+  detached: null,
 
   setCostume(key, code) {
     const live = new Set(get().snapshot.sessions.map((x) => x.id));
@@ -274,9 +279,23 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   },
 
   async openWindow(session) {
-    const ok = (await bridge.sessions.open(session.id)) ?? false;
+    const result = await bridge.sessions.open(session.id);
+    if (result === "detached") {
+      // The offer lapses, so a session attached meanwhile opens as usual.
+      set({ detached: { id: session.id, until: now() + 10 } });
+      return false;
+    }
+    const ok = result === "opened";
+    set({ detached: null });
     if (!ok) set({ openFailedUntil: now() + 3 });
     else void bridge.sessions.acknowledge(session.id);
+    return ok;
+  },
+
+  async attachDetached(session) {
+    set({ detached: null });
+    const ok = (await bridge.sessions.attach(session.id)) ?? false;
+    if (!ok) set({ openFailedUntil: now() + 3 });
     return ok;
   },
 }));

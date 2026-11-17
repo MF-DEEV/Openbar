@@ -2794,8 +2794,10 @@
   }
 }
 
-/* The SSH host of a remote session (sessions/remote.rs). */
-.s-remote-mark {
+/* The SSH host of a remote session (sessions/remote.rs), and the tmux or
+ * zellij a local session's pane belongs to (#235). */
+.s-remote-mark,
+.s-multiplexer-mark {
   flex: none;
   display: inline-flex;
   align-items: center;
@@ -2809,7 +2811,8 @@
   white-space: nowrap;
 }
 
-.s-row-line2 > .s-remote-mark {
+.s-row-line2 > .s-remote-mark,
+.s-row-line2 > .s-multiplexer-mark {
   margin-right: 2px;
 }
 

@@ -21,7 +21,7 @@ pub struct Metadata {
 
 #[cfg(target_os = "linux")]
 pub use crate::linux::process::{
-    ancestors, environment_values, is_running, metadata, pids_named, started_at,
+    ancestors, environment_values, image_path, is_running, metadata, pids_named, started_at,
 };
 
 #[cfg(windows)]

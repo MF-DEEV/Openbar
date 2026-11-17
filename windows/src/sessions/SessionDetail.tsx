@@ -48,7 +48,15 @@ import { answerMarks, messageTime } from "./conversation";
 import { RichText } from "./RichText";
 import { MessageImages } from "./MessageImages";
 import { useNow } from "./useNow";
-import { AccountMark, BackgroundBar, BackgroundLogs, RemoteHostMark, WorktreeBar } from "./Background";
+import {
+  AccountMark,
+  BackgroundBar,
+  BackgroundLogs,
+  RemoteHostMark,
+  MultiplexerMark,
+  multiplexerOf,
+  WorktreeBar,
+} from "./Background";
 import { AutoMark, LetThroughList } from "./AutoMode";
 import { S } from "./strings";
 import { useSessions } from "./store";
@@ -133,6 +141,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
   const time = phaseClock(session, now);
   const color = projectColor(session.project);
   const renaming = useSessions((s) => s.renaming);
+  const detached = useSessions((s) => s.detached);
   const wardrobe = useSessions((s) => s.wardrobe);
   const buddies = useSessions((s) => s.prefs.buddies);
   const kept = useSessions((s) => s.costumes[session.id]);
@@ -234,6 +243,12 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
             </div>
             <div className="s-row-line2">
               {session.remote ? <RemoteHostMark alias={session.remote} /> : null}
+              {multiplexerOf(session) ? (
+                <MultiplexerMark
+                  name={multiplexerOf(session)!}
+                  detached={detached !== null && detached.id === session.id && Date.now() / 1000 < detached.until}
+                />
+              ) : null}
               {session.accountLabel ? <AccountMark name={session.accountLabel} /> : null}
               {session.autoMode ? <AutoMark provider={session.provider} /> : null}
               <span className="s-tag" style={{ color, background: `color-mix(in srgb, ${color} 16%, transparent)` }}>

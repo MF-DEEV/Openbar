@@ -36,6 +36,15 @@
 </p>
 
 <p align="center">
+  <a href="docs/terminal-hosts.md">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="docs/assets/readme/terminals/terminals-dark.svg">
+      <img src="docs/assets/readme/terminals/terminals-light.svg" width="640" alt="Open and Reply reach sessions in Terminal, iTerm2, Ghostty, WezTerm, kitty, Windows Terminal, tmux, zellij and the terminals of VS Code, Cursor and Windsurf">
+    </picture>
+  </a>
+</p>
+
+<p align="center">
   <img src="docs/assets/readme/openbar-demo.gif" width="100%" alt="A laptop on a stone table by a campfire with knights around it; the camera moves in to the notch, where Openbar lists Claude Code, Codex, Gemini CLI and OpenCode sessions, and a reply typed in the island lands in the session's terminal">
 </p>
 

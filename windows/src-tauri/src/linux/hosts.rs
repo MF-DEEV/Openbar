@@ -107,6 +107,13 @@ fn locate_with(pid: u32, tmux_program: &str, kitten_program: &str) -> Option<Loc
     if let Some(host) = kitty_in(&located, pid, &window, kitten_program) {
         located.host = host;
     }
+    // A pane of zellij wins over the terminal around it, once its server runs the session.
+    if let Some(host) = crate::hosts::zellij_host(
+        &chain,
+        &process::environment_values(pid, &crate::hosts::ZELLIJ_VARIABLES),
+    ) {
+        located.host = host;
+    }
     // A pane of tmux wins over the terminal around it, once it is on the session's terminal.
     if let Some(host) = tmux_in(
         process::terminal_of(pid).as_deref(),
@@ -205,6 +212,14 @@ pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
     match &located.host {
         Host::Tmux { socket, pane } => {
             let mut pids = tmux::focus(socket, pane, process::terminal_of(pid).as_deref());
+            // A client inside zellij or another tmux comes forward through it.
+            for &client in &pids {
+                if let Some(outer) = locate(client)
+                    && matches!(outer.host, Host::Tmux { .. } | Host::Zellij { .. })
+                {
+                    return crate::hosts::focus(client, &outer, cwd);
+                }
+            }
             // The terminal around each attached client, nearest first.
             let clients = pids.clone();
             for client in clients {
@@ -239,7 +254,10 @@ pub fn shown(pid: u32, located: &Located) -> Option<bool> {
             };
             let outer = locate(client)?;
             match &outer.host {
-                Host::Kitty { .. } | Host::Wezterm { .. } => crate::hosts::shown(client, &outer),
+                Host::Kitty { .. }
+                | Host::Wezterm { .. }
+                | Host::Tmux { .. }
+                | Host::Zellij { .. } => crate::hosts::shown(client, &outer),
                 _ => None,
             }
         }
