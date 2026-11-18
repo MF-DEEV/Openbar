@@ -115,6 +115,8 @@ enum ClaudeTypingStep: Equatable {
     case paste(String)
     case wait(Double)
     case enter
+    /// Ctrl-C, as a key: Grok CLI's prompt takes it for no (#243).
+    case interrupt
 }
 
 enum ClaudeTyping {
@@ -134,6 +136,16 @@ enum ClaudeTyping {
     /// agents' take a quick one as part of the paste.
     static func enterDelay(_ provider: ClaudeSessionProvider) -> Double? {
         provider.reportsThroughHooks ? 0.5 : nil
+    }
+
+    /// Whether the session's terminal takes keys from the island as keys,
+    /// Return and Ctrl-C, as Grok CLI's prompt wants them (#243).
+    static func takesKeys(_ host: ClaudeSessionHost) -> Bool {
+        switch host {
+        case .terminal, .iterm, .tmux, .zellij, .wezterm: return true
+        case .kitty(_, let socket): return socket != nil
+        case .ghostty, .ide, .background, .app, .remote, .unknown: return false
+        }
     }
 
     /// The longest a sequence takes, for a timeout that outlasts it.
@@ -213,6 +225,7 @@ enum ClaudeTTYTerminalScripts {
                 "tell theSession to write text (marker & \"[200~\" & \(AppleScriptRunner.literal(text)) & marker & \"[201~\") newline no"
             case .wait(let seconds): "delay \(seconds)"
             case .enter: "tell theSession to write text (character id 13) newline no"
+            case .interrupt: "tell theSession to write text (character id 3) newline no"
             }
         }
         return iterm(tty: tty, found: (lines + ["return \"sent\""]).joined(separator: "\n"))
@@ -255,6 +268,9 @@ enum ClaudeTTYTerminalScripts {
             case .paste(let text): "input text \(AppleScriptRunner.literal(text)) to theTerminal"
             case .wait(let seconds): "delay \(seconds)"
             case .enter: "send key \"enter\" to theTerminal"
+            // Ghostty's dictionary has no way to send a control key that was
+            // checked; the island doesn't offer keys there (`takesKeys`).
+            case .interrupt: "return \"missing\""
             }
         }
         return ghostty(tty: tty, found: (lines + ["return \"sent\""]).joined(separator: "\n"))
@@ -363,6 +379,8 @@ enum ClaudeTmux {
                 Thread.sleep(forTimeInterval: seconds)
             case .enter:
                 guard run(target, ["send-keys", "-t", target.pane, "Enter"]) != nil else { return .unreachable }
+            case .interrupt:
+                guard run(target, ["send-keys", "-t", target.pane, "C-c"]) != nil else { return .unreachable }
             }
         }
         return nil
@@ -481,6 +499,10 @@ enum ClaudeWezTerm {
                 guard run(["send-text", "--pane-id", String(id), "--no-paste"], socket: socket, input: "\r") != nil else {
                     return .unreachable
                 }
+            case .interrupt:
+                guard run(["send-text", "--pane-id", String(id), "--no-paste"], socket: socket, input: "\u{3}") != nil else {
+                    return .unreachable
+                }
             }
         }
         return nil
@@ -556,6 +578,8 @@ enum ClaudeKitty {
                 Thread.sleep(forTimeInterval: seconds)
             case .enter:
                 guard run(["send-key"] + match + ["enter"], socket: socket) != nil else { return .unreachable }
+            case .interrupt:
+                guard run(["send-key"] + match + ["ctrl+c"], socket: socket) != nil else { return .unreachable }
             }
         }
         return nil

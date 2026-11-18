@@ -36,6 +36,9 @@ final class AgentHookSessions {
         var acknowledged: Date?
         var tools: [ClaudeToolUse] = []
         var permission: ClaudePermission?
+        /// What the tool about to run would ask, for an agent that names it
+        /// only before it asks (Grok CLI).
+        var nextAsk: ClaudePermission?
         /// Whether the island can answer `permission`.
         var answerable = false
         var asking = false
@@ -106,6 +109,7 @@ final class AgentHookSessions {
             entry.tools = Array(entry.tools.suffix(Self.timelineLength))
         case .toolFinished(let toolID, let name, let key, let failed, let started):
             entry.openTurn(at: date)
+            entry.nextAsk = nil
             if !entry.answerable { entry.clearWait() }
             let index = toolID.flatMap { id in entry.tools.lastIndex { $0.id == id } }
                 ?? entry.tools.firstIndex { $0.finished == nil && $0.name == name && (key == nil || $0.inputKey == key) }
@@ -123,8 +127,15 @@ final class AgentHookSessions {
                 entry.tools.append(use)
                 entry.tools = Array(entry.tools.suffix(Self.timelineLength))
             }
-        case .permission(let permission):
+        case .permission(var permission):
             entry.openTurn(at: date)
+            // Grok's prompt names no tool: the one its last PreToolUse named waits.
+            if permission.tool.isEmpty {
+                let asked = permission
+                permission = entry.nextAsk ?? ClaudePermission(requestID: asked.requestID, tool: "Tool", summary: nil,
+                                                               offersAlways: false, since: asked.since)
+                permission = permission.renewed(requestID: asked.requestID, since: asked.since)
+            }
             entry.permission = permission
             // Codex through hooks only hears of a request: Codex asks in its terminal.
             entry.answerable = event.provider.answersPermissions && entry.via == nil
@@ -147,6 +158,7 @@ final class AgentHookSessions {
             entry.turnOpen = false
             entry.turnEnded = date
             entry.completed = !failed
+            entry.nextAsk = nil
             entry.clearWait()
             for index in entry.tools.indices where entry.tools[index].finished == nil {
                 entry.tools[index].finished = max(date, entry.tools[index].started)
@@ -162,6 +174,8 @@ final class AgentHookSessions {
             }
         case .model(let model):
             entry.model = model
+        case .mayAsk(let permission):
+            entry.nextAsk = permission
         case .title(let title):
             entry.title = title
         case .usage(let key, let tokens, let cost):
@@ -260,7 +274,9 @@ final class AgentHookSessions {
         }
         let cost = entry.usage.values.reduce(0) { $0 + $1.cost }
         // A request only the agent can answer is shown as waiting there.
-        let inAgent = entry.permission != nil && !entry.answerable
+        // Grok's is answered with keys, where its terminal takes them.
+        let inAgent = entry.permission != nil
+            && (!entry.answerable || (entry.provider == .grok && !ClaudeTyping.takesKeys(host)))
         var session = ClaudeSession(
             id: id, pid: entry.pid, cwd: entry.cwd, project: project, name: project, branch: branch, model: entry.model,
             host: host, phase: phase, phaseSince: since, turnStarted: entry.turnStarted,

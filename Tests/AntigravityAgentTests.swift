@@ -282,7 +282,7 @@ enum AntigravityAgentTests {
                      "found by its app, its IDE or agy, never by ~/.gemini")
         suite.expect(ClaudeSessionProvider.antigravity.displayName == "Google Antigravity"
                      && ClaudeSessionProvider.antigravity.shortName == "Antigravity"
-                     && ClaudeSessionProvider.hookAgents.last == .antigravity
+                     && ClaudeSessionProvider.hookAgents.contains(.antigravity)
                      && !ClaudeSessionProvider.antigravity.answersPermissions
                      && !ClaudeSessionProvider.antigravity.takesRepliesDirectly
                      && AgentCLI.startArguments(.antigravity, prompt: "go") == ["-i", "go"],

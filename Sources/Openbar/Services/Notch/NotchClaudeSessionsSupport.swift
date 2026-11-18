@@ -36,6 +36,7 @@ enum NotchClaudeSessionsSupport {
         case .vibe: return DefaultsKey.notchSessionsAgentVibe
         case .devin: return DefaultsKey.notchSessionsAgentDevin
         case .antigravity: return DefaultsKey.notchSessionsAgentAntigravity
+        case .grok: return DefaultsKey.notchSessionsAgentGrok
         case .claude, .codex, .custom: return nil
         }
     }

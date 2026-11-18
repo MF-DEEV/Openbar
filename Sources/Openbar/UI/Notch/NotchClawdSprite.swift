@@ -300,6 +300,11 @@ enum NotchClawdSprite {
         case .antigravity:
             put(Stamp(x: 0, y: 0, rows: antigravityBody))
             codexArms(pose.arms).forEach { put($0) }
+        case .grok:
+            // The slash goes first: the body hides its middle, a hat its top.
+            grokSlash.forEach { put($0) }
+            put(Stamp(x: 0, y: 0, rows: grokBody))
+            codexArms(pose.arms).forEach { put($0) }
         }
         put(eyes(pose.eyes, column: 3))
         put(eyes(pose.eyes, column: 9))
@@ -339,6 +344,7 @@ enum NotchClawdSprite {
         case .devin: return [(3, true), (4, true), (8, false), (9, false)]
         // The arch stands on the ends of its two legs.
         case .antigravity: return [(0, true), (2, true), (10, false), (12, false)]
+        case .grok: return [(3, true), (4, true), (8, false), (9, false)]
         }
     }
 
@@ -444,6 +450,19 @@ enum NotchClawdSprite {
         "CCCC.....CCCC",
         "ccc.......ccc",
     ]
+    /// Grok CLI's figure: a round body with the slash of its mark (A)
+    /// coming out at its top right and bottom left.
+    static let grokBody = [
+        "...CCCCCCC...",
+        ".CCCCCCCCCCC.",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        "CCCCCCCCCCCCC",
+        ".cCCCCCCCCCc.",
+        "...ccccccc...",
+    ]
+    private static let grokSlash = [Stamp(x: 10, y: -2, rows: ["..A", ".A.", "A.."]), Stamp(x: 1, y: 7, rows: [".A", "A."])]
     private static let devinAntennae = [Stamp(x: 3, y: -2, rows: ["A", "c"]), Stamp(x: 9, y: -2, rows: ["A", "c"])]
 
     // MARK: Codex's robot
@@ -1025,7 +1044,7 @@ enum NotchClawdSprite {
             case "y": return shaded(piYellow)
             default: break
             }
-        case .vibe, .devin, .antigravity:
+        case .vibe, .devin, .antigravity, .grok:
             break
         case .clawd:
             break

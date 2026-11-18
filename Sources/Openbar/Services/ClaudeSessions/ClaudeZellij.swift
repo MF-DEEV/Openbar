@@ -200,6 +200,8 @@ enum ClaudeZellij {
                 Thread.sleep(forTimeInterval: seconds)
             case .enter:
                 guard run(target, ["send-keys", "--pane-id", target.paneID, "Enter"]) != nil else { return .unreachable }
+            case .interrupt:
+                guard run(target, ["send-keys", "--pane-id", target.paneID, "Ctrl c"]) != nil else { return .unreachable }
             }
         }
         return nil

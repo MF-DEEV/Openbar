@@ -463,6 +463,26 @@ final class ClaudeSessionService: ObservableObject {
             default:
                 guard inspection.allows(id, current, revision: revision, token: inspectionToken) else { return }
             }
+            if hookAgents.owns(id), hookAgents.entry(id)?.provider == .grok {
+                // Grok's prompt takes Return for the yes it has picked and
+                // Ctrl-C for no; its hooks tell when it moves on (#243).
+                let keys: [ClaudeTypingStep]
+                switch decision {
+                case .allow: keys = [.enter]
+                case .deny: keys = [.interrupt]
+                default: return
+                }
+                guard let session = latest.first(where: { $0.id == id }), ClaudeTyping.takesKeys(session.host) else { return }
+                actions.async { [self] in
+                    guard ClaudeTerminalReply.press(keys, to: session) == nil else { return }
+                    queue.async { [self] in
+                        hookAgents.resolve(id, request: request)
+                        hookAgents.acknowledge(id, now: Date())
+                        publish(now: Date())
+                    }
+                }
+                return
+            }
             if hookAgents.owns(id) {
                 // OpenCode's plugin waits for the answer; the other agents ask in their own terminal.
                 let vibe = hookAgents.entry(id)?.provider == .vibe
@@ -1372,6 +1392,8 @@ final class ClaudeSessionService: ObservableObject {
         if !isRemotePeer(connection.peer), AgentDevinClaudeHooks.isDevin(payload, peer: connection.peer) {
             return connection.finish()
         }
+        // Grok CLI runs them too, with its own input; its sessions have hooks of their own.
+        if AgentGrokClaudeHooks.isGrok(payload) { return connection.finish() }
         let request = UUID().uuidString
         guard var message = ClaudeHookMessage.decode(payload, requestID: request, now: now, policy: engine.policy) else {
             return connection.finish()
@@ -1482,6 +1504,17 @@ final class ClaudeSessionService: ObservableObject {
             if event.provider == .antigravity, engine.policy.previews, case .stopped(nil, let failed) = kind,
                let path = decoded.transcript {
                 kind = .stopped(lastText: AgentAntigravityLog.lastReply(in: path), failed: failed)
+            }
+            // Grok's hooks name the model only for xAI's own: its session's summary names any.
+            if event.provider == .grok, hookAgents.entry(event.id)?.model == nil, let path = decoded.transcript {
+                switch kind {
+                case .prompt, .stopped:
+                    if let model = AgentGrokLog.model(transcript: path) {
+                        hookAgents.ingest(AgentHookEvent(provider: .grok, sessionID: event.sessionID, pid: agent, cwd: cwd,
+                                                         date: event.date, kind: .model(model)), now: now)
+                    }
+                default: break
+                }
             }
             let placed = AgentHookEvent(provider: event.provider, sessionID: event.sessionID, pid: agent,
                                         cwd: cwd, date: event.date, kind: kind)
@@ -2362,6 +2395,27 @@ enum ClaudeTerminalReply {
         case .background(let job):
             return ClaudeBackgroundReply.send(text, images: paths, job: job, configHome: session.background?.configHome)
         case .kitty, .app, .remote, .unknown:
+            return .unreachable
+        }
+    }
+
+    /// Presses keys in the session's terminal, nothing pasted.
+    static func press(_ steps: [ClaudeTypingStep], to session: ClaudeSession) -> Failure? {
+        guard ClaudeTyping.takesKeys(session.host) else { return .unreachable }
+        switch session.host {
+        case .terminal(let tty):
+            return run(ClaudeTerminalScripts.press(steps, tty: tty), in: ClaudeSessionHosts.terminal)
+        case .iterm(let tty):
+            return run(ClaudeTTYTerminalScripts.itermType(steps, tty: tty), in: ClaudeTerminalApps.iterm)
+        case .tmux(let target):
+            return ClaudeTmux.send(steps, to: target, tty: ClaudeSessionHosts.tty(of: session.pid))
+        case .zellij(let target):
+            return ClaudeZellij.send(steps, to: target, pid: session.pid)
+        case .wezterm(let pane, let socket):
+            return ClaudeWezTerm.send(steps, pane: pane, socket: socket, tty: ClaudeSessionHosts.tty(of: session.pid))
+        case .kitty(let window, let socket?):
+            return ClaudeKitty.send(steps, window: window, pid: session.pid, socket: socket)
+        default:
             return .unreachable
         }
     }

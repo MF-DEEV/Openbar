@@ -39,6 +39,9 @@ struct AgentHookEvent: Equatable {
         /// The turn ended; `lastText` is the reply it ended on, with previews.
         case stopped(lastText: String?, failed: Bool)
         case model(String)
+        /// What a permission would ask of the tool about to run, kept until
+        /// the agent tells it asks (Grok CLI names the tool only before).
+        case mayAsk(ClaudePermission)
         case title(String)
         case usage(key: String, tokens: AgentTokens, cost: Double)
     }
@@ -135,6 +138,9 @@ enum AgentHookMessage {
             decoded.events = claudeStyle(provider, hook, event, pid: pid, now: now, policy: policy, via: via)
         case .antigravity:
             decoded.events = antigravity(hook, event, pid: pid, now: now, policy: policy)
+            decoded.transcript = text(event, "transcriptPath")
+        case .grok:
+            decoded.events = grok(hook, event, pid: pid, now: now, policy: policy)
             decoded.transcript = text(event, "transcriptPath")
         case .claude: return nil
         }
@@ -438,6 +444,88 @@ enum AgentHookMessage {
         return events
     }
 
+    // MARK: Grok CLI
+
+    /// Grok CLI's hooks (xAI's Grok Build, user guide "Hooks"): camelCase
+    /// input with snake_case event names. A permission is told in two steps,
+    /// the tool's `PreToolUse` and then a `permission_prompt` notification
+    /// with no tool in it; the island answers it with the keys of Grok's
+    /// prompt. A question is a tool of its own, answered in Grok. A turn
+    /// ends with `Stop`, `StopFailure` or `StopCancelled`; the `Stop` Grok
+    /// runs as it shuts down ends nothing.
+    private static func grok(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
+                             policy: ClaudeContentPolicy) -> [AgentHookEvent] {
+        guard let session = text(json, "sessionId") else { return [] }
+        let cwd = text(json, "cwd") ?? text(json, "workspaceRoot")
+        var events: [AgentHookEvent] = []
+        func add(_ kind: AgentHookEvent.Kind) {
+            events.append(AgentHookEvent(provider: .grok, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
+        }
+        let raw = json["toolName"] as? String ?? ""
+        let tool = AgentHookTools.name(.grok, raw)
+        let input = arguments(json["toolInput"])
+        let event = text(json, "hookEventName") ?? hook
+        switch event {
+        case "session_start", "SessionStart":
+            add(.started)
+            if let model = text(json, "modelId") { add(.model(model)) }
+        case "session_end", "SessionEnd": add(.ended)
+        case "user_prompt_submit", "UserPromptSubmit": add(.prompt(policy.previews ? preview(json["prompt"]) : nil))
+        case "pre_tool_use", "PreToolUse":
+            if raw == "ask_user_question" { add(.question); break }
+            var use = toolUse(tool, input: input, at: now, policy: policy)
+            if let id = text(json, "toolUseId") {
+                use = ClaudeToolUse(id: id, name: use.name, summary: use.summary, started: now, inputKey: use.inputKey)
+            }
+            add(.toolStarted(use))
+            add(.mayAsk(grokAsk(tool, input: input, cwd: cwd, at: now)))
+        case "post_tool_use", "PostToolUse", "post_tool_use_failure", "PostToolUseFailure":
+            // A tool that ran or failed was let through, here or in Grok.
+            add(.permissionSettled(nil))
+            if raw == "ask_user_question" { break }
+            add(.toolFinished(id: text(json, "toolUseId"), name: tool,
+                              inputKey: ClaudeToolSummary.inputKey(name: tool, input: input),
+                              failed: event.hasPrefix("post_tool_use_failure") || event == "PostToolUseFailure", started: nil))
+        case "permission_denied", "PermissionDenied":
+            add(.permissionSettled(nil))
+        case "notification", "Notification":
+            switch text(json, "notificationType") {
+            case "permission_prompt":
+                // Filled in from the tool the session's last PreToolUse named.
+                add(.permission(ClaudePermission(requestID: UUID().uuidString, tool: "", summary: nil,
+                                                 offersAlways: false, since: now)))
+            case "elicitation_dialog": add(.question)
+            default: break
+            }
+        case "stop", "Stop":
+            if text(json, "reason") == "shutdown" { break }
+            add(.stopped(lastText: policy.previews ? preview(json["lastAssistantMessage"]) : nil, failed: false))
+        case "stop_failure", "StopFailure":
+            add(.stopped(lastText: nil, failed: true))
+        case "stop_cancelled", "StopCancelled":
+            add(.stopped(lastText: nil, failed: false))
+        default: break
+        }
+        return events
+    }
+
+    /// What Grok's prompt would ask about the tool: its command, or the
+    /// file it changes. Shown on the card like Claude Code's, whatever the
+    /// previews, since the person decides on it.
+    static func grokAsk(_ tool: String, input: [String: Any], cwd: String?, at date: Date) -> ClaudePermission {
+        let detail = [input["command"], input["file_path"], input["path"], input["url"]]
+            .compactMap { ($0 as? String).flatMap { $0.isEmpty ? nil : $0 } }.first
+            ?? (input.isEmpty ? "" : ClaudeToolSummary.arguments(input))
+        var permission = ClaudePermission(
+            requestID: UUID().uuidString, tool: tool.isEmpty ? "Tool" : tool,
+            summary: ClaudeToolSummary.clip(detail.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""),
+            detail: detail, offersAlways: false, since: date)
+        permission.inputKey = ClaudeToolSummary.inputKey(name: tool, input: input)
+        // Grok's write and search_replace take Claude Code's Write and Edit arguments.
+        permission.diffs = ClaudeFileDiffs.diffs(tool: tool, input: input, cwd: cwd)
+        return permission
+    }
+
     // MARK: Google Antigravity
 
     /// Google Antigravity's lifecycle hooks (the hooks.json guide its
@@ -671,6 +759,11 @@ enum AgentHookTools {
                        "grep_search": "Grep", "find_by_name": "Glob", "list_dir": "LS", "read_url_content": "WebFetch",
                        "search_web": "WebSearch", "command_status": "BashOutput", "send_command_input": "Bash",
                        "manage_task": "BashOutput"],
+        .grok: ["run_terminal_command": "Bash", "read_file": "Read", "write": "Write", "search_replace": "Edit",
+                "list_dir": "LS", "grep": "Grep", "todo_write": "TodoWrite", "spawn_subagent": "Task",
+                "get_command_or_subagent_output": "BashOutput", "kill_command_or_subagent": "KillShell",
+                "web_fetch": "WebFetch", "web_search": "WebSearch", "ask_user_question": "AskUserQuestion",
+                "enter_plan_mode": "EnterPlanMode", "exit_plan_mode": "ExitPlanMode"],
         .devin: ["exec": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "apply_patch": "Edit", "grep": "Grep",
                  "glob": "Glob", "webfetch": "WebFetch", "todo_write": "TodoWrite", "run_subagent": "Task",
                  "notebook_read": "Read", "notebook_edit": "Edit", "exit_plan_mode": "ExitPlanMode"],
