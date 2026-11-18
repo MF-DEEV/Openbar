@@ -1802,3 +1802,32 @@ select {
     transition: none;
   }
 }
+
+/* Narrow: a row's buttons drop under its state and path, as cards' do. */
+@media (max-width: 760px) {
+  .st-hook-row,
+  .st-hook-confirm {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .st-hook-row > .st-card-text {
+    flex: 1 1 calc(100% - 40px);
+  }
+  .st-hook-row > .st-card-control {
+    flex-wrap: wrap;
+    margin-left: 28px;
+  }
+  .st-hook-confirm,
+  .st-hook-form {
+    padding-left: 16px;
+  }
+  .st-hook-confirm > .st-card-text {
+    flex: 1 1 100%;
+  }
+  .st-hooks-head > .st-agent-mark + .st-card-text {
+    flex: 1 1 calc(100% - 48px);
+  }
+  .st-hooks-head > .st-agent-mark ~ .st-card-control {
+    margin-left: 44px;
+  }
+}
