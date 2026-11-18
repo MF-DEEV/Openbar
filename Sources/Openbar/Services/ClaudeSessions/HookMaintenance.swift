@@ -104,7 +104,11 @@ enum HookMaintenance {
         var done = Set<String>()
         for target in targets {
             guard let file = target.file else { continue }
-            setOptOut(target.id, true, defaults: env.defaults)
+            // Rows that held hooks stay without them; an agent's own row too,
+            // or its switch would put them in again. A row that never had any
+            // is left as it was.
+            if case .agent(_, folder: nil) = target.place { setOptOut(target.id, true, defaults: env.defaults) }
+            else if target.canRemove { setOptOut(target.id, true, defaults: env.defaults) }
             // Two rows over one linked file change it once.
             guard done.insert(file.resolvingSymlinksInPath().path).inserted else { continue }
             do {

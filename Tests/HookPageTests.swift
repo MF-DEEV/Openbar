@@ -459,6 +459,8 @@ enum HookPageTests {
                      "nothing is left, and nothing comes back by itself")
         suite.expect(Set(HookMaintenance.optedOutAgents(box.defaults)).isSuperset(of: [.gemini, .copilot, .cursor, .vibe]),
                      "and the agents' switches don't put the hooks back either")
+        let claudeTwo = HookTargets.list(box.context(folders: folders, tools: [tool])).first { $0.provider == .claude }
+        suite.expect(claudeTwo?.state == .skipped(.removedByYou), "a row that held hooks reads as removed by you")
 
         // A file the person changed since keeps the change.
         let other = Sandbox()
@@ -470,6 +472,11 @@ enum HookPageTests {
         try? JSONSerialization.data(withJSONObject: edited).write(to: other.home.appending(path: ".claude/settings.json"))
         _ = HookMaintenance.removeEverything(HookTargets.list(other.context()), env: other.env)
         let kept = (try? ClaudeHookInstaller.read(other.home.appending(path: ".claude/settings.json"))) ?? [:]
+        let never = Sandbox()
+        never.write(".claude/settings.json", "{}")
+        _ = HookMaintenance.removeEverything(HookTargets.list(never.context()), env: never.env)
+        suite.expect(HookTargets.list(never.context()).first { $0.provider == .claude }?.state == .missing,
+                     "a row that never had hooks isn't marked as removed")
         suite.expect(kept["theme"] as? String == "light" && kept["model"] as? String == "opus" && kept["hooks"] == nil,
                      "a later change of the person's stays: \(kept)")
     }
