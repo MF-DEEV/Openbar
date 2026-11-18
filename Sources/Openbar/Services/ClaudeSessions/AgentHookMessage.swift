@@ -61,6 +61,8 @@ struct AgentHookEvent: Equatable {
 enum AgentHookMessage {
     /// The envelope's key, which no agent's own payload carries.
     static let key = "openbar"
+    /// The config folder's tag or tool id a hook was written for (#236).
+    static let viaKey = "via"
 
     /// What one envelope holds: the events in it, and for a connection that
     /// waits on the island, what it waits for.
@@ -76,6 +78,8 @@ enum AgentHookMessage {
         var attached: String? = nil
         /// The events come from the proxy, not from Vibe's hooks.
         var fromProxy = false
+        /// The config folder's tag (Codex) or tool id the hook names (#236).
+        var via: String? = nil
         let provider: ClaudeSessionProvider
         let pid: Int32
     }
@@ -105,10 +109,14 @@ enum AgentHookMessage {
     static func decode(_ data: Data, now: Date, policy: ClaudeContentPolicy) -> Decoded? {
         guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
               let name = json[key] as? String, let provider = ClaudeSessionProvider(rawValue: name),
-              provider.reportsThroughHooks, let event = json["event"] as? [String: Any] else { return nil }
+              let event = json["event"] as? [String: Any] else { return nil }
+        let via = (json[viaKey] as? String).flatMap { AgentHookInstaller.isTag($0) ? $0 : nil }
+        // Codex and the tools added by hand are heard only through hooks naming their folder or tool.
+        guard provider.reportsThroughHooks || ((provider == .codex || provider == .custom) && via != nil) else { return nil }
         let pid = Int32(clamping: (json["pid"] as? NSNumber)?.int64Value ?? 0)
         let hook = json["hook"] as? String ?? event["hook_event_name"] as? String ?? ""
         var decoded = Decoded(provider: provider, pid: pid)
+        decoded.via = via
         switch provider {
         case .gemini: decoded.events = gemini(hook, event, pid: pid, now: now, policy: policy)
         case .copilot: decoded.events = copilot(hook, event, pid: pid, now: now, policy: policy)
@@ -121,11 +129,14 @@ enum AgentHookMessage {
                 decoded.events = vibe(hook, event, pid: pid, now: now, policy: policy)
                 decoded.transcript = text(event, "transcript_path")
             }
-        case .devin: decoded.events = devin(hook, event, pid: pid, now: now, policy: policy)
+        case .devin: decoded.events = claudeStyle(.devin, hook, event, pid: pid, now: now, policy: policy)
+        case .codex, .custom:
+            guard let via else { return nil }
+            decoded.events = claudeStyle(provider, hook, event, pid: pid, now: now, policy: policy, via: via)
         case .antigravity:
             decoded.events = antigravity(hook, event, pid: pid, now: now, policy: policy)
             decoded.transcript = text(event, "transcriptPath")
-        case .claude, .codex: return nil
+        case .claude: return nil
         }
         return decoded
     }
@@ -377,19 +388,23 @@ enum AgentHookMessage {
 
     // MARK: Devin CLI
 
-    /// Devin CLI's hooks, in Claude Code's format (docs.devin.ai, "Lifecycle
-    /// Hooks"). Its payloads carry no folder; the island reads the agent's.
-    /// A permission is heard and answered in Devin.
-    private static func devin(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
-                              policy: ClaudeContentPolicy) -> [AgentHookEvent] {
-        guard let session = text(json, "session_id") else { return [] }
+    /// Hooks in Claude Code's format: Devin CLI's (docs.devin.ai, "Lifecycle
+    /// Hooks"), whose payloads carry no folder (the island reads the
+    /// agent's), and those the Hooks page writes for a second Codex home or a
+    /// tool added by hand (#236), whose session ids carry `via` so they stay
+    /// apart from Codex's server and from each other. A permission is heard
+    /// and answered in the agent.
+    private static func claudeStyle(_ provider: ClaudeSessionProvider, _ hook: String, _ json: [String: Any], pid: Int32,
+                                    now: Date, policy: ClaudeContentPolicy, via: String? = nil) -> [AgentHookEvent] {
+        guard let own = text(json, "session_id") else { return [] }
+        let session = via.map { "\($0):\(own)" } ?? own
         let cwd = text(json, "cwd")
         var events: [AgentHookEvent] = []
         func add(_ kind: AgentHookEvent.Kind) {
-            events.append(AgentHookEvent(provider: .devin, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
+            events.append(AgentHookEvent(provider: provider, sessionID: session, pid: pid, cwd: cwd, date: now, kind: kind))
         }
         let raw = json["tool_name"] as? String ?? ""
-        let tool = AgentHookTools.name(.devin, raw)
+        let tool = AgentHookTools.name(provider, raw)
         let input = arguments(json["tool_input"])
         switch hook {
         case "SessionStart": add(.started)
@@ -411,9 +426,15 @@ enum AgentHookMessage {
                 requestID: UUID().uuidString, tool: tool.isEmpty ? "Tool" : tool,
                 summary: ClaudeToolSummary.clip(detail.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""),
                 detail: detail, offersAlways: false, since: now)))
-        case "Stop": add(.stopped(lastText: nil, failed: false))
+        case "PostToolUseFailure":
+            add(.toolFinished(id: nil, name: tool, inputKey: ClaudeToolSummary.inputKey(name: tool, input: input),
+                              failed: true, started: nil))
+        case "Stop":
+            let last = policy.previews ? preview(json["last_assistant_message"]) : nil
+            add(.stopped(lastText: last, failed: false))
         default: break
         }
+        if provider != .devin, let model = text(json, "model") { add(.model(model)) }
         return events
     }
 
@@ -653,6 +674,9 @@ enum AgentHookTools {
         .devin: ["exec": "Bash", "read": "Read", "write": "Write", "edit": "Edit", "apply_patch": "Edit", "grep": "Grep",
                  "glob": "Glob", "webfetch": "WebFetch", "todo_write": "TodoWrite", "run_subagent": "Task",
                  "notebook_read": "Read", "notebook_edit": "Edit", "exit_plan_mode": "ExitPlanMode"],
+        // Codex's hooks name its shell `Bash` already; its patch tool is an edit.
+        .codex: ["apply_patch": "Edit", "shell": "Bash", "local_shell": "Bash", "exec_command": "Bash",
+                 "update_plan": "TodoWrite", "view_image": "Read", "web_search": "WebSearch"],
     ]
 
     static func name(_ provider: ClaudeSessionProvider, _ tool: String) -> String {

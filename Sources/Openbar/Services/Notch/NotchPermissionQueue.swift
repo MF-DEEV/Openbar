@@ -21,7 +21,7 @@ struct NotchPermissionQueue: Equatable {
 
         /// Always on the row: Codex's for the rest of its turn, any other
         /// agent's where it offers rules or a session-wide allow.
-        var offersAlways: Bool { answersHere && (session.provider == .codex || ask.offersAlways) }
+        var offersAlways: Bool { answersHere && (session.codexServer || ask.offersAlways) }
 
         /// Allow all takes it: answered here, and nothing about it looks risky.
         var joinsAllowAll: Bool { answersHere && ask.risk.isSafe }

@@ -158,7 +158,7 @@ struct NotchPermissionQueueRow: View {
                 if row.offersAlways {
                     NotchClaudeDecisionButton(title: text.alwaysAllow, symbol: "checkmark.seal", role: .secondary, compact: true) {
                         // Codex's Always lasts its turn, as on its card.
-                        if session.provider == .codex {
+                        if session.codexServer {
                             service.decide(session.id, request: ask.requestID, .allow, autoAllowTurn: true)
                         } else {
                             service.decide(session.id, request: ask.requestID, .allowAlways)

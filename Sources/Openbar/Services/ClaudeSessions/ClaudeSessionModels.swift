@@ -113,6 +113,9 @@ enum ClaudeSessionProvider: String, Equatable, CaseIterable {
     case vibe
     case devin
     case antigravity
+    /// A tool with Claude Code style hooks the person added on the Hooks
+    /// page (#236), shown with a plain mark and its own name.
+    case custom
 }
 
 extension ClaudeSessionProvider {
@@ -124,7 +127,7 @@ extension ClaudeSessionProvider {
         case .codex: return .codex
         case .opencode: return .opencode
         case .copilot: return .copilot
-        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity: return nil
+        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .custom: return nil
         }
     }
 
@@ -141,6 +144,7 @@ extension ClaudeSessionProvider {
         case .vibe: return "Mistral Vibe"
         case .devin: return "Devin CLI"
         case .antigravity: return "Google Antigravity"
+        case .custom: return "Other tool"
         }
     }
 
@@ -157,6 +161,9 @@ extension ClaudeSessionProvider {
         }
     }
 
+    /// Every agent the island knows by name: a tool added by hand is not one.
+    static let agents: [ClaudeSessionProvider] = allCases.filter { $0 != .custom }
+
     /// The agents that report through the island's hooks or plugin.
     static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity]
 
@@ -172,7 +179,7 @@ extension ClaudeSessionProvider {
     var answersPermissions: Bool {
         switch self {
         case .claude, .codex, .opencode: return true
-        case .gemini, .copilot, .cursor, .pi, .vibe, .devin, .antigravity: return false
+        case .gemini, .copilot, .cursor, .pi, .vibe, .devin, .antigravity, .custom: return false
         }
     }
 
@@ -503,11 +510,23 @@ struct ClaudeSession: Equatable, Identifiable {
     /// The config folder of the Claude Code account it runs under, for a
     /// session on this Mac (issue #216).
     var account: String? = nil
+    /// For a session heard through the hooks of a config folder or tool the
+    /// person added on the Hooks page, that folder's tag or the tool's id
+    /// (#236): a Codex session from a second Codex home, not Codex's server.
+    var via: String? = nil
     /// It runs in its agent's no-ask mode: bypass permissions, Codex with
     /// approvals off (#234).
     var autoMode = false
     /// Permissions the island allowed without asking, newest last (#234).
     var letThrough: [ClaudeLetThrough] = []
+
+    /// Codex heard through its app-server, which the island answers and
+    /// replies through; a Codex session heard through hooks is not (#236).
+    var codexServer: Bool { provider == .codex && via == nil }
+
+    /// It reports through hooks: a hook agent, or Codex or a tool through
+    /// hooks the Hooks page wrote (#236).
+    var heardThroughHooks: Bool { provider.reportsThroughHooks || via != nil }
 
     /// Every ask the island can answer for it, oldest first (#269).
     var asks: [ClaudePermission] { permission.map { [$0] + laterAsks } ?? [] }

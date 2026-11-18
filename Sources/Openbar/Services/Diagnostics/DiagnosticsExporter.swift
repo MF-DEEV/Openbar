@@ -170,7 +170,7 @@ enum DiagnosticsExporter {
         ]
         list += sessions.map { DiagnosticsFeature(id: $0.0, group: "sessions", on: defaults.bool(forKey: $0.1)) }
         let shown = NotchClaudeSessionsSupport.shownAgents(in: defaults)
-        list += ClaudeSessionProvider.allCases.map {
+        list += ClaudeSessionProvider.agents.map {
             DiagnosticsFeature(id: "agent.\($0.rawValue)", group: "sessions", on: shown.contains($0))
         }
         return list
@@ -180,7 +180,7 @@ enum DiagnosticsExporter {
         let socket = ClaudeSessionService.socketPath(home: home)
         let bundle = ClaudeSessionService.bundleID
         let records = HookRecords.all(in: defaults)
-        let providers = ClaudeSessionProvider.allCases
+        let providers = ClaudeSessionProvider.agents
         var commands: [ClaudeSessionProvider: String] = [:]
         for provider in providers {
             switch provider {

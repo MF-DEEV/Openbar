@@ -5,8 +5,8 @@ import AppKit
 import SwiftUI
 
 /// The Claude Code accounts on this Mac (issue #216): each config folder with
-/// its name, whether its settings hold the hooks, and a way to hide it. A
-/// folder Openbar did not find can be added by hand.
+/// its name and a way to hide it. A folder Openbar did not find can be added
+/// by hand. Whether each holds the hooks is on the Hooks page (#236).
 struct ClaudeAccountsSettings: View {
     @ObservedObject private var service = ClaudeSessionService.shared
     @State private var notAdded = false
@@ -26,8 +26,7 @@ struct ClaudeAccountsSettings: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.leading, settingsRowTextInset)
             ForEach(service.accounts) { account in
-                ClaudeAccountSettingsRow(account: account, state: service.accountHooks[account.id],
-                                         othersHaveHooks: othersHaveHooks(account), home: home)
+                ClaudeAccountSettingsRow(account: account, home: home)
                     .padding(.leading, settingsRowTextInset)
                     .transition(.opacity)
             }
@@ -49,11 +48,6 @@ struct ClaudeAccountsSettings: View {
         }
     }
 
-    /// Another account shown holds the hooks, so this one can join it.
-    private func othersHaveHooks(_ account: ClaudeAccount) -> Bool {
-        service.accounts.contains { $0.id != account.id && !$0.hidden && service.accountHooks[$0.id] == .installed }
-    }
-
     private func addFolder() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = false
@@ -67,13 +61,9 @@ struct ClaudeAccountsSettings: View {
     }
 }
 
-/// One account: its name to edit, its folder, its hooks and a way to hide it.
+/// One account: its name to edit, its folder and a way to hide it.
 struct ClaudeAccountSettingsRow: View {
     let account: ClaudeAccount
-    let state: ClaudeAccountHooks?
-    /// Some other account holds the hooks: one without them gets its own
-    /// button, while "Install Hooks" above covers them all otherwise.
-    let othersHaveHooks: Bool
     let home: String
     @ObservedObject private var service = ClaudeSessionService.shared
     @State private var name = ""
@@ -103,19 +93,15 @@ struct ClaudeAccountSettingsRow: View {
                         .truncationMode(.middle)
                         .help(account.path)
                 }
-                Text(account.hidden ? ClaudeAccountStrings.hiddenNote : ClaudeAccountStrings.hooksState(state))
-                    .font(.caption)
-                    .foregroundStyle(state == .unreadable && !account.hidden ? Color.orange : Color.secondary)
+                // Where its hooks stand is on the Hooks page (#236).
+                if account.hidden {
+                    Text(ClaudeAccountStrings.hiddenNote)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
             .opacity(account.hidden ? 0.55 : 1)
             Spacer(minLength: 8)
-            if !account.hidden, state == .outdated || (state == .missing && othersHaveHooks) {
-                Button(state == .outdated ? ClaudeAccountStrings.update : ClaudeAccountStrings.installHere) {
-                    service.installHooks(true, only: account)
-                }
-                .controlSize(.small)
-                .fixedSize()
-            }
             if account.manual {
                 Button { service.removeAccount(account) } label: { Image(systemName: "minus.circle") }
                     .buttonStyle(.plain)

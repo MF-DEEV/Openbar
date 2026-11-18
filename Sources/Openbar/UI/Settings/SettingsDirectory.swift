@@ -447,6 +447,10 @@ enum SettingsDirectory {
             (categories.app, [
                 SettingsDirectoryItem(page: .shortcuts, title: s.shortcutsPageTitle, icon: "command",
                                       keywords: [s.hotkeyToggle]),
+                SettingsDirectoryItem(page: .hooks, title: HooksPageStrings.title, icon: "point.3.connected.trianglepath.dotted",
+                                      keywords: ["hooks", "Claude Code", "Codex", "Gemini", "Copilot", "OpenCode", "Cursor",
+                                                 "settings.json", HooksPageStrings.repairTitle, HooksPageStrings.otherTools,
+                                                 HooksPageStrings.removeEverything]),
                 SettingsDirectoryItem(page: .advanced, title: s.tabAdvanced, icon: "wrench.and.screwdriver"),
                 SettingsDirectoryItem(page: .about, title: s.tabAbout, icon: "info.circle",
                                       keywords: [s.reviewIntro, s.reviewHighlights,
