@@ -378,7 +378,8 @@ enum ClaudeHookTests {
         let permission = (hooks["PermissionRequest"] as? [[String: Any]])?.first
         suite.expect(((permission?["hooks"] as? [[String: Any]])?.first?["timeout"] as? Int) == ClaudeHookInstaller.permissionTimeout
                      && permission?["matcher"] as? String == "*", "a permission waits as long as Claude Code allows")
-        let backups = (try? FileManager.default.contentsOfDirectory(atPath: folder.path))?.filter { $0.hasSuffix(".bak") } ?? []
+        let backups = (try? FileManager.default.contentsOfDirectory(atPath: folder.path))?
+            .filter { $0.hasSuffix(".bak") && !$0.contains("original") } ?? []
         suite.expect(backups.count == 1, "the old file is kept aside")
         if let backup = backups.first {
             suite.expect(FileManager.default.contents(atPath: folder.appending(path: backup).path) == Data(own.utf8),
@@ -442,7 +443,7 @@ enum ClaudeHookTests {
             try? ClaudeHookInstaller.update(pruned, now: now.addingTimeInterval(TimeInterval(step)), toggle)
         }
         let kept = (try? FileManager.default.contentsOfDirectory(atPath: pruned.deletingLastPathComponent().path))?
-            .filter { $0.hasSuffix(".bak") } ?? []
+            .filter { $0.hasSuffix(".bak") && !$0.contains("original") } ?? []
         let modes = kept.compactMap {
             (try? FileManager.default.attributesOfItem(atPath: pruned.deletingLastPathComponent().appending(path: $0).path))?[.posixPermissions] as? Int
         }

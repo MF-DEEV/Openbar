@@ -151,6 +151,7 @@ struct MetricsTests {
                 MoreAgentHookTests.run(suite)
                 VibeAppServerTests.run(suite)
                 AntigravityAgentTests.run(suite)
+                HookPageTests.run(suite)
                 ClaudeFileDiffTests.run(suite)
                 VoiceReplyTests.run(suite)
                 LegacyIdentityTests.run(suite)
@@ -167,7 +168,9 @@ struct MetricsTests {
                 MoreAgentHookTests.run(suite)
                 VibeAppServerTests.run(suite)
                 AntigravityAgentTests.run(suite)
+                HookPageTests.run(suite)
             }),
+            ("hooks-page", { HookPageTests.run(suite) }),
             ("codex-sessions", { CodexSessionTests.run(suite) }),
             ("codex-edge", { CodexSessionEdgeTests.run(suite) }),
             ("features", {

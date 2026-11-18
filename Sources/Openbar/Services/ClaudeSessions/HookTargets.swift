@@ -146,7 +146,7 @@ enum HookTargets {
             // Two folders whose settings are one linked file are one row.
             guard seen.insert(file.resolvingSymlinksInPath().path).inserted else { continue }
             let id = HookRecords.claudeID(file)
-            let base = HookRecords.Base(ClaudeSessionService.hookState(file, command: command, bundle: context.bundle))
+            let base = claudeState(file, command: command, bundle: context.bundle)
             let derived = HookRecords.derive(base, record: context.records[id],
                                              current: currentPrint(file, marker: marker))
             let state = shownState(derived: derived, present: true, folderExists: true, enabled: true,
@@ -224,6 +224,13 @@ enum HookTargets {
         return HookTarget(id: id, provider: provider, place: .agent(provider, folder: folder),
                           name: setting.name ?? folder.lastPathComponent, folder: folder, file: file,
                           wholeFile: whole, manual: true, present: present, derived: derived, state: state)
+    }
+
+    /// A Claude Code account's settings: all the hooks, some, or none.
+    static func claudeState(_ url: URL, command: String, bundle: String) -> HookRecords.Base {
+        guard let settings = try? ClaudeHookInstaller.read(url) else { return .unreadable }
+        if ClaudeHookInstaller.isInstalled(in: settings, command: command) { return .installed }
+        return ClaudeHookInstaller.hasAny(in: settings, bundle: bundle) ? .outdated : .missing
     }
 
     static func ownName(_ provider: ClaudeSessionProvider, _ bundle: String) -> String? {
@@ -420,13 +427,15 @@ enum CustomHookTools {
 /// again once empty.
 enum HookFolders {
     private static let lock = NSLock()
+    /// Where the list is kept; a test points it at its own.
+    nonisolated(unsafe) static var store: UserDefaults = .standard
 
-    static func made(_ defaults: UserDefaults = .standard) -> [String] {
+    static func made(_ defaults: UserDefaults = store) -> [String] {
         defaults.stringArray(forKey: DefaultsKey.hooksMadeFolders) ?? []
     }
 
     /// Notes each folder on the way to `folder` that does not exist yet.
-    static func noteMade(_ folder: URL, defaults: UserDefaults = .standard) {
+    static func noteMade(_ folder: URL, defaults: UserDefaults = store) {
         var missing: [String] = []
         var current = folder.standardizedFileURL
         while current.path != "/", !FileManager.default.fileExists(atPath: current.path) {
@@ -443,7 +452,7 @@ enum HookFolders {
 
     /// Takes away each folder the island made that is empty now, deepest
     /// first; a folder that holds anything stays.
-    static func removeEmpty(defaults: UserDefaults = .standard) {
+    static func removeEmpty(defaults: UserDefaults = store) {
         lock.lock()
         defer { lock.unlock() }
         let manager = FileManager.default

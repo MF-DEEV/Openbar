@@ -6,7 +6,7 @@ import Foundation
 /// The Hooks page in Settings (#236).
 enum HooksPageStrings {
     static let title = "Hooks"
-    static let intro = "Openbar adds a few small entries to each agent's config so the island hears its sessions. Here you can see each file it touched, check that the entries still work, and fix or remove them. A copy of the file is saved next to it before every change."
+    static let intro = "Openbar adds a few small entries to each agent’s config so the island hears its sessions. Here you can see each file it touched, check that the entries still work, and fix or remove them. A copy of the file is saved next to it before every change."
     static let repairTitle = "Put lost hooks back"
     static let repairHint = "When Openbar starts, or a config file changes, entries that went missing come back. Entries you edited yourself are left alone."
     static let reinstall = "Reinstall"
@@ -22,7 +22,7 @@ enum HooksPageStrings {
     static let toolName = "Name"
     static let toolFile = "Settings file"
     static let chooseFile = "Choose…"
-    static let chooseToolFile = "Choose the tool's settings file, or the folder it keeps one in"
+    static let chooseToolFile = "Choose the tool’s settings file, or the folder it keeps one in"
     static let add = "Add"
     static let cancel = "Cancel"
     static let removeEverything = "Remove Everything…"
@@ -34,7 +34,7 @@ enum HooksPageStrings {
     static let notInstalled = "Not installed on this Mac"
     static let installedApp = "Installed"
     static let noTools = "No tools added."
-    static let codexOwnFolder = "Heard through Codex's own server. Add another Codex home to watch it too."
+    static let codexOwnFolder = "Heard through Codex’s own server. Add another Codex home to watch it too."
     static let geminiFolderHint = "A folder Gemini CLI reads through GEMINI_CLI_HOME, or its .gemini folder."
 
     static func state(_ state: HookTargetState) -> String {
@@ -43,15 +43,15 @@ enum HooksPageStrings {
         case .outdated: return "Outdated: an older Openbar wrote these"
         case .changedByHand: return "Changed by hand"
         case .missing: return "Missing"
-        case .unreadable: return "Can't read this file"
+        case .unreadable: return "Can’t read this file"
         case .skipped(let reason): return "Skipped: " + skip(reason)
         }
     }
 
     static func skip(_ reason: HookSkip) -> String {
         switch reason {
-        case .folderMissing: return "the config folder doesn't exist yet"
-        case .agentNotInstalled: return "the agent isn't installed"
+        case .folderMissing: return "the config folder doesn’t exist yet"
+        case .agentNotInstalled: return "the agent isn’t installed"
         case .needsApproval: return "the hooks need approval inside the agent"
         case .switchedOff: return "turned off in Settings › Sessions"
         case .accountHidden: return "this account is hidden"
@@ -63,15 +63,15 @@ enum HooksPageStrings {
     /// What the person does in the agent, when it asks to approve hooks.
     static func approvalNote(_ provider: ClaudeSessionProvider, folder: String) -> String? {
         guard provider == .codex else { return nil }
-        return "Start Codex with CODEX_HOME=\(folder), open /hooks, review Openbar's hooks and trust them. Until then Codex skips them."
+        return "Start Codex with CODEX_HOME=\(folder), open /hooks, review Openbar’s hooks and trust them. Until then Codex skips them."
     }
 
-    static let changedHint = "Reinstall writes Openbar's entries again and keeps your other changes."
-    static let unreadableHint = "Fix the file by hand, or move it aside. Openbar won't write into a file it can't read."
+    static let changedHint = "Reinstall writes Openbar’s entries again and keeps your other changes."
+    static let unreadableHint = "Fix the file by hand, or move it aside. Openbar won’t write into a file it can’t read."
 
     static func folderNotAdded(_ failure: AgentFolders.AddFailure) -> String {
         switch failure {
-        case .notFolder: return "That isn't a folder."
+        case .notFolder: return "That isn’t a folder."
         case .alreadyListed: return "That folder is already on the page."
         case .tooMany: return "That agent has as many folders as Openbar keeps."
         }

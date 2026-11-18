@@ -99,14 +99,27 @@ enum HookMaintenance {
             do {
                 try remove(target, env: env)
                 try restoreOriginal(file, now: Date())
+                if target.wholeFile { dropOwnCopies(of: file) }
             } catch let failure as ClaudeHookInstaller.Failure {
                 failures[target.id] = failure
             } catch {
                 failures[target.id] = .unwritable(error.localizedDescription)
             }
         }
-        HookFolders.removeEmpty(defaults: env.defaults)
+        HookFolders.removeEmpty()
         return failures
+    }
+
+    /// The copies of a file that was the island's alone hold nothing of the
+    /// person's; in a folder the island made they go with it.
+    static func dropOwnCopies(of url: URL) {
+        let folder = url.deletingLastPathComponent()
+        guard HookFolders.made().contains(folder.standardizedFileURL.path) else { return }
+        let prefix = "\(url.lastPathComponent).openbar-"
+        for name in (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        where name.hasPrefix(prefix) && name.hasSuffix(".bak") {
+            try? FileManager.default.removeItem(at: folder.appending(path: name))
+        }
     }
 
     // MARK: The file before the island
