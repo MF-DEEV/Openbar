@@ -451,7 +451,7 @@ enum AgentHookMessage {
     /// the tool's `PreToolUse` and then a `permission_prompt` notification
     /// with no tool in it; the island answers it with the keys of Grok's
     /// prompt. A question is a tool of its own, answered in Grok. A turn
-    /// ends with `Stop`, `StopFailure` or `StopCancelled`; the `Stop` Grok
+    /// ends with `Stop`, or without a done with `StopFailure` or `StopCancelled`; the `Stop` Grok
     /// runs as it shuts down ends nothing.
     private static func grok(_ hook: String, _ json: [String: Any], pid: Int32, now: Date,
                              policy: ClaudeContentPolicy) -> [AgentHookEvent] {
@@ -503,7 +503,8 @@ enum AgentHookMessage {
         case "stop_failure", "StopFailure":
             add(.stopped(lastText: nil, failed: true))
         case "stop_cancelled", "StopCancelled":
-            add(.stopped(lastText: nil, failed: false))
+            // Interrupted or refused: the turn ends, but nothing was done.
+            add(.stopped(lastText: nil, failed: true))
         default: break
         }
         return events

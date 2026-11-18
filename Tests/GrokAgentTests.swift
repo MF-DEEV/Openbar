@@ -171,8 +171,8 @@ enum GrokAgentTests {
         suite.expect(listed[0].phase == .idle, "a failed turn ends without a done: \(listed[0].phase)")
         send(tracker, "UserPromptSubmit", "user_prompt_submit", ["prompt": "go"], at: now.addingTimeInterval(2))
         send(tracker, "StopCancelled", "stop_cancelled", ["reason": "user_interrupt"], at: now.addingTimeInterval(3))
-        suite.expect(T.snapshot(tracker, at: now.addingTimeInterval(3)).sessions[0].phase != .generating,
-                     "an interrupted turn ends")
+        suite.expect(T.snapshot(tracker, at: now.addingTimeInterval(3)).sessions[0].phase == .idle,
+                     "an interrupted turn ends with no done")
         send(tracker, "Notification", "notification", ["notificationType": "idle_prompt"], at: now.addingTimeInterval(4))
         suite.expect(T.snapshot(tracker, at: now.addingTimeInterval(4)).sessions[0].phase != .waitingInput,
                      "idle_prompt asks nothing")
