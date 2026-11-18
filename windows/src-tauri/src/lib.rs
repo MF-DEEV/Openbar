@@ -164,19 +164,9 @@ pub fn migrate_legacy_main() -> ! {
 }
 
 pub fn remove_hooks_main() -> ! {
-    // The accounts the person added by hand are in the app's prefs (#216).
-    if let Some(prefs) = std::env::var_os("APPDATA")
-        .map(|d| {
-            std::path::PathBuf::from(d)
-                .join("com.openbar.island")
-                .join("settings.json")
-        })
-        .and_then(|p| std::fs::read(p).ok())
-        .and_then(|b| serde_json::from_slice::<serde_json::Value>(&b).ok())
-    {
-        sessions::accounts::set_settings(sessions::accounts::settings_from_prefs(&prefs));
-    }
-    std::process::exit(if hooks::claude_hooks_remove().is_ok() {
+    // Every account, agent, folder and tool on the Hooks page (#216, #236),
+    // read from the app's prefs wherever the system keeps them.
+    std::process::exit(if hooks::page_service::remove_everything_for_uninstall() {
         0
     } else {
         1
@@ -352,6 +342,17 @@ pub fn run() {
             hooks::claude_accounts_status,
             hooks::claude_hooks_install_account,
             hooks::claude_accounts_can_add,
+            hooks::page_service::hooks_page_status,
+            hooks::page_service::hooks_page_auto_repair,
+            hooks::page_service::hooks_page_set_auto_repair,
+            hooks::page_service::hooks_page_reinstall,
+            hooks::page_service::hooks_page_remove,
+            hooks::page_service::hooks_page_remove_all,
+            hooks::page_service::hooks_page_reveal,
+            hooks::page_service::hooks_page_add_folder,
+            hooks::page_service::hooks_page_add_tool,
+            hooks::page_service::hooks_page_pick_file,
+            hooks::page_service::hooks_page_forget,
             media::music_now,
             media::music_select_source,
             media::music_players,

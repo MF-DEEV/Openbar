@@ -5,7 +5,7 @@ import { useLocale, t } from "../i18n";
 
 import { BadgeCheck } from "lucide-react";
 import { useSessions } from "./store";
-import type { Session } from "./types";
+import { codexServer, type Session } from "./types";
 
 export function AutoAllowButton({
   session,
@@ -18,7 +18,7 @@ export function AutoAllowButton({
 }) {
   useLocale();
   const enabled = useSessions((s) => !!s.autoAllow[session.id]);
-  if (session.provider !== "codex" || (activeOnly && !enabled)) return null;
+  if (!codexServer(session) || (activeOnly && !enabled)) return null;
   if (activeOnly) {
     return (
       <div className="s-auto-allow-status" role="group" aria-label={t("windows.sessions.autoacceptActive")}>

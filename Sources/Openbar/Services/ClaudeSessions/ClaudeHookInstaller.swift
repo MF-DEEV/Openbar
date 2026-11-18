@@ -165,21 +165,17 @@ enum ClaudeHookInstaller {
     }
 
     /// Writes `data` over the file in one step, keeping a copy of `original`
-    /// beside it first; no copy, no change.
+    /// beside it first; no copy, no change. The first time the island
+    /// touches a file it also keeps the file as it was before the island,
+    /// or a note that there was none, for Remove everything (#236).
     static func replace(_ url: URL, original: Data?, with data: Data, now: Date) throws {
         let manager = FileManager.default
         let folder = url.deletingLastPathComponent()
         do {
+            HookFolders.noteMade(folder)
             try manager.createDirectory(at: folder, withIntermediateDirectories: true)
-            if let original {
-                // Settings can hold tokens: the copy is the owner's alone.
-                let stamp = Int(now.timeIntervalSince1970)
-                let backup = folder.appending(path: "\(url.lastPathComponent).openbar-\(stamp).bak")
-                guard manager.createFile(atPath: backup.path, contents: original, attributes: [.posixPermissions: 0o600]) else {
-                    throw Failure.noBackup
-                }
-                prune(folder: folder, name: url.lastPathComponent)
-            }
+            keepOriginal(original, of: url)
+            if let original { try keepCopy(of: original, beside: url, now: now) }
             let permissions = (try? manager.attributesOfItem(atPath: url.path))?[.posixPermissions] as? NSNumber
             let temporary = folder.appending(path: ".\(url.lastPathComponent).openbar-\(UUID().uuidString)")
             try data.write(to: temporary)
@@ -195,12 +191,66 @@ enum ClaudeHookInstaller {
         }
     }
 
-    /// Keeps the newest copies only.
+    /// A dated copy of what the file held, the owner's alone, beside it.
+    static func keepCopy(of original: Data, beside url: URL, now: Date) throws {
+        let folder = url.deletingLastPathComponent()
+        // Settings can hold tokens: the copy is the owner's alone.
+        var stamp = Int(now.timeIntervalSince1970)
+        var backup = folder.appending(path: "\(url.lastPathComponent).openbar-\(stamp).bak")
+        // Two changes in one second keep both copies.
+        while FileManager.default.fileExists(atPath: backup.path) {
+            stamp += 1
+            backup = folder.appending(path: "\(url.lastPathComponent).openbar-\(stamp).bak")
+        }
+        guard FileManager.default.createFile(atPath: backup.path, contents: original, attributes: [.posixPermissions: 0o600]) else {
+            throw Failure.noBackup
+        }
+        prune(folder: folder, name: url.lastPathComponent)
+    }
+
+    // MARK: The file before the island (#236)
+
+    /// The file as it was before the island first wrote into it.
+    static func originalCopy(of url: URL) -> URL {
+        url.deletingLastPathComponent().appending(path: "\(url.lastPathComponent).openbar-original.bak")
+    }
+
+    /// Says the file did not exist before the island made it.
+    static func absentNote(of url: URL) -> URL {
+        url.deletingLastPathComponent().appending(path: "\(url.lastPathComponent).openbar-original.none")
+    }
+
+    /// Any island's hook, this build's or another's, old name or new.
+    static let anyMarkers = ["openbar-hook", "vorssaint-hook"]
+
+    /// Keeps the file as it was before the island, once: only when neither
+    /// note exists yet, and only when what is there holds no island's hook
+    /// (an older Openbar wrote it otherwise, and the file before is unknown).
+    static func keepOriginal(_ original: Data?, of url: URL) {
+        let manager = FileManager.default
+        let copy = originalCopy(of: url), absent = absentNote(of: url)
+        guard !manager.fileExists(atPath: copy.path), !manager.fileExists(atPath: absent.path) else { return }
+        guard let original else {
+            manager.createFile(atPath: absent.path, contents: Data(), attributes: [.posixPermissions: 0o600])
+            return
+        }
+        guard !anyMarkers.contains(where: { original.range(of: Data($0.utf8)) != nil }) else { return }
+        manager.createFile(atPath: copy.path, contents: original, attributes: [.posixPermissions: 0o600])
+    }
+
+    /// Forgets what the file was before the island, as once it is put back.
+    static func forgetOriginal(of url: URL) {
+        try? FileManager.default.removeItem(at: originalCopy(of: url))
+        try? FileManager.default.removeItem(at: absentNote(of: url))
+    }
+
+    /// Keeps the newest copies only; the copy from before the island stays.
     static func prune(folder: URL, name: String) {
         let prefix = "\(name).openbar-"
+        func stamp(_ file: String) -> Int? { Int(file.dropFirst(prefix.count).dropLast(4)) }
         let copies = ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? [])
-            .filter { $0.hasPrefix(prefix) && $0.hasSuffix(".bak") }
-            .sorted { (Int($0.dropFirst(prefix.count).dropLast(4)) ?? 0) > (Int($1.dropFirst(prefix.count).dropLast(4)) ?? 0) }
+            .filter { $0.hasPrefix(prefix) && $0.hasSuffix(".bak") && stamp($0) != nil }
+            .sorted { (stamp($0) ?? 0) > (stamp($1) ?? 0) }
         for old in copies.dropFirst(backups) { try? FileManager.default.removeItem(at: folder.appending(path: old)) }
     }
 }

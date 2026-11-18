@@ -46,6 +46,13 @@ final class AgentHookSessions {
         var usage: [String: (tokens: AgentTokens, cost: Double)] = [:]
 
         var openTool: ClaudeToolUse? { tools.last { $0.finished == nil } }
+
+        /// The config folder's tag or tool id of a Codex session or tool
+        /// heard through hooks the Hooks page wrote (#236).
+        var via: String? {
+            guard provider == .codex || provider == .custom, let colon = sessionID.firstIndex(of: ":") else { return nil }
+            return String(sessionID[..<colon])
+        }
     }
 
     private(set) var entries: [String: Entry] = [:]
@@ -119,7 +126,8 @@ final class AgentHookSessions {
         case .permission(let permission):
             entry.openTurn(at: date)
             entry.permission = permission
-            entry.answerable = event.provider.answersPermissions
+            // Codex through hooks only hears of a request: Codex asks in its terminal.
+            entry.answerable = event.provider.answersPermissions && entry.via == nil
             entry.asking = false
         case .heldPermission(let permission):
             entry.openTurn(at: date)
@@ -271,6 +279,7 @@ final class AgentHookSessions {
             title: previews ? entry.title : nil, lastText: previews ? entry.lastText : nil,
             hooked: true, provider: entry.provider)
         if previews { session.chat = entry.chat }
+        session.via = entry.via
         if inAgent { session.waitingDiffs = entry.permission?.diffs ?? [] }
         return session
     }

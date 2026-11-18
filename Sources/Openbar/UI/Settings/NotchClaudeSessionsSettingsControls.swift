@@ -47,7 +47,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             progress
             voice
             Divider()
-            hooks
+            hooksLink
             ClaudeAccountsSettings()
             codex
             agents
@@ -58,6 +58,7 @@ struct NotchClaudeSessionsSettingsControls: View {
             service.checkHooks()
             service.checkCodex()
             service.checkAgentHooks()
+            service.checkHookTargets()
             service.checkBridge()
         }
     }
@@ -230,7 +231,7 @@ struct NotchClaudeSessionsSettingsControls: View {
     private var agents: some View {
         VStack(alignment: .leading, spacing: 8) {
             SettingsRow(symbol: "square.stack.3d.up", title: text.agentsTitle) {
-                if service.agentHooks == nil { ProgressView().controlSize(.small) }
+                EmptyView()
             }
             Text(text.agentsHint)
                 .font(.caption)
@@ -283,39 +284,16 @@ struct NotchClaudeSessionsSettingsControls: View {
         }
     }
 
-    private var hooks: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            // The state reads under the title, so the button keeps its whole name.
-            SettingsRow(symbol: "link", title: text.hooksTitle, caption: hooksCaption) {
-                if let installed = service.hooksInstalled {
-                    Button(installed ? text.removeHooks : text.installHooks) { service.installHooks(!installed) }
-                        .controlSize(.small)
-                        .fixedSize()
-                } else {
-                    ProgressView().controlSize(.small)
-                }
-            }
-            Text(text.hooksHint)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.leading, settingsRowTextInset)
-            if let failure = service.hookFailure {
-                Label(text.hooksFailed(failure), systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .padding(.leading, settingsRowTextInset)
-            }
+    /// Where each agent's hooks stand, and the page that checks and fixes
+    /// them (#236).
+    private var hooksLink: some View {
+        let summary = service.hookTargets.map(HookTargets.summary)
+        return SettingsRow(symbol: "point.3.connected.trianglepath.dotted", title: HooksPageStrings.linkTitle,
+                           caption: summary.map { HooksPageStrings.linkCaption(working: $0.working, attention: $0.attention) }) {
+            Button(HooksPageStrings.open) { SettingsRouter.shared.request(FeatureSettingsDestination(.hooks)) }
+                .controlSize(.small)
+                .fixedSize()
         }
-    }
-
-    /// With more than one account, how many of them hold the hooks.
-    private var hooksCaption: String? {
-        guard let installed = service.hooksInstalled else { return nil }
-        let shown = service.accounts.filter { !$0.hidden }
-        guard shown.count > 1 else { return installed ? text.hooksInstalled : text.hooksMissing }
-        let count = shown.filter { service.accountHooks[$0.id] == .installed }.count
-        return count == 0 ? text.hooksMissing : ClaudeAccountStrings.installedIn(count, of: shown.count)
     }
 
     private func switchRow(_ symbol: String, _ title: String, caption: String? = nil, isOn: Binding<Bool>) -> some View {
@@ -334,8 +312,8 @@ struct NotchClaudeSessionsSettingsControls: View {
     }
 }
 
-/// One agent's row: its mark and name, whether its hooks or plugin are in,
-/// and the switch that shows its sessions and keeps its hooks in.
+/// One agent's row: its mark and name, and the switch that shows its
+/// sessions and keeps its hooks in. Where its hooks stand is on the Hooks page.
 struct NotchSessionsAgentSettingsRow: View {
     let provider: ClaudeSessionProvider
     let text: NotchClaudeSessionStrings
@@ -348,51 +326,19 @@ struct NotchSessionsAgentSettingsRow: View {
         _shown = AppStorage(wrappedValue: true, NotchClaudeSessionsSupport.agentKey(provider) ?? "")
     }
 
-    private var status: (state: AgentHookInstaller.State, present: Bool)? { service.agentHooks?[provider] }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(spacing: 8) {
-                NotchHookAgentMark(provider: provider, size: 14, working: false)
-                    .frame(width: 18, height: 18)
-                Text(provider.displayName)
-                    .font(.callout)
-                    .fixedSize()
-                Spacer(minLength: 8)
-                Toggle(provider.displayName, isOn: $shown)
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                    .controlSize(.small)
-                    .onChange(of: shown) { _, _ in service.syncWithPreferences() }
-            }
-            HStack(spacing: 6) {
-                if let status {
-                    Text(text.agentAutoState(status.state, present: status.present, shown: shown))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                } else {
-                    ProgressView().controlSize(.mini)
-                }
-                Spacer(minLength: 6)
-                // Hooks come and go by themselves; only a change that failed asks for a hand.
-                if service.agentHookFailures[provider] != nil, let status, status.state != .unreadable {
-                    Button(text.tryAgain) { service.installAgentHooks(provider, shown) }
-                        .controlSize(.small)
-                        .fixedSize()
-                }
-            }
-            .padding(.leading, 26)
-            Text(text.agentHint(provider))
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.leading, 26)
-            if let failure = service.agentHookFailures[provider] {
-                Label(text.hooksFailed(failure), systemImage: "exclamationmark.triangle.fill")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .padding(.leading, 26)
-            }
+        HStack(spacing: 8) {
+            NotchHookAgentMark(provider: provider, size: 14, working: false)
+                .frame(width: 18, height: 18)
+            Text(provider.displayName)
+                .font(.callout)
+                .fixedSize()
+            Spacer(minLength: 8)
+            Toggle(provider.displayName, isOn: $shown)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .onChange(of: shown) { _, _ in service.syncWithPreferences() }
         }
         .opacity(shown ? 1 : 0.6)
     }

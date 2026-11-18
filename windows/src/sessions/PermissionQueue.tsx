@@ -16,6 +16,7 @@ import { PLAN_TOOL } from "./PermissionCard";
 import { answersHere, offersAlways, rowLine, type PermissionQueue as Queue, type QueueRow } from "./queue";
 import { S } from "./strings";
 import { SETTLE_DELAY, useSessions } from "./store";
+import { codexServer } from "./types";
 
 /** Spring(response 0.32, damping 0.86), as rows join and leave. */
 const ROW_SPRING = { type: "spring", stiffness: 385, damping: 33.8 } as const;
@@ -130,7 +131,7 @@ function QueueRowView({ row, now }: { row: QueueRow; now: number }) {
                 disabled={!ready}
                 onClick={() => {
                   // Codex's Always lasts its turn, as on its card.
-                  if (session.provider === "codex") {
+                  if (codexServer(session)) {
                     if (!useSessions.getState().autoAllow[session.id]) toggleAutoAllow(session.id);
                     void decide(shown, "allow");
                   } else void decide(shown, "always");

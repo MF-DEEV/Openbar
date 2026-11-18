@@ -843,7 +843,7 @@ enum AgentCLI {
         case .vibe: return "vibe"
         case .devin: return "devin"
         case .antigravity: return "agy"
-        case .claude, .codex: return nil
+        case .claude, .codex, .custom: return nil
         }
     }
 
@@ -868,7 +868,7 @@ enum AgentCLI {
         case .opencode: return ["--prompt", prompt]
         case .cursor, .pi, .vibe: return [prompt]
         case .devin: return ["--", prompt]
-        case .claude, .codex: return []
+        case .claude, .codex, .custom: return []
         }
     }
 }

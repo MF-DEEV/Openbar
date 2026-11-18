@@ -211,7 +211,7 @@ enum AntigravityAgentTests {
         try? AgentHookInstaller.install(.antigravity, home: home, socket: socket, bundle: bundle)
         file = (try? ClaudeHookInstaller.read(url)) ?? [:]
         let backups = ((try? manager.contentsOfDirectory(atPath: url.deletingLastPathComponent().path)) ?? [])
-            .filter { $0.hasPrefix("hooks.json.openbar-") && $0.hasSuffix(".bak") }
+            .filter { $0.hasPrefix("hooks.json.openbar-") && $0.hasSuffix(".bak") && !$0.contains("original") }
         suite.expect(Set(file.keys) == ["lint-checker", "safety-gate", "openbar-com.openbar.app.dev"]
                      && NSDictionary(dictionary: file["safety-gate"] as? [String: Any] ?? [:])
                         .isEqual(to: person["safety-gate"] as! [String: Any]) && backups.count == 1,

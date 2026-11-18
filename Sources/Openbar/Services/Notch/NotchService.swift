@@ -2018,7 +2018,7 @@ final class NotchService: ObservableObject {
               !(permission.asksQuestions && decision != .deny),
               // Always shows only on the open page's card: Codex's for its turn,
               // Claude Code's where it offers rules.
-              decision != .allowAlways || (focused != nil && (target.provider == .codex || permission.offersAlways))
+              decision != .allowAlways || (focused != nil && (target.codexServer || permission.offersAlways))
         else { return nil }
         return (target.id, permission.requestID, target.provider)
     }

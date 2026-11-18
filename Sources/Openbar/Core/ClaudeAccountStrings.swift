@@ -43,5 +43,7 @@ enum ClaudeAccountStrings {
     }
 
     static func startsWith(_ name: String) -> String { "Starts with the \(name) account" }
-    static func sessionAccount(_ name: String) -> String { "Claude account " + name }
+    /// The badge's name read aloud: a Claude account, a second Codex home or
+    /// a tool added on the Hooks page (#236).
+    static func sessionAccount(_ name: String) -> String { "From " + name }
 }

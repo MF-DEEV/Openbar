@@ -68,6 +68,21 @@ final class ClaudeSessionService: ObservableObject {
     @Published private(set) var agentHooks: [ClaudeSessionProvider: (state: AgentHookInstaller.State, present: Bool)]?
     /// Why the last install into an agent failed.
     @Published private(set) var agentHookFailures: [ClaudeSessionProvider: String] = [:]
+    /// Every config file the island writes hooks into, for the Hooks page
+    /// (#236); nil until checked.
+    @Published private(set) var hookTargets: [HookTarget]?
+    /// Why the last Reinstall or Remove of a row failed, by row id.
+    @Published private(set) var hookTargetFailures: [String: String] = [:]
+    /// Rows being changed right now.
+    @Published private(set) var hookTargetsBusy: Set<String> = []
+    /// Watches the folders of the hook files, so hooks lost while the app
+    /// runs are seen (and put back) at once.
+    private var hookWatcher: AgentLogWatcher?
+    private var watchedHookFiles: Set<String> = []
+    private var hookCheckDue = false
+    /// How often each row was put back this run; a file something keeps
+    /// emptying is left alone after a few. Actions queue.
+    private var repairedThisRun: [String: Int] = [:]
     /// Claude Code is installed, so the island can start sessions in a terminal.
     @Published private(set) var canStartSessions = false
     /// Its Agent View is on, so it can run them in the background too.
@@ -269,6 +284,8 @@ final class ClaudeSessionService: ObservableObject {
         }
         checkHooks()
         syncAgentHooks()
+        // Hooks lost while the app was closed come back now, if the person allows it (#236).
+        checkHookTargets(repair: true)
     }
 
     func stop() {
@@ -277,6 +294,9 @@ final class ClaudeSessionService: ObservableObject {
         focusedID = nil
         dressingID = nil
         permissionWatch = nil
+        hookWatcher?.stop()
+        hookWatcher = nil
+        watchedHookFiles = []
         sessions = []
         accountLabels = [:]
         remoteStates = [:]
@@ -582,7 +602,7 @@ final class ClaudeSessionService: ObservableObject {
             }
             return
         }
-        if session.provider.reportsThroughHooks {
+        if session.heardThroughHooks {
             // Typed into the agent's terminal, as for Claude Code; images stay
             // behind, since only Claude Code reads them from a paste.
             let bridge = ClaudeTerminalBridge.folder(home: home)
@@ -996,12 +1016,18 @@ final class ClaudeSessionService: ObservableObject {
         actions.async {
             let path = ClaudeCLI.shell(home: home).environment["PATH"]
             let found = Set(ClaudeSessionProvider.hookAgents.filter { AgentHookInstaller.isPresent($0, home: home, path: path) })
-            var states: [ClaudeSessionProvider: AgentHookInstaller.State] = [:]
+            let records = HookRecords.all()
+            var states: [ClaudeSessionProvider: HookRecords.State] = [:]
             for provider in ClaudeSessionProvider.hookAgents {
-                states[provider] = AgentHookInstaller.state(provider, home: home, socket: socket, bundle: bundle)
+                states[provider] = AgentHookInstaller.diagnosticsState(provider, home: home, socket: socket, bundle: bundle,
+                                                                       records: records)
             }
-            let plan = AgentHookInstaller.plan(found: found, shown: shown, states: states)
+            let plan = AgentHookInstaller.plan(found: found, shown: shown, states: states,
+                                               optedOut: HookMaintenance.optedOutAgents(),
+                                               repair: HookMaintenance.autoRepair())
             guard !plan.install.isEmpty || !plan.remove.isEmpty else { return }
+            // Hooks the island put in that someone took out: put back, and said once (#236).
+            let putBack = plan.install.filter { states[$0] == .removedByHand && self.noteRepair(HookRecords.agentID($0)) }
             var failures: [ClaudeSessionProvider: String?] = [:]
             for provider in plan.install {
                 failures[provider] = Self.changeAgentHooks(provider, install: true, home: home, socket: socket, bundle: bundle)
@@ -1012,7 +1038,239 @@ final class ClaudeSessionService: ObservableObject {
             DispatchQueue.main.async {
                 for (provider, failure) in failures { self.agentHookFailures[provider] = failure }
                 self.checkAgentHooks()
+                self.announceRepair(putBack.filter { failures[$0] == .some(nil) }.map(\.displayName))
+                self.checkHookTargets()
             }
+        }
+    }
+
+    // MARK: Hooks page (#236)
+
+    private var hookEnvironment: HookMaintenance.Environment {
+        HookMaintenance.Environment(home: home, socket: Self.socketPath(home: home), bundle: Self.bundleID)
+    }
+
+    /// Everything the rows are read from; off the main thread.
+    private static func hookContext(_ env: HookMaintenance.Environment) -> HookTargets.Context {
+        let path = ClaudeCLI.shell(home: env.home).environment["PATH"]
+        return HookTargets.Context(home: env.home, socket: env.socket, bundle: env.bundle, path: path,
+                                   accounts: ClaudeAccounts.all(home: env.home),
+                                   shown: NotchClaudeSessionsSupport.shownAgents(), folders: AgentFolders.all(),
+                                   tools: CustomHookTools.all(), optOut: HookMaintenance.optOut(),
+                                   records: HookRecords.all(), codexPresent: CodexCLI.locate(path: path, home: env.home) != nil)
+    }
+
+    /// Reads every row again; with `repair`, puts back the hooks that were
+    /// lost first, as the person allows (#236).
+    func checkHookTargets(repair: Bool = false) {
+        let env = hookEnvironment
+        actions.async { [self] in
+            var context = Self.hookContext(env)
+            var targets = HookTargets.list(context)
+            var putBack: [String] = []
+            if repair {
+                let due = HookMaintenance.repairs(targets, records: context.records, autoRepair: HookMaintenance.autoRepair())
+                for target in due where noteRepair(target.id) {
+                    do {
+                        try HookMaintenance.install(target, env: env)
+                        DiagnosticsLog.info("hooks", "put back the hooks in \(target.file?.path ?? target.id)")
+                        putBack.append(target.provider == .claude ? "Claude Code (\(target.name))" : target.name)
+                    } catch {
+                        DiagnosticsLog.error("hooks", "could not put back the hooks in \(target.file?.path ?? target.id): \(error)")
+                    }
+                }
+                if !due.isEmpty {
+                    context = Self.hookContext(env)
+                    targets = HookTargets.list(context)
+                }
+            }
+            DispatchQueue.main.async {
+                if self.hookTargets != targets { self.hookTargets = targets }
+                self.watchHookFiles(targets)
+                self.announceRepair(putBack)
+                if !putBack.isEmpty { self.checkHooks() }
+            }
+        }
+    }
+
+    /// Counts one putting back of a row; false once a row came back often
+    /// enough this run that something must keep taking it out. Actions queue.
+    private func noteRepair(_ id: String) -> Bool {
+        let count = repairedThisRun[id, default: 0]
+        guard count < 3 else { return false }
+        repairedThisRun[id] = count + 1
+        return true
+    }
+
+    /// Says once that lost hooks were put back.
+    private func announceRepair(_ names: [String]) {
+        guard !names.isEmpty else { return }
+        DiagnosticsLog.info("hooks", "told the person the hooks came back in \(names.joined(separator: ", "))")
+        Notifier.post(title: HooksPageStrings.repairedTitle, body: HooksPageStrings.repairedBody(names))
+    }
+
+    /// Watches the folders the hook files are in; a change to one of the
+    /// files reads the rows again, and puts lost hooks back.
+    private func watchHookFiles(_ targets: [HookTarget]) {
+        guard running else { return }
+        let files = Set(targets.compactMap { $0.file?.resolvingSymlinksInPath().path })
+        guard files != watchedHookFiles else { return }
+        watchedHookFiles = files
+        let folders = Set(files.map { URL(fileURLWithPath: $0).deletingLastPathComponent().path }
+            .filter { ClaudeAccounts.isFolder($0) })
+        let watcher = hookWatcher ?? AgentLogWatcher(queue: .main) { [weak self] paths, rescan in
+            guard let self else { return }
+            let watched = self.watchedHookFiles
+            guard rescan || paths.contains(where: { watched.contains(URL(fileURLWithPath: $0).resolvingSymlinksInPath().path) })
+            else { return }
+            self.hookFilesChanged()
+        }
+        hookWatcher = watcher
+        watcher.start(folders.sorted())
+    }
+
+    /// A hook file changed on disk: read again once things settle.
+    private func hookFilesChanged() {
+        guard !hookCheckDue else { return }
+        hookCheckDue = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) { [weak self] in
+            guard let self else { return }
+            self.hookCheckDue = false
+            self.checkHooks()
+            self.checkAgentHooks()
+            self.syncAgentHooks()
+            self.checkHookTargets(repair: true)
+        }
+    }
+
+    /// Reinstall or Remove on one row, a copy of the file kept first.
+    func changeHookTarget(_ target: HookTarget, install: Bool) {
+        let env = hookEnvironment
+        hookTargetsBusy.insert(target.id)
+        actions.async {
+            let failure: String?
+            do {
+                if install { try HookMaintenance.reinstall(target, env: env) } else { try HookMaintenance.takeOut(target, env: env) }
+                failure = nil
+                DiagnosticsLog.info("hooks", "\(install ? "reinstalled" : "removed") the hooks in \(target.file?.path ?? target.id)")
+            } catch {
+                failure = Self.failureText(error)
+                DiagnosticsLog.error("hooks", "could not \(install ? "reinstall" : "remove") the hooks in \(target.file?.path ?? target.id): \(failure ?? "")")
+            }
+            DispatchQueue.main.async {
+                self.hookTargetsBusy.remove(target.id)
+                self.hookTargetFailures[target.id] = failure
+                self.refreshAfterHookChange()
+            }
+        }
+    }
+
+    /// Takes the island out of every file it wrote into (#236); calls back
+    /// with how many rows failed.
+    func removeAllHooks(completion: @escaping (Int) -> Void = { _ in }) {
+        let env = hookEnvironment
+        let targets = hookTargets ?? []
+        hookTargetsBusy.formUnion(targets.map(\.id))
+        actions.async {
+            let current = HookTargets.list(Self.hookContext(env))
+            let failures = HookMaintenance.removeEverything(current, env: env)
+            DiagnosticsLog.info("hooks", "removed every hook, \(failures.count) failed")
+            DispatchQueue.main.async {
+                self.hookTargetsBusy = []
+                self.hookTargetFailures = failures.mapValues { Self.failureText($0) }
+                self.refreshAfterHookChange()
+                completion(failures.count)
+            }
+        }
+    }
+
+    /// Adds a config folder for an agent and puts its hooks in; why it
+    /// could not be added, if it could not.
+    func addHookFolder(_ provider: ClaudeSessionProvider, picked: URL) -> String? {
+        let own = AgentHookInstaller.agentFolder(provider, home: home)
+        switch AgentFolders.add(provider, picked: picked, defaultFolder: own) {
+        case .failure(let failure): return HooksPageStrings.folderNotAdded(failure)
+        case .success(let setting):
+            let env = hookEnvironment
+            actions.async {
+                let target = HookTargets.list(Self.hookContext(env)).first { $0.id == setting.targetID }
+                var failure: String?
+                if let target {
+                    do { try HookMaintenance.reinstall(target, env: env) } catch { failure = Self.failureText(error) }
+                }
+                DispatchQueue.main.async {
+                    self.hookTargetFailures[setting.targetID] = failure
+                    self.refreshAfterHookChange()
+                }
+            }
+            return nil
+        }
+    }
+
+    /// Adds a tool with Claude Code style hooks and puts its hooks in.
+    func addCustomHookTool(name: String, file: URL) -> String? {
+        switch CustomHookTools.add(name: name, file: file, accounts: accounts) {
+        case .failure(let failure): return HooksPageStrings.toolNotAdded(failure)
+        case .success(let tool):
+            let env = hookEnvironment
+            actions.async {
+                let target = HookTargets.list(Self.hookContext(env)).first { $0.id == tool.targetID }
+                var failure: String?
+                if let target {
+                    do { try HookMaintenance.reinstall(target, env: env) } catch { failure = Self.failureText(error) }
+                }
+                DispatchQueue.main.async {
+                    self.hookTargetFailures[tool.targetID] = failure
+                    self.refreshAfterHookChange()
+                }
+            }
+            return nil
+        }
+    }
+
+    /// Takes a folder or tool added by hand off the page, its hooks out first.
+    func forgetHookTarget(_ target: HookTarget) {
+        let env = hookEnvironment
+        hookTargetsBusy.insert(target.id)
+        actions.async {
+            var failure: String?
+            do { try HookMaintenance.forget(target, env: env) } catch { failure = Self.failureText(error) }
+            if failure == nil {
+                HookMaintenance.setOptOut(target.id, false, defaults: env.defaults)
+                switch target.place {
+                case .agent(let provider, let folder?):
+                    AgentFolders.remove(AgentFolderSetting(agent: provider.rawValue, path: folder.path))
+                case .custom(let tool):
+                    CustomHookTools.remove(tool)
+                default: break
+                }
+            }
+            DispatchQueue.main.async {
+                self.hookTargetsBusy.remove(target.id)
+                self.hookTargetFailures[target.id] = failure
+                if case .claude = target.place, failure == nil,
+                   let account = self.accounts.first(where: { $0.settingsURL == target.file }) {
+                    self.removeAccount(account)
+                }
+                self.refreshAfterHookChange()
+            }
+        }
+    }
+
+    private func refreshAfterHookChange() {
+        checkHooks()
+        checkAgentHooks()
+        checkHookTargets()
+    }
+
+    static func failureText(_ error: Error) -> String {
+        let text = FeatureStrings.notchClaudeSessions(L10n.shared.language)
+        guard let failure = error as? ClaudeHookInstaller.Failure else { return error.localizedDescription }
+        switch failure {
+        case .unreadable: return text.settingsUnreadable
+        case .unwritable(let reason): return reason
+        case .busy: return text.settingsBusy
+        case .noBackup: return text.settingsNoBackup
         }
     }
 
@@ -1392,7 +1650,9 @@ final class ClaudeSessionService: ObservableObject {
     // MARK: Accounts (#216)
 
     private func updateAccountLabels() {
-        let labels = ClaudeAccounts.labels(sessions, accounts: accounts, home: home)
+        var labels = ClaudeAccounts.labels(sessions, accounts: accounts, home: home)
+        // A second Codex home and a tool added by hand say which they are (#236).
+        labels.merge(HookTargets.labels(sessions)) { current, _ in current }
         if labels != accountLabels { accountLabels = labels }
     }
 
@@ -1808,7 +2068,7 @@ final class ClaudeSessionService: ObservableObject {
     /// Codex is heard through its app-server, not hooks: what the journal
     /// keeps of it is each thread's change of state. Queue.
     private func journalCodex(_ shown: [ClaudeSession], now: Date) {
-        for session in shown where session.provider == .codex {
+        for session in shown where session.codexServer {
             let before = published.first { $0.id == session.id }?.phase
             guard before != session.phase else { continue }
             DiagnosticsJournal.shared.record(DiagnosticsJournal.make(
@@ -2246,6 +2506,14 @@ enum ClaudeSessionCleanup {
         }
         // Gemini CLI's, Copilot CLI's, Cursor's and OpenCode's go with them.
         AgentHookInstaller.removeAll(home: home, bundle: bundle)
+        // And those in folders and tools added on the Hooks page (#236).
+        for setting in AgentFolders.all() {
+            guard let provider = setting.provider else { continue }
+            try? AgentHookInstaller.remove(provider, home: home, bundle: bundle, folder: setting.url)
+        }
+        for tool in CustomHookTools.all() {
+            try? AgentHookInstaller.removeCustom(tool.file, bundle: bundle)
+        }
         let folder = home.appending(path: ".openbar", directoryHint: .isDirectory)
         try? FileManager.default.removeItem(at: folder.appending(path: "\(bundle).sock"))
         let others = siblings(of: bundle).filter { sibling in

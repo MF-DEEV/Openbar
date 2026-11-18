@@ -53,6 +53,8 @@ extension ClaudeSessionProvider {
         case .vibe: return .vibe
         case .devin: return .devin
         case .antigravity: return .antigravity
+        // A tool added by hand wears Claude's figure: its hooks are Claude Code's.
+        case .custom: return .clawd
         }
     }
 }

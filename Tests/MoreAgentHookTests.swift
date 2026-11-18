@@ -274,7 +274,7 @@ enum MoreAgentHookTests {
                      && AgentHookInstaller.state(.vibe, home: home, socket: "/elsewhere.sock", bundle: bundle) == .outdated,
                      "the hooks are known as the island's, and another socket's need an update")
         let backups = ((try? manager.contentsOfDirectory(atPath: vibe.deletingLastPathComponent().path)) ?? [])
-            .filter { $0.hasPrefix("hooks.toml.openbar-") && $0.hasSuffix(".bak") }
+            .filter { $0.hasPrefix("hooks.toml.openbar-") && $0.hasSuffix(".bak") && !$0.contains("original") }
         suite.expect(backups.count == 1, "hooks.toml was copied aside first: \(backups)")
         try? AgentHookInstaller.install(.vibe, home: home, socket: "/elsewhere.sock", bundle: bundle)
         let updated = (try? String(contentsOf: vibe, encoding: .utf8)) ?? ""

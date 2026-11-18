@@ -236,6 +236,11 @@ export const CopilotMark = monoMark(COPILOT_PATH);
 export const OpencodeMark = monoMark(OPENCODE_PATH);
 /** Cursor's cube. */
 export const CursorMark = monoMark(CURSOR_PATH);
+/** A tool added by hand on the Hooks page (#236): a plain terminal with a
+ * prompt, the island's own drawing, since the tool's mark is unknown. */
+const CUSTOM_PATH =
+  "M5 4h14a3 3 0 013 3v10a3 3 0 01-3 3H5a3 3 0 01-3-3V7a3 3 0 013-3zM5.4 5.6a1.8 1.8 0 00-1.8 1.8v9.2a1.8 1.8 0 001.8 1.8h13.2a1.8 1.8 0 001.8-1.8V7.4a1.8 1.8 0 00-1.8-1.8zM6.2 8.6l1.1-1.1 4.5 4.5-4.5 4.5-1.1-1.1 3.4-3.4zM12.5 15h5.5v1.5h-5.5z";
+export const CustomMark = monoMark(CUSTOM_PATH);
 
 // Pi's P and i in the colors of pi.dev's own logo; Mistral's stepped M row
 // by row from gold to red; Devin's three linked hexagons. Paths from
@@ -310,6 +315,7 @@ export const MARK_SCALE: Readonly<Record<Provider, number>> = {
   vibe: 1.15,
   devin: 1.15,
   antigravity: 1.15,
+  custom: 1.15,
 };
 
 const MARKS: Readonly<Record<Provider, (props: MarkProps) => ReturnType<typeof ClaudeMark>>> = {
@@ -323,6 +329,7 @@ const MARKS: Readonly<Record<Provider, (props: MarkProps) => ReturnType<typeof C
   vibe: VibeMark,
   devin: DevinMark,
   antigravity: AntigravityMark,
+  custom: CustomMark,
 };
 
 /** The mark of an agent, to draw as a component. */

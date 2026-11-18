@@ -63,7 +63,7 @@ import { useSessions } from "./store";
 import { setPrefs } from "../shared/prefs";
 import { bridge } from "../shared/bridge";
 import { IMAGE_LIMIT, imageDataUrl, imageFiles, isImagePasteShortcut } from "./paste";
-import { isWaiting, isWorking, type ReplyFailure, type Session } from "./types";
+import { codexServer, isWaiting, isWorking, type ReplyFailure, type Session } from "./types";
 import { VoiceButton, VoiceProblem } from "./VoiceReply";
 import { isActive as voiceActive, showsMicrophone, useVoice, voiceWanted } from "./voice";
 
@@ -296,7 +296,7 @@ export function SessionDetail({ session, enlarged = false }: { session: Session;
           ) : null}
         </div>
 
-        {session.provider === "codex" &&
+        {codexServer(session) &&
         (!isWaiting(session.phase) || !session.permission || session.permission.questions.length > 0) ? (
           <AutoAllowButton session={session} activeOnly />
         ) : null}

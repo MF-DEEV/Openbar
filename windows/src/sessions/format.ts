@@ -47,6 +47,8 @@ const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   vibe: VIBE_TINT,
   devin: DEVIN_TINT,
   antigravity: ANTIGRAVITY_TINT,
+  // A tool added by hand has no color of its own (#236).
+  custom: CURSOR_TINT,
 };
 
 export function providerTint(provider: Provider): string {

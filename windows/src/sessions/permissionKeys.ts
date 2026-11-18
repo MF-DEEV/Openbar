@@ -3,14 +3,14 @@
 
 import { useIsland } from "../island/store";
 import { settled, useSessions } from "./store";
-import type { Session } from "./types";
+import { codexServer, type Session } from "./types";
 import { asks, showing } from "./queue";
 
 export type PermissionKey = "y" | "n" | "always";
 
 export async function performPermissionKey(session: Session, key: PermissionKey): Promise<boolean> {
   if (key !== "n" && session.permission?.command?.requiresInspection) return false;
-  if (key === "always" && session.provider === "codex") {
+  if (key === "always" && codexServer(session)) {
     useSessions.getState().toggleAutoAllow(session.id);
     return true;
   }
@@ -60,7 +60,7 @@ export function handlePermissionKey(event: KeyboardEvent, sessionId: string, req
     return false;
   const session = permissionKeyTarget(sessionId, requestId);
   if (!session) return false;
-  if (key === "t" && session.provider !== "codex" && !session.permission!.offersAlways) return false;
+  if (key === "t" && !codexServer(session) && !session.permission!.offersAlways) return false;
   event.preventDefault();
   event.stopPropagation();
   // Consume the shortcut during the same settling interval as the buttons.

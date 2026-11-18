@@ -36,7 +36,7 @@ enum NotchClaudeSessionsSupport {
         case .vibe: return DefaultsKey.notchSessionsAgentVibe
         case .devin: return DefaultsKey.notchSessionsAgentDevin
         case .antigravity: return DefaultsKey.notchSessionsAgentAntigravity
-        case .claude, .codex: return nil
+        case .claude, .codex, .custom: return nil
         }
     }
 
@@ -262,7 +262,8 @@ enum NotchClaudeSessionsSupport {
     /// Antigravity's apps keep their chat in their own window, so only
     /// `cursor-agent` and `agy` in a terminal take one.
     static func repliesReach(_ session: ClaudeSession) -> Bool {
-        if session.provider.takesRepliesDirectly { return true }
+        // Codex heard through a second home's hooks takes replies in its terminal (#236).
+        if session.provider.takesRepliesDirectly, session.via == nil { return true }
         if session.provider == .cursor || session.provider == .antigravity {
             switch session.host {
             case .ide, .app, .unknown, .background: return false
@@ -554,7 +555,7 @@ enum NotchClaudeSessionsSupport {
     /// way, this one included. It is given for one turn at a time, so only
     /// to a session at work.
     static func canAutoAllow(_ session: ClaudeSession) -> Bool {
-        session.provider == .codex && session.phase != .finished && session.phase != .idle
+        session.codexServer && session.phase != .finished && session.phase != .idle
     }
 
     /// Whether Always, given at `given` while the turn begun at `turn` ran,
@@ -576,7 +577,7 @@ enum NotchClaudeSessionsSupport {
     /// moments around it when Codex says it waits with no request listed.
     /// Questions, and requests only the terminal can answer, still wait.
     static func hidesAutoApproval(_ session: ClaudeSession, autoAllowed: Set<String>, now: Date) -> Bool {
-        autoAllowed.contains(session.id) && session.provider == .codex && session.phase == .waitingPermission
+        autoAllowed.contains(session.id) && session.codexServer && session.phase == .waitingPermission
             && session.waitingFor != CodexSessionState.answerInTerminal && session.permission?.asksQuestions != true
             && session.permission?.content?.requiresInspection != true
             && (session.permission != nil || now.timeIntervalSince(session.phaseSince) < statusOnlyWait)

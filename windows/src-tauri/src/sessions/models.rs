@@ -762,6 +762,19 @@ pub struct Session {
     /// Permissions the island allowed without asking, newest last (#234).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub let_through: Vec<super::auto_mode::LetThrough>,
+    /// For a session heard through the hooks of a config folder or tool the
+    /// person added on the Hooks page, that folder's tag or the tool's id
+    /// (#236): a Codex session from a second Codex home, not Codex's server.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub via: Option<String>,
+}
+
+impl Session {
+    /// Codex heard through its app-server, which the island answers and
+    /// replies through; a Codex session heard through hooks is not (#236).
+    pub fn codex_server(&self) -> bool {
+        self.provider == Provider::Codex && self.via.is_none()
+    }
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize)]
@@ -780,6 +793,8 @@ pub struct SessionCounts {
     pub working_vibe: i64,
     pub working_devin: i64,
     pub working_antigravity: i64,
+    /// Of `working`, the ones of tools added on the Hooks page (#236).
+    pub working_custom: i64,
     pub waiting: i64,
     /// Stopped by the plan's usage limit.
     pub limited: i64,
@@ -802,6 +817,7 @@ impl SessionCounts {
                     Provider::Vibe => counts.working_vibe += 1,
                     Provider::Devin => counts.working_devin += 1,
                     Provider::Antigravity => counts.working_antigravity += 1,
+                    Provider::Custom => counts.working_custom += 1,
                     Provider::Claude => {}
                 }
             }
@@ -838,6 +854,9 @@ pub enum Provider {
     Vibe,
     Devin,
     Antigravity,
+    /// A tool with Claude Code style hooks the person added on the Hooks
+    /// page (#236), shown with a plain mark and its own name.
+    Custom,
 }
 
 /// A change worth a notice in the island.
@@ -1505,6 +1524,7 @@ mod tests {
             account_id: None,
             auto_mode: false,
             let_through: Vec::new(),
+            via: None,
             later_asks: Vec::new(),
         }
     }

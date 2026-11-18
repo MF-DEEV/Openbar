@@ -349,7 +349,7 @@ enum AgentHookSessionTests {
         suite.expect(AgentHookInstaller.state(.gemini, home: home, socket: "/elsewhere.sock", bundle: bundle) == .outdated,
                      "hooks for another socket need an update")
         let backups = ((try? FileManager.default.contentsOfDirectory(atPath: gemini.deletingLastPathComponent().path)) ?? [])
-            .filter { $0.hasSuffix(".bak") }
+            .filter { $0.hasSuffix(".bak") && !$0.contains("original") }
         suite.expect(backups.count == 1, "the settings were copied aside first: \(backups)")
         try? AgentHookInstaller.remove(.gemini, home: home, bundle: bundle)
         let removed = (try? ClaudeHookInstaller.read(gemini)) ?? [:]
@@ -445,8 +445,9 @@ enum AgentHookSessionTests {
         suite.expect(text.answerIn(.gemini) == "Answer this one in Gemini CLI." && text.answerIn(.codex) == text.answerInTerminal
                      && text.replyPlaceholder(for: .copilot) == "Reply to Copilot CLI…",
                      "the island names the agent where it sends the person")
-        suite.expect(ClaudeSessionProvider.allCases.map(\.character).count == Set(ClaudeSessionProvider.allCases.map(\.character)).count,
+        suite.expect(ClaudeSessionProvider.agents.map(\.character).count == Set(ClaudeSessionProvider.agents.map(\.character)).count,
                      "every agent has a figure of its own")
+        suite.expect(ClaudeSessionProvider.custom.character == .clawd, "a tool added by hand wears Claude's figure")
     }
 
     // MARK: Branch

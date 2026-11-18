@@ -1002,6 +1002,20 @@ enum DefaultsKey {
     /// diagnostics file can tell hooks changed or removed by hand (#230).
     /// Machine state: never in a settings backup.
     static let diagnosticsHookRecords = "diagnosticsHookRecords"
+    /// Config folders added by hand on the Hooks page (#236), as JSON:
+    /// `[{"agent", "path", "name"?}]`. Folders on this Mac: never in a backup.
+    static let notchSessionsAgentFolders = "notchSessionsAgentFolders"
+    /// Tools with Claude Code style hooks added on the Hooks page (#236), as
+    /// JSON: `[{"id", "name", "path"}]`. Files on this Mac: never in a backup.
+    static let notchSessionsCustomHookTools = "notchSessionsCustomHookTools"
+    /// Hooks lost from a config file are put back by themselves (#236).
+    static let hooksAutoRepair = "hooksAutoRepair"
+    /// The Hooks page's rows the person pressed Remove on: left without hooks
+    /// until Reinstall (#236). Machine state.
+    static let hooksOptOut = "hooksOptOut"
+    /// Folders the island made for a hook file, taken away again by Remove
+    /// everything once empty (#236). Machine state.
+    static let hooksMadeFolders = "hooksMadeFolders"
     /// Reporting a bug first saves a diagnostics file to attach (#230).
     static let feedbackAttachDiagnostics = "feedbackAttachDiagnostics"
     static let notchEnabled = "notchEnabled"
@@ -1637,6 +1651,7 @@ enum Defaults {
         DefaultsKey.notchSessionsAlwaysProceedOpenCode: false,
         DefaultsKey.notchSessionsAlwaysProceedVibe: false,
         DefaultsKey.notchSessionsVoiceReplies: true,
+        DefaultsKey.hooksAutoRepair: true,
         DefaultsKey.notchSessionsVoiceLanguage: "",
         DefaultsKey.notchSessionsVoiceSendOnStop: false,
         DefaultsKey.notchSessionsWaitingSound: true,

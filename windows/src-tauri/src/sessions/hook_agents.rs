@@ -78,6 +78,7 @@ impl Provider {
             Provider::Vibe => "vibe",
             Provider::Devin => "devin",
             Provider::Antigravity => "antigravity",
+            Provider::Custom => "custom",
         }
     }
 
@@ -99,6 +100,7 @@ impl Provider {
             Provider::Vibe,
             Provider::Devin,
             Provider::Antigravity,
+            Provider::Custom,
         ]
         .into_iter()
         .find(|p| p.key() == key)
@@ -218,10 +220,37 @@ fn contains(data: &[u8], needle: &[u8]) -> bool {
     data.windows(needle.len()).any(|w| w == needle)
 }
 
+/// The envelope's key for the config folder's tag or tool id a hook was
+/// written for (#236).
+pub const VIA: &str = "via";
+
+/// Whether a tag is one the island made: only these go into a command.
+pub fn is_tag(text: &str) -> bool {
+    !text.is_empty()
+        && text.len() <= 40
+        && text.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+}
+
+/// The config folder's tag or tool id of a session heard through hooks the
+/// Hooks page wrote (#236): Codex's from a second Codex home, a tool's.
+pub fn via_of(provider: Provider, session: &str) -> Option<&str> {
+    matches!(provider, Provider::Codex | Provider::Custom)
+        .then(|| session.split_once(':').map(|(via, _)| via))
+        .flatten()
+}
+
 pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> {
     let json: Value = serde_json::from_slice(data).ok()?;
     let provider = Provider::from_key(json.get(KEY)?.as_str()?)?;
-    if !provider.reports_through_hooks() {
+    let via = json
+        .get(VIA)
+        .and_then(Value::as_str)
+        .filter(|v| is_tag(v))
+        .map(str::to_owned);
+    // Codex and the tools added by hand are heard only through hooks naming their folder or tool.
+    if !provider.reports_through_hooks()
+        && !(matches!(provider, Provider::Codex | Provider::Custom) && via.is_some())
+    {
         return None;
     }
     let event = json.get("event")?.as_object()?;
@@ -249,12 +278,17 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
             decoded.events = vibe(&hook, event, pid, now, policy);
             decoded.transcript = text(event, "transcript_path");
         }
-        Provider::Devin => decoded.events = devin(&hook, event, pid, now, policy),
+        Provider::Devin => {
+            decoded.events = claude_style(Provider::Devin, &hook, event, pid, now, policy, None)
+        }
+        Provider::Codex | Provider::Custom => {
+            decoded.events = claude_style(provider, &hook, event, pid, now, policy, via.as_deref())
+        }
         Provider::Antigravity => {
             decoded.events = antigravity(&hook, event, pid, now, policy);
             decoded.transcript = text(event, "transcriptPath");
         }
-        Provider::Claude | Provider::Codex => return None,
+        Provider::Claude => return None,
     }
     Some(decoded)
 }
@@ -835,21 +869,32 @@ pub fn vibe_reply(
 /// Devin CLI's hooks, in Claude Code's format (docs.devin.ai, "Lifecycle
 /// Hooks"). Its payloads carry no folder; the island reads the agent's. A
 /// permission is heard and answered in Devin.
-fn devin(
+/// Hooks in Claude Code's format: Devin CLI's, whose payloads carry no
+/// folder (the island reads the agent's), and those the Hooks page writes
+/// for a second Codex home or a tool added by hand (#236), whose session ids
+/// carry `via` so they stay apart from Codex's server and from each other.
+/// A permission is heard and answered in the agent.
+fn claude_style(
+    provider: Provider,
     hook: &str,
     json: &Map<String, Value>,
     pid: i32,
     now: Time,
     policy: ContentPolicy,
+    via: Option<&str>,
 ) -> Vec<AgentEvent> {
-    let Some(session) = text(json, "session_id") else {
+    let Some(own) = text(json, "session_id") else {
         return vec![];
+    };
+    let session = match via {
+        Some(via) => format!("{via}:{own}"),
+        None => own,
     };
     let cwd = text(json, "cwd");
     let mut events = Vec::new();
     let mut add = |kind| {
         events.push(AgentEvent {
-            provider: Provider::Devin,
+            provider,
             session_id: session.clone(),
             pid,
             cwd: cwd.clone(),
@@ -858,7 +903,7 @@ fn devin(
         })
     };
     let raw = str_of(json.get("tool_name")).unwrap_or("");
-    let tool = name(Provider::Devin, raw);
+    let tool = name(provider, raw);
     let input = arguments(json.get("tool_input"));
     match hook {
         "SessionStart" => add(Kind::Started),
@@ -903,11 +948,26 @@ fn devin(
                 &format!("{:x}", rand_id()),
             )));
         }
+        "PostToolUseFailure" => add(Kind::ToolFinished {
+            id: None,
+            input_key: Some(tool_summary::input_key(&tool, &input)),
+            name: tool,
+            failed: true,
+            started: None,
+        }),
         "Stop" => add(Kind::Stopped {
-            last_text: None,
+            last_text: policy
+                .previews
+                .then(|| reply_preview(json.get("last_assistant_message")))
+                .flatten(),
             failed: false,
         }),
         _ => {}
+    }
+    if provider != Provider::Devin
+        && let Some(model) = text(json, "model")
+    {
+        add(Kind::Model(model));
     }
     events
 }
@@ -1474,7 +1534,17 @@ pub fn name(provider: Provider, tool: &str) -> String {
             ("read_url_content", "WebFetch"),
             ("search_web", "WebSearch"),
         ],
-        Provider::Claude | Provider::Codex => &[],
+        // Codex's hooks name its shell `Bash` already; its patch tool is an edit.
+        Provider::Codex => &[
+            ("apply_patch", "Edit"),
+            ("shell", "Bash"),
+            ("local_shell", "Bash"),
+            ("exec_command", "Bash"),
+            ("update_plan", "TodoWrite"),
+            ("view_image", "Read"),
+            ("web_search", "WebSearch"),
+        ],
+        Provider::Claude | Provider::Custom => &[],
     };
     if let Some((_, name)) = known.iter().find(|(k, _)| *k == tool) {
         return (*name).to_owned();
@@ -1763,7 +1833,9 @@ impl Tracker {
             Kind::Permission(permission) => {
                 entry.open_turn(date);
                 entry.permission = Some(permission);
-                entry.answerable = event.provider.answers_permissions();
+                // Codex through hooks only hears of a request: Codex asks in its terminal (#236).
+                entry.answerable = event.provider.answers_permissions()
+                    && via_of(event.provider, &event.session_id).is_none();
                 entry.asking = false;
             }
             Kind::HeldPermission(permission) => {
@@ -2062,6 +2134,7 @@ fn session(
         auto_mode: false,
         let_through: Vec::new(),
         later_asks: Vec::new(),
+        via: via_of(entry.provider, &entry.session_id).map(str::to_owned),
     }
 }
 
@@ -2107,7 +2180,7 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
         Provider::Vibe => Some("vibe"),
         Provider::Devin => Some("devin"),
         Provider::Antigravity => Some("agy"),
-        Provider::Claude | Provider::Codex => None,
+        Provider::Claude | Provider::Codex | Provider::Custom => None,
     }
 }
 
@@ -2127,7 +2200,7 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
         Provider::Opencode => vec!["--prompt".into(), prompt.into()],
         Provider::Cursor | Provider::Pi | Provider::Vibe => vec![prompt.into()],
         Provider::Devin => vec!["--".into(), prompt.into()],
-        Provider::Claude | Provider::Codex => Vec::new(),
+        Provider::Claude | Provider::Codex | Provider::Custom => Vec::new(),
     }
 }
 
@@ -2291,6 +2364,47 @@ pub mod installer {
     ];
     /// Antigravity's tool hooks sit in groups with a matcher; the rest are flat.
     pub const ANTIGRAVITY_TOOL_EVENTS: [&str; 2] = ["PreToolUse", "PostToolUse"];
+    /// Codex's hooks (codex-rs/hooks), in Claude Code's format, written into
+    /// a Codex home other than the one the island hears through Codex's
+    /// app-server (#236). A permission is only heard: Codex asks in its terminal.
+    pub const CODEX_EVENTS: [&str; 7] = [
+        "SessionStart",
+        "SessionEnd",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "PermissionRequest",
+        "Stop",
+    ];
+    /// Events Codex and Claude Code match against a tool name.
+    pub const CLAUDE_TOOL_EVENTS: [&str; 4] = [
+        "PreToolUse",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "PermissionRequest",
+    ];
+    /// What a tool with Claude Code style hooks gets (#236): Claude Code's
+    /// events, each only heard.
+    pub const CUSTOM_EVENTS: [&str; 9] = [
+        "SessionStart",
+        "SessionEnd",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "PermissionRequest",
+        "Notification",
+        "Stop",
+    ];
+    /// The agents whose config folder can be named by hand, beside the one
+    /// their home variable or default names (#236).
+    pub const FOLDERS_BY_HAND: [Provider; 5] = [
+        Provider::Codex,
+        Provider::Gemini,
+        Provider::Copilot,
+        Provider::Pi,
+        Provider::Vibe,
+    ];
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
     #[serde(rename_all = "camelCase")]
@@ -2365,12 +2479,79 @@ pub mod installer {
             .join("hooks.toml")
     }
 
-    /// Devin CLI keeps its user config in `%APPDATA%\devin` on Windows.
+    /// Devin CLI keeps its user config in `%APPDATA%\devin` on Windows, and
+    /// in `$XDG_CONFIG_HOME/devin` (`~/.config/devin`) elsewhere.
     pub fn devin_config(home: &Path) -> PathBuf {
-        env_dir("APPDATA")
-            .unwrap_or_else(|| home.join("AppData").join("Roaming"))
-            .join("devin")
-            .join("config.json")
+        let base = if cfg!(windows) {
+            env_dir("APPDATA").unwrap_or_else(|| home.join("AppData").join("Roaming"))
+        } else {
+            env_dir("XDG_CONFIG_HOME").unwrap_or_else(|| home.join(".config"))
+        };
+        base.join("devin").join("config.json")
+    }
+
+    /// Codex's own home, `CODEX_HOME` or `~/.codex`, which the island hears
+    /// through Codex's app-server.
+    pub fn codex_home(home: &Path) -> PathBuf {
+        env_dir("CODEX_HOME").unwrap_or_else(|| home.join(".codex"))
+    }
+
+    /// The folder whose presence says the agent was used here, and the one
+    /// the Hooks page shows for its own row (#236).
+    pub fn agent_folder(provider: Provider, home: &Path) -> Option<PathBuf> {
+        Some(match provider {
+            Provider::Codex => codex_home(home),
+            Provider::Gemini => gemini_settings(home).parent()?.to_path_buf(),
+            Provider::Copilot => copilot_folder(home),
+            Provider::Opencode => opencode_folder(home),
+            Provider::Cursor => home.join(".cursor"),
+            Provider::Pi => pi_folder(home),
+            Provider::Vibe => vibe_hooks(home).parent()?.to_path_buf(),
+            Provider::Devin => devin_config(home).parent()?.to_path_buf(),
+            Provider::Antigravity => antigravity_hooks(home).parent()?.to_path_buf(),
+            Provider::Claude | Provider::Custom => return None,
+        })
+    }
+
+    /// The agent's hook file in a config folder the person added (#236): the
+    /// folder Gemini keeps as `.gemini`, Copilot's `COPILOT_HOME`, Pi's
+    /// `PI_CODING_AGENT_DIR`, Vibe's `VIBE_HOME`, a `CODEX_HOME`.
+    pub fn file_in(provider: Provider, folder: &Path, app: &str) -> Option<PathBuf> {
+        Some(match provider {
+            Provider::Gemini => folder.join("settings.json"),
+            Provider::Copilot => folder.join("hooks").join(format!("{}.json", own_name(app))),
+            Provider::Pi => folder
+                .join("extensions")
+                .join(format!("{}.js", own_name(app))),
+            Provider::Vibe => folder.join("hooks.toml"),
+            Provider::Codex => folder.join("hooks.json"),
+            _ => return None,
+        })
+    }
+
+    /// The agent's hook file: in `folder` when one is given, else where the
+    /// agent reads it by default; None for an agent with nothing installed.
+    pub fn file(
+        provider: Provider,
+        home: &Path,
+        app: &str,
+        folder: Option<&Path>,
+    ) -> Option<PathBuf> {
+        match folder {
+            Some(folder) => file_in(provider, folder, app),
+            None => {
+                crate::diagnostics::hook_records::hook_file(provider, home, app).map(|(f, _)| f)
+            }
+        }
+    }
+
+    /// A short name for a config folder, which its hooks carry so the island
+    /// knows which folder a session runs from without writing the path into
+    /// a command (#236).
+    pub fn folder_tag(folder: &Path) -> String {
+        use sha2::{Digest, Sha256};
+        let digest = Sha256::digest(crate::sessions::accounts::canonical(folder).as_bytes());
+        digest[..6].iter().map(|b| format!("{b:02x}")).collect()
     }
 
     /// Antigravity's global hooks, read by its app, its IDE and `agy` alike,
@@ -2415,14 +2596,28 @@ pub mod installer {
         if provider == Provider::Antigravity {
             return antigravity_apps(home).iter().any(|p| p.is_file());
         }
-        provider == Provider::Cursor
-            && std::env::var_os("LOCALAPPDATA")
-                .map(PathBuf::from)
-                .unwrap_or_else(|| home.join("AppData").join("Local"))
-                .join("Programs")
-                .join("cursor")
-                .join("Cursor.exe")
-                .is_file()
+        provider == Provider::Cursor && cursor_apps(home).iter().any(|p| p.is_file())
+    }
+
+    /// Where Cursor's app is put: the per-user install on Windows, the
+    /// packages' folders on Linux.
+    fn cursor_apps(home: &Path) -> Vec<PathBuf> {
+        if cfg!(windows) {
+            vec![
+                std::env::var_os("LOCALAPPDATA")
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| home.join("AppData").join("Local"))
+                    .join("Programs")
+                    .join("cursor")
+                    .join("Cursor.exe"),
+            ]
+        } else {
+            vec![
+                PathBuf::from("/usr/share/cursor/cursor"),
+                PathBuf::from("/opt/Cursor/cursor"),
+                PathBuf::from("/opt/cursor/cursor"),
+            ]
+        }
     }
 
     /// What keeping the hooks in step asks (AgentHookInstaller.plan): each
@@ -2433,15 +2628,45 @@ pub mod installer {
         hidden: &std::collections::HashSet<Provider>,
         state: impl Fn(Provider) -> State,
     ) -> (Vec<Provider>, Vec<Provider>) {
+        use crate::diagnostics::hook_records::derive;
+        plan_with(
+            found,
+            hidden,
+            |p| derive(state(p), None, None),
+            &std::collections::HashSet::new(),
+            true,
+        )
+    }
+
+    /// The same, once the records say more (#236): hooks the island put in
+    /// that someone took out come back only while lost hooks are put back
+    /// by themselves, hooks changed by hand are the person's, and an agent
+    /// the person pressed Remove for on the Hooks page is left as it is.
+    pub fn plan_with(
+        found: &[Provider],
+        hidden: &std::collections::HashSet<Provider>,
+        state: impl Fn(Provider) -> crate::diagnostics::hook_records::State,
+        opted_out: &std::collections::HashSet<Provider>,
+        repair: bool,
+    ) -> (Vec<Provider>, Vec<Provider>) {
+        use crate::diagnostics::hook_records::State as Derived;
         let mut install = Vec::new();
         let mut remove = Vec::new();
         for provider in Provider::HOOK_AGENTS {
             let now = state(provider);
             if !hidden.contains(&provider) {
-                if found.contains(&provider) && matches!(now, State::Missing | State::Outdated) {
-                    install.push(provider);
+                if !found.contains(&provider) || opted_out.contains(&provider) {
+                    continue;
                 }
-            } else if matches!(now, State::Installed | State::Outdated) {
+                match now {
+                    Derived::Missing | Derived::Outdated => install.push(provider),
+                    Derived::RemovedByHand if repair => install.push(provider),
+                    _ => {}
+                }
+            } else if matches!(
+                now,
+                Derived::Installed | Derived::Outdated | Derived::ChangedByHand
+            ) {
                 remove.push(provider);
             }
         }
@@ -2449,19 +2674,46 @@ pub mod installer {
     }
 
     /// The hook for one event: this app, quoted with forward slashes, run
-    /// by PowerShell (Gemini CLI and Cursor on Windows) or by any shell.
+    /// by PowerShell (Gemini CLI and Cursor on Windows); elsewhere they run
+    /// it with `bash -c` or `sh -c`, so the path goes in single quotes.
     pub fn command(provider: Provider, event: &str, exe: &Path, app: &str) -> String {
-        let path = exe.to_string_lossy().replace('\\', "/");
+        command_via(provider, event, exe, app, None)
+    }
+
+    /// The hook's arguments after the program; `via` names the config
+    /// folder (Codex) or the tool the hook was written for (#236).
+    fn arguments_via(provider: Provider, event: &str, app: &str, via: Option<&str>) -> String {
         let continues = if provider == Provider::Cursor && CURSOR_CONTINUES.contains(&event) {
             " --continue"
         } else {
             ""
         };
+        let via = via
+            .filter(|v| super::is_tag(v))
+            .map(|v| format!(" --via {v}"))
+            .unwrap_or_default();
         format!(
-            "& \"{path}\" --hook --agent {} --event {event}{continues} {}",
+            "--hook --agent {} --event {event}{continues}{via} {}",
             provider.key(),
             claude::marker(app)
         )
+    }
+
+    pub fn command_via(
+        provider: Provider,
+        event: &str,
+        exe: &Path,
+        app: &str,
+        via: Option<&str>,
+    ) -> String {
+        let arguments = arguments_via(provider, event, app, via);
+        if cfg!(windows) {
+            let path = exe.to_string_lossy().replace('\\', "/");
+            format!("& \"{path}\" {arguments}")
+        } else {
+            let path = exe.to_string_lossy().replace('\'', "'\\''");
+            format!("'{path}' {arguments}")
+        }
     }
 
     /// The hook for Mistral Vibe and Devin CLI, whose shell on Windows may be
@@ -2469,15 +2721,21 @@ pub mod installer {
     /// form when the path has a space), which each of them runs as it is.
     /// A path that keeps a space even so falls back to PowerShell's form.
     pub fn portable_command(provider: Provider, event: &str, exe: &Path, app: &str) -> String {
+        portable_command_via(provider, event, exe, app, None)
+    }
+
+    pub fn portable_command_via(
+        provider: Provider,
+        event: &str,
+        exe: &Path,
+        app: &str,
+        via: Option<&str>,
+    ) -> String {
         let path = short_path(exe).to_string_lossy().replace('\\', "/");
         if path.contains(char::is_whitespace) {
-            return command(provider, event, exe, app);
+            return command_via(provider, event, exe, app, via);
         }
-        format!(
-            "{path} --hook --agent {} --event {event} {}",
-            provider.key(),
-            claude::marker(app)
-        )
+        format!("{path} {}", arguments_via(provider, event, app, via))
     }
 
     /// The hook for Google Antigravity, which runs it with `cmd /c` on
@@ -2847,21 +3105,31 @@ pub mod installer {
     }
 
     pub fn state(provider: Provider, home: &Path, exe: &Path, endpoint: &str, app: &str) -> State {
+        state_in(provider, home, exe, endpoint, app, None)
+    }
+
+    /// The state of the agent's hooks where it reads them by default, or in
+    /// `folder`, one the person added (#236).
+    pub fn state_in(
+        provider: Provider,
+        home: &Path,
+        exe: &Path,
+        endpoint: &str,
+        app: &str,
+        folder: Option<&Path>,
+    ) -> State {
+        let Some(path) = file(provider, home, app, folder) else {
+            return State::Missing;
+        };
         let read = |path: &Path| claude::read(path);
         match provider {
-            Provider::Gemini => match read(&gemini_settings(home)) {
-                Ok(s)
-                    if groups_hold(&s, &GEMINI_EVENTS, |e| {
-                        command(Provider::Gemini, e, exe, app)
-                    }) =>
-                {
-                    State::Installed
-                }
-                Ok(s) if claude::has_any(&s, app) => State::Outdated,
-                Ok(_) => State::Missing,
+            Provider::Gemini => match read(&path) {
+                Ok(s) => groups_state(&s, &GEMINI_EVENTS, app, |e| {
+                    command(Provider::Gemini, e, exe, app)
+                }),
                 Err(_) => State::Unreadable,
             },
-            Provider::Cursor => match read(&cursor_hooks(home)) {
+            Provider::Cursor => match read(&path) {
                 Ok(s) => {
                     let current = CURSOR_EVENTS.iter().all(|event| {
                         s.pointer(&format!("/hooks/{event}"))
@@ -2883,12 +3151,10 @@ pub mod installer {
                 }
                 Err(_) => State::Unreadable,
             },
-            Provider::Copilot => own_state(&copilot_hooks(home, app), &copilot_file(exe, app)),
-            Provider::Opencode => {
-                own_state(&opencode_plugin(home, app), &opencode_file(endpoint, app))
-            }
-            Provider::Pi => own_state(&pi_extension(home, app), &pi_file(endpoint, app)),
-            Provider::Vibe => match vibe_text(&vibe_hooks(home)) {
+            Provider::Copilot => own_state(&path, &copilot_file(exe, app)),
+            Provider::Opencode => own_state(&path, &opencode_file(endpoint, app)),
+            Provider::Pi => own_state(&path, &pi_file(endpoint, app)),
+            Provider::Vibe => match vibe_text(&path) {
                 Ok(None) => State::Missing,
                 Ok(Some(text)) if text.contains(&vibe_block(exe, app)) => State::Installed,
                 Ok(Some(text)) if text.contains(&claude::marker(app)) => State::Outdated,
@@ -2896,19 +3162,13 @@ pub mod installer {
                 Ok(Some(_)) => State::Missing,
                 Err(_) => State::Unreadable,
             },
-            Provider::Devin => match read(&devin_config(home)) {
-                Ok(s)
-                    if groups_hold(&s, &DEVIN_EVENTS, |e| {
-                        portable_command(Provider::Devin, e, exe, app)
-                    }) =>
-                {
-                    State::Installed
-                }
-                Ok(s) if claude::has_any(&s, app) => State::Outdated,
-                Ok(_) => State::Missing,
+            Provider::Devin => match read(&path) {
+                Ok(s) => groups_state(&s, &DEVIN_EVENTS, app, |e| {
+                    portable_command(Provider::Devin, e, exe, app)
+                }),
                 Err(_) => State::Unreadable,
             },
-            Provider::Antigravity => match read(&antigravity_hooks(home)) {
+            Provider::Antigravity => match read(&path) {
                 Ok(s) if s.get(own_name(app)) == Some(&antigravity_entry(exe, app)) => {
                     State::Installed
                 }
@@ -2916,8 +3176,125 @@ pub mod installer {
                 Ok(_) => State::Missing,
                 Err(_) => State::Unreadable,
             },
-            _ => State::Missing,
+            Provider::Codex => {
+                let Some(folder) = folder else {
+                    return State::Missing;
+                };
+                let tag = folder_tag(folder);
+                match read(&path) {
+                    Ok(s) => groups_state(&s, &CODEX_EVENTS, app, |e| {
+                        portable_command_via(Provider::Codex, e, exe, app, Some(&tag))
+                    }),
+                    Err(_) => State::Unreadable,
+                }
+            }
+            Provider::Claude | Provider::Custom => State::Missing,
         }
+    }
+
+    /// Installed when every event holds the current command; outdated when
+    /// some other command of the island's is there.
+    fn groups_state(
+        settings: &Value,
+        events: &[&str],
+        app: &str,
+        command: impl Fn(&str) -> String,
+    ) -> State {
+        if groups_hold(settings, events, command) {
+            State::Installed
+        } else if claude::has_any(settings, app) {
+            State::Outdated
+        } else {
+            State::Missing
+        }
+    }
+
+    /// The island's groups after the person's own; events in `matched` get
+    /// a matcher for every tool, as Claude Code and Codex want.
+    fn groups_installing(
+        settings: &Value,
+        events: &[&str],
+        app: &str,
+        matched: &[&str],
+        entry: impl Fn(&str) -> Value,
+    ) -> Value {
+        let mut settings = claude::removing(settings, app);
+        if !settings.is_object() {
+            settings = json!({});
+        }
+        let object = settings.as_object_mut().unwrap();
+        let hooks = object.entry("hooks").or_insert_with(|| json!({}));
+        if !hooks.is_object() {
+            *hooks = json!({});
+        }
+        let hooks = hooks.as_object_mut().unwrap();
+        for event in events {
+            let mut group = json!({ "hooks": [entry(event)] });
+            if matched.contains(event) {
+                group["matcher"] = json!("*");
+            }
+            let list = hooks.entry(*event).or_insert_with(|| json!([]));
+            if !list.is_array() {
+                *list = json!([]);
+            }
+            if let Some(list) = list.as_array_mut() {
+                list.push(group);
+            }
+        }
+        settings
+    }
+
+    /// Codex's hooks in a Codex home the person added, each naming the folder.
+    pub fn codex_installing(settings: &Value, exe: &Path, app: &str, folder: &Path) -> Value {
+        let tag = folder_tag(folder);
+        groups_installing(settings, &CODEX_EVENTS, app, &CLAUDE_TOOL_EVENTS, |event| {
+            // Codex holds SessionEnd to 3 seconds and warns of more.
+            json!({
+                "type": "command",
+                "timeout": if event == "SessionEnd" { 3 } else { EVENT_TIMEOUT },
+                "command": portable_command_via(Provider::Codex, event, exe, app, Some(&tag)),
+            })
+        })
+    }
+
+    // MARK: Tools with Claude Code style hooks (#236)
+
+    /// A tool's hooks: Claude Code's events in Claude Code's groups, each
+    /// command naming the tool.
+    pub fn custom_state(path: &Path, tool: &str, exe: &Path, app: &str) -> State {
+        match claude::read(path) {
+            Ok(s) => groups_state(&s, &CUSTOM_EVENTS, app, |e| {
+                portable_command_via(Provider::Custom, e, exe, app, Some(tool))
+            }),
+            Err(_) => State::Unreadable,
+        }
+    }
+
+    pub fn custom_installing(settings: &Value, tool: &str, exe: &Path, app: &str) -> Value {
+        groups_installing(
+            settings,
+            &CUSTOM_EVENTS,
+            app,
+            &CLAUDE_TOOL_EVENTS,
+            |event| {
+                json!({
+                    "type": "command",
+                    "timeout": EVENT_TIMEOUT,
+                    "command": portable_command_via(Provider::Custom, event, exe, app, Some(tool)),
+                })
+            },
+        )
+    }
+
+    pub fn install_custom(path: &Path, tool: &str, exe: &Path, app: &str) -> Result<(), String> {
+        claude::update(path, |s| custom_installing(s, tool, exe, app)).map_err(|e| e.to_string())
+    }
+
+    pub fn remove_custom(path: &Path, app: &str) -> Result<(), String> {
+        if !path.exists() {
+            return Ok(());
+        }
+        claude::update(path, |s| claude::removing(s, app)).map_err(|e| e.to_string())
     }
 
     pub fn devin_installing(settings: &Value, exe: &Path, app: &str) -> Value {
@@ -2963,86 +3340,84 @@ pub mod installer {
         endpoint: &str,
         app: &str,
     ) -> Result<(), String> {
+        install_in(provider, home, exe, endpoint, app, None)
+    }
+
+    pub fn install_in(
+        provider: Provider,
+        home: &Path,
+        exe: &Path,
+        endpoint: &str,
+        app: &str,
+        folder: Option<&Path>,
+    ) -> Result<(), String> {
+        let Some(path) = file(provider, home, app, folder) else {
+            return Ok(());
+        };
+        let failure = |e: claude::Failure| e.to_string();
         match provider {
             Provider::Gemini => {
-                claude::update(&gemini_settings(home), |s| gemini_installing(s, exe, app))
-                    .map_err(|e| e.to_string())
+                claude::update(&path, |s| gemini_installing(s, exe, app)).map_err(failure)
             }
             Provider::Cursor => {
-                claude::update(&cursor_hooks(home), |s| cursor_installing(s, exe, app))
-                    .map_err(|e| e.to_string())
+                claude::update(&path, |s| cursor_installing(s, exe, app)).map_err(failure)
             }
-            Provider::Copilot => write_own(&copilot_hooks(home, app), &copilot_file(exe, app), app),
-            Provider::Opencode => write_own(
-                &opencode_plugin(home, app),
-                &opencode_file(endpoint, app),
-                app,
-            ),
-            Provider::Pi => write_own(&pi_extension(home, app), &pi_file(endpoint, app), app),
+            Provider::Copilot => write_own(&path, &copilot_file(exe, app), app),
+            Provider::Opencode => write_own(&path, &opencode_file(endpoint, app), app),
+            Provider::Pi => write_own(&path, &pi_file(endpoint, app), app),
             Provider::Vibe => {
-                let path = vibe_hooks(home);
                 if let Ok(Some(text)) = vibe_text(&path)
                     && vibe_inline(&text)
                 {
                     return Err(format!("{} keeps its hooks inline", path.display()));
                 }
                 claude::update_text(&path, |text| Some(vibe_installing(text, exe, app)))
-                    .map_err(|e| e.to_string())
+                    .map_err(failure)
             }
             Provider::Devin => {
-                claude::update(&devin_config(home), |s| devin_installing(s, exe, app))
-                    .map_err(|e| e.to_string())
+                claude::update(&path, |s| devin_installing(s, exe, app)).map_err(failure)
             }
-            Provider::Antigravity => claude::update(&antigravity_hooks(home), |s| {
-                antigravity_installing(s, exe, app)
-            })
-            .map_err(|e| e.to_string()),
-            _ => Ok(()),
+            Provider::Antigravity => {
+                claude::update(&path, |s| antigravity_installing(s, exe, app)).map_err(failure)
+            }
+            Provider::Codex => match folder {
+                Some(folder) => claude::update(&path, |s| codex_installing(s, exe, app, folder))
+                    .map_err(failure),
+                None => Ok(()),
+            },
+            Provider::Claude | Provider::Custom => Ok(()),
         }
     }
 
     pub fn remove(provider: Provider, home: &Path, app: &str) -> Result<(), String> {
+        remove_in(provider, home, app, None)
+    }
+
+    pub fn remove_in(
+        provider: Provider,
+        home: &Path,
+        app: &str,
+        folder: Option<&Path>,
+    ) -> Result<(), String> {
+        let Some(path) = file(provider, home, app, folder) else {
+            return Ok(());
+        };
+        let failure = |e: claude::Failure| e.to_string();
         match provider {
-            Provider::Gemini => {
-                let path = gemini_settings(home);
-                if !path.exists() {
-                    return Ok(());
-                }
-                claude::update(&path, |s| claude::removing(s, app)).map_err(|e| e.to_string())
+            Provider::Copilot | Provider::Opencode | Provider::Pi => remove_own(&path, app),
+            _ if !path.exists() => Ok(()),
+            Provider::Gemini | Provider::Devin | Provider::Codex => {
+                claude::update(&path, |s| claude::removing(s, app)).map_err(failure)
             }
-            Provider::Cursor => {
-                let path = cursor_hooks(home);
-                if !path.exists() {
-                    return Ok(());
-                }
-                claude::update(&path, |s| flat_removing(s, app)).map_err(|e| e.to_string())
-            }
-            Provider::Copilot => remove_own(&copilot_hooks(home, app), app),
-            Provider::Opencode => remove_own(&opencode_plugin(home, app), app),
-            Provider::Pi => remove_own(&pi_extension(home, app), app),
+            Provider::Cursor => claude::update(&path, |s| flat_removing(s, app)).map_err(failure),
             Provider::Vibe => {
-                let path = vibe_hooks(home);
-                if !path.exists() {
-                    return Ok(());
-                }
                 claude::update_text(&path, |text| text.and_then(|t| vibe_removing(t, app)))
-                    .map_err(|e| e.to_string())
-            }
-            Provider::Devin => {
-                let path = devin_config(home);
-                if !path.exists() {
-                    return Ok(());
-                }
-                claude::update(&path, |s| claude::removing(s, app)).map_err(|e| e.to_string())
+                    .map_err(failure)
             }
             Provider::Antigravity => {
-                let path = antigravity_hooks(home);
-                if !path.exists() {
-                    return Ok(());
-                }
-                claude::update(&path, |s| antigravity_removing(s, app)).map_err(|e| e.to_string())
+                claude::update(&path, |s| antigravity_removing(s, app)).map_err(failure)
             }
-            _ => Ok(()),
+            Provider::Claude | Provider::Custom => Ok(()),
         }
     }
 
@@ -3055,22 +3430,26 @@ pub mod installer {
                 && (text.contains(&copilot) || text.contains(app)))
     }
 
-    /// Writes a file of the island's own, never over one that is not.
+    /// Writes a file of the island's own, never over one that is not, and
+    /// keeps a copy of what was there first (#236).
     fn write_own(path: &Path, data: &[u8], app: &str) -> Result<(), String> {
-        if let Ok(existing) = std::fs::read(path)
-            && !holds_marker(&existing, app)
+        let existing = std::fs::read(path).ok();
+        if let Some(existing) = &existing
+            && !holds_marker(existing, app)
         {
             return Err(format!("{} is not the island's", path.display()));
         }
-        if let Some(parent) = path.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        if existing.as_deref() == Some(data) {
+            return Ok(());
         }
-        std::fs::write(path, data).map_err(|e| e.to_string())
+        claude::write_with_backup(path, existing.as_deref(), data).map_err(|e| e.to_string())
     }
 
+    /// Takes a file of the island's own away, a copy kept beside it.
     fn remove_own(path: &Path, app: &str) -> Result<(), String> {
         match std::fs::read(path) {
             Ok(existing) if holds_marker(&existing, app) => {
+                claude::keep_copy(&existing, path).map_err(|e| e.to_string())?;
                 std::fs::remove_file(path).map_err(|e| e.to_string())
             }
             _ => Ok(()),
@@ -3458,9 +3837,15 @@ mod tests {
             own.pointer("/hooks/BeforeTool/0").unwrap().clone()
         );
         let command = installer::command(Provider::Gemini, "BeforeTool", exe, "app");
-        assert!(command.starts_with(
-            "& \"C:/Program Files/Openbar/Openbar.exe\" --hook --agent gemini --event BeforeTool"
-        ));
+        if cfg!(windows) {
+            assert!(command.starts_with(
+                "& \"C:/Program Files/Openbar/Openbar.exe\" --hook --agent gemini --event BeforeTool"
+            ));
+        } else {
+            assert!(command.starts_with(
+                "'C:\\Program Files\\Openbar\\Openbar.exe' --hook --agent gemini --event BeforeTool"
+            ));
+        }
         assert_eq!(crate::hooks::installer::removing(&installed, "app"), own);
 
         let cursor_own = json!({ "version": 1, "hooks": { "stop": [{ "command": "audit.ps1" }] } });
@@ -3841,14 +4226,15 @@ mod tests {
             "C:/Users/me/AppData/Local/Openbar/Openbar.exe --hook --agent vibe --event pre_tool "
         ));
         assert!(!command.contains('"') && !command.starts_with('&'));
-        // One that keeps a space falls back to PowerShell's form.
+        // One that keeps a space falls back to the quoted form: PowerShell's
+        // on Windows, a POSIX shell's elsewhere.
         let spaced = installer::portable_command(
             Provider::Vibe,
             "pre_tool",
             Path::new("Z:/No Such Folder/Openbar.exe"),
             "app",
         );
-        assert!(spaced.starts_with("& \""));
+        assert!(spaced.starts_with(if cfg!(windows) { "& \"" } else { "'Z:/No Such" }));
     }
 
     #[test]
@@ -4494,6 +4880,112 @@ mod tests {
             .unwrap()
             .events
             .is_empty()
+        );
+    }
+
+    /// Gemini CLI and Cursor run a hook with `bash -c` (or `sh -c`) on Linux,
+    /// where PowerShell's `& "…"` is a syntax error: the hook must be one a
+    /// POSIX shell runs, the path quoted, quotes in it and all (#236).
+    #[cfg(not(windows))]
+    #[test]
+    fn a_hook_command_runs_in_a_posix_shell() {
+        let folder = std::env::temp_dir().join(format!("ob236 it's-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&folder);
+        std::fs::create_dir_all(&folder).unwrap();
+        let exe = folder.join("open bar");
+        let out = folder.join("args.txt");
+        std::fs::write(&exe, "#!/bin/sh\nprintf '%s\\n' \"$@\" > \"$OB236_OUT\"\n").unwrap();
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&exe, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        for (provider, event) in [
+            (Provider::Gemini, "BeforeTool"),
+            (Provider::Cursor, "beforeSubmitPrompt"),
+        ] {
+            let command = installer::command(provider, event, &exe, "app");
+            assert!(command.starts_with('\''), "{command}");
+            let status = std::process::Command::new("sh")
+                .arg("-c")
+                .arg(&command)
+                .env("OB236_OUT", &out)
+                .status()
+                .unwrap();
+            assert!(status.success(), "{command}");
+            let args = std::fs::read_to_string(&out).unwrap();
+            let mut wanted = vec!["--hook", "--agent", provider.key(), "--event", event];
+            if provider == Provider::Cursor {
+                wanted.push("--continue");
+            }
+            wanted.extend(["--marker", "openbar-hook", "--app", "app"]);
+            assert_eq!(args.lines().collect::<Vec<_>>(), wanted);
+        }
+        // A tool's hook names the tool, and only with a tag the island makes.
+        let command =
+            installer::portable_command_via(Provider::Custom, "Stop", &exe, "app", Some("x y"));
+        assert!(!command.contains("--via"));
+        let command = installer::command_via(Provider::Codex, "Stop", &exe, "app", Some("a1b2c3"));
+        assert!(command.contains("--event Stop --via a1b2c3 --marker"));
+        let _ = std::fs::remove_dir_all(&folder);
+    }
+
+    /// Codex heard through a second home's hooks is a session of its own,
+    /// apart from Codex's server, answered in Codex's terminal (#236).
+    #[test]
+    fn codex_through_hooks_is_a_session_of_its_own() {
+        let payload = json!({ "session_id": "t1", "turn_id": "u1", "cwd": "/w/app",
+            "hook_event_name": "PermissionRequest", "model": "gpt-5-codex",
+            "permission_mode": "default", "tool_name": "Bash",
+            "tool_input": { "command": "rm -rf build" }, "transcript_path": null });
+        let data = serde_json::to_vec(&json!({ "openbar": "codex", "hook": "PermissionRequest",
+            "pid": 9, "via": "a1b2c3d4e5f6", "event": payload }))
+        .unwrap();
+        let decoded = decode(&data, NOW, ON).unwrap();
+        assert_eq!(decoded.provider, Some(Provider::Codex));
+        assert_eq!(decoded.events[0].id(), "codex:a1b2c3d4e5f6:t1");
+        assert!(decoded.permission.is_none());
+        // A Codex envelope that names no folder, or a bad one, is not taken.
+        let unnamed = envelope("codex", "Stop", payload.clone());
+        assert!(decode(&unnamed, NOW, ON).is_none());
+        let bad = serde_json::to_vec(&json!({ "openbar": "codex", "hook": "Stop",
+            "via": "../x", "event": payload }))
+        .unwrap();
+        assert!(decode(&bad, NOW, ON).is_none());
+        let mut tracker = Tracker::default();
+        for event in decoded.events {
+            tracker.ingest(event, NOW);
+        }
+        let (listed, _) = snap(&mut tracker, NOW, true);
+        let session = &listed[0];
+        assert_eq!(session.provider, Provider::Codex);
+        assert_eq!(session.via.as_deref(), Some("a1b2c3d4e5f6"));
+        assert!(!session.codex_server());
+        assert!(session.permission.is_none());
+        assert_eq!(session.waiting_for.as_deref(), Some(ANSWER_IN_TERMINAL));
+        assert_eq!(session.model.as_deref(), Some("gpt-5-codex"));
+        // A failed tool and the last reply are heard as Claude Code's are.
+        let stop = serde_json::to_vec(
+            &json!({ "openbar": "codex", "hook": "Stop", "via": "a1b2c3d4e5f6",
+            "event": { "session_id": "t1", "last_assistant_message": "All done." } }),
+        )
+        .unwrap();
+        let events = decode(&stop, NOW, ON).unwrap().events;
+        assert!(
+            matches!(&events[0].kind, Kind::Stopped { last_text: Some(t), .. } if t == "All done.")
+        );
+        let failed = serde_json::to_vec(&json!({ "openbar": "custom", "hook": "PostToolUseFailure",
+            "via": "tool-1", "event": { "session_id": "k", "tool_name": "Bash", "tool_input": {} } }))
+        .unwrap();
+        let events = decode(&failed, NOW, ON).unwrap().events;
+        assert!(matches!(
+            &events[0].kind,
+            Kind::ToolFinished { failed: true, .. }
+        ));
+        assert_eq!(
+            installer::devin_config(Path::new("/h"))
+                .file_name()
+                .unwrap(),
+            "config.json"
         );
     }
 }

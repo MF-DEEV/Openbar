@@ -379,7 +379,7 @@ struct NotchClaudeSessionStrings {
         case .vibe: return agentHintVibe
         case .devin: return agentHintDevin
         case .antigravity: return agentHintAntigravity
-        case .claude, .codex: return ""
+        case .claude, .codex, .custom: return ""
         }
     }
 

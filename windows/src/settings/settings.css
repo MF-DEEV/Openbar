@@ -1640,3 +1640,194 @@ select {
   justify-content: flex-end;
   gap: 8px;
 }
+
+/* The Hooks page (HooksSettings, #236): a card per agent whose header sits
+ * above one row per config file, as an expander that stays open. */
+.st-hooks-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.st-hooks-card + .st-hooks-card {
+  margin-top: 4px;
+}
+
+.st-hooks-head.has-rows {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.st-hooks-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+}
+
+.st-hooks-rows {
+  border: 1px solid var(--st-stroke);
+  border-top: 0;
+  border-radius: 0 0 var(--st-radius) var(--st-radius);
+  background: var(--st-card);
+}
+
+.st-hook-row,
+.st-hook-confirm {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px 12px 22px;
+  transition: opacity 160ms ease;
+}
+
+.st-hook-confirm {
+  align-items: center;
+  padding-left: 50px;
+}
+
+.st-hook-row + .st-hook-row,
+.st-hook-form + .st-hook-row {
+  border-top: 1px solid var(--st-divider);
+}
+
+.st-hook-row.is-busy {
+  opacity: 0.7;
+}
+
+.st-hook-dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 6px 8px 0 4px;
+  border-radius: 50%;
+  background: var(--st-off);
+  transition: background-color 200ms ease;
+}
+
+.st-hook-dot.is-ok {
+  background: var(--st-ok);
+}
+
+.st-hook-dot.is-warn {
+  background: var(--st-warn);
+}
+
+.st-hook-dot.is-error {
+  background: #e5484d;
+}
+
+.st-hook-line {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+}
+
+.st-hook-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.st-hook-state {
+  font-size: 13px;
+  color: var(--st-text-2);
+}
+
+.st-hook-state.is-on {
+  color: var(--st-text);
+}
+
+.st-hook-path {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--st-text-3);
+  font-family: "Cascadia Mono", Consolas, "DejaVu Sans Mono", monospace;
+  font-size: 12px;
+  line-height: 16px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.st-hook-row .st-card-control {
+  padding-top: 2px;
+}
+
+.st-hook-row .st-icon-button {
+  width: 32px;
+}
+
+.st-hook-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px 12px 50px;
+}
+
+.st-hook-tool-name {
+  width: 160px;
+}
+
+.st-hook-tool-path {
+  flex: 1;
+  min-width: 200px;
+}
+
+.st-hook-form-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-basis: 100%;
+}
+
+.st-hook-form-actions .st-error {
+  margin-right: auto;
+}
+
+.st-hooks-empty {
+  color: var(--st-text-3);
+}
+
+.st-hooks-done {
+  color: var(--st-ok);
+}
+
+.st-hooks-checking {
+  padding-left: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .st-hook-row,
+  .st-hook-dot {
+    transition: none;
+  }
+}
+
+/* Narrow: a row's buttons drop under its state and path, as cards' do. */
+@media (max-width: 760px) {
+  .st-hook-row,
+  .st-hook-confirm {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+  .st-hook-row > .st-card-text {
+    flex: 1 1 calc(100% - 40px);
+  }
+  .st-hook-row > .st-card-control {
+    flex-wrap: wrap;
+    margin-left: 28px;
+  }
+  .st-hook-confirm,
+  .st-hook-form {
+    padding-left: 16px;
+  }
+  .st-hook-confirm > .st-card-text {
+    flex: 1 1 100%;
+  }
+  .st-hooks-head > .st-agent-mark + .st-card-text {
+    flex: 1 1 calc(100% - 48px);
+  }
+  .st-hooks-head > .st-agent-mark ~ .st-card-control {
+    margin-left: 44px;
+  }
+}

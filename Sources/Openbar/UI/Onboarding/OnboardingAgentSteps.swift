@@ -274,7 +274,7 @@ struct OnboardingAgentsStep: View {
             .padding(.horizontal, 40)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
-                ForEach(Array(ClaudeSessionProvider.allCases.enumerated()), id: \.element) { index, provider in
+                ForEach(Array(ClaudeSessionProvider.agents.enumerated()), id: \.element) { index, provider in
                     tile(provider)
                         .opacity(appeared ? 1 : 0)
                         .offset(y: appeared ? 0 : 14)
@@ -343,7 +343,7 @@ struct OnboardingAgentsStep: View {
             case .notRunning?: return .ready
             case .notFound?: return .missing
             }
-        case .gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity:
+        case .gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity, .custom:
             guard let hooks = service.agentHooks?[provider] else { return .checking }
             if service.agentHookFailures[provider] != nil || hooks.state == .unreadable { return .failed }
             if hooks.state == .installed { return .connected }

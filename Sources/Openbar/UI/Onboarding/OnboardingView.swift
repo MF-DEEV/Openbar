@@ -301,7 +301,7 @@ private struct PurposeStep: View {
         return Button { pick(.agents) } label: {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 8) {
-                    ForEach(ClaudeSessionProvider.allCases, id: \.self) { provider in
+                    ForEach(ClaudeSessionProvider.agents, id: \.self) { provider in
                         Circle()
                             .fill(Color.black)
                             .frame(width: 34, height: 34)

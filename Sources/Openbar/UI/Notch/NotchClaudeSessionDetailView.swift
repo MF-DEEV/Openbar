@@ -527,7 +527,7 @@ struct NotchClaudeSessionPermissionCard: View {
                 }
                 .disabled(settling)
                 Spacer(minLength: 0)
-                if session.provider == .codex {
+                if session.codexServer {
                     if restricted {
                         NotchClaudeDecisionButton(title: text.alwaysAllow, symbol: "checkmark.seal", role: .secondary) {
                             approve(permission, .allow, autoAllowTurn: true)
@@ -572,7 +572,7 @@ struct NotchClaudeSessionPermissionCard: View {
         if let permission = session.permission {
             Text(restricted ? (permission.content?.available == true ? text.shortcutsHintInspect : text.shortcutsHintDenyOnly)
                  : permission.planModes.first.map { String(format: text.shortcutsHintPlanFormat, text.planMode($0)) }
-                 ?? (session.provider == .codex || permission.offersAlways ? text.shortcutsHintAlways : text.shortcutsHint))
+                 ?? (session.codexServer || permission.offersAlways ? text.shortcutsHintAlways : text.shortcutsHint))
                 .font(.system(size: 9.5)).foregroundStyle(.tertiary)
         }
     }
@@ -858,7 +858,7 @@ struct NotchClaudeAutoAllowBar: View {
 
     var body: some View {
         // A card that asks still shows its own controls; the bar stays above it.
-        if session.provider == .codex, service.autoAllowed.contains(session.id),
+        if session.codexServer, service.autoAllowed.contains(session.id),
            !session.phase.isWaiting || session.permission == nil || session.permission?.asksQuestions == true {
             // A slim strip across the page, as tall as the Windows one.
             HStack(spacing: 8) {

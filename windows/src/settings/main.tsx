@@ -12,6 +12,7 @@ import "@fontsource-variable/inter";
 import {
   Activity,
   Info,
+  Link2,
   LayoutTemplate,
   type LucideIcon,
   Settings2,
@@ -27,14 +28,16 @@ import { ActivitySettings } from "./ActivitySettings";
 import { BehaviorSettings } from "./BehaviorSettings";
 import { ContentSettings } from "./ContentSettings";
 import { GeneralSettings } from "./GeneralSettings";
+import { HooksSettings } from "./HooksSettings";
 import { LayoutSettings } from "./LayoutSettings";
 import { MascotSettings } from "./MascotSettings";
+import { OPEN_PAGE_EVENT } from "./navigation";
 import { startSettings, useSettings } from "./state";
 import { T } from "./strings";
 import "./settings.css";
 import "../shared/controls.css";
 
-type PageId = "general" | "layout" | "content" | "activity" | "behavior" | "mascot" | "about";
+type PageId = "general" | "hooks" | "layout" | "content" | "activity" | "behavior" | "mascot" | "about";
 
 const PAGES: { id: PageId; icon: LucideIcon; label: string; Page: () => React.JSX.Element; island?: boolean }[] = [
   {
@@ -44,6 +47,14 @@ const PAGES: { id: PageId; icon: LucideIcon; label: string; Page: () => React.JS
       return T.nav.general;
     },
     Page: GeneralSettings,
+  },
+  {
+    id: "hooks",
+    icon: Link2,
+    get label() {
+      return t("windows.hooks.title");
+    },
+    Page: HooksSettings,
   },
   {
     id: "about",
@@ -138,6 +149,17 @@ function App() {
     setDirection(to >= from ? 1 : -1);
     setPage(id);
   };
+  // A page asked for from inside another, as Sessions' "Open Hooks" (#236).
+  const pickRef = React.useRef(pick);
+  pickRef.current = pick;
+  useEffect(() => {
+    const onOpen = (event: Event) => {
+      const id = (event as CustomEvent<string>).detail as PageId;
+      if (PAGES.some((p) => p.id === id)) pickRef.current(id);
+    };
+    window.addEventListener(OPEN_PAGE_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_PAGE_EVENT, onOpen);
+  }, []);
 
   return (
     <div className="st-app">

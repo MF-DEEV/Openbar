@@ -9,6 +9,7 @@ import { create } from "zustand";
 import { bridge } from "../shared/bridge";
 import { localCostumeStore } from "./clawd/costume";
 import { autoAllowConsent } from "./autoAllowConsent";
+import { codexServer } from "./types";
 import type { Decision, PlanMode, ReplyAttachment, ReplyFailure, Session, SessionEvent, Snapshot } from "./types";
 import { DEFAULT_SESSION_PREFS, type SessionPrefs } from "../shared/prefs";
 import type { AwayLine } from "./away";
@@ -114,7 +115,7 @@ export const useSessions = create<SessionsState>()((set, get) => ({
   toggleAutoAllow(id) {
     if (
       !get().snapshot.sessions.some(
-        (s) => s.id === id && s.provider === "codex" && s.phase !== "finished" && s.phase !== "idle",
+        (s) => s.id === id && codexServer(s) && s.phase !== "finished" && s.phase !== "idle",
       )
     )
       return;
@@ -143,7 +144,8 @@ export const useSessions = create<SessionsState>()((set, get) => ({
           const session = snapshot.sessions.find((s) => s.id === id);
           const before = previous.snapshot.sessions.find((s) => s.id === id);
           return (
-            session?.provider === "codex" &&
+            !!session &&
+            codexServer(session) &&
             session.phase !== "finished" &&
             session.phase !== "idle" &&
             !!before &&
