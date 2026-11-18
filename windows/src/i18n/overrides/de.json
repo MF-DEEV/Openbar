@@ -653,6 +653,7 @@
   "windows.settings.sessions.showAgent": "%@ in Sessions zeigen",
   "windows.settings.sessions.agentHintGemini": "Hooks in .gemini\\settings.json, neben deinen eigenen. Berechtigungsanfragen von Gemini CLI beantwortest du in seinem Terminal; Antworten werden dort eingetippt.",
   "windows.settings.sessions.agentHintAntigravity": "Hooks in .gemini\\config\\hooks.json, neben deinen eigenen, für die Antigravity-App, ihre IDE und agy. Freigaben bleiben in Antigravity; Öffnen bringt dich dorthin.",
+  "windows.settings.sessions.agentHintGrok": "Hooks in einer eigenen Datei der Insel in .grok\\hooks. Erlauben und Ablehnen drücken Eingabe oder Strg+C an der Abfrage von Grok CLI in seiner Konsole, in WezTerm oder zellij; anderswo antwortest du in Grok CLI. Seine Fragen beantwortest du dort, Antworten werden in sein Terminal eingetippt.",
   "windows.settings.sessions.agentHintCopilot": "Eine eigene Hooks-Datei der Insel in .copilot\\hooks. Berechtigungsanfragen von Copilot CLI beantwortest du in seinem Terminal; Antworten werden dort eingetippt.",
   "windows.settings.sessions.agentHintOpencode": "Ein eigenes Plugin der Insel in .config\\opencode\\plugins. Erlaube oder verweigere Anfragen von OpenCode und sende Antworten direkt aus der Insel.",
   "windows.settings.sessions.agentHintCursor": "Hooks in .cursor\\hooks.json, neben deinen eigenen, für Cursors Agent und cursor-agent. Freigaben bleiben in Cursor; Öffnen bringt dich dorthin.",

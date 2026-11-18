@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 import { characterOf, FAVOURED_SHELL } from "./clawd/costume";
-import { ANTIGRAVITY_TINT, CLAUDE_TINT, GEMINI_TINT, OPENCODE_TINT, providerTint } from "./format";
+import { ANTIGRAVITY_TINT, CLAUDE_TINT, GEMINI_TINT, GROK_TINT, OPENCODE_TINT, providerTint } from "./format";
 import { MARK_SCALE, markOf } from "./glyphs";
 import { countItems, stripAgents } from "./SessionsStrip";
 import { S } from "./strings";
@@ -20,7 +20,7 @@ const counts = (working: number, others: Partial<Counts> = {}): Counts => ({
 describe("Gemini CLI, Copilot CLI, OpenCode and Cursor in Sessions", () => {
   it("counts each agent's work apart, Claude's being what no other claims", () => {
     const c = counts(4, { workingGemini: 1, workingOpencode: 2 });
-    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0, 0]);
+    expect(PROVIDERS.map((p) => workingOf(c, p))).toEqual([1, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0]);
     expect(workingOf(counts(1, { workingCursor: 5 }), "cursor")).toBe(1);
     expect(workingOf(counts(-1, { workingGemini: -3 }), "gemini")).toBe(0);
   });
@@ -82,7 +82,7 @@ describe("Google Antigravity in Sessions (#247)", () => {
     const c = counts(3, { workingAntigravity: 2 });
     expect(workingOf(c, "antigravity")).toBe(2);
     expect(workingOf(c, "claude")).toBe(1);
-    expect(HOOK_AGENTS.at(-1)).toBe("antigravity");
+    expect(HOOK_AGENTS.at(-2)).toBe("antigravity");
     expect(PROVIDER_NAMES.antigravity).toBe("Google Antigravity");
     expect(SHORT_NAMES.antigravity).toBe("Antigravity");
     expect(stripAgents(counts(2, { workingAntigravity: 1, workingDevin: 1 }))).toEqual(["devin", "antigravity"]);
@@ -93,5 +93,28 @@ describe("Google Antigravity in Sessions (#247)", () => {
   it("sends its requests and replies to Antigravity", () => {
     expect(S.answerIn("antigravity")).toBe("Answer this one in Google Antigravity.");
     expect(S.replyIn("antigravity")).toBe("Reply in Google Antigravity");
+  });
+});
+
+describe("Grok CLI in Sessions (#243)", () => {
+  it("counts, names and draws it as itself", () => {
+    const c = counts(3, { workingGrok: 2 });
+    expect(workingOf(c, "grok")).toBe(2);
+    expect(workingOf(c, "claude")).toBe(1);
+    expect(HOOK_AGENTS.at(-1)).toBe("grok");
+    expect(isHookAgent("grok")).toBe(true);
+    expect(PROVIDER_NAMES.grok).toBe("Grok CLI");
+    expect(SHORT_NAMES.grok).toBe("Grok");
+    expect(stripAgents(counts(2, { workingAntigravity: 1, workingGrok: 1 }))).toEqual(["antigravity", "grok"]);
+    expect(characterOf("grok")).toBe("grok");
+    expect(FAVOURED_SHELL.grok).toBe("moss");
+    expect(providerTint("grok")).toBe(GROK_TINT);
+    expect(MARK_SCALE.grok).toBe(1.15);
+    expect(markOf("grok")).not.toBe(markOf("claude"));
+  });
+
+  it("sends what the island can't answer to Grok CLI", () => {
+    expect(S.answerIn("grok")).toBe("Answer this one in Grok CLI.");
+    expect(S.replyPlaceholderFor("grok")).toBe("Reply to Grok CLI…");
   });
 });

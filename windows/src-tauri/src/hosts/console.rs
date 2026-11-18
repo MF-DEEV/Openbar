@@ -44,6 +44,9 @@ pub enum Action {
         #[serde(default)]
         plain: bool,
     },
+    /// Presses Return or Ctrl-C as keys, nothing pasted: Grok CLI's
+    /// prompt takes them for yes and no (#243).
+    Key { interrupt: bool },
     /// Prints the window that shows the console.
     Window,
     /// Prints that window, then the console's title on the next line (#210).
@@ -66,7 +69,7 @@ pub fn run_helper(pid: u32, action: Action) -> Result<String, String> {
     }
     let images = match &action {
         Action::Type { images, .. } => images.len(),
-        Action::Window | Action::Tab => 0,
+        Action::Window | Action::Tab | Action::Key { .. } => 0,
     };
     let deadline = Instant::now() + Duration::from_secs_f64(6.0 + 1.5 * images as f64);
     loop {
@@ -122,6 +125,7 @@ fn helper(pid: u32, action: Action) -> windows::core::Result<String> {
                     String::from_utf16_lossy(&title[..len.min(title.len())])
                 ))
             }
+            Action::Key { interrupt } => press(interrupt).map(|_| String::new()),
             Action::Type {
                 text,
                 images,
@@ -401,6 +405,27 @@ unsafe fn type_reply(text: &str, images: &[String]) -> windows::core::Result<()>
         std::thread::sleep(Duration::from_millis(80));
         write(&key(VK_RETURN.0, '\r'))
     })();
+    unsafe {
+        let _ = CloseHandle(input);
+    }
+    result
+}
+
+/// Return, or Ctrl-C as a key event (a program reading raw keys, as Grok's
+/// TUI does, gets it as a key; the console's own handling is off then).
+unsafe fn press(interrupt: bool) -> windows::core::Result<()> {
+    let input = unsafe { console_input()? };
+    let keys = if interrupt {
+        let mut keys = key_unit(u16::from(b'C'), 0x03);
+        for key in &mut keys {
+            // LEFT_CTRL_PRESSED
+            key.Event.KeyEvent.dwControlKeyState = 0x0008;
+        }
+        keys.to_vec()
+    } else {
+        key(VK_RETURN.0, '\r')
+    };
+    let result = write_records(input, &keys);
     unsafe {
         let _ = CloseHandle(input);
     }

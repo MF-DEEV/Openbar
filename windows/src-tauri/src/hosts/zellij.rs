@@ -140,6 +140,16 @@ pub fn send(target: &Target, pane: u32, text: &str, images: &[String]) -> Result
     Ok(())
 }
 
+/// Presses Ctrl-C in the pane (#243).
+pub fn interrupt(target: &Target, pane: u32) -> Result<(), ()> {
+    act(
+        target,
+        &["send-keys", "--pane-id", &pane_id(pane), "Ctrl c"],
+    )
+    .map(|_| ())
+    .ok_or(())
+}
+
 /// The tab of a terminal pane, from `list-panes --json`.
 pub fn tab_of(json: &str, pane: u32) -> Option<u64> {
     serde_json::from_str::<Vec<serde_json::Value>>(json)

@@ -207,6 +207,20 @@ pub fn deliver(
     }
 }
 
+/// Presses Ctrl-C in the tmux pane or kitty window (#243).
+pub fn interrupt(pid: u32, located: &Located) -> Result<(), DeliveryError> {
+    match &located.host {
+        Host::Tmux { socket, pane } => {
+            tmux::interrupt(socket, pane, process::terminal_of(pid).as_deref())
+                .map_err(|_| DeliveryError::Unreachable)
+        }
+        Host::Kitty { window, listen } => {
+            kitty::interrupt(listen, *window, pid).map_err(|_| DeliveryError::Unreachable)
+        }
+        _ => Err(DeliveryError::Unreachable),
+    }
+}
+
 /// Brings the window of the tmux pane or kitty window `located` names forward.
 pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
     match &located.host {

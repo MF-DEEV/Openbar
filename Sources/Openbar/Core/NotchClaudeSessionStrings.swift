@@ -379,6 +379,7 @@ struct NotchClaudeSessionStrings {
         case .vibe: return agentHintVibe
         case .devin: return agentHintDevin
         case .antigravity: return agentHintAntigravity
+        case .grok: return agentHintGrok
         case .claude, .codex, .custom: return ""
         }
     }
@@ -702,6 +703,9 @@ extension NotchClaudeSessionStrings {
     }
     var agentHintDevin: String {
         "Hooks in ~/.config/devin/config.json, next to your own. Sessions show what runs and when Devin CLI waits on you; you answer its permission prompts in the terminal, and replies are typed there."
+    }
+    var agentHintGrok: String {
+        "Hooks in a file of the island’s own in ~/.grok/hooks. Sessions show what runs and when Grok CLI waits on you. Allow and Deny press Return or Ctrl-C at its prompt in Terminal, iTerm2, tmux, zellij, WezTerm or kitty; elsewhere you answer in Grok CLI. Its questions are answered there, and replies are typed into its terminal."
     }
     var agentHintAntigravity: String {
         "Hooks in ~/.gemini/config/hooks.json, next to your own, for Antigravity’s app, its IDE and agy. Sessions show what its agent runs; approvals stay in Antigravity, and Open takes you there."

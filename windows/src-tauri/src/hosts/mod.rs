@@ -317,6 +317,75 @@ pub fn deliver(
     }
 }
 
+/// A key the island presses in a session's terminal (#243).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Key {
+    Enter,
+    Interrupt,
+}
+
+/// Whether the island can press keys in the host, not only paste: Grok
+/// CLI's prompt is answered with Return and Ctrl-C (#243).
+pub fn takes_keys(host: &Host) -> bool {
+    match host {
+        Host::WindowsTerminal { .. } | Host::Conhost => cfg!(windows),
+        Host::Wezterm { .. } | Host::Zellij { .. } => true,
+        Host::Tmux { .. } | Host::Kitty { .. } => cfg!(target_os = "linux"),
+        Host::Vscode { .. } | Host::App { .. } | Host::Unknown => false,
+    }
+}
+
+/// Presses one key in the session's terminal.
+pub fn press(pid: u32, located: &Located, key: Key) -> Result<(), DeliveryError> {
+    if !takes_keys(&located.host) {
+        return Err(DeliveryError::Unreachable);
+    }
+    match (key, &located.host) {
+        #[cfg(windows)]
+        (_, Host::WindowsTerminal { .. } | Host::Conhost) => console::run_helper(
+            pid,
+            console::Action::Key {
+                interrupt: key == Key::Interrupt,
+            },
+        )
+        .map(|_| ())
+        .map_err(|_| DeliveryError::Unreachable),
+        (Key::Enter, _) => deliver(pid, located, "", &[]),
+        (
+            Key::Interrupt,
+            Host::Wezterm {
+                gui_pid,
+                pane,
+                socket,
+            },
+        ) => wezterm::interrupt(*gui_pid, *pane, socket).map_err(|_| DeliveryError::Unreachable),
+        (
+            Key::Interrupt,
+            Host::Zellij {
+                session,
+                pane,
+                server,
+                program,
+            },
+        ) => {
+            if !zellij_holds(pid, *server) {
+                return Err(DeliveryError::Unreachable);
+            }
+            let target = zellij::Target {
+                program,
+                session,
+                server: *server,
+            };
+            zellij::interrupt(&target, *pane).map_err(|_| DeliveryError::Unreachable)
+        }
+        #[cfg(target_os = "linux")]
+        (Key::Interrupt, Host::Tmux { .. } | Host::Kitty { .. }) => {
+            crate::linux::hosts::interrupt(pid, located)
+        }
+        _ => Err(DeliveryError::Unreachable),
+    }
+}
+
 /// Brings the session's window forward.
 pub fn focus(pid: u32, located: &Located, cwd: &str) -> bool {
     match &located.host {

@@ -653,6 +653,7 @@
   "windows.settings.sessions.showAgent": "Показувати %@ у «Сесіях»",
   "windows.settings.sessions.agentHintGemini": "Хуки в .gemini\\settings.json, поруч із вашими. На запити дозволів Gemini CLI ви відповідаєте в його терміналі; відповіді вводяться там.",
   "windows.settings.sessions.agentHintAntigravity": "Хуки в .gemini\\config\\hooks.json, поруч із вашими, для застосунку Antigravity, його IDE і agy. Підтвердження лишаються в Antigravity; «Відкрити» переносить вас туди.",
+  "windows.settings.sessions.agentHintGrok": "Хуки в окремому файлі острова в .grok\\hooks. «Дозволити» й «Відхилити» натискають Enter або Ctrl+C у запиті Grok CLI в його консолі, WezTerm чи zellij; деінде відповідайте в Grok CLI. На його запитання відповідають там, а відповіді вводяться в його термінал.",
   "windows.settings.sessions.agentHintCopilot": "Власний файл хуків острова в .copilot\\hooks. На запити дозволів Copilot CLI ви відповідаєте в його терміналі; відповіді вводяться там.",
   "windows.settings.sessions.agentHintOpencode": "Власний плагін острова в .config\\opencode\\plugins. Дозволяйте або відхиляйте запити OpenCode й надсилайте відповіді просто з острова.",
   "windows.settings.sessions.agentHintCursor": "Хуки в .cursor\\hooks.json, поруч із вашими, для агента Cursor і cursor-agent. Підтвердження лишаються в Cursor; «Відкрити» переносить вас туди.",

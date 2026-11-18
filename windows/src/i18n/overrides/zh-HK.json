@@ -653,6 +653,7 @@
   "windows.settings.sessions.showAgent": "在工作階段中顯示 %@",
   "windows.settings.sessions.agentHintGemini": "掛鈎位於 .gemini\\settings.json，與你自己的掛鈎並列。Gemini CLI 的權限請求在其終端機中回應，回覆亦在那裡輸入。",
   "windows.settings.sessions.agentHintAntigravity": "掛鈎位於 .gemini\\config\\hooks.json，與你自己的掛鈎並列，適用於 Antigravity 應用程式、其 IDE 和 agy。批准仍在 Antigravity 中進行，「打開」會帶你前往。",
+  "windows.settings.sessions.agentHintGrok": "鈎子放在 .grok\\hooks 中島嶼自己的檔案裏。允許和拒絕會在 Grok CLI 的主控台、WezTerm 或 zellij 中對其提示按 Enter 或 Ctrl+C；其他地方請在 Grok CLI 中回答。它的問題在那裏回答，回覆會輸入到它的終端機。",
   "windows.settings.sessions.agentHintCopilot": "動態島專用的掛鈎檔案位於 .copilot\\hooks。Copilot CLI 的權限請求在其終端機中回應，回覆亦在那裡輸入。",
   "windows.settings.sessions.agentHintOpencode": "動態島專用的外掛程式位於 .config\\opencode\\plugins。可以在動態島中允許或拒絕 OpenCode 的請求並傳送回覆。",
   "windows.settings.sessions.agentHintCursor": "掛鈎位於 .cursor\\hooks.json，與你自己的掛鈎並列，適用於 Cursor 的代理程式和 cursor-agent。批准仍在 Cursor 中進行，「打開」會帶你前往。",

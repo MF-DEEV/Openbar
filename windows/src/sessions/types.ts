@@ -185,6 +185,7 @@ export type Provider =
   | "vibe"
   | "devin"
   | "antigravity"
+  | "grok"
   /** A tool with Claude Code style hooks added on the Hooks page (#236): never one of the named agents. */
   | "custom";
 
@@ -200,11 +201,22 @@ export const PROVIDERS: readonly Provider[] = [
   "vibe",
   "devin",
   "antigravity",
+  "grok",
 ];
 
 /** The agents that report through the island's hooks or plugin
  * (sessions/hook_agents.rs, docs/more-session-agents.md). */
-export const HOOK_AGENTS = ["gemini", "copilot", "opencode", "cursor", "pi", "vibe", "devin", "antigravity"] as const;
+export const HOOK_AGENTS = [
+  "gemini",
+  "copilot",
+  "opencode",
+  "cursor",
+  "pi",
+  "vibe",
+  "devin",
+  "antigravity",
+  "grok",
+] as const;
 export type HookAgent = (typeof HOOK_AGENTS)[number];
 
 /** The agent's name where room is short, as New session's picker. */
@@ -219,6 +231,7 @@ export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
   vibe: "Vibe",
   devin: "Devin",
   antigravity: "Antigravity",
+  grok: "Grok",
   custom: "Other tool",
 };
 
@@ -237,6 +250,7 @@ export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
   vibe: "Mistral Vibe",
   devin: "Devin CLI",
   antigravity: "Google Antigravity",
+  grok: "Grok CLI",
   custom: "Other tool",
 };
 
@@ -363,6 +377,7 @@ export interface Counts {
   workingVibe?: number;
   workingDevin?: number;
   workingAntigravity?: number;
+  workingGrok?: number;
   /** Of `working`, the tools added on the Hooks page (#236). */
   workingCustom?: number;
   waiting: number;
@@ -430,6 +445,7 @@ export function workingOf(counts: Counts, provider: Provider): number {
     vibe: counts.workingVibe ?? 0,
     devin: counts.workingDevin ?? 0,
     antigravity: counts.workingAntigravity ?? 0,
+    grok: counts.workingGrok ?? 0,
     custom: counts.workingCustom ?? 0,
   };
   if (provider === "claude") {

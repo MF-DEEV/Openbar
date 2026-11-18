@@ -653,6 +653,7 @@
   "windows.settings.sessions.showAgent": "在会话中显示 %@",
   "windows.settings.sessions.agentHintGemini": "钩子位于 .gemini\\settings.json，与你自己的钩子并列。Gemini CLI 的权限请求在其终端中回应，回复也在那里输入。",
   "windows.settings.sessions.agentHintAntigravity": "钩子位于 .gemini\\config\\hooks.json，与你自己的钩子并列，适用于 Antigravity 应用、其 IDE 和 agy。批准仍在 Antigravity 中进行，“打开”会带你前往。",
+  "windows.settings.sessions.agentHintGrok": "钩子放在 .grok\\hooks 中岛屿自己的文件里。允许和拒绝会在 Grok CLI 的控制台、WezTerm 或 zellij 中对其提示按 Enter 或 Ctrl+C；其他地方请在 Grok CLI 中回答。它的问题在那里回答，回复会输入到它的终端。",
   "windows.settings.sessions.agentHintCopilot": "灵动岛专用的钩子文件位于 .copilot\\hooks。Copilot CLI 的权限请求在其终端中回应，回复也在那里输入。",
   "windows.settings.sessions.agentHintOpencode": "灵动岛专用的插件位于 .config\\opencode\\plugins。可以在灵动岛中允许或拒绝 OpenCode 的请求并发送回复。",
   "windows.settings.sessions.agentHintCursor": "钩子位于 .cursor\\hooks.json，与你自己的钩子并列，适用于 Cursor 的代理和 cursor-agent。批准仍在 Cursor 中进行，“打开”会带你前往。",

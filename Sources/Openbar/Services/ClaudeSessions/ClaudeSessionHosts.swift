@@ -255,6 +255,33 @@ extension ClaudeTerminalScripts {
         """
     }
 
+    /// Presses keys in the session's tab. Terminal adds a return after each
+    /// `do script`, so a return is an empty one and Ctrl-C comes with a
+    /// return after it, which an empty prompt ignores.
+    static func press(_ steps: [ClaudeTypingStep], tty: String) -> String {
+        let lines = steps.compactMap { step -> String? in
+            switch step {
+            case .enter: "do script \"\" in theTab"
+            case .interrupt: "do script (ASCII character 3) in theTab"
+            case .wait(let seconds): "delay \(seconds)"
+            case .paste: nil
+            }
+        }
+        return """
+        tell application "Terminal"
+            repeat with theWindow in windows
+                repeat with theTab in tabs of theWindow
+                    if tty of theTab is \(AppleScriptRunner.literal(tty)) then
+                        \(lines.joined(separator: "\n                    "))
+                        return "sent"
+                    end if
+                end repeat
+            end repeat
+        end tell
+        return "missing"
+        """
+    }
+
     /// The time Claude Code takes to read pasted images before the text.
     static func imageSettle(_ count: Int) -> Double { 1.2 + 0.3 * Double(count) }
 

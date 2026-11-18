@@ -292,10 +292,11 @@ const AGENT_PREF = {
   vibe: "agentVibe",
   devin: "agentDevin",
   antigravity: "agentAntigravity",
+  grok: "agentGrok",
 } as const satisfies Record<HookAgent, keyof SessionPrefs>;
 
-/** Gemini CLI, Copilot CLI, OpenCode, Cursor, Pi, Mistral Vibe, Devin CLI and
- * Google Antigravity: each found on this PC is connected by itself, and its
+/** Gemini CLI, Copilot CLI, OpenCode, Cursor, Pi, Mistral Vibe, Devin CLI,
+ * Google Antigravity and Grok CLI: each found on this PC is connected by itself, and its
  * switch shows it in the list or takes its hooks out. Where its hooks stand
  * is on the Hooks page (#236). */
 function MoreAgents() {

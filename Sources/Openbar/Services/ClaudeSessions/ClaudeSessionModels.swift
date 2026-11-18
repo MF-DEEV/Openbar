@@ -113,6 +113,8 @@ enum ClaudeSessionProvider: String, Equatable, CaseIterable {
     case vibe
     case devin
     case antigravity
+    /// xAI's Grok Build CLI (`grok`), heard through hooks in its own folder (#243).
+    case grok
     /// A tool with Claude Code style hooks the person added on the Hooks
     /// page (#236), shown with a plain mark and its own name.
     case custom
@@ -127,7 +129,7 @@ extension ClaudeSessionProvider {
         case .codex: return .codex
         case .opencode: return .opencode
         case .copilot: return .copilot
-        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .custom: return nil
+        case .gemini, .cursor, .pi, .vibe, .devin, .antigravity, .grok, .custom: return nil
         }
     }
 
@@ -144,6 +146,7 @@ extension ClaudeSessionProvider {
         case .vibe: return "Mistral Vibe"
         case .devin: return "Devin CLI"
         case .antigravity: return "Google Antigravity"
+        case .grok: return "Grok CLI"
         case .custom: return "Other tool"
         }
     }
@@ -157,6 +160,7 @@ extension ClaudeSessionProvider {
         case .vibe: return "Vibe"
         case .devin: return "Devin"
         case .antigravity: return "Antigravity"
+        case .grok: return "Grok"
         default: return displayName
         }
     }
@@ -165,7 +169,7 @@ extension ClaudeSessionProvider {
     static let agents: [ClaudeSessionProvider] = allCases.filter { $0 != .custom }
 
     /// The agents that report through the island's hooks or plugin.
-    static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity]
+    static let hookAgents: [ClaudeSessionProvider] = [.gemini, .copilot, .opencode, .cursor, .pi, .vibe, .devin, .antigravity, .grok]
 
     var reportsThroughHooks: Bool { Self.hookAgents.contains(self) }
 
@@ -175,10 +179,12 @@ extension ClaudeSessionProvider {
     /// dialog is answered in Pi), Devin CLI's are left to Devin until its
     /// permission hook is seen holding a request live, and Google
     /// Antigravity's hook can't approve a call (its own check still asks);
-    /// the person answers those in the agent.
+    /// the person answers those in the agent. Grok CLI's hooks can't approve
+    /// either, but its prompt takes Return for yes and Ctrl-C for no, which
+    /// the island types into its terminal where the terminal lets it.
     var answersPermissions: Bool {
         switch self {
-        case .claude, .codex, .opencode: return true
+        case .claude, .codex, .opencode, .grok: return true
         case .gemini, .copilot, .cursor, .pi, .vibe, .devin, .antigravity, .custom: return false
         }
     }
@@ -325,6 +331,21 @@ struct ClaudePermission: Equatable {
     /// change never is: its path alone does not say what changes.
     var fitsOnALine: Bool {
         content?.requiresInspection != true && !asksQuestions && diffs.isEmpty && !detail.contains("\n") && detail.count <= ClaudeToolSummary.quickDecisionLimit
+    }
+}
+
+extension ClaudePermission {
+    /// The same request under another id and time, as a prompt asked after
+    /// the tool it is for was named (Grok CLI).
+    func renewed(requestID: String, since: Date) -> ClaudePermission {
+        var copy = ClaudePermission(requestID: requestID, tool: tool, summary: summary, detail: detail, content: content,
+                                    offersAlways: offersAlways, since: since)
+        copy.toolID = toolID
+        copy.inputKey = inputKey
+        copy.questions = questions
+        copy.diffs = diffs
+        copy.planModes = planModes
+        return copy
     }
 }
 

@@ -151,6 +151,7 @@ struct MetricsTests {
                 MoreAgentHookTests.run(suite)
                 VibeAppServerTests.run(suite)
                 AntigravityAgentTests.run(suite)
+                GrokAgentTests.run(suite)
                 HookPageTests.run(suite)
                 ClaudeFileDiffTests.run(suite)
                 VoiceReplyTests.run(suite)
@@ -168,6 +169,7 @@ struct MetricsTests {
                 MoreAgentHookTests.run(suite)
                 VibeAppServerTests.run(suite)
                 AntigravityAgentTests.run(suite)
+                GrokAgentTests.run(suite)
                 HookPageTests.run(suite)
             }),
             ("hooks-page", { HookPageTests.run(suite) }),

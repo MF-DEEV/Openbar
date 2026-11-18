@@ -91,6 +91,7 @@ final class DiagnosticsJournal {
         case .reply: return ("reply", nil)
         case .stopped(_, let failed): return ("stopped", failed ? "failed" : nil)
         case .model: return ("model", nil)
+        case .mayAsk: return ("mayAsk", nil)
         case .title: return ("title", nil)
         case .usage: return ("usage", nil)
         }

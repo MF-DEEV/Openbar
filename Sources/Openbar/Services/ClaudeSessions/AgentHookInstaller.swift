@@ -5,14 +5,14 @@ import CryptoKit
 import Foundation
 
 /// Puts the island's hooks into Gemini CLI, Copilot CLI, Cursor, Mistral
-/// Vibe and Devin CLI, and its plugin into OpenCode and Pi, and takes them
+/// Vibe, Devin CLI and Grok CLI, and its plugin into OpenCode and Pi, and takes them
 /// out again, only when the person presses Install or Remove. Where the
 /// agent keeps every hook in one file (Gemini's settings, Cursor's
 /// hooks.json, Vibe's hooks.toml, Devin's config.json) the island's entries
 /// go beside the person's own, carry its marker, and the file is copied
 /// aside first, as for Claude Code. Where the agent reads a folder of files
-/// (Copilot's hooks, OpenCode's plugins, Pi's extensions) the island writes
-/// a file of its own.
+/// (Copilot's and Grok's hooks, OpenCode's plugins, Pi's extensions) the
+/// island writes a file of its own.
 ///
 /// Each hook is the system's `nc` writing the event, wrapped in an envelope
 /// naming the agent and the hook, to the island's socket. When the app is
@@ -49,6 +49,12 @@ enum AgentHookInstaller {
     /// app-server (#236). A permission is only heard: Codex asks in its terminal.
     static let codexEvents = ["SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse",
                               "PermissionRequest", "Stop"]
+    /// Grok CLI's events (xAI's Grok Build, user guide "Hooks"), in a file of
+    /// the island's own in its `hooks` folder, without a matcher, which Grok
+    /// refuses on events that aren't a tool's. Each only tells: Grok goes on
+    /// whatever the hook answers, and asks in its terminal.
+    static let grokEvents = ["SessionStart", "SessionEnd", "UserPromptSubmit", "PreToolUse", "PostToolUse",
+                             "PostToolUseFailure", "PermissionDenied", "Notification", "Stop", "StopFailure", "StopCancelled"]
     /// Events Codex and Claude Code match against a tool name.
     static let claudeToolEvents: Set<String> = ["PreToolUse", "PostToolUse", "PostToolUseFailure", "PermissionRequest"]
     /// What a tool with Claude Code style hooks gets: Claude Code's events,
@@ -117,16 +123,25 @@ enum AgentHookInstaller {
         return config.appending(path: "devin/config.json")
     }
 
+    /// Grok CLI's folder: `GROK_HOME`, or `~/.grok`.
+    static func grokFolder(home: URL, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        environment["GROK_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) } ?? home.appending(path: ".grok")
+    }
+
+    static func grokHooks(home: URL, bundle: String, environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        grokFolder(home: home, environment: environment).appending(path: "hooks/\(ownName(bundle)).json")
+    }
+
     /// Antigravity's global hooks, read by its app, its IDE and `agy` alike.
     static func antigravityHooks(home: URL) -> URL { home.appending(path: ".gemini/config/hooks.json") }
 
     /// The agents whose config folder can be named by hand, beside the one
     /// their home variable or default names (#236).
-    static let foldersByHand: [ClaudeSessionProvider] = [.codex, .gemini, .copilot, .pi, .vibe]
+    static let foldersByHand: [ClaudeSessionProvider] = [.codex, .gemini, .copilot, .pi, .vibe, .grok]
 
     /// The agent's hook file in a config folder the person added (#236): the
     /// folder Gemini keeps as `.gemini`, Copilot's `COPILOT_HOME`, Pi's
-    /// `PI_CODING_AGENT_DIR`, Vibe's `VIBE_HOME`, a `CODEX_HOME`.
+    /// `PI_CODING_AGENT_DIR`, Vibe's `VIBE_HOME`, a `CODEX_HOME`, a `GROK_HOME`.
     static func file(_ provider: ClaudeSessionProvider, folder: URL, bundle: String) -> URL? {
         switch provider {
         case .gemini: return folder.appending(path: "settings.json")
@@ -134,6 +149,7 @@ enum AgentHookInstaller {
         case .pi: return folder.appending(path: "extensions/\(ownName(bundle)).js")
         case .vibe: return folder.appending(path: "hooks.toml")
         case .codex: return folder.appending(path: "hooks.json")
+        case .grok: return folder.appending(path: "hooks/\(ownName(bundle)).json")
         default: return nil
         }
     }
@@ -170,6 +186,7 @@ enum AgentHookInstaller {
         case .vibe: return vibeFolder(home: home, environment: environment)
         case .devin: return devinConfig(home: home, environment: environment).deletingLastPathComponent()
         case .antigravity: return antigravityHooks(home: home).deletingLastPathComponent()
+        case .grok: return grokFolder(home: home, environment: environment)
         case .codex:
             return environment["CODEX_HOME"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
                 ?? home.appending(path: ".codex")
@@ -398,6 +415,9 @@ enum AgentHookInstaller {
             case .copilot:
                 guard let data = try ClaudeHookInstaller.contents(url) else { return .missing }
                 return data == copilotFile(socket: socket, bundle: bundle) ? .installed : .outdated
+            case .grok:
+                guard let data = try ClaudeHookInstaller.contents(url) else { return .missing }
+                return data == grokFile(socket: socket, bundle: bundle) ? .installed : .outdated
             case .opencode:
                 guard let data = try ClaudeHookInstaller.contents(url) else { return .missing }
                 return data == opencodeFile(socket: socket, bundle: bundle) ? .installed : .outdated
@@ -470,6 +490,8 @@ enum AgentHookInstaller {
             }
         case .copilot:
             try writeOwn(copilotFile(socket: socket, bundle: bundle), to: url, bundle: bundle)
+        case .grok:
+            try writeOwn(grokFile(socket: socket, bundle: bundle), to: url, bundle: bundle)
         case .opencode:
             try writeOwn(opencodeFile(socket: socket, bundle: bundle), to: url, bundle: bundle)
         case .pi:
@@ -517,7 +539,7 @@ enum AgentHookInstaller {
         case .cursor:
             guard try ClaudeHookInstaller.contents(url) != nil else { return }
             try ClaudeHookInstaller.update(url) { flatRemoving(from: $0, bundle: bundle) }
-        case .copilot, .opencode, .pi:
+        case .copilot, .opencode, .pi, .grok:
             try removeOwn(url, bundle: bundle)
         case .vibe:
             guard try ClaudeHookInstaller.contents(url) != nil else { return }
@@ -653,6 +675,20 @@ enum AgentHookInstaller {
         let file: [String: Any] = ["version": 1, "hooks": hooks]
         var data = (try? JSONSerialization.data(withJSONObject: file, options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]))
             ?? Data()
+        data.append(0x0A)
+        return data
+    }
+
+    /// Grok CLI's hooks file of the island's own: every event's command in a
+    /// group with no matcher.
+    static func grokFile(socket: String, bundle: String) -> Data {
+        var hooks: [String: Any] = [:]
+        for event in grokEvents {
+            hooks[event] = [["hooks": [["type": "command", "timeout": eventTimeout,
+                                        "command": command(.grok, event: event, socket: socket, bundle: bundle)]]]]
+        }
+        var data = (try? JSONSerialization.data(withJSONObject: ["hooks": hooks],
+                                                options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])) ?? Data()
         data.append(0x0A)
         return data
     }

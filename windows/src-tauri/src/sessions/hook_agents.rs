@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-//! Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi, Mistral Vibe, Devin CLI and
-//! Google Antigravity in the Sessions list (AgentHookMessage.swift, AgentHookSessions.swift,
+//! Gemini CLI, Copilot CLI, Cursor, OpenCode, Pi, Mistral Vibe, Devin CLI,
+//! Google Antigravity and Grok CLI in the Sessions list (AgentHookMessage.swift, AgentHookSessions.swift,
 //! AgentHookInstaller.swift, AgentHookSupport.swift).
 //! The hook the island installs is this app run with `--hook --agent <name>
 //! --event <hook>`, which wraps what the agent hands it in an envelope:
@@ -40,7 +40,7 @@ const TIMELINE_LENGTH: usize = 12;
 const CHAT_LENGTH: usize = 40;
 
 impl Provider {
-    pub const HOOK_AGENTS: [Provider; 8] = [
+    pub const HOOK_AGENTS: [Provider; 9] = [
         Provider::Gemini,
         Provider::Copilot,
         Provider::Opencode,
@@ -49,6 +49,7 @@ impl Provider {
         Provider::Vibe,
         Provider::Devin,
         Provider::Antigravity,
+        Provider::Grok,
     ];
 
     pub fn reports_through_hooks(self) -> bool {
@@ -58,11 +59,13 @@ impl Provider {
     /// Gemini CLI's, Copilot CLI's and Mistral Vibe's hooks only hear of a
     /// prompt, Cursor keeps its approvals, Pi asks none of its own, Devin
     /// CLI's stay in Devin and Google Antigravity's hook can't approve a call;
-    /// the person answers those in the agent.
+    /// the person answers those in the agent. Grok CLI's hooks can't approve
+    /// either, but its prompt takes Return for yes and Ctrl-C for no, which
+    /// the island presses in its terminal where it can (#243).
     pub fn answers_permissions(self) -> bool {
         matches!(
             self,
-            Provider::Claude | Provider::Codex | Provider::Opencode
+            Provider::Claude | Provider::Codex | Provider::Opencode | Provider::Grok
         )
     }
 
@@ -78,6 +81,7 @@ impl Provider {
             Provider::Vibe => "vibe",
             Provider::Devin => "devin",
             Provider::Antigravity => "antigravity",
+            Provider::Grok => "grok",
             Provider::Custom => "custom",
         }
     }
@@ -100,6 +104,7 @@ impl Provider {
             Provider::Vibe,
             Provider::Devin,
             Provider::Antigravity,
+            Provider::Grok,
             Provider::Custom,
         ]
         .into_iter()
@@ -138,6 +143,9 @@ pub enum Kind {
         failed: bool,
     },
     Model(String),
+    /// What a permission would ask of the tool about to run, kept until the
+    /// agent tells it asks (Grok CLI names the tool only before).
+    MayAsk(Permission),
     Title(String),
     Usage {
         key: String,
@@ -286,6 +294,10 @@ pub fn decode(data: &[u8], now: Time, policy: ContentPolicy) -> Option<Decoded> 
         }
         Provider::Antigravity => {
             decoded.events = antigravity(&hook, event, pid, now, policy);
+            decoded.transcript = text(event, "transcriptPath");
+        }
+        Provider::Grok => {
+            decoded.events = grok(&hook, event, pid, now, policy);
             decoded.transcript = text(event, "transcriptPath");
         }
         Provider::Claude => return None,
@@ -991,6 +1003,203 @@ pub fn is_devin_process(name: &str) -> bool {
     name == "devin" || name.starts_with("devin-") || name.starts_with("devin.")
 }
 
+// MARK: Grok CLI
+
+/// Grok CLI's hooks (xAI's Grok Build, user guide "Hooks"): camelCase input
+/// with snake_case event names. A permission is told in two steps, the
+/// tool's `PreToolUse` and then a `permission_prompt` notification with no
+/// tool in it; the island answers it with the keys of Grok's prompt. A
+/// question is a tool of its own, answered in Grok. A turn ends with
+/// `Stop`, or without a done with `StopFailure` or `StopCancelled`; the
+/// `Stop` Grok runs as it shuts down ends nothing.
+fn grok(
+    hook: &str,
+    json: &Map<String, Value>,
+    pid: i32,
+    now: Time,
+    policy: ContentPolicy,
+) -> Vec<AgentEvent> {
+    let Some(session) = text(json, "sessionId") else {
+        return vec![];
+    };
+    let cwd = text(json, "cwd").or_else(|| text(json, "workspaceRoot"));
+    let mut events = Vec::new();
+    let mut add = |kind| {
+        events.push(AgentEvent {
+            provider: Provider::Grok,
+            session_id: session.clone(),
+            pid,
+            cwd: cwd.clone(),
+            date: now,
+            kind,
+        })
+    };
+    let raw = str_of(json.get("toolName")).unwrap_or("");
+    let tool = name(Provider::Grok, raw);
+    let input = arguments(json.get("toolInput"));
+    let event = text(json, "hookEventName").unwrap_or_else(|| hook.to_owned());
+    match event.as_str() {
+        "session_start" | "SessionStart" => {
+            add(Kind::Started);
+            if let Some(model) = text(json, "modelId") {
+                add(Kind::Model(model));
+            }
+        }
+        "session_end" | "SessionEnd" => add(Kind::Ended),
+        "user_prompt_submit" | "UserPromptSubmit" => add(Kind::Prompt(
+            policy
+                .previews
+                .then(|| reply_preview(json.get("prompt")))
+                .flatten(),
+        )),
+        "pre_tool_use" | "PreToolUse" if raw == "ask_user_question" => add(Kind::Question),
+        "pre_tool_use" | "PreToolUse" => {
+            let mut use_ = tool_use(&tool, &input, now, policy);
+            if let Some(id) = text(json, "toolUseId") {
+                use_.id = id;
+            }
+            add(Kind::ToolStarted(use_));
+            let truncated = json.get("toolInputTruncated").and_then(Value::as_bool) == Some(true);
+            add(Kind::MayAsk(grok_ask(
+                &tool,
+                &input,
+                cwd.as_deref(),
+                truncated,
+                now,
+            )));
+        }
+        "post_tool_use" | "PostToolUse" | "post_tool_use_failure" | "PostToolUseFailure" => {
+            // A tool that ran or failed was let through, here or in Grok.
+            add(Kind::PermissionSettled(None));
+            if raw != "ask_user_question" {
+                add(Kind::ToolFinished {
+                    id: text(json, "toolUseId"),
+                    input_key: Some(tool_summary::input_key(&tool, &input)),
+                    name: tool,
+                    failed: matches!(
+                        event.as_str(),
+                        "post_tool_use_failure" | "PostToolUseFailure"
+                    ),
+                    started: None,
+                });
+            }
+        }
+        "permission_denied" | "PermissionDenied" => add(Kind::PermissionSettled(None)),
+        "notification" | "Notification" => match text(json, "notificationType").as_deref() {
+            // Filled in from the tool the session's last PreToolUse named.
+            Some("permission_prompt") => add(Kind::Permission(Permission::new(
+                &format!("{:x}", rand_id()),
+                "",
+                None,
+                false,
+                now,
+            ))),
+            Some("elicitation_dialog") => add(Kind::Question),
+            _ => {}
+        },
+        "stop" | "Stop" if text(json, "reason").as_deref() == Some("shutdown") => {}
+        "stop" | "Stop" => add(Kind::Stopped {
+            last_text: policy
+                .previews
+                .then(|| reply_preview(json.get("lastAssistantMessage")))
+                .flatten(),
+            failed: false,
+        }),
+        // Interrupted, refused or failed: the turn ends, with nothing done.
+        "stop_failure" | "StopFailure" | "stop_cancelled" | "StopCancelled" => add(Kind::Stopped {
+            last_text: None,
+            failed: true,
+        }),
+        _ => {}
+    }
+    events
+}
+
+/// What Grok's prompt would ask about the tool: the whole command or file,
+/// as Claude Code's request carries it, since Grok's shell, write and
+/// search_replace take Claude Code's arguments. The island allows only what
+/// it can show whole (#224).
+pub fn grok_ask(
+    tool: &str,
+    input: &Map<String, Value>,
+    cwd: Option<&str>,
+    truncated: bool,
+    at: Time,
+) -> Permission {
+    let full = tool_summary::permission_detail(tool, input);
+    let complete = !truncated && (tool != "Bash" || text(input, "command").is_some());
+    let mut permission = Permission::new(
+        &format!("{:x}", rand_id()),
+        if tool.is_empty() { "Tool" } else { tool },
+        Some(first_line(&full)).filter(|l| !l.is_empty()).as_deref(),
+        false,
+        at,
+    );
+    permission.set_content(&full, complete, complete.then(|| full.chars().count()));
+    permission.input_key = Some(tool_summary::input_key(tool, input));
+    permission.diffs = file_diff::diffs(tool, input, cwd);
+    permission
+}
+
+/// Grok CLI runs the hooks in Claude Code's settings too, handing them its
+/// own input; those are let go, since Grok's sessions come through hooks of
+/// their own (#243). Grok's input names the workspace root and its event in
+/// camelCase, which no Claude Code hook input does.
+pub fn is_grok_payload(data: &[u8]) -> bool {
+    if !contains(data, b"\"workspaceRoot\"") || !contains(data, b"\"hookEventName\"") {
+        return false;
+    }
+    serde_json::from_slice::<Value>(data).is_ok_and(|json| {
+        json.get("workspaceRoot").is_some()
+            && json.get("hookEventName").is_some()
+            && json.get("sessionId").is_some()
+    })
+}
+
+/// The process of a Grok CLI session, from the `active_sessions.json` Grok
+/// keeps in its folder (`<GROK_HOME>/sessions/<folder>/<id>/updates.jsonl` is
+/// the transcript its hooks name). On Windows Grok runs a hook through
+/// `powershell -Command`, which doesn't wait for this app (a windowed
+/// program), so the hook's parent is gone by the time the island reads it
+/// and the agent can't be found above the hook.
+pub fn grok_session_pid(transcript: &Path, session: &str) -> Option<i32> {
+    let home = transcript.parent()?.parent()?.parent()?.parent()?;
+    let path = home.join("active_sessions.json");
+    if std::fs::metadata(&path).ok()?.len() > 1024 * 1024 {
+        return None;
+    }
+    grok_session_pid_in(&std::fs::read(path).ok()?, session)
+}
+
+pub fn grok_session_pid_in(data: &[u8], session: &str) -> Option<i32> {
+    let list: Vec<Value> = serde_json::from_slice(data).ok()?;
+    list.iter()
+        .rev()
+        .find(|e| e.get("session_id").and_then(Value::as_str) == Some(session))
+        .and_then(|e| e.get("pid"))
+        .and_then(Value::as_i64)
+        .and_then(|p| i32::try_from(p).ok())
+        .filter(|p| *p > 0)
+}
+
+/// The model of a Grok CLI session, from the summary Grok keeps beside the
+/// conversation its hooks name (`…/sessions/<folder>/<id>/updates.jsonl`).
+pub fn grok_model(transcript: &Path) -> Option<String> {
+    let summary = transcript.parent()?.join("summary.json");
+    if std::fs::metadata(&summary).ok()?.len() > 1024 * 1024 {
+        return None;
+    }
+    grok_model_in(&std::fs::read(summary).ok()?)
+}
+
+pub fn grok_model_in(data: &[u8]) -> Option<String> {
+    let json: Value = serde_json::from_slice(data).ok()?;
+    json.get("current_model_id")
+        .and_then(Value::as_str)
+        .filter(|m| !m.trim().is_empty())
+        .map(str::to_owned)
+}
+
 // MARK: Google Antigravity
 
 /// Google Antigravity's lifecycle hooks (the hooks.json guide its language
@@ -1517,6 +1726,23 @@ pub fn name(provider: Provider, tool: &str) -> String {
             ("notebook_edit", "Edit"),
             ("exit_plan_mode", "ExitPlanMode"),
         ],
+        Provider::Grok => &[
+            ("run_terminal_command", "Bash"),
+            ("read_file", "Read"),
+            ("write", "Write"),
+            ("search_replace", "Edit"),
+            ("list_dir", "LS"),
+            ("grep", "Grep"),
+            ("todo_write", "TodoWrite"),
+            ("spawn_subagent", "Task"),
+            ("get_command_or_subagent_output", "BashOutput"),
+            ("kill_command_or_subagent", "KillShell"),
+            ("web_fetch", "WebFetch"),
+            ("web_search", "WebSearch"),
+            ("ask_user_question", "AskUserQuestion"),
+            ("enter_plan_mode", "EnterPlanMode"),
+            ("exit_plan_mode", "ExitPlanMode"),
+        ],
         Provider::Antigravity => &[
             ("run_command", "Bash"),
             ("command_status", "BashOutput"),
@@ -1617,6 +1843,9 @@ pub struct Entry {
     acknowledged: Option<Time>,
     tools: Vec<ToolUse>,
     pub permission: Option<Permission>,
+    /// What the tool about to run would ask, for an agent that names it
+    /// only before it asks (Grok CLI).
+    next_ask: Option<Permission>,
     answerable: bool,
     asking: bool,
     model: Option<String>,
@@ -1641,6 +1870,7 @@ impl Entry {
             acknowledged: None,
             tools: Vec::new(),
             permission: None,
+            next_ask: None,
             answerable: false,
             asking: false,
             model: None,
@@ -1649,6 +1879,10 @@ impl Entry {
             chat: Vec::new(),
             usage: BTreeMap::new(),
         }
+    }
+
+    pub fn model(&self) -> Option<&str> {
+        self.model.as_deref()
     }
 
     fn open_tool(&self) -> Option<&ToolUse> {
@@ -1709,6 +1943,8 @@ pub struct Tracker {
 /// What the tracker needs of the outside world for a snapshot.
 pub struct Place {
     pub host: HostKind,
+    /// Whether the island can press keys in the host (Grok CLI's prompt, #243).
+    pub takes_keys: bool,
     pub accepts_replies: bool,
     pub host_name: Option<String>,
 }
@@ -1788,6 +2024,7 @@ impl Tracker {
                 failed,
                 started,
             } => {
+                entry.next_ask = None;
                 entry.open_turn(date);
                 if !entry.answerable {
                     entry.clear_wait();
@@ -1830,8 +2067,23 @@ impl Tracker {
                     }
                 }
             }
-            Kind::Permission(permission) => {
+            Kind::Permission(mut permission) => {
                 entry.open_turn(date);
+                // Grok's prompt names no tool: the one its last PreToolUse named waits.
+                if permission.tool.is_empty() {
+                    let mut asked = entry.next_ask.clone().unwrap_or_else(|| {
+                        Permission::new(
+                            &permission.request_id,
+                            "Tool",
+                            None,
+                            false,
+                            permission.since,
+                        )
+                    });
+                    asked.request_id = permission.request_id.clone();
+                    asked.since = permission.since;
+                    permission = asked;
+                }
                 entry.permission = Some(permission);
                 // Codex through hooks only hears of a request: Codex asks in its terminal (#236).
                 entry.answerable = event.provider.answers_permissions()
@@ -1862,6 +2114,7 @@ impl Tracker {
             Kind::Stopped { last_text, failed } => {
                 if entry.turn_open || entry.permission.is_some() || entry.asking {
                     entry.turn_open = false;
+                    entry.next_ask = None;
                     entry.turn_ended = Some(date);
                     entry.completed = !failed;
                     entry.clear_wait();
@@ -1890,6 +2143,7 @@ impl Tracker {
                 }
             }
             Kind::Model(model) => entry.model = Some(model),
+            Kind::MayAsk(permission) => entry.next_ask = Some(permission),
             Kind::Title(title) => entry.title = Some(title),
             Kind::Usage { key, tokens, cost } => {
                 entry.usage.insert(key, (tokens, cost));
@@ -2063,7 +2317,9 @@ fn session(
         cost += part_cost;
     }
     // A request only the agent can answer is shown as waiting there.
-    let in_agent = entry.permission.is_some() && !entry.answerable;
+    // Grok's is answered with keys, where its terminal takes them.
+    let in_agent = entry.permission.is_some()
+        && (!entry.answerable || (entry.provider == Provider::Grok && !place.takes_keys));
     Session {
         id: id.to_owned(),
         provider: entry.provider,
@@ -2180,12 +2436,13 @@ pub fn command_name(provider: Provider) -> Option<&'static str> {
         Provider::Vibe => Some("vibe"),
         Provider::Devin => Some("devin"),
         Provider::Antigravity => Some("agy"),
+        Provider::Grok => Some("grok"),
         Provider::Claude | Provider::Codex | Provider::Custom => None,
     }
 }
 
 /// The arguments that open the agent's terminal UI with a first prompt
-/// already sent: `gemini -i`, `copilot -i`, `agy -i`, `opencode --prompt`, `devin --`,
+/// already sent: `gemini -i`, `copilot -i`, `agy -i`, `opencode --prompt`, `devin --`, `grok --`,
 /// and `cursor-agent`, `pi` and `vibe` take it as it is (AgentCLI in
 /// ClaudeBackgroundSessions.swift).
 pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
@@ -2199,7 +2456,7 @@ pub fn start_arguments(provider: Provider, prompt: &str) -> Vec<String> {
         }
         Provider::Opencode => vec!["--prompt".into(), prompt.into()],
         Provider::Cursor | Provider::Pi | Provider::Vibe => vec![prompt.into()],
-        Provider::Devin => vec!["--".into(), prompt.into()],
+        Provider::Devin | Provider::Grok => vec!["--".into(), prompt.into()],
         Provider::Claude | Provider::Codex | Provider::Custom => Vec::new(),
     }
 }
@@ -2353,6 +2610,24 @@ pub mod installer {
         "Stop",
     ];
 
+    /// Grok CLI's events (xAI's Grok Build, user guide "Hooks"), in a file of
+    /// the island's own in its `hooks` folder, without a matcher, which Grok
+    /// refuses on events that aren't a tool's. Each only tells: Grok goes on
+    /// whatever the hook answers, and asks in its terminal.
+    pub const GROK_EVENTS: [&str; 11] = [
+        "SessionStart",
+        "SessionEnd",
+        "UserPromptSubmit",
+        "PreToolUse",
+        "PostToolUse",
+        "PostToolUseFailure",
+        "PermissionDenied",
+        "Notification",
+        "Stop",
+        "StopFailure",
+        "StopCancelled",
+    ];
+
     /// Google Antigravity's lifecycle hooks (its hooks.json guide). It has no
     /// session or prompt hooks: a turn is heard from the model's invocations.
     pub const ANTIGRAVITY_EVENTS: [&str; 5] = [
@@ -2398,12 +2673,13 @@ pub mod installer {
     ];
     /// The agents whose config folder can be named by hand, beside the one
     /// their home variable or default names (#236).
-    pub const FOLDERS_BY_HAND: [Provider; 5] = [
+    pub const FOLDERS_BY_HAND: [Provider; 6] = [
         Provider::Codex,
         Provider::Gemini,
         Provider::Copilot,
         Provider::Pi,
         Provider::Vibe,
+        Provider::Grok,
     ];
 
     #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
@@ -2479,6 +2755,17 @@ pub mod installer {
             .join("hooks.toml")
     }
 
+    /// Grok CLI's folder: `GROK_HOME`, or `~/.grok` (`%USERPROFILE%\.grok`).
+    pub fn grok_folder(home: &Path) -> PathBuf {
+        env_dir("GROK_HOME").unwrap_or_else(|| home.join(".grok"))
+    }
+
+    pub fn grok_hooks(home: &Path, app: &str) -> PathBuf {
+        grok_folder(home)
+            .join("hooks")
+            .join(format!("{}.json", own_name(app)))
+    }
+
     /// Devin CLI keeps its user config in `%APPDATA%\devin` on Windows, and
     /// in `$XDG_CONFIG_HOME/devin` (`~/.config/devin`) elsewhere.
     pub fn devin_config(home: &Path) -> PathBuf {
@@ -2509,13 +2796,14 @@ pub mod installer {
             Provider::Vibe => vibe_hooks(home).parent()?.to_path_buf(),
             Provider::Devin => devin_config(home).parent()?.to_path_buf(),
             Provider::Antigravity => antigravity_hooks(home).parent()?.to_path_buf(),
+            Provider::Grok => grok_folder(home),
             Provider::Claude | Provider::Custom => return None,
         })
     }
 
     /// The agent's hook file in a config folder the person added (#236): the
     /// folder Gemini keeps as `.gemini`, Copilot's `COPILOT_HOME`, Pi's
-    /// `PI_CODING_AGENT_DIR`, Vibe's `VIBE_HOME`, a `CODEX_HOME`.
+    /// `PI_CODING_AGENT_DIR`, Vibe's `VIBE_HOME`, a `CODEX_HOME`, a `GROK_HOME`.
     pub fn file_in(provider: Provider, folder: &Path, app: &str) -> Option<PathBuf> {
         Some(match provider {
             Provider::Gemini => folder.join("settings.json"),
@@ -2525,6 +2813,7 @@ pub mod installer {
                 .join(format!("{}.js", own_name(app))),
             Provider::Vibe => folder.join("hooks.toml"),
             Provider::Codex => folder.join("hooks.json"),
+            Provider::Grok => folder.join("hooks").join(format!("{}.json", own_name(app))),
             _ => return None,
         })
     }
@@ -2850,6 +3139,27 @@ pub mod installer {
         data
     }
 
+    /// Grok CLI's hooks file of the island's own: every event's command in
+    /// a group with no matcher. On Windows Grok runs a command with
+    /// arguments through PowerShell (or Git Bash), which both take the
+    /// portable form.
+    pub fn grok_file(exe: &Path, app: &str) -> Vec<u8> {
+        let mut hooks = Map::new();
+        for event in GROK_EVENTS {
+            hooks.insert(
+                event.to_owned(),
+                json!([{ "hooks": [{
+                    "type": "command",
+                    "timeout": EVENT_TIMEOUT,
+                    "command": portable_command(Provider::Grok, event, exe, app),
+                }] }]),
+            );
+        }
+        let mut data = serde_json::to_vec_pretty(&json!({ "hooks": hooks })).unwrap_or_default();
+        data.push(b'\n');
+        data
+    }
+
     pub fn opencode_file(endpoint: &str, app: &str) -> Vec<u8> {
         let literal = serde_json::to_string(endpoint).unwrap_or_else(|_| "\"\"".into());
         PLUGIN
@@ -3152,6 +3462,7 @@ pub mod installer {
                 Err(_) => State::Unreadable,
             },
             Provider::Copilot => own_state(&path, &copilot_file(exe, app)),
+            Provider::Grok => own_state(&path, &grok_file(exe, app)),
             Provider::Opencode => own_state(&path, &opencode_file(endpoint, app)),
             Provider::Pi => own_state(&path, &pi_file(endpoint, app)),
             Provider::Vibe => match vibe_text(&path) {
@@ -3363,6 +3674,7 @@ pub mod installer {
                 claude::update(&path, |s| cursor_installing(s, exe, app)).map_err(failure)
             }
             Provider::Copilot => write_own(&path, &copilot_file(exe, app), app),
+            Provider::Grok => write_own(&path, &grok_file(exe, app), app),
             Provider::Opencode => write_own(&path, &opencode_file(endpoint, app), app),
             Provider::Pi => write_own(&path, &pi_file(endpoint, app), app),
             Provider::Vibe => {
@@ -3404,7 +3716,9 @@ pub mod installer {
         };
         let failure = |e: claude::Failure| e.to_string();
         match provider {
-            Provider::Copilot | Provider::Opencode | Provider::Pi => remove_own(&path, app),
+            Provider::Copilot | Provider::Opencode | Provider::Pi | Provider::Grok => {
+                remove_own(&path, app)
+            }
             _ if !path.exists() => Ok(()),
             Provider::Gemini | Provider::Devin | Provider::Codex => {
                 claude::update(&path, |s| claude::removing(s, app)).map_err(failure)
@@ -3487,6 +3801,7 @@ mod tests {
             ContentPolicy { previews },
             |_| Place {
                 host: HostKind::WindowsTerminal,
+                takes_keys: true,
                 accepts_replies: true,
                 host_name: None,
             },
@@ -4568,7 +4883,7 @@ mod tests {
 
     #[test]
     fn antigravity_is_named_and_started_with_its_prompt() {
-        assert_eq!(Provider::HOOK_AGENTS.last(), Some(&Provider::Antigravity));
+        assert!(Provider::HOOK_AGENTS.contains(&Provider::Antigravity));
         assert!(!Provider::Antigravity.answers_permissions());
         assert_eq!(
             Provider::from_key("antigravity"),
@@ -4987,5 +5302,225 @@ mod tests {
                 .unwrap(),
             "config.json"
         );
+    }
+
+    // MARK: Grok CLI (#243)
+
+    /// The fields every hook of grok 1.0.89 sent in a live run (macOS, 2026-11-18).
+    fn grok(hook: &str, event: &str, extra: Value) -> Vec<u8> {
+        let mut json = json!({
+            "hookEventName": event, "sessionId": "01a1ef72", "session_id": "01a1ef72",
+            "cwd": "C:/w/rocket", "workspaceRoot": "C:/w/rocket", "permissionMode": "default",
+            "transcriptPath": "C:/h/.grok/sessions/C%3A%2Fw%2Frocket/01a1ef72/updates.jsonl",
+        });
+        for (key, value) in extra.as_object().unwrap() {
+            json[key] = value.clone();
+        }
+        envelope("grok", hook, json)
+    }
+
+    fn shell() -> Value {
+        json!({ "toolName": "run_terminal_command", "toolUseId": "call_1",
+                "toolInput": { "command": "rm -rf build", "description": "Clean the build" } })
+    }
+
+    #[test]
+    fn a_grok_session_is_told_by_its_hooks() {
+        let decoded = decode(&grok("Stop", "stop", json!({})), NOW, ON).unwrap();
+        assert_eq!(decoded.provider, Some(Provider::Grok));
+        assert!(
+            decoded
+                .transcript
+                .unwrap()
+                .ends_with("/01a1ef72/updates.jsonl")
+        );
+        let mut t = Tracker::default();
+        feed(
+            &mut t,
+            &grok(
+                "SessionStart",
+                "session_start",
+                json!({ "modelId": "grok-4.5" }),
+            ),
+            ON,
+        );
+        let listed = snap(&mut t, NOW, true).0;
+        assert_eq!(listed[0].id, "grok:01a1ef72");
+        assert_eq!(listed[0].provider, Provider::Grok);
+        assert_eq!(listed[0].phase, SessionPhase::Idle);
+        assert_eq!(listed[0].model.as_deref(), Some("grok-4.5"));
+        feed(
+            &mut t,
+            &grok(
+                "UserPromptSubmit",
+                "user_prompt_submit",
+                json!({ "prompt": "clean up" }),
+            ),
+            ON,
+        );
+        feed(&mut t, &grok("PreToolUse", "pre_tool_use", shell()), ON);
+        let listed = snap(&mut t, NOW, true).0;
+        assert_eq!(listed[0].phase, SessionPhase::RunningTool);
+        assert_eq!(listed[0].current_tool.as_ref().unwrap().name, "Bash");
+        feed(&mut t, &grok("PostToolUse", "post_tool_use", shell()), ON);
+        feed(
+            &mut t,
+            &grok(
+                "Stop",
+                "stop",
+                json!({ "reason": "end_turn", "lastAssistantMessage": "Cleaned." }),
+            ),
+            ON,
+        );
+        let listed = snap(&mut t, NOW, true).0;
+        assert_eq!(listed[0].phase, SessionPhase::Finished);
+        assert_eq!(listed[0].last_text.as_deref(), Some("Cleaned."));
+        // As Grok shuts down it runs Stop once more, beside SessionEnd.
+        let shutdown = decode(
+            &grok("Stop", "stop", json!({ "reason": "shutdown" })),
+            NOW,
+            ON,
+        )
+        .unwrap();
+        assert!(shutdown.events.is_empty());
+        feed(
+            &mut t,
+            &grok("SessionEnd", "session_end", json!({ "reason": "shutdown" })),
+            ON,
+        );
+        assert!(snap(&mut t, NOW, true).0.is_empty());
+        // Interrupted or refused: the turn ends with no done.
+        feed(
+            &mut t,
+            &grok("UserPromptSubmit", "user_prompt_submit", json!({})),
+            ON,
+        );
+        feed(
+            &mut t,
+            &grok(
+                "StopCancelled",
+                "stop_cancelled",
+                json!({ "reason": "user_interrupt" }),
+            ),
+            ON,
+        );
+        assert_eq!(snap(&mut t, NOW, true).0[0].phase, SessionPhase::Idle);
+    }
+
+    #[test]
+    fn a_grok_prompt_waits_on_the_tool_named_before_it() {
+        let mut t = Tracker::default();
+        feed(&mut t, &grok("PreToolUse", "pre_tool_use", shell()), OFF);
+        feed(
+            &mut t,
+            &grok(
+                "Notification",
+                "notification",
+                json!({ "notificationType": "permission_prompt" }),
+            ),
+            OFF,
+        );
+        let listed = snap(&mut t, NOW, false).0;
+        assert_eq!(listed[0].phase, SessionPhase::WaitingPermission);
+        let asked = listed[0].permission.clone().unwrap();
+        assert_eq!(asked.tool, "Bash");
+        assert_eq!(asked.detail, "rm -rf build");
+        assert!(asked.content.as_ref().is_some_and(|c| c.complete));
+        assert!(listed[0].waiting_for.is_none());
+        // Where the terminal takes no keys, the person answers in Grok.
+        let elsewhere = t
+            .snapshot(
+                NOW,
+                OFF,
+                |_| Place {
+                    host: HostKind::Vscode,
+                    takes_keys: false,
+                    accepts_replies: true,
+                    host_name: None,
+                },
+                |_| None,
+            )
+            .0;
+        assert!(elsewhere[0].permission.is_none());
+        assert_eq!(
+            elsewhere[0].waiting_for.as_deref(),
+            Some(ANSWER_IN_TERMINAL)
+        );
+        // Answered in Grok's own terminal: the tool runs, and the wait ends.
+        feed(&mut t, &grok("PostToolUse", "post_tool_use", shell()), OFF);
+        assert!(snap(&mut t, NOW, false).0[0].permission.is_none());
+        // A cut command can't be allowed from the island (#224).
+        let cut = grok_ask(
+            "Bash",
+            shell()["toolInput"].as_object().unwrap(),
+            None,
+            true,
+            NOW,
+        );
+        assert!(!cut.content.unwrap().complete);
+        // A question waits in Grok.
+        feed(
+            &mut t,
+            &grok(
+                "PreToolUse",
+                "pre_tool_use",
+                json!({ "toolName": "ask_user_question" }),
+            ),
+            OFF,
+        );
+        let listed = snap(&mut t, NOW, false).0;
+        assert_eq!(listed[0].phase, SessionPhase::WaitingInput);
+        assert_eq!(listed[0].waiting_for.as_deref(), Some(ANSWER_IN_TERMINAL));
+    }
+
+    #[test]
+    fn grok_hooks_are_a_file_of_the_islands_own() {
+        let exe = Path::new("C:/Openbar/Openbar.exe");
+        let file: Value = serde_json::from_slice(&installer::grok_file(exe, "app")).unwrap();
+        let hooks = file["hooks"].as_object().unwrap();
+        assert_eq!(hooks.len(), installer::GROK_EVENTS.len());
+        let pre = &hooks["PreToolUse"][0];
+        assert!(pre.get("matcher").is_none());
+        assert_eq!(pre["hooks"][0]["timeout"], installer::EVENT_TIMEOUT);
+        let command = pre["hooks"][0]["command"].as_str().unwrap();
+        assert!(
+            command.starts_with("C:/Openbar/Openbar.exe --hook --agent grok --event PreToolUse")
+        );
+        assert!(
+            installer::grok_hooks(Path::new("/h"), "app").ends_with("hooks/openbar-app.json")
+                || std::env::var_os("GROK_HOME").is_some()
+        );
+        assert_eq!(
+            installer::file_in(Provider::Grok, Path::new("/g"), "app"),
+            Some(Path::new("/g").join("hooks").join("openbar-app.json"))
+        );
+        assert!(installer::FOLDERS_BY_HAND.contains(&Provider::Grok));
+        assert_eq!(command_name(Provider::Grok), Some("grok"));
+        assert_eq!(start_arguments(Provider::Grok, "-go"), vec!["--", "-go"]);
+        assert!(
+            Provider::Grok.answers_permissions()
+                && Provider::HOOK_AGENTS.last() == Some(&Provider::Grok)
+        );
+    }
+
+    #[test]
+    fn grok_runs_claude_codes_hooks_with_its_own_input() {
+        let grok_input = serde_json::to_vec(&json!({ "hookEventName": "user_prompt_submit",
+            "sessionId": "s", "workspaceRoot": "C:/w", "prompt": "hi" }))
+        .unwrap();
+        let claude = serde_json::to_vec(&json!({ "hook_event_name": "UserPromptSubmit",
+            "session_id": "s", "transcript_path": "C:/t.jsonl" }))
+        .unwrap();
+        assert!(is_grok_payload(&grok_input) && !is_grok_payload(&claude));
+        assert_eq!(
+            grok_model_in(br#"{"current_model_id":"grok-code-fast","session_summary":"hi"}"#)
+                .as_deref(),
+            Some("grok-code-fast")
+        );
+        assert_eq!(grok_model_in(br#"{"current_model_id":" "}"#), None);
+        let active = br#"[{"session_id":"a","pid":11,"cwd":"C:/w"},{"session_id":"b","pid":22,"cwd":"C:/w"}]"#;
+        assert_eq!(grok_session_pid_in(active, "b"), Some(22));
+        assert_eq!(grok_session_pid_in(active, "c"), None);
+        assert_eq!(grok_session_pid_in(b"{}", "a"), None);
     }
 }

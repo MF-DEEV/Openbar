@@ -843,6 +843,7 @@ enum AgentCLI {
         case .vibe: return "vibe"
         case .devin: return "devin"
         case .antigravity: return "agy"
+        case .grok: return "grok"
         case .claude, .codex, .custom: return nil
         }
     }
@@ -852,7 +853,7 @@ enum AgentCLI {
                        isExecutable: (String) -> Bool = FileManager.default.isExecutableFile(atPath:)) -> String? {
         guard let command = command(provider) else { return nil }
         let onPath = (path ?? "").split(separator: ":").map { "\($0)/\(command)" }
-        let usual = [".local/bin", ".npm-global/bin", ".bun/bin", ".volta/bin", ".opencode/bin", ".cursor/bin"]
+        let usual = [".local/bin", ".npm-global/bin", ".bun/bin", ".volta/bin", ".opencode/bin", ".cursor/bin", ".grok/bin"]
             .map { home.appending(path: "\($0)/\(command)").path }
             + ["/opt/homebrew/bin/\(command)", "/usr/local/bin/\(command)"]
         return (onPath + usual).first(where: isExecutable)
@@ -860,14 +861,14 @@ enum AgentCLI {
 
     /// The arguments that open the agent's terminal UI with a first prompt
     /// already sent: `gemini -i`, `copilot -i`, `agy -i`, `opencode --prompt`,
-    /// `devin --`, and `cursor-agent`, `pi` and `vibe` take it as it is.
+    /// `devin --`, `grok --`, and `cursor-agent`, `pi` and `vibe` take it as it is.
     static func startArguments(_ provider: ClaudeSessionProvider, prompt: String?) -> [String] {
         guard let prompt, !prompt.isEmpty else { return [] }
         switch provider {
         case .gemini, .copilot, .antigravity: return ["-i", prompt]
         case .opencode: return ["--prompt", prompt]
         case .cursor, .pi, .vibe: return [prompt]
-        case .devin: return ["--", prompt]
+        case .devin, .grok: return ["--", prompt]
         case .claude, .codex, .custom: return []
         }
     }

@@ -166,6 +166,7 @@ extension AgentHookInstaller {
         case .vibe: return (vibeHooks(home: home), false)
         case .devin: return (devinConfig(home: home), false)
         case .antigravity: return (antigravityHooks(home: home), false)
+        case .grok: return (grokHooks(home: home, bundle: bundle), true)
         case .claude, .codex, .custom: return nil
         }
     }

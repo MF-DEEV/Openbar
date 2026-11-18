@@ -178,7 +178,7 @@ enum HookPageTests {
         AgentFolders.remove(setting, defaults: box.defaults)
         suite.expect(AgentFolders.all(box.defaults).isEmpty, "a folder can be taken off the page")
         suite.expect(AgentHookInstaller.file(.opencode, folder: box.home, bundle: bundle) == nil
-                     && AgentHookInstaller.foldersByHand == [.codex, .gemini, .copilot, .pi, .vibe],
+                     && AgentHookInstaller.foldersByHand == [.codex, .gemini, .copilot, .pi, .vibe, .grok],
                      "only agents with a home of their own take folders by hand")
     }
 

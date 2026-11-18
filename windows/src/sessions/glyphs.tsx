@@ -141,7 +141,7 @@ const markClass = (working?: boolean, className?: string) =>
   `agent-mark${working ? " is-working" : ""}${className ? ` ${className}` : ""}`;
 
 // The makers' marks of Gemini CLI, GitHub Copilot, OpenCode, Cursor, Pi,
-// Mistral Vibe, Devin CLI and Google Antigravity
+// Mistral Vibe, Devin CLI, Google Antigravity and Grok CLI
 // (NotchHookAgentMarks.swift), from @lobehub/icons-static-svg (MIT). Gemini
 // CLI's keeps its gradient and Antigravity's arch Google's four colors
 // across it; the others are one color, as their makers show them on dark.
@@ -154,6 +154,9 @@ export const COPILOT_PATH =
 export const OPENCODE_PATH = "M16 6H8v12h8V6zm4 16H4V2h16v20z";
 export const CURSOR_PATH =
   "M22.106 5.68L12.5.135a.998.998 0 00-.998 0L1.893 5.68a.84.84 0 00-.419.726v11.186c0 .3.16.577.42.727l9.607 5.547a.999.999 0 00.998 0l9.608-5.547a.84.84 0 00.42-.727V6.407a.84.84 0 00-.42-.726zm-.603 1.176L12.228 22.92c-.063.108-.228.064-.228-.061V12.34a.59.59 0 00-.295-.51l-9.11-5.26c-.107-.062-.063-.228.062-.228h18.55c.264 0 .428.286.296.514z";
+/** Grok's mark: the slash through its broken ring (xAI's Grok logo). */
+export const GROK_PATH =
+  "M9.27 15.29l7.978-5.897c.391-.29.95-.177 1.137.272.98 2.369.542 5.215-1.41 7.169-1.951 1.954-4.667 2.382-7.149 1.406l-2.711 1.257c3.889 2.661 8.611 2.003 11.562-.953 2.341-2.344 3.066-5.539 2.388-8.42l.006.007c-.983-4.232.242-5.924 2.75-9.383.06-.082.12-.164.179-.248l-3.301 3.305v-.01L9.267 15.292M7.623 16.723c-2.792-2.67-2.31-6.801.071-9.184 1.761-1.763 4.647-2.483 7.166-1.425l2.705-1.25a7.808 7.808 0 00-1.829-1A8.975 8.975 0 005.984 5.83c-2.533 2.536-3.33 6.436-1.962 9.764 1.022 2.487-.653 4.246-2.34 6.022-.599.63-1.199 1.259-1.682 1.925l7.62-6.815";
 export const ANTIGRAVITY_PATH =
   "M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z";
 /** How the one-color marks show on the island's black. */
@@ -236,6 +239,8 @@ export const CopilotMark = monoMark(COPILOT_PATH);
 export const OpencodeMark = monoMark(OPENCODE_PATH);
 /** Cursor's cube. */
 export const CursorMark = monoMark(CURSOR_PATH);
+/** Grok's slashed ring, for Grok CLI. */
+export const GrokMark = monoMark(GROK_PATH);
 /** A tool added by hand on the Hooks page (#236): a plain terminal with a
  * prompt, the island's own drawing, since the tool's mark is unknown. */
 const CUSTOM_PATH =
@@ -315,6 +320,7 @@ export const MARK_SCALE: Readonly<Record<Provider, number>> = {
   vibe: 1.15,
   devin: 1.15,
   antigravity: 1.15,
+  grok: 1.15,
   custom: 1.15,
 };
 
@@ -329,6 +335,7 @@ const MARKS: Readonly<Record<Provider, (props: MarkProps) => ReturnType<typeof C
   vibe: VibeMark,
   devin: DevinMark,
   antigravity: AntigravityMark,
+  grok: GrokMark,
   custom: CustomMark,
 };
 

@@ -25,8 +25,9 @@ const PROJECT_PALETTE = ["#6BA3FF", "#B88CFF", "#FF80BD", "#45D1D6", "#9ED65C", 
 /** Gemini CLI's cyan, the first light of its star; Copilot's teal and
  * OpenCode's green, as on the AI page; Cursor's silver for its grey cube;
  * Pi the pink of its P, Mistral Vibe the amber of Mistral's M, Devin CLI a
- * violet no other agent wears, and Google Antigravity the deep blue of its
- * arch's foot. */
+ * violet no other agent wears, Google Antigravity the deep blue of its
+ * arch's foot, and Grok CLI, whose mark has no color, the moss green no
+ * other agent wears. */
 export const GEMINI_TINT = "#4DBDFA";
 export const COPILOT_TINT = "#4DC7AD";
 export const OPENCODE_TINT = "#0FBA82";
@@ -35,6 +36,7 @@ export const PI_TINT = "#F28C8F";
 export const VIBE_TINT = "#FFB000";
 export const DEVIN_TINT = "#B38CFF";
 export const ANTIGRAVITY_TINT = "#3087FF";
+export const GROK_TINT = "#8CCC66";
 
 const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   claude: CLAUDE_TINT,
@@ -47,6 +49,7 @@ const PROVIDER_TINTS: Readonly<Record<Provider, string>> = {
   vibe: VIBE_TINT,
   devin: DEVIN_TINT,
   antigravity: ANTIGRAVITY_TINT,
+  grok: GROK_TINT,
   // A tool added by hand has no color of its own (#236).
   custom: CURSOR_TINT,
 };

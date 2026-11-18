@@ -31,6 +31,41 @@ enum AgentDevinClaudeHooks {
     }
 }
 
+/// Grok CLI runs the hooks in Claude Code's settings too (its `[compat.claude]`
+/// hooks, on by default), handing them its own input. Those are let go:
+/// Grok's sessions come through hooks of their own (#243).
+enum AgentGrokClaudeHooks {
+    /// Grok's input names the workspace root and its event in camelCase,
+    /// which no Claude Code hook input does.
+    static func isGrok(_ payload: Data) -> Bool {
+        guard AgentLogParser.contains(payload, "\"workspaceRoot\""), AgentLogParser.contains(payload, "\"hookEventName\""),
+              let json = (try? JSONSerialization.jsonObject(with: payload)) as? [String: Any] else { return false }
+        return json["workspaceRoot"] != nil && json["hookEventName"] != nil && json["sessionId"] != nil
+    }
+}
+
+/// The model of a Grok CLI session, from the summary Grok keeps beside the
+/// conversation its hooks name (`…/sessions/<folder>/<id>/updates.jsonl`).
+/// The summary's other fields (title, last turn) are not read.
+enum AgentGrokLog {
+    static let sizeLimit = 1024 * 1024
+
+    static func model(transcript: String) -> String? {
+        let summary = URL(fileURLWithPath: transcript).deletingLastPathComponent().appending(path: "summary.json")
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: summary.path),
+              ((attributes[.size] as? NSNumber)?.intValue ?? 0) <= sizeLimit,
+              let data = FileManager.default.contents(atPath: summary.path) else { return nil }
+        return model(summary: data)
+    }
+
+    static func model(summary data: Data) -> String? {
+        guard let json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
+              let model = json["current_model_id"] as? String,
+              !model.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        return model
+    }
+}
+
 /// The last reply of a Mistral Vibe session, read from its own log (the
 /// folder its hooks name as `transcript_path`), since the hooks carry none.
 /// Vibe keeps the conversation in JSON chunks under `chunks/`; the newest
