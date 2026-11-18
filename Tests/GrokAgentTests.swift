@@ -135,6 +135,11 @@ enum GrokAgentTests {
         let edit = AgentHookMessage.grokAsk("Edit", input: ["file_path": file.path, "old_string": "two", "new_string": "three"],
                                             cwd: folder.path, at: now)
         suite.expect(edit.detail == file.path && edit.diffs.count == 1, "an edit's card carries its diff: \(edit.diffs.count)")
+        // The island allows only what it can show whole, as for Claude Code (#224).
+        let whole = AgentHookMessage.grokAsk("Bash", input: ["command": "rm -rf build"], cwd: nil, at: now)
+        let cut = AgentHookMessage.grokAsk("Bash", input: ["command": "rm -rf bu"], cwd: nil, truncated: true, at: now)
+        suite.expect(whole.content?.complete == true && whole.content?.full == "rm -rf build" && cut.content?.complete == false,
+                     "the card carries the whole command, and a cut one can't be allowed here")
         // A prompt with no tool before it still waits, as a plain tool.
         let bare = AgentHookSessions()
         send(bare, "Notification", "notification", ["notificationType": "permission_prompt"])

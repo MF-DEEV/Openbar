@@ -478,7 +478,7 @@ enum AgentHookMessage {
                 use = ClaudeToolUse(id: id, name: use.name, summary: use.summary, started: now, inputKey: use.inputKey)
             }
             add(.toolStarted(use))
-            add(.mayAsk(grokAsk(tool, input: input, cwd: cwd, at: now)))
+            add(.mayAsk(grokAsk(tool, input: input, cwd: cwd, truncated: json["toolInputTruncated"] as? Bool == true, at: now)))
         case "post_tool_use", "PostToolUse", "post_tool_use_failure", "PostToolUseFailure":
             // A tool that ran or failed was let through, here or in Grok.
             add(.permissionSettled(nil))
@@ -512,16 +512,18 @@ enum AgentHookMessage {
     /// What Grok's prompt would ask about the tool: its command, or the
     /// file it changes. Shown on the card like Claude Code's, whatever the
     /// previews, since the person decides on it.
-    static func grokAsk(_ tool: String, input: [String: Any], cwd: String?, at date: Date) -> ClaudePermission {
-        let detail = [input["command"], input["file_path"], input["path"], input["url"]]
-            .compactMap { ($0 as? String).flatMap { $0.isEmpty ? nil : $0 } }.first
-            ?? (input.isEmpty ? "" : ClaudeToolSummary.arguments(input))
+    static func grokAsk(_ tool: String, input: [String: Any], cwd: String?, truncated: Bool = false,
+                        at date: Date) -> ClaudePermission {
+        // Grok's shell, write and search_replace take Claude Code's arguments
+        // under Claude Code's names, so the request reads as Claude Code's.
+        let full = ClaudeToolSummary.permissionDetail(name: tool, input: input)
+        let complete = !truncated && (tool != "Bash" || (input["command"] as? String).map { !$0.isEmpty } == true)
+        let content = PermissionContent(full: full, complete: complete, originalLength: complete ? full.unicodeScalars.count : nil)
         var permission = ClaudePermission(
             requestID: UUID().uuidString, tool: tool.isEmpty ? "Tool" : tool,
-            summary: ClaudeToolSummary.clip(detail.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""),
-            detail: detail, offersAlways: false, since: date)
+            summary: ClaudeToolSummary.clip(full.split(whereSeparator: \.isNewline).first.map(String.init) ?? ""),
+            detail: content.preview, content: content, offersAlways: false, since: date)
         permission.inputKey = ClaudeToolSummary.inputKey(name: tool, input: input)
-        // Grok's write and search_replace take Claude Code's Write and Edit arguments.
         permission.diffs = ClaudeFileDiffs.diffs(tool: tool, input: input, cwd: cwd)
         return permission
     }
