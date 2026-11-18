@@ -498,7 +498,8 @@ enum AgentHookInstaller {
             let tag = folderTag(folder)
             try ClaudeHookInstaller.update(url) { settings in
                 installingGroups(into: settings, events: codexEvents, bundle: bundle, matched: claudeToolEvents) { event in
-                    ["type": "command", "timeout": eventTimeout,
+                    // Codex holds SessionEnd to 3 seconds and warns of more.
+                    ["type": "command", "timeout": event == "SessionEnd" ? 3 : eventTimeout,
                      "command": command(.codex, event: event, socket: socket, bundle: bundle, via: tag)]
                 }
             }

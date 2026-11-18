@@ -1105,6 +1105,7 @@ final class ClaudeSessionService: ObservableObject {
     /// Says once that lost hooks were put back.
     private func announceRepair(_ names: [String]) {
         guard !names.isEmpty else { return }
+        DiagnosticsLog.info("hooks", "told the person the hooks came back in \(names.joined(separator: ", "))")
         Notifier.post(title: HooksPageStrings.repairedTitle, body: HooksPageStrings.repairedBody(names))
     }
 
@@ -1233,7 +1234,7 @@ final class ClaudeSessionService: ObservableObject {
         hookTargetsBusy.insert(target.id)
         actions.async {
             var failure: String?
-            do { try HookMaintenance.remove(target, env: env) } catch { failure = Self.failureText(error) }
+            do { try HookMaintenance.forget(target, env: env) } catch { failure = Self.failureText(error) }
             if failure == nil {
                 HookMaintenance.setOptOut(target.id, false, defaults: env.defaults)
                 switch target.place {

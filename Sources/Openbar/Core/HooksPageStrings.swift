@@ -32,7 +32,7 @@ enum HooksPageStrings {
     static let removeEverythingDone = "Openbar is out of every config file."
     static let checking = "Checking…"
     static let notInstalled = "Not installed on this Mac"
-    static let installedApp = "Installed"
+    static let installedApp = "Installed on this Mac"
     static let noTools = "No tools added."
     static let codexOwnFolder = "Heard through Codex’s own server. Add another Codex home to watch it too."
     static let geminiFolderHint = "A folder Gemini CLI reads through GEMINI_CLI_HOME, or its .gemini folder."
@@ -63,7 +63,7 @@ enum HooksPageStrings {
     /// What the person does in the agent, when it asks to approve hooks.
     static func approvalNote(_ provider: ClaudeSessionProvider, folder: String) -> String? {
         guard provider == .codex else { return nil }
-        return "Start Codex with CODEX_HOME=\(folder), open /hooks, review Openbar’s hooks and trust them. Until then Codex skips them."
+        return "Next time Codex starts with CODEX_HOME=\(folder), it asks you to review new hooks: pick Trust all and continue, or trust them later under /hooks. Until then Codex skips them."
     }
 
     static let changedHint = "Reinstall writes Openbar’s entries again and keeps your other changes."
@@ -74,6 +74,7 @@ enum HooksPageStrings {
         case .notFolder: return "That isn’t a folder."
         case .alreadyListed: return "That folder is already on the page."
         case .tooMany: return "That agent has as many folders as Openbar keeps."
+        case .tooBroad: return "Pick the agent’s config folder, not your whole home folder."
         }
     }
 

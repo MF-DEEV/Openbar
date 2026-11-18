@@ -84,6 +84,17 @@ enum HookMaintenance {
         try remove(target, env: env)
     }
 
+    /// A folder or tool taken off the page: its hooks out, and its file as
+    /// it was before the island, as Remove everything leaves it.
+    static func forget(_ target: HookTarget, env: Environment) throws {
+        try remove(target, env: env)
+        setOptOut(target.id, false, defaults: env.defaults)
+        guard let file = target.file else { return }
+        try restoreOriginal(file, now: Date())
+        if target.wholeFile { dropOwnCopies(of: file) }
+        HookFolders.removeEmpty()
+    }
+
     /// Takes the island out of every file it wrote into, putting back each
     /// file as it was before the island where nothing else changed in it
     /// since, and taking away the files and folders the island made. Every

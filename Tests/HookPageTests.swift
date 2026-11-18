@@ -135,6 +135,12 @@ enum HookPageTests {
         suite.expect(AgentFolders.add(.codex, picked: own, defaultFolder: own, defaults: box.defaults) == .failure(.alreadyListed),
                      "the agent's own folder needs no second row")
         suite.expect(AgentFolders.all(box.defaults) == [setting], "the folder is kept: \(AgentFolders.all(box.defaults))")
+        suite.expect(AgentFolders.name(of: gemini) == "work" && AgentFolders.name(of: box.home.appending(path: "codex-2")) == "codex-2",
+                     "a hidden config folder goes by the folder it sits in")
+        suite.expect(AgentFolders.add(.codex, picked: URL(fileURLWithPath: "/"), defaultFolder: nil, defaults: box.defaults) == .failure(.tooBroad)
+                     && AgentFolders.add(.codex, picked: FileManager.default.homeDirectoryForCurrentUser, defaultFolder: nil,
+                                         defaults: box.defaults) == .failure(.tooBroad),
+                     "the home folder or the disk is never an agent's config folder")
 
         // The hooks go into the added folder's settings.json, beside the person's.
         box.write("work/.gemini/settings.json", #"{"theme":"dark"}"#)
@@ -158,6 +164,17 @@ enum HookPageTests {
         suite.expect(AgentHookInstaller.state(.copilot, home: box.home, socket: socket, bundle: bundle, folder: copilot) == .missing
                      && after.count == 2, "and before it goes: \(after)")
 
+        // Taken off the page, a folder's file is as it was before the island.
+        let codexHome = box.folder("codex-x")
+        let codexTarget = HookTarget(id: "agent:codex:\(codexHome.path)", provider: .codex, place: .agent(.codex, folder: codexHome),
+                                     name: "codex-x", folder: codexHome, file: codexHome.appending(path: "hooks.json"), wholeFile: false,
+                                     manual: true, present: true, derived: .missing, state: .missing)
+        try? HookMaintenance.reinstall(codexTarget, env: box.env)
+        suite.expect(box.read("codex-x/hooks.json") != nil, "the folder's hooks are in")
+        try? HookMaintenance.forget(codexTarget, env: box.env)
+        suite.expect(box.read("codex-x/hooks.json") == nil
+                     && !((try? FileManager.default.contentsOfDirectory(atPath: codexHome.path)) ?? []).contains { $0.contains("original") },
+                     "and gone with it once taken off the page")
         AgentFolders.remove(setting, defaults: box.defaults)
         suite.expect(AgentFolders.all(box.defaults).isEmpty, "a folder can be taken off the page")
         suite.expect(AgentHookInstaller.file(.opencode, folder: box.home, bundle: bundle) == nil

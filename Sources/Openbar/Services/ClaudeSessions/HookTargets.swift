@@ -82,7 +82,9 @@ struct HookTarget: Identifiable, Equatable {
         guard file != nil else { return false }
         switch state {
         case .skipped(let reason):
-            return reason == .removedByYou || reason == .needsApproval || reason == .folderMissing && manual
+            // A folder the person added is theirs to fill, found agent or not.
+            return reason == .removedByYou || reason == .needsApproval
+                || (manual && (reason == .folderMissing || reason == .agentNotInstalled))
         case .unreadable: return false
         default: return true
         }
@@ -222,7 +224,7 @@ enum HookTargets {
                                enabled: provider == .codex || context.shown.contains(provider),
                                optedOut: context.optOut.contains(id), needsApproval: approval)
         return HookTarget(id: id, provider: provider, place: .agent(provider, folder: folder),
-                          name: setting.name ?? folder.lastPathComponent, folder: folder, file: file,
+                          name: setting.name ?? AgentFolders.name(of: folder), folder: folder, file: file,
                           wholeFile: whole, manual: true, present: present, derived: derived, state: state)
     }
 
@@ -253,7 +255,7 @@ enum HookTargets {
             if session.provider == .custom {
                 labels[session.id] = tools.first { $0.id == via }?.name ?? session.provider.displayName
             } else if let folder = folders.first(where: { AgentHookInstaller.folderTag($0.url) == via }) {
-                labels[session.id] = folder.name ?? folder.url.lastPathComponent
+                labels[session.id] = folder.name ?? AgentFolders.name(of: folder.url)
             }
         }
         return labels
@@ -314,8 +316,18 @@ enum AgentFolders {
         return picked
     }
 
+    /// A folder's name on the page: `work` for `~/work/.gemini`, a hidden
+    /// config folder going by the folder it sits in.
+    static func name(of folder: URL) -> String {
+        let last = folder.lastPathComponent
+        guard last.hasPrefix("."), folder.deletingLastPathComponent().path != "/" else { return last }
+        return folder.deletingLastPathComponent().lastPathComponent
+    }
+
     enum AddFailure: Error, Equatable {
         case notFolder, alreadyListed, tooMany
+        /// The home folder itself, or the disk's root: never an agent's config folder.
+        case tooBroad
     }
 
     /// Adds a folder; `defaultFolder` is the one the agent reads already,
@@ -325,6 +337,8 @@ enum AgentFolders {
         let folder = configFolder(provider, picked: picked)
         guard folder.path.hasPrefix("/"), ClaudeAccounts.isFolder(folder.path) else { return .failure(.notFolder) }
         let id = ClaudeAccounts.canonical(folder.path)
+        let home = ClaudeAccounts.canonical(FileManager.default.homeDirectoryForCurrentUser.path)
+        guard id != "/", id != home, id != ClaudeAccounts.canonical(NSHomeDirectory()) else { return .failure(.tooBroad) }
         if let defaultFolder, ClaudeAccounts.canonical(defaultFolder.path) == id { return .failure(.alreadyListed) }
         var folders = all(defaults)
         let setting = AgentFolderSetting(agent: provider.rawValue, path: folder.path)
