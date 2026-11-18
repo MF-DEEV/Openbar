@@ -6,7 +6,7 @@
 // safe. Oldest first, so a new ask joins at the foot and the row being read
 // never moves. Mirrors NotchPermissionQueue.swift.
 
-import type { Permission, Session } from "./types";
+import { codexServer, type Permission, type Session } from "./types";
 
 /** The plan tool, approved into a mode on its card. */
 const PLAN_TOOL = "ExitPlanMode";
@@ -47,7 +47,7 @@ export function answersHere(ask: Permission): boolean {
 
 /** Always on the row: Codex's for the rest of its turn, any other agent's where it offers rules. */
 export function offersAlways(row: QueueRow): boolean {
-  return answersHere(row.ask) && (row.session.provider === "codex" || row.ask.offersAlways);
+  return answersHere(row.ask) && (codexServer(row.session) || row.ask.offersAlways);
 }
 
 /** Allow all takes it: answered here, and nothing about it looks risky. */

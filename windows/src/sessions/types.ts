@@ -175,7 +175,18 @@ export interface ChatMessage {
 }
 
 export type Provider =
-  "claude" | "codex" | "gemini" | "copilot" | "opencode" | "cursor" | "pi" | "vibe" | "devin" | "antigravity";
+  | "claude"
+  | "codex"
+  | "gemini"
+  | "copilot"
+  | "opencode"
+  | "cursor"
+  | "pi"
+  | "vibe"
+  | "devin"
+  | "antigravity"
+  /** A tool with Claude Code style hooks added on the Hooks page (#236): never one of the named agents. */
+  | "custom";
 
 /** Every agent, in the order the strip and lists take them. */
 export const PROVIDERS: readonly Provider[] = [
@@ -208,6 +219,7 @@ export const SHORT_NAMES: Readonly<Record<Provider, string>> = {
   vibe: "Vibe",
   devin: "Devin",
   antigravity: "Antigravity",
+  custom: "Other tool",
 };
 
 export const isHookAgent = (provider: Provider): provider is HookAgent =>
@@ -225,6 +237,7 @@ export const PROVIDER_NAMES: Readonly<Record<Provider, string>> = {
   vibe: "Mistral Vibe",
   devin: "Devin CLI",
   antigravity: "Google Antigravity",
+  custom: "Other tool",
 };
 
 export interface Session {
@@ -289,6 +302,10 @@ export interface Session {
   accountId?: string;
   /** That account's name, only while sessions of more than one account are listed. */
   accountLabel?: string;
+  /** For a session heard through the hooks of a config folder or tool added on
+   * the Hooks page, that folder's tag or the tool's id (#236): a Codex session
+   * from a second Codex home, not Codex's server. */
+  via?: string;
   /** It runs in its agent's no-ask mode: bypass permissions, Codex with approvals off (#234). */
   autoMode?: boolean;
   /** Permissions the island allowed without asking, newest last (#234). */
@@ -346,6 +363,8 @@ export interface Counts {
   workingVibe?: number;
   workingDevin?: number;
   workingAntigravity?: number;
+  /** Of `working`, the tools added on the Hooks page (#236). */
+  workingCustom?: number;
   waiting: number;
   /** Stopped by the plan's usage limit; absent from an older service. */
   limited?: number;
@@ -411,6 +430,7 @@ export function workingOf(counts: Counts, provider: Provider): number {
     vibe: counts.workingVibe ?? 0,
     devin: counts.workingDevin ?? 0,
     antigravity: counts.workingAntigravity ?? 0,
+    custom: counts.workingCustom ?? 0,
   };
   if (provider === "claude") {
     return Math.max(0, total - Object.values(others).reduce((sum, n) => sum + Math.max(0, n), 0));
@@ -423,3 +443,8 @@ export type RepoState = { kind: "notRepo" } | { kind: "clean"; root: string } | 
 
 /** How removing a session or its worktree went. */
 export type WorktreeRemoval = { kind: "done" } | { kind: "unsaved" } | { kind: "failed"; message: string };
+
+/** Codex heard through its app-server, which the island answers and replies
+ * through; a Codex session heard through hooks is not (#236). */
+export const codexServer = (session: Pick<Session, "provider" | "via">): boolean =>
+  session.provider === "codex" && !session.via;

@@ -5,6 +5,7 @@ import { useIsland } from "../island/store";
 import { bridge } from "../shared/bridge";
 import { permissionKeyTarget, performPermissionKey, type PermissionKey } from "./permissionKeys";
 import { settled, useSessions } from "./store";
+import { codexServer } from "./types";
 
 // Serialize native registrations across cards, including React StrictMode remounts.
 let queue = Promise.resolve();
@@ -46,7 +47,7 @@ export function subscribeGlobalPermissionKeys(sessionId: string, requestId: stri
                 const session = permissionKeyTarget(sessionId, requestId);
                 const state = useSessions.getState();
                 if (!session || !settled(state, session)) return;
-                if (key === "always" && session.provider !== "codex" && !session.permission!.offersAlways) return;
+                if (key === "always" && !codexServer(session) && !session.permission!.offersAlways) return;
                 sending = true;
                 void performPermissionKey(session, key).finally(() => {
                   sending = false;

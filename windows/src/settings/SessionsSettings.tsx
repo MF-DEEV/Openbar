@@ -8,8 +8,10 @@
 // OpenCode, Cursor, Pi, Mistral Vibe and Devin CLI each get the island's
 // hooks or plugin on Install (docs/more-session-agents.md).
 
-import { type StringKey, useLocale, t, tf } from "../i18n";
+import { useLocale, t, tf } from "../i18n";
 import { type ClaudeAccount, HOOK_AGENTS, type HookAgent, PROVIDER_NAMES } from "../sessions/types";
+import { type HookRow, linkCaption, summary } from "./hooks";
+import { openSettingsPage } from "./navigation";
 import { ProviderMark } from "../sessions/glyphs";
 import type { ClaudeAccountSetting, Grouping, ProgressStyle, SessionPrefs } from "../shared/prefs";
 import { Eye, EyeOff, MinusCircle } from "lucide-react";
@@ -32,56 +34,6 @@ import { SessionSounds } from "./SessionSounds";
 import { SessionReminders } from "./SessionReminders";
 import { SessionAutoMode } from "./SessionAutoMode";
 import { DiagnosticsSubRow } from "./DiagnosticsDialog";
-
-interface HooksStatus {
-  installed: boolean;
-  stale: boolean;
-  error: string | null;
-  /** How many Claude accounts are shown, and how many hold the hooks (#216). */
-  accounts?: number;
-  installedIn?: number;
-}
-
-function useHooks() {
-  const [status, setStatus] = useState<HooksStatus | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const refresh = useCallback(async () => {
-    if (!inTauri) {
-      setStatus((s) => s ?? { installed: false, stale: false, error: null });
-      return;
-    }
-    setStatus(await invoke<HooksStatus>("claude_hooks_status"));
-  }, []);
-  useEffect(() => {
-    void refresh();
-    // The person may edit settings.json by hand while the window is open.
-    const onFocus = () => void refresh();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-  }, [refresh]);
-  const run = async (command: "claude_hooks_install" | "claude_hooks_remove") => {
-    setBusy(true);
-    setError(null);
-    try {
-      if (inTauri) await invoke(command);
-      else setStatus({ installed: command === "claude_hooks_install", stale: false, error: null });
-      await refresh();
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  };
-  return {
-    status,
-    busy,
-    error,
-    refresh,
-    install: () => run("claude_hooks_install"),
-    remove: () => run("claude_hooks_remove"),
-  };
-}
 
 /** Accounts for designing the page in a plain browser. */
 const DEMO_ACCOUNTS: ClaudeAccount[] = [
@@ -124,15 +76,13 @@ const samePath = (a: string, b: string) =>
   a.toLowerCase().replace(/[\\/]+$/, "") === b.toLowerCase().replace(/[\\/]+$/, "");
 
 /** The Claude Code accounts on this PC (#216): each config folder with its
- * name, whether its settings hold the hooks, and a way to hide it; a folder
- * Openbar did not find can be added by hand. */
-function ClaudeAccounts({ onHooks }: { onHooks: () => void }) {
+ * name and a way to hide it; a folder Openbar did not find can be added by
+ * hand. Whether each holds the hooks is on the Hooks page (#236). */
+function ClaudeAccounts() {
   useLocale();
   const saved = useSettings((s) => s.prefs.sessions.claudeAccounts);
   const set = useSettings((s) => s.sessions);
   const [accounts, setAccounts] = useState<ClaudeAccount[] | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [failure, setFailure] = useState<{ id: string; reason: string } | null>(null);
   const [notAdded, setNotAdded] = useState(false);
   const refresh = useCallback(async () => {
     if (!inTauri) {
@@ -191,28 +141,6 @@ function ClaudeAccounts({ onHooks }: { onHooks: () => void }) {
     setNotAdded(false);
     set("claudeAccounts", [...saved, { path, manual: true }]);
   };
-  const install = async (account: ClaudeAccount) => {
-    setBusy(account.id);
-    setFailure(null);
-    try {
-      if (inTauri) await invoke("claude_hooks_install_account", { path: account.path });
-    } catch (e) {
-      setFailure({ id: account.id, reason: String(e) });
-    }
-    await refresh();
-    onHooks();
-    setBusy(null);
-  };
-  const othersHaveHooks = (account: ClaudeAccount) =>
-    (accounts ?? []).some((a) => a.id !== account.id && !a.hidden && a.hooks === "installed");
-  const hooksText = (state: ClaudeAccount["hooks"]) =>
-    state === "installed"
-      ? t("windows.claudeAccounts.hooksInstalled")
-      : state === "outdated"
-        ? t("windows.claudeAccounts.hooksOutdated")
-        : state === "unreadable"
-          ? t("windows.claudeAccounts.unreadable")
-          : t("windows.claudeAccounts.hooksMissing");
 
   return (
     <>
@@ -248,17 +176,9 @@ function ClaudeAccounts({ onHooks }: { onHooks: () => void }) {
                 {shortPath(account.path)}
               </span>
             </div>
-            <div className={`st-account-state${account.hooks === "unreadable" && !account.hidden ? " is-warn" : ""}`}>
-              {account.hidden ? t("windows.claudeAccounts.hiddenNote") : hooksText(account.hooks)}
-            </div>
-            {failure?.id === account.id ? <div className="st-error">{failure.reason}</div> : null}
+            {/* Where its hooks stand is on the Hooks page (#236). */}
+            {account.hidden ? <div className="st-account-state">{t("windows.claudeAccounts.hiddenNote")}</div> : null}
           </div>
-          {!account.hidden &&
-          (account.hooks === "outdated" || (account.hooks === "missing" && othersHaveHooks(account))) ? (
-            <Button accent onClick={() => void install(account)} busy={busy === account.id} disabled={busy !== null}>
-              {account.hooks === "outdated" ? T.sessions.update : t("windows.claudeAccounts.installHere")}
-            </Button>
-          ) : null}
           {account.manual ? (
             <button
               type="button"
@@ -363,14 +283,6 @@ function EditorExtensions() {
   );
 }
 
-type AgentHookState = "installed" | "outdated" | "missing" | "unreadable";
-interface AgentHooksStatus {
-  agent: HookAgent;
-  state: AgentHookState;
-  present: boolean;
-  failure?: string;
-}
-
 const AGENT_PREF = {
   gemini: "agentGemini",
   copilot: "agentCopilot",
@@ -382,122 +294,69 @@ const AGENT_PREF = {
   antigravity: "agentAntigravity",
 } as const satisfies Record<HookAgent, keyof SessionPrefs>;
 
-const AGENT_HINT: Record<HookAgent, StringKey> = {
-  gemini: "windows.settings.sessions.agentHintGemini",
-  copilot: "windows.settings.sessions.agentHintCopilot",
-  opencode: "windows.settings.sessions.agentHintOpencode",
-  cursor: "windows.settings.sessions.agentHintCursor",
-  pi: "windows.settings.sessions.agentHintPi",
-  vibe: "windows.settings.sessions.agentHintVibe",
-  devin: "windows.settings.sessions.agentHintDevin",
-  antigravity: "windows.settings.sessions.agentHintAntigravity",
-};
-
-/** What an agent's hooks are doing now that they follow its switch by themselves. */
-function AgentState({ status, shown }: { status: AgentHooksStatus; shown: boolean }) {
-  useLocale();
-  if (status.state === "unreadable")
-    return <Status tone="warn">{t("windows.settings.sessions.agentUnreadable")}</Status>;
-  if (!shown) return <Status tone="off">{t("windows.settings.sessions.agentOff")}</Status>;
-  if (status.state === "installed") return <Status tone="ok">{t("windows.settings.sessions.agentConnected")}</Status>;
-  if (!status.present) return <Status tone="off">{T.sessions.codexNotFound}</Status>;
-  return (
-    <Status tone="warn">
-      {t(
-        status.state === "outdated"
-          ? "windows.settings.sessions.agentUpdating"
-          : "windows.settings.sessions.agentConnecting",
-      )}
-    </Status>
-  );
-}
-
-/** Gemini CLI, Copilot CLI, OpenCode, Cursor, Pi, Mistral Vibe and Devin CLI: each found on this PC is
- * connected by itself, and its switch shows it in the list or takes its hooks out. */
+/** Gemini CLI, Copilot CLI, OpenCode, Cursor, Pi, Mistral Vibe, Devin CLI and
+ * Google Antigravity: each found on this PC is connected by itself, and its
+ * switch shows it in the list or takes its hooks out. Where its hooks stand
+ * is on the Hooks page (#236). */
 function MoreAgents() {
   useLocale();
   const prefs = useSettings((s) => s.prefs.sessions);
   const set = useSettings((s) => s.sessions);
-  const [statuses, setStatuses] = useState<AgentHooksStatus[] | null>(null);
-  const [busy, setBusy] = useState<HookAgent | null>(null);
-  const [failure, setFailure] = useState<{ agent: HookAgent; reason: string } | null>(null);
-  const refresh = useCallback(async () => {
-    setStatuses(
-      inTauri
-        ? await invoke<AgentHooksStatus[]>("sessions_agent_hooks_status")
-        : (statuses ?? HOOK_AGENTS.map((agent) => ({ agent, state: "missing" as const, present: agent !== "cursor" }))),
-    );
-  }, [statuses]);
-  useEffect(() => {
-    void refresh();
-    // The person may edit an agent's settings by hand while the window is open.
-    const onFocus = () => void refresh();
-    window.addEventListener("focus", onFocus);
-    return () => window.removeEventListener("focus", onFocus);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const run = async (agent: HookAgent, install: boolean) => {
-    setBusy(agent);
-    setFailure(null);
-    try {
-      if (inTauri) {
-        await invoke("sessions_agent_hooks_install", { agent, install });
-        await refresh();
-      } else {
-        setStatuses((list) =>
-          (list ?? []).map((s) => (s.agent === agent ? { ...s, state: install ? "installed" : "missing" } : s)),
-        );
-      }
-    } catch (e) {
-      setFailure({ agent, reason: String(e) });
-    } finally {
-      setBusy(null);
-    }
-  };
   return (
     <>
       <SubRow
         title={t("windows.settings.sessions.moreAgents")}
         caption={t("windows.settings.sessions.moreAgentsCaption")}
       />
-      {HOOK_AGENTS.map((agent) => {
-        const status = statuses?.find((s) => s.agent === agent);
-        const shown = prefs[AGENT_PREF[agent]];
-        return (
-          <SubRow
-            key={agent}
-            title={PROVIDER_NAMES[agent]}
-            caption={
-              <>
-                {t(AGENT_HINT[agent])}
-                {failure?.agent === agent || status?.failure ? (
-                  <div className="st-error">{failure?.agent === agent ? failure.reason : status?.failure}</div>
-                ) : null}
-              </>
-            }
-          >
-            <span className="st-agent-mark" aria-hidden>
-              <ProviderMark provider={agent} size={14} />
-            </span>
-            {status ? <AgentState status={status} shown={shown} /> : null}
-            {(status?.failure || failure?.agent === agent) && status?.state !== "unreadable" ? (
-              <Button onClick={() => void run(agent, shown)} busy={busy === agent} disabled={busy !== null}>
-                {t("windows.settings.sessions.tryAgain")}
-              </Button>
-            ) : null}
-            <Toggle
-              label={tf("windows.settings.sessions.showAgent", PROVIDER_NAMES[agent])}
-              checked={shown}
-              onChange={(on) => {
-                set(AGENT_PREF[agent], on);
-                // The service puts the hooks in or takes them out; read the result back.
-                window.setTimeout(() => void refresh(), 800);
-              }}
-            />
-          </SubRow>
-        );
-      })}
+      {HOOK_AGENTS.map((agent) => (
+        <SubRow key={agent} title={PROVIDER_NAMES[agent]}>
+          <span className="st-agent-mark" aria-hidden>
+            <ProviderMark provider={agent} size={14} />
+          </span>
+          <Toggle
+            label={tf("windows.settings.sessions.showAgent", PROVIDER_NAMES[agent])}
+            checked={prefs[AGENT_PREF[agent]]}
+            onChange={(on) => set(AGENT_PREF[agent], on)}
+          />
+        </SubRow>
+      ))}
     </>
+  );
+}
+
+/** Where every agent's hooks stand, in a line, and the page that checks and
+ * fixes them (#236). */
+function HooksLink() {
+  useLocale();
+  const [caption, setCaption] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    const refresh = async () => {
+      if (!inTauri) return setCaption(linkCaption(3, 1));
+      const rows = await invoke<HookRow[]>("hooks_page_status").catch(() => null);
+      if (rows) {
+        const { working, attention } = summary(rows);
+        setCaption(linkCaption(working, attention));
+      }
+    };
+    void refresh();
+    window.addEventListener("focus", refresh);
+    let off: (() => void) | undefined;
+    let gone = false;
+    if (inTauri) {
+      void import("@tauri-apps/api/event").then(({ listen }) =>
+        listen("hooks://changed", () => void refresh()).then((f) => (gone ? f() : (off = f))),
+      );
+    }
+    return () => {
+      gone = true;
+      window.removeEventListener("focus", refresh);
+      off?.();
+    };
+  }, []);
+  return (
+    <SubRow title={t("windows.hooks.title")} caption={caption}>
+      <Button onClick={() => openSettingsPage("hooks")}>{t("windows.hooks.open")}</Button>
+    </SubRow>
   );
 }
 
@@ -877,55 +736,13 @@ export function SessionsOptions() {
   useLocale();
   const prefs = useSettings((s) => s.prefs.sessions);
   const set = useSettings((s) => s.sessions);
-  const hooks = useHooks();
   const codex = useCodexStatus();
-
-  const hookState = !hooks.status ? null : hooks.status.error ? (
-    <Status tone="warn">{T.sessions.hooksProblem}</Status>
-  ) : hooks.status.installed ? (
-    <Status tone="ok">{T.sessions.hooksOn}</Status>
-  ) : hooks.status.stale ? (
-    <Status tone="warn">{T.sessions.hooksStale}</Status>
-  ) : (
-    <Status tone="off">{T.sessions.hooksOff}</Status>
-  );
 
   return (
     <>
       <p className="st-note">{T.sessions.lead}</p>
-      <SubRow
-        title={t("windows.settings.claudeCode")}
-        caption={
-          <>
-            {(hooks.status?.accounts ?? 1) > 1 && (hooks.status?.installedIn ?? 0) > 0 ? (
-              <div>
-                {hooks.status?.installed
-                  ? tf("windows.claudeAccounts.installedAll", hooks.status.accounts ?? 0)
-                  : tf(
-                      "windows.claudeAccounts.installedIn",
-                      hooks.status?.installedIn ?? 0,
-                      hooks.status?.accounts ?? 0,
-                    )}
-              </div>
-            ) : null}
-            {hooks.status?.installed ? T.sessions.claudeOnCaption : T.sessions.claudeOffCaption}
-            {hooks.error ? <div className="st-error">{hooks.error}</div> : null}
-            {hooks.status?.error ? <div className="st-error">{hooks.status.error}</div> : null}
-          </>
-        }
-      >
-        {hookState}
-        {hooks.status?.installed ? (
-          <Button onClick={hooks.remove} busy={hooks.busy}>
-            {T.sessions.remove}
-          </Button>
-        ) : (
-          <Button accent onClick={hooks.install} busy={hooks.busy} disabled={!hooks.status}>
-            {hooks.status?.stale ? T.sessions.update : T.sessions.install}
-          </Button>
-        )}
-      </SubRow>
-      <ClaudeAccounts onHooks={() => void hooks.refresh()} />
+      <HooksLink />
+      <ClaudeAccounts />
       <EditorExtensions />
       <SubRow title={t("windows.settings.codex")} caption={T.sessions.codexCaption}>
         {codex === "connected" ? (

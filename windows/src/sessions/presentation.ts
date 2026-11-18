@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import type { Session, Snapshot } from "./types";
+import { codexServer, type Session, type Snapshot } from "./types";
 
 type AutoAllow = Record<string, boolean>;
 
@@ -9,7 +9,7 @@ type AutoAllow = Record<string, boolean>;
 export function hidesAutoApproval(session: Session, autoAllow: AutoAllow): boolean {
   return (
     !!autoAllow[session.id] &&
-    session.provider === "codex" &&
+    codexServer(session) &&
     session.phase === "waitingPermission" &&
     session.waitingFor !== "terminal" &&
     !session.permission?.questions.length &&

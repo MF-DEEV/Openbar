@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
-import type { Session } from "./types";
+import { codexServer, type Session } from "./types";
 
 const KEY = "sessions.autoAllowTurns";
 /** A consent this old belongs to a turn that is long over. */
@@ -13,8 +13,7 @@ interface Consent {
 
 // Codex sessions have no pid (one thread can move between terminals); the
 // thread id with Codex's own start of the turn names the task.
-const working = (session: Session) =>
-  session.provider === "codex" && session.phase !== "finished" && session.phase !== "idle";
+const working = (session: Session) => codexServer(session) && session.phase !== "finished" && session.phase !== "idle";
 
 /** Restore only the exact task the user enabled, never a later turn or another thread. */
 export function autoAllowConsent(now = Date.now() / 1000) {
